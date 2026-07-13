@@ -339,6 +339,10 @@ export function createDestructureEmitter({
   // (the claiming sibling may not have been visited yet), and a raw end-anchored insert under a
   // claim either trips the insert-inside-overwrite invariant or bakes INTO a wrapped init render
   const pendingSeKeyTrailing = [];
+  // patterns whose residual was SPLIT by a live-defaulted entry: later entries of the same
+  // pattern append as trailing declarators too (the AST emitter's declarator count grew, so
+  // its planner routes them sibling-wise - mirror that or the emit positions desync)
+  const splitSeKeyPatterns = new WeakSet();
   // value->sentinel renames of sibling-host SE-key props: under a flatten claim the rename must bake
   // into the claimed slot's residual slice (residual target); queued here so the routing decision
   // happens at flush, when the flatten claim set is complete in either declarator order
@@ -2552,6 +2556,21 @@ export function createDestructureEmitter({
     if (!plan.instance && localId) {
       injector.registerBodyExtractAlias(localId.name, pureResult.entry, metaPath.scope?.getBinding(localId.name));
     }
+    // an instance dispatcher may return undefined on a foreign receiver (its own-property
+    // read) - the user's slot default stays LIVE and guarded (the per-prop channel's
+    // `=== void 0` canon; polyfill-always-wins covers only always-defined static/global
+    // bindings). the default subtree is re-emitted AS WRITTEN: the sentinel rename owns its
+    // original span, so inner rewrites are skip-marked - symmetric with the AST emitter,
+    // which skip-seeds its clone. the test ref is minted NOW so numbering matches babel
+    const instanceDefaultNode = plan.instance && !patternValue
+      && propNode.value?.type === 'AssignmentPattern' ? propNode.value.right : null;
+    // minted LAZILY at first use so a memo arm's receiver ref numbers first - babel mints its
+    // memo ref before the guard ref, and the shared `_refN` sequence must match byte-for-byte
+    let instanceDefaultRef = null;
+    function getInstanceDefaultRef() {
+      instanceDefaultRef ??= scopeTracker.genRef({ scope: scopeTracker.scope });
+      return instanceDefaultRef;
+    }
     // dead residual: this leaf is the declaration's only binding and the init has no effect to preserve, so
     // the destructure binds nothing observable - replace the whole declaration with just the extracted
     // binding. emitted BEFORE the de-shorthand below (which would otherwise land a transform inside this
@@ -2574,7 +2593,11 @@ export function createDestructureEmitter({
         walkAstNodes({ root: declarator, visit: n => {
           if (keepRanges.every(k => n.start < k.start || n.end > k.end)) skippedNodes.add(n);
         } });
-        pendingReceiverExtracts.push({ start, end, prefix, binding, receiverNode, lhsNode: patternValue });
+        pendingReceiverExtracts.push({
+          start, end, prefix, binding, receiverNode, lhsNode: patternValue,
+          defaultSrc: instanceDefaultNode ? nodeSrc(instanceDefaultNode) : null,
+          testRef: instanceDefaultNode ? getInstanceDefaultRef() : null,
+        });
         return true;
       }
       walkAstNodes({ root: declarator, visit: n => skippedNodes.add(n) });
@@ -2620,6 +2643,30 @@ export function createDestructureEmitter({
         srcStart: propNode.value.start, srcEnd: propNode.value.end, dstStart: propNode.value.start - declStart,
       });
     }
+    // native evaluates a destructure PER PROP (key, read, default, next key) - a guarded LIVE
+    // default must run BEFORE the following props' key effects. spec the residual split: the
+    // props after this one are CUT from the pattern at flush (their sentinel renames and any
+    // nested split's own cut compose into the extract) and re-emitted as a fresh destructure
+    // declarator after the guard, reading the same receiver. gated to a DIRECT object-pattern
+    // declarator without rest (rest gathers by exclusion of its own pattern's keys - those
+    // stay batched, a documented boundary); claimed flush destinations rebuild the pattern
+    // from raw slices themselves, so the split applies only on the unclaimed-statement path
+    function residualSplitSpec() {
+      const objectPattern = metaPath.parent;
+      if (declarator?.id !== objectPattern) return null;
+      const props = objectPattern.properties;
+      const idx = props.indexOf(propNode);
+      if (idx === -1 || idx === props.length - 1) return null;
+      if (props.some(pr => pr.type === 'RestElement' || pr.type === 'SpreadElement')) return null;
+      // a memoized receiver re-reads its `_ref` (re-emitting the literal would duplicate it -
+      // the AST emitter's segment clones the residual's already-swapped init)
+      const initSrc = bodyExtractReceiverRefs.get(receiverNode)
+        ?? (declarator.init ? nodeSrc(declarator.init) : null);
+      if (!initSrc) return null;
+      splitSeKeyPatterns.add(objectPattern);
+      return { cutFrom: propNode.end, cutTo: props.at(-1).end, initSrc };
+    }
+
     function emit(copyExpr, hoist = '') {
       // pattern LHS: composed at (deferred) emit time so the natural visitor's rewrites inside
       // it bake into the extraction; the residual slot retires to the sentinel HERE, after the
@@ -2629,6 +2676,10 @@ export function createDestructureEmitter({
         lhs = composedRangeSrc(patternValue);
         transforms.add(patternValue.start, patternValue.end, injector.generateUnusedName());
       }
+      if (instanceDefaultNode) {
+        const guardRef = getInstanceDefaultRef();
+        copyExpr = `(${ guardRef } = ${ copyExpr }) === void 0 ? ${ nodeSrc(instanceDefaultNode) } : ${ guardRef }`;
+      }
       if (plan.siblingDeclarator) {
         // preceding statement impossible (loop header) or unsafe (multi-declarator instance receiver
         // bound earlier in the same declaration -> TDZ) - append a trailing sibling declarator instead.
@@ -2637,13 +2688,32 @@ export function createDestructureEmitter({
         // folds it into the rendered statement, an unclaimed one keeps the raw end-anchored insert.
         // the value->sentinel rename is recorded alongside - under a flatten claim it must bake into
         // the slot's residual slice as a residual target, not float as a standalone overwrite
-        pendingSeKeyTrailing.push({ declaration, declaratorNode: declarator, decl: `${ lhs } = ${ copyExpr }` });
+        pendingSeKeyTrailing.push({
+          declaration, declaratorNode: declarator, decl: `${ lhs } = ${ copyExpr }`,
+          split: instanceDefaultNode ? residualSplitSpec() : null,
+        });
         pendingSeKeyRenames.push({
           declaration, declaratorNode: declarator,
           srcStart: propNode.value.start, srcEnd: propNode.value.end,
         });
       } else if (isFlattenClaimed) {
         flattenEntry.perDecl[flattenIdx].extractions.push({ decl: `${ lhs } = ${ copyExpr }` });
+      } else if (instanceDefaultNode || splitSeKeyPatterns.has(metaPath.parent)) {
+        // the guarded extraction must evaluate AFTER the kept key's side effect (native reads
+        // the key first, then fires the default) - append it as a trailing sibling declarator
+        // like the sibling-host arm, instead of a preceding statement; entries AFTER a split
+        // point ride the same trailing chain (their key segment precedes them). a memo hoist
+        // (the receiver read) still precedes the statement: native evaluates the init
+        // receiver before the key
+        if (hoist) emitPrecedingDeclStatement({ declPath, insertPos: declaration.start, text: hoist, order: propNode.start });
+        pendingSeKeyTrailing.push({
+          declaration, declaratorNode: declarator, decl: `${ lhs } = ${ copyExpr }`,
+          split: residualSplitSpec(),
+        });
+        pendingSeKeyRenames.push({
+          declaration, declaratorNode: declarator,
+          srcStart: propNode.value.start, srcEnd: propNode.value.end,
+        });
       } else {
         // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export` keyword,
         // so the original destructure keeps its export (any real sibling binding stays exported). inserting
@@ -2714,6 +2784,8 @@ export function createDestructureEmitter({
           }
         }
       } else {
+        // guard ref minted at visit (after the memo ref) - numbering parity with babel
+        if (instanceDefaultNode) getInstanceDefaultRef();
         pendingReceiverMemos.push({
           receiverNode, refName,
           emitExtract: firstUse
@@ -2725,7 +2797,10 @@ export function createDestructureEmitter({
       // DUPLICATED instance receiver: keep it VISIBLE for the natural visitor, defer the copy to flush
       // where `composedRangeSrc` bakes the full scope-aware substitution (globals / instance / static,
       // incl. function bodies a node-walk can't reach) into the copy text and re-adds it to the surviving
-      // residual's receiver range - babel's clone+re-traverse duplicate
+      // residual's receiver range - babel's clone+re-traverse duplicate.
+      // the guard ref is minted NOW (visit order) - a flush-time mint numbers after every
+      // later visit's refs and desyncs from babel's pre-order sequence
+      if (instanceDefaultNode) getInstanceDefaultRef();
       pendingReceiverCopies.push({ receiverNode, emit: text => emit(`${ binding }(${ text })`) });
     }
     return true;
@@ -3282,18 +3357,22 @@ export function createDestructureEmitter({
     }
     const pending = pendingDestructuring.get(objectPattern);
     // a side-effecting computed key on a catch entry keeps the key in the combined residual
-    // (value renamed - effect once, in order); the polyfill always wins, so the user default
-    // is dead - skip-mark its subtree so the visitor never polyfills inside dropped code
+    // (value renamed - effect once, in order). a STATIC/GLOBAL default is dead (the pure
+    // import is always defined) - skip-mark its subtree so the visitor never polyfills inside
+    // dropped code. an INSTANCE dispatcher may return undefined on a foreign receiver (its
+    // own-property read), so the user default stays LIVE and guarded - its subtree keeps its
+    // rewrites, composed into the prelude like any catch default
     const seKeyResidual = isCatchClause && computedKeyHasSideEffects(propNode);
-    if (seKeyResidual && value) walkAstNodes({ root: value, visit: n => skippedNodes.add(n) });
+    const dropDeadDefault = seKeyResidual && kind !== 'instance';
+    if (dropDeadDefault && value) walkAstNodes({ root: value, visit: n => skippedNodes.add(n) });
     // the catch default-guard test ref is minted NOW (prop visit, before the default
     // subtree's inner memo refs) so numbering matches babel's pre-order minting; the
     // post-traverse render just consumes it
-    const testRef = isCatchClause && kind === 'instance' && defaultSrc && !seKeyResidual ? injector.generateLocalRef() : null;
+    const testRef = isCatchClause && kind === 'instance' && defaultSrc ? injector.generateLocalRef() : null;
     pending.entries.push({
       propNode, localName, binding, kind, testRef,
       lhsPattern,
-      defaultSrc: seKeyResidual ? null : defaultSrc,
+      defaultSrc: dropDeadDefault ? null : defaultSrc,
       keepKeyInResidual: seKeyResidual,
     });
     // body-extract alias so post-rewrite narrowing resolves the local (`xs = from('hi');
@@ -3500,10 +3579,20 @@ export function createDestructureEmitter({
 
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
     const lines = [];
-    // non-entry props collect into ONE combined residual destructure emitted AFTER the extraction lines
-    // (per-prop residual lines re-read the receiver once per prop and diverge from the plan-canon
-    // `{ survivors } = init` residual); under rest they stay in the rebuilt pattern instead
+    const deferredDefaultLines = [];
+    // native evaluates a destructure PER PROP (key, read, default, next key), so the residual
+    // splits into SEGMENTS at every LIVE-defaulted entry: the props seen so far (including the
+    // defaulted entry's own kept key) flush as one `let { ... } = _ref;` line, the guarded
+    // extraction follows, and later props open the next segment. under REST the pattern must
+    // stay whole (rest gathers by exclusion of its own pattern's keys), so entries emit first
+    // and defaulted lines defer below the rebuilt pattern - keys batch before defaults there,
+    // a documented boundary
     const residualProps = [];
+    function flushResidualSegment() {
+      if (!residualProps.length) return;
+      lines.push(`let { ${ residualProps.join(', ') } } = ${ ref };`);
+      residualProps.length = 0;
+    }
     for (const p of allProps) {
       if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
       const e = entryByProp.get(p);
@@ -3516,15 +3605,24 @@ export function createDestructureEmitter({
       // `symbol-key` entries don't extract a value - the rebuilt pattern keeps the prop
       // (with original localName) so `_ref[polyfilledKey]` is bound by destructuring directly
       if (e.kind === 'symbol-key') continue;
-      lines.push(catchEntryLetDecl(e, ref));
-      // a side-effecting key survives at its residual slot with a throwaway value: the effect runs once,
-      // after the extraction lines (the rest-gather rebuild below reserves the same `_unused` slot, so
-      // this applies to the no-rest residual only)
+      // a side-effecting key survives at its residual slot with a throwaway value: the effect
+      // runs once, in source order (the rest-gather rebuild below reserves the same `_unused`
+      // slot, so this applies to the no-rest residual only)
       if (e.keepKeyInResidual && !hasRest) {
         residualProps.push(`[${ e.polyfillKeyContent }]: ${ injector.generateUnusedName() }`);
       }
+      // only an SE-BEARING kept key forces ordering around the guard (a pure key - symbol /
+      // plain - is unobservable, and the symbol canon keeps its guard ABOVE the residual)
+      if (e.defaultSrc && e.keepKeyInResidual) {
+        if (hasRest) {
+          deferredDefaultLines.push(catchEntryLetDecl(e, ref));
+          continue;
+        }
+        flushResidualSegment();
+      }
+      lines.push(catchEntryLetDecl(e, ref));
     }
-    if (residualProps.length) lines.push(`let { ${ residualProps.join(', ') } } = ${ ref };`);
+    flushResidualSegment();
     if (hasRest) {
       const rebuiltProps = allProps.map(p => {
         const e = entryByProp.get(p);
@@ -3542,6 +3640,9 @@ export function createDestructureEmitter({
       });
       lines.push(`let { ${ rebuiltProps.join(', ') } } = ${ ref };`);
     }
+    // AFTER both residual shapes (the no-rest combined line AND the rest-gather rebuild): the
+    // kept key's effect must run before the guarded default, whichever residual carries it
+    lines.push(...deferredDefaultLines);
     transforms.add(catchNode.param.start, catchNode.param.end, ref);
     // declare the prelude's own temp vars (memo refs from polyfills baked into the keys / defaults
     // above) at the TOP of the relocated prelude. they were genRef'd into the catch BODY scope, so
@@ -3969,9 +4070,11 @@ export function createDestructureEmitter({
     // deferred consumed instance-receiver extractions: the natural visitor has now polyfilled each
     // receiver in place (full substitution, scope-aware), so `composedRangeSrc` bakes those into the
     // copy and drains them from the queue before the dropped-declaration overwrite replaces the range
-    for (const { start, end, prefix, binding, receiverNode, lhsNode } of pendingReceiverExtracts) {
+    for (const { start, end, prefix, binding, receiverNode, lhsNode, defaultSrc, testRef } of pendingReceiverExtracts) {
       const lhsSrc = lhsNode ? `${ composedRangeSrc(lhsNode) } = ` : '';
-      transforms.add(start, end, `${ prefix }${ lhsSrc }${ binding }(${ composedRangeSrc(receiverNode) });`);
+      const call = `${ binding }(${ composedRangeSrc(receiverNode) })`;
+      const rhs = defaultSrc ? `(${ testRef } = ${ call }) === void 0 ? ${ defaultSrc } : ${ testRef }` : call;
+      transforms.add(start, end, `${ prefix }${ lhsSrc }${ rhs };`);
     }
     pendingReceiverExtracts.length = 0;
     // deferred MEMBER receiver memos: compose the receiver ONCE per range (drains its queued rewrites),
@@ -4064,7 +4167,15 @@ export function createDestructureEmitter({
     // statement (appended to the final part below - babel's trailing-sibling canon); an
     // unclaimed one keeps the raw end-anchored insert (the source text stays in place)
     const trailingByDecl = new Map();
-    for (const { declaration, declaratorNode, decl } of pendingSeKeyTrailing) {
+    // pre-build split segments INNERMOST-FIRST: a later default's cut lies inside an earlier
+    // one's span, so the outer segment's composed extract must run AFTER the inner queued its
+    // cut (draining it into the outer text) - while the INSERTS below stay in source order
+    for (const { split } of pendingSeKeyTrailing.toReversed()) {
+      if (!split) continue;
+      split.segment = composedRangeSrc({ start: split.cutFrom, end: split.cutTo }).replace(/^\s*,\s*/, '');
+      transforms.add(split.cutFrom, split.cutTo, '');
+    }
+    for (const { declaration, declaratorNode, decl, split } of pendingSeKeyTrailing) {
       const flattenEntry = flattenedNestedDecls.has(declaration)
         ? pendingFlatten.find(f => f.declaration === declaration) : null;
       const flattenIdx = flattenEntry ? flattenEntry.declaration.declarations.indexOf(declaratorNode) : -1;
@@ -4079,6 +4190,10 @@ export function createDestructureEmitter({
         const byDeclarator = trailingByDecl.get(declaration);
         if (!byDeclarator.has(declaratorNode)) byDeclarator.set(declaratorNode, []);
         byDeclarator.get(declaratorNode).push(decl);
+      } else if (split) {
+        // residual split (native per-prop interleave): the segment text was pre-built
+        // innermost-first below; here the insert lands in source order
+        transforms.insert(declaratorNode.end, `, ${ decl }, { ${ split.segment } } = ${ split.initSrc }`);
       } else {
         transforms.insert(declaratorNode.end, `, ${ decl }`);
       }
