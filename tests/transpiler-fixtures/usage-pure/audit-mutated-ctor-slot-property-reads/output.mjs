@@ -1,9 +1,6 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _self from "@core-js/pure/actual/self";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // property reads THROUGH a slot-mutated ctor resolve to the replacement, not to pure
 // statics: the slot holds the user's shim, so every static behind it is the shim's own
 _globalThis.Promise = function ShimPromise() {};

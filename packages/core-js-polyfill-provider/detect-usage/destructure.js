@@ -1010,9 +1010,10 @@ export function resolveDestructureReceiverPlan(leafPath, {
   const proxyCtor = globalProxyMemberName({
     node: peelProxyGlobalObject(objectNode), scope: leafPath.scope, adapter, path: leafPath,
   });
-  // a SLOT-mutated ctor member (`globalThis.Map = Shim`) must keep the RAW member as the
-  // synth receiver - the pure-ctor swap would read the pristine built-in instead of the shim
-  if (proxyCtor && !isMutatedGlobalSlot(adapter, proxyCtor)
+  // a SLOT-mutated ctor member (`globalThis.Map = Shim`) keeps the RAW member as the synth
+  // receiver: `globalProxyMemberName` already returns null for a mutated leaf or hop, so a
+  // non-null `proxyCtor` is always a clean name - the gate lives in that one walk
+  if (proxyCtor
     && peelNestedSequenceExpressions(objectNode).prefix.length === 0 && resolvePureGlobal?.(proxyCtor)) {
     return { channel: 'raw-ctor', node: objectNode, proxyCtor };
   }
@@ -1078,9 +1079,14 @@ export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter
 // whichever a call site has - both default to null so either suffices on its own
 function proxyGlobalNameOf({ node, binding = null, adapter = null, scope = null }) {
   if (node?.type !== 'Identifier') return null;
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return node.name;
+  // a mutated proxy SLOT (`window = fake`) no longer names the pristine global surface -
+  // neither directly nor through a hint alias (what the alias holds depends on capture
+  // order); the destructure walk then keeps the receiver on the live-value channels
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) {
+    return isMutatedGlobalSlot(adapter, node.name) ? null : node.name;
+  }
   const hint = binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, node.name);
-  return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
+  return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) && !isMutatedGlobalSlot(adapter, hint) ? hint : null;
 }
 
 function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = null, seen = null, readNode: incomingReadNode = null }) {
