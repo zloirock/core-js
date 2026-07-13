@@ -1,5 +1,5 @@
 // a mutated global-proxy SLOT (`window.self = fake`) is owned by the user like any other
-// slot: the file-wide taint re-routes EVERY `self` surface through the live slot
+// slot: the file-wide taint DEOPTS every `self` surface - reads stay verbatim on the live slot
 window.self = fake;
 // the slot value read is a raw member read
 export const proxySlot = globalThis.self;
