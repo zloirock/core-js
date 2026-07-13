@@ -296,6 +296,62 @@ QUnit.test('destructuring: polyfilled call inside array-buried SE prefix', asser
   assert.deepEqual(from('xy'), ['x', 'y']);
 });
 
+// under REST the catch pattern stays whole: the kept key's effect runs with the rebuilt
+// pattern, the guarded default after it - and rest still excludes the consumed key
+QUnit.test('destructuring: catch rest keeps key effect before the guarded default', assert => {
+  const log = [];
+  try {
+    throw { other: 7 };
+  } catch ({ [(log.push('k'), 'at')]: a = (log.push('d'), 'DFLT'), ...rest }) {
+    assert.same(a, 'DFLT');
+    assert.deepEqual(log, ['k', 'd']);
+    assert.same(rest.other, 7);
+  }
+});
+
+// native evaluates a destructure PER PROP - a guarded default fires BEFORE the following
+// prop's key effect (the residual splits into segments around the guard)
+QUnit.test('destructuring: guarded default interleaves with following key effects', assert => {
+  const log = [];
+  const recv = {};
+  const {
+    [(log.push('k1'), 'at')]: a = (log.push('d1'), 'D1'),
+    [(log.push('k2'), 'flat')]: f = (log.push('d2'), 'D2'),
+  } = recv;
+  assert.same(a, 'D1');
+  assert.same(f, 'D2');
+  assert.deepEqual(log, ['k1', 'd1', 'k2', 'd2']);
+});
+
+// an instance dispatcher returns the receiver's own property on a foreign receiver -
+// undefined fires the user default AFTER the key's side effect, exactly like native
+QUnit.test('destructuring: instance extraction keeps the user default on a foreign receiver', assert => {
+  const log = [];
+  const recv = {};
+  const { [(log.push('k'), 'at')]: a = (log.push('d'), 'DFLT') } = recv;
+  assert.same(a, 'DFLT');
+  assert.deepEqual(log, ['k', 'd']);
+});
+
+// the wrapper-peeled twin: no key effect, the guard alone preserves the default
+QUnit.test('destructuring: array-wrapped instance extraction keeps the default', assert => {
+  function pick(o) {
+    const [{ flat = 'FB' }] = [o];
+    return flat;
+  }
+  assert.same(pick({}), 'FB');
+  assert.same(typeof pick([1, [2]]), 'function');
+});
+
+// a typed receiver dispatches the polyfill - always defined, the default is dead like native
+// (post-polyfill the method exists), and the key effect still runs once
+QUnit.test('destructuring: typed receiver keeps polyfill over default', assert => {
+  const log = [];
+  const { [(log.push('k'), 'includes')]: inc = null } = [1, 2];
+  assert.same(typeof inc, 'function');
+  assert.deepEqual(log, ['k']);
+});
+
 // an SE-bearing TRAILING init element is evaluated-then-discarded natively - it must keep
 // running after the transform (consuming the wrapper level silently dropped it)
 QUnit.test('destructuring: SE-bearing trailing array element runs', assert => {
