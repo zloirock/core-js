@@ -185,6 +185,37 @@ function liftSEPrefixSwap(t, node, key, hostPath) {
   node[key] = tail;
 }
 
+// for-init SE-sink parts: a for-init flatten can't lift statements (the loop header forbids
+// them), so an SE-bearing init becomes a dedicated sink declarator. covers a top-level
+// sequence init AND an SE hidden under a transparent array wrapper (`[(se(), R)]`,
+// `(o(), [(i(), R)])`) - the descent is preferred so both shapes flatten to the one canonical
+// sink sequence the text emitter renders too. unwrapRuntimeExpr peels Paren / Chain / TS
+// wrappers so `((se(), R) as any)` still trips the branch. null = not a for-init SE shape
+function forInitSESinkParts(t, declaratorNode, isForInit) {
+  if (!isForInit) return null;
+  const descended = descendArrayWrapperToSE(t, declaratorNode);
+  if (descended) return { prefix: descended.prefix, tail: descended.tail };
+  const raw = unwrapRuntimeExpr(declaratorNode.init);
+  if (raw?.type !== 'SequenceExpression') return null;
+  return peelNestedSequenceExpressions(raw);
+}
+
+// re-anchor onto the moved declaration after an SE lift block-wrapped a BODYLESS control-slot
+// host (`if (c) var {...} = (se(), R);`): babel's insertBefore replaces the statement with a
+// BlockStatement in place, leaving BOTH the declaration path and the declarator's cached
+// parentPath pointed at the wrapper block (no `.kind` / `.declarations` - the downstream render
+// built an invalid declaration and threw). nodes are stable across the wrap, so the fresh paths
+// are recovered by node identity. null when the host was not block-wrapped
+function reanchorBlockWrappedDeclaration(declaration, declaratorNode) {
+  if (declaration.isVariableDeclaration()) return null;
+  const movedDeclaration = declaration.get('body').find(stmt => stmt.node?.declarations?.includes(declaratorNode));
+  if (!movedDeclaration) return null;
+  return {
+    declaration: movedDeclaration,
+    declarator: movedDeclaration.get('declarations').find(d => d.node === declaratorNode),
+  };
+}
+
 // declarator-`init` SE lift that ALSO descends a transparent array wrapper hiding the receiver
 // SE one ArrayExpression level down (`[{...}] = [(se(), R)]`), where the top-level peel can't
 // see it. the wrapper is discarded by the flatten, so lift the nested-element SE and swap the
@@ -1052,20 +1083,15 @@ export default function createDestructureEmitter({
   // hosts handled here ALWAYS win polyfill - native fallback would produce wrong runtime in
   // usage-pure mode (`from = globalThis.Array.from` picks native on modern engines)
   function renderDeclaratorFlattenPlan(declarator, prop) {
-    const declaration = declarator.parentPath;
+    let declaration = declarator.parentPath;
     if (!declaration?.isVariableDeclaration()) return false;
     if (flattenedDeclarators.has(declarator.node)) return !!prop && skippedNodes.has(prop.node);
     const plan = buildFlattenPlan({ declaratorNode: declarator.node, scope: declarator.scope, path: declarator });
     if (!plan) return false;
     flattenedDeclarators.add(declarator.node);
-    // for-init with SequenceExpression init - external statement-lift unavailable (the loop
-    // header forbids non-declarator statements); the SE becomes a dedicated sink declarator.
-    // unwrapRuntimeExpr peels Paren / Chain / TS expression wrappers so `((se(), R) as any)`
-    // still trips the SE-preservation branch
-    const forInitRaw = unwrapRuntimeExpr(declarator.node.init);
     const isForInit = declaration.parentPath?.isForStatement()
       && declaration.parentPath.node.init === declaration.node;
-    const isForInitWithSE = isForInit && forInitRaw?.type === 'SequenceExpression';
+    const forInitSE = forInitSESinkParts(t, declarator.node, isForInit);
     const declCount = declaration.node?.declarations?.length ?? 1;
     const extracted = buildExtractionDeclarators(plan, declarator);
     prunePatternByPlan(plan.pattern, plan.outerProps);
@@ -1096,17 +1122,16 @@ export default function createDestructureEmitter({
     // scope.registerDeclaration on new bindings: it trips "Duplicate declaration" when the
     // enclosing scope.crawl() later re-scans
     if (patternEmpties) {
-      t.traverseFast(isForInitWithSE ? declarator.node.id : declarator.node,
+      t.traverseFast(forInitSE ? declarator.node.id : declarator.node,
         node => { skippedNodes.add(node); });
     }
     // for-init+SE full consume: convert the orphan declarator to an SE-sink. the sink init
     // is REBUILT as a bare flattened sequence - transparent wrappers (TS casts) and nested
     // sequence parens are dead on the discarded sink slot, and the bare shape is the
     // plan-canonical sink both emitters emit
-    if (isForInitWithSE && patternEmpties) {
-      const { prefix, tail } = peelNestedSequenceExpressions(forInitRaw);
+    if (forInitSE && patternEmpties) {
       declarator.node.id = generateUnusedId();
-      declarator.node.init = t.sequenceExpression([...prefix, tail]);
+      declarator.node.init = t.sequenceExpression([...forInitSE.prefix, forInitSE.tail]);
       declarator.insertBefore(extracted);
       return !!prop && skippedNodes.has(prop.node);
     }
@@ -1122,6 +1147,8 @@ export default function createDestructureEmitter({
     // array wrapper that hides it one ArrayExpression level down) for both partial and full
     // consume - the residual / replacement must not re-run the prefix
     if (!isForInit) liftDeclaratorInitSE(t, declarator.node, declaration);
+    const moved = reanchorBlockWrappedDeclaration(declaration, declarator.node);
+    if (moved) ({ declaration, declarator } = moved);
     // host wrapped in `export const { ... } = X` - every emitted statement re-exports its
     // bindings. for-init can't host export statements (loop header)
     const declIsExport = !isForInit && declaration.parentPath?.isExportNamedDeclaration();
