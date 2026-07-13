@@ -491,7 +491,14 @@ export function createDestructureEmitter({
     // stay visitable so their inner Identifiers (`Promise.resolve`) emit their own polyfill imports
     const residualTargets = result.residualTargets ?? [];
     skipPatternExceptResidual(assignNode.left, residualTargets, result.keepVisibleNodes);
-    const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
+    // element-swapped residual (`[_globalThis]`): the element's buried sequence prefixes
+    // vanished with the swap, so lift them like the block host does; every other shape keeps
+    // its tail (verbatim residual / standalone tail statement), where the buried effect
+    // already survives - descending there would double-run it
+    const topLevelParts = peelNestedSequenceExpressions(assignNode.right);
+    const { seExprs, tail: receiverTail } = result.initElementSwapped
+      ? peelInitSEParts(assignNode.left, assignNode.right)
+      : { seExprs: topLevelParts.prefix, tail: topLevelParts.tail };
     // full consume but the retained tail still carries a side effect not liftable as a
     // top-level SE prefix (`[(sideEffect(), globalThis)]` - the SE is nested in an array
     // element): emit the tail as a standalone statement so the effect still runs, and leave
@@ -615,19 +622,33 @@ export function createDestructureEmitter({
       // memoRouted mirrors the other two drainedRefs consumers: a memo-routed slot keeps its
       // init verbatim (no preservedInitSrc slice exists to swap the sink into)
       if (!perDecl[i].extractions.length || perDecl[i].memoRouted) continue;
-      const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(declaration.declarations[i].init);
+      const { seExprs, tail: receiverTail } = forInitSinkParts(declaration.declarations[i], perDecl[i]);
       if (!seExprs.length) continue;
       const refSplices = perDecl[i].drainedRefs;
       const sePrefixSrcs = seExprs.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
-      const tailSrc = resolveSinkTailSrc(perDecl[i], receiverTail, refSplices);
-      const seWrappedSrc = `(${ [...sePrefixSrcs, tailSrc].join(', ') })`;
       if (perDecl[i].preservedSrc === null) {
-        perDecl[i].preservedSrc = `${ injector.generateUnusedName() } = ${ seWrappedSrc }`;
+        const tailSrc = resolveSinkTailSrc(perDecl[i], receiverTail, refSplices);
+        perDecl[i].preservedSrc = `${ injector.generateUnusedName() } = (${ [...sePrefixSrcs, tailSrc].join(', ') })`;
       } else {
         const initLen = perDecl[i].preservedInitSrc.length;
-        perDecl[i].preservedSrc = perDecl[i].preservedSrc.slice(0, -initLen) + seWrappedSrc;
+        // element-swapped residual: keep the rebuilt init as the sequence VALUE (`(se(), [_G])`)
+        // - the swapped element already carries the receiver, and a leaf tail here would hand
+        // the array destructure a non-iterable
+        const tailSrc = perDecl[i].initElementSwapped
+          ? perDecl[i].preservedInitSrc : resolveSinkTailSrc(perDecl[i], receiverTail, refSplices);
+        perDecl[i].preservedSrc = `${ perDecl[i].preservedSrc.slice(0, -initLen) }(${ [...sePrefixSrcs, tailSrc].join(', ') })`;
       }
     }
+  }
+
+  // SE parts for a for-init declarator's sink: a discarded init (full consume) and an
+  // element-swapped residual both lose element-buried prefixes, so they take the canonical
+  // wrapper descent; a verbatim-kept residual re-emits the wrapper (buried effects included),
+  // so only top-level prefixes may re-embed - descending would double-run them
+  function forInitSinkParts(decl, slot) {
+    if (slot.preservedSrc === null || slot.initElementSwapped) return peelInitSEParts(decl.id, decl.init);
+    const { prefix, tail } = peelNestedSequenceExpressions(decl.init);
+    return { seExprs: prefix, tail };
   }
 
   // tail expression for the SE-sink declarator on a for-init init (`_unused = (SE, <tail>)`).
@@ -697,8 +718,8 @@ export function createDestructureEmitter({
     if (isForInit) {
       for (let i = 0; i < perDecl.length; i++) {
         if (!perDecl[i].extractions.length) continue;
-        const { prefix, tail } = peelNestedSequenceExpressions(declaration.declarations[i].init);
-        if (prefix.length && tail && mayHaveSideEffects(tail)) perDecl[i].sinkKeepsVerbatimTail = true;
+        const { seExprs, tail } = forInitSinkParts(declaration.declarations[i], perDecl[i]);
+        if (seExprs.length && tail && mayHaveSideEffects(tail)) perDecl[i].sinkKeepsVerbatimTail = true;
       }
     }
     seedSkippedForExtractedDeclarators(declaration, perDecl, { scope, path: declPath });
@@ -805,16 +826,23 @@ export function createDestructureEmitter({
   function liftExtractedSEPrefixesByIdx(declaration, perDecl) {
     return declaration.declarations.map((decl, i) => {
       if (!perDecl[i].extractions.length || perDecl[i].memoRouted) return [];
-      // peel a single-element array wrapper first so a side effect nested in the array
-      // element (`[(sideEffect(), globalThis)]`) lifts like a top-level SE prefix - the
-      // wrapper is transparent (planDeclarator descended through it to reach the receiver),
-      // and the raw array init carries no top-level SE of its own. non-array inits peel to
-      // themselves, leaving the bare-receiver path unchanged
-      const { init: initSource, peeledPrefixes } = peelArrayWrapperPair({ pattern: decl.id, init: decl.init });
-      const { prefix } = peelNestedSequenceExpressions(initSource);
+      const { seExprs } = peelInitSEParts(decl.id, decl.init);
       const refSplices = perDecl[i].drainedRefs ?? [];
-      return [...peeledPrefixes, ...prefix].map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
+      return seExprs.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
     });
+  }
+
+  // canonical two-step init peel for the discard-and-rebuild SE channels: descend the
+  // transparent single-element array wrapper first (a side effect nested in the array element
+  // lifts like a top-level one - the wrapper is transparent, planDeclarator descended through
+  // it to reach the receiver), then the leaf element's own sequence prefixes. shared by the
+  // block lift, the for-init sink and the assignment cascade so the three hosts can't diverge -
+  // a top-level-only peel dropped the buried effect with the discarded init. non-array inits
+  // peel to themselves, leaving the bare-receiver path unchanged
+  function peelInitSEParts(pattern, init) {
+    const { init: leaf, peeledPrefixes } = peelArrayWrapperPair({ pattern, init });
+    const { prefix, tail } = peelNestedSequenceExpressions(leaf);
+    return { seExprs: [...peeledPrefixes, ...prefix], tail };
   }
 
   // full-preserve declarator: preservedSrc is a verbatim slice of the original source
@@ -1363,9 +1391,13 @@ export function createDestructureEmitter({
     walkAstNodes({ root, visit });
   }
 
-  function skipReceiverTailSubtree(receiverNode, keepNodes = null) {
+  function skipReceiverTailSubtree(receiverNode, keepNodes = null, pattern = null) {
     if (!receiverNode) return;
-    const { tail } = peelNestedSequenceExpressions(receiverNode);
+    // descend the array wrapper when the destructure pattern is known: element-buried sequence
+    // prefixes are re-emitted by the lift / sink channels, so their subtrees stay live for the
+    // natural visitor (skipping them stranded raw polyfillable content in the lifted text)
+    const peeled = pattern ? peelArrayWrapperPair({ pattern, init: receiverNode }).init : receiverNode;
+    const { tail } = peelNestedSequenceExpressions(peeled);
     if (!tail) return;
     // the peeled receiver tail collapses into the rebuilt flatten init; kept `keepNodes` (discarded-SE nodes
     // re-emitted verbatim) are rescued by source range so their own rewrites stay queued
@@ -1412,7 +1444,7 @@ export function createDestructureEmitter({
       // a for-init sink that kept the verbatim SE-bearing tail re-emits its text - the buried
       // proxy root's own rewrite must stay live to compose in (skipping it strands a raw global)
       if ((!initTail || !isInsideResidualTarget(initTail, residualTargets)) && !perDecl[i].sinkKeepsVerbatimTail) {
-        skipReceiverTailSubtree(decl.init, perDecl[i].discardSeNode);
+        skipReceiverTailSubtree(decl.init, perDecl[i].discardSeNode, decl.id);
       }
       if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
     }
@@ -1733,6 +1765,10 @@ export function createDestructureEmitter({
       return pure ? injectPureImport(pure.entry, pure.hintName) : tailSrc;
     }
     let cachedReceiverEmitSrc;
+    // set when the residual render REPLACED the descended array element with the pure binding:
+    // sequence prefixes buried in that element vanished with it, so the host's SE channel
+    // (block lift / for-init sink / cascade segments) must re-emit them
+    let initElementSwapped = false;
     function receiverEmitSrc() {
       if (cachedReceiverEmitSrc !== undefined) return cachedReceiverEmitSrc;
       const { tail } = peelNestedSequenceExpressions(declarator.init);
@@ -1753,8 +1789,9 @@ export function createDestructureEmitter({
       // text, keeping the array brackets and sibling elements verbatim. consumed wrapper levels
       // whose sequence prefixes were lifted strip down to their bare arrays in the same pass -
       // a kept `(mid(), [R])` element would re-run the lifted effect (double-exec)
+      if (receiverPure && plan.initElement && plan.initElement !== tail) initElementSwapped = true;
       cachedReceiverEmitSrc = receiverPure
-        ? plan.initElement && plan.initElement !== tail
+        ? initElementSwapped
           ? spliceInRange(nodeSrc(tail), tail.start, [
             ...(plan.consumedLevelStrips ?? []).flatMap(l => l.wrapper.start < tail.start ? [] : [
               { start: l.wrapper.start, end: l.array.start, content: '' },
@@ -1887,6 +1924,7 @@ export function createDestructureEmitter({
       // captured separately so `injectForInitSESinks` (for-init partial-consume SE re-embed)
       // can slice off the trailing init slot by length without text-searching
       preservedInitSrc: initSrc,
+      initElementSwapped,
       receiver: plan.receiver,
       residualTargets,
       discardSeNode: plan.discardSe ?? null,
