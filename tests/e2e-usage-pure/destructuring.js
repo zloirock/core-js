@@ -243,6 +243,113 @@ QUnit.test('destructuring: triple-nested sequence expression init', assert => {
   assert.deepEqual(of(1, 2), [1, 2]);
 });
 
+// an effect buried in a transparent single-element array wrapper must survive the for-init
+// flatten: the loop header can't lift statements, so the discarded wrapper's effect re-embeds
+// into the discard sink (a top-level-only sequence peel dropped it with the init)
+QUnit.test('destructuring: for-init array-buried SE survives full consume', assert => {
+  const log = [];
+  let out;
+  for (const [{ Array: { from } }] = [(log.push('eff'), globalThis)]; !out;) out = from;
+  assert.deepEqual(log, ['eff']);
+  assert.deepEqual(out('ab'), ['a', 'b']);
+});
+
+// both wrapper levels carry an effect: the sink flattens them in source order
+QUnit.test('destructuring: for-init two-level SE prefixes flatten in order', assert => {
+  const log = [];
+  let out;
+  for (const [{ Array: { of } }] = (log.push('outer'), [(log.push('inner'), globalThis)]); !out;) out = of;
+  assert.deepEqual(log, ['outer', 'inner']);
+  assert.deepEqual(out(1, 2), [1, 2]);
+});
+
+// partial consume (a rest sibling survives): the buried effect runs exactly once - neither
+// dropped with the swapped element nor doubled by the re-embed
+QUnit.test('destructuring: for-init array-buried SE with rest runs once', assert => {
+  const log = [];
+  let out;
+  for (const [{ Array: { fromAsync }, ...rest }] = [(log.push('eff'), globalThis)]; !out;) out = rest && fromAsync;
+  assert.deepEqual(log, ['eff']);
+  assert.same(typeof out, 'function');
+});
+
+// assignment-cascade partial consume: the same single-run guarantee on the assignment host
+QUnit.test('destructuring: cascade array-buried SE with rest runs once', assert => {
+  const log = [];
+  /* eslint-disable prefer-const, @stylistic/no-extra-parens -- the assignment-destructure host (not a declaration) is the shape under test */
+  let groupBy;
+  let rest;
+  ([{ Map: { groupBy }, ...rest }] = [(log.push('eff'), globalThis)]);
+  /* eslint-enable prefer-const, @stylistic/no-extra-parens -- end shape-under-test region */
+  assert.deepEqual(log, ['eff']);
+  assert.same(typeof rest, 'object');
+  const grouped = groupBy([1, 2], x => x % 2);
+  assert.deepEqual(grouped.get(1), [1]);
+});
+
+// a polyfilled call INSIDE the lifted array-buried prefix keeps its own substitution
+QUnit.test('destructuring: polyfilled call inside array-buried SE prefix', assert => {
+  const w = 'abc';
+  const log = [];
+  const [{ Array: { from } }] = [(log.push(w.at(-1)), globalThis)];
+  assert.deepEqual(log, ['c']);
+  assert.deepEqual(from('xy'), ['x', 'y']);
+});
+
+// an SE-bearing TRAILING init element is evaluated-then-discarded natively - it must keep
+// running after the transform (consuming the wrapper level silently dropped it)
+QUnit.test('destructuring: SE-bearing trailing array element runs', assert => {
+  const log = [];
+  const [{ Array: { from } }] = [(log.push('a'), globalThis), log.push('b')];
+  assert.deepEqual(log, ['a', 'b']);
+  assert.deepEqual(from('xy'), ['x', 'y']);
+});
+
+// a dereferenced alias wrapper keeps its trailing SE element at the alias declaration -
+// the extraction must proceed (the trailing-extra bail is inline-only) with both effects intact
+QUnit.test('destructuring: dereferenced alias wrapper with trailing SE element', assert => {
+  const log = [];
+  const w = [(log.push('a'), globalThis), log.push('b')];
+  const [{ Array: { from } }] = w;
+  assert.deepEqual(log, ['a', 'b']);
+  assert.deepEqual(from('xy'), ['x', 'y']);
+});
+
+// nested levels below a dereferenced alias keep their effects at the alias declaration
+// (the trailing-extra bail is inline-only, sticky across deeper levels)
+QUnit.test('destructuring: nested level below dereferenced alias extracts', assert => {
+  const log = [];
+  const wrap2 = [[(log.push('j'), globalThis), log.push('k')]];
+  const [[{ Array: { of } }]] = wrap2;
+  assert.deepEqual(log, ['j', 'k']);
+  assert.deepEqual(of(1, 2), [1, 2]);
+});
+
+// an inline SE-bearing extra above a dereferenced element declines host-leaving rewrites:
+// the leaf gets the inline-default fallback and every effect stays in place
+QUnit.test('destructuring: inline SE extra above dereferenced element', assert => {
+  const log = [];
+  const w3 = [globalThis];
+  const [[{ Object: { hasOwn } }]] = [w3, log.push('m')];
+  assert.deepEqual(log, ['m']);
+  assert.true(hasOwn({ q: 1 }, 'q'));
+  assert.same(w3[0], globalThis);
+});
+
+// a bodyless control-slot host with an SE-bearing NESTED-proxy init must transform (a stale
+// path after the lift's block-wrap crashed the build) and keep the effect conditional
+QUnit.test('destructuring: bodyless host nested-proxy SE init stays conditional', assert => {
+  const log = [];
+  /* eslint-disable no-var -- bodyless host shape under test */
+  if (log.length === 0) var { Array: { from } } = (log.push('eff'), globalThis);
+  assert.deepEqual(log, ['eff']);
+  assert.deepEqual(from('ab'), ['a', 'b']);
+  if (log.length === 5) var [{ Array: { of } }] = [(log.push('never'), globalThis)];
+  assert.deepEqual(log, ['eff']);
+  assert.same(typeof of, 'undefined');
+  /* eslint-enable no-var -- end shape-under-test region */
+});
+
 // a bodyless host can't lift the SE statement, so the init survives whole
 QUnit.test('destructuring: bodyless host keeps the sequence init', assert => {
   const log = [];
