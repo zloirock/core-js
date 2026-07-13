@@ -67,8 +67,8 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { discardRescueNodes, maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  globalProxyMemberName, maybeRegisterAssignmentAliasWrite,
-  peelProxyGlobalObject, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
+  globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
+  registerBindinglessCtorAlias, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -542,15 +542,15 @@ export default function createDestructureEmitter({
     if (!aliasLocal) return;
     const aliasHost = prop.parentPath?.parentPath;
     const aliasBinding = adapter.getBinding(prop.scope, aliasLocal);
-    if (!aliasBinding?.node) injector.registerGlobalAlias(aliasLocal, hintName, { trusted: true });
+    if (!aliasBinding?.node) registerBindinglessCtorAlias({ injector, adapter, localName: aliasLocal, hint: hintName });
     else if (aliasHost?.isAssignmentExpression()) {
       maybeRegisterAssignmentAliasWrite({
-        injector, binding: aliasBinding,
+        injector, adapter, binding: aliasBinding,
         localName: aliasLocal, hint: hintName, assignNode: aliasHost.node, stmtPath: aliasHost,
       });
     } else {
       registerDeclAliasIfSound({
-        injector, kind: aliasHost?.parentPath?.node?.kind, localName: aliasLocal, hint: hintName,
+        injector, adapter, kind: aliasHost?.parentPath?.node?.kind, localName: aliasLocal, hint: hintName,
         stmtPath: aliasHost?.parentPath, bindingNode: aliasBinding.node ?? null, binding: aliasBinding,
       });
     }
@@ -1382,7 +1382,7 @@ export default function createDestructureEmitter({
         // a refused registration (conditional `var` decl) only withholds the member-narrow hint;
         // the SE-key extraction itself stays (value-correct, and the key effect runs in place)
         registerDeclAliasIfSound({
-          injector, kind: declaration.node.kind, localName: valueNode.name, hint: hintName, stmtPath: declaration,
+          injector, adapter, kind: declaration.node.kind, localName: valueNode.name, hint: hintName, stmtPath: declaration,
           binding: adapter.getBinding(prop.scope, valueNode.name),
         });
       } else injector.registerBodyExtractAlias(valueNode.name, entry, prop.scope.getBinding(valueNode.name));
@@ -1849,7 +1849,7 @@ export default function createDestructureEmitter({
     // inserted `_ref` is not scope-registered, leaving `from` native otherwise (undefined on ie:11).
     // `trusted`: `_ref` is plugin-generated (user code cannot rebind it), so the adapter's hint-only
     // fallback may trust it even without a scope binding
-    if (plan.proxyCtor) injector.registerGlobalAlias(ref.name, plan.proxyCtor, { trusted: true });
+    if (plan.proxyCtor) injector.registerGlobalAlias(ref.name, plan.proxyCtor, { trusted: true, minted: true });
     parent.node[initKey] = cloned;
     return ref;
   }
