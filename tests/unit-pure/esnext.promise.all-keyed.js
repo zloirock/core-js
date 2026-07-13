@@ -30,11 +30,11 @@ QUnit.test('Promise.allKeyed, resolved with primitives', assert => {
     b: Promise.resolve(2),
     c: 3,
   }).then(it => {
-    assert.deepEqual(it, {
+    assert.deepEqual(it, nullProto({
       a: 1,
       b: 2,
       c: 3,
-    }, 'resolved with a correct value');
+    }), 'resolved with a correct value');
   });
 });
 
