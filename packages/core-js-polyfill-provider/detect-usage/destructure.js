@@ -1611,6 +1611,13 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   if (!walked) return null;
   const slotNode = descendArrayWrapperInit(host.node[slot], walked.indices, host.scope, adapter, host);
   if (!slotNode) return null;
+  // a slot the wrapper descent dereferenced OUT of the host's own init (a const-alias element -
+  // `[w, eff()]` where `const w = [globalThis]`) is a FOREIGN declaration: mirroring there would
+  // rewrite a value other readers of the alias observe, and the natural visitor's own rewrite of
+  // that span is already queued (un-suppressible - a compose collision on the text emitter).
+  // decline; the leaf falls through to the inline-default fallback, which stays on the host
+  if (typeof slotNode.start === 'number' && typeof host.node[slot].start === 'number'
+    && (slotNode.start < host.node[slot].start || slotNode.end > host.node[slot].end)) return null;
   // peel a pure effect PREFIX off a sequence default via the canonical peel (it also unwraps
   // paren / TS wrappers, which oxc keeps as first-class nodes - a manual sequence-only walk
   // left the unplugin side bailing on `(eff(), R)` parsed with a ParenthesizedExpression);

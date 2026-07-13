@@ -65,6 +65,10 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   const consumedLevels = [];
   let firstArray = null;
   let lastArray = null;
+  // STICKY across levels: once a level dereferenced a const-bound alias, every DEEPER level
+  // also lives in the alias's own init (outside the destructure host), so the trailing-extra
+  // bail below never applies to them either
+  let dereferenced = false;
   for (;;) {
     // strip AssignmentPattern wrapper on the destructure side - init has no AssignmentPattern
     // equivalent (defaults sit on the LHS slot), so we only peel pattern here. EXCEPTION: a
@@ -101,6 +105,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
         const bindingInit = binding.path?.node?.init ?? binding.node?.init;
         if (!bindingInit) break;
         effectiveInit = bindingInit;
+        dereferenced = true;
         readNode = (binding.path?.node ?? binding.node) ?? readNode;
       }
     }
@@ -108,6 +113,17 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     const [innerPattern] = pattern.elements;
     const [innerInit] = effectiveInit.elements;
     if (!innerPattern || !innerInit) return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
+    // an INLINE trailing init element is evaluated-then-discarded by the destructure at
+    // runtime; its effect would vanish with the consumed wrapper level, so an SE-bearing (or
+    // spread - iteration is observable) extra bails the consume: the init stays whole and
+    // every effect runs verbatim. a pure extra stays peelable - dropping a value-dead pure
+    // element is silent. a DEREFERENCED wrapper is exempt: the alias's own declaration keeps
+    // the whole array (only the VALUE flows here), so its effects were never at risk - and
+    // bailing mid-follow desynced the peel from the detect pass (a compose crash)
+    if (!dereferenced && effectiveInit.elements.some((el, i) => i > 0 && el
+      && (el.type === 'SpreadElement' || mayHaveSideEffects(el)))) {
+      return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
+    }
     peeledPrefixes.push(...levelPrefixes);
     consumedLevels.push({ wrapper: init, array: effectiveInit });
     firstArray ??= effectiveInit;
