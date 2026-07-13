@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-// `globalThis.Map ||= X` - proxy-global member LHS of logical-assign. same problem as
-// the bare-identifier case: plugin would have to substitute a write target, but the
-// proxy-global property is what the runtime engine provides. plugin warns and skips
+// `globalThis.Map ||= X` - proxy-global member LHS of a logical-assign: the receiver
+// substitutes and the slot records (the name deopts for any later read). the statement
+// itself is already a member write on the live global object - the guard-shim installs
+// where the slot is absent and the file's raw reads then serve it
 _globalThis.Map ||= {};

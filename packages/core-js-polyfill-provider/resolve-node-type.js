@@ -98,9 +98,15 @@ const { hasOwn } = Object;
 // string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
 // `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
 // from the resolver path (destructure-leaf -> proxy-global)
-function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding) {
+function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic) {
   return {
     packages: null,
+    // the shared proxy-nav walks (`globalProxyMemberName` hop/leaf gates) consult
+    // `isMutatedGlobalSlot(adapter, key)` = `adapter.isMutatedStatic('globalThis', key)`;
+    // without the method the gate silently no-ops for every resolve-node-type caller and a
+    // type narrow walks THROUGH a user-replaced proxy hop (`globalThis.self = fake`) to a
+    // pristine constructor - a wrong-Maybe on the foreign runtime value
+    isMutatedStatic: (object, key) => isMutatedStatic(object, key),
     // forward the use-site `path` to the scope-binding hook so the estree caller applies its
     // namespace-over-hoist filter (+ phantom declaration-violation filter) position-aware; a
     // path-less lookup drops a namespace twin conservatively. babel's default hook ignores the arg.
@@ -151,7 +157,7 @@ function createResolveNodeType(babelNodeType, t, {
   // the canonical AST scan (the native scope models mis-attribute e.g. switch-DISCRIMINANT
   // writes under a case-level shadow), and the per-binding cache keeps identity compares stable
   getScopeBinding = wrapScopeBindingLookup(getScopeBinding);
-  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding);
+  const babelBindingAdapter = makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic);
   // --- AST walkers & predicates ---
   // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
   // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
