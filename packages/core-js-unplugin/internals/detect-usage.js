@@ -39,6 +39,7 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   isMutatedStaticPair,
+  withoutValuelessDeclarationViolations,
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
   resolveCallArgument,
@@ -188,7 +189,7 @@ function isOverHoistedNamespaceBinding(native, path) {
 // `native` is declared directly under a SwitchCase and `path` does NOT sit inside that switch's
 // cases region. babel scopes the CaseBlock correctly, so this fires only on the estree side; a
 // binding inside a nested block of a case is scoped by that block and never resolves out here
-function isCaseBlockBindingOutsideCases(native, path) {
+export function isCaseBlockBindingOutsideCases(native, path) {
   if (!native?.path || !path?.node) return false;
   let p = native.path;
   while (p?.node && p.node.type !== 'SwitchCase') {
@@ -274,14 +275,17 @@ function hasRuntimeBinding(scope, name, path = null) {
   // their hasBinding=true is authoritative
   const native = scope?.getBinding?.(name, path);
   if (!native) return true;
+  // a use-invisible binding (over-hoisted namespace / case-block let outside the cases) doesn't
+  // shadow, but an OUTER same-name declaration above it still does - continue the walk through
+  // the shared visible-binding canon (`const globalThis = fake; switch (globalThis.X) { case 1:
+  // let globalThis; }` stays shadowed by the outer const, matching babel's native scoping)
+  const visible = nativeBindingInvisibleAtUse(native, path)
+    ? closestVisibleNativeBinding(scope, name, path) : native;
   // an ambient shape alone is NOT authoritative: a declaration-merged runtime namespace
   // (`declare const Map: any; namespace Map {}`) still emits a real `var` after the TS
-  // transform, so the use MUST stay on the user binding. a use-invisible binding (over-hoisted
-  // namespace / case-block let outside the cases) doesn't shadow either - both fall through to
+  // transform, so the use MUST stay on the user binding. no visible binding falls through to
   // the TS-runtime scan and the function-scope var walk, matching the babel adapter's ordering
-  if (isAmbientBinding(native) || nativeBindingInvisibleAtUse(native, path)) {
-    return tsOrVarHoistFallback(scope, name, path);
-  }
+  if (!visible || isAmbientBinding(visible)) return tsOrVarHoistFallback(scope, name, path);
   return true;
 }
 
@@ -373,17 +377,66 @@ export function collectAliasPrePass({ ast, adapter, injector, isKnownGlobal, isD
   });
 }
 
+// estree merges an over-hoisted namespace declaration with a REAL same-name declaration in the
+// hoist-target scope into ONE binding. declared namespace-FIRST, the binding anchors on the
+// namespace declarator and the real declaration survives only as a declaration-violation (the
+// namespace-SECOND order is the mirrored shape the phantom filter already strips). re-anchor the
+// binding onto that real declaration so a use outside the block keeps its narrow instead of
+// degrading to generic. exactly one visible candidate re-anchors - ambiguity stays on the walk.
+// memoized per (binding, anchor): identity consumers downstream (per-binding resolver caches,
+// closure membership Sets) key by object identity, so a fresh copy per call would miss them all
+const reanchoredBindings = new WeakMap();
+function visibleSameScopeDeclarationTwin(native, path) {
+  if (!namespaceScopedBindingBlock(native)) return null;
+  const candidates = (native.constantViolations ?? []).filter(v => {
+    const decl = v?.parentPath?.node;
+    return decl && decl.id === v.node && decl !== native.path?.node
+      && !nativeBindingInvisibleAtUse({ path: v.parentPath, scope: native.scope }, path);
+  });
+  if (candidates.length !== 1) return null;
+  const [anchor] = candidates;
+  const cached = reanchoredBindings.get(native)?.get(anchor);
+  if (cached) return cached;
+  const violations = native.constantViolations.filter(v => v !== anchor);
+  const reanchored = {
+    ...native,
+    path: anchor.parentPath,
+    kind: anchor.parentPath.parent?.kind ?? native.kind,
+    constantViolations: violations,
+    // `constant` is a prototype getter on the estree Binding (not copied by spread) - carry it
+    constant: violations.length === 0,
+  };
+  if (!reanchoredBindings.has(native)) reanchoredBindings.set(native, new Map());
+  reanchoredBindings.get(native).set(anchor, reanchored);
+  return reanchored;
+}
+
+// the nearest native binding that actually COVERS the use site. a binding invisible at the
+// use (case-block let consulted from outside the cases, over-hoisted namespace local) does not
+// end the lookup - per ECMA that region belongs to the OUTER declaration, so the walk first
+// re-anchors onto a same-scope declaration twin, then continues in the invisible binding's
+// enclosing scope: `const g = globalThis; switch (g.self.X) { case 1: let g; }` resolves the
+// discriminant `g` to the outer const (babel scopes these regions natively, so dead-ending here
+// desyncs the emitters - the alias-follow reports unbound and the proxy-hop collapse never fires)
+export function closestVisibleNativeBinding(scope, name, path) {
+  let native = scope?.getBinding?.(name, path) ?? null;
+  while (native && nativeBindingInvisibleAtUse(native, path)) {
+    native = visibleSameScopeDeclarationTwin(native, path)
+      ?? native.scope?.parent?.getBinding?.(name, path) ?? null;
+  }
+  return native;
+}
+
 // closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
 // shares the same primitives and branch order): forward `path` so a makeFrameScope lookup
-// stays position-aware; drop a native binding invisible at the use (over-hoisted namespace /
+// stays position-aware; walk past a native binding invisible at the use (over-hoisted namespace /
 // case-block let outside the cases); prefer the synthesized var-hoist binding when the visible
 // native declaration lies OUTSIDE the var's hoist owner - the nested-block `var` is the NEARER
 // binding there (estree-toolkit neither hoists it nor lets it shadow the outer name), while a
 // declaration INSIDE the owner (a param, a nearer lexical shadow) keeps the native view. a
 // native resolution of the SAME declarator keeps the native view too (richer info channel)
 function resolveClosestBinding(scope, name, path) {
-  let native = scope?.getBinding?.(name, path) ?? null;
-  if (native && nativeBindingInvisibleAtUse(native, path)) native = null;
+  const native = closestVisibleNativeBinding(scope, name, path);
   const synth = path ? synthVarHoistBinding(path, name) : null;
   if (!synth) return { native, synth: null };
   if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
@@ -510,9 +563,15 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
     // raw estree violations are PATHS onto the written Identifier - climb to the enclosing
     // AssignmentExpression, then run the shared trust predicate
     findTrustedAliasWrite(scope, name) {
-      const b = scope?.getBinding?.(name);
-      if (!b || b.path?.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
-      let assignPath = b.constantViolations?.[0];
+      const raw = scope?.getBinding?.(name);
+      if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init) return null;
+      // mirror the babel twin: strip valueless-redeclaration phantoms BEFORE the first-violation
+      // pick - a trailing `var X;` lands in the raw list, the assignment climb dead-ends on its
+      // declarator, and the trust predicate's every-violation span check fails, dropping the
+      // trusted write babel resolves (a usage-global under-inject)
+      const violations = withoutValuelessDeclarationViolations(raw.constantViolations);
+      const b = violations === raw.constantViolations ? raw : { ...raw, constantViolations: violations };
+      let assignPath = violations?.[0];
       while (assignPath && assignPath.node?.type !== 'AssignmentExpression') assignPath = assignPath.parentPath;
       const assignNode = assignPath?.node;
       if (!assignNode) return null;
