@@ -3,6 +3,7 @@
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
   collectFoldedReceiverSideEffects,
+  isMutatedGlobalSlot,
   memberKeyName,
   proxyNavRootIsSequence,
   staticMemberKeyName,
@@ -589,6 +590,13 @@ export function handleMemberExpressionNode({
   // UNMARKED - the identifier machinery substitutes the CONSTRUCTOR itself, so the patch and
   // every read share the injected object (pure only; usage-global overlays the global slot)
   if (meta?.object && meta.placement === 'static' && adapter.isMutatedStatic?.(meta.object, meta.key)) return null;
+  // the PROTOTYPE twin of the static gate: a whole-constructor slot replacement
+  // (`globalThis.Promise = shim`) owns `Ctor.prototype` reads too - handling the member would
+  // swap the sub-receiver to the pristine pure ctor (`_Promise.prototype.<key>`), silently
+  // bypassing the user's shim, while the semantically identical through-proxy form
+  // (`globalThis.Promise.prototype.<key>`) already reads the live slot. member metas carry
+  // only static|prototype placements, so the two gates are the complete surface
+  if (meta?.object && meta.placement === 'prototype' && isMutatedGlobalSlot(adapter, meta.object)) return null;
   // a receiver binding whose ctor-alias hint could not drive a STATIC narrow (a REFUSED
   // registration, or a use textually before its trusted write): the member read of a known
   // separate static gets a RUNTIME ctor guard instead - `(M === _Map ? _Map$groupBy : M.groupBy)`.

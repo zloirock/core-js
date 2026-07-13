@@ -10,7 +10,7 @@ var _ref6, _ref7, _ref8, _ref9;
 _globalThis._ref = {
   x: 5
 };
-console.log(_globalThis._ref.x);
+console.log(_ref.x);
 _atMaybeArray(_ref6 = [1, 2, 3]).call(_ref6, 0);
 // a READ-only slot key reserves the name the same way - the temp must not alias it
 console.log(_globalThis._ref2);
