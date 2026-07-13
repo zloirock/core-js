@@ -15,6 +15,7 @@ import {
   isGuardedAliasingWrite,
   propertyKeyName,
   unwrapRuntimeExpr,
+  varInitDominatesUsage,
   withoutValuelessDeclarationViolations,
   walkAstChildren,
   walkPatternIdentifiers,
@@ -87,6 +88,14 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
   // dropped a const-captured alias whose upstream source is reassigned only after the capture)
   if (reassignmentBlocksGlobalResolve({ binding, adapter, path })) return false;
   const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+  // a hoisted-var declarator assigned on ONE path (`if (c) { var g = globalThis }`) binds the
+  // name everywhere but holds the global only through that branch. the pure rewrites this follow
+  // feeds (proxy-hop collapse, receiver substitution, type narrows) would rescue the
+  // skipped-branch throw the source guarantees, so require the init to dominate the use - the
+  // same gate the detection-side follow (`resolveVariableBindingToGlobal`) applies. global /
+  // entry modes keep the call site and stay sound regardless
+  if (adapter?.method === 'usage-pure'
+    && !varInitDominatesUsage({ declaratorNode: decl, usagePath: path, kind: binding.kind })) return false;
   const init = unwrapInitForResolution(decl?.init);
   if (init?.type !== 'Identifier') return false;
   // the NEXT hop's value is read at THIS declarator - anchor its reassignment proof there
