@@ -200,6 +200,17 @@ function forInitSESinkParts(t, declaratorNode, isForInit) {
   return peelNestedSequenceExpressions(raw);
 }
 
+// the `(ref = <dispatcher call>) === void 0 ? <default> : ref` guard for an instance
+// extraction carrying a user default: the dispatcher may return undefined on a foreign
+// receiver (its own-property read), so the default stays LIVE - polyfill-always-wins covers
+// only always-defined static/global bindings. the per-prop channel emits the same ternary
+function buildInstanceDefaultGuard(t, { call, defaultNode, ref }) {
+  return t.conditionalExpression(
+    t.binaryExpression('===', t.assignmentExpression('=', t.cloneNode(ref), call),
+      t.unaryExpression('void', t.numericLiteral(0))),
+    defaultNode, t.cloneNode(ref));
+}
+
 // re-anchor onto the moved declaration after an SE lift block-wrapped a BODYLESS control-slot
 // host (`if (c) var {...} = (se(), R);`): babel's insertBefore replaces the statement with a
 // BlockStatement in place, leaving BOTH the declaration path and the declarator's cached
@@ -1239,6 +1250,72 @@ export default function createDestructureEmitter({
   // `tryExtractArrayWrappedStatic`. returns false when it can't safely extract (no binding name, or an
   // instance receiver that isn't a bare Identifier -> would double-evaluate, since the residual reads it
   // too); the caller then leaves it native
+  // memoize a constant-literal receiver into a shared `_ref` so the surviving residual doesn't keep a
+  // duplicate of the (possibly large) literal beside the extract. one hoist per receiver; sibling leaves
+  // of the same receiver reuse the `_ref`. constant-only, so re-crawling the hoisted clone is inert
+  function memoizeSeKeyReceiver({ prop, plan, residualDecl, objectNode }) {
+    let ref = bodyExtractReceiverRefs.get(objectNode);
+    if (!ref) {
+      ref = generateLocalRef(residualDecl.scope);
+      bodyExtractReceiverRefs.set(objectNode, ref);
+      const memoDeclarator = t.variableDeclarator(t.cloneNode(ref), t.cloneNode(objectNode));
+      if (plan.siblingDeclarator) {
+        // sibling host (multi-declarator / for-init): the memo joins the declaration as a PRECEDING
+        // declarator at the source slot - a statement insert would hoist the receiver read above
+        // earlier sibling inits (an observable getter reorder) or has no slot in a for-head
+        const declaratorPath = prop.findParent(pp => pp.isVariableDeclarator());
+        memoDeclarators.add(memoDeclarator);
+        declaratorPath.insertBefore(memoDeclarator);
+      } else residualDecl.insertBefore(t.variableDeclaration(residualDecl.node.kind, [memoDeclarator]));
+      // bodyless host: the hoist wrapped the body in a block; re-point to the residual (block's last statement)
+      if (residualDecl.isBlockStatement()) residualDecl = residualDecl.get('body').at(-1);
+      // swap the receiver in the surviving residual for `_ref`, located by identity in the declaration
+      let receiverPath = null;
+      residualDecl.traverse({
+        enter(p) {
+          if (p.node !== objectNode) return;
+          receiverPath = p;
+          p.stop();
+        },
+      });
+      if (receiverPath) receiverPath.replaceWith(t.cloneNode(ref));
+    }
+    return { residualDecl, receiverArg: ref };
+  }
+
+  // native evaluates a destructure PER PROP (key, read, default, next key), so a guarded
+  // LIVE default must run BEFORE the following props' key effects. split the residual at the
+  // defaulted prop: the props after it move into a NEW destructure declarator (same init)
+  // emitted AFTER the guard, restoring the interleave. gated to a DIRECT object-pattern host
+  // without rest (rest gathers by exclusion of its own pattern's keys, so moving props out
+  // would change what rest collects - those stay batched, a documented boundary)
+  function splitResidualAfterDefaultProp({ prop, guardPath }) {
+    const objectPattern = prop.parentPath;
+    if (!objectPattern.isObjectPattern()) return;
+    const hostDeclarator = objectPattern.parentPath;
+    if (!hostDeclarator.isVariableDeclarator() || hostDeclarator.node.id !== objectPattern.node) return;
+    const props = objectPattern.node.properties;
+    const idx = props.indexOf(prop.node);
+    if (idx === -1 || idx === props.length - 1) return;
+    if (props.some(pr => pr.type === 'RestElement' || pr.type === 'SpreadElement')) return;
+    const moved = props.splice(idx + 1);
+    const segment = t.variableDeclarator(t.objectPattern(moved), t.cloneNode(hostDeclarator.node.init));
+    if (guardPath?.isVariableDeclaration?.()) {
+      // catch-born: the guard is a standalone `let` after the residual - the segment follows
+      // as its own `let { ... } = _ref;` (the moved props' paths requeue and re-visit there).
+      // it INHERITS the catch-born mark so a later defaulted prop inside it keeps the
+      // catch-canon fold (`let _refN, x = ...`) instead of a hoisted `var _refN;`
+      const segmentDeclaration = t.variableDeclaration(guardPath.node.kind, [segment]);
+      catchBornDeclarations.add(segmentDeclaration);
+      const [inserted] = guardPath.insertAfter(segmentDeclaration);
+      return inserted;
+    }
+    attachToPrevDeclarator.add(segment);
+    const [inserted] = guardPath.insertAfter(segment);
+    seKeyTrailingAnchors.set(hostDeclarator.node, inserted);
+    return inserted;
+  }
+
   function keepKeyInResidual({ prop, kind, entry, hintName, declaration, plan, objectNode, sourceSiblingHost = plan.siblingDeclarator }) {
     const valueNode = propBindingIdentifier(prop.node.value);
     // a pattern-valued `[Symbol.iterator]` prop consumes like the identifier form, destructuring
@@ -1271,45 +1348,29 @@ export default function createDestructureEmitter({
     // EARLY (before the kind read + the extract insert), so track the residual declaration separately and
     // re-resolve it after the block-conversion; the static / non-memoize path inserts last, so it is unaffected
     let residualDecl = declaration;
-    // memoize a constant-literal receiver into a shared `_ref` so the surviving residual doesn't keep a
-    // duplicate of the (possibly large) literal beside the extract. one hoist per receiver; sibling leaves
-    // of the same receiver reuse the `_ref`. constant-only, so re-crawling the hoisted clone is inert
     let receiverArg = objectNode;
-    if (plan.memoizeReceiver) {
-      let ref = bodyExtractReceiverRefs.get(objectNode);
-      if (!ref) {
-        ref = generateLocalRef(residualDecl.scope);
-        bodyExtractReceiverRefs.set(objectNode, ref);
-        const memoDeclarator = t.variableDeclarator(t.cloneNode(ref), t.cloneNode(objectNode));
-        if (plan.siblingDeclarator) {
-          // sibling host (multi-declarator / for-init): the memo joins the declaration as a PRECEDING
-          // declarator at the source slot - a statement insert would hoist the receiver read above
-          // earlier sibling inits (an observable getter reorder) or has no slot in a for-head
-          const declaratorPath = prop.findParent(pp => pp.isVariableDeclarator());
-          memoDeclarators.add(memoDeclarator);
-          declaratorPath.insertBefore(memoDeclarator);
-        } else residualDecl.insertBefore(t.variableDeclaration(residualDecl.node.kind, [memoDeclarator]));
-        // bodyless host: the hoist wrapped the body in a block; re-point to the residual (block's last statement)
-        if (residualDecl.isBlockStatement()) residualDecl = residualDecl.get('body').at(-1);
-        // swap the receiver in the surviving residual for `_ref`, located by identity in the declaration
-        let receiverPath = null;
-        residualDecl.traverse({
-          enter(p) {
-            if (p.node !== objectNode) return;
-            receiverPath = p;
-            p.stop();
-          },
-        });
-        if (receiverPath) receiverPath.replaceWith(t.cloneNode(ref));
-      }
-      receiverArg = ref;
-    }
+    if (plan.memoizeReceiver) ({ residualDecl, receiverArg } = memoizeSeKeyReceiver({ prop, plan, residualDecl, objectNode }));
     let polyfillValue;
+    // catch-born hosts fold the default-guard test ref into the extracted `let` (block-scoped,
+    // no `var` hoist) - the catch-canon shape both emitters emit; other hosts hoist `var _ref;`
+    let foldedTestRef = null;
+    let instanceDefaultLive = false;
     if (kind === 'instance') {
       // the polyfill `_m(receiver)` re-references the receiver (the residual reads it too). the planner
       // (`planSideEffectKeyStrategy`) already admitted only re-referenceable receivers, so clone directly -
       // no local re-check (a duplicate gate here once drifted from the planner and left a literal native)
       polyfillValue = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverArg)]);
+      // the clone is skip-seeded: the text emitter re-emits the default AS WRITTEN (its
+      // sentinel rename owns the original span), so inner rewrites stay symmetric-raw
+      if (!patternValue && prop.node.value?.type === 'AssignmentPattern') {
+        instanceDefaultLive = true;
+        const defaultClone = t.cloneNode(prop.node.value.right);
+        t.traverseFast(defaultClone, node => { skippedNodes.add(node); });
+        const catchBorn = catchBornDeclarations.has(declaration.node);
+        const ref = catchBorn ? generateLocalRef(prop.scope) : generateRef(prop.scope, prop.node);
+        if (catchBorn) foldedTestRef = ref;
+        polyfillValue = buildInstanceDefaultGuard(t, { call: polyfillValue, defaultNode: defaultClone, ref });
+      }
     } else {
       // global ctor (`{ [(eff(), 'Promise')]: P } = globalThis`): register a GLOBAL alias so member reads
       // re-polyfill (`P.allSettled` -> the pure static). ALSO registering it as a body-extract alias would
@@ -1331,13 +1392,15 @@ export default function createDestructureEmitter({
     // the destructure binds nothing observable - replace the whole declaration with just the extracted binding
     if (plan.eliminateResidual) {
       const isExport = declaration.parentPath?.isExportNamedDeclaration();
-      const extracted = t.variableDeclaration(declaration.node.kind,
-        [t.variableDeclarator(bindingLhs(), polyfillValue)]);
+      const extracted = t.variableDeclaration(declaration.node.kind, [
+        ...foldedTestRef ? [t.variableDeclarator(t.cloneNode(foldedTestRef))] : [],
+        t.variableDeclarator(bindingLhs(), polyfillValue),
+      ]);
       (isExport ? declaration.parentPath : declaration)
         .replaceWith(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
       return true;
     }
-    if (plan.siblingDeclarator) {
+    if (plan.siblingDeclarator || (instanceDefaultLive && !foldedTestRef)) {
       // a preceding statement is impossible (loop header) or unsafe (a multi-declarator instance receiver
       // bound earlier in the same declaration would TDZ-fault) - bind the polyfill as a trailing sibling
       // IMMEDIATELY AFTER the consumed declarator: a later declarator of the same declaration may read
@@ -1345,7 +1408,9 @@ export default function createDestructureEmitter({
       // append would hand it the pre-init value (undefined on var, TDZ throw on let/const). `insertAfter`
       // (not a raw splice) re-queues the new declarator for the active traversal, so a nested instance /
       // static / global inside the cloned receiver gets re-visited and polyfilled - matching the
-      // standalone branch's `insertBefore` re-traversal, and the consumed / unplugin paths
+      // standalone branch's `insertBefore` re-traversal, and the consumed / unplugin paths.
+      // a LIVE-defaulted extraction takes this arm on a standalone host too: it must evaluate
+      // AFTER the kept key's side effect (native reads the key first, then fires the default)
       const trailing = t.variableDeclarator(bindingLhs(), polyfillValue);
       attachToPrevDeclarator.add(trailing);
       const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
@@ -1354,10 +1419,22 @@ export default function createDestructureEmitter({
       const anchor = seKeyTrailingAnchors.get(hostDeclarator.node) ?? hostDeclarator;
       const [inserted] = anchor.insertAfter(trailing);
       seKeyTrailingAnchors.set(hostDeclarator.node, inserted);
+      if (instanceDefaultLive) splitResidualAfterDefaultProp({ prop, guardPath: inserted });
+    } else if (instanceDefaultLive) {
+      // catch-born host: the separate `let _ref2, i = ...` line lands AFTER the relocated
+      // residual (the kept key's effect runs first) - the catch-canon shape the text emitter emits
+      const extracted = t.variableDeclaration(residualDecl.node.kind, [
+        t.variableDeclarator(t.cloneNode(foldedTestRef)),
+        t.variableDeclarator(bindingLhs(), polyfillValue),
+      ]);
+      const [guardPath] = residualDecl.insertAfter(extracted);
+      splitResidualAfterDefaultProp({ prop, guardPath });
     } else {
       const isExport = residualDecl.parentPath?.isExportNamedDeclaration();
-      const extracted = t.variableDeclaration(residualDecl.node.kind,
-        [t.variableDeclarator(bindingLhs(), polyfillValue)]);
+      const extracted = t.variableDeclaration(residualDecl.node.kind, [
+        ...foldedTestRef ? [t.variableDeclarator(t.cloneNode(foldedTestRef))] : [],
+        t.variableDeclarator(bindingLhs(), polyfillValue),
+      ]);
       (isExport ? residualDecl.parentPath : residualDecl)
         .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
     }
