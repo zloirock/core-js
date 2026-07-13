@@ -1,4 +1,6 @@
 // esnext proposals: various stages
+import { nullProto } from '../helpers/helpers.js';
+
 QUnit.test('esnext: Array#filterReject', assert => {
   assert.deepEqual([1, 2, 3, 4].filterReject(x => x % 2), [2, 4]);
 });
@@ -110,8 +112,13 @@ QUnit.test('esnext: Iterator.range', assert => {
 });
 
 QUnit.test('esnext: Iterator.zipKeyed', assert => {
-  const result = Iterator.zipKeyed({ a: [1, 2], b: [3, 4] });
-  assert.deepEqual(Array.from(result), [{ a: 1, b: 3 }, { a: 2, b: 4 }]);
+  const result = Array.from(Iterator.zipKeyed({ a: [1, 2], b: [3, 4] }));
+  // the proposal creates NULL-prototype result objects - assert that explicitly and compare
+  // against null-proto expecteds: a plain-object expected matches only through QUnit's
+  // null-proto leniency, which is realm-sensitive (the stripped-realm leg runs the bundle in
+  // a vm realm, where the leniency's prototype identity check fails)
+  assert.same(Object.getPrototypeOf(result[0]), null);
+  assert.deepEqual(result, [nullProto({ a: 1, b: 3 }), nullProto({ a: 2, b: 4 })]);
 });
 
 QUnit.test('esnext: Promise.allKeyed', assert => {
