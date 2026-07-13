@@ -246,7 +246,7 @@ export default class ImportInjectorState {
 
   registerGlobalAlias(name, globalName, {
     bindingNode = null, trusted = false, write = null, guarded = false, declSpan = null, scopeSpan = null,
-    verified = false, srcPos = null, extraBindingNodes = null,
+    verified = false, srcPos = null, extraBindingNodes = null, minted = false,
   } = {}) {
     this.usedNames.add(name);
     if (!bindingNode) {
@@ -255,7 +255,7 @@ export default class ImportInjectorState {
       // behind an AST mutation; trusting the hint would narrow over a flow a per-binding
       // registration may have refused)
       if (this.#aliasEntriesByName.get(name)?.length) return;
-      this.#globalAliases.set(name, { hint: globalName, trusted: true });
+      this.#globalAliases.set(name, { hint: globalName, trusted: true, minted });
       return;
     }
     const entry = { name, hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
@@ -326,7 +326,12 @@ export default class ImportInjectorState {
   // contains the use (a same-named local alias in another function must not make a DIRECT
   // global use look locally bound). blind and import entries are file-wide
   hasAliasName(name, useStart = null) {
-    if (this.#importInfoByName.has(name) || this.#globalAliases.has(name)) return true;
+    // blind global aliases split in two populations: a plugin-MINTED memo ref (`_ref` aliasing a
+    // proxy receiver) must read as bound - its declaration is real but babel's scope registry lags
+    // behind the mid-traversal insertion; a USER-source binding-less alias (`({ structuredClone } =
+    // globalThis)`) must stay INVISIBLE here - the name IS the global slot, and reporting a binding
+    // would hide its reads from the global machinery (no substitution, no deopt gating)
+    if (this.#importInfoByName.has(name) || this.#globalAliases.get(name)?.minted) return true;
     const list = this.#aliasEntriesByName.get(name);
     if (!list?.length) return false;
     if (useStart === null) return true;

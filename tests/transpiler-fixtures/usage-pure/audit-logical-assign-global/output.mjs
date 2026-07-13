@@ -1,7 +1,7 @@
-// `Map ||= X` and friends on a bare global Identifier. the LHS read of an unbound global
-// gets its polyfill attempt short-circuited: the import binding the plugin would substitute
-// is read-only, so assigning to it throws. plugin emits a warning and leaves the statement
-// raw; the runtime engine must already provide Map for this code to work
+// `Map ||= X` and friends on a bare unbound global are slot writes: the name DEOPTS - the
+// statement and every read stay verbatim on the live binding. the guard-shim idiom for a
+// WHOLE global is usage-global's niche (its injection provides the real global); pure
+// substitutes only what it is CERTAIN about. the debug note surfaces each deopted name
 Map ||= {};
 Map &&= {};
 Map ??= {};

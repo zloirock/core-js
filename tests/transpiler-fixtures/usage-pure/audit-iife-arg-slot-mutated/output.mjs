@@ -6,4 +6,4 @@ _globalThis.Array = function ShimArray() {};
   from
 }, Array) {
   use(from);
-}(_globalThis.Array);
+}(Array);
