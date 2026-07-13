@@ -1,6 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
-// a TYPE-annotation position never re-routes through the mutated slot - only value reads do
+// a TYPE-annotation position is untouched either way; the mutated name deopts, so its value
+// reads stay verbatim too - nothing in this file substitutes
 _globalThis.Map = function ShimMap() {};
-const x: Map<string, number> = new (_globalThis.Map === undefined ? _Map : _globalThis.Map)();
+const x: Map<string, number> = new Map();
 export default x;

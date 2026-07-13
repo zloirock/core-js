@@ -2366,15 +2366,6 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
     // helper authoritative for callers that bypass that check (decorator subtree walks etc.)
     if (parent.type === 'ArrayPattern' && parent.elements?.includes(member)) return true;
     if (parent.type === 'RestElement' && parent.argument === member) return true;
-    // assignment-target shape that parsers emit as ArrayExpression rather than ArrayPattern:
-    // `[obj.at] = src`. MemberExpression appears as element because it's a valid LHS but NOT
-    // a valid binding pattern. detect via the AssignmentExpression grandparent with `.left`
-    // pointing at the array container. ObjectExpression-LHS shape (`({a: obj.at} = src)`)
-    // would need great-grandparent inspection - intentionally not handled here; callers with
-    // path access (unplugin's destructure-LHS check) walk the path directly
-    if (parent.type === 'ArrayExpression' && parent.elements?.includes(member)
-        && grandparent?.type === 'AssignmentExpression' && grandparent.left === parent
-        && grandparent.operator === '=') return true;
     return false;
   }
 }
@@ -3340,10 +3331,47 @@ function isForXHeadAssignTarget(path) {
 // the adapter's `isReferenced` stays true; peel transparent ancestors before testing the
 // LHS shapes. plain `=` and every compound form (`||=`, `+=`, ...) write the LHS, so any
 // AssignmentExpression carrying the peeled node as `.left` qualifies
+// a bare Identifier leaf of an ASSIGNMENT-position destructure pattern (`[Promise] = arr`,
+// `({ p: Set } = obj)`, `[...WeakMap] = arr`, `[X = dflt] = arr`, `for ([X] of xs)`) - the
+// leaf WRITES the name, exactly like the flat `X = Y` twin. climbs the pattern chain
+// verifying each hop fills a TARGET slot, so a BINDING pattern (`const [X] = arr`, params,
+// catch) never matches - its host is a declarator, not an assignment / for-x head. wrappers
+// (parens / TS casts) peel at entry, so `[Promise!] = arr` classifies like the plain form.
+// serves the emitters' write-position policy split: usage-global treats the leaf as a USAGE
+// (the slot must exist or the strict-mode write ReferenceErrors on engines missing the
+// global - same rescue as the flat form), usage-pure treats it as a write target
+export function bareAssignmentPatternLeafPath(path) {
+  let cur = peelTransparentExprAncestorPath(path);
+  let parent = cur?.parentPath;
+  let hops = 0;
+  function isTargetSlot(pn, cn) {
+    if (pn.type === 'ArrayPattern') return pn.elements?.includes(cn);
+    if (pn.type === 'RestElement' || pn.type === 'SpreadElement') return pn.argument === cn;
+    if (pn.type === 'ObjectProperty' || pn.type === 'Property') return pn.value === cn;
+    if (pn.type === 'ObjectPattern') return pn.properties?.includes(cn);
+    return pn.type === 'AssignmentPattern' && pn.left === cn;
+  }
+  while (parent?.node && hops++ < 32) {
+    if (isTargetSlot(parent.node, cur.node)) {
+      cur = parent;
+      parent = cur.parentPath;
+      continue;
+    }
+    if (hops === 1) return false;
+    if (parent.node.type === 'AssignmentExpression') return parent.node.left === cur.node;
+    return FOR_X_STATEMENT_TYPES.has(parent.node.type) && parent.node.left === cur.node;
+  }
+  return false;
+}
+
 export function isAssignOrForXWriteTargetPath(path) {
   const anchor = peelTransparentExprAncestorPath(path);
   const parent = anchor?.parentPath?.node;
   if (parent?.type === 'AssignmentExpression') return parent.left === anchor.node;
+  // a destructure-pattern slot is the same per-key write target as the flat LHS. only a
+  // wrapped leaf ever reaches this check (a plain pattern element is not "referenced"), so
+  // the slot tests must compare the ANCHOR - the raw identifier is never the slot value
+  if (anchor?.node && isMemberWriteOnlyContext(anchor.node, parent, anchor.parentPath?.parentPath?.node)) return true;
   return isForXHeadAssignTarget(anchor);
 }
 
@@ -4301,7 +4329,10 @@ const TRANSPARENT_WRAPPER_TYPES = new Set([
 // babel strips) so `({x})` patterns aren't silently dropped from the binding scan
 export function walkPatternIdentifiers(node, visit, depth = 0) {
   if (!node) return;
-  if (node.type === 'ParenthesizedExpression') {
+  // parens and TS expression wrappers are runtime no-ops around an assignment-position leaf
+  // (`[Promise!] = arr`, `[(Map as unknown)] = arr`); binding-position patterns cannot parse
+  // them, so the peel only ever fires on assignment-target patterns
+  if (node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(node.type)) {
     walkPatternIdentifiers(node.expression, visit, depth);
     return;
   }

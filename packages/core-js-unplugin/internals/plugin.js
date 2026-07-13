@@ -14,6 +14,7 @@ import {
   isForXWriteTarget,
   climbTransparentWrapperPath,
   isMemberWriteOnlyContext,
+  isMutatedGlobalSlot,
   isMutatedStaticMeta,
   isTaggedTemplateTag,
   collectUserMemberKeyNames,
@@ -27,7 +28,7 @@ import {
   unwrapReceiverLeaf,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics, planMutatedSlotReroute } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -820,7 +821,6 @@ export default function createPlugin(options) {
         const usageVisitors = createUsageVisitors({
           adapter: estreeAdapter,
           onUsage: usageGlobalCallback,
-          onWarning: msg => debugOutput?.warn(msg),
           method,
           isEntryAvailable: isEntryNeeded,
           resolvePure,
@@ -1035,28 +1035,16 @@ export default function createPlugin(options) {
           return true;
         }
 
-        // a SLOT-mutated global name follows the runtime slot on EVERY surface (the semantics -
-        // backstop / typeof gate / static pin - live in the shared `planMutatedSlotReroute`);
-        // this renders the plan as text. an object-shorthand value slot cannot hold a member
-        // text - expand it like the static dispatch's shorthand branch. no `?.` deopt here:
-        // the live slot is NOT always-defined, so an optional chain over it keeps its guard
-        function rerouteMutatedSlotRead(meta, node, metaPath) {
-          const plan = planMutatedSlotReroute({
-            meta, node, parentNode: semanticParentNode(metaPath), adapter: estreeAdapter,
-            resolvePureFiltered: m => resolvePureOrGlobalFallback(m, metaPath).result,
-            resolvePureUnfiltered: m => resolvePureUnfiltered(m, metaPath),
-          });
-          if (!plan) return false;
-          const slotSrc = `${ injectPureImport(plan.globalBinding.entry, plan.globalBinding.hintName) }.${ meta.name }`;
-          if (plan.staticPin) injectPureImport(plan.staticPin.entry, plan.staticPin.hintName);
-          const memberSrc = plan.pony
-            ? `(${ slotSrc } === undefined ? ${ injectPureImport(plan.pony.entry, plan.pony.hintName) } : ${ slotSrc })`
-            : slotSrc;
-          const shorthandHost = metaPath.parent;
-          const isShorthand = shorthandHost?.type === 'Property'
-            && shorthandHost.shorthand && shorthandHost.value === node
-            && metaPath.parentPath?.parent?.type === 'ObjectExpression';
-          transforms.add(node.start, node.end, isShorthand ? `${ node.name }: ${ memberSrc }` : memberSrc);
+        // a SLOT-mutated global name is DEOPTED (see the slot-deopt model in the provider's
+        // mutation pre-pass): the file writes the name itself, so its reads stay verbatim on
+        // the live binding and the runtime serves what the user's writes left there
+        const deoptNotedNames = new Set();
+        function deoptMutatedSlotRead(meta) {
+          if (meta.kind !== 'global' || !isMutatedGlobalSlot(estreeAdapter, meta.name)) return false;
+          if (!deoptNotedNames.has(meta.name)) {
+            deoptNotedNames.add(meta.name);
+            debugOutput?.warn(`\`${ meta.name }\` is written in this file (slot mutation) - the name is left native`);
+          }
           return true;
         }
 
@@ -1114,7 +1102,7 @@ export default function createPlugin(options) {
             });
           }
 
-          if (rerouteMutatedSlotRead(meta, node, metaPath)) return;
+          if (deoptMutatedSlotRead(meta)) return;
           let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
           // inherited-static lookup (`this.X()` in static block of `class C extends Y`) has
           // already been retargeted to `Y`-static-meta above. when `Y` has no static `X`,
@@ -1305,7 +1293,6 @@ export default function createPlugin(options) {
         }, createUsageVisitors({
           adapter: estreeAdapter,
           onUsage: usagePureCallback,
-          onWarning: msg => debugOutput?.warn(msg),
           method,
           suppressProxyGlobals: true,
           walkAnnotations: false,

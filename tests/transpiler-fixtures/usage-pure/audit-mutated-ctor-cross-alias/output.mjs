@@ -1,12 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // a ctor-slot mutation through ONE global-proxy alias must be visible to reads through ANY
 // other - the proxy names (`globalThis` / `self` / `window` / `global`) alias the same object
 _self.Set = function ShimSet() {};

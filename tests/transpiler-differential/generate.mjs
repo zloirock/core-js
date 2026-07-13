@@ -1607,14 +1607,14 @@ function * generateMutatedAnchoredSymbol() {
   yield { ...snippet('mutated-anchored-symbol/slot-shim', body), strip: false };
 }
 
-// --- Slot-backstop grammar (bare reads of a slot-mutated name, STRIPPED-realm oracle) ---
-// a ctor-SLOT mutation anywhere in the module re-routes every bare read of the name through the
-// live global slot; the emission must keep a ponyfill BACKSTOP for the ABSENT slot. read-BEFORE-
-// write is the load-bearing shape: in the stripped realm the pre-write read crashes on the raw
-// slot without the backstop, exactly where the untranspiled source crashes on the missing native.
-// post-write reads must serve the user's shim on every leg. `Iterator` is the strippable subject
-// (STRIP_GLOBALS); restores mirror the captured state exactly (delete vs assign) so the realm
-// stays clean for the next snippet on both the full and the stripped leg
+// --- Slot-deopt grammar (a slot-mutated name stays verbatim on every surface) ---
+// a ctor-SLOT mutation anywhere in the module DEOPTS the name: reads before AND after the
+// write stay raw, so the runtime serves exactly what the live slot holds - the pristine
+// native before the write, the user's shim after it, matching the untranspiled source
+// verbatim. FULL-env only: on the stripped realm the raw pre-write read crashes exactly like
+// the untranspiled source (the native-faithful crash contract is locked by the runtime e2e -
+// an equivalence oracle over a passing native leg cannot host it). restores mirror the
+// captured state exactly (delete vs assign) so the realm stays clean for the next snippet
 function * generateSlotBackstop() {
   const restore = 'if (_o === undefined) delete globalThis.Iterator; else globalThis.Iterator = _o;';
   const forms = [
@@ -1638,8 +1638,47 @@ function * generateSlotBackstop() {
   for (const f of forms) {
     const body = `(() => { ${ f.pre } const _o = globalThis.Iterator; try { globalThis.Iterator = ${ f.shim }; `
       + `return ${ f.use }; } finally { ${ restore } } })()`;
-    yield { ...snippet(`slot-backstop/${ f.id }`, body), strip: true };
+    yield { ...snippet(`slot-deopt/${ f.id }`, body), strip: false };
   }
+}
+
+// --- Bare slot-write grammar (non-member write forms of an unbound global name) ---
+// every bare-identifier WRITE form (flat reassign, destructure-pattern element, for-x head,
+// update) assigns the same global slot as the member form and must record the mutation: a
+// missed record substitutes the pristine ponyfill over the live shim (full leg) or drops the
+// backstop for a pre-write read (stripped leg). the self-restore alias form (`({ Iterator } =
+// globalThis)`) additionally locks the registration decline: a trusted pristine alias would
+// hide the read from the reroute on exactly one emitter and desync the legs
+function * generateBareSlotWrite() {
+  const restore = 'if (_o === undefined) delete globalThis.Iterator; else globalThis.Iterator = _o;';
+  // FULL-env only: a bare write of an ABSENT slot is a strict-mode ReferenceError, so the
+  // stripped realm cannot host these forms; the full realm still discriminates - a missed
+  // record substitutes the pristine ponyfill where the native run serves the live shim
+  const forms = [
+    { id: 'flat-reassign', write: 'Iterator = SHIM;', use: '[early, Iterator.slotMarker()]' },
+    { id: 'array-pattern', write: '[Iterator] = [SHIM];', use: '[early, Iterator.slotMarker()]' },
+    { id: 'object-pattern-renamed', write: '({ w: Iterator } = { w: SHIM });', use: '[early, Iterator.slotMarker()]' },
+    { id: 'for-of-head', write: 'for (Iterator of [SHIM]);', use: '[early, Iterator.slotMarker()]' },
+    // the update coerces the slot to NaN - the boxed member probe stays call-free
+    { id: 'update', write: 'Iterator++;', use: '[early, typeof Iterator.from]' },
+    // the guard-shim form deopts like any other slot write: present native keeps the shim
+    // dead and every read stays verbatim
+    { id: 'or-assign', write: 'Iterator ||= SHIM;', use: '[early, typeof Iterator.slotMarker]' },
+  ];
+  for (const f of forms) {
+    const body = '(() => { const early = Iterator.from([1].values()).next().value; const _o = globalThis.Iterator; '
+      + `const SHIM = { slotMarker: () => "S" }; try { ${ f.write } `
+      + `return ${ f.use }; } finally { ${ restore } } })()`;
+    yield { ...snippet(`bare-slot-write/${ f.id }`, body), strip: false };
+  }
+  // the self-restore alias (`({ Iterator } = globalThis)`) is an IDENTITY self-copy - no
+  // mutation records, the pristine flatten (`Iterator = _Iterator`) + static narrowing apply.
+  // FULL-env only: the flattened bare write needs an existing slot under strict mode
+  const aliasBody = '(() => { const _o = globalThis.Iterator; '
+    + 'const early = Iterator.from([1].values()).next().value; try { ({ Iterator } = globalThis); '
+    + 'return [early, typeof Iterator.from]; } finally { '
+    + 'if (_o === undefined) delete globalThis.Iterator; else globalThis.Iterator = _o; } })()';
+  yield { ...snippet('bare-slot-write/self-restore-alias', aliasBody), strip: false };
 }
 
 // the mutated static is the chain ROOT: `Array.from = patch; Array.from([1]).flat()`. the static bails
@@ -3166,6 +3205,7 @@ export function * generate() {
   yield * generateMutatedDestructure();
   yield * generateMutatedAnchoredSymbol();
   yield * generateSlotBackstop();
+  yield * generateBareSlotWrite();
   yield * generateMutatedNarrowChain();
   yield * generateMutatedComputedKey();
   yield * generateMutatedWrapperAssign();

@@ -47,6 +47,7 @@ import {
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
   maybeRegisterAssignmentAliasWrite,
+  registerBindinglessCtorAlias,
   registerCtorAliasExtractions,
   registerDeclAliasIfSound,
   memberKeyName,
@@ -3315,16 +3316,16 @@ export function createDestructureEmitter({
     if (pureResult?.kind === 'global' && !isSymbolIterator && !isSymbolKeyPassthrough) {
       const aliasBinding = estreeAdapter.getBinding(metaPath.scope, localName, metaPath);
       // binding-less alias name (writing the global itself): trusted - no user binding to contradict
-      if (!aliasBinding?.node) injector.registerGlobalAlias(localName, pureResult.hintName, { trusted: true });
+      if (!aliasBinding?.node) registerBindinglessCtorAlias({ injector, adapter: estreeAdapter, localName, hint: pureResult.hintName });
       else if (isAssignment) {
         maybeRegisterAssignmentAliasWrite({
-          injector, binding: aliasBinding,
+          injector, adapter: estreeAdapter, binding: aliasBinding,
           // the ASSIGNMENT path itself - see the babel twin: edge-judged placement walk
           localName, hint: pureResult.hintName, assignNode: declaratorPath.node, stmtPath: declaratorPath,
         });
       } else {
         registerDeclAliasIfSound({
-          injector, kind: declPath?.node?.kind, localName, hint: pureResult.hintName, stmtPath: declPath,
+          injector, adapter: estreeAdapter, kind: declPath?.node?.kind, localName, hint: pureResult.hintName, stmtPath: declPath,
           bindingNode: aliasBinding?.node ?? null, binding: aliasBinding,
         });
       }
