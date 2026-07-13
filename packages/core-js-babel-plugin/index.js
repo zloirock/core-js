@@ -10,6 +10,7 @@ import {
   isMemberWriteHost,
   isThisReceiver,
   getMinifierSequenceDestructureExpressions,
+  isMutatedGlobalSlot,
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
   collectUserMemberKeyNames,
@@ -22,7 +23,8 @@ import {
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics, planMutatedSlotReroute } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
   createClassHelpers, hasCtorAliasCandidateShapes, registerAliasPrePassSite, remapInheritedStaticMeta,
@@ -221,6 +223,13 @@ export default function plugin(api, options) {
   }
 
   let injector, importStyle, debugOutput;
+  // one debug note per DEOPTED global name per file (fired lazily at the first suppressed read)
+  let deoptNotedNames = new Set();
+  function noteDeoptedGlobal(name) {
+    if (deoptNotedNames.has(name)) return;
+    deoptNotedNames.add(name);
+    debugOutput?.warn(`\`${ name }\` is written in this file (slot mutation) - the name is left native`);
+  }
 
   const {
     isInTypeAnnotation,
@@ -648,7 +657,7 @@ export default function plugin(api, options) {
             // destructures the get-iterator-method result (helper canon, matching the
             // identifier-valued form); every other pattern-valued prop stays native
             if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)
-              && !(t.isObjectPattern(path.node.value) && isSourcedSymbolIteratorMeta(meta))) return;
+              && !(isSymbolIteratorPatternProp(path.node) && isSourcedSymbolIteratorMeta(meta))) return;
             // ConditionalExpression / LogicalExpression init - resolver may pick a branch
             // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
             // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
@@ -706,27 +715,12 @@ export default function plugin(api, options) {
           }
         }
 
-        // a SLOT-mutated global name follows the runtime slot on EVERY surface (the semantics -
-        // backstop / typeof gate / static pin - live in the shared `planMutatedSlotReroute`);
-        // this renders the plan as AST: `(_globalThis.X === undefined ? _X : _globalThis.X)`
-        if (meta.kind === 'global' && path.isIdentifier()) {
-          const plan = planMutatedSlotReroute({
-            meta, node: path.node, parentNode: unwrapTSExpressionParent(path).parentPath?.node, adapter,
-            resolvePureFiltered: m => resolvePureOrGlobalFallback(m, path).result,
-            resolvePureUnfiltered: m => resolvePureUnfiltered(m, path),
-          });
-          if (plan) {
-            function slotRead() {
-              return t.memberExpression(injectPureImport(plan.globalBinding.entry, plan.globalBinding.hintName), t.identifier(meta.name));
-            }
-            if (plan.staticPin) injectPureImport(plan.staticPin.entry, plan.staticPin.hintName);
-            path.replaceWith(plan.pony ? t.conditionalExpression(
-              t.binaryExpression('===', slotRead(), t.identifier('undefined')),
-              injectPureImport(plan.pony.entry, plan.pony.hintName),
-              slotRead(),
-            ) : slotRead());
-            return;
-          }
+        // a SLOT-mutated global name is DEOPTED (see the slot-deopt model in the provider's
+        // mutation pre-pass): the file writes the name itself, so its reads stay verbatim on
+        // the live binding and the runtime serves what the user's writes left there
+        if (meta.kind === 'global' && path.isIdentifier() && isMutatedGlobalSlot(adapter, meta.name)) {
+          noteDeoptedGlobal(meta.name);
+          return;
         }
         const { result, fallback } = resolvePureOrGlobalFallback(meta, path);
         // inherited-static lookup where the member doesn't exist as static on the super class:
@@ -969,7 +963,6 @@ export default function plugin(api, options) {
       const commonVisitorOptions = {
         adapter,
         onUsage: usageCallback,
-        onWarning: message => debugOutput?.warn(message),
         method,
         isEntryAvailable: isEntryNeeded,
         toHint,
@@ -1055,6 +1048,7 @@ export default function plugin(api, options) {
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
+        deoptNotedNames = new Set();
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
         // `directives === true` signals `disable-file` - collapse both skip sources into one write.

@@ -20,6 +20,7 @@ import { MAX_DEPTH, $Object } from './base.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode, staticMemberKeyName } from '../helpers/class-walk.js';
 import {
   arrayWrapSlotBindsName,
+  isMutatedGlobalSlot,
   isTopLevelThisContext,
   getSuperTypeArgs,
   isAmbientBindingShape,
@@ -62,7 +63,12 @@ export function createGlobalResolve({
   function isProxyGlobalChainLink(objectPath) {
     if (!t.isMemberExpression(objectPath.node) && !t.isOptionalMemberExpression(objectPath.node)) return false;
     const propName = staticMemberKeyName(objectPath.node);
-    return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName) && isGlobalProxy(objectPath.get('object'));
+    // a user-replaced hop slot (`globalThis.self = fake`) is the user's redirection - walking
+    // through it would narrow to the pristine constructor's type on a foreign runtime value
+    // (the detect-usage walk already honors the slot; this is its type-channel mirror)
+    return !!propName && POSSIBLE_GLOBAL_OBJECTS.has(propName)
+      && !isMutatedGlobalSlot(babelBindingAdapter, propName)
+      && isGlobalProxy(objectPath.get('object'));
   }
 
   // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self })()`.

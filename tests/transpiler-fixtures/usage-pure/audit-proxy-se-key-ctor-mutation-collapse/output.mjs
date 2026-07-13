@@ -1,8 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // A SE-bearing computed proxy-hop key in a constructor mutation LHS folds the key to its name, drops a
 // non-resolvable hop (`window`) to the pure root, AND harvests the buried effect ahead of it:
 // `globalThis[(e++, 'window')].Set = fn` -> `(e++, _globalThis).Set = fn`. leaving `_globalThis[(e++, 'window')]`
