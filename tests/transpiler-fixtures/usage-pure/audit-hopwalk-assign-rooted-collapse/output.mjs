@@ -6,7 +6,6 @@ import _includes from "@core-js/pure/actual/instance/includes";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _self from "@core-js/pure/actual/self";
-import _Set from "@core-js/pure/actual/set/constructor";
 // A chain-assignment-rooted proxy navigation (`(a = globalThis).self.X`) roots at the assigned
 // value, but the emit-side collapse walked chains chain-assign-BLIND: the assign stopped the root
 // walk, the redundant `.self` hop survived, and the emitted receiver read an undefined hop off the

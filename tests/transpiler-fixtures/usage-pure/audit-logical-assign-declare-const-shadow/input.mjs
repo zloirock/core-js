@@ -1,8 +1,8 @@
-// `declare const Map` is ambient (tsc elides it at runtime; references resolve to the
-// global). raw `binding-identifier lookup` sees the declare-binding and suppresses the warning;
-// `adapter.hasBinding` filters ambient shapes via `ambient binding filter` and correctly
-// reports `Map` as unshadowed - so `Map ||= Y` fires the diagnostic (the assignment hits
-// the read-only polyfill import at runtime and throws)
+// `declare const Map` is ambient - tsc elides it at runtime and references resolve to the
+// global. a raw scope lookup would see the declare-binding as a shadow and skip the slot
+// recording; the adapter filters ambient shapes, correctly reports `Map` as unshadowed, and
+// the bare guard-shim write records the slot mutation - the name DEOPTS: the statement and
+// the later read stay verbatim (native-faithful), and the debug note surfaces the deopt
 declare const Map: any;
 Map ||= { B: 2 };
 console.log(Map);

@@ -12,13 +12,13 @@ import {
   followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
-  isMutatedGlobalSlot,
   memberKeyName,
   mutatedStaticKey,
   patternSlotValues,
   POSSIBLE_GLOBAL_OBJECTS,
   propertyKeyName,
   reassignmentValueNodes,
+  walkPatternIdentifiers,
   TS_EXPR_WRAPPERS,
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
@@ -104,6 +104,12 @@ function collectGateRoots(node, out, firstKey = null, hops = 0, depth = 0) {
     break;
   }
   if (root?.type === 'Identifier') out.push({ name: root.name, chained: hops > 0, firstKey });
+  // a CALL-rooted target (`getArr().from = patch`) is opaque to the cheap name heuristics, but
+  // the scoped stage CAN resolve it (it inlines a transparent call's return) - report it as a
+  // gate-firing root so the cheap gate stays a SUPERSET of the scoped value fan
+  else if (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression') {
+    out.push({ name: '', callRooted: true, chained: hops > 0, firstKey });
+  }
   return out;
 }
 
@@ -184,13 +190,21 @@ export function hasMutationCandidateShapes(programNode) {
           targets.push(left.object);
         } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
           gatherPatternMemberTargets(left, targets);
+          // bare identifier elements assign global slots like the flat form - gate on them too
+          walkPatternIdentifiers(left, id => targets.push(id));
           recordValueSource(left, node.right);
-        } else recordValueSource(left, node.right);
+        } else {
+          recordValueSource(left, node.right);
+          // a bare reassignment of a global name writes the global slot - the Identifier
+          // itself gates the scoped pass (bound / lowercase writes filter out there)
+          if (left?.type === 'Identifier') targets.push(left);
+        }
         break;
       }
       case 'UpdateExpression': {
         const arg = unwrapRuntimeExpr(node.argument);
         if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
+        else if (arg?.type === 'Identifier') targets.push(arg);
         break;
       }
       case 'UnaryExpression': {
@@ -200,8 +214,19 @@ export function hasMutationCandidateShapes(programNode) {
       }
       case 'ForInStatement':
       case 'ForOfStatement':
-        if (node.left?.type === 'MemberExpression') targets.push(node.left.object);
-        else if (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern') gatherPatternMemberTargets(node.left, targets);
+        switch (node.left?.type) {
+          case 'MemberExpression':
+            targets.push(node.left.object);
+            break;
+          case 'ArrayPattern':
+          case 'ObjectPattern':
+            gatherPatternMemberTargets(node.left, targets);
+            walkPatternIdentifiers(node.left, id => targets.push(id));
+            break;
+          case 'Identifier':
+            targets.push(node.left);
+            break;
+        }
         break;
       case 'VariableDeclarator':
         recordValueSource(node.id, node.init);
@@ -254,6 +279,7 @@ export function hasMutationCandidateShapes(programNode) {
     // collectGateRoots fans the same composites the scoped pass resolves, keeping the cheap gate a
     // SUPERSET; otherwise the monkey-patch escapes the gate and usage-pure substitutes over it
     for (const root of collectGateRoots(target, [])) {
+      if (root.callRooted) return true;
       if (root.name[0] >= 'A' && root.name[0] <= 'Z') return true;
       if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
       if (valueBound.has(root.name)) return true;
@@ -303,6 +329,9 @@ function bindingDeclarator(name, ctx) {
   const { scope, adapter, path } = ctx;
   if (!adapter.hasBinding(scope, name, path)) return null;
   const binding = adapter.getBinding(scope, name, path);
+  // a REASSIGNED binding is not a resolvable mutator / source: recording its stale init would
+  // keep an unrelated read native. the const idiom is the recorded channel - a documented
+  // precision limit (locked by the resolve-node-type mutation pre-pass negatives)
   if (binding?.constantViolations?.length) return null;
   const decl = binding?.path?.node ?? binding?.node;
   return decl?.type === 'VariableDeclarator' ? decl : null;
@@ -342,6 +371,73 @@ function objectLiteralKeys(node, ctx) {
 
 // `{ targetNode, keys }` entries for a mutation-shaped node; the Object / Reflect callee name
 // resolves through the shadow-aware read canon, so a local `Object` twin classifies nothing.
+// a bare reassignment-shaped write of an UNBOUND global name (`Promise = Bluebird`,
+// `Promise++`, `[Promise] = arr` - sloppy scripts and modules both write the EXISTING global
+// slot) replaces the slot exactly like `globalThis.Promise = ...`; without the record
+// usage-pure substitutes the pristine ponyfill over the live override. a locally bound name
+// is an ordinary variable write (the read side resolves the local); the capitalized /
+// proxy-name heuristic mirrors the cheap gate so implicit sloppy-mode globals
+// (`counter = 1`) stay out of the set.
+// value-globals are non-writable (a bare write silently fails or TypeErrors) and their reads
+// are compile-time constants - recording or rerouting them buys nothing and only churns emit
+const NON_WRITABLE_VALUE_GLOBALS = new Set(['undefined', 'NaN', 'Infinity']);
+
+function bareGlobalSlotEntry(node, ctx) {
+  if (node?.type !== 'Identifier' || NON_WRITABLE_VALUE_GLOBALS.has(node.name)) return null;
+  if (!((node.name[0] >= 'A' && node.name[0] <= 'Z') || POSSIBLE_GLOBAL_OBJECTS.has(node.name))) return null;
+  if (ctx.adapter.hasBinding(ctx.scope, node.name, ctx.path)) return null;
+  return { globalSlotKey: node.name };
+}
+
+// an unbound DIRECT proxy-global name (`globalThis` / `self` / ...) - the receiver shape the
+// identity self-copy detection below trusts; aliases and hops stay out (recording is the safe
+// direction there)
+function isBareProxyGlobalName(node, ctx) {
+  return node?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(node.name)
+    && !ctx.adapter.hasBinding(ctx.scope, node.name, ctx.path);
+}
+
+// identity SELF-COPY writes assign a slot its own current value - `({ Promise } = globalThis)`
+// (the self-restore idiom) and the flat twin `Promise = globalThis.Promise`. the value cannot
+// change, so there is NO mutation to record: the read side keeps the pristine flatten /
+// substitution (polyfill always wins), uniform with the lowercase and declaration forms of the
+// same idiom. only top-level DEFAULT-LESS same-key props of a direct proxy-name receiver
+// qualify - a default (`{ Promise = shim }`) installs a foreign value on the absent slot, a
+// rest/array element copies a different value, and alias/hop receivers stay recorded
+function identitySelfCopyLeaves(target, rhs, ctx) {
+  const out = new Set();
+  if (target?.type !== 'ObjectPattern' || !isBareProxyGlobalName(rhs, ctx)) return out;
+  for (const p of target.properties ?? []) {
+    if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
+    const value = unwrapRuntimeExpr(p.value);
+    if (value?.type === 'Identifier' && propertyKeyName(p) === value.name) out.add(value);
+  }
+  return out;
+}
+
+function isIdentityFlatCopy(name, rhs, ctx) {
+  if (rhs?.type !== 'MemberExpression' && rhs?.type !== 'OptionalMemberExpression') return false;
+  return memberKeyName(rhs) === name && isBareProxyGlobalName(unwrapRuntimeExpr(rhs.object), ctx);
+}
+
+// all bare slot writes an ASSIGNMENT TARGET position can hold: a flat identifier or bare
+// identifier leaves of a destructure pattern (`[Promise] = arr` - each is the same slot
+// write as its flat twin). member leaves are classified by the member visitor, not here.
+// `rhs` (assignment form only) feeds the identity self-copy exemption
+function bareSlotWriteEntries(target, ctx, rhs = null) {
+  const bare = bareGlobalSlotEntry(target, ctx);
+  if (bare) return isIdentityFlatCopy(target.name, rhs, ctx) ? [] : [bare];
+  if (target?.type !== 'ArrayPattern' && target?.type !== 'ObjectPattern') return [];
+  const identity = identitySelfCopyLeaves(target, rhs, ctx);
+  const out = [];
+  walkPatternIdentifiers(target, id => {
+    if (identity.has(id)) return;
+    const entry = bareGlobalSlotEntry(id, ctx);
+    if (entry) out.push(entry);
+  });
+  return out;
+}
+
 // delete / update / assignment classify from the HOST side with a
 // DOWNWARD wrapper peel - parent-side hops can't see through stacked wrappers
 // (`delete ((Map.groupBy))`, `delete (Map.groupBy as any)`), the peel depth is unbounded
@@ -356,8 +452,23 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   if (node.type === 'UnaryExpression') {
     return node.operator === 'delete' ? memberMutationEntry(node.argument, ctx) : [];
   }
-  if (node.type === 'UpdateExpression') return memberMutationEntry(node.argument, ctx);
-  if (node.type === 'AssignmentExpression') return memberMutationEntry(node.left, ctx);
+  if (node.type === 'UpdateExpression') {
+    const entries = memberMutationEntry(node.argument, ctx);
+    if (entries.length) return entries;
+    // `Promise++` is a read-modify-WRITE of the same slot the bare `=` form writes
+    const bare = bareGlobalSlotEntry(unwrapRuntimeExpr(node.argument), ctx);
+    return bare ? [bare] : [];
+  }
+  if (node.type === 'AssignmentExpression') {
+    const entries = memberMutationEntry(node.left, ctx);
+    if (entries.length) return entries;
+    return bareSlotWriteEntries(unwrapRuntimeExpr(node.left), ctx, unwrapRuntimeExpr(node.right));
+  }
+  // a bare for-x LHS (`for (Promise of xs)`, `for ([Promise] of xs)`) assigns the slot on
+  // every iteration; a VariableDeclaration LHS binds locally and falls out of the helper
+  if (node.type === 'ForOfStatement' || node.type === 'ForInStatement') {
+    return bareSlotWriteEntries(unwrapRuntimeExpr(node.left), ctx);
+  }
   if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && isMemberMutationContext(node, parent, grandparent)) {
     const key = mutationKeyName(node.property, node.computed, ctx);
@@ -440,12 +551,30 @@ function bareCalleeStaticPair(callee, ctx) {
 export function createMutationSiteHandler({ adapter, mutated }) {
   return function handleSite(path) {
     const ctx = { scope: path.scope, adapter, path };
-    for (const { targetNode, keys } of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
+    for (const entry of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
+      if (entry.globalSlotKey) {
+        mutated.add(mutatedStaticKey('globalThis', entry.globalSlotKey));
+        continue;
+      }
+      const { targetNode, keys } = entry;
       const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
       for (const name of names) for (const key of keys) mutated.add(mutatedStaticKey(name, key));
     }
   };
 }
+
+// --- slot-DEOPT model (usage-pure) ---
+// a file that writes the SLOT of a global name in ANY form (`X = Y`, `X ||= Y`, `X++`,
+// `[X] = arr`, `for (X of ...)`, `globalThis.X = Y`, `delete globalThis.X`) makes every
+// read of that name flow-dependent - a question a file-wide static set cannot answer.
+// usage-pure substitutes only what it is CERTAIN about, so the whole name DEOPTS: reads,
+// writes and probes stay verbatim on the live binding and the runtime serves exactly what
+// the user's code left there (native-faithful, bail-safe under-polyfill on old engines).
+// identity self-copies (`({ X } = globalThis)`, `X = globalThis.X`) are value no-ops and do
+// NOT trigger the deopt - they keep the pristine flatten. member-STATIC mutations
+// (`Iterator.from = patch`) are NOT slot writes: the static canon (suppression + eager
+// enrichment + one routed constructor) is untouched. the emitters consult
+// `isMutatedGlobalSlot` at their global-identifier usage callbacks and emit a debug note.
 
 // --- mutated-key enrichment (shared by both plugins) ---
 // imports each mutated key's own PURE entry up front, so core-js initializes from the
@@ -459,35 +588,6 @@ export function createMutationSiteHandler({ adapter, mutated }) {
 //   ctor-routing gate: the point is initialization ORDER - core-js caches its own
 //   implementation and never adopts the third-party patch, so dispatch helpers keep
 //   serving the core-js polyfill in every file of the bundle
-// ONE semantic plan for a bare read of a SLOT-mutated global name, shared by both emitters
-// (they only render it - babel as AST, unplugin as text). decisions owned here:
-//   - reroute at all (kind/shape/slot gates; the globalThis binding must resolve);
-//   - ponyfill BACKSTOP for the ABSENT slot - only when targets require the global at all
-//     (`resolvePureFiltered`) and NEVER under a `typeof` operand (a guard probes engine
-//     state; the backstop would flip `"undefined"` there);
-//   - polyfill-then-patch pin for a STATIC read through the backstop (the constructor entry
-//     alone leaves the ponyfill namespace bare): the member host's key resolves via the
-//     pair-mutated enrichment model above; custom keys resolve to nothing and stay bare.
-// `parentNode` is the semantic parent with transparent wrappers already peeled by the
-// caller's own path machinery; `node` is the bare Identifier read
-export function planMutatedSlotReroute({ meta, node, parentNode, adapter, resolvePureFiltered, resolvePureUnfiltered }) {
-  if (meta.kind !== 'global' || node?.type !== 'Identifier' || !isMutatedGlobalSlot(adapter, meta.name)) return null;
-  const globalBinding = resolvePureUnfiltered({ kind: 'global', name: 'globalThis' });
-  if (!globalBinding) return null;
-  const inTypeof = parentNode?.type === 'UnaryExpression' && parentNode.operator === 'typeof';
-  const pony = inTypeof ? null : resolvePureFiltered(meta);
-  let staticPin = null;
-  if (pony && (parentNode?.type === 'MemberExpression' || parentNode?.type === 'OptionalMemberExpression')
-    && unwrapRuntimeExpr(parentNode.object) === node) {
-    const staticKey = memberKeyName(parentNode);
-    const pin = staticKey && resolvePureUnfiltered({
-      kind: 'property', object: meta.name, key: staticKey, placement: 'static',
-    });
-    if (pin && pin.kind !== 'instance') staticPin = pin;
-  }
-  return { globalBinding, pony: pony ?? null, staticPin };
-}
-
 export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureImport }) {
   for (const mutatedKey of mutatedStatics ?? []) {
     const dot = mutatedKey.lastIndexOf('.');
@@ -501,15 +601,10 @@ export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureIm
       if (pure) injectPureImport(pure.entry, pure.hintName);
       continue;
     }
-    // a PROXY-GLOBAL receiver names a global SLOT (`window.Promise = Shim`): the mutated
-    // "key" IS a constructor - pin its own entry so core-js modules loading later in the
-    // bundle initialize from the pristine global, not the replacement. explicit for every
-    // proxy name: `window` has no pure entry, so the ctor-routing gate below would skip it
-    if (POSSIBLE_GLOBAL_OBJECTS.has(ctorName)) {
-      const pure = resolvePure({ kind: 'global', name: mutatedKey.slice(dot + 1) });
-      if (pure && pure.kind !== 'instance') injectPureImport(pure.entry, pure.hintName);
-      continue;
-    }
+    // a PROXY-GLOBAL host names a global SLOT (`window.Promise = Shim`, bare `Promise = Shim`):
+    // the whole name is DEOPTED (see the slot-deopt model above) - nothing of it is ever
+    // substituted, so there is no ponyfill to pin; skip without enrichment
+    if (POSSIBLE_GLOBAL_OBJECTS.has(ctorName)) continue;
     if (!resolvePure({ kind: 'global', name: ctorName })) continue;
     const pure = resolvePure({
       kind: 'property', object: ctorName, key: mutatedKey.slice(dot + 1), placement: 'static',

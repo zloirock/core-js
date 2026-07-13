@@ -6,5 +6,5 @@ var _ref2;
 // read / write keep their original value
 _globalThis._ref = 1;
 _ref += 10;
-console.log(_globalThis._ref);
+console.log(_ref);
 _atMaybeArray(_ref2 = [1, 2, 3]).call(_ref2, 0);

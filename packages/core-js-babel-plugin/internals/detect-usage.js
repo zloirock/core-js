@@ -7,8 +7,6 @@ import {
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  checkLogicalAssignLhsGlobal,
-  checkLogicalAssignLhsMember,
   isKnownGlobalName,
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -31,6 +29,7 @@ import {
   resolveFallbackReceiver,
   findTSRuntimeBindingInPath,
   isAmbientBindingShape,
+  bareAssignmentPatternLeafPath,
   isAssignOrForXWriteTargetPath,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
@@ -88,6 +87,10 @@ export function collectMutationPrePass(programPath, adapter) {
     AssignmentExpression: handleSite,
     UpdateExpression: handleSite,
     UnaryExpression: handleSite,
+    // a bare-identifier for-x LHS assigns a global slot per iteration - no member/assignment
+    // node exists for it, so the statement itself is the classification site
+    ForOfStatement: handleSite,
+    ForInStatement: handleSite,
     // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this scoped
     // traverse never descends into a constructor parameter-property's legacy decorator and a
     // monkey-patch hidden there escapes detection - usage-pure would then substitute over the
@@ -458,7 +461,6 @@ export function createUsageVisitors({
   isEntryAvailable,
   method,
   onUsage,
-  onWarning,
   resolveMeta,
   resolvePure = null,
   resolvedType,
@@ -541,18 +543,6 @@ export function createUsageVisitors({
 
   function handleMemberExpression(path) {
     const { node, parent } = path;
-    // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` - check BEFORE inner-identifier
-    // visit rewrites `globalThis` -> `_globalThis` (at which point the chain breaks).
-    // `globalProxyMemberName` (used inside the helper) walks proxy-global chains and gates
-    // on shadowing internally - no separate isBound computation needed at this site
-    // usage-pure rewrites globals to read-only import bindings; `_Map ||= X` would TypeError
-    // at write time, so emit the warning. usage-global leaves the chain untouched - side-effect
-    // imports populate the proxy-global before module body, so `||=` no-ops without emitting
-    // user-visible problem. skip in global mode to avoid false-positive warning noise
-    if (onWarning && method === 'usage-pure') {
-      const warning = checkLogicalAssignLhsMember({ path, scope: path.scope, adapter });
-      if (warning) onWarning(warning);
-    }
     if (handledObjects.has(node)) return;
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
@@ -778,17 +768,12 @@ export function createUsageVisitors({
       const { parent } = path;
       // assignment LHS in global mode: strict-mode reads the binding before the write, so
       // `Map = X` / `Map ||= X` / `Map += 1` all need the polyfill. babel's
-      // `isReferencedIdentifier` returns false for AssignmentExpression.left, so fire manually
+      // `isReferencedIdentifier` returns false for AssignmentExpression.left AND for bare
+      // pattern leaves (`[Map] = arr`), so fire manually - a pattern-element write needs the
+      // slot to exist exactly like the flat form
       if (method !== 'usage-pure'
-        && parent.type === 'AssignmentExpression'
-        && parent.left === path.node) return handleIdentifier(path, true);
-      // pure mode: logical-assign LHS warning. `adapter.hasBinding` folds in TS-runtime
-      // shadows (`enum Map {}` / `namespace Map {}`) so `Map ||= Y` with local enum stays silent
-      if (method === 'usage-pure' && onWarning !== undefined) {
-        const warning = checkLogicalAssignLhsGlobal(path,
-          adapter.hasBinding(path.scope, path.node.name, path));
-        if (warning) onWarning(warning);
-      }
+        && ((parent.type === 'AssignmentExpression' && parent.left === path.node)
+          || bareAssignmentPatternLeafPath(path))) return handleIdentifier(path, true);
     },
     'MemberExpression|OptionalMemberExpression': handleMemberExpression,
     ObjectProperty(path) {

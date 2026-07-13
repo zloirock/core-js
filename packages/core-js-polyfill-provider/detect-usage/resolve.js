@@ -481,7 +481,10 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
 // globalThis` should not push `'foo'` into downstream global lookups
 function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path, usageNode = null }) {
   const receiver = resolveObjectName({ objectNode: init, scope, adapter, seen, path, usageNode: init });
-  if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
+  // a mutated proxy RECEIVER (`window = fake; const { Promise: P } = window`) destructures the
+  // user's replacement - the pattern keys no longer name pristine globals (the key-level gate
+  // below covers mutated LEAF keys; this covers the replaced container itself)
+  if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver) || isMutatedGlobalSlot(adapter, receiver)) return null;
   return walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode });
 }
 
@@ -573,6 +576,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
     // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
     // the type resolver via the same canon)
     } else if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
+    // mutated-root gating (direct name AND alias-resolved) lives inside the recognizer
     return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode });
   }
 }
@@ -827,12 +831,17 @@ export function returnedReceiverHasEffects(node) {
 // or through a const alias (`const g = globalThis`).
 // `seen` threaded so cyclic `const a = b.x; const b = a.x;` doesn't restart the guard
 function isProxyGlobalIdentifier({ node, scope, adapter, seen, path, usageNode = null }) {
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name, path)) return true;
+  // a mutated proxy SLOT (`window = fake`) holds the user's replacement: neither the direct
+  // name nor an alias resolving to it re-enters the pristine global surface - what an alias
+  // holds depends on capture order, which no span model covers, so both stay ungated raw
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name, path)) {
+    return !isMutatedGlobalSlot(adapter, node.name);
+  }
   // follow const alias: `const g = globalThis` / `const g = self`. thread `usageNode` so a reassigned
   // root captured earlier (`const g = holder.x; holder = {}; ...`) anchors its dominance at the capture
   // read, not the final host use - else a write after the capture wrongly kills the alias
   const resolved = resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path, usageNode });
-  return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
+  return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved) && !isMutatedGlobalSlot(adapter, resolved);
 }
 
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
