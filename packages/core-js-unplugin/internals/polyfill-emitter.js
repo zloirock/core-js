@@ -265,6 +265,15 @@ function skipDroppedKeyPrefix(node, sideEffects, skippedNodes) {
 // else captures into a `_ref` first to avoid double-evaluating side effects
 const BARE_IDENTIFIER_REGEX = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
 
+// shadow guard for proxy-global substitution, through the detect adapter's position-aware
+// model (case-block / namespace over-hoists filtered, nested-block `var` hoisted). the raw
+// estree lookup diverged from the natural visitor's verdict: a case-body `let` falsely
+// shadowed the DISCRIMINANT (a region the CaseBlock never covers), bailing the substitution
+// into a raw off-engine leak or a half-substituted overlapping edit
+function shadowedAtUse(adapter, name, metaPath) {
+  return !!metaPath?.scope && adapter.hasBinding(metaPath.scope, name, metaPath);
+}
+
 export function createPolyfillEmitter({
   canFuseWithOpenParen,
   code,
@@ -1126,7 +1135,7 @@ export function createPolyfillEmitter({
   // up-front so wrapped shapes (`(globalThis).flat?.()`) reach this entry as a bare Identifier
   function resolveReceiverPolyfill(obj, metaPath) {
     if (obj?.type !== 'Identifier') return null;
-    if (metaPath?.scope?.hasBinding?.(obj.name)) return null;
+    if (shadowedAtUse(estreeAdapter, obj.name, metaPath)) return null;
     return resolveGlobalPolyfill(obj.name);
   }
 
@@ -1181,7 +1190,7 @@ export function createPolyfillEmitter({
     // keeps its OWN name (the natural visitor rewrites the `g` binding to `_globalThis`) and just drops the
     // redundant hop - findProxyGlobal already confirmed `g` resolves to the proxy-global
     if (pure) {
-      if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
+      if (shadowedAtUse(estreeAdapter, leaf.name, metaPath)) return null;
       return { leaf, pure, aliasBinding: null, prefixSrcs };
     }
     if (!leafFromMember) return null;
@@ -1324,7 +1333,7 @@ export function createPolyfillEmitter({
       const assignRooted = chainAssignRootedChainSrc();
       if (assignRooted !== undefined) return assignRooted;
       if (leaf?.type !== 'Identifier') return null;
-      if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
+      if (shadowedAtUse(estreeAdapter, leaf.name, metaPath)) return null;
       const pure = resolveGlobalPolyfill(leaf.name);
       if (!pure) return null;
       polyfillBinding = injectPureImport(pure.entry, pure.hintName);
