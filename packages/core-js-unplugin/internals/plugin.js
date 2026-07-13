@@ -53,7 +53,7 @@ import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
 import {
-  pathContainedBy,
+  closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
   collectAliasPrePass, collectMutationPrePass,
   createEstreeAdapter,
@@ -307,13 +307,19 @@ export default function createPlugin(options) {
     // the namespace binding is dropped conservatively - generic dispatch, never a wrong
     // narrow. babel scopes namespaces correctly and keeps the factory's raw default
     getScopeBinding(scope, name, path = null) {
-      const binding = scope?.getBinding(name);
+      // shared visible-binding canon (the walk the detect adapter runs): a case-block lexical or
+      // over-hoisted namespace binding that doesn't cover the use continues the lookup ABOVE it,
+      // so an outer same-name binding the use actually reads still narrows (babel scopes these
+      // regions natively). `path` keeps frame-scope lookups position-aware among same-name shadows
+      const binding = closestVisibleNativeBinding(scope, name, path);
       if (!binding) return binding;
-      const block = namespaceScopedBindingBlock(binding);
-      if (block && !(path && pathContainedBy(path, block))) return null;
-      // drop estree-toolkit's phantom declaration-violations (over-hoisted namespace twin, for-init
-      // self) so the resolver's reassignment gates don't abandon a sound narrow babel performs;
-      // path-preserving, so real reassignment paths still reach `findPrecedingBlockAssignment`
+      // a namespace-scoped binding consulted WITHOUT a position cannot prove the use sits
+      // inside its block - drop conservatively (generic dispatch, never a wrong narrow)
+      if (!path && namespaceScopedBindingBlock(binding)) return null;
+      // drop estree-toolkit's phantom declaration-violations (over-hoisted namespace twin,
+      // for-init self) so the resolver's reassignment gates don't abandon a sound narrow
+      // babel performs; path-preserving, so real reassignment paths still reach
+      // `findPrecedingBlockAssignment`
       return withoutPhantomDeclarationViolations(binding);
     },
   });
