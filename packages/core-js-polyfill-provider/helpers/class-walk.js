@@ -59,7 +59,10 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
   // no entry in babel's scope chain, so the init-follow path never observes them
   const hint = binding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, node.name);
-  if (hint) return POSSIBLE_GLOBAL_OBJECTS.has(hint);
+  // a mutated proxy SLOT (`window = fake`) is the user's replacement, not the global surface -
+  // neither the direct name nor a hint/alias resolving to it recognises as a proxy root (what
+  // an alias holds depends on capture order, which no span model covers)
+  if (hint) return POSSIBLE_GLOBAL_OBJECTS.has(hint) && !isMutatedGlobalSlot(adapter, hint);
   // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
   // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
   // followLocalBindingToProxyGlobal. keying by `binding` directly fails for the detect-usage adapter,
@@ -73,7 +76,7 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
     ? POSSIBLE_GLOBAL_OBJECTS.has(node.name)
     : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen);
   if (adapter.hasBinding?.(scope, node.name, path)) return false;
-  return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
+  return POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !isMutatedGlobalSlot(adapter, node.name);
 }
 
 // const-alias chain: `const g = globalThis` -> recurse into the init. reassigned bindings
@@ -235,7 +238,11 @@ export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector
 //     leaves the native undefined on the untaken path; narrowing a later member read would un-throw it)
 // a rejected registration keeps the destructure swap itself (value-correct in write order) but leaves
 // member reads native. the recorded write span is what `isPolyfillAliasBinding` matches violations against
-export function maybeRegisterAssignmentAliasWrite({ injector, binding, localName, hint, assignNode, stmtPath }) {
+export function maybeRegisterAssignmentAliasWrite({ injector, adapter = null, binding, localName, hint, assignNode, stmtPath }) {
+  // the hint asserts "this alias holds the pristine global" - with the hint's own SLOT
+  // recorded mutated the capture order decides what the alias holds, which no span model
+  // covers; decline like the binding-less form so reads stay on the live-value channels
+  if (isMutatedGlobalSlot(adapter, hint)) return false;
   const bindingNode = binding?.node ?? binding?.path?.node ?? null;
   const scopeSpan = enclosingFunctionSpan(stmtPath);
   if (!assignmentAliasWriteTrusted({ binding, assignNode, stmtPath })) {
@@ -280,6 +287,15 @@ export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath }) {
 // it would strip the polyfill from conditional forms (`while (c) var { Promise } = globalThis`).
 // registrations happen HERE (render sites must not re-register - a plain re-register would erase a
 // trusted write span); `aliasGated` makes the cached-plan re-entry a no-op
+// trusted registration for a BINDING-LESS ctor-alias name (`({ Promise } = globalThis)` -
+// writing the global itself, no user binding to contradict the hint). the hint asserts "this
+// name IS the pristine global"; once the name's own slot is recorded mutated, the assertion
+// is false - the name is DEOPTED and its reads stay verbatim, so a pristine hint would
+// contradict the emit. ALL binding-less registration sites route through here
+export function registerBindinglessCtorAlias({ injector, adapter, localName, hint }) {
+  if (!isMutatedGlobalSlot(adapter, localName)) injector.registerGlobalAlias(localName, hint, { trusted: true });
+}
+
 export function registerCtorAliasExtractions({ plan, declarator, scope, adapter, injector, path }) {
   if (!plan || plan.aliasGated) return plan;
   plan.aliasGated = true;
@@ -289,15 +305,15 @@ export function registerCtorAliasExtractions({ plan, declarator, scope, adapter,
       if (e.kind !== 'global') continue;
       const binding = adapter.getBinding(scope, e.localName, path);
       if (!binding?.node && !binding?.path) {
-        injector.registerGlobalAlias(e.localName, e.hint, { trusted: true });
+        registerBindinglessCtorAlias({ injector, adapter, localName: e.localName, hint: e.hint });
       } else if (isAssignmentHost) {
         maybeRegisterAssignmentAliasWrite({
-          injector, binding, localName: e.localName, hint: e.hint,
+          injector, adapter, binding, localName: e.localName, hint: e.hint,
           assignNode: { start: declarator.id.start, end: declarator.init.end }, stmtPath: path,
         });
       } else {
         registerDeclAliasIfSound({
-          injector, kind: binding?.kind, localName: e.localName, hint: e.hint, stmtPath: path,
+          injector, adapter, kind: binding?.kind, localName: e.localName, hint: e.hint, stmtPath: path,
           bindingNode: binding?.node ?? binding?.path?.node ?? null, binding,
         });
       }
@@ -351,12 +367,12 @@ export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, 
     if (!isKnownGlobal(hint)) continue;
     const binding = adapter.getBinding(scope, localName, path);
     if (!binding?.node && !binding?.path) {
-      injector.registerGlobalAlias(localName, hint, { trusted: true });
+      registerBindinglessCtorAlias({ injector, adapter, localName, hint });
     } else if (assignNode) {
-      maybeRegisterAssignmentAliasWrite({ injector, binding, localName, hint, assignNode, stmtPath: path });
+      maybeRegisterAssignmentAliasWrite({ injector, adapter, binding, localName, hint, assignNode, stmtPath: path });
     } else {
       registerDeclAliasIfSound({
-        injector, kind: declKind, localName, hint, stmtPath: path,
+        injector, adapter, kind: declKind, localName, hint, stmtPath: path,
         bindingNode: binding?.node ?? binding?.path?.node ?? null, binding,
       });
     }
@@ -469,7 +485,11 @@ export function aliasSpanDominatesUse({ info, useStart }) {
   return !span || useStart === null || useStart > span.end;
 }
 
-export function registerDeclAliasIfSound({ injector, kind, localName, hint, stmtPath, bindingNode = null, binding = null }) {
+export function registerDeclAliasIfSound({
+  injector, adapter = null, kind, localName, hint, stmtPath, bindingNode = null, binding = null,
+}) {
+  // mutated-slot hint: same decline as the assignment form - see maybeRegisterAssignmentAliasWrite
+  if (isMutatedGlobalSlot(adapter, hint)) return false;
   let stmt = stmtPath;
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) stmt = stmt.parentPath;
   const declSpan = stmt?.node ? { start: stmt.node.start, end: stmt.node.end } : null;
@@ -766,6 +786,12 @@ export function globalProxyMemberName({ node, scope, adapter, path, includeMutat
     object = peelProxyGlobalObject(object.object);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path })) return null;
+  // a mutated proxy ROOT (`window = fake; window.Promise`) reads through the user's
+  // replacement, same as a mutated intermediate hop - the chain must not resolve. aliases
+  // decline through the recognizers' own gates (capture order decides what an alias holds,
+  // which no span model covers)
+  if (!includeMutatedSlots && object?.type === 'Identifier'
+    && isMutatedGlobalSlot(adapter, object.name)) return null;
   const leaf = staticMemberKeyName(node) || null;
   // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
   // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,

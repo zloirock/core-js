@@ -6,8 +6,6 @@ import {
   scanExistingCoreJSImports,
 } from '../../packages/core-js-polyfill-provider/detect-usage/entries.js';
 import {
-  checkLogicalAssignLhsGlobal,
-  checkLogicalAssignLhsMember,
   isKnownGlobalName,
   KNOWN_FUNCTION_GLOBALS,
   KNOWN_NAMESPACE_GLOBALS,
@@ -47,6 +45,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
+  bareAssignmentPatternLeafPath,
   BRACE_STATEMENT_HOST_TYPES,
   findFunctionScopeVarInPath,
   noReassignmentReachesUsage,
@@ -56,7 +55,6 @@ import {
   STATEMENT_LIST_HOST_TYPES,
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
-import { planMutatedSlotReroute } from '../../packages/core-js-polyfill-provider/detect-usage/mutation-prepass.js';
 import { createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
@@ -559,44 +557,37 @@ for (const op of ['||=', '&&=', '??=']) {
     });
 }
 
-// --- logical-assign LHS warn: only usage-pure-rewritten globals warn (S021) ---
-// the warn holds only for a name whose bare READ usage-pure rewrites to a read-only import. the
-// universal namespaces (Math / JSON - no globals entry at all), always-present constructors
-// (Array / Number) and method-only injectables (TypedArrays, Errors) are NEVER bare-rewritten ->
-// silent; whole-global ponyfills (Map / Promise), the absent-able namespace (Reflect) and proxy
-// globals (globalThis / self) DO warn. gates the `pure`-entry subset
-function assignLhsPath(adapter, prog, type, match) {
-  return adapter.collectPaths(prog, type, p => p.parentPath?.node?.type === 'AssignmentExpression'
-    && p.parentPath.node.left === p.node && match(p))[0];
+// --- bareAssignmentPatternLeafPath: the write-position policy split both emitters consult ---
+// an ASSIGNMENT-position bare pattern leaf writes the global name (usage-global injects the
+// slot's polyfill, usage-pure treats it as a write target); a BINDING pattern never matches -
+// its host is a declarator / param / catch, not an assignment or for-x head
+// shorthand properties surface the name twice (key + value nodes); the WRITE lives on the
+// VALUE, so skip non-computed key positions - the same filter the real visitors apply
+function namedIdentPath(adapter, prog, name) {
+  return adapter.collectPaths(prog, 'Identifier', p => p.node.name === name
+    && !((p.parentPath?.node?.type === 'Property' || p.parentPath?.node?.type === 'ObjectProperty')
+      && p.parentPath.node.key === p.node && !p.parentPath.node.computed && p.parentPath.node.value !== p.node))[0];
 }
-for (const [name, warns] of [['Map', true], ['Math', false], ['Reflect', true], ['Array', false], ['globalThis', true], ['Number', false], ['TypeError', false]]) {
-  runBoth(`checkLogicalAssignLhsGlobal/${ name } ${ warns ? 'warns' : 'silent' }`, `${ name } ||= 1;`,
+for (const [id, src, expected] of [
+  ['array element', '[Promise] = arr;', true],
+  ['object shorthand', '({ Promise } = obj);', true],
+  ['object renamed value', '({ p: Promise } = obj);', true],
+  ['rest element', '[...Promise] = arr;', true],
+  ['pattern default', '[Promise = shim] = arr;', true],
+  ['nested element', '[[Promise]] = deep;', true],
+  ['for-of pattern head', 'for ([Promise] of xs);', true],
+  ['flat LHS is not a pattern leaf', 'Promise = shim;', false],
+  ['declaration pattern', 'const [Promise] = arr;', false],
+  ['param pattern', 'function f([Promise]) { return Promise; }', false],
+  ['catch pattern', 'try { g(); } catch ({ Promise }) { h(Promise); }', false],
+  ['for-of declaration pattern', 'for (const [Promise] of xs) use(Promise);', false],
+  ['object literal value is a read', 'use({ p: Promise });', false],
+]) {
+  runBoth(`bareAssignmentPatternLeafPath/${ id } ${ expected ? 'matches' : 'silent' }`, src,
     (adapter, prog, lbl) => {
-      const path = assignLhsPath(adapter, prog, 'Identifier', p => p.node.name === name);
-      check(lbl, checkLogicalAssignLhsGlobal(path, false) !== null, warns);
+      const path = namedIdentPath(adapter, prog, 'Promise');
+      check(lbl, bareAssignmentPatternLeafPath(path), expected);
     });
-}
-// member form shares that gate on the resolved LEAF: `globalThis.Map` -> injectable Map (warn),
-// `globalThis.JSON` -> universal namespace JSON (silent - no globals entry). no scope/adapter here
-// exercises the unshadowed proxy path (isProxyGlobalIdentifierNode's `!scope || !adapter` fallback);
-// the shadowed-root suppression (S021-2, `path` threaded to the binding check) needs a real adapter
-// and is covered by the composite. Number (injectable but method-only, no `pure` bare-rewrite) is
-// silent too - the leaf feeds the same pure-entry gate
-for (const [leaf, warns] of [['Map', true], ['JSON', false], ['Number', false]]) {
-  runBoth(`checkLogicalAssignLhsMember/globalThis.${ leaf } ${ warns ? 'warns' : 'silent' }`,
-    `globalThis.${ leaf } ||= 1;`, (adapter, prog, lbl) => {
-      const path = assignLhsPath(adapter, prog, 'MemberExpression', () => true);
-      check(lbl, checkLogicalAssignLhsMember({ path, scope: undefined, adapter: undefined }) !== null, warns);
-    });
-}
-// non-trivial member shapes compose: a chained proxy hop and a computed string key both resolve to the
-// leaf, which the injectable-set gate then decides (chained injectable Map -> warn; computed universal
-// namespace JSON -> silent)
-for (const [src, id, warns] of [['globalThis.self.Map ||= 1;', 'chained-hop', true], ["globalThis['JSON'] ||= 1;", 'computed-key', false]]) {
-  runBoth(`checkLogicalAssignLhsMember/${ id } ${ warns ? 'warns' : 'silent' }`, src, (adapter, prog, lbl) => {
-    const path = assignLhsPath(adapter, prog, 'MemberExpression', () => true);
-    check(lbl, checkLogicalAssignLhsMember({ path, scope: undefined, adapter: undefined }) !== null, warns);
-  });
 }
 
 // SHALLOW: a reassignment in an OUTER scope (the use sits in a nested closure) does NOT dominate via
@@ -1086,59 +1077,6 @@ for (const [predicate, name, rows] of [
   for (const [variant, code, expected] of rows) {
     runBoth(`${ name }/${ variant }`, code, (adapter, prog, lbl) => check(lbl, predicate(receiverInit(adapter, prog)), expected));
   }
-}
-
-// --- planMutatedSlotReroute: the ONE decision table both emitters render ---
-// stub resolvers pin the semantics without the resolution machinery: `resolvePureFiltered`
-// stands for the targets-filtered global resolve, `resolvePureUnfiltered` serves the
-// globalThis binding and static-entry lookups
-{
-  const GT = { entry: 'actual/global-this', hintName: 'globalThis', kind: 'global' };
-  const PONY = { entry: 'actual/promise/constructor', hintName: 'Promise', kind: 'global' };
-  const PIN = { entry: 'actual/promise/all-settled', hintName: 'Promise$allSettled', kind: 'static' };
-  function stubUnfiltered(m) {
-    if (m.kind === 'global' && m.name === 'globalThis') return GT;
-    return m.kind === 'property' && m.key === 'allSettled' ? PIN : null;
-  }
-  const slotAdapter = { isMutatedStatic: (obj, key) => obj === 'globalThis' && key === 'Promise' };
-  const meta = { kind: 'global', name: 'Promise' };
-  const ident = { type: 'Identifier', name: 'Promise' };
-
-  function plan({ parentNode = null, adapter = slotAdapter, m = meta, node = ident, filtered = () => PONY } = {}) {
-    return planMutatedSlotReroute({
-      meta: m, node, parentNode, adapter, resolvePureFiltered: filtered, resolvePureUnfiltered: stubUnfiltered,
-    });
-  }
-
-  const bare = plan();
-  checkTruthy('slot-plan/bare read reroutes with backstop', bare);
-  check('slot-plan/bare read backstop is the filtered pony', bare?.pony, PONY);
-  check('slot-plan/bare read pins nothing without a member host', bare?.staticPin, null);
-
-  check('slot-plan/unmutated name declines', plan({ adapter: { isMutatedStatic: () => false } }), null);
-  check('slot-plan/non-global meta declines', plan({ m: { kind: 'property', object: 'Promise', key: 'x' } }), null);
-  check('slot-plan/non-identifier node declines', plan({ node: { type: 'MemberExpression' } }), null);
-  check('slot-plan/no globalThis binding declines', planMutatedSlotReroute({
-    meta, node: ident, parentNode: null, adapter: slotAdapter,
-    resolvePureFiltered: () => PONY, resolvePureUnfiltered: () => null,
-  }), null);
-
-  const underTypeof = plan({ parentNode: { type: 'UnaryExpression', operator: 'typeof', argument: ident } });
-  check('slot-plan/typeof operand keeps the plain slot (no backstop)', underTypeof?.pony, null);
-  check('slot-plan/typeof operand pins nothing', underTypeof?.staticPin, null);
-
-  const memberHost = { type: 'MemberExpression', object: ident, property: { type: 'Identifier', name: 'allSettled' }, computed: false };
-  check('slot-plan/member host pins the static entry', plan({ parentNode: memberHost })?.staticPin, PIN);
-  const computedHost = { type: 'MemberExpression', object: ident,
-    property: { type: 'StringLiteral', value: 'allSettled' }, computed: true };
-  check('slot-plan/computed string key folds to the same pin', plan({ parentNode: computedHost })?.staticPin, PIN);
-  const customHost = { type: 'MemberExpression', object: ident, property: { type: 'Identifier', name: 'customKey' }, computed: false };
-  check('slot-plan/custom key resolves to nothing and stays bare', plan({ parentNode: customHost })?.staticPin, null);
-  const foreignHost = { type: 'MemberExpression', object: { type: 'Identifier', name: 'other' },
-    property: { type: 'Identifier', name: 'allSettled' }, computed: false };
-  check('slot-plan/member host whose object is NOT the node pins nothing', plan({ parentNode: foreignHost })?.staticPin, null);
-  check('slot-plan/no filtered pony -> plain slot without pin', plan({ parentNode: memberHost, filtered: () => null })?.pony, null);
-  check('slot-plan/no filtered pony suppresses the pin too', plan({ parentNode: memberHost, filtered: () => null })?.staticPin, null);
 }
 
 finish();

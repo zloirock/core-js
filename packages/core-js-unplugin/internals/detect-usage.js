@@ -8,8 +8,6 @@ import {
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  checkLogicalAssignLhsGlobal,
-  checkLogicalAssignLhsMember,
   isKnownGlobalName,
 } from '@core-js/polyfill-provider/detect-usage/globals';
 import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -36,6 +34,7 @@ import {
   isAmbientBindingShape,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
+  bareAssignmentPatternLeafPath,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   isMutatedStaticPair,
@@ -131,8 +130,15 @@ function isReferenced({ path, skipUpdateTargets }) {
     && (parent.type === 'AssignmentExpression' || parent.type === 'ForInStatement' || parent.type === 'ForOfStatement')) {
     return !skipUpdateTargets;
   }
-  // member-write-only / destructure-LHS / AssignmentPattern.left for non-Identifier shapes
-  if (isMemberWriteOnlyContext(node, parent, parentPath?.parent)) return false;
+  // a bare pattern leaf of an ASSIGNMENT destructure writes the global name like the flat
+  // LHS above: usage-global injects (the slot must exist for the strict-mode write), pure
+  // rejects the write target. checked BEFORE the write-only filters, which match the same
+  // shapes and would otherwise drop the global-mode injection
+  if (node.type === 'Identifier' && bareAssignmentPatternLeafPath(path)) return !skipUpdateTargets;
+  // member-write-only / destructure-LHS / AssignmentPattern.left for non-Identifier shapes.
+  // tested on the ANCHOR: a wrapped pattern leaf (`({ p: Map! } = o)`) fills the slot with
+  // the wrapper node, so the raw identifier would never match the slot identity
+  if (isMemberWriteOnlyContext(anchor.node, parent, parentPath?.parent)) return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
   // UpdateExpression operand, peeling transparent wrappers - gate see `skipUpdateTargets`
@@ -313,6 +319,10 @@ export function collectMutationPrePass(ast, adapter) {
     AssignmentExpression: handleSite,
     UpdateExpression: handleSite,
     UnaryExpression: handleSite,
+    // a bare-identifier for-x LHS assigns a global slot per iteration - no member/assignment
+    // node exists for it, so the statement itself is the classification site
+    ForOfStatement: handleSite,
+    ForInStatement: handleSite,
   };
   // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
   // types, so a monkey-patch hidden inside a `@decorator(...)` expression escapes the traverse and
@@ -914,7 +924,7 @@ function isJsxMemberRoot(path) {
 // --- Usage visitors ---
 
 export function createUsageVisitors({
-  adapter, onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
+  adapter, onUsage, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
   resolveMeta, resolvePure = null,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
@@ -1081,16 +1091,6 @@ export function createUsageVisitors({
     // and parent-shape checks would crash on null. parity with babel-plugin's handleIdentifier
     if (!path.parent) return;
     const { node, parent, key: parentKey } = path;
-    // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
-    // pattern before the early return so users see why nothing was polyfilled
-    // usage-pure rewrites globals to read-only import bindings; `_Map ||= X` would TypeError
-    // at write time, so emit the warning. usage-global leaves globals untouched - side-effect
-    // imports populate the binding before module body runs, so `||=` no-ops without emitting
-    // user-visible problem. skip warning in global mode to avoid false-positive noise
-    if (onWarning && method === 'usage-pure') {
-      const warning = checkLogicalAssignLhsGlobal(path, adapter.hasBinding(path.scope, node.name, path));
-      if (warning) onWarning(warning);
-    }
     if (!isReferenced({ path, skipUpdateTargets })) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
@@ -1112,14 +1112,6 @@ export function createUsageVisitors({
 
   function memberExpressionVisitor(path) {
     const { node } = path;
-    // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` - check BEFORE `isReferenced`
-    // rejects (write-context member) and before child-visitor rewrites `globalThis` ->
-    // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
-    // gates on shadowing internally - no separate isBound check needed
-    if (onWarning && method === 'usage-pure') {
-      const warning = checkLogicalAssignLhsMember({ path, scope: path.scope, adapter });
-      if (warning) onWarning(warning);
-    }
     if (handledObjects.has(node)) return;
     if (!isReferenced({ path, skipUpdateTargets })) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
