@@ -2984,3 +2984,49 @@ QUnit.test('destructuring: sibling array-wrap elements resolve independently', a
   assert.same(typeof new W(), 'object');
   assert.same(M.sumPrecise([1, 2]), 3);
 });
+
+// the duplicate-var SPLIT ANCHOR applies the same pattern rejections as the init arm: a
+// positionally-MISPAIRED anchor write binds the user element, so the member must read the
+// user's own value (the wholesale judge substituted the pure static over it)
+/* eslint-disable no-redeclare, no-shadow, no-var -- duplicate-var split anchor under test */
+QUnit.test('destructuring: split-anchor mispaired write keeps the user value', assert => {
+  const { Map: M } = globalThis;
+  assert.same(typeof M.groupBy, 'function');
+  const userObj = { Map: { groupBy: () => 'user' } };
+  function inner() {
+    var M;
+    var [, { Map: M }] = [globalThis, userObj];
+    return M.groupBy([1], x => x);
+  }
+  assert.same(inner(), 'user');
+});
+
+QUnit.test('destructuring: split-anchor sound write keeps the working fold', assert => {
+  const { Map: M } = globalThis;
+  assert.same(typeof M.groupBy, 'function');
+  function inner() {
+    var M;
+    var [, { Map: M }] = [{}, globalThis];
+    return M.groupBy([1, 2], x => x % 2);
+  }
+  assert.deepEqual(inner().get(0), [2]);
+});
+/* eslint-enable no-redeclare, no-shadow, no-var -- end of split-anchor shapes */
+
+// a CONDITIONALLY-written statics-only alias (no whole-ctor pure entry) takes the runtime
+// constructor guard: the taken path serves the polyfill-backed static, the untaken path still
+// reads the native undefined and throws exactly like untranspiled code (a static narrow here
+// would un-throw it)
+QUnit.test('destructuring: conditional statics-only alias keeps the untaken-path throw', assert => {
+  let A, B;
+  function writeA(c) {
+    if (c) ({ Array: A } = globalThis);
+  }
+  function writeB(c) {
+    if (c) ({ Object: B } = globalThis);
+  }
+  writeA(true);
+  assert.deepEqual(A.from('ab'), ['a', 'b']);
+  writeB(false);
+  assert.throws(() => B.groupBy([1], x => x), TypeError);
+});
