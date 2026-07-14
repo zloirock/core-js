@@ -720,6 +720,28 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
   return findVarOwnerDeclaring(path, name)?.declarator ?? null;
 }
 
+// the scope of `found.declarator`, located by a search bounded to the var owner that declares it.
+// per-binding memo only - a scope belongs to ONE traversal, so caching it on the declarator node
+// across traversals would hand back a dead scope (the staleness constraint the node caches above
+// already document). the owner scope is the fallback when the declarator path cannot be reached
+function memoizeDeclarationScope(found) {
+  let resolved;
+  return () => {
+    if (resolved === undefined) {
+      let declaratorPath = null;
+      // no early stop: the parsers disagree on the traversal-abort API, and the walk is already
+      // bounded to the owner, so identity-matching every declarator costs less than diverging here
+      found.owner.traverse({
+        VariableDeclarator(declPath) {
+          if (!declaratorPath && declPath.node === found.declarator) declaratorPath = declPath;
+        },
+      });
+      resolved = declaratorPath?.scope ?? found.owner.scope ?? null;
+    }
+    return resolved;
+  };
+}
+
 // synthesize a binding for a function-scoped `var` declared in a nested block that estree-toolkit
 // fails to hoist to the function scope (`function f(){ if (c) { var G = Array } G.from(...) }`).
 // babel hoists natively, so callers reach this only on the estree side after a null native lookup -
@@ -733,6 +755,13 @@ export function synthVarHoistBinding(path, name) {
     // node-based anchor for the guard-verdict / dominance consumers: a synthetic binding
     // has no `.path` to climb
     ownerNode: found.owner.node,
+    // the scope the declarator is WRITTEN in - where its initializer's names resolve. a `var`
+    // hoists its NAME to the owner, but the init still evaluates in the declaring block, so an
+    // outer-scope answer would read past a block-local shadow of an init name. exposed as a
+    // memoized THUNK, not a value: the type-resolver consumes this same synthetic shape and keys
+    // flow decisions on a MISSING `binding.scope`, so an adapter opts in by mapping it - and the
+    // bounded search then costs nothing on the lookups that never read it
+    resolveDeclarationScope: memoizeDeclarationScope(found),
     kind: 'var',
     constantViolations: collectScopeReassignmentNodes(found.owner.node, name).filter(node => node !== found.declarator),
     importSource: null,
