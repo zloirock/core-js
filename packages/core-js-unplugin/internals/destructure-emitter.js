@@ -2728,8 +2728,12 @@ export function createDestructureEmitter({
     }
     if (!plan.instance) {
       emit(binding);  // static: the bare binding, no receiver
-    } else if (plan.memoizeReceiver && !isFlattenClaimed && isConstantLiteralReceiver(receiverNode)) {
+    } else if (plan.memoizeReceiver && !isFlattenClaimed && !patternValue && isConstantLiteralReceiver(receiverNode)) {
       // standalone constant-literal receiver: capture it into a single `_ref` hoisted BEFORE the residual,
+      // (`!patternValue`: a pattern-valued LHS composes its extraction text from the pattern subtree,
+      // which the natural visitor has NOT rewritten yet at this eager visit-time emit - the stale
+      // compose loses inner polyfills and its sentinel overwrite collides with the later inner
+      // transform, hard-aborting the queue; the deferred member-memo branch below drains at flush)
       // dedups so the surviving residual keeps no duplicate AND, for a side-effecting key, reads the
       // receiver ONCE before the key SE (the pre-key value, matching native). sibling leaves of the same
       // receiver reuse the `_ref`

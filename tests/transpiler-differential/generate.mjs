@@ -822,6 +822,9 @@ const AW_SYMBOL_ITER = [
   // a proxy-global NEST sibling hands the symbol prop to the flatten plan (single owner) in
   // EITHER prop order - a per-prop route racing the rebuild crashed the transform queue or
   // captured the receiver without its polyfill rewrite
+  // pattern-VALUED symbol prop on a constant-literal receiver: the extraction text must drain
+  // at flush - the eager visit-time compose hard-aborted the whole transform on this shape
+  { id: 'pattern-value-literal-default', pre: 'const { [Symbol.iterator]: { next = [1].flat() }, other } = [1, 2, 3];', obs: '[typeof next, other]' },
   { id: 'nest-sibling-symbol-first', pre: 'const [{ [Symbol.iterator]: it, Array: { from: f }, ...r }] = [globalThis];', obs: '[typeof it, typeof f, Object.keys(r).length]' },
   { id: 'nest-sibling-nest-first', pre: 'const { Array: { from: f }, [Symbol.iterator]: it, ...r } = globalThis;', obs: '[typeof it, typeof f]' },
   // the harvested init effect runs exactly once ahead of the extractions
