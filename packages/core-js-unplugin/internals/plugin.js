@@ -6,6 +6,7 @@ import {
   staticFallbackSwapRedundant,
   forEachStatementListBody,
   getMinifierSequenceDestructureExpressions,
+  sequenceHeadDirectiveHazard,
   createTypeAnnotationChecker,
   detectCommonJS,
   extractIndirectRequireSEPrefix,
@@ -198,10 +199,11 @@ function applyMinifierSequenceSplitPass(code, ast) {
     const splitText = match.expressions.map((expr, index) => {
       const slice = code.slice(expr.start, expr.end);
       // a bare leading string-literal operand, once split off, lands at Directive Prologue
-      // position and silently flips the enclosing block into strict mode. a `0,` sequence
-      // prefix keeps it a plain expression statement (matches the babel-plugin split).
-      // a parenthesized operand already prints its parens, so it can never become a directive
-      if (index === 0 && expr?.type === 'Literal' && typeof expr.value === 'string') return `0, ${ slice };`;
+      // position and silently flips the enclosing block into strict mode; a TS cast vanishes at
+      // type-strip so it doesn't protect the string, while explicit parens survive this text
+      // emit and do. a `0,` sequence prefix keeps the hazardous form a plain expression
+      // statement (matches the babel-plugin split)
+      if (index === 0 && sequenceHeadDirectiveHazard(expr)) return `0, ${ slice };`;
       return `${ parenthesizeExprStmtHazard(slice) };`;
       // single-line join: every split product inherits the ORIGINAL statement's line, so a
       // `core-js-disable-next-line` above the collapsed statement covers ALL of them (the
