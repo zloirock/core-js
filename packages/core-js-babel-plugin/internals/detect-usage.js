@@ -305,9 +305,14 @@ function ancestorChainDetached(path) {
 }
 
 // the LIVE path of `targetNode` in `scopeOwnerPath`'s subtree (node identity), or null. re-anchors a
-// stale constantViolation path after an in-place split moved its statement
-function freshPathOfNode(scopeOwnerPath, targetNode) {
+// stale constantViolation path after an in-place split moved its statement. memoized per node -
+// an unmemoized subtree traverse per detached lookup is O(uses x file size); a LATER mutation can
+// detach the memo too, so a hit re-validates and falls back to a fresh traverse
+const freshPathMemo = new WeakMap();
+export function freshPathOfNode(scopeOwnerPath, targetNode) {
   if (!scopeOwnerPath || !targetNode) return null;
+  const memo = freshPathMemo.get(targetNode);
+  if (memo && memo.node === targetNode && !ancestorChainDetached(memo)) return memo;
   let found = null;
   scopeOwnerPath.traverse({
     enter(p) {
@@ -317,6 +322,7 @@ function freshPathOfNode(scopeOwnerPath, targetNode) {
       }
     },
   });
+  if (found) freshPathMemo.set(targetNode, found);
   return found;
 }
 

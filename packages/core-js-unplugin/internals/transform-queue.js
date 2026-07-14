@@ -868,7 +868,7 @@ export default class TransformQueue {
     for (const { pos } of this.#inserts) {
       const entry = this.#enclosingOverwrite(pos);
       if (entry) {
-        throw new RangeError(`transform-queue: insert at ${ pos } lands inside overwrite [${ entry.start },${ entryLogicalEnd(entry) })`);
+        throw new RangeError(`transform-queue: insert at ${ pos } lands inside overwrite [${ entryLogicalStart(entry) },${ entryLogicalEnd(entry) })`);
       }
     }
   }
