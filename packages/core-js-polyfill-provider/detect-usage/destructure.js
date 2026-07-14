@@ -333,6 +333,10 @@ export function resolveIndirectBranchingReceiver({ node, scope, adapter, path, s
       if (adapter.getBindingNodeType(scope, name, path) !== 'VariableDeclarator' || !binding.node?.init) return null;
       readSite = binding.node.init;
       cur = unwrapTransparentSeq(binding.node.init);
+      // advance to the followed binding's own scope, like the sibling const-alias walkers - a
+      // later hop reading a name declared in an OUTER scope must resolve it there, not against
+      // the receiver-use scope (an inner shadow of that name would swallow the branching value)
+      scope = binding.scope ?? scope;
     } else if (isCallShape(cur)) {
       const ret = inlineCallReturnExpression({ callNode: cur, scope, adapter, seen, path });
       if (!ret) return null;
@@ -399,7 +403,12 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
   if (!receiverNode) return null;
   let branching = receiverNode;
   if (!meta.fromFallback) {
-    branching = resolveIndirectBranchingReceiver({ node: receiverNode, scope: path.scope, adapter, path });
+    // resolve the indirection against the SAME scope/path the flatten below uses - a winning
+    // IIFE call-arg evaluates at the call site, so a param shadowing the arg name must not
+    // resolve it in the invoked function's inner scope
+    branching = resolveIndirectBranchingReceiver({
+      node: receiverNode, scope: receiverScope ?? path.scope, adapter, path: receiverPath ?? path,
+    });
     if (!branching) return null;
   }
   const out = flattenFallbackBranches({
