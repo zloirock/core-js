@@ -1,0 +1,69 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Symbol from "@core-js/pure/actual/symbol/constructor";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
+// the alias-hop scope rule holds across every RESOLUTION CHANNEL, not just the plain static
+// destructure: the symbol fold, the array-wrapped alias and the TS declaration forms each reach the
+// receiver through their own walk and must agree on which scope a hop resolves in
+
+// symbol fold through a shadowed hop - the well-known key still folds
+const symRoot = _Symbol;
+const symLink = symRoot;
+export function viaSymbolChain(symRoot) {
+  const iterator = _Symbol$iterator;
+  return [1][iterator];
+}
+
+// symbol fold where the shadow WINS (the var's init reads a block-local shadow) - no fold
+const symVarRoot = _Symbol;
+export function viaSymbolVarShadow() {
+  {
+    const symVarRoot = {};
+    var symHeld = symVarRoot;
+  }
+  {
+    const {
+      asyncIterator
+    } = symHeld;
+    return [1][asyncIterator];
+  }
+}
+
+// array-WRAPPED alias whose hop is shadowed by a param
+const wrapRoot = Array;
+const wrapLink = wrapRoot;
+export function viaArrayWrapChain(wrapRoot) {
+  const from = _Array$from;
+  return from([1]);
+}
+
+// a namespace declaration in the file must not disturb the hop resolution
+const nsRoot = Object;
+const nsLink = nsRoot;
+namespace SideNs {
+  export const unrelated = 1;
+}
+export function viaNamespaceSibling(nsRoot) {
+  const fromEntries = _Object$fromEntries;
+  return fromEntries([]);
+}
+
+// an AMBIENT `declare var` hop carries no known value - the chain stays unresolved
+declare var ambientRoot: typeof Promise;
+const ambientLink = ambientRoot;
+export function viaAmbientHop() {
+  const {
+    allSettled
+  } = ambientLink;
+  return allSettled([]);
+}
+
+// an IMPORT hop could be any module value - the chain stays unresolved
+import importedRoot from "./somewhere";
+const importLink = importedRoot;
+export function viaImportHop() {
+  const {
+    race
+  } = importLink;
+  return race([]);
+}
