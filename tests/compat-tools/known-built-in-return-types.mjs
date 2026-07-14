@@ -62,7 +62,7 @@ function isValidHint(hint) {
   const isDirective = hint.type === 'element' || hint.type === 'inherit';
   if (isDirective && (hint.element !== undefined || hint.resolved !== undefined)) return false;
   if (!isDirective && !VALID_TYPES.has(hint.type)) return false;
-  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'returnsArgument', 'nullable']);
+  const validKeys = new Set(['type', 'element', 'resolved', 'mutatesArgument', 'returnsArgument', 'mutatesElements', 'nullable']);
   for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
   // nullable: the spec return admits undefined / null; only the `true` form is emitted
   if ('nullable' in hint && hint.nullable !== true) return false;
@@ -77,6 +77,9 @@ function isValidHint(hint) {
   // returnsArgument: zero-based index of the single argument a method returns unchanged
   // (e.g. Object.freeze -> 0). a scalar index, not a list - a method returns one value
   if ('returnsArgument' in hint && (!Number.isInteger(hint.returnsArgument) || hint.returnsArgument < 0)) return false;
+  // mutatesElements: an instance method that writes the receiver's elements in place;
+  // only the `true` form is emitted
+  if ('mutatesElements' in hint && hint.mutatesElements !== true) return false;
   const innerHint = hint.element ?? hint.resolved ?? null;
   return innerHint === null || isValidHint(innerHint);
 }
@@ -138,6 +141,26 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Object.assign, { type: 'Object',
 deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.set, { type: 'boolean', mutatesArgument: [0, 3] });
 // returnsArgument-only annotation (identity-returning static)
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.freeze, { type: 'Object', returnsArgument: 0 });
+// mutatesElements annotation (in-place element mutators)
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.push, { type: 'number', mutatesElements: true });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.sort, { type: 'Array', element: 'inherit', mutatesElements: true });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.set, { type: 'undefined', mutatesElements: true });
+
+// mutatesElements - the exact flagged sets. the element-retype bail derives its whitelist
+// from these markers, so a silently dropped flag would turn a mutator into a "safe" method
+function flaggedMutators(className) {
+  return Object.entries(knownBuiltInReturnTypes.instanceMethods[className])
+    .filter(([, hint]) => hint.mutatesElements).map(([name]) => name).sort();
+}
+deepEqual(flaggedMutators('Array'),
+  ['copyWithin', 'fill', 'pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift']);
+deepEqual(flaggedMutators('TypedArray'), ['copyWithin', 'fill', 'reverse', 'set', 'sort']);
+for (const [className, members] of Object.entries(knownBuiltInReturnTypes.instanceMethods)) {
+  if (className === 'Array' || className === 'TypedArray') continue;
+  for (const [member, hint] of Object.entries(members)) {
+    ok(!hint.mutatesElements, `instanceMethods.${ className }.${ member }: mutatesElements only applies to indexed receivers`);
+  }
+}
 // Object.create is intentionally absent - its result type is indeterminate (proto-from-arg)
 ok(!('create' in knownBuiltInReturnTypes.staticMethods.Object), 'Object.create has no return-type hint (indeterminate)');
 
