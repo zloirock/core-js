@@ -44,6 +44,7 @@ export function createMemberResolve({
   unwrapTypeAnnotation,
   getTypeMembers,
   keyMatchesName,
+  KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   findBindingAnnotation,
   findExpressionAnnotation,
   functionTypeReturnAnnotation,
@@ -677,18 +678,24 @@ export function createMemberResolve({
   // spread - the holder may write elements) invalidates it. whitelist: a reference is safe
   // only as a member-access READ off the binding with a non-mutating key. the object-field
   // twin consults its external-write fold the same way; destructure-time element reads
-  // (`const [x] = a`) copy the value at execution and stay exempt
-  const ELEMENT_MUTATING_METHODS = new Set([
-    'copyWithin',
-    'fill',
-    'pop',
-    'push',
-    'reverse',
-    'shift',
-    'sort',
-    'splice',
-    'unshift',
-  ]);
+  // (`const [x] = a`) copy the value at execution and stay exempt.
+  // which methods mutate is registry data (`mutatesElements` markers), not local knowledge;
+  // the safe direction is a WHITELIST of known non-mutating methods - a method the registry
+  // does not know may be any mutator at runtime, so it bails like a dynamic key
+  const ARRAY_METHOD_HINTS = KNOWN_INSTANCE_METHOD_RETURN_TYPES.Array ?? {};
+  const ELEMENT_SAFE_METHODS = new Set(Object.entries(ARRAY_METHOD_HINTS)
+    .filter(([, hint]) => !hint.mutatesElements).map(([key]) => key));
+
+  // does `parent` still physically hold `node` in one of its slots? an in-place rewrite
+  // (a folded call, an optional-chain lowering) reuses parent nodes and swaps their slots,
+  // leaving cached reference chains pointing at parents that no longer contain the member
+  function nodeHoldsChild(parent, node) {
+    for (const slot of Object.values(parent)) {
+      if (slot === node) return true;
+      if (Array.isArray(slot) && slot.includes(node)) return true;
+    }
+    return false;
+  }
 
   function arrayElementsMayBeRetyped(objectPath, anchorPath) {
     if (!t.isIdentifier(objectPath.node)) return false;
@@ -721,16 +728,31 @@ export function createMemberResolve({
         && memberNode.object === ref.node;
       if (!isMemberRead) return true;
       if (isMemberWriteHost(member)) return true;
-      // canonical key extraction so a computed-literal spelling (`a["unshift"]`) matches
-      // the mutating set exactly like the dotted form; a CALL through an UNRESOLVED
-      // dynamic key (`a[m]("x")`) may be any mutator at runtime, so it bails too -
-      // a dynamic-key pure READ stays safe (reading cannot retype)
-      const calleeOfParent = (member.parentPath?.node?.type === 'CallExpression'
-        || member.parentPath?.node?.type === 'OptionalCallExpression')
-        && member.parentPath.node.callee === memberNode;
-      if (calleeOfParent) {
-        const key = memberKeyName(memberNode);
-        if (key === null || key === undefined || ELEMENT_MUTATING_METHODS.has(key)) return true;
+      // canonical key extraction so a computed-literal spelling (`a["unshift"]`) hits the
+      // registry exactly like the dotted form; a CALL through an UNRESOLVED dynamic key
+      // (`a[m]("x")`) may be any mutator at runtime, so it bails too - a dynamic-key pure
+      // READ stays safe (reading cannot retype)
+      const parentOfMember = member.parentPath?.node;
+      const calleeOfParent = (parentOfMember?.type === 'CallExpression'
+        || parentOfMember?.type === 'OptionalCallExpression')
+        && parentOfMember.callee === memberNode;
+      // a parent that no longer HOLDS the member was REWIRED by an earlier in-place rewrite
+      // (a folded call reuses the CallExpression node and swaps its callee; an optional-chain
+      // fold rewires into non-call shapes too). the detached member keeps its original key
+      // and the original shape was a use of that member, so a rewired parent classifies
+      // exactly like a live callee position. a text-emit pipeline never mutates the tree,
+      // so rewired parents cannot occur there
+      const rewiredParent = !calleeOfParent && parentOfMember
+        && !nodeHoldsChild(parentOfMember, memberNode);
+      const key = memberKeyName(memberNode);
+      if (calleeOfParent || rewiredParent) {
+        if (key === null || key === undefined || !ELEMENT_SAFE_METHODS.has(key)) return true;
+      } else if (key !== null && key !== undefined && Object.hasOwn(ARRAY_METHOD_HINTS, key)) {
+        // a registry METHOD read OUTSIDE a call position extracts the function value
+        // (`const m = a.fill; m(v)` / `use(a.splice)`) - its later call is untrackable,
+        // so any known method value leaving the member position bails. non-method keys
+        // (element reads, `length`, user data props) stay plain reads
+        return true;
       }
     }
     return false;
