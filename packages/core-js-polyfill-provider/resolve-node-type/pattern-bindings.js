@@ -170,7 +170,7 @@ export function createPatternBindings({
     if (pattern.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
       const index = findPatternIndex(pattern, varName);
       if (index < 0) return null;
-      if (init.elements.slice(0, index + 1).some(el => el?.type === 'SpreadElement')) return null;
+      if (spreadAtOrBefore(init.elements, index)) return null;
       return valuePresence(init.elements[index]);
     }
     if (pattern.type === 'ObjectPattern' && init?.type === 'ObjectExpression') {
@@ -278,9 +278,7 @@ export function createPatternBindings({
     const { elements } = arrayPath.node;
     if (index < 0 || index >= elements.length) return null;
     // bail if any spread at or before target index - positions become unpredictable
-    for (let i = 0; i <= index; i++) {
-      if (elements[i]?.type === 'SpreadElement') return null;
-    }
+    if (spreadAtOrBefore(elements, index)) return null;
     if (!elements[index]) return null; // hole
     return resolveNodeType(arrayPath.get('elements')[index]);
   }
@@ -531,9 +529,7 @@ export function createPatternBindings({
         // determined slot - `[...spread, 'x'][1]` resolves to spread[1] OR 'x' depending on
         // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
         // path matches the top-level extraction semantics
-        for (let i = 0; i <= step; i++) {
-          if (objPath.node.elements[i]?.type === 'SpreadElement') return null;
-        }
+        if (spreadAtOrBefore(objPath.node.elements, step)) return null;
         objPath = resolveRuntimeExpression(objPath.get('elements')[step]);
         keyPath = rest;
         continue;
