@@ -472,9 +472,12 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   const unwrapped = peelReceiverSequenceTail(init);
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
-    // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
-    if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name, path)) return unwrapped.name;
-    return resolveBindingToGlobal({ name: unwrapped.name, scope, adapter, seen, path, usageNode: unwrapped });
+    // (recursion hits the top-level polyfillHint translation for plugin-managed imports).
+    // follow the init identifier in the alias's OWN declaration scope, not the receiver-use
+    // scope - a later hop reading an outer-declared name must not bind to an inner shadow of it
+    const initScope = binding.scope ?? scope;
+    if (unwrapped.name === name || !adapter.hasBinding(initScope, unwrapped.name, path)) return unwrapped.name;
+    return resolveBindingToGlobal({ name: unwrapped.name, scope: initScope, adapter, seen, path, usageNode: unwrapped });
   }
   // identity / param-free / SE-prefix IIFE peel applied ONLY in the binding-init walk,
   // not in `resolveObjectName`'s generic CallExpression branch: the const intermediate

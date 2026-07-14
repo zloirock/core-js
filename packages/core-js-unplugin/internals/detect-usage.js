@@ -496,7 +496,16 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
           info: synthInfo, binding: synth, scope, adapter, injector: getInjector(), boundName: name,
         }) ? synthInfo.source : null;
-        return { ...synth, aliasSymbolSource, guardedAliasHint: synthIdentity?.hint ?? null };
+        // babel hoists the nested-block `var` natively and reports the declarator's own scope for
+        // it; opt the synthesized twin into the same key or the const-alias walkers would resolve
+        // this binding's init at the USE site instead. lazily: only a walker that follows the init
+        // reads it, and the lookup that never does must not pay for the search
+        return {
+          ...synth,
+          get scope() { return synth.resolveDeclarationScope(); },
+          aliasSymbolSource,
+          guardedAliasHint: synthIdentity?.hint ?? null,
+        };
       }
       // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
       // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
@@ -557,6 +566,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         kind: b.kind,
         constantViolations,
         importSource,
+        // the scope the DECLARATOR is written in - see the babel twin. here it IS `b.scope`: unlike
+        // babel, estree-toolkit never hoists a `var` out of its block, so a binding it DOES report
+        // already sits in the scope the declarator was written in (a use that outruns the block
+        // finds nothing here and takes the synthesized hoisted twin above instead)
+        scope: b.scope,
         polyfillHint,
         aliasSymbolSource,
         aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
