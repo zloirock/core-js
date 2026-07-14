@@ -272,7 +272,7 @@ export function createNarrowByGuards({
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
       if (!innerFreshConditional && isLoopStatement(parent.node)
         && loopReExecRegionHasViolation(parent.node, loopViolationNodes, loopBindingAnchor)) crossedBackEdgeLoop = true;
-      if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
+      if (!guardAppliesToBinding(parent, varName, binding)) continue;
       // a guard reached only after crossing a back-edge loop is outside it - it cannot
       // re-establish the narrow per iteration, so the loop-carried reassignment wins
       if (crossedBackEdgeLoop && bindingGuardedAt(current)) return MUTATED;
