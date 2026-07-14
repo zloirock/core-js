@@ -25,6 +25,7 @@ import {
   isMutatedGlobalSlot,
   isValidIdentifierName,
   mayHaveSideEffects,
+  pairedArrayWrapInitElement,
   peelFallbackReceiver,
   peelFallbackBranchInner,
   peelZeroArgIifeReturn,
@@ -1294,7 +1295,7 @@ function findShorthandKey(objectPattern, bindingName, scope, adapter) {
 // element-by-element. each ArrayPattern wrapper has exactly one inner element
 // (otherwise destructuring would re-bind to a different slot per pattern position),
 // so a depth counter is sufficient - no per-level index needed
-function peelDestructureWrappers(pattern) {
+function peelDestructureWrappers(pattern, throughReceiverBearingDefaults = false) {
   let prev = pattern.node;
   let parent = pattern.parentPath;
   // element index at each ArrayPattern wrapper (outermost-first via unshift) so the init
@@ -1315,7 +1316,8 @@ function peelDestructureWrappers(pattern) {
       // carries a receiver, its right side IS one - stop here so `destructureReceiverSlot`
       // picks the 'right' slot (peeling through it landed on the param slot and dropped
       // the usage-global injection)
-      if (!isInnerDestructureDefault(parent)) break;
+      if (!isInnerDestructureDefault(parent)
+        && !(throughReceiverBearingDefaults && isNestedDestructureDefault(parent))) break;
     } else if (!isTransparentDestructureWrapper(parent.node, prev)) break;
     prev = parent.node;
     parent = parent.parentPath;
@@ -1331,9 +1333,15 @@ function peelDestructureWrappers(pattern) {
 // (`function f({x} = R)`, grandparent is a function/declarator, not a pattern) is likewise the host.
 // shared so the wrapper-peel and the host walk treat inner defaults identically
 export function isInnerDestructureDefault(assignmentPatternPath) {
+  return isNestedDestructureDefault(assignmentPatternPath) && !destructureRightIsReceiver(assignmentPatternPath.node.right);
+}
+
+// a default nested inside another pattern (vs a param / declarator default, whose grandparent is a
+// function or declarator): the shape gate shared by the transparent-default peel and its
+// receiver-bearing resume - the resume peels PAST nested defaults only, a host default still stops
+function isNestedDestructureDefault(assignmentPatternPath) {
   const grandType = assignmentPatternPath?.parentPath?.node?.type;
-  if (grandType !== 'ArrayPattern' && grandType !== 'Property' && grandType !== 'ObjectProperty') return false;
-  return !destructureRightIsReceiver(assignmentPatternPath.node.right);
+  return grandType === 'ArrayPattern' || grandType === 'Property' || grandType === 'ObjectProperty';
 }
 
 // ascend a nested destructure leaf to its OUTERMOST object-pattern + the value-bearing host, peeling
@@ -1454,10 +1462,7 @@ function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = 
       if (followed.captureSite && captureRef) captureRef.site = followed.captureSite;
     }
     if (cur?.type !== 'ArrayExpression') return null;
-    for (let i = 0; i <= index; i++) {
-      if (cur.elements[i]?.type === 'SpreadElement') return null;
-    }
-    receiverNode = cur.elements[index];
+    receiverNode = pairedArrayWrapInitElement(cur.elements, index);
     if (!receiverNode) return null;
   }
   return receiverNode;
@@ -1500,10 +1505,22 @@ export function resolveArrayWrapperedDestructureReceiver(innerObjectPattern, ada
   // peel ArrayPattern wrappers (and transparent inner-default AssignmentPattern / single-element
   // wrappers) up to the host, collecting each wrapper's element index outermost-first so the init
   // descent picks the matching slot, not a blind `[0]` - `const [, { from }] = [Set, Array]`
-  const { parent: host, indices } = peelDestructureWrappers(innerObjectPattern);
-  // peeling stopped at a receiver-shaped inner default (its right is the receiver iff the paired slot
-  // is `undefined`) rather than walking through a transparent one - resolve it through the slot check
-  if (indices.length === 0) return resolveArrayInnerDefaultReceiver(host, adapter);
+  const peeled = peelDestructureWrappers(innerObjectPattern);
+  // peeling stopped at a receiver-shaped inner default rather than walking through a transparent
+  // one. its right is the receiver iff the paired slot IS `undefined` (the slot check); in the
+  // COMPLEMENTARY cell the paired slot resolves to a known global - always defined, so the default
+  // is provably dead - and the resumed peel (past nested receiver-bearing defaults) resolves the
+  // PAIR as the receiver, converging with the flatten plan's own defined-pair extraction
+  if (peeled.indices.length === 0) {
+    return resolveArrayInnerDefaultReceiver(peeled.parent, adapter)
+      ?? arrayWrapReceiverFromHost(peelDestructureWrappers(innerObjectPattern, true), adapter);
+  }
+  return arrayWrapReceiverFromHost(peeled, adapter);
+}
+
+// the descent + leaf-resolution tail shared by the transparent peel and the dead-default resume
+function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
+  if (indices.length === 0) return null;
   // IDENTIFICATION uses the broad host predicate: an assignment-destructure in for-init / call-arg
   // / arrow-body position and a parameter DEFAULT (AssignmentPattern) all carry a real receiver
   // that usage-global must inject for. the pure flatten re-checks its own narrow host shape at
