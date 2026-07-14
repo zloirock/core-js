@@ -781,6 +781,16 @@ const AW_CTOR_ALIAS = [
   // in-place substitution binds the name) and the sibling's static stays raw
   { id: 'sibling-objpat-independent', pre: 'const [{ WeakSet: W }, { Math: MA }] = [globalThis, globalThis];', obs: 'String(MA.trunc(1.5))', strip: false },
   { id: 'shared-alias-both-elements', pre: 'const g = globalThis; const [{ Set: S }, { Map: M }] = [g, g];', obs: 'typeof M.groupBy', strip: false },
+  // the duplicate-var split anchor judges the writing declarator with the init arm's pattern
+  // rejections: a mispaired write keeps the user value; a non-binding nested wrapper sibling
+  // does not abort the positional scan of a later element
+  { id: 'split-anchor-mispair',
+    pre: 'const { Map: M } = globalThis; void M.groupBy; function inn(u) { var M; var [, { Map: M }] = [globalThis, u]; return M.groupBy([1], x => x); }',
+    obs: 'String(inn({ Map: { groupBy: () => "U" } }))', strip: false },
+  { id: 'scan-past-nested-sibling', pre: 'const [[{ Set: X }], { Map: M }] = [[globalThis], globalThis];', obs: 'typeof M.groupBy', strip: false },
+  // a deep array-wrap layer beside a sibling registers through the positional recursion - the
+  // one-level registration walk left the deep alias hintless and its static raw (babel only)
+  { id: 'deep-wrap-sibling-registration', pre: 'const [[{ Map: M }], y] = [[globalThis], 0];', obs: 'typeof M.groupBy', strip: false },
 ];
 function * generateArrayWrapperCtorAlias() {
   for (const c of AW_CTOR_ALIAS) {

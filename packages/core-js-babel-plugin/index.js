@@ -1103,45 +1103,46 @@ export default function plugin(api, options) {
           // a duplicate (scan-before-enrich, mirroring unplugin). pure-only: it pins pure entries
           if (method === 'usage-pure') {
             enrichMutatedStatics({ mutatedStatics, resolvePure: resolvePureUnfiltered, injectPureImport });
-            // early ctor-alias registration (visit-order independence): a member use textually
-            // BEFORE its alias write (a hoisted-var read, an earlier-defined closure body) is
-            // visited before the destructure emitter would register the alias - pre-register every
-            // destructure-of-global site through the same trust gates, so the guarded/static narrow
-            // decision reads a complete table on every visit. runs on the post-split AST so
-            // minifier-collapsed shapes register like their split forms
-            if (hasCtorAliasCandidateShapes(path.node)) {
-              function isKnownGlobal(name) { return !!resolvePure({ kind: 'global', name }, path); }
-              path.traverse({
-                AssignmentExpression(p) {
-                  const { node } = p;
-                  if (node.operator !== '=' || isDisabled(node)
+          }
+          // early ctor-alias registration (visit-order independence): a member use textually
+          // BEFORE its alias write (a hoisted-var read, an earlier-defined closure body) is
+          // visited before the destructure emitter would register the alias - pre-register every
+          // destructure-of-global site through the same trust gates, so the guarded/static narrow
+          // decision reads a complete table on every visit. runs on the post-split AST so
+          // minifier-collapsed shapes register like their split forms. BOTH usage modes: pure
+          // folds through the hints, usage-global resolves its injections through them - without
+          // the table a split-anchor / hoisted-var alias drops the injection (the unsafe direction)
+          if ((method === 'usage-pure' || method === 'usage-global') && hasCtorAliasCandidateShapes(path.node)) {
+            path.traverse({
+              AssignmentExpression(p) {
+                const { node } = p;
+                if (node.operator !== '=' || isDisabled(node)
                     || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
-                  registerAliasPrePassSite({
-                    pattern: node.left, init: node.right, assignNode: node,
-                    scope: p.scope, adapter, injector, path: p, isKnownGlobal,
-                  });
-                },
-                VariableDeclarator(p) {
-                  const { node } = p;
-                  if (!node.init || isDisabled(node)
+                registerAliasPrePassSite({
+                  pattern: node.left, init: node.right, assignNode: node,
+                  scope: p.scope, adapter, injector, path: p,
+                });
+              },
+              VariableDeclarator(p) {
+                const { node } = p;
+                if (!node.init || isDisabled(node)
                     || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
-                  registerAliasPrePassSite({
-                    pattern: node.id, init: node.init, declKind: p.parent.kind,
-                    scope: p.scope, adapter, injector, path: p, isKnownGlobal,
-                  });
-                },
-                // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this
-                // traverse never descends into a constructor param-property's legacy decorator and a
-                // ctor-alias write hosted there goes unregistered - the member read then stays native
-                // while the estree side (pristine AST) folds it. requeue each decorator so the
-                // AssignmentExpression / VariableDeclarator visitors above fire on it, mirroring the
-                // mutation pre-pass and usage-visitor requeues
-                TSParameterProperty(p) {
-                  if (!p.node.decorators?.length) return;
-                  for (const decoratorPath of p.get('decorators')) p.requeue(decoratorPath);
-                },
-              });
-            }
+                registerAliasPrePassSite({
+                  pattern: node.id, init: node.init, declKind: p.parent.kind,
+                  scope: p.scope, adapter, injector, path: p,
+                });
+              },
+              // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this
+              // traverse never descends into a constructor param-property's legacy decorator and a
+              // ctor-alias write hosted there goes unregistered - the member read then stays native
+              // while the estree side (pristine AST) folds it. requeue each decorator so the
+              // AssignmentExpression / VariableDeclarator visitors above fire on it, mirroring the
+              // mutation pre-pass and usage-visitor requeues
+              TSParameterProperty(p) {
+                if (!p.node.decorators?.length) return;
+                for (const decoratorPath of p.get('decorators')) p.requeue(decoratorPath);
+              },
+            });
           }
         }
       }

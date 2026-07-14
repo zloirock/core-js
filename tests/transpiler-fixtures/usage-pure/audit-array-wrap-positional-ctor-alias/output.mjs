@@ -4,7 +4,10 @@ import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _JSON$rawJSON from "@core-js/pure/actual/json/raw-json";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Math$cbrt from "@core-js/pure/actual/math/cbrt";
 import _Math$sumPrecise from "@core-js/pure/actual/math/sum-precise";
+import _Number$parseFloat from "@core-js/pure/actual/number/parse-float";
+import _Number$parseInt from "@core-js/pure/actual/number/parse-int";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
@@ -16,6 +19,7 @@ import _Set from "@core-js/pure/actual/set/constructor";
 import _String$raw from "@core-js/pure/actual/string/raw";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
+import _URL from "@core-js/pure/actual/url/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // a multi-element array-wrap binds each ObjectPattern element to the init element at the SAME
@@ -134,6 +138,40 @@ function condVar(c) {
 }
 export const viaCondVar = condVar(cond);
 /* eslint-enable no-redeclare, vars-on-top, block-scoped-var -- end of redeclaration shapes */
+
+// a nested wrapper sibling that does NOT bind the name must not abort the positional scan
+// (its subtree's "not found" is not a terminal answer) - the later element still resolves;
+// a slot that DOES bind the name but cannot pair (spread-shifted inner init) keeps bailing
+const XU = _URL;
+const [[{
+  URL: _unused9
+}], {
+  Number: NP
+}] = [[_globalThis], _globalThis];
+export const viaScanPastNestedSibling = _Number$parseFloat(text);
+let unp = [{}];
+const [[{
+  Reflect: XR
+}], z0] = [[...unp], 0];
+export const viaBoundUnpairable = XR.has(target, propKey);
+
+// a deeper array-wrap layer BESIDE a sibling registers through the same positional recursion
+// as the alias judge - the deep alias's static keeps its fold (the one-ObjectPattern-level
+// registration walk stranded it raw in babel while unplugin re-derived it)
+const [[{
+  Number: DN
+}], keep2] = [[_globalThis], 1];
+export const viaDeepSibling = _Number$parseInt(digits, 10);
+
+// a same-name redeclaration of STATICS-ONLY hints merges last-wins like the ctor form - the
+// use folds through the last write's hint (runtime last-write-wins)
+var [{
+  JSON: VR
+}] = [_globalThis];
+var [{
+  Math: VR
+}] = [_globalThis];
+export const viaStaticsRedecl = _Math$cbrt(value2);
 
 // DEEP array-wrap layers pair positionally too: the global slot folds even when nested two levels
 const D = _Promise;
