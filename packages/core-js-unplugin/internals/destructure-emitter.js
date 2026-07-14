@@ -1861,15 +1861,15 @@ export function createDestructureEmitter({
         if (e.pattern) keepVisibleNodes.push(e.pattern);
         const emittedExtraction = emitOuterExtraction(e, scope, synthReceiverSrc);
         // order class for the assignment-cascade render (babel canon, probed per shape): an
-        // extraction precedes a surviving residual ONLY for a top-level aliased/shorthand
-        // binding prop in a bare object pattern; a NESTED pattern prop, a rest-forced
-        // SHORTHAND sentinel, and an array-WRAPPED pattern all follow the residual.
+        // extraction precedes a surviving residual for a top-level aliased/shorthand binding
+        // prop in a bare object pattern - a rest sibling does not demote a shorthand (the
+        // aliased control proves the BEFORE order); a NESTED pattern prop and an
+        // array-WRAPPED pattern follow the residual.
         // declaration hosts ignore the tag (extraction-first there)
         const valueType = claimedProp?.value?.type;
         emittedExtraction.nestedSource = keepsWrapper
           || valueType === 'ObjectPattern' || valueType === 'ArrayPattern'
-          || (valueType === 'AssignmentPattern' && claimedProp.value.left?.type !== 'Identifier')
-          || (claimedProp?.shorthand === true && hasRest);
+          || (valueType === 'AssignmentPattern' && claimedProp.value.left?.type !== 'Identifier');
         extractions.push(emittedExtraction);
       }
       let emitted = null;

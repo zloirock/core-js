@@ -730,7 +730,13 @@ export default function createDestructureEmitter({
     plan.discardSe = null;
     cascadedAssignments.add(assignPath.node);
     const assigns = [];
-    for (const outer of plan.outerProps) {
+    plan.outerProps.forEach((outer, i) => {
+      // a prop an earlier per-prop channel already CLAIMED (its real extraction is emitted, its
+      // value renamed to a sentinel) re-enters this render as a stale plan row whose localName
+      // is the sentinel - rendering it emits a dead `_unused = _polyfill` duplicate. mirror the
+      // unplugin render's claimed-prop verbatim gate and skip it
+      const srcProp = plan.pattern.properties[i];
+      if (srcProp && (skippedNodes.has(srcProp) || (srcProp.value && skippedNodes.has(srcProp.value)))) return;
       for (const e of outer.extractions ?? []) {
         let value;
         if (e.synth === 'symbol-iterator') {
@@ -754,7 +760,7 @@ export default function createDestructureEmitter({
         t.traverseFast(assign, node => { skippedNodes.add(node); });
         assigns.push(assign);
       }
-    }
+    });
     // a render reducing to exactly ONE statement on an unbraced control slot keeps the
     // slot bodyless - block-wrapping a single statement would churn the guard shape for
     // nothing. two single-statement shapes exist: a FULL consume with one assignment

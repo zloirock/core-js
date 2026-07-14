@@ -1111,8 +1111,13 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       if (decl.id?.type === 'ObjectPattern') {
         const keyName = findDestructureKeyForBinding(decl.id, name, scope);
         if (!keyName) return null;
+        // a bare proxy-global init short-circuits to the key, and so does a member chain whose
+        // LEAF is itself a proxy-global (`globalThis.self.window` re-enters the global surface).
+        // any other leaf (`globalThis.Reflect`) names an arbitrary member - short-circuiting
+        // there dispatched a vendor slot (`Reflect.Map`) as the pristine global - so it falls
+        // to the synthesized-member walk, which applies the hop rules and bails
         if (isProxyGlobalIdentifierNode({ node: init, scope, adapter, path: captureAnchor })
-            || globalProxyMemberName({ node: init, scope, adapter, path: captureAnchor }) !== null) return keyName;
+          || POSSIBLE_GLOBAL_OBJECTS.has(globalProxyMemberName({ node: init, scope, adapter, path: captureAnchor }))) return keyName;
         return resolveBindingToGlobalName({
           type: 'MemberExpression',
           object: init,
