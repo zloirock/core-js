@@ -1888,6 +1888,7 @@ function createResolveNodeType(babelNodeType, t, {
   // call-resolution cluster above) and the hoisted `resolveNodeType` function declaration
   const memberResolveCluster = createMemberResolve({
     t,
+    KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     // forward-decl thunk: narrow-by-guards instantiates later in the factory body
     findAnnotationGuard: path => findAnnotationGuard(path),
     getScopeBinding,
