@@ -32,6 +32,7 @@ import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard } from './guar
 
 export function createTypeofGuards({
   t,
+  getScopeBinding,
   peelNegation,
   isLiteralOf,
   getMemberProperty,
@@ -327,9 +328,13 @@ export function createTypeofGuards({
   // shadow check: a guard's test lives in the enclosing scope (parent of `current` in the
   // walk, sibling-aware for early-exit). when that scope's `varName` resolves to a different
   // binding than the inner usage's, the guard refers to a shadowed identifier and must not
-  // narrow our binding. shared by findEnclosingTypeGuards and hasMutationAfterGuards
-  function guardAppliesToBinding(testScope, varName, binding) {
-    return !binding || testScope?.getBinding(varName) === binding;
+  // narrow our binding. shared by findEnclosingTypeGuards and hasMutationAfterGuards.
+  // routes through the shared lookup, not a raw `scope.getBinding`: the identity compare is
+  // against what the CALLER resolved, and only the shared lookup answers alike on both parsers
+  // for a nested-block `var` (one hoists it natively, the other needs the synthesized twin) -
+  // `testPath` anchors that synthesis, so it must be the path the scope was taken from
+  function guardAppliesToBinding(testPath, varName, binding) {
+    return !binding || getScopeBinding(testPath?.scope, varName, testPath) === binding;
   }
 
   // collect ALL type guards along the AST path for cumulative narrowing.
@@ -341,7 +346,7 @@ export function createTypeofGuards({
     const guards = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
       if (t.isFunction(current.node) && !isConst) break;
-      if (guardAppliesToBinding(current.parentPath?.scope, varName, binding)) {
+      if (guardAppliesToBinding(current.parentPath, varName, binding)) {
         guards.push(
           ...findConditionalGuards(current, varName),
           ...findSwitchCaseGuards(current, varName),

@@ -290,9 +290,14 @@ export function createDiscriminantNarrow({
   // because the binding at the use site is the post-SE value, not the pre-test one).
   // routed through `violationsHitAnyInterval` so synthetic violations conservatively drop
   // the guard - mirrors `hasMutationAfterGuards`' `isBefore` polarity
-  function discriminantGuardApplies(scope, testNode, ctx, deferredUpper) {
+  // `testPath` (not a bare scope): the identity compare below must resolve `rootName` through the
+  // SHARED lookup, and only that answers alike on both parsers for a nested-block `var` - the
+  // synthesized hoisted twin needs a path to anchor its search
+  function discriminantGuardApplies(testPath, testNode, ctx, deferredUpper) {
     const { rootName, objectBinding, targetKey, objectStart } = ctx;
-    if (rootName !== 'this' && objectBinding && getScopeBinding(scope, rootName) !== objectBinding) return false;
+    const scope = testPath?.scope;
+    if (rootName !== 'this' && objectBinding
+      && getScopeBinding(scope, rootName, testPath) !== objectBinding) return false;
     // a direct field write only flips THIS guard when the field is one of its discriminants
     const relevant = relevantGuardViolations(ctx, testNode, targetKey, scope);
     if (objectBinding && violationInCapturedFunction(t, relevant, objectBinding.scope?.path)) return false;
@@ -336,7 +341,7 @@ export function createDiscriminantNarrow({
       const sibling = peelLabeledStatementPath(siblings[i]);
       const exitCond = resolveExitCondition(sibling, peeledLabelNames(siblings[i]));
       if (exitCond === null) continue;
-      if (!discriminantGuardApplies(sibling.scope, sibling.node.test, ctx, deferredUpper)) continue;
+      if (!discriminantGuardApplies(sibling, sibling.node.test, ctx, deferredUpper)) continue;
       pushDiscriminantClauses({ test: sibling.node.test, conditionTrue: exitCond, targetKey, out, scope: sibling.scope });
     }
   }
@@ -360,7 +365,7 @@ export function createDiscriminantNarrow({
     if (!t.isSwitchStatement(switchStmt?.node)) return;
     const fieldPath = matchTargetFieldPath(unwrapRuntimeExpr(switchStmt.node.discriminant), targetKey, switchStmt.scope);
     if (fieldPath === null) return;
-    if (!discriminantGuardApplies(switchStmt.scope, switchStmt.node.discriminant, ctx, deferredUpper)) return;
+    if (!discriminantGuardApplies(switchStmt, switchStmt.node.discriminant, ctx, deferredUpper)) return;
     const { cases } = switchStmt.node;
     const { scope } = switchCase;
     const caseIndex = cases.indexOf(switchCase.node);
@@ -440,7 +445,7 @@ export function createDiscriminantNarrow({
         collectPrecedingExitDiscriminants({ current, targetKey, out: guards, ctx, deferredUpper });
         continue;
       }
-      if (!discriminantGuardApplies(parent.scope, test, ctx, deferredUpper)) continue;
+      if (!discriminantGuardApplies(parent, test, ctx, deferredUpper)) continue;
       pushDiscriminantClauses({ test, conditionTrue, targetKey, out: guards, scope: parent.scope });
     }
     return guards;
