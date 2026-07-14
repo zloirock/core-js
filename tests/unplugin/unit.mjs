@@ -621,6 +621,28 @@ function checkInsertInsideEnclosingOuterThrows() {
 }
 checkInsertInsideEnclosingOuterThrows();
 
+// an insert landing in the SUFFIX half of a split overwrite must report the split's logical
+// range - the suffix entry's raw start points mid-rewrite and misdirects the diagnostic
+function checkInsertInsideSplitSuffixReportsLogicalRange() {
+  const code = '0123456789ABCDEF';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms, 'fixture-file');
+  q.addSplit(0, 5, 10, 'PRE', 'SUF');
+  q.insert(8, 'X'); // pos=8 sits in the suffix half [5,10) of the logical rewrite [0,10)
+  try {
+    q.apply();
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside split suffix') } :: expected throw`;
+  } catch (error) {
+    if (/insert at 8 lands inside overwrite \[0,10\)/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside split suffix') } :: got ${ error.message }`;
+    }
+  }
+}
+checkInsertInsideSplitSuffixReportsLogicalRange();
+
 // Unicode-aware identifier-boundary check: ASCII `\w` misses `α` and other ID_Continue
 // chars, so `Map` substring inside `Mapα` slipped past the boundary check and got
 // substituted, corrupting the source identifier. fix: `/[\p{ID_Continue}$]/u`

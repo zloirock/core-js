@@ -22,6 +22,7 @@ import {
   TS_EXPR_WRAPPERS,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
+  sequenceHeadDirectiveHazard,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
@@ -105,9 +106,7 @@ function splitMinifierSequenceDestructure(programPath, t) {
         // shift the original SequenceExpression operand never carried. wrap it in `(0, str)` so it
         // stays a plain ExpressionStatement and the prologue ends before it; only the first operand
         // can land in prologue position (a later string operand is already post-prologue)
-        let head = e;
-        while (head?.type === 'ParenthesizedExpression') head = head.expression;
-        const node = i === 0 && head?.type === 'StringLiteral'
+        const node = i === 0 && sequenceHeadDirectiveHazard(e)
           ? t.sequenceExpression([t.numericLiteral(0), e]) : e;
         const stmt = t.expressionStatement(node);
         // carry the wrapped expression's source position onto the synthesized statement so split
