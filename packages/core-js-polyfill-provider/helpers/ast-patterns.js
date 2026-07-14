@@ -4400,6 +4400,17 @@ export function walkPatternIdentifiers(node, visit, depth = 0) {
   }
 }
 
+// does a split-off leading sequence operand re-parse as a Directive Prologue entry? a bare
+// string literal does; TS casts vanish at type-strip so they don't protect it (`"use strict"
+// as any`), while explicit parens survive in a text emit and do (the babel AST drops parens at
+// parse, so its emit re-wraps regardless - both sides stay non-directive). covers babel
+// `StringLiteral` and estree `Literal`-string spellings
+export function sequenceHeadDirectiveHazard(expr) {
+  let head = expr;
+  while (head && head.type !== 'ParenthesizedExpression' && SKIPPABLE_WRAPPER_TYPES.has(head.type)) head = head.expression;
+  return head?.type === 'StringLiteral' || (head?.type === 'Literal' && typeof head.value === 'string');
+}
+
 // minifier-shape detection: `ExpressionStatement > [Paren?] > SequenceExpression > [...]`
 // where ANY slot (with optional Paren peel) is an `AssignmentExpression` targeting an
 // ObjectPattern or ArrayPattern. the shape collapses a destructure assignment into a

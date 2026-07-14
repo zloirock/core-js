@@ -146,26 +146,29 @@ function findStatementEndLine({ node, targetLine, offsetToLine, depth = 0 }) {
   if (depth > FIND_STATEMENT_MAX_DEPTH || !isASTNode(node)) return null;
   const lines = nodeLineSpan(node, offsetToLine);
   if (!lines || lines.start > targetLine || lines.end < targetLine) return null;
+  // a brace host OPENING on the target line spans the directive across its WHOLE block - checked
+  // BEFORE descending: an inline first statement on the same line would otherwise return its own
+  // shorter end-line and the directive under-covers the block's trailing lines
+  if (lines.start === targetLine && BRACE_STATEMENT_HOST_TYPES.has(node.type)) return lines.end;
   if (lines.start === targetLine && !STATEMENT_WRAPPERS.has(node.type)) return lines.end;
   // `isASTNode` filters foreign stamps (babel `extra`, sibling-plugin caches) so iterating
-  // every own key stays safe even when plugins decorate the tree with non-AST values
+  // every own key stays safe even when plugins decorate the tree with non-AST values. take the
+  // FARTHEST matching end across children - siblings sharing the target line must not shorten it
+  let best = null;
   // eslint-disable-next-line no-restricted-syntax -- AST walker, keys are own-properties only
   for (const key in node) {
     const child = node[key];
     if (Array.isArray(child)) {
       for (const c of child) if (isASTNode(c)) {
         const found = findStatementEndLine({ node: c, targetLine, offsetToLine, depth: depth + 1 });
-        if (found) return found;
+        if (found) best = best === null ? found : Math.max(best, found);
       }
     } else if (isASTNode(child)) {
       const found = findStatementEndLine({ node: child, targetLine, offsetToLine, depth: depth + 1 });
-      if (found) return found;
+      if (found) best = best === null ? found : Math.max(best, found);
     }
   }
-  // brace-wrapper opening ON the target line whose body statements start on later lines: no inner
-  // statement matched above, so span the directive across the whole block via the wrapper's own end
-  if (lines.start === targetLine && BRACE_STATEMENT_HOST_TYPES.has(node.type)) return lines.end;
-  return null;
+  return best;
 }
 
 // babel carries `node.loc.start/end.line`; oxc carries offsets only
