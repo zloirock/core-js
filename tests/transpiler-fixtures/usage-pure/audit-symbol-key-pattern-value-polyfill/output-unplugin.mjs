@@ -40,7 +40,7 @@ const { [(c++, 'of')]: _unused, [_Symbol$iterator]: _unused11 } = Array;
 // receiver, and a CALL init (whole-init memo - the call runs once)
 const _ref2 = [7];
 const { length: litArity, call: litCall } = _getIteratorMethod(_ref2);
-const { [_Symbol$iterator]: _unused2 } = _ref2;
+const { [_Symbol$iterator]: _unused3 } = _ref2;
 const _ref3 = holder.p;
 const { length: memArity } = _getIteratorMethod(_ref3);
 const { [_Symbol$iterator]: _unused4, sib } = _ref3;
@@ -55,7 +55,7 @@ const { [_Symbol$iterator]: _unused6, q } = _ref5;
 const _ref6 = holder2.p;
 const ts = _toSortedMaybeArray(_ref6);
 const { length: mixArity } = _getIteratorMethod(_ref6);
-const { [(k2(), 'toSorted')]: _unused3, [_Symbol$iterator]: _unused7 } = _ref6;
+const { [(k2(), 'toSorted')]: _unused2, [_Symbol$iterator]: _unused7 } = _ref6;
 // EXPORT host: the memo plants as a bare statement before the export (never exported itself)
 const _ref7 = holder3.p;
 export const { length: expArity } = _getIteratorMethod(_ref7);
