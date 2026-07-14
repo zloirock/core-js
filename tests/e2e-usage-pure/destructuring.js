@@ -2923,3 +2923,64 @@ QUnit.test('static block reassign forces a native bail', assert => {
   assert.throws(() => groupBy([1], x => x), TypeError);
 });
 /* eslint-enable no-dupe-class-members, unicorn/no-static-only-class, no-useless-computed-key -- end of the dup static field shape */
+
+// a spread BEFORE an array-wrap slot shifts every later runtime position: the pattern slot binds
+// a spread element, not the literal at the same index. resolving past the spread would substitute
+// the pure static / fold the well-known symbol over the USER value that actually lands in the slot
+QUnit.test('destructuring: spread-shifted array-wrap ctor alias keeps the user static', assert => {
+  const tail = [{}, { Map: { groupBy: () => 'user' } }];
+  const [, { Map: M }] = [...tail, globalThis];
+  assert.same(M.groupBy([1], x => x), 'user');
+});
+
+QUnit.test('destructuring: spread-shifted array-wrap symbol alias keeps the user value', assert => {
+  const tail = [{}, { Symbol: { iterator: 'fake' } }];
+  const [, { Symbol: S }] = [...tail, globalThis];
+  assert.same(S.iterator, 'fake');
+  assert.same(typeof [1, 2][S.iterator], 'undefined');
+});
+
+QUnit.test('destructuring: spread-shifted DEEP array-wrap keeps the user static', assert => {
+  const tail = [{}, { Iterator: { range: () => 'user' } }];
+  const [[, { Iterator: I }]] = [[...tail, globalThis]];
+  assert.same(I.range(0, 3), 'user');
+});
+
+// control: a spread strictly AFTER the slot keeps earlier positions static, the sound
+// pairing folds to the working polyfill-backed static
+QUnit.test('destructuring: spread-after array-wrap still folds the sound pairing', assert => {
+  const tail = [{}, {}];
+  const [{ Map: M }] = [globalThis, ...tail];
+  const groups = M.groupBy([1, 2], x => x % 2);
+  assert.deepEqual(groups.get(1), [1]);
+  assert.deepEqual(groups.get(0), [2]);
+});
+
+// a receiver-bearing slot default fires only when the paired element IS undefined: a DEFINED
+// foreign pair keeps the foreign member (native throw preserved), a spread-shifted pair keeps
+// the runtime pairing, and a provably-dead default under a sound pair keeps the working fold
+QUnit.test('destructuring: receiver-bearing slot default with foreign pair keeps the native throw', assert => {
+  const [{ Map: M } = globalThis] = [{}];
+  assert.throws(() => M.groupBy([1], x => x), TypeError);
+});
+
+QUnit.test('destructuring: receiver-bearing slot default with spread-shifted pair keeps the pair value', assert => {
+  const t = [{}, { Map: { groupBy: () => 'user' } }];
+  const [, { Map: M } = globalThis] = [...t];
+  assert.same(M.groupBy([1], x => x), 'user');
+});
+
+QUnit.test('destructuring: dead slot default under a sound pair keeps the working static', assert => {
+  const fb = {};
+  const [{ Map: M } = fb] = [globalThis];
+  assert.deepEqual(M.groupBy([1, 2], x => x % 2).get(1), [1]);
+});
+
+// sibling array-wrap elements resolve independently: the walk's cycle guard is a recursion
+// stack, so a completed resolution of one element's init must not poison the SAME init name
+// in a later element - the second alias's static keeps its polyfill (raw native would throw)
+QUnit.test('destructuring: sibling array-wrap elements resolve independently', assert => {
+  const [{ WeakSet: W }, { Math: M }] = [globalThis, globalThis];
+  assert.same(typeof new W(), 'object');
+  assert.same(M.sumPrecise([1, 2]), 3);
+});

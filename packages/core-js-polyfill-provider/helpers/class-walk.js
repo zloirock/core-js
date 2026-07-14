@@ -4,10 +4,11 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
   POSSIBLE_GLOBAL_OBJECTS,
-  arrayWrapSlotBindsName,
   isVarScopeBoundary,
   memberKeyName,
   objectPatternLiteralKeyPath,
+  pairedArrayWrapInitElement,
+  peelArrayWrapBindingLayers,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
   SKIPPABLE_WRAPPER_TYPES,
@@ -170,7 +171,7 @@ function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
 // the init node the alias judge must resolve for a binding named `boundName`: an array-wrap
 // (`const [{ Set: A }, { Map: M }] = [userObj, globalThis]`) binds each ObjectPattern element to
 // the init element at the SAME index, so `A` reads `userObj.Set`, NOT the whole array. return that
-// POSITIONAL element (`null` when the index has no init element - bail); a non-array-wrap shape
+// POSITIONAL element (`null` on an absent or spread-shifted pairing - bail); a non-array-wrap shape
 // returns the init verbatim (`undefined` sentinel means "not an array-wrap, use init as-is").
 // deeper array-wrap layers (`[[{ Map: M }]] = [[globalThis]]`) recurse positionally, mirroring the
 // receiver resolver's `resolveArrayWrappedProxyGlobalAlias` - the two paths must agree on nesting
@@ -182,9 +183,9 @@ function positionalArrayWrapInit(idPattern, init, boundName) {
     if (slot?.type === 'ObjectPattern' && (slot.properties ?? []).some(prop => {
       const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
       return value?.type === 'Identifier' && value.name === boundName;
-    })) return init.elements[i] ?? null;
+    })) return pairedArrayWrapInitElement(init.elements, i);
     if (slot?.type === 'ArrayPattern') {
-      const deep = positionalArrayWrapInit(slot, init.elements[i], boundName);
+      const deep = positionalArrayWrapInit(slot, pairedArrayWrapInitElement(init.elements, i), boundName);
       if (deep !== undefined) return deep;
     }
   }
@@ -346,12 +347,14 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
     const initEls = unwrapInitForResolution(init)?.type === 'ArrayExpression'
       ? unwrapInitForResolution(init).elements : null;
     (pattern.elements ?? []).forEach((el, i) => {
-      if (el?.type !== 'ObjectPattern') return;
+      // a slot default (`[{ Set: C } = f]`) unwraps like the alias judge's positional walk:
+      // registration fires only off a known-global pair (always defined), so the default is dead
+      const slot = el?.type === 'AssignmentPattern' ? el.left : el;
+      if (slot?.type !== 'ObjectPattern') return;
       // no positional init evidence (a non-array / babel-emptied init) keeps the established
       // whole-init bar so a post-consumption confirmation still recognises the alias
-      const initEl = initEls?.[i];
-      if (!initEls || (initEl && initEl.type !== 'SpreadElement'
-        && aliasInitResolvesToGlobal(initEl, scope, adapter, injector))) collectFromObjectPattern(el);
+      const initEl = initEls && pairedArrayWrapInitElement(initEls, i);
+      if (!initEls || (initEl && aliasInitResolvesToGlobal(initEl, scope, adapter, injector))) collectFromObjectPattern(slot);
     });
   }
   return pairs;
@@ -588,17 +591,12 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
     return aliasInitResolvesToSymbol(declarator.init, nextScope, adapter, injector, next, followDestructured);
   }
   if (!followDestructured) return false;
-  // descend array-wrap layers positionally (`const [{ Symbol: S }] = [globalThis]`): each ArrayPattern
-  // element binds the init element at the SAME index, so peel to the inner ObjectPattern + init element
-  // (mirrors resolveDestructuredGlobalName) before resolving the key-path off the proxy-global
-  let { id, init } = declarator;
-  while (id?.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
-    const idx = id.elements.findIndex(element => element && arrayWrapSlotBindsName(element, node.name));
-    if (idx === -1 || !init.elements[idx] || init.elements[idx].type === 'SpreadElement') return false;
-    id = id.elements[idx].type === 'AssignmentPattern' ? id.elements[idx].left : id.elements[idx];
-    init = init.elements[idx];
-  }
-  return destructuredGlobalKeyPathNamesSymbol(init, objectPatternLiteralKeyPath(id, node.name), nextScope, adapter);
+  // peel array-wrap layers positionally (`const [{ Symbol: S }] = [globalThis]`) to the inner
+  // ObjectPattern + init element (shared with resolveDestructuredGlobalName; spread-shifted
+  // pairing bails inside the peel) before resolving the key-path off the proxy-global
+  const peeled = peelArrayWrapBindingLayers(declarator.id, declarator.init, node.name);
+  if (!peeled) return false;
+  return destructuredGlobalKeyPathNamesSymbol(peeled.init, objectPatternLiteralKeyPath(peeled.id, node.name), nextScope, adapter);
 }
 
 // resolve a destructure key-path (`['self','Symbol']`) off a proxy-global init to the Symbol leaf,
