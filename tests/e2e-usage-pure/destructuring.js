@@ -177,6 +177,54 @@ QUnit.test('destructuring: alias `.self` logical operand collapses the hop', ass
   assert.same(typeof rest, 'object');
 });
 
+// a const-alias chain whose intermediate hop is shadowed by an inner binding must resolve the
+// static through the hop's own module-scope declaration, not the inner shadow - else pure bails
+// and the static stays raw (undefined on a stripped realm). live runtime oracle
+QUnit.test('destructuring: const-alias chain resolves through a shadowed intermediate hop', assert => {
+  const arrayRoot = Array;
+  const arrayLink = arrayRoot;
+  // eslint-disable-next-line no-shadow -- the param shadows the middle hop; that shadow IS the shape under test
+  function pick(arrayRoot) {
+    const { of } = arrayLink;
+    return of(arrayRoot, 2);
+  }
+  assert.deepEqual(pick(1), [1, 2]);
+});
+
+// an IIFE param-default whose winning call-arg is shadowed by an inner var of the same name must
+// resolve the arg's static at the call site, not the arrow's inner scope. live runtime oracle
+QUnit.test('destructuring: IIFE param-default arg resolves past an inner same-name shadow', assert => {
+  const build = (({ of: make } = Array) => {
+    // eslint-disable-next-line no-var, no-unused-vars -- the inner var shadows the winning arg name; that shadow IS the shape under test
+    var Array;
+    return make;
+  })(Array);
+  assert.deepEqual(build(3, 4), [3, 4]);
+});
+
+// a `var` hoists its NAME to the function scope, but its initializer evaluates in the block it is
+// written in - an init name shadowed THERE holds, so the receiver is a plain object and the static
+// must stay untouched. substituting it would silently un-throw the user's TypeError. live runtime
+// oracle: fails on ANY engine (not just a stripped realm) if the receiver is over-resolved
+QUnit.test('destructuring: `var` init resolves in its own block, not the hoisted scope', assert => {
+  const raceRoot = Promise;
+  // control: the same receiver with no block-local shadow does resolve the static
+  const { race: liveRace } = raceRoot;
+  assert.same(typeof liveRace, 'function');
+  {
+    // eslint-disable-next-line no-shadow -- the block-local shadow of the init name IS the shape under test
+    const raceRoot = {};
+    // eslint-disable-next-line no-var -- the hoisted var read outside its block IS the shape under test
+    var heldRace = raceRoot;
+  }
+  {
+    // eslint-disable-next-line block-scoped-var -- reading the hoisted var outside its declaring block
+    const { race } = heldRace;
+    assert.same(race, undefined);
+    assert.throws(() => race([]), TypeError);
+  }
+});
+
 // the PARAM-DEFAULT logical receiver path collapses the `.self` hop in each live non-pure operand
 // too (`globalThis.self.Array` -> `_globalThis.Array`), mirroring the const-init path: calling with
 // no arg evaluates the default, and an uncollapsed `_globalThis.self.Array` would THROW in Node

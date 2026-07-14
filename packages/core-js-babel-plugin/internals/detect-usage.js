@@ -224,6 +224,12 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         }) ? info.source : null;
         return {
           node: b.path.node, kind: b.kind, constantViolations, importSource,
+          // the scope the DECLARATOR is written in - the const-alias walkers advance to it per hop
+          // so a later hop reading an outer-declared name resolves it there, not against the
+          // receiver-use scope where an inner shadow of that name would swallow the value.
+          // deliberately NOT `b.scope`: babel hoists a `var` and reports the FUNCTION scope there,
+          // which reads past a shadow local to the block the declarator sits in
+          scope: b.path.scope,
           polyfillHint, aliasSymbolSource, aliasWrite: polyfillHint ? info?.aliasWrite ?? null : null,
           // the hint of a registration whose static narrow did NOT apply at this use - a REFUSED
           // (guarded) registration or a use textually before its trusted write (dominance).
@@ -617,8 +623,13 @@ export function createUsageVisitors({
     const receiverNode = chooseFallbackReceiverNode({
       argNode, defaultNode: parent.node.right, objectPattern: parent.node.left, scope: parent.scope, adapter, path, resolvePure,
     });
-    const receiverScope = argNode && receiverNode === argNode ? desc.callPath.scope : parent.scope;
-    const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: receiverScope, adapter, path });
+    // resolve the winning call-arg against the call-site scope AND path (like the unplugin twin) -
+    // the fallback shadow walks anchor at `path`, so a stale ObjectProperty anchor inside the arrow
+    // would find an inner same-name shadow and drop the meta. emit still targets the prop path
+    const argWins = argNode && receiverNode === argNode;
+    const receiverScope = argWins ? desc.callPath.scope : parent.scope;
+    const receiverPath = argWins ? desc.callPath : path;
+    const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: receiverScope, adapter, path: receiverPath });
     if (meta) emitPropUsage(meta, path);
   }
 

@@ -309,6 +309,24 @@ function * generateIifeArgShadow() {
   yield { ...snippet('iife-arg-shadow/param-default', '(function ({ of } = Number, Array) { return typeof of; })(Array)'), strip: true };
 }
 
+// --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
+// every hop of an alias chain resolves in the scope its own declarator was written in, so a
+// binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
+// the `var` rows carry the parser split: babel hoists the declaration natively while the estree
+// side synthesizes the hoisted twin, and both must report the same declaration scope
+function * generateAliasHopShadow() {
+  yield { ...snippet('alias-hop-shadow/const-chain-param',
+    '(() => { const B = Array; const A = B; return (function (B) { const { of } = A; return typeof of; })(); })()'), strip: true };
+  yield { ...snippet('alias-hop-shadow/block-after-capture',
+    '(() => { const B = Array; const A = B; { const B = {}; return (function () { const { of } = A; return typeof of; })(); } })()'), strip: true };
+  yield { ...snippet('alias-hop-shadow/var-hoist-use-site',
+    '(() => { const B = Object; const A = B; return (function () { { var h = A; } { const B = {}; const { groupBy } = h; return typeof groupBy; } })(); })()'), strip: true };
+  // the mirror image: the hop is shadowed where the declarator ITSELF sits, so the shadow wins and
+  // the receiver is a plain object - neither side may fold a static onto it
+  yield { ...snippet('alias-hop-shadow/var-init-block-shadow',
+    '(() => { const B = Array; return (function () { { const B = {}; var h = B; } { const { of } = h; return typeof of; } })(); })()') };
+}
+
 // --- Proxy-global full-consume from a side-effecting receiver ---
 // a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
 // constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
@@ -3203,6 +3221,7 @@ export function * generate() {
   yield * generateDestructureAlias();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
+  yield * generateAliasHopShadow();
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateDiscardedKeyPrefixProxy();
