@@ -347,7 +347,7 @@ export function collectMutationPrePass(ast, adapter) {
 // early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
 // pre-register every destructure-of-global site through the shared trust gates so a member use
 // textually BEFORE its alias write still reads a complete table when visited
-export function collectAliasPrePass({ ast, adapter, injector, isKnownGlobal, isDisabled }) {
+export function collectAliasPrePass({ ast, adapter, injector, isDisabled }) {
   if (!hasCtorAliasCandidateShapes(ast)) return;
   const siteVisitors = {
     AssignmentExpression(path) {
@@ -356,7 +356,7 @@ export function collectAliasPrePass({ ast, adapter, injector, isKnownGlobal, isD
         || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
       registerAliasPrePassSite({
         pattern: node.left, init: node.right, assignNode: node,
-        scope: path.scope, adapter, injector, path, isKnownGlobal,
+        scope: path.scope, adapter, injector, path,
       });
     },
     VariableDeclarator(path) {
@@ -365,7 +365,7 @@ export function collectAliasPrePass({ ast, adapter, injector, isKnownGlobal, isD
         || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
       registerAliasPrePassSite({
         pattern: node.id, init: node.init, declKind: path.parent.kind,
-        scope: path.scope, adapter, injector, path, isKnownGlobal,
+        scope: path.scope, adapter, injector, path,
       });
     },
   };
