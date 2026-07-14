@@ -5,4 +5,5 @@
 import './babel-compat.mjs';
 import './import-injector.mjs';
 import './catch-extractor-mode.mjs';
+import './fresh-path-memo.mjs';
 import './post-sweep-introduced-global.mjs';
