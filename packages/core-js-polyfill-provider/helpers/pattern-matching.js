@@ -85,10 +85,10 @@ export function validatePatternList(name, list) {
   if (!Array.isArray(list)) {
     throw new TypeError(`[core-js] \`${ name }\` must be an array, or undefined (received ${ safeStringify(list) })`);
   }
-  for (const item of list) {
-    if (item === '') throw new TypeError(`[core-js] \`${ name }[*]\` must be a non-empty string`);
+  for (const [i, item] of list.entries()) {
+    if (item === '') throw new TypeError(`[core-js] \`${ name }[${ i }]\` must be a non-empty string`);
     if (typeof item !== 'string' && !(item instanceof RegExp)) {
-      throw new TypeError(`[core-js] \`${ name }[*]\` must be a string or RegExp (received ${ safeStringify(item) })`);
+      throw new TypeError(`[core-js] \`${ name }[${ i }]\` must be a string or RegExp (received ${ safeStringify(item) })`);
     }
   }
 }
