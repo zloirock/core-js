@@ -309,6 +309,49 @@ function * generateIifeArgShadow() {
   yield { ...snippet('iife-arg-shadow/param-default', '(function ({ of } = Number, Array) { return typeof of; })(Array)'), strip: true };
 }
 
+// --- TYPE of a nested-block `var`, read past its block ---
+// one parser hoists the declaration natively, the other scopes it to the block, so a use that
+// outruns the block must still see the declared TYPE or the receiver silently widens to the generic
+// helper. the runtime result is identical either way (the generic handles arrays too) - the
+// divergence this catches is the IMPORT SET, which the harness compares alongside
+function * generateTypeVarHoist() {
+  yield { ...snippet('type-var-hoist/inferred-array',
+    '(() => { const src = ["x", "y"]; { var held = src; } { return held.at(0); } })()'), strip: true };
+  // the init reads a block-local shadow, so the type follows THAT value, not the outer array
+  yield { ...snippet('type-var-hoist/init-shadowed',
+    '(() => { const src = ["x", "y"]; { const src = "ab"; var held = src; } { return held.at(0); } })()'), strip: true };
+  // reading a hoisted var's WRITES needs them in the shape the flow layer climbs - the last write
+  // before the use decides the type
+  yield { ...snippet('type-var-hoist/reassigned',
+    '(() => { const src = ["x", "y"]; { var held = src; } held = "ab"; { return held.at(0); } })()'), strip: true };
+  // a for-x head writes the binding without an assignment node, so the write list must still see it.
+  // the trailing guard is what makes that observable: an unguarded read past a for-x write widens to
+  // the generic helper whether or not the write was seen, so only a row that PROVES the type inside a
+  // guard can tell the two apart. `typeof` over `Array.isArray` - an operator survives the stripped realm
+  yield { ...snippet('type-var-hoist/for-of-head-write',
+    '(() => { const src = ["x", "y"]; { var held = src; } for (held of ["a", "b"]) {}'
+    + ' if (typeof held === "string") { return held.at(0); } return "no"; })()'), strip: true };
+  // for-in is a SEPARATE entry in the write map, so it regresses independently of for-of
+  yield { ...snippet('type-var-hoist/for-in-head-write',
+    '(() => { const src = ["x", "y"]; { var held = src; } for (held in { a: 1, b: 2 }) {}'
+    + ' if (typeof held === "string") { return held.at(0); } return "no"; })()'), strip: true };
+  // an update is a write with no assignment node - its own entry again
+  yield { ...snippet('type-var-hoist/update-write',
+    '(() => { const src = ["x", "y"]; { var held = src; } held++; held = "ab";'
+    + ' if (typeof held === "string") { return held.at(0); } return "no"; })()'), strip: true };
+  // a second initialized `var` of the same name is a WRITE, not a second binding
+  yield { ...snippet('type-var-hoist/redeclare-write',
+    '(() => { const src = ["x", "y"]; { var held = src; } { var held = "ab"; }'
+    + ' if (typeof held === "string") { return held.at(0); } return "no"; })()'), strip: true };
+  // a discriminant check gates on the binding IDENTITY through its own resolver, so it regresses
+  // independently of the typeof guards above. the union has to stay opaque behind a call: an
+  // annotated LITERAL resolves the member off the initializer and the discriminant never runs
+  yield { ...snippet('type-var-hoist/discriminant-narrow',
+    '(() => { const mk = (n: number): { kind: "a", v: string[] } | { kind: "b", v: string } =>'
+    + ' n ? { kind: "a", v: ["x", "y"] } : { kind: "b", v: "ab" }; const src = mk(1); { var box = src; }'
+    + ' if (box.kind === "a") { return box.v.at(0); } return "no"; })()'), ts: true, strip: true };
+}
+
 // --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
 // every hop of an alias chain resolves in the scope its own declarator was written in, so a
 // binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
@@ -3222,6 +3265,7 @@ export function * generate() {
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
   yield * generateAliasHopShadow();
+  yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateDiscardedKeyPrefixProxy();
