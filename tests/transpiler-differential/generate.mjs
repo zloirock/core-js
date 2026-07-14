@@ -758,6 +758,29 @@ const AW_CTOR_ALIAS = [
   { id: 'symbol-iterator', pre: 'const [{ Symbol: S }] = [globalThis];', obs: 'typeof S.iterator', strip: false },
   { id: 'map-groupby', pre: 'const [{ Map: M }] = [globalThis];', obs: 'typeof M.groupBy', strip: false },
   { id: 'map-groupby-shadow', pre: 'const [{ Map: M }] = [{ Map: { groupBy: () => "U" } }];', obs: 'String(M.groupBy([1], x => x))', strip: false },
+  // a spread BEFORE the slot shifts runtime positions: the slot binds the spread element's USER
+  // value, so every fold / extraction must bail - resolving past the spread substituted the pure
+  // static (flat), extracted the pure ctor (deep) and folded the well-known symbol over it
+  { id: 'spread-before-static',
+    pre: 'const t = [{}, { Map: { groupBy: () => "U" } }]; const [, { Map: M }] = [...t, globalThis];', obs: 'String(M.groupBy([1], x => x))', strip: false },
+  { id: 'spread-before-deep',
+    pre: 'const t = [{}, { Iterator: { range: () => "U" } }]; const [[, { Iterator: I }]] = [[...t, globalThis]];', obs: 'String(I.range(0, 3))', strip: false },
+  { id: 'spread-before-symbol', pre: 'const t = [{}, { Symbol: { iterator: "fake" } }]; const [, { Symbol: S }] = [...t, globalThis];', obs: 'String(S.iterator)', strip: false },
+  { id: 'spread-at', pre: 'const h = [{ Promise: { allSettled: () => "U" } }]; const [{ Promise: P }] = [...h];', obs: 'String(P.allSettled([]))', strip: false },
+  { id: 'spread-after-control', pre: 'const t = [{}, {}]; const [{ Map: M }] = [globalThis, ...t];', obs: 'typeof M.groupBy', strip: false },
+  // receiver-bearing slot default fires only on an undefined pair: a defined foreign pair keeps
+  // the user's value, a spread-shifted pair keeps the runtime pairing, a sound pair extracts
+  // (the import-set leg locks the babel/unplugin extraction convergence)
+  { id: 'slot-default-foreign-pair',
+    pre: 'const u = { Map: { groupBy: () => "U" } }; const [{ Map: M } = globalThis] = [u];', obs: 'String(M.groupBy([1], x => x))', strip: false },
+  { id: 'slot-default-spread-pair',
+    pre: 'const t = [{}, { Map: { groupBy: () => "U" } }]; const [, { Map: M } = globalThis] = [...t];', obs: 'String(M.groupBy([1], x => x))', strip: false },
+  { id: 'slot-default-sound-pair', pre: 'const fb = {}; const [{ Map: M } = fb] = [globalThis];', obs: 'typeof M.groupBy', strip: false },
+  // sibling elements resolve independently: the walk's cycle guard must backtrack, else the
+  // first element's resolved init name poisons the second's identical init (babel-only - its
+  // in-place substitution binds the name) and the sibling's static stays raw
+  { id: 'sibling-objpat-independent', pre: 'const [{ WeakSet: W }, { Math: MA }] = [globalThis, globalThis];', obs: 'String(MA.trunc(1.5))', strip: false },
+  { id: 'shared-alias-both-elements', pre: 'const g = globalThis; const [{ Set: S }, { Map: M }] = [g, g];', obs: 'typeof M.groupBy', strip: false },
 ];
 function * generateArrayWrapperCtorAlias() {
   for (const c of AW_CTOR_ALIAS) {
