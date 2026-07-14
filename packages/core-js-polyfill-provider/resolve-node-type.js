@@ -2007,6 +2007,7 @@ function createResolveNodeType(babelNodeType, t, {
   // (already bound above) and the exit-analysis pure helpers thread into its service
   const typeofGuardsCluster = createTypeofGuards({
     t,
+    getScopeBinding,
     peelNegation,
     isLiteralOf,
     getMemberProperty,
