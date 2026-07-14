@@ -67,6 +67,27 @@ function condVar(c) {
 export const viaCondVar = condVar(cond);
 /* eslint-enable no-redeclare, vars-on-top, block-scoped-var -- end of redeclaration shapes */
 
+// a nested wrapper sibling that does NOT bind the name must not abort the positional scan
+// (its subtree's "not found" is not a terminal answer) - the later element still resolves;
+// a slot that DOES bind the name but cannot pair (spread-shifted inner init) keeps bailing
+const [[{ URL: XU }], { Number: NP }] = [[globalThis], globalThis];
+export const viaScanPastNestedSibling = NP.parseFloat(text);
+let unp = [{}];
+const [[{ Reflect: XR }], z0] = [[...unp], 0];
+export const viaBoundUnpairable = XR.has(target, propKey);
+
+// a deeper array-wrap layer BESIDE a sibling registers through the same positional recursion
+// as the alias judge - the deep alias's static keeps its fold (the one-ObjectPattern-level
+// registration walk stranded it raw in babel while unplugin re-derived it)
+const [[{ Number: DN }], keep2] = [[globalThis], 1];
+export const viaDeepSibling = DN.parseInt(digits, 10);
+
+// a same-name redeclaration of STATICS-ONLY hints merges last-wins like the ctor form - the
+// use folds through the last write's hint (runtime last-write-wins)
+var [{ JSON: VR }] = [globalThis];
+var [{ Math: VR }] = [globalThis];
+export const viaStaticsRedecl = VR.cbrt(value2);
+
 // DEEP array-wrap layers pair positionally too: the global slot folds even when nested two levels
 const [[{ Promise: D }]] = [[globalThis]];
 export const viaDeepGlobal = D.any([]);
