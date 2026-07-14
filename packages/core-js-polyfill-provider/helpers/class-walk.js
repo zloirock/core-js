@@ -1,9 +1,11 @@
 import { subsume } from './subsumption.js';
+import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
   POSSIBLE_GLOBAL_OBJECTS,
+  arrayWrapSlotBindsName,
   isVarScopeBoundary,
   memberKeyName,
   objectPatternLiteralKeyPath,
@@ -184,42 +186,52 @@ function positionalArrayWrapInit(idPattern, init, boundName) {
       const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
       return value?.type === 'Identifier' && value.name === boundName;
     })) return pairedArrayWrapInitElement(init.elements, i);
-    if (slot?.type === 'ArrayPattern') {
-      const deep = positionalArrayWrapInit(slot, pairedArrayWrapInitElement(init.elements, i), boundName);
-      if (deep !== undefined) return deep;
+    if (slot?.type === 'ArrayPattern' && arrayWrapSlotBindsName(slot, boundName)) {
+      // recurse only into the nested wrapper that BINDS the name - a non-binding sibling's
+      // "not found" answer is not terminal and must not abort the scan of later elements
+      // (aligns with the mirror walk, which scans past non-binding siblings). a binding
+      // subtree's answer IS terminal: `undefined` from an unpairable init means
+      // found-but-unresolvable, so it bails as `null`
+      return positionalArrayWrapInit(slot, pairedArrayWrapInitElement(init.elements, i), boundName) ?? null;
     }
   }
   return null;
 }
 
+// judge ONE declarator (id pattern + init) as the alias source for `boundName`:
+//   - an array-wrap judges the POSITIONALLY-paired element, never the whole array - a `.some()`
+//     over all elements wrongly confirms a user-object slot (`{ Set: A } = userObj`)
+//   - a genuinely NESTED binding of the name rejects: it inherits the flat name-keyed alias
+//     registration but reads a different key path off the global (`globalThis.constructor.Map`,
+//     not `globalThis.Map`)
+//   - an ABSENT name (an SE-key extraction leaves a `_unused` residual whose pattern no longer
+//     binds the name) still folds through the init
+// shared by the init arm and the duplicate-var split anchor of `isPolyfillAliasBinding`, which
+// must apply IDENTICAL pattern rejections (the anchor judging `write.init` wholesale folded a
+// mispaired / nested shadow the init arm correctly rejected)
+function declaratorInitResolvesForName({ id, init, boundName, scope, adapter, injector }) {
+  if (!init) return false;
+  const positional = positionalArrayWrapInit(id, init, boundName);
+  if (positional !== undefined) return !!positional && aliasInitResolvesToGlobal(positional, scope, adapter, injector);
+  if (id?.type === 'ObjectPattern' && patternBindsNameNested(id, boundName)) return false;
+  return aliasInitResolvesToGlobal(init, scope, adapter, injector);
+}
+
 export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector, boundName = null }) {
   if (info?.source !== null || binding?.path?.node?.type !== 'VariableDeclarator') return false;
-  const { init } = binding.path.node;
+  const { id, init } = binding.path.node;
   const violations = binding.constantViolations ?? [];
   if (init) {
-    // judge the POSITIONALLY-paired array-wrap element, not the whole array: a `.some()` over all
-    // elements wrongly confirms a user-object slot (`{ Set: A } = userObj`) as a global alias
-    const positional = positionalArrayWrapInit(binding.path.node.id, init, boundName);
-    const initToJudge = positional === undefined ? init : positional;
-    // a NESTED-pattern shadow (`{ constructor: { Map } }`) inherits the flat name-keyed alias
-    // registration of an outer same-name top-level alias, but reads a different key path off the
-    // global (`globalThis.constructor.Map`, not `globalThis.Map`) - reject a genuinely NESTED
-    // binding of the name. an ABSENT name (an SE-key extraction leaves a `_unused` residual whose
-    // pattern no longer binds the name) must still fold through the init; array-wraps are validated
-    // positionally by positionalArrayWrapInit, which returns null for a nested element
-    const idPattern = binding.path.node.id;
-    if (positional === undefined && idPattern?.type === 'ObjectPattern'
-      && patternBindsNameNested(idPattern, boundName)) return false;
-    return !violations.length && !!initToJudge && aliasInitResolvesToGlobal(initToJudge, scope, adapter, injector);
+    return !violations.length && declaratorInitResolvesForName({ id, init, boundName, scope, adapter, injector });
   }
   // duplicate-var SPLIT ANCHOR (`var M; var { Map: M } = g;`): the binding hangs off the bare
   // declarator while the value-writing same-name redeclaration carries the global - accept
-  // exactly one writing declarator, alias-shaped (same key-blind receiver-is-global bar as the
-  // init arm), with no other real writes
+  // exactly one writing declarator, judged with the SAME pattern rejections as the init arm,
+  // with no other real writes
   if (!info.aliasWrite && violations.length === 1) {
     const write = violations[0]?.node ?? violations[0];
     if (write?.type === 'VariableDeclarator') {
-      return !!write.init && aliasInitResolvesToGlobal(write.init, scope, adapter, injector);
+      return declaratorInitResolvesForName({ id: write.id, init: write.init, boundName, scope, adapter, injector });
     }
   }
   if (!info.aliasWrite || !violations.length) return false;
@@ -324,10 +336,13 @@ export function registerCtorAliasExtractions({ plan, declarator, scope, adapter,
 }
 
 // enumerate TOP-LEVEL `{ GlobalCtor: local }` pairs of a destructure whose source resolves to a
-// proxy global - the registerable ctor-alias surface. nested pattern values and defaults are not
-// ctor aliases (their value is not the global member on every path), so they don't register; a
+// proxy global - the registerable ctor-alias surface. nested OBJECT-pattern values and defaults are
+// not ctor aliases (their value is not the global member on every path), so they don't register; a
 // computed key registers only as a STATIC STRING (`{ ['Map']: M }` - as deterministic as the plain
-// form); the array-wrapped form walks one ObjectPattern level under an ArrayPattern
+// form); the array-wrapped form pairs each ObjectPattern element positionally and RECURSES into
+// deeper array-wrap layers (`[[{ Map: M }], y] = [[globalThis], 0]`) - the registration walk must
+// agree on nesting with the alias judge and the receiver mirror, else a deep alias never gets its
+// hint and its static reads stay raw in babel only (unplugin's text visitor re-derives them)
 function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
   if (!init || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), scope, adapter, injector)) return [];
   const pairs = [];
@@ -350,10 +365,16 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
       // a slot default (`[{ Set: C } = f]`) unwraps like the alias judge's positional walk:
       // registration fires only off a known-global pair (always defined), so the default is dead
       const slot = el?.type === 'AssignmentPattern' ? el.left : el;
+      const initEl = initEls && pairedArrayWrapInitElement(initEls, i);
+      if (slot?.type === 'ArrayPattern') {
+        // deeper layer: recurse with the POSITIONALLY-paired init element (the top gate re-judges
+        // it); no sound pairing (spread-shifted / absent / non-array init) registers nothing
+        if (initEl) pairs.push(...collectCtorAliasPairs({ pattern: slot, init: initEl, scope, adapter, injector }));
+        return;
+      }
       if (slot?.type !== 'ObjectPattern') return;
       // no positional init evidence (a non-array / babel-emptied init) keeps the established
       // whole-init bar so a post-consumption confirmation still recognises the alias
-      const initEl = initEls && pairedArrayWrapInitElement(initEls, i);
       if (!initEls || (initEl && aliasInitResolvesToGlobal(initEl, scope, adapter, injector))) collectFromObjectPattern(slot);
     });
   }
@@ -364,10 +385,14 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
 // through the SAME trust gates the render-time registration used - but BEFORE any member visit,
 // so a use textually earlier than its write (a hoisted-var read, an earlier-defined closure)
 // still resolves the alias table instead of silently missing a registration that happens later
-// in visit order. `isKnownGlobal` keeps the table's bar: only resolvable global ctor keys register
-export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, scope, adapter, injector, path, isKnownGlobal }) {
+// in visit order. `isKnownGlobalName` keeps the table's bar: only known global names register
+export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, scope, adapter, injector, path }) {
   for (const { localName, hint } of collectCtorAliasPairs({ pattern, init, scope, adapter, injector })) {
-    if (!isKnownGlobal(hint)) continue;
+    // the NAME domain, not "has a whole-ctor pure entry": statics-only globals (Object / Array /
+    // Math) carry no global-kind entry, but their aliases register just the same - without the
+    // hint a split-anchor / hoisted-var alias never resolves (pure keeps the static raw,
+    // usage-global drops the injection - the unsafe direction)
+    if (!isKnownGlobalName(hint)) continue;
     const binding = adapter.getBinding(scope, localName, path);
     if (!binding?.node && !binding?.path) {
       registerBindinglessCtorAlias({ injector, adapter, localName, hint });
@@ -405,6 +430,20 @@ export function hasCtorAliasCandidateShapes(programNode) {
 // the way (if / loops / try / switch / labeled bodies) makes execution path-dependent -> false.
 // the walk starts at the statement's PARENT (the statement node itself - ExpressionStatement /
 // VariableDeclaration - is not judged)
+// does the member/call chain contain an optional hop AT `node` or on its spine BELOW it (toward
+// the chain root)? guards non-spine slot evaluation. both parser spellings covered: babel names
+// every post-`?.` node Optional* with per-hop `optional` flags; estree keeps plain Member/Call
+// with `optional: true` on the hop itself under a ChainExpression wrapper
+function spineHasOptionalHop(node) {
+  for (let cur = node; cur;) {
+    if (cur.optional === true) return true;
+    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
+    else if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') cur = cur.callee;
+    else break;
+  }
+  return false;
+}
+
 const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaration']);
 function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   // callers pass paths at different depths (a declarator, the assignment, its statement) -
@@ -415,15 +454,11 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   // sequence / call-argument / object- and array-literal / await positions evaluate whenever the
   // statement runs, so they pass through; then judge the statement's ancestors.
   // an OPTIONAL chain short-circuits everything right of its `?.` hop: a write sitting in a
-  // non-spine slot (call argument / member key) under an optional hop may never run
-  // (`host?.doThing(WRITE)` with a nullish host), so those edges are conditional like a
-  // logical right arm. the spine head (leftmost object/callee) always evaluates and passes.
-  // babel spells every chain node Optional*; estree keeps plain Member/Call with `.optional`
-  // flags under a ChainExpression wrapper - a non-spine exit is remembered so the deeper
-  // estree form (`a?.b.c(WRITE)` - the call itself is `optional: false`) still cuts when
-  // the climb crosses the chain wrapper
+  // non-spine slot (call argument / member key) is conditional exactly when an optional hop
+  // sits AT or BELOW its host (`host?.doThing(WRITE)`, `a?.[WRITE]`) - a hop RIGHT of the host
+  // (`a[WRITE].b?.c`) cuts only after the slot already evaluated, so it passes. the spine head
+  // (leftmost object/callee) always evaluates and passes
   let stmt = stmtPath;
-  let leftChainSideSlot = false;
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) {
     const parent = stmt.parentPath;
     const parentType = parent?.node?.type;
@@ -431,16 +466,12 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
       if (FUNCTION_LIKE_NODE_TYPES.has(parentType)) return false;
       if (parentType === 'ConditionalExpression' && parent.node.test !== stmt.node) return false;
       if (parentType === 'LogicalExpression' && parent.node.left !== stmt.node) return false;
-      const isOptionalNamed = parentType === 'OptionalMemberExpression' || parentType === 'OptionalCallExpression';
-      const isMemberOrCall = isOptionalNamed || parentType === 'MemberExpression' || parentType === 'CallExpression';
+      const isMemberOrCall = parentType === 'OptionalMemberExpression' || parentType === 'OptionalCallExpression'
+        || parentType === 'MemberExpression' || parentType === 'CallExpression';
       if (isMemberOrCall) {
         const spineSlot = parent.node.object === stmt.node || parent.node.callee === stmt.node;
-        if (!spineSlot) {
-          if (isOptionalNamed || parent.node.optional === true) return false;
-          leftChainSideSlot = true;
-        }
+        if (!spineSlot && spineHasOptionalHop(parent.node)) return false;
       }
-      if (leftChainSideSlot && (parentType === 'ChainExpression' || isOptionalNamed)) return false;
     }
     stmt = parent;
   }
