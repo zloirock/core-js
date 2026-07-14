@@ -682,11 +682,11 @@ export default function createPlugin(options) {
           resolvePure: resolvePureUnfiltered,
           injectPureImport: (entry, hint) => injector.trackReferencedName(injectPureImport(entry, hint)),
         });
-        // early ctor-alias registration (visit-order independence) - see the babel twin
-        collectAliasPrePass({
-          ast, adapter: estreeAdapter, injector, isDisabled,
-          isKnownGlobal: name => !!resolvePure({ kind: 'global', name }, null),
-        });
+      }
+      // early ctor-alias registration (visit-order independence) - see the babel twin. BOTH
+      // usage modes: pure folds through the hints, usage-global resolves its injections
+      if (method === 'usage-pure' || method === 'usage-global') {
+        collectAliasPrePass({ ast, adapter: estreeAdapter, injector, isDisabled });
       }
 
       function finalize() {
