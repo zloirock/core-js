@@ -273,7 +273,7 @@ throwsWith('validateOptions/include-bad + additionalPackages-bad - include wins'
     include: [42],
     additionalPackages: [42],
   }),
-  '`include[*]`');
+  '`include[0]`');
 
 // exclude is also checked before additionalPackages
 throwsWith('validateOptions/exclude-bad + additionalPackages-bad - exclude wins',
@@ -282,7 +282,7 @@ throwsWith('validateOptions/exclude-bad + additionalPackages-bad - exclude wins'
     exclude: [{}],
     additionalPackages: [''],
   }),
-  '`exclude[*]`');
+  '`exclude[0]`');
 
 // valid include + valid exclude + valid additionalPackages - no error (all-good integration)
 doesNotThrow('validateOptions/all three list fields valid',
@@ -773,6 +773,17 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
   collector.warn('test-warning-message');
   const out = collector.format();
   checkTruthy('debugOutput/warnings block', out.includes('Warnings:') && out.includes('test-warning-message'));
+}
+
+// warnings print in sorted order regardless of emission order - traversal order is
+// implementation-dependent, so a stable listing keeps debug output diffable
+{
+  const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: null });
+  const collector = factory();
+  collector.warn('zeta-warning');
+  collector.warn('alpha-warning');
+  const out = collector.format();
+  checkTruthy('debugOutput/warnings sorted', out.indexOf('alpha-warning') < out.indexOf('zeta-warning'));
 }
 
 // --- initPluginOptions: integration ---
