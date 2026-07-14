@@ -65,7 +65,7 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
 // circular dependencies. `(?:^|\/)` boundary covers Farm/Bun/esbuild-plugin bare ids too.
 // patterns operate on canonical (normalizeImportSource-output) form: forward slashes only,
 // lowercase, no query/hash, no UNC prefix - back-slash alternation no longer needed
-const CORE_JS_INTERNAL_FILE = /(?:^|\/)(?:core-js|core-js-pure|@core-js\/pure)\/(?:(?:actual|es|features|full|internals|modules|proposals|stable|stage)\/|index\.js$)/;
+const CORE_JS_INTERNAL_FILE = /(?:^|\/)(?:core-js|core-js-pure|@core-js\/pure)\/(?:(?:actual|es|features|full|internals|modules|proposals|stable|stage)\/|(?:configurator|index)\.js$)/;
 const CORE_JS_BUNDLE = /(?:^|\/)(?:core-js-bundle|@core-js\/bundle)(?:\/|$)/;
 
 export function isCoreJSFile(filename) {

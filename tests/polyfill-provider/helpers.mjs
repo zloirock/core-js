@@ -173,12 +173,12 @@ throwsWith('validatePatternList/non-array throws',
 // empty string item rejected
 throwsWith('validatePatternList/empty string item rejected',
   () => validatePatternList('include', ['ok', '']),
-  '`include[*]` must be a non-empty string');
+  '`include[1]` must be a non-empty string');
 
 // non-string non-regex item rejected
 throwsWith('validatePatternList/number item rejected',
   () => validatePatternList('include', ['ok', 42]),
-  '`include[*]` must be a string or RegExp');
+  '`include[1]` must be a string or RegExp');
 
 // --- findUniqueName ---
 
@@ -364,6 +364,9 @@ check('isCoreJSFile/empty string', isCoreJSFile(''), false);
 
 // `core-js/index.js` root entry classified as internal (not a transformable user file)
 check('isCoreJSFile/core-js root index', isCoreJSFile('node_modules/core-js/index.js'), true);
+
+// `core-js/configurator.js` sits next to the root index and is equally internal
+check('isCoreJSFile/core-js configurator', isCoreJSFile('node_modules/core-js/configurator.js'), true);
 
 // --- buildOffsetToLine ---
 
