@@ -29,9 +29,11 @@ let A2;
 } = _globalThis);
 export const viaSeChain = _at(_ref = _Array$from([4, 5])).call(_ref, -1);
 
-// negatives: a sequence write nested in a CONDITIONAL block only runs on the taken path, so the
-// re-anchored placement walk (now reaching the real `if` above the detach point) refuses trust and
-// the read stays native; a nested-function write is likewise not unconditional in the binding scope
+// refused flow-trust: a sequence write nested in a CONDITIONAL block only runs on the taken
+// path, and a nested-function write is likewise not unconditional in the binding scope - the
+// re-anchored placement walk refuses the static narrow and the read takes the runtime
+// constructor GUARD instead (polyfill on the taken path, the untaken path still reads the
+// native undefined and throws exactly like untranspiled code)
 let A3;
 if (Math.random() > 2) {
   0;
@@ -39,7 +41,7 @@ if (Math.random() > 2) {
     Array: A3
   } = _globalThis);
 }
-export const viaSeConditional = A3.from([6]);
+export const viaSeConditional = (A3 === Array ? _Array$from : A3.from.bind(A3))([6]);
 let A4;
 function assign() {
   0;
@@ -48,4 +50,4 @@ function assign() {
   } = _globalThis);
 }
 assign();
-export const viaSeNestedFn = A4.from([7]);
+export const viaSeNestedFn = (A4 === Array ? _Array$from : A4.from.bind(A4))([7]);
