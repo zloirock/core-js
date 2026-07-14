@@ -50,7 +50,7 @@ export function createDebugOutputFactory({ method, parsedTargets }) {
           result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
         }
         const warningBlock = warnings.size
-          ? `\n\nWarnings:\n${ [...warnings].map(m => `  ${ m }`).join('\n') }` : '';
+          ? `\n\nWarnings:\n${ [...warnings].sort().map(m => `  ${ m }`).join('\n') }` : '';
         return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ targetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }${ warningBlock }`;
       },
     };
