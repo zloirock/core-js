@@ -1438,7 +1438,7 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
 // OR nested (`{ k: { A } = X }`, `{ k: { A = X } }`)? a default makes the value ambiguous
 // (default-or-runtime), so the reaching-definition recovery must bail rather than fold the default's
 // value - folding it silently mis-narrows `name` when the runtime slot is present (a WRONG result)
-function patternSlotHasDefault(pattern, name) {
+export function patternSlotHasDefault(pattern, name) {
   return patternBindsNameUnderDefault(pattern, name, false);
 }
 // does the pattern bind `name` in ANY slot (identifier leaf, renamed value, rest, nested,
@@ -1552,6 +1552,34 @@ export function spreadAtOrBefore(list, index) {
     if ((list[i]?.node ?? list[i])?.type === 'SpreadElement') return true;
   }
   return false;
+}
+
+// the POSITIONALLY-paired init element for an array-wrap pattern slot: array destructuring binds
+// pattern element `index` to the init element at the SAME index, but positions are static only up
+// to the first spread - a spread at or before the slot shifts every later runtime position, so
+// pairing past it is unsound. `null` = no sound pairing (unbound name, spread-shifted or absent
+// element) - callers bail rather than judge a foreign element. single source for the array-wrap
+// positional pairing repeated across the alias / ctor / symbol / receiver resolvers
+export function pairedArrayWrapInitElement(initElements, index) {
+  if (index < 0 || spreadAtOrBefore(initElements, index)) return null;
+  return initElements?.[index] ?? null;
+}
+
+// descend array-wrap layers (`const [x, { Array: A }] = [expr, globalThis]`) to the innermost
+// pattern/init pair binding `name`: each ArrayPattern level pairs the slot that binds the name
+// with its positional init element (spread-shifted / absent pairing bails). returns the peeled
+// `{ id, init }` (id = the slot with any `= default` unwrapped) or `null` when no sound pairing
+// exists. shared by the destructured-global resolver and the class-walk symbol-alias
+// chain-follow, which must agree on nesting
+export function peelArrayWrapBindingLayers(id, init, name) {
+  while (id?.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
+    const idx = id.elements.findIndex(element => element && arrayWrapSlotBindsName(element, name));
+    const paired = pairedArrayWrapInitElement(init.elements, idx);
+    if (!paired) return null;
+    id = id.elements[idx].type === 'AssignmentPattern' ? id.elements[idx].left : id.elements[idx];
+    init = paired;
+  }
+  return { id, init };
 }
 
 // find the LAST own data property (`Property` / `ObjectProperty`) satisfying `matches` in an

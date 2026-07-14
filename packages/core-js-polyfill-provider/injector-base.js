@@ -230,12 +230,14 @@ export default class ImportInjectorState {
   // user binding lives in `#bindingAliases`
   #globalAliases = new Map();
 
-  // PER-BINDING alias registrations, keyed by the binding's declarator NODE: the registration
-  // belongs to one binding, so same-name aliases in sibling scopes never collide (no flat-table
-  // merge / degrade). `write` / `declSpan` ({ start, end }) record the trusted source span for
-  // the use-position dominance gate and the violation-span shape check; `guarded: true` marks a
-  // registration whose flow-trust was REFUSED (conditional / cross-fn / dirty write, conditional
-  // `var` decl) - its binding's member reads stay native
+  // PER-BINDING alias registrations, keyed by the binding's declarator NODE, then by the bound
+  // NAME (one declarator hosts SEVERAL bindings - `const [{ Set: A }, { Map: M }] = ...` - and
+  // each keeps its own entry; a single flat entry per node let the second registration clobber
+  // the first, stranding its uses native). same-name aliases in sibling scopes never collide
+  // (no flat-table merge / degrade). `write` / `declSpan` ({ start, end }) record the trusted
+  // source span for the use-position dominance gate and the violation-span shape check;
+  // `guarded: true` marks a registration whose flow-trust was REFUSED (conditional / cross-fn /
+  // dirty write, conditional `var` decl) - its binding's member reads stay native
   #bindingAliases = new WeakMap();
 
   // name -> binding-entry list: the fallback view for use sites that cannot resolve their
@@ -266,12 +268,18 @@ export default class ImportInjectorState {
     const candidateNodes = [bindingNode, ...extraBindingNodes ?? []].filter(Boolean);
     let existing = null;
     for (const node of candidateNodes) {
-      existing = this.#bindingAliases.get(node);
+      existing = this.#bindingAliases.get(node)?.get(name);
       if (existing) break;
+    }
+    const table = this.#bindingAliases;
+    function keyEntry(node, aliasEntry) {
+      let perNode = table.get(node);
+      if (!perNode) table.set(node, perNode = new Map());
+      perNode.set(name, aliasEntry);
     }
     if (existing) {
       // key every candidate to the surviving entry so later lookups converge by identity
-      for (const node of candidateNodes) this.#bindingAliases.set(node, existing);
+      for (const node of candidateNodes) keyEntry(node, existing);
       // same binding judged by more than one path (plan gate + standalone site): keep the
       // strongest judgment - a trusted/write registration wins over a refused one
       if ((existing.trusted || existing.write) && guarded) return;
@@ -283,7 +291,7 @@ export default class ImportInjectorState {
       Object.assign(existing, entry);
       return;
     }
-    for (const node of candidateNodes) this.#bindingAliases.set(node, entry);
+    for (const node of candidateNodes) keyEntry(node, entry);
     let list = this.#aliasEntriesByName.get(name);
     if (!list) this.#aliasEntriesByName.set(name, list = []);
     list.push(entry);
@@ -344,8 +352,11 @@ export default class ImportInjectorState {
   // declarator): the entry belongs to exactly one bound name, so a mismatched query (A reading
   // M's registration) must miss rather than inherit the wrong global hint. omitted -> no check
   getBindingAliasInfo(bindingNode, name = null) {
-    const alias = bindingNode ? this.#bindingAliases.get(bindingNode) : null;
-    if (!alias || (name !== null && alias.name !== name)) return null;
+    const perNode = bindingNode ? this.#bindingAliases.get(bindingNode) : null;
+    const alias = !perNode ? null
+      : name !== null ? perNode.get(name) ?? null
+      : perNode.size === 1 ? perNode.values().next().value : null;
+    if (!alias) return null;
     return {
       hint: alias.hint, source: null, entry: null,
       aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
