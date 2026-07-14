@@ -18,6 +18,7 @@ import {
   kebabToCamel,
   mayHaveSideEffects,
   paramReboundInBody,
+  patternSlotHasDefault,
   patternSlotValues,
   peelZeroArgIifeReturn,
   reachingReassignmentValueNode,
@@ -329,7 +330,20 @@ function symbolKeyFromSource(source, packages) {
 function resolveBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null }) {
   seen ??= new Set();
   if (seen.has(name)) return null;
+  // `seen` is a recursion STACK, not a visited set: only names on the CURRENT descent stay
+  // guarded (cycle guard intact), and a COMPLETED resolution backtracks so it cannot poison a
+  // SIBLING resolution of the same name later in the walk - an array-wrap init like
+  // `[_globalThis, _globalThis]` (babel's in-place substitution binds the name) resolves each
+  // element independently; a visited-set left every later element unresolvable
   seen.add(name);
+  try {
+    return resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode });
+  } finally {
+    seen.delete(name);
+  }
+}
+
+function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usageNode = null }) {
   // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk.
   // pass `path` so the adapter's var-hoist fallback can surface a nested-block `var` alias
   // (`var g = globalThis` inside an `if`) that estree-toolkit's name-only scope index misses
@@ -436,6 +450,13 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // here and falls through to null (resolved by the destructure detection instead). diverging slot
   // values (a default that disagrees with the paired value) stay unresolved - bail-safe both modes
   if ((pattern?.type === 'ArrayPattern' || pattern?.type === 'ObjectPattern') && init) {
+    // a slot default makes the value default-or-runtime, and this union sees only the values
+    // `patternSlotValues` could pair (its contract is over-approximation - a dynamic / spread-
+    // shifted / foreign pair contributes nothing), so a lone resolved default wrongly reads as
+    // certain. pure's receiver-dropping fold needs certainty - bail on the ambiguity (the
+    // default-aware extraction channels keep their runtime-guarded handling); usage-global
+    // keeps the maybe-union (inject-if-might is sound and desirable there)
+    if (adapter?.method === 'usage-pure' && patternSlotHasDefault(pattern, name)) return null;
     const globals = new Set();
     for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
       const global = resolveObjectName({ objectNode: value, scope, adapter, seen: new Set(seen).add(name), path, usageNode: value });
