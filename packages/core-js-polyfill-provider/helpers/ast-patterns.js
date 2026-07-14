@@ -720,23 +720,44 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
   return findVarOwnerDeclaring(path, name)?.declarator ?? null;
 }
 
-// the scope of `found.declarator`, located by a search bounded to the var owner that declares it.
-// per-binding memo only - a scope belongs to ONE traversal, so caching it on the declarator node
-// across traversals would hand back a dead scope (the staleness constraint the node caches above
-// already document). the owner scope is the fallback when the declarator path cannot be reached
-function memoizeDeclarationScope(found) {
+// PATHS for the synthetic binding's declarator and its reassignment nodes, located by ONE search
+// bounded to the var owner. the node scan above stays the source of truth for WHICH nodes those are
+// (its shadow-stopping rules are subtle); this only maps them onto the live paths the flow layer
+// climbs. per-binding memo only - a path (and the scope hanging off it) belongs to ONE traversal, so
+// caching on a node across traversals would hand back a dead object (the staleness constraint the
+// node caches above already document)
+function memoizeDeclaratorSearch(found, violationNodes) {
   let resolved;
   return () => {
     if (resolved === undefined) {
       let declaratorPath = null;
+      const violationPaths = [];
+      const wanted = new Set(violationNodes);
+      function take(p) {
+        if (wanted.has(p.node)) violationPaths.push(p);
+      }
+      // one key per node shape the scan records - a for-x head writes the binding without an
+      // AssignmentExpression, so it needs its own. the agreement check below is what catches a miss
       // no early stop: the parsers disagree on the traversal-abort API, and the walk is already
-      // bounded to the owner, so identity-matching every declarator costs less than diverging here
+      // bounded to the owner, so identity-matching every node costs less than diverging here
       found.owner.traverse({
         VariableDeclarator(declPath) {
           if (!declaratorPath && declPath.node === found.declarator) declaratorPath = declPath;
+          take(declPath);
         },
+        AssignmentExpression: take,
+        UpdateExpression: take,
+        ForOfStatement: take,
+        ForInStatement: take,
       });
-      resolved = declaratorPath?.scope ?? found.owner.scope ?? null;
+      // the node scan decides which writes exist, so this map has to reach every one of them: a
+      // write shape the scan records but no visitor key above matches is caught right here, and the
+      // caller declines the twin instead of handing the flow gates a list it cannot vouch for.
+      // the keys mirror the scan's own node types exactly, so today this cannot trip - it is a
+      // contract against a LATER write shape being added to the scan alone. seeding a missing key
+      // showed the gates degrade to the generic answer rather than mis-narrow, so this guards the
+      // agreement itself, not a demonstrated wrong-type narrow
+      resolved = { declaratorPath, violationPaths, complete: violationPaths.length === violationNodes.length };
     }
     return resolved;
   };
@@ -750,20 +771,32 @@ function memoizeDeclarationScope(found) {
 export function synthVarHoistBinding(path, name) {
   const found = path ? findVarOwnerDeclaring(path, name) : null;
   if (!found) return null;
+  const violationNodes = collectScopeReassignmentNodes(found.owner.node, name).filter(node => node !== found.declarator);
+  const search = memoizeDeclaratorSearch(found, violationNodes);
   return {
     node: found.declarator,
     // node-based anchor for the guard-verdict / dominance consumers: a synthetic binding
     // has no `.path` to climb
     ownerNode: found.owner.node,
-    // the scope the declarator is WRITTEN in - where its initializer's names resolve. a `var`
-    // hoists its NAME to the owner, but the init still evaluates in the declaring block, so an
-    // outer-scope answer would read past a block-local shadow of an init name. exposed as a
-    // memoized THUNK, not a value: the type-resolver consumes this same synthetic shape and keys
-    // flow decisions on a MISSING `binding.scope`, so an adapter opts in by mapping it - and the
-    // bounded search then costs nothing on the lookups that never read it
-    resolveDeclarationScope: memoizeDeclarationScope(found),
+    // the declarator's own PATH / SCOPE, both surfaced as memoized THUNKS rather than values:
+    // consumers of this synthetic shape key their flow decisions on a MISSING `.path` / `.scope`,
+    // so each opts in explicitly - and the bounded search then costs nothing on the lookups that
+    // never read it. the scope is the one the declarator is WRITTEN in: a `var` hoists its NAME to
+    // the owner, but the init still evaluates in the declaring block, so an outer-scope answer
+    // would read past a block-local shadow of an init name
+    resolveDeclaratorPath: () => search().declaratorPath,
+    // the reassignment PATHS: the flow layer climbs a violation's parents to reach its assignment,
+    // so the node list below (which the alias walkers read) cannot serve it. null when the map came
+    // out incomplete - the caller must then decline rather than under-report the writes
+    resolveViolationPaths: () => search().complete ? search().violationPaths : null,
+    // the scope the var's NAME hoists to - what a parser that hoists natively reports as the
+    // binding's scope. distinct from the declaration scope below (where the declarator is WRITTEN,
+    // and so where its initializer's names resolve); the flow layer keys "is the use inside the
+    // binding's var scope" on the hoisted one
+    ownerScope: found.owner.scope,
+    resolveDeclarationScope: () => search().declaratorPath?.scope ?? found.owner.scope ?? null,
     kind: 'var',
-    constantViolations: collectScopeReassignmentNodes(found.owner.node, name).filter(node => node !== found.declarator),
+    constantViolations: violationNodes,
     importSource: null,
     polyfillHint: null,
   };
@@ -1052,13 +1085,59 @@ export function withCanonicalViolations(binding, name) {
   return { ...binding, constant: false, constantViolations: [...binding.constantViolations ?? [], ...extras] };
 }
 
+// the hoisted twin of a nested-block `var`, memoized per (declaration scope, name) so repeated
+// lookups of the same var hand back ONE object - consumers compare bindings by identity. that key
+// is deliberately a per-traversal object: a later traversal rebuilds its paths, and a node-keyed
+// memo would hand it a twin still holding the dead one. the declarator search therefore runs before
+// the memo can answer (it produces the key), which is why it stays bounded to the var owner.
+// `null` (no such var / no use path) falls through to the caller's own miss handling
+function hoistedVarTwin(synthCache, path, name) {
+  if (!path) return null;
+  const synth = synthVarHoistBinding(path, name);
+  const declaratorPath = synth?.resolveDeclaratorPath();
+  if (!declaratorPath) return null;
+  // an incomplete write map cannot be handed to the flow gates - decline the twin entirely and let
+  // the caller's own miss handling degrade to the generic answer, which is always sound
+  const violationPaths = synth.resolveViolationPaths();
+  if (!violationPaths) return null;
+  const declarationScope = declaratorPath.scope;
+  let byName = synthCache.get(declarationScope);
+  if (!byName) synthCache.set(declarationScope, byName = new Map());
+  let twin = byName.get(name);
+  // mirror a NATIVE hoisted-var binding on every slot the type layer reads: the declarator `.path`,
+  // the HOISTED `.scope` (the flow gates read it to place the use relative to the binding - a
+  // declaration-scope answer would put every use past the declaring block outside it), and the
+  // violations as PATHS (the flow layer climbs them; the synthetic shape keeps nodes for the alias
+  // walkers instead). the synthesis-only slots are dropped rather than carried: `resolveDeclarationScope`
+  // would answer a DIFFERENT scope than `.scope` on this same object, and one binding must not hold
+  // two contradictory answers for a future reader to pick the wrong one from
+  if (!twin) {
+    const { resolveDeclaratorPath, resolveViolationPaths, resolveDeclarationScope, ownerScope, ...nativeShaped } = synth;
+    byName.set(name, twin = {
+      ...nativeShaped,
+      path: declaratorPath,
+      scope: ownerScope,
+      constantViolations: violationPaths,
+    });
+  }
+  return twin;
+}
+
 // wrap a scope-binding lookup so every consumer sees the canonically-merged violation list.
 // the cache returns the SAME wrapped object per native binding - identity compares between
-// two lookups of the same binding keep holding
+// two lookups of the same binding keep holding.
+// a function-scoped `var` declared in a NESTED block is reported by one parser (which hoists it
+// natively) and missed by the other (which scopes it to the block), so a use past that block found
+// NOTHING here and every consumer silently degraded - the type widened to generic, a guard stopped
+// narrowing. synthesize the hoisted twin off the declarator so both parsers answer alike. the twin
+// carries the `.path` consumers read (annotation lookup, init descent, scope anchoring). a parser
+// that DOES hoist never reaches the synthesis (its own lookup already answered), so this stays the
+// no-op for it that the synthetic shape is documented to be
 export function wrapScopeBindingLookup(lookup) {
   const cache = new WeakMap();
+  const synthCache = new WeakMap();
   return (scope, name, path = null) => {
-    const binding = lookup(scope, name, path);
+    const binding = lookup(scope, name, path) ?? hoistedVarTwin(synthCache, path, name);
     if (!binding) return binding;
     let wrapped = cache.get(binding);
     if (!wrapped) {
