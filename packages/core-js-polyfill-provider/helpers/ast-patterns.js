@@ -2797,6 +2797,16 @@ export function isMutatedGlobalSlot(adapter, key) {
   return !!key && !!adapter?.isMutatedStatic?.('globalThis', key);
 }
 
+// the one question every proxy-root recogniser asks: does this NAME still stand for the pristine
+// global surface? the two halves must travel together - a name that is a known proxy but whose slot
+// the user overwrote (`window = fake`) holds the replacement, not the surface, so recognising it
+// would rewrite reads of the user's own value. the recognisers around it differ in HOW they reach a
+// name (scope walk, alias chain, injector hint, destructure key); what they do with the name once
+// they have it is this, and it was spelled out at each of them
+export function isPristineProxyGlobal(adapter, name) {
+  return POSSIBLE_GLOBAL_OBJECTS.has(name) && !isMutatedGlobalSlot(adapter, name);
+}
+
 // ambient declarations (`declare class X`, `declare function X`, `declare const X`,
 // `declare module X`, `declare enum X`, TSDeclareFunction, TSDeclareMethod, type aliases,
 // interfaces) - elided by tsc before runtime; references resolve to the global. estree-toolkit
