@@ -10,7 +10,7 @@
 //   getClassBindingClosure(class, anchor)       - cached class-name binding closure | null
 //   computeObjectAliasClosure(obj)              - cached object-literal alias closure | null
 //   getClosureTemporalBound(closure, prog, ...) - cached upper-bound source position
-//   getClassInstanceTemporalBound(closure, names, prog) - class flavor (adds new C().method)
+//   getClassInstanceTemporalBound(closure, names, nodes, prog) - class flavor (adds new C().method)
 //   isReceiverInClosure(objPath, closure)       - identity-based receiver predicate
 //   pushIfWriteMatches(writePath, pred, out)    - generic write folder
 //   getModuleFieldIndex(prog)                   - cached {writesByField, subclassesBySuper}
@@ -473,7 +473,9 @@ export function createClosureAnalysis({
           // time, so it can observe writes anywhere - record Infinity (extraction) so the fold
           // widens, exactly as the bound-binding call path returns `{ kind: 'extraction' }`. a
           // straight-line call bounds only writes up to its own end position
-          ends.push(hasDeferredContextAncestor(t, entry.wrapperPath) ? Infinity : ctx.end);
+          // keep the new-expression path: the map key is the callee NAME, and only the path can
+          // prove which class this call actually constructs
+          ends.push({ end: hasDeferredContextAncestor(t, entry.wrapperPath) ? Infinity : ctx.end, path: entry.path });
         }
       }
       return { classifiedByBinding, newCallsByName };
@@ -510,7 +512,7 @@ export function createClosureAnalysis({
   // memoizes by closure identity AND classNames identity: same closure with different
   // descendant sets (rare) gets its own slot; same call site gets a cache hit
   let classInstanceTemporalBoundCache = new WeakMap();
-  function getClassInstanceTemporalBound(closure, classNames, programPath) {
+  function getClassInstanceTemporalBound(closure, classNames, classNodes, programPath) {
     let inner = classInstanceTemporalBoundCache.get(closure);
     if (!inner) classInstanceTemporalBoundCache.set(closure, inner = new WeakMap());
     return memoize(inner, classNames, () => {
@@ -521,7 +523,12 @@ export function createClosureAnalysis({
       for (const name of classNames) {
         const ends = newCallsByName.get(name);
         if (!ends) continue;
-        for (const end of ends) if (end > latestCallEnd) latestCallEnd = end;
+        // a same-named class in another scope shares this bucket, and stretching the bound over
+        // ITS call would fold writes no instance of ours can observe
+        for (const { end, path } of ends) {
+          if (classRefLandsOutside(path.node.callee, path.scope, classNodes)) continue;
+          if (end > latestCallEnd) latestCallEnd = end;
+        }
       }
       return latestCallEnd;
     });
@@ -538,17 +545,22 @@ export function createClosureAnalysis({
       const names = new Set([className]);
       const paths = [classPath];
       const queue = [className];
+      // the index is keyed by the super's NAME alone, so a class of the same name in another scope
+      // hands over ITS subclasses as if they were ours - carry the class NODES to check against
+      const nodes = new Set([classPath.node]);
       while (queue.length) {
         const name = queue.shift();
         for (const sub of index.subclassesBySuper.get(name) ?? []) {
           const subName = classBindingName(sub);
           if (!subName || names.has(subName)) continue;
+          if (classRefLandsOutside(sub.node.superClass, sub.scope, nodes)) continue;
+          nodes.add(sub.node);
           names.add(subName);
           paths.push(sub);
           queue.push(subName);
         }
       }
-      return { names, paths };
+      return { names, paths, nodes };
     });
   }
 
@@ -644,6 +656,10 @@ export function createClosureAnalysis({
       const entries = newExprByName.get(name);
       if (!entries) continue;
       for (const entry of entries) {
+        // same name-keying as the subclass index: a `new X()` of a same-named class in another
+        // scope lands in this bucket too, and treating it as one of ours widens the fold with a
+        // write that never reaches this class
+        if (classRefLandsOutside(entry.path.node.callee, entry.path.scope, desc.nodes)) continue;
         if (entry.isLeakPosition) return null;
         // `const m = new C().read` extracts an own-this method straight off the construction -
         // the held function's `this` rebinds at its later invocation, so the narrow premise dies
@@ -705,14 +721,19 @@ export function createClosureAnalysis({
       // for the static-`super` extraction scan below
       let ancestorStaticInfo = null;
       const seen = new Set([classPath.node]);
-      for (let curNode = classPath.node; curNode?.superClass;) {
-        const superName = extendsClauseName(curNode.superClass, classPath.scope);
-        const superNode = superName ? classNodeFromBindingName(superName, classPath.scope) : null;
-        if (!superNode || seen.has(superNode)) break;
-        seen.add(superNode);
-        prototypeMethodInfo = mergeOwnThisMethodInfo(prototypeMethodInfo, classOwnThisMethodInfo(superNode, false));
-        ancestorStaticInfo = mergeOwnThisMethodInfo(ancestorStaticInfo, classOwnThisMethodInfo(superNode, true));
-        curNode = superNode;
+      // each hop's `extends` name belongs to THAT ancestor, so it resolves in the scope the
+      // ancestor is declared in - the scope advances with the node. reading every hop against
+      // the subclass's fixed scope lets an inner shadow of an ancestor's name answer for the
+      // real ancestor, and the static set collected off the wrong class silently misses the
+      // `super` extraction that would drop the narrow. same scope-advance as the alias chain
+      for (let cur = { node: classPath.node, scope: classPath.scope }; cur.node?.superClass;) {
+        const superCanon = extendsClauseCanonical(cur.node.superClass, cur.scope);
+        const superDecl = superCanon ? classDeclFromBindingName(superCanon.name, superCanon.scope) : null;
+        if (!superDecl || seen.has(superDecl.node)) break;
+        seen.add(superDecl.node);
+        prototypeMethodInfo = mergeOwnThisMethodInfo(prototypeMethodInfo, classOwnThisMethodInfo(superDecl.node, false));
+        ancestorStaticInfo = mergeOwnThisMethodInfo(ancestorStaticInfo, classOwnThisMethodInfo(superDecl.node, true));
+        cur = superDecl;
       }
       // a HELD `super.<staticMethod>` read in an own STATIC member extracts an ancestor's static
       // with a rebindable `this` and no ancestor-binding reference to classify - scan directly
@@ -731,29 +752,48 @@ export function createClosureAnalysis({
       });
     });
   }
-  // resolve a class-binding NAME to its class node: a ClassDeclaration binding or a declarator
-  // whose init is a class expression. null for anything else (external / unresolvable base)
-  function classNodeFromBindingName(name, scope) {
-    const node = getScopeBinding(scope, name)?.path?.node;
-    if (node?.type === 'ClassDeclaration') return node;
+  // the class-hierarchy indexes are keyed by a bare NAME, so a same-named class in another scope
+  // drops its own entries into our bucket. given a reference TO a class (an `extends` clause, a
+  // `new` callee) and the scope that reference lives in, is it PROVEN to name a class outside the
+  // set? a reference resolving to nothing is not proof and answers false: it can still be a real
+  // one at runtime (`extends mix(Base)`, a class-valued binding no declaration backs), and dropping
+  // it would hide a real write behind a retained narrow - the unsound direction
+  function classRefLandsOutside(refNode, scope, nodes) {
+    const canon = extendsClauseCanonical(refNode, scope);
+    const decl = canon ? classDeclFromBindingName(canon.name, canon.scope) : null;
+    return !!decl && !nodes.has(decl.node);
+  }
+  // resolve a class-binding NAME to its class node AND the scope that declaration lives in:
+  // a ClassDeclaration binding or a declarator whose init is a class expression. the scope
+  // travels with the node because a caller walking a chain must read the next hop against the
+  // declaration it just landed on, not against wherever the walk started.
+  // null for anything else (external / unresolvable base)
+  function classDeclFromBindingName(name, scope) {
+    const binding = getScopeBinding(scope, name);
+    const node = binding?.path?.node;
+    const declScope = binding?.path?.scope ?? scope;
+    if (node?.type === 'ClassDeclaration') return { node, scope: declScope };
     if (node?.type === 'VariableDeclarator') {
       const init = unwrapRuntimeExpr(node.init);
-      if (init?.type === 'ClassExpression') return init;
+      if (init?.type === 'ClassExpression') return { node: init, scope: declScope };
     }
     return null;
   }
 
-  // canonical root name for an Identifier's const-alias chain. `const Alias = Source`
-  // walks one hop at a time; `unwrapExpressionChain` peels paren / SE / TS wrappers on
-  // the init. cycle or `let A = X; A = Y` reassignment -> null
-  function aliasChainCanonicalName(name, scope) {
+  // canonical root of an Identifier's const-alias chain: the NAME plus the scope that name is
+  // canonical IN. the two travel together because the walk below advances the scope on every
+  // hop - handing the bare name back to a caller that resolves it wherever the walk STARTED
+  // reads an inner shadow of the root as the root. `const Alias = Source` walks one hop at a
+  // time; `unwrapExpressionChain` peels paren / SE / TS wrappers on the init.
+  // cycle or `let A = X; A = Y` reassignment -> null
+  function aliasChainCanonicalRoot(name, scope) {
     const seen = new Set();
     while (!seen.has(name)) {
       seen.add(name);
       const binding = getScopeBinding(scope, name);
       if (binding?.constantViolations?.length) return null;
       const init = unwrapExpressionChain(binding?.path?.node?.init);
-      if (init?.type !== 'Identifier') return name;
+      if (init?.type !== 'Identifier') return { name, scope };
       // advance scope to the binding's declaration scope so the next hop's `getBinding`
       // hop to the binding's own declaration scope; inner shadows (`const P = Promise`
       // outer; `function f() { const P = X; ... }` inner) would otherwise mis-resolve
@@ -763,16 +803,18 @@ export function createClosureAnalysis({
     return null;
   }
 
-  // canonical name for an `extends` clause node. Identifier -> alias-chain walker;
-  // non-computed MemberExpression -> proxy-global (`globalThis.X.Foo`) OR
-  // `walkStaticReceiverChain` (const-bound `NS.Inner.Foo`, class-leaf accept).
-  // unsupported shapes return null - over-registration WIDENS the base's field fold
-  function extendsClauseName(superClass, scope) {
+  // canonical root of an `extends` clause node: the NAME plus the scope it is canonical in, since
+  // the Identifier branch may resolve the name in a scope the alias chain climbed to. Identifier ->
+  // alias-chain walker; non-computed MemberExpression -> proxy-global (`globalThis.X.Foo`) OR
+  // `walkStaticReceiverChain` (const-bound `NS.Inner.Foo`, class-leaf accept). those two answer with
+  // a global / qualified name that no local declaration owns, so the caller's own scope stays
+  // canonical for them. unsupported shapes return null - over-registration WIDENS the base's field fold
+  function extendsClauseCanonical(superClass, scope) {
     superClass = unwrapRuntimeExpr(superClass);
-    if (superClass?.type === 'Identifier') return aliasChainCanonicalName(superClass.name, scope);
+    if (superClass?.type === 'Identifier') return aliasChainCanonicalRoot(superClass.name, scope);
     if (superClass?.type !== 'MemberExpression' || superClass.computed) return null;
     const proxy = globalProxyMemberName({ node: superClass, scope, adapter: babelBindingAdapter, path: null });
-    if (proxy) return proxy;
+    if (proxy) return { name: proxy, scope };
     const path = [];
     let cur = superClass;
     while (cur?.type === 'MemberExpression' && !cur.computed) {
@@ -782,7 +824,13 @@ export function createClosureAnalysis({
       cur = cur.object;
     }
     if (cur?.type !== 'Identifier') return null;
-    return walkStaticReceiverChain({ receiverNode: cur, walkPath: path, scope, adapter: babelBindingAdapter });
+    const walked = walkStaticReceiverChain({ receiverNode: cur, walkPath: path, scope, adapter: babelBindingAdapter });
+    return walked ? { name: walked, scope } : null;
+  }
+  // name-only view for the callers that resolve the name against their own anchor and never
+  // walk a further hop from it
+  function extendsClauseName(superClass, scope) {
+    return extendsClauseCanonical(superClass, scope)?.name ?? null;
   }
 
   // multi-name variant of `extendsClauseName` for the module-field index. ambiguous shapes
@@ -914,6 +962,7 @@ export function createClosureAnalysis({
     getClassInstanceClosure,
     getClassBindingClosure,
     getClassConstructorNames,
+    classRefLandsOutside,
     extendsClauseName,
     collectClassDescendantPaths,
     pushIfWriteMatches,
