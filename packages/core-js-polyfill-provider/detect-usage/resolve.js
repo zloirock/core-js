@@ -223,6 +223,18 @@ export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt
   return [...baseEffects.slice(0, at), ...collected, ...baseEffects.slice(at)];
 }
 
+// may a STATIC substitution ERASE its receiver navigation? normally yes - the navigation only names the
+// global the substituted import already is. but a live `?.` guarding a chain-assign whose VALUE navigates a
+// hop with no ponyfill entry (`(b = globalThis.window)?.self.Array.from?.(x)`) is not erasable: the guard
+// rides on that navigation, so dropping it runs the static where the source short-circuits. the same root
+// question the receiver plan asks - that value is not provably the global, so nothing here is always-defined.
+// the substitution then stands down; the raw chain is exactly what the source meant
+export function staticMayEraseReceiver(receiverNode, resolvePure) {
+  if (!receiverNode || !resolvePure) return true;
+  const { root, optionalCount } = descendToChainRoot(receiverNode);
+  return !optionalCount || !navHasUnresolvableProxyHop(peelChainAssignment(root).value, resolvePure);
+}
+
 export function isStaticPlacement(name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return 'static';
   if (name[0] >= 'A' && name[0] <= 'Z') return 'static';
