@@ -45,7 +45,8 @@ import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  isAliasProxyHopChain, resolveKey as sharedResolveKey,
+  descendToChainRoot, isAliasProxyHopChain, navHasUnresolvableProxyHop, peelChainAssignment,
+  resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isSourcedSymbolIteratorMeta, planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -991,6 +992,15 @@ export default function createPlugin(options) {
         function tryCollapseAliasProxyHop(node, metaPath) {
           const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
           if (!isAliasProxyHopChain(node, aliasCtx, true)) return;
+          // this drive only works because a claim re-emits its receiver VERBATIM: the collapse is queued as
+          // an INNER span and composes into that verbatim text. a chain-assign whose VALUE navigates a hop
+          // with no ponyfill entry is the one shape the claim does NOT re-emit - it renders that receiver
+          // itself (the shared plan keeps the assignment as its own root and drops the hop), so the inner
+          // span has no text left to land in and composition throws. stand down there: the claim has
+          // already done exactly this work. a chain-assign over a plain alias (`(d = g).self.X`) IS
+          // re-emitted verbatim and still needs this drive
+          if (navHasUnresolvableProxyHop(peelChainAssignment(descendToChainRoot(node).root).value,
+            resolvePureUnfiltered)) return;
           let rootPath = metaPath;
           while (rootPath.node.type === 'MemberExpression' || rootPath.node.type === 'OptionalMemberExpression') {
             rootPath = rootPath.get('object');
@@ -1186,7 +1196,12 @@ export default function createPlugin(options) {
           // (`globalThis.self.Array` -> `_globalThis.Array`); the bare identifier rewrite is skipped.
           // checked BEFORE the import injection: the collapse emits its own binding(s), so an eager
           // root import here would strand a dead line the collapse never references (babel emits none)
-          if (kind === 'global' && node.type === 'Identifier' && collapseProxyHopRoot(metaPath)) return;
+          // a member-shaped global meta (`globalThis.self` resolving as the global `self`) anchors the
+          // hop-collapse drive too - the AST emitter's trigger never gated on the node SHAPE, and gating
+          // here left an assign-stored navigation (`(k = globalThis.self)?.self.X`) with its raw hop
+          if (kind === 'global'
+            && (node.type === 'Identifier' || node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+            && collapseProxyHopRoot(metaPath)) return;
           const binding = injectPureImport(importEntry, hintName);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
