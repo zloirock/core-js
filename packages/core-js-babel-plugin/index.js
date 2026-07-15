@@ -42,6 +42,7 @@ import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globa
 import {
   isAliasProxyHopChain,
   prependChainAssignmentEffect,
+  staticMayEraseReceiver,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -325,7 +326,12 @@ export default function plugin(api, options) {
         // Symbol.iterator]` -> `_getIteratorMethod((droppedSe, _globalThis))`, NOT a leaf `_self` / dead
         // `_globalThis.self.window` that diverges from unplugin. `_<root>` is always defined; droppedSe is
         // the SE the dropped hop chain carried (hop keys + chain-root call), re-emitted as a sequence prefix
-        if (symbolReceiverProxyRoot) {
+        if (symbolReceiverProxyRoot?.keepRoot) {
+          // a KEPT root is an expression the provider may not root through (a chain-assign storing a value
+          // that is not provably the global): it becomes the receiver as-is, with the redundant proxy hop
+          // above it dropped. cloning suffices - the re-visit rewrites the raw root inside it
+          path.node.object = t.cloneNode(symbolReceiverProxyRoot.keepRoot, true);
+        } else if (symbolReceiverProxyRoot) {
           const rootResolved = resolvePure({ kind: 'global', name: symbolReceiverProxyRoot.rootName }, path);
           if (rootResolved) {
             const rootBinding = injectPureImport(rootResolved.entry, rootResolved.hintName);
@@ -866,6 +872,10 @@ export default function plugin(api, options) {
             // dropped. emit becomes `(a = Array, _Array$from)(x)`. instance dispatch wouldn't
             // reach here (routes through replaceInstanceLike above), so no risk of duplicating
             // with memoize-captured assignment
+            // the substitution erases the receiver navigation - stand down where that navigation is not
+            // erasable (a live `?.` over a chain-assign storing something not provably the global): the
+            // guard would go with it and the static would run where the source short-circuits
+            if (!staticMayEraseReceiver(path.node.object, resolveBuiltIn)) return;
             const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects, meta.receiverEffectCount);
             replacePath.replaceWith(withSideEffects(id, allEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
