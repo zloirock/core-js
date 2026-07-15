@@ -695,23 +695,55 @@ export function createDiscriminantNarrow({
   // cyclic alias chains (`type A = B | C; type B = A`) resolve B and C both to the same
   // UnionType identity, and re-expanding it would recurse forever. on hit, push the raw
   // ref so the downstream filter sees an un-expanded TypeReference and bails permissively
-  function flattenUnionBranches(types, scope, visited = new Set()) {
+  // expansions a cycle cut contributed to - never promoted to the black set (see below)
+  const cutTaintedExpansions = new WeakSet();
+  // `visited` is the GREY set - unions open ABOVE this descent, dropped on the way out. only that
+  // scoping tells a real cycle from a sibling: a set that merely grows leaves the second branch
+  // reaching the SAME union alias unflattened, and a discriminant then reads a union where it expects
+  // a member. `expanded` is the BLACK set - unions already flattened on this walk, so a shared branch
+  // is expanded once instead of re-descended per reference. both are keyed on the resolved union node:
+  // the recursion runs on that node's OWN types and each caller applies its own `subst` afterwards, so
+  // the expansion itself carries no substitution and one entry serves every reference to it
+  function flattenUnionBranches(types, scope, visited = new Set(), expanded = new Map()) {
     const out = [];
+    const pushed = new Set();
+    // an expansion that had to CUT a cycle carries a branch left unflattened only because its target
+    // was open above THIS descent. that answer is true here and nowhere else, so it must not reach the
+    // black set - a later reference from outside the cycle would inherit a cut that never applied to it
+    let cutCycle = false;
+    function take(node) {
+      // a union is a SET of types, so the same branch reaching `out` twice adds nothing - dropping it
+      // keeps `A | A` the size of `A` instead of doubling per nesting level. identity is the whole
+      // test: a substituted branch is a fresh node and stays, which is right - it is a different type
+      if (pushed.has(node)) return;
+      pushed.add(node);
+      out.push(node);
+    }
     for (const branch of types) {
       const { node: resolved, subst } = followTypeAliasChain(unwrapTypeAnnotation(branch), scope);
       if (!isUnionType(resolved)) {
-        out.push(applySubst(resolved, subst));
+        take(applySubst(resolved, subst));
         continue;
       }
       if (visited.has(resolved)) {
-        out.push(branch);
+        take(branch);
+        cutCycle = true;
         continue;
       }
-      visited.add(resolved);
-      for (const inner of flattenUnionBranches(resolved.types, scope, visited)) {
-        out.push(applySubst(inner, subst));
+      let inners = expanded.get(resolved);
+      if (!inners) {
+        visited.add(resolved);
+        try {
+          inners = flattenUnionBranches(resolved.types, scope, visited, expanded);
+          if (cutTaintedExpansions.has(inners)) cutCycle = true;
+          else expanded.set(resolved, inners);
+        } finally {
+          visited.delete(resolved);
+        }
       }
+      for (const inner of inners) take(applySubst(inner, subst));
     }
+    if (cutCycle) cutTaintedExpansions.add(out);
     return out;
   }
 

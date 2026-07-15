@@ -60,3 +60,30 @@ QUnit.test('typed dispatch: as-cast receiver stays callable with correct this', 
   assert.same(counters.hits.at(-1), 3);
   assert.deepEqual(counters.hits.flatMap(n => [n, n]), [1, 1, 2, 2, 3, 3]);
 });
+
+// two references to ONE generic union declaration that DISAGREE on the type argument. the walk
+// expands the declaration once and lets each reference apply its own argument, so the arms stay
+// distinct types; collapsing them before the arguments land would leave the proven arm looking
+// array-only and emit an array-specific helper for a value the source says can be a string - which
+// throws on the string this returns. only the generic dispatch is sound here
+QUnit.test('typed dispatch: a union arm disagreeing on the type argument is not collapsed away', assert => {
+  type Pair<T> = { kind: 'a'; v: T } | { kind: 'b'; v: string };
+  function mk(n: number): Pair<string[]> | Pair<string> {
+    return n ? { kind: 'a', v: 'oops' } : { kind: 'b', v: 'x' };
+  }
+  const u = mk(1);
+  assert.same(u.kind === 'a' ? u.v.at(0) : '', 'o');
+});
+
+// the same declaration reached through a nested union: the flattener expands it once, and each
+// reference must still carry its own arguments through. a shared expansion handed out verbatim
+// would make the string arm read as an array here too
+QUnit.test('typed dispatch: a shared nested union keeps each reference its own arguments', assert => {
+  type Arm<T> = { tag: 'x'; val: T } | { tag: 'y'; val: string };
+  type Both = Arm<string[]> | Arm<string>;
+  function mk(n: number): Both {
+    return n ? { tag: 'x', val: 'plain' } : { tag: 'y', val: 'q' };
+  }
+  const u = mk(1);
+  assert.same(u.tag === 'x' ? u.val.at(-1) : '', 'n');
+});
