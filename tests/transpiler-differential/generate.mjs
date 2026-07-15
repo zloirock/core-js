@@ -352,6 +352,27 @@ function * generateTypeVarHoist() {
     + ' if (box.kind === "a") { return box.v.at(0); } return "no"; })()'), ts: true, strip: true };
 }
 
+// --- shared type-alias declaration across union arms ---
+// one generic declaration reached by two references that DISAGREE on the type argument. the walk
+// expands it once and each reference applies its own argument afterwards, so the arms stay distinct
+// types. collapsing them would leave the proven arm looking array-only and emit an array-specific
+// helper for the string this actually returns - which THROWS, so the native leg sees it. the emitter-
+// parity leg is blind here (one shared resolver), and the e2e bundle only runs babel: this is the one
+// oracle that reaches the unplugin runtime too
+function * generateSharedAliasUnionArms() {
+  yield { ...snippet('shared-alias-union/arms-disagree-on-args',
+    '(() => { type Pair<T> = { kind: "a"; v: T } | { kind: "b"; v: string };'
+    + ' const mk = (n: number): Pair<string[]> | Pair<string> =>'
+    + ' n ? { kind: "a", v: "oops" } : { kind: "b", v: "x" };'
+    + ' const u = mk(1); return u.kind === "a" ? u.v.at(0) : ""; })()'), ts: true, strip: true };
+  // the arms AGREE, so the proven arm is an array on every path and the narrow is correct
+  yield { ...snippet('shared-alias-union/arms-agree-on-args',
+    '(() => { type Pair<T> = { kind: "a"; v: T } | { kind: "b"; v: string };'
+    + ' const mk = (n: number): Pair<string[]> | Pair<string[]> =>'
+    + ' n ? { kind: "a", v: ["p", "q"] } : { kind: "b", v: "x" };'
+    + ' const u = mk(1); return u.kind === "a" ? u.v.at(0) : ""; })()'), ts: true, strip: true };
+}
+
 // --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
 // every hop of an alias chain resolves in the scope its own declarator was written in, so a
 // binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
@@ -3264,6 +3285,7 @@ export function * generate() {
   yield * generateDestructureAlias();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
+  yield * generateSharedAliasUnionArms();
   yield * generateAliasHopShadow();
   yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
