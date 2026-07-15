@@ -121,7 +121,7 @@ function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScope
     // forward the raw hint verbatim (mirroring the unplugin estree adapter's `polyfillHint`):
     // it carries BOTH proxy-global aliases (`_globalThis` -> `globalThis`) AND pure-import
     // constructor stubs (`_Array$from` -> `Array`, `_Promise` -> `Promise`). each consumer
-    // applies its OWN gate - `proxyGlobalNameOf` / `isProxyGlobalIdentifierNode` re-check
+    // applies its OWN gate - the shared proxy-root recogniser re-checks
     // `POSSIBLE_GLOBAL_OBJECTS` (so a constructor hint resolves to null there, unchanged), while
     // `walkStaticReceiverStep` wants the ungated constructor name to recover a sibling-rewritten
     // stub. gating here stripped the constructor hints and left that recovery dead on babel only
