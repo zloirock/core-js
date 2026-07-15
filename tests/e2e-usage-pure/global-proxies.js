@@ -360,3 +360,120 @@ QUnit.test('global-proxy: chain-assign optional value hop tail drops (runs witho
   assert.true(included);
   assert.same(w, globalThis);
 });
+
+// the same shape whose assigned VALUE ends at a hop core-js does NOT ponyfill (`window`, unlike `self`).
+// rooting the collapse THROUGH the assignment reaches the always-defined `globalThis` and says nothing
+// about what the assignment stored, so the span must not collapse: the `?.` stays live and the target
+// keeps the raw value. erasing the guard ran the tail on the pure root and returned a VALUE where the
+// source yields undefined.
+// unlike the collapse tests above, the ANSWER here is environment-dependent - `window` is absent in Node
+// and present in a browser, and the whole point is that the guard DECIDES rather than being pre-decided.
+// so assert against the environment's own `window`, which is what the untouched source would have read
+QUnit.test('global-proxy: chain-assign optional value over an unpolyfilled hop keeps its guard', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let w;
+  const included = (w = globalThis.window)?.self.Array.prototype.includes.call([1, 2], 2);
+  assert.same(included, hasWindow ? true : undefined);
+  assert.same(w, globalThis.window);
+  let f;
+  const flat = (f = globalThis.window)?.self.Array.prototype.flat;
+  assert.same(typeof flat, hasWindow ? 'function' : 'undefined');
+  assert.same(f, globalThis.window);
+});
+
+// the UNGUARDED twin of the same value: with no `?.` there is nothing to short-circuit, so an off-browser
+// read throws exactly as the source does - the collapse must decline rather than rescue it off the pure
+// root. the ponyfilled twin (`(s = globalThis.self)`) still collapses and still runs in Node: core-js
+// DEFINES `self`, so its value provably is the global. that split is the whole rule
+QUnit.test('global-proxy: unguarded chain-assign over an unpolyfilled hop stays faithful', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let n;
+  function readWindowValued() {
+    return (n = globalThis.window).self.Array.prototype.flat.call([1, [2]]);
+  }
+  if (hasWindow) assert.deepEqual(readWindowValued(), [1, 2]);
+  else assert.throws(readWindowValued, TypeError);
+  assert.same(n, globalThis.window);
+  // the ponyfilled value collapses in both environments
+  let s;
+  assert.same((s = globalThis.self).self.Array.prototype.at.call([9], 0), 9);
+  assert.same(s, globalThis);
+  let m, k;
+  assert.true((m = k = globalThis).self.Array.prototype.includes.call([7], 7));
+  assert.same(m, globalThis);
+  assert.same(k, globalThis);
+  // the DESTRUCTURE-source shape of the same kept root: the text emitter splices source instead of cloning
+  // nodes, so it renders the root its own way - the kept value must still get its raw root polyfilled
+  let d;
+  function destructureWindowValued() {
+    const { of } = (d = globalThis.window).self.Array;
+    return of;
+  }
+  if (hasWindow) assert.same(typeof destructureWindowValued(), 'function');
+  else assert.throws(destructureWindowValued, TypeError);
+  assert.same(d, globalThis.window);
+  // an effect the sequence around a kept root carries is not the assignment: the root re-emits itself, but
+  // that effect still has to run, exactly once, before the guard tests the value
+  let count = 0;
+  let sq;
+  function seAroundKeptRoot() {
+    return (count++, sq = globalThis.window)?.self.Array.prototype.findIndex.call([1], x => x === 1);
+  }
+  assert.same(seAroundKeptRoot(), hasWindow ? 0 : undefined);
+  assert.same(count, 1);
+  assert.same(sq, globalThis.window);
+  // every OTHER place an effect can sit around a kept root: inside the assigned value, and in a computed
+  // hop key. the root re-emits itself and must not double-run; everything else runs once, in source order
+  let log = [];
+  let va;
+  function effectInsideValue() {
+    return (va = (log.push('v'), globalThis.window)).self.Array.prototype.flat.call([1, [2]]);
+  }
+  if (hasWindow) assert.deepEqual(effectInsideValue(), [1, 2]);
+  else assert.throws(effectInsideValue, TypeError);
+  assert.deepEqual(log, ['v']);
+  assert.same(va, globalThis.window);
+  log = [];
+  let kb;
+  function hopKey() {
+    log.push('k');
+    return 'self';
+  }
+  function effectInHopKey() {
+    return (kb = globalThis.window)?.[hopKey()].Array.prototype.at.call([5], 0);
+  }
+  // a SE-bearing hop key BAILS the collapse (dropping the hop would drop its effect), so this one reads
+  // `.self` off the window for real - it answers exactly what the source would, realm by realm.
+  // the probe has to reach that property through a key this pass cannot fold: written as a plain proxy
+  // navigation it is itself collapsed to the ponyfill, and would report the polyfill's answer instead of
+  // the realm's - which is the very thing under test here
+  let selfKey = 'self';
+  selfKey += '';
+  const readsSelfOffWindow = hasWindow && globalThis.window[selfKey] !== undefined;
+  if (!hasWindow) assert.same(effectInHopKey(), undefined);
+  else if (readsSelfOffWindow) assert.same(effectInHopKey(), 5);
+  else assert.throws(effectInHopKey, TypeError);
+  assert.same(kb, globalThis.window);
+  // the key only evaluates past the guard - absent window short-circuits before it, as the source does
+  assert.deepEqual(log, hasWindow ? ['k'] : []);
+  // a wrapper SEALS an optional chain: what follows it reads unconditionally off the guarded result, so an
+  // absent window throws rather than short-circuits. re-hanging the guard onto the collapsed root must keep
+  // that seal - letting the rest of the chain go optional too would swallow a throw the source performs
+  let wd;
+  function sealedByWrapper() {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the throw-on-short-circuit IS the subject here
+    return ((wd = globalThis.window)?.self).Array.prototype.findLast.call([1], x => x === 1);
+  }
+  if (hasWindow) assert.same(sealedByWrapper(), 1);
+  else assert.throws(sealedByWrapper, TypeError);
+  assert.same(wd, globalThis.window);
+  // the well-known-symbol strand collapses the same receiver on its own: it must answer for the object the
+  // source named, not read the symbol off OUR global and discard the assigned one
+  let it;
+  function symbolOffWindowValued() {
+    return (it = globalThis.window).self[Symbol.iterator];
+  }
+  if (hasWindow) assert.same(symbolOffWindowValued(), globalThis.window[Symbol.iterator]);
+  else assert.throws(symbolOffWindowValued, TypeError);
+  assert.same(it, globalThis.window);
+});

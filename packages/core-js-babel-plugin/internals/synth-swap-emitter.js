@@ -310,13 +310,19 @@ export default function createSynthSwapEmitter({
       const inner = renderProxyReceiverPlanAst(plan.inner);
       return inner ? t.memberExpression(inner, t.cloneNode(plan.property), plan.computed) : null;
     }
-    const rootBinding = plan.rootBinding.alias
-      ? t.cloneNode(plan.rootBinding.alias)
+    // a `keep` root is cloned like an alias - the AST substrate re-visits the clone, so its own proxy root
+    // still earns the pure rewrite there
+    const rootBinding = plan.rootBinding.alias ?? plan.rootBinding.keep
+      ? t.cloneNode(plan.rootBinding.alias ?? plan.rootBinding.keep)
       : injectPureImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName);
     const rootNode = plan.harvestedSE.length
       ? t.sequenceExpression([...plan.harvestedSE.map(expr => t.cloneNode(expr)), rootBinding])
       : rootBinding;
-    return t.memberExpression(rootNode, t.cloneNode(plan.property), plan.computed);
+    // the plan re-hangs onto the leaf a `?.` that guarded a root it kept - the dropped hop was a
+    // realm-local self-reference, its guard was not
+    return plan.optional
+      ? t.optionalMemberExpression(rootNode, t.cloneNode(plan.property), plan.computed, true)
+      : t.memberExpression(rootNode, t.cloneNode(plan.property), plan.computed);
   }
 
   function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false, throughChainAssign = false } = {}) {
@@ -337,6 +343,12 @@ export default function createSynthSwapEmitter({
     // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
     // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
     if (!findProxyGlobal(idPath.node, aliasCtx, true)) return false;
+    // the climb's guard compares ROOT to ROOT: the canonical descent always peels to the innermost
+    // identifier, while the anchor may be an Identifier, the chain-assign EXPRESSION, or a member the
+    // assign stores (`(k = globalThis.self)?...` anchors at `globalThis.self`). comparing the descent's
+    // root against the anchor NODE only ever matched the Identifier case - every other anchor shape made
+    // the climb die at its first non-member parent, leaving the redundant hop raw
+    const anchorRoot = descendToChainRoot(idPath.node, true).root ?? idPath.node;
     let recPath = idPath.parentPath;
     // climb to the leaf member consuming the maximal proxy-hop prefix (stop at the first member
     // whose leaf is non-proxy), stepping THROUGH any construct the chain-walk canon peels on the
@@ -351,7 +363,7 @@ export default function createSynthSwapEmitter({
       if (recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression()) {
         if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
           { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
-      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== idPath.node) {
+      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== anchorRoot) {
         break;
       }
       recPath = recPath.parentPath;
