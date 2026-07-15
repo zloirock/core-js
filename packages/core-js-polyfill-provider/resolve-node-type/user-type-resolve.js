@@ -29,6 +29,9 @@ import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 // per-walk, keyed on the decl-set's identity so parent frames can detect cycles without
 // a monkey-patched `.hadCycle` property (which would be lost on any defensive clone)
 const cycleSeenSets = new WeakSet();
+// results already resolved on a given walk, keyed on that walk's decl-set identity - the same
+// side-channel shape as `cycleSeenSets`, and dropped with the set when the walk ends
+const walkResultMemo = new WeakMap();
 
 // snapshot the pre-call cycle state; returned predicate reports whether the flag flipped
 // during the caller's work. used by interface/class `extends` walks to distinguish "no
@@ -200,97 +203,127 @@ export function createUserTypeResolve({
     }
     const visited = seen ?? new Set();
     visited.add(declaration);
-    typeParamMap = resolveTypeArgs({ decl: declaration, node, typeParamMap, scope, depth, seen: visited });
-    // thread `visited` into the body-resolution closure so self-recursive aliases
-    // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
-    // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn.
-    // no-typeParamMap branch passes `visited` to `resolveTypeAnnotation` so the
-    // typeParamMap-free recursion (`type Rec = { next: Rec }`) hits the same guard
-    // when the body re-references the alias through a bare TSTypeReference
-    const resolve = typeParamMap
-      ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1, visited)
-      : p => resolveTypeAnnotation(p, scope, depth + 1, visited);
-    if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
-    if (declaration.type === 'TSEnumDeclaration') return resolveMergedEnumType(declaration, name, scope);
-    if (isInterfaceDeclaration(declaration)) {
-      const parents = declaration.extends;
-      if (parents?.length) {
-        for (const parent of parents) {
-          const result = runParentWalkWithCycleIsolation(visited,
-            () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
+    // scoped to the CURRENT descent: dropped on the way out, so the set answers "is this decl
+    // already open above me" and not "was it ever seen". a set that only grows lets the first
+    // arm of a union poison its siblings - a second `Wrap<...>` arm reads as a cycle, returns
+    // null, and the whole union folds to null though nothing is recursive. the cycle FLAG is
+    // already isolated per sibling walk (see `runParentWalkWithCycleIsolation`); decl membership
+    // needs the same scoping. cloning instead would break that flag - it is keyed on set identity
+    // BLACK set of the 3-colour walk: results already computed on THIS walk. the grey set below
+    // answers "open above me" and must forget on the way out, which alone would re-descend every
+    // arm of a shared DAG (`type L = P | P` nests to 2^depth resolutions). keyed on the decl-set
+    // identity, like the cycle flag, so it lives exactly as long as the walk. only an
+    // unparameterized decl with no incoming substitution is keyed by decl alone - a parameterized
+    // alias resolves differently per type-arg set, so it is simply not memoized
+    const memoizable = !declaration.typeParameters?.params?.length && !typeParamMap;
+    let memo = walkResultMemo.get(visited);
+    if (memoizable) {
+      if (!memo) walkResultMemo.set(visited, memo = new Map());
+      // the SCOPE belongs to the key: an alias body resolves in the CALLER's scope, and an anchored
+      // parent walk swaps that scope mid-walk while carrying this very set - so the same declaration
+      // can owe two different answers on one walk, and a decl-only key would hand over the wrong one
+      const hit = memo.get(declaration);
+      if (hit && hit.scope === scope) return hit.result;
+    }
+    try {
+      const walked = (() => {
+        typeParamMap = resolveTypeArgs({ decl: declaration, node, typeParamMap, scope, depth, seen: visited });
+        // thread `visited` into the body-resolution closure so self-recursive aliases
+        // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
+        // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn.
+        // no-typeParamMap branch passes `visited` to `resolveTypeAnnotation` so the
+        // typeParamMap-free recursion (`type Rec = { next: Rec }`) hits the same guard
+        // when the body re-references the alias through a bare TSTypeReference
+        const resolve = typeParamMap
+          ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1, visited)
+          : p => resolveTypeAnnotation(p, scope, depth + 1, visited);
+        if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
+        if (declaration.type === 'TSEnumDeclaration') return resolveMergedEnumType(declaration, name, scope);
+        if (isInterfaceDeclaration(declaration)) {
+          const parents = declaration.extends;
+          if (parents?.length) {
+            for (const parent of parents) {
+              const result = runParentWalkWithCycleIsolation(visited,
+                () => resolveInterfaceExtendsParent({ parent, scope, resolve, depth, typeParamMap, visited }));
+              if (result) return result;
+            }
+            // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
+            // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null.
+            // no cycle-flip check here: unlike the class branch (which would else masquerade as Object),
+            // both the cyclic and the all-unresolved outcomes are already null
+            return null;
+          }
+          return new $Object('Object');
+        }
+        // class as a type: walk `extends` for known container (`Array<T>`) or user parent.
+        // cyclic class extends should NOT fall back to `$Object('Object')` - that masquerades
+        // as a concrete type and suppresses the generic polyfill plugin emits for unknowable
+        // receivers. mirrors the interface-branch cycle handling above
+        if (isClassLikeDeclaration(declaration)) {
+          const flowExtend = declaration.extends?.[0];
+          const superClass = declaration.superClass ?? flowExtend?.id;
+          let superName = extendsClauseName(superClass, scope);
+          // `class Sub extends NS.Base` - `extendsClauseName` walks `walkStaticReceiverChain`
+          // (runtime-binding lookup) which misses TS-only `namespace NS { class Base {} }`
+          // (no runtime binding for the module). fall back to namespace-aware type lookup
+          // via segments + `findTypeDeclaration`, mirroring the interface-branch behaviour.
+          // `collectQualifiedSegments` accepts both type-position (TSQualifiedName) and
+          // value-position (MemberExpression in heritage clause) qualified names
+          if (!superName) {
+            const segments = collectQualifiedSegments(superClass);
+            if (segments?.length > 1 && findTypeDeclaration(segments, scope)) {
+              superName = segments.join('.');
+            }
+          }
+          // a class with NO heritage is a known plain object -> Object. but a PRESENT super whose name
+          // can't be extracted (mixin `extends mixOf(Base)`, reassigned binding, any non-name heritage
+          // expression) is UNKNOWABLE - it could be Array / a typed-array / any polyfillable base, where
+          // masquerading as `$Object('Object')` would suppress the generic polyfill -> bail to null (same
+          // rule as cyclic extends); keep Object only for the genuinely base-less class
+          if (!superName) return superClass ? null : new $Object('Object');
+          // Flow `DeclareClass extends Base<T>` carries typeArgs on the heritage clause
+          // (`extends[0].typeParameters`), not on the declaration itself - `getSuperTypeArgs`
+          // probes both class-side slots and would otherwise return undefined here, dropping
+          // T from the parent ref and losing element-precision through Base<T>
+          const parentRef = {
+            type: 'TSTypeReference',
+            typeName: typeNameFromName(superName),
+            typeParameters: flowExtend?.typeParameters ?? getSuperTypeArgs(declaration),
+          };
+          const ctor = resolveKnownConstructor(superName);
+          if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
+          const cycleFlipped = cycleFlipDetector(visited);
+          // namespace-qualified super (`class Sub extends NS.Base`) whose own heritage references a
+          // sibling by bare name (`Base extends Inner`): anchor the lookup at the parent's NodePath so
+          // NS's module body supplies `Inner` (same gap as the interface branch). no-op for bare supers
+          const parentSegments = superName.split('.');
+          const parentPath = parentSegments.length > 1
+            ? findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration) : null;
+          const result = runParentWalkWithCycleIsolation(visited, () => resolveParentAnchored(parentPath,
+            { name: superName, node: parentRef, scope, depth, typeParamMap, seen: visited }));
           if (result) return result;
+          if (cycleFlipped()) return null;
+          // superName was extracted but no parent class with that name resolved to a container type.
+          // distinguish a KNOWN-but-plain base (a local class declaration with no polyfillable shape ->
+          // Object is correct, the receiver is a known object) from an UNKNOWABLE base (no class decl -
+          // opaque import / value-position name) which could be Array / a typed-array, where masquerading
+          // as Object would suppress the polyfill -> bail to null (same as `!superName`)
+          const baseDeclPath = findDeclPathBySegments(superName.split('.'), scope, isClassLikeDeclaration);
+          if (!baseDeclPath) return null;
+          // the base resolves to a LOCAL class decl, but its own extends-walk above returned null: a
+          // base-LESS class is a genuine plain Object; a class WITH heritage is TRANSITIVELY unknowable
+          // (its super did not resolve to a container) and must propagate null, else masquerading it as
+          // Object suppresses the subclass polyfill while the base's own receiver correctly gets it
+          const baseDecl = baseDeclPath.node ?? baseDeclPath;
+          return (baseDecl.superClass ?? baseDecl.extends?.[0]) ? null : new $Object('Object');
         }
-        // extends parents that ALL resolved to nothing are unknowable (undeclared / unresolved
-        // heritage) - masquerading as Object suppresses the polyfill, same as the class branch -> null.
-        // no cycle-flip check here: unlike the class branch (which would else masquerade as Object),
-        // both the cyclic and the all-unresolved outcomes are already null
         return null;
-      }
-      return new $Object('Object');
+      })();
+      if (memoizable) memo.set(declaration, { scope, result: walked });
+      return walked;
+    } finally {
+      visited.delete(declaration);
     }
-    // class as a type: walk `extends` for known container (`Array<T>`) or user parent.
-    // cyclic class extends should NOT fall back to `$Object('Object')` - that masquerades
-    // as a concrete type and suppresses the generic polyfill plugin emits for unknowable
-    // receivers. mirrors the interface-branch cycle handling above
-    if (isClassLikeDeclaration(declaration)) {
-      const flowExtend = declaration.extends?.[0];
-      const superClass = declaration.superClass ?? flowExtend?.id;
-      let superName = extendsClauseName(superClass, scope);
-      // `class Sub extends NS.Base` - `extendsClauseName` walks `walkStaticReceiverChain`
-      // (runtime-binding lookup) which misses TS-only `namespace NS { class Base {} }`
-      // (no runtime binding for the module). fall back to namespace-aware type lookup
-      // via segments + `findTypeDeclaration`, mirroring the interface-branch behaviour.
-      // `collectQualifiedSegments` accepts both type-position (TSQualifiedName) and
-      // value-position (MemberExpression in heritage clause) qualified names
-      if (!superName) {
-        const segments = collectQualifiedSegments(superClass);
-        if (segments?.length > 1 && findTypeDeclaration(segments, scope)) {
-          superName = segments.join('.');
-        }
-      }
-      // a class with NO heritage is a known plain object -> Object. but a PRESENT super whose name
-      // can't be extracted (mixin `extends mixOf(Base)`, reassigned binding, any non-name heritage
-      // expression) is UNKNOWABLE - it could be Array / a typed-array / any polyfillable base, where
-      // masquerading as `$Object('Object')` would suppress the generic polyfill -> bail to null (same
-      // rule as cyclic extends); keep Object only for the genuinely base-less class
-      if (!superName) return superClass ? null : new $Object('Object');
-      // Flow `DeclareClass extends Base<T>` carries typeArgs on the heritage clause
-      // (`extends[0].typeParameters`), not on the declaration itself - `getSuperTypeArgs`
-      // probes both class-side slots and would otherwise return undefined here, dropping
-      // T from the parent ref and losing element-precision through Base<T>
-      const parentRef = {
-        type: 'TSTypeReference',
-        typeName: typeNameFromName(superName),
-        typeParameters: flowExtend?.typeParameters ?? getSuperTypeArgs(declaration),
-      };
-      const ctor = resolveKnownConstructor(superName);
-      if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;
-      const cycleFlipped = cycleFlipDetector(visited);
-      // namespace-qualified super (`class Sub extends NS.Base`) whose own heritage references a
-      // sibling by bare name (`Base extends Inner`): anchor the lookup at the parent's NodePath so
-      // NS's module body supplies `Inner` (same gap as the interface branch). no-op for bare supers
-      const parentSegments = superName.split('.');
-      const parentPath = parentSegments.length > 1
-        ? findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration) : null;
-      const result = runParentWalkWithCycleIsolation(visited, () => resolveParentAnchored(parentPath,
-        { name: superName, node: parentRef, scope, depth, typeParamMap, seen: visited }));
-      if (result) return result;
-      if (cycleFlipped()) return null;
-      // superName was extracted but no parent class with that name resolved to a container type.
-      // distinguish a KNOWN-but-plain base (a local class declaration with no polyfillable shape ->
-      // Object is correct, the receiver is a known object) from an UNKNOWABLE base (no class decl -
-      // opaque import / value-position name) which could be Array / a typed-array, where masquerading
-      // as Object would suppress the polyfill -> bail to null (same as `!superName`)
-      const baseDeclPath = findDeclPathBySegments(superName.split('.'), scope, isClassLikeDeclaration);
-      if (!baseDeclPath) return null;
-      // the base resolves to a LOCAL class decl, but its own extends-walk above returned null: a
-      // base-LESS class is a genuine plain Object; a class WITH heritage is TRANSITIVELY unknowable
-      // (its super did not resolve to a container) and must propagate null, else masquerading it as
-      // Object suppresses the subclass polyfill while the base's own receiver correctly gets it
-      const baseDecl = baseDeclPath.node ?? baseDeclPath;
-      return (baseDecl.superClass ?? baseDecl.extends?.[0]) ? null : new $Object('Object');
-    }
-    return null;
   }
 
   // canonical typeName slot for a synthetic TSTypeReference: single names stay as
