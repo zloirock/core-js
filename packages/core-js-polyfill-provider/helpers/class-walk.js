@@ -4,6 +4,7 @@ import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
+  isPristineProxyGlobal,
   POSSIBLE_GLOBAL_OBJECTS,
   arrayWrapSlotBindsName,
   isVarScopeBoundary,
@@ -54,10 +55,10 @@ export function isAliasProxyRoot(rootNode, aliasCtx) {
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
 // const aliases (`const g = globalThis`) pass through via init-peel
-export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }) {
-  if (node?.type !== 'Identifier') return false;
-  if (!scope || !adapter) return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
-  const binding = adapter.getBinding(scope, node.name, path);
+export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null }) {
+  if (node?.type !== 'Identifier') return null;
+  if (!scope || !adapter) return POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null;
+  binding ??= adapter.getBinding(scope, node.name, path);
   // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
   // no entry in babel's scope chain, so the init-follow path never observes them
@@ -65,7 +66,7 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
   // a mutated proxy SLOT (`window = fake`) is the user's replacement, not the global surface -
   // neither the direct name nor a hint/alias resolving to it recognises as a proxy root (what
   // an alias holds depends on capture order, which no span model covers)
-  if (hint) return POSSIBLE_GLOBAL_OBJECTS.has(hint) && !isMutatedGlobalSlot(adapter, hint);
+  if (hint) return isPristineProxyGlobal(adapter, hint) ? hint : null;
   // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
   // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
   // followLocalBindingToProxyGlobal. keying by `binding` directly fails for the detect-usage adapter,
@@ -76,10 +77,15 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
   // collapse fires consistently in both emitters (unplugin has no AST re-visit to recover it otherwise);
   // a non-proxy self-cycle (`var Map = Map`) stays false. avoids recursion either way (returns here)
   if (binding) return seen?.has(binding.node ?? binding)
-    ? POSSIBLE_GLOBAL_OBJECTS.has(node.name)
-    : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen);
-  if (adapter.hasBinding?.(scope, node.name, path)) return false;
-  return POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !isMutatedGlobalSlot(adapter, node.name);
+    ? (POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null)
+    : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen, usageNode);
+  if (adapter.hasBinding?.(scope, node.name, path)) return null;
+  return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
+}
+
+// boolean view for the call sites that only ask "is it a proxy root", not "which one"
+export function isProxyGlobalIdentifierNode(args) {
+  return proxyGlobalRootName(args) !== null;
 }
 
 // const-alias chain: `const g = globalThis` -> recurse into the init. reassigned bindings
@@ -88,11 +94,11 @@ export function isProxyGlobalIdentifierNode({ node, scope, adapter, path, seen }
 // `binding.node`; (b) babelBindingAdapter (in resolve-node-type) passes the raw babel
 // binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
 // branch on `node.type` so a single predicate covers both shapes
-function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
+function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen, usageNode = null) {
   // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
   // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
   // dropped a const-captured alias whose upstream source is reassigned only after the capture)
-  if (reassignmentBlocksGlobalResolve({ binding, adapter, path })) return false;
+  if (reassignmentBlocksGlobalResolve({ binding, adapter, path: usageNode ?? path })) return null;
   const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
   // a hoisted-var declarator assigned on ONE path (`if (c) { var g = globalThis }`) binds the
   // name everywhere but holds the global only through that branch. the pure rewrites this follow
@@ -101,12 +107,23 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen) {
   // same gate the detection-side follow (`resolveVariableBindingToGlobal`) applies. global /
   // entry modes keep the call site and stay sound regardless
   if (adapter?.method === 'usage-pure'
-    && !varInitDominatesUsage({ declaratorNode: decl, usagePath: path, kind: binding.kind })) return false;
+    && !varInitDominatesUsage({ declaratorNode: decl, usagePath: path, kind: binding.kind })) return null;
   const init = unwrapInitForResolution(decl?.init);
-  if (init?.type !== 'Identifier') return false;
+  // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
+  // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
+  // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root
+  if (init?.type === 'MemberExpression' || init?.type === 'OptionalMemberExpression') {
+    const leaf = globalProxyMemberName({
+      node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path,
+      seen: new Set(seen).add(binding.node ?? binding),
+    });
+    return isPristineProxyGlobal(adapter, leaf) ? leaf : null;
+  }
+  if (init?.type !== 'Identifier') return null;
   // the NEXT hop's value is read at THIS declarator - anchor its reassignment proof there
-  return isProxyGlobalIdentifierNode({
-    node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path, seen: new Set(seen).add(binding.node ?? binding),
+  return proxyGlobalRootName({
+    node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path,
+    seen: new Set(seen).add(binding.node ?? binding), usageNode,
   });
 }
 
@@ -636,7 +653,7 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
 function destructuredGlobalKeyPathNamesSymbol(init, keyPath, scope, adapter) {
   if (!keyPath?.length || !isProxyGlobalIdentifierNode({ node: peelProxyGlobalObject(init), scope, adapter, path: null })) return false;
   for (let i = 0; i < keyPath.length - 1; i++) {
-    if (!POSSIBLE_GLOBAL_OBJECTS.has(keyPath[i]) || isMutatedGlobalSlot(adapter, keyPath[i])) return false;
+    if (!isPristineProxyGlobal(adapter, keyPath[i])) return false;
   }
   const leaf = keyPath.at(-1);
   return leaf === 'Symbol' && !isMutatedGlobalSlot(adapter, leaf);
@@ -802,7 +819,7 @@ export function peelProxyGlobalObject(node) {
 // `includeMutatedSlots` opts OUT of the mutated-slot gates for consumers that only NAME the
 // slot rather than resolve reads through it - a logical-assign WRITE target is itself the
 // mutation site, so gating its classification on the mutation would self-suppress the warn
-export function globalProxyMemberName({ node, scope, adapter, path, includeMutatedSlots = false }) {
+export function globalProxyMemberName({ node, scope, adapter, path, seen, includeMutatedSlots = false }) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = peelProxyGlobalObject(node.object);
@@ -814,7 +831,7 @@ export function globalProxyMemberName({ node, scope, adapter, path, includeMutat
       || (!includeMutatedSlots && isMutatedGlobalSlot(adapter, linkName))) return null;
     object = peelProxyGlobalObject(object.object);
   }
-  if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path })) return null;
+  if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path, seen })) return null;
   // a mutated proxy ROOT (`window = fake; window.Promise`) reads through the user's
   // replacement, same as a mutated intermediate hop - the chain must not resolve. aliases
   // decline through the recognizers' own gates (capture order decides what an alias holds,
