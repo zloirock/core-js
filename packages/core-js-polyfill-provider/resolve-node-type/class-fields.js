@@ -50,6 +50,7 @@ export function createClassFields({
   classBindingName,
   isClassExported,
   isReceiverNewOfClass,
+  classRefLandsOutside,
   collectClassDescendantPaths,
   getClassBindingClosure,
   getClassConstructorNames,
@@ -463,7 +464,7 @@ export function createClassFields({
         // bound and the external-write predicate - without it an `new D().field = X` write would
         // silently drop from field-flow narrowing
         const constructorNames = getClassConstructorNames(classPath, program);
-        const bound = getClassInstanceTemporalBound(closure, constructorNames, program);
+        const bound = getClassInstanceTemporalBound(closure, constructorNames, descendant.nodes, program);
         // every descendant's non-static methods - subclass `this.X = Y` writes affect the
         // inherited field slot. recursive via descendant set, not just direct subclasses;
         // skip the base classPath since `internalThisScan` already covered it
@@ -472,7 +473,12 @@ export function createClassFields({
           appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
         }
         function predicate(p) {
-          return isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, constructorNames);
+          // the constructor-name set is the fast filter; the class NODES are the proof. a
+          // same-named class in another scope answers to the same name, and folding ITS
+          // instance write in widens a field this class never sees written
+          return isReceiverInClosure(p, closure)
+            || (isReceiverNewOfClass(p, constructorNames)
+              && !classRefLandsOutside(unwrapRuntimeExpr(p.node)?.callee, p.scope, descendant.nodes));
         }
         foldExternalWrites({ fieldName, predicate, bound, program, out: candidates });
       },
