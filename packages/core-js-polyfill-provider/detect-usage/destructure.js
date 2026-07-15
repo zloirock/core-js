@@ -23,6 +23,7 @@ import {
   unwrapCollectingSePrefixes,
   findObjectKeyBeforeSpread,
   isMutatedGlobalSlot,
+  isPristineProxyGlobal,
   isValidIdentifierName,
   mayHaveSideEffects,
   pairedArrayWrapInitElement,
@@ -40,6 +41,7 @@ import {
   globalProxyMemberName,
   isUsableFallbackReceiverArg,
   peelProxyGlobalObject,
+  proxyGlobalRootName,
 } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
@@ -1080,25 +1082,6 @@ export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter
   return walkStaticReceiverStep({ node: receiverNode, walkPath, scope, adapter, depth: 0, path, readNode: usageNode });
 }
 
-// proxy-global recognition for `walkStaticReceiverStep`: returns the source proxy-global
-// name when `node` is an Identifier - bare (`globalThis`/`self`/...) or a plugin-rewritten
-// alias (`_globalThis`) whose source name only survives on the injector side-channel
-// because the in-place `globalThis` -> `_globalThis` rewrite already ran by this walk. the
-// hint arrives two ways (mirrors `isProxyGlobalIdentifierNode`): unplugin pre-stamps
-// `binding.polyfillHint`; babel exposes it through `adapter.getBindingPolyfillHint`. pass
-// whichever a call site has - both default to null so either suffices on its own
-function proxyGlobalNameOf({ node, binding = null, adapter = null, scope = null }) {
-  if (node?.type !== 'Identifier') return null;
-  // a mutated proxy SLOT (`window = fake`) no longer names the pristine global surface -
-  // neither directly nor through a hint alias (what the alias holds depends on capture
-  // order); the destructure walk then keeps the receiver on the live-value channels
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) {
-    return isMutatedGlobalSlot(adapter, node.name) ? null : node.name;
-  }
-  const hint = binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, node.name);
-  return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) && !isMutatedGlobalSlot(adapter, hint) ? hint : null;
-}
-
 function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = null, seen = null, readNode: incomingReadNode = null }) {
   if (depth > STATIC_WALK_DEPTH) return null;
   let current = unwrapTransparentSeq(node);
@@ -1133,7 +1116,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     // proxy-global name so the post-loop mid-chain lift can match, then break - the import
     // binding's init isn't an ObjectExpression and would otherwise bail at the bindingType
     // check below. pass binding + adapter + scope so both hint shapes are reachable
-    const proxyName = proxyGlobalNameOf({ node: current, binding, adapter, scope: currentScope });
+    const proxyName = proxyGlobalRootName({ node: current, binding, adapter, scope: currentScope, path: null });
     if (proxyName && proxyName !== current.name) {
       current = { type: 'Identifier', name: proxyName };
       break;
@@ -1223,7 +1206,7 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   // proxy-global mid-chain lift: current is a recognised proxy-global identifier (bare source
   // name or plugin-rewritten alias). for babel the rewritten alias has no scope binding, so
   // the dereference loop above never ran and the alias reaches here verbatim - adapter+scope
-  // let `proxyGlobalNameOf` recover its source name (no binding to read the hint off of).
+  // let the shared root recogniser recover its source name (no binding to read the hint off of).
   // mirror `resolveNestedDestructureReceiver`'s short-circuit: the REMAINING hops must all be
   // proxy-globals with a recognised static-placement leaf (a CONSTRUCTOR key: `const ns =
   // {root: globalThis}; const {root: {self: {Array: A}}} = ns`). without this, such chains bail
@@ -1232,8 +1215,8 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   // resolve through the nested-proxy flatten, not this lift
   // a mutated slot anywhere on the lift (a hop or the ctor leaf) holds the user's replacement,
   // so the chain no longer names the pristine built-in
-  if (proxyGlobalNameOf({ node: current, adapter, scope: currentScope })
-      && walkPath.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k) && !isMutatedGlobalSlot(adapter, k))
+  if (proxyGlobalRootName({ node: current, adapter, scope: currentScope, path: null })
+      && walkPath.slice(0, -1).every(k => isPristineProxyGlobal(adapter, k))
       && isStaticPlacement(walkPath.at(-1))
       && !isMutatedGlobalSlot(adapter, walkPath.at(-1))) {
     return walkPath.at(-1);
@@ -2192,7 +2175,7 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
         });
       }
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
-          && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k) && !isMutatedGlobalSlot(adapter, k))) {
+          && keys.slice(0, -1).every(k => isPristineProxyGlobal(adapter, k))) {
         // leaf must be a recognised constructor name (`isStaticPlacement` whitelists the
         // capitalised globals dispatch consults). without this gate, `const {window: {foo}}
         // = globalThis` would return `'foo'` to downstream `resolveBuiltIn` which then
