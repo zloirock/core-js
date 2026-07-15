@@ -7,12 +7,14 @@
 import {
   isAliasProxyRoot, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
   symbolKeyToEntry,
+  proxyGlobalRootName,
 } from '../helpers/class-walk.js';
 import {
   isTopLevelThisContext,
   collectFoldedReceiverSideEffects,
   isDirectiveStatement,
   isMutatedGlobalSlot,
+  isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
   isVarDeclaratorInLoopBody,
   kebabToCamel,
@@ -508,7 +510,7 @@ function resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapte
   // a mutated proxy RECEIVER (`window = fake; const { Promise: P } = window`) destructures the
   // user's replacement - the pattern keys no longer name pristine globals (the key-level gate
   // below covers mutated LEAF keys; this covers the replaced container itself)
-  if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver) || isMutatedGlobalSlot(adapter, receiver)) return null;
+  if (!receiver || !isPristineProxyGlobal(adapter, receiver)) return null;
   return walkProxyDestructurePattern({ pattern, name, scope, adapter, seen, path, usageNode });
 }
 
@@ -588,7 +590,7 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
         : obj.property?.name;
       // a mutated hop slot (`window.self = fake`) is the user's replacement, not the global -
       // the chain no longer re-enters the pristine global-object surface
-      if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey) || isMutatedGlobalSlot(adapter, memberKey)) return false;
+      if (!memberKey || !isPristineProxyGlobal(adapter, memberKey)) return false;
       obj = peelChainRootValue(obj.object);
     }
     if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
@@ -858,14 +860,7 @@ function isProxyGlobalIdentifier({ node, scope, adapter, seen, path, usageNode =
   // a mutated proxy SLOT (`window = fake`) holds the user's replacement: neither the direct
   // name nor an alias resolving to it re-enters the pristine global surface - what an alias
   // holds depends on capture order, which no span model covers, so both stay ungated raw
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name, path)) {
-    return !isMutatedGlobalSlot(adapter, node.name);
-  }
-  // follow const alias: `const g = globalThis` / `const g = self`. thread `usageNode` so a reassigned
-  // root captured earlier (`const g = holder.x; holder = {}; ...`) anchors its dominance at the capture
-  // read, not the final host use - else a write after the capture wrongly kills the alias
-  const resolved = resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path, usageNode });
-  return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved) && !isMutatedGlobalSlot(adapter, resolved);
+  return proxyGlobalRootName({ node, scope, adapter, path, seen, usageNode }) !== null;
 }
 
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
@@ -1212,7 +1207,7 @@ export function maximalProxyGlobalPrefix(node, aliasCtx = null, { allowSideEffec
       : memberKeyName(member);
     // a mutated hop slot (`window.self = fake`) is the user's redirection - collapsing the hop
     // away would silently read the pristine global instead of the replacement
-    if (key && POSSIBLE_GLOBAL_OBJECTS.has(key) && !isMutatedGlobalSlot(aliasCtx?.adapter, key)) prefix = member;
+    if (key && isPristineProxyGlobal(aliasCtx?.adapter, key)) prefix = member;
     else break;
   }
   return prefix;
