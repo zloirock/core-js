@@ -35,6 +35,7 @@ import {
   isStaticPlacement,
   isTransparentWrapper,
   maximalProxyGlobalPrefix,
+  navHasUnresolvableProxyHop,
   peelChainAssignment,
   peelReceiverSequenceTail,
   resolveKey,
@@ -117,6 +118,15 @@ export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path 
   // proxy navigation and dropping `Map` to `_globalThis.prototype` (undefined off-engine)
   const hopKey = resolveKey({ node: hopMember.property, computed: hopMember.computed, scope, adapter, path });
   if (!hopKey || !POSSIBLE_GLOBAL_OBJECTS.has(hopKey)) return null;
+  // a chain-ASSIGN root whose VALUE is a NAVIGATION is not this plan's shape: it leaked in through
+  // `resolveObjectName`, which peels the assignment and reports the value's LEAF
+  // (`(k = globalThis.self)?.self` -> 'self') as the "root" - the render then substituted the leaf's
+  // ponyfill where every sibling path substitutes the chain ROOT (one object at runtime, a diverging
+  // import set). the standard collapse anchors through assignments now, so it owns that shape. an assign
+  // storing a BARE identifier (`(q = globalThis).self`) stays: there the peel reports the actual root,
+  // and this plan's SE harvest is what keeps the sequence-prefixed twins of that shape collapsing
+  const { value: caValue, outer: caOuter } = peelChainAssignment(descendToChainRoot(hopMember).root ?? hopMember);
+  if (caOuter && peelReceiverSequenceTail(caValue)?.type !== 'Identifier') return null;
   // resolve the CHAIN ROOT global, matching the Identifier collapse which substitutes the ROOT (not the
   // leaf hop): walk past the proxy hops to the call and resolve it by inlining. `.window` / `.self` chains
   // alike then read off the always-pure `_globalThis`, where the leaf-hop `window` may carry no pure entry
@@ -160,13 +170,34 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // or keep an alias, harvest buried SE in eval order, recurse a deeper nav) against different substrates. this
 // is the single source; each emitter RENDERS the result (babel builds AST, unplugin slices text). null when
 // not collapsible. uses only shared provider primitives + the passed `resolvePure`. shapes:
-//   { kind: 'collapse', rootBinding: { alias: node } | { pure: { entry, hintName } },
-//     harvestedSE: node[], property: node, computed: bool }
+//   { kind: 'collapse', rootBinding: { alias: node } | { keep: node } | { pure: { entry, hintName } },
+//     harvestedSE: node[], property: node, computed: bool, optional: bool }
 //   { kind: 'member', inner: <plan>, property: node, computed: bool }   // deeper nav under a kept leaf chain
+// the three root kinds differ in what the renderer owes them. `alias` is an identifier whose OWN declaration
+// the pass already rewrote, so it is emitted verbatim. `pure` is swapped for an injected binding. `keep` is
+// an expression that must stay (a chain-assign the plan may not root through), and unlike `alias` its own
+// proxy root is still raw - a renderer that emits it verbatim leaks that root (`globalThis` on ie:11).
+// `optional` re-hangs a `?.` the erased span carried onto the kept leaf. only ever set for a KEPT root, whose
+// definedness the plan cannot vouch for: `X?.self.Array` is `X?.Array` because a proxy hop is a realm-local
+// self-reference, so the hop drops while its guard has to stay. a SWAPPED root is always defined, so its
+// guard is dead and never travels
 export function planProxyReceiver(receiver, {
   aliasCtx = null, isWriteTarget = false, bailOnPureLeaf = true, throughChainAssign = false, resolvePure,
 }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
+  // a chain-assignment whose assigned VALUE navigates a hop with no ponyfill entry (`(n = globalThis.window)
+  // .self.X`) may not be rooted THROUGH: routing to the pure root would re-bind the user's variable to a
+  // global the source never stored there, and off-browser the value really is undefined. but the assignment
+  // EXPRESSION still sits on the proxy surface, so it is a root in its own right - exactly what an alias
+  // root is (`const g = globalThis; g.self.X` keeps `g`, drops the hops). keeping it verbatim leaves target
+  // and value precisely as written, while the redundant hops above it still drop: those are realm-local
+  // self-references (`x.self === x`), and reading one raw would lean on an engine `self` that need not
+  // exist. the plain descent (no `throughChainAssign`) stops AT the assignment, so the subject falls out of
+  // the canonical walk with no bespoke one. a ponyfilled value (`(q = globalThis.self).X`) roots through as
+  // before - there the value provably IS the global
+  const chainAssign = throughChainAssign ? peelChainAssignment(descendToChainRoot(receiver).root) : null;
+  const keptAssignRoot = chainAssign?.outer && navHasUnresolvableProxyHop(chainAssign.value, resolvePure)
+    ? chainAssign.outer : null;
   // collapsible only when the whole `.object` is the proxy-nav prefix; else try call/IIFE-rooted, then a deeper
   // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`). compare against the
   // WRAPPER-peeled object - the prefix walker returns the peeled member while the raw `.object` may be a
@@ -203,12 +234,19 @@ export function planProxyReceiver(receiver, {
   const rootPure = root && resolvePure({ kind: 'global', name: root.name });
   // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
   // root swaps to its pure ctor
-  const isAliasRoot = isAliasProxyRoot(root, aliasCtx);
+  const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(root, aliasCtx);
   if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
   return {
     kind: 'collapse',
-    rootBinding: isAliasRoot ? { alias: root } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
-    harvestedSE: collectFoldedReceiverSideEffects(receiver.object),
+    rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
+      : isAliasRoot ? { alias: root } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
+    // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
+    // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
+    // assignment and still have to ride ahead, in source order
+    harvestedSE: collectFoldedReceiverSideEffects(receiver.object)
+      .filter(effect => effect !== keptAssignRoot),
+    // the erased hop's own `?.` guarded the KEPT root, so it moves to the leaf that now reads off it
+    optional: !!(keptAssignRoot && objectCore.optional),
     property: receiver.property,
     computed: receiver.computed,
   };
@@ -484,8 +522,38 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   };
 }
 
+// how the well-known-symbol strand renders the receiver it collapses. normally the whole proxy navigation
+// folds to the pure ROOT, and the prefix SE of a sequence receiver re-emits via `droppedSe`
+// (`(n++, globalThis.self)` -> `(n++, _globalThis)`) - the same fold both emitters apply to every other
+// dispatch (`(n++, globalThis.self).Map` -> `(n++, _Map)`), where babel used to keep a leaf `_self` for
+// symbol-iter alone.
+// the exception is a chain-assignment: rooting through it proves the ROOT is a proxy global, not that the
+// assignment STORED one. a value navigating a hop with no ponyfill entry
+// (`(a = globalThis.window).self[Symbol.iterator]`) is not the global, so folding to the pure root would
+// answer with OUR global's iterator and silently discard the object the source named. the assignment stays
+// as the receiver (`keepRoot`); the redundant hop above it drops all the same, a proxy hop being a
+// realm-local self-reference. this is the rule the shared receiver plan applies, so the two cannot drift
+function resolveSymbolReceiverProxyRoot({ node, receiverChain, scope, adapter, path, resolvePure }) {
+  const keptAssign = resolvePure ? peelChainAssignment(descendToChainRoot(receiverChain).root) : null;
+  const isOptionalAccess = ownChainOptionalCount(node) > 0;
+  if (keptAssign?.outer && navHasUnresolvableProxyHop(keptAssign.value, resolvePure)) {
+    return { keepRoot: keptAssign.outer, droppedSe: [], isOptionalAccess };
+  }
+  const rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
+  if (!rootName) return null;
+  const rescue = seedChainRootCallRescue({ node: node.object, scope, adapter, path });
+  // "does this access sit under a `?.`" decides the emitters' droppedSe routing (inline in the
+  // guard-memoized sequence vs the flat SE channel) - decide it ONCE here via the flag-based OWN-chain
+  // walk so both emitters agree at ANY hop depth (babel's node TYPES promote whole chains while estree
+  // flags only the introducing hop - emitter-local re-derivation from either shape diverges on a
+  // mid-chain `?.`). the walk stops at SEALING wrappers: a paren / cast / sequence-terminated `?.` is not
+  // live for this access, and the emitters' non-optional route is the one that preserves its hop SE
+  return { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue), isOptionalAccess };
+}
+
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
+  resolvePure = null,
 }) {
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
@@ -531,26 +599,9 @@ export function handleMemberExpressionNode({
       if (iteratorStrandLive && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
         // subsume the chain so the identifier visitor does not queue a parallel rewrite (unplugin crash)
         markSubsumedProxyChain(receiverChain, handledObjects, scope, adapter, path);
-        // collapse to the proxy ROOT from the (sequence-peeled) tail chain; the prefix SE of a sequence
-        // receiver re-emits via `droppedSe` (`(n++, globalThis.self)` -> `(n++, _globalThis)`). this keeps
-        // BOTH emitters consistent with how they collapse a sequence-tail hop for other dispatch
-        // (`(n++, globalThis.self).Map` -> `(n++, _Map)`); babel kept a leaf `_self` ONLY for symbol-iter
-        const rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
-        if (rootName) {
-          const rescue = seedChainRootCallRescue({ node: node.object, scope, adapter, path });
-          // "does this access sit under a `?.`" decides the emitters' droppedSe routing (inline
-          // in the guard-memoized sequence vs the flat SE channel) - decide it ONCE here via the
-          // flag-based OWN-chain walk so both emitters agree at ANY hop depth (babel's node TYPES
-          // promote whole chains while estree flags only the introducing hop - emitter-local
-          // re-derivation from either shape diverges on a mid-chain `?.`). the walk stops at
-          // SEALING wrappers: a paren / cast / sequence-terminated `?.` is not live for this
-          // access, and the emitters' non-optional route is the one that preserves its hop SE
-          symbolReceiverProxyRoot = {
-            rootName,
-            droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue),
-            isOptionalAccess: ownChainOptionalCount(node) > 0,
-          };
-        }
+        symbolReceiverProxyRoot = resolveSymbolReceiverProxyRoot({
+          node, receiverChain, scope, adapter, path, resolvePure,
+        });
       } else if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
         && (receiverChain.type === 'MemberExpression' || receiverChain.type === 'OptionalMemberExpression')) {
         // NON-collapsing strand (a non-iterator well-known key): the member-chain receiver stays

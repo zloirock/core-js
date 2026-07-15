@@ -1137,6 +1137,7 @@ export function createUsageVisitors({
     }
     const meta = handleMemberExpressionNode({
       node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
+      resolvePure,
     });
     if (meta) {
       onUsage(meta, path);
