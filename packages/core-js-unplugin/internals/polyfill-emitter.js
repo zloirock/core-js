@@ -27,12 +27,15 @@ import {
   findProxyGlobal,
   keySideEffectsOnly,
   maximalProxyGlobalPrefix,
+  navHasUnresolvableProxyHop,
   peelChainAssignment,
+  staticMayEraseReceiver,
   peelReceiverSequenceTail,
   prependChainAssignmentEffect,
   receiverSideEffectsOnly,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { globalProxyMemberName } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolveSymbolIteratorEntry, symbolIteratorHint } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint, deoptionalizeNeedleAtPositions } from './transform-queue.js';
 import {
@@ -91,14 +94,25 @@ function seTailRootBinding(seTail, injectPureImport) {
 // accessor and the wrapper tokens (parens, ChainExpression) between hops fall away. the leaf-adjacent hop
 // collapses `?.` to `.` (the polyfilled leaf is always defined); mid-chain hops preserve their optionality
 // (`(globalThis?.X)?.Y` keeps `?.Y` since `_globalThis.X` may still be null)
-function rebuildWrappedProxyChain(hops, binding, code) {
+// `keepsRoot`: the binding is an expression the plan KEEPS rather than a substituted always-defined root,
+// so a `?.` sitting directly on it is live and must be re-emitted. every other root is always-defined and
+// that connector is dead, which is why it is dropped by default
+// `rootOptional`: the ERASED prefix carried a live `?.` of its own (`((d = root.window)?.self as any).Array`
+// - the guard sat on the dropped hop, not on any survivor). the binding is a kept root, so that guard is
+// live and has to re-hang on the innermost hop now reading off it
+function rebuildWrappedProxyChain(hops, binding, code, keepsRoot = false, rootOptional = false) {
   let src = binding;
   for (let i = hops.length - 1; i >= 0; i--) {
     const hop = hops[i];
     const propText = code.slice(hop.property.start, hop.property.end);
-    const useOptional = i !== hops.length - 1 && hop.optional;
+    const innermost = i === hops.length - 1;
+    const useOptional = innermost ? (keepsRoot && hop.optional) || rootOptional : hop.optional;
     if (hop.computed) src += useOptional ? `?.[${ propText }]` : `[${ propText }]`;
     else src += useOptional ? `?.${ propText }` : `.${ propText }`;
+    // the erased prefix ended in a wrapper, and a wrapper SEALS an optional chain: what follows reads
+    // unconditionally off the guarded result. re-hanging the guard without re-sealing would let the rest of
+    // the chain short-circuit too, swallowing a throw the source performs
+    if (innermost && rootOptional) src = `(${ src })`;
   }
   return src;
 }
@@ -1229,14 +1243,40 @@ export function createPolyfillEmitter({
       if (suppressInject) return null;
       const dropped = dropLeadingProxyHops(hops, assignAliasCtx, true);
       if (!dropped.boundary) return null;
-      const rhsSrc = rootAliased ? code.slice(caRhs.start, caRhs.end) : resolveReceiverSource(caRhs, metaPath).src;
       const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(rootIdent);
+      // rooting THROUGH the assignment proves the ROOT is a proxy global, not that the assigned VALUE is
+      // one. a value navigating a hop with no ponyfill entry (`(n = globalThis.window).self.X`) is not the
+      // global, so re-rooting it would re-bind the user's variable to one the source never stored there.
+      // the shared receiver plan keeps such an assignment as a root in its OWN right - mirror that shape:
+      // substitute only the value's own root so target and value stay exactly as written, and emit no
+      // sequence tail (the assignment IS the receiver). the redundant hops above it still drop, since a
+      // proxy hop is a realm-local self-reference whose raw read would lean on an engine `self`
+      const keepsAssignRoot = navHasUnresolvableProxyHop(caRhs, ({ name }) => resolveGlobalPolyfill(name));
+      // a fully-ponyfilled RHS navigation (`q = globalThis.self`) is a VALUE, not a receiver: in value
+      // position both emitters spell it as the LEAF's own ponyfill (`_self`), so the assigned value here
+      // must too. routing it through the receiver resolver collapsed it to the ROOT (`_globalThis`) -
+      // the same object at runtime, but a different import set than the AST emitter's natural member
+      // rewrite produces, so the emitters drifted apart on spelling alone
+      // a sequence value's substitutable part is its TAIL (`(e++, globalThis.self)` - the prefix effect
+      // stays verbatim, the tail spells as the leaf ponyfill), so peel to it and splice the substitution
+      // back inside the value's own text
+      const rhsTail = peelReceiverSequenceTail(caRhs);
+      const rhsLeafName = keepsAssignRoot || rootAliased ? null
+        : globalProxyMemberName({ node: rhsTail, ...assignAliasCtx });
+      const rhsLeafPure = rhsLeafName && resolveGlobalPolyfill(rhsLeafName);
+      const rhsSrc = rootAliased ? code.slice(caRhs.start, caRhs.end)
+        : keepsAssignRoot ? `${ code.slice(caRhs.start, rootIdent.start) }${ rootBinding }${
+          code.slice(rootIdent.end, caRhs.end) }`
+        : rhsLeafPure ? `${ code.slice(caRhs.start, rhsTail.start) }${
+          injectPureImport(rhsLeafPure.entry, rhsLeafPure.hintName) }${ code.slice(rhsTail.end, caRhs.end) }`
+        : resolveReceiverSource(caRhs, metaPath).src;
       // the peeled RHS may sit inside wrappers belonging to the assignment text (`a = (c++, X)` -
       // the value is the sequence, the closing paren is source between value end and assign end):
       // keep that remainder so the re-emitted assignment stays balanced
-      const bindingInner = `${ code.slice(chainAssign.start, caRhs.start) }${ rhsSrc }${
-        code.slice(caRhs.end, chainAssign.end) }, ${
-        [...dropped.droppedSe.map(effect => nodeSrc(effect)), rootBinding].join(', ') }`;
+      const assignSrc = `${ code.slice(chainAssign.start, caRhs.start) }${ rhsSrc }${
+        code.slice(caRhs.end, chainAssign.end) }`;
+      const bindingInner = keepsAssignRoot ? assignSrc
+        : `${ assignSrc }, ${ [...dropped.droppedSe.map(effect => nodeSrc(effect)), rootBinding].join(', ') }`;
       const binding = `(${ bindingInner })`;
       skipCollapsedChainExceptRootCall(chainAssign, skippedNodes, dropped.droppedSe);
       // a MID-CHAIN wrapper (`((a = globalThis).self).Array`) makes the flat tail slice carry the
@@ -1247,7 +1287,8 @@ export function createPolyfillEmitter({
       // flattens to the babel canon `(c++, q = _globalThis, _globalThis)`
       if (hasMidChainWrappers) {
         return {
-          src: rebuildWrappedProxyChain(hops, binding, code), leafNode: chainAssign,
+          src: rebuildWrappedProxyChain(hops, binding, code, keepsAssignRoot,
+            keepsAssignRoot && !!dropped.boundary?.optional), leafNode: chainAssign,
           bindingInner: hops.length ? undefined : bindingInner,
         };
       }
@@ -1941,6 +1982,10 @@ export function createPolyfillEmitter({
     // assignment to side effects so emit becomes `(a = Array, _Array$from)(args)`.
     // instance dispatch never reaches here (routes through replaceInstance), so no risk of
     // duplicating with memoize-captured form
+    // the replacement erases the receiver navigation - stand down where that navigation is not erasable
+    // (a live `?.` over a chain-assign storing something not provably the global): the guard would go with
+    // it and the static would run where the source short-circuits. same provider predicate babel asks
+    if (!staticMayEraseReceiver(node.object, ({ name }) => resolveGlobalPolyfill(name))) return;
     transforms.add(start, end,
       composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, insertAt: receiverEffectCount, metaPath, start }));
   }

@@ -3737,6 +3737,12 @@ export function createDestructureEmitter({
     let collapse = planProxyReceiver(target, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
     while (collapse?.kind === 'member') collapse = collapse.inner;
     if (collapse?.kind !== 'collapse') return null;
+    // a `keep` root is an expression the plan may not root through (a chain-assign storing a value that is
+    // not provably the global). it stays verbatim so the target keeps exactly what the source gave it, but
+    // unlike an `alias` its own proxy root is still raw - substitute just that root inside it. it carries
+    // its own effect, so it IS the root text rather than a harvested prefix (harvesting it too would run
+    // the assignment twice). the redundant hops above it still drop, as for any other root
+    const keepRoot = collapse.rootBinding.keep ?? null;
     const rootPure = collapse.rootBinding.pure ?? null;
     // a SE-bearing proxy hop (`globalThis[(c++, 'self')].Array`) is BAILED by maximalProxyGlobalPrefix below
     // (it cannot drop the hop without dropping the effect), which would leave a dead `.self` off the pure
@@ -3800,11 +3806,22 @@ export function createDestructureEmitter({
     const spanNode = maxPrefix.start <= wrappedRoot.start ? maxPrefix : wrappedRoot;
     const start = spanNode.start - baseStart;
     const prefixEnd = Math.max(maxPrefix.end, wrappedRoot.end);
+    // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but ONLY it is
+    // exempt. an effect the sequence around it carries (`(log.push("x"), t = root.window).self.X`) is not
+    // the assignment: dropping it loses the effect AND strands its own queued rewrite with no text to
+    // compose into (the queue then throws). same exemption the shared plan applies
     const prefixSrcs = collectFoldedReceiverSideEffects(spanNode)
+      .filter(effect => effect !== keepRoot)
       .map(effect => src.slice(effect.start - baseStart, effect.end - baseStart));
     // direct root swaps to its pure binding; an alias root keeps its (already-rewritten) name
     const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(proxyRoot);
-    const rootText = prefixSrcs.length ? `(${ [...prefixSrcs, rootBinding].join(', ') })` : rootBinding;
+    // a kept root re-emits its own source with ONLY its inner proxy root swapped, so the value the source
+    // stored survives byte-for-byte while the raw root it was written against still gets polyfilled
+    const keepText = keepRoot && `(${ src.slice(keepRoot.start - baseStart, proxyRoot.start - baseStart) }${
+      rootBinding }${ src.slice(proxyRoot.end - baseStart, keepRoot.end - baseStart) })`;
+    const rootText = keepRoot
+      ? (prefixSrcs.length ? `(${ [...prefixSrcs, keepText].join(', ') })` : keepText)
+      : prefixSrcs.length ? `(${ [...prefixSrcs, rootBinding].join(', ') })` : rootBinding;
     // drop the leaf's redundant optional connector ONLY where babel does, for parity: a pure-import
     // root (babel's normalizeOptionalChain on the injected `_globalThis`) or a collapsed proxy hop
     // (babel rebuilds the member non-optional). a bare ALIAS root with NO hop keeps `?.` - babel
@@ -3813,7 +3830,10 @@ export function createDestructureEmitter({
     // connector DIRECTLY on the always-defined root; deeper `?.` on unknown leaves stay
     const tailSrc = rootPure || prefixEnd > wrappedRoot.end
       ? dropLeafOptionalConnector(src.slice(prefixEnd - baseStart)) : src.slice(prefixEnd - baseStart);
-    return src.slice(0, start) + rootText + tailSrc;
+    // a KEPT root is not always-defined, so a `?.` the erased prefix carried has to survive on the leaf now
+    // reading off it (`(b = _root.window)?.Array`) - the plan says whether it did. every other root IS
+    // always-defined, and its guard is dead by construction
+    return src.slice(0, start) + rootText + (collapse.optional ? `?${ tailSrc }` : tailSrc);
   }
 
   // the natural global-rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
@@ -3850,12 +3870,17 @@ export function createDestructureEmitter({
     // unary operand, ...) self-limits the loop. `allowSideEffectKeys`: advance THROUGH a
     // SE-bearing proxy hop too - the collapse below routes it to the call-rooted plan, which
     // HARVESTS the dropped key SE (`(eff(), _globalThis).X`)
+    // compare ROOT to ROOT: the canonical descent always peels to the innermost identifier, while the
+    // anchor may be an Identifier, a chain-assign EXPRESSION, or the member an assign stores
+    // (`(k = globalThis.self)?...` anchors at `globalThis.self`) - comparing against the anchor NODE only
+    // ever matched the Identifier case, and the climb died at the first non-member parent
+    const anchorRoot = descendToChainRoot(metaPath?.node ?? {}, true).root ?? metaPath?.node;
     let recPath = peelOxc(metaPath?.parentPath);
     for (;;) {
       if (recPath?.node?.type === 'MemberExpression' || recPath?.node?.type === 'OptionalMemberExpression') {
         if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
           { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
-      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== metaPath?.node) {
+      } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== anchorRoot) {
         break;
       }
       recPath = peelOxc(recPath.parentPath);

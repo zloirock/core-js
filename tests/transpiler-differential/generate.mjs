@@ -448,6 +448,35 @@ function * generateProxyHopCtor() {
   }
 }
 
+// --- Kept proxy root: a chain-assign whose VALUE navigates a hop core-js does not ponyfill ---
+// rooting the hop collapse THROUGH such an assignment proves the ROOT is a proxy global, not that the
+// assignment STORED one - `window` carries no ponyfill entry, so its value is whatever the environment has.
+// the collapse therefore keeps the assignment as its own root and drops only the redundant hops above it.
+// BOTH halves need watching, and one value cannot carry both: `r` is the tail's result (a swallowed guard
+// or a re-rooted read shows up there) while the assigned target rides in `effects` (a target re-bound to
+// the pure root shows up as a changed log entry). the rig gives `window` a live slot. two negatives: a
+// bare proxy name as the value (still roots through - the target reads the global) and a fully-ponyfilled
+// NAVIGATION (`globalThis.self`), which locks the spelling canon too - in value position the leaf's own
+// ponyfill (`_self`) is the substitution, not a collapse to the root; the emitters drifted on exactly that
+// (one object at runtime, different import sets), and the import-set oracle is what caught it
+const KPR_SHAPES = [
+  { id: 'guarded-instance', value: 'globalThis.window', tail: '?.self.Array.prototype.includes.call([1, 2], 2)' },
+  { id: 'unguarded-instance', value: 'globalThis.window', tail: '.self.Array.prototype.flat.call([1, [2]])' },
+  { id: 'guarded-static', value: 'globalThis.window', tail: '?.self.Array.from?.([1])' },
+  { id: 'sealed-by-wrapper', value: 'globalThis.window', tail: '?.self).Array.prototype.at.call([5], 0', seal: true },
+  { id: 'provable-value-negative', value: 'globalThis', tail: '?.self.Array.prototype.findLast.call([1], x => x)' },
+  { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },
+  { id: 'se-around-assign', value: 'globalThis.window', tail: '?.self.Array.prototype.some.call([1], x => x)', se: true },
+];
+function * generateKeptProxyRoot() {
+  for (const shape of KPR_SHAPES) {
+    const assign = shape.se ? `(log.push("se"), t = ${ shape.value })` : `(t = ${ shape.value })`;
+    const expr = shape.seal ? `(${ assign }${ shape.tail })` : `${ assign }${ shape.tail }`;
+    const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis.window); return v; })()`;
+    yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false };
+  }
+}
+
 // --- Discarded computed-key prefix proxy-global (text-emitter compose crash) ---
 // a PURE proxy-global (`globalThis`) buried in a DISCARDED computed-key sequence prefix
 // (`x[(globalThis, 'flat')]`) is peeled to the tail key, and the polyfill swap drops the whole `[...]`
@@ -3290,6 +3319,7 @@ export function * generate() {
   yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
+  yield * generateKeptProxyRoot();
   yield * generateDiscardedKeyPrefixProxy();
   yield * generateNestedSeHopReceiver();
   yield * generateBuriedFoldKeySE();
