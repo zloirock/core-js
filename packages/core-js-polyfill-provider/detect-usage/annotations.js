@@ -11,7 +11,10 @@ import {
   getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
-import { maximalProxyGlobalPrefix, peelChainAssignment, resolveKey, unwrapTransparentSeq } from './resolve.js';
+import {
+  maximalProxyGlobalPrefix, navHasUnresolvableProxyHop, peelChainAssignment, peelReceiverSequenceTail,
+  resolveKey, unwrapTransparentSeq,
+} from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
 // louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
@@ -322,20 +325,28 @@ export function isPolyfillableOptional({
   if (member === node
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
       { allowSideEffectKeys: true, throughChainAssign: true }) === objCore) return true;
-  // a BARE chain-assign subject navigating a PROXY HOP (`(q = globalThis)?.self.x`, nested
-  // `(m = n = globalThis)?.self.x`): the guarded value is the assign RESULT - the always-defined
-  // proxy global itself - so the `?.` is as dead as over the navigated forms; the collapse
-  // preserves the assignment as a SE and the hop drops off it. gated on the hop key: a non-hop
-  // member (`(q = globalThis)?.Array...`) keeps the (dead but harmless) guard - both emitters'
-  // guarded shape is already canonical there, and the text emitter has no hop-collapse claim to
-  // strip the `?.` into. an assign whose VALUE is itself a navigation (`(q = globalThis.self)?.x`)
-  // keeps the guard: the assigned value may be undefined off-engine
+  // a chain-assign subject navigating a PROXY HOP (`(q = globalThis)?.self.x`, nested
+  // `(m = n = globalThis)?.self.x`): the guarded value is the assign RESULT, so the `?.` is dead exactly
+  // when that RESULT is always defined once substituted. that holds for a bare proxy name AND for a
+  // navigation core-js ponyfills end to end (`(q = globalThis.self)?.x` -> `_self`) - the substitution is
+  // what makes it defined, so the source's own off-engine undefined says nothing. it does NOT hold when
+  // the value navigates a hop with no entry (`(w = globalThis.window)?.x`): that stays a raw read which
+  // really can be undefined off-browser, and its guard has to fire. gated on the hop key too: a non-hop
+  // member (`(q = globalThis)?.Array...`) keeps the (dead but harmless) guard - both emitters' guarded
+  // shape is already canonical there, and the text emitter has no hop-collapse claim to strip the `?.` into
   if (member === node && objCore?.type === 'AssignmentExpression'
     && memberKey && POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) {
     const { value, outer } = peelChainAssignment(objCore);
-    const valueCore = unwrapRuntimeExpr(unwrapTransparentSeq(value ?? objCore));
-    if (outer && valueCore?.type === 'Identifier'
-      && isProxyGlobalIdentifierNode({ node: valueCore, scope, adapter, path })) return true;
+    // definedness of a sequence value is decided by its TAIL (`(e++, globalThis.self)` is exactly as
+    // defined as `globalThis.self`), so peel SE-bearing tails too - the SE-bailing unwrap left such a
+    // value unclassified and the guard stayed, while the AST emitter's collapse dropped it: same object
+    // at runtime, drifting emit shapes and import sets
+    const valueCore = unwrapRuntimeExpr(peelReceiverSequenceTail(value ?? objCore));
+    const valueName = valueCore?.type === 'Identifier'
+      ? (isProxyGlobalIdentifierNode({ node: valueCore, scope, adapter, path }) ? valueCore.name : null)
+      : globalProxyMemberName({ node: valueCore, scope, adapter, path });
+    if (outer && valueName && POSSIBLE_GLOBAL_OBJECTS.has(valueName)
+      && !navHasUnresolvableProxyHop(valueCore, resolve)) return true;
   }
   const objName = objCore?.type === 'Identifier'
     ? (adapter.hasBinding(scope, objCore.name, path) ? null : objCore.name)
