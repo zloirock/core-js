@@ -36,7 +36,7 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
 import { collectQualifiedSegments, isUnionType, matchOverloadByArgs, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
-import { getTypeArgs, isCleanDestructureAliasBinding } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isCleanDestructureAliasBinding, isGuardedAliasingWrite } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -180,6 +180,12 @@ export function createCallResolution({
   function staticPairFromDestructure(scope, name, path = null) {
     const binding = getScopeBinding(scope, name, path);
     if (!binding?.path) return null;
+    // a conditionally-executed aliasing write assigns on one path only - the SAME poison the
+    // injector's body-extract route applies at registration. without this bail the value-flow
+    // route narrows a call result the untaken path never produces (benign - the call throws
+    // there first) and the emitters diverge: babel's post-rewrite scope loses the pattern
+    // while the pristine estree walk still resolves it, so only unplugin narrowed
+    if (isGuardedAliasingWrite(binding)) return null;
     if (binding.constantViolations?.length) {
       // same clean-alias gate the injector's `registerBodyExtractAlias` applies, so the value-flow
       // route and the alias-entry route agree on which assignment-destructures resolve to a static
