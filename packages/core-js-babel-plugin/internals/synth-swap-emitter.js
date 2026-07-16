@@ -318,11 +318,19 @@ export default function createSynthSwapEmitter({
     const rootNode = plan.harvestedSE.length
       ? t.sequenceExpression([...plan.harvestedSE.map(expr => t.cloneNode(expr)), rootBinding])
       : rootBinding;
+    // dropped-hop KEY effects fold into the surviving leaf key as a sequence prefix - the position where
+    // the native order evaluates them (after the root and its guard, before the read)
+    const keyPrefix = plan.keyPrefixSE ?? [];
+    const property = keyPrefix.length
+      ? t.sequenceExpression([...keyPrefix.map(expr => t.cloneNode(expr)),
+        plan.computed ? t.cloneNode(plan.property) : t.stringLiteral(plan.property.name)])
+      : t.cloneNode(plan.property);
+    const computed = plan.computed || keyPrefix.length > 0;
     // the plan re-hangs onto the leaf a `?.` that guarded a root it kept - the dropped hop was a
     // realm-local self-reference, its guard was not
     return plan.optional
-      ? t.optionalMemberExpression(rootNode, t.cloneNode(plan.property), plan.computed, true)
-      : t.memberExpression(rootNode, t.cloneNode(plan.property), plan.computed);
+      ? t.optionalMemberExpression(rootNode, property, computed, true)
+      : t.memberExpression(rootNode, property, computed);
   }
 
   function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false, throughChainAssign = false } = {}) {

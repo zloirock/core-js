@@ -435,24 +435,15 @@ QUnit.test('global-proxy: unguarded chain-assign over an unpolyfilled hop stays 
   assert.same(va, globalThis.window);
   log = [];
   let kb;
-  function hopKey() {
-    log.push('k');
-    return 'self';
-  }
   function effectInHopKey() {
-    return (kb = globalThis.window)?.[hopKey()].Array.prototype.at.call([5], 0);
+    // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: only a foldable key migrates
+    return (kb = globalThis.window)?.[(log.push('k'), 'self')].Array.prototype.at.call([5], 0);
   }
-  // a SE-bearing hop key BAILS the collapse (dropping the hop would drop its effect), so this one reads
-  // `.self` off the window for real - it answers exactly what the source would, realm by realm.
-  // the probe has to reach that property through a key this pass cannot fold: written as a plain proxy
-  // navigation it is itself collapsed to the ponyfill, and would report the polyfill's answer instead of
-  // the realm's - which is the very thing under test here
-  let selfKey = 'self';
-  selfKey += '';
-  const readsSelfOffWindow = hasWindow && globalThis.window[selfKey] !== undefined;
-  if (!hasWindow) assert.same(effectInHopKey(), undefined);
-  else if (readsSelfOffWindow) assert.same(effectInHopKey(), 5);
-  else assert.throws(effectInHopKey, TypeError);
+  // a SE-bearing hop key MIGRATES into the surviving leaf key (`_ref[(c++, 'self')].Array` ->
+  // `_ref[c++, "Array"]`): the hop is rescued like its plain twin, and the key effect still evaluates
+  // exactly where the native order puts it - past the guard, before the read
+  if (hasWindow) assert.same(effectInHopKey(), 5);
+  else assert.same(effectInHopKey(), undefined);
   assert.same(kb, globalThis.window);
   // the key only evaluates past the guard - absent window short-circuits before it, as the source does
   assert.deepEqual(log, hasWindow ? ['k'] : []);
