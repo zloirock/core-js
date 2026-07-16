@@ -220,4 +220,18 @@ BrowserStack Automate; CI wiring.
 - **farm on v4:** farm's native compiler hard-crashes on the v4 core-js modules and, being
   uncaught, kills the whole throughput run — so farm is excluded from the active throughput bundler
   set (7 remain). It's throughput-only; the runtime tier uses rollup and is unaffected. The builder
-  stays in `build.mjs` for easy re-enable.
+  stays in `build.mjs` for easy re-enable. (Root cause: farm's resolver mishandles v4 core-js's
+  `"./modules/*.js"` exports subpath for extensionless `*json*` specifiers, e.g.
+  `core-js/modules/es.json.stringify`.)
+- **dual Babel (7 + 8):** the runtime tier builds every (method) under both Babel 7 (the suite's own
+  `@babel/core`/`@babel/preset-env`) and Babel 8 (isolated in `babel8/`, since two `@babel/core`
+  majors can't share a `node_modules`) — matching the repo's `test-transpiling` convention of testing
+  the babel-facing behaviour against both. `@rollup/plugin-babel@6` only supports `@babel/core@7`, so
+  a small custom transform plugin runs the chosen Babel core (via `transformAsync`) instead. Note:
+  Babel 7.29 and 8.0 emit byte-identical ES5 for the seed exercise (their helpers are unchanged for
+  these constructs), so today the two runs are a parity/regression guard rather than two distinct
+  outputs; a real delta would surface for `for-of`/spread/generator-heavy code or a future Babel that
+  changes a helper.
+- **install (`.npmrc`):** the v4-alpha `core-js` pin is a prerelease that doesn't satisfy
+  `@rsbuild/core`'s `peerOptional core-js ">= 3.0.0"`, so strict peer resolution errors. `.npmrc`
+  sets `legacy-peer-deps=true` so `npm install` succeeds.
