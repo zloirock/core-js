@@ -463,7 +463,9 @@ export default function createDestructureEmitter({
       // synths the default itself - caller-correct (the synth only evaluates when the arg is omitted; a
       // passed value destructures natively). the shared gate bounds the receiver (see its docstring);
       // anything it rejects stays native - there is no receiver-less instance fallback
-      tryRegisterParamDefaultInstanceSynth({ prop, entry, hintName });
+      if (!tryRegisterParamDefaultInstanceSynth({ prop, entry, hintName })) {
+        tryRegisterIifeArgInstanceSynth({ prop, entry, hintName });
+      }
       return;
     }
     if (!isIdentifierPropValue(prop.node.value)) return;
@@ -576,6 +578,32 @@ export default function createDestructureEmitter({
     });
     synthSwap.registerPolyfill({
       targetPath: rightPath, objectPatternPath: objectPattern, key: synthSwapPropKey(prop.node),
+      entry: use.entry, hintName: use.hintName, instance: true,
+    });
+    return true;
+  }
+
+  // the IIFE twin of the param-default instance clause: the call is the parameter's ONLY call
+  // site, so replacing the ARGUMENT with the synth literal is caller-correct the same way - the
+  // argument's value is read once, inside the literal (`(({ at }) => ...)([1, 2])` ->
+  // `(({ at }) => ...)({ at: _atMaybeArray([1, 2]) })`). the shared gate bounds the receiver's
+  // shape (bare non-global Identifier / this / re-eval-inert literal / clean member chain);
+  // anything it rejects stays native. a failed receiver typing keeps the generic dispatcher
+  function tryRegisterIifeArgInstanceSynth({ prop, entry, hintName }) {
+    const objectPattern = prop.parentPath;
+    const wrapper = objectPattern.parentPath;
+    if (wrapper?.isAssignmentPattern()) return false;
+    const argPath = synthSwap.detectIifeArgPath(wrapper, objectPattern);
+    if (!argPath || !paramDefaultInstanceSynthAllowed({
+      objectPatternNode: objectPattern.node, receiverNode: argPath.node,
+      scope: prop.scope, adapter, path: prop, resolvePure,
+    })) return false;
+    const use = refineParamDefaultInstancePure({
+      pureResult: { entry, hintName }, key: prop.node.key.name ?? prop.node.key.value,
+      receiverPath: argPath, resolveNodeType, toHint, resolvePure, path: prop,
+    });
+    synthSwap.registerPolyfill({
+      targetPath: argPath, objectPatternPath: objectPattern, key: synthSwapPropKey(prop.node),
       entry: use.entry, hintName: use.hintName, instance: true,
     });
     return true;
