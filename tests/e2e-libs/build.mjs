@@ -176,9 +176,9 @@ const babelOpts = {
 
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`). For usage-* methods pass a
 // phase; entry-global ignores it. Ordering matters: raw Rollup ignores unplugin's enforce:'post'
-// field (Vite/webpack/rspack/rsbuild/farm honor it; raw Rollup/esbuild/bun don't), so transform
-// order = array order. babel is listed FIRST so it
-// down-compiles to ES5, and unplugin runs LAST so its stdlib injection sees babel's helper output.
+// field (enforce is a Vite/webpack-family concept, not a raw-Rollup one), so transform order =
+// array order. babel is listed FIRST so it down-compiles to ES5, and unplugin runs LAST so its
+// stdlib injection sees babel's helper output.
 export async function runtimeBuild(exerciseAbs, method, phase) {
   const effPhase = method === 'entry-global' ? undefined : (phase ?? 'post');
   return withEntry(exerciseAbs, method, `rt-${ method }-${ effPhase ?? 'x' }`, async entry => {
@@ -208,10 +208,10 @@ function recorder(sink) {
   };
 }
 
-export async function captureInjections(exerciseAbs, method) {
-  return withEntry(exerciseAbs, method, `snap-${ method }`, async entry => {
+export async function captureInjections(exerciseAbs, method, phase) {
+  return withEntry(exerciseAbs, method, `snap-${ method }-${ phase ?? 'x' }`, async entry => {
     const sink = new Set();
-    const build = await rollup({ input: entry, plugins: [u('rollup', method), recorder(sink), nodeResolve(), commonjs()], onwarn() { /* ignore bundler warnings */ } });
+    const build = await rollup({ input: entry, plugins: [u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn() { /* ignore bundler warnings */ } });
     await build.generate({ format: 'es' });
     await build.close();
     return [...sink].sort();
