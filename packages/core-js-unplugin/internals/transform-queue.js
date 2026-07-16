@@ -162,7 +162,11 @@ export function deoptionalizeNeedleAtPositions(needle, baseOffset, positions) {
 // continuation. prevents `foo.barBaz` being treated as a `foo.bar` root match
 function hasRootBoundary(needle, rootLength) {
   if (needle.length === rootLength) return true;
-  const next = needle[rootLength];
+  // a valid connector may carry a gap (whitespace / comment) before the delimiter
+  // (`a.b /* c */ ?.c`), so skip it before reading - a bare index sees the space, calls
+  // this no boundary, and the guardRef candidate is never built (the needle then fails to
+  // locate and the whole file transform throws). the deoptionalize helpers already skipGap here
+  const next = needle[skipGap(needle, rootLength)];
   return next === '.' || next === '?' || next === '[' || next === '(';
 }
 
