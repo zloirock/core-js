@@ -120,6 +120,9 @@ import {
   unwrapReceiverLeaf,
   paramReboundInBody,
   paramsHaveInvisibleCallers,
+  arrayWrapSlotValueCandidates,
+  patternSlotSpreadShifted,
+  patternSlotValues,
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
@@ -3550,6 +3553,59 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   // a single-name caller cannot lose a subset - the shadow covers the only target
   check('ast-patterns: single-name shadow hides the write',
     paramReboundInBody(nestedWrite({ shadows: ['y'], writes: 'y' }), new Set(['y'])), false);
+
+  // patternSlotValues over-approximation arm: a spread at/before slot i makes every static rhs
+  // element from the spread on a POSSIBLE slot value; slots before the spread pair exactly.
+  // patternSlotSpreadShifted is the paired completeness signal precision consumers gate on
+  function ident(name) {
+    return { type: 'Identifier', name };
+  }
+  function arrayPattern(...elements) {
+    return { type: 'ArrayPattern', elements };
+  }
+  function arrayExpr(...elements) {
+    return { type: 'ArrayExpression', elements };
+  }
+  const spread = { type: 'SpreadElement', argument: ident('xs') };
+  // [, A] = [...xs, G] - slot 1 sits past the spread: G is a possible value
+  const shifted = patternSlotValues(arrayPattern(null, ident('A')), arrayExpr(spread, ident('G')), 'A');
+  check('ast-patterns: spread-shifted slot enumerates the static candidates',
+    shifted.length === 1 && shifted[0].name, 'G');
+  // [B] = [G, ...xs] - slot 0 pairs exactly before the spread
+  const exact = patternSlotValues(arrayPattern(ident('B')), arrayExpr(ident('G'), spread), 'B');
+  check('ast-patterns: pre-spread slot still pairs exactly',
+    exact.length === 1 && exact[0].name, 'G');
+  // several statics past the spread are ALL possible values of one slot
+  const multi = patternSlotValues(arrayPattern(null, ident('C')), arrayExpr(spread, ident('G1'), ident('G2')), 'C');
+  check('ast-patterns: every static past the spread is a candidate',
+    multi.map(v => v.name).join(','), 'G1,G2');
+  checkTruthy('ast-patterns: spread-shifted predicate fires past the spread',
+    patternSlotSpreadShifted(arrayPattern(null, ident('A')), arrayExpr(spread, ident('G')), 'A'));
+  check('ast-patterns: spread-shifted predicate quiet before the spread',
+    patternSlotSpreadShifted(arrayPattern(ident('B')), arrayExpr(ident('G'), spread), 'B'), false);
+  // an exactly-paired nested layer with no spread anywhere stays quiet; a spread on EITHER level
+  // (outer shifting the nested slot, or inside the nested rhs itself) reports the shift
+  check('ast-patterns: nested exact pairing stays quiet', patternSlotSpreadShifted(
+    arrayPattern(arrayPattern(ident('N'))), arrayExpr(arrayExpr(ident('G'))), 'N'), false);
+  checkTruthy('ast-patterns: outer spread shifts the nested slot',
+    patternSlotSpreadShifted(arrayPattern(null, arrayPattern(ident('N'))), arrayExpr(spread, arrayExpr(ident('G'))), 'N'));
+  checkTruthy('ast-patterns: a spread inside the nested rhs reports through the recursion',
+    patternSlotSpreadShifted(arrayPattern(arrayPattern(ident('N'))), arrayExpr(arrayExpr(spread, ident('G'))), 'N'));
+  // a shifted candidate that is ITSELF a union contributes each arm; `&&` stays whole (its falsy
+  // LEFT is the expression's value); exact pre-spread pairing never flattens
+  function ternary(c, a, b) {
+    return { type: 'ConditionalExpression', test: ident(c), consequent: a, alternate: b };
+  }
+  const shiftedUnion = arrayWrapSlotValueCandidates([spread, ternary('c', ident('G1'), ident('G2'))], 1);
+  check('ast-patterns: shifted union candidate flattens per arm',
+    shiftedUnion.map(v => v.name).join(','), 'G1,G2');
+  const shiftedAnd = arrayWrapSlotValueCandidates(
+    [spread, { type: 'LogicalExpression', operator: '&&', left: ident('c'), right: ident('G') }], 1);
+  check('ast-patterns: shifted && candidate stays whole',
+    shiftedAnd.length === 1 && shiftedAnd[0].type, 'LogicalExpression');
+  const exactUnion = arrayWrapSlotValueCandidates([ternary('c', ident('G1'), ident('G2')), spread], 0);
+  check('ast-patterns: exact pre-spread pairing never flattens',
+    exactUnion.length === 1 && exactUnion[0].type, 'ConditionalExpression');
   // a shadow is whatever the param BINDS: object / array patterns, rest and default wrappers all
   // cover exactly their own leaves, and a write to any other param still reaches ours
   const objectPatternParam = {
