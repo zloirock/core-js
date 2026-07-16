@@ -543,6 +543,11 @@ const SCOPE_REBINDING_TYPES = new Set([
   'MethodDefinition',
   // ES2022 class `static { ... }` has its own var-scope; `var` inside doesn't leak to the class
   'StaticBlock',
+  // TS namespaces and enums compile to IIFEs - their bodies are var-scopes, so a `_ref = X`
+  // inside `namespace N { ... }` / an enum initializer is never the plugin's module-top-level
+  // emission (mirrors the var-scope treatment `varScopeAnchor` gives TSModuleBlock)
+  'TSModuleDeclaration',
+  'TSEnumDeclaration',
 ]);
 
 function isScopeRebinding(node) {
