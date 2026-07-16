@@ -8,4 +8,8 @@ const { Map: { groupBy } } = globalThis;
 const {
   Promise: { allSettled },
 } = globalThis;
-export const r = _Array$from([groupBy, allSettled]);
+// a disabled FOR-INIT line keeps the buried SE-init host fully raw (no fold, no root swap)
+let dis, outD;
+// core-js-disable-next-line
+for (const { entries } = (({ self: { ondrop: dis } } = globalThis), Object); !outD;) outD = entries;
+export const r = _Array$from([groupBy, allSettled, dis, outD]);

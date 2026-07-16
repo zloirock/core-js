@@ -1267,12 +1267,11 @@ export default function createPlugin(options) {
           const { prefix, tail } = peelNestedSequenceExpressions(init);
           for (const operand of prefix) {
             if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
-            // a kept SE operand of a STATEMENT lift is re-emitted verbatim: record it so a
-            // proxy-hop host buried inside re-anchors as a nested compose on its later visit,
-            // matching babel's drain re-traversal of the lifted statement. a FOR-INIT sink
-            // re-embed stays un-anchored - babel's drain never reaches the sink clone, so
-            // re-anchoring here would desync the emitters on a runtime-equal shape
-            else if (!isForInit) markLiftedSePrefixOperand(operand);
+            // a kept SE operand is re-emitted verbatim (statement lift, or a for-init sink's
+            // re-embedded slot): record it so a proxy-hop host buried inside re-anchors as a
+            // nested compose on its later visit - matching babel's drain re-traversal of the
+            // lifted statement and its in-place rebuild of the for-init sink host
+            else markLiftedSePrefixOperand(operand);
           }
           if (!isForInit && tail !== init && !mayHaveSideEffects(tail)) {
             walkAstNodes({ root: tail, visit: n => skippedNodes.add(n) });
