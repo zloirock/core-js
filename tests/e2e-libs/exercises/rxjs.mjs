@@ -21,17 +21,21 @@ import {
 } from 'rxjs';
 import { TestScheduler } from 'rxjs/testing';
 
-const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const collect = obs => firstValueFrom(obs.pipe(toArray()));
+function eq(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+function collect(obs) {
+  return firstValueFrom(obs.pipe(toArray()));
+}
 
 export function run() {
   const results = {};
   const checks = [];
-  const check = (label, actual, expected) => {
+  function check(label, actual, expected) {
     results[label] = actual;
     checks.push({ label, actual, expected, pass: eq(actual, expected) });
     return actual;
-  };
+  }
 
   // --- synchronous subjects (no promises) ---
   const bs = new BehaviorSubject(0);
@@ -52,13 +56,13 @@ export function run() {
 
   // --- virtual-time (value-level, timing-agnostic) ---
   const debounced = [];
-  new TestScheduler(() => {}).run(({ cold }) => {
+  new TestScheduler(() => { /* marble comparator unused: value-level checks below */ }).run(({ cold }) => {
     cold('a-b-c-d|', { a: 1, b: 2, c: 3, d: 4 }).pipe(debounceTime(10)).subscribe(v => debounced.push(v));
   });
   check('debounceTime_keepsLast', debounced, [4]);
 
   const throttled = [];
-  new TestScheduler(() => {}).run(({ cold }) => {
+  new TestScheduler(() => { /* marble comparator unused: value-level checks below */ }).run(({ cold }) => {
     cold('a-b-c-d|', { a: 1, b: 2, c: 3, d: 4 }).pipe(throttleTime(10)).subscribe(v => throttled.push(v));
   });
   check('throttleTime_keepsFirst', throttled, [1]);
@@ -83,6 +87,7 @@ export function run() {
     collect(throwError(() => new Error('boom')).pipe(catchError(() => of('recovered')))),
     firstValueFrom(of(42)),
     lastValueFrom(from([7, 8, 9])),
+    // eslint-disable-next-line promise/prefer-await-to-then -- .then not await: keeps the exercise regenerator-free for the ie:11 down-compile (see header)
   ]).then(r => {
     check('reduce_sum', r[0], 15);
     check('scan_running', r[1], [1, 3, 6]);
