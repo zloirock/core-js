@@ -17,6 +17,12 @@ const pushed = [[1], [2]];
 pushed.push([3]);
 export const viaMutatorCall = pushed[0].at(0);
 
+// the mutator's ARGUMENT type does not matter - a cross-family push retypes the elements
+// exactly like a same-family one, and the later element read still bails to generic
+const mixed = [[9]];
+mixed.push("x");
+export const viaCrossFamilyPush = mixed[0].at(0);
+
 // a method the registry does not know may be any mutator at runtime, so it bails too
 const custom = [[1], [2]];
 custom.custom();
