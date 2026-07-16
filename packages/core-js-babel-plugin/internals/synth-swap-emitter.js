@@ -576,6 +576,6 @@ export default function createSynthSwapEmitter({
 
   return {
     apply, claimDestructurePattern, collapseProxyGlobalReceiver, collapseProxyHopRoot,
-    findTargetPath, registerPolyfill, tryRegisterPerBranchSynth,
+    findTargetPath, detectIifeArgPath, registerPolyfill, tryRegisterPerBranchSynth,
   };
 }
