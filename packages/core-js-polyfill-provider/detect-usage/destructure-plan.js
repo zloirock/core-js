@@ -38,6 +38,21 @@ function isPropertyNode(node) {
   return node?.type === 'Property' || node?.type === 'ObjectProperty';
 }
 
+// an SE-bearing init joins the ANCHORED family only when every effect rides a channel the
+// anchored renders re-emit: a sequence prefix (collected into `anchorSe` - the residual
+// render replays it, the full-consume path lifts it standalone, and the assignment-cascade
+// hosts null it in favor of their OWN standalone prefix lift) or a chain-assignment
+// rescued WHOLE by the discard harvest. deeper effects (a ternary branch, an IIFE body)
+// keep the nested handling - folding those would change the receiver shape the SE-lift
+// machinery expects
+function anchoredSeAccounting(declarator, peeledInit) {
+  if (!mayHaveSideEffects(declarator.init)) return { accounted: true, anchorSe: null };
+  const prefixes = [];
+  const seTail = unwrapCollectingSePrefixes(peeledInit, prefixes);
+  const accounted = !mayHaveSideEffects(seTail) || isChainAssignment(seTail);
+  return { accounted, anchorSe: accounted && prefixes.length ? prefixes : null };
+}
+
 // peel parallel transparent destructure wrappers:
 //   - single-element ArrayPattern + matching ArrayExpression layer (`[{...}] = [globalThis]`,
 //     `[[{...}]] = [[globalThis]]`, etc.)
@@ -517,10 +532,11 @@ export function buildNestedDestructurePlan({
         return {
           receiver, anchor: key,
           anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(key),
-          outerProps, pattern: inner, discardSe, initElement: null, consumedLevelStrips,
+          outerProps, pattern: inner, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
       }
-      const hopHostEligible = !arrayPeelHappened && !mayHaveSideEffects(declarator.init)
+      const { accounted: anchoredSeAccounted, anchorSe } = anchoredSeAccounting(declarator, peeled.init);
+      const hopHostEligible = !arrayPeelHappened && anchoredSeAccounted
         && !isDisabledProp?.(declarator) && pattern.properties.length === 1
         && isPropertyNode(pattern.properties[0]);
       if (hopHostEligible) plan = planCtorKeyAnchor(pattern);
@@ -574,7 +590,7 @@ export function buildNestedDestructurePlan({
         return planCtorKeyAnchor(effPattern) ?? {
           receiver, anchor: lastHop, anchorPure: receiverPure,
           outerProps: effPattern.properties.map(p => planSymbolIteratorProp(p) ?? planOuterProp(p)),
-          pattern: effPattern, discardSe, initElement: null, consumedLevelStrips,
+          pattern: effPattern, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
       }
       if (!plan && hopHostEligible) plan = planPeeledProxyHop();
