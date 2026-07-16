@@ -319,4 +319,25 @@ await runEquivalence('guarded static tagged-template tag',
 await runEquivalence('guarded static tagged-template tag - usage-global flavor',
   'function viaTag(c) {\n  let M;\n  c ? ({ Map: M } = globalThis) : 0;\n  return M.groupBy`items`;\n}', USAGE_GLOBAL_IE11);
 
+// a GUARDED destructure alias feeding a call whose result dispatches an instance method: the
+// value-flow return resolver must refuse the static pair on BOTH parsers (babel's post-rewrite
+// scope loses the pattern while the pristine estree walk still resolved it - babel imported the
+// generic instance/at helper while unplugin imported the array-typed one)
+await runEquivalence('guarded destructure alias call-result dispatch',
+  'let make;\nif (cond) ({ from: make } = Array);\nexport const r = make([1]);\nexport const x = r.at(0);', USAGE_PURE);
+await runEquivalence('unconditional destructure alias call-result control',
+  'const { of } = Array;\nexport const s = of(1, 2);\nexport const z = s.includes(1);', USAGE_PURE);
+// logical-operand guard is a distinct branch of the guarded-write walk (LogicalExpression
+// parent vs IfStatement) - the refusal must hold there identically on both parsers
+await runEquivalence('guarded destructure alias - logical form',
+  'let make;\ncond && ({ from: make } = Array);\nexport const r = make([1]);\nexport const x = r.at(0);', USAGE_PURE);
+await runEquivalence('guarded destructure alias - ternary form',
+  'let make;\ncond ? ({ from: make } = Array) : 0;\nexport const r = make([1]);\nexport const x = r.at(0);', USAGE_PURE);
+await runEquivalence('guarded destructure alias - switch-case form',
+  'let make;\nswitch (x) {\n  case 1:\n    ({ from: make } = Array);\n}\nexport const r = make([1]);\nexport const x2 = r.at(0);', USAGE_PURE);
+// the same refusal in usage-global degrades the call-result to the generic TYPE, which
+// injects the full method pair (over-inject-safe) - identically on both parsers
+await runEquivalence('guarded destructure alias - usage-global flavor',
+  'let make;\nif (cond) ({ from: make } = Array);\nexport const r = make([1]);\nexport const x = r.at(0);', USAGE_GLOBAL_IE11);
+
 finish();
