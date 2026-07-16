@@ -66,6 +66,7 @@ import {
   isStaticPlacement,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
+  peelChainAssignment,
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
   proxyGlobalMemberCtorPureSwap,
@@ -3950,7 +3951,16 @@ export function createDestructureEmitter({
     // synth-swap does not collapse the hop itself). the climb above already did the proxy / alias /
     // wrapper detection, so this only needs the pattern flags
     if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)
-      && !consumedStaticResidualPatterns.has(target)) return false;
+      && !consumedStaticResidualPatterns.has(target)) {
+      // ...unless the chain hangs off a KEPT root (a chain-assign whose value navigates a hop with
+      // no pure entry): the destructure pipeline renders such a source VERBATIM (its own collapse
+      // entry is gated off once the natural root rewrite touched the init), so deferring strands
+      // the raw hop unrescued. collapse here instead - the extraction composes this span into the
+      // re-emitted source by needle, and the init-collapse entry stays off (the init no longer
+      // matches its pristine source), so the two never race
+      const chainAssign = peelChainAssignment(descendToChainRoot(recv).root ?? recv);
+      if (!chainAssign.outer || !navHasUnresolvableProxyHop(chainAssign.value, resolvePure)) return false;
+    }
     // a mutation TARGET (the canonical `isMemberWriteHost` covers `=` / update / `delete` / destructuring /
     // wrappers) collapses a SE-bearing hop here rather than deferring its sub-chain to the natural visitor -
     // the write slot has no sub-chain to nest
