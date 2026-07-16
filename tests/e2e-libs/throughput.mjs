@@ -45,17 +45,27 @@ for (const lib of libs) {
     }
   }
 
-  // injection count is bundler- and phase-invariant (captureInjections always builds via rollup with
-  // default opts), so capture it once per method instead of rebuilding for every bundler x phase cell
-  const injByMethod = {};
-  for (const method of lib.methods) injByMethod[method] = (await captureInjections(lib.exercise, method)).length;
+  // injection count is bundler-invariant (captureInjections always builds via rollup), but NOT
+  // phase-invariant (e.g. usage-pure/pre+post injects one extra module), so capture it once per
+  // (method, phase) and reuse across bundlers. A failed capture is recorded (null), not fatal.
+  const injByCell = {};
+  for (const method of lib.methods) {
+    for (const phase of phasesFor(method)) {
+      const key = `${ method }|${ phase ?? '' }`;
+      try {
+        injByCell[key] = (await captureInjections(lib.exercise, method, phase)).length;
+      } catch {
+        injByCell[key] = null;
+      }
+    }
+  }
 
   for (const name of bundlers) {
     for (const method of lib.methods) {
       for (const phase of phasesFor(method)) {
         const label = `${ lib.name }/${ name }/${ method }${ phase ? `/${ phase }` : '' }`;
         try {
-          const injections = injByMethod[method];
+          const injections = injByCell[`${ method }|${ phase ?? '' }`];
           const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`,
             e => median(() => throughputBuilders[name](e, u(name, method, phase))));
           const base = baseline[name];
