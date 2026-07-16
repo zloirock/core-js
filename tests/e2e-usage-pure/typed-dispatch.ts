@@ -87,3 +87,25 @@ QUnit.test('typed dispatch: a shared nested union keeps each reference its own a
   const u = mk(1);
   assert.same(u.tag === 'x' ? u.val.at(-1) : '', 'n');
 });
+
+// a for-of head member write rebinds the slot each iteration - body reads of the SAME slot
+// alias the user's assigned function, not the prototype method. a TS cast around the read
+// receiver must not re-route the call into the typed helper (which would dispatch to the
+// real Array method and bypass the assigned function)
+QUnit.test('typed dispatch: for-of write alias survives a cast on the body read', assert => {
+  const o: number[] = [9, 9];
+  const fns = [function () { return 'user'; }];
+  for (o.at of fns) {
+    assert.same((o as any).at(0), 'user');
+  }
+});
+
+// the same aliasing with the cast on the HEAD write target: the write still claims the slot,
+// so the flat body read stays on the assigned function
+QUnit.test('typed dispatch: for-of write alias survives a cast on the head object', assert => {
+  const p: number[] = [7];
+  const fns = [function () { return 'head'; }];
+  for ((p as any).includes of fns) {
+    assert.same(p.includes(1), 'head');
+  }
+});

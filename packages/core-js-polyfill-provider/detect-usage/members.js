@@ -4,6 +4,7 @@
 import {
   collectFoldedReceiverSideEffects,
   isMutatedGlobalSlot,
+  isTaggedTemplateTagPosition,
   memberKeyName,
   proxyNavRootIsSequence,
   staticMemberKeyName,
@@ -531,9 +532,12 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
   // the callee slot may hold a this-PRESERVING wrapper over the member (`(M.groupBy as any)(...)`,
   // `(M.groupBy)(...)` - oxc keeps the paren node, babel only marks `extra.parenthesized`): peel
   // parens / TS / chain so the raw branch still binds `this`. sequences are NOT peeled - a
-  // `(0, M.groupBy)(...)` callee detaches `this` natively, so it must NOT classify as a callee
-  const isCallee = (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
-    && unwrapRuntimeExpr(parent.callee) === memberNode;
+  // `(0, M.groupBy)(...)` callee detaches `this` natively, so it must NOT classify as a callee.
+  // a tagged-template tag (M.groupBy`x`) is a this-carrying invocation the same way -
+  // without callee-ness its raw branch would run with `this = undefined` instead of `M`
+  const isCallee = ((parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
+    && unwrapRuntimeExpr(parent.callee) === memberNode)
+    || isTaggedTemplateTagPosition(parent, memberNode);
   // estree marks optionality with `optional: true` (no Optional* node types) - check both encodings
   if (isCallee && (parent.type === 'OptionalCallExpression' || parent.optional
     || memberNode.type === 'OptionalMemberExpression' || memberNode.optional)) {

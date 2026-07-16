@@ -549,56 +549,29 @@ function isScopeRebinding(node) {
   return SCOPE_REBINDING_TYPES.has(node.type);
 }
 
-// the plugin only ever emits `_ref = X` inside a `null == (...)` test (a BinaryExpression) or
-// as a call argument. so any `_ref = X` whose parent is one of these positions is user-written
-// sloppy-mode code, never plugin output. listing them here makes the orphan classifier reserve
-// the name (it stays the user's) instead of adopting it and rehydrating a module-level
-// `var _ref;` that would then share state with the user's binding. ExpressionStatement (bare
-// statement form) anchors the list so all user-written top-level shapes are rejected uniformly
-const USER_ASSIGN_PARENT_TYPES = new Set([
-  'ExpressionStatement',
-  'SwitchCase',
-  'ThrowStatement',
-  'ForStatement',
-  // `for (const x of (_ref = arr())) {}` / `for (const x in (_ref = obj)) {}` - RHS is
-  // a user-authored assignment-then-iterate idiom. plugin never emits its memo refs as
-  // the iterable; without these entries the assignment would get misclassified as orphan
-  'ForOfStatement',
-  'ForInStatement',
-  'IfStatement',
-  'WhileStatement',
-  'DoWhileStatement',
-  'ReturnStatement',
-  // `(_ref = foo(), _ref.x)` in a declaration init is user-authored - plugin never
-  // emits its memo refs inside SequenceExpression tails. without this, user code like
-  // `let r = (_ref = helper(), _ref.x)` gets misclassified as orphan and adopted
-  'SequenceExpression',
-  // `export default _ref = foo()` at module top-level is user-authored - plugin never
-  // emits its memo refs as a default export expression. without this, user code like
-  // `export default _ref = make()` gets adopted as orphan-ref and shares state with the
-  // module-level rehydrated `var _ref;`
-  'ExportDefaultDeclaration',
-  // `cond ? (_ref = compute()) : f()` - a user assignment as a direct ternary branch. the
-  // plugin's memoize emit lives inside the test (`null == (...)`), never as a bare branch
-  'ConditionalExpression',
-  // `flag && (_ref = compute())` / `x || (_ref = y)` / `a ?? (_ref = b)` - a user assignment as a
-  // direct logical operand. the plugin emits its memoize writes inside a `null == (...)` test or a
-  // call arg, never as a bare `&&`/`||`/`??` operand; without this the user assignment is adopted as
-  // an orphan and a module-level `var _ref;` is injected, localizing the user's implicit global
-  'LogicalExpression',
-  // `x = _ref = compute()` - a user assignment chained as the RHS of another assignment.
-  // the plugin never nests its memo writes as an assignment RHS
-  'AssignmentExpression',
+// the plugin only ever emits `_ref = X` in two parent positions: inside a `null == (...)`
+// memo test (a BinaryExpression - parens / TS wrappers between them are forwarded as
+// transparent by the walker below) and as a call argument. the classifier admits exactly
+// those emit positions; ANY other parent is user-authored sloppy-mode code, so the name is
+// reserved (stays the user's) instead of being adopted into a rehydrated module-level
+// `var _ref;` that would share state with the user's binding. enumerating the emit set
+// instead of the user set keeps unknown / future positions failing SAFE: an unlisted parent
+// reserves the name and the plugin allocates `_ref2` around it.
+// sequence memo trims (`(se(), X)`) place a ref assignment under a SequenceExpression - those
+// refs are declared by the pre-pass flush (snapshot path), never orphan-adopted, so
+// SequenceExpression stays out of the emit set on purpose
+const PLUGIN_ASSIGN_PARENT_TYPES = new Set([
+  'BinaryExpression',
+  'CallExpression',
 ]);
 
-// orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside
-// a ConditionalExpression guard or a call argument. user-shape assignments - in statement
-// positions, switch/throw/loop/if/return heads - aren't plugin output regardless of RHS shape.
-// scope-depth gate: plugin emits orphan assignments only at module top-level (the post-pass
-// rehydrate declares `var _ref;` there). a `_ref = foo()` nested inside a user function is
-// user's sloppy-mode code - adopting it would share state with our module-level `_ref`
+// orphan-ref heuristic: an assignment is adoptable only in a plugin emit position (above)
+// AND with a plugin-shaped RHS. scope-depth gate: plugin emits orphan assignments only at
+// module top-level (the post-pass rehydrate declares `var _ref;` there). a `_ref = foo()`
+// nested inside a user function is user's sloppy-mode code - adopting it would share state
+// with our module-level `_ref`
 function isPluginShapedOrphanAssign(node, parentType, atTopLevel) {
-  if (!node.right || !atTopLevel || USER_ASSIGN_PARENT_TYPES.has(parentType)) return false;
+  if (!node.right || !atTopLevel || !PLUGIN_ASSIGN_PARENT_TYPES.has(parentType)) return false;
   return PLUGIN_EMIT_RHS_TYPES.has(node.right.type);
 }
 
@@ -703,7 +676,7 @@ export function collectAllBindingNames(ast) {
     // transparent wrappers (parens + TS `as`/`!`/`satisfies`) are see-through to the orphan
     // classifier's parent check - `throw (x)`, `case (x as any):`, `if ((x)!)` put a wrapper
     // between the structural parent and the assignment; forwarding the outer parentType lets the
-    // user-shape blacklist fire. without TS-wrapper transparency a top-level user `_ref = foo() as any`
+    // emit-position check see the structural parent. without TS-wrapper transparency a top-level user `_ref = foo() as any`
     // in throw/case/if is misclassified as a plugin orphan and adopted, injecting a module `var _ref`
     // that localizes the user's implicit-global write
     const childParentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? parentType : node.type;
