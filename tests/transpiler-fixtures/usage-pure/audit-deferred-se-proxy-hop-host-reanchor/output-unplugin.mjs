@@ -27,15 +27,16 @@ let picked;
 ({ Map: { groupBy: picked } } = { Map: { groupBy: _Map$groupBy } });
 export const from = _Array$from;
 export { picked };
-// an SE inside the host's own RHS keeps the un-anchored emit in BOTH emitters
+// an SE inside the host's own RHS folds too: the effect runs exactly once in both
+// emitters (statement-lift vs in-place sequence is a print-only divergence)
 let customW;
 let c = 0;
-({ Map: { customW } } = (c++, _globalThis));
+({ customW } = (c++, _Map));
 export const entries = _Object$entries;
-// a FOR-INIT consumed prefix re-embeds into the sink and stays un-anchored in BOTH emitters
-// (the drain never reaches the sink clone)
+// a FOR-INIT consumed prefix re-embeds into the sink AND folds: the host rebuilds before
+// the sink captures it, so the re-anchored read lands inside the re-embedded slot
 let customV, out;
-for (const _ref = (({ Map: { customV } } = _globalThis), Object), keys = _Object$keys; !out;) out = keys;
+for (const _ref = (({ customV } = _Map), Object), keys = _Object$keys; !out;) out = keys;
 export { out };
 // gate boundaries: a MULTI-prop host stays un-anchored (single-hop shape only); a DEEPER nest
 // re-anchors one level; a binding-resolved computed key re-anchors like the dotted form

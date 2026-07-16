@@ -1,7 +1,7 @@
 // boundaries of the anchored symbol extraction: only the well-known ITERATOR key takes the
 // synth route - an asyncIterator sibling keeps its re-keyed binding beside the extraction;
-// a non-binding value keeps the whole prop with a polyfilled key; an effectful init keeps
-// the nested form in place (the anchor reshaping requires an effect-free init)
+// a non-binding value keeps the whole prop with a polyfilled key; an effectful init folds
+// too - its prefix lifts exactly once ahead of the anchored extraction
 const { Map: { [Symbol.iterator]: a, [Symbol.asyncIterator]: b } } = globalThis;
 a;
 b;

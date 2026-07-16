@@ -754,7 +754,9 @@ export default function createDestructureEmitter({
     });
     if (!plan) return false;
     // the kept receiver tail carries its own setup (a chain assignment / SE-bearing call) -
-    // neutralize the harvest so an extraction prefix doesn't re-run it (mirrors unplugin)
+    // neutralize the harvest so an extraction prefix doesn't re-run it (mirrors unplugin).
+    // the anchored rebuild replays the replaced tail from the NODE it drops, not from this
+    // harvest (a deferred-drain clone re-plans with an empty harvest), so the null is safe
     plan.discardSe = null;
     cascadedAssignments.add(assignPath.node);
     const assigns = [];
@@ -830,11 +832,17 @@ export default function createDestructureEmitter({
 
   // anchored residual rebuild for an assignment host: swap the LHS to the (pruned) inner
   // pattern and the RHS to the ctor binding / raw member; the detached proxy read is
-  // skip-seeded so it doesn't earn a dead import
+  // skip-seeded so it doesn't earn a dead import. an SE-bearing replaced tail (a chain
+  // assignment - the prefix lift has already peeled plain sequence effects) replays WHOLE
+  // ahead of the anchor read, exactly once; rebuilding from the dropped NODE itself keeps
+  // the replay alive for deferred-drain clones, whose re-planned harvest is empty (clones
+  // are traversed on insertion, earning their own substitutions)
   function applyAnchoredAssignmentRebuild(plan, assignPath) {
     const oldRight = assignPath.node.right;
     assignPath.node.left = plan.pattern;
-    assignPath.node.right = anchorInitNode(plan);
+    assignPath.node.right = mayHaveSideEffects(oldRight)
+      ? t.sequenceExpression([t.cloneNode(oldRight, true), anchorInitNode(plan)])
+      : anchorInitNode(plan);
     t.traverseFast(oldRight, node => { skippedNodes.add(node); });
   }
 
@@ -1049,6 +1057,46 @@ export default function createDestructureEmitter({
     if (peeled) cascadeAssignmentExpressionDestructure({ assignPath: path, prop: null, peeled });
   }
 
+  // for-init+SE full consume: convert the orphan declarator to an SE-sink. the sink init
+  // is REBUILT as a bare flattened sequence - transparent wrappers (TS casts) and nested
+  // sequence parens are dead on the discarded sink slot, and the bare shape is the
+  // plan-canonical sink both emitters emit
+  function convertForInitSESink(declarator, forInitSE, extracted) {
+    foldBuriedProxyHopHosts(declarator.get('init'));
+    declarator.node.id = generateUnusedId();
+    declarator.node.init = t.sequenceExpression([...forInitSE.prefix, forInitSE.tail]);
+    declarator.insertBefore(extracted);
+  }
+
+  // fold proxy-hop hosts buried in a kept init BEFORE a sink render captures it: both
+  // for-init sinks (the flatten route's re-embedded prefix and the per-prop route's cloned
+  // memo) print from their assembly-time snapshot, so a later enter-visit rebuild would
+  // mutate a node the print no longer reads (matches the unplugin's marked-operand compose)
+  function foldBuriedProxyHopHosts(initPath) {
+    initPath.traverse({
+      AssignmentExpression(assignPath) { tryInPlaceAnchoredRebuild(assignPath); },
+    });
+  }
+
+  // ZERO-extraction anchored rebuild of a proxy-hop host buried in a KEPT expression slot
+  // (a for-init sink's re-embedded SE prefix): no statement machinery needed, the host
+  // rebuilds in place, folding the hop exactly like the statement form (an SE-bearing init
+  // replays whole via the shared rebuild). invoked from the SINK ASSEMBLY - the
+  // post-traverse drain prints the sink from that render, so a later enter-visit rebuild
+  // would mutate a node the drain no longer reads
+  function tryInPlaceAnchoredRebuild(assignPath) {
+    if (cascadedAssignments.has(assignPath.node)) return;
+    const fake = { id: assignPath.node.left, init: assignPath.node.right, loc: assignPath.node.loc };
+    const plan = buildFlattenPlan({ declaratorNode: fake, scope: assignPath.scope, path: assignPath });
+    if (!plan?.anchor || plan.outerProps.some(o => (o.extractions ?? []).length)) return;
+    // the rebuild replays the replaced tail from the dropped node itself (mirrors the cascade)
+    plan.discardSe = null;
+    prunePatternByPlan(plan.pattern, plan.outerProps);
+    if (!plan.pattern.properties.length) return;
+    cascadedAssignments.add(assignPath.node);
+    applyAnchoredAssignmentRebuild(plan, assignPath);
+  }
+
   // a computed `Symbol.X` key cloned into an anchored residual is skip-seeded whole, so the
   // standalone key visitor never touches the CLONE: whether it fired on the ORIGINAL depends
   // on which sibling dispatched the flatten (a rewritten original clones as the injected
@@ -1148,7 +1196,14 @@ export default function createDestructureEmitter({
     if (plan.anchor && !patternEmpties) {
       const oldInit = declarator.node.init;
       declarator.node.id = plan.pattern;
-      declarator.node.init = anchorInitNode(plan);
+      // the re-anchored init REPLACES the SE-bearing original: replay the collected
+      // sequence prefixes and the harvested discard-SE ahead of the anchor read, exactly
+      // once (clones are traversed on insertion, so inner `globalThis` references still
+      // earn their substitutions; the original init subtree stays skipped)
+      const replayed = [...plan.anchorSe ?? [], ...plan.discardSe ?? []];
+      declarator.node.init = replayed.length
+        ? t.sequenceExpression([...replayed.map(node => t.cloneNode(node)), anchorInitNode(plan)])
+        : anchorInitNode(plan);
       t.traverseFast(oldInit, node => { skippedNodes.add(node); });
     }
     // an SE-bearing chain-root call / chain-assignment in the DISCARDED init: re-emit it as
@@ -1170,14 +1225,9 @@ export default function createDestructureEmitter({
       t.traverseFast(forInitSE ? declarator.node.id : declarator.node,
         node => { skippedNodes.add(node); });
     }
-    // for-init+SE full consume: convert the orphan declarator to an SE-sink. the sink init
-    // is REBUILT as a bare flattened sequence - transparent wrappers (TS casts) and nested
-    // sequence parens are dead on the discarded sink slot, and the bare shape is the
-    // plan-canonical sink both emitters emit
+    // for-init+SE full consume: convert the orphan declarator to an SE-sink
     if (forInitSE && patternEmpties) {
-      declarator.node.id = generateUnusedId();
-      declarator.node.init = t.sequenceExpression([...forInitSE.prefix, forInitSE.tail]);
-      declarator.insertBefore(extracted);
+      convertForInitSESink(declarator, forInitSE, extracted);
       return !!prop && skippedNodes.has(prop.node);
     }
     // multi-decl + full consume + SE prefix: split declaration around the consumed slot so
@@ -1190,8 +1240,11 @@ export default function createDestructureEmitter({
     // declarator-level insert in for-init keeps loop-header shape; declaration-level insert
     // would wrap for-init in an arrow-IIFE. lift the receiver SE (descending a transparent
     // array wrapper that hides it one ArrayExpression level down) for both partial and full
-    // consume - the residual / replacement must not re-run the prefix
-    if (!isForInit) liftDeclaratorInitSE(t, declarator.node, declaration);
+    // consume - the residual / replacement must not re-run the prefix. an ANCHORED residual
+    // owns its SE: the rebuild already replayed it INSIDE the new init, and lifting that
+    // sequence to the declaration would hoist the effect above pre-sibling declarator inits
+    // (reordering vs the native left-to-right evaluation)
+    if (!isForInit && !(plan.anchor && !patternEmpties)) liftDeclaratorInitSE(t, declarator.node, declaration);
     const moved = reanchorBlockWrappedDeclaration(declaration, declarator.node);
     if (moved) ({ declaration, declarator } = moved);
     // host wrapped in `export const { ... } = X` - every emitted statement re-exports its
@@ -1916,6 +1969,7 @@ export default function createDestructureEmitter({
   // raw property/array mutations, so fresh bindings are re-registered on the mutated path
   function handleForInitSE({ declaration, parent, localBinding, value, scope, isStatic }) {
     if (isStatic) {
+      foldBuriedProxyHopHosts(parent.get('init'));
       // static polyfill import - SE needs a dummy binding to stay in for-init. the sink
       // lands BEFORE every extraction of this declaration (SE-first, source-faithful),
       // not at the consumed slot where earlier per-prop inserts would precede it
