@@ -156,7 +156,10 @@ async function webpackLike(compiler, entry, plugin) {
   });
 }
 
-export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders);
+// farm's native (Rust/SWC) compiler hard-crashes (uncaught, kills the whole process) on the
+// workspace v4 core-js modules — it's throughput-only (the runtime tier uses rollup), so it's
+// excluded from the active set. The builder stays defined above for easy re-enable if that changes.
+export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name => name !== 'farm');
 
 // The unplugin adapter instance for a bundler + (method, phase).
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
