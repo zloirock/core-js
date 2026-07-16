@@ -5,7 +5,7 @@ const { Map: { customY } } = globalThis;
 const { Promise: { try: tryFn, customZ } } = globalThis;
 // boundary: a multi-key outer pattern keeps the proxy-root residual
 const { Iterator: { customA }, navigator: nav } = globalThis;
-// boundary: an SE-prefixed init keeps the nested handling
+// an SE-prefixed init folds too: the prefix replays exactly once ahead of the re-anchored read
 const { Set: { customB } } = (eff(), globalThis);
 // a proxy-global KEY peels like a member-chain hop (it binds nothing), then the ctor anchor fires
 const { globalThis: { Map: { customG } } } = globalThis;
