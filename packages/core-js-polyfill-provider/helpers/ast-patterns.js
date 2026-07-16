@@ -3843,22 +3843,32 @@ export function computedKeysAllBound(objectPattern, scope) {
 // `(arr.at as any)\`x\`` - oxc keeps the paren node, TS casts survive in both parsers):
 // unwrap it so the wrapped tag is recognized the same as the bare form
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
-  && parent?.type === 'TaggedTemplateExpression'
+  && isTaggedTemplateTagPosition(parent, node);
+
+// bare tag-position check without the placement gate: a tagged-template tag is a
+// this-CARRYING invocation of the member (`M.groupBy\`x\`` natively binds `this = M`),
+// so callee-ness consumers (the runtime ctor guard) must classify it like a call.
+// sequences are NOT peeled - a `(0, M.groupBy)\`x\`` tag detaches `this` natively
+export const isTaggedTemplateTagPosition = (parent, node) => parent?.type === 'TaggedTemplateExpression'
   && unwrapRuntimeExpr(parent.tag) === node;
 
 // structural match for MemberExpression chains rooted at Identifier / ThisExpression -
 // recognises the same receiver path written at different source positions. literal property
 // keys (computed-access shape: `obj['at']`, `obj[0]`) compare by value so `obj.at = x`
-// and a later `obj['at']` read resolve to the same shadowed write target
+// and a later `obj['at']` read resolve to the same shadowed write target. transparent
+// wrappers peel at every level so `(o).at` / `(o as any).at` (oxc keeps the paren node,
+// TS casts survive in both parsers) match the bare `o.at` slot they read at runtime
 function memberShapeEqual(a, b) {
-  if (!a || !b || a.type !== b.type) return false;
-  if (a.type === 'Identifier') return a.name === b.name;
-  if (a.type === 'ThisExpression') return true;
-  // babel StringLiteral/NumericLiteral vs ESTree Literal: both carry `.value`
-  if (a.type === 'StringLiteral' || a.type === 'NumericLiteral' || a.type === 'Literal') {
-    return a.value === b.value;
-  }
-  if (a.type === 'MemberExpression') {
+  a = unwrapRuntimeExpr(a);
+  b = unwrapRuntimeExpr(b);
+  if (!a || !b) return false;
+  // optionality does not change WHICH slot is resolved (`o?.at` reads the same `o.at` key),
+  // and the parsers model it differently: babel promotes the node TYPE to
+  // OptionalMemberExpression while estree keeps MemberExpression behind the ChainExpression
+  // the entry peel strips - so member-ness must compare across both spellings
+  const aIsMember = a.type === 'MemberExpression' || a.type === 'OptionalMemberExpression';
+  const bIsMember = b.type === 'MemberExpression' || b.type === 'OptionalMemberExpression';
+  if (aIsMember && bIsMember) {
     if (!memberShapeEqual(a.object, b.object)) return false;
     // compare property keys by resolved static name so the dot (`obj.at`) and bracket
     // (`obj['at']`) forms of the SAME static key match - e.g. a `for (obj.at of ...)` write
@@ -3868,6 +3878,13 @@ function memberShapeEqual(a, b) {
     const bKey = memberKeyName(b);
     if (aKey !== null && bKey !== null) return aKey === bKey;
     return a.computed === b.computed && memberShapeEqual(a.property, b.property);
+  }
+  if (a.type !== b.type) return false;
+  if (a.type === 'Identifier') return a.name === b.name;
+  if (a.type === 'ThisExpression') return true;
+  // babel StringLiteral/NumericLiteral vs ESTree Literal: both carry `.value`
+  if (a.type === 'StringLiteral' || a.type === 'NumericLiteral' || a.type === 'Literal') {
+    return a.value === b.value;
   }
   return false;
 }
@@ -3951,11 +3968,16 @@ function getForXWrites(leftNode) {
 // the body target a local write, not the inherited method - polyfilling either is wrong
 export function isForXWriteTarget(path) {
   // ObjectProperty / Property wraps a write-target MemberExpression in `.value`;
-  // meta emission for destructure properties hands us the wrapper, not the member
+  // meta emission for destructure properties hands us the wrapper, not the member.
+  // the value slot may itself carry a transparent wrapper over the member - peel the
+  // NODE only (the parent walk below works from any path inside the pattern)
   while ((path.node?.type === 'ObjectProperty' || path.node?.type === 'Property')
-    && path.node.value?.type === 'MemberExpression') path = path.get('value');
-  const { node } = path;
-  if (node?.type !== 'MemberExpression') return false;
+    && unwrapRuntimeExpr(path.node.value)?.type === 'MemberExpression') path = path.get('value');
+  const node = unwrapRuntimeExpr(path.node);
+  // an optional READ of the written slot (`o?.at` in the body) aliases the same per-iteration
+  // write - babel spells it OptionalMemberExpression while estree reaches here as a plain
+  // MemberExpression once the entry peel strips its ChainExpression
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
   for (let current = path.parentPath; current; current = current.parentPath) {
     const parent = current.node;
     if (!parent) break;
