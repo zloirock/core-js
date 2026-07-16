@@ -118,8 +118,10 @@ for (const lib of libs) {
       }
     } catch (err) {
       failed++;
-      manifest.push({ lib: lib.name, method, error: (err.message || String(err)).split('\n', 1)[0].slice(0, 200) });
-      console.log(`✗ ${ label }: ${ (err.message || err).split('\n', 1)[0].slice(0, 200) }`);
+      // child-process failures carry the real reason on stderr, not message ("Command failed: ...")
+      const reason = (err.stderr || err.message || String(err)).split('\n', 1)[0].slice(0, 200);
+      manifest.push({ lib: lib.name, method, error: reason });
+      console.log(`✗ ${ label }: ${ reason }`);
     }
   }
 }
