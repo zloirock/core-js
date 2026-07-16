@@ -3,6 +3,7 @@ import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
+import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
 // a single-key proxy-hop destructure plans like its flat twin, so an unresolvable leaf
 // re-anchors to the constructor binding instead of reading the native key off the proxy root
@@ -21,12 +22,10 @@ const {
   },
   navigator: nav
 } = _globalThis;
-// boundary: an SE-prefixed init keeps the nested handling
+// an SE-prefixed init folds too: the prefix replays exactly once ahead of the re-anchored read
 const {
-  Set: {
-    customB
-  }
-} = (eff(), _globalThis);
+  customB
+} = (eff(), _Set);
 // a proxy-global KEY peels like a member-chain hop (it binds nothing), then the ctor anchor fires
 const {
   customG
