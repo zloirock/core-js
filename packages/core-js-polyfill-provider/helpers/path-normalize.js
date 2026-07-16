@@ -10,8 +10,16 @@ import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 // lives in path-namespace despite being consumed by AST plugins because the operation is
 // purely string normalization on a module-id string - no AST awareness needed
 const UNC_PREFIXES = ['\\\\?\\', '\\\\.\\', '//?/', '//./'];
+
+// chars to skip before scanning a module id for `?` / `#` separators: the length of the
+// Windows UNC prefix when one leads the id. shared by every hand-rolled query scan so no
+// caller can mistake the in-prefix `?` for a query start (`\\?\C:\x.js?t=1` truncating to `\\`)
+export function uncPrefixOffset(id) {
+  return UNC_PREFIXES.some(p => id.startsWith(p)) ? 4 : 0;
+}
+
 export function stripQueryHash(id) {
-  const offset = UNC_PREFIXES.some(p => id.startsWith(p)) ? 4 : 0;
+  const offset = uncPrefixOffset(id);
   const at = id.slice(offset).search(/[#?]/);
   return at === -1 ? id : id.slice(0, offset + at);
 }

@@ -1,6 +1,6 @@
 import { safeErrorMessage } from '@core-js/polyfill-provider/helpers/pattern-matching';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import ImportInjectorState, { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
@@ -161,6 +161,27 @@ export default class ImportInjector extends ImportInjectorState {
     if (maxSuffix > 1) this.rehydrateSuffixState(new Map([['_ref', maxSuffix + 1]]));
   }
 
+  // `_unused` counterpart of `adoptOrphanRefs`: post without a pre snapshot re-parses pre's
+  // output where rest-destructure sentinels (`{ polyKey: _unusedN, ...rest }`) are already
+  // in place. re-registering them re-arms `hasGeneratedUnusedName`, whose skip is the
+  // idempotency guard - without it post re-processes the rebuilt destructure (a dead
+  // body-extract binding + a re-keyed `_unusedN+1` per re-pass). no flush concern: sentinels
+  // are bound by the pattern itself, never declared separately
+  adoptUnusedNames(names) {
+    let maxSuffix = 1;
+    for (const name of names) {
+      // same generator-shape validation as orphan refs: only allocator-shaped names join,
+      // so a stale snapshot can never seed an arbitrary user identifier into the skip set
+      const match = UNUSED_NAME_PATTERN.exec(name);
+      if (!match) continue;
+      this.#unusedNames.add(name);
+      this.usedNames.add(name);
+      const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
+      if (n > maxSuffix) maxSuffix = n;
+    }
+    if (maxSuffix > 1) this.rehydrateSuffixState(new Map([['_unused', maxSuffix + 1]]));
+  }
+
   generateUnusedName() {
     const name = super.generateUnusedName();
     this.#unusedNames.add(name);
@@ -277,15 +298,15 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // protected-prologue boundary offsets, innermost first: the directive `;` end (already past any
-  // shebang), then the shebang's last char (just before its terminator, backed up over CRLF / LF / CR /
-  // LS / PS). each is a chunk boundary the fallback can attach AFTER so the block never lands above the
-  // hashbang (a SyntaxError) or the directive (sloppy-mode demotion)
+  // shebang), then the shebang-end anchor (see `shebangFallbackAnchor`). each is a chunk boundary
+  // the fallback can attach AFTER so the block never lands above the hashbang (a SyntaxError) or
+  // the directive (sloppy-mode demotion)
   #prologueFallbackAnchors() {
     const src = this.#ms.original;
     const anchors = [];
     if (this.#directiveEnd > 0) anchors.push(this.#directiveEnd);
-    const afterShebang = skipShebang(src, 0);
-    if (afterShebang > 0) anchors.push(afterShebang - (src.startsWith('\r\n', afterShebang - 2) ? 2 : 1));
+    const shebangAnchor = shebangFallbackAnchor(src);
+    if (shebangAnchor > 0) anchors.push(shebangAnchor);
     return anchors;
   }
 
@@ -342,6 +363,18 @@ export default class ImportInjector extends ImportInjectorState {
     if (this.#directiveEnd > p) p = skipLineEnd(src, this.#directiveEnd);
     return p;
   }
+}
+
+// the shebang-end fallback anchor: the last position still INSIDE the shebang line where a
+// block can attach after the intact prologue - just before the consumed terminator (backed
+// up over CRLF / LF / CR / LS / PS). when the shebang runs to EOF with NO terminator there
+// is nothing to back over: the anchor IS the end, and backing up one char would splice the
+// block mid-shebang (`#!/usr/bin/env nod<block>e`). 0 = no shebang (no anchor)
+export function shebangFallbackAnchor(src) {
+  const afterShebang = skipShebang(src, 0);
+  if (afterShebang === 0) return 0;
+  if (src.startsWith('\r\n', afterShebang - 2)) return afterShebang - 2;
+  return isLineTerminator(src[afterShebang - 1]) ? afterShebang - 1 : afterShebang;
 }
 
 // ES spec HashbangComment terminates on any LineTerminator (LF / CR / LS / PS). CR-only
