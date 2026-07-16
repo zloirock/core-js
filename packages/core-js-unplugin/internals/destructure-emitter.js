@@ -3785,7 +3785,9 @@ export function createDestructureEmitter({
     // there is no proxy-immediate sub-chain for the natural visitor to nest, so the SE-hop must collapse HERE -
     // else it stays raw (`_globalThis[(e++,'window')].Set`, undefined off-engine -> crash)
     const rootIsSeWrapped = unwrapParens(wrappedRoot)?.type === 'SequenceExpression';
-    if (!isWriteTarget && !rootIsSeWrapped
+    // a plan that MIGRATES the dropped keys' effects into the surviving leaf key owns the SE-hop shape
+    // outright - the natural-visitor deferral below exists only for shapes with no SE channel
+    if (!isWriteTarget && !rootIsSeWrapped && !collapse.keyPrefixSE?.length
       && maximalProxyGlobalPrefix(target, aliasCtx, { throughChainAssign }).end
         !== maximalProxyGlobalPrefix(target, aliasCtx, { allowSideEffectKeys: true, throughChainAssign }).end) {
       return null;
@@ -3810,8 +3812,11 @@ export function createDestructureEmitter({
     // exempt. an effect the sequence around it carries (`(log.push("x"), t = root.window).self.X`) is not
     // the assignment: dropping it loses the effect AND strands its own queued rewrite with no text to
     // compose into (the queue then throws). same exemption the shared plan applies
+    // dropped-hop KEY effects are exempt like the kept root itself: they ride the surviving key
+    // (`keyPrefixSE`), where the native order puts them - harvesting them here too would run them twice
+    const migratedKeySet = new Set(collapse.keyPrefixSE);
     const prefixSrcs = collectFoldedReceiverSideEffects(spanNode)
-      .filter(effect => effect !== keepRoot)
+      .filter(effect => effect !== keepRoot && !migratedKeySet.has(effect))
       .map(effect => src.slice(effect.start - baseStart, effect.end - baseStart));
     // direct root swaps to its pure binding; an alias root keeps its (already-rewritten) name
     const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(proxyRoot);
@@ -3830,6 +3835,20 @@ export function createDestructureEmitter({
     // connector DIRECTLY on the always-defined root; deeper `?.` on unknown leaves stay
     const tailSrc = rootPure || prefixEnd > wrappedRoot.end
       ? dropLeafOptionalConnector(src.slice(prefixEnd - baseStart)) : src.slice(prefixEnd - baseStart);
+    // dropped-hop KEY effects fold into the surviving leaf key as a sequence prefix - the position the
+    // native order evaluates them in (after the root and its guard, before the read). the leaf turns
+    // computed: `X?.[(c++, 'self')].Array` -> `X?.[(c++, "Array")]`
+    if (collapse.keyPrefixSE?.length) {
+      const keySrcs = collapse.keyPrefixSE.map(effect => src.slice(effect.start - baseStart, effect.end - baseStart));
+      const prop = collapse.property;
+      const leafKeySrc = collapse.computed
+        ? src.slice(prop.start - baseStart, prop.end - baseStart) : JSON.stringify(prop.name);
+      // the remainder starts after the leaf's own closing bracket when it is computed - slicing from the
+      // key's end would leave that bracket dangling in the splice
+      const afterLeaf = src.slice((collapse.computed ? target.end : prop.end) - baseStart);
+      const key = `[${ [...keySrcs, leafKeySrc].join(', ') }]`;
+      return src.slice(0, start) + rootText + (collapse.optional ? '?.' : '') + key + afterLeaf;
+    }
     // a KEPT root is not always-defined, so a `?.` the erased prefix carried has to survive on the leaf now
     // reading off it (`(b = _root.window)?.Array`) - the plan says whether it did. every other root IS
     // always-defined, and its guard is dead by construction
@@ -3941,6 +3960,15 @@ export function createDestructureEmitter({
     // claiming it here would emit a conflicting whole-span replacement (compose-needle crash).
     // mirrors the babel drive; only a raw (unresolvable) hop forces the full root-collapse
     if (isWriteTarget && !navHasUnresolvableProxyHop(recv.object, resolvePure)) return false;
+    // a receiver CLAIMED by a pending synth swap is rendered whole by that swap (its own harvest and
+    // shape) - queueing a collapse here too nests a transform the swap's content cannot compose
+    // (needle-miss crash). walk the value carriers up to the claim boundary; the swap owns the span
+    for (let p = recPath; p?.node; p = p.parentPath) {
+      if (pendingSynthSwaps.has(p.node)) return false;
+      if (!(p.node.type === 'MemberExpression' || p.node.type === 'OptionalMemberExpression'
+        || p.node.type === 'LogicalExpression' || p.node.type === 'ConditionalExpression'
+        || PROXY_HOP_VALUE_CARRIERS.has(p.node.type))) break;
+    }
     const collapsed = substituteProxyGlobalRoot({
       node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget, throughChainAssign: true,
     });
