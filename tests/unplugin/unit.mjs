@@ -15,7 +15,7 @@ import TransformQueue, {
   hasIdentifierBoundary,
   replaceNthOccurrence,
 } from '../../packages/core-js-unplugin/internals/transform-queue.js';
-import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
+import ImportInjector, { shebangFallbackAnchor } from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin, {
   formatLabelLocation,
   formatParseErrorForThrow,
@@ -1181,6 +1181,71 @@ function checkAdoptOrphanRejectsUnsafeSuffix() {
 }
 checkAdoptOrphanRejectsUnsafeSuffix();
 
+// `_unused` counterpart of orphan-ref adoption: post-without-pre must re-recognize pre's
+// rest-destructure sentinels via adoptUnusedNames, with the same generator-shape validation
+// and suffix seeding, so the idempotency skip re-arms and the allocator can't re-mint an
+// adopted name
+// shebang fallback anchor: just before the consumed line terminator - and when the shebang
+// runs to EOF with NO terminator, the anchor is the END (backing up one char would splice the
+// injected block mid-shebang: `#!/usr/bin/env nod<block>e`)
+function checkShebangFallbackAnchor() {
+  check('shebangAnchor/no shebang', shebangFallbackAnchor('const x = 1;'), 0);
+  check('shebangAnchor/terminator-less EOF', shebangFallbackAnchor('#!/usr/bin/env node'), '#!/usr/bin/env node'.length);
+  check('shebangAnchor/LF', shebangFallbackAnchor('#!x\ncode();'), 3);
+  check('shebangAnchor/CRLF', shebangFallbackAnchor('#!x\r\ncode();'), 3);
+  check('shebangAnchor/CR only', shebangFallbackAnchor('#!x\rcode();'), 3);
+  check('shebangAnchor/LS', shebangFallbackAnchor('#!x\u2028code();'), 3);
+  check('shebangAnchor/PS', shebangFallbackAnchor('#!x\u2029code();'), 3);
+}
+checkShebangFallbackAnchor();
+
+// a per-binding registration invalidates a pre-existing BLIND entry's "no binding" claim -
+// the stale blind entry must not shadow the per-binding judgment (a GUARDED write would
+// otherwise read as unconditionally trusted through the name view). minted allocator UIDs
+// are exempt: a user binding can never collide with them
+function checkPerBindingDropsStaleBlindAlias() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  inj.registerGlobalAlias('M', 'Map');
+  inj.registerGlobalAlias('M', 'Map', {
+    bindingNode: { type: 'Identifier', name: 'M' },
+    guarded: true, write: { start: 10 }, scopeSpan: { start: 0, end: 100 },
+  });
+  const info = inj.getBindingInfo('M', 50);
+  check('blindDrop/per-binding judgment wins', info?.aliasTrusted, false);
+  check('blindDrop/guard flag visible', info?.aliasGuarded, true);
+  // the drop is durable: a pre->post snapshot carries no stale blind entry to resurrect
+  check('blindDrop/snapshot carries no stale blind', inj.snapshot().globalAliases.has('M'), false);
+  // the existence view still reports the name bound through the per-binding list
+  check('blindDrop/hasAliasName still true via per-binding', inj.hasAliasName('M', 50), true);
+  // minted (allocator-owned) blind entries survive a same-name per-binding registration
+  const inj2 = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  inj2.registerGlobalAlias('_r', 'Map', { minted: true });
+  inj2.registerGlobalAlias('_r', 'Map', {
+    bindingNode: { type: 'Identifier', name: '_r' },
+    guarded: true, write: { start: 10 }, scopeSpan: { start: 0, end: 100 },
+  });
+  check('blindDrop/minted blind survives', inj2.getBindingInfo('_r', 50)?.aliasTrusted, true);
+}
+checkPerBindingDropsStaleBlindAlias();
+
+function checkAdoptUnusedNames() {
+  const ms = new MagicString('');
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
+  inj.adoptUnusedNames(['_unused', '_unused9', 'notASentinel', '_unused_user', '_ref']);
+  check('adoptUnused/arms the sentinel skip', inj.hasGeneratedUnusedName('_unused'), true);
+  check('adoptUnused/arms suffixed sentinel', inj.hasGeneratedUnusedName('_unused9'), true);
+  check('adoptUnused/rejects non-conforming', inj.hasGeneratedUnusedName('notASentinel'), false);
+  check('adoptUnused/rejects underscore tail', inj.hasGeneratedUnusedName('_unused_user'), false);
+  check('adoptUnused/rejects ref-shaped name', inj.hasGeneratedUnusedName('_ref'), false);
+  // suffix state seeded past the adopted maximum - a fresh allocation may not collide
+  check('adoptUnused/allocator resumes past adopted', inj.generateUnusedName(), '_unused10');
+  // unsafe-length numeric tail stays out of the allocator cache (same cap as orphan refs)
+  const inj2 = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  inj2.adoptUnusedNames([`_unused${ '9'.repeat(18) }`]);
+  check('adoptUnused/rejects unsafe-length suffix', inj2.hasGeneratedUnusedName(`_unused${ '9'.repeat(18) }`), false);
+}
+checkAdoptUnusedNames();
+
 // sequential transforms via one plugin instance must not bleed state between them.
 // runTransformInner installs `currentInjector` AFTER its early-return guards and the
 // try/finally restores the previous slot - a second transform sees a fresh tree and
@@ -2286,6 +2351,25 @@ function checkSnapshotKeyNormalization() {
   // percent-encoded UPPERCASE marker (`%56ue` -> `Vue`): the case-fold runs AFTER percent-decode, so the
   // decoded `V` folds to `v` and the marker still registers - a pre-decode fold would leave `Vue`, miss
   // the marker, and key on the bare path, breaking the round-trip with the plain `?vue` post-pass id
+  // Windows UNC prefixes embed `?` at index 2 - the HMR-timestamp strip must scan for the
+  // query past the prefix (shared offset with stripQueryHash). with a raw indexOf the strip
+  // consumed the REAL `?` together with a first-token `?t=N`, gluing the remaining query onto
+  // the path and diverging from the stored key
+  cache.store('//?/C:/src/App.vue?vue&type=script', { tag: 'unc-fwd' });
+  check('SnapshotCache/UNC forward + t= first token with tail',
+    cache.take('//?/C:/src/App.vue?t=123&vue&type=script')?.tag, 'unc-fwd');
+  cache.store('\\\\?\\C:\\src\\Bar.vue?vue&type=script', { tag: 'unc-bs' });
+  check('SnapshotCache/UNC backslash + t= appended',
+    cache.take('\\\\?\\C:\\src\\Bar.vue?vue&type=script&t=99')?.tag, 'unc-bs');
+  cache.store('//?/C:/src/plain.js', { tag: 'unc-bare' });
+  check('SnapshotCache/UNC + t= as the only query token',
+    cache.take('//?/C:/src/plain.js?t=5')?.tag, 'unc-bare');
+  cache.store('/src/NonUnc.vue?vue&type=script', { tag: 'nonunc' });
+  check('SnapshotCache/non-UNC t= first token control',
+    cache.take('/src/NonUnc.vue?t=123&vue&type=script')?.tag, 'nonunc');
+  cache.store('//?/C:/src/Frag.vue?vue&type=script#L5', { tag: 'unc-frag' });
+  check('SnapshotCache/UNC + fragment + t= first token',
+    cache.take('//?/C:/src/Frag.vue?t=7&vue&type=script#L5')?.tag, 'unc-frag');
   cache.store('/src/Up.vue?%56ue&type=script', { tag: 'sfc-upenc' });
   check('SnapshotCache/sfc percent-encoded uppercase marker canonical',
     cache.take('/src/Up.vue?vue&type=script')?.tag, 'sfc-upenc');
@@ -2590,6 +2674,14 @@ checkOrphanTS('case + as-cast', 'switch (x) { case ((_ref = foo()) as any): brea
 checkOrphanTS('if + as-cast', 'if (((_ref = foo()) as any)) {}', []);
 checkOrphanTS('throw + non-null', 'throw ((_ref = foo())!);', []);
 checkOrphanTS('switch discriminant + as-cast', 'switch ((_ref = foo()) as any) { default: }', []);
+// TS namespaces and enums compile to IIFEs - their bodies are var-scopes, never the plugin's
+// module-top-level emission position, so even emit-shaped assignments inside them are user code
+checkOrphanTS('namespace body call-arg', 'namespace N { register(_ref = makeThing()); }', []);
+checkOrphanTS('namespace body binary-test', 'namespace N { null == (_ref = foo()) ? void 0 : _ref; }', []);
+checkOrphanTS('enum member initializer', 'enum E { A = (register(_ref = makeThing()), 1) }', []);
+// a namespace-scoped decline must not poison a REAL module-top-level orphan beside it
+checkOrphanTS('namespace decline + top-level orphan sibling',
+  'namespace N { register(_ref = makeThing()); }\nnull == (_ref2 = foo()) ? void 0 : _ref2;', ['_ref2']);
 // regression: a genuine plugin-shape `null == (...)` test is still adopted with TS in the file
 checkOrphanTS('plugin binary-test still orphan (ts)', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 
@@ -2916,6 +3008,43 @@ function checkSinglePostPassEmitsPureImports() {
   check('single-post/emits pure imports', importLines.length > 0, true);
 }
 checkSinglePostPassEmitsPureImports();
+
+// --- post-without-pre re-recognizes pre's rest-destructure sentinels ---
+// pre rebuilds `const { from, ...rest } = Array` with a `_unused` sentinel keeping the rest
+// exclusion. a post pass whose snapshot was lost (sibling invalidation) re-parses that output;
+// without sentinel adoption it re-processed the rebuilt pattern - a dead `const _unused =`
+// body-extract plus a re-keyed `_unused2` per re-pass, growing on every rebuild cycle
+function checkPostAdoptsUnusedSentinels() {
+  const code = 'const { from, ...rest } = Array;\nexport const r = [from, rest];';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const pre = createPlugin(opts).transform(code, '/x30.mjs', 'pre');
+  check('post-adopt-unused/pre rebuilt with sentinel', pre?.code?.includes('_unused'), true);
+  const post = createPlugin(opts).transform(pre.code, '/x30.mjs', 'post');
+  // idempotent: nothing left for post to change (null/undefined result = no transform)
+  check('post-adopt-unused/post-without-pre is idempotent', post?.code ?? null, null);
+  // a NESTED-scope sentinel adopts the same way - declared names collect at every depth
+  const nested = 'function f() {\n  const { from, ...rest } = Array;\n  return [from, rest];\n}\nexport default f;';
+  const nestedPre = createPlugin(opts).transform(nested, '/x30n.mjs', 'pre');
+  check('post-adopt-unused/nested pre rebuilt with sentinel', nestedPre?.code?.includes('_unused'), true);
+  const nestedPost = createPlugin(opts).transform(nestedPre.code, '/x30n.mjs', 'post');
+  check('post-adopt-unused/nested post-without-pre is idempotent', nestedPost?.code ?? null, null);
+  // BOTH adoption channels in one file (orphan `_ref` memo + `_unused` sentinel) - the two
+  // suffix-state seeds merge instead of clobbering each other, and the post pass is idempotent
+  const both = 'const { from, ...rest } = Array;\nexport const r = [from, rest, (arr ?? [1]).at(0)];';
+  const bothPre = createPlugin(opts).transform(both, '/x30b.mjs', 'pre');
+  check('post-adopt-unused/both channels present in pre',
+    bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
+  const bothPost = createPlugin(opts).transform(bothPre.code, '/x30b.mjs', 'post');
+  check('post-adopt-unused/both channels post is idempotent', bothPost?.code ?? null, null);
+  // accepted ambiguity (same class as user `_ref` in a plugin emit position): a USER binding
+  // named `_unused` inside a rest-destructure in a post-only pass is indistinguishable from
+  // pre's own sentinel output, so it adopts and the destructure stays untouched - the safe
+  // under-polyfill direction for usage-pure (native `from` on the taken engine, no corruption)
+  const shadow = 'import "@core-js/pure/actual/array/from";\nconst { from: _unused, ...rest } = Array;\nexport const r = [_unused, rest];';
+  const shadowPost = createPlugin(opts).transform(shadow, '/x30s.mjs', 'post');
+  check('post-adopt-unused/user-shaped sentinel adopts (bail-safe)', shadowPost?.code ?? null, null);
+}
+checkPostAdoptsUnusedSentinels();
 
 // --- phase pre+post with require import style: post must dedup the pre-emitted `var X = require()` ---
 // the require import style emits `var _X = require('@core-js/pure/...')`; the post re-scan has to
