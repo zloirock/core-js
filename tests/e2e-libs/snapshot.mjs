@@ -26,34 +26,39 @@ async function baseline(file) {
 
 await mkdir(SNAP, { recursive: true });
 let drift = 0;
+let errored = 0;
 for (const lib of libraries) {
   for (const method of lib.methods) {
-    const set = await captureInjections(lib.exercise, method);
-    const file = join(SNAP, `${ lib.name }.${ method }.txt`);
-    const base = await baseline(file);
-    console.log(`\n=== ${ lib.name }/${ method } — ${ set.length } injected ===`);
-    for (const s of set) console.log(`  ${ s }`);
-    if (UPDATE || !base) {
-      await writeFile(file, `${ set.join('\n') }\n`);
-      console.log(base ? `  → updated (${ set.length })` : `  → created (${ set.length })`);
-      continue;
-    }
-    const now = new Set(set);
-    const old = new Set(base);
-    const added = set.filter(s => !old.has(s));
-    const removed = base.filter(s => !now.has(s));
-    if (!added.length && !removed.length) {
-      console.log('  ✓ matches baseline');
-    } else {
-      drift++;
-      for (const s of added) console.log(`  + ${ s }  (new)`);
-      for (const s of removed) console.log(`  - ${ s }  (gone)`);
+    // isolate each cell: one failed capture is recorded, not fatal to the whole run
+    try {
+      const set = await captureInjections(lib.exercise, method);
+      const file = join(SNAP, `${ lib.name }.${ method }.txt`);
+      const base = await baseline(file);
+      console.log(`\n=== ${ lib.name }/${ method } — ${ set.length } injected ===`);
+      for (const s of set) console.log(`  ${ s }`);
+      if (UPDATE || !base) {
+        await writeFile(file, `${ set.join('\n') }\n`);
+        console.log(base ? `  → updated (${ set.length })` : `  → created (${ set.length })`);
+        continue;
+      }
+      const now = new Set(set);
+      const old = new Set(base);
+      const added = set.filter(s => !old.has(s));
+      const removed = base.filter(s => !now.has(s));
+      if (!added.length && !removed.length) {
+        console.log('  ✓ matches baseline');
+      } else {
+        drift++;
+        for (const s of added) console.log(`  + ${ s }  (new)`);
+        for (const s of removed) console.log(`  - ${ s }  (gone)`);
+      }
+    } catch (err) {
+      errored++;
+      console.log(`\n=== ${ lib.name }/${ method } — ERROR ===\n  ${ (err.message || String(err)).split('\n', 1)[0] }`);
     }
   }
 }
-if (drift) {
-  console.log(`\n✗ injection snapshot drifted in ${ drift } cell(s) — rerun with --update if intended`);
-  process.exitCode = 1;
-} else {
-  console.log('\n✓ injection snapshot done');
-}
+if (drift) console.log(`\n✗ injection snapshot drifted in ${ drift } cell(s) — rerun with --update if intended`);
+if (errored) console.log(`\n✗ ${ errored } cell(s) failed to capture`);
+if (drift || errored) process.exitCode = 1;
+else console.log('\n✓ injection snapshot done');

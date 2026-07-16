@@ -15,6 +15,9 @@ const N = Number(process.env.N ?? 5);
 const [libFilter, bundlerFilter] = process.argv.slice(2);
 const libs = librariesIn('throughput').filter(l => !libFilter || l.name === libFilter);
 const bundlers = THROUGHPUT_BUNDLERS.filter(b => !bundlerFilter || b === bundlerFilter);
+// a typo'd filter that matches nothing must fail loudly, not write a green empty report
+if (!libs.length) throw new Error(`no throughput library matches filter '${ libFilter }'`);
+if (!bundlers.length) throw new Error(`no bundler matches filter '${ bundlerFilter }'`);
 
 async function median(fn) {
   const times = [];
@@ -42,21 +45,30 @@ for (const lib of libs) {
     }
   }
 
+  // injection count is bundler- and phase-invariant (captureInjections always builds via rollup with
+  // default opts), so capture it once per method instead of rebuilding for every bundler x phase cell
+  const injByMethod = {};
+  for (const method of lib.methods) injByMethod[method] = (await captureInjections(lib.exercise, method)).length;
+
   for (const name of bundlers) {
-    for (const method of METHODS) {
+    for (const method of lib.methods) {
       for (const phase of phasesFor(method)) {
         const label = `${ lib.name }/${ name }/${ method }${ phase ? `/${ phase }` : '' }`;
         try {
-          const injections = (await captureInjections(lib.exercise, method)).length;
+          const injections = injByMethod[method];
           const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`,
             e => median(() => throughputBuilders[name](e, u(name, method, phase))));
           const base = baseline[name];
-          const overhead = base == null ? null : +(ms - base).toFixed(1);
-          rows.push({ lib: lib.name, bundler: name, method, phase: phase ?? '', ms: +ms.toFixed(1), baseline: base == null ? null : +base.toFixed(1), overhead, bytes: out.bytes, injections });
+          const overhead = base === null ? null : +(ms - base).toFixed(1);
+          rows.push({
+            lib: lib.name, bundler: name, method, phase: phase ?? '',
+            ms: +ms.toFixed(1), baseline: base === null ? null : +base.toFixed(1),
+            overhead, bytes: out.bytes, injections,
+          });
           console.log(`✓ ${ label }: ${ ms.toFixed(0) }ms (overhead ${ overhead ?? '?' }ms, ${ out.bytes }b, ${ injections } inj)`);
         } catch (err) {
-          rows.push({ lib: lib.name, bundler: name, method, phase: phase ?? '', error: (err.message || String(err)).split('\n')[0].slice(0, 160) });
-          console.log(`✗ ${ label }: ${ (err.message || err).split('\n')[0].slice(0, 160) }`);
+          rows.push({ lib: lib.name, bundler: name, method, phase: phase ?? '', error: (err.message || String(err)).split('\n', 1)[0].slice(0, 160) });
+          console.log(`✗ ${ label }: ${ (err.message || err).split('\n', 1)[0].slice(0, 160) }`);
         }
       }
     }
@@ -68,17 +80,21 @@ const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
 await writeFile(join(REPORT, 'throughput.json'), `${ JSON.stringify({ N, rows }, null, 2) }\n`);
 
-const cells = [['entry-global', ''], ['usage-global', 'pre'], ['usage-global', 'post'], ['usage-global', 'pre+post'], ['usage-pure', 'pre'], ['usage-pure', 'post'], ['usage-pure', 'pre+post']];
+const cells = METHODS.flatMap(m => phasesFor(m).map(p => [m, p ?? '']));
 const head = ['bundler', 'entry', 'ug:pre', 'ug:post', 'ug:p+p', 'up:pre', 'up:post', 'up:p+p'];
-const find = (ln, b, m, p) => rows.find(r => r.lib === ln && r.bundler === b && r.method === m && r.phase === p);
-const fmt = c => (!c ? '—' : c.error ? 'ERR' : `${ c.overhead ?? c.ms }`);
+function find(ln, b, m, p) {
+  return rows.find(r => r.lib === ln && r.bundler === b && r.method === m && r.phase === p);
+}
+function fmt(c) {
+  return !c ? '—' : c.error ? 'ERR' : `${ c.overhead ?? c.ms }`;
+}
 let md = `# Throughput (overhead ms over baseline, median of ${ N })\n\n`;
 for (const lib of libs) {
   md += `## ${ lib.name }\n\n| ${ head.join(' | ') } |\n| ${ head.map(() => '---').join(' | ') } |\n`;
   for (const b of bundlers) {
     md += `| ${ b } | ${ cells.map(([m, p]) => fmt(find(lib.name, b, m, p))).join(' | ') } |\n`;
   }
-  md += `\n_Cells show unplugin overhead (bundle-with-plugin − plugin-less baseline), in ms. See throughput.json for absolute ms, bytes, injection counts._\n\n`;
+  md += '\n_Cells show unplugin overhead (bundle-with-plugin − plugin-less baseline), in ms. See throughput.json for absolute ms, bytes, injection counts._\n\n';
 }
 await writeFile(join(REPORT, 'throughput.md'), md);
 console.log(`\nreport → ${ join(REPORT, 'throughput.md') }`);

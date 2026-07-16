@@ -17,9 +17,9 @@ export const HERE = dirname(fileURLToPath(import.meta.url));
 const TMP = join(HERE, '.tmp');
 
 export const METHODS = ['entry-global', 'usage-global', 'usage-pure'];
-export const phasesFor = m => (m === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post']);
+export const phasesFor = m => m === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
 
-export function pluginOpts(method, phase) {
+function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full', targets: { ie: 11 } };
   if (phase) opts.phase = phase;
   return opts;
@@ -58,7 +58,7 @@ async function withTmpOut(fn) {
 // plugin === null is the baseline (pure library bundle, no injection).
 export const throughputBuilders = {
   async rollup(entry, plugin) {
-    const build = await rollup({ input: entry, plugins: [plugin, nodeResolve(), commonjs()].filter(Boolean), onwarn() {} });
+    const build = await rollup({ input: entry, plugins: [plugin, nodeResolve(), commonjs()].filter(Boolean), onwarn() { /* ignore bundler warnings */ } });
     try {
       const { output } = await build.generate({ format: 'es' });
       return { bytes: Buffer.byteLength(output[0].code) };
@@ -70,7 +70,10 @@ export const throughputBuilders = {
     const { build } = await import('rolldown');
     return withTmpOut(async dir => {
       const file = join(dir, 'out.mjs');
-      await build({ input: entry, platform: 'node', treeshake: false, plugins: [plugin].filter(Boolean), output: { format: 'esm', file, externalLiveBindings: false, keepNames: true } });
+      await build({
+        input: entry, platform: 'node', treeshake: false, plugins: [plugin].filter(Boolean),
+        output: { format: 'esm', file, externalLiveBindings: false, keepNames: true },
+      });
       return { bytes: (await stat(file)).size };
     });
   },
@@ -118,7 +121,7 @@ export const throughputBuilders = {
   },
   async farm(entry, plugin) {
     const { build, Logger } = await import('@farmfe/core');
-    const noop = () => {};
+    function noop() { /* swallow farm logger output */ }
     const silent = Object.assign(new Logger({ level: 'error' }), { info: noop, warn: noop, debug: noop, trace: noop, infoOnce: noop, warnOnce: noop, logMessage: noop });
     return withTmpOut(async dir => {
       await build({
@@ -144,16 +147,16 @@ async function webpackLike(compiler, entry, plugin) {
       experiments: { outputModule: true }, optimization: { minimize: false }, plugins: [plugin].filter(Boolean),
     });
     try {
-      const stats = await new Promise((res, rej) => instance.run((e, s) => (e ? rej(e) : res(s))));
+      const stats = await new Promise((resolve, reject) => instance.run((e, s) => e ? reject(e) : resolve(s)));
       if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
     } finally {
-      await new Promise(res => instance.close(res));
+      await new Promise(resolve => instance.close(resolve));
     }
     return { bytes: (await stat(join(dir, 'out.mjs'))).size };
   });
 }
 
-export const THROUGHPUT_BUNDLERS = ['rollup', 'rolldown', 'esbuild', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm'];
+export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders);
 
 // The unplugin adapter instance for a bundler + (method, phase).
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
@@ -167,13 +170,14 @@ const babelOpts = {
   cwd: HERE,
   extensions: ['.js', '.mjs', '.cjs'],
   // core-js internals are already ES5; skip them (unplugin still injects them, they just aren't re-babeled).
-  exclude: [/[\\/]core-js(-pure)?[\\/]/, /[\\/]@core-js[\\/]/],
+  exclude: [/[/\\]core-js(?:-pure)?[/\\]/, /[/\\]@core-js[/\\]/],
   presets: [['@babel/preset-env', { targets: { ie: '11' }, useBuiltIns: false, corejs: false, modules: false }]],
 };
 
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`). For usage-* methods pass a
 // phase; entry-global ignores it. Ordering matters: raw Rollup ignores unplugin's enforce:'post'
-// field (that's Vite/farm-only), so transform order = array order. babel is listed FIRST so it
+// field (Vite/webpack/rspack/rsbuild/farm honor it; raw Rollup/esbuild/bun don't), so transform
+// order = array order. babel is listed FIRST so it
 // down-compiles to ES5, and unplugin runs LAST so its stdlib injection sees babel's helper output.
 export async function runtimeBuild(exerciseAbs, method, phase) {
   const effPhase = method === 'entry-global' ? undefined : (phase ?? 'post');
@@ -181,7 +185,7 @@ export async function runtimeBuild(exerciseAbs, method, phase) {
     const build = await rollup({
       input: entry,
       plugins: [babel(babelOpts), nodeResolve(), commonjs(), u('rollup', method, effPhase)],
-      onwarn() {},
+      onwarn() { /* ignore bundler warnings */ },
     });
     try {
       const { output } = await build.generate({ format: 'umd', name: 'E2E', esModule: false });
@@ -193,15 +197,21 @@ export async function runtimeBuild(exerciseAbs, method, phase) {
 }
 
 // -------- injection recorder (bundler-invariant set) --------
-const SPEC_RE = /(?:from|import|require\()\s*["']((?:core-js|@core-js\/pure)\/[^"']+)["']/g;
+const SPEC_RE = /(?:from|import|require\()\s*["'](?<spec>(?:core-js|@core-js\/pure)\/[^"']+)["']/g;
 function recorder(sink) {
-  return { name: 'injection-recorder', transform(code) { for (const m of code.matchAll(SPEC_RE)) sink.add(m[1].replace(/\.m?js$/, '')); return null; } };
+  return {
+    name: 'injection-recorder',
+    transform(code) {
+      for (const m of code.matchAll(SPEC_RE)) sink.add(m.groups.spec.replace(/\.m?js$/, ''));
+      return null;
+    },
+  };
 }
 
 export async function captureInjections(exerciseAbs, method) {
   return withEntry(exerciseAbs, method, `snap-${ method }`, async entry => {
     const sink = new Set();
-    const build = await rollup({ input: entry, plugins: [u('rollup', method), recorder(sink), nodeResolve(), commonjs()], onwarn() {} });
+    const build = await rollup({ input: entry, plugins: [u('rollup', method), recorder(sink), nodeResolve(), commonjs()], onwarn() { /* ignore bundler warnings */ } });
     await build.generate({ format: 'es' });
     await build.close();
     return [...sink].sort();

@@ -124,31 +124,33 @@ after:
 
 ## 7. RxJS exercise (`exercises/rxjs.mjs`)
 
-Deterministic and synchronous. Uses `TestScheduler` (virtual time) for any time-based operator so
-the whole thing is headless and reproducible. Imports the **ES2015** build of rxjs (`dist/esm`)
-so Babel + unplugin have modern syntax/stdlib to work on.
+Deterministic and headless. Time-based operators run under `TestScheduler` (virtual time),
+asserted at the value level. Imports operators/creation from `rxjs` and `TestScheduler` from
+`rxjs/testing` (nodeResolve picks rxjs's modern build, giving Babel + unplugin syntax/stdlib to
+work on).
 
-Operator coverage (broad, to maximize stdlib surface):
+Operator coverage (a confidently hand-verifiable subset — enough to exercise the target stdlib;
+**narrowed from the original broad wishlist** during implementation):
 
-- creation: `of`, `from`, `range`, `generate`, `defer`
-- transform: `map`, `scan`, `mergeMap`, `switchMap`, `concatMap`, `exhaustMap`, `groupBy`,
-  `bufferCount`, `pairwise`
-- filter: `filter`, `take`, `takeWhile`, `distinctUntilChanged`, `debounceTime`, `sample`
-- combine: `merge`, `concat`, `combineLatest`, `zip`, `withLatestFrom`, `forkJoin`, `race`
-- subjects: `Subject`, `BehaviorSubject`, `ReplaySubject`, `AsyncSubject`
-- errors: `catchError`, `retry`
-- aggregate: `reduce`, `toArray`, `count`
+- creation: `of`, `from`, `range`, `throwError`
+- transform: `map`, `scan`, `mergeMap`, `switchMap`, `concatMap`, `groupBy`, `bufferCount`, `pairwise`
+- filter: `filter`, `distinctUntilChanged`, `debounceTime`, `throttleTime`
+- combine: `merge`, `concat`, `combineLatest`, `zip`, `forkJoin`
+- subjects: `BehaviorSubject`, `ReplaySubject`
+- errors: `catchError`
+- aggregate: `reduce`, `toArray`
 - promise interop: `firstValueFrom`, `lastValueFrom` (exercises the `Promise` polyfill)
 
-Exports:
+Exports a single `run()` returning `Promise<{ results, checks }>` (a `Promise.then` chain, no
+async/await — so the ES5 down-compile needs no regenerator runtime):
 
 - `results` — JSON-serializable object of collected outputs.
-- `checks` — array of `{ label, actual, expected }` (or `{ label, pass }`) used by the HTML
-  harness and node pre-flight to render pass/fail.
+- `checks` — array of `{ label, actual, expected, pass }` (`pass` computed by the exercise via a
+  JSON deep-equal) consumed by the node pre-flight and the generated HTML harness.
 
-Expected stdlib footprint core-js will inject at `ie:11`: `Promise`, `Symbol`
-(`observable`/`iterator`), internal `Map`/`Set`, `Array.from`/`Array.of`, `Object.assign`, plus
-Babel-helper-driven iterator-protocol usage.
+Expected stdlib footprint core-js injects at `ie:11`: `Promise`, `Symbol`
+(`observable`/`iterator`), internal `Map`/`Set`, `Array.from`, plus Babel-helper-driven
+iterator-protocol usage.
 
 ## 8. Throughput measurement (`throughput.mjs`)
 
