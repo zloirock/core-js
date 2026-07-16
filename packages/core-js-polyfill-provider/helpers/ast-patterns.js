@@ -541,6 +541,17 @@ export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null }
   return true;
 }
 
+// a BARE JSX tag name that starts lowercase names an intrinsic element (`<div />` -> the string
+// "div", `<structuredClone />` -> the string, never the global), so it resolves against no binding
+// at all. dashed tags (`<el-x />`) are intrinsic too, but they start lowercase as well - and a name
+// carrying `-` can equal no JS identifier anyway, so the initial-letter test is the whole rule.
+// a MEMBER tag (`<f.Sub />`) is an expression whatever its case and is NOT covered here
+const JSX_INTRINSIC_TAG_RE = /^[a-z]/;
+
+export function isIntrinsicJsxTagName(tagName) {
+  return JSX_INTRINSIC_TAG_RE.test(tagName);
+}
+
 // a FunctionExpression / FunctionDeclaration whose own name is referenced anywhere in its params
 // or body - a potential self-call (or an escape that leads to one). the name binds only inside the
 // function, so any such reference is the sole extra caller an immediately-invoked gate would
@@ -559,9 +570,34 @@ function namedFunctionSelfReferences(fnPath) {
 function identifierReferencedInSubtree(node, name) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
   if (node.type === 'Identifier') return node.name === name;
-  const keyProp = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression' ? 'property'
+  // a JSX tag name can be a runtime reference to the binding, and then it is the same KIND of extra
+  // caller a bare `return f` is: the element hands the component to a renderer that calls it with
+  // props, so the param default never runs there. namespaced parts name no binding
+  if (node.type === 'JSXNamespacedName') return false;
+  // the tag slot decides by SPELLING: a lowercase-initial bare tag is an intrinsic element - the
+  // string "div", never the binding `div`. a MEMBER tag (`<f.Sub />`) is an expression whatever its
+  // case, so it recurses and its root does reference the binding. attributes carry arbitrary
+  // expressions and stay in the walk
+  if (node.type === 'JSXOpeningElement' || node.type === 'JSXClosingElement') {
+    const tag = node.name;
+    if (tag?.type === 'JSXIdentifier'
+      ? !isIntrinsicJsxTagName(tag.name) && tag.name === name
+      : identifierReferencedInSubtree(tag, name)) return true;
+    return (node.attributes ?? []).some(attr => identifierReferencedInSubtree(attr, name));
+  }
+  // reached only as a JSXMemberExpression root now - the referencing position
+  if (node.type === 'JSXIdentifier') return node.name === name;
+  // a JSX tag name is a runtime reference to the binding, and the same KIND of extra caller a bare
+  // `return f` is: the element hands the component to a renderer that calls it with props, so the
+  // param default never runs there. the tag-name slot is the only referencing position - namespaced
+  // parts are literals (`<ns:f />` names no binding), and the skips below drop the other slots
+  const keyProp = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
+    // `<f.Bar />` accesses a prop on `f`: the ROOT is the reference, the tail is a name literal
+    || node.type === 'JSXMemberExpression' ? 'property'
     : node.type === 'ObjectProperty' || node.type === 'Property'
-      || node.type === 'ObjectMethod' || node.type === 'ClassMethod' ? 'key' : null;
+      || node.type === 'ObjectMethod' || node.type === 'ClassMethod' ? 'key'
+      // `<X f={1} />` names a prop, not the binding
+      : node.type === 'JSXAttribute' ? 'name' : null;
   for (const [key, value] of Object.entries(node)) {
     // a non-computed member / property KEY is a name literal, not a reference
     if (key === keyProp && !node.computed) continue;
@@ -3381,9 +3417,15 @@ export function paramReboundInBody(node, paramNames) {
     && node.left?.type !== 'VariableDeclaration' && patternBindsIdentifier(node.left, id => paramNames.has(id.name))) return true;
   // a bare function/arrow that is a discarded ExpressionStatement never runs - skip its body
   if (node.type === 'ExpressionStatement' && isPlainFunctionNode(unwrapRuntimeExpr(node.expression))) return false;
-  // a nested function whose own params rebind the target shadows ours - its writes hit its OWN binding
-  if (isPlainFunctionNode(node)
-    && (node.params ?? []).some(param => patternBindsIdentifier(param, id => paramNames.has(id.name)))) return false;
+  // a nested function whose own params rebind a target shadows ours - its writes hit its OWN binding.
+  // only the names it actually shadows are covered though: a write to any OTHER still reaches ours
+  // (`function (x) { y = P; }` shadows `x` alone, so its `y` write is live), so recurse for the
+  // non-shadowed subset instead of dropping the whole subtree
+  if (isPlainFunctionNode(node)) {
+    const visible = new Set([...paramNames].filter(paramName => (node.params ?? [])
+      .every(param => !patternBindsIdentifier(param, id => id.name === paramName))));
+    if (visible.size !== paramNames.size) return visible.size !== 0 && paramReboundInBody(node, visible);
+  }
   for (const value of Object.values(node)) {
     if (Array.isArray(value)) {
       if (value.some(child => paramReboundInBody(child, paramNames))) return true;
