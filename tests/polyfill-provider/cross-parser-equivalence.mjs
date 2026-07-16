@@ -340,4 +340,20 @@ await runEquivalence('guarded destructure alias - switch-case form',
 await runEquivalence('guarded destructure alias - usage-global flavor',
   'let make;\nif (cond) ({ from: make } = Array);\nexport const r = make([1]);\nexport const x = r.at(0);', USAGE_GLOBAL_IE11);
 
+// SE-bearing inits joining the anchored proxy-hop fold: the effect rides a re-emittable
+// channel (prefix replay / whole-rescued chain assignment) - both parsers must agree on
+// the import set for every admitted and declined form
+await runEquivalence('anchored SE-init: sequence prefix + proxy key',
+  'const { self: { navigator: nav } } = (eff(), globalThis);\nexport const r = nav;', USAGE_PURE);
+await runEquivalence('anchored SE-init: chain assignment + full consume',
+  'let w;\nconst { Map: { groupBy } } = (w = globalThis);\nexport const r = [w, groupBy];', USAGE_PURE);
+await runEquivalence('anchored SE-init: ternary-branch effect stays nested',
+  'const { Iterator: { customC } } = (cond ? (eff(), globalThis) : globalThis);\nexport const r = customC;', USAGE_PURE);
+await runEquivalence('anchored SE-init: assignment-form cascade host',
+  'let nv;\n({ self: { isSecureContext: nv } } = (eff(), globalThis));\nexport const r = nv;', USAGE_PURE);
+await runEquivalence('anchored SE-init: deferred chain-assign host',
+  'let q3, customV;\nexport const { keys } = (({ Set: { customV } } = (q3 = globalThis)), Object);\nexport const r = [q3, customV];', USAGE_PURE);
+await runEquivalence('anchored SE-init: for-init-buried host',
+  'let q8, onx, out8;\nfor (const { keys: fk } = (({ self: { ononline: onx } } = (q8 = globalThis)), Object); !out8;) out8 = fk;\nexport const r = [q8, onx, out8];', USAGE_PURE);
+
 finish();

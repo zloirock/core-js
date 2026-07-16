@@ -14,12 +14,13 @@ export { from1 };
 let picked;
 export const { from } = (({ Map: { groupBy: picked } } = globalThis), Array);
 export { picked };
-// an SE inside the host's own RHS keeps the un-anchored emit in BOTH emitters
+// an SE inside the host's own RHS folds too: the effect runs exactly once in both
+// emitters (statement-lift vs in-place sequence is a print-only divergence)
 let customW;
 let c = 0;
 export const { entries } = (({ Map: { customW } } = (c++, globalThis)), Object);
-// a FOR-INIT consumed prefix re-embeds into the sink and stays un-anchored in BOTH emitters
-// (the drain never reaches the sink clone)
+// a FOR-INIT consumed prefix re-embeds into the sink AND folds: the host rebuilds before
+// the sink captures it, so the re-anchored read lands inside the re-embedded slot
 let customV, out;
 for (const { keys } = (({ Map: { customV } } = globalThis), Object); !out;) out = keys;
 export { out };
