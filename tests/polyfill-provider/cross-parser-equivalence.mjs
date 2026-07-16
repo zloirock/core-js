@@ -286,4 +286,37 @@ await runEquivalence('method extraction: direct call control',
 await runEquivalence('method extraction: var extraction - usage-global flavor',
   `const o = ${ ANON_HELD }; const m = o.read; m.call({ data: 42 });`, USAGE_GLOBAL_IE11);
 
+// for-of head member write aliases same-slot body reads - no method module may inject for
+// them in either flavor. wrappers around the receiver / head object must not desync the
+// parsers: oxc keeps paren NODES the babel default parse strips (historically unplugin
+// over-injected `es.array.at` on the paren read), and TS casts survive in both
+await runEquivalence('for-x write alias: paren body read',
+  'const o = [1, 2];\nfor (o.at of fns) { (o).at(0); }', USAGE_GLOBAL_IE11);
+await runEquivalence('for-x write alias: cast body read',
+  'const o = [1, 2];\nfor (o.at of fns) { (o as any).at(0); }', USAGE_GLOBAL_IE11);
+await runEquivalence('for-x write alias: cast head object',
+  'const o = [1, 2];\nfor ((o as any).includes of fns) { o.includes(1); }', USAGE_GLOBAL_IE11);
+await runEquivalence('for-x write alias: paren body read - usage-pure flavor',
+  'const o = [1, 2];\nfor (o.at of fns) { (o).at(0); }', USAGE_PURE);
+await runEquivalence('for-x write alias: cast head object - usage-pure flavor',
+  'const o = [1, 2];\nfor ((o as any).includes of fns) { o.includes(1); }', USAGE_PURE);
+// optionality resolves the SAME written slot, and the parsers model it with different node
+// TYPES (OptionalMemberExpression vs ChainExpression-wrapped member) - a type-literal shape
+// compare desyncs the emitters here (babel injected es.array.at while unplugin skipped)
+await runEquivalence('for-x write alias: optional body read',
+  'const o = [1, 2];\nfor (o.at of fns) { o?.at(0); }', USAGE_GLOBAL_IE11);
+await runEquivalence('for-x write alias: optional body read - usage-pure flavor',
+  'const o = [1, 2];\nfor (o.at of fns) { o?.at(0); }', USAGE_PURE);
+await runEquivalence('for-x write alias: optional non-aliased receiver still polyfills',
+  'const a = [1];\nconst b = [2];\nfor (a.flat of fns) { b?.flat(); }', USAGE_PURE);
+
+// a tagged-template tag on a runtime-ctor-guarded alias static is a this-carrying invocation:
+// both parsers must classify tag-position callee-ness identically (import sets already agreed
+// before the raw-branch bind fix; this locks the guard plan against parser-side drift). the
+// usage-global flavor injects the same module set for the tag read as for a call read
+await runEquivalence('guarded static tagged-template tag',
+  'function viaTag(c) {\n  let M;\n  c ? ({ Map: M } = globalThis) : 0;\n  return M.groupBy`items`;\n}', USAGE_PURE);
+await runEquivalence('guarded static tagged-template tag - usage-global flavor',
+  'function viaTag(c) {\n  let M;\n  c ? ({ Map: M } = globalThis) : 0;\n  return M.groupBy`items`;\n}', USAGE_GLOBAL_IE11);
+
 finish();
