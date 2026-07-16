@@ -1,10 +1,11 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _globalThis from "@core-js/pure/actual/global-this";
-var _ref, _ref2, _ref3, _ref4;
+var _ref, _ref2, _ref3, _ref4, _ref5;
 // runtime-transparent WRAPPERS between a kept proxy root and its navigation. they carry no runtime meaning,
 // so each shape must come out exactly like its bare twin: the assignment stays as the root, the redundant
 // proxy hop drops, the guard survives. the climb that finds the collapse target has to peel to the same
@@ -25,3 +26,8 @@ let e = 0;
 let w;
 export const castAndSeKey = null == (_ref4 = w = _globalThis.window) ? void 0 : _flatMapMaybeArray(_ref4[e++, "Array"].prototype).call([1], x => [x]);
 export { e };
+
+// A TS cast around the kept root COMBINED with the double-optional chain: the wrappers peel on the
+// way down, the memo still anchors at the root guard and both dead hops drop.
+let dw;
+export const castDoubleOptional = null == (_ref5 = dw = _globalThis.window) ? void 0 : _findIndexMaybeArray(_ref5[e++, "Array"].prototype).call([1], v => v === 1);

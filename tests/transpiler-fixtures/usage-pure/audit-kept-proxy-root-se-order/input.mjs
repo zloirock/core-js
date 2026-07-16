@@ -61,3 +61,24 @@ export const seqValueAndKey = (sv = (c++, globalThis.window))?.[(c++, 'self')].A
 // two SE keys on one UNGUARDED kept root: both migrate into the surviving key, in source order
 let ud;
 export const unguardedDoubleKey = (ud = globalThis.window)[(c++, 'self')][(c++, 'self')].Array.of(5);
+
+// SEVERAL live `?.` along the kept chain: only the ROOT one guards anything real - the deeper hops
+// are realm-local self-references whose guards are dead once the root is defined - so ONE memo at
+// the root hosts the whole chain and every dropped key's effect migrates into the surviving key.
+// anchoring the memo at the leaf-nearest `?.` instead buried the raw proxy root (and its redundant
+// hop) inside the memo slot, out of reach of the root substitution and the hop collapse.
+let db;
+export const doubleOptionalSeKey = (db = globalThis.window)?.[(c++, 'self')]?.[(c++, 'self')].Array.prototype.findIndex.call([1], v => v === 1);
+
+let dd;
+export const doubleOptionalDotted = (dd = globalThis.window)?.self?.self.Array.prototype.indexOf.call([2], 2);
+
+let tr;
+export const tripleOptionalMixed = (tr = globalThis.window)?.[(c++, 'self')]?.self?.[(c++, 'self')].Array.of(9);
+
+// An effect around the assignment AND one in a hop key, under TWO optionals: the value effect stays
+// inside the root memo (always runs, as written), the key effect rides the migrated key past the
+// guard - each lands in its native slot.
+let svd;
+export const seBothDoubleOptional = (c++, svd = globalThis.window)?.self?.[(c++, 'self')].Array.prototype.findLast.call([6], v => v);
+
