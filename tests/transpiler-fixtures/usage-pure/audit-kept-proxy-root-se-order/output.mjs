@@ -9,7 +9,7 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
 // SIDE-EFFECT ordering around a KEPT proxy root (a chain-assign the collapse may not root through, because
 // its value navigates a hop core-js does not ponyfill). the root re-emits itself, so it must not ALSO be
 // harvested as an effect - but everything else around it must still run, exactly once, in source order.
@@ -71,3 +71,21 @@ export const seqValueAndKey = null == (_ref7 = sv = (c++, _globalThis.window)) ?
 // two SE keys on one UNGUARDED kept root: both migrate into the surviving key, in source order
 let ud;
 export const unguardedDoubleKey = (c++, c++, ud = _globalThis.window, _Array$of)(5);
+
+// SEVERAL live `?.` along the kept chain: only the ROOT one guards anything real - the deeper hops
+// are realm-local self-references whose guards are dead once the root is defined - so ONE memo at
+// the root hosts the whole chain and every dropped key's effect migrates into the surviving key.
+// anchoring the memo at the leaf-nearest `?.` instead buried the raw proxy root (and its redundant
+// hop) inside the memo slot, out of reach of the root substitution and the hop collapse.
+let db;
+export const doubleOptionalSeKey = null == (_ref8 = db = _globalThis.window) ? void 0 : _findIndexMaybeArray(_ref8[c++, c++, "Array"].prototype).call([1], v => v === 1);
+let dd;
+export const doubleOptionalDotted = (dd = _globalThis.window)?.Array.prototype.indexOf.call([2], 2);
+let tr;
+export const tripleOptionalMixed = (tr = _globalThis.window)?.[c++, c++, "Array"].of(9);
+
+// An effect around the assignment AND one in a hop key, under TWO optionals: the value effect stays
+// inside the root memo (always runs, as written), the key effect rides the migrated key past the
+// guard - each lands in its native slot.
+let svd;
+export const seBothDoubleOptional = null == (_ref9 = (c++, svd = _globalThis.window)) ? void 0 : _findLastMaybeArray(_ref9[c++, "Array"].prototype).call([6], v => v);

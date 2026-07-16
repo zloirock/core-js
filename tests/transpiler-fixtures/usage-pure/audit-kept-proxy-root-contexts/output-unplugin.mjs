@@ -37,6 +37,7 @@ export const inAsyncArrow = (async () => (r = _globalThis.window)?.Array.prototy
 let s;
 export const computedLeafKey = null == (_ref4 = s = _globalThis.window) ? void 0 : _atMaybeArray(_ref4['Array'].prototype).call([1], 0);
 // the remaining syntactic contexts, each reaching the migration through its own visitor
+let c = 0;
 let fh;
 for (const v of (fh = _globalThis.window)?.[c++, "Array"].of(1, 2) ?? []) void v;
 
@@ -81,3 +82,15 @@ export function* keptGen() {
 
 // a param-default synth twin without a SE key: the wrapper default stays the synth target
 export const fromSynthDefault = (({ from } = (_globalThis.window ?? { from: x => [x] })) => from)([1]);
+
+// The kept double-optional through each remaining host: an ARRAY pattern source (never deferred),
+// a for-of head, and an IIFE synth argument (the swap still owns the receiver over the narrowed
+// defer). One memo at the root in the first two; the synth renders its own harvest in the third.
+let c2 = 0;
+let ap;
+export const [firstOfKept] = ((ap = _globalThis.window)?.[c2++, "Array"].of(1, 2)) ?? [];
+let fh2;
+for (const v of (fh2 = _globalThis.window)?.[c2++, "Array"].of(3) ?? []) void v;
+let sy;
+export const ofKeptDouble = (({ isArray } = {}) => isArray)((sy = _globalThis.window)?.[c2++, "Array"] ?? {});
+export { c2 };
