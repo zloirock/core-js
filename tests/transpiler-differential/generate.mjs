@@ -467,6 +467,7 @@ const KPR_SHAPES = [
   { id: 'provable-value-negative', value: 'globalThis', tail: '?.self.Array.prototype.findLast.call([1], x => x)' },
   { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },
   { id: 'se-around-assign', value: 'globalThis.window', tail: '?.self.Array.prototype.some.call([1], x => x)', se: true },
+  { id: 'se-key-computed-leaf', value: 'globalThis.window', tail: "?.[(log.push('k'), 'self')]['Array'].prototype.at.call([5], 0)" },
 ];
 function * generateKeptProxyRoot() {
   for (const shape of KPR_SHAPES) {

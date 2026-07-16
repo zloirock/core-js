@@ -33,3 +33,31 @@ export const seqPlainTail = (m = (c++, plain))?.self.Array.prototype.indexOf.cal
 let k;
 export const nestedSeqPony = (k = (c++, (c++, globalThis.self)))?.self.Array.prototype.flatMap.call([1], x => [x]);
 
+// the UNGUARDED twin of the SE-bearing hop key: no guard, so the key evaluates right after the assignment
+// in the native order - the migrated key preserves exactly that (assignment, key effect, read), where a
+// pre-root harvest would have run the effect before the assignment
+let u;
+export const unguardedSeKey = (u = globalThis.window)[(c++, 'self')].Array.prototype.flatMap.call([2], x => [x]);
+
+// a COMPUTED leaf after the migrated hop: the splice resumes after the leaf's own closing bracket -
+// slicing from the key's end left a stray `]` in the output (a parse break)
+let x;
+export const computedLeafAfterSeKey = (x = globalThis.window)?.[(c++, 'self')]['Array'].prototype.every.call([1], v => v);
+
+// a polyfillable call INSIDE the migrated key: its own rewrite must compose into the moved text
+let y;
+export const polyfillInsideMovedKey = (y = globalThis.window)?.[([c].flat(), 'self')].Array.prototype.some.call([1], v => v);
+
+// an ALIAS-carried kept root: the alias identifier is already rewritten by its declaration, and the
+// migrated key composes over it exactly like over the direct spelling
+const alias = globalThis;
+let z;
+export const aliasKeptSeKey = (z = alias.window)?.[(c++, 'self')].Array.prototype.findLastIndex.call([1], v => v);
+// an effect in the VALUE and another in the KEY of the same access: the value's stays inside the
+// assignment, the key's rides the migrated key - two channels, native order for each
+let sv;
+export const seqValueAndKey = (sv = (c++, globalThis.window))?.[(c++, 'self')].Array.prototype.map.call([1], v => v);
+
+// two SE keys on one UNGUARDED kept root: both migrate into the surviving key, in source order
+let ud;
+export const unguardedDoubleKey = (ud = globalThis.window)[(c++, 'self')][(c++, 'self')].Array.of(5);
