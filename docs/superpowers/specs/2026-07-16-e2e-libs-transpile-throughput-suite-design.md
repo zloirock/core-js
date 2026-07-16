@@ -1,0 +1,209 @@
+# e2e-libs: transpile + throughput suite for @core-js/unplugin
+
+- **Date:** 2026-07-16
+- **Status:** Design approved, spec under review
+- **Branch:** `v4` (the earlier `e2e-d3` experiment stays untouched on branch `e2e-d3-unplugin`)
+- **Location:** `tests/e2e-libs/`
+
+## 1. Context & motivation
+
+We want to exercise `@core-js/unplugin` against real-world libraries, combining polyfill
+injection with an actual syntax down-compile to a legacy target (IE11), then (a) measure how
+fast unplugin processes large/diverse ASTs and (b) confirm the produced bundle actually runs on
+an old engine.
+
+This extends, but does not replace, the two existing e2e efforts:
+
+- `tests/transpiler-integration` — real bundlers, functional smoke.
+- `tests/transpiler-differential` — stripped-realm differential correctness of polyfills.
+- (experimental) `tests/e2e-d3` on branch `e2e-d3-unplugin` — d3 through unplugin across
+  methods/phases/bundlers with injection snapshots. Left as-is; d3 is treated here as a *later*
+  registry entry, not the seed.
+
+## 2. Two hard constraints that shape everything
+
+1. **core-js polyfills ECMAScript stdlib**, plus a handful of web primitives (`URL`,
+   `structuredClone`, `queueMicrotask`, `DOMException`, `atob`…). It does **not** provide
+   Canvas / WebGL / SVG rendering / Web Workers / Node streams / `worker_threads` / most of
+   `Intl`. Libraries whose legacy-incompatibility comes from those (PDF.js, Monaco, CodeMirror,
+   pino) can never be *made to run* on IE11 by core-js — they are only useful as **throughput**
+   stress, never as **runtime** verification.
+
+2. **unplugin does not transpile syntax.** ES5 output (arrows, classes, `for-of`, spread,
+   generators → ES5) is Babel's job. The pipeline is therefore **Babel for syntax +
+   unplugin for stdlib**, never one doing both.
+
+These two constraints produce the tiering in §4 and the plugin ordering in §6.
+
+## 3. Goals / non-goals
+
+**Goals**
+
+- Registry-driven suite that runs a library through unplugin across `method` × `phase` ×
+  `bundler`, seeded with **RxJS**.
+- **Throughput tier:** measure parse / inject / total-bundle time, output size, injection count,
+  against a no-plugin baseline.
+- **Runtime tier:** emit an ES5 bundle + a self-checking `index.html` per (lib × method) for
+  **manual** upload to BrowserStack/SauceLabs; plus a node pre-flight that the bundle at least
+  executes and its checks pass.
+- Injection snapshots per (lib × method), like e2e-d3.
+
+**Non-goals (first pass)**
+
+- No monster libraries yet (typescript / Monaco / PDF.js) — the `tier: 'throughput'` field is
+  reserved but unused.
+- No d3 (stays on its own branch).
+- No BrowserStack **automation** (no creds, no Karma/WebDriver, no paid CI).
+- No CI wiring.
+- No commits until explicitly requested.
+
+## 4. Tiering
+
+Each registry entry declares a `tiers` array (an entry can belong to both):
+
+- **`throughput`** — huge / diverse AST; run to measure processing cost. Whether it runs on IE11
+  is irrelevant. Future-only monsters: typescript, Monaco, PDF.js.
+- **`runtime`** — headless, deterministic, computationally verifiable; its legacy barrier is
+  *only* syntax + stdlib. We build ES5 artifacts and verify execution. Future: mathjs, zod.
+
+Seed entry **RxJS** declares `tiers: ['throughput', 'runtime']` — it is both measured for
+throughput and emitted as an ES5 artifact. The monsters, when added, are `tiers: ['throughput']`.
+
+## 5. Suite layout
+
+```
+tests/e2e-libs/
+  libraries.mjs      # registry: [{ name, tiers, exercise, methods, notes }]
+  exercises/
+    rxjs.mjs         # monstrous headless exercise: exports { results, checks }
+  build.mjs          # core: (lib, method, phase, bundler) -> bundle (unplugin [+ Babel for runtime tier])
+  throughput.mjs     # tier-1 runner: bundlers x methods x phases, measure, write report/
+  artifacts.mjs      # tier-2 runner: rollup+babel / webpack+babel-loader -> ES5 bundle + index.html + manifest.json
+  snapshot.mjs       # injection snapshot per (lib x method); --update to rewrite
+  report/            # generated: throughput.md + throughput.json
+  artifacts/         # generated: <lib>/<method>/{bundle.js,index.html} + manifest.json
+  snapshots/         # generated: <lib>.<method>.txt
+  package.json
+```
+
+Runner / snapshot / strip patterns are re-authored from the e2e-d3 experiment by concept (not
+imported across branches).
+
+## 6. Pipeline per cell (lib × method × phase × bundler)
+
+**Entry module per method**
+
+- `entry-global`: `import 'core-js'; export { results, checks } from <exercise>`
+- `usage-global` / `usage-pure`: `export { results, checks } from <exercise>`
+
+**Throughput tier** — plugins: `[ unplugin({ method, version, mode, targets: { ie: 11 }, phase }) ]`
+(+ `@rollup/plugin-node-resolve` + `@rollup/plugin-commonjs` where the bundler needs them, since
+core-js modules are CommonJS). Nothing down-compiles syntax here; we are measuring unplugin, not
+producing runnable ES5.
+
+**Runtime tier (the crux)** — plugins ordered so Babel transforms first and unplugin injects
+after:
+
+```
+[ babel({ presets: [['@babel/preset-env', {
+            targets: { ie: 11 }, useBuiltIns: false, corejs: false }]],
+          babelHelpers: 'inline' }),           // syntax only, no builtins
+  unplugin({ method, targets: { ie: 11 }, phase: 'post' }) ]   // stdlib only
+```
+
+- `useBuiltIns:false, corejs:false` — Babel must **not** inject core-js, or we double-polyfill.
+- `phase:'post'` — unplugin runs after Babel per module, so the stdlib that Babel's *helpers*
+  introduce (spread / `for-of` / generators reach for `Symbol.iterator`, `Array.from`, etc.) is
+  visible and gets polyfilled. In `pre` those helper-introduced usages are missed. This is the
+  practical case for the pre/post phase distinction.
+- `babelHelpers:'inline'` — helpers are inlined per module (no `@babel/runtime` indirection), so
+  usage-global sees them where they are used.
+- Bundlers in this tier are limited to those that actually emit ES5: **rollup +
+  `@rollup/plugin-babel`** and **webpack + `babel-loader`**. esbuild/rolldown/bun do not
+  down-compile below ES2015 and are excluded from the runtime tier (they remain in throughput).
+
+## 7. RxJS exercise (`exercises/rxjs.mjs`)
+
+Deterministic and synchronous. Uses `TestScheduler` (virtual time) for any time-based operator so
+the whole thing is headless and reproducible. Imports the **ES2015** build of rxjs (`dist/esm`)
+so Babel + unplugin have modern syntax/stdlib to work on.
+
+Operator coverage (broad, to maximize stdlib surface):
+
+- creation: `of`, `from`, `range`, `generate`, `defer`
+- transform: `map`, `scan`, `mergeMap`, `switchMap`, `concatMap`, `exhaustMap`, `groupBy`,
+  `bufferCount`, `pairwise`
+- filter: `filter`, `take`, `takeWhile`, `distinctUntilChanged`, `debounceTime`, `sample`
+- combine: `merge`, `concat`, `combineLatest`, `zip`, `withLatestFrom`, `forkJoin`, `race`
+- subjects: `Subject`, `BehaviorSubject`, `ReplaySubject`, `AsyncSubject`
+- errors: `catchError`, `retry`
+- aggregate: `reduce`, `toArray`, `count`
+- promise interop: `firstValueFrom`, `lastValueFrom` (exercises the `Promise` polyfill)
+
+Exports:
+
+- `results` — JSON-serializable object of collected outputs.
+- `checks` — array of `{ label, actual, expected }` (or `{ label, pass }`) used by the HTML
+  harness and node pre-flight to render pass/fail.
+
+Expected stdlib footprint core-js will inject at `ie:11`: `Promise`, `Symbol`
+(`observable`/`iterator`), internal `Map`/`Set`, `Array.from`/`Array.of`, `Object.assign`, plus
+Babel-helper-driven iterator-protocol usage.
+
+## 8. Throughput measurement (`throughput.mjs`)
+
+Per cell (bundler × method × phase), median of **N=5** runs, measured externally (wall-clock
+around the whole bundle call — an internal parse-vs-inject split would need to instrument
+unplugin's transform hook and is deferred):
+
+- total bundle ms **with** the plugin
+- total bundle ms **baseline** (same bundle, plugin omitted)
+- overhead ms = with − baseline (approximates unplugin cost: detect + inject + the extra core-js
+  modules pulled in)
+- output size (bytes)
+- injection count (from the snapshot recorder plugin)
+
+Output: `report/throughput.md` (human table) + `report/throughput.json` (machine). Filterable by
+`libFilter` / `bundlerFilter` via argv.
+
+## 9. IE11 artifacts (`artifacts.mjs`)
+
+For each (lib × method) in the runtime tier:
+
+1. Build the ES5 bundle (rollup+babel path by default; webpack+babel-loader optional).
+2. Emit `artifacts/<lib>/<method>/bundle.js`.
+3. Emit `artifacts/<lib>/<method>/index.html`: loads `bundle.js`, runs `checks`, renders a
+   green/red banner with a per-check breakdown. No external assets (BrowserStack-friendly).
+4. **Node pre-flight:** execute the ES5 bundle in node and assert `checks` pass. This is *not* a
+   stripped realm — just "does it execute and compute correctly at all" — to catch gross breakage
+   before a manual IE11 run.
+5. Write `artifacts/manifest.json` listing every (lib, method, path) for manual upload.
+
+The actual IE11 pass/fail is a manual step in BrowserStack/SauceLabs; a green banner there
+confirms **syntax + stdlib** only (core-js cannot rescue any DOM/Worker path — irrelevant for the
+headless runtime tier).
+
+## 10. Commands
+
+- `node throughput.mjs [libFilter] [bundlerFilter]` → `report/`
+- `node artifacts.mjs [libFilter]` → `artifacts/` + `manifest.json` + node pre-flight
+- `node snapshot.mjs [--update]` → `snapshots/`
+
+(Node is used via the repo's toolchain; nvm path in this environment:
+`~/.nvm/versions/node/v22.20.0/bin/node`.)
+
+## 11. Phasing / YAGNI
+
+**First pass:** RxJS only, both tiers, on `v4`. No monsters, no d3, no BrowserStack automation, no
+CI. Commit only on request.
+
+**Later (separate passes, not designed here):** add throughput monsters (typescript / Monaco /
+PDF.js) as `tier:'throughput'` registry entries; add mathjs / zod to the runtime tier; optional
+BrowserStack Automate; CI wiring.
+
+## 12. Open questions
+
+- Webpack in the runtime tier: include from the start, or rollup+babel only for the first pass?
+  (Default: build rollup+babel first, wire webpack+babel-loader second.)
+- rxjs import path: confirm the ES2015 `dist/esm` entry resolves cleanly through
+  nodeResolve+commonjs under each method; fall back to the package `module` field if not.
