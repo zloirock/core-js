@@ -23,28 +23,29 @@ import {
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  bareAssignmentPatternLeafPath,
   collectFunctionScopeVarReassignments,
   collectScopeLetReassignments,
   findFunctionScopeVarInPath,
   findIifeCallSite,
-  resolveFallbackReceiver,
   findTSRuntimeBindingInPath,
   getTypeArgs,
-  isASTNode,
   isAmbientBindingShape,
+  isASTNode,
   isFunctionParamDestructureParent,
+  isIntrinsicJsxTagName,
   isInUpdateOperand,
-  bareAssignmentPatternLeafPath,
   isMemberWriteOnlyContext,
-  isTSTypeOnlyIdentifierPath,
   isMutatedStaticPair,
-  withoutValuelessDeclarationViolations,
+  isTSTypeOnlyIdentifierPath,
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
   resolveCallArgument,
+  resolveFallbackReceiver,
   synthVarHoistBinding,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
+  withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse, assignmentAliasWriteTrusted, hasCtorAliasCandidateShapes, isPolyfillAliasBinding,
@@ -1187,7 +1188,12 @@ export function createUsageVisitors({
   // detects a `var Tag` declaration inside a nested non-function block (estree-toolkit
   // registers var in the block's own scope rather than hoisting to enclosing function)
   function jsxIdentifierVisitor(path) {
-    if (!isJsxOpeningTagName(path) && !isJsxMemberRoot(path)) return;
+    // a lowercase-initial BARE tag names an intrinsic element - the string `structuredClone`, not
+    // the global of that name - so it is no runtime reference and must inject nothing. a MEMBER
+    // tag stays an expression whatever its case, so its root still resolves against the binding
+    if (isJsxOpeningTagName(path)) {
+      if (isIntrinsicJsxTagName(path.node.name)) return;
+    } else if (!isJsxMemberRoot(path)) return;
     if (adapter.hasBinding(path.scope, path.node.name, path)) return;
     onUsage({ kind: 'global', name: path.node.name }, path);
   }
