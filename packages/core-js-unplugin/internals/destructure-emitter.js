@@ -18,6 +18,7 @@ import {
   getFallbackBranchSlots,
   hasRestSiblingExcept,
   isBindingPosition,
+  isChainAssignment,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isMemberWriteHost,
@@ -480,6 +481,9 @@ export function createDestructureEmitter({
       const keepsResidual = fake.id.properties?.some(pr => pr.type === 'RestElement')
         || plan?.outerProps?.some(pr => pr.kind !== 'consumed');
       if (plan?.discardSe && !keepsResidual) plan.discardSe = null;
+      // the cascade lifts the RHS sequence prefixes standalone itself (`seExprs` segments) -
+      // the anchored residual must not ALSO replay them (double-run)
+      if (plan?.anchorSe) plan.anchorSe = null;
       return rewriteDeclarator(fake, scope, path);
     });
     cached = { result, unusedIds };
@@ -515,9 +519,10 @@ export function createDestructureEmitter({
     const emitReceiverTail = result.preservedSrc === null && mayHaveSideEffects(receiverTail);
     // a verbatim init tail (static-object receiver) is a residual target whose contents the
     // natural visitor polyfills in place, so leave it visible; otherwise the tail collapses
-    // into preservedSrc or is dropped, so skip it from the visitor pass
+    // into preservedSrc or is dropped, so skip it from the visitor pass. discarded-SE nodes
+    // the anchored residual replays are rescued by range so their inner rewrites stay queued
     const tailIsResidual = receiverTail && isInsideResidualTarget(receiverTail, residualTargets);
-    if (!emitReceiverTail && !tailIsResidual) skipReceiverTailSubtree(receiverTail);
+    if (!emitReceiverTail && !tailIsResidual) skipReceiverTailSubtree(receiverTail, result.discardSeNode);
     // defer render + transforms.add: scope-tracker may register `var _ref;` inside the
     // SE-prefix IIFE body during sibling visits AFTER this point. flushPendingCascade
     // drains those inserts and bakes them into per-prefix nodeSrc before adding the
@@ -796,14 +801,32 @@ export function createDestructureEmitter({
   // keep the leaf-driven / un-anchored emit
   function tryFlattenLiftedProxyHopHost(assignNode, operandNode, scope, path) {
     if (flattenedAssignments.has(assignNode)) return;
+    // gate on the PLAN before rendering: `plannedAssignRewrite` registers the extractions'
+    // pure imports eagerly, so an extraction-bearing shape that the compose below would
+    // bail on anyway must not render at all - the discarded render left its orphan imports
+    // in the emit (`_getIteratorMethod` / ctor bindings with no surviving reference)
+    const plan = planDeclarator({ id: assignNode.left, init: assignNode.right }, scope, path);
+    if (!plan?.anchor || plan.outerProps.some(o => (o.extractions ?? []).length)) return;
     const { result, unusedIds } = plannedAssignRewrite(assignNode, scope, path);
     if (!result.anchored || result.extractions.length || unusedIds.length || result.preservedSrc === null) return;
-    const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
-    if (seExprs.length) return;
+    const { tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
+    if (!receiverTail || !result.anchoredBareInitSrc) return;
     flattenedAssignments.add(assignNode);
     skipPatternExceptResidual(assignNode.left, result.residualTargets ?? [], result.keepVisibleNodes);
-    skipReceiverTailSubtree(receiverTail);
-    transforms.add(operandNode.start, operandNode.end, `(${ result.preservedSrc })`);
+    // compose BY PARTS inside the lifted operand so an SE-bearing init stays verbatim at
+    // its own offsets (sequence prefixes and a chain-assignment tail keep their inner
+    // rewrites without baking): the LHS swaps to the rebuilt inner pattern; an SE-free
+    // tail swaps to the bare anchor read, while a chain-assignment tail is KEPT (its
+    // setup must run) and the anchor read is appended as the sequence value the
+    // destructure consumes
+    const lhsSrc = result.preservedSrc.slice(0, result.preservedSrc.length - result.preservedInitSrc.length - ' = '.length);
+    transforms.add(assignNode.left.start, assignNode.left.end, lhsSrc);
+    if (isChainAssignment(receiverTail)) {
+      transforms.insert(receiverTail.end, `, ${ result.anchoredBareInitSrc }`);
+    } else {
+      skipReceiverTailSubtree(receiverTail);
+      transforms.add(receiverTail.start, receiverTail.end, result.anchoredBareInitSrc);
+    }
   }
 
   // apply position-anchored splices (in original-source coordinates) to `src`, which is a
@@ -1917,8 +1940,20 @@ export function createDestructureEmitter({
     }
     // anchored residual reads through the CONSTRUCTOR binding (`= _Map` - patch-visible for
     // mutated statics, defined on missing-global targets), or a member off the proxy's own
-    // binding when the ctor has no whole-constructor pure entry (`= _globalThis.Math`)
-    const initSrc = plan.anchor ? anchoredInitSrc() : receiverEmitSrc();
+    // binding when the ctor has no whole-constructor pure entry (`= _globalThis.Math`).
+    // the re-anchored init REPLACES the SE-bearing original: replay the collected sequence
+    // prefixes and the harvested discard-SE ahead of the anchor read (one-shot via
+    // `takeDiscardSe` - the full-consume slot must not re-take the harvest)
+    const anchoredBareInitSrc = plan.anchor ? anchoredInitSrc() : null;
+    function anchoredResidualInitSrc() {
+      // an extraction-bearing declarator lifts its sequence prefixes standalone
+      // (`liftExtractedSEPrefixesByIdx`) - replaying them here too would run them twice
+      const se = extractions.length ? [] : (plan.anchorSe ?? []).map(node => nodeSrc(node));
+      const harvested = takeDiscardSe();
+      if (harvested) se.push(harvested);
+      return se.length ? `(${ [...se, anchoredBareInitSrc].join(', ') })` : anchoredBareInitSrc;
+    }
+    const initSrc = plan.anchor ? anchoredResidualInitSrc() : receiverEmitSrc();
     const preservedSrc = `${ lhsPrefix }{ ${ preservedOuter.join(', ') } }${ lhsSuffix } = ${ initSrc }`;
     // init tail kept verbatim (receiver not polyfilled, e.g. a static-object receiver): its
     // polyfillable contents stay visible to the natural visitor like a residual prop
@@ -1932,6 +1967,9 @@ export function createDestructureEmitter({
       // captured separately so `injectForInitSESinks` (for-init partial-consume SE re-embed)
       // can slice off the trailing init slot by length without text-searching
       preservedInitSrc: initSrc,
+      // the anchor read WITHOUT the replayed SE - the deferred-twin's by-parts compose
+      // keeps the SE verbatim at its own offsets and needs only the bare binding
+      anchoredBareInitSrc,
       initElementSwapped,
       receiver: plan.receiver,
       residualTargets,

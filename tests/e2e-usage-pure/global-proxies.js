@@ -468,3 +468,73 @@ QUnit.test('global-proxy: unguarded chain-assign over an unpolyfilled hop stays 
   else assert.throws(symbolOffWindowValued, TypeError);
   assert.same(it, globalThis.window);
 });
+
+// an SE-bearing init no longer blocks the proxy-hop fold: the effect replays exactly once
+// ahead of the re-anchored read, and the folded `self` hop answers where the raw residual
+// read `.self` off the pure root would throw (self is absent in Node)
+QUnit.test('proxy-hop: SE-prefixed init folds the self hop and replays the effect once', assert => {
+  let calls = 0;
+  function eff() { calls += 1; }
+  const { self: { totallyCustomKeyA: v } } = (eff(), globalThis);
+  assert.same(typeof v, 'undefined');
+  assert.same(calls, 1);
+  // chain-assignment init: the binding update replays whole and the hop still folds
+  let q;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren-wrapped chain-assignment INIT is the form under test
+  const { self: { totallyCustomKeyB: v2 } } = (q = globalThis);
+  assert.same(typeof v2, 'undefined');
+  assert.same(q, globalThis);
+  // ctor-key zero-extraction residual: the prefix runs before the re-anchored read, once
+  const order = [];
+  const { Set: { totallyCustomKeyC: v3 } } = (order.push('se'), globalThis);
+  order.push('after');
+  assert.same(typeof v3, 'undefined');
+  assert.deepEqual(order, ['se', 'after']);
+  // assignment-form host: the cascade lifts the prefix once and the hop still folds
+  let v4;
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  ({ self: { totallyCustomKeyD: v4 } } = (eff(), globalThis));
+  assert.same(typeof v4, 'undefined');
+  assert.same(calls, 2);
+  // assignment-form + chain-assignment: the rescued assignment replays whole
+  let q5, v5;
+  // eslint-disable-next-line prefer-const, @stylistic/no-extra-parens -- the destructuring WRITE with a paren-wrapped chain-assignment INIT is the form under test
+  ({ self: { totallyCustomKeyE: v5 } } = (q5 = globalThis));
+  assert.same(typeof v5, 'undefined');
+  assert.same(q5, globalThis);
+  // deferred host buried in a consumed init's prefix: the fold reaches it and the chain
+  // setup survives on both the binding and the effect count
+  let q6, v6;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host + chain INIT are the forms under test
+  const { keys: pickedKeys } = (({ self: { totallyCustomKeyF: v6 } } = (q6 = globalThis)), Object);
+  assert.same(typeof pickedKeys, 'function');
+  assert.same(typeof v6, 'undefined');
+  assert.same(q6, globalThis);
+  // bodyless-if host: the effect stays CONDITIONAL - the untaken branch runs nothing
+  let v7;
+  const before = calls;
+  if (globalThis.neverSetFlagSeInit) ({ self: { totallyCustomKeyG: v7 } } = (eff(), globalThis));
+  assert.same(calls, before);
+  assert.same(typeof v7, 'undefined');
+  // for-init-buried host: the fold reaches the sink's re-embedded slot - the self hop
+  // answers off-engine and the chain setup lands on the binding
+  let q8, v8, out8;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host + chain INIT are the forms under test
+  for (const { keys: fk } = (({ self: { totallyCustomKeyH: v8 } } = (q8 = globalThis)), Object); !out8;) out8 = fk;
+  assert.same(typeof out8, 'function');
+  assert.same(typeof v8, 'undefined');
+  assert.same(q8, globalThis);
+  // multi-declarator host: the replayed effect stays BETWEEN sibling inits (a lift to the
+  // declaration would hoist it above the pre-sibling, reordering the native evaluation)
+  const ord = [];
+  function mark(tag) {
+    ord.push(tag);
+    return tag;
+  }
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the multi-declarator HOST is the form under test
+  const sA = mark('a'), { self: { totallyCustomKeyI: v9 } } = (mark('se'), globalThis), sB = mark('b');
+  assert.deepEqual(ord, ['a', 'se', 'b']);
+  assert.same(typeof v9, 'undefined');
+  assert.same(sA, 'a');
+  assert.same(sB, 'b');
+});
