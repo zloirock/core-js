@@ -166,11 +166,15 @@ export function createTopLevelStatementRemover(ms) {
   function guardAsiAtBoundary(start, end) {
     const nextIdx = findNextSignificantChar(end);
     if (nextIdx >= src.length || !ASI_HAZARD_STARTS.has(src[nextIdx])) return;
-    // jumped over a removed range whose own boundary already carries an injected `;` -
-    // that `;` is the active terminator for the next significant char, no double-inject
-    if (hasInjectedSemiBetween(end, nextIdx)) return;
     const prevIdx = findPrevSignificantChar(start - 1);
     if (prevIdx < 0 || src[prevIdx] === ';') return;
+    // an injected `;` ANYWHERE between the surviving prev char and the hazard already
+    // terminates the statement - regardless of which sibling removal placed it. checking
+    // only (end, nextIdx) sees a `;` injected by a RIGHTWARD sibling (the descending caller
+    // processes it first) but misses one from a LEFTWARD sibling (the ascending caller does),
+    // so both siblings inject and the leftmost boundary gets `;;`. the (prev, next) span is
+    // order-independent and catches either side
+    if (hasInjectedSemiBetween(prevIdx, nextIdx)) return;
     ms.prependLeft(end, ';');
     injectedSemiAt.add(end);
   }
