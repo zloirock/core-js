@@ -3078,3 +3078,21 @@ QUnit.test('destructuring: conditional statics-only alias keeps the untaken-path
   writeB(false);
   assert.throws(() => B.groupBy([1], x => x), TypeError);
 });
+
+// an instance method destructured off an IIFE ARGUMENT synths the argument itself. the binding is
+// a DISPATCHER, not a bound method - exactly like the native extraction, whose bare call throws
+// (this=undefined -> ToObject); a receiver-supplied call works through explicit this. the
+// argument's own effects run exactly once, and a receiver the gate rejects (a call) stays native
+QUnit.test('destructuring: IIFE-argument instance methods extract', assert => {
+  const viaLiteral = (({ at }) => at)([1, 2]);
+  assert.same(typeof viaLiteral, 'function', 'literal argument: the binding holds the dispatcher');
+  assert.same(viaLiteral.call([1, 2], 0), 1, 'the dispatcher reads a supplied receiver');
+  assert.throws(() => viaLiteral(0), TypeError, 'a bare call throws exactly like the native extraction');
+  const arr = [7, [8]];
+  const viaIdent = (({ flat }) => flat)(arr);
+  assert.deepEqual(viaIdent.call(arr), [7, 8], 'identifier argument: the generic dispatcher works via this');
+  const marks = [];
+  const viaSeTail = (({ includes }) => includes)((marks.push('m'), [3, 4]));
+  assert.same(viaSeTail.call([3, 4], 3), true, 'SE-tail argument: the dispatcher reads the tail');
+  assert.deepEqual(marks, ['m'], 'the argument prefix effect runs exactly once');
+});
