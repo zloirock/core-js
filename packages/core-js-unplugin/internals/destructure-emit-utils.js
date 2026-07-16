@@ -91,8 +91,9 @@ export function canTransformDestructuring(metaPath) {
 // null for foreign wrapper types - no separate type guard needed here. expands inline-array
 // spreads (`...[R]`) via `resolveCallArgument`; non-literal spread returns null (static
 // index unknown). SE-tail peel (`(0, (1, R))` -> `R`) so nested + flat SequenceExpression
-// args classify identically. internal-only - no external callers, kept un-exported
-function detectIifeArgReceiver(wrapperPath, objectPattern) {
+// args classify identically. exported for the IIFE-argument instance clause, which needs the
+// raw argument node ahead of the classifiable-receiver gate this file's own callers apply
+export function detectIifeArgReceiver(wrapperPath, objectPattern) {
   const arg = findIifeArgForParam(wrapperPath, objectPattern);
   return arg ? unwrapSafeSequenceTail(arg) : arg;
 }

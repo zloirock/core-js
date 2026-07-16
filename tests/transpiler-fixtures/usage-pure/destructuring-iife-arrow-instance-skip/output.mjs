@@ -1,3 +1,0 @@
-(({
-  includes
-}) => includes("x"))(arr);
