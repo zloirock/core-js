@@ -106,12 +106,13 @@ for (const lib of libs) {
       const checks = await preflight(code);
       if (!checks.length) throw new Error('exercise produced 0 checks — nothing verified');
       const bad = checks.filter(c => !c.pass);
+      const bytes = Buffer.byteLength(code);
       const dir = join(ART, lib.name, method);
       await mkdir(dir, { recursive: true });
       await writeFile(join(dir, 'bundle.js'), code);
       await writeFile(join(dir, 'index.html'), html(lib.name, method, checks));
-      manifest.push({ lib: lib.name, method, dir: join(lib.name, method), bytes: Buffer.byteLength(code), injections, checks: checks.length, preflightFailing: bad.length });
-      console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ Buffer.byteLength(code) }b)`);
+      manifest.push({ lib: lib.name, method, dir: join(lib.name, method), bytes, injections, checks: checks.length, preflightFailing: bad.length });
+      console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ bytes }b)`);
       if (bad.length) {
         failed++;
         for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
