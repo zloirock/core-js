@@ -118,6 +118,7 @@ import {
   unwrapInitValue,
   unwrapParens,
   unwrapReceiverLeaf,
+  paramReboundInBody,
   paramsHaveInvisibleCallers,
   unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
@@ -3409,9 +3410,38 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   // paramsHaveInvisibleCallers: a NAMED immediately-invoked function that references its own
   // name in the body has an extra (self-call) caller, so a caller-lossy emission is unsound -
   // it reports invisible callers even though it is an IIFE
-  function iifeParamProbe({ named, selfRefKind }) {
+  function iifeParamProbe({ named, selfRefKind, fnName = 'f' }) {
     const param = { type: 'Identifier', name: 'p' };
-    const nameRef = { type: 'Identifier', name: 'f' };
+    const nameRef = { type: 'Identifier', name: fnName };
+    // a JSX element whose opening tag carries `tagName` (and one attribute named `attrName`)
+    function jsxStmt({ tagName, attrName = 'x' }) {
+      return {
+        type: 'ExpressionStatement',
+        expression: {
+          type: 'JSXElement',
+          openingElement: {
+            type: 'JSXOpeningElement',
+            name: tagName,
+            attributes: [{ type: 'JSXAttribute', name: { type: 'JSXIdentifier', name: attrName }, value: null }],
+          },
+          children: [],
+          closingElement: null,
+        },
+      };
+    }
+    function jsxId(name) {
+      return { type: 'JSXIdentifier', name };
+    }
+    const JSX_TAG_NAMES = {
+      // `<F />` - a bare tag name is the binding only when it is not an intrinsic spelling
+      jsx: jsxId(fnName),
+      // `<F.Sub />` - a member tag is an expression whatever its case: the ROOT is the binding
+      jsxmemberroot: { type: 'JSXMemberExpression', object: jsxId(fnName), property: jsxId('Sub') },
+      // `<Other.F />` - the member TAIL names a prop, not the binding
+      jsxtail: { type: 'JSXMemberExpression', object: jsxId('Other'), property: jsxId(fnName) },
+      // `<ns:F />` - both namespaced parts are literals
+      jsxns: { type: 'JSXNamespacedName', namespace: jsxId('ns'), name: jsxId(fnName) },
+    };
     const bodyStmts = selfRefKind === 'call'
       ? [{ type: 'ExpressionStatement', expression: { type: 'CallExpression', callee: nameRef, arguments: [{ type: 'NumericLiteral', value: 1 }] } }]
       : selfRefKind === 'escape'
@@ -3424,8 +3454,13 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
               properties: [{ type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'f' }, value: { type: 'NumericLiteral', value: 1 } }],
             },
           }]
-          : [];
-    const fn = { type: 'FunctionExpression', id: named ? { type: 'Identifier', name: 'f' } : null, params: [param], body: { type: 'BlockStatement', body: bodyStmts } };
+          // `<div f={1} />` - the ATTRIBUTE name matches, which names a prop, not the binding
+          : selfRefKind === 'jsxattr'
+            ? [jsxStmt({ tagName: jsxId('div'), attrName: fnName })]
+            : JSX_TAG_NAMES[selfRefKind]
+              ? [jsxStmt({ tagName: JSX_TAG_NAMES[selfRefKind] })]
+              : [];
+    const fn = { type: 'FunctionExpression', id: named ? { type: 'Identifier', name: fnName } : null, params: [param], body: { type: 'BlockStatement', body: bodyStmts } };
     const call = { type: 'CallExpression', callee: fn, arguments: [] };
     const fnPath = { node: fn, parentPath: { node: call, parentPath: null } };
     return { node: param, parentPath: fnPath };
@@ -3441,6 +3476,23 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'none' }), opts), false);
   check('ast-patterns: name matching an object-property KEY is not a self-reference',
     paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'propkey' }), opts), false);
+  // a JSX tag name hands the component to a renderer that calls it with props - an extra caller
+  checkTruthy('ast-patterns: JSX tag-name self-reference has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsx', fnName: 'F' }), opts));
+  checkTruthy('ast-patterns: JSX member-root self-reference has invisible callers',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxmemberroot', fnName: 'F' }), opts));
+  // a lowercase BARE tag is an intrinsic element - the string, never the binding of that spelling
+  check('ast-patterns: intrinsic-spelled bare tag is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsx', fnName: 'f' }), opts), false);
+  // a MEMBER tag is an expression whatever its case, so its root still references the binding
+  checkTruthy('ast-patterns: intrinsic-spelled member ROOT is a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxmemberroot', fnName: 'f' }), opts));
+  check('ast-patterns: name matching a JSX ATTRIBUTE name is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxattr', fnName: 'F' }), opts), false);
+  check('ast-patterns: name matching a JSX member TAIL is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxtail', fnName: 'F' }), opts), false);
+  check('ast-patterns: name matching a JSX namespaced part is not a self-reference',
+    paramsHaveInvisibleCallers(iifeParamProbe({ named: true, selfRefKind: 'jsxns', fnName: 'F' }), opts), false);
 
   // a self-reference in a PARAM DEFAULT is in scope of the name too - it counts as an extra caller
   const paramDefaultParam = {
@@ -3458,6 +3510,112 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   const paramDefaultPath = { node: firstParam, parentPath: { node: paramDefaultFn, parentPath: { node: paramDefaultCall, parentPath: null } } };
   checkTruthy('ast-patterns: named self-reference in a param default has invisible callers',
     paramsHaveInvisibleCallers(paramDefaultPath, opts));
+}
+
+{
+  // paramReboundInBody: a nested function covers only the names its OWN params bind. a write to any
+  // other target still lands on ours, so the shadow skip applies per-name, not to the whole subtree
+  // `shadows` entries are param names (Identifier) or ready-made param nodes for the other
+  // binding shapes - the shadow is whatever a param BINDS, not the spelling of its slot
+  function nestedWrite({ shadows, writes }) {
+    const assign = {
+      type: 'AssignmentExpression',
+      operator: '=',
+      left: { type: 'Identifier', name: writes },
+      right: { type: 'Identifier', name: 'P' },
+    };
+    return {
+      type: 'ExpressionStatement',
+      expression: {
+        type: 'CallExpression',
+        callee: {
+          type: 'FunctionExpression',
+          id: null,
+          params: shadows.map(shadow => typeof shadow === 'string' ? { type: 'Identifier', name: shadow } : shadow),
+          body: { type: 'BlockStatement', body: [{ type: 'ExpressionStatement', expression: assign }] },
+        },
+        arguments: [],
+      },
+    };
+  }
+  const twoParams = new Set(['x', 'y']);
+  checkTruthy('ast-patterns: nested fn shadowing ONE param still sees the write to the other',
+    paramReboundInBody(nestedWrite({ shadows: ['x'], writes: 'y' }), twoParams));
+  checkTruthy('ast-patterns: nested fn with no shadow sees the write',
+    paramReboundInBody(nestedWrite({ shadows: [], writes: 'y' }), twoParams));
+  check('ast-patterns: nested fn shadowing the WRITTEN param hides its own write',
+    paramReboundInBody(nestedWrite({ shadows: ['y'], writes: 'y' }), twoParams), false);
+  check('ast-patterns: nested fn shadowing every param hides its writes',
+    paramReboundInBody(nestedWrite({ shadows: ['x', 'y'], writes: 'y' }), twoParams), false);
+  // a single-name caller cannot lose a subset - the shadow covers the only target
+  check('ast-patterns: single-name shadow hides the write',
+    paramReboundInBody(nestedWrite({ shadows: ['y'], writes: 'y' }), new Set(['y'])), false);
+  // a shadow is whatever the param BINDS: object / array patterns, rest and default wrappers all
+  // cover exactly their own leaves, and a write to any other param still reaches ours
+  const objectPatternParam = {
+    type: 'ObjectPattern',
+    properties: [{ type: 'ObjectProperty', computed: false, shorthand: true, key: { type: 'Identifier', name: 'x' }, value: { type: 'Identifier', name: 'x' } }],
+  };
+  const arrayPatternParam = { type: 'ArrayPattern', elements: [{ type: 'Identifier', name: 'x' }] };
+  const restParam = { type: 'RestElement', argument: { type: 'Identifier', name: 'x' } };
+  const defaultParam = { type: 'AssignmentPattern', left: { type: 'Identifier', name: 'x' }, right: { type: 'NumericLiteral', value: 1 } };
+  for (const [label, param] of [['object pattern', objectPatternParam], ['array pattern', arrayPatternParam],
+    ['rest element', restParam], ['default wrapper', defaultParam]]) {
+    checkTruthy(`ast-patterns: nested fn shadowing via ${ label } still sees the write to the other`,
+      paramReboundInBody(nestedWrite({ shadows: [param], writes: 'y' }), twoParams));
+    check(`ast-patterns: nested fn shadowing via ${ label } hides its own write`,
+      paramReboundInBody(nestedWrite({ shadows: [param], writes: 'x' }), twoParams), false);
+  }
+
+  // a chain of nested functions each shadowing one more name - the write lands on ours only while
+  // some enclosing shadow has not yet covered it
+  function shadowChain({ shadows, writes }) {
+    let inner = {
+      type: 'ExpressionStatement',
+      expression: { type: 'AssignmentExpression', operator: '=', left: { type: 'Identifier', name: writes }, right: { type: 'Identifier', name: 'P' } },
+    };
+    for (const shadow of [...shadows].reverse()) {
+      inner = {
+        type: 'ExpressionStatement',
+        expression: {
+          type: 'CallExpression',
+          callee: {
+            type: 'FunctionExpression', id: null,
+            params: [{ type: 'Identifier', name: shadow }],
+            body: { type: 'BlockStatement', body: [inner] },
+          },
+          arguments: [],
+        },
+      };
+    }
+    return inner;
+  }
+  const threeParams = new Set(['x', 'y', 'z']);
+  checkTruthy('ast-patterns: shadow chain leaves an uncovered name writable',
+    paramReboundInBody(shadowChain({ shadows: ['x', 'y'], writes: 'z' }), threeParams));
+  check('ast-patterns: shadow chain covering every name hides the write',
+    paramReboundInBody(shadowChain({ shadows: ['x', 'y', 'z'], writes: 'z' }), threeParams), false);
+  checkTruthy('ast-patterns: shadow chain with an unrelated inner param still sees the write',
+    paramReboundInBody(shadowChain({ shadows: ['x', 'q'], writes: 'y' }), threeParams));
+
+  // the shadowing function's own param DEFAULT is outside its shadow for other names
+  checkTruthy('ast-patterns: write in a shadowing fn param default still reaches an unshadowed param', paramReboundInBody({
+    type: 'ExpressionStatement',
+    expression: {
+      type: 'CallExpression',
+      callee: {
+        type: 'FunctionExpression',
+        id: null,
+        params: [{ type: 'Identifier', name: 'x' }, {
+          type: 'AssignmentPattern',
+          left: { type: 'Identifier', name: 'z' },
+          right: { type: 'AssignmentExpression', operator: '=', left: { type: 'Identifier', name: 'y' }, right: { type: 'Identifier', name: 'P' } },
+        }],
+        body: { type: 'BlockStatement', body: [] },
+      },
+      arguments: [],
+    },
+  }, twoParams));
 }
 
 {
