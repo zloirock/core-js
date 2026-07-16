@@ -1573,7 +1573,8 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
   if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
     if (!bindingName) return null;
     const values = patternSlotValues(left, assignment.right, bindingName, ctx);
-    return values.length === 1 && !patternSlotHasDefault(left, bindingName) ? values[0] : null;
+    return values.length === 1 && !patternSlotHasDefault(left, bindingName)
+      && !patternSlotSpreadShifted(left, assignment.right, bindingName) ? values[0] : null;
   }
   return reassignmentRhs(node, ownerNode);
 }
@@ -1698,6 +1699,31 @@ export function spreadAtOrBefore(list, index) {
   return false;
 }
 
+// every POSSIBLE rhs element for array-wrap slot i under the value-UNION contract: the exact
+// positional pair while positions are static, every static element from the first spread on once
+// a spread has shifted them (a zero-length spread pairs i to the next static, a longer one to the
+// spread's own unenumerable items - `patternSlotSpreadShifted` reports that incompleteness)
+export function arrayWrapSlotValueCandidates(elements, i) {
+  if (!spreadAtOrBefore(elements, i)) return elements[i] ? [elements[i]] : [];
+  return elements.slice(elements.findIndex(e => e?.type === 'SpreadElement'))
+    .filter(e => e && e.type !== 'SpreadElement')
+    .flatMap(flattenSlotUnionArms);
+}
+
+// a candidate that is ITSELF a union contributes each arm as its own possible value (`&&` stays
+// whole - its falsy LEFT is the expression's value, never collapsible). candidates feed
+// MIGHT-gated consumers only, so losing the union's completeness is fine there - the exact-pair
+// path never flattens, and pure precision gates on `patternSlotSpreadShifted` before reading
+function flattenSlotUnionArms(node) {
+  if (node?.type === 'ConditionalExpression') {
+    return [node.consequent, node.alternate].flatMap(flattenSlotUnionArms);
+  }
+  if (node?.type === 'LogicalExpression' && node.operator !== '&&') {
+    return [node.left, node.right].flatMap(flattenSlotUnionArms);
+  }
+  return [node];
+}
+
 // the POSITIONALLY-paired init element for an array-wrap pattern slot: array destructuring binds
 // pattern element `index` to the init element at the SAME index, but positions are static only up
 // to the first spread - a spread at or before the slot shifts every later runtime position, so
@@ -1797,13 +1823,21 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
     for (let i = 0; i < pattern.elements.length; i++) {
       const element = pattern.elements[i];
       const slot = slotFor(element);
-      // a spread at or before slot i shifts every later position, so `rhs.elements[i]` is no longer
-      // the value that lands in slot i - not a reliable narrow source, skip it
-      const paired = rhs?.type === 'ArrayExpression' && !spreadAtOrBefore(rhs.elements, i) ? rhs.elements[i] : null;
-      if (descend(slot, element, paired)) continue;
+      // a spread at or before slot i shifts every later position by the spread's runtime length,
+      // so `rhs.elements[i]` is no longer THE value that lands in slot i. under the value-UNION
+      // contract every static element from the first spread on is still a POSSIBLE slot value
+      // (a zero-length spread pairs i to the next static, a longer one to the spread's own items),
+      // so enumerate them all; the spread's items stay unenumerable, which
+      // `patternSlotSpreadShifted` reports to consumers that need the union to be COMPLETE
+      const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, i) : [];
+      if (slot?.type === 'ArrayPattern' || slot?.type === 'ObjectPattern') {
+        for (const cand of candidates) out.push(...patternSlotValues(slot, cand, name, ctx));
+        if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
+        continue;
+      }
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
       if (element.type === 'AssignmentPattern') out.push(element.right);
-      if (paired) out.push(paired);
+      out.push(...candidates);
     }
   } else if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
@@ -1833,6 +1867,26 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
     }
   }
   return out;
+}
+
+// does the binding `name` pair through a SPREAD-SHIFTED array slot (`[, { x: A }] = [...xs, V]`)?
+// there the enumerated candidates are an over-approximation whose union is INCOMPLETE (the spread's
+// own items are unenumerable), so a precision-needing consumer must not read a lone candidate as
+// certain - the maybe-union stays sound for inject-if-might. the object twin needs no predicate:
+// an overriding trailing spread already pairs nothing there. mirrors `patternSlotHasDefault`
+export function patternSlotSpreadShifted(pattern, rhs, name) {
+  if (pattern?.type !== 'ArrayPattern') return false;
+  for (let i = 0; i < pattern.elements.length; i++) {
+    const element = pattern.elements[i];
+    if (!element || !patternBindsIdentifier(element, id => id.name === name)) continue;
+    if (rhs?.type === 'ArrayExpression' && spreadAtOrBefore(rhs.elements, i)) return true;
+    const slot = element.type === 'AssignmentPattern' ? element.left : element;
+    const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
+    if (slot?.type === 'ArrayPattern' && patternSlotSpreadShifted(slot, paired, name)) return true;
+    if (element.type === 'AssignmentPattern'
+      && patternSlotSpreadShifted(slot, element.right, name)) return true;
+  }
+  return false;
 }
 
 // every POSSIBLE value a reassignment site flows into the binding: a value-flow assignment's
