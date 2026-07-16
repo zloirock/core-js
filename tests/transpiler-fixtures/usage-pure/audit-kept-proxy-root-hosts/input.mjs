@@ -24,3 +24,20 @@ let d;
 delete (d = globalThis.window)?.self.someUserKey;
 
 export { w };
+
+// an IIFE-arg SYNTH over a kept+SE-key chain: the swap renders the whole receiver (its own harvest),
+// so the hop-collapse drive must yield to the claim - queueing its migrated span too nested a transform
+// the swap's content could not compose (a build break)
+let c2 = 0;
+let ks;
+export const ofSynthKept = (({ of } = {}) => of)((ks = globalThis.window)?.[(c2++, 'self')].Array ?? {});
+export { c2 };
+// NEGATIVES for the synth-claim yield: the same kept+SE-key chain in a LOGICAL and a TERNARY carrier
+// with NO pending synth - the drive still owns the collapse (nothing claimed the receiver)
+let c3 = 0;
+let ln;
+export const logicalNoSynth = ((ln = globalThis.window)?.[(c3++, 'self')].Array ?? Array).from([1]);
+
+let tn;
+export const ternaryNoSynth = (1 ? (tn = globalThis.window)?.[(c3++, 'self')].Array.prototype.findLast : 0).call([1, 2], v => v < 2);
+export { c3 };
