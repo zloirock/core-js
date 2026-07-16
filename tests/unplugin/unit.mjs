@@ -2433,8 +2433,8 @@ function checkSnapshotKeyNormalization() {
 checkSnapshotKeyNormalization();
 
 // --- collectAllBindingNames orphan-ref heuristic ---
-// parent-tracking distinguishes plugin's nested `_ref = X` emission (inside a ConditionalExpression
-// guard or a call argument) from user's stand-alone sloppy-mode `_ref = X;` statement. without
+// parent-tracking distinguishes plugin's nested `_ref = X` emission (inside a `null == (...)`
+// guard test or a call argument) from user's stand-alone sloppy-mode `_ref = X;` statement. without
 // parent context, user `_ref = window.data;` at top level matches the complex-RHS heuristic
 // and gets adopted - resulting `var _ref;` shadows the user's intended global assignment
 function collectBindings(src) {
@@ -2486,11 +2486,17 @@ checkOrphan('nested in arrow body',
 checkOrphan('nested in class method',
   'class C { run() { null == (_ref = bar()) ? void 0 : _ref; } }', [], ['_ref']);
 
-// user-shape assignments in structural control positions: switch-case / throw / loop / if /
-// while / do-while / return heads. plugin never emits `_ref = X` in any of these, so they are
-// always user code and must NOT be adopted as orphans (would shadow the user's intent)
+// user-shape assignments in structural control positions: switch-case / switch discriminant /
+// with object / throw / loop / if / while / do-while / return heads. plugin never emits
+// `_ref = X` in any of these, so they are always user code and must NOT be adopted as
+// orphans (would shadow the user's intent)
 checkOrphan('switch case test',
   'switch (x) { case (_ref = foo()): break; }', [], ['_ref']);
+checkOrphan('switch discriminant',
+  'switch (_ref = foo()) { default: }', [], ['_ref']);
+checkDeclared('switch discriminant reserves', 'switch (_ref = foo()) { default: }', ['_ref']);
+checkOrphan('with object',
+  'with (_ref = foo()) {}', [], ['_ref']);
 checkOrphan('throw argument',
   'throw (_ref = foo());', [], ['_ref']);
 checkOrphan('for-init',
@@ -2528,12 +2534,12 @@ checkDeclared('logical operand reserves', 'flag && (_ref = foo());', ['_ref']);
 // nested logical operand (`a && b && (_ref = c)`) - the direct parent is still a LogicalExpression
 checkOrphan('nested logical operand', 'a && b && (_ref = foo());', [], ['_ref']);
 // precision: a user logical-operand `_ref` + a real plugin binary-test `_ref2` in one file -> only
-// the plugin orphan is adopted (the LogicalExpression blacklist must not suppress real orphans)
+// the plugin orphan is adopted (a user-position decline must not suppress real orphans)
 checkOrphan('mixed logical-user + plugin orphan',
   'flag && (_ref = foo()); null == (_ref2 = bar()) ? void 0 : _ref2;', ['_ref2'], ['_ref']);
 // plugin's own emit shapes stay adopted: `_ref =` inside the `null == (...)` BinaryExpression
-// test and as a call argument are both still recognized as orphans (regression guard for the
-// new ConditionalExpression / AssignmentExpression blacklist entries)
+// test and as a call argument are both still recognized as orphans (regression guard: the
+// emit-position set must keep admitting exactly these while user positions decline)
 checkOrphan('plugin binary-test emit still orphan',
   'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 checkOrphan('plugin call-arg emit still orphan',
@@ -2552,10 +2558,24 @@ checkDeclared('multi-level assignment chain reserves', 'a = b = _ref = foo();', 
 checkOrphan('assignment rhs of member target',
   'obj.prop = _ref = foo();', [], ['_ref']);
 
+// the classifier admits ONLY the plugin's emit positions (`null == (...)` binary test, call
+// argument) - every expression-container position is user code and must reserve, not adopt:
+// declarator inits, literal elements / values, template interpolations, spread and new args.
+// unknown positions fail SAFE by construction (reserved; the plugin allocates `_ref2`)
+checkOrphan('declarator init', 'const x = (_ref = foo());', [], ['_ref']);
+checkDeclared('declarator init reserves', 'const x = (_ref = foo());', ['_ref']);
+checkOrphan('exported declarator init', 'export const x = (_ref = foo());', [], ['_ref']);
+checkOrphan('array element', '[_ref = foo()];', [], ['_ref']);
+checkOrphan('object property value', '({ a: _ref = foo() });', [], ['_ref']);
+// eslint-disable-next-line no-template-curly-in-string -- the SOURCE under test embeds an interpolation
+checkOrphan('template interpolation', 'use(`${ _ref = foo() }`);', [], ['_ref']);
+checkOrphan('spread argument', 'use(...(_ref = foo()));', [], ['_ref']);
+checkOrphan('new-expression argument', 'new Foo(_ref = bar());', [], ['_ref']);
+
 // TS expression wrappers (`as` / `!` / `satisfies`) are transparent to the orphan classifier's
 // parent check, exactly like parens: a top-level user `_ref = X` wrapped in a TS cast inside a
 // throw / case / if head is still user code and must NOT be adopted - a wrapper-blind parent walk
-// would see the TS node, miss the structural blacklist, and inject a module `var _ref;` that
+// would see the TS node, miss the structural position check, and inject a module `var _ref;` that
 // localizes the user's implicit-global write. parsed as TS so the wrapper nodes are produced
 function collectBindingsTS(src) {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
@@ -2569,6 +2589,7 @@ checkOrphanTS('throw + as-cast', 'throw ((_ref = foo()) as any);', []);
 checkOrphanTS('case + as-cast', 'switch (x) { case ((_ref = foo()) as any): break; }', []);
 checkOrphanTS('if + as-cast', 'if (((_ref = foo()) as any)) {}', []);
 checkOrphanTS('throw + non-null', 'throw ((_ref = foo())!);', []);
+checkOrphanTS('switch discriminant + as-cast', 'switch ((_ref = foo()) as any) { default: }', []);
 // regression: a genuine plugin-shape `null == (...)` test is still adopted with TS in the file
 checkOrphanTS('plugin binary-test still orphan (ts)', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 

@@ -2612,6 +2612,51 @@ QUnit.test('destructuring: extraction from a conditional ctor alias stays raw', 
   assert.same(viaParam(false), 'CALLER');
 });
 
+// a tagged-template tag is a this-carrying invocation: the ctor guard's raw branch must bind
+// the alias exactly like a call callee. `Promise.all` requires a constructor `this` - an
+// unbound raw branch would throw TypeError where native tag invocation resolves. on a
+// stripped realm the global is absent and BOTH native and transformed code throw reading
+// `.all` off undefined - the bind oracle fires on the live-global legs
+QUnit.test('destructuring: tagged-template tag on a guarded alias static binds the receiver', assert => {
+  // probe the runtime global through the SAME maybe-alias channel viaTag reads (a certain
+  // alias would flatten to the always-defined pure binding and misreport a stripped realm)
+  function grab(c) {
+    let G;
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE arms the guard
+    (c ? ({ Promise: G } = globalThis) : 0);
+    return G;
+  }
+  const live = grab(true);
+  function viaTag(c) {
+    let P;
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE arms the guard
+    (c ? ({ Promise: P } = globalThis) : 0);
+    return P.all`x`;
+  }
+  if (live) {
+    const async = assert.async();
+    viaTag(true).then(value => {
+      assert.deepEqual(value, ['x']);
+      async();
+    });
+  } else {
+    assert.throws(() => viaTag(true), TypeError);
+  }
+  // the untaken path stays native-faithful: reading `.all` off undefined throws
+  assert.throws(() => viaTag(false), TypeError);
+  // a sequence-detached tag drops `this` natively - the raw branch must stay unbound,
+  // preserving the constructor-`this` TypeError an erroneous bind would swallow (with the
+  // global stripped the read itself throws the same TypeError, so the assert holds anywhere)
+  function viaDetachedTag(c) {
+    let Q;
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE arms the guard
+    (c ? ({ Promise: Q } = globalThis) : 0);
+    // eslint-disable-next-line no-sequences -- the sequence-detached TAG is the form under test
+    return (0, Q.withResolvers)`x`;
+  }
+  assert.throws(() => viaDetachedTag(true), TypeError);
+});
+
 // an UNCLAIMED destructure (no polyfillable prop) over a proxy-hop receiver collapses the hop
 // like a non-destructure receiver: in Node `self` is undefined, so an uncollapsed
 // `_globalThis['self'].Array` would throw before the destructure runs
