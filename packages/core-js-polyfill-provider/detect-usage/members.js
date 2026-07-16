@@ -171,7 +171,11 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // is the single source; each emitter RENDERS the result (babel builds AST, unplugin slices text). null when
 // not collapsible. uses only shared provider primitives + the passed `resolvePure`. shapes:
 //   { kind: 'collapse', rootBinding: { alias: node } | { keep: node } | { pure: { entry, hintName } },
-//     harvestedSE: node[], property: node, computed: bool, optional: bool }
+//     harvestedSE: node[], keyPrefixSE: node[], property: node, computed: bool, optional: bool }
+// `keyPrefixSE` (kept roots only): effects from DROPPED hops' computed keys. they may not ride ahead of
+// the root (the assignment evaluates first; under a live guard the key never evaluates at all when the
+// guard fires), so the renderer folds them into the surviving leaf key as a sequence prefix -
+// `X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]` - reproducing the native order by construction
 //   { kind: 'member', inner: <plan>, property: node, computed: bool }   // deeper nav under a kept leaf chain
 // the three root kinds differ in what the renderer owes them. `alias` is an identifier whose OWN declaration
 // the pass already rewrote, so it is emitted verbatim. `pure` is swapped for an injected binding. `keep` is
@@ -213,7 +217,13 @@ export function planProxyReceiver(receiver, {
     objectCore = objectCore.expression;
   }
   if (isWriteTarget) objectCore = peelReceiverSequenceTail(objectCore);
-  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: isWriteTarget, throughChainAssign }) !== objectCore) {
+  // a KEPT root admits SE-BEARING hop keys into the prefix: their effects cannot ride ahead of the root
+  // (the pre-root harvest every other root uses) because the kept root is an assignment evaluated FIRST -
+  // and, under a live guard, the key natively evaluates only PAST it. instead each dropped hop's key
+  // effect MIGRATES into the surviving leaf key (`X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]`),
+  // which reproduces the native order by construction: root, guard, key effects, read
+  const seKeysMigrate = isWriteTarget || !!keptAssignRoot;
+  if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: seKeysMigrate, throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
     if (callRooted) return callRooted;
     if (!findProxyGlobal(receiver, aliasCtx, throughChainAssign)) return null;
@@ -236,17 +246,34 @@ export function planProxyReceiver(receiver, {
   // root swaps to its pure ctor
   const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(root, aliasCtx);
   if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
+  // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their computed
+  // keys carry the effects that migrate into the surviving leaf key (in source order), and their `?.`
+  // flags carry the guard that re-hangs onto it
+  const keyPrefixSE = [];
+  let droppedHopOptional = false;
+  if (keptAssignRoot) {
+    const hops = [];
+    for (let cur = objectCore; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+      cur = peelReceiverSequenceTail(cur.object)) hops.unshift(cur);
+    for (const hop of hops) {
+      droppedHopOptional ||= !!hop.optional;
+      if (hop.computed) keyPrefixSE.push(...collectFoldedReceiverSideEffects(hop.property));
+    }
+  }
+  const keyPrefixSet = new Set(keyPrefixSE);
   return {
     kind: 'collapse',
     rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
       : isAliasRoot ? { alias: root } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
     // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
-    // assignment and still have to ride ahead, in source order
+    // assignment and still have to ride ahead, in source order. dropped-hop KEY effects are exempt too:
+    // they ride the surviving key instead (`keyPrefixSE`), where the native order puts them
     harvestedSE: collectFoldedReceiverSideEffects(receiver.object)
-      .filter(effect => effect !== keptAssignRoot),
+      .filter(effect => effect !== keptAssignRoot && !keyPrefixSet.has(effect)),
+    keyPrefixSE,
     // the erased hop's own `?.` guarded the KEPT root, so it moves to the leaf that now reads off it
-    optional: !!(keptAssignRoot && objectCore.optional),
+    optional: !!(keptAssignRoot && (objectCore.optional || droppedHopOptional)),
     property: receiver.property,
     computed: receiver.computed,
   };
