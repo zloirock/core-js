@@ -445,7 +445,22 @@ export function createPolyfillEmitter({
     let current = node.optional ? node : chainChild(node);
     while (current && typeof current === 'object') {
       if (current.optional) {
-        return isPoly(current) ? { root: null } : makeResult(current);
+        if (isPoly(current)) {
+          // a dead `?.` on a REDUNDANT proxy hop (`(b = root.window)?.self?.self.X` - the hop
+          // resolves to a realm-local self-reference, defined whenever its object is) is not the
+          // chain's guard: the LIVE one sits deeper, over the unresolvable kept root. anchoring
+          // here returned root:null and no guard was ever built - the raw proxy root then leaked
+          // through the receiver render (ie11 ReferenceError) or a live `?.` got sealed inline.
+          // skip the dead hop and keep descending; an ordinary dead optional (non-proxy hop)
+          // still terminates the search - its deopt path owns the emit
+          if (maximalProxyGlobalPrefix(current, { scope, adapter: estreeAdapter, path: metaPath },
+            { allowSideEffectKeys: true, throughChainAssign: true }) === current) {
+            current = chainChild(current);
+            continue;
+          }
+          return { root: null };
+        }
+        return makeResult(current);
       }
       current = chainChild(current);
     }
