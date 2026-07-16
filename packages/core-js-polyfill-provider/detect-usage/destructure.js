@@ -781,7 +781,8 @@ export function paramDefaultInstanceSynthAllowed({ objectPatternNode, receiverNo
 // gets through the resolver's receiver walk. pure-only by construction (detection stays untyped so
 // usage-global keeps its sound over-inject); a failed typing keeps the generic (still correct)
 export function refineParamDefaultInstancePure({ pureResult, key, receiverPath, resolveNodeType, toHint, resolvePure, path }) {
-  const hint = toHint?.(resolveNodeType?.(receiverPath));
+  // no receiver PATH (a node-only caller) -> no typing; the generic dispatcher stays correct
+  const hint = receiverPath ? toHint?.(resolveNodeType?.(receiverPath)) : null;
   const refined = hint ? resolvePure({ kind: 'property', object: hint, key, placement: 'prototype' }, path) : null;
   return refined?.kind === 'instance' ? refined : pureResult;
 }
