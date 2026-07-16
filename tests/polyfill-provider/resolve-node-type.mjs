@@ -109,6 +109,7 @@ import {
   peelNestedSequenceExpressions,
   isCleanDestructureAliasBinding,
   isGuardedAliasingWrite,
+  isTaggedTemplateTagPosition,
   propBindingIdentifier,
   resolveCallArgument,
   singleQuasiString,
@@ -3078,6 +3079,31 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   // singleQuasiString: non-TemplateLiteral -> null
   check('ast-patterns: singleQuasiString non-template -> null',
     singleQuasiString({ type: 'StringLiteral', value: 'x' }), null);
+
+  // isTaggedTemplateTagPosition: a tag is a this-carrying invocation of the member. the tag
+  // slot may hold transparent wrappers (parens survive the oxc parse, TS casts survive both
+  // parsers) - they peel; sequences do NOT peel (a sequence tag detaches `this` natively)
+  const member = {
+    type: 'MemberExpression',
+    object: { type: 'Identifier', name: 'M' },
+    property: { type: 'Identifier', name: 'groupBy' },
+  };
+  function taggedBy(tag) {
+    return { type: 'TaggedTemplateExpression', tag };
+  }
+  checkTruthy('ast-patterns: tagged tag position bare member',
+    isTaggedTemplateTagPosition(taggedBy(member), member));
+  checkTruthy('ast-patterns: tagged tag position paren-wrapped',
+    isTaggedTemplateTagPosition(taggedBy({ type: 'ParenthesizedExpression', expression: member }), member));
+  checkTruthy('ast-patterns: tagged tag position TS-cast-wrapped',
+    isTaggedTemplateTagPosition(taggedBy({ type: 'TSAsExpression', expression: member }), member));
+  check('ast-patterns: tagged tag position sequence-detached -> false',
+    isTaggedTemplateTagPosition(taggedBy({
+      type: 'SequenceExpression',
+      expressions: [{ type: 'NumericLiteral', value: 0 }, member],
+    }), member), false);
+  check('ast-patterns: call parent is not a tag position',
+    isTaggedTemplateTagPosition({ type: 'CallExpression', callee: member, arguments: [] }, member), false);
 
   // kebabToCamel: `weak-map` -> `weakMap` (first char stays lowercase)
   check('ast-patterns: kebabToCamel weak-map', kebabToCamel('weak-map'), 'weakMap');

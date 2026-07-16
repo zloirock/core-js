@@ -285,3 +285,12 @@ QUnit.test('loop: for-of iterable slot resolves and runs the polyfill once', ass
   assert.deepEqual(seen, [7, 8]);
   assert.same(key, 'from');
 });
+
+// a for-of head member write rebinds the slot each iteration - the body read must call the
+// user's assigned function, not a polyfill dispatch that would answer with the array element
+QUnit.test('loop: for-of member write target aliases the body read to the assigned value', assert => {
+  const o = [5, 6];
+  for (o.flat of [function () { return 'assigned'; }]) {
+    assert.same(o.flat(), 'assigned');
+  }
+});
