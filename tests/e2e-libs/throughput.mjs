@@ -77,8 +77,9 @@ for (const lib of libs) {
           });
           console.log(`✓ ${ label }: ${ ms.toFixed(0) }ms (overhead ${ overhead ?? '?' }ms, ${ out.bytes }b, ${ injections } inj)`);
         } catch (err) {
-          rows.push({ lib: lib.name, bundler: name, method, phase: phase ?? '', error: (err.message || String(err)).split('\n', 1)[0].slice(0, 160) });
-          console.log(`✗ ${ label }: ${ (err.message || err).split('\n', 1)[0].slice(0, 160) }`);
+          const reason = (err.message || String(err)).split('\n', 1)[0].slice(0, 160);
+          rows.push({ lib: lib.name, bundler: name, method, phase: phase ?? '', error: reason });
+          console.log(`✗ ${ label }: ${ reason }`);
         }
       }
     }
