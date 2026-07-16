@@ -48,6 +48,7 @@ import {
   bareAssignmentPatternLeafPath,
   BRACE_STATEMENT_HOST_TYPES,
   findFunctionScopeVarInPath,
+  isForXWriteTarget,
   noReassignmentReachesUsage,
   reassignmentDominatesUsage,
   RUNTIME_BLOCK_TYPES,
@@ -1078,5 +1079,60 @@ for (const [predicate, name, rows] of [
     runBoth(`${ name }/${ variant }`, code, (adapter, prog, lbl) => check(lbl, predicate(receiverInit(adapter, prog)), expected));
   }
 }
+
+// --- isForXWriteTarget: transparent-wrapper matching ---
+// a for-of head member write aliases same-slot body reads, so neither may polyfill. TS casts
+// survive both parsers and parens survive the oxc parse - a wrapper on the read receiver or
+// on the head object must not break the slot match. the babel leg parses paren forms flat
+// (parens stripped at parse), so it asserts the bare shape while the oxc leg carries the node
+function pickCalleeMember(adapter, prog) {
+  // babel promotes optional reads to OptionalMemberExpression/OptionalCallExpression node
+  // TYPES; estree keeps plain types with optional flags - probe both spellings
+  for (const type of ['MemberExpression', 'OptionalMemberExpression']) {
+    const found = adapter.pickPath(prog, type, p => {
+      const parentType = p.parentPath?.node?.type;
+      return parentType === 'CallExpression' || parentType === 'OptionalCallExpression';
+    });
+    if (found) return found;
+  }
+  return null;
+}
+for (const [variant, code, expected] of [
+  ['bare control', 'for (o.at of fns) { o.at(0); }', true],
+  ['cast-wrapped body read', 'for (o.at of fns) { (o as any).at(0); }', true],
+  ['paren-wrapped body read', 'for (o.at of fns) { (o).at(0); }', true],
+  ['cast-wrapped head object', 'for ((o as any).includes of fns) { o.includes(1); }', true],
+  ['paren-wrapped head target', 'for ((o.flat) of fns) { o.flat(); }', true],
+  // optionality reads the SAME slot: babel spells the read OptionalMemberExpression while
+  // estree keeps MemberExpression under a ChainExpression - both must match the write
+  ['optional body read', 'for (o.at of fns) { o?.at(0); }', true],
+  ['deep optional chain read', 'for (o.x.at of fns) { o?.x?.at(0); }', true],
+  ['bracket key with cast-wrapped head', "for ((o as any)['at'] of fns) { o.at(0); }", true],
+  ['different receiver same key', 'for (a.map of fns) { b.map(f); }', false],
+  ['optional read of a different receiver', 'for (a.flat of fns) { b?.flat(); }', false],
+  ['optional call of the written member', 'for (o.at of fns) { o.at?.(0); }', true],
+  ['labeled loop cast head', 'outer: for ((o as any).at of fns) { o.at(0); }', true],
+  // pattern-nested write targets exercise the pattern branches of the write collection
+  // (array element / default left / property value), each with its own wrapper peel
+  ['array-pattern cast target', 'for ([(o as any).at] of fns) { o.at(0); }', true],
+  ['array-pattern default target', 'for ([o.at = dflt] of fns) { o.at(0); }', true],
+  ['object-pattern paren value target', 'for ({ x: (o.at) } of fns) { o.at(0); }', true],
+  ['for-await cast head', 'async function f(gen) { for await ((o as any).at of gen) { o.at(0); } }', true],
+  ['bracket key + optional read combo', "for (o['at'] of fns) { o?.['at'](0); }", true],
+  // dynamic computed keys have no static name - structural compare pairs same-name key
+  // reads with the write and rejects a different key variable
+  ['dynamic computed key optional read', 'for (o[k] of fns) { o?.[k](0); }', true],
+  ['dynamic computed key different var', 'for (o[k] of fns) { o[j]?.(0); }', false],
+]) {
+  runBoth(`isForXWriteTarget/${ variant }`, code, (adapter, prog, lbl) => {
+    check(lbl, isForXWriteTarget(pickCalleeMember(adapter, prog)), expected);
+  }, ['typescript']);
+}
+// the wrapped head member itself stays a write target through the identity route
+runBoth('isForXWriteTarget/cast-wrapped head target itself',
+  'for ((o as any).values of fns) { use(o); }', (adapter, prog, lbl) => {
+    const head = adapter.pickPath(prog, 'MemberExpression', () => true);
+    checkTruthy(lbl, isForXWriteTarget(head));
+  }, ['typescript']);
 
 finish();
