@@ -99,15 +99,22 @@ function seTailRootBinding(seTail, injectPureImport) {
 // that connector is dead, which is why it is dropped by default
 // `rootOptional`: the ERASED prefix carried a live `?.` of its own (`((d = root.window)?.self as any).Array`
 // - the guard sat on the dropped hop, not on any survivor). the binding is a kept root, so that guard is
-// live and has to re-hang on the innermost hop now reading off it
-function rebuildWrappedProxyChain(hops, binding, code, keepsRoot = false, rootOptional = false) {
+// live and has to re-hang on the innermost hop now reading off it.
+// `migrateKeySrcs`: key effects of DROPPED hops. a kept root has no pre-root SE channel (the assignment IS
+// the receiver and evaluates first), so they fold into the innermost surviving key as a sequence prefix
+// (`(e = root.window)[(c++, 'self')].Array` -> `(e = _root.window)[c++, "Array"]`) - the position the
+// native order evaluates them in
+function rebuildWrappedProxyChain(hops, binding, code, keepsRoot = false, rootOptional = false, migrateKeySrcs = []) {
   let src = binding;
   for (let i = hops.length - 1; i >= 0; i--) {
     const hop = hops[i];
     const propText = code.slice(hop.property.start, hop.property.end);
     const innermost = i === hops.length - 1;
     const useOptional = innermost ? (keepsRoot && hop.optional) || rootOptional : hop.optional;
-    if (hop.computed) src += useOptional ? `?.[${ propText }]` : `[${ propText }]`;
+    if (innermost && migrateKeySrcs.length) {
+      const keyText = hop.computed ? propText : JSON.stringify(propText);
+      src += `${ useOptional ? '?.' : '' }[${ [...migrateKeySrcs, keyText].join(', ') }]`;
+    } else if (hop.computed) src += useOptional ? `?.[${ propText }]` : `[${ propText }]`;
     else src += useOptional ? `?.${ propText }` : `.${ propText }`;
     // the erased prefix ended in a wrapper, and a wrapper SEALS an optional chain: what follows reads
     // unconditionally off the guarded result. re-hanging the guard without re-sealing would let the rest of
@@ -181,7 +188,24 @@ function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapte
   if ((cur !== rootNode && cur !== rootCore) || !hops.length) return null;
   const aliasCtx = { scope: metaPath?.scope, adapter, path: metaPath };
   const dropped = dropLeadingProxyHops(hops, aliasCtx, true);
-  if (!dropped.boundary || dropped.droppedSe.length) return null;
+  if (!dropped.boundary) return null;
+  // a side-effecting dropped key DOES have a channel here: it migrates into the surviving leaf key as a
+  // sequence prefix (`_ref[(c++, 'self')].Array` -> `_ref[c++, "Array"]`) - the position the native order
+  // evaluates it in (past the guard, before the read). the leaf turns computed; the stitch renders it
+  if (dropped.droppedSe.length) {
+    const leaf = hops.at(-1);
+    if (!leaf) return null;
+    return {
+      migrate: {
+        keySrcs: dropped.droppedSe.map(effect => code.slice(effect.start, effect.end)),
+        leafKeySrc: leaf.computed
+          ? code.slice(leaf.property.start, leaf.property.end) : JSON.stringify(leaf.property.name),
+        // the remainder starts after the whole MEMBER, not after the key: a computed leaf still has its
+        // own closing bracket past the key (`['Array']` -> a stray `]` would survive into the splice)
+        leafEnd: leaf.end,
+      },
+    };
+  }
   // position past an optional `?.` token after the boundary (keep the plain dot when the
   // next surviving hop is dotted)
   const p = skipGap(code, dropped.boundary.end);
@@ -609,6 +633,11 @@ export function createPolyfillEmitter({
     // an ADVANCED tail boundary (redundant proxy hops dropped above the memoized root)
     // overrides both slice strategies: the surviving tail comes verbatim from source in
     // either case, and slicing from the boundary is what drops the dead `.self` hop
+    if (tailBoundary?.migrate && receiverEnd !== undefined) {
+      const { keySrcs, leafKeySrc, leafEnd } = tailBoundary.migrate;
+      return `${ guardRef }[${ [...keySrcs, leafKeySrc].join(', ') }]${
+        stripOptionalDots(code.slice(leafEnd, receiverEnd), leafEnd, deoptPositions) }`;
+    }
     if (tailBoundary !== null && receiverEnd !== undefined) {
       return guardRef + stripOptionalDots(code.slice(tailBoundary, receiverEnd), tailBoundary, deoptPositions);
     }
@@ -1285,10 +1314,16 @@ export function createPolyfillEmitter({
       // `bindingInner` hands the paren-free sequence body to an embedding SE-tail consumer when
       // the WHOLE result is the binding: a nested `(c++, (q = _globalThis, _globalThis))`
       // flattens to the babel canon `(c++, q = _globalThis, _globalThis)`
+      // a MIGRATED key under a LIVE `?.` may not render here: a single re-hung guard always routes
+      // through the memo machinery, so a live optional reaching this render means SEVERAL live `?.`
+      // hops - inlining one gets sealed by the instance wrapper's parens (a throw the source never
+      // has). decline to the raw source shape, faithful in every realm
+      if (keepsAssignRoot && dropped.droppedSe.length && dropped.boundary?.optional) return null;
       if (hasMidChainWrappers) {
         return {
           src: rebuildWrappedProxyChain(hops, binding, code, keepsAssignRoot,
-            keepsAssignRoot && !!dropped.boundary?.optional), leafNode: chainAssign,
+            keepsAssignRoot && !!dropped.boundary?.optional,
+            keepsAssignRoot ? dropped.droppedSe.map(effect => nodeSrc(effect)) : []), leafNode: chainAssign,
           bindingInner: hops.length ? undefined : bindingInner,
         };
       }
