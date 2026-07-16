@@ -209,3 +209,15 @@ BrowserStack Automate; CI wiring.
   (Default: build rollup+babel first, wire webpack+babel-loader second.)
 - rxjs import path: confirm the ES2015 `dist/esm` entry resolves cleanly through
   nodeResolve+commonjs under each method; fall back to the package `module` field if not.
+
+## 13. Post-implementation resolution notes
+
+- **core-js version:** `core-js` is pinned to the workspace v4 via a `file:../../packages/core-js`
+  dependency, so `entry-global`/`usage-global` bundle this monorepo's v4 polyfills rather than a
+  transitively-hoisted published v3 (which `@farmfe` pulls in). Without the pin, node's node_modules
+  walk found the nested v3 first. Injected specifiers (and thus the snapshots) are unchanged — they
+  come from v4 `@core-js/compat`, not from the installed package.
+- **farm on v4:** farm's native compiler hard-crashes on the v4 core-js modules and, being
+  uncaught, kills the whole throughput run — so farm is excluded from the active throughput bundler
+  set (7 remain). It's throughput-only; the runtime tier uses rollup and is unaffected. The builder
+  stays in `build.mjs` for easy re-enable.
