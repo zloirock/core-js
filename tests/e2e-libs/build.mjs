@@ -2,13 +2,13 @@
 //   - method/phase enumeration and unplugin option construction
 //   - temp-entry generation (entries live UNDER this dir so bare `rxjs`/`core-js` imports resolve)
 //   - throughputBuilders: one per bundler, returns { bytes }, does NOT execute (measures processing)
-//   - runtimeBuild: rollup + @rollup/plugin-babel (syntax->ES5) + unplugin(post) (stdlib), UMD output
+//   - runtimeBuild: rollup + Babel (syntax->ES5, both Babel 7 and 8) + unplugin(post) (stdlib), UMD
 //   - captureInjections: which core-js/@core-js/pure specifiers unplugin emits (bundler-invariant)
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import { babel } from '@rollup/plugin-babel';
 import unplugin from '@core-js/unplugin';
+import { createRequire } from 'node:module';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -165,29 +165,51 @@ export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name =
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
 
 // -------- runtime builder: ES5 UMD via Babel(syntax) + unplugin(post, stdlib) --------
-const babelOpts = {
-  babelHelpers: 'inline',
-  babelrc: false,
-  configFile: false,
-  // resolve @babel/preset-env from THIS suite's node_modules (cwd defaults to repo root, where it isn't installed)
-  cwd: HERE,
-  extensions: ['.js', '.mjs', '.cjs'],
-  // core-js internals are already ES5; skip them (unplugin still injects them, they just aren't re-babeled).
-  exclude: [/[/\\]core-js(?:-pure)?[/\\]/, /[/\\]@core-js[/\\]/],
-  presets: [['@babel/preset-env', { targets: { ie: '11' }, useBuiltIns: false, corejs: false, modules: false }]],
-};
+// Two isolated Babel toolchains: '7' from the suite's own node_modules, '8' from ./babel8 (kept
+// separate because two @babel/core majors can't share one node_modules). @rollup/plugin-babel@6
+// only supports @babel/core@7, so Babel runs through a small custom transform plugin instead — which
+// also keeps the only variable between the two runs the Babel version itself.
+export const BABEL_VERSIONS = ['7', '8'];
+const require7 = createRequire(join(HERE, 'package.json'));
+const require8 = createRequire(join(HERE, 'babel8', 'package.json'));
+const babelToolchains = {};
+function babelToolchain(version) {
+  if (!babelToolchains[version]) {
+    const req = version === '8' ? require8 : require7;
+    babelToolchains[version] = { core: req('@babel/core'), preset: req.resolve('@babel/preset-env') };
+  }
+  return babelToolchains[version];
+}
 
-// Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`). For usage-* methods pass a
-// phase; entry-global ignores it. Ordering matters: raw Rollup ignores unplugin's enforce:'post'
-// field (enforce is a Vite/webpack-family concept, not a raw-Rollup one), so transform order =
-// array order. babel is listed FIRST so it down-compiles to ES5, and unplugin runs LAST so its
-// stdlib injection sees babel's helper output.
-export async function runtimeBuild(exerciseAbs, method, phase) {
+// A rollup transform that down-compiles syntax to ES5 with a specific Babel core + preset-env.
+// core-js internals are already ES5, so skip them (unplugin still injects them, unbabeled).
+const BABEL_EXCLUDE = [/[/\\]core-js(?:-pure)?[/\\]/, /[/\\]@core-js[/\\]/];
+function babelSyntaxPlugin(core, preset) {
+  return {
+    name: 'e2e-babel-syntax',
+    async transform(code, id) {
+      if (BABEL_EXCLUDE.some(re => re.test(id))) return null;
+      const out = await core.transformAsync(code, {
+        filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false,
+        presets: [[preset, { targets: { ie: '11' }, useBuiltIns: false, modules: false }]],
+      });
+      return out && typeof out.code === 'string' ? { code: out.code, map: null } : null;
+    },
+  };
+}
+
+// Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel
+// `babelVersion` ('7' | '8'). For usage-* methods pass a phase; entry-global ignores it. Ordering
+// matters: raw Rollup ignores unplugin's enforce:'post' field (enforce is a Vite/webpack-family
+// concept, not a raw-Rollup one), so transform order = array order. babel is listed FIRST so it
+// down-compiles to ES5, and unplugin runs LAST so its stdlib injection sees babel's helper output.
+export async function runtimeBuild(exerciseAbs, method, phase, babelVersion = '7') {
+  const { core, preset } = babelToolchain(babelVersion);
   const effPhase = method === 'entry-global' ? undefined : (phase ?? 'post');
-  return withEntry(exerciseAbs, method, `rt-${ method }-${ effPhase ?? 'x' }`, async entry => {
+  return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const build = await rollup({
       input: entry,
-      plugins: [babel(babelOpts), nodeResolve(), commonjs(), u('rollup', method, effPhase)],
+      plugins: [babelSyntaxPlugin(core, preset), nodeResolve(), commonjs(), u('rollup', method, effPhase)],
       onwarn() { /* ignore bundler warnings */ },
     });
     try {
