@@ -1,4 +1,4 @@
-import { WINDOWS_UNC_PREFIX_RE } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { uncPrefixOffset, WINDOWS_UNC_PREFIX_RE } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { isSfcSubBlock, parseModuleId } from './sfc-shapes.js';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
@@ -73,11 +73,14 @@ function stripHMRTimestamp(id) {
   // the query ends at `#`: a `?` that sits AFTER a `#` is opaque fragment text (`file.js#frag?t=1`),
   // NOT a query, so split the fragment off FIRST and re-append it verbatim. otherwise `indexOf('?')`
   // would find the in-fragment `?` and strip its `?t=N` -> two ids differing only in fragment collapse
-  // to one key (and the regex's `$` boundary would also over-strip a trailing in-fragment marker)
+  // to one key (and the regex's `$` boundary would also over-strip a trailing in-fragment marker).
+  // the `?` scan skips a Windows UNC prefix via the same shared offset `stripQueryHash` applies -
+  // treating the in-prefix `?` of `//?/C:/x.js?t=1&vue` as the query start let the strip consume
+  // the REAL `?` with the marker, gluing `&vue` onto the path and diverging from the stored key
   const hashStart = id.indexOf('#');
   const fragment = hashStart === -1 ? '' : id.slice(hashStart);
   const beforeHash = hashStart === -1 ? id : id.slice(0, hashStart);
-  const queryStart = beforeHash.indexOf('?');
+  const queryStart = beforeHash.indexOf('?', uncPrefixOffset(beforeHash));
   if (queryStart === -1) return id;
   const path = beforeHash.slice(0, queryStart);
   const query = beforeHash.slice(queryStart);
