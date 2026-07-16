@@ -4258,6 +4258,103 @@ function checkRemoveBatchSkipsPriorRange() {
 }
 checkRemoveBatchSkipsPriorRange();
 
+// SEEDED batch removal, ascending call order (the usage-mode caller iterates removals in
+// ascending source position and pre-seeds every range so each boundary scan treats the whole
+// batch as already gone). two adjacent removed statements sit between a no-semi prev and a
+// hazard char, so BOTH boundary scans jump the seeded neighbour and reach the `(`. the leftmost
+// removal injects `;` first; the rightmost's guard must see that `;` across the (prev, next)
+// span - a check limited to (this-end, next) misses the leftward `;` and injects a second,
+// fusing the seam into `;;`. the descending entry caller never hit this (it injects rightmost
+// first, which the leftward scan's (end, next) window did cover)
+function checkRemoveSeededAscendingSingleSemi() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  const aRange = { start: 10, end: 10 + a.length };
+  const bRange = { start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length };
+  remove.seed([aRange, bRange]);
+  remove(aRange);
+  remove(bRange);
+  check('remove/seeded ascending batch injects one semi, not two',
+    ms.toString(), 'var x = 1\n;(foo)();');
+}
+checkRemoveSeededAscendingSingleSemi();
+
+// two INDEPENDENT removal groups, each followed by its own hazard: the (prev, next) span of the
+// second group's seam must not see the first group's injected `;` (different seam, different prev),
+// so BOTH seams get exactly one `;` each
+function checkRemoveSeededTwoSeams() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const source = `var x = 1\n${ a }\n(foo)();\nvar y = 2\n${ b }\n(bar)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  const aRange = { start: 10, end: 10 + a.length };
+  const bStart = source.indexOf(b);
+  const bRange = { start: bStart, end: bStart + b.length };
+  remove.seed([aRange, bRange]);
+  remove(aRange);
+  remove(bRange);
+  check('remove/two independent seams each get one semi',
+    ms.toString(), 'var x = 1\n;(foo)();\nvar y = 2\n;(bar)();');
+}
+checkRemoveSeededTwoSeams();
+
+// CRLF line endings through the seeded-batch walk: the removal range consumes the `\r\n` pair, and
+// the seam still gets exactly one `;` before the hazard
+function checkRemoveSeededBatchCrlf() {
+  const a = "import 'a';";
+  const b = "import 'b';";
+  const source = `var x = 1\r\n${ a }\r\n${ b }\r\n(foo)();`;
+  const ms = new MagicString(source);
+  const remove = createTopLevelStatementRemover(ms);
+  const aRange = { start: 11, end: 11 + a.length };
+  const bRange = { start: 11 + a.length + 2, end: 11 + a.length + 2 + b.length };
+  remove.seed([aRange, bRange]);
+  remove(aRange);
+  remove(bRange);
+  check('remove/seeded CRLF batch injects one semi',
+    ms.toString(), 'var x = 1\r\n;(foo)();');
+}
+checkRemoveSeededBatchCrlf();
+
+// removal ending FLUSH against the hazard char (no trailing space or line ending to consume):
+// the injected `;` position coincides with the hazard index and must still land once
+function checkRemoveFlushAgainstHazard() {
+  const a = "import 'a';";
+  const single = new MagicString(`var x = 1\n${ a }(foo)();`);
+  const removeSingle = createTopLevelStatementRemover(single);
+  removeSingle({ start: 10, end: 10 + a.length });
+  check('remove/flush single against hazard',
+    single.toString(), 'var x = 1\n;(foo)();');
+
+  const b = "import 'b';";
+  const double = new MagicString(`var x = 1\n${ a }${ b }(foo)();`);
+  const removeDouble = createTopLevelStatementRemover(double);
+  const aRange = { start: 10, end: 10 + a.length };
+  const bRange = { start: 10 + a.length, end: 10 + a.length + b.length };
+  removeDouble.seed([aRange, bRange]);
+  removeDouble(aRange);
+  removeDouble(bRange);
+  check('remove/flush double against hazard still one semi',
+    double.toString(), 'var x = 1\n;(foo)();');
+}
+checkRemoveFlushAgainstHazard();
+
+// a U+2028 / U+2029 separator is a valid connector gap before `?.` too: the root-boundary read
+// must treat it like any whitespace, keep the guardRef needle, and the transform must not throw
+{
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  for (const [label, sep] of [['U+2028', '\u2028'], ['U+2029', '\u2029']]) {
+    const source = `const a = { b: { c: [[1], [2]] } };\na.b${ sep }?.c.slice(1).flat(2);`;
+    const out = plugin.transform(source, 'ls.mjs')?.code ?? '';
+    check(`transform/${ label } connector gap keeps the guard memo`,
+      out.includes('null == (_ref = a.b)') && out.includes('.call(_ref3, 1)'), true);
+  }
+}
+
 // reverse processing order (right-to-left) matches the real caller's loop over
 // `resolveBatchDirectivePromotionPolicy({...}).toRemove`, which is filled in descending
 // body position. forward `skipGap` from the LEFTMOST removal must be range-aware about
