@@ -9,7 +9,7 @@
 // so it proves the bundle executes and computes correctly, and the `injections > 0` gate catches a
 // total unplugin no-op; it cannot prove every individual polyfill is load-bearing (that needs a
 // stripped realm / real IE11 - the manual BrowserStack step).
-import { runtimeBuild, captureInjections, HERE } from './build.mjs';
+import { runtimeBuild, captureInjections, BABEL_VERSIONS, HERE } from './build.mjs';
 import { librariesIn } from './libraries.mjs';
 import { execFile } from 'node:child_process';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -94,35 +94,46 @@ function html(lib, method, checks) {
 `;
 }
 
+// Build + pre-flight one (lib x method x Babel version) cell. Returns its manifest entry and `ok`.
+async function buildCell(lib, method, babelVersion) {
+  const label = `${ lib.name }/babel${ babelVersion }/${ method }`;
+  try {
+    const code = await runtimeBuild(lib.exercise, method, undefined, babelVersion); // usage-* -> phase 'post'
+    const injections = (await captureInjections(lib.exercise, method)).length;
+    if (!injections) throw new Error('unplugin injected 0 polyfills — preflight would validate nothing');
+    const checks = await preflight(code);
+    if (!checks.length) throw new Error('exercise produced 0 checks — nothing verified');
+    const bad = checks.filter(c => !c.pass);
+    const bytes = Buffer.byteLength(code);
+    const rel = join(lib.name, `babel${ babelVersion }`, method);
+    const dir = join(ART, rel);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'bundle.js'), code);
+    await writeFile(join(dir, 'index.html'), html(`${ lib.name } (Babel ${ babelVersion })`, method, checks));
+    console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ bytes }b)`);
+    for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
+    return {
+      ok: !bad.length,
+      entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, injections, checks: checks.length, preflightFailing: bad.length },
+    };
+  } catch (err) {
+    // child-process failures carry the real reason on stderr, not message ("Command failed: ...")
+    const reason = (err.stderr || err.message || String(err)).split('\n', 1)[0].slice(0, 200);
+    console.log(`✗ ${ label }: ${ reason }`);
+    return { ok: false, entry: { lib: lib.name, babel: babelVersion, method, error: reason } };
+  }
+}
+
 const manifest = [];
 let failed = 0;
 for (const lib of libs) {
   for (const method of lib.methods) {
-    const label = `${ lib.name }/${ method }`;
-    try {
-      const code = await runtimeBuild(lib.exercise, method); // usage-* default to phase 'post'
-      const injections = (await captureInjections(lib.exercise, method)).length;
-      if (!injections) throw new Error('unplugin injected 0 polyfills — preflight would validate nothing');
-      const checks = await preflight(code);
-      if (!checks.length) throw new Error('exercise produced 0 checks — nothing verified');
-      const bad = checks.filter(c => !c.pass);
-      const bytes = Buffer.byteLength(code);
-      const dir = join(ART, lib.name, method);
-      await mkdir(dir, { recursive: true });
-      await writeFile(join(dir, 'bundle.js'), code);
-      await writeFile(join(dir, 'index.html'), html(lib.name, method, checks));
-      manifest.push({ lib: lib.name, method, dir: join(lib.name, method), bytes, injections, checks: checks.length, preflightFailing: bad.length });
-      console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ bytes }b)`);
-      if (bad.length) {
-        failed++;
-        for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
-      }
-    } catch (err) {
-      failed++;
-      // child-process failures carry the real reason on stderr, not message ("Command failed: ...")
-      const reason = (err.stderr || err.message || String(err)).split('\n', 1)[0].slice(0, 200);
-      manifest.push({ lib: lib.name, method, error: reason });
-      console.log(`✗ ${ label }: ${ reason }`);
+    // one artifact per (method x Babel version): unplugin's post phase consumes Babel's helper
+    // output, which differs between Babel 7 and 8 — so both are down-compiled and pre-flighted.
+    for (const babelVersion of BABEL_VERSIONS) {
+      const { ok, entry } = await buildCell(lib, method, babelVersion);
+      manifest.push(entry);
+      if (!ok) failed++;
     }
   }
 }
