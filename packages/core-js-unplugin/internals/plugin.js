@@ -597,6 +597,10 @@ export default function createPlugin(options) {
         const adoptable = new Set();
         for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
         injector.adoptOrphanRefs(adoptable);
+        // pre's rest-destructure sentinels are DECLARED by the rewritten pattern itself
+        // (`{ polyKey: _unusedN, ...rest }`), so they come from declaredNames - the injector
+        // validates the generator shape and re-arms its idempotency skip
+        injector.adoptUnusedNames(declaredNames);
       }
       // entry-global handles re-emit via detectEntries - skip there. otherwise scan
       // unconditionally: post-with-inherit ALSO needs this because a sibling plugin
