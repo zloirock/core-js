@@ -26,6 +26,7 @@ import {
   isPristineProxyGlobal,
   isValidIdentifierName,
   mayHaveSideEffects,
+  arrayWrapSlotValueCandidates,
   pairedArrayWrapInitElement,
   peelFallbackReceiver,
   peelFallbackBranchInner,
@@ -1443,7 +1444,7 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
 // unwrap to the assumed slot and static resolution would lie.
 // when scope/adapter are passed, dereferences const-bound Identifier wrappers via
 // `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array
-function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = null, path = null, captureRef = null) {
+function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = null, path = null, captureRef = null, maybe = false) {
   for (const index of indices) {
     let cur = unwrapExpressionChain(receiverNode);
     if (scope && adapter) {
@@ -1455,6 +1456,14 @@ function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = 
     }
     if (cur?.type !== 'ArrayExpression') return null;
     receiverNode = pairedArrayWrapInitElement(cur.elements, index);
+    // `maybe` (inject-if-might classification only): a spread-shifted slot has no SOUND pair, but
+    // when exactly ONE static candidate can land in it, that candidate is the slot's only
+    // enumerable value and the walk may continue through it - a wrong guess over-injects, which
+    // is the safe direction. several distinct candidates stay ambiguous and bail as before
+    if (!receiverNode && maybe) {
+      const candidates = arrayWrapSlotValueCandidates(cur.elements, index);
+      receiverNode = candidates.length === 1 ? candidates[0] : null;
+    }
     if (!receiverNode) return null;
   }
   return receiverNode;
@@ -1522,7 +1531,11 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
   const slotNode = host.node[slot];
   if (!slotNode) return null;
   const captureRef = {};
-  const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host, captureRef);
+  // classification feeds usage-global injection AND the pure flatten extraction: only the former
+  // may lean on a spread-shifted MAYBE pair (pure substituting a value the runtime may not hold
+  // is the unsafe direction), so the maybe walk is flavor-gated
+  const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host, captureRef,
+    adapter?.method === 'usage-global');
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
   // any leaf that resolves to a static-placement constructor, through ONE branch: a bare global
