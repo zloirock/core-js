@@ -39,6 +39,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapParens,
+  unwrapSafeSequenceTail,
   walkPatternIdentifiers,
   POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -113,6 +114,7 @@ import {
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,
+  detectIifeArgReceiver,
   findSynthSwapReceiver,
   walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
@@ -2348,6 +2350,46 @@ export function createDestructureEmitter({
     return true;
   }
 
+  // the IIFE twin of the param-default instance clause: the call is the parameter's ONLY call
+  // site, so replacing the ARGUMENT with the synth literal is caller-correct the same way - the
+  // argument's value is read once, inside the literal (`(({ at }) => ...)([1, 2])` ->
+  // `(({ at }) => ...)({ at: _atMaybeArray([1, 2]) })`). the shared gate bounds the receiver's
+  // shape (bare non-global Identifier / this / re-eval-inert literal / clean member chain);
+  // anything it rejects stays native. a failed receiver typing keeps the generic dispatcher
+  function tryRegisterIifeArgInstanceSynthPure(pureResult, metaPath, propNode) {
+    const objectPattern = metaPath.parent;
+    const wrapperPath = metaPath.parentPath?.parentPath;
+    if (wrapperPath?.node?.type === 'AssignmentPattern') return false;
+    const receiver = detectIifeArgReceiver(wrapperPath, objectPattern);
+    if (!receiver || !paramDefaultInstanceSynthAllowed({
+      objectPatternNode: objectPattern, receiverNode: receiver,
+      scope: metaPath.scope, adapter: estreeAdapter, path: metaPath, resolvePure,
+    })) return false;
+    // the callee may sit behind parser-preserved wrappers (oxc keeps the IIFE parens babel folds);
+    // climb to the call so the ARGUMENT's own path feeds the receiver typing. a raw argument whose
+    // SE-tail was peeled still matches by its tail; a missed match keeps the generic dispatcher
+    let callPath = wrapperPath?.parentPath;
+    while (callPath && (callPath.node?.type === 'ParenthesizedExpression'
+      || TRANSPARENT_EXPR_WRAPPER_TYPES.has(callPath.node?.type))) callPath = callPath.parentPath;
+    const args = callPath?.node?.type === 'CallExpression' ? callPath.node.arguments : null;
+    const argIndex = args ? args.findIndex(a => a === receiver || unwrapSafeSequenceTail(a) === receiver) : -1;
+    const use = refineParamDefaultInstancePure({
+      pureResult, key: propNode.key.name ?? propNode.key.value,
+      receiverPath: argIndex >= 0 ? callPath.get('arguments')[argIndex] : null,
+      resolveNodeType, toHint, resolvePure, path: metaPath,
+    });
+    const binding = injectPureImport(use.entry, use.hintName);
+    skipReplacedReceiver(receiver);
+    let pending = pendingSynthSwaps.get(receiver);
+    if (!pending) {
+      pending = { receiver, objectPattern, polyfills: new Map(), callBranch: false, rescueSe: null, leftSe: null,
+        scope: metaPath.scope, path: metaPath };
+      pendingSynthSwaps.set(receiver, pending);
+    }
+    pending.polyfills.set(synthSwapPropKey(propNode), { binding, instance: true });
+    return true;
+  }
+
   // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
   // Identifier receiver; otherwise inline-default `{p = _polyfill}`.
   // a body-extracted param keeps its receiver as the DEFAULT (`function ({...rest} = R)`),
@@ -2871,7 +2913,8 @@ export function createDestructureEmitter({
       // synths the default itself - caller-correct (the synth only evaluates when the arg is omitted; a
       // passed value destructures natively). the shared gate bounds the receiver (see its docstring);
       // anything it rejects stays native - there is no receiver-less instance fallback
-      tryRegisterParamDefaultInstanceSynthPure(pureResult, metaPath, propNode);
+      if (tryRegisterParamDefaultInstanceSynthPure(pureResult, metaPath, propNode)) return;
+      tryRegisterIifeArgInstanceSynthPure(pureResult, metaPath, propNode);
       return;
     }
     const objectPattern = metaPath.parent;
