@@ -21,6 +21,7 @@ import {
   mayHaveSideEffects,
   paramReboundInBody,
   patternSlotHasDefault,
+  patternSlotSpreadShifted,
   patternSlotValues,
   peelZeroArgIifeReturn,
   reachingReassignmentValueNode,
@@ -470,7 +471,8 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     // certain. pure's receiver-dropping fold needs certainty - bail on the ambiguity (the
     // default-aware extraction channels keep their runtime-guarded handling); usage-global
     // keeps the maybe-union (inject-if-might is sound and desirable there)
-    if (adapter?.method === 'usage-pure' && patternSlotHasDefault(pattern, name)) return null;
+    if (adapter?.method === 'usage-pure'
+      && (patternSlotHasDefault(pattern, name) || patternSlotSpreadShifted(pattern, init, name))) return null;
     const globals = new Set();
     for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
       const global = resolveObjectName({ objectNode: value, scope, adapter, seen: new Set(seen).add(name), path, usageNode: value });
