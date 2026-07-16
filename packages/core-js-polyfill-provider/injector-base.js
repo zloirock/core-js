@@ -15,6 +15,11 @@ import { isCleanDestructureAliasBinding, isGuardedAliasingWrite } from './helper
 // the pattern. `.test()` users ignore the group; both share one regex
 export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d{1,14})?$/;
 
+// generator-shaped `_unused` sentinel names (`generateUnusedName` output), same suffix
+// grammar and safe-integer cap as ORPHAN_REF_PATTERN - shared by the post-pass adoption
+// that re-recognizes pre's rest-destructure sentinels when the state snapshot was lost
+export const UNUSED_NAME_PATTERN = /^_unused(?<suffix>[2-9]|[1-9]\d{1,14})?$/;
+
 // returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
 // `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.
 // non-numeric tail (subclass override) -> null, signalling "leave cache untouched"
@@ -260,6 +265,13 @@ export default class ImportInjectorState {
       this.#globalAliases.set(name, { hint: globalName, trusted: true, minted });
       return;
     }
+    // symmetric with the blind refusal above: a per-binding registration PROVES a user binding
+    // exists, invalidating a pre-existing blind entry's "no binding" claim - drop it so the name
+    // view serves the per-binding judgment (a stale blind entry would shadow a GUARDED entry
+    // with unconditional trust). minted entries are allocator-owned UIDs a user binding can
+    // never collide with - keep them
+    const staleBlind = this.#globalAliases.get(name);
+    if (staleBlind && !staleBlind.minted) this.#globalAliases.delete(name);
     const entry = { name, hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
     // ONE runtime slot may register through SEVERAL nodes (a `var` redeclaration's declarators,
     // an assignment-form write's binding vs a decl-form's pattern declarator): resolve the
