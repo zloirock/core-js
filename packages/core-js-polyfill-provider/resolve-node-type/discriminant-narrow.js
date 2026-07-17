@@ -22,6 +22,7 @@ import {
   climbTransparentWrapperPath,
   isMemberAccessNode,
   isMemberWriteHost,
+  cachedContainerPaths,
   peeledLabelNames,
   peelLabeledStatementPath,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
@@ -534,7 +535,7 @@ export function createDiscriminantNarrow({
       if (direct) return direct;
       const branch = sib?.node ? fallThroughBranchPath(sib) : null;
       if (branch) {
-        const inner = branch.node.type === 'BlockStatement' ? branch.get('body') : [branch];
+        const inner = branch.node.type === 'BlockStatement' ? cachedContainerPaths(branch, 'body') : [branch];
         const hit = scanStatementsForAssignment(inner, targetName, depth + 1);
         if (hit) return hit;
       }
@@ -543,7 +544,7 @@ export function createDiscriminantNarrow({
   }
 
   function findPrecedingSiblingAssignment({ parent, currentKey, targetName, binding, varPath }) {
-    const hit = scanStatementsForAssignment(parent.get('body').slice(0, currentKey), targetName, 0);
+    const hit = scanStatementsForAssignment(cachedContainerPaths(parent, 'body').slice(0, currentKey), targetName, 0);
     if (!hit) return null;
     if (hasReassignmentBetween(binding, hit.parentPath.node.end ?? hit.node.end, varPath.node?.start)) return null;
     return hit;

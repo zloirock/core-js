@@ -756,44 +756,56 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
   return findVarOwnerDeclaring(path, name)?.declarator ?? null;
 }
 
-// PATHS for the synthetic binding's declarator and its reassignment nodes, located by ONE search
-// bounded to the var owner. the node scan above stays the source of truth for WHICH nodes those are
+// ONE path-tracked traverse per OWNER indexes every write-shaped node (declarators,
+// assignments, updates, for-x heads) to its live path - per-binding / per-query owner
+// traversals re-walked the whole owner each time, quadratic on binding-heavy bundles.
+// keyed on the owner PATH object: a path (and the scope hanging off it) belongs to ONE
+// traversal, so the cache dies with the traversal and can never hand back a dead object.
+// one key per node shape the write scans record - a for-x head writes a binding without an
+// AssignmentExpression, so it needs its own. no early stop: the parsers disagree on the
+// traversal-abort API, and indexing every write costs one bounded walk total
+const ownerWritePathIndexCache = new WeakMap();
+export function ownerWritePathIndex(ownerPath) {
+  let index = ownerWritePathIndexCache.get(ownerPath);
+  if (index) return index;
+  index = new Map();
+  function add(p) {
+    if (!index.has(p.node)) index.set(p.node, p);
+  }
+  ownerPath.traverse({
+    VariableDeclarator: add,
+    AssignmentExpression: add,
+    UpdateExpression: add,
+    ForOfStatement: add,
+    ForInStatement: add,
+  });
+  ownerWritePathIndexCache.set(ownerPath, index);
+  return index;
+}
+
+// PATHS for the synthetic binding's declarator and its reassignment nodes, resolved through the
+// shared owner index. the node scan above stays the source of truth for WHICH nodes those are
 // (its shadow-stopping rules are subtle); this only maps them onto the live paths the flow layer
-// climbs. per-binding memo only - a path (and the scope hanging off it) belongs to ONE traversal, so
-// caching on a node across traversals would hand back a dead object (the staleness constraint the
-// node caches above already document)
+// climbs. the scan decides which writes exist, so this map has to reach every one of them: a
+// write shape the scan records but no index key matches is caught by the `complete` check, and
+// the caller declines the twin instead of handing the flow gates a list it cannot vouch for -
+// a contract against a LATER write shape being added to the scan alone (a miss degrades the
+// gates to the generic answer rather than mis-narrowing)
 function memoizeDeclaratorSearch(found, violationNodes) {
   let resolved;
   return () => {
     if (resolved === undefined) {
-      let declaratorPath = null;
+      const index = ownerWritePathIndex(found.owner);
       const violationPaths = [];
-      const wanted = new Set(violationNodes);
-      function take(p) {
-        if (wanted.has(p.node)) violationPaths.push(p);
+      for (const node of violationNodes) {
+        const violationPath = index.get(node);
+        if (violationPath) violationPaths.push(violationPath);
       }
-      // one key per node shape the scan records - a for-x head writes the binding without an
-      // AssignmentExpression, so it needs its own. the agreement check below is what catches a miss
-      // no early stop: the parsers disagree on the traversal-abort API, and the walk is already
-      // bounded to the owner, so identity-matching every node costs less than diverging here
-      found.owner.traverse({
-        VariableDeclarator(declPath) {
-          if (!declaratorPath && declPath.node === found.declarator) declaratorPath = declPath;
-          take(declPath);
-        },
-        AssignmentExpression: take,
-        UpdateExpression: take,
-        ForOfStatement: take,
-        ForInStatement: take,
-      });
-      // the node scan decides which writes exist, so this map has to reach every one of them: a
-      // write shape the scan records but no visitor key above matches is caught right here, and the
-      // caller declines the twin instead of handing the flow gates a list it cannot vouch for.
-      // the keys mirror the scan's own node types exactly, so today this cannot trip - it is a
-      // contract against a LATER write shape being added to the scan alone. seeding a missing key
-      // showed the gates degrade to the generic answer rather than mis-narrow, so this guards the
-      // agreement itself, not a demonstrated wrong-type narrow
-      resolved = { declaratorPath, violationPaths, complete: violationPaths.length === violationNodes.length };
+      resolved = {
+        declaratorPath: index.get(found.declarator) ?? null,
+        violationPaths,
+        complete: violationPaths.length === violationNodes.length,
+      };
     }
     return resolved;
   };
@@ -969,88 +981,133 @@ export function findFunctionScopeVarInPath(path, name) {
 // param of the same name is a distinct binding. empty result is falsy-length so the non-reassigned
 // common case still resolves. cached per owner node (same staleness contract as `scopeVarsCache`)
 const scopeReassignCache = new WeakMap();
-// collect every reassignment NODE of `name` within `ownerNode`'s subtree, stopping at nested scopes /
-// blocks that shadow `name`. cached per (ownerNode, name). the binding's OWN declarator (skipped in
-// the `var name = init` redeclaration branch) is derived from the live walk itself - the FIRST
-// declaring declarator in tree order, the same rule as the var index. it must NOT come from a cached
-// index or a caller parameter: the plugin's in-place rewrite replaces the declarator node, so any
-// externally-held identity is stale and the binding's own initializer would count as a reassignment
-// of itself. shared by the var-hoist and the cross-boundary-`let` reassignment recovery, which
-// differ only in how they locate `ownerNode`
-function collectScopeReassignmentNodes(ownerNode, name) {
-  let perName = scopeReassignCache.get(ownerNode);
-  if (!perName) scopeReassignCache.set(ownerNode, perName = new Map());
-  if (perName.has(name)) return perName.get(name);
-  const violations = [];
-  function bindsName(patternNode) {
-    return patternBindsIdentifier(patternNode, id => id.name === name);
+const EMPTY_REASSIGNMENTS = [];
+// build the reassignment index for EVERY name in ONE walk of `ownerNode`'s subtree: a
+// per-name walk re-scans the whole owner subtree per queried name, which is quadratic on a
+// large single-scope bundle. the per-name skip semantics ("a construct shadowing `name`
+// contributes nothing inside it") map onto a shadow-DEPTH counter per name: entering a
+// construct increments every name it shadows, leaving decrements, and a write records only at
+// depth 0 - elementwise identical to a per-name walk.
+// the binding's OWN declarator (every `var name = init` is recorded) stays knowledge the
+// CALLERS hold: for a var-declared binding it is the scope's declaring var, but a PARAM /
+// hoisted binding owns NONE of them, so a first-encountered skip would swallow its first
+// re-declaration; a bare `var name;` (no init) keeps the value and stays unrecorded. the
+// caller-side identity filter must NOT come from a cached index or parameter - the plugin's
+// in-place rewrite replaces declarator nodes, and a stale identity would count the binding's
+// own initializer as a reassignment of itself
+function buildScopeReassignmentIndex(ownerNode) {
+  const index = new Map();
+  const shadowDepth = new Map();
+  function record(name, node) {
+    if (shadowDepth.get(name)) return;
+    let list = index.get(name);
+    if (!list) index.set(name, list = []);
+    // a pattern binding the same name twice yields consecutive duplicates - keep one
+    if (list.at(-1) !== node) list.push(node);
   }
-  function shadowsName(scopeNode) {
-    if ((scopeNode.params ?? []).some(bindsName)) return true;
-    return collectScopeVars(scopeNode).has(name);
+  function push(names) { for (const name of names) shadowDepth.set(name, (shadowDepth.get(name) ?? 0) + 1); }
+  function pop(names) { for (const name of names) shadowDepth.set(name, shadowDepth.get(name) - 1); }
+  function patternNames(patternNode, out) {
+    walkPatternIdentifiers(patternNode, id => out.push(id.name));
+    return out;
   }
-  // a block-scoped statement re-binding `name`: `let`/`const` declarator, or a class / function
-  // declaration
-  function stmtRebindsName(stmt) {
-    if (stmt.type === 'VariableDeclaration' && stmt.kind !== 'var') return stmt.declarations.some(d => bindsName(d.id));
-    return (stmt.type === 'ClassDeclaration' || stmt.type === 'FunctionDeclaration') && stmt.id?.name === name;
+  // names a block-scoped statement re-binds: `let`/`const` declarator, class / function decl
+  function stmtRebindNames(stmt, out) {
+    if (stmt.type === 'VariableDeclaration' && stmt.kind !== 'var') {
+      for (const d of stmt.declarations) patternNames(d.id, out);
+    } else if ((stmt.type === 'ClassDeclaration' || stmt.type === 'FunctionDeclaration') && stmt.id?.name) {
+      out.push(stmt.id.name);
+    }
+    return out;
   }
-  // a nested BLOCK / catch / for-head that re-binds `name` block-scoped shadows the outer var
-  // inside it - writes there are to the inner binding, not the var. a for-head `let`/`const`
-  // lexically binds `name` PER-LOOP, so head + body writes target that binding (NOT the outer);
-  // halt the descent. a `var` head hoists to the function scope (= the outer) and a bare-identifier
-  // head assigns the existing outer, so those are NOT shadows and stay recorded as real writes below
-  function blockShadowsName(node) {
-    if (node.type === 'CatchClause') return !!node.param && bindsName(node.param);
+  // names a nested BLOCK / catch / for-head re-binds block-scoped - writes inside target the
+  // inner binding, not the outer var. a for-head `let`/`const` lexically binds PER-LOOP, so
+  // head + body writes target that binding (NOT the outer); a `var` head hoists to the
+  // function scope and a bare-identifier head assigns the existing outer, so those are NOT
+  // shadows and stay recorded as real writes below. a case-level lexical rebind
+  // (`case 1: let name`) lives in the switch's SINGLE case-block env, so the whole switch
+  // shadows it; a rebind inside a BRACED case body is a plain BlockStatement child instead
+  function blockShadowNames(node) {
+    if (node.type === 'CatchClause') return node.param ? patternNames(node.param, []) : EMPTY_REASSIGNMENTS;
     const forHead = node.type === 'ForOfStatement' || node.type === 'ForInStatement' ? node.left
       : node.type === 'ForStatement' ? node.init : null;
-    if (forHead?.type === 'VariableDeclaration' && forHead.kind !== 'var') return forHead.declarations.some(d => bindsName(d.id));
-    // a case-level lexical rebind (`case 1: let name`) lives in the switch's SINGLE case-block
-    // env, so writes in EVERY case target that inner binding - the whole switch halts. a rebind
-    // inside a BRACED case body is a plain BlockStatement child and halts there instead
-    if (node.type === 'SwitchStatement') return (node.cases ?? []).some(c => (c.consequent ?? []).some(stmtRebindsName));
-    if (!RUNTIME_BLOCK_TYPES.has(node.type)) return false;
-    return (node.body ?? []).some(stmtRebindsName);
+    if (forHead?.type === 'VariableDeclaration' && forHead.kind !== 'var') {
+      const names = [];
+      for (const d of forHead.declarations) patternNames(d.id, names);
+      return names;
+    }
+    if (node.type === 'SwitchStatement') {
+      const names = [];
+      for (const c of node.cases ?? []) for (const stmt of c.consequent ?? []) stmtRebindNames(stmt, names);
+      return names;
+    }
+    if (!RUNTIME_BLOCK_TYPES.has(node.type)) return EMPTY_REASSIGNMENTS;
+    const names = [];
+    for (const stmt of node.body ?? []) stmtRebindNames(stmt, names);
+    return names;
   }
-  // for-of / for-in head writing `name`: a bare-Identifier / destructuring-pattern target
-  // (`for (name of ...)`, `for ([name] of ...)`) or a `var` head (`for (var name in ...)`)
-  function forXHeadWritesName(left) {
-    if (left?.type === 'VariableDeclaration') return left.declarations.some(d => bindsName(d.id));
-    return bindsName(left);
+  // names a var-scope boundary shadows: its params plus its hoisted vars (cached index)
+  function boundaryShadowNames(node) {
+    const names = [];
+    for (const param of node.params ?? []) patternNames(param, names);
+    for (const name of cachedScopeVars(node).keys()) names.push(name);
+    return names;
   }
   function visit(node, atOwnerRoot) {
     if (!isASTNode(node)) return;
-    if (!atOwnerRoot && ((isVarScopeBoundary(node.type) && shadowsName(node)) || blockShadowsName(node))) {
-      // the switch DISCRIMINANT evaluates in the outer env before the case-block scope exists,
-      // so its writes target the outer binding even when a case-level lexical shadows the name
-      if (node.type === 'SwitchStatement') visit(node.discriminant, false);
+    const shadowNames = atOwnerRoot ? EMPTY_REASSIGNMENTS
+      : isVarScopeBoundary(node.type) ? boundaryShadowNames(node)
+      : blockShadowNames(node);
+    // the switch DISCRIMINANT evaluates in the outer env before the case-block scope exists,
+    // so its writes target the outer binding even when a case-level lexical shadows the name -
+    // visit it UNSHADOWED, then only the cases under the shadow (a generic descent would
+    // re-visit the discriminant and double-record its writes)
+    if (node.type === 'SwitchStatement' && shadowNames.length) {
+      visit(node.discriminant, false);
+      push(shadowNames);
+      for (const c of node.cases ?? []) visit(c, false);
+      pop(shadowNames);
       return;
     }
-    if ((node.type === 'AssignmentExpression' && node.left?.type === 'Identifier' && node.left.name === name)
-      || (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier' && node.argument.name === name)
-      || (node.type === 'AssignmentExpression'
-        && (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern') && bindsName(node.left))
-      || (isForXStatement(node) && forXHeadWritesName(node.left))) {
-      violations.push(node);
+    push(shadowNames);
+    if (node.type === 'AssignmentExpression' && node.left?.type === 'Identifier') {
+      record(node.left.name, node);
+    } else if (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier') {
+      record(node.argument.name, node);
+    } else if (node.type === 'AssignmentExpression'
+      && (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern')) {
+      for (const name of patternNames(node.left, [])) record(name, node);
+    } else if (isForXStatement(node)) {
+      // for-of / for-in head writing: a bare-Identifier / destructuring-pattern target
+      // (`for (name of ...)`, `for ([name] of ...)`) or a `var` head (`for (var name in ...)`)
+      if (node.left?.type === 'VariableDeclaration') {
+        for (const d of node.left.declarations) for (const name of patternNames(d.id, [])) record(name, node);
+      } else if (node.left) {
+        for (const name of patternNames(node.left, [])) record(name, node);
+      }
     }
-    // EVERY `var name = <init>` declarator is recorded - ownership ("which one is the
-    // binding's own declaration") is knowledge the CALLERS hold: for a var-declared
-    // binding it is the scope's declaring var, but a PARAM / hoisted binding owns NONE
-    // of them, so a first-encountered skip would swallow its first re-declaration. a
-    // bare `var name;` (no init) keeps the value and stays unrecorded
     if (node.type === 'VariableDeclaration' && node.kind === 'var') {
       for (const d of node.declarations ?? []) {
-        if (bindsName(d.id) && d.init) violations.push(d);
+        if (d.init) for (const name of patternNames(d.id, [])) record(name, d);
       }
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) for (const v of value) visit(v, false);
       else visit(value, false);
     }
+    pop(shadowNames);
   }
   visit(ownerNode, true);
-  perName.set(name, violations);
-  return violations;
+  return index;
+}
+// every reassignment NODE of `name` within `ownerNode`'s subtree, stopping at nested scopes /
+// blocks that shadow `name`. cached per owner via the all-names index above. shared by the
+// var-hoist and the cross-boundary-`let` reassignment recovery, which differ only in how they
+// locate `ownerNode`
+function collectScopeReassignmentNodes(ownerNode, name) {
+  let index = scopeReassignCache.get(ownerNode);
+  if (!index) scopeReassignCache.set(ownerNode, index = buildScopeReassignmentIndex(ownerNode));
+  return index.get(name) ?? EMPTY_REASSIGNMENTS;
 }
 
 // var-hoist reassignment recovery: estree-toolkit block-scopes a `var`, so its constantViolations miss
@@ -1250,34 +1307,88 @@ function memoizeByNodePair(compute) {
   };
 }
 
-// does `target` sit inside a loop RE-RUN region within `ownerNode`'s var scope (a field the
-// back-edge re-executes each iteration)? stops at nested var-scope boundaries. shared by the
-// named-declarator check below and the usage-pure reachability gate - a use re-run by a loop
-// back-edge can observe a textually-later write
-const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
-  let result = false;
-  function visit(node, inLoopRerun) {
-    if (result || !isASTNode(node)) return;
-    if (node === target) {
-      result = inLoopRerun;
-      return;
+// container-path materialization cache: `parent.get('body')` re-creates the wrapper array and
+// re-runs the context refresh on EVERY child path each call - re-materializing a several-
+// thousand-statement Program body per sibling query is the dominant path churn on large flat
+// scopes. keyed on the traversal-scoped parent PATH (dies with the traversal); every retrieval
+// revalidates by node identity, so a statement inserted / removed / replaced in the container
+// rebuilds instead of serving detached paths - pointer compares are orders cheaper than re-get
+const containerPathsCache = new WeakMap();
+export function cachedContainerPaths(parentPath, key) {
+  let perKey = containerPathsCache.get(parentPath);
+  if (!perKey) containerPathsCache.set(parentPath, perKey = new Map());
+  const container = parentPath.node?.[key];
+  const cached = perKey.get(key);
+  if (cached && Array.isArray(container) && cached.length === container.length) {
+    let fresh = true;
+    for (let i = 0; i < container.length; i++) {
+      if (cached[i].node !== container[i]) {
+        fresh = false;
+        break;
+      }
     }
-    if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
-    const rerunFields = LOOP_RERUN_FIELDS[node.type];
-    for (const [key, value] of Object.entries(node)) {
-      if (result) return;
-      const childInLoopRerun = inLoopRerun || !!rerunFields?.has(key);
-      if (Array.isArray(value)) for (const v of value) visit(v, childInLoopRerun);
-      else if (isASTNode(value)) visit(value, childInLoopRerun);
-    }
+    if (fresh) return cached;
   }
-  visit(ownerNode, false);
-  return result;
+  const paths = parentPath.get(key);
+  perKey.set(key, paths);
+  return paths;
+}
+
+// ONE walk per owner maps every node to its parent - the positional predicates below climb
+// the spine in O(depth) instead of re-walking the whole owner per target (quadratic on
+// binding-heavy bundles). same per-node staleness contract as the sibling caches
+const ownerParentIndexCache = new WeakMap();
+function ownerParentIndex(ownerNode) {
+  let parents = ownerParentIndexCache.get(ownerNode);
+  if (parents) return parents;
+  parents = new Map();
+  (function visit(node) {
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          if (isASTNode(v)) {
+            parents.set(v, node);
+            visit(v);
+          }
+        }
+      } else if (isASTNode(value)) {
+        parents.set(value, node);
+        visit(value);
+      }
+    }
+  })(ownerNode);
+  ownerParentIndexCache.set(ownerNode, parents);
+  return parents;
+}
+
+// the field of `parent` holding `child` (direct or as an array element), or null
+function parentFieldOf(parent, child) {
+  for (const [key, value] of Object.entries(parent)) {
+    if (value === child || (Array.isArray(value) && value.includes(child))) return key;
+  }
+  return null;
+}
+
+// does `target` sit inside a loop RE-RUN region within `ownerNode`'s var scope (a field the
+// back-edge re-executes each iteration)? a nested var-scope boundary on the spine means the
+// walk this replaces never reached the target. shared by the named-declarator check below and
+// the usage-pure reachability gate - a use re-run by a loop back-edge can observe a
+// textually-later write
+const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
+  const parents = ownerParentIndex(ownerNode);
+  for (let child = target; child !== ownerNode; ) {
+    const parent = parents.get(child);
+    if (!parent) return false;
+    if (parent !== ownerNode && isVarScopeBoundary(parent.type)) return false;
+    if (LOOP_RERUN_FIELDS[parent.type]?.has(parentFieldOf(parent, child))) return true;
+    child = parent;
+  }
+  return false;
 });
 
 export function isVarDeclaratorInLoopBody(path, name) {
   const owner = findNearestVarScopeOwner(path);
-  const target = owner && collectScopeVars(owner.node).get(name);
+  const target = owner && cachedScopeVars(owner.node).get(name);
   if (!target) return false;
   return nodeSitsInLoopRerunWithin(owner.node, target);
 }
@@ -1320,40 +1431,36 @@ function isLogicalAssignReassignment(node, ownerNode) {
 }
 
 // locate `target` in `ownerNode`'s var scope and return the ordered conditional-branch nodes
-// guarding it, or null when not found. don't descend past nested var-scope boundaries (`var`
-// doesn't hoist across them). array-valued branch fields record the parent node as the guard
+// guarding it, or null when not found (a nested var-scope boundary on the spine - `var`
+// doesn't hoist across them). resolved by climbing the shared parent index: outermost-first
+// order comes from reversing the climb. array-valued branch fields (a switch-case body has no
+// wrapper node) record the parent as the guard, object-valued ones the branch node itself
 const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
-  let result = null;
-  function visit(node, guards) {
-    if (result !== null || !isASTNode(node)) return;
-    if (node === target) {
-      // a for-of / for-in HEAD write assigns the loop variable only when the iterable yields at
-      // least once; both adapters record the LOOP node itself as the reassignment site (not its
-      // `left`), so treat such a loop as its own guard - a use after the loop never sits under it,
-      // so the head write doesn't dominate (usage-global keeps resolving the alias, over-inject-safe;
-      // usage-pure still bails since the write isn't after the use). a use INSIDE the body is already
-      // excluded by nodeDominatesUsage's precedence check (the loop doesn't end before it)
-      // a logical-assignment is likewise conditional - record it as its own guard so a use after it
-      // (not nested under the short-circuit write) is not treated as dominated by it
-      result = (isForXStatement(node) || isLogicalAssignReassignment(node, ownerNode)) ? [...guards, node] : guards;
-      return;
+  const parents = ownerParentIndex(ownerNode);
+  if (target !== ownerNode && !parents.has(target)) return null;
+  const guards = [];
+  for (let child = target; child !== ownerNode; ) {
+    const parent = parents.get(child);
+    if (!parent) return null;
+    if (parent !== ownerNode && isVarScopeBoundary(parent.type)) return null;
+    const branchFields = CONDITIONAL_BRANCH_FIELDS[parent.type];
+    if (branchFields) {
+      const field = parentFieldOf(parent, child);
+      if (branchFields.includes(field)) guards.push(Array.isArray(parent[field]) ? parent : child);
     }
-    if (node !== ownerNode && isVarScopeBoundary(node.type)) return;
-    const branchFields = CONDITIONAL_BRANCH_FIELDS[node.type];
-    for (const [key, value] of Object.entries(node)) {
-      if (result !== null) return;
-      const isBranch = branchFields?.includes(key);
-      // an array-valued branch (switch-case body) has no wrapper node, so record the parent
-      if (Array.isArray(value)) {
-        const childGuards = isBranch ? [...guards, node] : guards;
-        for (const v of value) visit(v, childGuards);
-      } else if (isASTNode(value)) {
-        visit(value, isBranch ? [...guards, value] : guards);
-      }
-    }
+    child = parent;
   }
-  visit(ownerNode, []);
-  return result;
+  guards.reverse();
+  // a for-of / for-in HEAD write assigns the loop variable only when the iterable yields at
+  // least once; both adapters record the LOOP node itself as the reassignment site (not its
+  // `left`), so treat such a loop as its own guard - a use after the loop never sits under it,
+  // so the head write doesn't dominate (usage-global keeps resolving the alias, over-inject-safe;
+  // usage-pure still bails since the write isn't after the use). a use INSIDE the body is already
+  // excluded by nodeDominatesUsage's precedence check (the loop doesn't end before it).
+  // a logical-assignment is likewise conditional - record it as its own guard so a use after it
+  // (not nested under the short-circuit write) is not treated as dominated by it
+  if (isForXStatement(target) || isLogicalAssignReassignment(target, ownerNode)) guards.push(target);
+  return guards;
 });
 
 // the use must sit inside every conditional branch the declarator does, else the assignment can be
@@ -1539,25 +1646,16 @@ export function noReassignmentReachesUsage({ reassignmentNodes, usagePath, usage
 // the AssignmentExpression node directly; estree-toolkit records the target Identifier (the LHS), so
 // locate the enclosing `name = <expr>` in `ownerNode` to read its right operand. null for a non-plain
 // write (`name++` / `name += x`) whose value isn't a simple replacement
-const reassignmentRhs = memoizeByNodePair((node, ownerNode) => {
+function reassignmentRhs(node, ownerNode) {
   if (node.type === 'AssignmentExpression') return node.operator === '=' ? node.right : null;
   if (node.type !== 'Identifier') return null;
-  let found = null;
-  function visit(n) {
-    if (found || !isASTNode(n)) return;
-    if (n.type === 'AssignmentExpression' && n.operator === '=' && n.left === node) {
-      found = n.right;
-      return;
-    }
-    for (const value of Object.values(n)) {
-      if (found) return;
-      if (Array.isArray(value)) for (const v of value) visit(v);
-      else visit(value);
-    }
-  }
-  visit(ownerNode);
-  return found;
-});
+  // the shared owner index resolves the enclosing assignment; only a PLAIN `=` whose LHS is
+  // this very identifier flows a recoverable RHS (a pattern-contained id maps to its
+  // assignment too, but its value is a slot, not the whole RHS - the pattern-aware variant
+  // below owns that shape)
+  const assignment = ownerValueFlowIndex(ownerNode).assignment.get(node);
+  return assignment?.operator === '=' && assignment.left === node ? assignment.right : null;
+}
 
 // reaching-definition VALUE node of a reassigned variable at `usagePath`: the RHS of the last
 // assignment textually before the use, when that value is unambiguous - the last before-use write
@@ -1969,55 +2067,55 @@ function forXHeadValueNodes(forX, bindingName, ctx) {
   return [];
 }
 
-// locate the for-x statement whose LEFT records this violation node (the head declarator,
-// or the LHS identifier - direct or inside a pattern). memoized like the assignment twin
-const enclosingForXStatement = memoizeByNodePair((node, ownerNode) => {
-  let found = null;
-  function visit(n) {
-    if (found || !isASTNode(n)) return;
-    if (FOR_X_STATEMENT_TYPES.has(n.type)) {
-      const { left } = n;
-      if (left === node
-        || (left?.type === 'VariableDeclaration' && left.declarations?.some(d => d === node || d.id === node))
-        || ((left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern')
-          && patternBindsIdentifier(left, id => id === node))) {
-        found = n;
-        return;
+// ONE walk per owner indexes every write-target node to its enclosing statement: a value-flow
+// assignment's LHS (the node itself, plus every identifier inside a pattern LHS) and a for-x
+// head's declarators / bound identifiers. the per-violation subtree SEARCH this replaces
+// re-walked the whole owner per violation node - quadratic on reassignment-heavy bundles.
+// identity keys are unique (a node occupies one AST position), so first-found and map lookup
+// agree; same per-node staleness contract as the sibling caches
+const valueFlowOwnerIndexCache = new WeakMap();
+function ownerValueFlowIndex(ownerNode) {
+  let index = valueFlowOwnerIndexCache.get(ownerNode);
+  if (index) return index;
+  index = { assignment: new Map(), forX: new Map() };
+  valueFlowOwnerIndexCache.set(ownerNode, index);
+  (function visit(n) {
+    if (!isASTNode(n)) return;
+    if (n.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(n.operator) && n.left) {
+      index.assignment.set(n.left, n);
+      if (n.left.type === 'ArrayPattern' || n.left.type === 'ObjectPattern') {
+        walkPatternIdentifiers(n.left, id => index.assignment.set(id, n));
+      }
+    } else if (FOR_X_STATEMENT_TYPES.has(n.type) && n.left) {
+      index.forX.set(n.left, n);
+      if (n.left.type === 'VariableDeclaration') {
+        for (const d of n.left.declarations ?? []) {
+          index.forX.set(d, n);
+          if (d.id) index.forX.set(d.id, n);
+        }
+      } else if (n.left.type === 'ArrayPattern' || n.left.type === 'ObjectPattern') {
+        walkPatternIdentifiers(n.left, id => index.forX.set(id, n));
       }
     }
     for (const value of Object.values(n)) {
-      if (found) return;
       if (Array.isArray(value)) for (const v of value) visit(v);
       else visit(value);
     }
-  }
-  visit(ownerNode);
-  return found;
-});
+  })(ownerNode);
+  return index;
+}
 
-// estree-toolkit records the target Identifier - locate the enclosing value-flow assignment
-// whose LHS is (or contains, for patterns) this identifier. memoized by (identifier, owner):
-// the same alias resolves at many usage sites and each re-enumeration would otherwise re-walk
-// the whole owner subtree
-const enclosingValueFlowAssignment = memoizeByNodePair((node, ownerNode) => {
-  let found = null;
-  function visit(n) {
-    if (found || !isASTNode(n)) return;
-    if (n.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(n.operator)
-      && (n.left === node || ((n.left?.type === 'ArrayPattern' || n.left?.type === 'ObjectPattern')
-        && patternBindsIdentifier(n.left, id => id === node)))) {
-      found = n;
-      return;
-    }
-    for (const value of Object.values(n)) {
-      if (found) return;
-      if (Array.isArray(value)) for (const v of value) visit(v);
-      else visit(value);
-    }
-  }
-  visit(ownerNode);
-  return found;
-});
+// the for-x statement whose LEFT records this violation node (the head declarator, or the
+// LHS identifier - direct or inside a pattern)
+function enclosingForXStatement(node, ownerNode) {
+  return ownerValueFlowIndex(ownerNode).forX.get(node) ?? null;
+}
+
+// estree-toolkit records the target Identifier - the enclosing value-flow assignment whose
+// LHS is (or contains, for patterns) this identifier
+function enclosingValueFlowAssignment(node, ownerNode) {
+  return ownerValueFlowIndex(ownerNode).assignment.get(node) ?? null;
+}
 
 // a constantViolation entry is a babel NodePath (carries `.node`) from the babel adapter but a raw
 // node from the unplugin var-hoist synthetic binding - normalize to the underlying node
