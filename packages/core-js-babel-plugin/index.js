@@ -1209,8 +1209,18 @@ export default function plugin(api, options) {
           const batch = deferredSideEffects.slice().sort(batchOrder);
           deferredSideEffects.length = 0;
           const inserted = new Set();
-          for (const { body, index, node } of batch) {
-            body.splice(index, 0, node);
+          for (const { body, index, anchor, anchorPrev, node } of batch) {
+            // re-resolve the slot through the anchored statements: a mid-traversal body
+            // unshift (`var _ref;` / sentinel hoists) leaves the recorded index stale.
+            // the PRECEDING statement leads (the slot's own host may have been replaced
+            // by its rebuild), the slot statement covers slot-0 records, the recorded
+            // index stays as the last resort
+            const prevAt = anchorPrev ? body.indexOf(anchorPrev) : -1;
+            const anchorAt = prevAt < 0 && anchor ? body.indexOf(anchor) : -1;
+            const at = prevAt >= 0 ? prevAt + 1
+              : anchorAt >= 0 ? anchorAt
+                : Math.min(index, body.length);
+            body.splice(at, 0, node);
             inserted.add(node);
           }
           // deferred SE is `cloneDeep` of user-written init prefix - the cloned nodes
