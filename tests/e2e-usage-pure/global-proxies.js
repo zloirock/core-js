@@ -436,7 +436,7 @@ QUnit.test('global-proxy: unguarded chain-assign over an unpolyfilled hop stays 
   log = [];
   let kb;
   function effectInHopKey() {
-    // eslint-disable-next-line no-sequences, @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: only a foldable key migrates
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: only a foldable key migrates
     return (kb = globalThis.window)?.[(log.push('k'), 'self')].Array.prototype.at.call([5], 0);
   }
   // a SE-bearing hop key MIGRATES into the surviving leaf key (`_ref[(c++, 'self')].Array` ->
