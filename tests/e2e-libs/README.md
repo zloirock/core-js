@@ -1,6 +1,13 @@
 # e2e-libs
 
-Runs real libraries through `@core-js/unplugin` in two tiers. Seeded with RxJS.
+Runs real libraries through `@core-js/unplugin` in two tiers.
+
+Fixtures (in `exercises/`, registered in `libraries.mjs`):
+- **rxjs** — headless reactive pipelines.
+- **three** — a real headless **three.js** scene *project* (scene-graph, transforms, an "animation"
+  step, raycasting, geometry, math). A large modern-ES codebase for the throughput tier, and — since
+  it's verified by its numeric state, not pixels — a functional runtime check that the project **still
+  computes correctly** after unplugin + Babel down-compile to ES5.
 
 - **throughput** — measure unplugin's processing cost across the bundlers.
   `node throughput.mjs [libFilter] [bundlerFilter]` → `report/throughput.md` + `.json`
