@@ -1665,10 +1665,22 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, 
 // the write. skips non-plain writes (`x++`, `x += y`, for-x head) whose value isn't a simple
 // replacement, and the loop-reinit declarator-self. the use's own var-scope owner locates each
 // `name = <expr>` for adapters that record the LHS Identifier
-export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = null, usageNode = null }) {
-  if (!usagePath || !binding?.constantViolations?.length) return [];
+// enumeration + completeness: `complete` is TRUE only when EVERY reachable write yielded at
+// least one value node - a write shape the pairing cannot decompose makes the value set open
+// and MIGHT-gated consumers must stay conservative (e.g. keep the typeless instance dispatch)
+export function reassignmentValueEnumeration({ binding, usagePath, name = null, ctx = null, usageNode = null }) {
+  if (!binding?.constantViolations?.length) return { nodes: [], complete: true };
+  if (!usagePath) return { nodes: [], complete: false };
   const owner = findNearestVarScopeOwner(usagePath);
-  if (!owner) return [];
+  if (!owner) return { nodes: [], complete: false };
+  return reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode });
+}
+
+export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = null, usageNode = null }) {
+  return reassignmentValueEnumeration({ binding, usagePath, name, ctx, usageNode }).nodes;
+}
+
+function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode }) {
   // adapter wrappers do not all surface the bound identifier - callers that know the alias
   // name pass it explicitly (needed only for pattern-LHS pairing)
   const bindingName = name ?? binding.identifier?.name ?? binding.path?.node?.id?.name ?? null;
@@ -1683,11 +1695,14 @@ export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = 
   // carry the AST node on `.block`, estree-toolkit ones on `.path.node`
   const violationSearchRoot = binding.scope?.block ?? binding.scope?.path?.node ?? owner.node;
   const out = [];
+  let complete = true;
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
     if (!useInLoop && endsBeforeStart(readNode, node, false)) continue;
-    out.push(...reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx));
+    const values = reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx);
+    if (!values.length) complete = false;
+    out.push(...values);
   }
-  return out;
+  return { nodes: out, complete };
 }
 
 // assignment operators that flow the RHS into the LHS binding as a POSSIBLE value: plain `=`
