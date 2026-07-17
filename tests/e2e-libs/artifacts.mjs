@@ -66,7 +66,7 @@ function html(lib, method, checks) {
   <table id="tbl"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
   <script src="bundle.js"></script>
   <script>
-    E2E.run().then(function (res) {
+    function render(res) {
       var checks = res.checks, bad = checks.filter(function (c) { return !c.pass; });
       var b = document.getElementById('banner');
       b.className = bad.length ? 'red' : 'green';
@@ -84,11 +84,19 @@ function html(lib, method, checks) {
         tr.appendChild(result);
         tbody.appendChild(tr);
       });
-    }).catch(function (err) {
+    }
+    function showError(err) {
       var b = document.getElementById('banner');
       b.className = 'red';
       b.textContent = 'ERROR — ' + (err && err.message ? err.message : err);
-    });
+    }
+    // run() may return a Promise (rxjs) or a plain result (three) — handle both, and without needing
+    // a global Promise (usage-pure doesn't patch it), so branch on a thenable instead of Promise.resolve.
+    try {
+      var res = E2E.run();
+      if (res && typeof res.then === 'function') res.then(render).catch(showError);
+      else render(res);
+    } catch (err) { showError(err); }
   </script>
 </body></html>
 `;
