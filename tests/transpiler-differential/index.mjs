@@ -13,20 +13,40 @@
 // Shard count defaults to ~cores/2 (each shard also forks ONE stripped worker, so cores/2 shards
 // keep total processes near core count); override with DIFF_SHARDS.
 import { fork } from 'node:child_process';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const { cyan, green, red } = chalk;
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TMP = join(HERE, 'tmp');
+const TMP_ROOT = join(HERE, 'tmp');
+// this run's own subdirectory: concurrent runs must never share a tree - the old whole-root
+// clear raced a concurrent run's live writers (rm walks the dir, a writer adds a file, the
+// final rmdir hits ENOTEMPTY) and swept its modules mid-import
+const TMP = join(TMP_ROOT, `run-${ process.pid }`);
 const SHARDS = Number(process.env.DIFF_SHARDS) || Math.max(1, Math.floor(os.cpus().length / 2));
 
-// each eval writes a fresh temp module (dynamic-import never reuses a URL); without this the dir
-// grows unbounded across runs. clear ONCE here, before any shard writes its PID-prefixed files
-await rm(TMP, { recursive: true, force: true });
+// each eval writes a fresh temp module (dynamic-import never reuses a URL), so trees grow
+// unbounded across runs. reap ONLY dead runs' trees (a killed run never cleans after itself)
+// plus legacy shared-root files; a live pid keeps its tree untouched
+await mkdir(TMP_ROOT, { recursive: true });
+for (const entry of await readdir(TMP_ROOT)) {
+  const found = /^run-(?<pid>\d+)$/u.exec(entry);
+  let dead = true;
+  if (found) {
+    try {
+      process.kill(Number(found.groups.pid), 0);
+      dead = false;
+    } catch {
+      // signal 0 threw - no such process, the tree is stale
+    }
+  }
+  if (dead) await rm(join(TMP_ROOT, entry), { recursive: true, force: true });
+}
 await mkdir(TMP, { recursive: true });
+
+echo`Transpiler differential: ${ cyan(SHARDS) } shards, three oracles per snippet (full-env three-way + pure stripped worker + usage-global stripped realm); shard progress streams below every 250 snippets`;
 
 const MARKER = /@@SHARD@@(?<json>.*)@@/u;
 const children = [];
@@ -35,7 +55,7 @@ function runShard(shard) {
     // execArgv: [] so the shard (a file module) does not inherit a loader / --input-type flag
     const child = fork(join(HERE, 'shard.mjs'), [], {
       execArgv: [],
-      env: { ...process.env, DIFF_SHARD: `${ shard }/${ SHARDS }` },
+      env: { ...process.env, DIFF_SHARD: `${ shard }/${ SHARDS }`, DIFF_TMP: TMP },
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
     children.push(child);
@@ -67,12 +87,19 @@ try {
   killSurvivingShards();
 }
 let passed = 0;
+let globalChecked = 0;
+let globalArmed = 0;
 const failures = [];
 for (const r of results) {
   passed += r.passed;
+  globalChecked += r.globalChecked;
+  globalArmed += r.globalArmed;
   failures.push(...r.failures);
 }
 for (const f of failures) echo`${ red('FAIL') } ${ cyan(f) }`;
 
-echo`\nShards: ${ SHARDS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) }`;
+echo`\nShards: ${ SHARDS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | Global leg: ${ cyan(globalArmed) } armed of ${ cyan(globalChecked) } checked`;
+// a clean run leaves nothing behind; a failed one keeps its modules for reproduction (the tree
+// is reaped as dead by the next run's startup sweep)
+if (!failures.length) await rm(TMP, { recursive: true, force: true });
 if (failures.length) throw new Error('Some tests have failed');
