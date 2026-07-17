@@ -937,7 +937,15 @@ const AW_SYMBOL_ITER = [
   // pattern-VALUED symbol prop on a constant-literal receiver: the extraction text must drain
   // at flush - the eager visit-time compose hard-aborted the whole transform on this shape
   { id: 'pattern-value-literal-default', pre: 'const { [Symbol.iterator]: { next = [1].flat() }, other } = [1, 2, 3];', obs: '[typeof next, other]' },
-  { id: 'nest-sibling-symbol-first', pre: 'const [{ [Symbol.iterator]: it, Array: { from: f }, ...r }] = [globalThis];', obs: '[typeof it, typeof f, Object.keys(r).length]' },
+  // the rest-count observable measures the REALM's global shape, which cannot survive the
+  // usage-global leg's realm boundary (a worker global differs from the shard global) - fullEnv
+  // keeps that leg off; the cell's injection surface is covered by its keyless siblings
+  {
+    id: 'nest-sibling-symbol-first',
+    pre: 'const [{ [Symbol.iterator]: it, Array: { from: f }, ...r }] = [globalThis];',
+    obs: '[typeof it, typeof f, Object.keys(r).length]',
+    fullEnv: true,
+  },
   { id: 'nest-sibling-nest-first', pre: 'const { Array: { from: f }, [Symbol.iterator]: it, ...r } = globalThis;', obs: '[typeof it, typeof f]' },
   // the harvested init effect runs exactly once ahead of the extractions
   { id: 'nest-sibling-se-init', pre: 'const { [Symbol.iterator]: it, Array: { from: f } } = (log.push(1), globalThis);', obs: '[typeof it, typeof f]' },
@@ -982,7 +990,7 @@ const AW_SYMBOL_ITER = [
 function * generateAwSymbolIterDestructure() {
   for (const c of AW_SYMBOL_ITER) {
     const body = `(() => { ${ c.pre } return ${ c.obs }; })()`;
-    yield { ...snippet(`aw-symbol-iter/${ c.id }`, body), strip: false };
+    yield { ...snippet(`aw-symbol-iter/${ c.id }`, body), strip: false, fullEnv: c.fullEnv };
   }
 }
 
@@ -3224,6 +3232,27 @@ function * generateAsiFusion() {
   for (const c of D_ASI_FUSION) yield { ...snippet(`asi-fusion/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
 }
 
+// --- Branch-valued computed keys: the union axis must reach every literal arm ---
+// member call / in probe / flat + nested destructure; a paren-wrapped arm covers the
+// text-parser shape (oxc keeps the node). pure legitimately bails on a multi-valued key, so
+// the cells stay strip:false for its leg; the usage-global leg arms them empirically and
+// proves the injected arm modules stand alone
+const BRANCH_KEY = [
+  { id: 'member-call', body: 'return [3, [1, 2]][cond ? "flat" : "at"]().length;' },
+  { id: 'member-call-paren', body: 'return [3, [1, 2]][(cond ? "flat" : "at")]().length;' },
+  { id: 'in-probe', body: 'return (cond ? "flat" : "at") in [];' },
+  { id: 'destructure-flat', body: 'const { [cond ? "flat" : "at"]: m } = [3, [1, 2]]; return typeof m;' },
+  { id: 'destructure-nested', body: 'const { Array: { [cond ? "from" : "of"]: f } } = globalThis; return typeof f;' },
+  // nested arms recurse; `??` exercises the LogicalExpression slot pair
+  { id: 'member-call-three-arm', body: 'return typeof [3, [1, 2]][cond ? (nul ? "at" : "flat") : "includes"];' },
+  { id: 'member-call-nullish', body: 'return [3, [1, 2], 5][nul ?? "toSorted"]().length;' },
+  // a TYPED receiver narrows the arm variants (no array rows for a string receiver)
+  { id: 'member-call-string', body: 'const s = "abcde"; return s[cond ? "at" : "includes"](1);' },
+];
+function * generateBranchKey() {
+  for (const c of BRANCH_KEY) yield { ...snippet(`branch-key/${ c.id }`, `(() => { ${ c.body } })()`), strip: false };
+}
+
 // bare get-iterator paren-lookup with an OPTIONAL receiver and a computed-key side effect
 // (`(recv?.[(eff(), Symbol.iterator)])()`): native short-circuits the `?.` before evaluating the key, so the
 // key SE must NOT run on a nullish receiver - it counts the SE and asserts the throw. the `_getIterator` call
@@ -3339,6 +3368,7 @@ function * generateNullableTruthyFold() {
 
 export function * generate() {
   yield * generateAsiFusion();
+  yield * generateBranchKey();
   yield * generateGetIteratorKeySE();
   yield * generateGrammar();
   yield * generateTsLeadingThis();
@@ -3402,8 +3432,11 @@ export function * generate() {
   yield * generateForOfIterable();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) {
-      const strip = !FULL_ENV_FAMILIES.has(family) && !FULL_ENV_SNIPPETS.has(expr) && STRIP_TARGET_RE.test(expr);
-      yield { ...snippet(`${ family }: ${ expr }`, expr), strip };
+      const fullEnv = FULL_ENV_FAMILIES.has(family) || FULL_ENV_SNIPPETS.has(expr);
+      const strip = !fullEnv && STRIP_TARGET_RE.test(expr);
+      // fullEnv rides along for the usage-global leg: its empirical arming must also skip the
+      // by-design-residual shapes (their stripped-realm divergence is the family's point, not a miss)
+      yield { ...snippet(`${ family }: ${ expr }`, expr), strip, fullEnv };
     }
   }
   for (const [family, exprs] of Object.entries(TS_FAMILIES)) {
