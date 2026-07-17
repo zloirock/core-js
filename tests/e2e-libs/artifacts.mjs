@@ -11,12 +11,15 @@
 // stripped realm / real IE11 - the manual BrowserStack step).
 import { runtimeBuild, captureInjections, BABEL_VERSIONS, HERE } from './build.mjs';
 import { librariesIn } from './libraries.mjs';
+import { transform as esbuildTransform } from 'esbuild';
 import { execFile } from 'node:child_process';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 
 const execFileP = promisify(execFile);
+const gzipP = promisify(gzip);
 const [libFilter] = process.argv.slice(2);
 const libs = librariesIn('runtime').filter(l => !libFilter || l.name === libFilter);
 if (!libs.length) throw new Error(`no runtime library matches filter '${ libFilter }'`);
@@ -113,16 +116,19 @@ async function buildCell(lib, method, babelVersion) {
     if (!checks.length) throw new Error('exercise produced 0 checks — nothing verified');
     const bad = checks.filter(c => !c.pass);
     const bytes = Buffer.byteLength(code);
+    // "wire size": minify (esbuild, keeps ES5) + gzip — what you'd actually ship, vs the raw bundle
+    const minBuf = Buffer.from((await esbuildTransform(code, { minify: true, legalComments: 'none' })).code);
+    const gz = (await gzipP(minBuf)).length;
     const rel = join(lib.name, `babel${ babelVersion }`, method);
     const dir = join(ART, rel);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'bundle.js'), code);
     await writeFile(join(dir, 'index.html'), html(`${ lib.name } (Babel ${ babelVersion })`, method, checks));
-    console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ bytes }b)`);
+    console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz)`);
     for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
     return {
       ok: !bad.length,
-      entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, injections, checks: checks.length, preflightFailing: bad.length },
+      entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, min: minBuf.length, gz, injections, checks: checks.length, preflightFailing: bad.length },
     };
   } catch (err) {
     // child-process failures carry the real reason on stderr, not message ("Command failed: ...")
