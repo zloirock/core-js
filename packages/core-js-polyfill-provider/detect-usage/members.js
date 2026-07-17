@@ -3,6 +3,7 @@
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
   collectFoldedReceiverSideEffects,
+  getFallbackBranchSlots,
   isMutatedGlobalSlot,
   isTaggedTemplateTagPosition,
   memberKeyName,
@@ -405,8 +406,16 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   const key = node.computed
     ? resolveKey({ node: computedKeyNode, computed: true, scope, adapter, path })
     : node.property.name || node.property.value;
-  if (!key || key === 'prototype') return null;
-  let meta = tryBuildPrototypeMeta({ obj, key, scope, adapter, path });
+  // a BRANCHING computed key (`arr[cond ? "flat" : "at"]()`) resolves to no single dominating
+  // key, yet each literal arm is reachable at runtime. fall through with the null key so the
+  // union choke can enumerate the arm keys as usage-global injection extras; the null-key
+  // primary resolves to no module in every mode, and the carrier is dropped below when the
+  // enumeration produces nothing. pure mode keeps the plain bail - it cannot substitute a
+  // multi-valued key, and its union enumeration is empty by mode gate anyway
+  const branchKeyedOnly = !key && node.computed && adapter.method === 'usage-global'
+    && !!getFallbackBranchSlots(unwrapRuntimeExpr(computedKeyNode));
+  if ((!key && !branchKeyedOnly) || key === 'prototype') return null;
+  let meta = key ? tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) : null;
   // a SE-SEQUENCE-rooted ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
   // .has` OR the deeper `(c++, globalThis).self.Map.prototype.has`) buries its leading SE below `node.object`
   // (which is `X.Map.prototype`, a member - the top-level collect above saw none). descend the ctor sub-receiver
@@ -460,6 +469,9 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     attachMemberUnionExtras(meta, {
       objectNode: classifyTarget, computedKeyNode, primaryObject: objectName, primaryKey: key, scope, adapter, path,
     });
+    // the branch-keyed carrier exists only for its arm-key extras - with none resolvable
+    // (every arm dynamic) there is nothing to inject and the null-key meta is pure noise
+    if (branchKeyedOnly && !meta.extraCandidates?.length) return null;
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
     // (including these nested keys) via the preserved assignment - collecting here too double-runs it.
     // static collapse discards the WHOLE receiver, so harvest its SE (chain-root call + buried hop-key) in
@@ -916,18 +928,24 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     if (sideEffects.length) meta.sideEffects = sideEffects;
     return meta;
   }
-  // the dominating pair did not resolve to an injectable static (`let O = {}; if (c) O = Array;
-  // 'from' in O`, or a dominating key that does not fold) - no primary injects, but a reachable
-  // reassignment alternative still dispatches at runtime, so the union must run anyway. the
-  // extras ride an INERT carrier: `kind:'in'` with a null object resolves to no module itself
-  // and usage-pure never reaches here with extras (the union is empty off usage-global), so the
-  // pure fold keeps seeing the same null this producer always returned
-  const carrier = attachMemberUnionExtras({ kind: 'in', key: resolvedLeft ?? null, object: null, placement: null }, {
+  // the dominating pair did not resolve to an injectable static: either a NON-static receiver
+  // (`'flat' in []` / `'at' in arr` - an instance presence probe) or a dominating key that does
+  // not fold (`let O = {}; if (c) O = Array; 'from' in O`). a plain constant string key upgrades
+  // the carrier to prototype placement: the resolver then consults the method-keyed instance map
+  // and usage-global injects, so post-polyfill the probe yields the native-parity result.
+  // usage-pure still noops (null object gates its fold) - the pure flavor never patches the
+  // prototype, so folding would assert a presence it does not provide. a `'Symbol.X'` STRING
+  // spelling probes a plain string prop no module defines - stays inert, same as the static
+  // branch. reachable reassignment alternatives ride the carrier's extras as before
+  const instanceProbeKey = resolvedLeft && !resolvedLeft.startsWith('Symbol.') ? resolvedLeft : null;
+  const carrier = attachMemberUnionExtras({
+    kind: 'in', key: resolvedLeft ?? null, object: null, placement: instanceProbeKey ? 'prototype' : null,
+  }, {
     objectNode: rightObject, computedKeyNode: node.left,
     primaryObject: objectName && placement ? objectName : null, primaryKey: resolvedLeft ?? null,
     scope, adapter, path,
   });
-  return carrier.extraCandidates ? carrier : null;
+  return carrier.extraCandidates || instanceProbeKey ? carrier : null;
 }
 
 // returns { key: 'Symbol.xxx', ref: { raw, unwrapped }, sideEffects } so the caller can mark

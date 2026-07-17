@@ -18,6 +18,7 @@ import {
   paramListReadsName,
   destructureReceiverSlot,
   getFallbackBranchSlots,
+  reassignmentValueEnumeration,
   isChainAssignment,
   isTransparentDestructureWrapper,
   unwrapCollectingSePrefixes,
@@ -422,6 +423,70 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
   return out.length ? out : null;
 }
 
+// literal-resolvable keys reachable through a BRANCHING computed-key node: ternary / logical
+// arms, nested arms recursing. a non-branching node contributes its own resolution; an
+// unresolvable arm contributes nothing (enumerating only what folds is the safe direction -
+// a missed arm under-injects no worse than before, a guessed arm would fabricate a key).
+// depth-capped so a pathological nest stays bounded
+function flattenBranchKeys({ node, scope, adapter, path, depth = 0 }) {
+  if (!node) return [];
+  // oxc preserves paren nodes and both parsers keep TS casts - the branch shape must be
+  // detected through them (`(cond ? "flat" : "at") in []` arrives paren-wrapped on the text
+  // emitter and bare on babel); the recursion unwraps arm wrappers the same way
+  node = unwrapRuntimeExpr(node);
+  if (depth > 4) return [];
+  const slots = getFallbackBranchSlots(node);
+  if (!slots) {
+    const key = sharedResolveKey({ node, computed: true, scope, adapter, path });
+    return key ? [key] : [];
+  }
+  const keys = [];
+  for (const slot of slots) {
+    for (const key of flattenBranchKeys({ node: node[slot], scope, adapter, path, depth: depth + 1 })) {
+      if (!keys.includes(key)) keys.push(key);
+    }
+  }
+  return keys;
+}
+
+// TRUE only when the receiver alias's reaching values are exhaustively enumerable and none can
+// dispatch an instance method: every reachable write RHS (plus the declarator init) either
+// resolves to a STATIC-placement name or is an instance-inert value - null / undefined (member
+// access and `in` both THROW natively, no polyfill changes that) / plain object literal (the
+// result is decided by its own shape). primitive literals are NOT inert - member access
+// auto-boxes (`42..toFixed` dispatches es.number.to-fixed). any other value shape (unbound
+// name, call, array / string / regexp literal, undecomposable write) keeps the typeless
+// instance dispatch: inject-if-might stays, but grounded in reachability - `let O = null;
+// O ||= Object; 'entries' in O` must not fabricate es.array.entries / web.dom-collections.*
+function receiverProvablyInstanceFree({ objectNode, scope, adapter, path }) {
+  const alias = objectNode && unwrapTransparentSeq(objectNode);
+  if (alias?.type !== 'Identifier') return false;
+  const binding = adapter.getBinding(scope, alias.name, path);
+  // only a declarator that binds the identifier DIRECTLY enumerates: params / for-x / catch
+  // values are open sets, and a PATTERN-bound leaf's value is a property extraction from the
+  // init (`const { name } = { name: 'alice' }` binds the string, not the object literal)
+  const declarator = binding?.node ?? binding?.path?.node;
+  if (!binding || declarator?.type !== 'VariableDeclarator' || declarator.id?.type !== 'Identifier'
+    || declarator.id.name !== alias.name) return false;
+  const { nodes, complete } = reassignmentValueEnumeration({
+    binding, usagePath: path, name: alias.name, ctx: { scope, adapter, path }, usageNode: alias,
+  });
+  if (!complete) return false;
+  const values = declarator.init ? [declarator.init, ...nodes] : nodes;
+  // an EMPTY enumeration proves nothing: an init-less binding's value comes from elsewhere
+  // (TS ambient `declare const`, hoisting, cross-file merging) - stay conservative
+  if (!values.length) return false;
+  return values.every(valueNode => {
+    const value = unwrapTransparentSeq(valueNode);
+    if (!value) return false;
+    if (value.type === 'NullLiteral' || value.type === 'ObjectExpression'
+      || (value.type === 'Literal' && value.value === null && !value.regex)
+      || (value.type === 'Identifier' && value.name === 'undefined')) return true;
+    const objectName = resolveObjectName({ objectNode: value, scope, adapter, path });
+    return !!(objectName && isStaticPlacement(objectName));
+  });
+}
+
 // usage-global UNION of reachable member-dispatch targets for a conditionally reassigned receiver
 // and/or computed-key. `let K='from'; if(c) K='of'; Array[K]()` can call Array.from OR Array.of;
 // `var M={}; if(c) M=Array; M.from()` may dispatch on Array. when BOTH vary the reachable targets
@@ -430,7 +495,10 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
 // the caller already emits, empty in the common no-reassignment case. global-only: usage-pure bails
 // on any reassignment upstream, so a reassigned alias never reaches a receiver-dropping substitute
 export function collectMemberUnionCandidates(options) {
-  const { objectNode, computedKeyNode, primaryObject, primaryKey, placement: placementOverride = null, scope, adapter, path } = options;
+  const {
+    objectNode, computedKeyNode, primaryObject, primaryKey,
+    placement: placementOverride = null, receiverInstanceFree = false, scope, adapter, path,
+  } = options;
   if (adapter.method !== 'usage-global') return [];
   const objects = reachableAliasValues({
     aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
@@ -441,8 +509,25 @@ export function collectMemberUnionCandidates(options) {
   // earns the same typeless prototype-placement meta the primary key gets (`let k = 'at'; if (c)
   // k = 'flat'; arr[k]` reaches both es.array.at and es.array.flat). without the null entry the
   // cross product is empty and the reachable alternative silently drops (under-injection). the
-  // resolved values, when the receiver alias ALSO varies, keep their own static extras beside it
-  if (primaryObject === null) objects.unshift(null);
+  // resolved values, when the receiver alias ALSO varies, keep their own static extras beside it.
+  // EXCEPT a provably instance-free receiver (the caller computed the flag): its static rows
+  // carry the whole injection and the null rows would fabricate instance variants
+  if (primaryObject === null && !receiverInstanceFree) objects.unshift(null);
+  // a receiver alias whose ctor narrow was REFUSED (guarded registration: conditional
+  // placement, SE-carrying init, var redecl, cross-function write) still holds the hinted
+  // ctor whenever the refused write actually ran. the alias walk resolves such a binding to
+  // nothing, and a STATIC-only key then drops entirely (`M.groupBy` losing es.map.group-by -
+  // the typeless instance axis cannot carry it). contribute the hint as an injection-only
+  // static candidate: over-inject-safe when the write never ran, and the pure emitters keep
+  // their own runtime ctor guard untouched
+  if (primaryObject === null && objectNode) {
+    let aliasIdent = unwrapTransparentSeq(objectNode);
+    if (aliasIdent?.type === 'SequenceExpression') aliasIdent = unwrapTransparentSeq(aliasIdent.expressions.at(-1));
+    if (aliasIdent?.type === 'Identifier') {
+      const guardedHint = adapter.getBinding(scope, aliasIdent.name, path)?.guardedAliasHint;
+      if (guardedHint && !objects.includes(guardedHint)) objects.push(guardedHint);
+    }
+  }
   // a BRANCHING receiver value - direct or reached through safe indirection - contributes each
   // branch's resolved object to the union axis, so reachable KEYS cross with reachable branch
   // OBJECTS (`const M = c ? Array : Iterator; let k = 'from'; if (c2) k = 'of'; M[k]` reaches
@@ -473,6 +558,16 @@ export function collectMemberUnionCandidates(options) {
     aliasNode: computedKeyNode, primary: primaryKey, scope, adapter, path,
     resolve: rhs => sharedResolveKey({ node: rhs, computed: true, scope, adapter, path }),
   });
+  // a BRANCHING computed key feeds the key axis the way a branching receiver feeds the object
+  // axis: `arr[cond ? "flat" : "at"]()` reaches both arm keys at runtime. with no dominating
+  // key the primary is null and the alias walk yields nothing - each literal-resolvable arm
+  // joins the axis instead. gated on the null primary for the same reason as the receiver
+  // branch block above: a resolved primary means an upstream fold already excluded the arms
+  if (computedKeyNode && primaryKey === null) {
+    for (const armKey of flattenBranchKeys({ node: computedKeyNode, scope, adapter, path })) {
+      if (!keys.includes(armKey)) keys.push(armKey);
+    }
+  }
   const extras = [];
   for (const object of objects) for (const key of keys) {
     if ((object === primaryObject && key === primaryKey) || key === 'prototype') continue;
@@ -493,7 +588,16 @@ export function collectMemberUnionCandidates(options) {
 // choke is the bug, not a design split. an axis the producer cannot supply is passed null and the
 // union enumerates the remaining axis; empty extras leave the meta untouched
 export function attachMemberUnionExtras(meta, options) {
-  const extras = collectMemberUnionCandidates(options);
+  // the instance-free verdict is computed HERE (the one place holding the meta) and threaded
+  // down: the union drops its typeless null rows, and the flag on the meta turns the
+  // resolver's placement-agnostic instance fallback off for the primary dispatch. gated to
+  // usage-global - the enumeration is a union-only concept and pure metas must stay untouched
+  // never under a `.prototype`-navigated producer (placement override): its static-resolving
+  // alias values ARE instance-method hosts - the axis exists to dispatch them as prototypes
+  const receiverInstanceFree = options.adapter?.method === 'usage-global' && options.primaryObject === null
+    && options.placement === undefined && receiverProvablyInstanceFree(options);
+  if (receiverInstanceFree) meta.receiverInstanceFree = true;
+  const extras = collectMemberUnionCandidates({ ...options, receiverInstanceFree });
   if (extras.length) meta.extraCandidates = extras;
   return meta;
 }
@@ -506,6 +610,15 @@ export function attachMemberUnionExtras(meta, options) {
 // and enumerate keys only); a per-branch fallback meta keeps its own mirror machinery and is
 // excluded here
 export function collectDestructureUnionCandidates({ meta, keyNode, computed, scope, adapter, path, resolvePure = null }) {
+  // a BRANCHING computed key resolves to no single key, so the producers build NO meta at all
+  // (`const { [cond ? "flat" : "at"]: m } = arr` bailed before any dispatch) - yet each literal
+  // arm is reachable exactly like the member-call form. synthesize the same null-key typeless
+  // carrier the member path rides so the arm keys enumerate as usage-global extras; every
+  // other null-meta call stays the no-op it always was
+  if (!meta && computed && adapter.method === 'usage-global'
+    && getFallbackBranchSlots(unwrapRuntimeExpr(keyNode))) {
+    meta = { kind: 'property', object: null, key: null, placement: 'prototype' };
+  }
   if (!meta || meta.kind !== 'property' || meta.fromFallback) return [];
   if (adapter.method !== 'usage-global') return [];
   const hostPath = path?.parentPath?.parentPath;
@@ -531,13 +644,18 @@ export function collectDestructureUnionCandidates({ meta, keyNode, computed, sco
       unionPath = desc.callPath;
     }
   }
-  return collectMemberUnionCandidates({
+  const unionOptions = {
     objectNode: hostInitNode,
     computedKeyNode: computed ? keyNode : null,
     primaryObject: meta.object ?? null,
     primaryKey: meta.key,
     scope: unionScope, adapter, path: unionPath,
-  });
+  };
+  // mirror the member funnel's instance-free verdict (this funnel bypasses the attach choke)
+  const receiverInstanceFree = unionOptions.primaryObject === null
+    && receiverProvablyInstanceFree(unionOptions);
+  if (receiverInstanceFree) meta.receiverInstanceFree = true;
+  return collectMemberUnionCandidates({ ...unionOptions, receiverInstanceFree });
 }
 
 // gate for the "conditional destructure left untouched" warn: it is only meaningful when some branch
