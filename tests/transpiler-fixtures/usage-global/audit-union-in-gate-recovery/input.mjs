@@ -1,7 +1,9 @@
 // the `in` producer used to fence its reachable union behind a RESOLVABLE dominating pair (a
 // static dominating receiver AND a folding dominating key); a reachable reassignment alternative
 // now enumerates regardless - the uninjectable primary rides an inert carrier meta. one axis
-// recovered per line, then both at once; distinct methods attribute a regressed form
+// recovered per line, then both at once; distinct methods attribute a regressed form. the
+// exhaustively-enumerated receivers here are provably instance-free, so the constant-key
+// probes inject ONLY their reachable static rows - no fabricated instance variants
 let O = {};
 if (globalThis.cond) O = Array;
 export const viaReceiver = 'from' in O;
