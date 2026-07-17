@@ -25,15 +25,22 @@ function createMetaResolver({ globals, statics, instance }) {
       if (placement === 'static' && hasOwn(statics, object) && hasOwn(statics[object], key)) {
         return { kind: 'static', desc: statics[object][key], name: `${ object }$${ key }` };
       }
-      // a `key in <namespace>` membership test (handleBinaryIn only builds an `in` meta for a
-      // static-placement receiver) is true ONLY for the receiver's own statics/globals, resolved
-      // just above. instance (prototype) methods are never own properties of the constructor/global,
-      // so the `in` case must NOT fall through to the placement-agnostic instance map: that resolves
-      // `'flat' in Array` to the `Array.prototype.flat` desc and folds the `in` to a wrong `true`
-      // (native: false). a member ACCESS (`kind: 'property'`, e.g. `Array.name`) is different - the
-      // receiver-type narrowing in `enhanceMeta` keeps genuinely-present Function.prototype members
-      // and drops prototype-only ones, so property reads still consult the instance map below
-      if (meta.kind === 'in') return undefined;
+      // a `key in <namespace>` membership test with a STATIC-placement receiver is true ONLY for
+      // the receiver's own statics/globals, resolved just above. instance (prototype) methods are
+      // never own properties of the constructor/global, so a static-receiver `in` must NOT fall
+      // through to the placement-agnostic instance map: that resolves `'flat' in Array` to the
+      // `Array.prototype.flat` desc and folds the `in` to a wrong `true` (native: false). an
+      // INSTANCE presence probe (`'flat' in []` - the prototype-placement carrier) DOES consult
+      // it: usage-global injects so the probe yields native parity, and usage-pure noops on the
+      // null-object meta before its fold. a member ACCESS (`kind: 'property'`, e.g. `Array.name`)
+      // is different - the receiver-type narrowing in `enhanceMeta` keeps genuinely-present
+      // Function.prototype members and drops prototype-only ones
+      if (meta.kind === 'in' && meta.placement !== 'prototype') return undefined;
+      // an exhaustively-enumerated receiver alias with no instance-capable value (the union
+      // choke's verdict): its static rows carry the injection - the placement-agnostic
+      // instance fallback would fabricate variants the receiver provably never dispatches
+      // (`let O = null; O ||= Object; 'entries' in O` pulled es.array.entries + web.dom-*)
+      if (meta.receiverInstanceFree) return undefined;
       if (!hasOwn(instance, key)) return undefined;
       const desc = instance[key];
       if (desc) return { kind: 'instance', desc, name: key };
