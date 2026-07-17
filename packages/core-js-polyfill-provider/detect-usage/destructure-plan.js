@@ -183,13 +183,14 @@ function isSymbolIteratorComputedKey(outerProp) {
   return true;
 }
 
-// narrowed to extractable shape: value must reduce to a binding Identifier
-// (`propBindingIdentifier` peels AssignmentPattern defaults - user default fires only
-// when receiver[Symbol.iterator] is undefined, dead under polyfill-always-wins). returns
-// the local binding name when extractable, null otherwise
+// narrowed to extractable shape: value must be a BARE binding Identifier. a defaulted
+// value (`[Symbol.iterator]: it = fb`) is NOT extractable here - unlike a static polyfill
+// import, the synth helper's result can be undefined (a non-iterable receiver), so the
+// default is live; peeling it would drop it entirely. defaults keep the key-swap
+// (see `planSymbolIteratorProp`). returns the local binding name when extractable
 function symbolIteratorLocalName(outerProp) {
   if (!isSymbolIteratorComputedKey(outerProp)) return null;
-  return propBindingIdentifier(outerProp.value)?.name ?? null;
+  return outerProp.value?.type === 'Identifier' ? outerProp.value.name : null;
 }
 
 // pattern-valued `[Symbol.iterator]` prop - the shape both emitters extract by destructuring
@@ -303,6 +304,15 @@ export function buildNestedDestructurePlan({
   // natural visitor owns the key then). null for non-symbol keys
   function planSymbolIteratorProp(prop) {
     if (!isSymbolIteratorComputedKey(prop)) return null;
+    // a scope-shadowed `Symbol` is the user's own object, its computed key a PLAIN property
+    // read. the detection layer's shadow gate never dispatches these leaves themselves, but
+    // a SIBLING / ctor-key meta still dispatches the HOST - so the plan re-checks, else the
+    // structural match above steals the user's key into a synth extraction
+    if (scope && adapter?.hasBinding(scope, 'Symbol', path)) return { kind: 'verbatim', prop };
+    // a scope-shadowed `Symbol` is the user's own object, its computed key a PLAIN property
+    // read. the detection layer's shadow gate never dispatches these leaves themselves, but
+    // a SIBLING / ctor-key meta still dispatches the HOST - so the plan re-checks, else the
+    // structural match above steals the user's key into a synth extraction
     if (leafDisabled(prop)) return { kind: 'verbatim', prop };
     const localName = symbolIteratorLocalName(prop);
     if (localName !== null) {
