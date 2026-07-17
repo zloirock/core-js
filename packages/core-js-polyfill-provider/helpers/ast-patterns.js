@@ -1376,7 +1376,7 @@ function parentFieldOf(parent, child) {
 // textually-later write
 const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
   const parents = ownerParentIndex(ownerNode);
-  for (let child = target; child !== ownerNode; ) {
+  for (let child = target; child !== ownerNode;) {
     const parent = parents.get(child);
     if (!parent) return false;
     if (parent !== ownerNode && isVarScopeBoundary(parent.type)) return false;
@@ -1439,7 +1439,7 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
   const parents = ownerParentIndex(ownerNode);
   if (target !== ownerNode && !parents.has(target)) return null;
   const guards = [];
-  for (let child = target; child !== ownerNode; ) {
+  for (let child = target; child !== ownerNode;) {
     const parent = parents.get(child);
     if (!parent) return null;
     if (parent !== ownerNode && isVarScopeBoundary(parent.type)) return null;
