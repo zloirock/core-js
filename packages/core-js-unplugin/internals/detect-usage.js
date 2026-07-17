@@ -1027,8 +1027,13 @@ export function createUsageVisitors({
         // fires, so it's transparent under "polyfill always wins")
         if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
           const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-          const constructor = innerKey
-            ? sharedResolveNestedDestructureReceiver(parent.parentPath, adapter) : null;
+          const constructor = sharedResolveNestedDestructureReceiver(parent.parentPath, adapter);
+          // a BRANCHING inner key rides a null-key carrier keeping the resolved receiver -
+          // the union pairs the arm keys with it as statics, mirroring babel's nested funnel
+          if (!innerKey) {
+            return constructor
+              ? { kind: 'property', object: constructor, key: null, placement: 'static' } : null;
+          }
           if (constructor) {
             return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
           }
@@ -1050,7 +1055,13 @@ export function createUsageVisitors({
         // up to the destructure host and returns the constructor name across proxy-global
         // and static-object descent shapes (see helper docstring)
         const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-        const constructor = innerKey ? sharedResolveNestedDestructureReceiver(parent, adapter) : null;
+        const constructor = sharedResolveNestedDestructureReceiver(parent, adapter);
+        // a BRANCHING inner key rides a null-key carrier keeping the resolved receiver -
+        // the union pairs the arm keys with it as statics, mirroring babel's nested funnel
+        if (!innerKey) {
+          return constructor
+            ? { kind: 'property', object: constructor, key: null, placement: 'static' } : null;
+        }
         if (constructor) {
           return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
         }
@@ -1170,13 +1181,15 @@ export function createUsageVisitors({
     const meta = buildDestructuringMeta(path.node, path.parentPath);
     // a computed key folding to `Symbol.X` gets its provenance checked ONCE at this funnel
     // (every destructure meta flows through here) - string spellings stay untagged so the
-    // symbol-routed emit paths leave them as plain property reads
-    if (!meta) return;
+    // symbol-routed emit paths leave them as plain property reads.
+    // `meta` may be null (an unresolvable - e.g. BRANCHING - computed key, or a mutated-static
+    // receiver): the primary dispatch skips, but the union below still runs - the provider
+    // synthesizes its branch-key carrier there, mirroring babel's funnel.
     // capture the key slots BEFORE dispatch, mirroring babel: a pure emit may restructure the
     // property, so the union pass must not re-read the possibly-detached node
     const { key: keyNode, computed } = path.node;
     const { scope } = path;
-    onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
+    if (meta) onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
     // usage-global reachable receiver / key union: each extra destructure target earns a
     // side-effect import beside the primary, mirroring the member funnel
     for (const extra of collectDestructureUnionCandidates({
