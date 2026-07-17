@@ -262,3 +262,25 @@ if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.deepEqual(log, ['e']);
   });
 }
+
+// 'key' in <typed instance> - the unambiguous receiver type folds like a static host:
+// every actual use of the method is substituted, so the polyfilled world's answer is true
+QUnit.test("'flat' in [] -> true (typed-array receiver fold)", assert => {
+  assert.true('flat' in []);
+});
+
+QUnit.test("'at' in string receiver -> true (typed-string fold)", assert => {
+  const s = 'abc';
+  assert.true('at' in s);
+});
+
+QUnit.test('typed fold keeps both operand side effects in source order', assert => {
+  const log = [];
+  const r = (log.push('k'), 'flat') in (log.push('r'), [1, 2]);
+  assert.true(r);
+  assert.deepEqual(log, ['k', 'r']);
+});
+
+QUnit.test('non-table key on a typed receiver stays a live probe', assert => {
+  assert.false('foo' in [1, 2]);
+});
