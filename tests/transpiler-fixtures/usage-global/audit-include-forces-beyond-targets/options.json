@@ -1,0 +1,22 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "4.0",
+        "targets": {
+          "chrome": 130
+        },
+        "include": [
+          "es.array.from",
+          "es.array.at",
+          "es.map.constructor",
+          "es.array.iterator",
+          "es.string.iterator",
+          "web.dom-collections.iterator"
+        ]
+      }
+    ]
+  ]
+}
