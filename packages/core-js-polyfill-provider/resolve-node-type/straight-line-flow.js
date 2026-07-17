@@ -66,16 +66,43 @@ function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
   return false;
 }
 
+// default-entry memo: the sibling scans below re-ask the same statements across queries, and
+// the top-level answer depends only on the node (the loop / label parameters vary only INSIDE
+// the recursion). same per-node staleness contract as the resolver caches
+const subtreeExitCache = new WeakMap();
+function cachedSubtreeContainsExit(node) {
+  let result = subtreeExitCache.get(node);
+  if (result === undefined) subtreeExitCache.set(node, result = subtreeContainsExit(node));
+  return result;
+}
+
+// per-BODY position + first-exit index, built once per statement list: the per-query scan
+// this replaces re-ran `indexOf` plus a linear exit sweep over the same list for every query -
+// O(statements) each, quadratic across a large flat scope. same per-node staleness contract
+const bodyFlowIndexCache = new WeakMap();
+function bodyFlowIndex(body) {
+  let index = bodyFlowIndexCache.get(body);
+  if (index) return index;
+  const positions = new Map();
+  let firstExit = Infinity;
+  for (let i = 0; i < body.length; i++) {
+    positions.set(body[i], i);
+    if (firstExit === Infinity && cachedSubtreeContainsExit(body[i])) firstExit = i;
+  }
+  index = { positions, firstExit };
+  bodyFlowIndexCache.set(body, index);
+  return index;
+}
+
 // no preceding sibling at any statement-list level exits before reaching `endNode`.
 // catches `if (c) return; x = 1` shapes that an ancestor-only check would miss
 function precedingSiblingsExitFree(startStmt, endNode) {
   for (let cur = startStmt; cur && cur.node !== endNode; cur = cur.parentPath) {
     const parentNode = cur.parentPath?.node;
     if (!parentNode || !Array.isArray(parentNode.body)) continue;
-    const idx = parentNode.body.indexOf(cur.node);
-    for (let i = 0; i < idx; i++) {
-      if (subtreeContainsExit(parentNode.body[i])) return false;
-    }
+    const { positions, firstExit } = bodyFlowIndex(parentNode.body);
+    const idx = positions.get(cur.node) ?? -1;
+    if (firstExit < idx) return false;
   }
   return true;
 }

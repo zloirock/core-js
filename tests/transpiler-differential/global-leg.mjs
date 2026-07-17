@@ -8,8 +8,8 @@
 // Isolation is a fresh worker thread per evaluation (global-leg-worker.mjs): the injected global
 // polyfills install onto the worker's globals and die with it. A shared realm would be vacuous
 // after the first correct install - the installed global masks every later snippet's miss.
-// (ShadowRealm was tried first: ~3x cheaper per run, but realms are never reclaimed - ~4.5MB
-// leaks per realm OOM a full-corpus shard into swap.)
+// (ShadowRealm is cheaper per run but realms are never reclaimed, so a full-corpus shard
+// OOMs - workers release their memory on exit.)
 //
 // ARMING is empirical, not flag-derived: a snippet is armed iff its UNTRANSFORMED source diverges
 // in the stripped realm - i.e. it provably depends on a stripped builtin. The expectation comes
@@ -56,9 +56,9 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
   // arming: a `strip:true` snippet is the generator's PROVEN manifest-builtin read - its
   // stripped-realm divergence holds by construction (this realm strips the same globals as
   // the pure regex's token set) and the evaluation is skipped; the output-vs-native oracle
-  // still runs and can only fail loudly. everything else is judged EMPIRICALLY: the corpus builds keys at
-  // runtime (`'fr' + 'om'` folds, buried template concats), so no static token test is sound -
-  // a regex prefilter blinded 3 armed snippets before being rejected.
+  // still runs and can only fail loudly. everything else is judged EMPIRICALLY: the corpus
+  // builds keys at runtime (`'fr' + 'om'` folds, buried template concats), so no static token
+  // test is sound and a prefilter would silently blind such snippets.
   // the arming evaluation only needs the ORIGINAL source - start it and run both transforms
   // while the worker spins, hiding its latency behind CPU work the shard must do anyway
   const armingKey = provenArmed ? null : runOutput(code, ts);
