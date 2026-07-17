@@ -2919,6 +2919,25 @@ QUnit.test('symbol alias: nested-pattern shadow reads the real property, not the
   assert.same([1, 2][iterator], undefined);
 });
 
+// a binding that holds the well-known-symbol VALUE is not a Symbol source: destructuring
+// `iterator` off the VALUE reads `(symbol).iterator` (undefined), so the user default must
+// apply - a fold would bind the well-known key and skip it
+QUnit.test('symbol alias: value alias is not a Symbol source for its own destructure', assert => {
+  const sentinel = { marker: true };
+  const { iterator: symbolValue } = globalThis.Symbol;
+  const { iterator: viaValue = sentinel } = symbolValue;
+  assert.same(viaValue, sentinel);
+  assert.notSame([3, 4][symbolValue], undefined);
+});
+
+// a plain (non-global-named) destructured slot off globalThis reads an ordinary property -
+// treating it as the proxy surface would rescue the native TypeError
+QUnit.test('symbol alias: plain destructured slot is not a proxy root', assert => {
+  const { nonexistentSlot } = globalThis;
+  assert.same(nonexistentSlot, undefined);
+  assert.throws(() => nonexistentSlot.Array.from([1]), TypeError);
+});
+
 QUnit.test('symbol alias: top-level { iterator } = Symbol folds to the iterator method', assert => {
   const { iterator } = Symbol;
   assert.same([3, 4][iterator]().next().value, 3);
