@@ -73,3 +73,34 @@ export const viaLoopDecl = loopDecl();
 var guardedAssign;
 if (Math.random() > 2) { ({ iterator: guardedAssign } = Symbol); }
 export const viaGuardedAssign = [][guardedAssign];
+
+// a for-init DESTRUCTURE host folds like the block-hosted twin: the per-iteration self-rebind
+// estree records for the head's own binding is the declaration, not a reassignment
+for (const { iterator: viaForInitDestructure = 0 } = Symbol; Math.random() > 2;) {
+  export_.push([][viaForInitDestructure]);
+  break;
+}
+
+// NEGATIVE: a for-of HEAD binding re-runs per iteration off dynamic iterable values - the
+// head's own destructure never judges as a stable Symbol alias
+for (const { asyncIterator: viaForOfHead = 0 } of [Symbol]) {
+  export_.push([][viaForOfHead]);
+}
+
+// NEGATIVE: a same-named UNBOUND read outside the alias's hosting scope is a runtime
+// ReferenceError - the file-wide name-keyed registration must not serve it
+function scopedAlias() {
+  const { iterator: scopedIt = 0 } = Symbol;
+  return [][scopedIt];
+}
+export const viaScoped = scopedAlias();
+export const viaOutOfScope = [][scopedIt];
+
+// a fn-local alias NAMED like the global must not shadow the REAL global elsewhere: the
+// outer well-known-symbol read still folds (its scope has no such binding)
+function globalNamedAlias() {
+  const { iterator: Symbol } = globalThis.Symbol;
+  return [][Symbol];
+}
+export const viaGlobalNamedAlias = globalNamedAlias();
+export const viaRealGlobal = [1, 2][Symbol.iterator];

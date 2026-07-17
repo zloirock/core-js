@@ -2,6 +2,7 @@ import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
+  LET_SCOPE_HOST_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
@@ -20,6 +21,7 @@ import {
   propertyKeyName,
   unwrapRuntimeExpr,
   varInitDominatesUsage,
+  isDeclaratorSelfViolation,
   withoutValuelessDeclarationViolations,
   walkAstChildren,
   walkPatternIdentifiers,
@@ -55,7 +57,7 @@ export function isAliasProxyRoot(rootNode, aliasCtx) {
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
 // const aliases (`const g = globalThis`) pass through via init-peel
-export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null }) {
+export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
   if (node?.type !== 'Identifier') return null;
   if (!scope || !adapter) return POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null;
   binding ??= adapter.getBinding(scope, node.name, path);
@@ -65,8 +67,14 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   const hint = binding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, node.name);
   // a mutated proxy SLOT (`window = fake`) is the user's replacement, not the global surface -
   // neither the direct name nor a hint/alias resolving to it recognises as a proxy root (what
-  // an alias holds depends on capture order, which no span model covers)
-  if (hint) return isPristineProxyGlobal(adapter, hint) ? hint : null;
+  // an alias holds depends on capture order, which no span model covers). an assignment-form
+  // hint additionally needs its write to END before the read anchor - an alias hop captured
+  // pre-write holds undefined, and a hint narrow there would un-throw the native failure
+  if (hint) {
+    // `readNode` carries an alias hop's declarator NODE (babel bindings surface no path for it)
+    if (!assignmentAliasHintSoundAtRead({ binding, adapter, readNode: readNode ?? (usageNode ?? path)?.node ?? null })) return null;
+    return isPristineProxyGlobal(adapter, hint) ? hint : null;
+  }
   // cycle guard keyed by the binding's DECLARATION node: a const-alias cycle (`const a = b; const
   // b = a`) or a self-referential init (`var Map = Map`) would otherwise recurse forever through
   // followLocalBindingToProxyGlobal. keying by `binding` directly fails for the detect-usage adapter,
@@ -78,7 +86,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // a non-proxy self-cycle (`var Map = Map`) stays false. avoids recursion either way (returns here)
   if (binding) return seen?.has(binding.node ?? binding)
     ? (POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null)
-    : followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen, usageNode);
+    : followLocalBindingToProxyGlobal({ binding, name: node.name, scope, adapter, path, seen, usageNode });
   if (adapter.hasBinding?.(scope, node.name, path)) return null;
   return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
 }
@@ -94,7 +102,7 @@ export function isProxyGlobalIdentifierNode(args) {
 // `binding.node`; (b) babelBindingAdapter (in resolve-node-type) passes the raw babel
 // binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
 // branch on `node.type` so a single predicate covers both shapes
-function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen, usageNode = null) {
+function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter, path, seen, usageNode = null }) {
   // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
   // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
   // dropped a const-captured alias whose upstream source is reassigned only after the capture)
@@ -107,7 +115,21 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen, us
   // same gate the detection-side follow (`resolveVariableBindingToGlobal`) applies. global /
   // entry modes keep the call site and stay sound regardless
   if (adapter?.method === 'usage-pure'
-    && !varInitDominatesUsage({ declaratorNode: decl, usagePath: path, kind: binding.kind })) return null;
+    && !varInitDominatesUsage({ declaratorNode: decl, usagePath: usageNode ?? path, kind: binding.kind })) return null;
+  // a PATTERN id binds `name` to a KEY of the init, not the init itself: following the whole
+  // init would classify a plain slot as the proxy surface (`const { x } = globalThis; x.Array`
+  // reads `globalThis.x`, likely undefined - collapsing it un-throws the native failure).
+  // resolve through the literal key-path instead: proxy-global root, pristine proxy hops, and
+  // the LEAF itself must name a pristine proxy global (`{ self: s } = globalThis` re-enters)
+  if (decl?.id && decl.id.type !== 'Identifier') {
+    if (!name) return null;
+    const peeled = peelArrayWrapBindingLayers(decl.id, decl.init, name);
+    if (peeled?.id?.type !== 'ObjectPattern') return null;
+    const keyPath = objectPatternLiteralKeyPath(peeled.id, name);
+    const leaf = destructuredGlobalKeyPathLeaf(peeled.init, keyPath, binding.path?.scope ?? scope, adapter,
+      new Set(seen).add(binding.node ?? binding));
+    return leaf !== null && isPristineProxyGlobal(adapter, leaf) ? leaf : null;
+  }
   const init = unwrapInitForResolution(decl?.init);
   // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
   // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
@@ -120,10 +142,12 @@ function followLocalBindingToProxyGlobal(binding, scope, adapter, path, seen, us
     return isPristineProxyGlobal(adapter, leaf) ? leaf : null;
   }
   if (init?.type !== 'Identifier') return null;
-  // the NEXT hop's value is read at THIS declarator - anchor its reassignment proof there
+  // the NEXT hop's value is read at THIS declarator - anchor its reassignment and hint
+  // order proofs there, not at the outer use the caller carried (`readNode` rides the
+  // declarator NODE for adapters whose bindings surface no path)
   return proxyGlobalRootName({
     node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path,
-    seen: new Set(seen).add(binding.node ?? binding), usageNode,
+    seen: new Set(seen).add(binding.node ?? binding), usageNode: binding.path ?? usageNode, readNode: decl,
   });
 }
 
@@ -162,7 +186,12 @@ function branchingInitResolves(node, scope, adapter, resolvesBranch) {
 function aliasInitResolvesToGlobal(node, scope, adapter, injector) {
   if (!node) return false;
   if (node.type === 'Identifier') {
-    return isProxyGlobalIdentifierNode({ node, scope, adapter, path: null }) || !!injector?.getPureImport(node.name);
+    if (isProxyGlobalIdentifierNode({ node, scope, adapter, path: null })) return true;
+    // plugin-minted UIDs only: a USER-named body-extract record shares the import table but is
+    // scope-bound user code - serving it here would verify an alias shape against a coincident
+    // name from another scope
+    const imp = injector?.getPureImport?.(node.name);
+    return !!imp && !imp.userNamed;
   }
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
     return branchingInitResolves(node, scope, adapter, branch => aliasInitResolvesToGlobal(branch, scope, adapter, injector));
@@ -531,9 +560,37 @@ export function enclosingFunctionSpan(stmtPath) {
   return null;
 }
 
+// the LEXICAL hosting span for a block-scoped (`let` / `const`) alias: the nearest block-like
+// host, not the enclosing function - a function-wide span would serve the registration to a
+// same-named read OUTSIDE the block, where the binding does not exist (a runtime
+// ReferenceError a narrow would mask)
+function enclosingLexicalSpan(stmtPath) {
+  for (let cur = stmtPath?.parentPath; cur; cur = cur.parentPath) {
+    // a TS namespace body compiles to an IIFE: its consts are namespace-scoped, so it hosts
+    // like a block (the statement lattice lists it as an ADDITION, not a runtime block)
+    if (LET_SCOPE_HOST_TYPES.has(cur.node?.type) || cur.node?.type === 'TSModuleBlock') {
+      return { start: cur.node.start, end: cur.node.end };
+    }
+  }
+  return null;
+}
+
 export function aliasSpanDominatesUse({ info, useStart }) {
   const span = info?.aliasWrite ?? info?.aliasDeclSpan;
   return !span || useStart === null || useStart > span.end;
+}
+
+// pure only: an assignment-form alias hint is flow-sound at a read only when its registered
+// write ENDS before the read begins. registration verified the write's shape and placement,
+// not its order against every read - an alias hop captures its source at the hop declarator,
+// so a source written after that capture must not narrow it (`const S = T; ({ Symbol: T } =
+// globalThis)` captures undefined; the span gate at the OUTER use admits it). unknown positions
+// bail - pure resolves on proof. global / entry modes stay hint-sound regardless (side-effect
+// imports only, over-inject-safe)
+export function assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) {
+  if (adapter?.method !== 'usage-pure' || !binding?.aliasWrite) return true;
+  const readStart = readNode?.start ?? null;
+  return readStart !== null && readStart > binding.aliasWrite.end;
 }
 
 export function registerDeclAliasIfSound({
@@ -544,7 +601,7 @@ export function registerDeclAliasIfSound({
   let stmt = stmtPath;
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) stmt = stmt.parentPath;
   const declSpan = stmt?.node ? { start: stmt.node.start, end: stmt.node.end } : null;
-  const scopeSpan = enclosingFunctionSpan(stmtPath);
+  const scopeSpan = kind === 'var' ? enclosingFunctionSpan(stmtPath) : enclosingLexicalSpan(stmt ?? stmtPath);
   // the scope binding may resolve a use to a DIFFERENT declarator of the same `var` slot than
   // the registering one: a redeclaration merges into ONE runtime binding, but estree block-scopes
   // the inner `var` (registration sees it) while the read resolves the outer - and babel the
@@ -596,11 +653,11 @@ export function registerDeclAliasIfSound({
 // does the destructure RHS resolve to the Symbol constructor SPECIFICALLY? `aliasInitResolvesToGlobal`
 // pinned to Symbol - accepts a bare `Symbol`, a proxy-global `globalThis.Symbol`, babel's rewritten
 // `_Symbol`, and the defaulted-ternary form; rejects any other object
-function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured) {
+function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured, keyCtx = null) {
   if (!node) return false;
   if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
     return branchingInitResolves(node, scope, adapter,
-      branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured));
+      branch => aliasInitResolvesToSymbol(branch, scope, adapter, injector, seen, followDestructured, keyCtx));
   }
   const peeled = peelProxyGlobalObject(node);
   if (peeled?.type === 'Identifier') {
@@ -608,12 +665,17 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
     // redirects the read to the user object, and folding its keys as well-known symbols
     // would substitute the wrong VALUE
     if (peeled.name === 'Symbol') return !adapter?.hasBinding?.(scope, 'Symbol');
-    if (injector?.getPureImport(peeled.name)?.hint === 'Symbol') return true;
+    // plugin-minted imports only (`_Symbol` after an in-place rewrite): a USER-named
+    // body-extract record carries its binding NAME as the fallback hint, so a user binding
+    // that happens to be NAMED `Symbol` (`const { iterator: Symbol } = ...`) would masquerade
+    // as the constructor and fold keys off the VALUE it actually holds
+    const imp = injector?.getPureImport?.(peeled.name);
+    if (imp && !imp.userNamed && imp.hint === 'Symbol') return true;
     // an intermediate user alias of the constructor (`const S = Symbol`, `= globalThis.self.Symbol`,
     // or a destructured `const { self: { Symbol: S } } = globalThis`) - babel's member-injection
     // resolves such chains in place and folds the well-known-symbol read, so the mutation-free estree
     // side must follow the same chain to keep the fold decision identical
-    return userAliasBindingResolvesToSymbol(peeled, scope, adapter, injector, seen, followDestructured);
+    return userAliasBindingResolvesToSymbol(peeled, scope, adapter, injector, seen, followDestructured, keyCtx);
   }
   return globalProxyMemberName({ node: peeled, scope, adapter, path: null }) === 'Symbol';
 }
@@ -627,36 +689,77 @@ function aliasInitResolvesToSymbol(node, scope, adapter, injector, seen, followD
 // constructor alias ONLY when the CONSUMING destructure is defaulted (the default drives an in-place
 // inline); a non-defaulted consumer leaves it native, so the estree side follows only under the same
 // condition (a simple const-alias, which babel's hint propagation crosses regardless, is unconditional)
-function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured) {
-  const binding = adapter?.getBinding?.(scope, node.name, null);
+// re-anchor a key ctx at the binding's declarator: an alias hop READS its source there, so
+// the flow gates riding ctx.path (hint span-dominance, key dominance / reaching-value) must
+// judge that position, not the outer use the ctx was built at
+function hopAnchoredCtx(keyCtx, binding) {
+  return keyCtx && binding.path ? { ...keyCtx, path: binding.path } : keyCtx;
+}
+
+function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, followDestructured, keyCtx = null) {
+  const binding = adapter?.getBinding?.(scope, node.name, keyCtx?.path ?? null);
+  // an assignment-form ctor alias (`let S; ({ Symbol: S } = globalThis)`) carries an init-less
+  // declarator, but the adapter's hint machinery already verified its write shape AND that the
+  // write span dominates the read anchored at `keyCtx.path` - the surfaced hint IS the
+  // resolution. babel reaches the same fold through its in-place inline of the defaulted
+  // consumer, a rewrite the text emitter never performs, so this walker must accept the hint
+  // or the two emitters desync on every assignment-form host
+  if (binding?.polyfillHint === 'Symbol') return true;
   const declarator = binding?.node?.type === 'VariableDeclarator' ? binding.node : binding?.path?.node;
   if (declarator?.type !== 'VariableDeclarator' || !declarator.init) return false;
   const declNode = binding.node ?? declarator;
   if (seen?.has(declNode) || reassignmentBlocksGlobalResolve({ binding, adapter, path: null })) return false;
   const next = new Set(seen).add(declNode);
   const nextScope = binding.path?.scope ?? scope;
+  const hopCtx = hopAnchoredCtx(keyCtx, binding);
   if (declarator.id?.type === 'Identifier') {
-    return aliasInitResolvesToSymbol(declarator.init, nextScope, adapter, injector, next, followDestructured);
+    return aliasInitResolvesToSymbol(declarator.init, nextScope, adapter, injector, next, followDestructured, hopCtx);
   }
-  if (!followDestructured) return false;
+  if (!followDestructured && !keyCtx) return false;
   // peel array-wrap layers positionally (`const [{ Symbol: S }] = [globalThis]`) to the inner
   // ObjectPattern + init element (shared with resolveDestructuredGlobalName; spread-shifted
   // pairing bails inside the peel) before resolving the key-path off the proxy-global
   const peeled = peelArrayWrapBindingLayers(declarator.id, declarator.init, node.name);
   if (!peeled) return false;
-  return destructuredGlobalKeyPathNamesSymbol(peeled.init, objectPatternLiteralKeyPath(peeled.id, node.name), nextScope, adapter);
+  // a LITERAL-key hop honors `followDestructured` (babel inlines it only for a defaulted
+  // consumer); a CONSTANT-RESOLVED computed hop collapses to a simple alias on babel
+  // (`{ [k]: S }` -> `S = _Symbol`), whose hint propagation crosses UNCONDITIONALLY - the
+  // estree side follows it likewise or the non-defaulted consumer desyncs
+  const literalPath = objectPatternLiteralKeyPath(peeled.id, node.name);
+  if (literalPath) {
+    return followDestructured && destructuredGlobalKeyPathNamesSymbol(peeled.init, literalPath, nextScope, adapter, next);
+  }
+  if (!keyCtx) return false;
+  // the computed key EVALUATES at the alias declarator, not at the eventual use: anchor the
+  // key canon's dominance / reaching-value analysis there via `usageNode`, or a key reassigned
+  // AFTER the capture would resolve to the post-capture value - a wrong-value fold
+  return destructuredGlobalKeyPathNamesSymbol(peeled.init,
+    objectPatternLiteralKeyPath(peeled.id, node.name,
+      { resolveKey: keyCtx.resolveKey, scope: nextScope, adapter, path: binding.path ?? keyCtx.path ?? null, usageNode: declarator }),
+    nextScope, adapter, next);
 }
 
 // resolve a destructure key-path (`['self','Symbol']`) off a proxy-global init to the Symbol leaf,
 // mirroring globalProxyMemberName's chain walk: the root must be a proxy-global, every intermediate
 // hop must stay on the proxy-global surface (and be un-mutated), the leaf must name Symbol
-function destructuredGlobalKeyPathNamesSymbol(init, keyPath, scope, adapter) {
-  if (!keyPath?.length || !isProxyGlobalIdentifierNode({ node: peelProxyGlobalObject(init), scope, adapter, path: null })) return false;
-  for (let i = 0; i < keyPath.length - 1; i++) {
-    if (!isPristineProxyGlobal(adapter, keyPath[i])) return false;
-  }
-  const leaf = keyPath.at(-1);
+function destructuredGlobalKeyPathNamesSymbol(init, keyPath, scope, adapter, seen) {
+  const leaf = destructuredGlobalKeyPathLeaf(init, keyPath, scope, adapter, seen);
   return leaf === 'Symbol' && !isMutatedGlobalSlot(adapter, leaf);
+}
+
+// resolve a destructure key-path off a proxy-global init to its LEAF name, mirroring
+// globalProxyMemberName's chain walk: the root must resolve to a proxy global and every
+// intermediate hop must stay on the pristine proxy-global surface. the LEAF's own semantics
+// (Symbol ctor / proxy-global re-entry / anything else) are the caller's judgment
+function destructuredGlobalKeyPathLeaf(init, keyPath, scope, adapter, seen) {
+  // thread the caller's cycle guard: a cyclic destructure chain (`{ x: a } = b; { y: b } = a`)
+  // re-enters this walk through the init's own proxy-root resolution
+  if (!keyPath?.length) return null;
+  if (!isProxyGlobalIdentifierNode({ node: peelProxyGlobalObject(init), scope, adapter, path: null, seen })) return null;
+  for (let i = 0; i < keyPath.length - 1; i++) {
+    if (!isPristineProxyGlobal(adapter, keyPath[i])) return null;
+  }
+  return keyPath.at(-1);
 }
 
 // shadow guard for a body-extract Symbol.X destructure alias (`const { iterator } = Symbol`). the
@@ -708,7 +811,9 @@ function patternBindsNameNested(pattern, name) {
   return walk(pattern, 0);
 }
 
-export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter, injector, boundName: passedName = null }) {
+export function isSymbolDestructureAliasBinding({
+  info, binding, scope, adapter, injector, boundName: passedName = null, keyCtx = null,
+}) {
   // a synthetic var-hoist binding (estree nested-block `var`) carries `.node` without `.path`
   const declarator = binding?.path?.node ?? binding?.node;
   if (!info?.source || declarator?.type !== 'VariableDeclarator') return false;
@@ -717,7 +822,13 @@ export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter,
   // guarded assignment) reads undefined on the untaken path - the registration refusal
   // poisoned ITS entry, but the positional name view still surfaces the outer one
   if (isGuardedAliasingWrite(binding)) return false;
-  const writes = withoutValuelessDeclarationViolations(binding.constantViolations) ?? [];
+  // the loop-reinit declarator-self (a for-init const records its own per-iteration rebind as a
+  // violation on estree, a destructured one via the bound identifier INSIDE the pattern) is the
+  // declaration, not a write - exclude it via the shared canon or a for-init-hosted alias never
+  // judges clean while the block-hosted twin does (emitter desync). filter on the RAW violation
+  // entries: the valueless-redecl filter reads their paths, so mapping to nodes first blinds it
+  const writes = (withoutValuelessDeclarationViolations(binding.constantViolations) ?? [])
+    .filter(v => !isDeclaratorSelfViolation(v, declarator));
   // babel exposes the bound identifier at `binding.identifier`; estree-toolkit at `binding.name`;
   // a synthetic var-hoist binding carries neither, so the caller passes the name explicitly
   const boundName = passedName ?? binding.identifier?.name ?? binding.name
@@ -726,9 +837,10 @@ export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter,
   // bound name must be a DIRECT top-level value of the pattern (a nested shadow reads a different
   // key path off the init and must not inherit the flat well-known-symbol fold)
   if (declarator.id?.type === 'ObjectPattern') {
+    const followCtx = hopAnchoredCtx(keyCtx, binding);
     return !writes.length && patternBindsNameAtTopLevel(declarator.id, boundName)
       && aliasInitResolvesToSymbol(declarator.init, scope, adapter, injector, undefined,
-        topLevelPropertyDefaulted(declarator.id, boundName));
+        topLevelPropertyDefaulted(declarator.id, boundName), followCtx);
   }
   // babel INLINES a DEFAULTED symbol destructure (`const { iterator = fb } = Symbol`) to a plain
   // `const iterator = _Symbol$iterator === void 0 ? fb : _Symbol$iterator` guard-ternary BEFORE this
@@ -754,7 +866,7 @@ export function isSymbolDestructureAliasBinding({ info, binding, scope, adapter,
   // folds a well-known-symbol read off an assignment-destructured constructor regardless of a slot
   // default, unlike a const-destructure (which babel resolves only when defaulted-inlined - the
   // declarator arm above gates on that). matching babel keeps the two emitters' fold decisions identical
-  return !!assign && aliasInitResolvesToSymbol(assign.right, scope, adapter, injector, undefined, true);
+  return !!assign && aliasInitResolvesToSymbol(assign.right, scope, adapter, injector, undefined, true, keyCtx);
 }
 
 // does `pattern` bind `name` at its top level through an `= default` wrapper (`{ key: name = d }`)?

@@ -1,6 +1,6 @@
 import { entryToGlobalHint } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
-import { isCleanDestructureAliasBinding, isGuardedAliasingWrite } from './helpers/ast-patterns.js';
+import { isCleanDestructureAliasBinding, isGuardedAliasingWrite, isVarScopeBoundary } from './helpers/ast-patterns.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
@@ -139,14 +139,56 @@ export default class ImportInjectorState {
   // shape `{source, hint, entry}` from (mode, entry, name); first-write-wins so subsequent
   // re-registrations for the same name don't overwrite (e.g. user re-imports same source
   // under a second alias). callers handle their own dedup-target updates (existingPureImports)
-  // separately - this method is the metadata-only side of registration
-  #recordImportInfo(name, entry) {
-    if (this.#importInfoByName.has(name)) return;
-    this.#importInfoByName.set(name, {
+  // separately - this method is the metadata-only side of registration.
+  // `userNamed` + `scopeSpan` mark a USER-bound name (a body-extract alias) as opposed to a
+  // plugin-minted UID or a module-scoped user import: the name-keyed view is file-wide, so a
+  // blind (binding-less) consumer must only serve such a record INSIDE the span of the scope
+  // hosting the binding - a same-named unbound read elsewhere is a runtime ReferenceError the
+  // fold would mask. same-named USER aliases in DIFFERENT scopes are separate bindings: each
+  // registers its own sibling record so the positional lookup serves every scope its own fold
+  // (plain first-write-wins dropped the later ones and lost their folds on the target engine)
+  #recordImportInfo(name, entry, { userNamed = false, scopeSpan = null } = {}) {
+    const record = {
       source: `${ this.mode }/${ entry }`,
       hint: entryToGlobalHint(entry) ?? name,
       entry,
-    });
+      userNamed,
+      scopeSpan,
+    };
+    const existing = this.#importInfoByName.get(name);
+    if (!existing) {
+      this.#importInfoByName.set(name, record);
+      return;
+    }
+    // first-write-wins against a plugin-minted / import record, for a non-user re-registration,
+    // and for a user record re-registering an already-covered span
+    if (!userNamed || !existing.userNamed) return;
+    function spanKey(span) {
+      return span ? `${ span.start }:${ span.end }` : 'file';
+    }
+    const siblings = existing.siblings ??= [];
+    if (spanKey(existing.scopeSpan) === spanKey(scopeSpan)
+      || siblings.some(r => spanKey(r.scopeSpan) === spanKey(scopeSpan))) return;
+    siblings.push(record);
+  }
+
+  // the record (primary or sibling) a use at `useStart` may read: a plugin-minted / import
+  // record is file-wide; USER records serve only the scope span hosting their binding, the
+  // INNERMOST containing span winning (a nested same-name alias shadows the outer one).
+  // a pathless lookup (`useStart === null`) keeps the legacy single-record behavior and
+  // declines when siblings make the name ambiguous
+  static #servableImportRecord(primary, useStart) {
+    if (!primary.userNamed) return primary;
+    const candidates = [primary, ...primary.siblings ?? []];
+    if (useStart === null) return candidates.length === 1 ? primary : null;
+    let best = null;
+    for (const record of candidates) {
+      const span = record.scopeSpan;
+      if (span && !(span.start <= useStart && useStart <= span.end)) continue;
+      const size = span ? span.end - span.start : Infinity;
+      if (!best || size < (best.scopeSpan ? best.scopeSpan.end - best.scopeSpan.start : Infinity)) best = record;
+    }
+    return best;
   }
 
   registerUserPureImport(entry, name) {
@@ -198,7 +240,23 @@ export default class ImportInjectorState {
     // the sibling writes) must not resurrect the fold source the pristine-tree judgment
     // refused. positional lookup keeps a SIBLING-scope same-name binding registerable
     if (this.isReassignedBinding(name, sourceBinding)) return;
-    this.#recordImportInfo(name, entry);
+    // the span of the scope hosting the binding (babel scopes carry the AST node on `.block`,
+    // estree-toolkit ones on `.path.node`); binding-less registrations stay file-wide
+    let scopeBlock = sourceBinding?.scope?.block ?? sourceBinding?.scope?.path?.node ?? null;
+    // a `var` hoists past the block scope some trackers report (estree-toolkit block-scopes a
+    // labeled-block / for-init `var`): widen to the var-scope owner, or a hoisted use after the
+    // block would sit outside the span and lose its fold while babel's native hoist keeps it
+    if (sourceBinding?.kind === 'var' && scopeBlock && !isVarScopeBoundary(scopeBlock.type)) {
+      for (let p = sourceBinding.scope?.path ?? null; p; p = p.parentPath) {
+        if (!p.node || !isVarScopeBoundary(p.node.type)) continue;
+        scopeBlock = p.node;
+        break;
+      }
+    }
+    this.#recordImportInfo(name, entry, {
+      userNamed: true,
+      scopeSpan: scopeBlock ? { start: scopeBlock.start, end: scopeBlock.end } : null,
+    });
   }
 
   // name -> Set<start> indexes reassignment by declaration position so two `from` bindings
@@ -320,7 +378,16 @@ export default class ImportInjectorState {
   // exactly one containing entry resolves, anything else declines and the use stays native
   getBindingInfo(name, useStart = null) {
     const pure = this.#importInfoByName.get(name);
-    if (pure) return { hint: pure.hint, source: pure.source, entry: pure.entry };
+    // a USER-named record (body-extract alias) serves only INSIDE its hosting scope span -
+    // the same positional discipline the per-binding alias entries get below. out of span the
+    // record is invisible: the name there is either unbound (a runtime ReferenceError a fold
+    // would mask) or a DIFFERENT binding - including the real global the alias name shadows
+    if (pure) {
+      const rec = ImportInjectorState.#servableImportRecord(pure, useStart);
+      if (rec) {
+        return { hint: rec.hint, source: rec.source, entry: rec.entry, userNamed: !!rec.userNamed, scopeSpan: rec.scopeSpan ?? null };
+      }
+    }
     const blind = this.#globalAliases.get(name);
     if (blind) return { hint: blind.hint, source: null, entry: null, aliasTrusted: true };
     const list = this.#aliasEntriesByName.get(name);
@@ -351,7 +418,9 @@ export default class ImportInjectorState {
     // behind the mid-traversal insertion; a USER-source binding-less alias (`({ structuredClone } =
     // globalThis)`) must stay INVISIBLE here - the name IS the global slot, and reporting a binding
     // would hide its reads from the global machinery (no substitution, no deopt gating)
-    if (this.#importInfoByName.has(name) || this.#globalAliases.get(name)?.minted) return true;
+    const pure = this.#importInfoByName.get(name);
+    if (pure && ImportInjectorState.#servableImportRecord(pure, useStart)) return true;
+    if (this.#globalAliases.get(name)?.minted) return true;
     const list = this.#aliasEntriesByName.get(name);
     if (!list?.length) return false;
     if (useStart === null) return true;
@@ -444,7 +513,12 @@ export default class ImportInjectorState {
   // {source, hint} pre saw. without it super-mapping (`class C extends MyPromise { super.try() }`)
   // regresses in post because `addPureImport` early-returns on existing entry before writing
   // into `#importInfoByName`
-  captureImportInfoByName() { return new Map(this.#importInfoByName); }
+  captureImportInfoByName() {
+    // sibling lists are mutable - clone them so post-phase appends don't alias pre's capture
+    return new Map([...this.#importInfoByName].map(([name, info]) => [
+      name, info.siblings ? { ...info, siblings: [...info.siblings] } : info,
+    ]));
+  }
   rehydrateImportInfoByName(captured) {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
   }

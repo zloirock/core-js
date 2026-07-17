@@ -220,7 +220,7 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // source so `bindingSymbolKey` can fold `obj[iterator]`. the shadow gate rejects a nested
         // same-name binding whose RHS is not Symbol (the name-keyed injector info is flat)
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
-          info, binding: b, scope, adapter, injector: getInjector(), boundName: name,
+          info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
         }) ? info.source : null;
         return {
           node: b.path.node, kind: b.kind, constantViolations, importSource,
@@ -251,7 +251,9 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // binding - it would pick up the hint past a reassignment and narrow the member over the
       // user's own value. usage-pure bails on any reassignment, so the blind user-alias hint bails too
       // a VERIFIED registration (complete original write set examined at pre-pass) may serve
-      // the lag fallback too - the declSpan/write dominance gate below still bounds the use
+      // the lag fallback too - the declSpan/write dominance gate below still bounds the use.
+      // a USER-named source record already arrives span-gated: `getBindingInfo` serves it only
+      // inside its hosting scope, so an out-of-scope unbound read never reaches this fallback
       const blindTrusted = info.source !== null || info.aliasTrusted || !!info.aliasWrite || !!info.aliasVerified;
       const blindHint = blindTrusted && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
       return {
@@ -490,8 +492,10 @@ export function createUsageVisitors({
   // destructure-only wrapper (every caller is inside handleDestructuring): a side-effecting
   // computed key resolves to its tail for identity; the emitter keeps the key in the pattern (it
   // runs once) and adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
+  // threads the key's own path: the key EVALUATES there, so the canon's flow gates
+  // (init-dominance, reaching-value) anchor at the capture instead of defaulting open
   function resolveKey(path, computed) {
-    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter });
+    return sharedResolveKey({ node: path.node, computed, scope: path.scope, adapter, path });
   }
 
   // `skipReferencedCheck` bypasses babel's `isReferencedIdentifier` for callers that have
