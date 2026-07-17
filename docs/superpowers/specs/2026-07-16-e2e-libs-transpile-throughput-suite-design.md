@@ -238,3 +238,10 @@ BrowserStack Automate; CI wiring.
 - **install (`.npmrc`):** the v4-alpha `core-js` pin is a prerelease that doesn't satisfy
   `@rsbuild/core`'s `peerOptional core-js ">= 3.0.0"`, so strict peer resolution errors. `.npmrc`
   sets `legacy-peer-deps=true` so `npm install` succeeds.
+- **three.js fixture (`tiers: ['throughput', 'runtime']`):** a real headless three.js scene project
+  — scene-graph + world transforms, an "animation" step, raycasting, geometry bounds, curve, and
+  vector/matrix/quaternion math — asserted by 16 deterministic numeric checks (no WebGL/DOM, so it
+  runs in node). It is both a large modern-ES **throughput** target (usage-global injects 154
+  polyfills vs rxjs's 95) and a **runtime** functional check: all 16 checks still pass after the ES5
+  down-compile + polyfill, under both Babel 7 and 8, proving the project stays functional after the
+  run — the requested "does the project still work after unplugin processes it" verification.
