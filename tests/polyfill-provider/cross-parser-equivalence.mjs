@@ -353,7 +353,44 @@ await runEquivalence('anchored SE-init: assignment-form cascade host',
   'let nv;\n({ self: { isSecureContext: nv } } = (eff(), globalThis));\nexport const r = nv;', USAGE_PURE);
 await runEquivalence('anchored SE-init: deferred chain-assign host',
   'let q3, customV;\nexport const { keys } = (({ Set: { customV } } = (q3 = globalThis)), Object);\nexport const r = [q3, customV];', USAGE_PURE);
+// a symbol-iterator leaf in a deferred host folds expression-shaped on both parsers -
+// the import sets (getIteratorMethod + the anchored ctor) must agree
+await runEquivalence('anchored SE-init: deferred symbol-iterator leaf',
+  'let it2;\nexport const { keys } = (({ WeakSet: { [Symbol.iterator]: it2 } } = globalThis), Object);\nexport const r = it2;', USAGE_PURE);
+await runEquivalence('anchored SE-init: for-init symbol-iterator leaf',
+  'let it, outS;\nfor (const { values } = (({ WeakSet: { [Symbol.iterator]: it } } = globalThis), Object); !outS;) outS = values;\nexport const r = [it, outS];', USAGE_PURE);
 await runEquivalence('anchored SE-init: for-init-buried host',
   'let q8, onx, out8;\nfor (const { keys: fk } = (({ self: { ononline: onx } } = (q8 = globalThis)), Object); !out8;) out8 = fk;\nexport const r = [q8, onx, out8];', USAGE_PURE);
+// full consume with an SE-bearing init: the prefix / chain write stays, the dead hop read
+// drops - the import sets (no globalThis for the prefix form) must agree
+await runEquivalence('anchored SE-init: deferred symbol leaf + SE prefix full consume',
+  'let it3;\nexport const { keys } = (({ WeakSet: { [Symbol.iterator]: it3 } } = (eff(), globalThis)), Object);\nexport const r = it3;', USAGE_PURE);
+await runEquivalence('anchored SE-init: for-init symbol leaf + chain full consume',
+  'let q9, i9, o9;\nfor (const { values } = (({ Map: { [Symbol.iterator]: i9 } } = (q9 = globalThis)), Object); !o9;) o9 = values;\nexport const r = [q9, i9, o9];', USAGE_PURE);
+// a DEFAULTED symbol leaf keeps the key-swap (symbol/iterator import, no getIteratorMethod)
+// on both parsers, for the identifier and the pattern flavor alike
+await runEquivalence('anchored symbol leaf: identifier default keeps key-swap',
+  'let itD;\nexport const { entries } = (({ WeakMap: { [Symbol.iterator]: itD = null } } = globalThis), Object);\nexport const r = [itD, entries];', USAGE_PURE);
+await runEquivalence('anchored symbol leaf: pattern default keeps key-swap',
+  'const { Promise: { [Symbol.iterator]: { bind: bnd } = {} } } = globalThis;\nexport const r = bnd;', USAGE_PURE);
+// a scope-shadowed `Symbol` keeps the user's own key verbatim (no iterator-helper import)
+await runEquivalence('anchored symbol leaf: shadowed Symbol stays verbatim',
+  'const Symbol = { iterator: "k" };\nconst { Map: { [Symbol.iterator]: sh } } = globalThis;\nexport const r = sh;', USAGE_PURE);
+// an SE-BEARING symbol key on an anchored host keeps the key-swap (no iterator-helper
+// import) for values and defaults alike
+await runEquivalence('anchored symbol leaf: SE-bearing key keeps key-swap',
+  'const { Set: { [(eff(), Symbol.iterator)]: e1 } } = globalThis;\nexport const r = e1;', USAGE_PURE);
+await runEquivalence('anchored symbol leaf: SE-bearing key + default keeps key-swap',
+  'const { WeakMap: { [(eff(), Symbol.iterator)]: e2 = null } } = globalThis;\nexport const r = e2;', USAGE_PURE);
+// a verbatim computed sibling + consumed static under one anchored ctor: the static stays
+// polyfill-wins on both parsers (the import sets carry the static entry)
+await runEquivalence('anchored mixed: computed sibling + consumed static',
+  'let av, fv;\nexport const { keys } = (({ Array: { [Symbol.asyncIterator]: av, from: fv } } = globalThis), Object);\nexport const r = [av, fv];', USAGE_PURE);
+// anchor-less deferred hosts fold via the full-consume path: a ctor alias binds the pure
+// ctor (no globalThis import), a rest sibling keeps the sentinel'd residual polyfill-wins
+await runEquivalence('deferred ctor-alias host full consume',
+  'let aM;\nexport const { values } = (({ Map: aM } = globalThis), Object);\nexport const r = [aM, values];', USAGE_PURE);
+await runEquivalence('deferred static + rest sibling keeps polyfill-wins',
+  'let fv2, rv2;\nexport const { entries } = (({ Promise: { allSettled: fv2, ...rv2 } } = globalThis), Object);\nexport const r = [fv2, rv2, entries];', USAGE_PURE);
 
 finish();
