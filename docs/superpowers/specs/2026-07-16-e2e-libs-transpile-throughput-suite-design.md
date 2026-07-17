@@ -238,6 +238,19 @@ BrowserStack Automate; CI wiring.
 - **install (`.npmrc`):** the v4-alpha `core-js` pin is a prerelease that doesn't satisfy
   `@rsbuild/core`'s `peerOptional core-js ">= 3.0.0"`, so strict peer resolution errors. `.npmrc`
   sets `legacy-peer-deps=true` so `npm install` succeeds.
+- **`pipeline.mjs` (size + time per stage):** the definitive report for "how big / how slow is each
+  stage" of the real IE11 build. Per (lib × method) it measures three cumulative rollup builds —
+  `[A]` library only (no transforms), `[B]` + Babel (ES5, no polyfills), `[C]` + unplugin (= IE11) —
+  capturing bytes and wall-clock at each, the raw source loaded (pre-tree-shaking), the injection
+  count, `[C]`'s Babel-vs-unplugin time split (instrumented transform hooks), and `[C]`'s minified +
+  gzip wire size. `throughput.mjs` stays a separate, unplugin-only diagnostic — its overhead number
+  is NOT the IE11 build cost (that's `[C]`, Babel + unplugin, which is larger; e.g. three/usage-global
+  is ~30 s total, of which unplugin ~22 s / 73 %, Babel ~5.7 s / 19 %). `build.mjs` exports
+  `makeBabelPlugin(babelVersion)` so `pipeline.mjs` and `runtimeBuild` share the exact Babel config.
+- **wire size:** raw bundles are unminified/uncompressed (the suite builds with `minify:false` to
+  measure processing). Real delivery is minify (~28 % of raw) + gzip (~8–11 % of raw); e.g.
+  three/usage-global 1.15 MB raw → ~97 KB gzip, rxjs/usage-global 446 KB → ~47 KB gzip.
+  `artifacts.mjs`'s `manifest.json` and `pipeline.mjs` both report raw / min / gzip.
 - **three.js fixture (`tiers: ['throughput', 'runtime']`):** a real headless three.js scene project
   — scene-graph + world transforms, an "animation" step, raycasting, geometry bounds, curve, and
   vector/matrix/quaternion math — asserted by 16 deterministic numeric checks (no WebGL/DOM, so it
