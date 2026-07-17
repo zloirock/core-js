@@ -470,6 +470,22 @@ export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 // already covered (e.g. `Symbol` in `Symbol.iterator in obj`)
 export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
 
+// @babel/generator drops the parens around a TS-cast callee under a type instantiation:
+// `((M.groupBy as any)<any>)([1])` reprints as `M.groupBy as any<any>([1])`, which re-parses -
+// and TS-strips - into a relational chain over a bare `any` identifier (runtime
+// ReferenceError). the drop reproduces on a plain parse/print round-trip with no plugin, so
+// restore an explicit paren node around the cast whenever this plugin's presence forces the
+// reprint. EVERY babel mode reprints (entry-global included), so each mounts this handler in
+// its OWN throwaway visitor map - babel's traverse/explode MUTATES visitor objects in place,
+// so a shared map object must never cross plugin instances. the pure guard-narrow emit
+// carries its own slot-local variant of the same restoration
+export function restoreInstantiationParens(path) {
+  const inner = path.node.expression;
+  if (inner.type === 'TSAsExpression' || inner.type === 'TSSatisfiesExpression' || inner.type === 'TSTypeAssertion') {
+    path.get('expression').replaceWith({ type: 'ParenthesizedExpression', expression: inner });
+  }
+}
+
 export function createUsageVisitors({
   adapter,
   isEntryAvailable,
@@ -584,10 +600,13 @@ export function createUsageVisitors({
   // emit paths leave it as a plain property read
   function emitPropUsage(meta, path) {
     // capture the key slots BEFORE dispatch: a usage-pure emit may REPLACE the ObjectProperty
-    // (extraction / rewrite), detaching `path.node` for the union pass below
+    // (extraction / rewrite), detaching `path.node` for the union pass below.
+    // `meta` may be null (an unresolvable - e.g. BRANCHING - computed key, or a mutated-static
+    // receiver): the primary dispatch skips, but the union still runs - the provider synthesizes
+    // its branch-key carrier there, so every producer bail keeps its reachable arm keys
     const { key: keyNode, computed } = path.node;
     const { scope } = path;
-    onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
+    if (meta) onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
     // usage-global reachable receiver / key union: each extra destructure target earns a
     // side-effect import beside the primary, mirroring the member funnel
     for (const extra of collectDestructureUnionCandidates({
@@ -601,8 +620,14 @@ export function createUsageVisitors({
     const innerKey = sharedResolveKey({
       node: path.node.key, computed: path.node.computed, scope: path.scope, adapter,
     });
-    if (!innerKey) return;
     const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
+    // a BRANCHING inner key rides a null-key carrier that KEEPS the resolved nested receiver,
+    // so the union pairs the arm keys with it as statics
+    // (`{ Array: { [cond ? "from" : "of"]: f } } = globalThis` reaches both statics)
+    if (!innerKey) {
+      return emitPropUsage(receiverKey !== null
+        ? { kind: 'property', object: receiverKey, key: null, placement: 'static' } : null, path);
+    }
     // a monkey-patched static is NOT a polyfillable destructure source (the same gate the
     // provider's init-meta builder applies): emit NO meta at all - the typeless form would
     // fall to the instance dispatcher. the prop stays raw and the receiver routes through
@@ -622,7 +647,7 @@ export function createUsageVisitors({
   // inner scope (a param shadowing the arg's name would swallow the receiver)
   function emitIifeParamDefaultDestructure(path, parent) {
     const key = resolveKey(path.get('key'), path.node.computed);
-    if (!key) return;
+    if (!key) return emitPropUsage(null, path);
     const desc = resolveFallbackReceiver(parent, parent.node);
     const argNode = desc?.callPath ? unwrapSafeSequenceTail(desc.rhsNode) : null;
     const receiverNode = chooseFallbackReceiverNode({
@@ -635,19 +660,21 @@ export function createUsageVisitors({
     const receiverScope = argWins ? desc.callPath.scope : parent.scope;
     const receiverPath = argWins ? desc.callPath : path;
     const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: receiverScope, adapter, path: receiverPath });
-    if (meta) emitPropUsage(meta, path);
+    emitPropUsage(meta, path);
   }
 
   function handleDestructuring(path) {
     const objectPattern = path.parentPath;
     if (!objectPattern.isObjectPattern()) return;
+    // ONE key resolution for every host branch below; the nested / iife-param funnels keep
+    // their own resolution on purpose (they anchor flow gates differently)
+    const key = resolveKey(path.get('key'), path.node.computed);
     const parent = objectPattern.parentPath;
     let initPath;
     if (parent.isVariableDeclarator()) {
       initPath = parent.get('init');
       if (!initPath?.node) {
-        const key = resolveKey(path.get('key'), path.node.computed);
-        if (key) emitPropUsage({ kind: 'property', object: null, key, placement: null }, path);
+        emitPropUsage(key ? { kind: 'property', object: null, key, placement: null } : null, path);
         return;
       }
     } else if (parent.isAssignmentExpression()) {
@@ -675,8 +702,7 @@ export function createUsageVisitors({
       // ObjectPattern as an ArrayPattern element) - walk up the ArrayPattern stack to the host
       // and descend Identifier-aliased ArrayExpression wrappers to find the leaf constructor;
       // the shared resolver peels the inner-default wrapper. fall through to typeless when none
-      const key = resolveKey(path.get('key'), path.node.computed);
-      if (!key) return;
+      if (!key) return emitPropUsage(null, path);
       const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
       // mutated static: no meta at all (a typeless meta would dispatch the instance helper)
       if (constructor && adapter.isMutatedStatic?.(constructor, key)) return;
@@ -690,8 +716,7 @@ export function createUsageVisitors({
       || parent.isRestElement()
       || parent.isCatchClause()) {
       // for-of / catch: unknown receiver, emit typeless meta
-      const key = resolveKey(path.get('key'), path.node.computed);
-      if (key) emitPropUsage({ kind: 'property', object: null, key, placement: null }, path);
+      emitPropUsage(key ? { kind: 'property', object: null, key, placement: null } : null, path);
       return;
     } else if (parent.isFunction()) {
       // IIFE: `(({from}) => {})(Array)` / `!function({from}) {}(Array)`. shared
@@ -702,19 +727,18 @@ export function createUsageVisitors({
       // get misclassified as IIFEs reading from the outer call's args
       const site = findIifeCallSite(parent, objectPattern.node);
       if (!site) return;
-      const key = resolveKey(path.get('key'), path.node.computed);
-      if (!key) return;
+      if (!key) return emitPropUsage(null, path);
       const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
       const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path });
-      if (meta) emitPropUsage(meta, path);
+      emitPropUsage(meta, path);
       return;
     } else return;
     if (!initPath?.node) return;
-    const key = resolveKey(path.get('key'), path.node.computed);
-    if (!key) return;
+    if (!key) return emitPropUsage(null, path);
     let meta = buildDestructuringInitMeta({ initNode: initPath.node, key, scope: initPath.scope, adapter, path });
     // null = monkey-patched static: the prop stays raw, the receiver substitutes elsewhere
-    if (!meta) return;
+    // (the funnel's union no-ops on a resolved single key, so routing null through is inert)
+    if (!meta) return emitPropUsage(null, path);
     // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
     // spread instead of in-place mutation: contract with buildDestructuringInitMeta
     // doesn't promise mutable meta, and a fresh object is cheap here
@@ -803,6 +827,7 @@ export function createUsageVisitors({
       handleDestructuring(path);
     },
     BinaryExpression: handleBinaryExpression,
+    TSInstantiationExpression: restoreInstantiationParens,
     // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so @babel/traverse
     // never descends into a legacy param decorator's expression on a constructor parameter-property
     // (`constructor(@dec(Array.from([1])) private p) {}`) and its polyfillable globals go undetected.

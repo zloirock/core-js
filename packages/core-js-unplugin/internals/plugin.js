@@ -879,6 +879,8 @@ export default function createPlugin(options) {
         // captures the closure deps below; public entries become local consts so existing
         // call sites stay unchanged
         const emitter = createPolyfillEmitter({
+          resolveNodeType: typeResolvers.resolveNodeType,
+          toHint: typeResolvers.toHint,
           canFuseWithOpenParen,
           code,
           enclosingExpressionStatementPath,

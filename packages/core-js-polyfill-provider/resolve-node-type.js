@@ -2208,6 +2208,13 @@ function createResolveNodeType(babelNodeType, t, {
   // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj)
   function resolvePropertyObjectType(path) {
     if (isMemberLike(path)) return resolveNodeType(path.get('object'));
+    // `key in obj` presence probe: the receiver whose prototype answers is the RIGHT operand
+    // (the instance-probe meta and its union extras dispatch with the BinaryExpression path).
+    // a resolved type narrows the method-keyed variants the same way a member read does -
+    // `'at' in []` must not fabricate es.string.at beside the array variant
+    if (path.node?.type === 'BinaryExpression' && path.node.operator === 'in') {
+      return resolveNodeType(path.get('right'));
+    }
     if (!t.isObjectProperty(path.node)) return null;
     const objectPattern = path.parentPath;
     if (!t.isObjectPattern(objectPattern?.node)) return null;
