@@ -955,6 +955,23 @@ const AW_SYMBOL_ITER = [
   // a symbol leaf under a single-ctor-key ANCHOR extracts off the anchored constructor
   { id: 'anchored-ctor-symbol', pre: 'const { Array: { [Symbol.iterator]: it } } = globalThis;', obs: 'typeof it' },
   { id: 'anchored-missing-able-symbol', pre: 'const { Map: { [Symbol.iterator]: it } } = globalThis;', obs: 'typeof it' },
+  // a DEFAULTED symbol leaf keeps the key-swap: the anchored ctor has no own iterator
+  // method, so the user default FIRES - an extraction dropping it left undefined
+  { id: 'anchored-symbol-ident-default', pre: 'const { WeakSet: { [Symbol.iterator]: it = "fb" } } = globalThis;', obs: 'it' },
+  { id: 'anchored-symbol-pattern-default', pre: 'const { Promise: { [Symbol.iterator]: { bind: b } = { bind: "pf" } } } = globalThis;', obs: 'b' },
+  // FULL consume with an SE-bearing init folds with the prefix exactly once ahead of the
+  // synth assign (the count proves it) and the dead hop read dropped
+  { id: 'anchored-symbol-fullconsume-se', pre: 'let it; ({ Map: { [Symbol.iterator]: it } } = (log.push(1), globalThis));', obs: 'typeof it' },
+  // a comment (carrying a stray paren) in the dropped pattern-to-init span must not leak
+  // into the by-parts compose - the paren-preserving slice erases comments first
+  { id: 'anchored-symbol-fullconsume-se-comment', pre: 'let it; ({ Set: { [Symbol.iterator]: it } } /* ( */ = (log.push(1), globalThis));', obs: 'typeof it' },
+  // a scope-shadowed `Symbol` makes the computed key the user's own PLAIN property read -
+  // extracting through the iterator helper reads the wrong slot ('constructor' is defined
+  // on the ctor where the iterator method is not)
+  { id: 'anchored-symbol-shadowed', pre: 'const Symbol = { iterator: "constructor" }; const { WeakSet: { [Symbol.iterator]: it } } = globalThis;', obs: 'typeof it' },
+  // an SE-BEARING symbol key on an anchored host keeps the key-swap - the effect runs
+  // exactly once through the kept key (the log count proves it)
+  { id: 'anchored-symbol-sekey-keyswap', pre: 'let it; ({ Set: { [(log.push(1), Symbol.iterator)]: it } } = globalThis);', obs: 'typeof it' },
   // a symbol key KEPT in an anchored residual re-keys to the polyfilled symbol binding
   // (a raw `Symbol` leak surfaced as an import-set mismatch)
   { id: 'anchored-residual-symbol-rekey', pre: 'const { Map: { [Symbol.iterator]: it }, Object: { fromEntries: g } } = globalThis;', obs: '[typeof it, typeof g]' },

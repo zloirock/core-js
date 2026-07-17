@@ -763,16 +763,20 @@ export function createDestructureEmitter({
       flattenDeclarationPath(path, path.scope);
       return;
     }
-    if (node.operator !== '=' || !isProxyHopHostShape(node.left, node.right) || isDisabled(node)) return;
+    if (node.operator !== '=' || isDisabled(node)) return;
     const peeled = peelToExpressionStatement(path);
     if (!peeled) {
       // no ExpressionStatement hosts the cascade, but a host buried in a consumed init's
       // LIFTED SE prefix still re-anchors: the lift re-emits the operand verbatim, so an
-      // expression-shaped rebuild composes into it by needle
+      // expression-shaped rebuild composes into it by needle. any ObjectPattern LHS may
+      // qualify (the twin's plan gates decide - a ctor-alias / pure-static host folds via
+      // the anchor-less full-consume path, not just the nested-hop shape)
+      if (node.left?.type !== 'ObjectPattern') return;
       const operand = liftedSePrefixOperandFor(node);
       if (operand) tryFlattenLiftedProxyHopHost(node, operand, path.scope, path);
       return;
     }
+    if (!isProxyHopHostShape(node.left, node.right)) return;
     cascadeAssignmentExpression({
       assignNode: node, stmtPath: peeled.exprStmt, scope: path.scope, outerSequencePrefix: peeled.sequencePrefix,
     });
@@ -792,6 +796,28 @@ export function createDestructureEmitter({
     return liftedSePrefixOperands.get(assignNode) ?? null;
   }
 
+  // parens of a dropped source span, with comments erased first so a paren inside one can't
+  // leak into the compose (the span between a pattern and its init holds only whitespace,
+  // `=`, comments and grouping parens)
+  function parensOutsideComments(src) {
+    let out = '';
+    for (let i = 0; i < src.length; i++) {
+      const two = src.slice(i, i + 2);
+      if (two === '/*') {
+        i = src.indexOf('*/', i + 2) + 1;
+        continue;
+      }
+      if (two === '//') {
+        const nl = src.indexOf('\n', i + 2);
+        if (nl === -1) break;
+        i = nl;
+        continue;
+      }
+      if (src[i] === '(' || src[i] === ')') out += src[i];
+    }
+    return out;
+  }
+
   // deferred-lift twin of `cascadeAssignmentExpression`: the assignment sits in a consumed
   // init's SE prefix (`const { of } = (({ Map: { customY } } = globalThis), Array);`), which
   // the consuming rewrite lifts as its own statement. an ANCHORED single-segment rebuild
@@ -802,17 +828,64 @@ export function createDestructureEmitter({
   function tryFlattenLiftedProxyHopHost(assignNode, operandNode, scope, path) {
     if (flattenedAssignments.has(assignNode)) return;
     // gate on the PLAN before rendering: `plannedAssignRewrite` registers the extractions'
-    // pure imports eagerly, so an extraction-bearing shape that the compose below would
-    // bail on anyway must not render at all - the discarded render left its orphan imports
-    // in the emit (`_getIteratorMethod` / ctor bindings with no surviving reference)
+    // pure imports eagerly, so a shape that the compose below would bail on anyway must not
+    // render at all - the discarded render left its orphan imports in the emit
+    // (`_getIteratorMethod` / ctor bindings with no surviving reference). every extraction
+    // kind composes expression-shaped below (a synth reads the anchored ctor, a static
+    // binds its pure import) - bailing statics to the default-injection channel demoted
+    // them to the weaker native-wins tier
     const plan = planDeclarator({ id: assignNode.left, init: assignNode.right }, scope, path);
-    if (!plan?.anchor || plan.outerProps.some(o => (o.extractions ?? []).length)) return;
+    // an anchor-less plan is admissible only when the render provably FULL-consumes (every
+    // prop consumed, no rest): no residual needs re-anchoring, the operand collapses to the
+    // extraction assigns (a ctor-alias / pure-static host)
+    const fullConsume = !!plan && plan.outerProps.every(o => o.kind === 'consumed')
+      && plan.pattern.properties.every(p => p.type !== 'RestElement');
+    if (!plan || (!plan.anchor && !fullConsume)) return;
     const { result, unusedIds } = plannedAssignRewrite(assignNode, scope, path);
-    if (!result.anchored || result.extractions.length || unusedIds.length || result.preservedSrc === null) return;
+    if (!result.anchored && result.preservedSrc !== null) return;
     const { tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
-    if (!receiverTail || !result.anchoredBareInitSrc) return;
+    if (!receiverTail) return;
+    // extraction assigns ride the SAME discarded-value slot as sequence continuations,
+    // matching the cascade's anchored order (residual first, extractions after)
+    const extractionSeq = result.extractions.map(e => e.patternLhs ? `(${ e.decl })` : e.decl);
+    if (result.preservedSrc === null) {
+      if (!extractionSeq.length) return;
+      flattenedAssignments.add(assignNode);
+      skipPatternExceptResidual(assignNode.left, result.residualTargets ?? [], result.keepVisibleNodes);
+      // full consume with an SE-free init: the whole host collapses to the assigns sequence
+      if (!mayHaveSideEffects(assignNode.right)) {
+        skipReceiverTailSubtree(receiverTail);
+        transforms.add(operandNode.start, operandNode.end, `(${ extractionSeq.join(', ') })`);
+        return;
+      }
+      // full consume with an SE-bearing init: compose BY PARTS so the effects stay verbatim
+      // at their own offsets (inner rewrites keep composing). the pattern drops together
+      // with its `=` - any parens between them survive, they wrap the KEPT right - and the
+      // dead anchored tail read swaps to the assigns riding the discarded-value slot, while
+      // a chain-assignment tail is kept (its setup must run) with the assigns appended
+      transforms.add(assignNode.left.start, assignNode.right.start,
+        parensOutsideComments(source.slice(assignNode.left.end, assignNode.right.start)));
+      if (isChainAssignment(receiverTail)) {
+        transforms.insert(receiverTail.end, `, ${ extractionSeq.join(', ') }`);
+      } else {
+        skipReceiverTailSubtree(receiverTail);
+        transforms.add(receiverTail.start, receiverTail.end, extractionSeq.join(', '));
+      }
+      return;
+    }
+    if (!result.anchoredBareInitSrc) return;
     flattenedAssignments.add(assignNode);
     skipPatternExceptResidual(assignNode.left, result.residualTargets ?? [], result.keepVisibleNodes);
+    // a rest sentinel on an assignment host is a plain LHS write - pre-declare it ahead of
+    // the enclosing statement (`var` hoists, so the lifted operand's own position is fine).
+    // sits AFTER every bail above so a declined render can't leave an orphan declaration
+    if (unusedIds.length) {
+      let stmt = path;
+      while (stmt.parentPath && stmt.parentPath.node.type !== 'Program'
+        && !stmt.parentPath.node.type.endsWith('BlockStatement')) stmt = stmt.parentPath;
+      transforms.insert(stmt.node.start, `var ${ unusedIds.join(', ') };\n`);
+    }
+    if (extractionSeq.length) transforms.insert(assignNode.end, `, ${ extractionSeq.join(', ') }`);
     // compose BY PARTS inside the lifted operand so an SE-bearing init stays verbatim at
     // its own offsets (sequence prefixes and a chain-assignment tail keep their inner
     // rewrites without baking): the LHS swaps to the rebuilt inner pattern; an SE-free
