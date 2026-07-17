@@ -67,6 +67,16 @@ export function run() {
   });
   check('throttleTime_keepsFirst', throttled, [1]);
 
+  // --- iterator-protocol syntax: for-of / spread over a non-array iterable. Babel down-compiles
+  // these to _createForOfIteratorHelper / _toConsumableArray, which reach for Symbol.iterator — so
+  // unplugin's post phase must inject es.symbol.iterator for the helper (the crux of the runtime tier).
+  const forOfSeen = [];
+  const forOfInput = [3, 1, 3, 2, 1]; // via a var: the Set dedups at runtime, without a literal-dup lint flag
+  for (const v of new Set(forOfInput)) forOfSeen.push(v);
+  check('for_of_set', forOfSeen, [3, 1, 2]);
+  const spreadInput = [1, 2, 2, 3];
+  check('spread_set', [...new Set(spreadInput)], [1, 2, 3]);
+
   // --- async operator pipelines ---
   return Promise.all([
     firstValueFrom(of(1, 2, 3, 4, 5).pipe(reduce((a, b) => a + b, 0))),
