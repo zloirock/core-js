@@ -5,6 +5,7 @@ import {
   findFunctionScopeVarInPath,
   getTypeArgs,
   kebabToCamel,
+  ownerWritePathIndex,
   singleQuasiString,
   spreadAtOrBefore,
   staleVarRedeclNodes,
@@ -1013,8 +1014,14 @@ function createResolveNodeType(babelNodeType, t, {
     let owner = usagePath;
     while (owner && !t.isProgram(owner.node) && !t.isFunction(owner.node) && !t.isStaticBlock?.(owner.node)) owner = owner.parentPath;
     if (!owner) return null;
+    // resolve the redecl paths through the shared per-owner write index - a dedicated
+    // owner-wide traverse per query re-walked the whole owner each time
+    const writeIndex = ownerWritePathIndex(owner);
     const redeclPaths = [];
-    owner.traverse({ VariableDeclarator(p) { if (gapNodes.has(p.node)) redeclPaths.push(p); } });
+    for (const node of gapNodes) {
+      const redeclPath = writeIndex.get(node);
+      if (redeclPath) redeclPaths.push(redeclPath);
+    }
     if (!redeclPaths.length) return null;
     const combined = [...binding.constantViolations ?? [], ...redeclPaths];
     const reaching = findLastStraightLineAssignment({ ...binding, constantViolations: combined }, usagePath);

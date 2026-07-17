@@ -354,6 +354,7 @@ function replacedDeclSlotInfo(bindingNode, info) {
   return span && bindingNode?.start >= span.start && bindingNode?.end <= span.end ? info : null;
 }
 
+const laggedBindingCache = new WeakMap();
 export function rebuildLaggedScopeBinding(path, name) {
   // hoisted `var` (any nesting depth, pattern-aware): the canonical var-scope walker - the
   // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
@@ -390,6 +391,13 @@ export function rebuildLaggedScopeBinding(path, name) {
     }
   }
   if (!declaratorNode || !ownerPath) return null;
+  // memoized per (owner PATH, name): the recovery is re-asked for the same lagged binding at
+  // every use site, and each miss re-traversed the whole owner (quadratic on a large scope).
+  // keyed on the traversal-scoped path object, so the cache dies with the traversal; member
+  // rewrites do not add or remove the USER writes this collects
+  let perName = laggedBindingCache.get(ownerPath);
+  if (!perName) laggedBindingCache.set(ownerPath, perName = new Map());
+  if (perName.has(name)) return perName.get(name);
   let declaratorPath = null;
   const violations = [];
   let shadowed = false;
@@ -433,8 +441,7 @@ export function rebuildLaggedScopeBinding(path, name) {
       if (up.node.argument?.type === 'Identifier' && up.node.argument.name === name) violations.push(up);
     },
   });
-  if (shadowed || !declaratorPath) return null;
-  return {
+  const rebuilt = shadowed || !declaratorPath ? null : {
     path: declaratorPath,
     identifier: declaratorNode.id,
     scope: ownerPath.scope,
@@ -442,6 +449,8 @@ export function rebuildLaggedScopeBinding(path, name) {
     constantViolations: violations,
     referenced: true,
   };
+  perName.set(name, rebuilt);
+  return rebuilt;
 }
 
 export const babelAdapter = createBabelAdapter();
