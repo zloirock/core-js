@@ -325,10 +325,12 @@ export function createPolyfillEmitter({
   enclosingExpressionStatementPath,
   isBodylessStatementBody,
   resolveGlobalPolyfill,
+  resolveNodeType,
   resolvePureOrGlobalFallback,
   resolveStaticInheritedMember,
   scopeTracker,
   skippedNodes,
+  toHint,
   transforms,
 }) {
   function isBareIdentifier(src) {
@@ -2088,6 +2090,10 @@ export function createPolyfillEmitter({
       right: node.right,
       isEntryNeeded,
       resolveFallback: m => resolvePureOrGlobalFallback(m, metaPath),
+      // typed-instance fold candidate: the receiver's resolved type hint (null for
+      // unknown / static-receiver / symbol shapes - the plan gates on it)
+      receiverHint: !meta.object && meta.key && !meta.symbolSourced
+        ? toHint(resolveNodeType(metaPath.get('right'))) : null,
     });
     if (plan.kind === 'noop') return;
     // queue a whole-node text replacement, re-prepending the harvested SE via comma so it still
