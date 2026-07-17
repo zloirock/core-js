@@ -1,6 +1,6 @@
 // One stripped-realm evaluation for the usage-global leg: a worker thread IS the realm (own
 // isolate, own globals, own module caches - and, unlike ShadowRealm, it dies with its memory:
-// realms leak unreclaimably at ~4.5MB each, which OOMs a full-corpus shard). Strips the
+// realms are never reclaimed, so a full-corpus shard OOMs on them). Strips the
 // manifest builtins FIRST, then imports the target module, computes its runtimeKey inside and
 // posts the key string back.
 import { runInThisContext } from 'node:vm';
@@ -27,8 +27,7 @@ for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(globalTh
   }
 }
 // `globalThis` is stripped WITH `Iterator`: usage-global must inject es.global-this for every
-// bare read on old targets, and a corpus-wide run proved the detection holds (91 extra armed
-// snippets, zero failures) - the injected module restores the binding before any body or
+// bare read on old targets, and the injected module restores the binding before any body or
 // rig-aliases read, since imports evaluate first. unlike the pure leg there is no rewrite to
 // shield the reference: a missed injection must throw here, which is the leg's whole point
 runInThisContext(buildStripScript(['Iterator', 'globalThis']));
