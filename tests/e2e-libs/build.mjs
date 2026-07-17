@@ -198,18 +198,24 @@ function babelSyntaxPlugin(core, preset) {
   };
 }
 
+// Public: the rollup Babel(syntax->ES5) transform for a given Babel major ('7' | '8'). Used by
+// runtimeBuild and by pipeline.mjs so both share the exact same Babel config.
+export function makeBabelPlugin(babelVersion = '7') {
+  const { core, preset } = babelToolchain(babelVersion);
+  return babelSyntaxPlugin(core, preset);
+}
+
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel
 // `babelVersion` ('7' | '8'). For usage-* methods pass a phase; entry-global ignores it. Ordering
 // matters: raw Rollup ignores unplugin's enforce:'post' field (enforce is a Vite/webpack-family
 // concept, not a raw-Rollup one), so transform order = array order. babel is listed FIRST so it
 // down-compiles to ES5, and unplugin runs LAST so its stdlib injection sees babel's helper output.
 export async function runtimeBuild(exerciseAbs, method, phase, babelVersion = '7') {
-  const { core, preset } = babelToolchain(babelVersion);
   const effPhase = method === 'entry-global' ? undefined : (phase ?? 'post');
   return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const build = await rollup({
       input: entry,
-      plugins: [babelSyntaxPlugin(core, preset), nodeResolve(), commonjs(), u('rollup', method, effPhase)],
+      plugins: [makeBabelPlugin(babelVersion), nodeResolve(), commonjs(), u('rollup', method, effPhase)],
       onwarn() { /* ignore bundler warnings */ },
     });
     try {
