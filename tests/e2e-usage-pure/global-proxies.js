@@ -537,4 +537,87 @@ QUnit.test('proxy-hop: SE-prefixed init folds the self hop and replays the effec
   assert.same(typeof v9, 'undefined');
   assert.same(sA, 'a');
   assert.same(sB, 'b');
+  // a symbol-iterator leaf in a buried host folds to the synth read off the anchored ctor
+  // (a WeakSet constructor is not iterable - undefined on any engine), with the residual
+  // sibling read first and the prefix effect exactly once
+  let it10, cWS10;
+  const preSym = calls;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
+  const { keys: symKeys } = (({ WeakSet: { [Symbol.iterator]: it10, totallyCustomKeyJ: cWS10 } } = (eff(), globalThis)), Object);
+  assert.same(typeof symKeys, 'function');
+  assert.same(typeof it10, 'undefined');
+  assert.same(typeof cWS10, 'undefined');
+  assert.same(calls, preSym + 1);
+  // FULL consume with an SE-bearing init: the prefix runs exactly once ahead of the synth
+  // assign, and a chain-assignment target keeps its write
+  let it11;
+  const preFull = calls;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
+  const { values: symVals } = (({ Map: { [Symbol.iterator]: it11 } } = (eff(), globalThis)), Object);
+  assert.same(typeof symVals, 'function');
+  assert.same(typeof it11, 'undefined');
+  assert.same(calls, preFull + 1);
+  let q12, it12;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host + chain INIT are the forms under test
+  const { entries: symEnts } = (({ Set: { [Symbol.iterator]: it12 } } = (q12 = globalThis)), Object);
+  assert.same(typeof symEnts, 'function');
+  assert.same(typeof it12, 'undefined');
+  assert.same(q12, globalThis);
+  // a DEFAULTED symbol leaf keeps the key-swap: the constructor has no own iterator method,
+  // so the user default FIRES (an extraction dropping the default would leave undefined)
+  let it13, bnd13;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
+  const { assign: symAsg } = (({ WeakMap: { [Symbol.iterator]: it13 = 'fallback' } } = globalThis), Object);
+  assert.same(typeof symAsg, 'function');
+  assert.same(it13, 'fallback');
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  ({ Promise: { [Symbol.iterator]: { bind: bnd13 } = { bind: 'patternFallback' } } } = globalThis);
+  assert.same(bnd13, 'patternFallback');
+  // a scope-shadowed `Symbol` keeps the user's own key: 'constructor' IS defined on the
+  // ctor where the iterator method is not - an extraction would read the wrong slot
+  {
+    const Symbol = { iterator: 'constructor' };
+    const { WeakSet: { [Symbol.iterator]: sh14 } } = globalThis;
+    assert.same(typeof sh14, 'function');
+  }
+  // an SE-BEARING symbol key on an anchored host keeps the key-swap: the effect runs
+  // exactly once through the kept key, values and defaults on raw-read semantics
+  let se15, se16;
+  const preKey = calls;
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  ({ WeakSet: { [(eff(), Symbol.iterator)]: se15 } } = globalThis);
+  assert.same(calls, preKey + 1);
+  assert.same(typeof se15, 'undefined');
+  // eslint-disable-next-line prefer-const -- the init-less `let` + destructuring WRITE is the form under test
+  ({ Map: { [(eff(), Symbol.iterator)]: se16 = 'keyFallback' } } = globalThis);
+  assert.same(calls, preKey + 2);
+  assert.same(se16, 'keyFallback');
+  // a consumed static beside a verbatim computed sibling binds the PURE implementation,
+  // not the (possibly buggy) native one
+  let av17, fv17, o17;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
+  for (const { getOwnPropertyDescriptor: g17 } = (({ Array: { [Symbol.asyncIterator]: av17, from: fv17 } } = globalThis), Object); !o17;) o17 = g17;
+  assert.same(typeof o17, 'function');
+  assert.same(typeof av17, 'undefined');
+  // the polyfill-vs-native TIER is unobservable here (the pure entry delegates to a
+  // compliant native), so the binding itself is what this locks; the tier is locked by
+  // the fixtures and the cross-parser import sets
+  assert.same(typeof fv17, 'function');
+  assert.same(fv17([7]).length, 1);
+  // a ctor-alias host buried in a consumed init folds to the pure ctor binding
+  let m18;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
+  const { getOwnPropertyNames: gop18 } = (({ Map: m18 } = globalThis), Object);
+  assert.same(typeof gop18, 'function');
+  const M18 = m18;
+  assert.same(new M18([[1, 2]]).get(1), 2);
+  // a REST sibling in a folded buried host: value locks only - this pipeline desugars the
+  // rest before the plugin sees it, so the sentinel-declaration guarantee is locked at the
+  // fixture level, not here
+  let fv19, rv19, ov19;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the buried assignment host is the form under test
+  for (const { defineProperty: dp19 } = (({ Promise: { allSettled: fv19, ...rv19 } } = globalThis), Object); !ov19;) ov19 = dp19;
+  assert.same(typeof ov19, 'function');
+  assert.same(typeof fv19, 'function');
+  assert.same(typeof rv19, 'object');
 });
