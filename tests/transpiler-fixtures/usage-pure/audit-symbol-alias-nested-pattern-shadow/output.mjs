@@ -1,3 +1,4 @@
+import _getIterator from "@core-js/pure/actual/get-iterator";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
@@ -31,3 +32,53 @@ let deep;
   }
 } = _Symbol);
 export const viaNestedAssign = [9][deep];
+
+// same-named aliases in SIBLING closures are separate bindings: EACH scope's consumer folds
+// off its own registration record (a flat first-write-wins registry served only the first
+// closure and lost every later fold on the target engine - read AND call shapes both fold)
+function siblingA() {
+  const iterator = _Symbol$iterator;
+  return typeof _getIteratorMethod([]);
+}
+function siblingB() {
+  const iterator = _Symbol$iterator;
+  return _getIterator([3, 4]).next().value;
+}
+export const viaSiblings = [siblingA(), siblingB()];
+
+// the same-name INNER shadow off a user object still reads the user value while the outer
+// same-file alias keeps its fold - the sibling records disambiguate positionally
+const outerIt = _Symbol$iterator;
+export const viaOuter = typeof _getIteratorMethod([]);
+function shadowedSibling() {
+  const userSymbol = {
+    iterator: 1
+  };
+  const {
+    iterator
+  } = userSymbol;
+  return ['a', 'b'][iterator];
+}
+export const viaShadowedSibling = shadowedSibling();
+
+// a binding holding a well-known-symbol VALUE (not the constructor) is NOT a Symbol source:
+// destructuring `iterator` OFF that value reads `(symbol).iterator` (undefined at runtime),
+// so the consumer must keep the raw read and the default - while a direct computed read of
+// the VALUE alias itself still folds (it IS the well-known key)
+function valueAliasHost() {
+  const Symbol = _Symbol$iterator;
+  const {
+    iterator: viaValue = 'fb'
+  } = Symbol;
+  return ['v'][viaValue];
+}
+export const viaValueAlias = valueAliasHost();
+const SymVal = _Symbol$iterator;
+export const viaValueRead = _getIteratorMethod([]);
+function judgeChannelHost() {
+  const {
+    iterator
+  } = SymVal;
+  return [1][iterator];
+}
+export const viaJudgeChannel = judgeChannelHost();
