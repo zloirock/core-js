@@ -136,6 +136,91 @@ QUnit.test('Symbol: pure-ctor destructure harvests a proxy-hop-key effect exactl
   assert.same(count, 1);
 });
 
+// a computed destructure key EVALUATES at the capture: flipping the key variable to 'Symbol'
+// AFTER the capture must not fold the alias chain - the captured binding holds the Array
+// constructor, so the consumer's default fires. live oracle: a wrong-value fold binds the
+// well-known symbol (never undefined) and the sentinel default never applies
+QUnit.test('Symbol.iterator: post-capture key flip to Symbol does not fold the alias chain', assert => {
+  const sentinel = { marker: true };
+  let key = 'Array';
+  const { [key]: Captured } = globalThis;
+  // eslint-disable-next-line no-useless-assignment -- the post-capture dead flip IS the case under test
+  key = 'Symbol';
+  const { iterator: viaPostFlip = sentinel } = Captured;
+  assert.same(Captured, Array);
+  assert.same(viaPostFlip, sentinel);
+});
+
+// the inverse flip captures the Symbol constructor; the later same-scope write cannot reach
+// the captured binding, so the chain folds and the iterator method stays live on the target
+QUnit.test('Symbol.iterator: post-capture key flip away from Symbol keeps the captured chain', assert => {
+  const sentinel = { marker: true };
+  let key = 'Symbol';
+  const { [key]: Captured } = globalThis;
+  // eslint-disable-next-line no-useless-assignment -- the post-capture dead flip IS the case under test
+  key = 'Array';
+  const { iterator: viaPreFlip = sentinel } = Captured;
+  assert.notSame(viaPreFlip, sentinel);
+  assert.notSame(viaPreFlip, undefined);
+  const iteratorMethod = [10, 11][viaPreFlip];
+  assert.same(typeof iteratorMethod, 'function');
+  assert.same(iteratorMethod.call([10, 11]).next().value, 10);
+});
+
+// a conditionally-initialized hoisted var key binds everywhere but assigns on one path: on
+// the untaken path the capture reads globalThis[undefined] and the consumer destructure must
+// throw natively - a fold would bind the well-known symbol and silently rescue it
+QUnit.test('Symbol.iterator: conditional var key capture keeps the native throw', assert => {
+  const sentinel = { marker: true };
+  const cond = false;
+  // eslint-disable-next-line no-var -- the hoisted conditional var IS the case under test
+  if (cond) var condKey = 'Symbol';
+  const { [condKey]: CondCaptured } = globalThis;
+  assert.same(CondCaptured, undefined);
+  assert.throws(() => {
+    const { iterator: viaCondVar = sentinel } = CondCaptured;
+    return viaCondVar;
+  }, TypeError);
+});
+
+// a multi-hop alias captures its source BEFORE the aliasing write: the hop holds undefined
+// and a member read off it must throw natively - a narrow would un-throw it
+QUnit.test('Symbol.iterator: alias hop captured before the aliasing write keeps the native throw', assert => {
+  // eslint-disable-next-line prefer-const -- the separate aliasing WRITE below is the case under test
+  let HopSource;
+  const HopAlias = HopSource;
+  ({ Symbol: HopSource } = globalThis);
+  assert.notSame(HopSource, undefined);
+  assert.same(HopAlias, undefined);
+  assert.throws(() => HopAlias.iterator, TypeError);
+});
+
+// the assignment-form constructor alias itself folds its consumer chain - the registered
+// write dominates the consumer read, so the iterator method stays live on the target
+QUnit.test('Symbol.iterator: assignment-form Symbol alias folds the consumer chain', assert => {
+  const sentinel = { marker: true };
+  let AssignedCtor;
+  // eslint-disable-next-line prefer-const -- the assignment-form aliasing write is the case under test
+  ({ Symbol: AssignedCtor } = globalThis);
+  const { iterator: viaAssigned = sentinel } = AssignedCtor;
+  assert.notSame(viaAssigned, sentinel);
+  assert.notSame(viaAssigned, undefined);
+  const iteratorMethod = [20, 21][viaAssigned];
+  assert.same(typeof iteratorMethod, 'function');
+  assert.same(iteratorMethod.call([20, 21]).next().value, 20);
+});
+
+// a for-init destructure host folds its in-body consumer like the block-hosted twin - the
+// iterator method must stay live on the target inside the loop body
+QUnit.test('Symbol.iterator: for-init destructure alias folds inside the loop body', assert => {
+  const collected = [];
+  for (const { iterator: viaForInit = 0 } = Symbol; collected.length < 1;) {
+    collected.push([30, 31][viaForInit]);
+  }
+  assert.same(typeof collected[0], 'function');
+  assert.same(collected[0].call([30, 31]).next().value, 30);
+});
+
 // a computed key that merely SPELLS 'Symbol.iterator' as a string is a plain property read,
 // NOT the well-known symbol - it must not route through the iterator-method helper. live
 // runtime oracle: fail-before compiled the call to a get-iterator helper that returns an

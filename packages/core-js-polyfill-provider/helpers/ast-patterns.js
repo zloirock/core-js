@@ -1075,7 +1075,7 @@ export function collectFunctionScopeVarWrites(path, name) {
 // VariableDeclaration is the `let`'s own lexical scope. extends the block atoms with the unbraced
 // Program, the loop heads (a for-head `let` scopes to the whole loop), and the switch body's
 // single block scope - composed from the lattice primitives, not re-listed
-const LET_SCOPE_HOST_TYPES = new Set([
+export const LET_SCOPE_HOST_TYPES = new Set([
   ...RUNTIME_BLOCK_TYPES,
   ...FOR_X_STATEMENT_TYPES,
   'Program',
@@ -1386,9 +1386,10 @@ function nodePrecedesUsage(node, readNode) {
 }
 
 // inverse direction for the usage-pure reachability gate: the write `node` lies textually STRICTLY
-// after the read. unknown positions -> false: pure can't prove the write is after the read, so bail
-function usagePrecedesNode(usagePath, node) {
-  return endsBeforeStart(usagePath.node, node, false);
+// after the read at `readNode` (the use node, or a multi-hop alias hop's read-site override).
+// unknown positions -> false: pure can't prove the write is after the read, so bail
+function usagePrecedesNode(readNode, node) {
+  return endsBeforeStart(readNode, node, false);
 }
 
 // core single-node domination check: does `node` lie on EVERY control-flow path reaching `usagePath`?
@@ -1467,17 +1468,23 @@ export function isGuardedAliasingWrite(binding) {
 // shared `nodeDominatesUsage` with `climb: true`, so an init captured from an OUTER scope by a
 // later-defined closure still counts. a declarator not located in any enclosing scope defaults to
 // dominating (it is the declaration)
-export function varInitDominatesUsage({ declaratorNode, usagePath, kind = null }) {
+export function varInitDominatesUsage({ declaratorNode, usagePath, usageNode = null, kind = null }) {
   // domination is a real question ONLY for hoisted `var` (a conditional `if (c) { var M = ... }`
   // binds everywhere but assigns on one path). a `let` / `const` read before its declarator
   // executes throws natively (TDZ), so a LEGAL use is always dominated - skip the walk. this
   // gate carries the hot-path cost: without it every clean const resolution paid a full
-  // owner-subtree scan (O(sites x N) on ordinary files)
+  // owner-subtree scan (O(sites x N) on ordinary files). `usageNode` overrides the read position
+  // like in the reachability mirrors: a destructure capture / alias hop reads the value there,
+  // so the init must dominate THAT point, not the eventual use (`const { [k]: S } = g; var k = 'x'`
+  // reads the hoisted undefined at the capture even though the declarator precedes the use)
   if (kind && kind !== 'var') return true;
-  if (!usagePath) return true;
+  // no position to prove dominance against: a hoisted `var` init may be conditional or sit
+  // after the read, and every pure caller of this gate rewrites on proof - bail the var kind
+  // (`kind === null` legacy callers keep the open default; their arms flat-bail earlier)
+  if (!usagePath) return kind !== 'var';
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return true;
-  const dominates = nodeDominatesUsage({ node: declaratorNode, usagePath, owner, climb: true });
+  const dominates = nodeDominatesUsage({ node: declaratorNode, usagePath, owner, climb: true, usageNode });
   return dominates === null ? true : dominates;
 }
 
@@ -1502,10 +1509,10 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usage
 }
 
 // per-node counterpart to nodeDominatesUsage for the SUBSTITUTE direction: does reassignment `node`
-// lie strictly AFTER `usagePath` within its OWN var-scope `owner`? a node beyond that boundary
-// (guards === null - a nested closure) could run before the read, so it does NOT qualify as after
-function nodeFollowsUsageInScope({ node, usagePath, owner }) {
-  return collectVarGuardsToDeclarator(owner.node, node) !== null && usagePrecedesNode(usagePath, node);
+// lie strictly AFTER the read at `readNode` within its OWN var-scope `owner`? a node beyond that
+// boundary (guards === null - a nested closure) could run before the read, so it does NOT qualify
+function nodeFollowsUsageInScope({ node, readNode, owner }) {
+  return collectVarGuardsToDeclarator(owner.node, node) !== null && usagePrecedesNode(readNode, node);
 }
 
 // SOUND gate for the SUBSTITUTE (usage-pure) direction: does the declarator-init value provably
@@ -1515,14 +1522,17 @@ function nodeFollowsUsageInScope({ node, usagePath, owner }) {
 // textually-later write before it) AND every reassignment sits in the read's OWN var-scope owner (a
 // write beyond it lives in a closure that may run earlier) textually STRICTLY after the read. no
 // reassignment -> the init trivially reaches. mirror of reassignmentDominatesUsage (global bails only
-// when the init is provably DEAD; pure resolves only when it is provably the LIVE value)
-export function noReassignmentReachesUsage({ reassignmentNodes, usagePath }) {
+// when the init is provably DEAD; pure resolves only when it is provably the LIVE value). `usageNode`
+// overrides the read position like in the mirror: an alias hop / destructure CAPTURE reads the value
+// there, so a same-scope write between the capture and the eventual use cannot reach the captured value
+export function noReassignmentReachesUsage({ reassignmentNodes, usagePath, usageNode = null }) {
   if (!usagePath) return false;
   if (!reassignmentNodes?.length) return true;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
-  if (nodeSitsInLoopRerunWithin(owner.node, usagePath.node)) return false;
-  return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, usagePath, owner }));
+  const readNode = usageNode ?? usagePath.node;
+  if (nodeSitsInLoopRerunWithin(owner.node, readNode)) return false;
+  return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, readNode, owner }));
 }
 
 // the RHS of the `=` assignment for a reassignment site, normalized across adapters: babel records
@@ -1804,10 +1814,16 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   // pairing sees the underlying array / object, like the direct-literal form
   rhs = followConstLiteralAlias(rhs, ctx);
   // a computed property key (`{ [k]: A }`) resolves through the read-side key canon when a ctx is
-  // supplied; the binding-blind static-name fallback covers literal keys for ctx-less callers
+  // supplied; the binding-blind static-name fallback covers literal keys for ctx-less callers.
+  // the key EVALUATES at the destructure site - anchor the canon's reaching-value analysis on
+  // the PATTERN (source positions survive rewrites), or a key reassigned AFTER the capture
+  // would resolve to its post-capture value: a wrong-value pairing
   function propKey(prop) {
     return ctx?.resolveKey
-      ? ctx.resolveKey({ node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path })
+      ? ctx.resolveKey({
+        node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter,
+        path: ctx.path, usageNode: ctx.usageNode ?? pattern,
+      })
       : propertyKeyName(prop);
   }
   // a nested pattern slot (`[[M]]` / `{ x: [M] }`) pairs against the slot's RHS positionally /
@@ -2069,35 +2085,38 @@ export function isCleanDestructureAliasBinding(binding) {
       .filter(node => node !== own && node !== own?.id).length
     : 0;
   const writes = (withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [])
-    // estree records a for-init declarator as a violation of ITSELF (the loop-reinit self,
-    // same exclusion `reassignmentNodesBeyondDeclarator` applies) - for a DESTRUCTURING
-    // declarator the recorded node is the bound identifier INSIDE the own pattern, so climb
-    // pattern shells to the declarator. a declaration is not a reassignment of itself
-    .filter(v => {
-      const node = violationNode(v);
-      if (node === own || node === own?.id) return false;
-      if (node?.type === 'Identifier' && v?.parentPath) {
-        for (let p = v.parentPath; p; p = p.parentPath) {
-          if (p.node === own) return false;
-          const type = p.node?.type;
-          if (type !== 'Property' && type !== 'ObjectProperty' && type !== 'ObjectPattern'
-            && type !== 'ArrayPattern' && type !== 'RestElement') break;
-        }
-      }
-      return true;
-    })
+    .filter(v => !isDeclaratorSelfViolation(v, own))
     .length;
   const total = Math.max(writes, canonicalWrites);
   return total === 0 || (total === 1 && !binding.path?.node?.init);
 }
 
+// estree-toolkit records a loop head's per-iteration rebind as a violation of the head's OWN
+// binding: a bare id head via the id node, a DESTRUCTURING declarator via the bound identifier
+// INSIDE its own pattern - climb pattern shells to the declarator to recognise the latter.
+// a declaration is not a reassignment of itself
+export function isDeclaratorSelfViolation(v, ownDeclarator) {
+  const node = violationNode(v);
+  if (node === ownDeclarator || node === ownDeclarator?.id) return true;
+  if (node?.type === 'Identifier' && v?.parentPath) {
+    for (let p = v.parentPath; p; p = p.parentPath) {
+      if (p.node === ownDeclarator) return true;
+      const type = p.node?.type;
+      if (type !== 'Property' && type !== 'ObjectProperty' && type !== 'ObjectPattern'
+        && type !== 'ArrayPattern' && type !== 'RestElement' && type !== 'AssignmentPattern') break;
+    }
+  }
+  return false;
+}
+
 // the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
-// estree-toolkit records a for-x head's per-iteration rebind as a violation of the head's OWN
-// binding via its id node - that is the declaration itself, not a reassignment, and counting it
-// sent every `for (const k in ...)` body read through the flow-sensitive walks
-function reassignmentNodesBeyondDeclarator(binding) {
-  return binding.constantViolations.map(violationNode)
-    .filter(node => node !== binding.node && node !== binding.node?.id);
+// counting the self-rebind sent every `for (const k in ...)` body read - and every for-init
+// DESTRUCTURED alias - through the flow-sensitive walks as "reassigned"
+export function reassignmentNodesBeyondDeclarator(binding) {
+  const own = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+  return binding.constantViolations
+    .filter(v => !isDeclaratorSelfViolation(v, own))
+    .map(violationNode);
 }
 
 // shared method-aware reassignment-bail decision for a resolver that has already found
@@ -2115,11 +2134,11 @@ export function reassignBailApplies({ binding, adapter, path, usageNode = null }
   const method = adapter?.method;
   if (method !== 'usage-global' && method !== 'usage-pure') return true;
   const reassignmentNodes = reassignmentNodesBeyondDeclarator(binding);
-  // usage-global threads `usageNode` (a multi-hop alias hop's read site) so a write after that read
-  // does not dominate; usage-pure keeps the flat reach check (bail-safe - a possibly-reaching write
-  // already declines resolution, so the read-site refinement is unnecessary there)
+  // both arms thread `usageNode` (an alias hop's / destructure capture's read site): a write after
+  // that read neither dominates it (global) nor reaches the value captured there (pure) - without
+  // the anchor, pure bails a provably-live init whose only writes flip the key AFTER the capture
   if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path, usageNode });
-  return !noReassignmentReachesUsage({ reassignmentNodes, usagePath: path });
+  return !noReassignmentReachesUsage({ reassignmentNodes, usagePath: path, usageNode });
 }
 
 // for the sibling resolvers that need a flow-sensitive reassignment check (not a flat
@@ -2402,22 +2421,31 @@ export function destructureReceiverSlot(node) {
 
 // walk a (possibly nested) ObjectPattern to find the keyPath leading to a leaf Identifier
 // named `name`. peels `AssignmentPattern` wrappers (`{key: id = default}`). literal-key
-// only (Identifier / StringLiteral / Literal); computed keys / non-literal property names
-// bail - the proxy-global resolution path that consumes this uses static key names. simpler
+// by default (Identifier / StringLiteral / Literal); an optional `ctx`
+// ({ resolveKey, scope, adapter }) resolves COMPUTED keys through the read-side key canon
+// (a const-bound `[k]` folds like the literal form; an SE-bearing key bails) - ctx-less
+// callers keep the literal-only behaviour, matching `patternSlotValues`' ctx idiom. simpler
 // counterpart to pattern-bindings.js's `findDestructuredKeyPath` which also resolves
-// computed-key bindings + ArrayPattern indices via cluster-private helpers
-export function objectPatternLiteralKeyPath(pattern, name) {
+// ArrayPattern indices via cluster-private helpers
+export function objectPatternLiteralKeyPath(pattern, name, ctx = null) {
   if (pattern?.type !== 'ObjectPattern') return null;
   for (const prop of pattern.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    if (prop.computed) continue;
-    const keyName = prop.key?.type === 'Identifier' ? prop.key.name
-      : (prop.key?.type === 'StringLiteral' || prop.key?.type === 'Literal') ? prop.key.value : null;
+    let keyName;
+    if (prop.computed) {
+      keyName = ctx?.resolveKey ? ctx.resolveKey({
+        node: prop.key, computed: true, scope: ctx.scope, adapter: ctx.adapter,
+        path: ctx.path ?? null, usageNode: ctx.usageNode ?? null, bailOnSideEffectKey: true,
+      }) : null;
+    } else {
+      keyName = prop.key?.type === 'Identifier' ? prop.key.name
+        : (prop.key?.type === 'StringLiteral' || prop.key?.type === 'Literal') ? prop.key.value : null;
+    }
     if (typeof keyName !== 'string') continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
     if (value?.type === 'Identifier' && value.name === name) return [keyName];
     if (value?.type === 'ObjectPattern') {
-      const inner = objectPatternLiteralKeyPath(value, name);
+      const inner = objectPatternLiteralKeyPath(value, name, ctx);
       if (inner) return [keyName, ...inner];
     }
   }

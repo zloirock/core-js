@@ -38,6 +38,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import {
+  assignmentAliasHintSoundAtRead,
   findNamespaceMemberValue,
   globalProxyMemberName,
   isUsableFallbackReceiverArg,
@@ -1129,7 +1130,10 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
     // dereference bails and the binding silently extracts off the polyfill stub (unbound at
     // runtime where native requires the constructor receiver)
     const ctorHint = binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(currentScope, current.name);
-    if (ctorHint && ctorHint !== current.name) {
+    // the hint's span gate ran against the HOST use; this hop READS at `readNode` - an
+    // assignment-form source written after that capture must not stub-narrow the hop
+    if (ctorHint && ctorHint !== current.name
+      && assignmentAliasHintSoundAtRead({ binding, adapter, readNode })) {
       current = { type: 'Identifier', name: ctorHint };
       break;
     }

@@ -386,6 +386,69 @@ await runEquivalence('anchored symbol leaf: SE-bearing key + default keeps key-s
 // polyfill-wins on both parsers (the import sets carry the static entry)
 await runEquivalence('anchored mixed: computed sibling + consumed static',
   'let av, fv;\nexport const { keys } = (({ Array: { [Symbol.asyncIterator]: av, from: fv } } = globalThis), Object);\nexport const r = [av, fv];', USAGE_PURE);
+// a CONSTANT-RESOLVED computed-key Symbol alias folds the downstream well-known-symbol
+// member read on both parsers (defaulted and plain consumers alike); a non-Symbol computed
+// alias never folds
+await runEquivalence('computed-key Symbol alias folds member read',
+  'const k = "Symbol";\nconst { [k]: S } = globalThis;\nconst { iterator = fb } = S;\nexport const r = arr[iterator];', USAGE_PURE);
+await runEquivalence('computed-key Symbol alias, plain consumer',
+  'const k = "Symbol";\nconst { [k]: S } = globalThis;\nconst { iterator: it } = S;\nexport const r = arr[it];', USAGE_PURE);
+// a provably-reassigned key (unconditional dominating write) resolves to the reaching
+// value on both parsers - the target engine gets its polyfill either way
+await runEquivalence('computed-key Symbol alias, dominating reassigned key',
+  'let k = "Array";\nk = "Symbol";\nconst { [k]: S } = globalThis;\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+// the key evaluates at the CAPTURE: a post-capture flip to a Symbol-name must not fold
+// (the captured binding holds Array), and a flip away from it must still fold - both
+// parsers anchor the reaching-value analysis at the destructure, not the eventual use
+await runEquivalence('computed-key alias, post-capture flip to Symbol stays raw',
+  'let k = "Array";\nconst { [k]: S } = globalThis;\nk = "Symbol";\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+await runEquivalence('computed-key Symbol alias, post-capture flip away still folds',
+  'let k = "Symbol";\nconst { [k]: S } = globalThis;\nk = "Array";\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+await runEquivalence('computed-key Symbol alias, write between capture and use folds',
+  'let k = "Array";\nk = "Symbol";\nconst { [k]: S } = globalThis;\nk = "Array";\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+// a hoisted-closure write called before the capture may run before the read: bail on both
+await runEquivalence('computed-key alias, hoisted closure key write stays raw',
+  'let k = "Symbol";\nf();\nconst { [k]: S } = globalThis;\nconst { iterator: it = fb } = S;\nexport const r = arr[it];\nfunction f() { k = "Array"; }', USAGE_PURE);
+// a conditionally-initialized hoisted var key holds the string on one path only - the untaken
+// path captures globalThis[undefined], so the dominance gate (anchored at the capture) bails
+await runEquivalence('computed-key alias, conditional var key stays raw',
+  'if (c) var k = "Symbol";\nconst { [k]: S } = globalThis;\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+await runEquivalence('computed-key alias, capture before hoisted key declarator stays raw',
+  'const { [k]: S } = globalThis;\nvar k = "Symbol";\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+// an assignment-form ctor alias folds its consumer chain off the verified registration hint
+await runEquivalence('assignment-form Symbol alias folds consumer chain',
+  'let S;\n({ Symbol: S } = globalThis);\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+// order negatives: reads captured BEFORE the aliasing write hold undefined and stay raw
+await runEquivalence('consumer before aliasing write stays raw',
+  'let S;\nconst { iterator: it = fb } = S;\n({ Symbol: S } = globalThis);\nexport const r = arr[it];', USAGE_PURE);
+await runEquivalence('alias hop captured before aliasing write stays raw',
+  'let T;\nconst S = T;\n({ Symbol: T } = globalThis);\nconst { iterator: it = fb } = S;\nexport const r = arr[it];', USAGE_PURE);
+await runEquivalence('proxy hop captured before aliasing write stays raw',
+  'let g;\nconst s = g;\n({ self: g } = globalThis);\nexport const r = s.Array.from(x);', USAGE_PURE);
+// a for-init destructure host folds like the block twin (the estree per-iteration self-rebind
+// record is the declaration, not a reassignment); an out-of-scope same-named unbound read is
+// a runtime ReferenceError the name-keyed registration must not serve
+await runEquivalence('for-init Symbol destructure folds its in-body consumer',
+  'for (const { iterator: it = fb } = globalThis.Symbol;;) { use(arr[it]); break; }', USAGE_PURE);
+await runEquivalence('out-of-scope read of a scoped Symbol alias stays raw',
+  'function f() {\n  const { iterator: x = 0 } = Symbol;\n  return x;\n}\nexport const r = [][x];', USAGE_PURE);
+// a fn-local alias named like the global must not mask the REAL global read outside its scope
+await runEquivalence('global-named local alias does not shadow the outer global',
+  'function f() {\n  const { iterator: Symbol } = globalThis.Symbol;\n  return Symbol;\n}\nexport const r = [1, 2][Symbol.iterator];', USAGE_PURE);
+// a well-known-symbol VALUE alias is not a Symbol source: destructuring off it stays raw
+await runEquivalence('value alias is not a Symbol source for its own destructure',
+  'function f() {\n  const { iterator: Symbol } = globalThis.Symbol;\n  const { iterator: it = fb } = Symbol;\n  return arr[it];\n}\nexport const r = f();', USAGE_PURE);
+// a NON-global pattern slot off the proxy surface must not classify as the proxy root
+await runEquivalence('plain destructured slot is not a proxy root',
+  'const { x } = globalThis;\nexport const r = x.Array.from(y);', USAGE_PURE);
+await runEquivalence('proxy-named destructured slot re-enters the surface',
+  'const { self: s } = globalThis;\nexport const r = s.Array.from(y);', USAGE_PURE);
+// a hoisted `var` alias in a labeled block serves its whole function - the span follows the hoist
+await runEquivalence('labeled-block var alias folds the post-block use',
+  'labeled: {\n  var { iterator: vl } = Symbol;\n}\nexport const r = [][vl];', USAGE_PURE);
+// a block-scoped ctor alias must not narrow the same-named unbound read after its block
+await runEquivalence('block-scoped ctor alias does not narrow the post-block read',
+  '{\n  let { Map: M3 } = globalThis;\n  use(M3.groupBy(x, f2));\n}\nexport const r = M3.groupBy(x, f2);', USAGE_PURE);
 // anchor-less deferred hosts fold via the full-consume path: a ctor alias binds the pure
 // ctor (no globalThis import), a rest sibling keeps the sentinel'd residual polyfill-wins
 await runEquivalence('deferred ctor-alias host full consume',
