@@ -1,5 +1,7 @@
+import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
+import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // a bare same-name `var` redeclaration writes NO value, but the scope trackers record a
 // phantom violation for it in parser-specific shapes (babel: the valueless declarator;
@@ -84,3 +86,36 @@ if (Math.random() > 2) {
   guardedAssign = _Symbol$iterator;
 }
 export const viaGuardedAssign = [][guardedAssign];
+
+// a for-init DESTRUCTURE host folds like the block-hosted twin: the per-iteration self-rebind
+// estree records for the head's own binding is the declaration, not a reassignment
+for (const viaForInitDestructure = _Symbol$iterator === void 0 ? 0 : _Symbol$iterator; Math.random() > 2;) {
+  _pushMaybeArray(export_).call(export_, _getIteratorMethod([]));
+  break;
+}
+
+// NEGATIVE: a for-of HEAD binding re-runs per iteration off dynamic iterable values - the
+// head's own destructure never judges as a stable Symbol alias
+for (const {
+  asyncIterator: viaForOfHead = 0
+} of [_Symbol]) {
+  _pushMaybeArray(export_).call(export_, [][viaForOfHead]);
+}
+
+// NEGATIVE: a same-named UNBOUND read outside the alias's hosting scope is a runtime
+// ReferenceError - the file-wide name-keyed registration must not serve it
+function scopedAlias() {
+  const scopedIt = _Symbol$iterator === void 0 ? 0 : _Symbol$iterator;
+  return _getIteratorMethod([]);
+}
+export const viaScoped = scopedAlias();
+export const viaOutOfScope = [][scopedIt];
+
+// a fn-local alias NAMED like the global must not shadow the REAL global elsewhere: the
+// outer well-known-symbol read still folds (its scope has no such binding)
+function globalNamedAlias() {
+  const Symbol = _Symbol$iterator;
+  return _getIteratorMethod([]);
+}
+export const viaGlobalNamedAlias = globalNamedAlias();
+export const viaRealGlobal = _getIteratorMethod([1, 2]);

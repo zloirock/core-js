@@ -527,7 +527,7 @@ export function buildNestedDestructurePlan({
         const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
           ? hostPattern.properties[0] : null;
         const key = prop ? sharedResolveKey({
-          node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true,
+          node: prop.key, computed: prop.computed, scope, adapter, path, bailOnSideEffectKey: true,
         }) : null;
         const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
           ? peelInnerDefault(prop.value) : null;
@@ -587,7 +587,7 @@ export function buildNestedDestructurePlan({
         while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
           const [prop] = effPattern.properties;
           const key = sharedResolveKey({
-            node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true,
+            node: prop.key, computed: prop.computed, scope, adapter, path, bailOnSideEffectKey: true,
           });
           if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key)) break;
           const inner = peelInnerDefault(prop.value);
