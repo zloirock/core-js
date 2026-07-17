@@ -228,10 +228,13 @@ BrowserStack Automate; CI wiring.
   majors can't share a `node_modules`) — matching the repo's `test-transpiling` convention of testing
   the babel-facing behaviour against both. `@rollup/plugin-babel@6` only supports `@babel/core@7`, so
   a small custom transform plugin runs the chosen Babel core (via `transformAsync`) instead. Note:
-  Babel 7.29 and 8.0 emit byte-identical ES5 for the seed exercise (their helpers are unchanged for
-  these constructs), so today the two runs are a parity/regression guard rather than two distinct
-  outputs; a real delta would surface for `for-of`/spread/generator-heavy code or a future Babel that
-  changes a helper.
+  Babel 7.29 and 8.0 emit **byte-identical** ES5 — verified empirically across the seed exercise and
+  standalone `for-of`/spread/generator/async/private-method snippets (Babel 8's differences from 7 are
+  config/defaults/dropped-options, not codegen). So the two runs are a parity/regression guard rather
+  than two distinct outputs; a real delta would surface only from a future Babel that changes a helper
+  or preset-env's transform selection. (The exercise's `for_of_set`/`spread_set` checks still add
+  value: they drive Babel's `_createForOfIteratorHelper`/`_toConsumableArray` → `Symbol.iterator`, so
+  the post-phase helper injection the runtime tier exists to test is actually exercised at runtime.)
 - **install (`.npmrc`):** the v4-alpha `core-js` pin is a prerelease that doesn't satisfy
   `@rsbuild/core`'s `peerOptional core-js ">= 3.0.0"`, so strict peer resolution errors. `.npmrc`
   sets `legacy-peer-deps=true` so `npm install` succeeds.
