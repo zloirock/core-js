@@ -496,6 +496,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
         const synthInfo = synthIdentity ?? getInjector()?.getBindingInfo(name, path?.node?.start ?? null) ?? null;
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
           info: synthInfo, binding: synth, scope, adapter, injector: getInjector(), boundName: name,
+          keyCtx: { resolveKey: sharedResolveKey, path },
         }) ? synthInfo.source : null;
         // babel hoists the nested-block `var` natively and reports the declarator's own scope for
         // it; opt the synthesized twin into the same key or the const-alias walkers would resolve
@@ -560,7 +561,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
       // whose RHS is not Symbol (the name-keyed injector info is flat)
       const aliasSymbolSource = isSymbolDestructureAliasBinding({
-        info, binding: b, scope, adapter, injector: getInjector(), boundName: name,
+        info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
       }) ? info.source : null;
       return {
         node: b.path.node,
@@ -958,17 +959,20 @@ export function createUsageVisitors({
   // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
   // resolves to its tail for identity; the emitter keeps the key in the pattern (it runs once) and
   // adds an inline default `= _Array$from`, so the static is polyfilled, not bailed
-  function resolveKey(node, computed, scope) {
-    return sharedResolveKey({ node, computed, scope, adapter });
+  // `path` anchors the key canon's flow gates (init-dominance, reaching-value) at the
+  // pattern holding the key - the key EVALUATES there; a pathless call defaults the
+  // dominance gate open and folds a conditionally-initialized key
+  function resolveKey(node, computed, scope, path = null) {
+    return sharedResolveKey({ node, computed, scope, adapter, path });
   }
 
-  function extractPropertyKey(propNode, scope) {
+  function extractPropertyKey(propNode, scope, path = null) {
     if (!propNode.computed) {
       return propNode.key.type === 'Identifier' ? propNode.key.name
         : adapter.isStringLiteral(propNode.key) ? propNode.key.value
           : null;
     }
-    return resolveKey(propNode.key, true, scope);
+    return resolveKey(propNode.key, true, scope, path);
   }
 
   // build meta for destructuring property: const { from } = Array, ({ from } = Array)
@@ -1022,7 +1026,7 @@ export function createUsageVisitors({
         // bare `{ Array: { from } } = X` shape (proxy-global init guarantees default never
         // fires, so it's transparent under "polyfill always wins")
         if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
-          const innerKey = extractPropertyKey(propNode, scope);
+          const innerKey = extractPropertyKey(propNode, scope, objectPattern);
           const constructor = innerKey
             ? sharedResolveNestedDestructureReceiver(parent.parentPath, adapter) : null;
           if (constructor) {
@@ -1033,7 +1037,7 @@ export function createUsageVisitors({
         // the AssignmentPattern is transparent, resolve via the array-wrapper resolver (which peels
         // it). mirrors babel-plugin's detect-usage ArrayPattern branch
         if (parent.parentPath?.node?.type === 'ArrayPattern' && parent.node.left === objectPattern.node) {
-          const innerKey = extractPropertyKey(propNode, scope);
+          const innerKey = extractPropertyKey(propNode, scope, objectPattern);
           const constructor = innerKey
             ? sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter) : null;
           if (constructor) {
@@ -1045,7 +1049,7 @@ export function createUsageVisitors({
         // nested pattern - shared `resolveNestedDestructureReceiver` walks outer-prop chain
         // up to the destructure host and returns the constructor name across proxy-global
         // and static-object descent shapes (see helper docstring)
-        const innerKey = extractPropertyKey(propNode, scope);
+        const innerKey = extractPropertyKey(propNode, scope, objectPattern);
         const constructor = innerKey ? sharedResolveNestedDestructureReceiver(parent, adapter) : null;
         if (constructor) {
           return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
@@ -1060,7 +1064,7 @@ export function createUsageVisitors({
         // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` - walk up the
         // ArrayPattern stack to the host and descend Identifier-aliased ArrayExpression
         // wrappers to find the leaf constructor
-        const innerKey = extractPropertyKey(propNode, scope);
+        const innerKey = extractPropertyKey(propNode, scope, objectPattern);
         if (!innerKey) break;
         const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
         if (constructor) {
@@ -1086,7 +1090,7 @@ export function createUsageVisitors({
       }
     }
 
-    const key = extractPropertyKey(propNode, scope);
+    const key = extractPropertyKey(propNode, scope, objectPattern);
     if (!key) return null;
     return buildDestructuringInitMeta({ initNode, key, scope: initScope ?? scope, adapter, path: initPath ?? parent });
   }
