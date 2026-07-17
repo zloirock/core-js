@@ -23,7 +23,9 @@ import { runtimeKey, serialize } from './serialize.mjs';
 export { serialize };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TMP = join(HERE, 'tmp');
+// the coordinator scopes each run to its own tmp subdirectory (DIFF_TMP) so concurrent runs
+// never race each other's files; a bare shard run (no coordinator) falls back to the shared root
+const TMP = process.env.DIFF_TMP ?? join(HERE, 'tmp');
 // `decorators-legacy` is harmless for non-decorator TS, so one parser config covers all TS snippets
 const TS_PARSER = { plugins: ['typescript', 'decorators-legacy'] };
 // strip TS to runnable JS; legacy decorators + class properties make decorated classes executable.
@@ -67,15 +69,21 @@ async function stripTypeScript(code) {
 }
 
 let counter = 0;
-// write a module to a fresh temp file (no dynamic-import cache reuse) and execute it in THIS realm
-// (full builtins). returns the observable result plus the file path, so the same file can later be
-// re-run in the stripped worker without re-transforming. the filename carries the PID: parallel
-// shard processes share `tmp/`, and a bare per-process counter would collide (shard A's `m0.mjs`
-// overwriting shard B's mid-import -> cross-contaminated results)
-async function evalModule(code, ts = false) {
+// write a module (TS stripped to runnable JS) to a fresh temp file - no dynamic-import cache
+// reuse. the filename carries the PID: parallel shard processes share `tmp/`, and a bare
+// per-process counter would collide (shard A's `m0.mjs` overwriting shard B's mid-import ->
+// cross-contaminated results). exported for the usage-global leg, whose modules run in
+// ShadowRealms instead of this realm
+export async function writeModule(code, ts = false) {
   await mkdir(TMP, { recursive: true });
   const file = join(TMP, `m${ process.pid }_${ counter++ }.mjs`);
   await writeFile(file, ts ? await stripTypeScript(code) : code);
+  return file;
+}
+// execute a module in THIS realm (full builtins). returns the observable result plus the file
+// path, so the same file can later be re-run in the stripped worker without re-transforming
+async function evalModule(code, ts = false) {
+  const file = await writeModule(code, ts);
   try {
     const mod = await import(pathToFileURL(file).href);
     return { result: { ok: true, r: mod.r, effects: mod.effects }, file };
