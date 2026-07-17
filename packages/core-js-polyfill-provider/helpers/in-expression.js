@@ -9,7 +9,21 @@ import {
 } from './ast-patterns.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
 
-export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback }) {
+// the fold discards BOTH operands whole (each replayed only through the structural SE harvest),
+// shared by the static-receiver and typed-instance-receiver branches below
+function foldPlan({ meta, left, right }) {
+  const rescue = new Set(meta.sideEffects);
+  const leadingSe = [
+    ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left)),
+    ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right), [], rescue),
+  ];
+  // defensive: a chain-root call the structural walk could not position (shape mismatch) keeps the
+  // old append slot rather than being dropped
+  for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
+  return { kind: 'fold', leadingSe, skip: [left, right] };
+}
+
+export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null }) {
   // symbol-sourced LHS (`Symbol.X in obj` / alias binding): polyfill the symbol entry.
   // Symbol.iterator rewrites to a get-iterator call (`call` shape); any other symbol keeps the
   // membership test with the binding swapped in. LHS may carry SE (computed-key sequence /
@@ -49,21 +63,23 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // which a fixed append/prepend slot could not reproduce when the object also has its own SE prefix.
   // `skip` names the discarded operand a text emitter marks skipped (an AST emitter drops it by
   // replacing the node); the rescued SE subtrees stay visitable, re-emitted by the replacement
+  // the fold replaces the WHOLE node with `true`, so BOTH operands are discarded - a text emitter must
+  // mark each skipped or a polyfillable subtree left in the LHS key (`(globalThis, 'from') in Array`)
+  // stays visitable and its rewrite overlaps the spliced-out region (an AST emitter drops both by
+  // replacing the node). rescued leadingSe subtrees are excluded from the skip - they are re-emitted
   if (meta.object) {
     if (!resolveFallback(meta).result) return { kind: 'noop' };
-    const rescue = new Set(meta.sideEffects);
-    const leadingSe = [
-      ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left)),
-      ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(right), [], rescue),
-    ];
-    // defensive: a chain-root call the structural walk could not position (shape mismatch) keeps the
-    // old append slot rather than being dropped
-    for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
-    // the fold replaces the WHOLE node with `true`, so BOTH operands are discarded - a text emitter must
-    // mark each skipped or a polyfillable subtree left in the LHS key (`(globalThis, 'from') in Array`)
-    // stays visitable and its rewrite overlaps the spliced-out region (an AST emitter drops both by
-    // replacing the node). rescued leadingSe subtrees are excluded from the skip - they are re-emitted
-    return { kind: 'fold', leadingSe, skip: [left, right] };
+    return foldPlan({ meta, left, right });
+  }
+  // an UNAMBIGUOUSLY typed receiver folds like a static host: every actual use of the probed
+  // method is substituted by the pure transform, so the polyfilled world's answer is `true`
+  // (`'flat' in []` mirrors `'from' in Array`). gates: a single resolved string key (branch /
+  // dynamic keys carry null), non-symbol provenance, an emitter-resolved receiver TYPE hint,
+  // and the (type, key) pair resolving to a needed pure entry. an UNKNOWN receiver must not
+  // fold off the Maybe-dispatch resolution - its runtime truth is genuinely engine-dependent
+  if (meta.key && !meta.symbolSourced && receiverHint
+    && resolveFallback({ kind: 'property', object: receiverHint, key: meta.key, placement: 'prototype' }).result) {
+    return foldPlan({ meta, left, right });
   }
   return { kind: 'noop' };
 }

@@ -59,6 +59,7 @@ import {
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
+  restoreInstantiationParens,
   rebuildLaggedScopeBinding,
   USAGE_VISITORS_IS_HANDLED,
   USAGE_VISITORS_RESET,
@@ -552,6 +553,10 @@ export default function plugin(api, options) {
           right: path.node.right,
           isEntryNeeded,
           resolveFallback: m => resolvePureOrGlobalFallback(m, path),
+          // typed-instance fold candidate: the receiver's resolved type hint (null for
+          // unknown / static-receiver / symbol shapes - the plan gates on it)
+          receiverHint: !meta.object && meta.key && !meta.symbolSourced
+            ? toHint(resolveNodeType(path.get('right'))) : null,
         });
         if (plan.kind === 'noop') return;
         // cloneNode keeps the harvested SE / arg subtrees independent of the replaced tree -
@@ -1500,6 +1505,10 @@ export default function plugin(api, options) {
               // object through manual pre-call + filtered traverse
               runEntryDetection(this.file.path, entryGlobalCallback);
               applyEntryDirectivePromotions(this.file.path);
+              // entry-global reprints the file like every babel mode but runs no usage
+              // traversal, so the instantiation paren restoration needs its own pass here.
+              // fresh visitor literal per call: traverse explodes the object in place
+              this.file.path.traverse({ TSInstantiationExpression: restoreInstantiationParens });
             }
             injector?.flush();
           }),
