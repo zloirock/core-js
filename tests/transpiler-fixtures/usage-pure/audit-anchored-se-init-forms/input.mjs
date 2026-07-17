@@ -37,11 +37,31 @@ for (const { Map: { groupBy: g2 } } = (({ self: { onlanguagechange: customY2 } }
 // stays verbatim (root substituted, effect once) - replayed slices are not re-folded
 let customFR, outFR;
 for (const { Promise: { customFR: fr } } = (({ self: { onoffline: customFR } } = globalThis), globalThis); !outFR;) outFR = fr;
-// an extraction-bearing buried host (a symbol-iterator leaf) bails the fold on a FOR-INIT
-// host in both emitters (no statement slot for the synth) - keyed verbatim, and the bail
-// must not leak the discarded render's imports
+// a symbol-iterator leaf in a buried host folds expression-shaped: the synth assign rides
+// the discarded-value slot, reading the iterator method off the anchored constructor
 let itF, outSF;
 for (const { getOwnPropertyNames: gopn } = (({ WeakSet: { [Symbol.iterator]: itF } } = globalThis), Object); !outSF;) outSF = gopn;
+// symbol leaf + residual sibling + SE prefix: residual reads first, synth assign after,
+// the effect exactly once
+let it4, cIX;
+export const { getPrototypeOf: gpo2 } = (({ Iterator: { [Symbol.iterator]: it4, customIX: cIX } } = (eff(), globalThis)), Object);
+// FULL consume with an SE-bearing init folds too: the prefix stays verbatim ahead of the
+// synth assign, the dead hop read drops
+let itQ, outQ;
+for (const { values: vq } = (({ Map: { [Symbol.iterator]: itQ } } = (eff(), globalThis)), Object); !outQ;) outQ = vq;
+// full consume over a chain-assignment: the chain target keeps its write, synth assign after
+let qC, itC2;
+export const { entries: eq } = (({ Set: { [Symbol.iterator]: itC2 } } = (qC = globalThis)), Object);
+// a DEFAULTED symbol leaf keeps the key-swap on every host family: the helper result can
+// be defined where the raw read is undefined - extracting would flip the default's side
+let itD2;
+export const { assign: asg } = (({ WeakMap: { [Symbol.iterator]: itD2 = null } } = globalThis), Object);
+// a PURE (literal) prefix on an SE-free init drops with the whole consumed operand
+let itP, outP;
+for (const { getOwnPropertyDescriptors: gpd } = (({ WeakSet: { [Symbol.iterator]: itP } } = (0, globalThis)), Object); !outP;) outP = gpd;
+// duplicate symbol leaves consume into TWO synth assigns in source order
+let dupA, dupB;
+export const { create: crt } = (({ Set: { [Symbol.iterator]: dupA, [Symbol.iterator]: dupB } } = globalThis), Object);
 // a rest sibling under the buried hop bails the fold (rest excludes the peel) - verbatim
 let onc, rst, outRS;
 for (const { getOwnPropertySymbols: gops } = (({ self: { onclick: onc, ...rst } } = globalThis), Object); !outRS;) outRS = gops;
@@ -56,10 +76,14 @@ const { globalThis: { RegExp: { customML } } } = (eff(), globalThis);
 const sC = sideA(), { Object: { fromEntries: fe } } = (eff(), globalThis), sD = sideB();
 // bodyless-if var host keeps the inline replay in the bodyless slot (effect stays conditional)
 if (cond) var { self: { oncut: bod } } = (eff(), globalThis);
+// bodyless-if assignment host with a DEFAULTED symbol leaf: the key-swap rebuild keeps the
+// slot bodyless (single-statement anchored shape)
+let bif;
+if (cond) ({ Iterator: { [Symbol.iterator]: bif = null } } = globalThis);
 // transparent wrappers around the SE-init peel: a TS cast and oxc-kept parens both fold
 const { self: { onblur: tb } } = ((eff(), globalThis) as any);
 const { self: { onfocus: pf } } = ((eff()), (globalThis));
 // marked NON-host SE operands in a for-init sink stay verbatim, each effect exactly once
 let outNH;
 for (const { getPrototypeOf: gpo } = ((eff(), other()), Object); !outNH;) outNH = gpo;
-export const r = [nav, q, loc, customB, w, groupBy, tryFn, customP, customC, nv2, q2, cr, ok, q8, onx, out8, customY2, outFC, customFR, outFR, itF, outSF, onc, rst, outRS, sA, onrs, sB, customEX, customML, sC, fe, sD, bod, tb, pf, outNH];
+export const r = [nav, q, loc, customB, w, groupBy, tryFn, customP, customC, nv2, q2, cr, ok, q8, onx, out8, customY2, outFC, customFR, outFR, itF, outSF, onc, rst, outRS, sA, onrs, sB, customEX, customML, sC, fe, sD, bod, tb, pf, outNH, it4, cIX, gpo2, itQ, outQ, qC, itC2, eq, itD2, asg, itP, outP, bif, dupA, dupB, crt];
