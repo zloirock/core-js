@@ -21,6 +21,7 @@
 import { getOrInitMap } from './base.js';
 import {
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
+  cachedContainerPaths,
   peeledLabelNames,
   peelLabeledStatementPath,
   unwrapExpressionChain,
@@ -304,9 +305,9 @@ export function createTypeofGuards({
     if (typeof current.key !== 'number') return null;
     const parent = current.parentPath;
     if (current.listKey === 'body' && SOURCE_ORDER_STATEMENT_HOST_TYPES.has(parent.node?.type)) {
-      return parent.get('body');
+      return cachedContainerPaths(parent, 'body');
     }
-    if (current.listKey === 'consequent' && t.isSwitchCase(parent.node)) return parent.get('consequent');
+    if (current.listKey === 'consequent' && t.isSwitchCase(parent.node)) return cachedContainerPaths(parent, 'consequent');
     return null;
   }
 
