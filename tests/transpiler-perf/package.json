@@ -1,0 +1,7 @@
+{
+  "name": "tests/transpiler-perf",
+  "type": "module",
+  "devDependencies": {
+    "three": "0.185.1"
+  }
+}
