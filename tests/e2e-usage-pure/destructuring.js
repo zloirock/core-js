@@ -2651,7 +2651,6 @@ QUnit.test('destructuring: tagged-template tag on a guarded alias static binds t
     let Q;
     // eslint-disable-next-line @stylistic/no-extra-parens -- the ternary-wrapped WRITE arms the guard
     (c ? ({ Promise: Q } = globalThis) : 0);
-    // eslint-disable-next-line no-sequences -- the sequence-detached TAG is the form under test
     return (0, Q.withResolvers)`x`;
   }
   assert.throws(() => viaDetachedTag(true), TypeError);
