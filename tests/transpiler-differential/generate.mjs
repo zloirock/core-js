@@ -1070,6 +1070,21 @@ function * generateAssignAliasReassign() {
   const crossFn = '(() => { let M; function w() { ({ Map: M } = globalThis); } void w; '
     + 'try { return typeof M.groupBy; } catch (e) { return "T:" + e.constructor.name; } })()';
   yield { ...snippet('assign-alias-reassign/cross-fn-refused', crossFn), strip: false };
+  // WRITE-ORDER: a read that CAPTURES (directly or through an alias hop) before the aliasing
+  // write runs pre-assignment - a narrow there would rescue the native throw; the post-write
+  // twin narrows. the out-of-scope row reads a same-named UNBOUND identifier (a runtime
+  // ReferenceError the file-wide name-keyed registration must not mask)
+  const ORDER = [
+    { id: 'order-direct-before', body: 'let M; let out; try { out = String(M.groupBy); } catch (e) { out = "T:" + e.constructor.name; } ({ Map: M } = globalThis); return out;' },
+    { id: 'order-hop-before', body: 'let T; const S = T; ({ Map: T } = globalThis); try { return String(S.groupBy); } catch (e) { return "T:" + e.constructor.name; }' },
+    { id: 'order-hop-after', body: 'let T; ({ Map: T } = globalThis); const S = T; return typeof S.groupBy;' },
+    { id: 'order-out-of-scope', body: 'function inner() { const { groupBy: g } = Map; return typeof g; } '
+      + 'try { return [inner(), String(g)].join(","); } catch (e) { return "T:" + e.constructor.name; }' },
+  ];
+  for (const c of ORDER) {
+    const body = `(() => { ${ c.body } })()`;
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
+  }
   // a REFUSED registration keeps the value swap (polyfill provision in write order) and leaves
   // member reads RAW - exact in ORDER and FLOW on every path: untaken throws on the undefined
   // binding exactly like untranspiled code, a reassigned alias keeps the user's value. trusted
