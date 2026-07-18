@@ -8,4 +8,5 @@ defineWellKnownSymbol('toPrimitive');
 
 // `Symbol.prototype[@@toPrimitive]` method
 // https://tc39.es/ecma262/#sec-symbol.prototype-@@toprimitive
+// @dependency: es.symbol.constructor
 defineSymbolToPrimitive();
