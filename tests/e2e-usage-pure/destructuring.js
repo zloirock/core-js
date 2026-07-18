@@ -1,5 +1,11 @@
 // Destructuring: const { method } = Constructor - ObjectPattern path in usagePure
 
+// standalone-post transform leg: detection ran on the fully-lowered text, where class static
+// fields are already `_createClass` + assignments - the last-wins container fold this test
+// asserts never fires there, and the extraction keeps its native-faithful behavior (an
+// unbound this-sensitive static throws). the fold itself stays locked by the other legs
+const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+
 QUnit.test('destructuring: const { from } = Array', assert => {
   const { from } = Array;
   assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
@@ -2993,7 +2999,7 @@ QUnit.test('dup static field: destructure resolves the last declaration', assert
 // a computed static-string key (`static ["N"]`) overrides an earlier plain field at runtime, so
 // the last-wins resolution must see through it - resolving the plain field would fold the wrong
 // static (Array has no `allSettled`, so the wrong fold would break at runtime)
-QUnit.test('dup static field: computed static-string key overrides the plain field', assert => {
+testUnlessDetectLowered('dup static field: computed static-string key overrides the plain field', assert => {
   class NS {
     static N = Array;
     static ['N'] = Promise;
