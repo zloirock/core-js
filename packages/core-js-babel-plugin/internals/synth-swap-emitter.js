@@ -61,6 +61,10 @@ export default function createSynthSwapEmitter({
   // node-identity key, not a string name. node-cloning sibling plugins MUST preserve receiver
   // identity through their transform; replacing the receiver node breaks the lookup at flush
   const synthSwapByReceiver = new WeakMap();
+  // registrations not yet applied: `apply` is a whole-program walk probing EVERY node
+  // against the WeakMap, so a file with nothing pending must skip it outright (the walk
+  // runs twice per file - end of pre-traverse and programExit)
+  let pendingSwapCount = 0;
 
   // ObjectPatterns CLAIMED by the destructure pipeline (a resolvable prop reached
   // `handleObjectPropertyResult`). the proxy-hop collapse defers only to a pattern something
@@ -230,6 +234,7 @@ export default function createSynthSwapEmitter({
         rescueSe,
       };
       synthSwapByReceiver.set(receiver, pending);
+      pendingSwapCount++;
     }
     pending.polyfills.set(key, { entry, hintName, instance });
   }
@@ -497,7 +502,7 @@ export default function createSynthSwapEmitter({
   // re-entry safe (called once at end of pre-traverse to outrun sibling-plugin clones,
   // again at programExit to catch helper-injected registrations from `reTraverseHelperBodies`)
   function apply(programPath) {
-    if (!programPath?.node) return;
+    if (!programPath?.node || !pendingSwapCount) return;
     programPath.traverse({
       enter(path) {
         const pending = synthSwapByReceiver.get(path.node);
@@ -569,6 +574,7 @@ export default function createSynthSwapEmitter({
         }
         path.replaceWith(replacement);
         pending.applied = true;
+        pendingSwapCount--;
         path.skip();
       },
     });

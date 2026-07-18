@@ -123,8 +123,40 @@ export default class ImportInjector extends ImportInjectorState {
     // is unreachable from the use, so hoist to the enclosing scope instead (matching unplugin's
     // enclosing-scope anchor); see #refUseEscapesScopeBlock for the two cases
     const target = this.#refUseEscapesScopeBlock(scope, useNode) ? scope.parent : scope;
-    target.push({ id });
+    this.#pushRefDeclarator(target, id);
     return id;
+  }
+
+  // append a `var <id>;` declarator to `target`'s scope. first ref per scope goes through
+  // babel's own `scope.push` (block-ensure / params-push semantics stay babel's); every
+  // later ref appends a declarator to the SAME hosting declaration directly and registers
+  // it through an INDEXED path get - babel's `push` re-materializes a path for every
+  // existing declarator on each call, quadratic on memo-dense files. a params-push landing
+  // (arrow expression body / IIFE FunctionExpression - no declaration to append to) is
+  // detected by the trailing param and recorded for the post-pass normalizer, falling back
+  // to per-ref `scope.push` for that scope
+  #declaredRefHosts = new Map();
+  #hasParamLandedRef = false;
+  #pushRefDeclarator(target, id) {
+    const host = this.#declaredRefHosts.get(target);
+    if (host?.node?.declarations && host.parentPath) {
+      // `id` goes in directly (no clone) - babel's own `push` binds the very identifier it
+      // was handed. NO per-ref `registerBinding`: the path it needs re-materializes every
+      // sibling declarator (`get('declarations.N')` walks the whole list - quadratic on
+      // memo-dense files), name collisions are guarded by the injector's own `usedNames`
+      // (not scope lookups), and `pruneUnusedRefs` re-crawls the scope at programExit
+      // before anything reads these bindings
+      host.node.declarations.push(this.#t.variableDeclarator(id));
+      return;
+    }
+    target.push({ id });
+    // where the ref ACTUALLY landed only the fresh binding knows: babel's `push` redirects
+    // internally (a switch/case scope hosts on the enclosing function, callable scopes may
+    // land the id as a trailing PARAM), so `target.path` is not the landing node
+    const bindingPath = target.getBinding(id.name)?.path;
+    const parent = bindingPath?.parentPath;
+    if (parent?.isVariableDeclaration()) this.#declaredRefHosts.set(target, parent);
+    else this.#hasParamLandedRef = true;
   }
 
   // true when the ref's use site is outside the block that `scope.push` would host its `var` in, so a
@@ -167,11 +199,17 @@ export default class ImportInjector extends ImportInjectorState {
   // only contains names this injector allocated. user-written `_ref` params never enter
   // `#refs` because `generateRefName` consults `scope.hasBinding` to skip them
   normalizeArrowRefParams() {
-    if (!this.#refs.size) return;
+    // the walk is needed only when at least one `scope.push` landed a ref OUTSIDE a var
+    // declaration (trailing param / any unlocatable landing). it stays a WHOLE-program
+    // traverse then: a later emission may CLONE a function that already carries pushed ref
+    // params (rescue re-emits run after the pushes), and a host list recorded at push time
+    // would miss the clone - the common case this gate serves is the zero-param-push file
+    if (!this.#hasParamLandedRef) return;
     const t = this.#t;
     const refNames = this.#refs;
     function normalize(path) {
-      const { params } = path.node;
+      const params = path.node?.params;
+      if (!params) return;
       let n = params.length;
       while (n > 0) {
         const p = params[n - 1];

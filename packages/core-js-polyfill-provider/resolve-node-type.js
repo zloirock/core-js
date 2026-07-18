@@ -1009,7 +1009,13 @@ function createResolveNodeType(babelNodeType, t, {
   // is a redecl - a recorded reassignment reaching instead returns null, leaving the caller's
   // recorded-violation branch (which handles `=` + destructure-assignment slots) to take over
   function findReachingStaleRedecl(binding, usagePath, name) {
-    const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name));
+    // declarator-shaped gap writes only: assignment-shaped writes already reach the race
+    // through the binding's (canonically merged) violations, and only a redecl declarator
+    // can win it (`reaching.node.type === 'VariableDeclarator'` below). without the filter
+    // every plain reassignment between decl and use paid the owner-wide write-path index
+    // build for a race the redecl could never win
+    const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name)
+      .filter(node => node.type === 'VariableDeclarator'));
     if (!gapNodes.size) return null;
     let owner = usagePath;
     while (owner && !t.isProgram(owner.node) && !t.isFunction(owner.node) && !t.isStaticBlock?.(owner.node)) owner = owner.parentPath;
