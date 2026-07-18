@@ -148,6 +148,23 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare test-builder
   ```
+- Transpiler plugins (`@core-js/babel-plugin`, `@core-js/unplugin`, `@core-js/polyfill-provider`) — shared fixture tests, cross-parser resolver, differential fuzzer, real-bundler integration and performance gates:
+  ```sh
+  npm run test-transpiling
+  ```
+  This is a composite of the individual runners below (run them separately to narrow down a failure):
+  ```sh
+  npm run test-polyfill-provider        # cross-parser type-resolver and detection tests
+  npm run test-babel-plugin             # babel-plugin shared transpiler fixtures (@babel/core@8, default)
+  npm run test-babel-plugin-unit        # babel-plugin internals (unit)
+  npm run test-babel-plugin-v7          # babel-plugin fixtures against @babel/core@7 (skip list in tests/babel-plugin-v7/skip.mjs)
+  npm run test-babel-plugin-unit-v7     # babel-plugin internals unit against @babel/core@7
+  npm run test-unplugin                 # unplugin shared transpiler fixtures
+  npm run test-unplugin-unit            # unplugin internals (unit)
+  npm run test-transpiler-differential  # 3-way native == babel == unplugin fuzzer + import-set parity + stripped-realm oracle
+  npm run test-transpiler-integration   # real bundlers (esbuild, webpack, Rspack, Rolldown, Rsbuild, Farm, Bun) across methods and phases, runtime-verified
+  npm run test-transpiler-perf          # performance gates (three.js bundles + synthetic reassignment-heavy stress); complexity-class discriminators
+  ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```sh
   npx run-s prepare bundle
