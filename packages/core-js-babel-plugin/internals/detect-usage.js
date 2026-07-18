@@ -73,9 +73,9 @@ function stringLiteralValue(node) {
 // scoped mutation pre-pass: the cheap shape gate runs first; only files that actually
 // monkey-patch pay for the path traverse + canonical receiver resolution. shares every
 // resolution step with the read side via `mutation-prepass` (provider)
-export function collectMutationPrePass(programPath, adapter) {
+export function collectMutationPrePass(programPath, adapter, census = null) {
   const mutated = new Set();
-  if (!hasMutationCandidateShapes(programPath.node)) return { mutated };
+  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(programPath.node))) return { mutated };
   const handleSite = createMutationSiteHandler({ adapter, mutated });
   programPath.traverse({
     // member visits classify destructure-LHS / for-x contexts; the HOST visits classify

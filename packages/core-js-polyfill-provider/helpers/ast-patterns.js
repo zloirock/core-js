@@ -2988,29 +2988,114 @@ export function mutatedStaticKey(object, key) {
   return `${ POSSIBLE_GLOBAL_OBJECTS.has(object) ? 'globalThis' : object }.${ key }`;
 }
 
+// --- Per-file census ---
+
+// node types that introduce a new `var`-scope boundary. the census `atTopLevel` frame flag
+// drops when descending into them - unplugin's orphan-ref classifier keys on it (a `var _ref;`
+// rehydrated at module top hoists through plain blocks but never past these), and the census
+// driver computes it once for every reducer
+export const SCOPE_REBINDING_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassDeclaration',
+  'ClassExpression',
+  'ClassMethod',
+  'ClassPrivateMethod',
+  'MethodDefinition',
+  // ES2022 class `static { ... }` has its own var-scope; `var` inside doesn't leak to the class
+  'StaticBlock',
+  // TS namespaces and enums compile to IIFEs - their bodies are var-scopes, so a `_ref = X`
+  // inside `namespace N { ... }` / an enum initializer is never the plugin's module-top-level
+  // emission (mirrors the var-scope treatment `varScopeAnchor` gives TSModuleBlock)
+  'TSModuleDeclaration',
+  'TSEnumDeclaration',
+]);
+
+export function isScopeRebinding(node) {
+  return SCOPE_REBINDING_TYPES.has(node.type);
+}
+
+// ONE full-file raw walk driving every per-file census reducer. each reducer keeps its own
+// per-node logic and closure state in its home module ({ visit(node, frame), result() });
+// the driver owns only the traversal. every reducer output is an order-insensitive set /
+// flag, so one shared traversal order serves all of them - the point is collapsing the
+// N independent whole-file scans (name reservation, mutation / ctor-alias / minifier
+// shape gates) into a single pass. frames carry the structural parent type (transparent
+// wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
+// classifier distinguishes emit positions by
+export function collectFileCensus(programNode, reducers) {
+  const stack = [{ node: programNode, parentType: null, atTopLevel: true }];
+  while (stack.length) {
+    const frame = stack.pop();
+    const { node } = frame;
+    if (Array.isArray(node)) {
+      for (let i = node.length - 1; i >= 0; i--) {
+        stack.push({ node: node[i], parentType: frame.parentType, atTopLevel: frame.atTopLevel });
+      }
+      continue;
+    }
+    if (!isASTNode(node)) continue;
+    for (const reducer of reducers) reducer.visit(node, frame);
+    const atTopLevel = frame.atTopLevel && !isScopeRebinding(node);
+    const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? frame.parentType : node.type;
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
+      if (Array.isArray(value) || isASTNode(value)) stack.push({ node: value, parentType, atTopLevel });
+    }
+  }
+  const census = {};
+  for (const reducer of reducers) Object.assign(census, reducer.result());
+  return census;
+}
+
 // every user-spelled member-key name on an Identifier-rooted chain: an alias / TS-wrapped
 // root may denote the global object (`const g = globalThis; g._ref`, `(globalThis as
 // any)._ref`), and a top-level `var <name>` temp in script output IS the `globalThis.<name>`
 // storage - a temp write would clobber the user's slot. computed string / single-quasi keys
 // fold through the canonical member-key resolver. node-only walk (no scopes): the
 // shadow-blind over-approximation also reserves plain-object keys, which only shifts temp
-// numbering and matches unplugin's whole-file identifier scan
-export function collectUserMemberKeyNames(programNode) {
-  const names = new Set();
-  walkAstChildren(programNode, function collect(node) {
-    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+// numbering
+export function memberKeyNamesReducer() {
+  const memberKeyNames = new Set();
+  return {
+    visit(node) {
+      if (node.type !== 'MemberExpression' && node.type !== 'OptionalMemberExpression') return;
       const key = memberKeyName(node);
-      if (key !== null) {
-        let root = unwrapRuntimeExpr(node.object);
-        while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-          root = unwrapRuntimeExpr(root.object);
-        }
-        if (root?.type === 'Identifier') names.add(key);
+      if (key === null) return;
+      let root = unwrapRuntimeExpr(node.object);
+      while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+        root = unwrapRuntimeExpr(root.object);
       }
+      if (root?.type === 'Identifier') memberKeyNames.add(key);
+    },
+    result() { return { memberKeyNames }; },
+  };
+}
+
+export function collectUserMemberKeyNames(programNode) {
+  return collectFileCensus(programNode, [memberKeyNamesReducer()]).memberKeyNames;
+}
+
+// does any statement list carry the minifier sequence-destructure shape? drives the split
+// pre-pass gate - most files have none and skip the path-materializing walk entirely
+export function minifierShapesReducer() {
+  let hasMinifierShapes = false;
+  function scanList(statements) {
+    if (!hasMinifierShapes && Array.isArray(statements)) {
+      hasMinifierShapes = statements.some(stmt => getMinifierSequenceDestructureExpressions(stmt) !== null);
     }
-    walkAstChildren(node, collect);
-  });
-  return names;
+  }
+  return {
+    visit(node) {
+      if (hasMinifierShapes) return;
+      if (STATEMENT_LIST_HOST_TYPES.has(node.type)) scanList(node.body);
+      else if (node.type === 'SwitchCase') scanList(node.consequent);
+    },
+    result() { return { hasMinifierShapes }; },
+  };
 }
 
 // the plain slot names of a mutated set's `globalThis.<name>` keys - the user-owned

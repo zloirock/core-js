@@ -9,6 +9,7 @@
 // (the overwhelming majority) pay nothing beyond the walk. The plugins own the scoped
 // traversal (each dialect collects sites with live paths) and feed `resolveMutationSite`.
 import {
+  collectFileCensus,
   followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
@@ -153,7 +154,9 @@ function gatherPatternMemberTargets(pattern, out) {
   }
 }
 
-export function hasMutationCandidateShapes(programNode) {
+// census-reducer form: the per-node collection runs from the shared file-census walk, the
+// verdict is computed once in `result` over everything collected
+export function mutationShapesReducer() {
   const targets = [];
   const valueBound = new Set();
   // name -> container nodes: the gate checks the chain's FIRST key against the container's
@@ -179,10 +182,7 @@ export function hasMutationCandidateShapes(programNode) {
       }
     }
   }
-  const work = [programNode];
-  while (work.length) {
-    const node = work.pop();
-    if (!node || typeof node !== 'object') continue;
+  function visit(node) {
     switch (node.type) {
       case 'AssignmentExpression': {
         const left = unwrapRuntimeExpr(node.left);
@@ -270,23 +270,30 @@ export function hasMutationCandidateShapes(programNode) {
       }
       default:
     }
-    walkAstChildren(node, child => work.push(child));
   }
-  if (!targets.length) return false;
-  for (const target of targets) {
-    // a value-fan mutation target (`(cond ? Array : Map).from`, `(a || globalThis).Promise`,
-    // `(h = Array).of`, `(c ? globalThis : self).Array.of`) reaches a built-in through any branch -
-    // collectGateRoots fans the same composites the scoped pass resolves, keeping the cheap gate a
-    // SUPERSET; otherwise the monkey-patch escapes the gate and usage-pure substitutes over it
-    for (const root of collectGateRoots(target, [])) {
-      if (root.callRooted) return true;
-      if (root.name[0] >= 'A' && root.name[0] <= 'Z') return true;
-      if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
-      if (valueBound.has(root.name)) return true;
-      if (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey)) return true;
+  function result() {
+    for (const target of targets) {
+      // a value-fan mutation target (`(cond ? Array : Map).from`, `(a || globalThis).Promise`,
+      // `(h = Array).of`, `(c ? globalThis : self).Array.of`) reaches a built-in through any branch -
+      // collectGateRoots fans the same composites the scoped pass resolves, keeping the cheap gate a
+      // SUPERSET; otherwise the monkey-patch escapes the gate and usage-pure substitutes over it
+      for (const root of collectGateRoots(target, [])) {
+        if (root.callRooted) return { hasMutationShapes: true };
+        if (root.name[0] >= 'A' && root.name[0] <= 'Z') return { hasMutationShapes: true };
+        if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return { hasMutationShapes: true };
+        if (valueBound.has(root.name)) return { hasMutationShapes: true };
+        if (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey)) {
+          return { hasMutationShapes: true };
+        }
+      }
     }
+    return { hasMutationShapes: false };
   }
-  return false;
+  return { visit, result };
+}
+
+export function hasMutationCandidateShapes(programNode) {
+  return collectFileCensus(programNode, [mutationShapesReducer()]).hasMutationShapes;
 }
 
 // any of the name's containers statically carries the chain's first key (object property or
