@@ -2,25 +2,15 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
+import { declaresRequireBinding } from '../helpers/ast-patterns.js';
 import { normalizeImportSource } from '../helpers/path-normalize.js';
-import { bindsModuleDefault, unwrapTransparentSeq } from './resolve.js';
-
-// extract a static string from a node that's either a StringLiteral or a no-interpolation
-// TemplateLiteral. without TemplateLiteral support, `require(\`core-js/actual/promise\`)`
-// (any tagless single-quasi template) silently bypasses entry detection
-function extractStaticString(node, adapter) {
-  if (!node) return null;
-  // peel paren / TS wrappers so `require((`core-js/...`))` (oxc keeps the ParenthesizedExpression
-  // that babel strips) and `require('core-js/...' as const)` reach the literal check on both
-  // parsers. SequenceExpression is deliberately NOT peeled here: `adapter.getStringValue` already
-  // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
-  // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
-  // stays parser-symmetric without peeling SE at this layer
-  const inner = peelSkippableWrappers(node);
-  if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
-  return adapter.getStringValue(inner);
-}
+import {
+  bindsModuleDefault,
+  extractStaticString,
+  isTypeOnlyImportKind,
+  requireCallSource,
+  unwrapTransparentSeq,
+} from './resolve.js';
 
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
@@ -33,28 +23,6 @@ function importExpressionSource(node, adapter) {
     return extractStaticString(inner.arguments?.[0], adapter);
   }
   return null;
-}
-
-// `require('core-js/...')` value-call -> source string, or null. peels webpack `(0, require)(...)`
-// (SequenceExpression callee tail) and paren / TS / chain wrappers (`(require as any)('...')`,
-// `require!('...')`); accepts optional `require?.(...)` on both parsers. a locally-shadowed
-// `require` (looked up via `scope` / `adapter`) is ignored. shared by `getEntrySource` (statement
-// form) and `scanExistingCoreJSImports` (the `var X = require(...)` pure-import shape)
-function requireCallSource(node, adapter, scope) {
-  // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
-  // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
-  // and re-emitting a duplicate import for an already-provided module
-  node = unwrapTransparentSeq(node);
-  if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
-    || node.arguments?.length !== 1) return null;
-  let callee = unwrapTransparentSeq(node.callee);
-  if (callee?.type === 'SequenceExpression') {
-    const tail = callee.expressions?.at(-1);
-    if (tail) callee = unwrapTransparentSeq(tail);
-  }
-  if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
-  if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
-  return extractStaticString(node.arguments[0], adapter);
 }
 
 // extract entry source from an AST node (ImportDeclaration / require() / await import())
@@ -117,14 +85,6 @@ function matchEntrySubpath(source, pkgs, subPrefix) {
     return canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
   }
   return null;
-}
-
-// both `import type X` / `import { type X }` and Flow's `import typeof X` / `import { typeof X }`
-// erase before runtime, so a name they bind must never register as a dedup target - a later real
-// use rewritten onto the erased binding throws ReferenceError. only babel parses Flow (`typeof`),
-// but the predicate is shared so both import-kind sites stay in lockstep
-function isTypeOnlyImportKind(kind) {
-  return kind === 'type' || kind === 'typeof';
 }
 
 function defaultSpecifierNames(node) {
