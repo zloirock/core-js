@@ -18,7 +18,10 @@ echo(chalk.green('tests indexes generated'));
 await Promise.all([
   ['unit-global/index', 'unit-global'],
   ['unit-pure/index', 'unit-pure'],
-  ['e2e-usage-pure/index', 'e2e-usage-pure', 'webpack.usage-pure.config.js'],
+  ['e2e-usage-pure/index', 'e2e-usage-pure-babel', 'webpack.usage-pure-babel.config.js'],
+  ['e2e-usage-pure/index', 'e2e-usage-pure-unplugin-pre', 'webpack.usage-pure-unplugin-pre.config.mjs'],
+  ['e2e-usage-pure/index', 'e2e-usage-pure-unplugin-pre-post', 'webpack.usage-pure-unplugin-pre-post.config.mjs'],
+  ['e2e-usage-pure/index', 'e2e-usage-pure-unplugin-post', 'webpack.usage-pure-unplugin-post.config.mjs'],
 ].map(([entry, output, config]) => $`webpack \
   --entry ../../tests/${ entry }.js \
   --output-filename ${ output }.js \

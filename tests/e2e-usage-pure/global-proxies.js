@@ -1,4 +1,11 @@
 // Global proxies: globalThis - accessing globals and statics through it
+
+// standalone-post transform leg: detection ran on the fully-lowered text, where babel already
+// rewrote optional chains / chain-assign inits into temp-var ternaries - the proxy-hop fold
+// these tests assert never fires there and the code keeps its native-faithful behavior
+// (a raw `.self` hop read throws in Node). the fold itself stays locked by the other legs
+const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+
 // === globalThis ===
 QUnit.test('globalThis.Promise', assert => {
   const async = assert.async();
@@ -282,7 +289,7 @@ QUnit.test('global-proxy: sequence-wrapped root .self hop collapses (runs withou
 // a `?.` whose subject is entirely proxy navigation over a chain-assign root is dead: the subject
 // collapses to the always-defined pure root and the guard drops. `self` does not exist in Node, so
 // a kept guard would memoize the raw `.self` hop (undefined) and silently swallow the value
-QUnit.test('global-proxy: dead optional over chain-assign proxy subject (runs without self in Node)', assert => {
+testUnlessDetectLowered('global-proxy: dead optional over chain-assign proxy subject (runs without self in Node)', assert => {
   let q1, q2, q3;
   let c = 0;
   assert.same((q1 = globalThis).self?.Array.prototype.findLast.call([1, 2], it => it < 2), 1);
@@ -349,7 +356,7 @@ QUnit.test('global-proxy: destructure pattern proxy hop peels (runs without self
 // a chain-assign optional subject whose VALUE is a proxy-hop navigation: the guard's memoized
 // root replaces the raw hop, and the tail's redundant trailing hop must be dropped - `self` /
 // `window` do not exist in Node, so an unpeeled re-read off the memo is a TypeError
-QUnit.test('global-proxy: chain-assign optional value hop tail drops (runs without self in Node)', assert => {
+testUnlessDetectLowered('global-proxy: chain-assign optional value hop tail drops (runs without self in Node)', assert => {
   let q;
   const flat = (q = globalThis.self)?.self.Array.prototype.flat;
   assert.same(typeof flat, 'function');
@@ -385,7 +392,7 @@ QUnit.test('global-proxy: chain-assign optional value over an unpolyfilled hop k
 // read throws exactly as the source does - the collapse must decline rather than rescue it off the pure
 // root. the ponyfilled twin (`(s = globalThis.self)`) still collapses and still runs in Node: core-js
 // DEFINES `self`, so its value provably is the global. that split is the whole rule
-QUnit.test('global-proxy: unguarded chain-assign over an unpolyfilled hop stays faithful', assert => {
+testUnlessDetectLowered('global-proxy: unguarded chain-assign over an unpolyfilled hop stays faithful', assert => {
   const hasWindow = globalThis.window !== undefined;
   let n;
   function readWindowValued() {
@@ -472,7 +479,7 @@ QUnit.test('global-proxy: unguarded chain-assign over an unpolyfilled hop stays 
 // an SE-bearing init no longer blocks the proxy-hop fold: the effect replays exactly once
 // ahead of the re-anchored read, and the folded `self` hop answers where the raw residual
 // read `.self` off the pure root would throw (self is absent in Node)
-QUnit.test('proxy-hop: SE-prefixed init folds the self hop and replays the effect once', assert => {
+testUnlessDetectLowered('proxy-hop: SE-prefixed init folds the self hop and replays the effect once', assert => {
   let calls = 0;
   function eff() { calls += 1; }
   const { self: { totallyCustomKeyA: v } } = (eff(), globalThis);
