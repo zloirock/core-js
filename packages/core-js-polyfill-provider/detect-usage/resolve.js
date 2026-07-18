@@ -24,6 +24,7 @@ import {
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
+  peelSkippableWrappers,
   peelZeroArgIifeReturn,
   reachingReassignmentValueNode,
   reassignBailApplies,
@@ -246,13 +247,18 @@ export function isStaticPlacement(name) {
 // capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
 const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
-// `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers).
+// `.js` suffix is tolerated (explicit-extension import style) - `.js` ONLY: the packages ship
+// no `.cjs` / `.mjs` files, so those spellings can never resolve and must not be recognized.
 // path must EITHER start with a known core-js package prefix OR with an internal core-js
 // namespace (`actual/`, `es/`, etc.). babel's injector stores importSource without the
 // package prefix (`actual/symbol/iterator`); unplug stores the full path. without this
 // constraint, `my-lib/symbol/iterator` would be misclassified as Symbol.iterator
 const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
-const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.[cm]?js)?$/;
+const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.js)?$/;
+// the pure GLOBAL-PROXY entries (`global-this` / `self` - the only proxy globals shipped as
+// pure entries): a default binding of one carries the global object itself, so receiver
+// resolution must treat it like the bare proxy name
+const GLOBAL_PROXY_IMPORT_SOURCE = /(?:^|\/)(?<name>global-this|self)(?:\/index)?(?:\.js)?$/;
 
 const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier', 'ImportNamespaceSpecifier']);
 
@@ -301,6 +307,15 @@ export function bindsModuleDefault(node) {
   return false;
 }
 
+// both `import type X` / `import { type X }` and Flow's `import typeof X` / `import { typeof X }`
+// erase before runtime, so a name they bind must never register as a dedup target or resolve as
+// a runtime value - a later real use rewritten onto the erased binding throws ReferenceError.
+// only babel parses Flow (`typeof`), but the predicate is shared so every import-kind site
+// stays in lockstep
+export function isTypeOnlyImportKind(kind) {
+  return kind === 'type' || kind === 'typeof';
+}
+
 // match `<pkg>/...` for any pkg in the user's resolved `packages` array (main + additional).
 // allows aliased / monorepo polyfill packages to participate in Symbol.X detection alongside
 // the built-in CORE_JS_SOURCE_PREFIX. lowercased prefix comparison mirrors `packages` already
@@ -340,6 +355,174 @@ function symbolKeyFromSource(source, packages) {
   if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
   const match = SYMBOL_IMPORT_SOURCE.exec(source);
   return match ? `Symbol.${ kebabToCamel(match.groups.name) }` : null;
+}
+
+// `<pkg>/<mode>/global-this` module source -> `globalThis` (same for `self`), or null when
+// the source is absent / unrelated. SOURCE-based rather than polyfillHint-based on purpose:
+// the mutation prepass runs BEFORE the injector registers user pure imports, so hint-only
+// recognition left the WRITE channel blind to a receiver the READ channel resolves - reads
+// substituted while writes through the same binding didn't taint, and the user's runtime
+// patch (`import g from '.../global-this'; g.Map = Shim`) was shadowed by the ponyfill
+export function globalProxyNameFromImportSource(source, packages = null) {
+  if (!source) return null;
+  if (!CORE_JS_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
+  const match = GLOBAL_PROXY_IMPORT_SOURCE.exec(source);
+  return match ? kebabToCamel(match.groups.name) : null;
+}
+
+// the CJS-interop helper names (numeric suffix on collision): babel's `_interopRequireDefault`
+// / `_interopRequireWildcard` (the namespace shape babel merges ALL of a module's imports into
+// when any of them is `import * as`; for a CJS module its result hangs `module.exports` on
+// `.default` exactly like the default helper) and swc's inline `_interop_require_default` /
+// `_interop_require_wildcard` snake spellings
+const INTEROP_DEFAULT_CALLEE = /^_+interop_?[Rr]equire_?(?:[Dd]efault|[Ww]ildcard)\d*$/;
+
+// the helper RUNTIME packages: `@babel/plugin-transform-runtime` imports the helper instead of
+// inlining it (`var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault")`),
+// swc does the same via `@swc/helpers`. recognized by SOURCE so an ALIASED local name still
+// matches; extensions beyond `.js` are real files in these packages (unlike core-js entries)
+const INTEROP_HELPER_SOURCE = new RegExp(
+  '^@(?:babel\\/runtime(?:-corejs\\d+)?\\/helpers\\/(?:esm\\/)?interopRequire(?:Default|Wildcard)'
+  + '|swc\\/helpers\\/(?:_\\/|cjs\\/|esm\\/|lib\\/|src\\/)?_interop_require_(?:default|wildcard))(?:\\.[cm]?js)?$');
+
+// is `callee` one of the CJS-interop default/wildcard helpers? three provenances:
+// inline definition (NAME convention), an imported/required helper binding (SOURCE match,
+// alias-proof), and the external-helpers global (`babelHelpers.interopRequireDefault`).
+// the swc namespace-member call spelling (`_interop_require_default._(...)`) stays
+// unrecognized - see TASKS
+function isInteropDefaultCallee(callee, scope, adapter, path) {
+  if (callee?.type === 'MemberExpression' && !callee.computed
+    && callee.object?.type === 'Identifier' && callee.object.name === 'babelHelpers'
+    // a LOCAL `babelHelpers` binding shadows the external-helpers global - same shadow
+    // discipline as `requireCallSource`'s require check
+    && !adapter.hasBinding(scope, 'babelHelpers', path)
+    && callee.property?.type === 'Identifier' && /^interopRequire(?:Default|Wildcard)$/.test(callee.property.name)) {
+    return true;
+  }
+  if (callee?.type !== 'Identifier') return false;
+  if (INTEROP_DEFAULT_CALLEE.test(callee.name)) return true;
+  const binding = adapter.getBinding(scope, callee.name, path);
+  // no binding OBJECT: estree surfaces TSImportEquals only through the dedicated lookup
+  if (!binding) {
+    const tsNode = adapter.getTSImportEqualsNode?.(scope, callee.name, path);
+    const tsSource = tsImportEqualsRequireSource(tsNode, adapter);
+    return typeof tsSource === 'string' && INTEROP_HELPER_SOURCE.test(tsSource);
+  }
+  if (isReassignedBeyondDeclarator(binding)) return false;
+  const source = binding.importSource
+    ?? (binding.node?.type === 'VariableDeclarator' ? requireCallSource(binding.node.init, adapter, binding.scope ?? scope) : null)
+    ?? tsImportEqualsRequireSource(binding.node, adapter);
+  return typeof source === 'string' && INTEROP_HELPER_SOURCE.test(source);
+}
+
+// extract a static string from a node that's either a StringLiteral or a no-interpolation
+// TemplateLiteral. without TemplateLiteral support, `require(\`core-js/actual/promise\`)`
+// (any tagless single-quasi template) silently bypasses entry detection
+export function extractStaticString(node, adapter) {
+  if (!node) return null;
+  // peel paren / TS wrappers so `require((`core-js/...`))` (oxc keeps the ParenthesizedExpression
+  // that babel strips) and `require('core-js/...' as const)` reach the literal check on both
+  // parsers. SequenceExpression is deliberately NOT peeled here: `adapter.getStringValue` already
+  // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
+  // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
+  // stays parser-symmetric without peeling SE at this layer
+  const inner = peelSkippableWrappers(node);
+  if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
+  return adapter.getStringValue(inner);
+}
+
+// `require('core-js/...')` value-call -> source string, or null. peels webpack `(0, require)(...)`
+// (SequenceExpression callee tail) and paren / TS / chain wrappers (`(require as any)('...')`,
+// `require!('...')`); accepts optional `require?.(...)` on both parsers. a locally-shadowed
+// `require` (looked up via `scope` / `adapter`) is ignored. the ONE require-source canon:
+// entry detection / existing-import scan (entries.js) and the proxy-import recognition
+// branches below all read through it
+export function requireCallSource(node, adapter, scope) {
+  // `var P = require?.('x')` wraps the call in a ChainExpression (estree / oxc); peel transparent
+  // wrappers at the top so the type-gate sees the (Optional)CallExpression instead of rejecting it
+  // and re-emitting a duplicate import for an already-provided module
+  node = unwrapTransparentSeq(node);
+  if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
+    || node.arguments?.length !== 1) return null;
+  let callee = unwrapTransparentSeq(node.callee);
+  if (callee?.type === 'SequenceExpression') {
+    const tail = callee.expressions?.at(-1);
+    if (tail) callee = unwrapTransparentSeq(tail);
+  }
+  if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
+  if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
+  return extractStaticString(node.arguments[0], adapter);
+}
+
+// `_interopRequireDefault(require('<pkg>/<mode>/global-this'))` call -> the proxy name its
+// `.default` member carries, or null
+function interopCallProxySource({ callNode, scope, adapter, path = null }) {
+  if (callNode?.type !== 'CallExpression' || callNode.arguments?.length !== 1
+    || !isInteropDefaultCallee(callNode.callee, scope, adapter, path)) return null;
+  const required = requireCallSource(callNode.arguments[0], adapter, scope);
+  return required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
+}
+
+// the proxy name a `.default` member read carries, or null. babel's module lowering wraps a
+// CJS module as `{ default: module.exports }` and bundler namespace interop does the same, so
+// for a pure GLOBAL-PROXY entry the WRAPPER / NAMESPACE is not the global - its `.default`
+// is. three shapes of the same fact, all folded here so the member branch of
+// `resolveObjectName` keeps taint and reads symmetric across them:
+//   `var X = _interopRequireDefault(require('.../global-this')); X.default.Map = shim`
+//   `import * as X from '.../global-this'; X.default.Map = shim`
+//   `_interopRequireDefault(require('.../global-this')).default.Map = shim`
+// dropping the inline call on a READ substitution is sound: a pure entry module evaluates
+// with no user-visible effects, so skipping its load changes nothing observable
+function interopDefaultProxyName({ objectNode, scope, adapter, path }) {
+  // peel parens / TS casts (`(_g).default`, `(_g as any).default` - oxc keeps the
+  // ParenthesizedExpression babel strips) so both parsers reach the same shape check;
+  // an effect-bearing sequence prefix stops the peel and stays unrecognized (bail)
+  objectNode = unwrapTransparentSeq(objectNode);
+  if (objectNode?.type === 'CallExpression') return interopCallProxySource({ callNode: objectNode, scope, adapter, path });
+  if (objectNode?.type !== 'Identifier') return null;
+  // follow single-assignment Identifier alias hops down to the interop-call / namespace-import
+  // binding - babel's merged-import lowering emits `var ns = _globalThis;` between the use and
+  // the wrapper var. every hop must itself be write-free (a reassigned name no longer provably
+  // holds the wrapper); the seen-set guards alias cycles
+  const seen = new Set();
+  let { name } = objectNode;
+  let lookupScope = scope;
+  while (!seen.has(name)) {
+    seen.add(name);
+    const binding = adapter.getBinding(lookupScope, name, path);
+    if (!binding || isReassignedBeyondDeclarator(binding)) return null;
+    if (binding.node?.type === 'ImportNamespaceSpecifier') {
+      return globalProxyNameFromImportSource(binding.importSource, adapter.packages);
+    }
+    const init = binding.node?.type === 'VariableDeclarator' && binding.node.id?.type === 'Identifier'
+      ? unwrapTransparentSeq(binding.node.init) : null;
+    if (!init) return null;
+    if (init.type === 'Identifier') {
+      // the init resolves in the alias's OWN declaration scope, not the use scope
+      lookupScope = binding.scope ?? lookupScope;
+      ({ name } = init);
+      continue;
+    }
+    return interopCallProxySource({ callNode: init, scope: binding.scope ?? lookupScope, adapter, path });
+  }
+  return null;
+}
+
+// the static require source of a runtime TSImportEquals declaration (`import x = require('...')`),
+// or null. adapter-less callers (the scope-less census reducer) read the literal value directly
+export function tsImportEqualsRequireSource(node, adapter) {
+  if (node?.type !== 'TSImportEqualsDeclaration' || node.isExport || node.importKind === 'type'
+    || node.id?.type !== 'Identifier' || node.moduleReference?.type !== 'TSExternalModuleReference') return null;
+  const source = adapter ? adapter.getStringValue(node.moduleReference.expression) : node.moduleReference.expression?.value;
+  return typeof source === 'string' ? source : null;
+}
+
+// `import g = require('<pkg>/<mode>/global-this')` - the TS require-import shape. tsc /
+// esbuild emit it for CJS interop; `scanExistingCoreJSImports` already recognizes it as a
+// pure import for dedup, so the resolution canon must see the same binding or the write
+// channel goes blind to a receiver the import scan trusts
+export function tsImportEqualsProxyName(node, adapter, packages = null) {
+  return globalProxyNameFromImportSource(tsImportEqualsRequireSource(node, adapter), packages);
 }
 
 // `path` (optional) - an AST path inside the lookup site so the adapter can anchor TS-runtime
@@ -390,9 +573,28 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     if (hintFlowSound) return hint;
   }
   const bindingType = adapter.getBindingNodeType(scope, name, path);
-  // imports without a polyfillHint don't map to a known global (their binding could point at
-  // any user-imported value); param / catch / class name fall through to the final null
-  if (IMPORT_BINDING_TYPES.has(bindingType)) return null;
+  // an import binding maps to a known global ONLY through a pure GLOBAL-PROXY entry source
+  // (`import g from '<pkg>/<mode>/global-this'`) - any other imported value stays opaque;
+  // param / catch / class name fall through to the final null. import bindings are hoisted
+  // and immutable, so no flow-soundness gate applies; type-only imports erase before runtime
+  // and must stay unresolvable
+  if (IMPORT_BINDING_TYPES.has(bindingType)) {
+    return bindsModuleDefault(binding?.node) && !isTypeOnlyImportKind(binding?.node?.importKind)
+      ? globalProxyNameFromImportSource(binding?.importSource, adapter.packages)
+      : null;
+  }
+  // the TS require-import twin (`import g = require('.../global-this')`) binds the module
+  // default the same way - babel's binding node IS the declaration
+  if (bindingType === 'TSImportEqualsDeclaration') {
+    return tsImportEqualsProxyName(binding?.node, adapter, adapter.packages);
+  }
+  // estree-toolkit registers no binding for TSImportEquals at all - the adapter surfaces the
+  // declaration node through a dedicated lookup instead (adapters with native bindings
+  // resolve through the branch above and don't implement it)
+  if (!bindingType && adapter.getTSImportEqualsNode) {
+    const tsImportNode = adapter.getTSImportEqualsNode(scope, name, path);
+    if (tsImportNode) return tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
+  }
   if (bindingType === 'VariableDeclarator') return resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, path, usageNode });
   return null;
 }
@@ -517,6 +719,15 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // unrivalled, no double-rewrite overlap with a wide polyfill substitution
   const iifePeeled = peelZeroArgIifeReturn(unwrapped);
   if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope, adapter, seen, path, usageNode: iifePeeled });
+  // `var g = require('<pkg>/<mode>/global-this')` - the require-style twin of the proxy-entry
+  // import branch in resolveGuardedBindingToGlobal: same source canon, so the CJS import style
+  // taints writes / resolves reads identically. an in-file `require` binding (bundler shim /
+  // user function) keeps the name opaque - checked in the alias's own declaration scope
+  if (unwrapped?.type === 'CallExpression' || unwrapped?.type === 'OptionalCallExpression') {
+    const required = requireCallSource(unwrapped, adapter, binding.scope ?? scope);
+    const requiredProxy = required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
+    if (requiredProxy) return requiredProxy;
+  }
   // MemberExpression / OptionalMemberExpression / CallExpression / OptionalCallExpression all
   // delegate to resolveObjectName - it handles each shape (proxy-global walk, call-inline).
   // unhandled shapes (NewExpression, BinaryExpression, etc.) safely return null
@@ -686,6 +897,14 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
     ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, path, usageNode })
     : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
   if (!propertyName) return null;
+  // `X.default` of a CJS-interop-wrapped pure GLOBAL-PROXY require resolves to the proxy
+  // itself (the wrapper is not the global, its `.default` is) - the receiver shape babel's
+  // module lowering leaves for a pure global-this import, and the host of slot writes like
+  // `X.default.Map = shim` that must keep tainting after the lowering
+  if (propertyName === 'default') {
+    const interopProxy = interopDefaultProxyName({ objectNode: objectNode.object, scope, adapter, path });
+    if (interopProxy) return interopProxy;
+  }
   if (!resolveProxyGlobalRoot({ receiver: objectNode.object, scope, adapter, seen, path, usageNode })) return null;
   // a mutated ctor slot read THROUGH the global (`globalThis.Map = Shim; globalThis.Map.<...>`)
   // holds the user's replacement - the member chain no longer names the pristine built-in, so
