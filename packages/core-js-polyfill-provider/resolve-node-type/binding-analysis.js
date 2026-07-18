@@ -97,6 +97,9 @@ export function createBindingAnalysis({
   namespaceFromPolyfillBinding,
   lookupNested,
   KNOWN_STATIC_METHOD_RETURN_TYPES,
+  // thunk (late-binding: sibling clusters instantiate after this one) returning the visitor
+  // bundles the shared program census runs alongside this cluster's own collectors
+  extraProgramCensusCollectors = null,
 }) {
   // every module-level export name as a Set: covers `export const X`, `export class X`,
   // `export function X`, `export default class X`, `export default function X`,
@@ -358,23 +361,24 @@ export function createBindingAnalysis({
     };
   }
 
-  // shared per-program index: one walk builds both the `Identifier`-by-binding map (used by
-  // `collectBindingReferences` for estree-toolkit fallback and by `closure-analysis` temporal
-  // bound classification) AND the `NewExpression`-by-callee-name map (used by `closure-analysis`
-  // class-instance closure collection and temporal-bound `new C().method(...)` chain
-  // detection). without this, N bindings or C classes would each trigger their own O(N) program
-  // walk, turning closure construction into O(N^2)
-  let programIndexCache = new WeakMap();
-  function buildProgramIndex(programPath) {
-    return memoize(programIndexCache, programPath.node, () => {
-      const identifierByBinding = new Map();
+  function pushByKey(map, key, value) {
+    let list = map.get(key);
+    if (!list) map.set(key, list = []);
+    list.push(value);
+  }
+
+  // shared per-program CENSUS: ONE walk collects this cluster's raw material (reference
+  // Identifier paths - the cheap filters run here, the per-identifier scope resolution is
+  // deferred to `buildProgramIndex` below - plus the `NewExpression`-by-callee-name map)
+  // AND every visitor bundle the factory contributes from sibling clusters (the module-field
+  // index). visitor keys across contributions are disjoint - the factory owns that invariant.
+  // without the sharing, each lazy index re-walked the whole program on its own first query
+  let programCensusCache = new WeakMap();
+  function programCensus(programPath) {
+    return memoize(programCensusCache, programPath.node, () => {
+      const referenceIdentifierPaths = [];
       const newExprByName = new Map();
-      function pushByKey(map, key, value) {
-        let list = map.get(key);
-        if (!list) map.set(key, list = []);
-        list.push(value);
-      }
-      programPath.traverse({
+      const visitors = {
         Identifier(p) {
           // declaration-id slots are NOT references (mirrors babel's `referencePaths`).
           // estree-toolkit also walks identifier-shaped name positions that babel's reference
@@ -385,9 +389,7 @@ export function createBindingAnalysis({
           // through to `'leak'`, disabling the narrow
           if (isBindingDeclarationPath(p)) return;
           if (isNonReferencePosition(p.parent, p.node)) return;
-          const binding = getScopeBinding(p.scope, p.node.name, p);
-          if (!binding) return;
-          pushByKey(identifierByBinding, binding, p);
+          referenceIdentifierPaths.push(p);
         },
         NewExpression(p) {
           const callee = unwrapRuntimeExpr(p.node.callee);
@@ -395,7 +397,31 @@ export function createBindingAnalysis({
           const effectivePath = peelTransparentExprAncestorPath(p);
           pushByKey(newExprByName, callee.name, classifyNewExprPosition(p, effectivePath));
         },
-      });
+      };
+      const contributions = extraProgramCensusCollectors?.() ?? [];
+      for (const contribution of contributions) Object.assign(visitors, contribution.visitors);
+      programPath.traverse(visitors);
+      const census = { referenceIdentifierPaths, newExprByName };
+      for (const contribution of contributions) Object.assign(census, contribution.finish());
+      return census;
+    });
+  }
+
+  // the `Identifier`-by-binding map (used by `collectBindingReferences` for the
+  // estree-toolkit fallback and by `closure-analysis` temporal bound classification),
+  // derived LAZILY from the census: the per-identifier scope resolution is the expensive
+  // half, and babel-side consumers rarely reach it (native `referencePaths` short-circuits
+  // the fallback), so only files that genuinely query it pay for the lookups - and the
+  // program walk itself is already amortized into the census
+  let programIndexCache = new WeakMap();
+  function buildProgramIndex(programPath) {
+    return memoize(programIndexCache, programPath.node, () => {
+      const { referenceIdentifierPaths, newExprByName } = programCensus(programPath);
+      const identifierByBinding = new Map();
+      for (const p of referenceIdentifierPaths) {
+        const binding = getScopeBinding(p.scope, p.node.name, p);
+        if (binding) pushByKey(identifierByBinding, binding, p);
+      }
       return { identifierByBinding, newExprByName };
     });
   }
@@ -824,6 +850,7 @@ export function createBindingAnalysis({
 
   function reset() {
     exportedNamesCache = new WeakMap();
+    programCensusCache = new WeakMap();
     programIndexCache = new WeakMap();
   }
 
@@ -833,6 +860,7 @@ export function createBindingAnalysis({
   // `defaultAliasRefClassifier` / `isTypePositionParent`
   return {
     buildProgramIndex,
+    programCensus,
     collectBindingReferences,
     classBindingName,
     isClassExported,
