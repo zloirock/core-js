@@ -308,9 +308,9 @@ function hasRuntimeBinding(scope, name, path = null) {
 // scoped mutation pre-pass (estree side): the cheap shape gate first; only files that
 // actually monkey-patch pay for the scoped toolkit traverse + canonical receiver resolution.
 // shares every resolution step with the read side via `mutation-prepass` (provider)
-export function collectMutationPrePass(ast, adapter) {
+export function collectMutationPrePass(ast, adapter, census = null) {
   const mutated = new Set();
-  if (!hasMutationCandidateShapes(ast)) return { mutated };
+  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(ast))) return { mutated };
   const handleSite = createMutationSiteHandler({ adapter, mutated });
   // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
   // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
@@ -348,8 +348,8 @@ export function collectMutationPrePass(ast, adapter) {
 // early ctor-alias registration (estree side) - see the babel twin in the plugin's initFile:
 // pre-register every destructure-of-global site through the shared trust gates so a member use
 // textually BEFORE its alias write still reads a complete table when visited
-export function collectAliasPrePass({ ast, adapter, injector, isDisabled }) {
-  if (!hasCtorAliasCandidateShapes(ast)) return;
+export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census = null }) {
+  if (!(census ? census.hasCtorAliasShapes : hasCtorAliasCandidateShapes(ast))) return;
   const siteVisitors = {
     AssignmentExpression(path) {
       const { node } = path;
