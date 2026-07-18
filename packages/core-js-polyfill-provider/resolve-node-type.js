@@ -1530,7 +1530,7 @@ function createResolveNodeType(babelNodeType, t, {
   // consolidates the guards collector (`findDiscriminantGuards`) and the narrowing entry
   // points (`narrowDiscriminatedUnion` / `narrowUnionByAssignmentLiteral` /
   // `findPrecedingBlockAssignment`) - the narrowing path calls the collector internally so
-  // they share one closure. `flattenCondition` / `resolveExitCondition` /
+  // they share one closure. `flattenCondition` / `siblingExitCondition` /
   // `getStatementSiblings` come from `typeofGuardsCluster` (instantiated below) via thunks
   // because typeofGuards depends on `createPredicateGuards` which lands after this point;
   // the thunks resolve at AST-walk time after factory init completes
@@ -1547,7 +1547,7 @@ function createResolveNodeType(babelNodeType, t, {
     flattenCondition: (...args) => typeofGuardsCluster.flattenCondition(...args),
     resolveComputedKeyName,
     getStatementSiblings: (...args) => typeofGuardsCluster.getStatementSiblings(...args),
-    resolveExitCondition: (...args) => typeofGuardsCluster.resolveExitCondition(...args),
+    siblingExitCondition: (...args) => typeofGuardsCluster.siblingExitCondition(...args),
     literalKeyValue,
     findPatternKeyPath,
     getKeyName,
@@ -2001,7 +2001,7 @@ function createResolveNodeType(babelNodeType, t, {
 
   // user-defined type-predicate cluster lives in `resolve-node-type/guard-shapes.js`;
   // wire it with the type-resolution helpers it consumes and bind the two public entries
-  const { parseUserPredicateGuard, parseAssertionStatementGuard } = createPredicateGuards({
+  const { parseUserPredicateGuardEntries, parseAssertionGuardEntries } = createPredicateGuards({
     getScopeBinding,
     resolveMemberCallChain,
     unwrapTypeAnnotation,
@@ -2022,8 +2022,8 @@ function createResolveNodeType(babelNodeType, t, {
     getMemberProperty,
     constantBindingPath,
     lookupNested,
-    parseUserPredicateGuard,
-    parseAssertionStatementGuard,
+    parseUserPredicateGuardEntries,
+    parseAssertionGuardEntries,
     blockAlwaysExits,
     canFallThrough,
     KNOWN_STATIC_TYPE_GUARDS,
@@ -2031,7 +2031,7 @@ function createResolveNodeType(babelNodeType, t, {
   });
   const {
     findEnclosingTypeGuards,
-    siblingGuardsBinding,
+    nearestPrecedingGuardIndex,
     findConditionalGuards,
     findSwitchCaseGuards,
     findEarlyExitGuards,
@@ -2055,7 +2055,7 @@ function createResolveNodeType(babelNodeType, t, {
     applyAliasSubstDeep,
     findEnclosingTypeGuards,
     guardAppliesToBinding,
-    siblingGuardsBinding,
+    nearestPrecedingGuardIndex,
     findConditionalGuards,
     findSwitchCaseGuards,
     findEarlyExitGuards,

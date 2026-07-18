@@ -3,7 +3,9 @@
 // guards that narrow a binding's value within the guarded scope. Each guard is a
 // { kind: 'typeof' | 'instanceof' | 'typeof-or', value/values/constructorName, negated,
 //   positive } record consumed by the broader resolution pipeline to filter member-access
-// against the narrowed Type.
+// against the narrowed Type. Condition parsing is VAR-AGNOSTIC (`{ varName, guard }`
+// entries): the preceding-exit sibling shapes index a whole statement list in one pass,
+// keyed by variable name; the parent-climb shapes filter the entries per queried binding.
 //
 // Public surface (returned by `createTypeofGuards`):
 //   - `findEnclosingTypeGuards({ path, varName, isConst, binding })` - top-level entry,
@@ -29,7 +31,14 @@ import {
   unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
-import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard } from './guard-shapes.js';
+import { guardFromHint, instanceofGuard, isTypeofVar, typeofGuard, typeofVarName } from './guard-shapes.js';
+
+const EMPTY_ENTRIES = [];
+
+function flipGuardEntries(entries) {
+  for (const { guard } of entries) guard.negated = !guard.negated;
+  return entries;
+}
 
 export function createTypeofGuards({
   t,
@@ -39,14 +48,17 @@ export function createTypeofGuards({
   getMemberProperty,
   constantBindingPath,
   lookupNested,
-  parseUserPredicateGuard,
-  parseAssertionStatementGuard,
+  parseUserPredicateGuardEntries,
+  parseAssertionGuardEntries,
   blockAlwaysExits,
   canFallThrough,
   KNOWN_STATIC_TYPE_GUARDS,
   babelBindingAdapter,
 }) {
-  function parseTypeGuard(testNode, varName, scope) {
+  // VAR-AGNOSTIC single-condition parser: extracts every `{ varName, guard }` entry a test
+  // expression carries. most shapes name exactly one variable; a user-predicate call may
+  // name several through distinct overload headers. per-name consumers filter the entries
+  function parseTypeGuardEntries(testNode, scope) {
     const peeled = peelNegation(testNode);
     // unwrapExpressionChain alternates paren / chain / TS-wrapper / SequenceExpression-tail
     // peels until stable. peelNegation only strips unary `!`; without this, mixed wrappers
@@ -63,15 +75,18 @@ export function createTypeofGuards({
       const isNegatedOp = operator === '!==' || operator === '!=';
       if (isNegatedOp || operator === '===' || operator === '==') {
         if (isNegatedOp) negated = !negated;
-        // pick the `typeof varName` side explicitly so `typeof a === typeof b` doesn't misfire
-        const leftIsTypeof = isTypeofVar(left, varName);
-        const rightIsTypeof = !leftIsTypeof && isTypeofVar(right, varName);
-        if (leftIsTypeof || rightIsTypeof) {
-          const literalSide = leftIsTypeof ? right : left;
-          if (isLiteralOf(literalSide, 'String')) return typeofGuard(literalSide.value, negated);
+        // pick the `typeof <var>` side explicitly so `typeof a === typeof b` doesn't misfire
+        // (both sides are typeof-vars, neither leaves a literal side - no guard extracts)
+        const leftName = typeofVarName(left);
+        const typeofName = leftName ?? typeofVarName(right);
+        if (typeofName !== null) {
+          const literalSide = leftName !== null ? right : left;
+          if (isLiteralOf(literalSide, 'String')) {
+            return [{ varName: typeofName, guard: typeofGuard(literalSide.value, negated) }];
+          }
           // template literal with no expressions: `object` === typeof x
           if (literalSide.type === 'TemplateLiteral' && literalSide.expressions.length === 0) {
-            return typeofGuard(literalSide.quasis[0].value.cooked, negated);
+            return [{ varName: typeofName, guard: typeofGuard(literalSide.quasis[0].value.cooked, negated) }];
           }
         }
         // `<typeguard> ==/=== false` / `<typeguard> !=/!== true` etc: strip the boolean
@@ -83,52 +98,54 @@ export function createTypeofGuards({
         if (litLeft || litRight) {
           const litSide = litLeft ? left : right;
           const innerExpr = litLeft ? right : left;
-          const innerGuard = parseTypeGuard(innerExpr, varName, scope);
-          if (innerGuard) {
-            if (litSide.value === negated) innerGuard.negated = !innerGuard.negated;
-            return innerGuard;
+          const innerEntries = parseTypeGuardEntries(innerExpr, scope);
+          if (innerEntries.length) {
+            return litSide.value === negated ? flipGuardEntries(innerEntries) : innerEntries;
           }
         }
       }
-      if (operator === 'instanceof'
-        && left.type === 'Identifier' && left.name === varName) {
+      if (operator === 'instanceof' && left.type === 'Identifier') {
         // pass scope + adapter so user-shadowed `globalThis`/`self` are detected and skipped:
         // without scope, `x instanceof globalThis.Map` would resolve to global Map even when
         // `globalThis` is locally shadowed (e.g. `function f(globalThis: { Map: any }) {...}`)
         const constructorName = right.type === 'Identifier'
           ? right.name
           : globalProxyMemberName({ node: right, scope, adapter: babelBindingAdapter, path: null });
-        if (constructorName) return instanceofGuard(constructorName, negated);
+        if (constructorName) return [{ varName: left.name, guard: instanceofGuard(constructorName, negated) }];
       }
     }
     // KNOWN_STATIC_TYPE_GUARDS (`Array.isArray` / `Number.isFinite` / ...) narrow first-arg
     // only; extra trailing args are ignored at runtime, so accepting them matches user intent.
-    // user predicates with positional arg-binding via `parameterName` route through
-    // `parseUserPredicateGuard`, which inspects the call's full args list to find the slot
-    // matching `varName` (so `function isFoo(opts, x): x is Foo` narrows the second arg).
+    // user predicates with positional arg-binding via `parameterName` inspect the call's full
+    // args list to find the slot the predicate names (so `function isFoo(opts, x): x is Foo`
+    // narrows the second arg). the built-in hint wins for the first-arg name; predicate
+    // entries for OTHER names still surface (a member predicate may bind a later arg).
     // OptionalCallExpression (`Array.isArray?.(x)`) is babel's optional-call shape; ESTree
     // wraps it in ChainExpression which `peelNegation`'s `unwrapRuntimeExpr` already strips
     if ((test.type === 'CallExpression' || test.type === 'OptionalCallExpression')
         && test.arguments?.length >= 1) {
       const { callee } = test;
       const propName = getMemberProperty(callee);
+      let hintEntry = null;
       if (propName !== null && callee.object?.type === 'Identifier') {
         // `unwrapExpressionChain` peels paren + ChainExpression + TS expression wrappers
         // (`as`, `satisfies`, `<T>cast`, `!`) AND SequenceExpression tail. parity with
         // the user-predicate path so `Array.isArray((0, x as any))` (any mix of side
         // effects + TS wrappers) narrows same as bare `Array.isArray(x)`
         const arg0 = unwrapExpressionChain(test.arguments[0]);
-        if (arg0.type === 'Identifier' && arg0.name === varName) {
+        if (arg0.type === 'Identifier') {
           const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, propName);
-          if (hint) return guardFromHint(hint, negated);
+          if (hint) hintEntry = { varName: arg0.name, guard: guardFromHint(hint, negated) };
         }
       }
       // pass the full call node: an optional `?.()` lives on the call (`OptionalCallExpression`
       // / `ChainExpression`), not on `callee`, so the predicate guard can gate the complement branch
-      const userGuard = parseUserPredicateGuard({ callee, scope, negated, args: test.arguments, varName, call: test });
-      if (userGuard) return userGuard;
+      const predicateEntries = parseUserPredicateGuardEntries({ callee, scope, negated, args: test.arguments, call: test });
+      if (!hintEntry) return predicateEntries;
+      const rest = predicateEntries.filter(e => e.varName !== hintEntry.varName);
+      return rest.length ? [hintEntry, ...rest] : [hintEntry];
     }
-    return null;
+    return EMPTY_ENTRIES;
   }
 
   // flatten a && b && c when condition is true, or a || b || c when condition is false
@@ -148,34 +165,55 @@ export function createTypeofGuards({
   }
 
   // parse an OR group of typeof guards: typeof x === 'a' || typeof x === 'b' (conditionTrue=true)
-  // or De Morgan form: typeof x !== 'a' && typeof x !== 'b' (conditionTrue=false)
-  function parseTypeofOrGuard(node, varName, conditionTrue) {
+  // or De Morgan form: typeof x !== 'a' && typeof x !== 'b' (conditionTrue=false).
+  // every part must guard the SAME variable - mixed-name groups narrow nothing
+  function parseTypeofOrGuardEntry(node, conditionTrue) {
     const operator = conditionTrue ? '||' : '&&';
     const expectNegated = !conditionTrue;
     node = unwrapParens(node);
     if (node.type !== 'LogicalExpression' || node.operator !== operator) return null;
     const parts = flattenCondition(node, operator);
     const values = new Set();
+    let orName = null;
     for (const part of parts) {
       // user predicates are unrelated to typeof - pass null scope to keep this fast
-      const guard = parseTypeGuard(part, varName, null);
-      if (!guard || guard.kind !== 'typeof' || guard.negated !== expectNegated) return null;
-      values.add(guard.value);
+      const [entry, extra] = parseTypeGuardEntries(part, null);
+      if (!entry || extra || entry.guard.kind !== 'typeof' || entry.guard.negated !== expectNegated) return null;
+      if (orName === null) orName = entry.varName;
+      else if (orName !== entry.varName) return null;
+      values.add(entry.guard.value);
     }
-    return values.size >= 2 ? { kind: 'typeof-or', values, negated: expectNegated } : null;
+    return values.size >= 2
+      ? { varName: orName, guard: { kind: 'typeof-or', values, negated: expectNegated } }
+      : null;
   }
 
-  // extract guards for varName from a condition, applying && / || flattening.
-  // scope is the lookup scope for resolving user-defined type predicate functions.
-  function parseGuardsFromCondition({ testNode, conditionTrue, varName, scope }) {
+  // VAR-AGNOSTIC condition extraction with && / || flattening: every `{ varName, guard }`
+  // entry the condition carries, `positive` polarity applied per guard. scope is the lookup
+  // scope for resolving user-defined type predicate functions
+  function extractConditionGuardEntries({ testNode, conditionTrue, scope }) {
     const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||');
-    const guards = [];
+    const entries = [];
     for (const part of parts) {
-      const guard = parseTypeGuard(part, varName, scope) || parseTypeofOrGuard(part, varName, conditionTrue);
-      if (guard) {
-        guard.positive = conditionTrue !== guard.negated;
-        guards.push(guard);
+      let partEntries = parseTypeGuardEntries(part, scope);
+      if (!partEntries.length) {
+        const orEntry = parseTypeofOrGuardEntry(part, conditionTrue);
+        if (orEntry) partEntries = [orEntry];
       }
+      for (const entry of partEntries) {
+        entry.guard.positive = conditionTrue !== entry.guard.negated;
+        entries.push(entry);
+      }
+    }
+    return entries;
+  }
+
+  // per-name view over the var-agnostic extraction - serves the parent-climb shapes
+  // (conditional / switch hosts), which query one binding at a time
+  function parseGuardsFromCondition({ testNode, conditionTrue, varName, scope }) {
+    const guards = [];
+    for (const entry of extractConditionGuardEntries({ testNode, conditionTrue, scope })) {
+      if (entry.varName === varName) guards.push(entry.guard);
     }
     return guards;
   }
@@ -269,13 +307,10 @@ export function createTypeofGuards({
     return null;
   }
 
-  // shared sibling-to-guards parser. unifies condition-bearing early-exit
-  // (`if (typeof x === 'string') return;`) and assertion-statement (`assertString(x);`).
-  // LabeledStatement wrappers (`outer: inner: if (...) return;`) peel to the wrapped body
-  // first - the label is irrelevant to guard polarity
-  // var-independent peel + exit-condition resolution, cached per node: the sibling scans
-  // re-ask the same statement for every (use, name) pair. the name-bound guard extraction
-  // stays per-call; the cached peeled PATH shares the sibling caches' staleness contract
+  // shared sibling classification for the guard index. LabeledStatement wrappers
+  // (`outer: inner: if (...) return;`) peel to the wrapped body first - the label is
+  // irrelevant to guard polarity. cached per node; the cached peeled PATH shares the
+  // sibling caches' staleness contract
   const siblingExitConditionCache = new WeakMap();
   function siblingExitCondition(sibling) {
     const { node } = sibling;
@@ -289,27 +324,65 @@ export function createTypeofGuards({
     return cached;
   }
 
-  function parseSiblingGuards(sibling, varName) {
-    const { peeled, conditionTrue } = siblingExitCondition(sibling);
-    if (conditionTrue !== null) {
-      return parseGuardsFromCondition({ testNode: peeled.node.test, conditionTrue, varName, scope: peeled.scope });
+  // per statement-LIST guard index: var-agnostic extraction, entries grouped by variable
+  // name as `[{ idx, guards }]` blocks in ascending statement order (per-statement guards
+  // keep extraction order). the per-(use, name) sibling scan this replaces re-parsed every
+  // preceding statement per query - O(statements) each, quadratic across a large flat scope.
+  // INCREMENTAL up to the highest queried statement position: queries only ever ask about
+  // PRECEDING statements, which the traversal cursor has already passed - statements ahead
+  // of the cursor must not be parsed (estree-toolkit initialises a path's scope only when
+  // the traverser reaches it, and predicate resolution reads that scope), so each statement
+  // is parsed exactly once, at the maturity the per-query scan parsed it. keyed on the exact
+  // paths ARRAY `cachedContainerPaths` handed out: that cache re-validates node identity per
+  // retrieval and returns a NEW array when the list changed, so this index inherits the
+  // sibling caches' staleness contract
+  let exitGuardIndexCache = new WeakMap();
+  function exitGuardIndexParsedBefore(siblings, limit) {
+    let index = exitGuardIndexCache.get(siblings);
+    if (!index) exitGuardIndexCache.set(siblings, index = { parsedUpTo: 0, byName: new Map() });
+    for (let i = index.parsedUpTo; i < limit; i++) {
+      // unified sibling shapes: condition-bearing early-exit (`if (typeof x === 'string')
+      // return;`) and assertion statement (`assertString(x);`)
+      const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
+      const entries = conditionTrue !== null
+        ? extractConditionGuardEntries({ testNode: peeled.node.test, conditionTrue, scope: peeled.scope })
+        : parseAssertionGuardEntries(peeled);
+      for (const { varName, guard } of entries) {
+        let blocks = index.byName.get(varName);
+        if (!blocks) index.byName.set(varName, blocks = []);
+        const last = blocks.at(-1);
+        if (last?.idx === i) last.guards.push(guard);
+        else blocks.push({ idx: i, guards: [guard] });
+      }
     }
-    const assertionGuard = parseAssertionStatementGuard(peeled, varName);
-    return assertionGuard ? [assertionGuard] : [];
-  }
-
-  // does this single sibling apply a narrowing guard to `varName`?
-  function siblingGuardsBinding(sibling, varName) {
-    return parseSiblingGuards(sibling, varName).length > 0;
+    if (limit > index.parsedUpTo) index.parsedUpTo = limit;
+    return index.byName;
   }
 
   // if (typeof x === 'string') return; -> x is narrowed after the if
   // `assertArray(x)` -> x is narrowed after the call (asserts-predicate shape)
-  // collects ALL preceding guards, including && / || flattening
+  // collects ALL preceding guards NEAREST-FIRST (descending statement order, extraction
+  // order within a statement) - the order the per-statement backward scan produced
   function findPrecedingExitGuards(siblings, index, varName) {
+    const blocks = exitGuardIndexParsedBefore(siblings, Math.min(index, siblings.length)).get(varName);
+    if (!blocks) return EMPTY_ENTRIES;
     const guards = [];
-    for (let i = index - 1; i >= 0; i--) guards.push(...parseSiblingGuards(siblings[i], varName));
+    for (let b = blocks.length - 1; b >= 0; b--) {
+      if (blocks[b].idx < index) guards.push(...blocks[b].guards);
+    }
     return guards;
+  }
+
+  // statement index of the NEAREST preceding sibling guarding `varName`, -1 when none -
+  // the mutation-invalidation walk climbs from exactly that statement
+  function nearestPrecedingGuardIndex(siblings, index, varName) {
+    const blocks = exitGuardIndexParsedBefore(siblings, Math.min(index, siblings.length)).get(varName);
+    if (blocks) {
+      for (let b = blocks.length - 1; b >= 0; b--) {
+        if (blocks[b].idx < index) return blocks[b].idx;
+      }
+    }
+    return -1;
   }
 
   // get the statement list containing `current` if it's a numbered member of a block-like parent.
@@ -375,16 +448,20 @@ export function createTypeofGuards({
 
   function reset() {
     earlyExitGuardsCache = new WeakMap();
+    exitGuardIndexCache = new WeakMap();
   }
 
   return {
     findEnclosingTypeGuards,
     flattenCondition,
     resolveExitCondition,
+    // cached per-statement peel + exit-condition classification - shared with the
+    // discriminant sibling index so both sibling scans classify statements identically
+    siblingExitCondition,
     getStatementSiblings,
     // exposed for the factory's `hasMutationAfterGuards` which walks guard sites alongside
     // reassignment positions to invalidate narrowing across mutations between guard and use
-    siblingGuardsBinding,
+    nearestPrecedingGuardIndex,
     findConditionalGuards,
     findSwitchCaseGuards,
     findEarlyExitGuards,

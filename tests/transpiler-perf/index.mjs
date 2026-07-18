@@ -28,6 +28,27 @@ function syntheticSingleScope(names) {
   return parts.join('\n');
 }
 
+// every use in the reassignment synthetic asks the preceding-sibling guard scan too, but a
+// guard-DENSE list additionally pays the guard extraction per statement - a quadratic in
+// either the scan or the extraction overshoots this shape first
+function syntheticGuardDense(names) {
+  const parts = [];
+  for (let i = 0; i < names; i++) {
+    parts.push(`var g${ i } = [${ i }]; if (typeof g${ i } !== 'object') throw new Error('x'); g${ i } = [${ i }, 1]; g${ i }.at(0);`);
+  }
+  return parts.join('\n');
+}
+
+// discriminated-union receivers walk the discriminant sibling scan per member use - a
+// quadratic there needs union-annotated bindings, which no other synthetic carries
+function syntheticDiscriminantDense(names) {
+  const parts = ["type U = { kind: 'a', v: string } | { kind: 'b', v: string[] };"];
+  for (let i = 0; i < names; i++) {
+    parts.push(`declare const u${ i }: U;`, `if (u${ i }.kind !== 'a') throw new Error('x');`, `u${ i }.v.at(${ i });`);
+  }
+  return parts.join('\n');
+}
+
 // assignment-form ctor aliases make babel drop the binding from its scope registry, so every
 // member use walks the lagged-binding recovery - a quadratic there is invisible on the
 // reassignment synthetic above (its bindings never lag) yet catastrophic on this shape
@@ -63,33 +84,41 @@ const CASES = [
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
     'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
   } },
+  { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
+    'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
+  } },
+  { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
+    'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
+  } },
 ];
 
 // usage-pure rewrites sites to `@core-js/pure` imports; usage-global prepends `core-js/modules`
 const INJECTION_MARK = { 'usage-global': 'core-js/modules/', 'usage-pure': '@core-js/pure' };
 
-async function transformWith(emitter, mode, source) {
+async function transformWith(emitter, mode, source, ts) {
   const options = { method: mode, version: '4.0', targets: { ie: 11 } };
+  const filename = ts ? 'input.ts' : 'input.mjs';
   if (emitter === 'babel') {
     const out = await transformAsync(source, {
       plugins: [[babelPlugin, options]],
-      filename: 'input.mjs',
+      filename,
       sourceType: 'module',
+      parserOpts: ts ? { plugins: ['typescript'] } : undefined,
       configFile: false,
       babelrc: false,
     });
     return out.code;
   }
-  return createUnplugin(options).transform(source, 'input.mjs')?.code;
+  return createUnplugin(options).transform(source, filename)?.code;
 }
 
 let failed = 0;
-for (const { name, source, bounds } of CASES) {
+for (const { name, source, ts = false, bounds } of CASES) {
   const input = await source();
   for (const mode of MODES) {
     for (const emitter of ['babel', 'unplugin']) {
       const start = performance.now();
-      const code = await transformWith(emitter, mode, input);
+      const code = await transformWith(emitter, mode, input, ts);
       const seconds = (performance.now() - start) / 1000;
       const injected = !!code && code.includes(INJECTION_MARK[mode]);
       const ok = injected && seconds < bounds[mode][emitter];

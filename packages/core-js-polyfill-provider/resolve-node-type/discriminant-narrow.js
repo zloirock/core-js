@@ -23,8 +23,6 @@ import {
   isMemberAccessNode,
   isMemberWriteHost,
   cachedContainerPaths,
-  peeledLabelNames,
-  peelLabeledStatementPath,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   unwrapRuntimeExpr,
   isIifeCallNode,
@@ -62,7 +60,7 @@ export function createDiscriminantNarrow({
   flattenCondition,
   resolveComputedKeyName,
   getStatementSiblings,
-  resolveExitCondition,
+  siblingExitCondition,
   literalKeyValue,
   findPatternKeyPath,
   getKeyName,
@@ -329,21 +327,72 @@ export function createDiscriminantNarrow({
     }
   }
 
+  // ROOT identifiers a discriminant test clause could ever narrow: the first dotted segment
+  // of a member chain on either side of an eq/neq comparison (`u.m.kind !== 'a'` -> `u`,
+  // `this.box.kind === X` -> `this`). purely syntactic - `matchTargetFieldPath` compares the
+  // chain against the use's `pathKey` hop by hop, so a statement mentioning no member-chain
+  // root can never produce a discriminant guard for ANY use
+  function collectDiscriminantRoots(testNode, conditionTrue, out) {
+    for (const part of flattenCondition(testNode, conditionTrue ? '&&' : '||')) {
+      const { test } = peelNegation(part);
+      if (test?.type !== 'BinaryExpression') continue;
+      const { operator } = test;
+      if (operator !== '===' && operator !== '==' && operator !== '!==' && operator !== '!=') continue;
+      for (const side of [test.left, test.right]) {
+        let current = unwrapRuntimeExpr(side);
+        while (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
+          current = unwrapRuntimeExpr(current.object);
+        }
+        if (current?.type === 'Identifier') out.push(current.name);
+        else if (current?.type === 'ThisExpression') out.push('this');
+      }
+    }
+  }
+
+  // per statement-LIST index of early-EXIT statements keyed by the discriminant roots their
+  // tests mention: the per-(use, key) sibling walk this replaces re-classified every
+  // preceding statement per query - quadratic on discriminant-dense flat scopes. eager over
+  // the whole list is sound here because the classification is purely syntactic (exit
+  // analysis + root walk read no scopes). keyed on the exact paths ARRAY
+  // `cachedContainerPaths` handed out - same staleness contract as the exit-guard index
+  const exitDiscriminantIndexCache = new WeakMap();
+  function exitDiscriminantIndex(siblings) {
+    let byRoot = exitDiscriminantIndexCache.get(siblings);
+    if (!byRoot) {
+      byRoot = new Map();
+      for (let i = 0; i < siblings.length; i++) {
+        const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
+        if (conditionTrue === null) continue;
+        const roots = [];
+        collectDiscriminantRoots(peeled.node.test, conditionTrue, roots);
+        for (const root of new Set(roots)) {
+          let positions = byRoot.get(root);
+          if (!positions) byRoot.set(root, positions = []);
+          positions.push(i);
+        }
+      }
+      exitDiscriminantIndexCache.set(siblings, byRoot);
+    }
+    return byRoot;
+  }
+
   // scan preceding-sibling statements of `current` at its block level; for each one that
   // unconditionally exits (`if (X) return;` / `... else throw ...`), collect the narrowed
-  // discriminant form into `out`. mirrors `findPrecedingExitGuards` but for discriminant kinds
+  // discriminant form into `out`. mirrors the exit-guard index but for discriminant kinds:
+  // only the statements whose test mentions the use's ROOT are visited, nearest-first.
+  // LabeledStatement wrappers (`outer: if (kind !== 'a') return;`) peel inside the shared
+  // classification - the label is irrelevant to guard polarity
   function collectPrecedingExitDiscriminants({ current, targetKey, out, ctx, deferredUpper }) {
     const siblings = getStatementSiblings(current);
     if (!siblings) return;
-    for (let i = current.key - 1; i >= 0; i--) {
-      // peel LabeledStatement wrap symmetric with typeof-guards.parseSiblingGuards. without
-      // the peel `outer: if (kind !== 'a') return;` would skip discriminant narrow
-      // (resolveExitCondition gates on IfStatement type)
-      const sibling = peelLabeledStatementPath(siblings[i]);
-      const exitCond = resolveExitCondition(sibling, peeledLabelNames(siblings[i]));
-      if (exitCond === null) continue;
-      if (!discriminantGuardApplies(sibling, sibling.node.test, ctx, deferredUpper)) continue;
-      pushDiscriminantClauses({ test: sibling.node.test, conditionTrue: exitCond, targetKey, out, scope: sibling.scope });
+    const positions = exitDiscriminantIndex(siblings).get(targetKey.split('.', 1)[0]);
+    if (!positions) return;
+    for (let p = positions.length - 1; p >= 0; p--) {
+      const i = positions[p];
+      if (i >= current.key) continue;
+      const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
+      if (!discriminantGuardApplies(peeled, peeled.node.test, ctx, deferredUpper)) continue;
+      pushDiscriminantClauses({ test: peeled.node.test, conditionTrue, targetKey, out, scope: peeled.scope });
     }
   }
 

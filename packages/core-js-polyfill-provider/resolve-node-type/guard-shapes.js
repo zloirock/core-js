@@ -10,16 +10,19 @@
 //   isTypeofVar(node, varName)               - `typeof varName` (peeled through TS wrappers)
 //
 // Factory-shaped surface (`createPredicateGuards`) parses `function isFoo(x): x is T` and
-// the assertion form `function assert(x): asserts x is T` to produce guard descriptors that
-// the broader type-guard machinery applies to a binding inside the positive branch (for
-// `x is T`) or after the call returns normally (for `asserts x is T`).
+// the assertion form `function assert(x): asserts x is T` to produce VAR-AGNOSTIC guard
+// entries (`{ varName, guard }`) that the broader type-guard machinery applies to a binding
+// inside the positive branch (for `x is T`) or after the call returns normally (for
+// `asserts x is T`).
 //
-//   parseUserPredicateGuard({ callee, scope, negated, args, varName, call })
+//   parseUserPredicateGuardEntries({ callee, scope, negated, args, call })
 //     consumed by the test-resolver to narrow `if (isFoo(x)) { ... }` shapes
-//   parseAssertionStatementGuard(sibling, varName)
-//     consumed by the preceding-exit sibling scan for `asserts x is T` statement guards
+//   parseAssertionGuardEntries(sibling)
+//     consumed by the preceding-exit guard index for `asserts x is T` statement guards
 import { PRIMITIVES, dropLeadingThisParam, peelAssignmentPattern } from './base.js';
 import { TS_EXPR_WRAPPERS, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
+
+const EMPTY_GUARD_ENTRIES = [];
 
 // guard shape builders - single point of truth for the guard descriptor literal
 export function typeofGuard(value, negated) {
@@ -44,13 +47,18 @@ export function guardFromResolvedType(resolved, negated) {
   return null;
 }
 
-// `typeof varName` peeled through TS wrappers (`as` / `satisfies` / `!`), parens, chain,
-// AND SequenceExpression tail (`typeof (0, varName)` evaluates SE prefix for side effects
-// then runs `typeof` on the tail's binding - same shape as bare `typeof varName`)
-export function isTypeofVar(node, varName) {
-  if (node?.type !== 'UnaryExpression' || node.operator !== 'typeof') return false;
+// the variable name under a `typeof <var>` expression, peeled through TS wrappers (`as` /
+// `satisfies` / `!`), parens, chain, AND SequenceExpression tail (`typeof (0, varName)`
+// evaluates the SE prefix for side effects then runs `typeof` on the tail's binding - same
+// shape as bare `typeof varName`). null when the operand is not a plain identifier
+export function typeofVarName(node) {
+  if (node?.type !== 'UnaryExpression' || node.operator !== 'typeof') return null;
   const arg = unwrapSafeSequenceTail(node.argument);
-  return arg?.type === 'Identifier' && arg.name === varName;
+  return arg?.type === 'Identifier' ? arg.name : null;
+}
+
+export function isTypeofVar(node, varName) {
+  return typeofVarName(node) === varName;
 }
 
 // detect `?.` anywhere in a call-expression chain.
@@ -98,35 +106,35 @@ export function createPredicateGuards({
   findAmbientFunctionPaths,
   resolveTypeAnnotation,
 }) {
-  // verify a `TSTypePredicate` references the call-arg identified by varName: walk fnParams
-  // for the slot named `parameterName`, then check `args[slot]` is `Identifier{varName}`.
-  // without this, `function isStr(opts, x): x is string` paired with `isStr(o, input)` would
-  // narrow the wrong arg. babel uses `params`, oxc/TS-ESTree uses `parameters` for method sigs;
-  // probe both. peel TS expression wrappers (`as`, `!`, parens, chain) AND SE tail on the
-  // call-arg so `isStr(o, input as any)` / `isStr(o, (0, input))` still bind to `input`.
+  // the call-arg NAME a `TSTypePredicate` binds: walk fnParams for the slot named
+  // `parameterName`, then unwrap `args[slot]` to its Identifier - so `function isStr(opts,
+  // x): x is string` paired with `isStr(o, input)` names `input`, never the wrong arg.
+  // babel uses `params`, oxc/TS-ESTree uses `parameters` for method sigs; probe both. peel
+  // TS expression wrappers (`as`, `!`, parens, chain) AND SE tail on the call-arg so
+  // `isStr(o, input as any)` / `isStr(o, (0, input))` still bind to `input`.
   // any `SpreadElement` in args breaks positional mapping (spread length is unknown at
   // compile time, may consume one or many param slots): bail rather than narrow the wrong
   // binding. `isStr(...arr, input)` paired with `(opts, x): x is T` would otherwise map
   // args[1]=input to params[1]=x even though the spread may already have filled `x`
-  function matchPredicateArg({ predicate, fnNode, args, varName }) {
-    if (predicate?.parameterName?.type !== 'Identifier') return false;
+  function predicateArgName({ predicate, fnNode, args }) {
+    if (predicate?.parameterName?.type !== 'Identifier') return null;
     // drop a leading `this` pseudo-param (`function isStr(this: void, x): x is T`) so the type-level
     // param slots align with the runtime call args - else the index is off by one and binds the wrong
     // argument, losing the narrow
     const params = dropLeadingThisParam(fnNode?.params ?? fnNode?.parameters);
-    if (!params) return false;
-    if (args?.some(a => a?.type === 'SpreadElement')) return false;
+    if (!params) return null;
+    if (args?.some(a => a?.type === 'SpreadElement')) return null;
     const targetName = predicate.parameterName.name;
     for (let i = 0; i < params.length; i++) {
       // peel `AssignmentPattern` so defaulted predicate params (`function isStr(x = ''): x is string`)
       // still match - the inner Identifier holds the parameterName, not the AssignmentPattern itself
       if (peelAssignmentPattern(params[i])?.name !== targetName) continue;
       const arg = args?.[i];
-      if (!arg) return false;
+      if (!arg) return null;
       const unwrapped = unwrapSafeSequenceTail(arg);
-      return unwrapped?.type === 'Identifier' && unwrapped.name === varName;
+      return unwrapped?.type === 'Identifier' ? unwrapped.name : null;
     }
-    return false;
+    return null;
   }
 
   // enumerate the function-like declarations a callee may resolve to, paired with their
@@ -169,19 +177,23 @@ export function createPredicateGuards({
     return out;
   }
 
-  // resolve a callee to a guard descriptor when its return type is a `TSTypePredicate`.
-  // `asserts` flag picks between the two predicate forms:
+  // resolve a callee to VAR-AGNOSTIC guard entries (`{ varName, guard }`) when its return
+  // type is a `TSTypePredicate`. `asserts` flag picks between the two predicate forms:
   //   `x is T`         - narrows only inside the truthy branch (asserts=false)
   //   `asserts x is T` - narrows after the call completes normally (asserts=true)
-  // `args` + `varName` bind `parameterName` to a positional call-arg so non-first-arg
-  // predicates (`function isStr(opts, x): x is T`) narrow the right binding.
+  // `args` bind `parameterName` to a positional call-arg so non-first-arg predicates
+  // (`function isStr(opts, x): x is T`) narrow the right binding. one call may guard SEVERAL
+  // names through distinct overload headers - the first candidate to name a variable wins
+  // for that variable, mirroring the first-match order a per-name candidate walk had.
   // `optionalCall` tags the guard so the narrower trusts it only in the positive direction
   // (an optional-chained predicate may short-circuit without testing the arg - see below)
-  function resolvePredicateGuard({ callee, scope, negated, asserts, args, varName, optionalCall = false }) {
-    if (!scope) return null;
+  function resolvePredicateGuardEntries({ callee, scope, negated, asserts, args, optionalCall = false }) {
+    if (!scope) return EMPTY_GUARD_ENTRIES;
+    let entries = null;
     for (const c of predicateCandidates(callee, scope)) {
       if (c.returnType?.type !== 'TSTypePredicate' || !!c.returnType.asserts !== asserts) continue;
-      if (!matchPredicateArg({ predicate: c.returnType, fnNode: c.fnNode, args, varName })) continue;
+      const argName = predicateArgName({ predicate: c.returnType, fnNode: c.fnNode, args });
+      if (argName === null || entries?.some(e => e.varName === argName)) continue;
       const resolved = resolveTypeAnnotation(c.returnType.typeAnnotation, c.scope);
       // transport the predicate's ANNOTATION on the guard regardless of its nominal kind:
       // a structural target (interface / type literal) resolves to an UNKNOWN-constructor
@@ -193,31 +205,31 @@ export function createPredicateGuards({
       guard.annotation = c.returnType.typeAnnotation;
       guard.scope = c.scope;
       if (optionalCall) guard.optionalCall = true;
-      return guard;
+      (entries ??= []).push({ varName: argName, guard });
     }
-    return null;
+    return entries ?? EMPTY_GUARD_ENTRIES;
   }
 
   // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
-  // assigned to a const. assertion form (`asserts x is T`) goes through `resolvePredicateGuard`
-  // with asserts=true via `parseAssertionStatementGuard`.
+  // assigned to a const. assertion form (`asserts x is T`) goes through the entries resolver
+  // with asserts=true via the assertion-statement path below.
   // an optional-chained predicate call (`obj.isStr?.(x)`, `obj?.isStr(x)`, `(p as any)?.(x)`)
   // may short-circuit to `undefined` (falsy) WITHOUT testing x when the receiver is
   // null/undefined. that's sound in the positive (truthy) branch - a truthy result means the
   // call ran and `x is T` held - but UNSOUND in the complement (else / after-return) branch,
   // where the falsy result could be a short-circuit rather than a genuine "not T". gate it
-  // exactly as `parseAssertionStatementGuard` does and mark the guard optional so the complement
+  // exactly as the assertion-statement path does and mark the guard optional so the complement
   // direction is not narrowed. `call` is the full call node (the `?.` lives on it, not on `callee`)
-  function parseUserPredicateGuard({ callee, scope, negated, args, varName, call }) {
+  function parseUserPredicateGuardEntries({ callee, scope, negated, args, call }) {
     const optionalCall = !!call && hasOptionalChainInCall(call);
-    return resolvePredicateGuard({ callee, scope, negated, asserts: false, args, varName, optionalCall });
+    return resolvePredicateGuardEntries({ callee, scope, negated, asserts: false, args, optionalCall });
   }
 
   // `assertArray(x)` as a statement - `asserts x is T` narrows x from that point forward.
   // any-arg-position via predicate.parameterName matching, so `obj.assertStr(opts, input)`
   // with `(opts, x): asserts x is T` narrows `input` (not the first arg). peel callee
   // wrappers (`(0, isStr)`, `((isStr))`, `isStr as any`, `isStr!`) so non-Identifier shapes
-  // still hit the binding-name check inside resolvePredicateGuard.
+  // still reach the binding lookup inside the entries resolver.
   // optional-chain forms (`obj?.assertStr(x)`, `obj.assertStr?.(x)`, `(asrt as any)?.(x)`)
   // do NOT narrow in TS - the assertion may be skipped at runtime when the receiver is
   // null/undefined, so post-statement code can't trust the assertion's signature.
@@ -244,16 +256,16 @@ export function createPredicateGuards({
     return call;
   }
 
-  function parseAssertionStatementGuard(sibling, varName) {
+  function parseAssertionGuardEntries(sibling) {
     const call = assertionCallOf(sibling);
-    if (!call) return null;
-    const guard = resolvePredicateGuard({
+    if (!call) return EMPTY_GUARD_ENTRIES;
+    const entries = resolvePredicateGuardEntries({
       callee: unwrapExpressionChain(call.callee),
-      scope: sibling.scope, negated: false, asserts: true, args: call.arguments, varName,
+      scope: sibling.scope, negated: false, asserts: true, args: call.arguments,
     });
-    if (guard) guard.positive = true;
-    return guard;
+    for (const { guard } of entries) guard.positive = true;
+    return entries;
   }
 
-  return { parseUserPredicateGuard, parseAssertionStatementGuard };
+  return { parseUserPredicateGuardEntries, parseAssertionGuardEntries };
 }
