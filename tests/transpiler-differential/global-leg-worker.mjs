@@ -41,3 +41,7 @@ try {
 }
 // eslint-disable-next-line unicorn/require-post-message-target-origin -- worker_threads postMessage's 2nd arg is a transferList, not a targetOrigin
 parentPort.postMessage(runtimeKey(result));
+// close the port so the event loop drains and the thread ends NATURALLY: the main thread
+// awaits this exit instead of calling `terminate()` - forcible isolate disposal at this
+// spawn volume is the Windows ACCESS_VIOLATION class the leg kept dying of
+parentPort.close();
