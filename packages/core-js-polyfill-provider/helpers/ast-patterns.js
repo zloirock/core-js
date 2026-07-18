@@ -745,7 +745,7 @@ function cachedScopeVars(node) {
 // resolves it natively. no param / lexical shadow can intervene: the var-hoist fallback runs only
 // when the native estree binding is null, which already proves no param / let / const / class /
 // function binds the name on the visible scope chain
-function findVarOwnerDeclaring(path, name) {
+export function findVarOwnerDeclaring(path, name) {
   return climbVarScopeOwners(path, owner => {
     const declarator = cachedScopeVars(owner.node).get(name);
     return declarator ? { owner, declarator } : undefined;
@@ -765,10 +765,10 @@ export function findFunctionScopeVarDeclaratorInPath(path, name) {
 // AssignmentExpression, so it needs its own. no early stop: the parsers disagree on the
 // traversal-abort API, and indexing every write costs one bounded walk total
 const ownerWritePathIndexCache = new WeakMap();
-export function ownerWritePathIndex(ownerPath) {
-  let index = ownerWritePathIndexCache.get(ownerPath);
-  if (index) return index;
-  index = new Map();
+// uncached builder: babel's lagged-binding recovery must read the LIVE AST (the plugin's own
+// alias rewrite replaces write nodes, so a cached index may hold replaced originals)
+export function buildOwnerWritePathIndex(ownerPath) {
+  const index = new Map();
   function add(p) {
     if (!index.has(p.node)) index.set(p.node, p);
   }
@@ -779,7 +779,11 @@ export function ownerWritePathIndex(ownerPath) {
     ForOfStatement: add,
     ForInStatement: add,
   });
-  ownerWritePathIndexCache.set(ownerPath, index);
+  return index;
+}
+export function ownerWritePathIndex(ownerPath) {
+  let index = ownerWritePathIndexCache.get(ownerPath);
+  if (!index) ownerWritePathIndexCache.set(ownerPath, index = buildOwnerWritePathIndex(ownerPath));
   return index;
 }
 
@@ -995,7 +999,7 @@ const EMPTY_REASSIGNMENTS = [];
 // caller-side identity filter must NOT come from a cached index or parameter - the plugin's
 // in-place rewrite replaces declarator nodes, and a stale identity would count the binding's
 // own initializer as a reassignment of itself
-function buildScopeReassignmentIndex(ownerNode) {
+export function buildScopeReassignmentIndex(ownerNode) {
   const index = new Map();
   const shadowDepth = new Map();
   function record(name, node) {

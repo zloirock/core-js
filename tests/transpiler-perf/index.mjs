@@ -28,6 +28,17 @@ function syntheticSingleScope(names) {
   return parts.join('\n');
 }
 
+// assignment-form ctor aliases make babel drop the binding from its scope registry, so every
+// member use walks the lagged-binding recovery - a quadratic there is invisible on the
+// reassignment synthetic above (its bindings never lag) yet catastrophic on this shape
+function syntheticLaggedAliases(names) {
+  const parts = [`let ${ Array.from({ length: names }, (unused, i) => `g${ i }`).join(', ') };`];
+  for (let i = 0; i < names; i++) {
+    parts.push(`({ Map: g${ i } } = globalThis);`, `g${ i } = [${ i }];`, `g${ i }.at(0);`);
+  }
+  return parts.join('\n');
+}
+
 function threeBuild(file) {
   return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
 }
@@ -48,6 +59,9 @@ const CASES = [
   // gated too - the big twin above always runs the deoptimised one
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
     'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 3 },
+  } },
+  { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
+    'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
   } },
 ];
 
