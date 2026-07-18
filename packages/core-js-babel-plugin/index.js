@@ -9,6 +9,7 @@ import {
   isInUpdateOperand,
   isMemberWriteHost,
   isThisReceiver,
+  forEachStatementListBody,
   getMinifierSequenceDestructureExpressions,
   isMutatedGlobalSlot,
   isMutatedStaticMeta,
@@ -133,6 +134,16 @@ function splitMinifierSequenceDestructure(programPath, t) {
   function splitInBody(blockPath) {
     splitListToFixpoint(() => blockPath.get('body'));
   }
+  // cheap raw-AST pre-scan through the same canonical statement-list walk unplugin's
+  // symmetric pre-pass uses: real-world files rarely carry the minifier shape at all, and
+  // the path-materializing traverse below costs an order of magnitude more than this node
+  // recursion. only files with at least one matching statement pay for the path walk
+  let hasMinifierShape = false;
+  forEachStatementListBody(programPath.node, body => {
+    if (hasMinifierShape) return;
+    hasMinifierShape = body.some(stmt => getMinifierSequenceDestructureExpressions(stmt) !== null);
+  });
+  if (!hasMinifierShape) return;
   splitInBody(programPath);
   // the brace-delimited statement-list hosts as a babel-traverse union visitor key (Program is the
   // traverse root, handled by the direct splitInBody(programPath) above). SwitchCase's `consequent`
