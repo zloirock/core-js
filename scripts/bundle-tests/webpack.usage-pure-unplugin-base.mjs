@@ -29,6 +29,13 @@ export default function buildConfig(phase) {
         mode: 'full',
         // same targets as the babel leg so the injected set stays comparable
         targets: 'IE 11, Chrome>=38, Safari>=7.1, FF>=15',
+        // babel-loader lowers every test file to CJS AFTER our transform, so the injected
+        // specifiers should be `require` too. left to auto-detection the `post` / `pre+post`
+        // passes inject ESM `import` into already-lowered CJS text (most side-effect test
+        // modules carry no top-level `exports` write for `detectCommonJS` to key on), which
+        // forces webpack's harmony-interop codegen onto every injection site - ~380KB of
+        // `__WEBPACK_IMPORTED_MODULE_n___default()` wrappers in the post bundle alone
+        importStyle: 'require',
         ...phase ? { phase } : {},
       }),
       // phase-conditional test-expectation flags; legs without a flag leave the identifier
