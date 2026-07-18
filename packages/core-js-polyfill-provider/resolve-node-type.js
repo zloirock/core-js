@@ -1307,9 +1307,14 @@ function createResolveNodeType(babelNodeType, t, {
     namespaceFromPolyfillBinding,
     lookupNested,
     KNOWN_STATIC_METHOD_RETURN_TYPES,
+    // thunk: closureAnalysisCluster instantiates below; resolved at the census's first
+    // build, after factory init completes. visitor keys across contributions are DISJOINT
+    // (Identifier / NewExpression here vs class / assignment / update / for-x there)
+    extraProgramCensusCollectors: () => [closureAnalysisCluster.moduleFieldCensusCollector()],
   });
   const {
     buildProgramIndex,
+    programCensus,
     collectBindingReferences,
     classBindingName,
     isClassExported,
@@ -1397,6 +1402,7 @@ function createResolveNodeType(babelNodeType, t, {
     classBindingName,
     classBindingRefClassifier,
     buildProgramIndex,
+    programCensus,
     methodReadLeaks,
     resolveNodeType,
   });

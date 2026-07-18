@@ -17,13 +17,13 @@ import {
   reassignmentBlocksGlobalResolve,
   SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
+  collectFileCensus,
   isGuardedAliasingWrite,
   propertyKeyName,
   unwrapRuntimeExpr,
   varInitDominatesUsage,
   isDeclaratorSelfViolation,
   withoutValuelessDeclarationViolations,
-  walkAstChildren,
   walkPatternIdentifiers,
 } from './ast-patterns.js';
 
@@ -455,20 +455,23 @@ export function registerAliasPrePassSite({ pattern, init, declKind, assignNode, 
 
 // cheap scope-less gate for the alias pre-pass: does the file contain any destructure whose
 // source COULD be a proxy global (assignment with a pattern LHS, or an initialized declarator
-// with a pattern id)? most files have neither and skip the scoped traverse entirely
+// with a pattern id)? most files have neither and skip the scoped traverse entirely.
+// census-reducer form - the per-node predicate latches from the shared file-census walk
+export function ctorAliasShapesReducer() {
+  let hasCtorAliasShapes = false;
+  return {
+    visit(node) {
+      if (hasCtorAliasShapes) return;
+      const pattern = node.type === 'AssignmentExpression' && node.operator === '=' ? node.left
+        : node.type === 'VariableDeclarator' && node.init ? node.id : null;
+      if (pattern?.type === 'ObjectPattern' || pattern?.type === 'ArrayPattern') hasCtorAliasShapes = true;
+    },
+    result() { return { hasCtorAliasShapes }; },
+  };
+}
+
 export function hasCtorAliasCandidateShapes(programNode) {
-  let found = false;
-  const work = [programNode];
-  while (work.length && !found) {
-    const node = work.pop();
-    if (!node || typeof node !== 'object') continue;
-    if (node.type === 'AssignmentExpression' && node.operator === '='
-      && (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern')) found = true;
-    else if (node.type === 'VariableDeclarator' && node.init
-      && (node.id?.type === 'ObjectPattern' || node.id?.type === 'ArrayPattern')) found = true;
-    else walkAstChildren(node, child => work.push(child));
-  }
-  return found;
+  return collectFileCensus(programNode, [ctorAliasShapesReducer()]).hasCtorAliasShapes;
 }
 
 // a statement placement that provably executes whenever its enclosing function (or module body) runs:
