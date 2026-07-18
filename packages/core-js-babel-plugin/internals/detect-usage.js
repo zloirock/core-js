@@ -355,6 +355,28 @@ function replacedDeclSlotInfo(bindingNode, info) {
 }
 
 const laggedBindingCache = new WeakMap();
+// name -> first declaring declarator for a block-like container's OWN statement level, built
+// once per container: the flat per-call scan this replaces re-walked every statement of the
+// container (a several-thousand-statement Program body) on every lagged lookup - quadratic on
+// large flat scopes. export wrappers unwrap the same way the scan did; first declaration wins
+const lexicalDeclIndexCache = new WeakMap();
+function lexicalDeclIndex(containerNode) {
+  let index = lexicalDeclIndexCache.get(containerNode);
+  if (index) return index;
+  index = new Map();
+  for (const stmt of containerNode.body ?? []) {
+    const decl = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
+    if (decl?.type !== 'VariableDeclaration') continue;
+    for (const d of decl.declarations) {
+      walkPatternIdentifiers(d.id, id => {
+        if (!index.has(id.name)) index.set(id.name, d);
+      });
+    }
+  }
+  lexicalDeclIndexCache.set(containerNode, index);
+  return index;
+}
+
 export function rebuildLaggedScopeBinding(path, name) {
   // hoisted `var` (any nesting depth, pattern-aware): the canonical var-scope walker - the
   // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
@@ -369,24 +391,11 @@ export function rebuildLaggedScopeBinding(path, name) {
         && p.node.start <= declaratorNode.start && declaratorNode.end <= p.node.end) ownerPath = p;
     }
   } else {
-    // block-scoped `let` / `const`: by definition body-level of an enclosing block, so a flat
-    // per-block scan suffices - no descent
+    // block-scoped `let` / `const`: by definition body-level of an enclosing block, so the
+    // per-container lexical index answers each level in one lookup - no descent
     for (let p = path.parentPath; p && !declaratorNode; p = p.parentPath) {
-      const body = p.isProgram() || p.isBlockStatement() || p.isStaticBlock() ? p.node.body : null;
-      if (!body) continue;
-      for (const stmt of body) {
-        const decl = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
-        if (decl?.type !== 'VariableDeclaration') continue;
-        for (const d of decl.declarations) {
-          let binds = d.id?.type === 'Identifier' && d.id.name === name;
-          if (!binds) walkPatternIdentifiers(d.id, id => { if (id.name === name) binds = true; });
-          if (binds) {
-            declaratorNode = d;
-            break;
-          }
-        }
-        if (declaratorNode) break;
-      }
+      if (!p.isProgram() && !p.isBlockStatement() && !p.isStaticBlock()) continue;
+      declaratorNode = lexicalDeclIndex(p.node).get(name) ?? null;
       if (declaratorNode) ownerPath = p;
     }
   }
