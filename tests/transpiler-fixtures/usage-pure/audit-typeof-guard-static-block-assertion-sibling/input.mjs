@@ -1,5 +1,5 @@
 // StaticBlock + assertion-statement sibling guard (`assertArray(x)` shape - asserts
-// predicate). exercises the OTHER branch of parseSiblingGuards (parseAssertionStatementGuard)
+// predicate). exercises the assertion-statement branch of the sibling guard classification
 // reachable via getStatementSiblings now that StaticBlock is recognised as a body-list
 // container. previously the assertion-style narrow inside `static { ... }` was lost
 declare const x: string | string[];

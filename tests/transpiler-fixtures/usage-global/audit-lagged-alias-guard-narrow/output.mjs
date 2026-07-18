@@ -1,0 +1,30 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.global-this";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.at";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// guards narrow a LAGGED alias binding (babel rebuilds it after the destructure-assignment
+// rewrite): an asserts-predicate statement narrows the reassigned alias to the asserted
+// array variant, and a typeof early exit narrows its sibling to the string variant - the
+// guard test's scope-host anchor must resolve the same rebuilt binding as the use
+declare function assertArr(x: unknown): asserts x is number[];
+let F;
+({
+  Map: F
+} = globalThis);
+F = globalThis.data;
+assertArr(F);
+export const r1 = F.includes(3);
+let G;
+({
+  Map: G
+} = globalThis);
+G = globalThis.data;
+if (typeof G !== 'string') throw new Error('shape');
+export const r2 = G.at(0);

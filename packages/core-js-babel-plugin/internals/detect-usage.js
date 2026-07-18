@@ -382,8 +382,10 @@ export function rebuildLaggedScopeBinding(path, name) {
   let ownerPath = varOwner?.owner ?? null;
   if (!declaratorNode) {
     // block-scoped `let` / `const`: by definition body-level of an enclosing block, so the
-    // per-container lexical index answers each level in one lookup - no descent
-    for (let p = path.parentPath; p && !declaratorNode; p = p.parentPath) {
+    // per-container lexical index answers each level in one lookup - no descent. the climb
+    // starts AT `path`: a scope-host anchor (the guard machinery asks with the block / Program
+    // path itself) must see its OWN body-level declarations, not only enclosing ones
+    for (let p = path; p && !declaratorNode; p = p.parentPath) {
       if (!p.isProgram() && !p.isBlockStatement() && !p.isStaticBlock()) continue;
       declaratorNode = lexicalDeclIndex(p.node).get(name) ?? null;
       if (declaratorNode) ownerPath = p;
