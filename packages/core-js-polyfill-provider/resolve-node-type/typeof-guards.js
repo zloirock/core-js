@@ -273,14 +273,28 @@ export function createTypeofGuards({
   // (`if (typeof x === 'string') return;`) and assertion-statement (`assertString(x);`).
   // LabeledStatement wrappers (`outer: inner: if (...) return;`) peel to the wrapped body
   // first - the label is irrelevant to guard polarity
-  function parseSiblingGuards(sibling, varName) {
-    const blockedLabels = peeledLabelNames(sibling);
-    sibling = peelLabeledStatementPath(sibling);
-    const conditionTrue = resolveExitCondition(sibling, blockedLabels);
-    if (conditionTrue !== null) {
-      return parseGuardsFromCondition({ testNode: sibling.node.test, conditionTrue, varName, scope: sibling.scope });
+  // var-independent peel + exit-condition resolution, cached per node: the sibling scans
+  // re-ask the same statement for every (use, name) pair. the name-bound guard extraction
+  // stays per-call; the cached peeled PATH shares the sibling caches' staleness contract
+  const siblingExitConditionCache = new WeakMap();
+  function siblingExitCondition(sibling) {
+    const { node } = sibling;
+    let cached = siblingExitConditionCache.get(node);
+    if (!cached) {
+      const blockedLabels = peeledLabelNames(sibling);
+      const peeled = peelLabeledStatementPath(sibling);
+      cached = { peeled, conditionTrue: resolveExitCondition(peeled, blockedLabels) };
+      siblingExitConditionCache.set(node, cached);
     }
-    const assertionGuard = parseAssertionStatementGuard(sibling, varName);
+    return cached;
+  }
+
+  function parseSiblingGuards(sibling, varName) {
+    const { peeled, conditionTrue } = siblingExitCondition(sibling);
+    if (conditionTrue !== null) {
+      return parseGuardsFromCondition({ testNode: peeled.node.test, conditionTrue, varName, scope: peeled.scope });
+    }
+    const assertionGuard = parseAssertionStatementGuard(peeled, varName);
     return assertionGuard ? [assertionGuard] : [];
   }
 
