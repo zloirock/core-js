@@ -60,7 +60,18 @@ QUnit.test('Well-known Symbols', assert => {
 QUnit.test('Symbol#@@toPrimitive', assert => {
   const symbol = Symbol('Symbol#@@toPrimitive test');
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
-  assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
+  const primitive = symbol[Symbol.toPrimitive]();
+  if (Symbol.sham) {
+    // the sham has no primitive symbol values - @@toPrimitive returns the hidden string key,
+    // so `ToPropertyKey`-style consumers (like the Babel `toPropertyKey` helper) keep working
+    assert.same(typeof primitive, 'string', 'returns a primitive');
+    assert.same(primitive, String(symbol), 'returns the hidden string key');
+    const object = {};
+    object[primitive] = 42;
+    assert.same(object[symbol], 42, 'result usable as the property key');
+  } else {
+    assert.same(primitive, symbol, 'works');
+  }
 });
 
 QUnit.test('Symbol#@@toStringTag', assert => {
