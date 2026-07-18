@@ -41,7 +41,9 @@ export const e = _Array$from(items);
 // read falls to the raw member and throws natively, the post-write path gets the polyfill
 let M4;
 export const f = (M4 === _Map ? _Map$groupBy : M4.groupBy.bind(M4))(items, keyFn);
-M4 = _Map; // a block-scoped ctor alias serves only its block: the same-named read AFTER the block is a
+M4 = _Map;
+
+// a block-scoped ctor alias serves only its block: the same-named read AFTER the block is a
 // runtime ReferenceError the registration must not narrow; a hoisted `var` twin serves the
 // whole function
 {
