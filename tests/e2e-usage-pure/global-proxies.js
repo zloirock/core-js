@@ -621,3 +621,28 @@ QUnit.test('proxy-hop: SE-prefixed init folds the self hop and replays the effec
   assert.same(typeof fv19, 'function');
   assert.same(typeof rv19, 'object');
 });
+
+QUnit.test('lagged alias binding: sibling redeclarations and for-of head write', assert => {
+  // a redecl-with-init after the ctor-alias write: the member binds the redecl value's variant
+  // eslint-disable-next-line no-var -- the var redeclaration is the form under test
+  var M;
+  // eslint-disable-next-line no-useless-assignment -- the overwritten alias write is the form under test
+  ({ Map: M } = globalThis);
+  // eslint-disable-next-line no-var, no-redeclare -- the var redeclaration is the form under test
+  var M = [1, 2];
+  assert.same(M.at(0), 1);
+  // a bare redecl writes no value and keeps the alias narrow
+  // eslint-disable-next-line no-var -- the var redeclaration is the form under test
+  var B;
+  ({ Map: B } = globalThis);
+  // eslint-disable-next-line no-var, no-redeclare -- the var redeclaration is the form under test
+  var B;
+  assert.same(B.groupBy([1], it => it).get(1)[0], 1);
+  // a for-of head write past the alias: the member reads the loop's last value
+  let F;
+  ({ Map: F } = globalThis);
+  let laps = 0;
+  for (F of [[[3]]]) laps++;
+  assert.same(laps, 1);
+  assert.deepEqual(F.flat(), [3]);
+});

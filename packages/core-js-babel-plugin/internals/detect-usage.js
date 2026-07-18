@@ -35,7 +35,9 @@ import {
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
-  findFunctionScopeVarDeclaratorInPath,
+  buildOwnerWritePathIndex,
+  buildScopeReassignmentIndex,
+  findVarOwnerDeclaring,
   isMutatedStaticPair,
   resolveCallArgument,
   unwrapSafeSequenceTail,
@@ -334,18 +336,12 @@ export function freshPathOfNode(scopeOwnerPath, targetNode) {
   return found;
 }
 
-// no-tracking adapter for detect-entry's `require('core-js/...')` literal check
 // babel drops a binding from its scope registry after the destructure-assignment alias rewrite
 // (`({ Map: M } = globalThis)` -> `M = _Map`): the declaration survives in the AST while
 // `scope.getBinding` turns null, so the resolver's reassignment follow silently degrades to
 // generic (the estree side, resolving on the pristine AST, keeps the narrow - a parity gap).
 // rebuild the minimal binding shape the resolver reads ({ path, identifier, scope, kind,
-// constantViolations }) from the AST: locate the nearest enclosing scope owner declaring
-// `name`, then collect the binding's write paths across the whole owner subtree (nested-
-// function writes included - the flow's own deferral and straight-line gates position them).
-// a function / class / catch scope that redeclares `name` is SKIPPED whole (its writes belong
-// to the shadow binding, not ours); a sibling block-level redeclaration still bails to null -
-// the write set would be ambiguous, and null keeps the pre-recovery generic behavior
+// constantViolations }) from the AST via the canonical scan (see `rebuildLaggedScopeBinding`)
 // the positional twin of the identity view for a REPLACED declarator: our decl-form swap
 // replaces the declarator node (identity dies, positions cloned), but the replacement stays
 // inside the registration's declaration span - a place no user shadow can occupy
@@ -381,16 +377,10 @@ export function rebuildLaggedScopeBinding(path, name) {
   // hoisted `var` (any nesting depth, pattern-aware): the canonical var-scope walker - the
   // same lookup the estree side's synthetic var-hoist binding uses, so the recovery shapes
   // stay in lockstep across substrates
-  let declaratorNode = findFunctionScopeVarDeclaratorInPath(path, name);
-  let ownerPath = null;
-  if (declaratorNode) {
-    // the walker climbs var-scope owners, so the declarator may live in an OUTER scope -
-    // the owner must be the one CONTAINING it, not merely the nearest function-like
-    for (let p = path.parentPath; p && !ownerPath; p = p.parentPath) {
-      if ((p.isProgram() || p.isFunction() || p.isStaticBlock())
-        && p.node.start <= declaratorNode.start && declaratorNode.end <= p.node.end) ownerPath = p;
-    }
-  } else {
+  const varOwner = findVarOwnerDeclaring(path, name);
+  let declaratorNode = varOwner?.declarator ?? null;
+  let ownerPath = varOwner?.owner ?? null;
+  if (!declaratorNode) {
     // block-scoped `let` / `const`: by definition body-level of an enclosing block, so the
     // per-container lexical index answers each level in one lookup - no descent
     for (let p = path.parentPath; p && !declaratorNode; p = p.parentPath) {
@@ -401,67 +391,92 @@ export function rebuildLaggedScopeBinding(path, name) {
   }
   if (!declaratorNode || !ownerPath) return null;
   // memoized per (owner PATH, name): the recovery is re-asked for the same lagged binding at
-  // every use site, and each miss re-traversed the whole owner (quadratic on a large scope).
-  // keyed on the traversal-scoped path object, so the cache dies with the traversal; member
-  // rewrites do not add or remove the USER writes this collects
-  let perName = laggedBindingCache.get(ownerPath);
-  if (!perName) laggedBindingCache.set(ownerPath, perName = new Map());
-  if (perName.has(name)) return perName.get(name);
-  let declaratorPath = null;
-  const violations = [];
-  let shadowed = false;
-  ownerPath.traverse({
-    VariableDeclarator(dp) {
-      if (dp.node === declaratorNode) {
-        declaratorPath = dp;
-        return;
-      }
-      // reached only for redeclarations OUTSIDE skipped function/catch shadows: a sibling
-      // block-level redecl - ambiguous write attribution, bail the whole recovery
-      walkPatternIdentifiers(dp.node.id, id => { if (id.name === name) shadowed = true; });
-      if (shadowed) dp.stop();
-    },
-    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassDeclaration|ClassExpression|CatchClause'(fp) {
-      // an own-scope redeclaration (id / param / catch param / a body-level declarator) makes the
-      // subtree's writes belong to the SHADOW binding - skip the subtree, keep walking siblings
-      let declaresOwn = fp.node.id?.name === name || fp.node.param?.name === name;
-      if (!declaresOwn) {
-        for (const param of fp.node.params ?? []) {
-          walkPatternIdentifiers(param, id => { if (id.name === name) declaresOwn = true; });
-        }
-      }
-      if (!declaresOwn && (fp.isFunction() || fp.isCatchClause())) {
-        fp.traverse({
-          VariableDeclarator(dp) {
-            walkPatternIdentifiers(dp.node.id, id => { if (id.name === name) declaresOwn = true; });
-            if (declaresOwn) dp.stop();
-          },
-        });
-      }
-      if (declaresOwn) fp.skip();
-    },
-    AssignmentExpression(ap) {
-      let writes = false;
-      if (ap.node.left?.type === 'Identifier') writes = ap.node.left.name === name;
-      else walkPatternIdentifiers(ap.node.left, id => { if (id.name === name) writes = true; });
-      if (writes) violations.push(ap);
-    },
-    UpdateExpression(up) {
-      if (up.node.argument?.type === 'Identifier' && up.node.argument.name === name) violations.push(up);
-    },
-  });
-  const rebuilt = shadowed || !declaratorPath ? null : {
-    path: declaratorPath,
-    identifier: declaratorNode.id,
-    scope: ownerPath.scope,
-    kind: declaratorPath.parentPath?.node?.kind ?? 'let',
-    constantViolations: violations,
-    referenced: true,
-  };
-  perName.set(name, rebuilt);
+  // every use site. keyed on the traversal-scoped path object, so the cache dies with the
+  // traversal; member rewrites do not add or remove the USER writes this collects
+  let ownerCache = laggedBindingCache.get(ownerPath);
+  if (!ownerCache) laggedBindingCache.set(ownerPath, ownerCache = { byName: new Map(), reassignIndex: null, writeIndex: null });
+  if (ownerCache.byName.has(name)) return ownerCache.byName.get(name);
+  // canonical write set mapped onto live paths - the same scan / owner index the estree
+  // twin (`synthVarHoistBinding`) reads, so the recovery mirrors a NATIVE binding's shape:
+  // for-x head writes and redecl-with-init declarators included, shadow boundaries scoped by
+  // the canonical rules (a bare redecl carries no value and stays unrecorded - the phantom
+  // filter would drop it anyway).
+  // ONE index PAIR per owner, shared by every lagged name in it - a fresh per-name build
+  // re-walked the whole owner twice per name, quadratic on alias-dense scopes. the recovery
+  // runs after the plugin's own alias rewrite, so every path handed out is revalidated
+  // against the LIVE tree below: a babel path is a container-slot view, so an in-place
+  // rewrite leaves the indexed path pointing at the replacement (re-vouched when it still
+  // writes `name`), while a replaced-statement write detaches its subtree and fails the
+  // attachment climb. any failed vouch rebuilds the pair once; a second failure declines
+  // the recovery - generic degrade beats handing the flow gates an unvouched write list
+  function attempt() {
+    if (!ownerCache.writeIndex) {
+      ownerCache.reassignIndex = buildScopeReassignmentIndex(ownerPath.node);
+      ownerCache.writeIndex = buildOwnerWritePathIndex(ownerPath);
+    }
+    const declaratorPath = ownerCache.writeIndex.get(declaratorNode);
+    // the declarator slot must be EXACT: a swapped declarator means the (cached) discovery
+    // node is itself stale and the write attribution cannot be vouched
+    if (declaratorPath?.node !== declaratorNode || !pathAttachedTo(declaratorPath, ownerPath)) return null;
+    const violations = [];
+    for (const node of ownerCache.reassignIndex.get(name) ?? []) {
+      if (node === declaratorNode) continue;
+      const violationPath = ownerCache.writeIndex.get(node);
+      if (!violationPath || !pathAttachedTo(violationPath, ownerPath)
+        || (violationPath.node !== node && !writesLaggedName(violationPath.node, name))) return null;
+      violations.push(violationPath);
+    }
+    return {
+      path: declaratorPath,
+      identifier: declaratorNode.id,
+      scope: ownerPath.scope,
+      kind: declaratorPath.parentPath?.node?.kind ?? 'let',
+      constantViolations: violations,
+    };
+  }
+  let rebuilt = attempt();
+  if (!rebuilt) {
+    ownerCache.reassignIndex = null;
+    ownerCache.writeIndex = null;
+    rebuilt = attempt();
+  }
+  ownerCache.byName.set(name, rebuilt);
   return rebuilt;
 }
 
+// still mounted in the live tree under `ownerPath`? verifies the container-slot invariant at
+// every hop - a write whose host statement was REPLACED keeps its own subtree intact (node
+// identity still matches), and only the broken container link above reveals the detachment
+function pathAttachedTo(path, ownerPath) {
+  for (let p = path; p; p = p.parentPath) {
+    if (p === ownerPath || p.node === ownerPath.node) return true;
+    if (p.container && p.container[p.key] !== p.node) return false;
+  }
+  return false;
+}
+
+// does `node` (a write-shaped node in the owner index) write the binding `name`? re-vouches a
+// container slot whose original write was swapped in place by the plugin's own alias rewrite
+function writesLaggedName(node, name) {
+  let writes = false;
+  function check(patternNode) {
+    walkPatternIdentifiers(patternNode, id => { if (id.name === name) writes = true; });
+  }
+  switch (node.type) {
+    case 'AssignmentExpression': check(node.left); break;
+    case 'UpdateExpression': writes = node.argument?.type === 'Identifier' && node.argument.name === name; break;
+    case 'VariableDeclarator': check(node.id); break;
+    case 'ForOfStatement':
+    case 'ForInStatement': {
+      const forHead = node.left;
+      if (forHead?.type === 'VariableDeclaration') for (const d of forHead.declarations) check(d.id);
+      else if (forHead) check(forHead);
+    }
+  }
+  return writes;
+}
+
+// no-tracking adapter for detect-entry's `require('core-js/...')` literal check
 export const babelAdapter = createBabelAdapter();
 
 // babel visitor key for nodes whose `typeAnnotation` / `returnType` / params need walking:
