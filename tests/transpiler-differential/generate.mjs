@@ -2086,6 +2086,35 @@ function * generateForOfIterable() {
   }
 }
 
+// a USER-AUTHORED pure global-this import + slot write through the binding: the name must
+// taint (the bare read serves the live shim on every leg) - a recognition miss substitutes
+// the pristine ponyfill over the shim on the transpiled legs only, desyncing them from
+// native. each style routes a DISTINCT recognition branch (ESM default -> import-binding
+// source branch, named default -> same via bindsModuleDefault, namespace `.default` -> the
+// interop member canon). the require / interop-wrapper styles cannot run on the NATIVE leg
+// (no `require` in real ESM; a stubbed one is the shadowed-require negative by design) -
+// those stay locked by fixtures and the e2e post leg. FULL-env: the write needs the live slot
+function * generateProxyImportSlotWrite() {
+  const styles = [
+    { id: 'esm-default', head: 'import gt from "@core-js/pure/full/global-this";', receiver: 'gt' },
+    { id: 'named-default', head: 'import { default as gt } from "@core-js/pure/full/global-this";', receiver: 'gt' },
+    { id: 'namespace-default', head: 'import * as gtns from "@core-js/pure/full/global-this";', receiver: 'gtns.default' },
+  ];
+  for (const style of styles) {
+    // the restore goes through the SAME import binding: a bare `globalThis.Map = _o` restore
+    // would arm the mutation gate on its own and mask a recognition regression of the import
+    // channel - exactly the seed this family exists to catch
+    const body = '(() => { const _o = globalThis.Map; const SHIM = function () { this.slotMarker = "S"; }; '
+      + `try { ${ style.receiver }.Map = SHIM; return new Map([[1, 2]]).slotMarker; } `
+      + `finally { ${ style.receiver }.Map = _o; } })()`;
+    yield {
+      name: `proxy-import-slot-write/${ style.id }`,
+      code: [style.head, ...PRELUDE, `export const r = ${ body };`, 'export const effects = log;'].join('\n'),
+      strip: false,
+    };
+  }
+}
+
 // expression families (one valid + observable snippet each), weighted to fragile areas
 const EXPR_FAMILIES = {
   'optional-chain': [
@@ -3452,6 +3481,7 @@ export function * generate() {
   yield * generateAsyncStatic();
   yield * generateCollectionReceivers();
   yield * generateForOfIterable();
+  yield * generateProxyImportSlotWrite();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) {
       const fullEnv = FULL_ENV_FAMILIES.has(family) || FULL_ENV_SNIPPETS.has(expr);
