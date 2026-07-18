@@ -14,7 +14,9 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // plain block declaration, unknown receiver - the per-prop channel's guard
 const a = (_ref = _at(recvA)) === void 0 ? dfltA() : _ref; // plain assignment cascade
 let fl;
-fl = (_ref2 = _flatMaybeArray(recvB)) === void 0 ? dfltB() : _ref2; // typed receiver: the type-specific dispatcher is still guarded (uniform shape); the
+fl = (_ref2 = _flatMaybeArray(recvB)) === void 0 ? dfltB() : _ref2;
+
+// typed receiver: the type-specific dispatcher is still guarded (uniform shape); the
 // default is dead at runtime post-polyfill
 const inc = (_ref3 = _includesMaybeArray([1, 2])) === void 0 ? dfltC() : _ref3; // parameter default: the synth literal carries the dispatcher, the pattern keeps the
 // user default (fires when the dispatcher read is undefined)
