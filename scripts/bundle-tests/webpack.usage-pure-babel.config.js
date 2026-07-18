@@ -40,7 +40,11 @@ module.exports = {
         },
       },
     }, {
-      // everything else — standard transforms only, no polyfill injection
+      // everything else — standard transforms only, no polyfill injection. webpack rules are
+      // CUMULATIVE: without the suite dir in exclude, its `.js` files would ALSO pass through
+      // this rule — and FIRST, lowering spread/for-of under the base `iterableIsArray: true`
+      // before the e2e rule's proper-iteration overrides ever see the code. the field override
+      // replaces the base exclude wholesale, so `/node_modules/` is restated alongside
       ...baseConfig.module.rules[0],
       exclude: [/node_modules/, e2eUsagePure],
     }],
