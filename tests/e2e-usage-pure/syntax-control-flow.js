@@ -341,3 +341,20 @@ QUnit.test('switch: discriminant closure write retargets the outer alias', asser
   assert.same(M.from([1]), 'patched');
   assert.deepEqual(seen, [0]);
 });
+
+QUnit.test('control-flow: one early exit narrows several bindings', assert => {
+  function probe(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return null;
+    return [a.at(-1), b.includes('y')];
+  }
+  assert.deepEqual(probe('xz', 'xyz'), ['z', true]);
+  assert.same(probe(['arr'], 'xyz'), null);
+  // a same-operator group mixing the two names must NOT narrow either: the complement
+  // admits a non-string on one of them, and the reads still run correctly on both shapes
+  function loose(c, d) {
+    if (typeof c !== 'string' && typeof d !== 'string') return null;
+    return [c.at(0), d.includes ? d.includes(1) : null];
+  }
+  assert.deepEqual(loose('q', [1, 2]), ['q', true]);
+  assert.deepEqual(loose(['a', 'b'], 'z'), ['a', false]);
+});

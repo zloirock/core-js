@@ -1080,6 +1080,16 @@ function * generateAssignAliasReassign() {
     { id: 'redecl-with-init', body: 'var M; ({ Map: M } = globalThis); var M = [1, 2]; return String(M.at(0));' },
     { id: 'redecl-bare', body: 'var M; ({ Map: M } = globalThis); var M; return typeof M.groupBy;' },
     { id: 'redecl-forx', body: 'let F; ({ Map: F } = globalThis); for (F of [[[3]]]); return String(F.flat());' },
+    // a typeof early exit narrowing the reassigned alias: the guard test's scope-host anchor
+    // must resolve the same rebuilt binding as the use, and the minted alias write must carry
+    // the original span for the mutation-interval gates - either miss degrades one emitter.
+    // the `let` twin routes the recovery's LEXICAL discovery (the var twin its var-scope walk)
+    { id: 'redecl-guard-narrow', body: 'var G; ({ Map: G } = globalThis); var G = [4, 5]; if (typeof G !== \'object\') throw new Error(\'x\'); return String(G.at(1));' },
+    // the value must stay statically OPAQUE (`process.platform` resolves to nothing) so the
+    // typeof guard is the ONLY narrow source; a literal value would narrow via the
+    // straight-line flow and mask a broken guard channel
+    { id: 'alias-guard-narrow-let',
+      body: 'let L; ({ Map: L } = globalThis); L = globalThis.process.platform; if (typeof L !== \'string\') throw new Error(\'x\'); return String(L.at(0));' },
   ];
   for (const c of REDECL) {
     const body = `(() => { ${ c.body } })()`;
