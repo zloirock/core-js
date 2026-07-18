@@ -52,6 +52,7 @@ export function createClosureAnalysis({
   classBindingName,
   classBindingRefClassifier,
   buildProgramIndex,
+  programCensus,
   methodReadLeaks,
   resolveNodeType,
 }) {
@@ -872,29 +873,32 @@ export function createClosureAnalysis({
   // traversals per public field (subclasses + external writes), yielding O(fields x N). build
   // once, look up by name, turning the total into a single O(N) pass amortized across every
   // public field query in the module
-  let moduleFieldIndexCache = new WeakMap();
-  function getModuleFieldIndex(programPath) {
-    return memoize(moduleFieldIndexCache, programPath.node, () => {
-      const writesByField = new Map();
-      const subclassesBySuper = new Map();
-      function pushMultimap(map, key, value) {
-        const list = map.get(key);
-        if (list) list.push(value);
-        else map.set(key, [value]);
-      }
-      // index member-write targets reachable through a destructuring-assignment LHS
-      // (`({ k: o.field } = src)`) or a for-of/for-in head (`for (o.field of iter)`). these
-      // rebind `o.field` to a destructuring-source / iteration value of indeterminate type, but
-      // the member never appears as an AssignmentExpression `.left`, so the bare-member visitors
-      // miss them. push the member PATH itself - `writePathContributedType` returns `unknown` for
-      // a non-`=` write, widening the field flow (the sound direction for an opaque write)
-      function indexPatternWriteMembers(leftPath) {
-        forEachPatternWriteMember(leftPath, mp => {
-          const name = memberWriteFieldName(mp.node);
-          if (name) pushMultimap(writesByField, name, mp);
-        });
-      }
-      programPath.traverse({
+  // module-field visitor bundle for the SHARED program census (hosted by binding-analysis):
+  // one walk serves this index alongside the reference / new-expression collection, so a
+  // first query of either no longer pays its own whole-program traverse
+  function moduleFieldCensusCollector() {
+    const writesByField = new Map();
+    const subclassesBySuper = new Map();
+    function pushMultimap(map, key, value) {
+      const list = map.get(key);
+      if (list) list.push(value);
+      else map.set(key, [value]);
+    }
+    // index member-write targets reachable through a destructuring-assignment LHS
+    // (`({ k: o.field } = src)`) or a for-of/for-in head (`for (o.field of iter)`). these
+    // rebind `o.field` to a destructuring-source / iteration value of indeterminate type, but
+    // the member never appears as an AssignmentExpression `.left`, so the bare-member visitors
+    // miss them. push the member PATH itself - `writePathContributedType` returns `unknown` for
+    // a non-`=` write, widening the field flow (the sound direction for an opaque write)
+    function indexPatternWriteMembers(leftPath) {
+      forEachPatternWriteMember(leftPath, mp => {
+        const name = memberWriteFieldName(mp.node);
+        if (name) pushMultimap(writesByField, name, mp);
+      });
+    }
+    return {
+      finish: () => ({ writesByField, subclassesBySuper }),
+      visitors: {
         'ClassDeclaration|ClassExpression'(p) {
           // collect EVERY candidate base name reachable through the superClass shape:
           //   - Identifier / MemberExpression: canonical name (single)
@@ -937,9 +941,13 @@ export function createClosureAnalysis({
         'ForOfStatement|ForInStatement'(p) {
           if (p.node.left.type !== 'VariableDeclaration') indexPatternWriteMembers(p.get('left'));
         },
-      });
-      return { writesByField, subclassesBySuper };
-    });
+      },
+    };
+  }
+
+  function getModuleFieldIndex(programPath) {
+    const { writesByField, subclassesBySuper } = programCensus(programPath);
+    return { writesByField, subclassesBySuper };
   }
 
   function reset() {
@@ -950,13 +958,13 @@ export function createClosureAnalysis({
     classBindingClosureCache = new WeakMap();
     classConstructorNamesCache = new WeakMap();
     classDescendantPathsCache = new WeakMap();
-    moduleFieldIndexCache = new WeakMap();
     programClosureIndexCache = new WeakMap();
   }
 
   return {
     computeObjectAliasClosure,
     isReceiverInClosure,
+    moduleFieldCensusCollector,
     getClosureTemporalBound,
     getClassInstanceTemporalBound,
     getClassInstanceClosure,
