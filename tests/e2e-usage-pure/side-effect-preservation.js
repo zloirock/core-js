@@ -424,6 +424,12 @@ QUnit.test('SE-sequence init: prefix runs before the extraction reads the receiv
   assert.same(order[0], 'prefix');
 });
 
+// the pre+post transform leg lowers these destructures between its phases: the post pass then
+// soundly polyfills the plain member read the single-pass shape-bail protects (SE order is
+// already fixed by the lowering itself), so the value channel serves the ponyfill even where
+// the native is absent. single-pass legs keep the bail-to-native contract
+const POST_LOWERED = typeof E2E_POST_LOWERED !== 'undefined';
+
 // NESTED fragment under an SE prefix bails to native (an extraction would reorder the prefix);
 // the prefix still runs exactly once
 QUnit.test('SE-sequence nested fragment: bails native, prefix runs once', assert => {
@@ -432,7 +438,7 @@ QUnit.test('SE-sequence nested fragment: bails native, prefix runs once', assert
   const { y: { flat: m }, q } = { y: (ran++, arr2), q: 1 };
   // the bail keeps the NATIVE read: `m` mirrors native availability (undefined on engines
   // without Array#flat - pure never mutates prototypes); the invariant is the SE count
-  const nativeFlat = Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
+  const nativeFlat = POST_LOWERED || Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
   assert.same(typeof m, nativeFlat);
   assert.same(q, 1);
   assert.same(ran, 1);
@@ -452,7 +458,7 @@ QUnit.test('literal receiver with member read: source getter fires once', assert
   };
   const { y: { flat: m }, q } = { y: [holder.p], q: 1 };
   // bail-to-native: `m` mirrors native availability; the invariant is the single getter fire
-  const nativeFlat = Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
+  const nativeFlat = POST_LOWERED || Object.getOwnPropertyDescriptor(Array.prototype, 'flat') ? 'function' : 'undefined';
   assert.same(typeof m, nativeFlat);
   assert.same(q, 1);
   assert.same(fires, 1);
@@ -473,7 +479,7 @@ QUnit.test('literal receiver with class static member read: getter fires once', 
   // eslint-disable-next-line unicorn/no-static-only-class -- the class-eval-time static init IS the case under test
   const { y: { at: m }, q } = { y: [class K { static p = holder.p; }], q: 1 };
   // bail-to-native: `m` mirrors native availability; the invariant is the single getter fire
-  const nativeAt = Object.getOwnPropertyDescriptor(Array.prototype, 'at') ? 'function' : 'undefined';
+  const nativeAt = POST_LOWERED || Object.getOwnPropertyDescriptor(Array.prototype, 'at') ? 'function' : 'undefined';
   assert.same(typeof m, nativeAt);
   assert.same(q, 1);
   assert.same(fires, 1);
