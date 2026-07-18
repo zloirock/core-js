@@ -1073,6 +1073,18 @@ function * generateAssignAliasReassign() {
     const body = `(() => { ${ c.decl } return typeof M.groupBy; })()`;
     yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
   }
+  // sibling REDECLARATIONS of the alias name: a redecl-with-init is an ordinary violation the
+  // flow resolves (native last-write-wins), a bare redecl writes no value and keeps the alias,
+  // a for-x head write rebinds per iteration - the member must read the loop's last value
+  const REDECL = [
+    { id: 'redecl-with-init', body: 'var M; ({ Map: M } = globalThis); var M = [1, 2]; return String(M.at(0));' },
+    { id: 'redecl-bare', body: 'var M; ({ Map: M } = globalThis); var M; return typeof M.groupBy;' },
+    { id: 'redecl-forx', body: 'let F; ({ Map: F } = globalThis); for (F of [[[3]]]); return String(F.flat());' },
+  ];
+  for (const c of REDECL) {
+    const body = `(() => { ${ c.body } })()`;
+    yield { ...snippet(`assign-alias-reassign/${ c.id }`, body), strip: false };
+  }
   // a write inside a NESTED function may never run - registration must refuse it, keeping the
   // not-yet-called read native (it THROWS on the undefined binding, exactly like untranspiled code)
   const crossFn = '(() => { let M; function w() { ({ Map: M } = globalThis); } void w; '
