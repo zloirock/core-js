@@ -1,10 +1,9 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
-  isASTNode,
+  collectFileCensus,
   isDirectiveStatement,
   isInitlessVarDecl,
   isTopLevelImportLike,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
   tsRuntimeBindingName,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -525,34 +524,9 @@ const PLUGIN_EMIT_RHS_TYPES = new Set([
   'SequenceExpression',
 ]);
 
-// node types that introduce a new `var`-scope boundary. plugin rehydrates orphans as
-// `var _ref;` at module top, which hoists through any nested BlockStatement / CatchClause /
-// ForStatement (they bind `let`/`const` only, `var` hoists past them). functions / classes /
-// static-blocks are real boundaries: `var` hoists at most to their body, not past them.
-// descending into these drops `atTopLevel` so orphan-candidate gating matches the emission
-// invariant (plugin never emits orphan `_ref = X` across a var-scope boundary)
-const SCOPE_REBINDING_TYPES = new Set([
-  'FunctionDeclaration',
-  'FunctionExpression',
-  'ArrowFunctionExpression',
-  'ObjectMethod',
-  'ClassDeclaration',
-  'ClassExpression',
-  'ClassMethod',
-  'ClassPrivateMethod',
-  'MethodDefinition',
-  // ES2022 class `static { ... }` has its own var-scope; `var` inside doesn't leak to the class
-  'StaticBlock',
-  // TS namespaces and enums compile to IIFEs - their bodies are var-scopes, so a `_ref = X`
-  // inside `namespace N { ... }` / an enum initializer is never the plugin's module-top-level
-  // emission (mirrors the var-scope treatment `varScopeAnchor` gives TSModuleBlock)
-  'TSModuleDeclaration',
-  'TSEnumDeclaration',
-]);
-
-function isScopeRebinding(node) {
-  return SCOPE_REBINDING_TYPES.has(node.type);
-}
+// `var`-scope boundary predicate (drives the census `atTopLevel` frame flag) lives with
+// the shared census driver in ast-patterns - the orphan classifier here reads the flag
+// off the census frame
 
 // the plugin only ever emits `_ref = X` in two parent positions: inside a `null == (...)`
 // memo test (a BinaryExpression - parens / TS wrappers between them are forwarded as
@@ -590,7 +564,10 @@ function isPluginShapedOrphanAssign(node, parentType, atTopLevel) {
 // real binding. case Identifier dumps every reference into `names` for UID safety, so the
 // adopt-filter needs a stricter signal to distinguish "user declared `var _ref;`" from
 // "Identifier traversal saw plugin-emitted `_ref = ...` and reserved the read site"
-export function collectAllBindingNames(ast) {
+// census-reducer form: the shared file-census walk supplies the frame context (structural
+// parent type with transparent wrappers forwarded + the module-top-level flag the orphan
+// classifier keys on); the per-node collection below is unchanged
+export function bindingNamesReducer() {
   const names = new Set();
   const declaredNames = new Set();
   const orphanRefs = new Set();
@@ -605,17 +582,7 @@ export function collectAllBindingNames(ast) {
     walkPatternIdentifiers(pat, id => addDecl(id.name));
   }
 
-  // scope-depth tracks whether we're still at module top-level (outside any function / class
-  // that rebinds `this` / scope). plugin emits its `_ref = X` orphans only at top-level, so
-  // nested-scope assignments are user code regardless of RHS shape
-  const stack = [{ node: ast, parentType: null, atTopLevel: true }];
-  while (stack.length) {
-    const { node, parentType, atTopLevel } = stack.pop();
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push({ node: node[i], parentType, atTopLevel });
-      continue;
-    }
-    if (!isASTNode(node)) continue;
+  function visit(node, { parentType, atTopLevel }) {
     switch (node.type) {
       case 'VariableDeclarator':
         addPattern(node.id);
@@ -675,22 +642,12 @@ export function collectAllBindingNames(ast) {
         names.add(node.name);
         break;
     }
-    // descending into a function / class body: children see `atTopLevel = false` so nested
-    // `_ref = foo()` reserves the name instead of counting as plugin-emitted orphan
-    const childAtTopLevel = atTopLevel && !isScopeRebinding(node);
-    // transparent wrappers (parens + TS `as`/`!`/`satisfies`) are see-through to the orphan
-    // classifier's parent check - `throw (x)`, `case (x as any):`, `if ((x)!)` put a wrapper
-    // between the structural parent and the assignment; forwarding the outer parentType lets the
-    // emit-position check see the structural parent. without TS-wrapper transparency a top-level user `_ref = foo() as any`
-    // in throw/case/if is misclassified as a plugin orphan and adopted, injecting a module `var _ref`
-    // that localizes the user's implicit-global write
-    const childParentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? parentType : node.type;
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      const v = node[key];
-      if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: childParentType, atTopLevel: childAtTopLevel });
-    }
   }
+  return { visit, result: () => ({ names, declaredNames, orphanRefs }) };
+}
+
+export function collectAllBindingNames(ast) {
+  const { names, declaredNames, orphanRefs } = collectFileCensus(ast, [bindingNamesReducer()]);
   return { names, declaredNames, orphanRefs };
 }
 
