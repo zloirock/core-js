@@ -1,6 +1,6 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { isDirectiveStatement, isInitlessVarDecl, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import ImportInjectorState from '@core-js/polyfill-provider/injector-base';
+import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 
 // babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
@@ -309,6 +309,39 @@ export default class ImportInjector extends ImportInjectorState {
   // out of sync with the live AST
   pruneUnusedRefs() {
     if (!this.#refs.size) return;
+    // FAST PATH - raw liveness census, no crawl, no scope-graph walk. allocation hands out
+    // sequential names, so numbering gaps exist only after a prune: a file where every ref
+    // is still referenced needs neither the prune nor the renumber, and the scope crawl +
+    // scope-graph walk below exist only to serve those two. a DECLARED ref's own `var _refN;`
+    // declarator id is exactly one occurrence - a second occurrence proves a live use; a
+    // wholesale-discarded emission leaves zero. the one repair the renumber performs WITHOUT
+    // a prune is the allocation blind spot (a `_refN`-slot-shaped name the use-site scope
+    // chain could not see - a nested user binding or a sibling-plugin introduction - that
+    // unplugin's file-global allocator skips up front): any slot-shaped identifier OUTSIDE
+    // `#refs` routes to the full path so the numbering repair still runs
+    const refCounts = new Map();
+    for (const name of this.#refs) refCounts.set(name, 0);
+    let foreignSlotName = false;
+    this.#t.traverseFast(this.#programPath.node, node => {
+      // JSXIdentifier included: a JSX reference to a user slot-shaped name compiles (by a
+      // co-mounted transform) into the plain Identifier the renumber must keep avoiding
+      if (node.type !== 'Identifier' && node.type !== 'JSXIdentifier') return;
+      const count = refCounts.get(node.name);
+      if (count !== undefined) refCounts.set(node.name, count + 1);
+      else if (!foreignSlotName && node.name.charCodeAt(0) === 95 && ORPHAN_REF_PATTERN.test(node.name)) {
+        foreignSlotName = true;
+      }
+    });
+    if (!foreignSlotName) {
+      let hasDead = false;
+      for (const count of refCounts.values()) {
+        if (count <= 1) {
+          hasDead = true;
+          break;
+        }
+      }
+      if (!hasDead) return;
+    }
     this.#programPath.scope.crawl();
     const { byName, taken } = this.#indexBindingsAndTakenNames();
 
