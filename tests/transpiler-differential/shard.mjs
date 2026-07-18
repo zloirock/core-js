@@ -54,5 +54,16 @@ for (const snippet of subset) {
 }
 
 closeStrippedWorker();
-// the coordinator reads this single JSON line from stdout
-process.stdout.write(`\n@@SHARD@@${ JSON.stringify({ passed, failures, globalChecked, globalArmed }) }@@\n`);
+// the coordinator reads this single JSON line from stdout. FLUSH before exiting: the write
+// callback fires once the payload is handed to the OS pipe buffer, which survives the
+// writer's death and still reaches the coordinator
+await new Promise(resolve => {
+  process.stdout.write(`\n@@SHARD@@${ JSON.stringify({ passed, failures, globalChecked, globalArmed }) }@@\n`, resolve);
+});
+// HARD exit. natural teardown after thousands of per-eval worker threads (the usage-global
+// leg spawns one per evaluation) ACCESS_VIOLATIONs on Windows (exit code 0xC0000005 fired
+// AFTER the last snippet completed, losing the marker with the process). at this point the
+// result is flushed and the stripped-worker child is killed above; the worker-thread
+// remnants gain nothing from a graceful V8 teardown - skipping it removes the crash window
+// eslint-disable-next-line node/no-process-exit -- deliberate: the result is already flushed, graceful teardown is the crash
+process.exit(0);
