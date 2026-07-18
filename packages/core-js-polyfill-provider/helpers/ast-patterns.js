@@ -1314,9 +1314,16 @@ function memoizeByNodePair(compute) {
 // container-path materialization cache: `parent.get('body')` re-creates the wrapper array and
 // re-runs the context refresh on EVERY child path each call - re-materializing a several-
 // thousand-statement Program body per sibling query is the dominant path churn on large flat
-// scopes. keyed on the traversal-scoped parent PATH (dies with the traversal); every retrieval
-// revalidates by node identity, so a statement inserted / removed / replaced in the container
-// rebuilds instead of serving detached paths - pointer compares are orders cheaper than re-get
+// scopes. keyed on the traversal-scoped parent PATH (dies with the traversal).
+// revalidation is O(1) - length plus head / middle / tail identity anchors - NOT a full
+// element loop (that loop itself went quadratic across per-use sibling queries): every
+// structural statement edit the emitters perform (insertBefore / remove / replaceWithMultiple /
+// scope-push unshift) changes the length or shifts an anchor, and a same-slot `replaceWith`
+// is identity-transparent (paths are the parser's canonical per-node objects - the swap
+// updates `.node` on the very object the cache holds). an interior balanced insert+remove
+// between retrievals is the one escaping shape - no emitter produces it, and the sibling
+// caches' accepted staleness contract (`bodyFlowIndex` never revalidates at all) already
+// tolerates coarser drift
 const containerPathsCache = new WeakMap();
 export function cachedContainerPaths(parentPath, key) {
   let perKey = containerPathsCache.get(parentPath);
@@ -1324,14 +1331,11 @@ export function cachedContainerPaths(parentPath, key) {
   const container = parentPath.node?.[key];
   const cached = perKey.get(key);
   if (cached && Array.isArray(container) && cached.length === container.length) {
-    let fresh = true;
-    for (let i = 0; i < container.length; i++) {
-      if (cached[i].node !== container[i]) {
-        fresh = false;
-        break;
-      }
-    }
-    if (fresh) return cached;
+    const last = container.length - 1;
+    if (container.length === 0
+      || (cached[0].node === container[0]
+        && cached[last].node === container[last]
+        && cached[last >> 1].node === container[last >> 1])) return cached;
   }
   const paths = parentPath.get(key);
   perKey.set(key, paths);
