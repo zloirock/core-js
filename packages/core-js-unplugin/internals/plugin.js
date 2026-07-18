@@ -18,7 +18,8 @@ import {
   isMutatedGlobalSlot,
   isMutatedStaticMeta,
   isTaggedTemplateTag,
-  collectUserMemberKeyNames,
+  collectFileCensus,
+  memberKeyNamesReducer,
   mutatedGlobalSlotNames,
   isThisReceiver,
   isUpdateTarget,
@@ -29,8 +30,8 @@ import {
   unwrapReceiverLeaf,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
-import { createClassHelpers, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { createClassHelpers, ctorAliasShapesReducer, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
@@ -70,7 +71,7 @@ import { createDestructureEmitter } from './destructure-emitter.js';
 import {
   walkAstNodes,
   canFuseWithOpenParen,
-  collectAllBindingNames,
+  bindingNamesReducer,
   directivePrologueEnd,
   enclosingExpressionStatementPath,
   hasCoreJSImport,
@@ -538,12 +539,22 @@ export default function createPlugin(options) {
     // the shared read canons consult the live `currentMutatedStatics` slot through the adapter;
     // a re-entrant inner transform must not see the outer file's set while collecting - null the
     // slot for exactly the collection window
+    // ONE raw walk answers every per-file census question (binding / member-key name
+    // reservation + the mutation / ctor-alias shape gates) - the scans it replaces each
+    // re-walked the whole file. computed here, after the minifier split re-parse, so every
+    // consumer reads the same tree it scanned before
+    const fileCensus = collectFileCensus(ast, [
+      bindingNamesReducer(),
+      memberKeyNamesReducer(),
+      mutationShapesReducer(),
+      ctorAliasShapesReducer(),
+    ]);
     let mutationInfo = null;
     if (method === 'usage-pure') {
       const outerMutatedStatics = currentMutatedStatics;
       currentMutatedStatics = null;
       try {
-        mutationInfo = collectMutationPrePass(ast, estreeAdapter);
+        mutationInfo = collectMutationPrePass(ast, estreeAdapter, fileCensus);
       } finally {
         currentMutatedStatics = outerMutatedStatics;
       }
@@ -580,13 +591,13 @@ export default function createPlugin(options) {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
-      const { names: bindingNames, declaredNames, orphanRefs } = collectAllBindingNames(ast);
+      const { names: bindingNames, declaredNames, orphanRefs } = fileCensus;
       injector.seedReservedNames(bindingNames);
       // user-owned global-object slot names the raw identifier scan above misses: computed
       // STRING-key member spellings (`globalThis['_ref']`) and string-key mutator writes
       // (`Object.defineProperty(self, '_ref', ...)`) - a script-scope `var _ref` temp would
       // alias and clobber the slot
-      injector.seedReservedNames(collectUserMemberKeyNames(ast));
+      injector.seedReservedNames(fileCensus.memberKeyNames);
       injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
       // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
       // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline.
@@ -693,7 +704,7 @@ export default function createPlugin(options) {
       // early ctor-alias registration (visit-order independence) - see the babel twin. BOTH
       // usage modes: pure folds through the hints, usage-global resolves its injections
       if (method === 'usage-pure' || method === 'usage-global') {
-        collectAliasPrePass({ ast, adapter: estreeAdapter, injector, isDisabled });
+        collectAliasPrePass({ ast, adapter: estreeAdapter, injector, isDisabled, census: fileCensus });
       }
 
       function finalize() {

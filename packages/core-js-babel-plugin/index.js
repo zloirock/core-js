@@ -9,12 +9,13 @@ import {
   isInUpdateOperand,
   isMemberWriteHost,
   isThisReceiver,
-  forEachStatementListBody,
   getMinifierSequenceDestructureExpressions,
   isMutatedGlobalSlot,
   isMutatedStaticMeta,
   isTSTypeOnlyIdentifierPath,
-  collectUserMemberKeyNames,
+  collectFileCensus,
+  memberKeyNamesReducer,
+  minifierShapesReducer,
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   peelNestedSequenceExpressions,
@@ -25,11 +26,11 @@ import {
   resolveBatchDirectivePromotionPolicy,
   sequenceHeadDirectiveHazard,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
-  createClassHelpers, hasCtorAliasCandidateShapes, registerAliasPrePassSite, remapInheritedStaticMeta,
+  createClassHelpers, ctorAliasShapesReducer, registerAliasPrePassSite, remapInheritedStaticMeta,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -134,16 +135,9 @@ function splitMinifierSequenceDestructure(programPath, t) {
   function splitInBody(blockPath) {
     splitListToFixpoint(() => blockPath.get('body'));
   }
-  // cheap raw-AST pre-scan through the same canonical statement-list walk unplugin's
-  // symmetric pre-pass uses: real-world files rarely carry the minifier shape at all, and
-  // the path-materializing traverse below costs an order of magnitude more than this node
-  // recursion. only files with at least one matching statement pay for the path walk
-  let hasMinifierShape = false;
-  forEachStatementListBody(programPath.node, body => {
-    if (hasMinifierShape) return;
-    hasMinifierShape = body.some(stmt => getMinifierSequenceDestructureExpressions(stmt) !== null);
-  });
-  if (!hasMinifierShape) return;
+  // callers gate on the file census (`hasMinifierShapes`): real-world files rarely carry
+  // the minifier shape at all, and the path-materializing traverse below costs an order of
+  // magnitude more than the shared census recursion
   splitInBody(programPath);
   // the brace-delimited statement-list hosts as a babel-traverse union visitor key (Program is the
   // traverse root, handled by the direct splitInBody(programPath) above). SwitchCase's `consequent`
@@ -227,6 +221,7 @@ export default function plugin(api, options) {
   // the current file (`Array.from = X`, `[Array.from] = X`, `delete Array.from`, ...).
   // factory-scoped so the resolvePure filter and the adapter getter see the per-file value
   let mutatedStatics = null;
+  let fileCensus = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
@@ -1015,6 +1010,17 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        // ONE raw walk answers every per-file census question (name reservation + the three
+        // shape gates) - the scans it replaces each re-walked the whole file. computed on the
+        // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
+        // gate, after the minifier split) is invariant to the split - the split only
+        // re-parents existing expression nodes into their own statements
+        fileCensus = collectFileCensus(path.node, [
+          memberKeyNamesReducer(),
+          minifierShapesReducer(),
+          ctorAliasShapesReducer(),
+          mutationShapesReducer(),
+        ]);
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
         // never read `mutatedStatics`, the whole-AST walk was dead work there, matching unplugin).
@@ -1022,7 +1028,8 @@ export default function plugin(api, options) {
         // reset FIRST: the read canons the pre-pass shares consult the live slot through the
         // adapter, and the previous file's set must not gate this file's collection
         mutatedStatics = null;
-        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS ? collectMutationPrePass(path, adapter).mutated : null;
+        mutatedStatics = method === 'usage-pure' && !isInternalCoreJS
+          ? collectMutationPrePass(path, adapter, fileCensus).mutated : null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
@@ -1036,7 +1043,7 @@ export default function plugin(api, options) {
         // over-approximation only shifts temp numbering) plus the mutated slot names (covers
         // `Object.defineProperty(self, 'X', ...)`-style writes with no member-key spelling).
         // mirrors unplugin, whose raw-AST name scan reserves every identifier-shaped name
-        injector.seedReservedNames(collectUserMemberKeyNames(path.node));
+        injector.seedReservedNames(fileCensus.memberKeyNames);
         injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
         skippedNodes = new WeakSet();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
@@ -1097,7 +1104,7 @@ export default function plugin(api, options) {
         // expressions stay in source order). gated below skipFile so a `core-js-disable-file` directive
         // or internal core-js source is returned verbatim, not rewritten (entry-global needs it too,
         // so the gate is `!skipFile`, not the narrower entry exclusion below)
-        if (!skipFile) splitMinifierSequenceDestructure(path, t);
+        if (!skipFile && fileCensus.hasMinifierShapes) splitMinifierSequenceDestructure(path, t);
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
@@ -1137,7 +1144,7 @@ export default function plugin(api, options) {
           // minifier-collapsed shapes register like their split forms. BOTH usage modes: pure
           // folds through the hints, usage-global resolves its injections through them - without
           // the table a split-anchor / hoisted-var alias drops the injection (the unsafe direction)
-          if ((method === 'usage-pure' || method === 'usage-global') && hasCtorAliasCandidateShapes(path.node)) {
+          if ((method === 'usage-pure' || method === 'usage-global') && fileCensus.hasCtorAliasShapes) {
             path.traverse({
               AssignmentExpression(p) {
                 const { node } = p;
