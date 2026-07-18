@@ -160,6 +160,20 @@ function hasTSRuntimeBinding(scope, name, path = null) {
   return anchor ? findTSRuntimeBindingInPath(anchor, name) : false;
 }
 
+// the declaration NODE behind a TSImportEquals name - the existence walk above answers only
+// a boolean, but the resolution canon must read the module reference off the declaration to
+// recognize a pure global-proxy require import (`import g = require('.../global-this')`)
+function findTSImportEqualsDeclaration(path, name) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    const body = Array.isArray(cur.node?.body) ? cur.node.body : cur.node?.body?.body;
+    if (!Array.isArray(body)) continue;
+    for (const stmt of body) {
+      if (stmt?.type === 'TSImportEqualsDeclaration' && stmt.id?.name === name) return stmt;
+    }
+  }
+  return null;
+}
+
 // estree-toolkit's scope tracker registers `declare class X` / `declare const X` / `interface X`
 // / `import type X` as bindings even though they're tsc-elided. consult the binding before
 // declaring a shadow so ambient/type-only declarations don't suppress polyfill emission.
@@ -613,6 +627,14 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       // returned), and a nested-block `var` shadowing an outer binding reports as a declarator
       const { native, synth } = resolveClosestBinding(scope, name, path);
       return synth ? 'VariableDeclarator' : native?.path?.node?.type ?? null;
+    },
+    // estree-toolkit registers no binding for TSImportEquals at all (see hasTSRuntimeBinding) -
+    // surface the declaration node through a dedicated lookup so the resolution canon can read
+    // its module reference. single-consumer, existing binding paths stay untouched; babel's
+    // adapter resolves the same shape through its native binding and doesn't implement this
+    getTSImportEqualsNode(scope, name, path = null) {
+      const anchor = path ?? scope?.path ?? null;
+      return anchor ? findTSImportEqualsDeclaration(anchor, name) : null;
     },
     // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression
     // so `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
