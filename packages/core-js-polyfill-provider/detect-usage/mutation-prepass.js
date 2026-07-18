@@ -23,7 +23,13 @@ import {
   TS_EXPR_WRAPPERS,
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
-import { resolveKey, resolveObjectName } from './resolve.js';
+import {
+  bindsModuleDefault,
+  globalProxyNameFromImportSource,
+  resolveKey,
+  resolveObjectName,
+  tsImportEqualsProxyName,
+} from './resolve.js';
 import { walkStaticReceiverChain } from './destructure.js';
 
 // --- Stage 1: cheap shape gate ---
@@ -230,6 +236,27 @@ export function mutationShapesReducer() {
         break;
       case 'VariableDeclarator':
         recordValueSource(node.id, node.init);
+        break;
+      case 'ImportDeclaration':
+        // a default OR namespace binding of a pure GLOBAL-PROXY entry (`import g from
+        // '.../global-this'` / `import * as g` - bundler interop hangs the global on the
+        // namespace's `.default`) is a mutation-host candidate exactly like `const g =
+        // globalThis` - without it the gate never fires for `g.Map = shim` and the scoped
+        // canon (which resolves the binding through the same import source) never runs.
+        // `require`-style aliases already fire via the VariableDeclarator branch (a call
+        // init is non-inert)
+        if (globalProxyNameFromImportSource(node.source?.value)) {
+          for (const s of node.specifiers ?? []) {
+            if ((bindsModuleDefault(s) || s.type === 'ImportNamespaceSpecifier') && s.local?.name) {
+              valueBound.add(s.local.name);
+            }
+          }
+        }
+        break;
+      case 'TSImportEqualsDeclaration':
+        // the TS require-import twin of the case above; adapter-less reducer reads the
+        // module-reference string directly
+        if (tsImportEqualsProxyName(node, null)) valueBound.add(node.id.name);
         break;
       case 'ClassDeclaration':
         if (node.id?.type === 'Identifier') {
@@ -723,14 +750,19 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
   function visitBinding(identNode, depth) {
     if (!adapter.hasBinding(scope, identNode.name, path)) return;
     const binding = adapter.getBinding(scope, identNode.name, path);
-    if (!binding || seenBindings.has(binding)) return;
-    seenBindings.add(binding);
+    if (binding) {
+      if (seenBindings.has(binding)) return;
+      seenBindings.add(binding);
+    }
     // delegate the bound-identifier receiver to the read-side canon: it resolves a destructure-leaf alias
     // (`const {Map:M}=globalThis` -> M=Map), a peeled namespace, a multi-hop prototype root - shapes the raw
     // declarator-init value-fan below misses, since the init is the WHOLE rhs (`globalThis`), dropping the
-    // `{Map:M}` selector. over-record stays the safe direction; the fan still runs for reassignment unions
+    // `{Map:M}` selector. over-record stays the safe direction; the fan still runs for reassignment unions.
+    // runs BEFORE the null-binding bail: the canon answers even where the adapter has no binding
+    // OBJECT (estree surfaces TSImportEquals only through the dedicated declaration lookup)
     const direct = resolveObjectName({ objectNode: identNode, scope, adapter, path });
     if (direct) names.add(direct);
+    if (!binding) return;
     // a destructure declarator binds a SELECTED slot: the canonical pattern / literal pairer
     // yields the slot's value union (nested patterns, holes, last-wins keys, spread bails), and
     // a receiver-shaped source synthesizes the member (`const { prototype: P } = Array` ->
