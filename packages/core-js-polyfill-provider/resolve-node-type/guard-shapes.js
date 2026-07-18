@@ -225,11 +225,28 @@ export function createPredicateGuards({
   // call surfaces through any mix: `(side(), assertStr(x))`, `((assertStr(x)))`,
   // `(side(), (assertStr(x) as any))` all reach the same CallExpression. ChainExpression
   // peel inside is safe here because `hasOptionalChainInCall` already ran above
+  // var-independent statement classification, cached per node: the sibling guard scans re-ask
+  // the same statement for every (use, name) pair, and the optional-chain / unwrap shape walk
+  // dominated on large flat scopes. the name-bound predicate tail below stays per-call
+  const assertionCallCache = new WeakMap();
+  function assertionCallOf(sibling) {
+    const { node } = sibling;
+    if (node?.type !== 'ExpressionStatement') return null;
+    let call = assertionCallCache.get(node);
+    if (call === undefined) {
+      call = null;
+      if (!hasOptionalChainInCall(node.expression)) {
+        const candidate = unwrapExpressionChain(node.expression);
+        if (candidate?.type === 'CallExpression' && candidate.arguments?.length) call = candidate;
+      }
+      assertionCallCache.set(node, call);
+    }
+    return call;
+  }
+
   function parseAssertionStatementGuard(sibling, varName) {
-    if (sibling.node?.type !== 'ExpressionStatement') return null;
-    if (hasOptionalChainInCall(sibling.node.expression)) return null;
-    const call = unwrapExpressionChain(sibling.node.expression);
-    if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
+    const call = assertionCallOf(sibling);
+    if (!call) return null;
     const guard = resolvePredicateGuard({
       callee: unwrapExpressionChain(call.callee),
       scope: sibling.scope, negated: false, asserts: true, args: call.arguments, varName,
