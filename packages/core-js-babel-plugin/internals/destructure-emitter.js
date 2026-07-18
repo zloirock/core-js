@@ -666,13 +666,28 @@ export default function createDestructureEmitter({
     return true;
   }
 
+  // minted USER-binding writes REPLACE positioned originals: carry the original span so the
+  // positional flow gates (mutation intervals, guard dominance) see the write where the
+  // source wrote it. the estree emitter keeps the original node, so span parity keeps the
+  // narrowing decisions aligned across substrates - a span-less minted write fails every
+  // positional interval and conservatively drops narrows the text emitter keeps
+  function inheritSpan(node, from) {
+    if (typeof from?.start === 'number') {
+      node.start = from.start;
+      node.end = from.end;
+      node.loc = from.loc;
+      node.range = from.range;
+    }
+    return node;
+  }
+
   // emit `<binding> = <polyfillId>;` ExpressionStatement; both nodes are cloned so
   // sibling re-emits don't share AST identity. used by every "extract polyfill as separate
   // statement" path (simple flatten / cascade / body-extract via varDecl variant)
-  function buildPolyfillAssignmentStatement(valueNode, id) {
-    return t.expressionStatement(
-      t.assignmentExpression('=', t.cloneNode(valueNode), t.cloneNode(id)),
-    );
+  function buildPolyfillAssignmentStatement(valueNode, id, spanFrom) {
+    return inheritSpan(t.expressionStatement(
+      inheritSpan(t.assignmentExpression('=', t.cloneNode(valueNode), t.cloneNode(id)), spanFrom),
+    ), spanFrom);
   }
 
   // hoist `_unused` sentinel names into a shared `var _unused, _unused2;` declaration ahead
@@ -772,13 +787,14 @@ export default function createDestructureEmitter({
         // pattern-valued symbol extraction: the printer parenthesizes the pattern-LHS assignment
         assigns.push(buildPolyfillAssignmentStatement(
           e.pattern ? clonePatternClaimed(e.pattern) : t.identifier(e.localName),
-          extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope)));
+          extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope), assignPath.node));
       }
       // anchored residual on an assignment host: `({ union } = _Set)` (the printer parenthesizes the
       // pattern-LHS assignment)
       if (outer.kind === 'anchored') {
         const { pattern, binding } = anchoredResidualNodes(outer, assignPath.scope);
-        const assign = t.expressionStatement(t.assignmentExpression('=', pattern, binding));
+        const assign = inheritSpan(t.expressionStatement(
+          inheritSpan(t.assignmentExpression('=', pattern, binding), assignPath.node)), assignPath.node);
         t.traverseFast(assign, node => { skippedNodes.add(node); });
         assigns.push(assign);
       }
@@ -1170,9 +1186,9 @@ export default function createDestructureEmitter({
     }
     if (!plan.pattern.properties.length && !extractions.length) return;
     cascadedAssignments.add(assignPath.node);
-    const assignExprs = extractions.map(e => t.assignmentExpression('=',
+    const assignExprs = extractions.map(e => inheritSpan(t.assignmentExpression('=',
       e.pattern ? clonePatternClaimed(e.pattern) : t.identifier(e.localName),
-      extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope)));
+      extractionValueExpr(e, assignPath.node.right, plan, assignPath.scope)), assignPath.node));
     // full consume collapses the host to the assigns sequence. an SE-bearing init keeps its
     // effects verbatim ahead of the assigns - sequence prefixes and a chain-assignment tail,
     // the only SE channels the anchored plan admits - while the dead anchored tail read
@@ -1654,8 +1670,9 @@ export default function createDestructureEmitter({
       // chain each overwrite off the previous one for this statement: the elements of a multi-element
       // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one wins,
       // as native destructuring does - a bare `statement.insertAfter` per element reverses them
-      const overwriteStmt = t.expressionStatement(t.assignmentExpression('=', t.cloneNode(bindingId),
-        t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)])));
+      const overwriteCall = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]);
+      const overwriteStmt = inheritSpan(t.expressionStatement(
+        inheritSpan(t.assignmentExpression('=', t.cloneNode(bindingId), overwriteCall), statement.node)), statement.node);
       const prevInsert = nestedOverwriteLastInsert.get(statement.node);
       nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
     }
@@ -2548,11 +2565,12 @@ export default function createDestructureEmitter({
   // AssignmentExpression branch executor. dispatches the planner strategy to the matching
   // AST mutation - parallel to `emitVariableDeclaratorDestructure`'s switch
   function emitAssignmentDestructure({ parent, localBinding, value, isStaticValue, isEmpty }) {
-    const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
     // peel Paren / TS wrappers up to the ExpressionStatement so the rewrite owns the whole
     // statement - replacing only the inner assignment leaves dead wrapper decoration
     // (`((from = _Array$from) satisfies unknown)!;`) the unplugin render never emits
     const assignmentTarget = peelParenAndTSParentPath(parent);
+    const assignment = inheritSpan(t.expressionStatement(
+      inheritSpan(t.assignmentExpression('=', localBinding, value), parent.node)), assignmentTarget.node);
     // save the original body index before the first insertBefore shifts it, so a deferred SE on
     // the empty tail (`({ from, of } = (se(), Array))`) lifts AHEAD of the earlier insertBefore'd
     // assignments instead of interleaving between them - mirrors the VariableDeclarator capture,

@@ -30,7 +30,7 @@ export function createNarrowByGuards({
   applyAliasSubstDeep,
   findEnclosingTypeGuards,
   guardAppliesToBinding,
-  siblingGuardsBinding,
+  nearestPrecedingGuardIndex,
   findConditionalGuards,
   findSwitchCaseGuards,
   findEarlyExitGuards,
@@ -208,15 +208,9 @@ export function createNarrowByGuards({
     // nearest and current, prefix of current's own sibling, the nearest guard's test slot,
     // and the nearest guard's NON-exiting (fall-through) branch body
     function earlyExitInvalidates(current, siblings) {
-      let nearestIdx = -1;
-      for (let i = current.key - 1; i >= 0; i--) {
-        if (siblingGuardsBinding(siblings[i], varName)) {
-          nearestIdx = i;
-          break;
-        }
-      }
+      const nearestIdx = nearestPrecedingGuardIndex(siblings, current.key, varName);
       if (nearestIdx < 0) return false;
-      // `parseSiblingGuards` accepts `outer: if (...) return;` by peeling LabeledStatement;
+      // the guard index accepts `outer: if (...) return;` by peeling LabeledStatement;
       // the same peel must run here or label-wrapped test-slot mutation stays invisible
       const nearestPath = peelLabeledStatementPath(siblings[nearestIdx]);
       const nearestNode = nearestPath?.node ?? peelLabeledStatementNode(siblings[nearestIdx]?.node);
