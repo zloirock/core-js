@@ -413,6 +413,7 @@ export default function createPlugin(options) {
     // did the inherited pre-pass actually rewrite the source (and thus emit a content-bearing
     // map)? a no-op pre (usage-global detection only) emits no map, so post must NOT chain
     let inheritedPreRewrote = false;
+    let inheritedMutatedStatics = null;
     let cachedAst = null;
     let cachedComments = null;
 
@@ -444,6 +445,7 @@ export default function createPlugin(options) {
       const stored = snapshots.peekWithParse(id, code);
       inherit = stored.snapshot;
       inheritedPreRewrote = stored.preRewroteSource;
+      inheritedMutatedStatics = stored.mutatedStatics;
       cachedAst = stored.ast;
       cachedComments = stored.comments;
     }
@@ -559,7 +561,16 @@ export default function createPlugin(options) {
         currentMutatedStatics = outerMutatedStatics;
       }
     }
-    const mutatedStatics = mutationInfo?.mutated ?? null;
+    let mutatedStatics = mutationInfo?.mutated ?? null;
+    // pre+post: union PRE's mutation set into post's own recompute. the keys are semantic
+    // slot names, so they survive sibling rewrites of the receiver text that the prepass
+    // cannot re-derive - babel's CJS lowering between the phases turns the pre-substituted
+    // `_globalThis.Map = shim` into `_g.default.Map = shim`, and losing the taint would
+    // substitute ponyfills over the user's runtime patch. union, not replace: a sibling
+    // may also INTRODUCE mutation shapes after pre
+    if (inheritedMutatedStatics?.size) {
+      mutatedStatics = new Set([...inheritedMutatedStatics, ...mutatedStatics ?? []]);
+    }
 
     const ms = new MagicString(code, { filename: id });
     // late-bound: debugOutput is constructed below (after createPolyfillResolver) but the
@@ -728,6 +739,8 @@ export default function createPlugin(options) {
             // pre rewrote the source iff it changed (usage-pure), which is exactly when it emitted
             // a content-bearing map for post to chain to. a no-op pre returns a null map (line below)
             preRewroteSource: !canReuseParse,
+            // semantic slot keys for post's mutation-set union - see the recompute site
+            mutatedStatics,
           });
         }
         // post's snapshot delete happens earlier in runTransform (via `snapshots.take(id)`)
