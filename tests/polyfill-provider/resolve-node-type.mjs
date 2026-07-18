@@ -1757,8 +1757,7 @@ runBoth('Uppercase<"hi"> resolves',
 // TODO: user-predicate guards require additional setup (the function call's positive branch
 // needs to walk back to the predicate's `x is T` annotation). resolver returns null in this
 // test harness without further wiring - kept here as a stub for follow-up coverage when the
-// predicate-guards cluster (resolvePredicateGuard / parseUserPredicateGuard /
-// matchPredicateArg / findEnclosingTypeGuards) is extracted
+// predicate-guards cluster is extracted
 
 runBoth('Array.isArray() built-in predicate narrows to Array',
   `
