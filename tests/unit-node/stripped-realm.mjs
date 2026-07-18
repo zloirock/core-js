@@ -1,4 +1,5 @@
-// Stripped-realm leg for a prebuilt test bundle (argv[2]: e2e-usage-pure / unit-pure) - the
+// Stripped-realm leg for a prebuilt test bundle (argv[2]: e2e-usage-pure-babel /
+// e2e-usage-pure-unplugin-pre-post / unit-pure) - the
 // runtime twin of the differential's stripped worker, COMPLEMENTING the regular full-env run
 // of the same bundle (both legs run; the full-env one stays the primary). The bundle evaluates
 // inside a FRESH `node:vm` realm whose leaf builtins and engine-absent constructors
