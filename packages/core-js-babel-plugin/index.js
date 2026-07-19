@@ -251,7 +251,7 @@ export default function plugin(api, options) {
     unwrapTSExpressionParent,
     withSideEffects,
     reset: resetASTHelpers,
-  } = createASTHelpers(t, { getInjector: () => injector, typeResolvers });
+  } = createASTHelpers(t, { getInjector: () => injector, getAdapter: () => adapter, typeResolvers });
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
