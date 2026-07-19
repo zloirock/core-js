@@ -180,6 +180,10 @@ export function createMemberResolve({
       case 'ClassPrivateMethod':
       case 'TSDeclareMethod':
         return true;
+      // oxc models `abstract m(): T` as TSAbstractMethodDefinition with the SAME `.value` wrap as a
+      // concrete MethodDefinition (babel uses TSDeclareMethod); group it here so an abstract method
+      // reached via the annotation-fold path (alias / intersection / union) is not filtered out
+      case 'TSAbstractMethodDefinition':
       case 'MethodDefinition':
         return !!member.value;
       case 'TSPropertySignature':
@@ -204,7 +208,8 @@ export function createMemberResolve({
       case 'ClassPrivateMethod':
       case 'TSDeclareMethod':
         return member.returnType;
-      // ESTree class method: function lives on `.value` (FunctionExpression)
+      // ESTree class method (concrete or oxc `abstract`): function lives on `.value` (FunctionExpression)
+      case 'TSAbstractMethodDefinition':
       case 'MethodDefinition':
         return member.value?.returnType;
       // property with a function-type annotation: extract its return type
@@ -228,6 +233,7 @@ export function createMemberResolve({
       case 'ClassPrivateMethod':
       case 'TSDeclareMethod':
         return member.typeParameters;
+      case 'TSAbstractMethodDefinition':
       case 'MethodDefinition':
         return member.value?.typeParameters;
       case 'TSPropertySignature':
