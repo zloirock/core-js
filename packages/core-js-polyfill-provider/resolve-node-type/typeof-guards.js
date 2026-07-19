@@ -105,11 +105,14 @@ export function createTypeofGuards({
         }
       }
       if (operator === 'instanceof' && left.type === 'Identifier') {
-        // pass scope + adapter so user-shadowed `globalThis`/`self` are detected and skipped:
-        // without scope, `x instanceof globalThis.Map` would resolve to global Map even when
-        // `globalThis` is locally shadowed (e.g. `function f(globalThis: { Map: any }) {...}`)
+        // a user-shadowed built-in name is NOT the global constructor (`const Array = Map; x
+        // instanceof Array` really tests `instanceof Map`) - narrowing `x` as the built-in TYPE
+        // would suppress its polyfill in the negated / else branch where a real instance flows
+        // in, a MISSED polyfill on the target engine. the member case already consults scope
+        // (`globalProxyMemberName` detects a shadowed `globalThis`/`self`); the bare-Identifier
+        // case needs the same shadow gate
         const constructorName = right.type === 'Identifier'
-          ? right.name
+          ? (scope && babelBindingAdapter.hasBinding(scope, right.name) ? null : right.name)
           : globalProxyMemberName({ node: right, scope, adapter: babelBindingAdapter, path: null });
         if (constructorName) return [{ varName: left.name, guard: instanceofGuard(constructorName, negated) }];
       }
@@ -127,7 +130,11 @@ export function createTypeofGuards({
       const { callee } = test;
       const propName = getMemberProperty(callee);
       let hintEntry = null;
-      if (propName !== null && callee.object?.type === 'Identifier') {
+      // a user-shadowed built-in namespace name is NOT the global (`const Array = Map;
+      // Array.isArray(x)` is really `Map.isArray`, no built-in guard) - skip the hint so the
+      // narrow doesn't suppress the polyfill in the complement branch (missed polyfill on target)
+      if (propName !== null && callee.object?.type === 'Identifier'
+          && !(scope && babelBindingAdapter.hasBinding(scope, callee.object.name))) {
         // `unwrapExpressionChain` peels paren + ChainExpression + TS expression wrappers
         // (`as`, `satisfies`, `<T>cast`, `!`) AND SequenceExpression tail. parity with
         // the user-predicate path so `Array.isArray((0, x as any))` (any mix of side
