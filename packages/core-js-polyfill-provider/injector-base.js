@@ -389,7 +389,7 @@ export default class ImportInjectorState {
       }
     }
     const blind = this.#globalAliases.get(name);
-    if (blind) return { hint: blind.hint, source: null, entry: null, aliasTrusted: true };
+    if (blind) return { hint: blind.hint, source: null, entry: null, aliasTrusted: true, minted: blind.minted };
     const list = this.#aliasEntriesByName.get(name);
     if (!list?.length) return null;
     let alias = null;
