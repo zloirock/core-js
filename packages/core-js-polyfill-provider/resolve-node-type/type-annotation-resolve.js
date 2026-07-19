@@ -49,6 +49,7 @@ export function createTypeAnnotationResolve({
   resolveInnerType,
   effectiveParam,
   resolveParametersParams,
+  resolveThisParamAnnotation,
   resolveAnnotationInContext,
   resolveNonNullableAnnotation,
   resolveAwaitedAnnotation,
@@ -197,13 +198,26 @@ export function createTypeAnnotationResolve({
         return new $Object('Object');
       case 'Parameters':
       case 'ConstructorParameters': {
-        // tuple approximated as Array<first-param-type> so chained `.at(0)` / `.forEach`
-        // resolve; indexed access `T[N]` picks the N-th via `findTupleElement`
-        const { param, isRest } = effectiveParam(resolveParametersParams(node, scope)?.[0]);
-        const resolved = param?.typeAnnotation ? resolveArgInner(param.typeAnnotation) : null;
-        // `...xs: T[]` - annotation is `T[]`, the tuple element is T
-        const inner = safeInnerType(isRest ? resolveInnerType(resolved) : resolved);
-        return new $Object('Array', inner);
+        // tuple approximated as an Array whose element type is the commonType fold over ALL params, so a
+        // runtime element read (`xs.pop()`, `xs[i]` with a variable index) stays precise when the params
+        // share a type and DEGRADES to a generic element (null inner) when they differ - never mis-resolving
+        // to the first param's type on a later element (`Parameters<(a:string,b:number[])=>void>[1]` read as
+        // string). literal indexing `T[N]` still picks the exact N-th upstream via `findTupleElement`
+        const params = resolveParametersParams(node, scope);
+        let inner;
+        for (const p of params ?? []) {
+          const { param, isRest } = effectiveParam(p);
+          const resolved = param?.typeAnnotation ? resolveArgInner(param.typeAnnotation) : null;
+          // `...xs: T[]` - annotation is `T[]`, the tuple element is T
+          const elem = safeInnerType(isRest ? resolveInnerType(resolved) : resolved);
+          if (!elem) {
+            inner = null;
+            break;
+          }
+          inner = inner === undefined ? elem : commonType(inner, elem);
+          if (!inner) break;
+        }
+        return new $Object('Array', inner ?? null);
       }
       // Flow: $Keys
       case 'Uppercase':
@@ -212,15 +226,15 @@ export function createTypeAnnotationResolve({
       case 'Uncapitalize':
       case '$Keys':
         return new $Primitive('string');
-      // intent collapse for the TS-built-in `this`-utility names: ThisParameterType<F>
-      // -> arbitrary object, OmitThisParameter<F> -> callable. precision-only - all
-      // Object/Function instance methods are stable in our supported targets so no
-      // polyfill path currently distinguishes these from a null fall-through to
-      // resolveUserDefinedType. case retained so future polyfills on Object.prototype /
-      // Function.prototype don't silently route through resolveUserDefinedType (which
-      // returns null for built-in names with no in-scope decl)
-      case 'ThisParameterType':
-        return new $Object('Object');
+      // ThisParameterType<typeof fn> peels fn's `this` pseudo-param type, so a method on the
+      // receiver resolves precisely (`function f(this: number[])` -> `number[]` -> array `.at`).
+      // no explicit `this` -> Object: TS yields `unknown` / the ambient global-this there, neither a
+      // polyfillable receiver. OmitThisParameter<F> -> callable Function (Function.prototype methods
+      // are stable across supported targets, so precision would add no polyfill path)
+      case 'ThisParameterType': {
+        const thisAnn = resolveThisParamAnnotation(node, scope);
+        return (thisAnn && resolveArgInner(thisAnn)) || new $Object('Object');
+      }
       case 'OmitThisParameter':
         return new $Object('Function');
       // TS lib alias for `string | number | symbol`; no shared polyfill API, null lets
