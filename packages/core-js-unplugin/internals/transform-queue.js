@@ -1040,6 +1040,12 @@ export default class TransformQueue {
         const dupContent = isSplit(dup)
           ? splitInnerContent(dup, composedContent)
           : composedContent.get(dup) ?? dup.content;
+        // two byte-identical rewrites of the same range are idempotent - drop the dup instead
+        // of folding it as a wrapper. a redundant collapse drive queues the same replacement
+        // twice (`(SE, globalThis).self.Ctor` collapsed once per firing meta - the proxy-hop
+        // global read AND the bailed static both drop the same `.self`), and mergeEqualRange
+        // would fail the needle invariant since neither copy carries the original source text
+        if (dupContent === content) continue;
         content = mergeEqualRange({
           a: content, b: dupContent, originalNeedle: originalSlice,
           range: { start, end: logicalEnd },
