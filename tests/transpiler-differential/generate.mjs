@@ -463,6 +463,13 @@ const KPR_SHAPES = [
   { id: 'guarded-instance', value: 'globalThis.window', tail: '?.self.Array.prototype.includes.call([1, 2], 2)' },
   { id: 'unguarded-instance', value: 'globalThis.window', tail: '.self.Array.prototype.flat.call([1, [2]])' },
   { id: 'guarded-static', value: 'globalThis.window', tail: '?.self.Array.from?.([1])' },
+  // computed non-SE leaf on a dropped optional hop: the re-hung guard must keep the computed
+  // spelling (`?.[`) - a bare `?[` is a parse error, so this row arms the whole leg on regression
+  { id: 'guarded-computed-static', value: 'globalThis.window', tail: '?.self["Array"].from?.([1])' },
+  // trivia between the dropped hop and the leaf: the connector must fuse with the first significant
+  // token - `?[`, `? .` and `? /*x*/` are all parse errors, so these arm on the trivia-blind class
+  { id: 'guarded-computed-trivia', value: 'globalThis.window', tail: '?.self /* x */ ["Array"].from?.([1])' },
+  { id: 'guarded-dotted-trivia', value: 'globalThis.window', tail: '?.self /* x */ .Array.from?.([1])' },
   { id: 'sealed-by-wrapper', value: 'globalThis.window', tail: '?.self).Array.prototype.at.call([5], 0', seal: true },
   { id: 'provable-value-negative', value: 'globalThis', tail: '?.self.Array.prototype.findLast.call([1], x => x)' },
   { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },

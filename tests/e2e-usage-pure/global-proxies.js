@@ -388,6 +388,24 @@ QUnit.test('global-proxy: chain-assign optional value over an unpolyfilled hop k
   assert.same(f, globalThis.window);
 });
 
+// the COMPUTED-leaf twin of the kept guard: the erased optional hops re-hang their `?.` onto a
+// `['Array']` leaf, and the connector must keep the computed spelling - a bare `?[` does not even
+// parse, so getting this wrong is a build break rather than a wrong value. the answer stays
+// environment-dependent exactly like the dotted twin above
+QUnit.test('global-proxy: kept optional guard re-hung on a computed leaf', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let a;
+  // eslint-disable-next-line dot-notation -- the computed spelling IS the subject here
+  const indexed = (a = globalThis.window)?.self?.self['Array'].prototype.indexOf.call([2], 2);
+  assert.same(indexed, hasWindow ? 0 : undefined);
+  assert.same(a, globalThis.window);
+  let b;
+  // eslint-disable-next-line dot-notation -- the computed spelling IS the subject here
+  const made = (b = globalThis.window)?.self['Array'].from([3]);
+  assert.same(hasWindow ? made[0] : made, hasWindow ? 3 : undefined);
+  assert.same(b, globalThis.window);
+});
+
 // the UNGUARDED twin of the same value: with no `?.` there is nothing to short-circuit, so an off-browser
 // read throws exactly as the source does - the collapse must decline rather than rescue it off the pure
 // root. the ponyfilled twin (`(s = globalThis.self)`) still collapses and still runs in Node: core-js
