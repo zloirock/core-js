@@ -124,6 +124,7 @@ import { unwrapNode } from './emit-utils.js';
 import {
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
+  skipGap,
   statementOverwriteFusesLeft,
   walkAstNodes,
 } from './plugin-helpers.js';
@@ -3841,7 +3842,19 @@ export function createDestructureEmitter({
   // parity; the collapsed root never short-circuits, so the forms are runtime-equivalent
   function dropLeafOptionalConnector(tail) {
     if (!tail.startsWith('?.')) return tail;
-    return /^\?\.\s*\[/.test(tail) ? tail.slice(2) : tail.slice(1);
+    return tail[skipGap(tail, 2)] === '[' ? tail.slice(2) : tail.slice(1);
+  }
+
+  // re-hang a relocated optional guard onto a collapse tail. the connector must fuse with the leaf's
+  // FIRST SIGNIFICANT token - trivia (comments / line breaks) may sit between the dropped hop and the
+  // leaf. a computed leaf takes the full `?.` (a bare `?[` does not parse); a dotted leaf fuses `?`
+  // with its own `.`, and when trivia precedes that dot, the dot moves onto the connector instead
+  // (`?. /*c*/ x`) - `? .` split by trivia does not parse either
+  function rehangOptionalGuard(tail) {
+    const sig = skipGap(tail, 0);
+    if (tail[sig] === '[') return `?.${ tail }`;
+    if (tail[sig] !== '.' || sig === 0) return `?${ tail }`;
+    return `?.${ tail.slice(0, sig) }${ tail.slice(sig + 1) }`;
   }
 
   // a call/IIFE-rooted proxy navigation (`(() => globalThis)().self.Array`): findProxyGlobal validates
@@ -4038,7 +4051,7 @@ export function createDestructureEmitter({
     // a KEPT root is not always-defined, so a `?.` the erased prefix carried has to survive on the leaf now
     // reading off it (`(b = _root.window)?.Array`) - the plan says whether it did. every other root IS
     // always-defined, and its guard is dead by construction
-    return src.slice(0, start) + rootText + (collapse.optional ? `?${ tailSrc }` : tailSrc);
+    return src.slice(0, start) + rootText + (collapse.optional ? rehangOptionalGuard(tailSrc) : tailSrc);
   }
 
   // the natural global-rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
