@@ -26,6 +26,7 @@ import {
   $Object,
   $Primitive,
   dropLeadingThisParam,
+  hasLeadingThisParam,
 } from './base.js';
 import { typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
@@ -119,6 +120,19 @@ export function createTypeFolding({
       } else current = runtimeSuper;
     }
     return null;
+  }
+
+  // the `this` pseudo-param TYPE annotation node of the function `ThisParameterType<typeof fn>` targets,
+  // or null when the subject declares no explicit `this`. mirrors resolveParametersParams' typeof ->
+  // function-node resolution (same last-ambient-overload selection) but KEEPS the leading `this` slot
+  // instead of dropping it, so the receiver type (`function f(this: number[])` -> `number[]`) resolves
+  function resolveThisParamAnnotation(typeRef, scope) {
+    if (typeRefName(typeRef) !== 'ThisParameterType') return null;
+    const arg = getTypeArgs(typeRef)?.params[0];
+    if (arg?.type !== 'TSTypeQuery') return null;
+    const current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
+    const params = current?.node?.params;
+    return hasLeadingThisParam(params) ? params[0].typeAnnotation ?? null : null;
   }
 
   function findTupleElement(objectType, index, scope, depth = 0) {
@@ -357,6 +371,7 @@ export function createTypeFolding({
     rebuildTupleElements,
     tupleAsArrayType,
     resolveParametersParams,
+    resolveThisParamAnnotation,
     findTupleElement,
     resolveAnnotationInContext,
     typesEqual,

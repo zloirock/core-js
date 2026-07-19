@@ -604,10 +604,11 @@ function * generateOptionalNameChainRootCall() {
 
 // --- Optional proxy-global chain rooted in a PURE call: receiver-WRAP vs receiver-LESS collapse ---
 // a PURE chain-root call under an optional `?.` (`(() => globalThis)()?.self.X`) is KEPT in the null-guard, NOT
-// inlined away. a receiver-WRAPPING polyfill (instance method / `instance`-kind `.name` get) keeps the call +
-// rewrites its inner global + rebinds the tail off `_ref` (the buggy emit collapsed to a ponyfill `_self`,
-// diverging the import-set); a receiver-LESS collapse (ctor on the proxy-global / called static method) drops
-// the subsumed call (mis-detecting it as kept CRASHED unplugin's compose). self-restoring host so native runs
+// inlined away. a receiver-WRAPPING polyfill (instance method / `.name` get / iterator) keeps the guard while
+// the `.self` hop drops: a POLYFILLED ctor in the receiver collapses to its pure binding (receiver-independent,
+// `.self.Map` -> `_Map`), a NATIVE ctor reads off the memoized `_ref` (`_ref.Array.prototype`, no pure binding).
+// a receiver-LESS collapse (ctor / called static) drops the subsumed call (mis-detecting it as kept CRASHED
+// unplugin's compose). self-restoring host so native runs
 const OPC_SHAPES = [
   { id: 'wrap-instance', expr: '(() => globalThis)()?.self.Array.prototype.flat.call([1, [2]]).join(",")' },
   { id: 'wrap-get', expr: '(() => globalThis)()?.self.Map.name' },
@@ -623,14 +624,18 @@ const OPC_SHAPES = [
   // mis-counting kept the call live AND collapsed the receiver -> orphaned inner global -> unplugin crash
   { id: 'multi-opt-hop-collapse', expr: '(() => globalThis)()?.self?.Map.name' },
   { id: 'multi-opt-leaf-collapse', expr: '(() => globalThis)()?.self.WeakMap?.name' },
-  // LEAF decides collapse-vs-rebind: a polyfilled ctor's prototype method INVOKED at the leaf routes through
-  // `_Map.prototype.has` and COLLAPSES (drops the call); a wrapper leaf above it (`.name`) keeps the chain and
-  // REBINDS. mis-deciding at the static (which can't see the leaf) crashed unplugin on the collapse form
+  // a polyfilled ctor's prototype method ALWAYS collapses to the pure ctor (`Map.prototype.has` ->
+  // `_Map.prototype.has`, `Set.prototype.add` -> `_Set.prototype.add`), matching the non-optional collapse -
+  // the `.self` hop drops and the memoized root serves only the guard. the LEAF polyfill decides only the
+  // GUARD: a called method (`.has.call`) or a bare `typeof` receiver subsumes the `?.`; a receiver-WRAPPING
+  // leaf keeps it. observe via `typeof` / a call RESULT, not `.name` (the pure method is unnamed - a pure-lib
+  // trait that diverges from native). mis-collapsing at the static (which can't see the leaf) crashed unplugin
   { id: 'proto-method-collapse', expr: '(() => globalThis)()?.self.Map.prototype.has.call(new Map([[1, 2]]), 1)' },
-  { id: 'proto-wrapper-rebind', expr: '(() => globalThis)()?.self.Set.prototype.add.name' },
-  // a [Symbol.iterator] leaf is also a receiver-wrapping helper (_getIteratorMethod) -> REBIND off a
-  // ctor-prototype receiver; its kept-call inner global must rewrite (was raw in the symbol-iter path)
-  { id: 'proto-symbol-iter-rebind', expr: 'typeof (() => globalThis)()?.self.Map.prototype[Symbol.iterator]' },
+  { id: 'proto-method-typeof-collapse', expr: 'typeof (() => globalThis)()?.self.Set.prototype.add' },
+  // a [Symbol.iterator] leaf is a receiver-WRAPPING helper (_getIteratorMethod) that KEEPS the null-guard
+  // while the ctor-prototype receiver still collapses (`_getIteratorMethod(_Map.prototype)`); its kept inner
+  // global must rewrite (was raw in the symbol-iter path). `typeof` reads native-consistent either way
+  { id: 'proto-symbol-iter-collapse', expr: 'typeof (() => globalThis)()?.self.Map.prototype[Symbol.iterator]' },
 ];
 function * generateOptionalProxyPureCall() {
   for (const shape of OPC_SHAPES) {
