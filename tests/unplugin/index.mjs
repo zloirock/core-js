@@ -392,9 +392,10 @@ async function compareStrict(directory, actual, directFile) {
   compareNormalized(directory, actual, normalize(await readFile(directFile, UTF8)));
 }
 
-// imports-only comparator: default for entry-global / usage-global. body divergence
-// between babel AST codegen and unplugin text-transform is tolerated by default; opt into
-// strict tail comparison by dropping an `output-unplugin.mjs` next to `output.mjs`
+// imports-only comparator: usage-global only (usage-pure and entry-global go through the
+// full-text compare above). body divergence between babel AST codegen and unplugin
+// text-transform is tolerated by default; opt into strict tail comparison by dropping an
+// `output-unplugin.mjs` next to `output.mjs`
 function compareLoose(directory, actual, babelOutput) {
   compareNormalized(directory, extractImports(actual), extractImports(babelOutput));
 }
