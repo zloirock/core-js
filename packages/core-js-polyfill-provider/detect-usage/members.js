@@ -188,7 +188,8 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // self-reference, so the hop drops while its guard has to stay. a SWAPPED root is always defined, so its
 // guard is dead and never travels
 export function planProxyReceiver(receiver, {
-  aliasCtx = null, isWriteTarget = false, bailOnPureLeaf = true, throughChainAssign = false, resolvePure,
+  aliasCtx = null, isWriteTarget = false, bailOnPureLeaf = true, throughChainAssign = false,
+  ownerlessReceiver = false, resolvePure,
 }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
   // a chain-assignment whose assigned VALUE navigates a hop with no ponyfill entry (`(n = globalThis.window)
@@ -218,7 +219,17 @@ export function planProxyReceiver(receiver, {
   while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(objectCore?.type) || objectCore?.type === 'ChainExpression') {
     objectCore = objectCore.expression;
   }
-  if (isWriteTarget) objectCore = peelReceiverSequenceTail(objectCore);
+  // an OWNERLESS receiver (no dispatched-call consumer whose own SE-tail rewrite a whole-span claim would crash
+  // the transform queue against) peels its sequence tail when the natural per-id rewrite does NOT reach the root
+  // directly: an ALIAS (`(c++, g.self).X`) or a root buried behind a chain-assign (`(c++, (a = globalThis).self).X`)
+  // - both skip the shared resolver / natural rewrite, so the SE-buried-tail hop off them strands a raw `.self`
+  // off-engine. a DIRECT literal root (`(c++, globalThis.self).X`) keeps the natural rewrite / shared resolver;
+  // peeling would overlap it. a write target peels for the same ownerless reason (leaf is the assignment slot)
+  const throughRoot = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
+  const directLiteralRoot = findProxyGlobal(receiver, aliasCtx, false);
+  const peelReadTail = ownerlessReceiver && !!throughRoot
+    && !(directLiteralRoot && POSSIBLE_GLOBAL_OBJECTS.has(directLiteralRoot.name));
+  if (isWriteTarget || peelReadTail) objectCore = peelReceiverSequenceTail(objectCore);
   // a KEPT root admits SE-BEARING hop keys into the prefix: their effects cannot ride ahead of the root
   // (the pre-root harvest every other root uses) because the kept root is an assignment evaluated FIRST -
   // and, under a live guard, the key natively evaluates only PAST it. instead each dropped hop's key
@@ -228,7 +239,7 @@ export function planProxyReceiver(receiver, {
   if (maximalProxyGlobalPrefix(receiver, aliasCtx, { allowSideEffectKeys: seKeysMigrate, throughChainAssign }) !== objectCore) {
     const callRooted = planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure);
     if (callRooted) return callRooted;
-    if (!findProxyGlobal(receiver, aliasCtx, throughChainAssign)) return null;
+    if (!throughRoot) return null;
     const inner = planProxyReceiver(objectCore, { aliasCtx, bailOnPureLeaf, throughChainAssign, resolvePure });
     return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
   }
@@ -242,11 +253,10 @@ export function planProxyReceiver(receiver, {
   // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
   const hopLeaf = staticMemberKeyName(receiver);
   if (hopLeaf && POSSIBLE_GLOBAL_OBJECTS.has(hopLeaf)) return null;
-  const root = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
-  const rootPure = root && resolvePure({ kind: 'global', name: root.name });
+  const rootPure = throughRoot && resolvePure({ kind: 'global', name: throughRoot.name });
   // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
   // root swaps to its pure ctor
-  const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(root, aliasCtx);
+  const isAliasRoot = !!keptAssignRoot || isAliasProxyRoot(throughRoot, aliasCtx);
   if ((!rootPure || rootPure.kind === 'instance') && !isAliasRoot) return null;
   // the dropped hops of a kept root, walked leaf-to-root the way the prefix walker does: their computed
   // keys carry the effects that migrate into the surviving leaf key (in source order), and their `?.`
@@ -266,7 +276,7 @@ export function planProxyReceiver(receiver, {
   return {
     kind: 'collapse',
     rootBinding: keptAssignRoot ? { keep: keptAssignRoot }
-      : isAliasRoot ? { alias: root } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
+      : isAliasRoot ? { alias: throughRoot } : { pure: { entry: rootPure.entry, hintName: rootPure.hintName } },
     // a kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but only IT is
     // exempt. effects the sequence around it carries (`(b++, (q = globalThis.window)).self.X`) are not the
     // assignment and still have to ride ahead, in source order. dropped-hop KEY effects are exempt too:

@@ -3144,17 +3144,44 @@ export function isAmbientTypeDeclaration(node) {
   return false;
 }
 
+// TS elides a namespace that emits NO runtime value (empty, or only type members /
+// non-instantiated nested namespaces) - `namespace N { export type T = x }` produces no JS, so
+// a same-named reference resolves to the GLOBAL and the polyfill MUST fire. only an
+// INSTANTIATED namespace (>=1 value member) lowers to the `var N; (function(N){...})(N||...)`
+// IIFE that shadows the global. conservative in the SAFE direction: an unrecognised member
+// counts as value-emitting so an ambiguous namespace stays a shadow (suppress polyfill = the
+// pre-existing direction); the opposite error would rewrite a real namespace's ctor to the
+// polyfill. `namespace A.B {}` (qualified id) lowers A iff its innermost block is instantiated
+function tsModuleIsInstantiated(node) {
+  let { body } = node;
+  while (body?.type === 'TSModuleDeclaration') body = body.body;
+  const stmts = body?.type === 'TSModuleBlock' ? body.body : null;
+  if (!stmts?.length) return false;
+  return stmts.some(stmt => {
+    const decl = unwrapExportedDeclaration(stmt);
+    switch (decl?.type) {
+      case undefined:
+      case 'TSInterfaceDeclaration':
+      case 'TSTypeAliasDeclaration': return false;
+      case 'TSModuleDeclaration': return !decl.declare && tsModuleIsInstantiated(decl);
+      default: return !decl.declare;
+    }
+  });
+}
+
 // declarations that introduce a runtime binding the plugin must respect as a shadow:
 //  - value-mode `import X = require(...)` / `import X = NS.Y`
 //  - `enum X {}` / `const enum X {}` (no `declare`) - regular emits IIFE; const enum
 //    references inlined by tsc, plugin must NOT rewrite them to a polyfill
-//  - `namespace X {}` (no `declare`) - emits IIFE
+//  - INSTANTIATED `namespace X {}` (no `declare`, >=1 value member) - emits IIFE; an empty /
+//    type-only namespace is elided by tsc, so it is NOT a runtime shadow
 // excludes ambient forms (`declare enum/namespace`, `import type X = require()`) - those
 // have no runtime emission, references resolve to the global, polyfill should fire
 function isTSRuntimeBindingDeclaration(node) {
   if (!node?.id) return false;
   if (node.type === 'TSImportEqualsDeclaration') return !isTypeOnlyImportEquals(node);
-  if (node.type === 'TSEnumDeclaration' || node.type === 'TSModuleDeclaration') return !node.declare;
+  if (node.type === 'TSEnumDeclaration') return !node.declare;
+  if (node.type === 'TSModuleDeclaration') return !node.declare && tsModuleIsInstantiated(node);
   return false;
 }
 
