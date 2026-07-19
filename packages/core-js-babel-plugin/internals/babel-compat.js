@@ -2,7 +2,11 @@
 // optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail,
+  findProxyGlobal, inlineCallReturnExpression,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
+import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   createTypeAnnotationChecker,
   isReusableReceiver,
@@ -12,7 +16,7 @@ import {
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
-export default function (t, { getInjector, typeResolvers } = {}) {
+export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
 
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
@@ -201,6 +205,28 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return receiverMemo ? t.sequenceExpression([receiverMemo, methodMemo]) : methodMemo;
   }
 
+  // a memoized NON-identifier optional root that RESOLVES to a proxy-global (an IIFE / call returning
+  // globalThis, `(() => globalThis)()`) loses its provenance once it becomes a synthetic `_ref`: the tail's
+  // redundant `.self` hop then survives (`_ref.self.X` reads undefined off-engine) and a static ctor method
+  // stays native (`_ref.Array.from`, not collapsed to `_Array$from`). tag the minted ref with its resolved
+  // proxy-global root so the natural hop / static-dispatch collapse recognises `_ref` when the replacement is
+  // re-traversed. that collapse CONSUMES the receiver (a static is receiver-independent), so `_ref` survives
+  // only in the null-guard afterwards, where the bare-read tag has no member access to rewrite. an identifier
+  // root already carries provenance (the natural rewrite handles it); `inlineCallReturnExpression` no-ops for
+  // a non-call root, so this only fires for the call/IIFE roots the natural collapse could not reach
+  function tagProxyGlobalMemoRef(ref, rootNode, scope) {
+    const adapter = getAdapter?.();
+    if (!adapter || !scope || !ref?.name) return;
+    // only a call / IIFE root loses its proxy-global provenance through the memo; an identifier root keeps
+    // it (the natural rewrite handles `g?.self.X`). gate on the call shape - `inlineCallReturnExpression`
+    // dereferences a callee and throws on a non-call
+    if (rootNode?.type !== 'CallExpression' && rootNode?.type !== 'OptionalCallExpression') return;
+    const inner = inlineCallReturnExpression({ callNode: rootNode, scope, adapter, path: null, seen: new Set() });
+    const rootId = inner && findProxyGlobal(inner, { scope, adapter, path: null });
+    const name = rootId && proxyGlobalRootName({ node: rootId, scope, adapter, path: null });
+    if (name) getInjector().registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
+  }
+
   function extractCheck(path, skipOptional) {
     const { node } = path;
     if (node.optional) {
@@ -242,8 +268,10 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       check = rewriteOptionalMethodCall(chainStart, key, path.scope, memoType);
       if (check === null) {
         let ref;
-        [check, ref] = memoize(chainStart.node[key], path.scope, chainStart.node);
+        const rootNode = chainStart.node[key];
+        [check, ref] = memoize(rootNode, path.scope, chainStart.node);
         chainStart.node[key] = seededRefClone(ref, memoType);
+        tagProxyGlobalMemoRef(ref, rootNode, path.scope);
       }
     }
     deoptionalizeNode(chainStart);
