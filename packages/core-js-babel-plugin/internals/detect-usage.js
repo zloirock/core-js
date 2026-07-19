@@ -215,7 +215,11 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
         // direct narrow (babel's mutated `var M = _Map` declarator is indistinguishable from a
         // clean alias here); the member read stays native. the dominance gate keeps a use
         // textually BEFORE its trusted write / declaration native too
-        const polyfillHint = info && !info.aliasGuarded && (isAliasBindingShape || isImportBinding)
+        // a plugin-MINTED memo (`_ref = (() => globalThis)()` from an optional-chain deopt) carries a
+        // `var _ref` scope binding that is NOT an alias-init shape, so the shape checks above miss it -
+        // but it is allocator-owned (no user rebind) and its hint was set from a resolved proxy-global
+        // root, so trust it directly. the dominance gate still bounds a use textually before the write
+        const polyfillHint = info && !info.aliasGuarded && (isAliasBindingShape || isImportBinding || info.minted)
           && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module
