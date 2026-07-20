@@ -13,12 +13,15 @@ import { isCleanDestructureAliasBinding, isGuardedAliasingWrite, isVarScopeBound
 // `(?<suffix>...)` captures the numeric tail (empty string for bare `_ref`) so callers
 // that need the slot index for nextSuffix-cache seeding can `.exec()` instead of duplicating
 // the pattern. `.test()` users ignore the group; both share one regex
-export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d{1,14})?$/;
+// the ONE spelling of the slot-suffix grammar - every generated-name pattern (whole-string
+// and in-text token forms alike) builds from it so the family cannot drift per consumer
+const REF_SLOT_SUFFIX_SOURCE = '[2-9]|[1-9]\\d{1,14}';
+export const ORPHAN_REF_PATTERN = new RegExp(`^_ref(?<suffix>${ REF_SLOT_SUFFIX_SOURCE })?$`);
 
 // generator-shaped `_unused` sentinel names (`generateUnusedName` output), same suffix
 // grammar and safe-integer cap as ORPHAN_REF_PATTERN - shared by the post-pass adoption
 // that re-recognizes pre's rest-destructure sentinels when the state snapshot was lost
-export const UNUSED_NAME_PATTERN = /^_unused(?<suffix>[2-9]|[1-9]\d{1,14})?$/;
+export const UNUSED_NAME_PATTERN = new RegExp(`^_unused(?<suffix>${ REF_SLOT_SUFFIX_SOURCE })?$`);
 
 // returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
 // `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.
@@ -556,4 +559,68 @@ export default class ImportInjectorState {
   // `_unused, _unused2, _unused3, ...` sentinels for rest-destructure rebuild
   // (`{ polyKey: _unused, ...rest } = obj`). subclass may override to track per-pass state
   generateUnusedName() { return this.uniqueName('_unused'); }
+}
+
+// --- canonical generated-name numbering (shared by both emitters' final renumber passes) ---
+// the generator families the canonicalization renumbers, each with its whole-string pattern:
+// `_refN` memo slots and `_unusedN` rest-destructure sentinels. slot naming matches
+// `uniqueName` allocation: slot 1 is the bare prefix, slot 2+ is `<prefix>2, <prefix>3, ...`
+// (skip-1 per babel convention)
+export const GENERATED_NAME_FAMILIES = new Map([
+  ['_ref', ORPHAN_REF_PATTERN],
+  ['_unused', UNUSED_NAME_PATTERN],
+]);
+export const CANONICAL_REF_PREFIXES = GENERATED_NAME_FAMILIES.keys().toArray();
+
+// generator-shaped in ANY family - the emitters' foreign-name gates (census / canon
+// eligibility) share this instead of re-spelling the pattern pair
+export function isGeneratedSlotShapedName(name) {
+  for (const pattern of GENERATED_NAME_FAMILIES.values()) if (pattern.test(name)) return true;
+  return false;
+}
+
+export function refSlotName(prefix, i) {
+  return i === 1 ? prefix : `${ prefix }${ i }`;
+}
+
+// numeric slot of a generator-shaped name (`_ref` -> 1, `_ref7` -> 7) via the family's own
+// pattern; Infinity for a non-slot spelling so canonical sorts push it last instead of throwing
+export function refSlotNumber(prefix, name) {
+  const match = GENERATED_NAME_FAMILIES.get(prefix)?.exec(name);
+  if (!match) return Infinity;
+  return match.groups.suffix ? Number(match.groups.suffix) : 1;
+}
+
+// snapshot-rebuild of a name set through a rename map - sequential in-place delete/add
+// would chain a shift-shaped map (`_ref -> _ref2 -> _ref3`) and funnel the whole set into
+// its last target; both emitters' registries rename through this one helper
+export function renameNamesSet(set, renameMap) {
+  return new Set([...set].map(name => renameMap.get(name) ?? name));
+}
+
+// composite sort key for a mixed declarator list: `_ref` family first, then `_unused`,
+// ascending slot within each - the one declaration order both emitters print
+export function refDeclarationOrder(a, b) {
+  const familyA = a.startsWith('_unused') ? 1 : 0;
+  const familyB = b.startsWith('_unused') ? 1 : 0;
+  if (familyA !== familyB) return familyA - familyB;
+  const prefix = familyA ? '_unused' : '_ref';
+  return refSlotNumber(prefix, a) - refSlotNumber(prefix, b);
+}
+
+// canonical slot assignment for ONE prefix family: names ordered by FIRST PRINT OCCURRENCE
+// take the lowest free slots, so the two emitters agree on numbering wherever they agree on
+// output shape - the raw allocation orders differ by construction (the AST emitter's guard
+// climb allocates helper-first, the text emitter's guard builder root-first). `isTaken`
+// filters slots the file cannot reuse (user bindings, orphan slot-shaped names). returns
+// Map<oldName, newName> with identity entries omitted
+export function assignCanonicalRefSlots(prefix, orderedNames, isTaken) {
+  const renameMap = new Map();
+  let i = 1;
+  for (const name of orderedNames) {
+    let target = refSlotName(prefix, i++);
+    while (isTaken(target)) target = refSlotName(prefix, i++);
+    if (name !== target) renameMap.set(name, target);
+  }
+  return renameMap;
 }
