@@ -25,7 +25,7 @@ for (const k in (f = _globalThis.window)?.Array.prototype ?? {}) void k;
 let t;
 export const templateHole = `${null == (_ref2 = t = _globalThis.window) ? void 0 : _includesMaybeArray(_ref2.Array.prototype).call([1], 1)}`;
 let s;
-export const spreadArg = Math.max(...((s = _globalThis.window)?.Array.from?.([1, 2]) ?? [0]));
+export const spreadArg = Math.max(...((null == (s = _globalThis.window) ? void 0 : _Array$from)?.([1, 2]) ?? [0]));
 let d;
 delete (d = _globalThis.window, _self).someUserKey;
 export { w };
