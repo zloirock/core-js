@@ -7,7 +7,12 @@
 // bundles rarely reassign at that density, and quadratic roots in the reassignment / flow
 // machinery are invisible on three.js yet catastrophic on this shape. Each transform also
 // asserts an injection happened, so a detection-dead run cannot pass vacuously fast.
-import { readFile } from 'node:fs/promises';
+//
+// A case's `source()` may also return an ARRAY of module sources, transformed one-by-one the way
+// a bundler feeds them. Those cases gate the PER-CALL axis: everything above pays setup once on a
+// huge input, so a regression in per-file work (a cache that stops being reused across calls, say)
+// is invisible there and shows up only when the same bytes arrive as hundreds of separate calls.
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformAsync } from '@babel/core';
@@ -64,8 +69,36 @@ function threeBuild(file) {
   return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
 }
 
+// a published package carries a long tail of re-export stubs and one-line constant modules; below
+// this size a module is pure call overhead with no work to measure, which would let a bloated tail
+// drown the signal the case is meant to carry
+const TRIVIAL_MODULE_BYTES = 200;
+
+// every `.js` under the given package directories, as separate module sources
+async function packageModules(...directories) {
+  const sources = [];
+  for (const directory of directories) {
+    const base = join(HERE, 'node_modules', directory);
+    for (const file of await readdir(base, { recursive: true })) {
+      if (!file.endsWith('.js')) continue;
+      const code = await readFile(join(base, file), 'utf8');
+      if (code.length > TRIVIAL_MODULE_BYTES) sources.push(code);
+    }
+  }
+  return sources;
+}
+
+// the view-independent CodeMirror stack: editor state plus the Lezer runtime and one grammar
+const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', '@lezer/lr/dist',
+  '@lezer/highlight/dist', '@lezer/javascript/dist'];
+
 // bounds are per (mode, emitter): usage-pure REWRITES every detected use, so its budgets run
-// higher than the injection-only usage-global ones
+// higher than the injection-only usage-global ones. `injections` is the vacuous-run floor - how
+// many modules must inject. Single-source cases need their one; multi-module ones cannot demand
+// every module (a package always holds files with nothing to polyfill) but must not settle for
+// one either, or detection could die everywhere but a single module and still pass - faster, and
+// so further inside the bound. Floors sit well under the current counts: rxjs injects in 65/212
+// modules under usage-global and 47/212 under usage-pure, codemirror in 4/6 under both
 const CASES = [
   { name: 'three.core.js', source: () => threeBuild('three.core.js'), bounds: {
     'usage-global': { babel: 6, unplugin: 5 }, 'usage-pure': { babel: 8, unplugin: 5 },
@@ -88,6 +121,14 @@ const CASES = [
     'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
+    'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
+  } },
+  // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
+  // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
+  { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: 20, bounds: {
+    'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
+  } },
+  { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 3, bounds: {
     'usage-global': { babel: 6, unplugin: 4 }, 'usage-pure': { babel: 6, unplugin: 4 },
   } },
 ];
@@ -113,17 +154,25 @@ async function transformWith(emitter, mode, source, ts) {
 }
 
 let failed = 0;
-for (const { name, source, ts = false, bounds } of CASES) {
+for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
   const input = await source();
+  // single-source cases are just a one-module list; multi-module ones gate the per-call axis
+  const modules = Array.isArray(input) ? input : [input];
+  const kilobytes = Math.round(modules.reduce((total, module) => total + module.length, 0) / 1024);
   for (const mode of MODES) {
     for (const emitter of ['babel', 'unplugin']) {
       const start = performance.now();
-      const code = await transformWith(emitter, mode, input, ts);
+      let injected = 0;
+      for (const module of modules) {
+        const code = await transformWith(emitter, mode, module, ts);
+        if (code && code.includes(INJECTION_MARK[mode])) injected++;
+      }
       const seconds = (performance.now() - start) / 1000;
-      const injected = !!code && code.includes(INJECTION_MARK[mode]);
-      const ok = injected && seconds < bounds[mode][emitter];
+      const detected = injected >= injections;
+      const ok = detected && seconds < bounds[mode][emitter];
       if (!ok) failed++;
-      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ Math.round(input.length / 1024) }kb) | ${ mode } ${ emitter }: ${ seconds.toFixed(2) }s (bound ${ bounds[mode][emitter] }s${ injected ? '' : ', NO INJECTION' })`;
+      const size = modules.length > 1 ? `${ kilobytes }kb, ${ modules.length } modules` : `${ kilobytes }kb`;
+      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ size }) | ${ mode } ${ emitter }: ${ seconds.toFixed(2) }s (bound ${ bounds[mode][emitter] }s${ detected ? '' : `, ${ injected }/${ injections } INJECTED` })`;
     }
   }
 }
