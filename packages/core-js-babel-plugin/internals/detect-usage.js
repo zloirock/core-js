@@ -45,7 +45,7 @@ import {
   withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding,
+  aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding, soleAliasWrite,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
@@ -107,6 +107,17 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
 }
 
 export function createBabelAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
+  // the injector's declarator registry serves plugin-minted memo refs whose scope model
+  // misrepresents the binding: scope-invisible on the memo-dense append path, or param-landed
+  // by babel's `scope.push` on a callable scope (binding node = bare Identifier until the
+  // post-pass normalizer materializes the `var`). identity on the minted id node keeps
+  // same-named user bindings out
+  function scopedMemoDeclarator(scope, name) {
+    const memoDecl = getInjector?.()?.getMemoDeclarator?.(name);
+    if (!memoDecl) return null;
+    const bindingId = scope.getBindingIdentifier(name);
+    return !bindingId || bindingId === memoDecl.id ? memoDecl : null;
+  }
   const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
@@ -124,6 +135,9 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
     // adapter constructed without an injector closure (entry-only detect path)
     get packages() { return getInjector()?.packages ?? null; },
     hasBinding(scope, name, path = null) {
+      // a plugin-minted memo ref appended on the memo-dense fast path is scope-invisible
+      // until the programExit re-crawl - the injector's declarator registry is authoritative
+      if (getInjector?.()?.getMemoDeclarator?.(name)) return true;
       // user-declared runtime bindings (var/let/const/function/class/import/TSImportEquals).
       // `getBindingIdentifier` is narrow - `scope.hasBinding` would also fire for free-variable
       // globals just by being seen (`const x = Map` makes `Map` "bound" globally), too coarse.
@@ -156,6 +170,26 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       return !!getInjector()?.hasAliasName?.(name, path?.node?.start ?? null);
     },
     getBinding(scope, name, path = null) {
+      // a plugin-minted memo ref the scope misrepresents (append-path scope-invisible /
+      // param-landed) - serve a synthetic binding view off the injector's declarator
+      // registry (init-less var declarator, no violations). a call-root memo carries a
+      // registered proxy-global alias hint (the natural static collapse recognizes the ref
+      // through it) - surface it exactly like the binding-less name view below; an
+      // assign-root memo has no registration and resolves through the trusted-write follow
+      const memoDecl = scopedMemoDeclarator(scope, name);
+      if (memoDecl) {
+        const memoUseStart = path?.node?.start ?? null;
+        const memoInfo = getInjector()?.getBindingInfo(name, memoUseStart) ?? null;
+        const memoTrusted = memoInfo
+          && (memoInfo.source !== null || memoInfo.aliasTrusted || !!memoInfo.aliasWrite || !!memoInfo.aliasVerified);
+        const memoHint = memoTrusted && aliasSpanDominatesUse({ info: memoInfo, useStart: memoUseStart })
+          ? memoInfo.hint : null;
+        return {
+          node: memoDecl, kind: 'var', constantViolations: [], importSource: null, scope,
+          polyfillHint: memoHint, aliasSymbolSource: null, aliasWrite: memoInfo?.aliasWrite ?? null,
+          guardedAliasHint: !memoHint ? memoInfo?.hint ?? null : null,
+        };
+      }
       // use anchor for the trusted-span dominance gate: a use textually BEFORE its alias write /
       // declaration must not narrow statically (it runs pre-assignment); callers without a path
       // keep the registration-only behavior
@@ -275,8 +309,17 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
     // (clean, unconditionally placed in the binding's own scope) of an init-less binding, as its
     // AssignmentExpression node - or null. computed on demand (only init-less Identifier-pattern
     // bindings reach the resolver branch), so ordinary getBinding calls pay nothing
-    findTrustedAliasWrite(scope, name) {
+    findTrustedAliasWrite(scope, name, { requirePlacement = true } = {}) {
       const b = scope.getBinding(name);
+      // the plugin's OWN memo write (`_ref = <expr>`): synthesized on a prior rewrite, never a
+      // scope constantViolation - and the ref itself may be scope-invisible on the memo-dense
+      // append path or param-landed on a callable scope. the injector registry is the
+      // provenance proof of the single write.
+      // STRUCTURAL consumers only (a positional caller has no anchor on synthetic nodes)
+      if (!requirePlacement && (!b?.constantViolations?.length || scopedMemoDeclarator(scope, name))) {
+        const memoAssign = getInjector?.()?.getMemoWrite?.(name);
+        if (memoAssign) return memoAssign;
+      }
       if (!b || b.path.node?.type !== 'VariableDeclarator' || b.path.node.init) return null;
       const violations = withoutValuelessDeclarationViolations(b.constantViolations);
       const first = violations?.[0];
@@ -291,14 +334,20 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
       // matching the estree side which resolves on the pristine AST
       if (ancestorChainDetached(assignPath)) assignPath = freshPathOfNode(b.scope?.path, assignNode) ?? assignPath;
       // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
-      // so a conditional expression container between them refuses flow-trust
-      return assignmentAliasWriteTrusted({ binding: { ...b, constantViolations: violations }, assignNode, stmtPath: assignPath })
+      // so a conditional expression container between them refuses flow-trust. a STRUCTURAL
+      // consumer skips placement - its branch-after-test proof carries execution evidence
+      return (requirePlacement
+        ? assignmentAliasWriteTrusted({ binding: { ...b, constantViolations: violations }, assignNode, stmtPath: assignPath })
+        : soleAliasWrite({ binding: { ...b, constantViolations: violations }, assignNode }))
         ? assignNode : null;
     },
     getBindingNodeType(scope, name) {
       // `?.path` defense - virtual bindings (plugin-injected pure imports before scope.crawl)
       // may have `.path` undefined; without `?.` the inner `.node` access throws TypeError.
-      // unplug-side adapter already had this defense; aligning shape across adapters
+      // unplug-side adapter already had this defense; aligning shape across adapters.
+      // registry-backed memo refs (append-path scope-invisible / param-landed) report their
+      // registered declarator over the scope's misrepresented shape
+      if (scopedMemoDeclarator(scope, name)) return 'VariableDeclarator';
       return scope.getBinding(name)?.path?.node?.type ?? null;
     },
     isStringLiteral,

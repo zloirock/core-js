@@ -48,7 +48,7 @@ import {
   withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  aliasSpanDominatesUse, assignmentAliasWriteTrusted, hasCtorAliasCandidateShapes, isPolyfillAliasBinding,
+  aliasSpanDominatesUse, assignmentAliasWriteTrusted, hasCtorAliasCandidateShapes, isPolyfillAliasBinding, soleAliasWrite,
   isSymbolDestructureAliasBinding, registerAliasPrePassSite,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
@@ -602,7 +602,7 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
     // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):
     // raw estree violations are PATHS onto the written Identifier - climb to the enclosing
     // AssignmentExpression, then run the shared trust predicate
-    findTrustedAliasWrite(scope, name) {
+    findTrustedAliasWrite(scope, name, { requirePlacement = true } = {}) {
       const raw = scope?.getBinding?.(name);
       if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init) return null;
       // mirror the babel twin: strip valueless-redeclaration phantoms BEFORE the first-violation
@@ -616,8 +616,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
       const assignNode = assignPath?.node;
       if (!assignNode) return null;
       // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
-      // so a conditional expression container between them refuses flow-trust
-      return assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath })
+      // so a conditional expression container between them refuses flow-trust. a STRUCTURAL
+      // consumer skips placement - its branch-after-test proof carries execution evidence
+      return (requirePlacement
+        ? assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath })
+        : soleAliasWrite({ binding: b, assignNode }))
         ? assignNode : null;
     },
     getBindingNodeType(scope, name, path = null) {
