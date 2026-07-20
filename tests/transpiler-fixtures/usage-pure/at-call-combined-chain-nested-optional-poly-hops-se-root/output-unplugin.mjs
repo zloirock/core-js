@@ -7,4 +7,4 @@ var _ref, _ref2, _ref3;
 // one OR-chain). pins that root memoization stays parser-consistent across the two emission
 // strategies. cosmetic shape divergence -> output-unplugin.mjs
 function getArr() { return [[1]]; }
-null == (_ref2 = _flatMaybeArray(_ref = getArr())?.call(_ref)) || null == (_ref3 = _flatMapMaybeArray(_ref2).call(_ref2, x => x)) ? void 0 : _atMaybeArray(_ref3).call(_ref3, 0);
+null == (_ref = _flatMaybeArray(_ref2 = getArr())?.call(_ref2)) || null == (_ref3 = _flatMapMaybeArray(_ref).call(_ref, x => x)) ? void 0 : _atMaybeArray(_ref3).call(_ref3, 0);

@@ -943,7 +943,7 @@ export default class TransformQueue {
     }
     if (!inRange.length) return [];
     // run the SAME sort+partial-overlap guard apply() does (otherwise reached only via
-    // #applyOverwrites). this drain path bakes the returned splices into relocated text via the
+    // #materializeOverwrites). this drain path bakes the returned splices into relocated text via the
     // caller's spliceInRange, which - unlike compose - cannot detect a partial overlap and would
     // silently corrupt the output (and the entries are drained, so the final apply() never sees
     // them). the sort is for the guard; #composeEntries re-sorts inRange by logical span below
@@ -992,7 +992,7 @@ export default class TransformQueue {
   // collision. reproducer: minified `function f(){arr.at?.(0).map(x=>x)}` - the polyfill
   // overwrites at the byte right after `{` AND scope-tracker inserts `var _ref, _ref2, _ref3;`
   // at that same byte; without inserts-last the var decl is lost, yielding ReferenceError in strict mode
-  apply() {
+  apply(refCanon = null) {
     // defensive invariant: inserts MUST NOT land strictly inside any overwrite range -
     // MagicString anchors `appendRight` to chunk identity; an insert pos that falls inside
     // a chunk later replaced by `overwrite` is folded into the discarded pre-edit intro
@@ -1003,7 +1003,13 @@ export default class TransformQueue {
     // the violation
     if (this.#inserts.size && this.#transforms.size) this.#assertNoInsertInsideOverwrite();
     this.#resolveGuardOwnership();
-    this.#applyOverwrites();
+    // materialize the final composed splices BEFORE any magic-string write so the ref-canon
+    // hook can rewrite replacement contents in place: sourcemaps treat replacement text as
+    // opaque, so a rename inside it never moves original positions. splice order preserves
+    // the previous direct-write order exactly (fast path right-to-left, composed outermost)
+    const splices = this.#materializeOverwrites();
+    if (refCanon && (splices.length || this.#inserts.size)) refCanon(splices, [...this.#inserts]);
+    for (const s of splices) this.#ms.overwrite(s.start, s.end, s.content);
     for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
     // a hoisted guard prefix / root-slot rewrite that found no anchor would silently drop
     // the root null-check or the claim itself - fail loudly instead (the claim was already
@@ -1057,22 +1063,24 @@ export default class TransformQueue {
     }
   }
 
-  #applyOverwrites() {
-    if (!this.#transforms.size) return;
+  #materializeOverwrites() {
+    if (!this.#transforms.size) return [];
     // single snapshot, sorted asc by start (+ overlap-checked); fast path reverses in place, slow
     // path re-sorts in place. `#hasNesting` guarantees distinct starts on the fast-path branch so
     // `reverse()` produces a safe right-to-left application order without losing tie-break information
     const transforms = [...this.#transforms];
     this.#sortAndAssertNoPartialOverlap(transforms);
+    const splices = [];
 
     // fast path: no nesting - apply right-to-left
     if (!this.#hasNesting(transforms)) {
       transforms.reverse();
-      for (const t of transforms) this.#ms.overwrite(t.start, t.end, this.#injectPendingGuardPrefixes(t.content));
-      return;
+      for (const t of transforms) splices.push({ start: t.start, end: t.end, content: this.#injectPendingGuardPrefixes(t.content) });
+      return splices;
     }
 
-    this.#applyComposed(transforms);
+    this.#materializeComposed(transforms, splices);
+    return splices;
   }
 
   // slow path: compose nested transforms then apply outermost-first.
@@ -1080,7 +1088,7 @@ export default class TransformQueue {
   // split prefix's physical end = mid (small) but it logically owns full [start, logicalEnd]
   // - sort by logical span so split's outer-iteration runs AFTER inners contained in its
   // logical range, matching the wrap order non-split entries naturally produce
-  #applyComposed(transforms) {
+  #materializeComposed(transforms, splices) {
     const { composed, composedContent } = this.#composeEntries(transforms);
     // phase 2: overwrite outermost transforms only (split prefix owns its full logical range;
     // its suffix peer was excluded from `composed` via the role==='suffix' skip in phase 1)
@@ -1090,16 +1098,18 @@ export default class TransformQueue {
         // each segment is a source-adjacent run, so every split's suffix maps to its own columns (the
         // `?.call` to the `.at?.(` site, not the receiver) - the nested generalization of addSplit's
         // fast-path two-overwrite, also restoring folded inner splits in double-nested optional chains
-        for (const seg of segments) this.#ms.overwrite(seg.srcStart, seg.srcEnd, this.#injectPendingGuardPrefixes(seg.content));
+        for (const seg of segments) {
+          splices.push({ start: seg.srcStart, end: seg.srcEnd, content: this.#injectPendingGuardPrefixes(seg.content) });
+        }
       } else {
-        this.#ms.overwrite(start, end, this.#injectPendingGuardPrefixes(content));
+        splices.push({ start, end, content: this.#injectPendingGuardPrefixes(content) });
       }
     }
   }
 
   // phase 1 of composition: fold each transform's inners + equal-range dups into its content.
   // returns the OUTER transforms (dups that ceded their merge to a sibling are dropped) plus a
-  // transform -> composed-content map. shared by `#applyComposed` (overwrites outermost onto the
+  // transform -> composed-content map. shared by `#materializeComposed` (splices outermost onto the
   // magic-string) and `composeAndDrainRange` (returns outermost as splices for relocated text).
   // sorts ascending by LOGICAL span so inners compose before the outer that contains them.
   // note on double-guard: if an outer's content ALREADY holds a formatted guard from a prior
@@ -1126,7 +1136,7 @@ export default class TransformQueue {
 
   // phase 2 of composition: from the `composed` set keep only the OUTERMOST transforms (drop any
   // whose logical range is swallowed by an earlier-starting wider sibling) as ordered, disjoint
-  // { start, end, content } splices. shared by `#applyComposed` (overwrites each onto the
+  // { start, end, content } splices. shared by `#materializeComposed` (splices each onto the
   // magic-string) and `composeAndDrainRange` (bakes them into relocated text). a split prefix
   // overwrites its FULL logical range; its suffix peer was already excluded in phase 1.
   // `emitSegments` is set only by the overwrite path - the relocated-string path has no per-character map
@@ -1146,7 +1156,7 @@ export default class TransformQueue {
         // the outermost split AND any folded inner ones (double-nested optional chains) - has a verbatim
         // suffix that must map to its OWN `[mid, end)` source range, not the receiver's. `#splitSegments`
         // locates each suffix in the composed string and partitions it into source-adjacent segments so
-        // `#applyComposed` overwrites each half against its real columns (like addSplit's fast path).
+        // `#materializeComposed` splices each half against its real columns (like addSplit's fast path).
         // null on any unmet assumption -> the single overwrite (correct output, coarse map). skipped on the
         // relocated-string path, which bakes the splice whole and has no per-character map to refine
         if (emitSegments) {
@@ -1420,7 +1430,7 @@ export default class TransformQueue {
   }
 
   // sort `entries` by start (widest-end first on ties) IN PLACE, then run the partial-overlap
-  // guard. both the apply() path (#applyOverwrites) and the relocated-text drain path
+  // guard. both the apply() path (#materializeOverwrites) and the relocated-text drain path
   // (composeAndDrainRange) must surface a partial overlap before composing/applying, and
   // #assertNoPartialOverlap requires start-sorted input - so the sort+assert pair lives here once.
   // callers reuse the now-sorted array (apply for its fast-path reverse; drain hands it to compose)

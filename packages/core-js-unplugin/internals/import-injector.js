@@ -1,6 +1,12 @@
 import { safeErrorMessage } from '@core-js/polyfill-provider/helpers/pattern-matching';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import ImportInjectorState, { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import ImportInjectorState, {
+  CANONICAL_REF_PREFIXES,
+  ORPHAN_REF_PATTERN,
+  refSlotNumber,
+  renameNamesSet,
+  UNUSED_NAME_PATTERN,
+} from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
@@ -23,6 +29,11 @@ export default class ImportInjector extends ImportInjectorState {
   #ms;
   // iteration order is insertion-preserving, so emitted `var _ref, _ref2, ...;` stays stable
   #refs = new Set();
+  // every generated slot-family name (prefix -> Set): `_refN` declared + local AND
+  // `_unusedN` rest sentinels - the registry the final print-order canonicalization renames
+  // from; adopted orphans stay out (their spellings live in the previous pass's text, out
+  // of rename reach)
+  #generatedByPrefix = new Map(CANONICAL_REF_PREFIXES.map(prefix => [prefix, new Set()]));
   // refs already written to `ms` by a prior flush (or inherited from pre via snapshot).
   // lets post emit only the delta so pre + post doesn't produce duplicate `var X;` lines
   #flushedRefs = new Set();
@@ -126,6 +137,33 @@ export default class ImportInjector extends ImportInjectorState {
 
   generateLocalRef() { return this.generateRefName(); }
 
+  generateRefName(extraCheck) {
+    const name = super.generateRefName(extraCheck);
+    this.#generatedByPrefix.get('_ref').add(name);
+    return name;
+  }
+
+  generatedRefFamilies() { return this.#generatedByPrefix; }
+
+  // a slot the canonical renumber may NOT hand out: taken by anything that is not one of
+  // our own generated names (a user binding, an adopted orphan, an import UID)
+  isRefSlotForeign(name) {
+    for (const [, names] of this.#generatedByPrefix) if (names.has(name)) return false;
+    return this.isNameTaken(name);
+  }
+
+  // final print-order canonicalization (see ref-canon.js). flush() then declares the
+  // renamed refs under their canonical names in slot order
+  canonicalizeRefs(renameMap) {
+    if (!renameMap.size) return;
+    this.#refs = renameNamesSet(this.#refs, renameMap);
+    for (const [prefix, names] of this.#generatedByPrefix) this.#generatedByPrefix.set(prefix, renameNamesSet(names, renameMap));
+    for (const [from, to] of renameMap) {
+      this.usedNames.delete(from);
+      this.usedNames.add(to);
+    }
+  }
+
   // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments.
   // caller filters user-owned bindings; `#flushedRefs` skip avoids dup `var _ref;`
   // orphan refs adopted from pre's output (post sees the rewritten source but the state
@@ -185,6 +223,7 @@ export default class ImportInjector extends ImportInjectorState {
   generateUnusedName() {
     const name = super.generateUnusedName();
     this.#unusedNames.add(name);
+    this.#generatedByPrefix.get('_unused').add(name);
     return name;
   }
 
@@ -352,6 +391,10 @@ export default class ImportInjector extends ImportInjectorState {
   #collectRefLines() {
     const newRefs = [...this.#refs.difference(this.#flushedRefs)];
     if (!newRefs.length) return [];
+    // canonical declaration order: ascending slot number. insertion order equals it until
+    // the print-order canonicalization renames refs; the AST emitter's merged declaration
+    // sorts the same way, so the two emitters print one declarator sequence
+    newRefs.sort((a, b) => refSlotNumber('_ref', a) - refSlotNumber('_ref', b));
     for (const r of newRefs) this.#flushedRefs.add(r);
     return [`var ${ newRefs.join(', ') };`];
   }
