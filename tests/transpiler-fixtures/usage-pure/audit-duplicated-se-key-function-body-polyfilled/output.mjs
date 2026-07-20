@@ -5,13 +5,13 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // must substitute in both copy and residual, visitor-driven like babel's clone, not left raw.
 let log = 0;
 const n = _includesMaybeArray([() => {
-  var _ref2;
-  return _flatMaybeArray(_ref2 = [3, 4]).call(_ref2);
+  var _ref;
+  return _flatMaybeArray(_ref = [3, 4]).call(_ref);
 }]);
 const {
   [(log++, 'includes')]: _unused
 } = [() => {
-  var _ref;
-  return _flatMaybeArray(_ref = [3, 4]).call(_ref);
+  var _ref2;
+  return _flatMaybeArray(_ref2 = [3, 4]).call(_ref2);
 }];
 export const out = [n, log];
