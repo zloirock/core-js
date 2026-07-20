@@ -316,7 +316,7 @@ export default class ScopeTracker {
     return textOf.get(rootBody);
   }
 
-  applyTransforms(queue) {
+  applyTransforms(queue, refCanon = null) {
     // wrap body nodes: arrow `() => expr` -> `() => { var _ref; return expr; }`;
     // bodyless `for (..;..) stmt` -> `for (..;..) { var _ref; stmt }`
     for (const [body, entry] of this.#bodyWraps) {
@@ -338,6 +338,6 @@ export default class ScopeTracker {
         queue.insert(insertPos, this.#scopedVarText(insertPos, names));
       }
     }
-    queue.apply();
+    queue.apply(refCanon);
   }
 }

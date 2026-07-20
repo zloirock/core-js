@@ -18,8 +18,8 @@ let u;
 let s;
 let k = 0;
 export const doubleHopName = null == (_ref = n = _globalThis.window) ? void 0 : _nameMaybeFunction(_Set);
-export const doubleHopCallTail = null == (_ref3 = t = _globalThis.window) ? void 0 : _at(_ref2 = _nameMaybeFunction(_Map)).call(_ref2, 0);
-export const doubleHopOptCall = null == (_ref5 = c = _globalThis.window) ? void 0 : _at(_ref4 = _nameMaybeFunction(_WeakMap))?.call(_ref4, 0);
+export const doubleHopCallTail = null == (_ref2 = t = _globalThis.window) ? void 0 : _at(_ref3 = _nameMaybeFunction(_Map)).call(_ref3, 0);
+export const doubleHopOptCall = null == (_ref4 = c = _globalThis.window) ? void 0 : _at(_ref5 = _nameMaybeFunction(_WeakMap))?.call(_ref5, 0);
 export function keep(x) {
   return x;
 }
@@ -30,7 +30,7 @@ export const doubleHopKeySe = null == (_ref6 = s = _globalThis.window) ? void 0 
 // STACKED computed key-SE: the outer key evaluates AFTER the full inner receiver (ECMA
 // receiver-before-key), so the inner rewrite's memo hoists ahead of the outer folded SE
 let v;
-export const doubleHopKeyStack = null == (_ref8 = v = _globalThis.window) ? void 0 : (_ref7 = (k++, _nameMaybeFunction(_Map)), k += 10, _at(_ref7).call(_ref7, 0));
+export const doubleHopKeyStack = null == (_ref7 = v = _globalThis.window) ? void 0 : (_ref8 = (k++, _nameMaybeFunction(_Map)), k += 10, _at(_ref8).call(_ref8, 0));
 // a user-written sequence stays put - only plugin-built wrappers lift into the guard
 export function readName(x) {
   return k++, _nameMaybeFunction(x);

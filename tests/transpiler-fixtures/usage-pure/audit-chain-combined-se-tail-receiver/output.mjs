@@ -6,5 +6,5 @@ var _ref, _ref2, _ref3;
 // (`(0, globalThis).flat?.().at(0)`). the receiver resolves through the shared single-call
 // resolver, so the SE-tail proxy-global substitutes to `_globalThis` (the prefix stays ahead
 // of it in eval order) instead of surviving raw into every guard slot of the combined emit
-const r = null == (_ref2 = _flatMaybeArray(_ref = (0, _globalThis))) ? void 0 : _at(_ref3 = _ref2.call(_ref)).call(_ref3, 0);
+const r = null == (_ref = _flatMaybeArray(_ref2 = (0, _globalThis))) ? void 0 : _at(_ref3 = _ref.call(_ref2)).call(_ref3, 0);
 r;
