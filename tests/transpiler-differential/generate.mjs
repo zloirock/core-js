@@ -470,6 +470,39 @@ const KPR_SHAPES = [
   // token - `?[`, `? .` and `? /*x*/` are all parse errors, so these arm on the trivia-blind class
   { id: 'guarded-computed-trivia', value: 'globalThis.window', tail: '?.self /* x */ ["Array"].from?.([1])' },
   { id: 'guarded-dotted-trivia', value: 'globalThis.window', tail: '?.self /* x */ .Array.from?.([1])' },
+  // a nested instance-GET buried in the receiver of an outer instance dispatch: the outer's
+  // receiver collapse must recompose the inner rewrite (crash / silent-drop class). provable
+  // value, so the chain collapses through the assignment
+  { id: 'nested-instance-get', value: 'globalThis', tail: '?.self.Array.prototype.at.name.at?.(0)' },
+  // BLIND (unresolvable-value) triple chain: three stacked dispatches rebind on one guard memo,
+  // and the middle transform's stitch boundary must reach the compose hint (crash class)
+  { id: 'blind-triple-instance', value: 'globalThis.window', tail: '?.self.Array.prototype.at.name.at?.(0)' },
+  // instance dispatch OVER a blind call tail: the static claim inside the tail dies at enter
+  // (a late drop strands a dead import), and the memo re-reads the call verbatim
+  { id: 'blind-call-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([1]).at?.(0)' },
+  // claimable ctor under a blind kept tail: the blocked claim keeps the tail verbatim including
+  // the `.self` hop (dropping the hop desyncs from the AST emitter)
+  { id: 'blind-ctor-leaf', value: 'globalThis.window', tail: '?.self.Set.name.at?.(0)' },
+  // claims THROUGH the kept assignment: non-optional (collapse assumption reads the ponyfill
+  // through an unresolvable value nav) and value-resolvable optional (deopt-dead guard), plus
+  // the resolvable static-method claim whose redundant hop drive must yield to the claim span
+  // DOUBLE proxy hop with an instance-GET tail: the erase-refusal claim fires inside outer
+  // instance wrappers, so the guard must climb above the whole stack; the key-SE row locks the
+  // SE riding the guard's non-null branch (both the spelling and the effect order)
+  { id: 'blind-double-hop-get', value: 'globalThis.window', tail: '?.self?.self.Set.name.at?.(0)' },
+  { id: 'blind-double-hop-key-se', value: 'globalThis.window', tail: '?.self?.self.Set[(log.push("k"), "name")]' },
+  // stacked keys: the outer key SE must observe the full inner receiver first (the effect
+  // ORDER k1,k2 on a live window is the oracle - an outer fold ahead of the inner memo flips it)
+  { id: 'blind-double-hop-key-stack', value: 'globalThis.window', tail: '?.self?.self.Map[(log.push("k1"), "name")][(log.push("k2"), "at")]?.(0)' },
+  // combined optional-call chain over the claim: the root guard must hoist into the outer
+  // test - fed to the helper-GET it hands `void 0` on the short-circuit path (throw class)
+  { id: 'blind-double-hop-combined', value: 'globalThis.window', tail: '?.self?.self.Array.of(1).flat?.().at?.(0)' },
+  { id: 'blind-double-hop-opt-access', value: 'globalThis.window', tail: '?.self?.self.Array.of(2)?.flat?.()' },
+  { id: 'blind-double-hop-nested-combined', value: 'globalThis.window', tail: '?.self?.self.Array.of(5).flat?.().map?.(x => x).at?.(0)' },
+  { id: 'blind-double-hop-nested-kept-arg', value: 'globalThis.window', tail: '?.self?.self.Array.of((log.push("inner"), globalThis.window)?.self.Set.name).flat?.()' },
+  { id: 'claim-nonoptional', value: 'globalThis.window', tail: '.self.Map.name.at?.(0)' },
+  { id: 'claim-resolvable-assign', value: 'globalThis', tail: '?.self.Set.name.includes?.("S")' },
+  { id: 'claim-resolvable-call', value: 'globalThis', tail: '?.self.Array.from?.([3]).at?.(-1)' },
   { id: 'sealed-by-wrapper', value: 'globalThis.window', tail: '?.self).Array.prototype.at.call([5], 0', seal: true },
   { id: 'provable-value-negative', value: 'globalThis', tail: '?.self.Array.prototype.findLast.call([1], x => x)' },
   { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },
@@ -483,6 +516,29 @@ function * generateKeptProxyRoot() {
     const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis.window); return v; })()`;
     yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false };
   }
+}
+
+// --- Lowered optional alias (`?.` desugared by a transpiler BEFORE the plugin) ---
+// the optional chain arrives as a ternary whose TEST assigns a synthetic alias; the trusted-write
+// follow resolves the alias through the test (structural read-after-write proof), so the tail
+// claims / types exactly like the unlowered spelling. the window-valued row locks the explicit
+// guard's short-circuit; the conditional-write negative locks the bail (alias stays opaque)
+const LOA_SHAPES = [
+  { id: 'resolvable-claim', value: 'globalThis', tail: '_a.self.Set.name' },
+  { id: 'window-valued', value: 'globalThis.window', tail: '_a.self.Array.from?.([1])' },
+  { id: 'instance-tail', value: 'globalThis', tail: '_a.self.Array.prototype.includes.name' },
+];
+function * generateLoweredOptionalAlias() {
+  for (const shape of LOA_SHAPES) {
+    const inner = `(() => { var _a; let t; const v = (_a = t = ${ shape.value }) == null ? void 0 : ${
+      shape.tail }; log.push(t === ${ shape.value }); return v; })()`;
+    yield { ...snippet(`lowered-optional-alias/${ shape.id }`, inner, { rig: true }), strip: false };
+  }
+  yield { ...snippet('lowered-optional-alias/conditional-write-negative',
+    '(() => { var _c; if (log.length > 9000) _c = globalThis; return typeof _c; })()', { rig: true }), strip: false };
+  // return-hosted guard: the lowered ternary sits in a ReturnStatement - an unconditional host
+  yield { ...snippet('lowered-optional-alias/return-hosted',
+    '(() => { var _a; return (_a = globalThis) == null ? void 0 : _a.self.WeakMap.name; })()', { rig: true }), strip: false };
 }
 
 // --- Discarded computed-key prefix proxy-global (text-emitter compose crash) ---
@@ -3446,6 +3502,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateKeptProxyRoot();
+  yield * generateLoweredOptionalAlias();
   yield * generateDiscardedKeyPrefixProxy();
   yield * generateNestedSeHopReceiver();
   yield * generateBuriedFoldKeySE();

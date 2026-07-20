@@ -187,6 +187,17 @@ function needleRootedInGuard(needle, outerHint) {
 function buildNeedleCandidates({ needle, needleStart, outerHint }) {
   // [0] raw slice - matches when the outer neither deoptionalized nor guarded the chain
   const candidates = [needle];
+  // prefix-substitution rebuild: the outer collapsed its receiver span [subStart, subTailStart)
+  // into `subPrefix` (root binding, dropped hops, folded SE) and kept the tail verbatim. an inner
+  // needle that is a source slice anchored at the same chain start rebuilds EXACTLY by offset math:
+  // substituted prefix + the needle's own verbatim tail. most specific after raw - no text sniffing
+  // `subTailStart - needleStart === needle.length` degenerates to the whole-prefix rebuild (empty
+  // verbatim tail): the needle spans exactly the substituted span, so the candidate is `subPrefix`
+  // itself - the wrapper-rebuilt receivers encode themselves this way (tail folded into the prefix)
+  if (typeof outerHint?.subPrefix === 'string' && needleStart === outerHint.subStart
+    && outerHint.subTailStart > needleStart && outerHint.subTailStart - needleStart <= needle.length) {
+    candidates.push(outerHint.subPrefix + needle.slice(outerHint.subTailStart - needleStart));
+  }
   const hasOptionalChain = needle.includes('?.');
   // partial-deopt: the outer collapsed only SOME of the chain's `?.` (the hops it folded
   // into its receiver) and kept the rest verbatim. replay that exact per-position strip so
@@ -199,9 +210,25 @@ function buildNeedleCandidates({ needle, needleStart, outerHint }) {
   }
   // full-deopt: matches when the outer's compose stripped every `?.` marker in the chain
   if (hasOptionalChain) candidates.push(deoptionalizeNeedle(needle));
+  // guardRef + boundary-stitched tail: the outer's rebind advanced past dropped proxy hops and
+  // stitched its body tail from `guardTailStart` with per-position deopt - rebuild the needle
+  // against the SAME boundary so a dropped `.self` hop does not desync the tail (more specific
+  // than the plain rootRaw slice below, so it goes first)
+  if (needleRootedInGuard(needle, outerHint) && typeof outerHint.guardTailStart === 'number' && needleStart !== undefined
+    && outerHint.guardTailStart > needleStart && outerHint.guardTailStart - needleStart <= needle.length) {
+    candidates.push(outerHint.guardRef + deoptionalizeNeedleAtPositions(
+      needle.slice(outerHint.guardTailStart - needleStart), outerHint.guardTailStart, outerHint.deoptPositions));
+  }
   // guardRef + deopt-tail: outer memoized `rootRaw` as `guardRef`, so the inner needle's
-  // root now reads `guardRef` and only the tail beyond `rootRaw` survives in the text
+  // root now reads `guardRef` and only the tail beyond `rootRaw` survives in the text.
+  // per-position strip first: a NESTED chain in an argument keeps its own live `?.` (the
+  // outer deoptionalized only the hops it folded), and the blanket full-deopt below would
+  // over-strip it and miss
   if (needleRootedInGuard(needle, outerHint)) {
+    if (needleStart !== undefined && outerHint.deoptPositions?.length) {
+      candidates.push(outerHint.guardRef + deoptionalizeNeedleAtPositions(
+        needle.slice(outerHint.rootRaw.length), needleStart + outerHint.rootRaw.length, outerHint.deoptPositions));
+    }
     candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
   }
   return candidates;
@@ -452,19 +479,30 @@ function removeFrom(map, key, value) {
 // root span (derived from `objectStart` + `rootRaw.length`) - inner's value is already
 // threaded through the outer guard's `_ref = ...` slot. returns null when the outer
 // didn't install a guard and didn't reuse one
-export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot }) {
+export function createRewriteHint({
+  rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot, subPrefix, subTailStart, subStart, guardTailStart, guardSlot, guardOwn,
+}) {
+  // prefix-substitution record: the emitter collapsed the receiver span [subStart, subTailStart)
+  // into the `subPrefix` text and kept the tail verbatim. compose rebuilds an overlapping inner
+  // needle anchored at the same chain start as `subPrefix + verbatim tail`. all three fields or none
+  const sub = typeof subPrefix === 'string' && typeof subTailStart === 'number' && typeof subStart === 'number'
+    ? { subPrefix, subTailStart, subStart } : null;
   // no guard installed, but the emitter still stripped `?.` at hop boundaries (`deoptPositions`)
-  // when collapsing a receiver chain. compose needs those positions so substituteInner can
-  // rebuild the partially-deoptionalized needle an outer left behind. emit a deopt-only hint
-  // (no rootRaw/guardRef checks downstream gate on `guardRef`, so this stays inert there)
+  // when collapsing a receiver chain, and/or substituted the chain prefix. compose needs those to
+  // rebuild the needle an outer left behind. emit a guardless hint (no rootRaw/guardRef checks
+  // downstream gate on `guardRef`, so this stays inert there)
   if (!guardRef) {
-    return deoptPositions?.length ? { rootRaw: null, guardRef: null, deoptPositions, objectStart, absorbsRoot: false } : null;
+    return deoptPositions?.length || sub
+      ? { rootRaw: null, guardRef: null, deoptPositions, objectStart, absorbsRoot: false, guardSlot, guardOwn, ...sub } : null;
   }
   // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
   // needle.startsWith checks. fail fast rather than silently produce a hint that
   // misroutes downstream composition
   if (!rootRaw) throw new Error('createRewriteHint: guardRef requires rootRaw');
-  return { rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot };
+  return {
+    rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot,
+    guardTailStart: guardTailStart ?? null, guardSlot, guardOwn, ...sub,
+  };
 }
 
 // deferred transform queue for usage-pure: collects text replacements during traversal,
@@ -664,6 +702,35 @@ export default class TransformQueue {
     return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
   }
 
+  // NEAREST queued transform PROPERLY containing [start, end]: inclusive boundaries, so a
+  // whole-span claim anchored at the SAME chain start still owns the nested range; only the
+  // exact-equal range is excluded (that is the transform itself). nearest = smallest logical
+  // span - compose folds a nested transform into its innermost container, so that is the
+  // content a nested needle must survive in. suffix split-halves defer to their prefix,
+  // which owns the pair's logical span
+  #properContainerOf(start, end) {
+    let best = null;
+    let bestSpan = Infinity;
+    for (const entry of this.#transforms) {
+      if (entry.splitInfo?.role === 'suffix') continue;
+      const entryEnd = entryLogicalEnd(entry);
+      if (entry.start <= start && entryEnd >= end && !(entry.start === start && entryEnd === end)
+        && entryEnd - entry.start < bestSpan) {
+        best = entry;
+        bestSpan = entryEnd - entry.start;
+      }
+    }
+    return best;
+  }
+
+  // inclusive-proper containment probe - the ownership notion `containingContentIncludes`
+  // judges content against. the O(log n) `containsRange` is STRICT on both boundaries, so a
+  // same-start whole-span claim is invisible to it - callers deciding "does another transform
+  // own this span" must use this one
+  containsRangeProper(start, end) {
+    return !!this.#properContainerOf(start, end);
+  }
+
   // content-survival probe for a NESTED rewrite: compose can fold a nested transform into a
   // containing one only when the containing content still carries the nested range's SOURCE
   // text (exactly one identifier-boundary occurrence - ambiguity would mis-splice). true =
@@ -673,14 +740,10 @@ export default class TransformQueue {
   containingContentIncludes(start, end) {
     const needle = this.#code.slice(start, end);
     if (!needle.length) return false;
-    for (const entry of this.#transforms) {
-      const entryEnd = entryLogicalEnd(entry);
-      if (!(entry.start <= start && entryEnd >= end) || (entry.start === start && entryEnd === end)) continue;
-      if (entry.splitInfo?.role === 'suffix') continue;
-      const content = entry.splitInfo ? splitInnerContent(entry, new Map()) : entry.content;
-      return collectOccurrencePositions(content, needle).length === 1;
-    }
-    return false;
+    const entry = this.#properContainerOf(start, end);
+    if (!entry) return false;
+    const content = entry.splitInfo ? splitInnerContent(entry, new Map()) : entry.content;
+    return collectOccurrencePositions(content, needle).length === 1;
   }
 
   // true when any already-queued transform sits fully within [start, end]. used before
@@ -691,6 +754,107 @@ export default class TransformQueue {
       if (entryLogicalWithin(entry, start, end)) return true;
     }
     return false;
+  }
+
+  // guard splices deferred to apply(): the owning entry's content still goes through
+  // inner-needle composition, and an eager in-place insert would shift the positions its
+  // substitution hint describes - the anchor is relocated in the FINAL composed chunk
+  #pendingGuardPrefixes = [];
+
+  #pendingRootRewrites = [];
+
+  // guard-ownership pass: a guard emitted over span S belongs to the OUTERMOST optional-chain
+  // consumer containing S. every renderer that emits a guarded expression marks its entry
+  // (`guardOwn.prefixEnd` - where the guard prefix ends in its content); every renderer whose
+  // test can host a hoisted guard publishes a slot (`guardSlot` anchor). the pass walks owners
+  // innermost-first and migrates each contained guard into the nearest enclosing slot:
+  //   - claim spanning the slot owner's WHOLE memoized root: the guarded content replaces the
+  //     root expression in the memo slot (paren-balance from the anchor) and the entry leaves
+  //     the queue - needle composition against the substituted root text has no reliable slot
+  //   - otherwise: the guard prefix splices into the slot, the entry keeps its plain body
+  // both splices resolve on apply() against the FINAL composed chunk (anchors are allocator-
+  // unique ref names); transitive nesting works because a parent's own guardOwn migrates on
+  // its own iteration and its slot anchor survives composition into the grandparent's chunk
+  #resolveGuardOwnership() {
+    const owners = [...this.#transforms].filter(e => e.rewriteHint?.guardOwn);
+    owners.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b));
+    for (const entry of owners) {
+      const own = entry.rewriteHint?.guardOwn;
+      if (!own) continue;
+      const entryEnd = entryLogicalEnd(entry);
+      // candidate slots, innermost-first. slot APPLICABILITY depends on the slot's shape:
+      //   - an instance-guard slot (has `rootRaw`) memoizes its root BARE, so a guarded inner
+      //     composing into the memo value is already the canonical nested-guard emission - it
+      //     accepts ONLY the whole-root claim replacement (needle composition against the
+      //     substituted root text has no reliable slot there)
+      //   - a combined-chain slot wraps its receiver in a helper-GET inside the test - a
+      //     guarded inner there would hand the helper `void 0` on the short-circuit path, so
+      //     the guard prefix migrates above the helper
+      const slots = [];
+      for (const cand of this.#transforms) {
+        if (cand.rewriteHint?.guardSlot === undefined) continue;
+        const candEnd = entryLogicalEnd(cand);
+        if (cand.start <= entry.start && candEnd >= entryEnd && (cand.start < entry.start || candEnd > entryEnd)) {
+          slots.push(cand);
+        }
+      }
+      slots.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b));
+      for (const slot of slots) {
+        const slotHint = slot.rewriteHint;
+        const anchor = slotHint.guardSlot;
+        // whole-span claim replacement fires ONLY when needle composition cannot: the slot's
+        // content holds a SUBSTITUTED root / receiver text (an inner rescue rewrote the proxy
+        // globals), so the raw-slice needle has no slot. a verbatim span composes normally -
+        // the inner guarded content lands in the bare memo value, the nested-guard canon
+        const rootMatch = slotHint.objectStart === entry.start && typeof slotHint.rootRaw === 'string'
+          && entry.start + slotHint.rootRaw.length === entryEnd
+          && !slot.content.includes(slotHint.rootRaw);
+        const recvRaw = slotHint.recvAnchor !== undefined && slotHint.receiverStart === entry.start
+          && slotHint.receiverEnd === entryEnd ? this.#code.slice(entry.start, entryEnd) : null;
+        const recvMatch = recvRaw !== null && !slot.content.includes(recvRaw);
+        if (rootMatch || recvMatch) {
+          this.#pendingRootRewrites.push({ anchor: recvMatch ? slotHint.recvAnchor : anchor, text: entry.content });
+          this.#removeEntry(entry);
+        } else if (typeof slotHint.rootRaw === 'string') {
+          continue;
+        } else {
+          this.#pendingGuardPrefixes.push({ anchor, prefix: entry.content.slice(0, own.prefixEnd) });
+          entry.content = entry.content.slice(own.prefixEnd);
+          entry.rewriteHint = { ...entry.rewriteHint, guardOwn: undefined };
+        }
+        slot.rewriteHint = { ...slotHint, guardSlot: undefined };
+        break;
+      }
+    }
+  }
+
+  // splice every pending hoisted guard prefix / root-slot rewrite whose anchor lands in
+  // this final content; called on each outgoing overwrite chunk - the anchor's ref name is
+  // allocator-unique, so at most one chunk matches each pending entry
+  #injectPendingGuardPrefixes(content) {
+    for (let i = 0; i < this.#pendingGuardPrefixes.length; i++) {
+      const { anchor, prefix } = this.#pendingGuardPrefixes[i];
+      const idx = content.indexOf(anchor);
+      if (idx === -1) continue;
+      content = content.slice(0, idx + anchor.length) + prefix + content.slice(idx + anchor.length);
+      this.#pendingGuardPrefixes.splice(i--, 1);
+    }
+    for (let i = 0; i < this.#pendingRootRewrites.length; i++) {
+      const { anchor, text } = this.#pendingRootRewrites[i];
+      const idx = content.indexOf(anchor);
+      if (idx === -1) continue;
+      const from = idx + anchor.length;
+      let depth = 0;
+      let to = from;
+      while (to < content.length && (depth > 0 || content[to] !== ')')) {
+        if (content[to] === '(') depth++;
+        else if (content[to] === ')') depth--;
+        to++;
+      }
+      content = content.slice(0, from) + text + content.slice(to);
+      this.#pendingRootRewrites.splice(i--, 1);
+    }
+    return content;
   }
 
   // extract the LOGICAL transform covering [start, end] and return its full content, dropping
@@ -831,8 +995,17 @@ export default class TransformQueue {
     // anchors (insert immediately before/after an overwrite chunk) - only strictly-inside is
     // the violation
     if (this.#inserts.size && this.#transforms.size) this.#assertNoInsertInsideOverwrite();
+    this.#resolveGuardOwnership();
     this.#applyOverwrites();
     for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
+    // a hoisted guard prefix / root-slot rewrite that found no anchor would silently drop
+    // the root null-check or the claim itself - fail loudly instead (the claim was already
+    // emitted PLAIN or suppressed on the slot's promise)
+    if (this.#pendingGuardPrefixes.length || this.#pendingRootRewrites.length) {
+      const count = this.#pendingGuardPrefixes.length + this.#pendingRootRewrites.length;
+      throw new Error(`transform-queue: ${ count } hoisted guard rewrite(s) found no anchor in the final content. `
+        + 'this is a composition bug - please report with a reproducer.');
+    }
   }
 
   // binary-searching for just the largest-start range with start <= pos misses ENCLOSING
@@ -888,7 +1061,7 @@ export default class TransformQueue {
     // fast path: no nesting - apply right-to-left
     if (!this.#hasNesting(transforms)) {
       transforms.reverse();
-      for (const t of transforms) this.#ms.overwrite(t.start, t.end, t.content);
+      for (const t of transforms) this.#ms.overwrite(t.start, t.end, this.#injectPendingGuardPrefixes(t.content));
       return;
     }
 
@@ -910,9 +1083,9 @@ export default class TransformQueue {
         // each segment is a source-adjacent run, so every split's suffix maps to its own columns (the
         // `?.call` to the `.at?.(` site, not the receiver) - the nested generalization of addSplit's
         // fast-path two-overwrite, also restoring folded inner splits in double-nested optional chains
-        for (const seg of segments) this.#ms.overwrite(seg.srcStart, seg.srcEnd, seg.content);
+        for (const seg of segments) this.#ms.overwrite(seg.srcStart, seg.srcEnd, this.#injectPendingGuardPrefixes(seg.content));
       } else {
-        this.#ms.overwrite(start, end, content);
+        this.#ms.overwrite(start, end, this.#injectPendingGuardPrefixes(content));
       }
     }
   }
