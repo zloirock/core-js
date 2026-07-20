@@ -4114,8 +4114,10 @@ export function createDestructureEmitter({
     // with the chain buried in a value-position wrapper - `[globalThis.self.X.prototype][0]`)
     // still carries the needle, and compose folds the nested collapse exactly like the plain
     // identifier substitution - without it the buried `.self` hop survived to an off-engine
-    // throw where the standalone form collapses
-    if (transforms.containsRange(recv.start, recv.end)
+    // throw where the standalone form collapses. INCLUSIVE-proper containment: the static
+    // claim anchors at the same chain start as this collapse would, so a both-strict test
+    // never saw the owner and the redundant collapse crashed the compose
+    if (transforms.containsRangeProper(recv.start, recv.end)
       && !transforms.containingContentIncludes(recv.start, recv.end)) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
     if (!maximalProxyGlobalHop(recv, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
