@@ -440,7 +440,7 @@ function scanTemplateRegion(src, start, regions) {
 // avoids unbounded growth without LRU bookkeeping
 let cachedRegionsSrc = null;
 let cachedRegions = null;
-function literalRegionsOf(src) {
+export function literalRegionsOf(src) {
   if (src === cachedRegionsSrc) return cachedRegions;
   cachedRegions = scanLiteralRegions(src);
   cachedRegionsSrc = src;

@@ -9,4 +9,4 @@ var _ref, _ref2, _ref3;
 function getArr() {
   return [1, 2];
 }
-null == (_ref2 = _flatMaybeArray(_ref = getArr())) ? void 0 : _includesMaybeArray(_ref3 = _ref2.call(_ref)).call(_ref3, 1);
+null == (_ref = _flatMaybeArray(_ref2 = getArr())) ? void 0 : _includesMaybeArray(_ref3 = _ref.call(_ref2)).call(_ref3, 1);

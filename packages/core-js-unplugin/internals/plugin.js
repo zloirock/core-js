@@ -1,4 +1,5 @@
 import { parseSync } from 'oxc-parser';
+import { canonicalizeRefNumbering } from './ref-canon.js';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
@@ -615,9 +616,17 @@ export default function createPlugin(options) {
       // filter against `declaredNames` (decls + non-orphan assignments only) - `bindingNames`
       // also includes Identifier reads, which always contains the orphan target itself and
       // would make the filter dead code (every plugin-emitted `_ref` reads its own slot)
+      // canonical `_refN` numbering eligibility: single-pass files only. a pre pass's refs
+      // live in the NEXT pass's original text (out of rename reach), and adopted orphans
+      // keep their spellings for the same reason - those files keep allocation numbering.
+      // user slot-shaped names do NOT disable the canon: the allocator reserved them and
+      // `isRefSlotForeign` keeps their slots out of the assignment, exactly like the AST
+      // emitter's taken-aware renumber - skipping here instead desynced the two numberings
+      let refCanonEligible = pass !== 'pre' && !inherit;
       if (pass === 'post' && !inherit && hasCoreJSImport(ast, packages)) {
         const adoptable = new Set();
         for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
+        if (adoptable.size) refCanonEligible = false;
         injector.adoptOrphanRefs(adoptable);
         // pre's rest-destructure sentinels are DECLARED by the rewritten pattern itself
         // (`{ polyKey: _unusedN, ...rest }`), so they come from declaredNames - the injector
@@ -1394,7 +1403,8 @@ export default function createPlugin(options) {
         }) : usageVisitors);
         applySynthSwaps();
         applyDestructuringTransforms();
-        scopeTracker.applyTransforms(transforms);
+        scopeTracker.applyTransforms(transforms, refCanonEligible
+          ? (splices, inserts) => canonicalizeRefNumbering({ splices, inserts, injector }) : null);
         return finalize();
       }
       if (method === 'usage-pure') return runUsagePure();
