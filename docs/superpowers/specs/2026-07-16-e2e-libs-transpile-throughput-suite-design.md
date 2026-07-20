@@ -258,3 +258,26 @@ BrowserStack Automate; CI wiring.
   polyfills vs rxjs's 95) and a **runtime** functional check: all 16 checks still pass after the ES5
   down-compile + polyfill, under both Babel 7 and 8, proving the project stays functional after the
   run — the requested "does the project still work after unplugin processes it" verification.
+- **codemirror fixture (`tiers: ['throughput', 'runtime']`), and what it proved.** Added as a third
+  fixture to cover a third **module topology**: rxjs = many small modules, three = one ~1.4 MB
+  monolith, codemirror = a deep graph of mid-sized modules. Exercise: the view-independent half of a
+  real CodeMirror 6 editor — `EditorState` transactions with position/selection mapping, a Lezer
+  parse, an **incremental** reparse verified against a full one, `highlightTree` token classification,
+  and CSS + HTML grammars — 28 checks. `@codemirror/language` is deliberately excluded — not because
+  it fails headlessly (it doesn't; it only touches the DOM once an `EditorView` is constructed), but
+  because it drags in `@codemirror/view`, ~1.1 MB that no headless check ever executes. Parsing goes
+  through Lezer directly, which is what CodeMirror delegates to anyway. Checks deliberately favour
+  version-robust invariants over magic node totals so a grammar bump can't redden the suite spuriously.
+
+  The measurement it unlocked: unplugin's usage-mode cost tracks the size of the **individual
+  module**, not total code volume. At stage `[B]` (unplugin's real input), codemirror is 497 KB and
+  costs ~1 s, while three is 647 KB and costs 22–26 s — 1.3x the bytes, well over an order of
+  magnitude in time. Largest single module: 142 KB vs 1409 KB. This converts the earlier
+  "superlinear scope resolution" hypothesis into a measurement and localises it *within* a module.
+  Keep all three topologies: a regression there surfaces on `three` first.
+
+- **An unplugin bug the suite caught (known, fix expected on `v4`).** codemirror's `usage-pure` fails
+  at runtime. It is a defect in `@core-js/unplugin`, not in the fixture, and it is already known —
+  a fix is expected on the `v4` branch. `entry-global` and `usage-global` pass. The fixture therefore
+  stays registered with all three methods and `usage-pure` stays red until the fix lands: a suite
+  reporting a real defect is the suite working.
