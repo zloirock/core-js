@@ -6,5 +6,5 @@ var _ref, _ref2, _ref3;
 // (`((() => globalThis)() as any).flat?.().at(0)`). the inner globalThis substitutes to
 // `_globalThis` (the IIFE stays a live reference - the cast member does not collapse it) and the
 // cast wrapper is preserved verbatim in the memo, matching the single-call receiver resolution
-const r = null == (_ref2 = _flatMaybeArray(_ref = (() => _globalThis)() as any)) ? void 0 : _at(_ref3 = _ref2.call(_ref)).call(_ref3, 0);
+const r = null == (_ref = _flatMaybeArray(_ref2 = (() => _globalThis)() as any)) ? void 0 : _at(_ref3 = _ref.call(_ref2)).call(_ref3, 0);
 r;
