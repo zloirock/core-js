@@ -749,6 +749,13 @@ export default class TransformQueue {
   // true when any already-queued transform sits fully within [start, end]. used before
   // appending a raw source tail to a synthetic body, so a nested transform inside that tail
   // is not duplicated (the tail would carry both the raw text and the composed rewrite)
+  // an entry already queued at EXACTLY [start, end): a later whole-span claimant (the proxy
+  // hop-root collapse) must yield - the earlier owner's content composes this span itself,
+  // and a second equal-range entry with different content crashes the equal-range merge
+  hasRange(start, end) {
+    return !!this.#byRange.get(rangeKey(start, end))?.length;
+  }
+
   hasTransformWithin(start, end) {
     for (const entry of this.#transforms) {
       if (entryLogicalWithin(entry, start, end)) return true;
