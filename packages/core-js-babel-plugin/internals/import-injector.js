@@ -116,6 +116,29 @@ export default class ImportInjector extends ImportInjectorState {
     return this.#t.identifier(name);
   }
 
+  // provenance registry for the plugin's OWN memo writes (`_ref = <expr>` built by the
+  // compat memoize): the synthesized assignment never registers a scope constantViolation,
+  // so the resolver's trusted-write follow cannot see it - this per-file map is the proof
+  // of the single synthetic write (ref names are unique per file by construction)
+  #memoWrites = new Map();
+
+  recordMemoWrite(name, assignNode) {
+    this.#memoWrites.set(name, assignNode);
+  }
+
+  getMemoWrite(name) {
+    return this.#memoWrites.get(name) ?? null;
+  }
+
+  // declarator registry for the same refs: the memo-dense append path below skips babel's
+  // per-ref binding registration (quadratic), so a MID-PASS scope lookup misses those refs -
+  // the registry serves a synthetic binding view until the programExit re-crawl
+  #memoDeclarators = new Map();
+
+  getMemoDeclarator(name) {
+    return this.#memoDeclarators.get(name) ?? null;
+  }
+
   generateDeclaredRef(scope, useNode) {
     const id = this.#generateRefId(scope);
     // `scope.push` unshifts `var _ref;` into the scope's own block. when the use site sits in a
@@ -146,7 +169,9 @@ export default class ImportInjector extends ImportInjectorState {
       // memo-dense files), name collisions are guarded by the injector's own `usedNames`
       // (not scope lookups), and `pruneUnusedRefs` re-crawls the scope at programExit
       // before anything reads these bindings
-      host.node.declarations.push(this.#t.variableDeclarator(id));
+      const declarator = this.#t.variableDeclarator(id);
+      host.node.declarations.push(declarator);
+      this.#memoDeclarators.set(id.name, declarator);
       return;
     }
     target.push({ id });
@@ -156,7 +181,13 @@ export default class ImportInjector extends ImportInjectorState {
     const bindingPath = target.getBinding(id.name)?.path;
     const parent = bindingPath?.parentPath;
     if (parent?.isVariableDeclaration()) this.#declaredRefHosts.set(target, parent);
-    else this.#hasParamLandedRef = true;
+    else {
+      this.#hasParamLandedRef = true;
+      // a param-landed ref has no declarator until the post-pass normalizer materializes the
+      // `var` - synthesize one over the SAME id node so the memo-provenance follow sees the
+      // init-less declarator shape during the pass (identity on the id keeps user params out)
+      this.#memoDeclarators.set(id.name, this.#t.variableDeclarator(id));
+    }
   }
 
   // true when the ref's use site is outside the block that `scope.push` would host its `var` in, so a

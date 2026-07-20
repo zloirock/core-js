@@ -9,6 +9,7 @@ import {
   isAliasProxyRoot, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
   symbolKeyToEntry,
   proxyGlobalRootName,
+  trustedIdentifierAliasWrite,
 } from '../helpers/class-walk.js';
 import {
   isTopLevelThisContext,
@@ -625,18 +626,31 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // value source, not a flow hazard. works pre-registration too (a closure body visited before the
   // write's statement still resolves, matching the decl canon's static pattern walk)
   if (!binding.node?.init && binding.node?.id?.type === 'Identifier' && adapter.findTrustedAliasWrite) {
+    // strict (placement-checked) write serves the POSITIONAL destructure arms. pure only +
+    // the READ must sit textually AFTER the write: a hoisted-var read, an earlier-defined
+    // closure body, or an alias hop CAPTURED before the write (`const S = T; ({ Map: T } =
+    // globalThis)` - the hop reads T at the S declarator) runs pre-assignment, and a static
+    // narrow there would un-throw it (mirrors the registration-table dominance gate;
+    // `usageNode` is the hop's read anchor, the plain use keeps its own position)
     const write = adapter.findTrustedAliasWrite(scope, name);
-    // pure only + the READ must sit textually AFTER the write: a hoisted-var read, an
-    // earlier-defined closure body, or an alias hop CAPTURED before the write (`const S = T;
-    // ({ Map: T } = globalThis)` - the hop reads T at the S declarator) runs pre-assignment,
-    // and a static narrow there would un-throw it (mirrors the registration-table dominance
-    // gate; `usageNode` is the hop's read anchor, the plain use keeps its own position)
     if (write && (adapter.method !== 'usage-pure' || ((usageNode ?? path?.node)?.start ?? 0) > write.end)) {
       const alias = write.left?.type === 'ObjectPattern'
         ? resolveProxyGlobalDestructureAlias({ pattern: write.left, init: write.right, name, scope, adapter, seen, path })
         : write.left?.type === 'ArrayPattern'
           ? resolveArrayWrappedProxyGlobalAlias({ pattern: write.left, init: write.right, name, scope, adapter, seen, path })
           : null;
+      if (alias) return alias;
+    }
+    // plain-Identifier trusted write (`var _g; (_g = g = globalThis) == null ? ... : _g.self.X`
+    // - the shape `?.`-lowering transpilers emit ahead of this plugin): the write's RHS is the
+    // binding's sole value, so it resolves through the SAME value canon a declarator init uses;
+    // a chain-assign RHS peels to the stored value first (the kept assignment stays verbatim).
+    // the trust/shape/structural-proof gates live in the shared `trustedIdentifierAliasWrite`
+    const idWrite = trustedIdentifierAliasWrite({ scope, name, adapter, path });
+    if (idWrite) {
+      const alias = resolveAliasValueNode({
+        value: peelChainAssignment(idWrite.right).value, name, binding, scope, adapter, seen, path,
+      });
       if (alias) return alias;
     }
   }
@@ -697,10 +711,16 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   }
   if (pattern && pattern.type !== 'Identifier') return null;
   if (!init) return null;
+  return resolveAliasValueNode({ value: init, name, binding, scope, adapter, seen, path });
+}
+
+// resolve the VALUE an Identifier-pattern alias stores - the declarator init, or a trusted
+// assignment-form write's RHS (both feed the same canon so the two spellings cannot drift)
+function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, path }) {
   // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value off its tail.
   // the binding's init declaration stays verbatim (only USES of the binding are rewritten / import-
   // injected), so preceding SE effects are preserved in place - resolution peels to the tail value
-  const unwrapped = peelReceiverSequenceTail(init);
+  const unwrapped = peelReceiverSequenceTail(value);
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
     // (recursion hits the top-level polyfillHint translation for plugin-managed imports).
