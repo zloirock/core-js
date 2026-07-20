@@ -537,11 +537,13 @@ export default function createSynthSwapEmitter({
         // keys read the memo instead of re-running the call per read
         const needMemo = pending.callBranch
           && buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills).some(entry => !entry.polyfill);
-        // the memo param is minted via babel's scope UID generator ON PURPOSE: the injector's
-        // `_ref` generator registers names in its ref-set, and the arrow-param normalize
-        // post-pass strips trailing ref-set params from every function expression - it would
-        // relocate this INTENTIONAL IIFE param to a body `var`, unbinding the memo argument
-        const memoParam = needMemo ? path.scope.generateUidIdentifier('ref') : null;
+        // the memo param is minted via the injector's raw name generator: it must NOT enter
+        // the DECLARED ref-set (the arrow-param normalize post-pass strips trailing ref-set
+        // params from every function expression - it would relocate this INTENTIONAL IIFE
+        // param to a body `var`, unbinding the memo argument), but it MUST share the one
+        // generated slot space - babel's own scope UID generator numbered independently and
+        // fragmented the print-order canonicalization's universe
+        const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
         const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
         const literal = buildSynthLiteral(path.node, pending, memoParam, aliasCtx);
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
