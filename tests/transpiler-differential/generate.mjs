@@ -513,6 +513,9 @@ const KPR_SHAPES = [
   { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },
   { id: 'se-around-assign', value: 'globalThis.window', tail: '?.self.Array.prototype.some.call([1], x => x)', se: true },
   { id: 'se-key-computed-leaf', value: 'globalThis.window', tail: "?.[(log.push('k'), 'self')]['Array'].prototype.at.call([5], 0)" },
+  // well-known-symbol access over the kept root with a sequence-prefix SE: the harvest must
+  // carry the prefix on both emitters (one dropped it - wrong effect count), guard preserved
+  { id: 'kept-symbol-iterator-se', value: 'globalThis.window', tail: '?.self[Symbol.iterator]', se: true },
 ];
 function * generateKeptProxyRoot() {
   for (const shape of KPR_SHAPES) {
@@ -520,6 +523,35 @@ function * generateKeptProxyRoot() {
     const expr = shape.seal ? `(${ assign }${ shape.tail })` : `${ assign }${ shape.tail }`;
     const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis.window); return v; })()`;
     yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false };
+  }
+}
+
+// --- Symbol receiver context fold ---
+// the well-known-symbol GET folds an unresolvable chain ROOT (`window.self`) to the nav's
+// resolvable VALUE - the text emitter used to strand the raw nav (import-set desync, off-realm
+// ReferenceError); a WRITE HOST (`++`, the cleanup `delete`) folds its receiver like the
+// plain-key member channel; a for-x aliased body read deopts to the raw slot read where the
+// collapse would throw on the non-callable value the head just wrote
+const SRC_SHAPES = [
+  // the bare-`window` root is a realm-shape observable: usage-global leaves the expression
+  // untouched and injects no es.global-this (the source never reads it), so the untranspiled
+  // rig helper cannot run in the globalThis-stripped realm - fullEnv skips that leg, the
+  // pure legs carry the fold oracle
+  { id: 'window-get', body: 'const v = window.self[Symbol.iterator]; log.push(typeof v); return typeof v;', fullEnv: true },
+  { id: 'update-host',
+    body: 'globalThis.self[Symbol.iterator]++; const d = Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator); '
+      + 'log.push(typeof d.value); delete globalThis.self[Symbol.iterator]; return typeof d.value;' },
+  { id: 'for-x-alias',
+    body: 'let last; for (globalThis.self[Symbol.iterator] of [[1], [2]]) { last = globalThis.self[Symbol.iterator]; } '
+      + 'delete globalThis.self[Symbol.iterator]; log.push(String(last)); return String(last);' },
+];
+function * generateSymbolReceiverContextFold() {
+  for (const shape of SRC_SHAPES) {
+    yield {
+      ...snippet(`symbol-receiver-context-fold/${ shape.id }`, `(() => { ${ shape.body } })()`, { rig: true }),
+      strip: false,
+      fullEnv: shape.fullEnv === true,
+    };
   }
 }
 
@@ -3507,6 +3539,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateKeptProxyRoot();
+  yield * generateSymbolReceiverContextFold();
   yield * generateLoweredOptionalAlias();
   yield * generateDiscardedKeyPrefixProxy();
   yield * generateNestedSeHopReceiver();

@@ -412,6 +412,16 @@ export default function createSynthSwapEmitter({
     const collapsed = collapseProxyGlobalReceiver(recPath.node, { aliasCtx, isWriteTarget, throughChainAssign: true });
     if (!collapsed) return false;
     recPath.replaceWith(collapsed);
+    // the replacement is a FINISHED render of the outer member (root substituted, hops dropped) -
+    // this drive only fires when the member's own callback declined the nav (a write target, a
+    // for-x aliased read), so the re-visit of the synthetic member must not re-enter detection:
+    // the well-known-symbol strand would collapse the deliberately-deopted read (the for-x
+    // signature no longer matches the rebuilt shape). children stay live - the kept key still
+    // needs its own static swap (`Symbol.iterator` -> `_Symbol$iterator`)
+    const collapsedMember = collapsed.type === 'SequenceExpression' ? collapsed.expressions.at(-1) : collapsed;
+    if (collapsedMember.type === 'MemberExpression' || collapsedMember.type === 'OptionalMemberExpression') {
+      skippedNodes.add(collapsedMember);
+    }
     return true;
   }
 
