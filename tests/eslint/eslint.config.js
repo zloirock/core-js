@@ -2579,6 +2579,8 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
+      'tests/e2e-libs/.tmp/**',
+      'tests/e2e-libs/@(artifacts|report)/**',
       'tests/transpiler-differential/tmp/**',
       'tests/type-definitions/tmp/**',
       'website/dist/**',

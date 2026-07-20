@@ -2,12 +2,25 @@
 
 Runs real libraries through `@core-js/unplugin` in two tiers.
 
-Fixtures (in `exercises/`, registered in `libraries.mjs`):
-- **rxjs** — headless reactive pipelines.
+Fixtures (in `exercises/`, registered in `libraries.mjs`). The three cover three different **module
+topologies**, which is what actually drives unplugin's cost — see the note at the end:
+- **rxjs** — headless reactive pipelines. Many small modules.
 - **three** — a real headless **three.js** scene *project* (scene-graph, transforms, an "animation"
   step, raycasting, geometry, math). A large modern-ES codebase for the throughput tier, and — since
   it's verified by its numeric state, not pixels — a functional runtime check that the project **still
-  computes correctly** after unplugin + Babel down-compile to ES5.
+  computes correctly** after unplugin + Babel down-compile to ES5. One ~1.4 MB monolithic module.
+- **codemirror** — the headless half of a real **CodeMirror 6** editor: `EditorState` transactions
+  with position/selection mapping, a Lezer parse, an **incremental** reparse checked against a full
+  one, token highlighting, plus CSS and HTML grammars. A deep graph of mid-sized modules.
+  Only the view-independent layer is used. `@codemirror/language` is deliberately NOT imported: it
+  works fine headlessly (it touches the DOM only when an `EditorView` is constructed), but it drags
+  in `@codemirror/view` — ~1.1 MB that no headless check ever executes. Parsing comes from Lezer
+  directly instead, which is what CodeMirror delegates to anyway.
+  Its checks favour version-robust invariants (zero parse errors, incremental === full, ordered
+  highlight spans, semantic names) over magic node totals, so a grammar bump doesn't redden the suite.
+
+  **Known-red:** `usage-pure` currently fails at runtime. This is a known `@core-js/unplugin` bug,
+  not a fixture bug — a fix is expected on the `v4` branch. `entry-global` and `usage-global` pass.
 
 - **pipeline** — the full picture: **size AND time at each stage** of the real IE11 build, per
   (lib × method). Stages: `[A]` library bundled, no transforms → `[B]` + Babel (ES5, no polyfills) →
@@ -40,3 +53,21 @@ resolve to this monorepo's code, not a transitively-hoisted published v3. (`@cor
 core-js only polyfills the ECMAScript stdlib (+ a few web primitives); it cannot make DOM/Canvas/
 Worker/Node-stream code run on IE11. The runtime tier therefore only holds headless, computational
 libraries whose sole legacy barrier is syntax + stdlib.
+
+**Why the fixtures differ in module topology.** unplugin's usage-mode cost is driven by the size of
+the *individual module*, not by total code volume: the scope/variable resolution it runs is
+superlinear **within** a module, so the same bytes spread across a graph are far cheaper than the same
+bytes in one file. Measured at stage `[B]` (the actual input unplugin sees in an IE11 build):
+
+| fixture | topology | `[B]` size | unplugin time |
+| --- | --- | --- | --- |
+| rxjs | many small modules | 115 KB | 0.4 s |
+| codemirror | deep graph of mid-sized modules | 497 KB | **1.0 s** |
+| three | one ~1.4 MB monolith | 647 KB | **24.5 s** |
+
+1.3x the bytes, ~25x the time. (Same-run figures — `pipeline.mjs` is single-run, and codemirror
+measures ~2.6 s when run alone vs ~1.0 s after rxjs has warmed the JIT. three lands at 22–26 s
+either way, so the order of magnitude is not a measurement artefact.)
+
+Keep all three topologies represented — a regression in that resolution shows up on `three` long
+before it shows up anywhere else.
