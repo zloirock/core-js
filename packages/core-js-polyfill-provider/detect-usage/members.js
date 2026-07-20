@@ -2,8 +2,11 @@
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
+  climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   getFallbackBranchSlots,
+  isForXWriteTarget,
+  isMemberWriteHost,
   isMutatedGlobalSlot,
   isTaggedTemplateTagPosition,
   memberKeyName,
@@ -586,13 +589,32 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
 // answer with OUR global's iterator and silently discard the object the source named. the assignment stays
 // as the receiver (`keepRoot`); the redundant hop above it drops all the same, a proxy hop being a
 // realm-local self-reference. this is the rule the shared receiver plan applies, so the two cannot drift
-function resolveSymbolReceiverProxyRoot({ node, receiverChain, scope, adapter, path, resolvePure }) {
+function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName, scope, adapter, path, resolvePure }) {
   const keptAssign = resolvePure ? peelChainAssignment(descendToChainRoot(receiverChain).root) : null;
   const isOptionalAccess = ownChainOptionalCount(node) > 0;
   if (keptAssign?.outer && navHasUnresolvableProxyHop(keptAssign.value, resolvePure)) {
-    return { keepRoot: keptAssign.outer, droppedSe: [], isOptionalAccess };
+    // the kept root re-emits ITSELF, so harvesting it too would run the assignment twice - but
+    // only IT is exempt: sequence effects around it and dropped-hop KEY effects still have to
+    // ride ahead in source order (the symbol strand has no surviving key slot to carry them) -
+    // the same kept-root harvest rule the shared receiver plan applies
+    return {
+      keepRoot: keptAssign.outer,
+      droppedSe: collectFoldedReceiverSideEffects(node.object, [],
+        seedChainRootCallRescue({ node: node.object, scope, adapter, path }))
+        .filter(effect => effect !== keptAssign.outer),
+      isOptionalAccess,
+    };
   }
-  const rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
+  let rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
+  // the chain ROOT may be a proxy global with no ponyfill entry (`window.self[Symbol.iterator]`):
+  // an unvalidated name stranded each emitter in its own fallback (the AST emitter's re-visit kept
+  // a leaf `_self`, the text emitter a raw `window.self` - undefined off-browser). fold to the
+  // nav's resolvable VALUE instead, the same fold the plain member channel applies; neither the
+  // root nor the value resolvable (`window.window`) -> null, the receiver is the genuine argument
+  if (rootName && (!resolvePure || !resolvePure({ kind: 'global', name: rootName }))) {
+    rootName = receiverValueName !== rootName && resolvePure
+      && resolvePure({ kind: 'global', name: receiverValueName }) ? receiverValueName : null;
+  }
   if (!rootName) return null;
   const rescue = seedChainRootCallRescue({ node: node.object, scope, adapter, path });
   // "does this access sit under a `?.`" decides the emitters' droppedSe routing (inline in the
@@ -641,7 +663,18 @@ export function handleMemberExpressionNode({
     const iteratorStrandLive = symbolKey.key === 'Symbol.iterator'
       && (!isEntryAvailable || isEntryAvailable(iteratorEntry));
     if (suppressProxyGlobals) {
+      // the KEY is a read in every context (a computed key evaluates even in a write host), so its
+      // proxy chain always subsumes - else the identifier visitor queues a parallel rewrite inside
+      // the `Symbol.iterator -> _Symbol$iterator` span. the RECEIVER side below is gated instead
       markSubsumedProxyChain(symbolKey.ref.unwrapped, handledObjects, scope, adapter, path);
+    }
+    if (suppressProxyGlobals && !isMemberWriteHost(path) && !isForXWriteTarget(path)) {
+      // the write-position gate, matching the emitters' own symbol-dispatch bails: a member that
+      // IS the write target (`= v` / `++` / `delete` / destructuring / for-x head) - or a body
+      // read aliasing a for-x per-iteration write - survives with a key-only rewrite, so its
+      // receiver stays with the natural member machinery (`globalThis.self[Symbol.iterator]++` ->
+      // `_self[...]++`, the plain-key canon); subsuming it here stranded the raw proxy nav with
+      // no renderer left (off-engine ReferenceError)
       // peel a SEQUENCE / paren wrapper to the receiver's actual proxy chain (`(n++, globalThis.self)` ->
       // `globalThis.self`) before resolving + subsuming it. its proxy tail MUST be subsumed too - else the
       // member visitor's `globalThis.self -> _self` rewrite collides with the collapsed receiver and the
@@ -649,11 +682,19 @@ export function handleMemberExpressionNode({
       const receiverObj = unwrapTransparentSeq(node.object);
       const receiverChain = peelReceiverSequenceTail(receiverObj);
       const receiverName = resolveObjectName({ objectNode: receiverChain, scope, adapter, path });
-      if (iteratorStrandLive && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
+      // a tagged-template tag is a this-CARRYING invocation the prototype-shaped get-iterator
+      // helper would mis-bind, so both emitters bail their symbol dispatch and the member
+      // survives with a key-only rewrite - route it through the NON-collapsing branch below:
+      // its hop-subsume + live root drive render the receiver like the plain-key tagged canon
+      // (`_globalThis[_Symbol$iterator]` off the substituted root); the whole-chain subsume
+      // stranded the raw nav (no renderer left after the emitters' bail, off-engine throw)
+      const taggedAnchor = climbTransparentWrapperPath(path);
+      const isTaggedTag = isTaggedTemplateTagPosition(taggedAnchor.parentPath?.node, taggedAnchor.node);
+      if (iteratorStrandLive && !isTaggedTag && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
         // subsume the chain so the identifier visitor does not queue a parallel rewrite (unplugin crash)
         markSubsumedProxyChain(receiverChain, handledObjects, scope, adapter, path);
         symbolReceiverProxyRoot = resolveSymbolReceiverProxyRoot({
-          node, receiverChain, scope, adapter, path, resolvePure,
+          node, receiverChain, receiverValueName: receiverName, scope, adapter, path, resolvePure,
         });
       } else if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
         && (receiverChain.type === 'MemberExpression' || receiverChain.type === 'OptionalMemberExpression')) {
