@@ -1,8 +1,9 @@
-// trivia (comments / line breaks) between a dropped optional hop and the surviving leaf: the re-hung
-// guard must fuse with the leaf's first significant token, not the raw text edge
+// trivia (comments / line breaks) between a dropped optional hop and a claimable static leaf: the
+// guarded claim must swallow the hop TOGETHER with its trailing trivia - trivia stranded between the
+// guard and the claim body would desync the emitters or break the parse
 let a;
 export const viaBlockComment = (a = globalThis.window)?.self /* gap */ ['Array'].from([3]);
-// a dotted leaf behind trivia moves its own dot onto the connector - `? .` split by trivia does not parse
+// a dotted leaf behind trivia claims the same way - the claim is connector-independent
 let b;
 export const viaDottedGap = (b = globalThis.window)?.self /* gap */ .Array.of(4);
 let c;
