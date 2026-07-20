@@ -48,7 +48,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   function memoize(node, scope, anchorNode = node) {
     if (isReusableReceiver(node)) return [t.cloneNode(node), t.cloneNode(node)];
     const ref = generateRef(scope, anchorNode);
-    return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
+    const assign = t.assignmentExpression('=', t.cloneNode(ref), node);
+    // register the synthetic write so a RE-VISIT of the memo body can follow the ref back to
+    // its value (the assignment never appears in scope constantViolations)
+    getInjector?.()?.recordMemoWrite?.(ref.name, assign);
+    return [assign, ref];
   }
 
   // resolve the expression's Type object - no-op when the factory was constructed without
@@ -75,6 +79,189 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   // receiver, and a bare `super` cannot head an optional chain (SyntaxError)
   function isLeadingIdentLike(node) {
     return t.isIdentifier(node) || t.isThisExpression(node);
+  }
+
+  // guarded claims minted by the static erase-refusal (`null == root ? void 0 : <claim>`).
+  // identity-tracked so an OUTER instance wrapper can re-hang the guard above itself instead of
+  // wrapping the whole ternary (which would hand `void 0` to the helper - a throw where native
+  // short-circuits). a USER-written ternary of the same shape must NOT re-hang: there the
+  // wrapper legitimately consumes the branch value
+  const guardedClaims = new WeakSet();
+  const pluginSeqWraps = new WeakSet();
+  const parenTerminated = new WeakSet();
+  function markGuardedClaim(node) {
+    guardedClaims.add(node);
+    return node;
+  }
+  // record the chain barrier when the replaced path sat inside user parens / a TS cast: the
+  // barrier survives on the replacement so guard hoists (climb tail steps AND the instance
+  // wrapper rebuild) stop at it - native throws past the barrier where the chain would
+  // short-circuit, and a hoisted guard would swallow that throw
+  function markParenTerminatedIfWrapped(path, replacement) {
+    if (isWrappedInParens(path) || TS_EXPR_WRAPPERS.has(path.parentPath?.node?.type)) {
+      parenTerminated.add(replacement);
+    }
+    return replacement;
+  }
+
+  // guarded-claim emission for the static erase-refusal (a live `?.` over an unresolvable
+  // proxy hop): the claim re-hangs INSIDE the preserved guard - `null == (b = _globalThis
+  // .window) ? void 0 : _Array$from(x)` - short-circuit intact. OUTER instance wrappers may
+  // have consumed the member before the refusal fires, so the guard CLIMBS above the whole
+  // plugin-built stack (helper wrap, its memoized twin, the `.call` dispatch, the surviving
+  // optional-chain tail); ONLY plugin-minted wrappers and provable chain tails lift - a user
+  // consumer of the member legitimately receives `void 0`, and user parens / TS casts
+  // terminate the chain (native throws past them, so the guard must stay inside)
+  function isHelperCall(callNode, argNode) {
+    return callNode.arguments.length === 1
+      && callNode.arguments[0] === argNode && callNode.callee.type === 'Identifier'
+      && getInjector().getBindingInfo(callNode.callee.name)?.source;
+  }
+
+  // replace every read of the plugin-minted ref inside a detached clone (allocator names are
+  // file-unique, so a bare name match cannot hit user code)
+  function traverseNodeReplaceIdent(node, name, replacement) {
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      if (Array.isArray(child)) {
+        for (let i = 0; i < child.length; i++) {
+          const c = child[i];
+          if (!c || typeof c.type !== 'string') continue;
+          if (c.type === 'Identifier' && c.name === name) child[i] = t.cloneNode(replacement);
+          else traverseNodeReplaceIdent(c, name, replacement);
+        }
+      } else if (child && typeof child.type === 'string') {
+        if (child.type === 'Identifier' && child.name === name) node[key] = t.cloneNode(replacement);
+        else traverseNodeReplaceIdent(child, name, replacement);
+      }
+    }
+  }
+
+  function liftThroughWrapper(basePath, body, prevKind) {
+    // user parens / a TS cast on the climbed node TERMINATE the chain: native throws past
+    // them where the chain would short-circuit, so the guard must stay INSIDE (the wrapping
+    // helper then throws on the short-circuited void 0 exactly like native)
+    if (basePath.node?.extra?.parenthesized) return null;
+    const p = basePath.parentPath;
+    if (!p) return null;
+    if (p.isCallExpression() && isHelperCall(p.node, basePath.node)) {
+      return [p, t.callExpression(t.cloneNode(p.node.callee), [body]), 'helper'];
+    }
+    if (p.isAssignmentExpression() && p.node.operator === '='
+      && p.node.right === basePath.node && p.node.left.type === 'Identifier') {
+      const gp = p.parentPath;
+      if (gp?.isCallExpression() && isHelperCall(gp.node, p.node)) {
+        return [gp, t.callExpression(t.cloneNode(gp.node.callee),
+          [t.assignmentExpression('=', t.cloneNode(p.node.left), body)]), 'helper'];
+      }
+      // memo assign leading a plugin-built SE wrap (`(_ref = <member>, keySE, helper(_ref))`):
+      // the whole sequence lifts - its key SE legally moves into the guard's non-null branch
+      // (native evaluates the key only when the chain does not short-circuit). a bare-
+      // Identifier claim needs no memo at all - inline it over the ref reads and drop the
+      // assign (the text emitter folds the same shape memo-free)
+      if (gp?.isSequenceExpression() && pluginSeqWraps.has(gp.node)
+        && gp.node.expressions[0] === p.node) {
+        if (body.type === 'Identifier') {
+          const refName = p.node.left.name;
+          const inlined = gp.node.expressions.slice(1).map(e => {
+            const clone = t.cloneNode(e, true);
+            traverseNodeReplaceIdent(clone, refName, body);
+            return clone.type === 'Identifier' && clone.name === refName ? t.cloneNode(body) : clone;
+          });
+          return [gp, inlined.length === 1 ? inlined[0] : t.sequenceExpression(inlined), 'helper'];
+        }
+        return [gp, t.sequenceExpression([
+          t.assignmentExpression('=', t.cloneNode(p.node.left), body),
+          ...gp.node.expressions.slice(1).map(e => t.cloneNode(e)),
+        ]), 'helper'];
+      }
+      return null;
+    }
+    if (prevKind === 'helper' && (p.isMemberExpression() || p.isOptionalMemberExpression())
+      && p.node.object === basePath.node && !p.node.computed && p.node.property.name === 'call') {
+      const cp = p.parentPath;
+      if ((cp?.isCallExpression() || cp?.isOptionalCallExpression()) && cp.node.callee === p.node) {
+        const callMember = p.isOptionalMemberExpression()
+          ? t.optionalMemberExpression(body, t.identifier('call'), false, true)
+          : t.memberExpression(body, t.identifier('call'));
+        const rebuiltArgs = cp.node.arguments.map(a => t.cloneNode(a));
+        return [cp, cp.isOptionalCallExpression()
+          ? t.optionalCallExpression(callMember, rebuiltArgs, false)
+          : t.callExpression(callMember, rebuiltArgs), 'helper'];
+      }
+    }
+    // the surviving OPTIONAL-chain tail over the claim (`<claim>.userM?.()` / `<helper-wrap>
+    // .length`): the guard hoists over the whole tail - buried under a raw member read it
+    // would throw on the short-circuited void 0 where native yields undefined. an Optional*
+    // node type proves the chain by itself; a PLAIN member counts only past a plugin wrapper
+    // or tail step (a sibling transform deoptionalized it) - never directly over the claim,
+    // where a user-written consumer of the ternary is indistinguishable. rebuilt plain when
+    // the link is non-optional (an Optional* node over a non-chain body fails babel's chain
+    // invariant); an optional CALL directly over the claim keeps the visible-deopt spelling
+    // (`(guard ? void 0 : _from)?.(x)`), so the call step needs a prior step
+    const tailMember = p.node.object === basePath.node && !parenTerminated.has(basePath.node)
+      && (p.isOptionalMemberExpression() || (p.isMemberExpression() && prevKind !== 'claim'));
+    if (tailMember) {
+      return [p, p.node.optional
+        ? t.optionalMemberExpression(body, t.cloneNode(p.node.property), p.node.computed, true)
+        : t.memberExpression(body, t.cloneNode(p.node.property), p.node.computed), 'tail'];
+    }
+    const tailCall = p.node.callee === basePath.node && prevKind === 'tail'
+      && (p.isOptionalCallExpression() || p.isCallExpression());
+    if (tailCall) {
+      const rebuiltArgs = p.node.arguments.map(a => t.cloneNode(a));
+      return [p, p.node.optional
+        ? t.optionalCallExpression(body, rebuiltArgs, true)
+        : t.callExpression(body, rebuiltArgs), 'tail'];
+    }
+    return null;
+  }
+
+  function emitGuardedClaim({ path, replacePath, id, sideEffects, receiverEffectCount }) {
+    // SE channels keep the raw stand-down - no re-emit slot in this shape
+    if (sideEffects || receiverEffectCount) return;
+    let rootNode = path.node.object;
+    while (rootNode.type === 'MemberExpression' || rootNode.type === 'OptionalMemberExpression') {
+      // user parens on a mid-chain node TERMINATE the chain there: native throws past the
+      // barrier where the chain would short-circuit, so a whole-chain guarded claim would
+      // swallow that throw - stand down entirely
+      if (rootNode.extra?.parenthesized) return;
+      rootNode = rootNode.object;
+    }
+    const invokeParent = replacePath.parentPath;
+    const isInvoke = (invokeParent?.isCallExpression() || invokeParent?.isOptionalCallExpression())
+      && invokeParent.node.callee === replacePath.node && !invokeParent.node.optional;
+    let target = isInvoke ? invokeParent : replacePath;
+    let claimBody = isInvoke
+      ? t.callExpression(t.cloneNode(id), invokeParent.node.arguments.map(a => t.cloneNode(a)))
+      : t.cloneNode(id);
+    let climbedHelper = false;
+    for (let lifted = liftThroughWrapper(target, claimBody, 'claim'); lifted;
+      lifted = liftThroughWrapper(target, claimBody, lifted[2])) {
+      climbedHelper ||= lifted[2] === 'helper';
+      [target, claimBody] = lifted;
+    }
+    // a guard re-hung above climbed HELPER wrappers memoizes its root: the text emitter's
+    // guard builder (which owns those shapes there) always allocates the memo ref, and the
+    // pre-claim kept-canon does too - an unmemoized test would split the emitters on every
+    // wrapped claim byte-for-byte. unwrapped claims, pure tail climbs and claims landing
+    // inside an OUTER guard test keep the memo-free spelling (the text emitter's
+    // slot-hoisted prefix carries no memo either - the locked H1 / combined canon)
+    let landing = target.parentPath;
+    while (landing?.isAssignmentExpression()) landing = landing.parentPath;
+    const inOuterGuardTest = !!landing?.isBinaryExpression()
+      && landing.node.operator === '=='
+      && (landing.node.left?.type === 'NullLiteral' || landing.node.right?.type === 'NullLiteral');
+    const test = climbedHelper && !inOuterGuardTest
+      ? t.assignmentExpression('=', t.cloneNode(generateRef(path.scope, path.node)), rootNode)
+      : rootNode;
+    const claimResult = markGuardedClaim(t.conditionalExpression(
+      t.binaryExpression('==', t.nullLiteral(), test),
+      t.unaryExpression('void', t.numericLiteral(0)),
+      claimBody,
+    ));
+    markParenTerminatedIfWrapped(target, claimResult);
+    target.replaceWith(claimResult);
   }
 
   function wrapConditional(check, result) {
@@ -284,6 +471,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   }
 
   function replaceAndWrap({ replacePath, result, check, embedGuard }) {
+    // user parens around the replaced expression terminate an optional chain (native throws
+    // past them where the chain would short-circuit) - the paren info dies with the replaced
+    // node, so record it on the replacement: the erase-refusal's guard climb must NOT hoist
+    // a guard past this boundary (it would swallow the user-visible throw)
+    if (isWrappedInParens(replacePath)) parenTerminated.add(result);
     // when check came through a TS wrapper (arr?.at(-1)!.includes), embed the guard
     // directly - Babel's path references become stale after replaceWith and the two-step
     // replace-then-wrap approach loses the guard. for normal chains (no TS wrapper),
@@ -356,9 +548,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   // unconditionally. single source of truth: index.js imports this off the compat factory
   // (destructured at plugin top-level), it has no own copy
   function withSideEffects(result, sideEffects) {
-    return sideEffects?.length
-      ? t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), result])
-      : result;
+    if (!sideEffects?.length) return result;
+    // marked so the erase-refusal's guard climb can lift THROUGH a plugin-built SE wrap (its
+    // leading memo assign + harvested key SE legally move into the guard's non-null branch);
+    // a user-written sequence must never lift
+    const seq = t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), result]);
+    pluginSeqWraps.add(seq);
+    return seq;
   }
 
   // SE-receiver + key-SE reorder guard: a non-optional (`check` null) side-effecting receiver memo
@@ -466,12 +662,27 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
       callerPath.parentPath.replaceWith(check ? result : withSideEffects(result, effectiveSE));
       return;
     }
-    const [recvNode, hoistedSE] = hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount);
-    const result = isCall
+    // a receiver already rendered as a plugin-minted guarded claim keeps its short-circuit
+    // OUTSIDE the wrapper, and any key SE INSIDE the guard's non-null branch (native evaluates
+    // a computed key only when the chain does not short-circuit). detected BEFORE the SE hoist:
+    // the hoist would memoize the whole ternary and run the SE unconditionally, handing the
+    // memoized `void 0` to the helper - a throw exactly where native short-circuits
+    // hoist only over a DIRECT un-wrapped receiver: a TS cast / user parens between the claim
+    // and this wrapper terminate the chain (native throws there), so the guard stays inside
+    const rawObject = path.node.object;
+    const guardedRecv = !check && guardedClaims.has(object) && !parenTerminated.has(object)
+      && rawObject === object && !rawObject?.extra?.parenthesized ? object : null;
+    const [recvNode, hoistedSE] = guardedRecv
+      ? [guardedRecv.alternate, null]
+      : hoistReceiverSE(object, effectiveSE, check, path.scope, seMode, receiverEffectCount);
+    const built = isCall
       ? buildMethodCall({
         id, object: recvNode, scope: path.scope, args: parent.arguments, optionalCall: parent.optional, anchorNode: parent,
       })
       : t.callExpression(id, [t.cloneNode(recvNode)]);
+    const result = guardedRecv
+      ? markGuardedClaim(t.conditionalExpression(guardedRecv.test, guardedRecv.consequent, withSideEffects(built, effectiveSE)))
+      : built;
     replaceAndWrap({
       replacePath: isCall ? callerPath.parentPath : path,
       result: withSideEffects(result, hoistedSE), check, embedGuard: embed,
@@ -608,6 +819,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   return {
     isInTypeAnnotation,
     deoptionalizeNode,
+    emitGuardedClaim,
     generateRef,
     generateLocalRef,
     generateUnusedId,
