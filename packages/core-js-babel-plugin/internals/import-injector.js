@@ -1,6 +1,13 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { isDirectiveStatement, isInitlessVarDecl, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import ImportInjectorState, {
+  assignCanonicalRefSlots,
+  CANONICAL_REF_PREFIXES,
+  isGeneratedSlotShapedName,
+  refDeclarationOrder,
+  refSlotName,
+  renameNamesSet,
+} from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 
 // babel@7 exposes `scope.references` / `scope.uids` as object maps; babel@8 replaced them
@@ -48,6 +55,10 @@ export default class ImportInjector extends ImportInjectorState {
   #emittedKeyByNode = new Map();
   // `_ref` names - iterated by pruneUnusedRefs at programExit
   #refs = new Set();
+  // every generated slot-family name (prefix -> Set): `_refN` declared + local const UIDs
+  // AND `_unusedN` rest sentinels - the whole slot space the print-order canonicalization
+  // renumbers; `#refs` is the declared `_ref` subset the prune manages
+  #generatedByPrefix = new Map(CANONICAL_REF_PREFIXES.map(prefix => [prefix, new Set()]));
   // coupling state: `reorderRefsAfterImports` assumes the import-region is already
   // canonical-sorted (so its `isImportRegion` accumulator finds the contiguous prefix
   // ending at the same byte position regardless of pre/post flush ordering). without
@@ -114,6 +125,23 @@ export default class ImportInjector extends ImportInjectorState {
     const name = this.generateRefName(n => scope.hasBinding(n));
     this.#refs.add(name);
     return this.#t.identifier(name);
+  }
+
+  generateRefName(extraCheck) {
+    const name = super.generateRefName(extraCheck);
+    this.#generatedByPrefix.get('_ref').add(name);
+    return name;
+  }
+
+  generateUnusedName() {
+    const name = super.generateUnusedName();
+    this.#generatedByPrefix.get('_unused').add(name);
+    return name;
+  }
+
+  #isGeneratedName(name) {
+    for (const [, names] of this.#generatedByPrefix) if (names.has(name)) return true;
+    return false;
   }
 
   // provenance registry for the plugin's OWN memo writes (`_ref = <expr>` built by the
@@ -318,7 +346,12 @@ export default class ImportInjector extends ImportInjectorState {
     const taken = new Set();
     this.#forEachScopeBinding(([name, binding]) => {
       taken.add(name);
-      if (!ImportInjector.#isPluginShapeBinding(binding)) return;
+      // index plugin-shape (initless `var _refN;`) bindings for the prune, PLUS every
+      // binding of a GENERATED name regardless of shape: local `const _refN = init` memos
+      // and IIFE memo params share the canonical slot space, so the renumber must reach
+      // their bindings too (`#removeDeadBindings` treats init-bearing / referenced ones as
+      // survivors, so the prune semantics for declared refs are unchanged)
+      if (!ImportInjector.#isPluginShapeBinding(binding) && !this.#isGeneratedName(name)) return;
       let list = byName.get(name);
       if (!list) byName.set(name, list = []);
       if (!list.includes(binding)) list.push(binding);
@@ -339,39 +372,42 @@ export default class ImportInjector extends ImportInjectorState {
   // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
   // out of sync with the live AST
   pruneUnusedRefs() {
-    if (!this.#refs.size) return;
-    // FAST PATH - raw liveness census, no crawl, no scope-graph walk. allocation hands out
-    // sequential names, so numbering gaps exist only after a prune: a file where every ref
-    // is still referenced needs neither the prune nor the renumber, and the scope crawl +
-    // scope-graph walk below exist only to serve those two. a DECLARED ref's own `var _refN;`
-    // declarator id is exactly one occurrence - a second occurrence proves a live use; a
-    // wholesale-discarded emission leaves zero. the one repair the renumber performs WITHOUT
-    // a prune is the allocation blind spot (a `_refN`-slot-shaped name the use-site scope
-    // chain could not see - a nested user binding or a sibling-plugin introduction - that
-    // unplugin's file-global allocator skips up front): any slot-shaped identifier OUTSIDE
-    // `#refs` routes to the full path so the numbering repair still runs
-    const refCounts = new Map();
-    for (const name of this.#refs) refCounts.set(name, 0);
-    let foreignSlotName = false;
-    this.#t.traverseFast(this.#programPath.node, node => {
-      // JSXIdentifier included: a JSX reference to a user slot-shaped name compiles (by a
-      // co-mounted transform) into the plain Identifier the renumber must keep avoiding
-      if (node.type !== 'Identifier' && node.type !== 'JSXIdentifier') return;
-      const count = refCounts.get(node.name);
-      if (count !== undefined) refCounts.set(node.name, count + 1);
-      else if (!foreignSlotName && node.name.charCodeAt(0) === 95 && ORPHAN_REF_PATTERN.test(node.name)) {
-        foreignSlotName = true;
-      }
-    });
+    const families = [...this.#generatedByPrefix].filter(([, names]) => names.size);
+    if (!families.length) return;
+    const allGenerated = new Set();
+    for (const [, names] of families) for (const name of names) allGenerated.add(name);
+    // FAST PATH - raw liveness census, no crawl, no scope-graph walk. the census covers EVERY
+    // generated slot-family name (declared `var _refN;`, local `const _refN = ...` UIDs, and
+    // `_unusedN` rest sentinels): the canonical numbering is one shared slot space per family,
+    // so locals rank and renumber like declared refs - excluding them left non-releasable
+    // holes and produced SWAP maps against the text emitter's full-registry canon. a DECLARED
+    // ref's own declarator id is exactly one occurrence - a second occurrence proves a live
+    // use; a wholesale-discarded emission leaves zero. any slot-shaped identifier OUTSIDE the
+    // generated registry (a nested user binding, a sibling-plugin introduction) routes to the
+    // full path so the taken-aware renumber can keep avoiding it.
+    // print-order rank: first occurrence per name outside VariableDeclarator id positions
+    // (the hoisted `var _ref, _ref2;` line would just reproduce allocation order, and the
+    // text emitter's scanner skips declarator members the same way, so both emitters rank
+    // by the first REAL use)
+    const { refCounts, printRank, foreignSlotName } = this.#censusGeneratedNames(allGenerated);
     if (!foreignSlotName) {
       let hasDead = false;
-      for (const count of refCounts.values()) {
-        if (count <= 1) {
+      for (const [name, count] of refCounts) {
+        // a DECLARED ref needs a use beyond its declarator; a LOCAL / sentinel name's
+        // declarator carries its init or pattern slot, so one occurrence is a live emission
+        if (count <= (this.#refs.has(name) ? 1 : 0)) {
           hasDead = true;
           break;
         }
       }
-      if (!hasDead) return;
+      // fast-path exit needs the numbering to ALREADY be canonical, not just hole-free:
+      // every name used (no dead), each family a perfect compact `<prefix>..<prefix>N` set
+      // (all slots ours - canonical assignment cannot land elsewhere), and each family's
+      // print rank ascending in slot order (first-ranked holds the lowest slot). any other
+      // state routes to the crawl below, where the taken-aware canonical renumber decides
+      if (!hasDead && printRank.length === allGenerated.size
+        && families.every(([prefix]) => ImportInjector.#isCanonicalPrefixOrder(
+          prefix, printRank.filter(name => this.#generatedByPrefix.get(prefix).has(name))))) return;
     }
     this.#programPath.scope.crawl();
     const { byName, taken } = this.#indexBindingsAndTakenNames();
@@ -390,58 +426,109 @@ export default class ImportInjector extends ImportInjectorState {
       const bindings = byName.get(name);
       if (!bindings?.length) {
         this.#refs.delete(name);
+        this.#generatedByPrefix.get('_ref').delete(name);
         continue;
       }
       if (!ImportInjector.#removeDeadBindings(bindings)) {
         this.#refs.delete(name);
+        this.#generatedByPrefix.get('_ref').delete(name);
+        byName.delete(name);
         prunedNames.add(name);
       }
     }
-    if (!this.#refs.size) return;
 
-    // step 2: build rename map. `taken` = every occupied name minus the ones the plugin
-    // owns (releasable: surviving refs + pruned refs whose declarators were just removed).
-    // `ownedBindings` = identity set guarding the rename traversal against user's nested
-    // `let _ref3` shadow (Identifier visitor checks scope.getBinding matches plugin-owned)
-    for (const name of this.#refs) taken.delete(name);
+    // step 2: build the rename map over the whole generated slot space, one family at a
+    // time. `taken` = every occupied name minus the ones the plugin owns (all generated
+    // survivors + just-pruned slots). `ownedBindings` = identity set guarding the rename
+    // against user's nested `let _ref3` shadow. `_unusedN` sentinels live in destructure
+    // PATTERNS (binding-backed like any declarator target), so the same machinery covers them
+    const aliveByPrefix = new Map();
+    for (const [prefix, names] of families) {
+      const alive = new Set([...names].filter(name => this.#refs.has(name) || byName.get(name)?.length));
+      if (alive.size) aliveByPrefix.set(prefix, alive);
+    }
+    if (!aliveByPrefix.size) return;
+    for (const [, names] of families) for (const name of names) taken.delete(name);
     for (const name of prunedNames) taken.delete(name);
     const ownedBindings = new Set();
-    for (const name of this.#refs) for (const b of byName.get(name) ?? []) ownedBindings.add(b);
-    const renameMap = this.#buildRenameMap(taken);
+    const renameMap = new Map();
+    for (const [prefix, alive] of aliveByPrefix) {
+      for (const name of alive) for (const b of byName.get(name) ?? []) ownedBindings.add(b);
+      // canonical order = the census print rank filtered to the survivors; a survivor the
+      // rank never saw (its only occurrences sat in removed declarators) appends in
+      // allocation order so it still receives a slot
+      const ordered = printRank.filter(name => alive.has(name));
+      const seen = new Set(ordered);
+      for (const name of alive) if (!seen.has(name)) ordered.push(name);
+      for (const [from, to] of assignCanonicalRefSlots(prefix, ordered, name => taken.has(name))) {
+        renameMap.set(from, to);
+      }
+    }
     if (!renameMap.size) return;
 
-    // sync `#refs` with post-rename names so subsequent consumers (reorderRefsAfterImports)
-    // match `var _refN;` declarations against the renamed set instead of the stale originals
-    for (const [from, to] of renameMap) {
-      this.#refs.delete(from);
-      this.#refs.add(to);
-    }
+    // sync the registries with post-rename names so subsequent consumers
+    // (reorderRefsAfterImports) match `var _refN;` declarations against the renamed set
+    this.#refs = renameNamesSet(this.#refs, renameMap);
+    for (const [prefix, names] of families) this.#generatedByPrefix.set(prefix, renameNamesSet(names, renameMap));
 
+    // COLLECTION-FIRST application: plugin-emitted ref Identifiers can be NODE-SHARED across
+    // positions (a declarator id reused as the memo write's LHS), and babel visits the shared
+    // object once per position - an in-visit mutation then feeds the SECOND visit the renamed
+    // name, which a swap-shaped map maps BACK (observed as `var _ref, _ref;` + a split
+    // write/read pair). collect every node against its ORIGINAL name first (Map identity
+    // de-dups shared nodes), then mutate once per node object
+    const renameNodes = new Map();
     this.#programPath.traverse({
       Identifier(p) {
         const to = renameMap.get(p.node.name);
         if (!to || !ownedBindings.has(p.scope.getBinding(p.node.name))) return;
-        p.node.name = to;
+        renameNodes.set(p.node, to);
       },
     });
+    for (const [node, to] of renameNodes) node.name = to;
   }
 
-  // walk #refs in iteration order, assigning each to the lowest free slot. matches
-  // `generateRefName`: slot 1 is bare `_ref`, slot 2+ is `_ref2, _ref3, ...` (skip `_ref1`
-  // per babel convention). returns Map<oldName, newName> with no-op identity entries
-  // omitted - empty map signals "no rename needed", short-circuit at caller
-  #buildRenameMap(taken) {
-    function slot(i) {
-      return i === 1 ? '_ref' : `_ref${ i }`;
+  // liveness + print-rank census over the generated slot space. a POSITIONAL walk, not
+  // `traverseFast`: plugin-emitted ref Identifiers can be NODE-SHARED across positions (a
+  // declarator id reused as the memo write's LHS), so an identity-keyed declarator exclusion
+  // would blind every position of the shared node. the path's `parentPath`/`key` are
+  // per-POSITION, so only the actual declarator slot is excluded from ranking while the
+  // same node's use positions rank normally
+  #censusGeneratedNames(allGenerated) {
+    const refCounts = new Map();
+    for (const name of allGenerated) refCounts.set(name, 0);
+    const printRank = [];
+    const rankedNames = new Set();
+    let foreignSlotName = false;
+    function census(p) {
+      const { node } = p;
+      const count = refCounts.get(node.name);
+      if (count !== undefined) {
+        refCounts.set(node.name, count + 1);
+        if (!rankedNames.has(node.name)
+          && !(p.parentPath?.node.type === 'VariableDeclarator' && p.key === 'id')) {
+          rankedNames.add(node.name);
+          printRank.push(node.name);
+        }
+      } else if (!foreignSlotName && node.name.charCodeAt(0) === 95 && isGeneratedSlotShapedName(node.name)) {
+        foreignSlotName = true;
+      }
     }
-    const renameMap = new Map();
-    let i = 1;
-    for (const name of this.#refs) {
-      while (taken.has(slot(i))) i++;
-      const target = slot(i++);
-      if (name !== target) renameMap.set(name, target);
+    // JSXIdentifier included: a JSX reference to a user slot-shaped name compiles (by a
+    // co-mounted transform) into the plain Identifier the renumber must keep avoiding
+    this.#programPath.traverse({ Identifier: census, JSXIdentifier: census });
+    return { refCounts, printRank, foreignSlotName };
+  }
+
+  // true when `familyRank` names occupy exactly slots `<prefix>..<prefix>N` in ascending
+  // order - the one state where the canonical (print-order) renumber is provably the
+  // identity without consulting `taken`: every slot in the compact prefix is plugin-owned,
+  // so the shared assignment can only hand the k-th ranked name the k-th slot it holds
+  static #isCanonicalPrefixOrder(prefix, familyRank) {
+    for (let i = 0; i < familyRank.length; i++) {
+      if (familyRank[i] !== refSlotName(prefix, i + 1)) return false;
     }
-    return renameMap;
+    return true;
   }
 
   // base returns a string; babel consumers need an Identifier - cache one per name so
@@ -658,6 +745,10 @@ export default class ImportInjector extends ImportInjectorState {
       if (isInitlessVarDecl(kept[i]) || splitNodes.has(kept[i])) continue;
       break;
     }
+    // canonical declaration order: `_ref` family first, ascending slot within each family.
+    // pull order is allocation order, which the print-order renumber no longer matches; the
+    // text emitter's flush line sorts the same way, so both emitters print one sequence
+    pulledDeclarators.sort((a, b) => refDeclarationOrder(a.id.name, b.id.name));
     const merged = this.#t.variableDeclaration('var', pulledDeclarators);
     kept.splice(importEnd, 0, merged);
     this.#programPath.node.body = kept;
