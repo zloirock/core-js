@@ -131,8 +131,12 @@ async function buildCell(lib, method, babelVersion) {
       entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, min: minBuf.length, gz, injections, checks: checks.length, preflightFailing: bad.length },
     };
   } catch (err) {
-    // child-process failures carry the real reason on stderr, not message ("Command failed: ...")
-    const reason = (err.stderr || err.message || String(err)).split('\n', 1)[0].slice(0, 200);
+    // child-process failures carry the real reason on stderr, not message ("Command failed: ...").
+    // node prints the offending `file:line` FIRST and the actual `TypeError: ...` several lines
+    // later, so take the first line that names an error and only fall back to the first line.
+    const text = err.stderr || err.message || String(err);
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const reason = (lines.find(l => /^\w*(?:Error|Exception)\b/.test(l)) ?? lines[0] ?? '').slice(0, 200);
     console.log(`✗ ${ label }: ${ reason }`);
     return { ok: false, entry: { lib: lib.name, babel: babelVersion, method, error: reason } };
   }
