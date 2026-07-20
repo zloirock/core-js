@@ -15,14 +15,14 @@ let n;
 let t;
 let c;
 let u;
-export const combinedTail = null == (_ref2 = null == (n = _globalThis.window) ? void 0 : _flatMaybeArray(_ref = _Array$of(1))) ? void 0 : _at(_ref3 = _ref2.call(_ref))?.call(_ref3, 0);
+export const combinedTail = null == (_ref = null == (n = _globalThis.window) ? void 0 : _flatMaybeArray(_ref2 = _Array$of(1))) ? void 0 : _at(_ref3 = _ref.call(_ref2))?.call(_ref3, 0);
 export const combinedNoTail = null == (_ref4 = t = _globalThis.window) ? void 0 : _flatMaybeArray(_ref5 = _Array$of(2))?.call(_ref5);
 export const optionalAccess = null == (_ref6 = null == (c = _globalThis.window) ? void 0 : _Array$of(3)) ? void 0 : _flatMaybeArray(_ref6)?.call(_ref6);
 export const rawMethodTail = null == (u = _globalThis.window) ? void 0 : _Array$of(4).userMethod?.();
 // NESTED combined chains: the inner chain's own OR-guard is a guarded producer too - it hoists
 // into the enclosing test the same way a claim guard does, at any nesting depth
 let w;
-export const nestedCombined = null == (_ref8 = null == (_ref10 = w = _globalThis.window) ? void 0 : _mapMaybeArray(_ref7 = _flatMaybeArray(_ref11 = _Array$of(5))?.call(_ref11))) ? void 0 : _at(_ref9 = _ref8.call(_ref7, x => x))?.call(_ref9, 0);
+export const nestedCombined = null == (_ref7 = null == (_ref8 = w = _globalThis.window) ? void 0 : _mapMaybeArray(_ref9 = _flatMaybeArray(_ref10 = _Array$of(5))?.call(_ref10))) ? void 0 : _at(_ref11 = _ref7.call(_ref9, x => x))?.call(_ref11, 0);
 // a SECOND kept chain nested in the claim's ARGUMENT keeps its own guard and claims - the
 // composed needle carries the nested chain's live `?.` (only the outer chain's hops deopt)
 let a;
