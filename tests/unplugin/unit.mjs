@@ -16,6 +16,7 @@ import TransformQueue, {
   replaceNthOccurrence,
 } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector, { shebangFallbackAnchor } from '../../packages/core-js-unplugin/internals/import-injector.js';
+import { canonicalizeRefNumbering } from '../../packages/core-js-unplugin/internals/ref-canon.js';
 import createPlugin, {
   formatLabelLocation,
   formatParseErrorForThrow,
@@ -4893,6 +4894,96 @@ function checkPhantomFilterIdentity() {
   check('phantom-filter/stable identity across calls', a === b, true);
 }
 checkPhantomFilterIdentity();
+
+// --- ref-canon: final print-order renumber ---
+// a mock injector: the canon pass only consumes the registry views + the rename sink
+function makeCanonInjector(families, { foreign = [] } = {}) {
+  const familyMap = new Map(families.map(([prefix, names]) => [prefix, new Set(names)]));
+  const foreignSet = new Set(foreign);
+  const calls = [];
+  return {
+    calls,
+    generatedRefFamilies() { return familyMap; },
+    isRefSlotForeign(name) { return foreignSet.has(name); },
+    canonicalizeRefs(renameMap) { calls.push({ renameMap }); },
+  };
+}
+
+function checkRefCanonPrintOrderSwap() {
+  // allocation order inverted vs print order: the guard ref allocated second but printed
+  // first - the rename is a SWAP and must not corrupt either occurrence set
+  const splices = [{ start: 10, end: 20, content: 'null == (_ref2 = t = w) ? void 0 : _f(_ref = A(2))?.call(_ref)' }];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/print-order swap', splices[0].content,
+    'null == (_ref = t = w) ? void 0 : _f(_ref2 = A(2))?.call(_ref2)');
+}
+checkRefCanonPrintOrderSwap();
+
+function checkRefCanonProtectedSpans() {
+  // string literals, template CHUNK text, and comments never rename; a template HOLE is code
+  const splices = [
+    // eslint-disable-next-line no-template-curly-in-string -- the template-hole SPELLING inside a plain string is the scan subject
+    { start: 0, end: 5, content: 'log("_ref2 raw", `x${ _ref2 }y _ref2`, _ref2) // _ref2 trail' },
+    { start: 9, end: 12, content: 'use(_ref)' },
+  ];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/protected spans', splices[0].content,
+    // eslint-disable-next-line no-template-curly-in-string -- the template-hole SPELLING inside a plain string is the scan subject
+    'log("_ref2 raw", `x${ _ref }y _ref2`, _ref) // _ref2 trail');
+  check('ref-canon/second splice follows rank', splices[1].content, 'use(_ref2)');
+}
+checkRefCanonProtectedSpans();
+
+function checkRefCanonWriteOnlyMemoKept() {
+  // a write-only guard memo is deliberate canon (the AST emitter spells one in the same
+  // landing): it survives and renumbers like any ref - print-first takes the low slot
+  const splices = [{ start: 0, end: 9, content: 'null == (_ref3 = w = g.window) ? void 0 : _m(_ref = A(5))?.call(_ref)' }];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref3']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/write-only memo kept', splices[0].content,
+    'null == (_ref = w = g.window) ? void 0 : _m(_ref2 = A(5))?.call(_ref2)');
+}
+checkRefCanonWriteOnlyMemoKept();
+
+function checkRefCanonRegexLiteralProtection() {
+  // a regex literal is a protected span (the canonical region scanner disambiguates `/`):
+  // the slot-shaped text inside it stays, the real reference renames
+  const splices = [{ start: 0, end: 4, content: 'm(a / 2, / _ref2 /, _ref2)' }];
+  const injector = makeCanonInjector([['_ref', ['_ref2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/regex literal protected', splices[0].content, 'm(a / 2, / _ref2 /, _ref)');
+}
+checkRefCanonRegexLiteralProtection();
+
+function checkRefCanonObjectKeySkip() {
+  // a slot-shaped OBJECT KEY is a property spelling, not our binding - it stays; the
+  // computed-key and argument references rename
+  const splices = [{ start: 0, end: 4, content: 'f({ _ref2: 1, [_ref2]: 2 }, _ref2)' }];
+  const injector = makeCanonInjector([['_ref', ['_ref2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/object key stays', splices[0].content, 'f({ _ref2: 1, [_ref]: 2 }, _ref)');
+}
+checkRefCanonObjectKeySkip();
+
+function checkRefCanonFamilies() {
+  // `_unused` sentinels renumber inside their own family, sharing one print sweep
+  const splices = [{ start: 0, end: 6, content: 'h(_ref2, _unused3); var _unused3;' }];
+  const injector = makeCanonInjector([['_ref', ['_ref2']], ['_unused', ['_unused3']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/per-family slots', splices[0].content, 'h(_ref, _unused); var _unused;');
+}
+checkRefCanonFamilies();
+
+function checkRefCanonForeignSlots() {
+  // a foreign-owned slot (user binding) is never handed out - assignment skips over it
+  const splices = [{ start: 0, end: 3, content: 'q(_ref5)' }];
+  const injector = makeCanonInjector([['_ref', ['_ref5']]], { foreign: ['_ref', '_ref2'] });
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/foreign slots skipped', splices[0].content, 'q(_ref3)');
+}
+checkRefCanonForeignSlots();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;

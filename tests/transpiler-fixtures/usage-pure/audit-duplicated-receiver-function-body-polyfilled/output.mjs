@@ -18,8 +18,8 @@ const {
   k: 1
 };
 const b = _includesMaybeArray([() => {
-  var _ref2;
-  return _flatMaybeArray(_ref2 = [1, 2]).call(_ref2);
+  var _ref;
+  return _flatMaybeArray(_ref = [1, 2]).call(_ref);
 }]);
 const {
   z: {
@@ -28,8 +28,8 @@ const {
   j
 } = {
   z: [() => {
-    var _ref;
-    return _flatMaybeArray(_ref = [1, 2]).call(_ref);
+    var _ref2;
+    return _flatMaybeArray(_ref2 = [1, 2]).call(_ref2);
   }],
   j: 2
 };
