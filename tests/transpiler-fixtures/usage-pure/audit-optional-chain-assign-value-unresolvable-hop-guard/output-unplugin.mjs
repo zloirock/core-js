@@ -51,11 +51,12 @@ const g = _globalThis;
 let t;
 export const aliasKeptRoot = _findLastMaybeArray((t = g.window).Array.prototype).call([1, 2], x => x < 2);
 
-// a STATIC terminal reached through the same kept root. the static rewrite ERASES its receiver navigation,
-// which would take the live guard with it and run the static where the source short-circuits - so it stands
-// down here. the resolvable twin still substitutes: there the guard is dead, so erasing it costs nothing
+// a STATIC terminal reached through the same kept root: erasing the receiver navigation would take the
+// live guard with it, so the claim re-hangs INSIDE the preserved guard as an optional callee - the target
+// engine still gets the ponyfill where the native static is missing, and the source short-circuit stays.
+// the resolvable twin erases outright: there the guard is dead, so erasing it costs nothing
 let sw;
-export const staticOffKeptRoot = (sw = _globalThis.window)?.Array.from?.(['a']);
+export const staticOffKeptRoot = (null == (sw = _globalThis.window) ? void 0 : _Array$from)?.(['a']);
 
 let sr;
 export const staticOffPonyfilledRoot = (sr = _self, _Array$of)('b');
