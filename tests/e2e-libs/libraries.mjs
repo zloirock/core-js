@@ -15,6 +15,15 @@ export const libraries = [
     notes: 'Headless reactive pipelines; exercises Promise/Symbol/Map/Set + Babel iterator helpers.',
   },
   {
+    name: 'codemirror',
+    tiers: ['throughput', 'runtime'],
+    exercise: join(HERE, 'exercises', 'codemirror.mjs'),
+    methods: ['entry-global', 'usage-global', 'usage-pure'],
+    notes: 'The headless half of a real editor: EditorState transactions + position mapping, Lezer parse, '
+      + 'INCREMENTAL reparse vs full, token highlighting, and CSS/HTML grammars. A deep graph of '
+      + 'mid-sized modern-ESM modules — a third module topology next to three (one monolith) and rxjs (many small).',
+  },
+  {
     name: 'three',
     tiers: ['throughput', 'runtime'],
     exercise: join(HERE, 'exercises', 'three.mjs'),
