@@ -1332,10 +1332,17 @@ export function createPolyfillEmitter({
     // `_globalThis.self` hop. droppedSe is the SE the dropped hop chain carried (hop keys + chain-root call)
     const parenLookupOnly = isParenLookupOnlyCall(node, parent);
     let recvOverride = null;
-    if (symbolReceiverProxyRoot) {
-      const rootPure = resolveGlobalPolyfill(symbolReceiverProxyRoot.rootName);
-      if (rootPure) {
-        const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);
+    if (symbolReceiverProxyRoot
+      // a KEPT root under a live `?.` keeps the plain path: its null-guard memoize replays the
+      // receiver (SE included) and the guard must survive - the kept value can be absent where
+      // a substituted root is always defined
+      && !(symbolReceiverProxyRoot.keepRoot && symbolReceiverProxyRoot.isOptionalAccess)) {
+      const { keepRoot } = symbolReceiverProxyRoot;
+      const rootPure = keepRoot ? null : resolveGlobalPolyfill(symbolReceiverProxyRoot.rootName);
+      if (keepRoot || rootPure) {
+        // a KEPT root re-emits verbatim (its inner substitutions compose by needle); the
+        // harvested droppedSe rides ahead either way - matching the AST emitter's shape
+        const rootBinding = keepRoot ? nodeSrc(keepRoot) : injectPureImport(rootPure.entry, rootPure.hintName);
         let { droppedSe } = symbolReceiverProxyRoot;
         // NON-optional + a following computed-key SE: route droppedSe through the SE channel (bare root) so
         // both emitters render flat (`droppedSe, keySE, _getIterator(_root)`) - else the leadingMemo needlessly
@@ -1349,8 +1356,11 @@ export function createPolyfillEmitter({
           receiverEffectCount += droppedSe.length;
           droppedSe = [];
         }
-        const src = wrapSideEffects(rootBinding, droppedSe);
-        recvOverride = { src, isNonIdent: droppedSe.length > 0, substituted: true, skipNode: null };
+        const src = keepRoot && !droppedSe.length ? `(${ rootBinding })` : wrapSideEffects(rootBinding, droppedSe);
+        recvOverride = { src, isNonIdent: droppedSe.length > 0 || !!keepRoot, substituted: !keepRoot, skipNode: null };
+        // the override replaces the whole receiver span - mark the dropped hops so their own
+        // callbacks stand down (the kept assign inside stays live for needle composition)
+        if (keepRoot) skipReceiverTailMembers(node.object, skippedNodes, keepRoot, resolveGlobalPolyfill);
       }
     }
     // `sideEffects` carries computed-key SE prefixes peeled by `resolveComputedSymbolKey`
