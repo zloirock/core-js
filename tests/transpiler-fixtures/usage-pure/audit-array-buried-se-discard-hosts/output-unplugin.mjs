@@ -18,20 +18,20 @@ const eff = t => (_pushMaybeArray(seen).call(seen, t), t);
 
 // for-init full consume: the whole init collapses into the discard sink
 let out1;
-for (const from = _Array$from, _unused3 = (eff('a'), _globalThis); !out1;) out1 = from;
+for (const from = _Array$from, _unused = (eff('a'), _globalThis); !out1;) out1 = from;
 
 // for-init partial consume: the rest sibling keeps the rebuilt wrapper; the buried
 // prefix re-embeds around it, running exactly once
 let out2;
-for (const of = _Array$of, [{ Array: _unused, ...rest2 }] = (eff('b'), [_globalThis]); !out2;) out2 = of;
+for (const of = _Array$of, [{ Array: _unused2, ...rest2 }] = (eff('b'), [_globalThis]); !out2;) out2 = of;
 
 // assignment-cascade partial consume: the swapped element loses its buried prefix, so
 // the host lifts it as a standalone statement, running exactly once
 let fa;
 let rest3;
 eff('c');
-var _unused2;
-[{ Array: _unused2, ...rest3 }] = [_globalThis];
+var _unused3;
+[{ Array: _unused3, ...rest3 }] = [_globalThis];
 fa = _Array$fromAsync;
 
 // a polyfilled call INSIDE the lifted prefix keeps its own substitution (the skip seed

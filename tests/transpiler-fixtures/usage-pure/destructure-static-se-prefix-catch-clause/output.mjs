@@ -3,8 +3,8 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 setup(() => {
   try {
     run();
-  } catch (_ref2) {
-    let flat = _flatMaybeArray(_ref2);
+  } catch (_ref) {
+    let flat = _flatMaybeArray(_ref);
     flat([1]);
   }
 });
