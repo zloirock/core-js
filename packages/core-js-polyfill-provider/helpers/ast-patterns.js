@@ -4119,35 +4119,43 @@ export const isTaggedTemplateTagPosition = (parent, node) => parent?.type === 'T
 // and a later `obj['at']` read resolve to the same shadowed write target. transparent
 // wrappers peel at every level so `(o).at` / `(o as any).at` (oxc keeps the paren node,
 // TS casts survive in both parsers) match the bare `o.at` slot they read at runtime
-function memberShapeEqual(a, b) {
-  a = unwrapRuntimeExpr(a);
-  b = unwrapRuntimeExpr(b);
-  if (!a || !b) return false;
-  // optionality does not change WHICH slot is resolved (`o?.at` reads the same `o.at` key),
-  // and the parsers model it differently: babel promotes the node TYPE to
-  // OptionalMemberExpression while estree keeps MemberExpression behind the ChainExpression
-  // the entry peel strips - so member-ness must compare across both spellings
-  const aIsMember = a.type === 'MemberExpression' || a.type === 'OptionalMemberExpression';
-  const bIsMember = b.type === 'MemberExpression' || b.type === 'OptionalMemberExpression';
-  if (aIsMember && bIsMember) {
-    if (!memberShapeEqual(a.object, b.object)) return false;
-    // compare property keys by resolved static name so the dot (`obj.at`) and bracket
-    // (`obj['at']`) forms of the SAME static key match - e.g. a `for (obj.at of ...)` write
-    // target and a later `obj['at']` read of the same per-iteration slot. dynamic computed
-    // keys (`obj[i]`) have no static name and fall back to structural (form + shape) compare
-    const aKey = memberKeyName(a);
-    const bKey = memberKeyName(b);
-    if (aKey !== null && bKey !== null) return aKey === bKey;
-    return a.computed === b.computed && memberShapeEqual(a.property, b.property);
+// canonical member-shape signature, snapshotted at COLLECTION time: the for-x same-shape rule
+// compares the head write target against body reads, but the AST emitter rewrites the head's
+// object / key children in place before the body visits - a live-node structural compare then
+// sees the MUTATED head and drops the match while the text emitter compares the pristine tree
+// (one side collapsed the body read, the other stranded its raw proxy global). optionality does
+// not change WHICH slot is resolved (`o?.at` reads the same `o.at` key), so it never enters the
+// signature; dot (`obj.at`) and bracket (`obj['at']`) spellings of one static key produce one
+// signature; a dynamic computed key folds its own shape structurally; an unrepresentable slot
+// (call, template) yields null = "never matches", like the old structural compare's default
+function memberShapeSignature(node) {
+  node = unwrapRuntimeExpr(node);
+  if (!node) return null;
+  if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
+    const objSig = memberShapeSignature(node.object);
+    if (objSig === null) return null;
+    const key = memberKeyName(node);
+    // the static key is JSON-quoted: raw concatenation lets a key containing the delimiter
+    // (`o['a.b']`) collide with a deeper nav (`o.a.b`) - quoting keeps signatures prefix-free
+    if (key !== null) return `${ objSig }.${ JSON.stringify(key) }`;
+    const propSig = memberShapeSignature(node.property);
+    return propSig === null ? null : `${ objSig }[${ node.computed ? 'c' : 'p' }]${ propSig }`;
   }
-  if (a.type !== b.type) return false;
-  if (a.type === 'Identifier') return a.name === b.name;
-  if (a.type === 'ThisExpression') return true;
+  if (node.type === 'Identifier') return `i:${ node.name }`;
+  if (node.type === 'ThisExpression') return 't';
+  // a bigint key: babel spells it BigIntLiteral (decimal-string value), estree keeps Literal
+  // with a bigint value - one signature for both (JSON.stringify throws on a bigint, and the
+  // adapters' different spellings otherwise split the same written slot across the emitters)
+  if (node.type === 'BigIntLiteral') return `lb:${ node.value }`;
   // babel StringLiteral/NumericLiteral vs ESTree Literal: both carry `.value`
-  if (a.type === 'StringLiteral' || a.type === 'NumericLiteral' || a.type === 'Literal') {
-    return a.value === b.value;
+  if (node.type === 'StringLiteral' || node.type === 'NumericLiteral' || node.type === 'Literal') {
+    if (typeof node.value === 'bigint') return `lb:${ node.value }`;
+    // an OBJECT value (an estree regex literal) has no faithful serialization - "never
+    // matches", like the object-identity compare this signature replaced
+    if (node.value !== null && typeof node.value === 'object') return null;
+    return `l:${ JSON.stringify(node.value) }`;
   }
-  return false;
+  return null;
 }
 
 // flatten a for-of/for-in LHS or destructuring-assignment LHS (bare member, or nested in
@@ -4208,18 +4216,24 @@ export function forEachPatternWriteMember(leftPath, visit) {
   });
 }
 
-// key: for-x `parent.left` AST node; value: collected write-target MemberExpressions.
+// key: the for-x STATEMENT node; value: collected write-target MemberExpressions + signatures.
 // a body with N identifier reads triggers `isForXWriteTarget` N times, each scanning
 // up to the enclosing for-x - collecting the same set repeatedly. cache by node identity
-// so the work amortizes over the body at the cost of one WeakMap lookup per read
+// so the work amortizes over the body at the cost of one WeakMap lookup per read.
+// the STATEMENT is the key (not its `.left`): the AST emitter may REPLACE the head node
+// wholesale when rewriting it, and a left-keyed cache then misses and re-collects the
+// REWRITTEN head - the statement node survives every head rewrite
 const FOR_X_WRITES_CACHE = new WeakMap();
 
-function getForXWrites(leftNode) {
-  let writes = FOR_X_WRITES_CACHE.get(leftNode);
+function getForXWrites(forXNode) {
+  let writes = FOR_X_WRITES_CACHE.get(forXNode);
   if (!writes) {
-    writes = [];
-    collectForXWriteMembers(leftNode, writes);
-    FOR_X_WRITES_CACHE.set(leftNode, writes);
+    const nodes = [];
+    collectForXWriteMembers(forXNode.left, nodes);
+    // signatures snapshot the PRISTINE shapes: the first query comes from the head's own
+    // write-position gate, before any emitter rewrite touches the pattern's children
+    writes = { nodes, sigs: nodes.map(memberShapeSignature) };
+    FOR_X_WRITES_CACHE.set(forXNode, writes);
   }
   return writes;
 }
@@ -4248,8 +4262,10 @@ export function isForXWriteTarget(path) {
     // mark inner reads as part of the for-write set (different lexical scope)
     if (FUNCTION_LIKE_NODE_TYPES.has(parent.type)) return false;
     if (!isForXStatement(parent)) continue;
-    const writes = getForXWrites(parent.left);
-    if (writes.some(m => m === node || memberShapeEqual(m, node))) return true;
+    const writes = getForXWrites(parent);
+    if (writes.nodes.includes(node)) return true;
+    const sig = memberShapeSignature(node);
+    if (sig !== null && writes.sigs.includes(sig)) return true;
   }
   return false;
 }

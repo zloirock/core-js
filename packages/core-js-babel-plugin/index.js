@@ -334,15 +334,17 @@ export default function plugin(api, options) {
         // Symbol.iterator]` -> `_getIteratorMethod((droppedSe, _globalThis))`, NOT a leaf `_self` / dead
         // `_globalThis.self.window` that diverges from unplugin. `_<root>` is always defined; droppedSe is
         // the SE the dropped hop chain carried (hop keys + chain-root call), re-emitted as a sequence prefix
-        if (symbolReceiverProxyRoot?.keepRoot) {
+        if (symbolReceiverProxyRoot) {
           // a KEPT root is an expression the provider may not root through (a chain-assign storing a value
           // that is not provably the global): it becomes the receiver as-is, with the redundant proxy hop
-          // above it dropped. cloning suffices - the re-visit rewrites the raw root inside it
-          path.node.object = t.cloneNode(symbolReceiverProxyRoot.keepRoot, true);
-        } else if (symbolReceiverProxyRoot) {
-          const rootResolved = resolvePure({ kind: 'global', name: symbolReceiverProxyRoot.rootName }, path);
-          if (rootResolved) {
-            const rootBinding = injectPureImport(rootResolved.entry, rootResolved.hintName);
+          // above it dropped (cloning suffices - the re-visit rewrites the raw root inside it). either way
+          // the harvested droppedSe (sequence prefix around the root, dropped-hop key effects) rides ahead
+          const keptClone = symbolReceiverProxyRoot.keepRoot
+            ? t.cloneNode(symbolReceiverProxyRoot.keepRoot, true) : null;
+          const rootResolved = keptClone ? null
+            : resolvePure({ kind: 'global', name: symbolReceiverProxyRoot.rootName }, path);
+          if (keptClone || rootResolved) {
+            const rootBinding = keptClone ?? injectPureImport(rootResolved.entry, rootResolved.hintName);
             const { droppedSe } = symbolReceiverProxyRoot;
             // a following computed-key SE makes the NON-optional emit `peel` the receiver (classifyReceiverSE
             // returns 'peel' for a SequenceExpression receiver), and the peel replays only the prefix recorded
@@ -362,6 +364,14 @@ export default function plugin(api, options) {
               path.node.object = droppedSe.length
                 ? t.sequenceExpression([...droppedSe.map(effect => t.cloneNode(effect)), rootBinding])
                 : rootBinding;
+            }
+            // replacing the object dropped the chain's `?.` hop along with the erased hops - a
+            // KEPT root can be absent (unlike a substituted always-defined one), so re-hang the
+            // guard on the symbol member itself: the null test reads the same value the native
+            // chain short-circuits on
+            if (keptClone && symbolReceiverProxyRoot.isOptionalAccess) {
+              path.node.type = 'OptionalMemberExpression';
+              path.node.optional = true;
             }
           }
         }
@@ -690,12 +700,9 @@ export default function plugin(api, options) {
             // destructuring) AND climbs TS-cast / paren wrappers: a cast-wrapped LHS (`(globalThis.window.Set as
             // any) = fn`) reads as `isReferenced` above (the cast IS a read position), so without it the member
             // whole-swaps to the imported `_Set` const - reassigning a frozen import
+            // `isMemberWriteHost` covers update operands too (`(obj.at)++` - the rewrite would
+            // be a function call receiver, not writable), climbing the same wrapper set
             if (isForXWriteTarget(path) || isMemberWriteHost(path)) return;
-            // member update (`(obj.at)++`) - the rewrite would be a function call receiver
-            // (not writable). this callback is only wired in usage-pure mode (see
-            // `usageCallback = isPure ? usagePureCallback : ...`), so the pure-mode guard
-            // is intrinsic to the callsite - no `isPure &&` gate needed
-            if (isInUpdateOperand(path.parentPath)) return;
             // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
