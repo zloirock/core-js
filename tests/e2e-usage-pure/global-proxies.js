@@ -388,6 +388,112 @@ QUnit.test('global-proxy: chain-assign optional value over an unpolyfilled hop k
   assert.same(f, globalThis.window);
 });
 
+// nested instance dispatch on a polyfillable-global chain: the inner `.name` GET sits inside the
+// receiver of an outer instance dispatch, and the outer's receiver collapse must recompose the
+// inner rewrite - this class used to crash the build or silently drop the inner polyfill
+QUnit.test('global-proxy: nested instance dispatch composes', assert => {
+  assert.same(globalThis.self.Array.prototype.at.name.at(0), 'a');
+  assert.true(globalThis?.Array.prototype.includes.name.includes('incl'));
+  // optional on a mid hop: an absent namespace short-circuits, and the chain root's rename
+  // must survive into the guard rather than leak a raw global
+  assert.same(globalThis.absentNs?.name.at(0), undefined);
+});
+
+// kept-assign roots with nested dispatch: the memo re-reads a blind tail verbatim (short-
+// circuiting where the environment lacks the hop), and a claimable static under a NON-optional
+// kept assignment reads through the ponyfill - the claim shape has no `?.`, so it survives
+// transpile-lowering intact and runs in every leg. each line used to crash the build, strand a
+// dead import, or read a raw global off-engine
+QUnit.test('global-proxy: kept-assign root nested dispatch and claims', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let t;
+  const triple = (t = globalThis.window)?.self.Array.prototype.at.name.at(0);
+  assert.same(triple, hasWindow ? 'a' : undefined);
+  assert.same(t, globalThis.window);
+  let c;
+  const fromTail = (c = globalThis.window)?.self.Array.from([2]).at(0);
+  assert.same(fromTail, hasWindow ? 2 : undefined);
+  assert.same(c, globalThis.window);
+  let s;
+  const ctorLeaf = (s = globalThis.window)?.self.Set.name.includes('S');
+  assert.same(ctorLeaf, hasWindow ? true : undefined);
+  assert.same(s, globalThis.window);
+  // non-optional kept assignment: the claim reads the ponyfill under the shared collapse
+  // assumption even where the environment has no `window` value to navigate
+  let m;
+  const claimed = (m = globalThis.window).self.Map.name;
+  assert.same(claimed, 'Map');
+  assert.same(m, globalThis.window);
+  // DOUBLE proxy hop with an instance-GET tail: the claim's guard must climb above the outer
+  // instance wrappers - a guard left inside the wrapper argument hands `void 0` to the helper
+  // and throws exactly where the native chain short-circuits
+  let d;
+  const doubleHop = (d = globalThis.window)?.self?.self.Set.name;
+  assert.same(doubleHop, hasWindow ? 'Set' : undefined);
+  assert.same(d, globalThis.window);
+  let e;
+  const doubleHopTail = (e = globalThis.window)?.self?.self.Map.name.at(0);
+  assert.same(doubleHopTail, hasWindow ? 'M' : undefined);
+  assert.same(e, globalThis.window);
+  // computed key-SE must NOT run when the chain short-circuits (native skips the key eval)
+  let f;
+  let keyRuns = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its SE must ride the guard
+  const doubleHopKeySe = (f = globalThis.window)?.self?.self.Set[(keyRuns++, 'name')];
+  assert.same(doubleHopKeySe, hasWindow ? 'Set' : undefined);
+  assert.same(keyRuns, hasWindow ? 1 : 0);
+  assert.same(f, globalThis.window);
+  // STACKED keys: the outer key SE observes the fully-evaluated inner receiver (k1 before k2);
+  // on short-circuit neither runs
+  let g;
+  const keyLog = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEYS are the subject: their order is asserted
+  const doubleHopKeyStack = (g = globalThis.window)?.self?.self.Map[(keyLog.push('k1'), 'name')][(keyLog.push('k2'), 'at')](0);
+  assert.same(doubleHopKeyStack, hasWindow ? 'M' : undefined);
+  assert.deepEqual(keyLog, hasWindow ? ['k1', 'k2'] : []);
+  assert.same(g, globalThis.window);
+  // combined optional-call chain over the claim: the root guard hoists into the outer test -
+  // fed to the helper it would throw exactly on this short-circuit path
+  let h;
+  const combinedTail = (h = globalThis.window)?.self?.self.Array.of(1).flat?.().at?.(0);
+  assert.same(combinedTail, hasWindow ? 1 : undefined);
+  assert.same(h, globalThis.window);
+  let i;
+  const optionalAccessTail = (i = globalThis.window)?.self?.self.Array.of(2)?.flat?.();
+  assert.deepEqual(optionalAccessTail, hasWindow ? [2] : undefined);
+  assert.same(i, globalThis.window);
+  // nested combined chains: every inner guard hoists transitively - each level would throw
+  // on this short-circuit path if left inside a helper argument
+  let j;
+  const nestedCombined = (j = globalThis.window)?.self?.self.Array.of(5).flat?.().map?.(x => x + 1).at?.(0);
+  assert.same(nestedCombined, hasWindow ? 6 : undefined);
+  assert.same(j, globalThis.window);
+});
+
+// value-RESOLVABLE captured roots (a kept assignment storing the global itself, an IIFE returning
+// it): the guard passes and the tail claims through the ponyfill. transpile-lowering desugars the
+// `?.` into a ternary alias, and the trusted-write follow resolves the alias through the ternary
+// test (structural read-after-write proof), so the LOWERED legs run this too - each line used to
+// throw on the raw `.self` tail there
+QUnit.test('global-proxy: resolvable captured roots claim through the ponyfill', assert => {
+  let g;
+  assert.same((g = globalThis)?.self.Set.name, 'Set');
+  assert.same(g, globalThis);
+  let f;
+  assert.same((f = globalThis)?.self.Array.from([3]).at(-1), 3);
+  assert.same(f, globalThis);
+  assert.same((() => globalThis)()?.self.Array.from([1]).at(0), 1);
+  assert.same((() => globalThis)()?.self.Array.prototype.includes.name.at(0), 'i');
+  // return-hosted spelling: lowering leaves the guard inside a ReturnStatement, which the
+  // placement walk accepts as an unconditional host
+  let q;
+  function viaReturn() {
+    return (q = globalThis)?.self.WeakMap.name;
+  }
+  assert.same(viaReturn(), 'WeakMap');
+  assert.same(q, globalThis);
+});
+
 // the COMPUTED-leaf twin of the kept guard: the erased optional hops re-hang their `?.` onto a
 // `['Array']` leaf, and the connector must keep the computed spelling - a bare `?[` does not even
 // parse, so getting this wrong is a build break rather than a wrong value. the answer stays

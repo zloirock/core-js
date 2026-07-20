@@ -878,6 +878,13 @@ export default function createPlugin(options) {
       // a single WeakSet covers all three because the downstream check is the same: any visitor
       // that sees a node in the set exits early. keep this in mind when adding new usages
         const skippedNodes = new WeakSet();
+        // members of a raw `_ref.`-rebound / guard-reuse receiver tail. weaker than `skippedNodes`:
+        // member/static/global rewrites on these nodes are suppressed (the raw tail re-emits their
+        // source verbatim, so a substitution would desync from it - `_self.X` vs the emitted
+        // `_ref.self.X`), but an INSTANCE dispatch stays live - it emits its own transform and
+        // composes into the rebound tail through the outer guard's rootRaw/guardRef needle rebuild
+        // (babel reaches the same shape by AST mutation: `_nameMaybeFunction(_ref.foo)`)
+        const rebindTailMembers = new WeakSet();
         // no fileId arg: transform-queue throws are unbranded (`transform-queue: <msg>`); the outer
         // catch's `tagError(error, id)` owns the single `[core-js] [<id>] ` brand + file tag
         const transforms = new TransformQueue(code, ms);
@@ -921,11 +928,13 @@ export default function createPlugin(options) {
           resolveStaticInheritedMember,
           scopeTracker,
           skippedNodes,
+          rebindTailMembers,
           transforms,
         });
         const {
           handleInExpression,
           handleSymbolIterator,
+          memoBlindWidensInstanceDispatch,
           nodeSrc,
           replaceGlobalOrStatic,
           replaceInstance,
@@ -1090,8 +1099,31 @@ export default function createPlugin(options) {
           return true;
         }
 
-        function usagePureCallback(meta, metaPath) {
-          // bundle early-return gates: disable directives + already-handled nodes + JSX
+        // a non-instance rewrite whose whole span is already OWNED by a nearer queued transform
+        // that does NOT re-emit the span's source verbatim (a guard memo splitting the chain, a
+        // dropping consumer): the AST side stands that rewrite down entirely (`X.from?.()` keeps
+        // its `_ref.from` read and `.call` this-binding off the memo), so it must decline BEFORE
+        // injecting - a late compose drop strands a dead import. a verbatim container keeps the
+        // needle alive, and the rewrite composes into it exactly like the standalone form
+        function nonInstanceSpanOwned(node) {
+          return node.type === 'MemberExpression'
+            && transforms.containsRangeProper(node.start, node.end)
+            && !transforms.containingContentIncludes(node.start, node.end);
+        }
+
+        // mirror babel's memo-blind re-visit: a dispatch whose receiver rebinds on an OUTER
+        // guard's memo ref re-types through the memo initializer on the AST side - an opaque
+        // (kept-assign) value or a replaced primitive value-read resolves at the COMMON variant
+        // there, so the typed Maybe entry widens to match - decided BEFORE the import goes in,
+        // so the typed entry never strands as a dead import
+        function widenMemoBlindInstance(pureResult, meta, metaPath, node) {
+          if (pureResult.kind !== 'instance' || node.type !== 'MemberExpression'
+            || !memoBlindWidensInstanceDispatch(node, metaPath)) return pureResult;
+          const generic = resolvePureGeneric(meta, metaPath);
+          return generic && generic.entry !== pureResult.entry ? { ...pureResult, ...generic } : pureResult;
+        }
+
+        function usagePureCallback(meta, metaPath) {          // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
           // type-annotation positions. monkey-patched statics never reach here: detection
           // returns no meta for them and the receiver flows through the identifier machinery
@@ -1107,7 +1139,7 @@ export default function createPlugin(options) {
           // parent is already unwrapped past parens/chain/TS above
           if (isDeleteTarget(parent)) return;
 
-          if (meta.guardedAliasHint && emitGuardedStaticNarrow(meta, metaPath, parent)) return;
+          if (meta.guardedAliasHint && !nonInstanceSpanOwned(node) && emitGuardedStaticNarrow(meta, metaPath, parent)) return;
 
           let inheritedStatic = false;
           if (meta.kind === 'property') {
@@ -1211,7 +1243,18 @@ export default function createPlugin(options) {
             tryCollapseAliasProxyHop(node, metaPath);
             return;
           }
-          const { entry: importEntry, kind, hintName } = pureResult;
+          const { entry: importEntry, kind, hintName } = widenMemoBlindInstance(pureResult, meta, metaPath, node);
+
+          // a member of a raw rebound/reused receiver tail: every non-instance rewrite is
+          // suppressed (the tail re-emits its source verbatim), while an instance dispatch
+          // proceeds and composes into the rebound tail via the outer guard's needle rebuild.
+          // gated BEFORE any import injection so a suppressed rewrite strands no dead import.
+          // the span-ownership probe covers the `?.()`-SPELLED statics the marking walk cannot
+          // reach (a callee chain under an optional METHOD call - the owner's memo keeps the
+          // `_ref.from` read and its `.call` this-binding); a PLAIN-spelled claim in an owned
+          // span stays live and composes (babel replaces the memo-read with the claim there)
+          if (kind !== 'instance' && (rebindTailMembers.has(node)
+            || (parent?.optional === true && parent.callee === node && nonInstanceSpanOwned(node)))) return;
 
           // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
           // receiver Identifier live so its substitution composes into the outer guard's
