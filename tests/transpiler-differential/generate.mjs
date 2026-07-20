@@ -500,6 +500,11 @@ const KPR_SHAPES = [
   { id: 'blind-double-hop-opt-access', value: 'globalThis.window', tail: '?.self?.self.Array.of(2)?.flat?.()' },
   { id: 'blind-double-hop-nested-combined', value: 'globalThis.window', tail: '?.self?.self.Array.of(5).flat?.().map?.(x => x).at?.(0)' },
   { id: 'blind-double-hop-nested-kept-arg', value: 'globalThis.window', tail: '?.self?.self.Array.of((log.push("inner"), globalThis.window)?.self.Set.name).flat?.()' },
+  // chain-assign root into a KEYLESS computed leaf over a redundant hop: the hop-root collapse
+  // owns the whole span; a swallowed hop firing its own value claim crashed the compose (build
+  // break class - the whole leg arms on it). `.globalThis.` hop keeps the native leg runnable
+  { id: 'chain-assign-keyless-computed', value: 'globalThis', tail: '.globalThis[(log.push("k"), 0)]' },
+  { id: 'chain-assign-symbol-iter-leaf', value: 'globalThis', tail: '.globalThis[Symbol.iterator]' },
   { id: 'claim-nonoptional', value: 'globalThis.window', tail: '.self.Map.name.at?.(0)' },
   { id: 'claim-resolvable-assign', value: 'globalThis', tail: '?.self.Set.name.includes?.("S")' },
   { id: 'claim-resolvable-call', value: 'globalThis', tail: '?.self.Array.from?.([3]).at?.(-1)' },

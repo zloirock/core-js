@@ -4067,6 +4067,20 @@ export function createDestructureEmitter({
     // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
     const aliasCtx = metaPath?.scope ? { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath } : null;
     if (!findProxyGlobal(metaPath?.node, aliasCtx, true)) return false;
+    // the ANCHORING meta's position relative to the chain, read off the first non-transparent
+    // edge above it: a member OBJECT edge = a HOP of the collapsing chain (its value-canon
+    // claim would race the collapse span - the callback ordering runs it before any skip marks
+    // land, so the return must stand it down); anything else (assign right / sequence tail /
+    // binding init) = a VALUE slot that keeps its own canon. identifiers always fall through -
+    // their substitution is the needle the re-emitted assign slice composes with
+    let anchorEdgePath = metaPath?.parentPath;
+    while (anchorEdgePath && (anchorEdgePath.node?.type === 'ParenthesizedExpression'
+      || anchorEdgePath.node?.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(anchorEdgePath.node?.type))) {
+      anchorEdgePath = anchorEdgePath.parentPath;
+    }
+    const anchorOnHop = metaPath?.node?.type !== 'Identifier'
+      && (anchorEdgePath?.node?.type === 'MemberExpression' || anchorEdgePath?.node?.type === 'OptionalMemberExpression')
+      && unwrapNode(anchorEdgePath.node.object) === unwrapNode(metaPath.node);
     // oxc preserves `ParenthesizedExpression` / `ChainExpression` / TS-cast wrappers that babel's AST folds
     // away; peel them while climbing so a wrapped proxy navigation (`(globalThis.self).Array`,
     // `((globalThis.self).Array as any).prototype`) reaches its leaf receiver and collapses like babel. the
@@ -4134,7 +4148,7 @@ export function createDestructureEmitter({
     // SOURCE is owned by the destructure path, which collapses the WHOLE receiver atomically via the shared
     // resolver, so collapsing the inner hop HERE too races that replacement (transform-queue compose crash).
     // reaching the binding lets the ObjectPattern defer below fire; array-pattern / non-pattern targets do not
-    // defer, so they still collapse in place here
+    // defer, so they still collapse in place here.
     while (ctxPath && (PROXY_HOP_VALUE_CARRIERS.has(ctxPath.node?.type)
       || ((ctxPath.node?.type === 'MemberExpression' || ctxPath.node?.type === 'OptionalMemberExpression')
         && ctxPath.node.object === climbedFrom))) {
@@ -4187,21 +4201,43 @@ export function createDestructureEmitter({
         || p.node.type === 'LogicalExpression' || p.node.type === 'ConditionalExpression'
         || PROXY_HOP_VALUE_CARRIERS.has(p.node.type))) break;
     }
+    // an EARLIER channel already owns this exact span (a get-iterator instance dispatch or a
+    // sibling meta's collapse queued first): a second equal-range entry with different content
+    // crashes the equal-range merge - nothing left to claim, but the anchoring meta's fate
+    // follows the SAME positional rule as after a fresh claim (a hop meta must still stand
+    // down, or its value-canon claim races the owned span)
+    if (transforms.hasRange(recv.start, recv.end)) return anchorOnHop;
     const collapsed = substituteProxyGlobalRoot({
       node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget, throughChainAssign: true,
       ownerlessReceiver: !dispatchOwned,
     });
     if (collapsed === null) return false;
     // deliberately chain-assign-BLIND: an assign-buried root (`(a = globalThis).self.X`) is kept
-    // verbatim inside the harvested assignment slice, so its natural identifier rewrite must stay
-    // live to compose into the re-emitted text by needle (`(a = globalThis, ...)` ->
-    // `(a = _globalThis, ...)`); a directly-substituted root (bare / paren / sequence-tail) is
-    // skipped instead. reporting that same visibility back tells the caller whether the natural
-    // rewrite still has to run (false = it does)
+    // verbatim inside the harvested assignment slice, so its natural identifier rewrite must
+    // stay LIVE to compose into the re-emitted text by needle (`(a = globalThis, ...)` ->
+    // `(a = _globalThis, ...)`) - the ROOT node stays unmarked there; a directly-substituted
+    // root (bare / paren / sequence-tail) is marked skipped instead
     const root = findProxyGlobal(recv, aliasCtx);
     if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
     transforms.add(recv.start, recv.end, collapsed);
-    return !!root;
+    // the collapse consumed the PROXY hops in the span - mark them so a swallowed hop's own
+    // value-canon claim (`.self` -> `(a = ..., _self)`) stands down instead of racing this
+    // span. ONLY proxy-keyed hops: a non-proxy member (`.Object` in a destructure source) may
+    // anchor further legitimate passes whose entries compose into this span by needle
+    for (let hop = unwrapNode(recv); hop
+      && (hop.type === 'MemberExpression' || hop.type === 'OptionalMemberExpression');
+      hop = unwrapNode(hop.object)) {
+      const hopKey = hop.computed
+        ? (typeof hop.property?.value === 'string' ? hop.property.value : null)
+        : hop.property?.name;
+      if (hopKey && POSSIBLE_GLOBAL_OBJECTS.has(hopKey)) skippedNodes.add(hop);
+    }
+    // "does the collapse OWN the anchoring meta": always with a substituted root; with a LIVE
+    // (assign-buried) root - only a non-identifier meta sitting on a HOP edge (its value-canon
+    // claim would race the span; the callback ordering runs it before the skip marks land). an
+    // identifier meta's substitution and a value-slot meta's own canon are the needles the
+    // re-emitted slice composes with, so those fall through
+    return !!root || anchorOnHop;
   }
 
   // receiver source for a synth swap's MemberExpression receiver (`globalThis.Array`),

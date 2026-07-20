@@ -140,6 +140,29 @@ QUnit.test('IIFE-proxy with intermediate hop: side effect runs once', assert => 
   assert.same(it, Symbol.iterator);
 });
 
+// a chain-assign root navigating a redundant hop into a KEYLESS computed leaf: the hop-root
+// collapse owns the whole span - before the fix a swallowed hop fired its own value-canon
+// claim and the build CRASHED on the compose (this file would not even bundle). `.globalThis.`
+// hop spelling keeps it runnable in Node (self / window do not exist here)
+QUnit.test('global-proxy: chain-assign hop with keyless computed leaf collapses', assert => {
+  let x;
+  const method = (x = globalThis).globalThis[Symbol.iterator];
+  assert.same(x, globalThis);
+  assert.same(method, undefined);
+  let y;
+  // eslint-disable-next-line prefer-destructuring -- the numeric-literal computed KEYLESS leaf is the subject
+  const numeric = (y = globalThis).globalThis[0];
+  assert.same(y, globalThis);
+  assert.same(numeric, undefined);
+  let z;
+  const keyLog = [];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its SE must survive the collapse
+  const seKey = (z = globalThis).globalThis[(keyLog.push('k'), 0)];
+  assert.same(z, globalThis);
+  assert.same(seKey, undefined);
+  assert.deepEqual(keyLog, ['k']);
+});
+
 QUnit.test('IIFE-proxy behind chain assignment: assignment and side effect preserved', assert => {
   let calls = 0;
   let captured;
