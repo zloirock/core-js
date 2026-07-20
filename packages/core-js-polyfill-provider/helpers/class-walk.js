@@ -102,19 +102,105 @@ export function isProxyGlobalIdentifierNode(args) {
 // `binding.node`; (b) babelBindingAdapter (in resolve-node-type) passes the raw babel
 // binding where `.node` is the bound Identifier and the declarator lives at `.path.node`.
 // branch on `node.type` so a single predicate covers both shapes
+// does the subtree contain an `=`-assignment TO `name`? judged by the written NAME, not node
+// identity or positions: an AST emitter's re-visit walks REBUILT subtrees whose nodes are
+// clones (fresh identity, no positions), and the caller has already proven the binding has
+// exactly ONE real write - so any assignment to the name inside an earlier-evaluated slot IS
+// that write (injected helper code never assigns user bindings)
+function containsWriteTo(root, name) {
+  if (!root || typeof root !== 'object') return false;
+  if (root.type === 'AssignmentExpression' && root.operator === '='
+    && root.left?.type === 'Identifier' && root.left.name === name) return true;
+  for (const [key, value] of Object.entries(root)) {
+    if (key === 'loc' || key === 'range') continue;
+    if (Array.isArray(value)) {
+      for (const el of value) if (el && typeof el === 'object' && containsWriteTo(el, name)) return true;
+    } else if (value && typeof value === 'object' && typeof value.type === 'string' && containsWriteTo(value, name)) return true;
+  }
+  return false;
+}
+
+// structural read-after-write proof for a READ whose node carries no source positions (an AST
+// emitter re-visits rebuilt subtrees after mutation): the write provably evaluates first when
+// an ancestor step enters a ternary BRANCH or a logical RIGHT operand whose always-evaluated
+// GUARD slot contains the (single trusted) write - exactly the `?.`-lowering canon
+// (`(_g = g = globalThis) == null ? void 0 : _g.self.X`). deliberately NARROW: a same-sequence
+// slot proof would also re-follow the plugin's OWN guarded-alias emit on an idempotency
+// re-run (`c ? (_ref = _globalThis, Q = _ref.Promise, _ref) : 0` - the first pass reads the
+// member RAW under a ctor guard by design, and a second-pass claim would swap the ponyfill
+// into the alias slot, flipping the guard and swallowing the native detached-tag TypeError).
+// anything beyond the guard shapes stays unproven
+function readsAfterWriteStructurally(path, writeNode) {
+  const name = writeNode.left?.type === 'Identifier' ? writeNode.left.name : null;
+  if (!name) return false;
+  for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
+    const parent = cur.parentPath.node;
+    const child = cur.node;
+    if (!parent) break;
+    if (parent.type === 'ConditionalExpression' && (parent.consequent === child || parent.alternate === child)
+      && containsWriteTo(parent.test, name)) return true;
+    if (parent.type === 'LogicalExpression' && parent.right === child && containsWriteTo(parent.left, name)) return true;
+    if (STATEMENT_HOST_TYPES.has(parent.type)) break;
+  }
+  return false;
+}
+
+// descend a trusted write's RHS to the stored value: alternate the local init-peel with
+// chain-assign steps (`_g = g = globalThis` stores `globalThis`; the assignment text stays
+// verbatim in source). the full chain-assign canon lives in resolve.js - unreachable from
+// here without an import cycle - and this alternation reaches the same fixpoint over the
+// shapes a single write's RHS can carry
+// the single canonical trust gate for a plain-Identifier alias write (`var _g; _g = g =
+// globalThis`): the adapter surfaces the sole trusted write, the shape gate rejects
+// destructure writes (they bind the name to a PROPERTY of the RHS - following the right side
+// would alias the name to the whole global), and the pure arm accepts ONLY the structural
+// read-after-write proof (read in a branch whose always-evaluated guard slot holds the write -
+// the `?.`-lowering canon; a positional accept would drift the emitters on the AST side's
+// position-less rebuilt re-visits). shared by the detection-side follow
+// (`resolveVariableBindingToGlobal`) and the class-walk follow - ONE predicate, not mirrors
+export function trustedIdentifierAliasWrite({ scope, name, adapter, path }) {
+  if (!adapter?.findTrustedAliasWrite) return null;
+  const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
+  if (!write || write.left?.type !== 'Identifier' || write.left.name !== name) return null;
+  if (adapter.method === 'usage-pure'
+    && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)) return null;
+  return write;
+}
+
+function trustedWriteValue(assignNode) {
+  let cur = assignNode.right;
+  for (;;) {
+    cur = unwrapInitForResolution(cur);
+    if (cur?.type !== 'AssignmentExpression' || cur.operator !== '=') return cur;
+    cur = cur.right;
+  }
+}
+
 function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter, path, seen, usageNode = null }) {
+  const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+  // assignment-form alias (`var _g; (_g = g = globalThis) == null ? void 0 : _g.self.X` - the
+  // shape `?.`-lowering transpilers emit ahead of this plugin): the binding's single TRUSTED
+  // write is its value source, not a flow hazard - resolve its RHS exactly like a declarator
+  // init. checked BEFORE the reassignment bail (the write IS the sole violation, mirroring the
+  // detection-side follow in `resolveVariableBindingToGlobal`); the pure arm additionally
+  // requires the READ to sit textually after the write (a pre-assignment read holds undefined)
+  let writeInit = null;
+  if (decl?.type === 'VariableDeclarator' && !decl.init && decl.id?.type === 'Identifier') {
+    const write = trustedIdentifierAliasWrite({ scope, name: name ?? decl.id.name, adapter, path });
+    if (write) writeInit = trustedWriteValue(write);
+  }
   // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
   // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
   // dropped a const-captured alias whose upstream source is reassigned only after the capture)
-  if (reassignmentBlocksGlobalResolve({ binding, adapter, path: usageNode ?? path })) return null;
-  const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+  if (!writeInit && reassignmentBlocksGlobalResolve({ binding, adapter, path: usageNode ?? path })) return null;
   // a hoisted-var declarator assigned on ONE path (`if (c) { var g = globalThis }`) binds the
   // name everywhere but holds the global only through that branch. the pure rewrites this follow
   // feeds (proxy-hop collapse, receiver substitution, type narrows) would rescue the
   // skipped-branch throw the source guarantees, so require the init to dominate the use - the
   // same gate the detection-side follow (`resolveVariableBindingToGlobal`) applies. global /
-  // entry modes keep the call site and stay sound regardless
-  if (adapter?.method === 'usage-pure'
+  // entry modes keep the call site and stay sound regardless. a trusted write carries its own
+  // proof (unconditional placement + the read-after-write gate above)
+  if (!writeInit && adapter?.method === 'usage-pure'
     && !varInitDominatesUsage({ declaratorNode: decl, usagePath: usageNode ?? path, kind: binding.kind })) return null;
   // a PATTERN id binds `name` to a KEY of the init, not the init itself: following the whole
   // init would classify a plain slot as the proxy surface (`const { x } = globalThis; x.Array`
@@ -130,7 +216,7 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
       new Set(seen).add(binding.node ?? binding));
     return leaf !== null && isPristineProxyGlobal(adapter, leaf) ? leaf : null;
   }
-  const init = unwrapInitForResolution(decl?.init);
+  const init = writeInit ?? unwrapInitForResolution(decl?.init);
   // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
   // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
   // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root
@@ -321,19 +407,30 @@ export function maybeRegisterAssignmentAliasWrite({ injector, adapter = null, bi
   return true;
 }
 
-// the trust predicate behind the checked registration AND the resolver's lazy write lookup: the
-// binding must be an init-less declarator whose EVERY write falls inside THIS assignment (sole value
-// source), placed unconditionally in the binding's own function/module scope (a nested-function or
-// control-guarded write may never run - see `unconditionalStatementPlacement`). accepts either an
-// adapter-normalized binding (`.node`) or a raw scope binding (`.path.node`)
-export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath }) {
+// SOLE-value-source core of the trust predicate: an init-less declarator whose EVERY write
+// falls inside THIS assignment. placement is judged separately - a POSITIONAL order proof
+// needs the unconditional-placement check on top (a control-guarded write may never run),
+// while a STRUCTURAL branch-after-test proof carries its own execution evidence (reaching
+// the branch means the test - and the write inside it - already ran, in any enclosing
+// context including a try block). accepts either an adapter-normalized binding (`.node`)
+// or a raw scope binding (`.path.node`)
+export function soleAliasWrite({ binding, assignNode }) {
   const declarator = binding?.node ?? binding?.path?.node;
   if (declarator?.type !== 'VariableDeclarator' || declarator.init) return false;
   const violations = binding.constantViolations ?? [];
-  if (!violations.length || !violations.every(v => {
+  // identity first: a SYNTHETIC write (an AST emitter's own memo assign on a re-visit)
+  // carries no positions, and the babel violation path IS the assignment node
+  return !!violations.length && violations.every(v => {
     const node = v?.node ?? v;
-    return node?.start >= assignNode.start && node?.end <= assignNode.end;
-  })) return false;
+    return node === assignNode || (node?.start >= assignNode.start && node?.end <= assignNode.end);
+  });
+}
+
+// the full trust predicate behind the checked registration AND the resolver's lazy write
+// lookup for POSITIONAL consumers: sole value source + unconditional placement
+export function assignmentAliasWriteTrusted({ binding, assignNode, stmtPath }) {
+  if (!soleAliasWrite({ binding, assignNode })) return false;
+  const declarator = binding?.node ?? binding?.path?.node;
   return unconditionalStatementPlacement(stmtPath, declarator);
 }
 
@@ -493,7 +590,12 @@ function spineHasOptionalHop(node) {
   return false;
 }
 
-const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaration']);
+const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaration', 'ReturnStatement', 'ThrowStatement']);
+// control statements HOST an unconditional write only through their always-evaluated-on-entry
+// slot: the test (discriminant for switch) runs whenever the statement runs - a write there is
+// as unconditional as an expression statement's. branches / bodies stay refused (the ancestor
+// walk already rejects a host nested under them)
+const CONTROL_TEST_HOSTS = new Set(['IfStatement', 'WhileStatement', 'DoWhileStatement', 'SwitchStatement']);
 function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   // callers pass paths at different depths (a declarator, the assignment, its statement) -
   // normalize by climbing to the hosting statement first, judging every EDGE on the way: a
@@ -511,6 +613,15 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) {
     const parent = stmt.parentPath;
     const parentType = parent?.node?.type;
+    // arriving at a control statement FROM its test/discriminant slot: that slot evaluates
+    // whenever the statement does, so the statement itself is the host - stop the climb here
+    // (a write in a branch/body never takes this step; its own host gets refused by the
+    // ancestor walk below)
+    if (CONTROL_TEST_HOSTS.has(parentType)
+      && (parent.node.test ?? parent.node.discriminant) === stmt.node) {
+      stmt = parent;
+      break;
+    }
     if (parentType && !STATEMENT_HOST_TYPES.has(parentType)) {
       if (FUNCTION_LIKE_NODE_TYPES.has(parentType)) return false;
       if (parentType === 'ConditionalExpression' && parent.node.test !== stmt.node) return false;
@@ -534,7 +645,9 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
       return !withinNode || type === 'Program'
         || (withinNode.start >= cur.node.start && withinNode.end <= cur.node.end);
     }
-    if (type !== 'BlockStatement') return false;
+    // an export wrapper around the hosting statement (`export const r = (_g = g) == null ? ...`)
+    // runs exactly when its module body does - transparent for placement
+    if (type !== 'BlockStatement' && type !== 'ExportNamedDeclaration' && type !== 'ExportDefaultDeclaration') return false;
   }
   return false;
 }
