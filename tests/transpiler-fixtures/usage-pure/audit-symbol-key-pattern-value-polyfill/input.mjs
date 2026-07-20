@@ -5,7 +5,7 @@
 // where the consumed key retires to a sentinel
 const obj = {};
 const { Array: { from }, [Symbol.iterator]: { next = [1].at(0) } } = obj;
-// prop-level default: the helper result is guarded (`=== void 0 ? fb : _ref`), so a genuinely
+// prop-level default: the helper result is guarded (a memoized `=== void 0` test), so a genuinely
 // non-iterable receiver still takes the user default like a raw undefined read would
 const fb = { done: true };
 const { [Symbol.iterator]: { done } = fb } = obj;
