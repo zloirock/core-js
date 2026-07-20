@@ -241,6 +241,7 @@ export default function plugin(api, options) {
   const {
     isInTypeAnnotation,
     deoptionalizeNode,
+    emitGuardedClaim,
     generateRef,
     generateLocalRef,
     generateUnusedId,
@@ -883,10 +884,21 @@ export default function plugin(api, options) {
             // dropped. emit becomes `(a = Array, _Array$from)(x)`. instance dispatch wouldn't
             // reach here (routes through replaceInstanceLike above), so no risk of duplicating
             // with memoize-captured assignment
-            // the substitution erases the receiver navigation - stand down where that navigation is not
-            // erasable (a live `?.` over a chain-assign storing something not provably the global): the
-            // guard would go with it and the static would run where the source short-circuits
-            if (!staticMayEraseReceiver(path.node.object, resolveBuiltIn)) return;
+            // the substitution erases the receiver navigation - where that navigation is NOT erasable
+            // (a live `?.` over a value navigating an unresolvable proxy hop), the guard must survive,
+            // but a raw static there is exactly the missed polyfill the claim exists for (IE11 has no
+            // native `from`). emit the claim INSIDE the preserved guard: `null == (b = _globalThis
+            // .window) ? void 0 : _Array$from(x)` - the root evaluates once in the test (no memo: the
+            // alternate is receiver-independent), short-circuit intact. the refusal fires only on
+            // proxy-TIER unponyfilled hops (window-class forwarders), so the claim is sound there.
+            // SE channels keep the raw stand-down - no re-emit slot in this shape
+            if (!staticMayEraseReceiver(path.node.object, resolveBuiltIn)) {
+              emitGuardedClaim({
+                path, replacePath, id,
+                sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              });
+              return;
+            }
             const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects, meta.receiverEffectCount);
             replacePath.replaceWith(withSideEffects(id, allEffects));
             normalizeOptionalChain(replacePath, !wasOptional);

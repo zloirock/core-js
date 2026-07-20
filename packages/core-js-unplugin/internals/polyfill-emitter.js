@@ -8,6 +8,7 @@
 import {
   collectFoldedReceiverSideEffects,
   isMutatedStaticMeta,
+  isMutatedStaticPair,
   isReusableReceiver,
   isThisReceiver,
   markAndPeelSkippableWrappers,
@@ -170,8 +171,12 @@ function walkReceiverHops(receiverObj) {
 // babel collapses the hop). walk the receiver chain down to the root, drop the leading
 // proxy hops via the shared collapse test, and return the advanced tail boundary; a
 // side-effecting dropped key has no SE channel on this path - keep the raw tail
-// (the sibling suppressInject gates bail the same way). null = nothing to drop
-function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapter }) {
+// (the sibling suppressInject gates bail the same way). null = nothing to drop.
+// when the first SURVIVING hop names a global with its own ponyfill entry (`.Set`, `.Map`),
+// the AST emitter's blocked static claim owns that prefix and bails the WHOLE tail to raw
+// verbatim (`_ref.self.Set`) - dropping the hop there diverges. a non-claimable survivor
+// (`.Array`) has no static claim, so the plain navigation drop stays
+function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapter, resolveGlobalPolyfill }) {
   const hops = [];
   // the memoized root may sit inside wrappers the chain walk peels (`(a = globalThis)` -
   // the paren is the rootNode, the walk lands on the assignment) - compare both spellings
@@ -202,6 +207,11 @@ function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapte
     }
     if (!dropped.boundary) return null;
   }
+  const survivor = hops.at(-1);
+  const survivorKey = survivor && (survivor.computed
+    ? (typeof survivor.property?.value === 'string' ? survivor.property.value : null)
+    : survivor.property?.name);
+  if (survivorKey && resolveGlobalPolyfill?.(survivorKey)) return null;
   // a side-effecting dropped key DOES have a channel here: it migrates into the surviving leaf key as a
   // sequence prefix (`_ref[(c++, 'self')].Array` -> `_ref[c++, "Array"]`) - the position the native order
   // evaluates it in (past the guard, before the read). the leaf turns computed; the stitch renders it
@@ -290,13 +300,79 @@ function skipCollapsedChainExceptRootCall(staticHop, skippedNodes, keepSe = []) 
 // `Map -> _Map`) would compose into the raw tail and either diverge from babel or orphan against it (crash).
 // stop AT `rootBoundary` (the memoized optionalRoot) - its OWN content stays in the guard and is substituted
 // normally there (`_ref = _Promise?.foo`), so skipping into it would strand its root raw
-function skipReceiverTailMembers(receiverNode, skippedNodes, rootBoundary) {
+// guard text for a chain-assign optional root (`(n = globalThis.window)?. ...`): the chain
+// resolver takes only member chains, so the guard would memoize the assignment RAW
+// (`_ref = n = globalThis.window` - a bare `globalThis` ie:11 ReferenceError). substitute the
+// assigned value's own proxy-global root in place, mirroring the keepsAssignRoot value
+// substitution; the identifier's own transform then reads as an already-applied phantom (or is
+// absorbed by a reused inner), never double-applying. substitution happens inside the same span
+// the guard text canon uses (outer parens peeled, inner wrappers like a TS cast preserved).
+// module-level so the emitter factory stays in budget
+function chainAssignGuardRootSrc({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }) {
+  const core = unwrapNode(rootNode);
+  if (core?.type !== 'AssignmentExpression') return null;
+  const rootIdent = findProxyGlobal(core, { scope: metaPath?.scope, adapter, path: metaPath }, true);
+  if (!rootIdent) return null;
+  const pure = resolveGlobalPolyfill(rootIdent.name);
+  if (!pure) return null;
+  const span = rootNode.type === 'ParenthesizedExpression'
+    && rootNode.expression.type !== 'SequenceExpression' ? rootNode.expression : rootNode;
+  return code.slice(span.start, rootIdent.start)
+    + injectPureImport(pure.entry, pure.hintName) + code.slice(rootIdent.end, span.end);
+}
+
+// guard text for a CALL-rooted captured chain (`(() => globalThis)()?.self.Array.from(x).at(0)`):
+// neither the member-chain nor the chain-assign resolver rebuilds a call root, and the root
+// identifier's own rewrite can be consumed by a static-method claim's detection over the tail -
+// the memo then reads a bare `globalThis` (off-engine ReferenceError; the AST emitter keeps the
+// substitution inside the kept call). substitute each unshadowed value-position proxy-global
+// identifier inside the root span in place. names declared anywhere within the span bail their
+// substitutions (a local binding may shadow them - raw source is the safe spelling). module-level
+// so the emitter factory stays in budget
+function callRootGuardSrc({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }) {
+  const core = unwrapNode(rootNode);
+  if (core?.type !== 'CallExpression' && core?.type !== 'OptionalCallExpression') return null;
+  const declared = new Set();
+  const nonValue = new Set();
+  const candidates = [];
+  walkAstNodes({ root: rootNode, visit(n) {
+    if (!n || typeof n !== 'object') return;
+    if ((n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') && !n.computed) nonValue.add(n.property);
+    else if ((n.type === 'Property' || n.type === 'MethodDefinition' || n.type === 'PropertyDefinition') && !n.computed) {
+      nonValue.add(n.key);
+    } else if (n.type === 'VariableDeclarator' && n.id?.type === 'Identifier') declared.add(n.id.name);
+    else if (n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression' || n.type === 'FunctionDeclaration') {
+      for (const param of n.params ?? []) if (param?.type === 'Identifier') declared.add(param.name);
+      if (n.id?.type === 'Identifier') declared.add(n.id.name);
+    } else if (n.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.name)) candidates.push(n);
+  } });
+  const subs = candidates.filter(n => !nonValue.has(n) && !declared.has(n.name)
+    && !shadowedAtUse(adapter, n.name, metaPath) && resolveGlobalPolyfill(n.name));
+  if (!subs.length) return null;
+  subs.sort((a, b) => a.start - b.start);
+  let out = '';
+  let pos = rootNode.start;
+  for (const n of subs) {
+    const pure = resolveGlobalPolyfill(n.name);
+    out += code.slice(pos, n.start) + injectPureImport(pure.entry, pure.hintName);
+    pos = n.end;
+  }
+  return out + code.slice(pos, rootNode.end);
+}
+
+function skipReceiverTailMembers(receiverNode, skippedNodes, rootBoundary, resolveGlobalPolyfill = null) {
   // compare against the UNWRAPPED boundary - `rootBoundary` may be paren-wrapped (`(Promise?.foo)`) while the
-  // walk peels each hop, so a raw-node compare would never match and skip into the root
+  // walk peels each hop, so a raw-node compare would never match and skip into the root.
+  // the walk does NOT pierce calls, and it leaves a CLAIM-SOUND static member (`.Set`, `.Map`,
+  // `.from` - a non-proxy key with its own ponyfill entry) unmarked: its claim transform
+  // composes into the stitched tail (the AST emitter reads such members through the memo).
+  // proxy hops (`.self`) and non-claimable members stay suppressed - the raw stitch owns them
   const boundary = rootBoundary ? unwrapNode(rootBoundary) : null;
   let hop = unwrapNode(receiverNode);
   while ((hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression') && hop !== boundary) {
-    skippedNodes.add(hop);
+    const key = hop.computed ? null : hop.property?.name;
+    const claimable = !!key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && !!resolveGlobalPolyfill?.(key);
+    if (!claimable) skippedNodes.add(hop);
     hop = unwrapNode(hop.object);
   }
 }
@@ -355,6 +431,7 @@ export function createPolyfillEmitter({
   resolveStaticInheritedMember,
   scopeTracker,
   skippedNodes,
+  rebindTailMembers,
   toHint,
   transforms,
 }) {
@@ -707,7 +784,8 @@ export function createPolyfillEmitter({
     let leadingMemo = null;
     let bodyIsNonIdent = isNonIdent;
     let wrapSE = sideEffects;
-    if (!optionalRoot && seMode !== 'peel' && sideEffects?.length && bodyIsNonIdent && receiverHasSE) {
+    if (!optionalRoot && seMode !== 'peel' && sideEffects?.length && bodyIsNonIdent && receiverHasSE
+      && (receiverEffectCount > 0 || !BARE_IDENT_TEXT.test(bodyObj))) {
       const recvRef = scopeTracker.genRef();
       // the memo `_ref = bodyObj` re-evaluates the receiver, so the receiver-SE must be sourced ONCE through
       // it - matching babel `_ref = (SE, _Map)`. when the SE already survives INSIDE bodyObj (a preserved
@@ -750,9 +828,7 @@ export function createPolyfillEmitter({
         // of the wrap instead of leaving the embedded `binding(ref = call)` form after the SE -
         // mirrors the chain-combined outer memo and babel's combined emission
         if (sideEffects?.length && seMode !== 'peel') {
-          const callRef = scopeTracker.genRef();
-          leadingMemo = `${ callRef } = ${ bodyObj }`;
-          bodyObj = callRef;
+          ({ leadingMemo, bodyObj } = memoHoist(bodyObj, scopeTracker));
           bodyIsNonIdent = false;
         }
       } else {
@@ -768,6 +844,14 @@ export function createPolyfillEmitter({
         // it, keeping only the key-SE (which runs on the non-null branch, after the guard). `suppress`
         // (optional MEMBER access) already removed the receiver-SE upstream, so don't double-slice there
         if (seMode !== 'suppress') wrapSE = keySideEffectsOnly(receiverEffectCount, sideEffects);
+        // a computed receiver TAIL (an inner rewrite composing into the needle) evaluates
+        // before the folded key SE per ECMA receiver-before-key: hoist its memo ahead of the
+        // wrap - mirrors the guarded-call hoist above; a bare ref / SE-carrying independent
+        // collapse keeps its own order
+        if (wrapSE?.length && bodyIsNonIdent && !receiverIndependent && !BARE_IDENT_TEXT.test(bodyObj)) {
+          ({ leadingMemo, bodyObj } = memoHoist(bodyObj, scopeTracker));
+          bodyIsNonIdent = false;
+        }
       }
     }
 
@@ -802,6 +886,8 @@ export function createPolyfillEmitter({
       // `clearSE`: the strategy already folded the SE into its body (parenLookup guard alternate)
       replacement: `${ guard }${ wrapSideEffects(body, clearSE ? null : wrapSE, leadingMemo) }`,
       split,
+      guardRef,
+      guardText: guard || null,
     };
   }
 
@@ -991,12 +1077,17 @@ export function createPolyfillEmitter({
     // drop redundant proxy hops right above the reused root (`_ref.self.Array.prototype` -> `_ref.Array
     // .prototype`), exactly like the optional-rebind stitch - a raw `.self` reads undefined off-engine
     // where babel collapses the hop. null boundary = nothing to drop, keep the tail from the root end
-    const tailBoundary = proxyTailBoundaryAfterRoot({ receiver: node.object, rootNode, metaPath, code, adapter: estreeAdapter });
+    const tailBoundary = proxyTailBoundaryAfterRoot({
+      receiver: node.object, rootNode, metaPath, code, adapter: estreeAdapter, resolveGlobalPolyfill,
+    });
     const objectSrc = tailBoundary !== null
       ? stitchTailFromBoundary(code, outerRef, tailBoundary, node.object.end, deoptPositions)
       : outerRef + stripOptionalDots(code.slice(rootNode.end, node.object.end), rootNode.end, deoptPositions);
-    skipReceiverTailMembers(node.object, skippedNodes, rootNode);
-    return { outerRef, objectSrc, isNonIdent: true };
+    skipReceiverTailMembers(node.object, rebindTailMembers, rootNode, resolveGlobalPolyfill);
+    // the advanced hop boundary travels into the rewrite hint: an inner transform nested in the
+    // stitched tail rebuilds its needle as `ref + needle-slice-from-boundary`, the only spelling
+    // the hop-dropped content still contains
+    return { outerRef, objectSrc, isNonIdent: true, tailBoundary };
   }
 
   // build replacement, wrap guard if needed, add to transform queue
@@ -1038,9 +1129,15 @@ export function createPolyfillEmitter({
     // a non-bare optional rebind (`(call)?.self.Ctor`) memoizes the root and stitches a RAW source tail
     // (`_ref.self.Ctor`), DISCARDING any leaf collapse - tell the resolver to NOT inject its pure import there
     // (it would strand a dead `_Map`). a bare-Identifier optional root (`globalThis?.self.Ctor`) DOES collapse
-    // to `_Map`, so it still injects; methodCall rebuilds its own guard, so it is excluded too
+    // to `_Map`, so it still injects; methodCall rebuilds its own guard, so it is excluded too.
+    // a guard-REUSE candidate rebinds the receiver on the OUTER transform's ref - the same raw-tail
+    // regime, so the resolution takes the suppress path too: a tail ending at a pure-ctor static then
+    // collapses receiver-INDEPENDENT (`_Set`, the ponyfill canon babel reads statics through) instead
+    // of re-reading the raw `_ref.Set` off the memo
+    const reuseCandidateRef = !optionalRoot && rootNode ? transforms.findOuterGuardRef(rootNode) : null;
     const recv = recvOverride ?? resolveReceiverSource(receiverObj, metaPath,
-      !!optionalRoot && !isBareIdentifier(optionalRoot) && !methodCall && !!rootNode && rootNode !== node.object, rootNode);
+      (!!optionalRoot && !isBareIdentifier(optionalRoot) && !methodCall && !!rootNode && rootNode !== node.object)
+      || !!reuseCandidateRef, rootNode);
     let { src: objectSrc, isNonIdent } = recv;
     // proxy-global guard root: when the receiver path did NOT already substitute the leaf
     // (`recv.substituted` false - e.g. a CALL receiver `globalThis.list?.flat().m()` hides the
@@ -1065,7 +1162,12 @@ export function createPolyfillEmitter({
     const directRoot = guardGateOpen && rootLeaf?.type === 'Identifier' ? resolveReceiverPolyfill(rootLeaf, metaPath) : null;
     if (rootSeTail) optionalRoot = buildSeTailSrc(rootSeTail.prefixSrcs, seTailRootBinding(rootSeTail, injectPureImport));
     else if (directRoot) optionalRoot = injectPureImport(directRoot.entry, directRoot.hintName);
-    else if (guardGateOpen) optionalRoot = resolveProxyGlobalChainSrc(rootNode, metaPath)?.src ?? optionalRoot;
+    else if (guardGateOpen) {
+      optionalRoot = resolveProxyGlobalChainSrc(rootNode, metaPath)?.src
+        ?? chainAssignGuardRootSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill })
+        ?? callRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill })
+        ?? optionalRoot;
+    }
     const effectiveDeopt = bareParenLookup ? null : deoptPositions;
     const rootIsReceiver = rootNode === node.object;
     const optionalRootCapturesIntoRef = optionalRoot && !isBareIdentifier(optionalRoot);
@@ -1082,11 +1184,19 @@ export function createPolyfillEmitter({
     // - both shapes never contain the substituted leaf, so compose's substring guard can't
     // double-match it (word-boundary rejection rules out `_globalThis` substring poisoning)
     const composeSafeForInnerLeaf = optionalRootCapturesIntoRef;
-    if (recv.skipNode && !(isProxyGlobalLeaf && composeSafeForInnerLeaf)) {
+    // a receiver-INDEPENDENT collapse owns the body outright (`_Set`) - reuse would re-read the raw
+    // `_ref.Set` tail off the memo, diverging from the ponyfill canon
+    const reused = optionalRoot || recv.receiverIndependent
+      ? null : reuseOuterGuardObjectSrc(rootNode, node, rootIsReceiver, deoptPositions, metaPath);
+    const reusedOuterRef = reused?.outerRef ?? null;
+    // skip decided AFTER the reuse lookup: a reused override DISCARDS the substituted receiver
+    // src below, so the receiver leaf's own substitution is the only channel left carrying the
+    // root rename - it must stay live to compose into the ENCLOSING guard's raw root text (the
+    // guard owner's compose iterates every transform in its range, so the leaf lands in the
+    // memoize slot; skipping it there leaves `_ref = globalThis.foo` raw - ie:11 ReferenceError)
+    if (recv.skipNode && !(isProxyGlobalLeaf && composeSafeForInnerLeaf) && !(reused && recv.substituted)) {
       skippedNodes.add(recv.skipNode);
     }
-    const reused = optionalRoot ? null : reuseOuterGuardObjectSrc(rootNode, node, rootIsReceiver, deoptPositions, metaPath);
-    const reusedOuterRef = reused?.outerRef ?? null;
     if (reused) ({ objectSrc, isNonIdent } = reused);
     const argsSrc = isCall ? sliceBetweenParens(parent) : null;
     const start = isCall ? parent.start : node.start;
@@ -1096,6 +1206,10 @@ export function createPolyfillEmitter({
     // earlier, above the proxy-global guard-root block, so the memoized receiver ref precedes the guard ref
     const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
 
+    const rebindTailBoundary = optionalRootCapturesIntoRef && !methodCall && rootNode && !recv.receiverIndependent
+      ? proxyTailBoundaryAfterRoot({
+        receiver: node.object, rootNode, metaPath, code, adapter: estreeAdapter, resolveGlobalPolyfill,
+      }) : null;
     const built = buildReplacement(binding, objectSrc, {
       isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions: effectiveDeopt,
       optionalCall: isCall && parent.optional, args: argsSrc,
@@ -1121,12 +1235,11 @@ export function createPolyfillEmitter({
       receiverIndependent: recv.receiverIndependent,
       // advanced past redundant proxy hops right above the memoized root - the raw
       // stitched tail must not re-read them (`_ref.self.X` off-engine throw)
-      tailBoundary: optionalRootCapturesIntoRef && !methodCall && rootNode && !recv.receiverIndependent
-        ? proxyTailBoundaryAfterRoot({ receiver: node.object, rootNode, metaPath, code, adapter: estreeAdapter }) : null,
+      tailBoundary: rebindTailBoundary,
       parenLookupOnly, methodCall, bareParenLookup,
     });
     let { replacement } = built;
-    const { split } = built;
+    const { split, guardRef: builtGuardRef } = built;
     if (optionalRoot) {
       const { needsParens, tipEnd } = resolveGuardWrap({ metaPath, isCall, start, end });
       if (needsParens) ({ replacement, end } = wrapGuardOverTail(replacement, start, end, tipEnd));
@@ -1138,12 +1251,35 @@ export function createPolyfillEmitter({
     // would fuse into a call (`prev\n(SE,_at(obj).call(obj,0))` -> `prev(SE,...)`).
     // `asiGuardLeadingParen` is a no-op for non-`(`-leading replacements
     replacement = asiGuardLeadingParen(replacement, metaPath, start);
+    // a receiver-independent collapse under a guard-reuse candidate DISCARDS the root span
+    // (`(() => globalThis)().self.Set` -> `_Set`): its nested rewrites (the IIFE's own `globalThis`)
+    // have no slot in this content, but the OUTER's guard re-emits that span substituted - declare
+    // the outer's ref as an absorbing guard so compose retires them there, exactly like a reuse
+    const independentUnderReuse = recv.receiverIndependent && reuseCandidateRef ? reuseCandidateRef : null;
+    // a guard test built over this root publishes a hoist slot right after `(_ref = `: a LATER
+    // inner erase-refusal claims through the root and hoists its guard prefix there (the memo
+    // test then catches the short-circuited void 0 - see the guard-hoist protocol in the queue)
+    const guardAnchor = builtGuardRef ? `(${ builtGuardRef } = ` : null;
     const hint = createRewriteHint({
+      guardSlot: guardAnchor && replacement.includes(guardAnchor) ? guardAnchor : undefined,
+      guardOwn: built.guardText && replacement.startsWith(built.guardText)
+        ? { prefixEnd: built.guardText.length } : undefined,
       rootRaw,
-      guardRef: preAllocatedGuardRef ?? reusedOuterRef,
+      guardRef: preAllocatedGuardRef ?? reusedOuterRef ?? independentUnderReuse,
       deoptPositions: effectiveDeopt,
       objectStart: node.object.start,
-      absorbsRoot: !!reusedOuterRef,
+      absorbsRoot: !!reusedOuterRef || !!independentUnderReuse,
+      // guard-reuse replaces `objectSrc` wholesale, so the receiver's own prefix-substitution
+      // shape no longer describes the emitted content - suppress it rather than mislead compose
+      subPrefix: reused ? null : recv.subPrefix,
+      subTailStart: reused ? null : recv.subTailStart,
+      subStart: reused ? null : recv.subStart,
+      // a rebind that advanced past dropped proxy hops stitches its body tail from this source
+      // position - an inner needle rooted in the guard rebuilds against the SAME boundary (the
+      // migrate-object shape has no single position, so only the plain numeric case is recorded).
+      // a guard-REUSE stitch advances the same way, so its boundary feeds the same hint slot
+      guardTailStart: typeof rebindTailBoundary === 'number' ? rebindTailBoundary
+        : typeof reused?.tailBoundary === 'number' ? reused.tailBoundary : null,
     });
     const splitPoint = node.object.end;
     const canSplit = split && !optionalRoot && !recv.substituted && !reusedOuterRef
@@ -1158,7 +1294,10 @@ export function createPolyfillEmitter({
     // proxy-global leaves in chain-receiver path stay live - their identifier visitor
     // emits the substitution that compose folds into outer's rootRaw/guard slot. for
     // non-chain paths the chain.src embed already carries the substituted form so the
-    // identifier visit would only queue a needle compose drops, but harmless to allow
+    // identifier visit would only queue a needle compose drops, but harmless to allow.
+    // a RAW captured guard root (no resolver rebuilt its text) needs the same live channel:
+    // the identifier's substitution composes into the guard's verbatim rootRaw slot, and
+    // skipping it here leaves the memoized root reading a bare `globalThis` off-engine
     if (!recv.substituted) skipProxyGlobal(node);
   }
 
@@ -1320,12 +1459,28 @@ export function createPolyfillEmitter({
       const rootPure = resolveGlobalPolyfill(rootIdent.name);
       const rootAliased = !rootPure && !POSSIBLE_GLOBAL_OBJECTS.has(rootIdent.name);
       if (!rootPure && !rootAliased) return null;
-      // an optional-rebind caller (`suppressInject`) DISCARDS this src for a raw `_ref` tail - a
-      // substituted result would inject a dead pure import AND report `substituted`, closing the
-      // guard-collapse gate that resolves the memoized root; bail so the guard owns the collapse
-      if (suppressInject) return null;
       const dropped = dropLeadingProxyHops(hops, assignAliasCtx, true);
-      if (!dropped.boundary) return null;
+      // claimable static right above the proxy-hop prefix: the AST emitter reads it THROUGH the
+      // kept assignment under the shared collapse assumption (`(n = globalThis.window).self.Set`
+      // -> `(n = _globalThis.window, _Set)`) - a proxy hop sees through even a nav value with no
+      // ponyfill entry, so the claim does not require the hop prefix to be droppable. a live `?.`
+      // never reaches this render (the suppress gate above owns it), so an optional connector on
+      // the way is deopt-dead. a dotted or (sequence-peeled) string-literal key claims; the
+      // harvested key SE re-emits inside the claim sequence at its native slot (after the
+      // assignment, before the read) - `(m = X)[(c++, "Set")].name` -> `(m = _X, c++, _Set)`
+      let claimIdx = hops.length - 1;
+      while (claimIdx >= 0 && POSSIBLE_GLOBAL_OBJECTS.has(hopClaimKey(hops[claimIdx]))) claimIdx--;
+      const claimHop = claimIdx >= 0 && hopClaimKey(hops[claimIdx]) !== null
+        && hops.slice(claimIdx + 1).every(hop => hopClaimKey(hop) !== null) ? hops[claimIdx] : null;
+      // a MUTATED static never claims its ponyfill (the runtime surface carries the user's
+      // patch): decline the WHOLE render, not just the claim - the kept-root hop-drop below
+      // would consume the span the mutated-static receiver-swap transform needs (`(m = ...,
+      // _self)`), crashing the compose. verbatim source keeps every needle slot alive, and the
+      // swap + the root's own substitution compose into it to the AST emitter's exact shape
+      if (claimHop && isMutatedStaticPair('globalThis', hopClaimKey(claimHop), mutatedStatics)) return null;
+      const claimTailWrapped = !!claimHop && chainClaimTailWrapped(hops, claimIdx);
+      const claimPure = claimHop && !claimTailWrapped ? resolveGlobalPolyfill(hopClaimKey(claimHop)) : null;
+      if (!dropped.boundary && !claimPure) return null;
       const rootBinding = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : nodeSrc(rootIdent);
       // rooting THROUGH the assignment proves the ROOT is a proxy global, not that the assigned VALUE is
       // one. a value navigating a hop with no ponyfill entry (`(n = globalThis.window).self.X`) is not the
@@ -1358,6 +1513,40 @@ export function createPolyfillEmitter({
       // keep that remainder so the re-emitted assignment stays balanced
       const assignSrc = `${ code.slice(chainAssign.start, caRhs.start) }${ rhsSrc }${
         code.slice(caRhs.end, chainAssign.end) }`;
+      // an optional-rebind caller (`suppressInject`) memoizes the root in ITS guard; a claim-sound
+      // static spanning the WHOLE receiver collapses receiver-INDEPENDENT (`_Set` - the ponyfill
+      // canon the AST emitter reads through the memo). the root subtree stays UNSKIPPED: the raw
+      // guard re-emits it, and the root identifier's own substitution composes into that slot.
+      // a tail-bearing claim (`_Map` under `.prototype.has`) is NOT rendered here - the static's
+      // own transform claims it and compose folds it into the verbatim stitch. key SEs have no
+      // re-emit slot under the guard - bail like the non-claimable shapes
+      if (suppressInject) {
+        if (!claimPure || claimTailWrapped || claimHop !== hops[0]
+          || hops.slice(claimIdx + 1).some(hop => hop.computed)) return null;
+        return {
+          src: injectPureImport(claimPure.entry, claimPure.hintName), leafNode: chainAssign,
+          receiverIndependent: true,
+          subPrefix: injectPureImport(claimPure.entry, claimPure.hintName),
+          subTailStart: receiverObj.end, subStart: receiverObj.start,
+        };
+      }
+      if (claimPure) {
+        // key SE of the claimed span's computed hops, in native eval order (root side first)
+        const claimKeySe = [];
+        for (let i = hops.length - 1; i >= claimIdx; i--) {
+          if (hops[i].computed) collectFoldedReceiverSideEffects(hops[i].property, claimKeySe);
+        }
+        const claimInner = `${ assignSrc }, ${
+          [...claimKeySe.map(effect => nodeSrc(effect)), injectPureImport(claimPure.entry, claimPure.hintName)].join(', ') }`;
+        skipCollapsedChainExceptRootCall(claimHop, skippedNodes, claimKeySe);
+        const claimTailStart = afterOptional(claimHop.end, !(hops[claimIdx - 1]?.computed ?? false));
+        const claimTail = code.slice(claimTailStart, receiverObj.end);
+        return {
+          src: `(${ claimInner })${ claimTail }`, leafNode: chainAssign,
+          bindingInner: claimTail ? undefined : claimInner,
+          subPrefix: `(${ claimInner })`, subTailStart: claimTailStart, subStart: receiverObj.start,
+        };
+      }
       const bindingInner = keepsAssignRoot ? assignSrc
         : `${ assignSrc }, ${ [...dropped.droppedSe.map(effect => nodeSrc(effect)), rootBinding].join(', ') }`;
       const binding = `(${ bindingInner })`;
@@ -1374,15 +1563,23 @@ export function createPolyfillEmitter({
       // has). decline to the raw source shape, faithful in every realm
       if (keepsAssignRoot && dropped.droppedSe.length && dropped.boundary?.optional) return null;
       if (hasMidChainWrappers) {
+        // wrapper rebuild: not prefix + verbatim tail, so the substitution record degenerates to
+        // the whole span (see the main wrapped-case return below)
+        const caRebuilt = rebuildWrappedProxyChain(hops, binding, code, keepsAssignRoot,
+          keepsAssignRoot && !!dropped.boundary?.optional,
+          keepsAssignRoot ? dropped.droppedSe.map(effect => nodeSrc(effect)) : []);
         return {
-          src: rebuildWrappedProxyChain(hops, binding, code, keepsAssignRoot,
-            keepsAssignRoot && !!dropped.boundary?.optional,
-            keepsAssignRoot ? dropped.droppedSe.map(effect => nodeSrc(effect)) : []), leafNode: chainAssign,
+          src: caRebuilt, leafNode: chainAssign,
           bindingInner: hops.length ? undefined : bindingInner,
+          subPrefix: caRebuilt, subTailStart: receiverObj.end, subStart: receiverObj.start,
         };
       }
-      const tail = code.slice(afterOptional(dropped.boundary.end, !(hops.at(-1)?.computed ?? false)), receiverObj.end);
-      return { src: binding + tail, leafNode: chainAssign, bindingInner: tail ? undefined : bindingInner };
+      const tailStart = afterOptional(dropped.boundary.end, !(hops.at(-1)?.computed ?? false));
+      const tail = code.slice(tailStart, receiverObj.end);
+      return {
+        src: binding + tail, leafNode: chainAssign, bindingInner: tail ? undefined : bindingInner,
+        subPrefix: binding, subTailStart: tailStart, subStart: receiverObj.start,
+      };
     }
 
     const { hops, hasMidChainWrappers } = walkReceiverHops(receiverObj);
@@ -1446,9 +1643,14 @@ export function createPolyfillEmitter({
       // a proxy-global static collapses even when the leaf is an ALIAS binding (`const g = globalThis; g.Map`):
       // resolveObjectName followed the binding to confirm the static, so a bound leaf is fine here
       const { value: caRhs, outer: chainAssign } = peelChainAssignment(staticHop.object);
-      // a DIRECT chain-assign (`(a = globalThis).Map`) is preserved as a sequence ahead of the static; one buried
-      // under another SE wrapper (`(eff(), a = globalThis).Map`) can't be rebuilt here, so defer to the visitor
-      if (!chainAssign && prependChainAssignmentEffect(staticHop, []).length) return null;
+      // a DIRECT chain-assign (`(a = globalThis).Map`) is preserved as a sequence ahead of the static; one
+      // BURIED below proxy hops (`(n = globalThis)?.self.Set`) routes through the chain-assign-rooted render,
+      // whose static claim spells the same sequence shape (`(n = _globalThis, _Set)`); a chain-assign under
+      // another SE wrapper (`(eff(), a = globalThis).Map`) can't be rebuilt by either - defer to the visitor
+      if (!chainAssign && prependChainAssignmentEffect(staticHop, []).length) {
+        leaf = unwrappedLeaf;
+        return chainAssignRootedChainSrc() ?? null;
+      }
       // harvest the SE buried in the proxy hops BELOW the static (`globalThis[(c++,'self')].Symbol` -> `(c++,
       // _Symbol)`) so the collapse re-emits it, matching babel + the non-static leaf branch below; without it the
       // static collapse silently DROPS the effect (a SE-loss). the harvest pops those hops, `hops.length` the rest
@@ -1493,10 +1695,23 @@ export function createPolyfillEmitter({
     }
     if (!hasMidChainWrappers) {
       const tailStart = afterOptional(leafBoundary.end, !(hops.at(-1)?.computed ?? false));
-      return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: skipNode, receiverIndependent };
+      // `subPrefix`/`subTailStart`/`subStart` describe the collapse as prefix-substitution + verbatim
+      // tail, so compose can rebuild an overlapping inner transform's needle across it (the inner's
+      // source slice shares this chain start, and its tail past `subTailStart` survives verbatim)
+      return {
+        src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: skipNode, receiverIndependent,
+        subPrefix: polyfillBinding, subTailStart: tailStart, subStart: receiverObj.start,
+      };
     }
-    // wrapped case: rebuild chain inner-to-outer (wrapper tokens between hops are dropped)
-    return { src: rebuildWrappedProxyChain(hops, polyfillBinding, code), leafNode: skipNode, receiverIndependent };
+    // wrapped case: rebuild chain inner-to-outer (wrapper tokens between hops are dropped). the
+    // rebuilt text is not prefix + verbatim tail, so the substitution record degenerates to the
+    // WHOLE span (`subTailStart` = span end): an inner needle covering the full receiver rebuilds
+    // as the complete substituted src
+    const rebuilt = rebuildWrappedProxyChain(hops, polyfillBinding, code);
+    return {
+      src: rebuilt, leafNode: skipNode, receiverIndependent,
+      subPrefix: rebuilt, subTailStart: receiverObj.end, subStart: receiverObj.start,
+    };
   }
 
   // unified receiver-source resolution for instance-call emission. tries (a) direct
@@ -1521,7 +1736,7 @@ export function createPolyfillEmitter({
     // receiver's hop members ABOVE the memoized root must be skipped - else the member visitor rewrites them
     // (`(call).self -> _self`, `Map -> _Map`) and the compose folds that into the rebound tail (`_self.X` vs
     // babel `_ref.self.X`, or an orphan crash). bounded by `rebindRootNode` so the root's own guard substitutes
-    if (suppressCollapseInject) skipReceiverTailMembers(receiverObj, skippedNodes, rebindRootNode);
+    if (suppressCollapseInject) skipReceiverTailMembers(receiverObj, rebindTailMembers, rebindRootNode, resolveGlobalPolyfill);
     const direct = resolveReceiverPolyfill(unwrapped, metaPath);
     if (direct) return {
       src: injectPureImport(direct.entry, direct.hintName),
@@ -1541,6 +1756,10 @@ export function createPolyfillEmitter({
       // a receiver-INDEPENDENT collapse (optional rebind whose whole tail folds to a pure ctor binding):
       // the caller reads `src` as the guard body directly instead of stitching the raw `_ref.` tail
       receiverIndependent: chain.receiverIndependent,
+      // prefix-substitution shape of the collapse, threaded into the rewrite hint for needle rebuild
+      subPrefix: chain.subPrefix,
+      subTailStart: chain.subTailStart,
+      subStart: chain.subStart,
     };
     // SE-tail proxy-global receiver: `(0, globalThis).flat?.(...)` - direct SequenceExpression whose
     // single-level tail is a polyfillable proxy-global. shares `seTailProxyGlobalSubst` with the
@@ -1967,7 +2186,8 @@ export function createPolyfillEmitter({
     // does not short-circuit (native skips a computed-key eval on a nullish receiver) - matches
     // babel-compat.js, which folds the same SE into its conditional alternate
     const alternate = wrapSideEffects(`${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`, sideEffects, outerMemo);
-    let replacement = `${ tests.join(' || ') } ? void 0 : ${ alternate }`;
+    const testsPrefix = `${ tests.join(' || ') } ? void 0 : `;
+    let replacement = `${ testsPrefix }${ alternate }`;
     let emitEnd = parent.end;
     const { needsWrap, tipEnd } = chainEmitWrapInfo(metaPath, parent);
     if (needsWrap) {
@@ -1975,7 +2195,25 @@ export function createPolyfillEmitter({
       replacement = asiGuardLeadingParen(replacement, metaPath, parent.start);
     }
 
-    transforms.add(parent.start, emitEnd, replacement);
+    // the chainStart test's method-get position doubles as a guard-hoist slot: a LATER inner
+    // erase-refusal claims THROUGH this receiver and hoists its root guard here (`_ref2 =
+    // null == root ? void 0 : _flat(...)` - the AST emitter's nested-guard shape). the
+    // optional-ACCESS branch needs no slot (its memo test catches the guarded value itself);
+    // the testless all-non-poly chain has no test to hoist into
+    const methodGetAnchor = mRef !== null && !innerCallee.optional ? `(${ mRef } = ` : null;
+    const recvAnchor = !isReceiverSafe && !isSuper ? `(${ aRef } = ` : null;
+    transforms.add(parent.start, emitEnd, replacement, null, {
+      guardSlot: methodGetAnchor !== null && replacement.includes(methodGetAnchor) ? methodGetAnchor : undefined,
+      // the receiver's memo slot inside the helper-GET: a guarded claim spanning the WHOLE
+      // receiver replaces the substituted receiver text there (needle composition against a
+      // substituted receiver has no reliable slot - same rationale as the instance root slot)
+      recvAnchor: recvAnchor !== null && replacement.includes(recvAnchor) ? recvAnchor : undefined,
+      receiverStart: innerCallee.object.start,
+      receiverEnd: innerCallee.object.end,
+      // an inner combined chain is itself a guarded producer: its whole OR-test hoists into
+      // an enclosing test slot the same way a claim guard does
+      guardOwn: tests.length && replacement.startsWith(testsPrefix) ? { prefixEnd: testsPrefix.length } : undefined,
+    });
     skippedNodes.add(innerCallee);
     skippedNodes.add(parent);
     skipProxyGlobal(node);
@@ -2085,10 +2323,54 @@ export function createPolyfillEmitter({
     // assignment to side effects so emit becomes `(a = Array, _Array$from)(args)`.
     // instance dispatch never reaches here (routes through replaceInstance), so no risk of
     // duplicating with memoize-captured form
-    // the replacement erases the receiver navigation - stand down where that navigation is not erasable
-    // (a live `?.` over a chain-assign storing something not provably the global): the guard would go with
-    // it and the static would run where the source short-circuits. same provider predicate babel asks
-    if (!staticMayEraseReceiver(node.object, ({ name }) => resolveGlobalPolyfill(name))) return;
+    // the replacement erases the receiver navigation - where that navigation is NOT erasable (a live
+    // `?.` over a value navigating an unresolvable proxy hop - `(b = globalThis.window)?.self.Array
+    // .from(x)`), the guard must survive, but a raw static there is exactly the missed polyfill the
+    // claim exists for (IE11 has no native `from`). emit the claim INSIDE the preserved guard:
+    // `null == (b = _globalThis.window) ? void 0 : _Array$from(x)` - the root evaluates once in the
+    // test (no memo: the alternate is receiver-independent), short-circuit intact. the refusal set IS
+    // the claim-sound set: it fires only on proxy-TIER unponyfilled hops (window-class forwarders),
+    // never on unknown-object navs (those never resolve a static in the first place). SE channels
+    // (computed-key effects / receiver effects) keep the raw stand-down - no re-emit slot here
+    if (!staticMayEraseReceiver(node.object, ({ name }) => resolveGlobalPolyfill(name))) {
+      if (sideEffects || receiverEffectCount) return;
+      const { rootNode } = findChainRoot(node, metaPath?.scope, metaPath);
+      if (!rootNode) return;
+      let rootSrc = resolveProxyGlobalChainSrc(rootNode, metaPath)?.src
+        ?? chainAssignGuardRootSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill })
+        ?? callRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill });
+      if (!rootSrc) return;
+      // a kept-assign root spells paren-stripped (its usual consumer embeds it in a memo slot
+      // that parenthesizes) - the `==` operand needs the parens back
+      if (unwrapNode(rootNode)?.type === 'AssignmentExpression') rootSrc = `(${ rootSrc })`;
+      // an OUTER queued transform already guards this root (a trailing instance dispatch
+      // captured it into a memo): the claim composes into that guard's body, so it emits
+      // PLAIN - a second guard here would double-wrap the alternate
+      const outerGuarded = !!transforms.findOuterGuardRef(rootNode);
+      // an OPTIONAL invocation (`from?.(x)`) keeps its user-written `?.()` outside the claim
+      // (the AST emitter's visible-deopt canon: `(guard ? void 0 : _Array$from)?.(x)`) - the
+      // earlier optional-callee widen consumed the `?.` token into [start, end], so the sealed
+      // claim re-emits it. only a PLAIN call folds its arguments into the alternate
+      const invoke = parent?.type === 'CallExpression' && !parent.optional && isCallee(node, parent);
+      const optionalCallee = parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent);
+      const claimEnd = invoke ? parent.end : end;
+      const claimBody = invoke ? `${ binding }(${ sliceBetweenParens(parent) ?? '' })` : binding;
+      const { needsParens } = resolveGuardWrap({ metaPath, isCall: invoke, start, end: claimEnd });
+      const guardPrefix = `null == ${ rootSrc } ? void 0 : `;
+      const guarded = outerGuarded ? claimBody : `${ guardPrefix }${ claimBody }`;
+      // the plain guarded form declares guard OWNERSHIP: the queue's ownership pass migrates
+      // the guard into the nearest enclosing test slot (an outer combined / instance guard) -
+      // left on the claim it would ride into a helper-GET argument and hand it `void 0` on the
+      // short-circuit path. the paren-wrapped and optional-callee spellings own their tokens
+      const ownHint = !outerGuarded && !optionalCallee && !needsParens
+        ? { guardOwn: { prefixEnd: guardPrefix.length } } : null;
+      transforms.add(start, claimEnd,
+        optionalCallee ? `(${ guarded })?.` : !outerGuarded && needsParens ? `(${ guarded })` : guarded,
+        null, ownHint);
+      if (invoke) skippedNodes.add(parent);
+      skipCollapsedChainExceptRootCall(node, skippedNodes, []);
+      return;
+    }
     transforms.add(start, end,
       composeBindingReplacement({ binding, receiverObj: node.object, sideEffects, insertAt: receiverEffectCount, metaPath, start }));
   }
@@ -2182,6 +2464,24 @@ export function createPolyfillEmitter({
     asiGuardLeadingParen,
     handleInExpression,
     handleSymbolIterator,
+    // mirror of the AST emitter's memo-blind re-visit: a dispatch whose receiver chain root is
+    // already guarded by an OUTER queued transform gets its receiver rebound on that memo ref, and
+    // the AST side re-types the tail through the memo's initializer. an OBJECT nav re-resolves
+    // there (`_ref.Array.prototype` keeps its typed variant), but a kept-assign value navigating
+    // an unresolvable hop stays opaque, and a PRIMITIVE receiver (a `.name` string) is the result
+    // of a replaced value-read that side no longer tracks - both land on the common variant, so
+    // the typed Maybe entry here widens to match. exposed so the usage callback widens BEFORE
+    // injecting the import - a late widen would strand the typed import as dead
+    memoBlindWidensInstanceDispatch(node, metaPath) {
+      if (node.type !== 'MemberExpression') return false;
+      const rootNode = findChainRoot(node, metaPath?.scope, metaPath)?.rootNode;
+      if (!rootNode || !transforms.findOuterGuardRef(rootNode)) return false;
+      // ONLY a primitive receiver widens: the AST emitter re-types object navs through the
+      // memo's registered write (the plugin's own provenance channel), so a kept-assign root
+      // no longer blinds it - a primitive (a `.name` string) is the result of a replaced
+      // value-read that side still does not track
+      return resolveNodeType(metaPath.get('object'))?.primitive === true;
+    },
     nodeSrc,
     replaceGlobalOrStatic,
     replaceInstance,
@@ -2195,4 +2495,36 @@ export function createPolyfillEmitter({
     unwrapParensSrc,
     wrapSideEffects,
   };
+}
+
+// a substitution may have collapsed the receiver to a bare binding (`_Map`) while the
+// caller's `isNonIdent` flag still describes the ORIGINAL source shape - re-check the text
+// so a bare claim is not pointlessly memoized (`_ref = _Map`)
+const BARE_IDENT_TEXT = /^[$a-z_][\w$]*$/i;
+
+// allocate a fresh ref and fold `bodyObj` into a leading memo (`_ref = <bodyObj>`) so the
+// receiver evaluates ahead of a folded key SE - shared by the receiver-before-key hoists
+// in `buildReplacement`
+function memoHoist(bodyObj, scopeTracker) {
+  const ref = scopeTracker.genRef();
+  return { leadingMemo: `${ ref } = ${ bodyObj }`, bodyObj: ref };
+}
+
+// claim key of a chain-assign-rooted hop: a dotted key, or a (sequence-peeled) string-literal
+// computed key; null = unclaimable spelling
+function hopClaimKey(hop) {
+  if (!hop.computed) return hop.property?.name ?? null;
+  const { tail } = peelNestedSequenceExpressions(hop.property);
+  return typeof tail?.value === 'string' ? tail.value : null;
+}
+
+// wrapper token INSIDE the verbatim tail slice above the claim hop (the root paren around the
+// kept assignment is consumed into the assign render, so a whole-chain flag over-declines)
+function chainClaimTailWrapped(hops, claimIdx) {
+  for (let i = 0; i < claimIdx; i++) {
+    const next = hops[i].object;
+    if (next && (next.type === 'ParenthesizedExpression' || next.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(next.type))) return true;
+  }
+  return false;
 }
