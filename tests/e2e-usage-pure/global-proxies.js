@@ -163,6 +163,54 @@ QUnit.test('global-proxy: chain-assign hop with keyless computed leaf collapses'
   assert.deepEqual(keyLog, ['k']);
 });
 
+// a KEPT chain-assign root (value navigates the absent-in-Node `window`) under a live `?.`
+// with a sequence-prefix SE: the SE must run exactly once and the guard must short-circuit
+// (the helper THROWS on undefined where native yields it) - one emitter used to drop both
+QUnit.test('global-proxy: kept-root symbol access keeps its SE and guard', assert => {
+  let a;
+  let sc = 0;
+  const method = (sc++, a = globalThis.window)?.self[Symbol.iterator];
+  assert.same(sc, 1);
+  assert.same(a, globalThis.window);
+  assert.same(method, globalThis.window === undefined ? undefined : method);
+});
+
+// well-known-symbol receiver folding by CONTEXT: the GET folds the `window.self` nav to the
+// pure self entry (`window` is absent here, so the raw nav was a ReferenceError) and yields
+// undefined without throwing; a write host (`++` / `delete`) folds its receiver like the
+// plain-key member channel (the raw `globalThis.self` receiver was a TypeError)
+QUnit.test('global-proxy: symbol-iterator receiver folds by context', assert => {
+  // eslint-disable-next-line unicorn/prefer-global-this -- the unresolvable `window` root is the form under test
+  assert.same(typeof window.self[Symbol.iterator], 'undefined');
+  try {
+    globalThis.self[Symbol.iterator]++;
+    assert.same(typeof Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator).value, 'number');
+  } finally {
+    delete globalThis.self[Symbol.iterator];
+  }
+  assert.same(Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator), undefined);
+  // the `in` probe folds the same unresolvable-root nav (raw `window` was a ReferenceError)
+  // eslint-disable-next-line unicorn/prefer-global-this -- the unresolvable `window` root is the form under test
+  assert.false(Symbol.iterator in window.self);
+});
+
+// a for-x aliased body read serves the per-iteration slot value instead of re-collapsing into
+// the get-iterator helper (which throws on the non-callable slot value the head just wrote).
+// the lowered leg desugars for-of into an ES5 loop - no for-x head survives, so the alias
+// deopt legitimately does not apply there
+testUnlessDetectLowered('global-proxy: for-x aliased symbol slot read stays raw', assert => {
+  try {
+    let last;
+    for (globalThis.self[Symbol.iterator] of [[1], [2]]) {
+      last = globalThis.self[Symbol.iterator];
+    }
+    assert.deepEqual(last, [2]);
+  } finally {
+    delete globalThis.self[Symbol.iterator];
+  }
+  assert.same(Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator), undefined);
+});
+
 QUnit.test('IIFE-proxy behind chain assignment: assignment and side effect preserved', assert => {
   let calls = 0;
   let captured;
