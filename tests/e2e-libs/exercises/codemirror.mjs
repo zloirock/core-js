@@ -102,9 +102,10 @@ export function run() {
   state = tr1.state;
   // invariant: the mapped position still points at the same text in the NEW document
   const mapped = tr1.changes.mapPos(anchor);
-  check('mapped_pos_tracks_text', state.doc.toString().indexOf('class Counter'), mapped);
+  const anchorInNewDoc = state.doc.toString().indexOf('class Counter');
+  check('mapped_pos_tracks_text', anchorInNewDoc, mapped);
   // map the selection RANGE through the change (not the raw int) and check it lands on the text
-  check('mapped_selection', cursor.map(tr1.changes).from, state.doc.toString().indexOf('class Counter'));
+  check('mapped_selection', cursor.map(tr1.changes).from, anchorInNewDoc);
 
   const end = state.doc.length;
   state = state.update({ changes: { from: end, to: end, insert: TAIL } }).state;
