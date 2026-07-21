@@ -1528,7 +1528,7 @@ export default function plugin(api, options) {
         const markersGone = this.file.path.node.body.every(n => !ESM_MARKER_TYPES.has(n.type));
         if (importStyleOption === undefined && importStyle === 'import' && markersGone && injector.hasFlushed) {
           debugOutput?.warn(
-            '[core-js] sibling plugin stripped ESM markers after our traversal; emitted imports '
+            'sibling plugin stripped ESM markers after our traversal; emitted imports '
             + 'will stay ESM while file body is CJS. set `importStyle: "require"` to avoid mixing',
           );
         }

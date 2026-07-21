@@ -39,7 +39,7 @@ const PRE_POST_UNSAFE_BUNDLERS = new Set(['bun', 'esbuild']);
 // `phase` controls when the plugin runs. See index.d.ts for the full trade-off matrix.
 // `entry-global` is pinned to pre so `import 'core-js'` is seen before siblings transform it.
 const unplugin = createUnplugin((options, meta) => {
-  const { phase, ...rest } = options;
+  const { phase, ...rest } = options ?? {};
   const isEntryGlobal = rest.method === 'entry-global';
 
   // treat explicit `null` like `undefined` so `{ phase: cond ? 'post' : null }` falls back.
