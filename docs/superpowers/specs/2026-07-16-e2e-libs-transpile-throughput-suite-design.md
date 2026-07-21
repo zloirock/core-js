@@ -127,7 +127,7 @@ after:
   usage-global sees them where they are used.
 - Bundlers in this tier are limited to those that actually emit ES5: **rollup** (via a custom Babel
   transform rather than `@rollup/plugin-babel` — see §13; webpack + `babel-loader` was deferred, §12).
-  esbuild/rolldown/bun do not down-compile below ES2015 and are excluded from the runtime tier (they
+  esbuild/rolldown do not down-compile below ES2015 and are excluded from the runtime tier (they
   remain in throughput).
 
 ## 7. RxJS exercise (`exercises/rxjs.mjs`)
