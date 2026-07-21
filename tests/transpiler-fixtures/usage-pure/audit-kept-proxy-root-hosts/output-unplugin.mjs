@@ -33,7 +33,7 @@ let s;
 export const spreadArg = Math.max(...((null == (s = _globalThis.window) ? void 0 : _Array$from)?.([1, 2]) ?? [0]));
 
 let d;
-delete (d = _globalThis.window, _self).someUserKey;
+delete (null == (d = _globalThis.window) ? void 0 : _self.someUserKey);
 
 export { w };
 
@@ -96,3 +96,4 @@ export { mapOfKept };
 // collapses once, feeding both levels.
 let nst;
 export const { constructor: { of: ofNested } = {} } = ((nst = _globalThis.window)?.[c4++, "Array"].prototype) ?? {};
+

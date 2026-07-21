@@ -152,6 +152,16 @@ export default class ImportInjector extends ImportInjectorState {
     return this.isNameTaken(name);
   }
 
+  // a composed-out ref (its only surviving occurrence was stripped by the ref-canon dead-memo
+  // pass) leaves the declaration sets entirely - flush() must not print a dead `var _refX;`
+  dropRefs(names) {
+    for (const name of names) {
+      this.#refs.delete(name);
+      for (const [, set] of this.#generatedByPrefix) set.delete(name);
+      this.usedNames.delete(name);
+    }
+  }
+
   // final print-order canonicalization (see ref-canon.js). flush() then declares the
   // renamed refs under their canonical names in slot order
   canonicalizeRefs(renameMap) {
