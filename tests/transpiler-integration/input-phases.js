@@ -9,6 +9,9 @@ const OriginalMap = Map;
 globalThis.Map = class PatchedMap extends OriginalMap {
   static groupBy() { return 'patched'; }
 };
+// the sibling replaces this marker with a polyfillable call between our two passes - only the
+// POST pass can see it, and it must both substitute and declare whatever it emits
+export const injected = 'SIBLING_INJECTS_HERE';
 export const results = {
   patched: Map.groupBy([1], x => x),
   control: [1, 2, 3, 4].filterReject(x => x % 2),
