@@ -499,6 +499,12 @@ export function createReturnType({
       }
       // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
       bindTypeParam(innerName, typeParamNames, typeParamMap, resolveInnerType(resolveNodeType(arg)));
+      // a SPREAD contributes an unknown NUMBER of values, so every later param/arg pairing is
+      // off by an amount this phase cannot know (`pick(...arr, nums)` may land `nums` on any
+      // param, or on none). the spread's own pairing above still stands - stop before the
+      // shifted ones rather than bind them to the wrong argument, which would key a narrow to
+      // a type the value may never have
+      if (arg.node?.type === 'SpreadElement') break;
     }
     // phase 1.5: a supplied-but-opaque type-param binds opaque (null) so the phase-2
     // default AND the type-param-declaration fallback inside `substTypeRefAsType` both
