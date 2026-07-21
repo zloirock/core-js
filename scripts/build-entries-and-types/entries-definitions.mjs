@@ -4066,14 +4066,6 @@ export const proposals = {
       'esnext.symbol.custom-matcher',
     ],
   },
-  'promise-all-keyed': {
-    link: 'https://github.com/tc39/proposal-await-dictionary',
-    stage: 2.7,
-    modules: [
-      'esnext.promise.all-keyed',
-      'esnext.promise.all-settled-keyed',
-    ],
-  },
   'promise-all-settled': {
     link: 'https://github.com/tc39/proposal-promise-allSettled',
     stage: 4,
