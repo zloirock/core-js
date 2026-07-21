@@ -5,19 +5,49 @@
 // (plugin-less bundle of the usage entry). An internal parse-vs-inject split would need to
 // instrument unplugin's transform hook and is intentionally out of scope here.
 //
-// Usage:  node throughput.mjs [libFilter] [bundlerFilter]     (N via env N=, default 5)
+// TWO PROFILES. The exhaustive matrix (every bundler x every phase, median of 5) took ~50 min,
+// almost all of it three's usage-mode O(n^2) scan re-run across dimensions the full run already
+// PROVED redundant: overhead is ~invariant across the 6 bundlers, and pre+post is always ~2x a
+// single phase. So the default is a SMOKE - fast libs on every bundler, the slow lib on one
+// representative bundler (rollup), phase `post` only, N=1 (~2 min) - and `--full` restores the
+// matrix (all bundlers x all phases, N defaults to 5) for the occasional re-characterisation.
+//
+// Usage:  node throughput.mjs [libFilter] [bundlerFilter] [--full]   (N via env N=)
 import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, HERE } from './build.mjs';
 import { librariesIn } from './libraries.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const N = Number(process.env.N ?? 5);
-const [libFilter, bundlerFilter] = process.argv.slice(2);
+const FULL = process.argv.includes('--full');
+const [libFilter, bundlerFilter] = process.argv.slice(2).filter(a => a !== '--full');
+const N = Number(process.env.N ?? (FULL ? 5 : 1));
+
+// libs whose largest single module is huge enough that one usage-mode build is ~17s+ (the O(n^2)
+// scan). In smoke they run on ONE representative bundler instead of all six: bundler-invariance is
+// already visible on the fast libs (which do run on all six here) and proven in --full, so paying
+// it again on the slow lib every run is the ~50-min tax. rollup is the one pipeline/artifacts use.
+const SLOW_LIBS = new Set(['three']);
+const SLOW_LIB_BUNDLERS = ['rollup'];
+
 const libs = librariesIn('throughput').filter(l => !libFilter || l.name === libFilter);
-const bundlers = THROUGHPUT_BUNDLERS.filter(b => !bundlerFilter || b === bundlerFilter);
 // a typo'd filter that matches nothing must fail loudly, not write a green empty report
 if (!libs.length) throw new Error(`no throughput library matches filter '${ libFilter }'`);
-if (!bundlers.length) throw new Error(`no bundler matches filter '${ bundlerFilter }'`);
+if (bundlerFilter && !THROUGHPUT_BUNDLERS.includes(bundlerFilter)) {
+  throw new Error(`no bundler matches filter '${ bundlerFilter }'`);
+}
+
+// an explicit bundler filter always wins; otherwise full uses all, smoke trims only the slow libs
+function bundlersFor(lib) {
+  if (bundlerFilter) return [bundlerFilter];
+  return FULL || !SLOW_LIBS.has(lib.name) ? THROUGHPUT_BUNDLERS : SLOW_LIB_BUNDLERS;
+}
+
+// full walks every phase; smoke measures only `post` (pre ~= post, pre+post ~= 2x - both derivable)
+function phasesForRun(method) {
+  return FULL ? phasesFor(method) : (method === 'entry-global' ? [undefined] : ['post']);
+}
+
+console.log(`profile: ${ FULL ? 'FULL matrix' : 'smoke (--full for the exhaustive matrix)' }, N=${ N }`);
 
 async function median(fn) {
   const times = [];
@@ -33,6 +63,7 @@ async function median(fn) {
 
 const rows = [];
 for (const lib of libs) {
+  const bundlers = bundlersFor(lib);
   // per-(bundler) baseline: plugin-less bundle of the usage entry (no core-js import)
   const baseline = {};
   for (const name of bundlers) {
@@ -47,10 +78,11 @@ for (const lib of libs) {
 
   // injection count is bundler-invariant (captureInjections always builds via rollup), but NOT
   // phase-invariant (e.g. usage-pure/pre+post injects one extra module), so capture it once per
-  // (method, phase) and reuse across bundlers. A failed capture is recorded (null), not fatal.
+  // (method, phase) and reuse across bundlers. Only the phases we actually run - each capture is a
+  // full rollup+unplugin build, i.e. another ~17s scan on the slow lib. A failed capture is null.
   const injByCell = {};
   for (const method of lib.methods) {
-    for (const phase of phasesFor(method)) {
+    for (const phase of phasesForRun(method)) {
       const key = `${ method }|${ phase ?? '' }`;
       try {
         injByCell[key] = (await captureInjections(lib.exercise, method, phase)).length;
@@ -62,7 +94,7 @@ for (const lib of libs) {
 
   for (const name of bundlers) {
     for (const method of lib.methods) {
-      for (const phase of phasesFor(method)) {
+      for (const phase of phasesForRun(method)) {
         const label = `${ lib.name }/${ name }/${ method }${ phase ? `/${ phase }` : '' }`;
         try {
           const injections = injByCell[`${ method }|${ phase ?? '' }`];
@@ -100,12 +132,16 @@ function fmt(c) {
   return !c ? '—' : c.error ? 'ERR' : `${ c.overhead ?? c.ms }`;
 }
 let md = `# Throughput (overhead ms over baseline, median of ${ N })\n\n`;
+md += `Profile: **${ FULL ? 'full matrix' : 'smoke' }**`;
+if (!FULL) md += ` — slow libs (${ [...SLOW_LIBS].join(', ') }) on ${ SLOW_LIB_BUNDLERS.join('/') } only, phase \`post\` only; run \`--full\` for every bundler × phase`;
+md += '.\n\n';
 for (const lib of libs) {
   md += `## ${ lib.name }\n\n| ${ head.join(' | ') } |\n| ${ head.map(() => '---').join(' | ') } |\n`;
-  for (const b of bundlers) {
+  for (const b of bundlersFor(lib)) {
     md += `| ${ b } | ${ cells.map(([m, p]) => fmt(find(lib.name, b, m, p))).join(' | ') } |\n`;
   }
-  md += '\n_Cells show unplugin overhead (bundle-with-plugin − plugin-less baseline), in ms. See throughput.json for absolute ms, bytes, injection counts._\n\n';
+  md += '\n_Cells show unplugin overhead (bundle-with-plugin − plugin-less baseline), in ms. '
+    + '`—` = not measured in this profile. See throughput.json for absolute ms, bytes, injections._\n\n';
 }
 await writeFile(join(REPORT, 'throughput.md'), md);
 console.log(`\nreport → ${ join(REPORT, 'throughput.md') }`);
