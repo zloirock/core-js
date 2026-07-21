@@ -378,3 +378,28 @@ QUnit.test('optional chain: computed non-identifier inner member reads through b
   const key = 'pick';
   assert.same(rec[key]?.().flat().at(-1), 11);
 });
+
+// a trailing NON-optional member after an optional poly call is part of the SAME chain:
+// a short-circuit anywhere before it must skip it and yield undefined - a severed emit
+// (`(guard ? void 0 : dispatch).length`) would throw on the void 0 path instead
+QUnit.test('optional chain: short-circuit skips trailing members after a poly call', assert => {
+  function tailAfterCall(o) { return o?.rows.flat?.().length; }
+  assert.same(tailAfterCall(undefined), undefined);
+  assert.same(tailAfterCall({ rows: {} }), undefined);
+  assert.same(tailAfterCall({ rows: [[1], [2, 3]] }), 3);
+  // combined chain with an intermediate hop and a trailing member off the outer optional call
+  function tailAfterCombined(o) { return o?.rows.flat?.().map(x => x + 1).filter?.(x => x > 1).length; }
+  assert.same(tailAfterCombined(undefined), undefined);
+  assert.same(tailAfterCombined({ rows: {} }), undefined);
+  assert.same(tailAfterCombined({ rows: [[0], [1]] }), 1);
+  // trailing optional CALL on a non-poly member keeps its pairing with the receiver
+  function tailOptionalCall(o) { return o?.list.at?.(0).includes?.(2); }
+  assert.same(tailOptionalCall(undefined), undefined);
+  assert.same(tailOptionalCall({ list: {} }), undefined);
+  assert.same(tailOptionalCall({ list: [[2], [3]] }), true);
+  // computed trailing key after the outer optional call of a combined chain
+  function tailComputed(o) { return o?.rows.flat?.().filter?.(x => x > 1)[0]; }
+  assert.same(tailComputed(undefined), undefined);
+  assert.same(tailComputed({ rows: {} }), undefined);
+  assert.same(tailComputed({ rows: [[1], [2]] }), 2);
+});
