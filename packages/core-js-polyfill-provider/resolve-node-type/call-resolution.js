@@ -83,6 +83,7 @@ export function createCallResolution({
   typeParamName,
   effectiveParam,
   resolveIndexedAccessMemberAnnotationAST,
+  foldUnionTypes,
 }) {
   // --- Call-return dispatch ---
 
@@ -365,6 +366,65 @@ export function createCallResolution({
   // the second hop because `arr` annotation `{b:...}|null` makes `getTypeMembers` bail.
   // computed access without statically-known name (`obj[k]` where k isn't a literal) falls
   // back to TSIndexSignature lookup via `resolveIndexSignatureValue`
+  // do the union's per-branch member results agree? a VALUE-typed member folds through the
+  // shared union canon (`Array | Array` keeps the narrow, `Array | string` degrades); a member
+  // whose annotation is structural (an object literal / interface hop, which resolves to no
+  // runtime type) is compared by SHAPE instead - the chain continues through it, so two
+  // branches may only share a hop when the hop's members match
+  function branchResultsAgree(infos) {
+    const resolved = infos.map(info => resolveTypeAnnotation(unwrapTypeAnnotation(info.annotation), info.scope));
+    // a successful fold settles it: every branch carries a VALUE type and they converge
+    if (resolved.every(Boolean) && foldUnionTypes(infos, (info, index) => resolved[index])) return true;
+    // no fold result does NOT mean divergence - it is also what a structural hop yields (an object
+    // literal / interface resolves to no runtime type, and two IDENTICAL hops fold to nothing just
+    // like two incompatible ones). fall through to the shape comparison rather than reading the
+    // empty fold as disagreement, or identical branches lose a narrow they are entitled to
+    const keys = infos.map(info => annotationShapeKey(unwrapTypeAnnotation(info.annotation), info.scope, 0));
+    return keys.every(key => key !== null && key === keys[0]);
+  }
+
+  // callable annotation shapes - a method / call signature or a function type
+  const SIGNATURE_ANNOTATION_TYPES = new Set([
+    'TSMethodSignature', 'TSFunctionType', 'TSCallSignatureDeclaration', 'FunctionTypeAnnotation',
+  ]);
+
+  // structural fingerprint of a type annotation, bounded in depth. a node that resolves to a
+  // RUNTIME type collapses to that type's identity - dispatch only ever cares about the
+  // constructor, so `string[]` and `number[]` share a fingerprint exactly as the value-typed
+  // fold treats them as one `Array`. everything else is summarised structurally: member names
+  // paired with their own fingerprints. null when the shape cannot be summarised (unsupported
+  // node / depth exhausted), which makes the caller degrade rather than guess
+  function annotationShapeKey(node, scope, depth) {
+    if (!node || depth > 6) return null;
+    // BEFORE the runtime resolve: every callable annotation resolves to the same `Function`, which
+    // would make two signatures returning different families look identical. summarise it by what a
+    // call through it yields instead
+    if (SIGNATURE_ANNOTATION_TYPES.has(node.type)) {
+      const returned = annotationShapeKey(unwrapTypeAnnotation(node.returnType ?? node.typeAnnotation), scope, depth + 1);
+      return returned === null ? null : `()->${ returned }`;
+    }
+    const runtime = resolveTypeAnnotation(node, scope);
+    if (runtime) return `@${ runtime.constructor ?? runtime.primitive ?? runtime.type }`;
+    if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
+      return typeRefName(node) ?? null;
+    }
+    if (node.type === 'TSTypeLiteral' || node.type === 'ObjectTypeAnnotation') {
+      const members = node.members ?? node.properties;
+      if (!Array.isArray(members)) return null;
+      const parts = [];
+      for (const member of members) {
+        const name = member.key?.name ?? member.key?.value;
+        if (name === undefined) return null;
+        const inner = annotationShapeKey(unwrapTypeAnnotation(member.typeAnnotation), scope, depth + 1);
+        if (inner === null) return null;
+        parts.push(`${ name }:${ inner }`);
+      }
+      return `{${ parts.sort().join(',') }}`;
+    }
+    // an unsummarised node must NOT read as agreement - degrade instead of guessing
+    return null;
+  }
+
   function resolveMemberAnnotation(path, depth) {
     const propName = getMemberProperty(path.node);
     const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
@@ -384,13 +444,23 @@ export function createCallResolution({
         : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst, callPath });
     }
     if (isUnionType(target)) {
+      // FOLD across the branches instead of taking the first that resolves: a value matching a
+      // LATER branch would otherwise dispatch through the first branch's type-specific Maybe
+      // and throw where the generic helper works. convergent branches keep the narrow (their
+      // resolved types agree), divergent ones degrade to null - the same widen the sibling
+      // member / index-signature unions perform
+      const infos = [];
       for (const branch of target.types) {
         const peeled = applySubst(unwrapTypeAnnotation(branch), subst);
         if (isNullableOrNeverAnnotation(peeled)) continue;
         const result = lookup(peeled);
-        if (result) return result;
+        // a branch whose member is missing / unresolvable leaves the union uncertain
+        if (!result) return null;
+        infos.push(result);
       }
-      return null;
+      if (!infos.length) return null;
+      if (infos.length > 1 && !branchResultsAgree(infos)) return null;
+      return infos[0];
     }
     return lookup(target);
   }
