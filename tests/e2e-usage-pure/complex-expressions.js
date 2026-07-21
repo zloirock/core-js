@@ -178,3 +178,31 @@ QUnit.test('complex: side-effecting literal receiver evaluated once in an option
   assert.same(calls, 1);
   assert.same(result, 9);
 });
+
+QUnit.test('complex: polyfillable member reads in new-expression argument slots', assert => {
+  function base() { /* empty */ }
+  function Tag(name, s, b, m) {
+    this.parts = [name, s, b, m];
+  }
+  const set = 'set';
+  const mods = ['m'];
+  // the constructor callee is user code and its arguments carry the polyfillable reads: an
+  // accessor read and bare method extracts must fold as PLAIN arguments - never as the callee
+  const tag = new Tag(base.name, set, base, mods);
+  assert.deepEqual(tag.parts, ['base', 'set', base, ['m']]);
+  const arr = [3, 1, 2];
+  const extracted = new Tag(arr.at, Array.from, base, mods);
+  assert.same(typeof extracted.parts[0], 'function');
+  assert.same(typeof extracted.parts[1], 'function');
+  const called = new Tag(arr.at(0), [4, [5]].flat(), base, mods);
+  assert.same(called.parts[0], 3);
+  assert.deepEqual(called.parts[1], [4, 5]);
+  const effects = [];
+  const seTag = new Tag((effects.push('e'), arr).at, set, base, mods);
+  assert.same(effects.length, 1);
+  assert.same(typeof seTag.parts[0], 'function');
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed computed key IS the case under test
+  const keyTag = new Tag(arr[(effects.push('k'), 'includes')], set, base, mods);
+  assert.deepEqual(effects, ['e', 'k']);
+  assert.same(typeof keyTag.parts[0], 'function');
+});
