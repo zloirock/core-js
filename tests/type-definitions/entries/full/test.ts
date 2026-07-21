@@ -16,6 +16,8 @@ Promise.allKeyed({
   b: Promise.resolve('string'),
 });
 
+Set.of(1, 2, 3);
+
 // web
 const ex = new DOMException('message', 'SyntaxError');
 queueMicrotask(() => {});
