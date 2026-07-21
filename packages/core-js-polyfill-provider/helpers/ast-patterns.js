@@ -4292,14 +4292,16 @@ export function unwrapParens(node) {
 
 // descend a proxy-nav ctor sub-receiver (`(c++, globalThis.self).Map` / the deeper `(c++, globalThis).self
 // .Map`) through its member hops to the root, peeling transparent wrappers (oxc parens, chains, TS casts -
-// `((c++, globalThis.self).Map as any).prototype`). true when that root is a SequenceExpression - a harvestable
-// SE prefix the prototype-fallback ctor swap re-emits; false for an IIFE-call / chain-assignment / bare root
+// `((c++, globalThis.self).Map as any).prototype`). true when that root is a HARVESTABLE SE the
+// prototype-fallback ctor swap re-emits ahead of the claim: a SequenceExpression prefix
+// (`(c++, _Map).prototype`) or a chain-assignment (`(n = gw, _Map).prototype` - the kept assign
+// evaluates first, exactly like a sequence member). false for an IIFE-call / bare root
 export function proxyNavRootIsSequence(node) {
   let root = unwrapRuntimeExpr(node);
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
     root = unwrapRuntimeExpr(root.object);
   }
-  return root?.type === 'SequenceExpression';
+  return root?.type === 'SequenceExpression' || root?.type === 'AssignmentExpression';
 }
 
 // a string is spellable as a bare IdentifierName (`from`, `$x`, `with` - reserved words are
