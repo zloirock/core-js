@@ -491,8 +491,13 @@ export function createRewriteHint({
   // when collapsing a receiver chain, and/or substituted the chain prefix. compose needs those to
   // rebuild the needle an outer left behind. emit a guardless hint (no rootRaw/guardRef checks
   // downstream gate on `guardRef`, so this stays inert there)
+  // a bare-ident-rooted guard allocates NO ref, but its guard prefix still participates in
+  // the ownership migration (`guardOwn`) and its test can still host one (`guardSlot`) - a
+  // null hint here silently dropped the guard from the pass, leaving a nested dispatch's
+  // ternary inside an outer helper-GET ARGUMENT (`_flat(_ref = x == null ? void 0 : ...)`),
+  // which hands void 0 to a nullish-intolerant maybe-helper where native short-circuits
   if (!guardRef) {
-    return deoptPositions?.length || sub
+    return deoptPositions?.length || sub || guardOwn || guardSlot !== undefined
       ? { rootRaw: null, guardRef: null, deoptPositions, objectStart, absorbsRoot: false, guardSlot, guardOwn, ...sub } : null;
   }
   // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
@@ -801,9 +806,15 @@ export default class TransformQueue {
       for (const cand of this.#transforms) {
         if (cand.rewriteHint?.guardSlot === undefined) continue;
         const candEnd = entryLogicalEnd(cand);
-        if (cand.start <= entry.start && candEnd >= entryEnd && (cand.start < entry.start || candEnd > entryEnd)) {
-          slots.push(cand);
-        }
+        if (!(cand.start <= entry.start && candEnd >= entryEnd && (cand.start < entry.start || candEnd > entryEnd))) continue;
+        // the slot hosts guards of its RECEIVER region only: a guarded dispatch inside the
+        // slot owner's ARGUMENTS (a callback body, an outer-call argument) must keep its
+        // guard local - hoisting it into the test would evaluate the argument's receiver
+        // outside its callback and short-circuit the whole chain on an unrelated nullish
+        const { receiverStart, receiverEnd } = cand.rewriteHint;
+        if (receiverStart !== undefined && receiverEnd !== undefined
+          && !(entry.start >= receiverStart && entryEnd <= receiverEnd)) continue;
+        slots.push(cand);
       }
       slots.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b));
       for (const slot of slots) {

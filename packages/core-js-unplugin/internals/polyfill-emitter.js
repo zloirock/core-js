@@ -7,6 +7,7 @@
 // resolver hooks).
 import {
   collectFoldedReceiverSideEffects,
+  singleRootOptionalReceiver,
   isMutatedStaticMeta,
   isMutatedGlobalSlot,
   isMutatedStaticPair,
@@ -2099,28 +2100,51 @@ export function createPolyfillEmitter({
   // descend one level along the inner-receiver chain. MemberExpression carries the next
   // step on `.object`; CallExpression / OptionalCallExpression on `.callee`. anything else
   // terminates the walk. wrappers are peeled by the caller (`peelChainHopWrappers`)
+  // single root-level `?.` receiver of a chain combine (`o?.rows.flat?.()...`): the
+  // maybe-helpers are not nullish-tolerant, so folding the live optional into the helper
+  // ARGUMENT throws where native short-circuits to undefined. hoist the ROOT into a leading
+  // null-guard test and read the rest off it deoptionalized - the standalone dispatch's
+  // root-extraction canon. deeper / multiple `?.` shapes keep the fold (see TASKS);
+  // proxy-global roots resolve through their own collapse machinery before reaching this
+  function hoistCombinedRootGuard(receiverNode) {
+    // member-walk only here: a call-bearing receiver resolves through the canonical receiver
+    // resolver instead, and its guard splits off the RESOLVED source (see the split below) -
+    // a raw-source rebuild would strand the nested dispatch's queued rewrite
+    const rootOpt = singleRootOptionalReceiver(receiverNode);
+    if (!rootOpt) return { rootPreTest: null, rootReceiverSrc: null };
+    // a receiver already carrying QUEUED nested transforms (a computed-key rewrite buried in
+    // the member walk) keeps the fold: the text rebuild would drop those transforms' source
+    // needles from the emitted content (compose-invariant throw)
+    if (transforms.hasTransformWithin(receiverNode.start, receiverNode.end)) {
+      return { rootPreTest: null, rootReceiverSrc: null };
+    }
+    const rootSrc = code.slice(rootOpt.rootNode.start, rootOpt.rootNode.end);
+    const tailSrc = code.slice(rootOpt.optionalLink.object.end, receiverNode.end)
+      .replace(/^\s*\?\.(?<bracket>\s*\[)?/, (m, bracket) => bracket ?? '.');
+    if (isReusableReceiver(rootOpt.rootNode)) {
+      return { rootPreTest: `${ rootSrc } == null`, rootReceiverSrc: `${ rootSrc }${ tailSrc }` };
+    }
+    const rootRef = scopeTracker.genRef();
+    return { rootPreTest: `null == (${ rootRef } = ${ rootSrc })`, rootReceiverSrc: `${ rootRef }${ tailSrc }` };
+  }
+
   function chainHopChild(node) {
     if (node.type === 'MemberExpression') return node.object;
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') return node.callee;
     return null;
   }
 
-  // chain emit needs paren-wrap when (a) parent context demands grouping (BinaryExpression
-  // / UnaryExpression / etc. via `resolveGuardWrap`), or (b) `.X` / `[X]` trails the chain
-  // emit - the conditional `cond ? a : b` would otherwise bind the access to the success
-  // branch only, stranding `void 0` in the null path. babel emits the wrap so trailing
-  // accesses target the ternary result (restoring native TypeError semantics). discriminator
-  // checks `.` (not `..` for rest/spread) and `[` for computed-member access
+  // chain emit needs paren-wrap only when the parent context demands grouping
+  // (BinaryExpression / UnaryExpression / etc. via `resolveGuardWrap`). a trailing in-chain
+  // `.X` / `[X]` continuation deliberately stays UNWRAPPED: the raw tail text then binds into
+  // the ternary's SUCCESS branch (`cond ? void 0 : alt.X`), so a short-circuiting chain skips
+  // it exactly like native - a paren wrap would sever the tail onto the ternary result and
+  // throw on the void 0 path where native yields undefined. a chain-TERMINATING boundary
+  // (user parens) keeps its native throw: the source parens survive around the replacement
   function chainEmitWrapInfo(metaPath, parent) {
     const guard = resolveGuardWrap({ metaPath, isCall: true, start: parent.start, end: parent.end });
-    // operator parent (case a): wrap, extending over any trailing tail to `tipEnd`
     if (guard.needsParens) return { needsWrap: true, tipEnd: guard.tipEnd };
-    // trailing `.X` / `[X]` (case b): wrap so the access targets the ternary result (native
-    // TypeError on the null path), but do NOT extend - the access stays raw source after the wrap
-    if (transforms.containsRange(parent.start, parent.end)) return { needsWrap: false, tipEnd: parent.end };
-    const after = skipGap(code, parent.end);
-    const c = code[after];
-    return { needsWrap: (c === '.' && code[after + 1] !== '.') || c === '[', tipEnd: parent.end };
+    return { needsWrap: false, tipEnd: parent.end };
   }
 
   // thread collected hops onto the inner result. polyfillable hops re-emit inline
@@ -2235,8 +2259,12 @@ export function createPolyfillEmitter({
     // collapses the SAME way it does there, instead of being kept verbatim and leaking the cast
     // super: the `.call` receiver is `this` (a reusable primary), and the method-get `super.m` is
     // memoized via the chainStart test, so no receiver substitution is needed
+    const { rootPreTest, rootReceiverSrc } = isSuper
+      ? { rootPreTest: null, rootReceiverSrc: null }
+      : hoistCombinedRootGuard(innerCallee.object);
     const { src: receiver, skipNode } = isSuper
       ? { src: 'this', skipNode: null }
+      : rootReceiverSrc !== null ? { src: rootReceiverSrc, skipNode: null }
       : resolveReceiverSource(innerCallee.object, metaPath);
     if (skipNode) skippedNodes.add(skipNode);
     // shared `isReusableReceiver` gate (also drives babel's `memoize`): a side-effect-free
@@ -2298,6 +2326,8 @@ export function createPolyfillEmitter({
     // member-optional hop guards sit between the chainStart tests and the outer-optional test,
     // innermost-first - matching native left-to-right short-circuit order
     tests.push(...extraTests);
+    // the hoisted root guard runs FIRST - native evaluates the root before everything else
+    if (rootPreTest) tests.unshift(rootPreTest);
     let outerObj;
     let outerMemo = null;
     if (node.optional) {
