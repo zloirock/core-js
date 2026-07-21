@@ -702,6 +702,41 @@ function * generateOptionalNameChainRootCall() {
   }
 }
 
+// --- Polyfillable member reads in NewExpression ARGUMENT position ---
+// a folded member whose PARENT is a NewExpression but which sits in an ARGUMENT slot (not the
+// callee) must stay a plain fold: a callee-identity miss classifies it as the new-callee and
+// wraps the fold in `new (...)()` - constructing the folded value (throw on an accessor's
+// string result, wrong `typeof` for a method extract). the user constructor `Tag` pins the
+// other side of the boundary: its callee must never be misclassified as a global, and sibling
+// identifier args stay untouched. distinct paths per shape: instance ACCESSOR fold, bare
+// instance-method read, bare STATIC read (separate emitter), and the call-in-arg control
+// (the member's parent is the inner CALL, not the `new` - must never regress into the wrap)
+const NAM_SHAPES = [
+  { id: 'accessor-name', strip: false,
+    expr: '(() => { function base() {} function Tag(a, b) { this.v = [a, b]; } return new Tag(base.name, "x").v; })()' },
+  { id: 'bare-instance-at', strip: true,
+    expr: '(() => { function Tag(a, b) { this.v = [typeof a, b]; } return new Tag(arr.at, "x").v; })()' },
+  { id: 'bare-static-from', strip: true,
+    expr: '(() => { function Tag(a, b) { this.v = [typeof a, b]; } return new Tag(Array.from, "x").v; })()' },
+  { id: 'call-arg-control', strip: true,
+    expr: '(() => { function Tag(a, b) { this.v = [a, b]; } return new Tag(arr.at(0), "x").v; })()' },
+  { id: 'mixed-slots', strip: true,
+    expr: '(() => { function base() {} function Tag(a, b, c) { this.v = [a, typeof b, c]; } return new Tag(base.name, arr.at, "x").v; })()' },
+  // sequence receiver of the folded argument: the side effect must survive and run ONCE, in
+  // source order - the `effects` log is the oracle for a drop or a double evaluation
+  { id: 'se-receiver', strip: true,
+    expr: '(() => { function Tag(a, b) { this.v = [typeof a, b]; } return new Tag((log.push("e"), arr).at, "x").v; })()' },
+  // side-effecting COMPUTED key on the folded argument - the key-SE peel is a separate emit
+  // path from the sequence receiver above; same once-in-order oracle
+  { id: 'se-key', strip: true,
+    expr: '(() => { function Tag(a, b) { this.v = [typeof a, b]; } return new Tag(arr[(log.push("k"), "at")], "x").v; })()' },
+];
+function * generateNewArgMember() {
+  for (const shape of NAM_SHAPES) {
+    yield { ...snippet(`new-arg-member/${ shape.id }`, shape.expr), strip: shape.strip };
+  }
+}
+
 // --- Optional proxy-global chain rooted in a PURE call: receiver-WRAP vs receiver-LESS collapse ---
 // a PURE chain-root call under an optional `?.` (`(() => globalThis)()?.self.X`) is KEPT in the null-guard, NOT
 // inlined away. a receiver-WRAPPING polyfill (instance method / `.name` get / iterator) keeps the guard while
@@ -3618,6 +3653,7 @@ export function * generate() {
   yield * generateStaticCollapseSEOrder();
   yield * generateNameChainRootCallInner();
   yield * generateOptionalNameChainRootCall();
+  yield * generateNewArgMember();
   yield * generateOptionalProxyPureCall();
   yield * generateSymbolIterProxyReceiver();
   yield * generateSynthSwapSeqReceiver();
