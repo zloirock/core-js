@@ -2728,6 +2728,7 @@ export default [
       'scripts/**',
       'tests/compat/*.mjs',
       'tests/@(compat-@(data|tools)|eslint|entries|observables|promises|unit-@(karma|node))/**',
+      'tests/e2e-libs/**/*.mjs',
       'website/scripts/runner.mjs',
       'website/scripts/helpers.mjs',
     ],
