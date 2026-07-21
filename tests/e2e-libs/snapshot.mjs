@@ -19,8 +19,9 @@ const UPDATE = process.argv.includes('--update') || process.env.UPDATE === '1';
 async function baseline(file) {
   try {
     return (await readFile(file, 'utf8')).split('\n').map(l => l.trim()).filter(Boolean);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err.code === 'ENOENT') return null; // no baseline yet — first run
+    throw err; // a real read error must not masquerade as "no baseline" and silently overwrite
   }
 }
 
