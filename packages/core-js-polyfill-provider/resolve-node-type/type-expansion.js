@@ -732,6 +732,10 @@ export function createTypeExpansion({
   // check types are admitted for the permissive `Iterable` family or an unresolved container, but
   // otherwise must match the pattern's base container family (`Set` against `Array<infer U>` stays
   // disjoint); see the branch below
+  // 'match'  - the check side provably belongs to the pattern's container family
+  // 'unknown' - cannot be decided (structural object, unresolved container): assignability is
+  //             possible, so the TRUE branch is not ruled out, but it is not established either
+  // false     - provably disjoint -> the conditional is FALSE
   function checkTypeMatchesContainerFamily(checkType, family, container) {
     if (!checkType?.primitive) {
       // a non-primitive check side must be assignable to `container<U>` for `infer U` to bind. an
@@ -741,8 +745,11 @@ export function createTypeExpansion({
       // branch resolves precisely instead of binding U=string -> wrong helper variant). Array and
       // ReadonlyArray share element semantics (interchangeable); an unrecognised structural object or an
       // unknown pattern container stays permissive (could be assignable; over-emit-safe)
-      if (family === 'iterable') return !isPromiseRefName(checkType.constructor);
-      if (!checkType.constructor || !container) return true;
+      if (family === 'iterable') {
+        if (isPromiseRefName(checkType.constructor)) return false;
+        return checkType.constructor ? 'match' : 'unknown';
+      }
+      if (!checkType.constructor || !container) return 'unknown';
       // compare BASE container family - strip a `Readonly` prefix so `ReadonlyArray` / `ReadonlySet`
       // share their mutable form's element semantics (a `Set` IS-A `ReadonlySet`, an `Array` IS-A
       // `ReadonlyArray`, and either direction binds the same element) AND fold the Promise synonyms
@@ -754,9 +761,9 @@ export function createTypeExpansion({
       function base(name) {
         return isPromiseRefName(name) ? 'Promise' : name.startsWith('Readonly') ? name.slice(8) : name;
       }
-      return base(checkType.constructor) === base(container);
+      return base(checkType.constructor) === base(container) ? 'match' : false;
     }
-    return family === 'iterable' && checkType.type === 'string';
+    return family === 'iterable' && checkType.type === 'string' ? 'match' : false;
   }
 
   function resolveInferElementPattern({ node, typeParamMap, scope, depth, seen }) {
@@ -769,7 +776,8 @@ export function createTypeExpansion({
     // non-string primitive, or a string against a non-`Iterable` family) makes the conditional
     // definitively FALSE - signal that so the caller resolves the false branch precisely, instead
     // of binding U (the wrong-receiver polyfill the finding targets) or folding both branches
-    if (!checkTypeMatchesContainerFamily(checkType, match.family, match.container)) return INFER_PATTERN_FALSE;
+    const familyVerdict = checkTypeMatchesContainerFamily(checkType, match.family, match.container);
+    if (!familyVerdict) return INFER_PATTERN_FALSE;
     // a readonly collection check is NOT assignable to its mutable-form infer pattern (`ReadonlyArray`
     // / `readonly T[]` -> `Array<infer U>`, `ReadonlySet` -> `Set<infer U>`) - TS picks the FALSE
     // branch. readonly-to-readonly, mutable-to-either, and a readonly array against a non-mutable-array
@@ -801,7 +809,12 @@ export function createTypeExpansion({
     // bails; an undecidable (null) relation stays permissive / over-emit-safe
     if (concreteInner && fromConstraint
       && pickConditionalBranch({ check: concreteInner, extend: fromConstraint }) === false) return INFER_PATTERN_FALSE;
-    const inner = concreteInner ?? fromConstraint;
+    // the CONSTRAINT may stand in for an unresolved element only when the conditional is
+    // established: a check side merely POSSIBLY assignable (structural object / unknown
+    // container) has not taken the true branch, and binding `U` from its constraint keys a
+    // narrow to a receiver family the value may never have - the throwing direction. an
+    // undecided conditional degrades to no narrow instead
+    const inner = concreteInner ?? (familyVerdict === 'match' ? fromConstraint : null);
     if (!inner) return null;
     const inferMap = typeParamMap ? new Map(typeParamMap) : new Map();
     inferMap.set(match.name, inner);
