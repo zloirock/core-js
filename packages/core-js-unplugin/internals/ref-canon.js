@@ -7,7 +7,7 @@
 // all lexical work rides the canonical scanners - `literalRegionsOf` (strings, template
 // text portions, comments, regex literals with `/` disambiguation) for span protection and
 // the shared identifier char classes for Unicode-correct token boundaries
-import { assignCanonicalRefSlots } from '@core-js/polyfill-provider/injector-base';
+import { assignCanonicalRefSlots, isGeneratedSlotShapedName } from '@core-js/polyfill-provider/injector-base';
 import { codePointEndingAt, IDENT_PART_RE, IDENT_START_RE, skipGap } from './text-scan.js';
 import { literalRegionsOf, prevSignificantPos } from './plugin-helpers.js';
 
@@ -109,6 +109,52 @@ export function canonicalizeRefNumbering({ splices, inserts, injector }) {
     let list = editsByEntry.get(entry);
     if (!list) editsByEntry.set(entry, list = []);
     list.push({ start, end, text });
+  }
+
+  // nearest UNCLOSED `(` before `pos`, skipping literal/comment regions - identifies the
+  // slot an inner guard's test is nested in
+  function nearestUnclosedParenBefore(content, pos, regions) {
+    let depth = 0;
+    for (let i = pos - 1; i >= 0; i--) {
+      const region = regions.find(r => i >= r.start && i < r.end);
+      if (region) {
+        i = region.start;
+        continue;
+      }
+      if (content[i] === ')') depth += 1;
+      else if (content[i] === '(') {
+        if (depth === 0) return i;
+        depth -= 1;
+      }
+    }
+    return -1;
+  }
+
+  // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
+  // (`null == (_refY = null == (_refX = root) ? void 0 : ...)`) is write-only: the AST
+  // emitter allocates none there (the outer test already owns the one evaluation). the
+  // deadness only exists AFTER composition - the body that once read the ref was replaced
+  // by a receiver-independent claim - so the strip lives here. a TOP-LEVEL guard keeps its
+  // memo (the locked kept-swap canon)
+  const droppedRefs = new Set();
+  for (const [name, list] of occurrences) {
+    if (list.length !== 1) continue;
+    const [{ item, start, end }] = list;
+    const { content } = item.entry;
+    if (content.slice(Math.max(0, start - 9), start) !== 'null == (') continue;
+    const eq = skipGap(content, end);
+    if (content[eq] !== '=' || content[eq + 1] === '=') continue;
+    const regions = literalRegionsOf(content);
+    const open = nearestUnclosedParenBefore(content, start - 9, regions);
+    if (open < 8 || content.slice(open - 8, open) !== 'null == ') continue;
+    const outerAssign = /^\s*(?<ref>[\w$]+)\s*=(?!=)/.exec(content.slice(open + 1, open + 40));
+    if (!outerAssign || !isGeneratedSlotShapedName(outerAssign.groups.ref)) continue;
+    pushEdit(item.entry, start, skipGap(content, eq + 1), '');
+    droppedRefs.add(name);
+  }
+  if (droppedRefs.size) {
+    injector.dropRefs(droppedRefs);
+    for (const name of droppedRefs) occurrences.delete(name);
   }
 
   // rank = the sweep's print order, assigned one family at a time; a name with

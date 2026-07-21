@@ -202,3 +202,25 @@ QUnit.test('chain: const { entries } = Object; entries(...).at(0).at(0)', assert
   const { entries } = Object;
   assert.same(entries({ a: 1, b: 2 }).at(0).at(0), 'a');
 });
+
+// an optional chain over an undefinable proxy root keeps its guard: where `window` is
+// absent (Node) the chain SHORT-CIRCUITS to undefined - the static/prototype fallback used
+// to fold the guard away and return a live value there; where `window` exists (browsers)
+// the guard passes and the claimed ponyfill serves the read
+QUnit.test('chain: proto-fallback and combined chains keep the root guard', assert => {
+  const win = globalThis.window;
+  const hasWindow = win !== undefined;
+  let c;
+  assert.same((c = globalThis.window)?.self.Set.prototype.has.call(new Set([1]), 1), hasWindow ? true : undefined);
+  assert.same(c, win);
+  const w = globalThis.window;
+  let a;
+  assert.same((a = w)?.self.WeakMap.prototype.get.call(new WeakMap(), {}), undefined);
+  assert.same(a, win);
+  let m;
+  assert.same((m = globalThis.window)?.self.Promise.noSuchStatic, undefined);
+  assert.same(m, win);
+  let w2;
+  assert.same((w2 = globalThis.window)?.self.Array.of(5).flat?.().map?.(x => x).at?.(0), hasWindow ? 5 : undefined);
+  assert.same(w2, win);
+});

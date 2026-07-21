@@ -435,3 +435,83 @@ QUnit.test('mutated-statics: kept-assign navigation honors a patched ctor', asse
     globalThis.Set = original;
   }
 });
+
+// a MUTATED static behind a double proxy-hop optional chain: the mutation cancels the
+// always-defined claim, so the `?.` must keep its guard and bind the chain ROOT - the
+// sealed emit (`((n = w)?.Array).of(1)` - the paren kills the short-circuit) threw here
+// on the absent `window`, and a nav-level memo collapsed into the always-defined ponyfill
+// (the guard never fired). where `window` is absent (Node) the chain must short-circuit to
+// undefined; where it exists (browsers) the raw guarded nav serves the PATCH - assignment
+// and prefix side effect running exactly once either way
+QUnit.test('mutated-statics: double-hop optional chain over a patched static short-circuits', assert => {
+  const original = Array.of;
+  globalThis.Array.of = function patched() { return [7]; };
+  const win = globalThis.window;
+  const hasWindow = win !== undefined;
+  try {
+    let n;
+    let sc = 0;
+    const r = (sc++, n = globalThis.window)?.self?.self.Array.of(1).flat?.();
+    if (hasWindow) assert.deepEqual(r, [7]);
+    else assert.same(r, undefined);
+    assert.same(n, win);
+    assert.same(sc, 1);
+    let v;
+    const nameTail = (v = globalThis.window)?.self?.self.Set.name.at?.(0);
+    assert.same(nameTail, hasWindow ? 'S' : undefined);
+    assert.same(v, win);
+    // the ALIAS spelling of the same root rides the same guard (the sealed emit threw here too)
+    const w = globalThis.window;
+    let a;
+    const viaAlias = (a = w)?.self?.self.Array.of(1).flat?.();
+    if (hasWindow) assert.deepEqual(viaAlias, [7]);
+    else assert.same(viaAlias, undefined);
+    assert.same(a, win);
+  } finally {
+    globalThis.Array.of = original;
+  }
+});
+
+// a SINGLE proxy hop under a DOUBLE `?.` over an undefinable root: the leaf swap used to
+// claim the prefix always-defined and eat the ROOT guard - the chain then read a live value
+// where native short-circuits to undefined on the absent `window` (Node); with `window`
+// present (browsers) the surviving guard passes and the patch stays visible. covers the
+// mutated AND the non-mutated leaf, and the alias spelling
+QUnit.test('mutated-statics: single-hop double-optional chain keeps its root guard', assert => {
+  const original = globalThis.Set;
+  globalThis.Set = class PatchedSet extends original {};
+  const win = globalThis.window;
+  const hasWindow = win !== undefined;
+  try {
+    let v;
+    assert.same((v = globalThis.window)?.self?.Set.name, hasWindow ? 'PatchedSet' : undefined);
+    assert.same(v, win);
+    let n;
+    assert.same((n = globalThis.window)?.self?.Array.isArray([1]), hasWindow ? true : undefined);
+    assert.same(n, win);
+    const w = globalThis.window;
+    let a;
+    assert.same((a = w)?.self?.Set.name, hasWindow ? 'PatchedSet' : undefined);
+    assert.same(a, win);
+    // a raw mutated-static read over the same root rides the surviving guard too - the
+    // patch must be LIVE here (the raw read is the point; without it `window.Array.of`
+    // does not exist on ie11 and the call throws natively)
+    const originalOf = Array.of;
+    globalThis.Array.of = function patchedOf() { return [1]; };
+    try {
+      let c;
+      const ofRead = (c = globalThis.window)?.Array?.of(9);
+      if (hasWindow) assert.deepEqual(ofRead, [1]);
+      else assert.same(ofRead, undefined);
+      assert.same(c, win);
+    } finally {
+      globalThis.Array.of = originalOf;
+    }
+    // the always-defined root keeps the leaf-swap deopt and serves the patch
+    let p;
+    assert.same((p = globalThis)?.self.Set.name, 'PatchedSet');
+    assert.same(p, globalThis);
+  } finally {
+    globalThis.Set = original;
+  }
+});
