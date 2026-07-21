@@ -175,7 +175,7 @@ You can use comments to disable polyfill injection for specific lines or entire 
 ```ts
 // core-js-disable-file
 ```
-Disables polyfill injection for the entire file. Must appear anywhere in the file.
+Disables polyfill injection for the entire file. Must appear before the first statement (file head); a directive after code is ignored.
 
 ```ts
 arr.includes(x); // core-js-disable-line
