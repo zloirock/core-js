@@ -3,7 +3,7 @@
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
-  classifyReceiverSE, keySideEffectsOnly, peelReceiverSequenceTail,
+  classifyReceiverSE, keySideEffectsOnly, maximalProxyGlobalPrefix, peelReceiverSequenceTail,
   findProxyGlobal, inlineCallReturnExpression,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -88,6 +88,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   // wrapper legitimately consumes the branch value
   const guardedClaims = new WeakSet();
   const pluginSeqWraps = new WeakSet();
+  // guard ternaries this factory built (`test == null ? void 0 : alt`): the combined-chain
+  // emitter grafts its helper INTO such an alternate instead of wrapping the whole ternary
+  const pluginGuardTernaries = new WeakSet();
   const parenTerminated = new WeakSet();
   function markGuardedClaim(node) {
     guardedClaims.add(node);
@@ -228,6 +231,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
       if (rootNode.extra?.parenthesized) return;
       rootNode = rootNode.object;
     }
+    // a transparent wrapper on the ROOT gets explicit parens in the guard test: babel prints
+    // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the text emitter keeps
+    // the wrapped root grouped - `null == ((c = gw) as any) ? ...`
+    if (SKIPPABLE_WRAPPER_TYPES.has(rootNode.type)) rootNode = t.parenthesizedExpression(rootNode);
     const invokeParent = replacePath.parentPath;
     const isInvoke = (invokeParent?.isCallExpression() || invokeParent?.isOptionalCallExpression())
       && invokeParent.node.callee === replacePath.node && !invokeParent.node.optional;
@@ -264,6 +271,26 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     target.replaceWith(claimResult);
   }
 
+  // a guard ternary REPLACING the memoized receiver inside a combined helper wrap
+  // (`_map(_ref2 = <ternary>)` in an outer guard slot) hoists its test OVER the helper: the
+  // helper belongs INSIDE the alternate (the double-hop / text-emitter canon), and the maybe-
+  // helper's undefined-tolerance keeps the value equivalent on the short-circuit path. the
+  // guard memo often turns write-only under later claims - the programExit unwrap prunes it
+  function graftGuardIntoHelperSlot(tPath) {
+    const ternary = tPath.node;
+    if (!pluginGuardTernaries.has(ternary)) return;
+    const assignPath = tPath.parentPath;
+    if (!assignPath?.isAssignmentExpression() || assignPath.node.right !== ternary
+      || assignPath.node.left.type !== 'Identifier') return;
+    const callPath = assignPath.parentPath;
+    if (!callPath?.isCallExpression() || !isHelperCall(callPath.node, assignPath.node)) return;
+    assignPath.node.right = ternary.alternate;
+    const lifted = t.conditionalExpression(
+      ternary.test, t.unaryExpression('void', t.numericLiteral(0)), callPath.node);
+    pluginGuardTernaries.add(lifted);
+    callPath.replaceWith(lifted);
+  }
+
   function wrapConditional(check, result) {
     // place `null` first when `check` doesn't start with an identifier-like token (typically
     // an AssignmentExpression `(_ref = X)`). This guarantees ASI safety when the replacement
@@ -273,7 +300,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     const test = isLeadingIdentLike(check)
       ? t.binaryExpression('==', check, NULL)
       : t.binaryExpression('==', NULL, check);
-    return t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
+    const conditional = t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
+    pluginGuardTernaries.add(conditional);
+    return conditional;
   }
 
   function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode }) {
@@ -414,12 +443,64 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     if (name) getInjector().registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
   }
 
+  // a guard target that is PURE PROXY NAVIGATION over a chain-assign root: the memo must
+  // bind the ROOT (the assignment result - the one value that can be undefined), not the hop
+  // nav. memoizing the nav lets the natural rewrite self-collapse the memo RHS into an
+  // always-defined ponyfill (`(n = w, _self)`) - the guard then never fires (silent wrong
+  // value, worse than the sealed throw). the hops re-hang RAW off the ref and their `?.`
+  // folds into the root guard - the proxy-collapse assumption (`self` is a realm-local
+  // self-reference), the text emitter's canon for the same shape. returns the check or null
+  // when the target is not this shape (caller falls back to the plain memoize)
+  function memoizeProxyNavRoot(navNode, scope, ownerNode, anchorPath = null) {
+    const adapter = getAdapter?.();
+    if (!adapter || !scope) return null;
+    if (navNode.type !== 'MemberExpression' && navNode.type !== 'OptionalMemberExpression') return null;
+    // `anchorPath` feeds the alias-aware walk: an ALIAS chain-assign value (`const w = globalThis
+    // .window; (a = w)?...`) resolves only through a path-anchored binding lookup - with a null
+    // path the prefix test misses the alias shape and the kept-swap plan drops the root guard
+    if (maximalProxyGlobalPrefix(navNode, { scope, adapter, path: anchorPath },
+      { allowSideEffectKeys: true, throughChainAssign: true }) !== navNode) return null;
+    // descend the object spine to the root (the maximal-prefix check proved pure-nav shape);
+    // `holder` keeps the member whose object slot receives the ref - a transparent wrapper
+    // between it and the root is dropped with the swap (the same tradeoff as the optional
+    // method-call rewrite)
+    const spine = [];
+    let holder = null;
+    let root = navNode;
+    while (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression') {
+      spine.push(root);
+      holder = root;
+      root = root.object;
+      while (root && SKIPPABLE_WRAPPER_TYPES.has(root.type)) root = root.expression;
+    }
+    // a SEQUENCE root (`(sc++, n = gw)`) memoizes WHOLE - its prefix SE then runs exactly
+    // once inside the memo, the text emitter's canon; the assign is its tail
+    if (peelReceiverSequenceTail(root)?.type !== 'AssignmentExpression') return null;
+    // memoize the holder's OBJECT (wrappers included): a transparent wrapper between the last
+    // hop and the root rides INSIDE the memo (`_ref = (v = gw) as any`) - the text emitter
+    // keeps it verbatim there, and dropping it desynced the spelling. the shape gates above
+    // ran on the PEELED root, so the wrapped memo target is the same value
+    const [check, ref] = memoize(holder.object, scope, ownerNode);
+    holder.object = t.cloneNode(ref);
+    // node-level deoptionalize (the spine holds raw nodes, not paths): the hops ride the
+    // root guard now, and a member spine never carries optional CALLS (pure-nav shape).
+    // the rebuilt nav re-enters detection naturally: a mutated-landing guard-ref nav is
+    // kept raw by the drive-site gate, a resolvable one collapses as usual
+    for (const hop of spine) {
+      hop.type = 'MemberExpression';
+      delete hop.optional;
+    }
+    return check;
+  }
+
   function extractCheck(path, skipOptional) {
     const { node } = path;
     if (node.optional) {
       // pass `path` as third arg so `skipPolyfillableOptional` can anchor TS-runtime
       // shadow detection at the reference site (path-aware `adapter.hasBinding`)
       if (skipOptional?.(node, path.scope, path)) return [null, node.object, false];
+      const navCheck = memoizeProxyNavRoot(node.object, path.scope, node, path);
+      if (navCheck) return [navCheck, node.object, false];
       const [memoCheck, memoRef] = memoize(node.object, path.scope, node);
       return [memoCheck, memoRef, false];
     }
@@ -453,6 +534,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     if (!skipOptional?.(chainStart.node, path.scope, chainStart)) {
       const memoType = pathType(chainStart.get(key));
       check = rewriteOptionalMethodCall(chainStart, key, path.scope, memoType);
+      if (check === null) check = memoizeProxyNavRoot(chainStart.node[key], path.scope, chainStart.node, chainStart);
       if (check === null) {
         let ref;
         const rootNode = chainStart.node[key];
@@ -487,6 +569,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     if (embedGuard) {
       replacePath.replaceWith(check ? wrapConditional(check, result) : result);
       normalizeOptionalChain(replacePath);
+      if (check) graftGuardIntoHelperSlot(replacePath);
     } else {
       replacePath.replaceWith(result);
       // a replacement that introduced its OWN optional (`_X(recv)?.call(recv)` from an `arr.flat?.()`
@@ -508,7 +591,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
         return;
       }
       const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
-      if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
+      if (check) {
+        wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
+        graftGuardIntoHelperSlot(wrapPath);
+      }
     }
   }
 
