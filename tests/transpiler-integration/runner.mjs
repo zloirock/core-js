@@ -56,6 +56,32 @@ async function verifyInNode(code, label, ext = '.mjs') {
   });
 }
 
+// pre+post contract verifier: the runtime must observe the user's Map patch (pre recorded the
+// mutation before the sibling mangled its spelling), and the control stays polyfilled
+async function verifyPhases(code, label, ext = '.mjs') {
+  await withTmpDir(async dir => {
+    const file = join(dir, `bundle${ ext }`);
+    await writeFile(file, code);
+    const mod = await import(pathToFileURL(file).href);
+    const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
+    deepStrictEqual(results.patched, 'patched', `${ label }: patched static observed`);
+    deepStrictEqual([...results.control], expected.filterReject, `${ label }: control`);
+  });
+}
+
+// dynamic-import verifier: the lazy module resolves through the bundler's loader machinery
+// and its own body ran polyfilled
+async function verifyDynamic(code, label, ext = '.mjs') {
+  await withTmpDir(async dir => {
+    const file = join(dir, `bundle${ ext }`);
+    await writeFile(file, code);
+    const mod = await import(pathToFileURL(file).href);
+    const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
+    deepStrictEqual(await results.lazy, 2, `${ label }: lazy chunk value`);
+    deepStrictEqual([...results.control], expected.filterReject, `${ label }: control`);
+  });
+}
+
 // bun-mode output mixes CJS/ESM and isn't loadable by node — verify inside bun instead.
 // usage-pure exports results; global methods patch globals.
 async function verifyInBun(code, label, method) {
@@ -102,9 +128,12 @@ async function esbuildBundle(stdinOrEntry) {
   return { code: result.outputFiles[0].text, ext: '.cjs' };
 }
 
-async function webpackLikeBundle(compiler, input, plugin) {
+async function webpackLikeBundle(compiler, input, plugin, extra = {}) {
   return withTmpDir(async dir => {
     const filename = 'out.mjs';
+    const plugins = [...extra.siblings ?? [], plugin];
+    // the dynamic-import leg must stay a single node-loadable file - fold async chunks back in
+    if (extra.inlineDynamic) plugins.push(new compiler.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
     const instance = compiler({
       mode: 'production',
       devtool: false,
@@ -112,7 +141,7 @@ async function webpackLikeBundle(compiler, input, plugin) {
       output: { path: dir, filename, module: true, library: { type: 'module' } },
       experiments: { outputModule: true },
       optimization: { minimize: false },
-      plugins: [plugin],
+      plugins,
     });
     try {
       const stats = await promisify(instance.run.bind(instance))();
@@ -130,6 +159,29 @@ async function webpackLikeBundle(compiler, input, plugin) {
 const unplugin = await import('@core-js/unplugin');
 function pluginFor(name) { return (...args) => unplugin[name](...args); }
 
+// sibling plugin for the pre+post contract legs: registered WITHOUT enforce (the "normal"
+// slot our pre/post stages must straddle), it mangles the phases-input's mutation spelling
+// into a computed key the post pass cannot read. if the bundler does not order our pre
+// BEFORE this sibling, the mutation goes unrecorded and the runtime observes a pristine
+// ponyfill instead of the user patch - which `verifyPhases` fails on
+const { createUnplugin } = await import('unplugin');
+const siblingMangler = createUnplugin(() => ({
+  name: 'integration-sibling-mangler',
+  transform(code) {
+    // scoped to the phases input by its class marker. matches only the RAW-source spelling
+    // (a leading boundary rejects the pre pass's `_globalThis.` rewrite), so with correct
+    // ordering the sibling no-ops; with broken ordering it mangles the raw source into a
+    // reassigned-`let` key that is GENUINELY unreadable (const aliases and literal concats
+    // fold in the resolver, so those would not discriminate)
+    if (!code.includes('PatchedMap') || !/(?<![\w$.])globalThis\.Map =/.test(code)) return null;
+    return {
+      code: code.replace(/(?<![\w$.])globalThis\.Map =/,
+        "let __mangledKey = 'Ma'; __mangledKey += 'p'; globalThis[__mangledKey] ="),
+      map: null,
+    };
+  },
+}));
+
 const builders = {
   // babel-plugin has no `phase` option — receives base opts regardless
   async babel(input, method) {
@@ -142,23 +194,28 @@ const builders = {
     return esbuildBundle({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
   },
 
-  async esbuild(input, method, phase) {
-    return esbuildBundle({ entryPoints: [input], plugins: [pluginFor('esbuild')(pluginOpts(method, phase))] });
+  async esbuild(input, method, phase, extra = {}) {
+    return esbuildBundle({
+      entryPoints: [input],
+      plugins: [...extra.siblings ?? [], pluginFor('esbuild')(pluginOpts(method, phase))],
+    });
   },
 
-  async rollup(input, method, phase) {
+  async rollup(input, method, phase, extra = {}) {
     const { rollup } = await import('rollup');
     const nodeResolve = (await import('@rollup/plugin-node-resolve')).default;
     const commonjs = (await import('@rollup/plugin-commonjs')).default;
     const bundle = await rollup({
       input,
-      plugins: [pluginFor('rollup')(pluginOpts(method, phase)), nodeResolve(), commonjs()],
+      plugins: [...extra.siblings ?? [], pluginFor('rollup')(pluginOpts(method, phase)), nodeResolve(), commonjs()],
     });
-    const { output } = await bundle.generate({ format: 'es', sourcemap: true });
+    const { output } = await bundle.generate({
+      format: 'es', sourcemap: true, inlineDynamicImports: !!extra.inlineDynamic,
+    });
     return { code: output[0].code, map: output[0].map };
   },
 
-  async vite(input, method, phase) {
+  async vite(input, method, phase, extra = {}) {
     const { build } = await import('vite');
     const result = await build({
       root: testDir,
@@ -169,27 +226,28 @@ const builders = {
         lib: { entry: input, formats: ['es'] },
         minify: false,
         commonjsOptions: { include: [/core-js/] },
+        rollupOptions: extra.inlineDynamic ? { output: { inlineDynamicImports: true } } : {},
       },
       resolve: { dedupe: ['core-js'] },
-      plugins: [pluginFor('vite')(pluginOpts(method, phase))],
+      plugins: [...extra.siblings ?? [], pluginFor('vite')(pluginOpts(method, phase))],
     });
     const [{ output }] = Array.isArray(result) ? result : [result];
     return { code: output[0].code, map: output[0].map };
   },
 
-  async webpack(input, method, phase) {
+  async webpack(input, method, phase, extra = {}) {
     const wp = (await import('webpack')).default;
-    return webpackLikeBundle(wp, input, pluginFor('webpack')(pluginOpts(method, phase)));
+    return webpackLikeBundle(wp, input, pluginFor('webpack')(pluginOpts(method, phase)), extra);
   },
 
-  async rspack(input, method, phase) {
+  async rspack(input, method, phase, extra = {}) {
     const { rspack } = await import('@rspack/core');
-    return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method, phase)));
+    return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method, phase)), extra);
   },
 
   // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's
   // rsbuild adapter. environments-based config keeps the output a single node-loadable file
-  async rsbuild(input, method, phase) {
+  async rsbuild(input, method, phase, extra = {}) {
     const { createRsbuild } = await import('@rsbuild/core');
     return withTmpDir(async dir => {
       const rsbuild = await createRsbuild({
@@ -198,7 +256,7 @@ const builders = {
           mode: 'production',
           logLevel: 'error',
           source: { entry: { index: input } },
-          plugins: [pluginFor('rsbuild')(pluginOpts(method, phase))],
+          plugins: [...extra.siblings ?? [], pluginFor('rsbuild')(pluginOpts(method, phase))],
           output: {
             target: 'node',
             distPath: { root: dir },
@@ -208,9 +266,15 @@ const builders = {
           },
           performance: { chunkSplit: { strategy: 'all-in-one' } },
           tools: {
-            rspack: {
-              output: { module: true, library: { type: 'module' } },
-              experiments: { outputModule: true },
+            rspack: async config => {
+              config.output = { ...config.output, module: true, library: { type: 'module' } };
+              config.experiments = { ...config.experiments, outputModule: true };
+              // the dynamic-import leg must stay a single node-loadable file
+              if (extra.inlineDynamic) {
+                const { rspack } = await import('@rspack/core');
+                config.plugins.push(new rspack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
+              }
+              return config;
             },
           },
         },
@@ -220,7 +284,7 @@ const builders = {
     });
   },
 
-  async rolldown(input, method, phase) {
+  async rolldown(input, method, phase, extra = {}) {
     const { build } = await import('rolldown');
     return withTmpDir(async dir => {
       const file = join(dir, 'out.mjs');
@@ -228,14 +292,17 @@ const builders = {
         input,
         platform: 'node',
         treeshake: false,
-        plugins: [pluginFor('rolldown')(pluginOpts(method, phase))],
-        output: { format: 'esm', file, externalLiveBindings: false, keepNames: true },
+        plugins: [...extra.siblings ?? [], pluginFor('rolldown')(pluginOpts(method, phase))],
+        output: {
+          format: 'esm', file, externalLiveBindings: false, keepNames: true,
+          inlineDynamicImports: !!extra.inlineDynamic,
+        },
       });
       return { code: await readFile(file, 'utf8') };
     });
   },
 
-  async farm(input, method, phase) {
+  async farm(input, method, phase, extra = {}) {
     const { build, Logger } = await import('@farmfe/core');
     // Logger level: 'error' doesn't silence "Build completed" — override info methods directly
     function noop() { /* empty */ }
@@ -246,7 +313,7 @@ const builders = {
       await build({
         root: testDir,
         logger: silent,
-        plugins: [pluginFor('farm')(pluginOpts(method, phase))],
+        plugins: [...extra.siblings ?? [], pluginFor('farm')(pluginOpts(method, phase))],
         compilation: {
           input: { index: input },
           output: { path: dir, targetEnv: 'node', format: 'cjs' },
@@ -321,6 +388,43 @@ for (const [name, build] of Object.entries(builders)) {
         failures++;
       }
     }
+  }
+}
+
+// --- pre+post contract legs ---
+// only bundlers where pre+post ordering is expressible run this leg: esbuild / bun fall back
+// to single-mode 'post' by design (see PRE_POST_UNSAFE_BUNDLERS in the plugin) and would
+// legitimately miss the pre-recorded mutation; babel-plugin has no phases at all
+const phasesInput = resolve(testDir, 'input-phases.js');
+for (const name of ['rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']) {
+  const label = `${ name }/usage-pure/pre+post contract`;
+  try {
+    const { code, ext } = await builders[name](phasesInput, 'usage-pure', 'pre+post',
+      { siblings: [siblingMangler[name]()] });
+    await verifyPhases(code, label, ext);
+    echo(chalk.green(`${ label } passed`));
+  } catch (error) {
+    echo(chalk.red(`${ label } failed: ${ error.message }`));
+    failures++;
+  }
+}
+
+// --- dynamic-import legs ---
+// usage-global exercises the chunk-loader machinery (dynamic import wrapped in the bundler's
+// chunk fetch promises); the lazy module's own body must come out polyfilled too
+// bun stays out: its builder runs in a spawned Bun.build script that cannot thread the
+// single-file forcing, and bun is not a chunk-loader bundler (no Promise.all wrapper)
+const dynamicInput = resolve(testDir, 'input-dynamic.js');
+for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']) {
+  const label = `${ name }/usage-global/dynamic-import`;
+  try {
+    const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
+      { inlineDynamic: true });
+    await verifyDynamic(code, label, ext);
+    echo(chalk.green(`${ label } passed`));
+  } catch (error) {
+    echo(chalk.red(`${ label } failed: ${ error.message }`));
+    failures++;
   }
 }
 
