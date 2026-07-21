@@ -41,7 +41,9 @@ function isGlobalAugmentation(decl) {
 // module-level functions so `ambientDeclCache` keys by identity stay stable across calls
 export function isAmbientFunctionNode(node) {
   // estree/oxc parses `declare function` as FunctionDeclaration { declare: true } - the
-  // function twin of the ClassDeclaration shape below; babel uses TSDeclareFunction
+  // function twin of the ClassDeclaration shape below; babel uses TSDeclareFunction.
+  // the third disjunct IS load-bearing: dropping it degrades oxc ambient-overload widening
+  // (the overload fixtures pin the widened generic emit)
   return node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction'
     || (node?.type === 'FunctionDeclaration' && node.declare === true);
 }
