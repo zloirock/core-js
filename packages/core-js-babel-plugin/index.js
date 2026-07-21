@@ -258,7 +258,12 @@ export default function plugin(api, options) {
 
   // per-plugin-instance adapter - closure reads current `injector` without module-level state.
   // `method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
-  const adapter = createBabelAdapter(() => injector, method, () => mutatedStatics);
+  const adapter = createBabelAdapter({
+    getInjector: () => injector,
+    method,
+    getMutatedStatics: () => mutatedStatics,
+    getPackages: () => packages,
+  });
 
   // third arg `path` (when supplied by `extractCheck`) anchors `adapter.hasBinding` at
   // the reference site so TS-runtime shadows (`enum`, `namespace`, `import X = require()`)
@@ -1108,7 +1113,7 @@ export default function plugin(api, options) {
           memberKeyNamesReducer(),
           minifierShapesReducer(),
           ctorAliasShapesReducer(),
-          mutationShapesReducer(),
+          mutationShapesReducer(packages),
         ]);
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
