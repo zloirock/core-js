@@ -290,7 +290,13 @@ export default function createPlugin(options) {
   // MagicString is sync, all current visitors are sync. enforce by inspection
   let currentInjector = null;
   // `options.method` lets the shared resolver gate the receiver-drop soundness check to usage-pure
-  const estreeAdapter = createEstreeAdapter(() => currentInjector, options.method, () => currentMutatedStatics);
+  const estreeAdapter = createEstreeAdapter({
+    getInjector: () => currentInjector,
+    method: options.method,
+    getMutatedStatics: () => currentMutatedStatics,
+    // lazy: `packages` is destructured from the resolver below; transforms run after
+    getPackages: () => packages,
+  });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin
     getPolyfillBindingEntry: (scope, name) => {
@@ -549,7 +555,7 @@ export default function createPlugin(options) {
     const fileCensus = collectFileCensus(ast, [
       bindingNamesReducer(),
       memberKeyNamesReducer(),
-      mutationShapesReducer(),
+      mutationShapesReducer(packages),
       ctorAliasShapesReducer(),
     ]);
     let mutationInfo = null;

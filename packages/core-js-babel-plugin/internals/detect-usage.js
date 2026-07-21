@@ -75,8 +75,8 @@ function stringLiteralValue(node) {
 // resolution step with the read side via `mutation-prepass` (provider)
 export function collectMutationPrePass(programPath, adapter, census = null) {
   const mutated = new Set();
-  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(programPath.node))) return { mutated };
-  const handleSite = createMutationSiteHandler({ adapter, mutated });
+  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(programPath.node, adapter.packages))) return { mutated };
+  const { handleSite, finalizeMutationSet } = createMutationSiteHandler({ adapter, mutated });
   programPath.traverse({
     // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
     // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
@@ -103,10 +103,13 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
       for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
     },
   });
+  finalizeMutationSet();
   return { mutated };
 }
 
-export function createBabelAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
+export function createBabelAdapter({
+  getInjector = () => null, method = null, getMutatedStatics = () => null, getPackages = () => null,
+} = {}) {
   // the injector's declarator registry serves plugin-minted memo refs whose scope model
   // misrepresents the binding: scope-invisible on the memo-dense append path, or param-landed
   // by babel's `scope.push` on a callable scope (binding node = bare Identifier until the
@@ -130,10 +133,11 @@ export function createBabelAdapter(getInjector = () => null, method = null, getM
     isMutatedStatic(object, key) {
       return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
     },
-    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
-    // detection in `bindingSymbolKey`. null when injector hasn't published packages or
-    // adapter constructed without an injector closure (entry-only detect path)
-    get packages() { return getInjector()?.packages ?? null; },
+    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
+    // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the
+    // resolved array before ANY injector exists, and the mutation pre-pass runs in exactly
+    // that window (injector-only sourcing left the pre-pass packages-blind there)
+    get packages() { return getPackages(); },
     hasBinding(scope, name, path = null) {
       // a plugin-minted memo ref appended on the memo-dense fast path is scope-invisible
       // until the programExit re-crawl - the injector's declarator registry is authoritative

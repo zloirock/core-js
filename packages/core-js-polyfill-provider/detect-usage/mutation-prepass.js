@@ -13,6 +13,8 @@ import {
   followConstLiteralAlias,
   unwrapRuntimeExpr,
   isMemberMutationContext,
+  isMutatedStaticPair,
+  isTopLevelThisContext,
   memberKeyName,
   mutatedStaticKey,
   patternSlotValues,
@@ -110,12 +112,23 @@ function collectGateRoots(node, out, firstKey = null, hops = 0, depth = 0) {
     }
     break;
   }
-  if (root?.type === 'Identifier') out.push({ name: root.name, chained: hops > 0, firstKey });
-  // a CALL-rooted target (`getArr().from = patch`) is opaque to the cheap name heuristics, but
-  // the scoped stage CAN resolve it (it inlines a transparent call's return) - report it as a
-  // gate-firing root so the cheap gate stays a SUPERSET of the scoped value fan
-  else if (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression') {
-    out.push({ name: '', callRooted: true, chained: hops > 0, firstKey });
+  switch (root?.type) {
+    case 'Identifier':
+      out.push({ name: root.name, chained: hops > 0, firstKey });
+      break;
+    // a CALL-rooted target (`getArr().from = patch`) is opaque to the cheap name heuristics,
+    // but the scoped stage CAN resolve it (it inlines a transparent call's return) - report it
+    // as a gate-firing root so the cheap gate stays a SUPERSET of the scoped value fan
+    case 'CallExpression':
+    case 'OptionalCallExpression':
+      out.push({ name: '', callRooted: true, chained: hops > 0, firstKey });
+      break;
+    // top-level `this` IS the global proxy on the scoped side (the read canon's pragmatic
+    // assumption) - report the root so `result` can fire on built-in-shaped keys off it
+    case 'ThisExpression':
+      out.push({ name: '', thisRooted: true, chained: hops > 0, firstKey });
+      break;
+    default:
   }
   return out;
 }
@@ -147,13 +160,20 @@ function mutationKeyName(keyNode, computed, ctx) {
   return resolveKey({ node: keyNode, computed, scope: ctx.scope, adapter: ctx.adapter, path: ctx.path });
 }
 
+// gate record for a member mutation target: the OBJECT roots the classification, except a
+// member hanging DIRECTLY off `this` reports the member itself - its object alone is a bare
+// ThisExpression with no key for `result` to classify on (`this.Promise = shim`)
+function gateMemberTarget(member) {
+  return unwrapRuntimeExpr(member.object)?.type === 'ThisExpression' ? member : member.object;
+}
+
 function gatherPatternMemberTargets(pattern, out) {
   const work = [pattern];
   while (work.length) {
     const node = work.pop();
     if (!node || typeof node !== 'object') continue;
     if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
-      out.push(node.object);
+      out.push(gateMemberTarget(node));
       continue;
     }
     walkAstChildren(node, child => work.push(child));
@@ -161,8 +181,10 @@ function gatherPatternMemberTargets(pattern, out) {
 }
 
 // census-reducer form: the per-node collection runs from the shared file-census walk, the
-// verdict is computed once in `result` over everything collected
-export function mutationShapesReducer() {
+// verdict is computed once in `result` over everything collected. `packages` (main pkg +
+// additionalPackages prefixes) keeps the import-alias recognition in lockstep with the scoped
+// canon - without it a user-aliased global-proxy entry never fires the gate
+export function mutationShapesReducer(packages = null) {
   const targets = [];
   const valueBound = new Set();
   // name -> container nodes: the gate checks the chain's FIRST key against the container's
@@ -193,7 +215,7 @@ export function mutationShapesReducer() {
       case 'AssignmentExpression': {
         const left = unwrapRuntimeExpr(node.left);
         if (left?.type === 'MemberExpression' || left?.type === 'OptionalMemberExpression') {
-          targets.push(left.object);
+          targets.push(gateMemberTarget(left));
         } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
           gatherPatternMemberTargets(left, targets);
           // bare identifier elements assign global slots like the flat form - gate on them too
@@ -209,20 +231,20 @@ export function mutationShapesReducer() {
       }
       case 'UpdateExpression': {
         const arg = unwrapRuntimeExpr(node.argument);
-        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
+        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(gateMemberTarget(arg));
         else if (arg?.type === 'Identifier') targets.push(arg);
         break;
       }
       case 'UnaryExpression': {
         const arg = node.operator === 'delete' ? unwrapRuntimeExpr(node.argument) : null;
-        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(arg.object);
+        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(gateMemberTarget(arg));
         break;
       }
       case 'ForInStatement':
       case 'ForOfStatement':
         switch (node.left?.type) {
           case 'MemberExpression':
-            targets.push(node.left.object);
+            targets.push(gateMemberTarget(node.left));
             break;
           case 'ArrayPattern':
           case 'ObjectPattern':
@@ -245,7 +267,7 @@ export function mutationShapesReducer() {
         // canon (which resolves the binding through the same import source) never runs.
         // `require`-style aliases already fire via the VariableDeclarator branch (a call
         // init is non-inert)
-        if (globalProxyNameFromImportSource(node.source?.value)) {
+        if (globalProxyNameFromImportSource(node.source?.value, packages)) {
           for (const s of node.specifiers ?? []) {
             if ((bindsModuleDefault(s) || s.type === 'ImportNamespaceSpecifier') && s.local?.name) {
               valueBound.add(s.local.name);
@@ -256,7 +278,7 @@ export function mutationShapesReducer() {
       case 'TSImportEqualsDeclaration':
         // the TS require-import twin of the case above; adapter-less reducer reads the
         // module-reference string directly
-        if (tsImportEqualsProxyName(node, null)) valueBound.add(node.id.name);
+        if (tsImportEqualsProxyName(node, null, packages)) valueBound.add(node.id.name);
         break;
       case 'ClassDeclaration':
         if (node.id?.type === 'Identifier') {
@@ -306,6 +328,19 @@ export function mutationShapesReducer() {
       // SUPERSET; otherwise the monkey-patch escapes the gate and usage-pure substitutes over it
       for (const root of collectGateRoots(target, [])) {
         if (root.callRooted) return { hasMutationShapes: true };
+        // a `this`-rooted target fires when the key nearest the root is built-in-shaped, or
+        // when the target is the bare `this` itself (a mutator-call arg whose resolvable
+        // literal keys can land on the global). dynamic-key members (`this[k] = v`) and
+        // lowercase instance writes (`this.x = v`) stay silent - the scoped stage records
+        // nothing for them (global-object carve-out / the bare-write lowercase cut), so the
+        // gate stays a superset without firing on these ubiquitous shapes
+        if (root.thisRooted) {
+          if (root.firstKey === null ? !root.chained
+            : (root.firstKey[0] >= 'A' && root.firstKey[0] <= 'Z') || POSSIBLE_GLOBAL_OBJECTS.has(root.firstKey)) {
+            return { hasMutationShapes: true };
+          }
+          continue;
+        }
         if (root.name[0] >= 'A' && root.name[0] <= 'Z') return { hasMutationShapes: true };
         if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return { hasMutationShapes: true };
         if (valueBound.has(root.name)) return { hasMutationShapes: true };
@@ -319,8 +354,8 @@ export function mutationShapesReducer() {
   return { visit, result };
 }
 
-export function hasMutationCandidateShapes(programNode) {
-  return collectFileCensus(programNode, [mutationShapesReducer()]).hasMutationShapes;
+export function hasMutationCandidateShapes(programNode, packages = null) {
+  return collectFileCensus(programNode, [mutationShapesReducer(packages)]).hasMutationShapes;
 }
 
 // any of the name's containers statically carries the chain's first key (object property or
@@ -385,6 +420,10 @@ function destructuredLiteralSource(node, ctx) {
   return null;
 }
 
+// the statically readable keys of a mutation-source object (`Object.assign` source /
+// `defineProperties` descriptor map), plus an `open` flag: the source could carry keys BEYOND
+// the listed ones - unresolvable to a literal at all, an unreadable property key, or a spread.
+// an open source can have patched anything, so the caller deopts the receiver whole
 function objectLiteralKeys(node, ctx) {
   // a variable source (`const src = { from: f }; Object.assign(Array, src)`) resolves to its const
   // init, so a copied static key is recorded like an inline `Object.assign(Array, { from: f })`;
@@ -392,15 +431,26 @@ function objectLiteralKeys(node, ctx) {
   // the const-alias follower cannot see - pair the pattern with its literal init
   let obj = followConstLiteralAlias(node, ctx);
   if (obj?.type !== 'ObjectExpression') obj = destructuredLiteralSource(node, ctx);
-  if (obj?.type !== 'ObjectExpression') return [];
+  if (obj?.type !== 'ObjectExpression') return { keys: [], open: true };
   const keys = [];
+  let open = false;
   for (const prop of obj.properties ?? []) {
     if (prop.type === 'ObjectProperty' || prop.type === 'Property' || prop.type === 'ObjectMethod') {
       const key = mutationKeyName(prop.key, prop.computed, ctx);
       if (key !== null) keys.push(key);
-    }
+      else open = true;
+    } else open = true;
   }
-  return keys;
+  return { keys, open };
+}
+
+// entries for a mutator whose source keys came back partially readable: the known keys record
+// exactly, an open remainder deopts the receiver whole (`keys: null`)
+function sourceKeysEntries(target, { keys, open }) {
+  const entries = [];
+  if (keys.length) entries.push({ targetNode: target, keys });
+  if (open) entries.push({ targetNode: target, keys: null });
+  return entries;
 }
 
 // `{ targetNode, keys }` entries for a mutation-shaped node; the Object / Reflect callee name
@@ -449,37 +499,65 @@ function identitySelfCopyLeaves(target, rhs, ctx) {
   return out;
 }
 
-function isIdentityFlatCopy(name, rhs, ctx) {
-  if (rhs?.type !== 'MemberExpression' && rhs?.type !== 'OptionalMemberExpression') return false;
-  return memberKeyName(rhs) === name && isBareProxyGlobalName(unwrapRuntimeExpr(rhs.object), ctx);
+// the proxy receiver NAME behind an identity flat copy (`X = globalThis.X` -> 'globalThis'),
+// null when the write is not an identity copy
+function identityFlatCopySource(name, rhs, ctx) {
+  if (rhs?.type !== 'MemberExpression' && rhs?.type !== 'OptionalMemberExpression') return null;
+  const obj = unwrapRuntimeExpr(rhs.object);
+  return memberKeyName(rhs) === name && isBareProxyGlobalName(obj, ctx) ? obj.name : null;
 }
 
 // all bare slot writes an ASSIGNMENT TARGET position can hold: a flat identifier or bare
 // identifier leaves of a destructure pattern (`[Promise] = arr` - each is the same slot
 // write as its flat twin). member leaves are classified by the member visitor, not here.
-// `rhs` (assignment form only) feeds the identity self-copy exemption
+// `rhs` (value-preserving assignment forms only) feeds the identity self-copy exemption; a
+// skipped identity is PENDED, not dropped - the finalize pass re-records it if the file
+// turns out to mutate the trusted proxy receiver's own slot (`self = fake`)
 function bareSlotWriteEntries(target, ctx, rhs = null) {
   const bare = bareGlobalSlotEntry(target, ctx);
-  if (bare) return isIdentityFlatCopy(target.name, rhs, ctx) ? [] : [bare];
+  if (bare) {
+    const source = identityFlatCopySource(target.name, rhs, ctx);
+    if (!source) return [bare];
+    ctx.pendingIdentitySkips?.push({ proxyName: source, slotKey: target.name });
+    return [];
+  }
   if (target?.type !== 'ArrayPattern' && target?.type !== 'ObjectPattern') return [];
   const identity = identitySelfCopyLeaves(target, rhs, ctx);
   const out = [];
   walkPatternIdentifiers(target, id => {
-    if (identity.has(id)) return;
     const entry = bareGlobalSlotEntry(id, ctx);
-    if (entry) out.push(entry);
+    if (!entry) return;
+    if (identity.has(id)) ctx.pendingIdentitySkips?.push({ proxyName: rhs.name, slotKey: id.name });
+    else out.push(entry);
   });
   return out;
 }
 
 // delete / update / assignment classify from the HOST side with a
 // DOWNWARD wrapper peel - parent-side hops can't see through stacked wrappers
-// (`delete ((Map.groupBy))`, `delete (Map.groupBy as any)`), the peel depth is unbounded
-function memberMutationEntry(slot, ctx) {
+// (`delete ((Map.groupBy))`, `delete (Map.groupBy as any)`), the peel depth is unbounded;
+// the member visitor routes its bare non-`=` sites here too, so the unreadable-key rules
+// live in ONE place: such a key (`Array[k] = v`) could name ANY member and deopts the
+// receiver whole, EXCEPT under a logical-install operator (see `isLogicalInstallOp`)
+function memberMutationEntry(slot, ctx, operator = null) {
   const member = unwrapRuntimeExpr(slot);
   if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return [];
   const key = mutationKeyName(member.property, member.computed, ctx);
-  return key !== null ? [{ targetNode: member.object, keys: [key] }] : [];
+  if (key === null && isLogicalInstallOp(operator)) return [];
+  return [{ targetNode: member.object, keys: key !== null ? [key] : null }];
+}
+
+// assignment operators under which an identity self-copy stays a value no-op: plain assignment
+// and the logical forms (either keep the current value or install the same slot's value).
+// arithmetic compounds (`X += globalThis.X`) DERIVE a new value - a real mutation
+const IDENTITY_PRESERVING_ASSIGN_OPS = new Set(['=', '||=', '&&=', '??=']);
+
+// logical-INSTALL writes (`globalThis[k] ||= {}` - the namespace-init idiom) can never replace
+// a LIVE value, so an unreadable key does not deopt the receiver whole; the absent-slot install
+// stays the accepted precision limit the logical-assign warning gate documents. replacing
+// operators (`=`, `&&=`, arithmetic compounds) and delete / update forms deopt
+function isLogicalInstallOp(operator) {
+  return operator === '||=' || operator === '??=';
 }
 
 function classifyMutationSite(node, parent, grandparent, ctx) {
@@ -494,9 +572,10 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
     return bare ? [bare] : [];
   }
   if (node.type === 'AssignmentExpression') {
-    const entries = memberMutationEntry(node.left, ctx);
+    const entries = memberMutationEntry(node.left, ctx, node.operator);
     if (entries.length) return entries;
-    return bareSlotWriteEntries(unwrapRuntimeExpr(node.left), ctx, unwrapRuntimeExpr(node.right));
+    const rhs = IDENTITY_PRESERVING_ASSIGN_OPS.has(node.operator) ? unwrapRuntimeExpr(node.right) : null;
+    return bareSlotWriteEntries(unwrapRuntimeExpr(node.left), ctx, rhs);
   }
   // a bare for-x LHS (`for (Promise of xs)`, `for ([Promise] of xs)`) assigns the slot on
   // every iteration; a VariableDeclaration LHS binds locally and falls out of the helper
@@ -505,10 +584,15 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   }
   if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && isMemberMutationContext(node, parent, grandparent)) {
-    const key = mutationKeyName(node.property, node.computed, ctx);
-    return key !== null ? [{ targetNode: node.object, keys: [key] }] : [];
+    return memberMutationEntry(node, ctx, parent?.type === 'AssignmentExpression' ? parent.operator : null);
   }
   if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return [];
+  return classifyMutatorCall(node, ctx);
+}
+
+// mutator CALL forms (`Object.defineProperty` / `Object.assign` / `Reflect.set` / extracted or
+// computed spellings), split from the statement dispatcher above
+function classifyMutatorCall(node, ctx) {
   // the detached-call idiom `(0, Object.defineProperty)(...)` buries the member behind a
   // sequence tail - dispatch on the PEELED callee so wrapper / SE-tail shapes classify like
   // their bare twins
@@ -531,18 +615,30 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
   if (!namespace) return [];
   const args = node.arguments ?? [];
   if (!args[0]) return [];
+  // the mutator NAME itself is unreadable (`Object[m](Array, ...)`, an extracted `const fn =
+  // Object[m]`): it can be any mutator, so every argument that can host a mutation deopts
+  // whole - including a possible `Reflect.set` receiver slot
+  if ((namespace === 'Object' || namespace === 'Reflect') && method === null) {
+    const entries = [{ targetNode: args[0], keys: null }];
+    if (args[3]) entries.push({ targetNode: args[3], keys: null });
+    return entries;
+  }
   if (namespace === 'Object') {
     if (method === 'defineProperty') {
       const key = mutationKeyName(args[1], true, ctx);
-      return key !== null ? [{ targetNode: args[0], keys: [key] }] : [];
+      return [{ targetNode: args[0], keys: key !== null ? [key] : null }];
     }
     if (method === 'defineProperties') {
-      const keys = objectLiteralKeys(args[1], ctx);
-      return keys.length ? [{ targetNode: args[0], keys }] : [];
+      return sourceKeysEntries(args[0], objectLiteralKeys(args[1], ctx));
     }
     if (method === 'assign') {
-      const keys = args.slice(1).flatMap(arg => objectLiteralKeys(arg, ctx));
-      return keys.length ? [{ targetNode: args[0], keys }] : [];
+      // no sources at all (`Object.assign(Array)`) mutates nothing - distinct from sources
+      // whose keys cannot be read
+      const lists = args.slice(1).map(arg => objectLiteralKeys(arg, ctx));
+      return sourceKeysEntries(args[0], {
+        keys: lists.flatMap(list => list.keys),
+        open: lists.some(list => list.open),
+      });
     }
     return [];
   }
@@ -551,7 +647,7 @@ function classifyMutationSite(node, parent, grandparent, ctx) {
     // Reflect.set(target, key, value, RECEIVER): with a receiver the data property lands on the
     // receiver, not target, so the receiver is the mutation host; 3-arg / other mutators use target
     const host = method === 'set' && args[3] ? args[3] : args[0];
-    return key !== null ? [{ targetNode: host, keys: [key] }] : [];
+    return [{ targetNode: host, keys: key !== null ? [key] : null }];
   }
   return [];
 }
@@ -572,29 +668,70 @@ function bareCalleeStaticPair(callee, ctx) {
     : patternSlotValues(decl.id, decl.init, callee.name, { ...ctx, resolveKey }).map(unwrapRuntimeExpr);
   for (const member of sources) {
     if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') continue;
+    // a resolvable namespace with an UNREADABLE method (`const fn = Object[m]`) still names a
+    // possible mutator - the caller deopts the call's mutation hosts whole
     const method = mutationKeyName(member.property, member.computed, ctx);
-    const namespace = method !== null ? peeledNamespaceName(member.object, ctx) : null;
+    const namespace = peeledNamespaceName(member.object, ctx);
     if (namespace) return { namespace, method };
   }
   return null;
 }
 
+// a mutation whose KEY the canons cannot read could have hit any member of its receiver -
+// the receiver's whole NAME deopts through the slot channel every reader already consults
+// (`isMutatedStaticPair`). a prototype receiver deopts its constructor. the GLOBAL OBJECT
+// itself is carved out: `globalThis[k] = v` is the ubiquitous UMD / export-global / registry
+// idiom, and deopting the whole file over it would strip every polyfill from such files -
+// the computed-global write stays the documented precision limit, uniform with the
+// logical-install carve-out
+function addReceiverDeopt(mutated, name) {
+  if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return;
+  const base = name.endsWith('.prototype') ? name.slice(0, -'.prototype'.length) : name;
+  mutated.add(mutatedStaticKey('globalThis', base));
+}
+
 // --- the per-site collector callback (shared by both plugins' traversals) ---
 // classify the node as a mutation site (namespace shadowing is subsumed by the name canon),
-// resolve the receiver through the read-side canons and record every `name.key` pair
+// resolve the receiver through the read-side canons and record every `name.key` pair; a
+// `keys: null` entry (unreadable key) deopts each resolved receiver name whole. after the
+// traversal the caller runs `finalizeMutationSet`: identity self-copies were skipped TRUSTING
+// their proxy receiver, and if the file also mutates that receiver's own slot (`self = fake;
+// Promise = self.Promise`) the copy installs the replacement's value - re-record the skipped
+// slots against the COMPLETE set, iterating because one re-recorded slot can invalidate
+// another skip's receiver
 export function createMutationSiteHandler({ adapter, mutated }) {
-  return function handleSite(path) {
-    const ctx = { scope: path.scope, adapter, path };
+  const pendingIdentitySkips = [];
+  function handleSite(path) {
+    const ctx = { scope: path.scope, adapter, path, pendingIdentitySkips };
     for (const entry of classifyMutationSite(path.node, path.parent, path.parentPath?.parent, ctx)) {
       if (entry.globalSlotKey) {
         mutated.add(mutatedStaticKey('globalThis', entry.globalSlotKey));
         continue;
       }
       const { targetNode, keys } = entry;
-      const { names } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
-      for (const name of names) for (const key of keys) mutated.add(mutatedStaticKey(name, key));
+      const { names, receiverDeopts } = resolveMutationSite({ targetNode, scope: path.scope, adapter, path });
+      for (const name of names) {
+        if (keys) for (const key of keys) mutated.add(mutatedStaticKey(name, key));
+        else addReceiverDeopt(mutated, name);
+      }
+      for (const name of receiverDeopts) addReceiverDeopt(mutated, name);
     }
-  };
+  }
+  function finalizeMutationSet() {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const skip of pendingIdentitySkips) {
+        if (!isMutatedStaticPair('globalThis', skip.proxyName, mutated)) continue;
+        const key = mutatedStaticKey('globalThis', skip.slotKey);
+        if (!mutated.has(key)) {
+          mutated.add(key);
+          changed = true;
+        }
+      }
+    }
+  }
+  return { handleSite, finalizeMutationSet };
 }
 
 // --- slot-DEOPT model (usage-pure) ---
@@ -679,16 +816,18 @@ function valueFanLeaves(node, leaves, depth = 0) {
 }
 
 // member chain -> { rootNode, keys } when every hop key resolves to a static name (const-aliased
-// hops follow the read-side canon); null otherwise. the root node is returned WHATEVER its type -
-// a name-resolving caller filters to Identifier, while a value-fan caller fans a ternary / logical
-// chain root (`(c ? globalThis : self).Array`) the single-Identifier form could not represent
+// hops follow the read-side canon); an unreadable hop keeps walking to the root but nulls `keys`
+// (the reached value is unknowable - callers deopt the ROOT whole). the root node is returned
+// WHATEVER its type - a name-resolving caller filters to Identifier, while a value-fan caller
+// fans a ternary / logical chain root (`(c ? globalThis : self).Array`) the single-Identifier
+// form could not represent
 function memberChainParts(node, ctx) {
-  const keys = [];
+  let keys = [];
   let root = node;
   while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) {
     const key = mutationKeyName(root.property, root.computed, ctx);
-    if (typeof key !== 'string') return null;
-    keys.unshift(key);
+    if (typeof key !== 'string') keys = null;
+    else keys?.unshift(key);
     root = unwrapRuntimeExpr(root.object);
     while (root?.type === 'SequenceExpression' && root.expressions.length) {
       root = unwrapRuntimeExpr(root.expressions.at(-1));
@@ -699,12 +838,30 @@ function memberChainParts(node, ctx) {
 
 function resolveLeafName(leaf, ctx) {
   const { scope, adapter, path } = ctx;
+  // top-level `this` IS the global proxy - the same pragmatic canon the read side's chain-root
+  // walk uses. an aliased `this` (`const g = this`) anchors the context check at its
+  // DECLARATOR's path (`thisPath`), where the `this` actually sits
+  if (leaf.type === 'ThisExpression') {
+    return isTopLevelThisContext(ctx.thisPath ?? path) ? 'globalThis' : null;
+  }
   const direct = resolveObjectName({ objectNode: leaf, scope, adapter, path });
   if (direct) return direct;
   if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') {
     const parts = memberChainParts(leaf, ctx);
-    // name resolution needs an Identifier root; a value-fan root is the chain-root-alias caller's job
-    if (!parts || parts.rootNode.type !== 'Identifier') return null;
+    // name resolution needs fully readable hops; unreadable ones deopt via the caller's fan
+    if (!parts?.keys) return null;
+    if (parts.rootNode.type !== 'Identifier') {
+      // top-level `this` roots a PROTOTYPE chain as the global proxy (`this.String.prototype.x
+      // = patch` names `String.prototype`, proxy hops allowed); non-prototype `this` chains
+      // and other value-fan roots are the chain-root-alias caller's job
+      if (parts.rootNode.type === 'ThisExpression' && parts.keys.at(-1) === 'prototype'
+        && parts.keys.length >= 2
+        && parts.keys.slice(0, -2).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key))
+        && isTopLevelThisContext(ctx.thisPath ?? path)) {
+        return `${ parts.keys.at(-2) }.prototype`;
+      }
+      return null;
+    }
     // `Ctor.prototype.key = patch` is an INSTANCE mutation, recorded as `Ctor.prototype.key`:
     // the enrichment imports the key's instance entry UP FRONT, so core-js initializes from
     // the PRISTINE prototype (caching its own implementation) before the third-party patch
@@ -730,20 +887,25 @@ function resolveLeafName(leaf, ctx) {
 }
 
 // canonical names for one mutation receiver, following the read-side canons. over-records by
-// design: every REACHABLE value of a (re)assigned alias is poisoned - the safe direction
+// design: every REACHABLE value of a (re)assigned alias is poisoned - the safe direction.
+// `receiverDeopts` carries chain ROOT names whose reached value is unknowable (an unreadable
+// hop - `Array[k].x = v` could have patched anything under Array); the handler deopts them
+// whole. `thisPath` (alias fans only) anchors the top-level-`this` context check at the
+// declarator that captured the `this`, not the mutation site
 function resolveMutationSite({ targetNode, scope, adapter, path }) {
   const names = new Set();
+  const receiverDeopts = new Set();
   const seenBindings = new Set();
-  function visitAliasValues(valueNode, depth) {
+  function visitAliasValues(valueNode, depth, thisPath = null) {
     if (!valueNode || depth > 8) return;
     for (const leaf of valueFanLeaves(valueNode, [])) {
-      const name = resolveLeafName(leaf, { scope, adapter, path });
+      const name = resolveLeafName(leaf, { scope, adapter, path, thisPath });
       if (name) names.add(name);
       if (leaf.type === 'Identifier') visitBinding(leaf, depth + 1);
       // an alias bound to a chain root off a reassigned proxy holder (`let h; h = globalThis;
       // const alias = h.Array`) resolves no leaf name - fan its chain root like the target loop
       else if (!name && (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression')) {
-        visitChainRootAlias(leaf);
+        visitChainRootAlias(leaf, thisPath);
       }
     }
   }
@@ -768,20 +930,24 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
     // a receiver-shaped source synthesizes the member (`const { prototype: P } = Array` ->
     // `Array.prototype`), which the leaf resolver keys as the prototype pair
     const decl = binding.path?.node ?? binding.node;
+    // the binding's own path anchors an aliased `this` (`const g = this; g.Promise = shim`)
+    // where the `this` textually sits; reassignment rhs nodes carry no path, so the
+    // declaration anchor over-approximates them (over-record - the safe direction)
+    const bindingPath = binding.path ?? null;
     const patternDeclarator = decl?.type === 'VariableDeclarator' && decl.id && decl.id.type !== 'Identifier';
     if (patternDeclarator) {
       for (const slotValue of patternSlotValues(decl.id, decl.init, identNode.name, { scope, adapter, path, resolveKey })) {
-        visitAliasValues(slotValue, depth);
+        visitAliasValues(slotValue, depth, bindingPath);
       }
     }
     // a pattern declarator's init is the WHOLE rhs (`Array` for `{ prototype: P } = Array`):
     // fanning it would smuggle the CONTAINER name and record a spurious static beside the
     // slot fan's correct pair - the selected slot values above are the only sound fan there
     const init = binding.path?.node?.init ?? binding.node?.init;
-    if (!patternDeclarator) visitAliasValues(init, depth);
+    if (!patternDeclarator) visitAliasValues(init, depth, bindingPath);
     const reCtx = { scope, adapter, path, resolveKey };
     for (const rhs of reassignmentValueNodes({ binding, usagePath: path, name: identNode.name, ctx: reCtx }) ?? []) {
-      visitAliasValues(rhs, depth);
+      visitAliasValues(rhs, depth, bindingPath);
     }
   }
   // a member-chain target whose root reaches a proxy global through a value fan keys the mutation
@@ -789,30 +955,50 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
   // the safe direction). two root shapes fan: a BOUND identifier (`let h; h = c ? other : globalThis;
   // h.Array.of = patch`) fans its init + reassignment union; an INLINE value fan
   // (`(c ? globalThis : self).Array.of = patch`) fans the chain root's own branches
-  function visitChainRootAlias(leaf) {
+  function visitChainRootAlias(leaf, thisPath = null) {
     const parts = memberChainParts(leaf, { scope, adapter, path });
     if (!parts) return;
-    if (parts.keys.slice(0, -1).some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
-    let rootValues;
-    if (parts.rootNode.type === 'Identifier') {
-      if (!adapter.hasBinding(scope, parts.rootNode.name, path)) return;
-      const binding = adapter.getBinding(scope, parts.rootNode.name, path);
-      if (!binding) return;
-      const init = binding.path?.node?.init ?? binding.node?.init;
-      rootValues = [init, ...reassignmentValueNodes({
-        binding, usagePath: path, name: parts.rootNode.name, ctx: { scope, adapter, path, resolveKey },
-      }) ?? []];
-    } else rootValues = [parts.rootNode];
-    for (const valueNode of rootValues) {
-      if (!valueNode) continue;
-      for (const valueLeaf of valueFanLeaves(valueNode, [])) {
-        const rootName = resolveLeafName(valueLeaf, { scope, adapter, path });
-        if (rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)) {
-          names.add(parts.keys.at(-1));
+    // an unreadable HOP hides which value off the root was reached (`Array[k].x = v`) - the
+    // mutation could sit anywhere under the root, so the ROOT deopts whole
+    if (!parts.keys) {
+      if (parts.rootNode.type === 'Identifier' && !adapter.hasBinding(scope, parts.rootNode.name, path)) {
+        receiverDeopts.add(parts.rootNode.name);
+        return;
+      }
+      for (const valueLeaf of chainRootValueLeaves(parts.rootNode)) {
+        const rootName = resolveLeafName(valueLeaf, { scope, adapter, path, thisPath });
+        if (rootName) {
+          receiverDeopts.add(rootName);
           return;
         }
       }
+      return;
     }
+    if (parts.keys.slice(0, -1).some(key => !POSSIBLE_GLOBAL_OBJECTS.has(key))) return;
+    for (const valueLeaf of chainRootValueLeaves(parts.rootNode)) {
+      const rootName = resolveLeafName(valueLeaf, { scope, adapter, path, thisPath });
+      if (rootName && POSSIBLE_GLOBAL_OBJECTS.has(rootName)) {
+        names.add(parts.keys.at(-1));
+        return;
+      }
+    }
+  }
+  // every reachable value leaf of a chain root: a BOUND identifier fans its init +
+  // reassignment union, an inline value composite fans its own branches
+  function chainRootValueLeaves(rootNode) {
+    let rootValues;
+    if (rootNode.type === 'Identifier') {
+      if (!adapter.hasBinding(scope, rootNode.name, path)) return [];
+      const binding = adapter.getBinding(scope, rootNode.name, path);
+      if (!binding) return [];
+      const init = binding.path?.node?.init ?? binding.node?.init;
+      rootValues = [init, ...reassignmentValueNodes({
+        binding, usagePath: path, name: rootNode.name, ctx: { scope, adapter, path, resolveKey },
+      }) ?? []];
+    } else rootValues = [rootNode];
+    const leaves = [];
+    for (const valueNode of rootValues) if (valueNode) valueFanLeaves(valueNode, leaves);
+    return leaves;
   }
   const target = valueFanLeaves(targetNode, []);
   for (const leaf of target) {
@@ -829,5 +1015,5 @@ function resolveMutationSite({ targetNode, scope, adapter, path }) {
       else if (leaf.type === 'MemberExpression' || leaf.type === 'OptionalMemberExpression') visitChainRootAlias(leaf);
     }
   }
-  return { names: [...names] };
+  return { names: [...names], receiverDeopts: [...receiverDeopts] };
 }
