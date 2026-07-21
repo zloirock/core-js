@@ -495,12 +495,13 @@ export const $instanceRegExpFlags = p => ({
     ${ importModules(p) }
 
     var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var hasOwn = ${ importInternal('has-own-property', p.level) }
     var flags = require('${ '../'.repeat(p.level - 1) }regexp/flags');
 
     var RegExpPrototype = RegExp.prototype;
 
     module.exports = function (it) {
-      return (it === RegExpPrototype || isPrototypeOf(RegExpPrototype, it)) ? flags(it) : it.flags;
+      return (it === RegExpPrototype || (isPrototypeOf(RegExpPrototype, it) && !hasOwn(it, 'flags'))) ? flags(it) : it.flags;
     };
   `,
   types: instanceTypes(p),
@@ -511,10 +512,11 @@ export const $instanceFunctionName = p => ({
     ${ importModules(p) }
 
     var isCallable = ${ importInternal('is-callable', p.level) }
+    var hasOwn = ${ importInternal('has-own-property', p.level) }
     var getName = require('${ '../'.repeat(p.level - 1) }function/name');
 
     module.exports = function (it) {
-      return isCallable(it) ? getName(it) : it.name;
+      return (isCallable(it) && !hasOwn(it, 'name')) ? getName(it) : it.name;
     };
   `,
   types: instanceTypes(p),
