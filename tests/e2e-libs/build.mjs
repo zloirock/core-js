@@ -28,7 +28,7 @@ function pluginOpts(method, phase) {
 // Write a temp entry for (exercise, method), run fn(entryPath), always clean up. The entry sits
 // under HERE/.tmp so its `import 'core-js'` / the exercise's `import 'rxjs'` resolve to the suite's
 // node_modules. `label` keeps the name readable; a pid+hrtime suffix makes it collision-safe across
-// concurrent processes sharing the checkout (matching `withTmpOut`), not just within one run.
+// concurrent processes sharing the checkout, not just within one run.
 export async function withEntry(exerciseAbs, method, label, fn) {
   await mkdir(TMP, { recursive: true });
   const file = join(TMP, `entry-${ label }-${ process.pid }-${ process.hrtime.bigint() }.mjs`);
