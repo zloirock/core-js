@@ -51,7 +51,8 @@ import {
 import {
   isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { chainNavigatesIntoMutatedStatic, isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { isGeneratedSlotShapedName } from '@core-js/polyfill-provider/injector-base';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
@@ -269,10 +270,29 @@ export default function plugin(api, options) {
   // inherited static for the optional-chain deopt check (set in initFile before traversal)
   let resolveSuperStaticFn = null;
   let isShadowedByClassOwnMemberFn = null;
+  // dead Optional*-typed links (optional: false) around a swapped receiver print with a
+  // parenthesized chain boundary under babel codegen where the text emitter spells plain -
+  // retype them in BOTH directions from the slot, stopping at a genuine `?.`
+  function retypeDeadOptionalLinks(path) {
+    for (let p = path; p
+      && (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) && !p.node.optional;
+      p = p.parentPath) {
+      p.node.type = p.isOptionalMemberExpression() ? 'MemberExpression' : 'CallExpression';
+      delete p.node.optional;
+    }
+    for (let d = path.node.object; d
+      && (d.type === 'OptionalMemberExpression' || d.type === 'OptionalCallExpression') && !d.optional;
+      d = d.object ?? d.callee) {
+      d.type = d.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
+      delete d.optional;
+    }
+  }
+
   function skipPolyfillableOptional(node, scope, path) {
     return isPolyfillableOptional({
       node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
       mutatedSet: mutatedStatics, isShadowedByClassOwnMember: isShadowedByClassOwnMemberFn,
+      mutatedKeptRootAware: true,
     });
   }
 
@@ -779,9 +799,42 @@ export default function plugin(api, options) {
           // `protoCtorReceiverSE`: a SE-sequence buried in a prototype ctor sub-receiver
           // (`(c++, globalThis.self).Map.prototype.has`) the receiver-SE collect couldn't reach - re-emit so
           // the `_Map` swap keeps the `c++` (`(c++, _Map).prototype.has`)
-          const baseEffects = prependChainAssignmentEffect(receiverPath.node,
-            receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects)) ?? [];
+          const seOnlyEffects = receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects) ?? [];
+          const baseEffects = prependChainAssignmentEffect(receiverPath.node, seOnlyEffects) ?? [];
+          const hadChainAssign = baseEffects.length > seOnlyEffects.length;
           const allEffects = meta.protoCtorReceiverSE ? [...meta.protoCtorReceiverSE, ...baseEffects] : baseEffects;
+          // an undefinable optional root may NOT fold into the kept sequence - the fold eats the
+          // `?.` guard (native short-circuits to undefined where the folded read yields a value:
+          // `(c = gw)?.self.Set.prototype.has.call(x)` returned true on an absent `window`). the
+          // kept assign becomes the guard TEST, the swap plus its raw tail ride the alternate:
+          // `null == (c = gw) ? void 0 : _Set.prototype.has.call(x)`. SE channels keep the fold
+          const guardAssigns = baseEffects.filter(effect => !seOnlyEffects.includes(effect));
+          if (guardAssigns.length === 1 && allEffects.length === 1
+            && !staticMayEraseReceiver(path.node, resolveBuiltIn,
+              path.scope ? { scope: path.scope, adapter, path } : null)) {
+            receiverPath.replaceWith(t.cloneNode(id));
+            normalizeOptionalChain(path, false);
+            retypeDeadOptionalLinks(path);
+            let tip = path;
+            for (;;) {
+              const par = tip.parentPath;
+              if ((par?.isMemberExpression() || par?.isOptionalMemberExpression()) && par.node.object === tip.node) {
+                tip = par;
+                continue;
+              }
+              if ((par?.isCallExpression() || par?.isOptionalCallExpression()) && par.node.callee === tip.node) {
+                tip = par;
+                continue;
+              }
+              break;
+            }
+            tip.replaceWith(t.conditionalExpression(
+              t.binaryExpression('==', t.nullLiteral(), guardAssigns[0]),
+              t.unaryExpression('void', t.numericLiteral(0)),
+              tip.node,
+            ));
+            return;
+          }
           receiverPath.replaceWith(withSideEffects(id, allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
@@ -790,6 +843,13 @@ export default function plugin(api, options) {
           // `undefined` into a TypeError. pass `false` so only the now-defined receiver's own `?.`
           // (dead after the swap) is left as-is and the trailing guard is preserved (matches unplugin)
           normalizeOptionalChain(path, false);
+          // a CHAIN-ASSIGN receiver's surviving links stay Optional*-TYPED with
+          // `optional: false` - babel codegen then parenthesizes the chain boundary
+          // (`((..., _Map).prototype.has).call(...)`) where the text emitter keeps the plain
+          // spelling. retype the dead links plain in BOTH directions from the swapped slot,
+          // stopping at a genuine `?.`. non-assign receivers (an optional-IIFE root) keep the
+          // sealed paren spelling - the text emitter prints it for the consumed `?.()` there
+          if (hadChainAssign) retypeDeadOptionalLinks(path);
           return;
         }
         if (!result) {
@@ -817,9 +877,20 @@ export default function plugin(api, options) {
         // a proxy-global root (`globalThis`) navigating a NON-pure leaf through redundant proxy hops
         // (`globalThis.self.Array`) must collapse the hops, else the bare identifier swap leaves
         // `_globalThis.self.Array` reading an undefined `.self` off the global off-engine (ie:11 / Node).
-        // a pure-ctor leaf is whole-swapped by the synth-swap path; a bare root collapses to nothing
-        if (kind === 'global' && !path.isObjectProperty()
-          && synthSwap?.collapseProxyHopRoot(path, path.scope ? { scope: path.scope, adapter, path } : null)) return;
+        // a pure-ctor leaf is whole-swapped by the synth-swap path; a bare root collapses to nothing.
+        // a memo-rebuilt nav into a MUTATED landing (`_ref.self.self.Set`, ctor slot patched) roots
+        // at a plugin ref that never gets its own global meta, so the root-anchored collapse has no
+        // identifier site to fire from - drive it from the ref; the natural member swap would
+        // otherwise respell the guarded read off the always-defined ponyfill instead of dropping
+        // the hops onto the guarded ref. non-mutated ref-rooted navs keep their natural handling
+        // (receiver-independent ctor substitution and the leaf ponyfill swap)
+        if (kind === 'global' && !path.isObjectProperty()) {
+          let drivePath = path;
+          while (drivePath.isMemberExpression() || drivePath.isOptionalMemberExpression()) drivePath = drivePath.get('object');
+          if (!(drivePath.isIdentifier() && injector?.getMemoWrite?.(drivePath.node.name)
+            && chainNavigatesIntoMutatedStatic({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }))) drivePath = path;
+          if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null)) return;
+        }
 
         if (path.isObjectProperty()) {
           destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
@@ -899,7 +970,7 @@ export default function plugin(api, options) {
             // alternate is receiver-independent), short-circuit intact. the refusal fires only on
             // proxy-TIER unponyfilled hops (window-class forwarders), so the claim is sound there.
             // SE channels keep the raw stand-down - no re-emit slot in this shape
-            if (!staticMayEraseReceiver(path.node.object, resolveBuiltIn)) {
+            if (!staticMayEraseReceiver(path.node, resolveBuiltIn, path.scope ? { scope: path.scope, adapter, path } : null)) {
               emitGuardedClaim({
                 path, replacePath, id,
                 sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
@@ -1067,9 +1138,7 @@ export default function plugin(api, options) {
         skippedNodes = new WeakSet();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
-        synthSwap = createSynthSwapEmitter({
-          adapter, injectPureImport, injector, resolvePure, skippedNodes, t,
-        });
+        synthSwap = createSynthSwapEmitter({ adapter, injectPureImport, injector, resolvePure, skippedNodes, t });
         destructureEmit = createDestructureEmitter({
           adapter,
           generateRef,
@@ -1441,7 +1510,7 @@ export default function plugin(api, options) {
         // factory-time conditional that may leave `synthSwap` undefined
         synthSwap?.apply(path);
         injector?.flush();
-        finalizeInjector();
+        finalizeInjector(path);
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
         // late-CJS detection (`postHook`'s markersGone check + diagnostic warn) can add to
         // debug output before format(). siblings' programExit + post may run AFTER ours;
@@ -1497,8 +1566,41 @@ export default function plugin(api, options) {
       // pre-normalize; prune only sees block-scoped vars). shared between the main
       // `programExit` and entry-global's `post()` so both modes produce the same
       // canonical layout regardless of sibling-plugin import-injection timing
-      function finalizeInjector() {
+      // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing
+      // reads (`null == (_refY = null == (_refX = root) ? void 0 : ...)`) is write-only: the
+      // read it once served was replaced by a receiver-independent claim, which only exists
+      // AFTER all claims landed. unwrap the write; the declaration then falls to the standard
+      // unused-ref prune. a TOP-LEVEL guard keeps its memo (the locked kept-swap canon).
+      // mirrors the text emitter's ref-canon dead-memo strip
+      function unwrapDeadNestedGuardMemos(programPath) {
+        programPath.scope.crawl();
+        programPath.traverse({
+          ConditionalExpression(p) {
+            const { test, consequent } = p.node;
+            if (consequent?.type !== 'UnaryExpression' || consequent.operator !== 'void') return;
+            if (test?.type !== 'BinaryExpression' || test.operator !== '==') return;
+            const side = test.left?.type === 'AssignmentExpression' ? 'left'
+              : test.right?.type === 'AssignmentExpression' ? 'right' : null;
+            if (!side) return;
+            const write = test[side];
+            if (write.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(write.left.name)) return;
+            const pp = p.parentPath;
+            if (!pp?.isAssignmentExpression() || pp.node.right !== p.node
+              || pp.node.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(pp.node.left.name)) return;
+            const gp = pp.parentPath;
+            if (!gp?.isBinaryExpression() || gp.node.operator !== '==') return;
+            const other = gp.node.left === pp.node ? gp.node.right : gp.node.left;
+            if (other?.type !== 'NullLiteral') return;
+            const binding = p.scope.getBinding(write.left.name);
+            if (!binding || binding.references > 0) return;
+            test[side] = write.right;
+          },
+        });
+      }
+
+      function finalizeInjector(programPath = null) {
         if (!injector) return;
+        if (programPath) unwrapDeadNestedGuardMemos(programPath);
         injector.reorderImportRegion();
         injector.normalizeArrowRefParams();
         injector.pruneUnusedRefs();
