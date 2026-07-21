@@ -4687,8 +4687,8 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
 {
   // suites probe the COLLECTOR semantics; shim ignoring depends on plugin resolvers, so the
   // harness adapters answer "nothing is polyfillable" - every shim shape stays recorded here
-  const babelMutationAdapter = createBabelAdapter(() => null, 'usage-pure');
-  const estreeMutationAdapter = createEstreeAdapter(() => null, 'usage-pure');
+  const babelMutationAdapter = createBabelAdapter({ method: 'usage-pure' });
+  const estreeMutationAdapter = createEstreeAdapter({ method: 'usage-pure' });
   function collectBoth(src) {
     let babelMutated = null;
     babelTransform(src, {
