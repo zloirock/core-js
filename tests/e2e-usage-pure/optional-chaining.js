@@ -403,3 +403,48 @@ QUnit.test('optional chain: short-circuit skips trailing members after a poly ca
   assert.same(tailComputed({ rows: {} }), undefined);
   assert.same(tailComputed({ rows: [[1], [2]] }), 2);
 });
+
+// a receiver carrying its OWN live `?.` short-circuits the whole chain natively: the combined
+// dispatch must test it before the maybe-helper reads its member, or a nullish anywhere in the
+// receiver throws where native yields undefined
+QUnit.test('optional chain: receiver-level short-circuit reaches the combined dispatch', assert => {
+  function twoLive(a) { return a?.b?.c.flat?.().map(x => x).length; }
+  assert.same(twoLive(undefined), undefined);
+  assert.same(twoLive({ b: undefined }), undefined);
+  assert.same(twoLive({ b: { c: [[1], [2]] } }), 2);
+  // the live `?.` may sit deeper than the root, and the root itself may be plain
+  function deeperSeated(a) { return a.b?.c.flat?.().map(x => x).length; }
+  assert.same(deeperSeated({ b: undefined }), undefined);
+  assert.same(deeperSeated({ b: { c: [[1], [2]] } }), 2);
+  // an optional CALL inside the receiver short-circuits the same way
+  function callMid(a) { return a?.get?.().rows.flat?.().map(x => x).length; }
+  assert.same(callMid({ get: undefined }), undefined);
+  assert.same(callMid({ get: () => ({ rows: [[1], [2]] }) }), 2);
+  // a polyfilled optional call as the receiver: a missing method short-circuits the outer chain
+  function polyReceiver(a) { return a.flat?.().flat?.().includes(2); }
+  assert.same(polyReceiver({}), undefined);
+  assert.same(polyReceiver([[1], [2]]), true);
+  // a NON-polyfilled inner method reads off the same receiver memo - its read short-circuits too
+  function nonPolyInner(o) { return o?.b.c.notPolyfilled?.().map(x => x).length; }
+  assert.same(nonPolyInner(undefined), undefined);
+  assert.same(nonPolyInner({ b: { c: {} } }), undefined);
+  assert.same(nonPolyInner({ b: { c: { notPolyfilled: () => [[1], [2]] } } }), 2);
+  // NEGATIVE: parens END the chain, so a sealed `?.` must keep throwing past the barrier, and a
+  // receiver with no live `?.` keeps throwing on its own member read
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed-chain throw IS the case
+  function parenSealed(a) { return (a?.b).c.flat?.().map(x => x).length; }
+  assert.throws(() => parenSealed(undefined), TypeError);
+  function plainReceiver(arr) { return arr.flat?.().map(x => x).length; }
+  assert.throws(() => plainReceiver(undefined), TypeError);
+  // the receiver evaluates exactly once despite being tested and then read
+  let reads = 0;
+  const counted = {
+    // eslint-disable-next-line es/no-accessor-properties -- the single-evaluation count IS the case
+    get b() {
+      reads += 1;
+      return { c: [[1], [2]] };
+    },
+  };
+  assert.same(twoLive(counted), 2);
+  assert.same(reads, 1);
+});
