@@ -48,11 +48,11 @@ function esc(s) {
   return String(s).replaceAll(/["&'<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function html(lib, method, checks) {
+function html(title, method, checks) {
   const rows = checks.map(c => `<tr class="${ c.pass ? 'ok' : 'bad' }"><td>${ esc(c.label) }</td><td>${ c.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
   const failing = checks.filter(c => !c.pass).length;
   return `<!doctype html>
-<html><head><meta charset="utf-8"><title>e2e-libs ${ esc(lib) }/${ esc(method) }</title>
+<html><head><meta charset="utf-8"><title>e2e-libs ${ esc(title) }/${ esc(method) }</title>
 <style>
   body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:720px}
   #banner{padding:1rem;border-radius:8px;font-weight:700;font-size:18px;color:#fff}
@@ -63,7 +63,7 @@ function html(lib, method, checks) {
   tr.bad td:nth-child(2){color:#991b1b;font-weight:700}
 </style></head>
 <body>
-  <h1>${ esc(lib) } — <code>${ esc(method) }</code></h1>
+  <h1>${ esc(title) } — <code>${ esc(method) }</code></h1>
   <div id="banner" class="wait">running…</div>
   <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
   <table id="tbl"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
@@ -146,8 +146,9 @@ const manifest = [];
 let failed = 0;
 for (const lib of libs) {
   for (const method of lib.methods) {
-    // one artifact per (method x Babel version): unplugin's post phase consumes Babel's helper
-    // output, which differs between Babel 7 and 8 — so both are down-compiled and pre-flighted.
+    // one artifact per (method x Babel version): both Babel majors are down-compiled and pre-flighted
+    // to match the repo's dual-Babel convention. Output is byte-identical for these fixtures, but the
+    // post phase consumes Babel's helper output — where any 7-vs-8 helper divergence would surface.
     for (const babelVersion of BABEL_VERSIONS) {
       const { ok, entry } = await buildCell(lib, method, babelVersion);
       manifest.push(entry);
