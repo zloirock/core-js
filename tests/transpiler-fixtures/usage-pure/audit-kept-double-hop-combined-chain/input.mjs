@@ -15,6 +15,10 @@ export const rawMethodTail = (u = globalThis.window)?.self?.self.Array.of(4).use
 // into the enclosing test the same way a claim guard does, at any nesting depth
 let w;
 export const nestedCombined = (w = globalThis.window)?.self?.self.Array.of(5).flat?.().map?.(x => x).at?.(0);
+// the SINGLE-hop spelling converges on the same emission: the mid-chain helper grafts INTO
+// the guard alternate and the root guard memo prunes once the claim stops reading it
+let w2;
+export const nestedCombinedSingle = (w2 = globalThis.window)?.self.Array.of(6).flat?.().map?.(x => x).at?.(0);
 // a SECOND kept chain nested in the claim's ARGUMENT keeps its own guard and claims - the
 // composed needle carries the nested chain's live `?.` (only the outer chain's hops deopt)
 let a;
