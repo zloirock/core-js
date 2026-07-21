@@ -286,10 +286,6 @@
               {
                 "title": "Decorator metadata",
                 "url": "{docs-version}/docs/features/proposals/decorator-metadata"
-              },
-              {
-                "title": "Await dictionary",
-                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               }
             ]
           },
