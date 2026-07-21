@@ -14,4 +14,4 @@ const arr = [1, 2];
 null == (_ref = _flatMaybeArray(arr)) ? void 0 : _filterMaybeArray(_ref2 = _mapMaybeArray(_ref3 = _ref.call(arr)).call(_ref3, x => x * 2))?.call(_ref2).some(x => x > 3);
 // a CALL link inside an optional-root receiver keeps the fold: the call is its own dispatch
 // whose guard-hoist already covers the nullish root - the single-root hoist is member-walk only
-null == (_ref4 = arr == null ? void 0 : _flatMaybeArray(_ref5 = _sliceMaybeArray(arr).call(arr))) ? void 0 : _atMaybeArray(_ref6 = _ref4.call(_ref5)).call(_ref6, 0);
+null == (_ref4 = arr == null ? void 0 : _sliceMaybeArray(arr).call(arr)) || null == (_ref5 = _flatMaybeArray(_ref4)) ? void 0 : _atMaybeArray(_ref6 = _ref5.call(_ref4)).call(_ref6, 0);

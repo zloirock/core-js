@@ -1749,6 +1749,25 @@ function * generateChainTrailingContinuations() {
       code: '(o => o.arr.flat?.().map(x => o.inner?.at(0)).length)(JSON.parse(\'{"arr":[[1]],"inner":null}\'))' },
     { id: 'arg-guard-inner-full',
       code: '(o => o.arr.flat?.().map(x => o.inner?.at(0)).length)(JSON.parse(\'{"arr":[[1]],"inner":[7]}\'))' },
+    // a receiver carrying its OWN live `?.` short-circuits the whole chain natively - the
+    // combined dispatch must test it instead of folding it into the nullish-intolerant helper
+    { id: 'receiver-optional-root-nullish',
+      code: '(a => a?.b?.c.flat?.().map(x => x).length)(JSON.parse(\'null\'))' },
+    { id: 'receiver-optional-mid-nullish',
+      code: '(a => a?.b?.c.flat?.().map(x => x).length)(JSON.parse(\'{"b":null}\'))' },
+    { id: 'receiver-optional-full',
+      code: '(a => a?.b?.c.flat?.().map(x => x).length)(JSON.parse(\'{"b":{"c":[[1],[2]]}}\'))' },
+    { id: 'receiver-deeper-optional-nullish',
+      code: '(a => a.b?.c.flat?.().map(x => x).length)(JSON.parse(\'{"b":null}\'))' },
+    // a polyfilled optional call AS the receiver: a missing method short-circuits the outer chain
+    { id: 'receiver-poly-call-missing', code: "(a => a.flat?.().flat?.().includes(2))(JSON.parse('{}'))" },
+    { id: 'receiver-poly-call-full', code: '(a => a.flat?.().flat?.().includes(2))(JSON.parse(\'[[1],[2]]\'))' },
+    // the same receiver rule on the NON-polyfilled inner path: the method read off the
+    // receiver memo must short-circuit, not throw
+    { id: 'nonpoly-inner-recv-nullish',
+      code: '(o => o?.b.c.notPolyfilled?.().map(x => x).length)(JSON.parse(\'null\'))' },
+    { id: 'nonpoly-inner-method-missing',
+      code: '(o => o?.b.c.notPolyfilled?.().map(x => x).length)(JSON.parse(\'{"b":{"c":{}}}\'))' },
   ];
   for (const c of CASES) yield snippet(`chain-trailing/${ c.id }`, c.code);
 }
