@@ -207,12 +207,12 @@ export function makeBabelPlugin(babelVersion = '7') {
 }
 
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel
-// `babelVersion` ('7' | '8'). For usage-* methods pass a phase; entry-global ignores it. Ordering
+// `babelVersion` ('7' | '8'). usage-* build at phase 'post', entry-global at no phase. Ordering
 // matters: raw Rollup ignores unplugin's enforce:'post' field (enforce is a Vite/webpack-family
 // concept, not a raw-Rollup one), so transform order = array order. babel is listed FIRST so it
 // down-compiles to ES5, and unplugin runs LAST so its stdlib injection sees babel's helper output.
-export async function runtimeBuild(exerciseAbs, method, phase, babelVersion = '7') {
-  const effPhase = method === 'entry-global' ? undefined : (phase ?? 'post');
+export async function runtimeBuild(exerciseAbs, method, babelVersion = '7') {
+  const effPhase = method === 'entry-global' ? undefined : 'post';
   return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const build = await rollup({
       input: entry,

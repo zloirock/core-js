@@ -42,9 +42,9 @@ These two constraints produce the tiering in §4 and the plugin ordering in §6.
 
 - Registry-driven suite that runs a library through unplugin across `method` × `phase` ×
   `bundler`, seeded with **RxJS**.
-- **Throughput tier:** measure parse / inject / total-bundle time, output size, injection count,
-  against a no-plugin baseline.
-- **Runtime tier:** emit an ES5 bundle + a self-checking `index.html` per (lib × method) for
+- **Throughput tier:** measure total-bundle time (a parse-vs-inject split is deferred — see §8),
+  output size, injection count, against a no-plugin baseline.
+- **Runtime tier:** emit an ES5 bundle + a self-checking `index.html` per (lib × method × Babel 7/8) for
   **manual** upload to BrowserStack/SauceLabs; plus a node pre-flight that the bundle at least
   executes and its checks pass.
 - Injection snapshots per (lib × method), like e2e-d3.
@@ -77,14 +77,20 @@ tests/e2e-libs/
   libraries.mjs      # registry: [{ name, tiers, exercise, methods, notes }]
   exercises/
     rxjs.mjs         # monstrous headless exercise: exports run() -> { results, checks }
+    three.mjs        # headless three.js scene project (runtime + throughput)
+    codemirror.mjs   # headless CodeMirror 6 / Lezer exercise (runtime + throughput)
   build.mjs          # core: (lib, method, phase, bundler) -> bundle (unplugin [+ Babel for runtime tier])
   throughput.mjs     # tier-1 runner: bundlers x methods x phases, measure, write report/
-  artifacts.mjs      # tier-2 runner: rollup+babel / webpack+babel-loader -> ES5 bundle + index.html + manifest.json
+  pipeline.mjs       # size + time per stage [A]/[B]/[C] per (lib x method), write report/
+  artifacts.mjs      # tier-2 runner: rollup+babel -> ES5 bundle + index.html + manifest.json (Babel 7 & 8)
   snapshot.mjs       # injection snapshot per (lib x method); --update to rewrite
-  report/            # generated: throughput.md + throughput.json
+  check-exercise.mjs # run an exercise raw and print its checks
+  babel8/            # isolated @babel/core@8 toolchain (own package.json + node_modules)
+  report/            # generated: throughput.{md,json} + pipeline.{md,json}
   artifacts/         # generated: <lib>/babel{7,8}/<method>/{bundle.js,index.html} + manifest.json
   snapshots/         # generated: <lib>.<method>.txt
   package.json
+  .npmrc             # legacy-peer-deps=true (v4-alpha prerelease vs @rsbuild peerOptional)
 ```
 
 Runner / snapshot / strip patterns are re-authored from the e2e-d3 experiment by concept (not
@@ -191,9 +197,11 @@ headless runtime tier).
 
 ## 10. Commands
 
-- `node throughput.mjs [libFilter] [bundlerFilter]` → `report/`
-- `node artifacts.mjs [libFilter]` → `artifacts/` + `manifest.json` + node pre-flight
+- `node throughput.mjs [libFilter] [bundlerFilter] [--full]` → `report/` (smoke by default; `--full` = full matrix)
+- `node pipeline.mjs [libFilter] [methodFilter]` → `report/` (size + time per stage [A]/[B]/[C])
+- `node artifacts.mjs [libFilter]` → `artifacts/` + `manifest.json` + node pre-flight (Babel 7 & 8)
 - `node snapshot.mjs [--update]` → `snapshots/`
+- `node check-exercise.mjs [libFilter]` → run an exercise raw and print its checks
 
 (Node is used via the repo's toolchain; nvm path in this environment:
 `~/.nvm/versions/node/v22.20.0/bin/node`.)
@@ -201,7 +209,8 @@ headless runtime tier).
 ## 11. Phasing / YAGNI
 
 **First pass:** RxJS only, both tiers, on `v4`. No monsters, no d3, no BrowserStack automation, no
-CI. Commit only on request.
+CI. Commit only on request. (Since shipped: **three.js** and **CodeMirror** were added as further
+throughput+runtime fixtures — see §13.)
 
 **Later (separate passes, not designed here):** add throughput monsters (typescript / Monaco /
 PDF.js) as `tier:'throughput'` registry entries; add mathjs / zod to the runtime tier; optional
