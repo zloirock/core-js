@@ -65,6 +65,7 @@ async function median(fn) {
 }
 
 const rows = [];
+let captureFailures = 0; // baseline / inject-capture failures are logged but don't produce a row
 for (const lib of libs) {
   const bundlers = bundlersFor(lib);
   // per-(bundler) baseline: plugin-less bundle of the usage entry (no core-js import)
@@ -75,6 +76,7 @@ for (const lib of libs) {
       baseline[name] = ms;
     } catch (err) {
       baseline[name] = null;
+      captureFailures++;
       console.log(`baseline ${ name }: ERROR ${ (err.message || String(err)).slice(0, 120) }`);
     }
   }
@@ -91,6 +93,7 @@ for (const lib of libs) {
         injByCell[key] = (await captureInjections(lib.exercise, method, phase)).length;
       } catch (err) {
         injByCell[key] = null;
+        captureFailures++;
         console.log(`inject-capture ${ method }${ phase ? `/${ phase }` : '' }: ERROR ${ (err.message || String(err)).slice(0, 120) }`);
       }
     }
@@ -149,4 +152,4 @@ for (const lib of libs) {
 }
 await writeFile(join(REPORT, 'throughput.md'), md);
 console.log(`\nreport → ${ join(REPORT, 'throughput.md') }`);
-if (rows.some(r => r.error)) process.exitCode = 1;
+if (rows.some(r => r.error) || captureFailures) process.exitCode = 1;
