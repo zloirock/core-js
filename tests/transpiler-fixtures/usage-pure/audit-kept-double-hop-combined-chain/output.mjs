@@ -5,7 +5,7 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref19, _ref20, _ref21;
 // combined optional-call chains over a DOUBLE-hop kept-assign claim: the claim's root guard
 // must not ride into a helper-GET argument or under a raw member read (a throw where native
 // short-circuits) - it hoists into the outer test / over the raw tail on both emitters. the
@@ -27,8 +27,15 @@ export const nestedCombined = null == (_ref7 = null == (w = _globalThis.window) 
 // the guard alternate and the root guard memo prunes once the claim stops reading it
 let w2;
 export const nestedCombinedSingle = null == (_ref11 = null == (w2 = _globalThis.window) ? void 0 : _mapMaybeArray(_ref12 = _flatMaybeArray(_ref13 = _Array$of(6))?.call(_ref13))) ? void 0 : _at(_ref14 = _ref11.call(_ref12, x => x))?.call(_ref14, 0);
+// inside a FUNCTION scope the dead root memo prunes too: the scoped `var` list drops the
+// excised name on both emitters (the flush declaration does not exist there)
+export const nestedCombinedScoped = () => {
+  var _ref16, _ref15, _ref18, _ref17;
+  let w3;
+  return null == (_ref15 = null == (w3 = _globalThis.window) ? void 0 : _mapMaybeArray(_ref16 = _flatMaybeArray(_ref17 = _Array$of(7))?.call(_ref17))) ? void 0 : _at(_ref18 = _ref15.call(_ref16, x => x))?.call(_ref18, 0);
+};
 // a SECOND kept chain nested in the claim's ARGUMENT keeps its own guard and claims - the
 // composed needle carries the nested chain's live `?.` (only the outer chain's hops deopt)
 let a;
 let b;
-export const nestedKeptArg = null == (_ref15 = a = _globalThis.window) ? void 0 : _flatMaybeArray(_ref16 = _Array$of(null == (_ref17 = b = _globalThis.window) ? void 0 : _nameMaybeFunction(_Set)))?.call(_ref16);
+export const nestedKeptArg = null == (_ref19 = a = _globalThis.window) ? void 0 : _flatMaybeArray(_ref20 = _Array$of(null == (_ref21 = b = _globalThis.window) ? void 0 : _nameMaybeFunction(_Set)))?.call(_ref20);
