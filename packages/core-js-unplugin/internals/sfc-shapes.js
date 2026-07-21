@@ -59,7 +59,7 @@ export function parseModuleId(id) {
 
 // --- atomic SFC predicates (composed differently by each consumer) ---
 
-export function sfcFrameworkMarked(params) {
+function sfcFrameworkMarked(params) {
   return SFC_FRAMEWORK_MARKERS.some(marker => params.has(marker));
 }
 
@@ -80,12 +80,12 @@ function sfcLangParam(params) {
 // the JS/TS lang ext of the SFC lang hint (either form), or null when the param is absent / empty / a
 // non-JS lang. without the dotted-form arm a `lang.ts` block was admitted as JS-by-default yet its TS
 // suffix was never lifted, so oxc parsed the TS / TSX / JSX body as plain JS and rejected it
-export function sfcJsLang(params) {
+function sfcJsLang(params) {
   const lang = sfcLangParam(params);
   return lang && SFC_JS_LANG_RE.test(lang) ? lang : null;
 }
 
-export function sfcIsNonJsTypeBlock(params) {
+function sfcIsNonJsTypeBlock(params) {
   return SFC_NON_JS_TYPES.has(params.get('type'));
 }
 

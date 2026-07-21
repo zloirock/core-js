@@ -309,10 +309,6 @@ export function buildNestedDestructurePlan({
     // a SIBLING / ctor-key meta still dispatches the HOST - so the plan re-checks, else the
     // structural match above steals the user's key into a synth extraction
     if (scope && adapter?.hasBinding(scope, 'Symbol', path)) return { kind: 'verbatim', prop };
-    // a scope-shadowed `Symbol` is the user's own object, its computed key a PLAIN property
-    // read. the detection layer's shadow gate never dispatches these leaves themselves, but
-    // a SIBLING / ctor-key meta still dispatches the HOST - so the plan re-checks, else the
-    // structural match above steals the user's key into a synth extraction
     if (leafDisabled(prop)) return { kind: 'verbatim', prop };
     const localName = symbolIteratorLocalName(prop);
     if (localName !== null) {
