@@ -8,10 +8,19 @@ import { peelSkippableWrappers, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provi
 // `peelSkippableWrappers` (`SKIPPABLE_WRAPPER_TYPES` covers all three categories)
 export const unwrapNode = peelSkippableWrappers;
 
+// classifies `node`'s role under `parent`: 'call' / 'new' when node is the (wrapper-peeled)
+// callee of that invocation, null otherwise. the single source of the invocation-kind answer -
+// deriving kind from `parent.type` alone misclassifies ARGUMENT positions (`new Tag(base.name)`:
+// the member's parent is the NewExpression, but its callee is `Tag`)
+export function calleeKind(node, parent) {
+  if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return null;
+  if (unwrapNode(parent.callee) !== node) return null;
+  return parent.type === 'NewExpression' ? 'new' : 'call';
+}
+
 // check if parent is a call/new expression with node as callee
 export function isCallee(node, parent) {
-  if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
-  return unwrapNode(parent.callee) === node;
+  return calleeKind(node, parent) !== null;
 }
 
 // `(arr?.includes)(1)` / `((arr?.includes) as any)(1)` - parenLookupOnly emit form gates
