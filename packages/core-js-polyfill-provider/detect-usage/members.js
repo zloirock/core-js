@@ -998,8 +998,8 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   // not fold (`let O = {}; if (c) O = Array; 'from' in O`). a plain constant string key upgrades
   // the carrier to prototype placement: the resolver then consults the method-keyed instance map
   // and usage-global injects, so post-polyfill the probe yields the native-parity result.
-  // usage-pure still noops (null object gates its fold) - the pure flavor never patches the
-  // prototype, so folding would assert a presence it does not provide. a `'Symbol.X'` STRING
+  // usage-pure folds the instance presence probe too (`'flat' in []` -> `true`): the ponyfill
+  // import backs the method for every read the plugin rewrites. a `'Symbol.X'` STRING
   // spelling probes a plain string prop no module defines - stays inert, same as the static
   // branch. reachable reassignment alternatives ride the carrier's extras as before
   const instanceProbeKey = resolvedLeft && !resolvedLeft.startsWith('Symbol.') ? resolvedLeft : null;

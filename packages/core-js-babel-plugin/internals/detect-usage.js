@@ -609,8 +609,8 @@ export function createUsageVisitors({
     // reads `parent.type` unconditionally and would crash. check BEFORE everything else
     if (!path.parent) return;
     if (!skipReferencedCheck && !path.isReferencedIdentifier()) return;
-    // logical-assign LHS warning lives on a dedicated `Identifier` visitor (babel
-    // classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
+    // the logical-assign LHS polyfill injection lives on a dedicated `Identifier` visitor
+    // (babel classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
     // ReferencedIdentifier matches JSXIdentifier in too many positions. accept:
     //   `<Foo />` - direct opening-element name
     //   `<Foo.Bar.Baz />` - root of N-deep JSXMemberExpression chain at opening-element
@@ -891,11 +891,11 @@ export function createUsageVisitors({
     // ReferencedIdentifier covers all read positions for polyfill detection. a combined
     // `'ReferencedIdentifier|Identifier'` shape would register the handler twice via
     // `visitors.explode`, firing handleIdentifier twice per referenced Identifier
-    // (the second pass guarded by `handledObjects` WeakSet, but parent / warning /
-    // isReferenced checks would run twice). two visitors instead: ReferencedIdentifier
-    // handles polyfill detection; bare Identifier handles the logical-assign LHS warning
-    // (babel classifies `Map ||= X` LHS as non-reference, so ReferencedIdentifier
-    // never fires for it - need a separate visitor to surface the diagnostic)
+    // (the second pass guarded by `handledObjects` WeakSet, but parent / isReferenced
+    // checks would run twice). two visitors instead: ReferencedIdentifier handles polyfill
+    // detection; bare Identifier injects for the assignment / logical-assign LHS (babel
+    // classifies `Map ||= X` LHS as non-reference, so ReferencedIdentifier never fires
+    // for it - a separate visitor is needed to polyfill the written global)
     ReferencedIdentifier: handleIdentifier,
     Identifier(path) {
       if (!path.parent) return;

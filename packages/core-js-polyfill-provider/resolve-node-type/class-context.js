@@ -15,7 +15,7 @@
 //   - `t` (Babel/ESTree types adapter)
 //   - factory helpers: `resolveRuntimeExpression`, `isReflectConstructCallee`, `buildSubstMap`
 //   - cluster outputs: `findAmbientDeclarationPath` (`name-resolution`), `applyAliasSubstDeep`
-//     (`type-subst` - late-bound via thunk in factory wiring)
+//     (`type-subst` - passed directly; it is bound before this factory runs)
 //
 // `isAmbientClassNode` imports from `name-resolution` because it doubles as a cache key
 // for `ambientDeclCache`; identity must match between cluster and factory call sites.

@@ -52,7 +52,6 @@ export function createTypeMembers({
   expandMappedTypeMembers,
   isUnconstrainedTypeReference,
   pickConditionalBranchVia,
-  evaluateConditionalType,
   resolveTypeQueryBinding,
   buildCallSiteSubst,
   resolveTypeAnnotation,
@@ -430,9 +429,7 @@ export function createTypeMembers({
   //   1) AST equality (literal-vs-literal pairs only)
   //   2) structural eval - resolve substituted check + extends to Type Objects, ask
   //      `pickConditionalBranch` for the branch INDEX (true/false/null)
-  //   3) infer-pattern fallback (`T extends (infer U)[] ? U : never`) - evaluator returns
-  //      a Type Object that findTypeMember can sometimes look up via known-constructor stubs
-  //   4) undecidable - fold both branches into a synthetic union for findTypeMember's
+  //   3) undecidable - fold both branches into a synthetic union for findTypeMember's
   //      union path
   // keeping the BRANCH INDEX (steps 1-2) and recursing with the AST trueType/falseType is
   // crucial: AST-driven member lookup works for TSTypeLiteral / TSArrayType / etc. shapes
@@ -483,16 +480,6 @@ export function createTypeMembers({
     });
     if (branch !== null) {
       return findTypeMember({ objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
-    }
-    // structural-eval may return a Type Object ($Primitive / $Object) that findTypeMember
-    // can occasionally lookup via known-constructor stubs (`$Object('Array')`). when the
-    // Type Object DOESN'T dispatch (most non-container shapes), don't short-circuit -
-    // fall through to per-branch AST fallback below so neither branch's member set is
-    // silently dropped
-    const resolved = evaluateConditionalType(applySubst(aliased, subst), null, scope, depth + 1, null);
-    if (resolved) {
-      const direct = findTypeMember({ objectType: resolved, key, scope, depth: depth + 1 });
-      if (direct) return direct;
     }
     const trueResult = findTypeMember({ objectType: innerWithSubst(aliased.trueType), key, scope, depth: depth + 1 });
     const falseResult = findTypeMember({ objectType: innerWithSubst(aliased.falseType), key, scope, depth: depth + 1 });
