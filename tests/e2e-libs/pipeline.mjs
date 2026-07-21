@@ -106,27 +106,27 @@ for (const lib of libs) {
 
 // -------- report --------
 function kb(b) {
-  return `${ (b / 1024).toFixed(0) } КБ`;
+  return `${ (b / 1024).toFixed(0) } KB`;
 }
-let md = '# Pipeline: размер и время по стадиям\n\n'
-  + 'Rollup, Babel 7 (≡ Babel 8), single-run. Стадии: **[A]** библиотека без трансформаций '
-  + '(модерн, tree-shaken) → **[B]** + Babel (ES5, без полифиллов) → **[C]** + unplugin '
-  + '(полифиллы = реальный IE11-бандл). Для `entry-global` — только [C].\n\n';
+let md = '# Pipeline: size and time per stage\n\n'
+  + 'Rollup, Babel 7 (≡ Babel 8), single run. Stages: **[A]** library with no transforms '
+  + '(modern, tree-shaken) → **[B]** + Babel (ES5, no polyfills) → **[C]** + unplugin '
+  + '(polyfills = the real IE11 bundle). For `entry-global`, only [C].\n\n';
 for (const lib of libs) {
   const cells = rows.filter(r => r.lib === lib.name);
   if (!cells.length) continue;
   md += `## ${ lib.name }\n\n`;
   for (const c of cells) {
-    md += `### ${ c.method } — инъекций: ${ c.injections }\n\n`;
-    md += '| стадия | размер (raw) | время |\n| --- | --- | --- |\n';
+    md += `### ${ c.method } — injections: ${ c.injections }\n\n`;
+    md += '| stage | size (raw) | time |\n| --- | --- | --- |\n';
     if (c.A) {
-      md += `| исходники загружено (до tree-shaking) | ${ kb(c.src) } | — |\n`;
-      md += `| [A] без трансформаций (модерн) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
-      md += `| [B] + Babel (ES5, без полифиллов) | ${ kb(c.B.bytes) } | ${ c.B.ms } ms |\n`;
+      md += `| source loaded (pre-tree-shaking) | ${ kb(c.src) } | — |\n`;
+      md += `| [A] no transforms (modern) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
+      md += `| [B] + Babel (ES5, no polyfills) | ${ kb(c.B.bytes) } | ${ c.B.ms } ms |\n`;
     }
     md += `| [C] + unplugin (IE11) | ${ kb(c.C.bytes) } | ${ c.C.ms } ms (Babel ${ c.C.babelMs } / unplugin ${ c.C.unpluginMs }) |\n\n`;
-    md += `**Доставка [C]:** minified ${ kb(c.C.min) } · gzip **${ kb(c.C.gz) }**`;
-    if (c.A) md += ` — Δ размера: Babel ${ (c.B.bytes >= c.A.bytes ? '+' : '') + kb(c.B.bytes - c.A.bytes) } / полифиллы +${ kb(c.C.bytes - c.B.bytes) }`;
+    md += `**Wire size of [C]:** minified ${ kb(c.C.min) } · gzip **${ kb(c.C.gz) }**`;
+    if (c.A) md += ` — Δ size: Babel ${ (c.B.bytes >= c.A.bytes ? '+' : '') + kb(c.B.bytes - c.A.bytes) } / polyfills +${ kb(c.C.bytes - c.B.bytes) }`;
     md += '\n\n';
   }
 }

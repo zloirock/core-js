@@ -105,12 +105,22 @@ function html(title, method, checks) {
 `;
 }
 
+// The injection set is Babel-invariant (captureInjections runs no Babel), but capturing it is a full
+// rollup+unplugin build - ~20s on three - so memoize per (lib x method) instead of repeating it for
+// every Babel version. Called from inside buildCell's try, so a capture failure stays cell-isolated.
+const injectionCounts = new Map();
+async function injectionsFor(lib, method) {
+  const key = `${ lib.name }|${ method }`;
+  if (!injectionCounts.has(key)) injectionCounts.set(key, (await captureInjections(lib.exercise, method)).length);
+  return injectionCounts.get(key);
+}
+
 // Build + pre-flight one (lib x method x Babel version) cell. Returns its manifest entry and `ok`.
 async function buildCell(lib, method, babelVersion) {
   const label = `${ lib.name }/babel${ babelVersion }/${ method }`;
   try {
     const code = await runtimeBuild(lib.exercise, method, babelVersion); // usage-* build at phase 'post'
-    const injections = (await captureInjections(lib.exercise, method)).length;
+    const injections = await injectionsFor(lib, method);
     if (!injections) throw new Error('unplugin injected 0 polyfills — preflight would validate nothing');
     const checks = await preflight(code);
     if (!checks.length) throw new Error('exercise produced 0 checks — nothing verified');
