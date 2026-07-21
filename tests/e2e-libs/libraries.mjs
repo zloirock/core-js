@@ -1,6 +1,6 @@
 // Registry of libraries exercised by the suite. Each entry declares which tiers it participates
 // in (`throughput` = measured; `runtime` = emitted as an ES5 artifact and verified) and the path
-// to its deterministic exercise module (must export `run()` -> Promise<{ results, checks }>).
+// to its deterministic exercise module (must export `run()` -> Promise or plain { results, checks }).
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
