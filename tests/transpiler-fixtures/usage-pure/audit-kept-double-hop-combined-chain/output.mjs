@@ -15,24 +15,24 @@ let n;
 let t;
 let c;
 let u;
-export const combinedTail = null == (_ref = null == (n = _globalThis.window) ? void 0 : _flatMaybeArray(_ref2 = _Array$of(1))) ? void 0 : _at(_ref3 = _ref.call(_ref2))?.call(_ref3, 0);
+export const combinedTail = null == (_ref = null == (n = _globalThis.window) ? void 0 : _Array$of(1)) || null == (_ref2 = _flatMaybeArray(_ref)) ? void 0 : _at(_ref3 = _ref2.call(_ref))?.call(_ref3, 0);
 export const combinedNoTail = null == (_ref4 = t = _globalThis.window) ? void 0 : _flatMaybeArray(_ref5 = _Array$of(2))?.call(_ref5);
 export const optionalAccess = null == (_ref6 = null == (c = _globalThis.window) ? void 0 : _Array$of(3)) ? void 0 : _flatMaybeArray(_ref6)?.call(_ref6);
 export const rawMethodTail = null == (u = _globalThis.window) ? void 0 : _Array$of(4).userMethod?.();
 // NESTED combined chains: the inner chain's own OR-guard is a guarded producer too - it hoists
 // into the enclosing test the same way a claim guard does, at any nesting depth
 let w;
-export const nestedCombined = null == (_ref7 = null == (w = _globalThis.window) ? void 0 : _mapMaybeArray(_ref8 = _flatMaybeArray(_ref9 = _Array$of(5))?.call(_ref9))) ? void 0 : _at(_ref10 = _ref7.call(_ref8, x => x))?.call(_ref10, 0);
+export const nestedCombined = null == (_ref7 = null == (w = _globalThis.window) ? void 0 : _flatMaybeArray(_ref8 = _Array$of(5))?.call(_ref8)) || null == (_ref9 = _mapMaybeArray(_ref7)) ? void 0 : _at(_ref10 = _ref9.call(_ref7, x => x))?.call(_ref10, 0);
 // the SINGLE-hop spelling converges on the same emission: the mid-chain helper grafts INTO
 // the guard alternate and the root guard memo prunes once the claim stops reading it
 let w2;
-export const nestedCombinedSingle = null == (_ref11 = null == (w2 = _globalThis.window) ? void 0 : _mapMaybeArray(_ref12 = _flatMaybeArray(_ref13 = _Array$of(6))?.call(_ref13))) ? void 0 : _at(_ref14 = _ref11.call(_ref12, x => x))?.call(_ref14, 0);
+export const nestedCombinedSingle = null == (_ref11 = null == (w2 = _globalThis.window) ? void 0 : _flatMaybeArray(_ref12 = _Array$of(6))?.call(_ref12)) || null == (_ref13 = _mapMaybeArray(_ref11)) ? void 0 : _at(_ref14 = _ref13.call(_ref11, x => x))?.call(_ref14, 0);
 // inside a FUNCTION scope the dead root memo prunes too: the scoped `var` list drops the
 // excised name on both emitters (the flush declaration does not exist there)
 export const nestedCombinedScoped = () => {
-  var _ref16, _ref15, _ref18, _ref17;
+  var _ref15, _ref17, _ref18, _ref16;
   let w3;
-  return null == (_ref15 = null == (w3 = _globalThis.window) ? void 0 : _mapMaybeArray(_ref16 = _flatMaybeArray(_ref17 = _Array$of(7))?.call(_ref17))) ? void 0 : _at(_ref18 = _ref15.call(_ref16, x => x))?.call(_ref18, 0);
+  return null == (_ref15 = null == (w3 = _globalThis.window) ? void 0 : _flatMaybeArray(_ref16 = _Array$of(7))?.call(_ref16)) || null == (_ref17 = _mapMaybeArray(_ref15)) ? void 0 : _at(_ref18 = _ref17.call(_ref15, x => x))?.call(_ref18, 0);
 };
 // a SECOND kept chain nested in the claim's ARGUMENT keeps its own guard and claims - the
 // composed needle carries the nested chain's live `?.` (only the outer chain's hops deopt)

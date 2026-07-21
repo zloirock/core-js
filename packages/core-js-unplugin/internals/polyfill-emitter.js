@@ -7,7 +7,7 @@
 // resolver hooks).
 import {
   collectFoldedReceiverSideEffects,
-  singleRootOptionalReceiver,
+  receiverCarriesLiveOptional,
   isMutatedStaticMeta,
   isMutatedGlobalSlot,
   isMutatedStaticPair,
@@ -739,10 +739,24 @@ export function createPolyfillEmitter({
         ? injectPureImport(directPolyfill.entry, directPolyfill.hintName)
         : reuseReceiver.type === 'SequenceExpression' ? `(${ nodeSrc(reuseReceiver) })` : nodeSrc(reuseReceiver),
       methodSrc: nodeSrc(callee),
-      methodTail: code.slice(receiverNode.end, callee.end),
+      // a receiver carrying its OWN live `?.` short-circuits the whole chain, so reading the
+      // method off its memo must short-circuit too - otherwise the guard test throws where
+      // native yields undefined. an already-optional tail keeps its own `?.`
+      methodTail: optionalizeMethodTail(code.slice(receiverNode.end, callee.end),
+        !isSuper && receiverCarriesLiveOptional(receiverNode)),
       argsText: sliceBetweenParens(optionalNode),
       tail,
     };
+  }
+
+  // make a memoized method-get short-circuit (`_ref.m` -> `_ref?.m`, `_ref[k]` -> `_ref?.[k]`)
+  // when its receiver can be nullish; a tail that already carries `?.` is returned untouched
+  function optionalizeMethodTail(tail, needed) {
+    if (!needed) return tail;
+    const match = /^(?<lead>\s*)(?<token>\??\.|\[)/u.exec(tail);
+    if (!match || match.groups.token === '?.') return tail;
+    const bracket = match.groups.token === '[' ? '[' : '';
+    return `${ match.groups.lead }?.${ bracket }${ tail.slice(match[0].length) }`;
   }
 
   // allocate a `_ref` memoization slot for the call's receiver when bodyObj is non-trivial
@@ -912,7 +926,9 @@ export function createPolyfillEmitter({
           : methodCall.receiverSafe ? methodCall.receiverText : methodCall.recvRef;
         guard = methodCall.recvRef
           // side-effecting receiver: memoize it first, then read the method off the memo so the
-          // receiver evaluates exactly once (the tail keeps any inner `?.` for short-circuit)
+          // receiver evaluates exactly once (the tail keeps any inner `?.` for short-circuit).
+          // a receiver that short-circuits on its own needs its OWN test first - reading the
+          // method in the same comma test throws where native yields undefined
           ? `null == (${ methodCall.recvRef } = ${ methodCall.receiverText }, ${ guardRef } = ${ methodCall.recvRef }${ methodCall.methodTail }) ? void 0 : `
           // `methodSrc` is the peeled member (drops any TS/paren wrapper), so a wrapped callee
           // `(obj.m as any)?.()` memoizes the bare method - matching babel
@@ -2105,34 +2121,6 @@ export function createPolyfillEmitter({
   // descend one level along the inner-receiver chain. MemberExpression carries the next
   // step on `.object`; CallExpression / OptionalCallExpression on `.callee`. anything else
   // terminates the walk. wrappers are peeled by the caller (`peelChainHopWrappers`)
-  // single root-level `?.` receiver of a chain combine (`o?.rows.flat?.()...`): the
-  // maybe-helpers are not nullish-tolerant, so folding the live optional into the helper
-  // ARGUMENT throws where native short-circuits to undefined. hoist the ROOT into a leading
-  // null-guard test and read the rest off it deoptionalized - the standalone dispatch's
-  // root-extraction canon. deeper / multiple `?.` shapes keep the fold (see TASKS);
-  // proxy-global roots resolve through their own collapse machinery before reaching this
-  function hoistCombinedRootGuard(receiverNode) {
-    // member-walk only here: a call-bearing receiver resolves through the canonical receiver
-    // resolver instead, and its guard splits off the RESOLVED source (see the split below) -
-    // a raw-source rebuild would strand the nested dispatch's queued rewrite
-    const rootOpt = singleRootOptionalReceiver(receiverNode);
-    if (!rootOpt) return { rootPreTest: null, rootReceiverSrc: null };
-    // a receiver already carrying QUEUED nested transforms (a computed-key rewrite buried in
-    // the member walk) keeps the fold: the text rebuild would drop those transforms' source
-    // needles from the emitted content (compose-invariant throw)
-    if (transforms.hasTransformWithin(receiverNode.start, receiverNode.end)) {
-      return { rootPreTest: null, rootReceiverSrc: null };
-    }
-    const rootSrc = code.slice(rootOpt.rootNode.start, rootOpt.rootNode.end);
-    const tailSrc = code.slice(rootOpt.optionalLink.object.end, receiverNode.end)
-      .replace(/^\s*\?\.(?<bracket>\s*\[)?/, (m, bracket) => bracket ?? '.');
-    if (isReusableReceiver(rootOpt.rootNode)) {
-      return { rootPreTest: `${ rootSrc } == null`, rootReceiverSrc: `${ rootSrc }${ tailSrc }` };
-    }
-    const rootRef = scopeTracker.genRef();
-    return { rootPreTest: `null == (${ rootRef } = ${ rootSrc })`, rootReceiverSrc: `${ rootRef }${ tailSrc }` };
-  }
-
   function chainHopChild(node) {
     if (node.type === 'MemberExpression') return node.object;
     if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') return node.callee;
@@ -2264,12 +2252,13 @@ export function createPolyfillEmitter({
     // collapses the SAME way it does there, instead of being kept verbatim and leaking the cast
     // super: the `.call` receiver is `this` (a reusable primary), and the method-get `super.m` is
     // memoized via the chainStart test, so no receiver substitution is needed
-    const { rootPreTest, rootReceiverSrc } = isSuper
-      ? { rootPreTest: null, rootReceiverSrc: null }
-      : hoistCombinedRootGuard(innerCallee.object);
+    // a receiver carrying a LIVE `?.` short-circuits the WHOLE chain natively, so it must be
+    // TESTED before the (nullish-intolerant) maybe-helper reads its member - the same shape an
+    // optional method access already produces. a receiver WITHOUT one keeps the testless form:
+    // `arr.flat?.()` must throw on the `.flat` read like native
+    const receiverShortCircuits = !isSuper && receiverCarriesLiveOptional(innerCallee.object);
     const { src: receiver, skipNode } = isSuper
       ? { src: 'this', skipNode: null }
-      : rootReceiverSrc !== null ? { src: rootReceiverSrc, skipNode: null }
       : resolveReceiverSource(innerCallee.object, metaPath);
     if (skipNode) skippedNodes.add(skipNode);
     // shared `isReusableReceiver` gate (also drives babel's `memoize`): a side-effect-free
@@ -2290,7 +2279,8 @@ export function createPolyfillEmitter({
     // (`recv?.method?.()`). the method-get assigns mRef either way; in the non-optional non-safe
     // case it also carries the receiver assignment so a side-effecting receiver evaluates once.
     // mirrors babel-compat.js's `replaceInstanceChainCombined`
-    const methodArg = innerCallee.optional || isReceiverSafe ? aRef : `${ aRef } = ${ receiver }`;
+    const testsReceiver = innerCallee.optional || receiverShortCircuits;
+    const methodArg = testsReceiver || isReceiverSafe ? aRef : `${ aRef } = ${ receiver }`;
     // byte-parity with babel for `recv.m?.()?.hop...` (call-optional chainStart + member-optional
     // ADJACENT hop): babel folds the inner call into the chainStart test via `?.call`, so mRef holds
     // the call RESULT and a single `null == mRef` covers BOTH the `m?.()` short-circuit (the `?.call`)
@@ -2314,7 +2304,7 @@ export function createPolyfillEmitter({
       innermostGuardFolded: foldInnerCall, verbatimHops: allHopsNonPoly,
     });
 
-    const tests = allHopsNonPoly ? [] : innerCallee.optional ? [
+    const tests = allHopsNonPoly ? [] : testsReceiver ? [
       `null == ${ anAssign }`,
       `null == (${ mRef } = ${ methodGet(aRef) })`,
     ] : foldInnerCall ? [
@@ -2331,8 +2321,6 @@ export function createPolyfillEmitter({
     // member-optional hop guards sit between the chainStart tests and the outer-optional test,
     // innermost-first - matching native left-to-right short-circuit order
     tests.push(...extraTests);
-    // the hoisted root guard runs FIRST - native evaluates the root before everything else
-    if (rootPreTest) tests.unshift(rootPreTest);
     let outerObj;
     let outerMemo = null;
     if (node.optional) {
@@ -2369,8 +2357,15 @@ export function createPolyfillEmitter({
     // the testless all-non-poly chain has no test to hoist into
     const methodGetAnchor = mRef !== null && !innerCallee.optional ? `(${ mRef } = ` : null;
     const recvAnchor = !isReceiverSafe && !isSuper ? `(${ aRef } = ` : null;
+    // hoist slot: whichever test evaluates the RECEIVER first. a receiver tested because IT
+    // short-circuits (`null == (aRef = recv)`) reads it ahead of the method-get, so a nested
+    // dispatch's guard must land there - the later method-get slot would leave that read
+    // unguarded and throw on the short-circuit path. the optional-ACCESS branch keeps its
+    // no-slot contract: its own memo test already catches the guarded value
+    const guardAnchor = receiverShortCircuits && !innerCallee.optional && recvAnchor !== null
+      ? recvAnchor : methodGetAnchor;
     transforms.add(parent.start, emitEnd, replacement, null, {
-      guardSlot: methodGetAnchor !== null && replacement.includes(methodGetAnchor) ? methodGetAnchor : undefined,
+      guardSlot: guardAnchor !== null && replacement.includes(guardAnchor) ? guardAnchor : undefined,
       // the receiver's memo slot inside the helper-GET: a guarded claim spanning the WHOLE
       // receiver replaces the substituted receiver text there (needle composition against a
       // substituted receiver has no reliable slot - same rationale as the instance root slot)
