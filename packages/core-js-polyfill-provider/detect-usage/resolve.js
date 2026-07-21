@@ -232,11 +232,37 @@ export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt
 // hop with no ponyfill entry (`(b = globalThis.window)?.self.Array.from?.(x)`) is not erasable: the guard
 // rides on that navigation, so dropping it runs the static where the source short-circuits. the same root
 // question the receiver plan asks - that value is not provably the global, so nothing here is always-defined.
-// the substitution then stands down; the raw chain is exactly what the source meant
-export function staticMayEraseReceiver(receiverNode, resolvePure) {
-  if (!receiverNode || !resolvePure) return true;
-  const { root, optionalCount } = descendToChainRoot(receiverNode);
-  return !optionalCount || !navHasUnresolvableProxyHop(peelChainAssignment(root).value, resolvePure);
+// the substitution then stands down; the raw chain is exactly what the source meant.
+// callers pass the CONSUMING member itself (not its `.object`): a leaf-hop claim carries the live
+// `?.` on its own node (`(v = gw)?.self` - the object below is optional-free), and only the full
+// descent sees it - the object-only spelling reported optionalCount 0 and let the swap eat the guard
+export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null) {
+  if (!memberNode || !resolvePure) return true;
+  const { root, optionalCount } = descendToChainRoot(memberNode);
+  // the member's OWN live `?.` joins the count only when its key is SE-free: an SE-computed
+  // key rides the fold's harvest canon (the key-SE migration IS the locked emit), while an
+  // SE-free leaf claim has no compensating canon - eating its guard loses the short-circuit
+  let effectiveCount = optionalCount;
+  if ((memberNode.type === 'MemberExpression' || memberNode.type === 'OptionalMemberExpression')
+    && memberNode.optional && memberNode.computed
+    && memberKeyName(memberNode) === null) effectiveCount -= 1;
+  if (!effectiveCount) return true;
+  return !undefinableProxyRootValue(peelChainAssignment(root).value, resolvePure, aliasCtx);
+}
+
+// the one question every guard-keep decision asks about a chain root's VALUE: can it
+// genuinely be undefined on-target? true for a nav through an unponyfilled proxy hop
+// (`globalThis.window`) and for an ALIAS of one (`const w = globalThis.window` - the binding
+// hides the same navigation; the POSSIBLE gate keeps non-proxy resolutions - a follow that
+// lands on a plain local - out of the refusal); false for resolvable navs and other values
+export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
+  if (navHasUnresolvableProxyHop(value, resolvePure)) return true;
+  if (aliasCtx && value?.type === 'Identifier') {
+    const aliasName = proxyGlobalRootName({ node: value, ...aliasCtx });
+    if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName)
+      && !resolvePure({ kind: 'global', name: aliasName })) return true;
+  }
+  return false;
 }
 
 export function isStaticPlacement(name) {

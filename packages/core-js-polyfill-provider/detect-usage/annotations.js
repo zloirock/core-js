@@ -8,12 +8,13 @@
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import {
-  getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr,
+  getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES, unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
 import {
   maximalProxyGlobalPrefix, navHasUnresolvableProxyHop, peelChainAssignment, peelReceiverSequenceTail,
-  resolveKey, unwrapTransparentSeq,
+  resolveKey, undefinableProxyRootValue, unwrapTransparentSeq,
 } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
@@ -270,8 +271,85 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // raw scope index misses. extractCheck/replaceInstanceLike pass it through their
 // `skipOptional` callback hop; legacy callers without a path-aware adapter still work
 // because the third argument is optional on `hasBinding`
+// walk the ENCLOSING chain from an optional proxy hop UP to its static landing: the first
+// member key outside the proxy-global family is the effective global (`.Array`), the next
+// member key is the static (`.of`). a MUTATED landing cancels the always-defined claim the
+// proxy-prefix deopt relies on - the substitution bails and the raw navigation really reads
+// through the guarded value, so the `?.` must keep its guard (the emit then memoizes the
+// chain ROOT, the text emitter's canon). a chain that never reaches a second member has no
+// static landing to be mutated - the deopt stays
+export function chainNavigatesIntoMutatedStatic({ path, node = path?.node, scope, adapter, mutatedSet }) {
+  if (!mutatedSet?.size || !path) return false;
+  let current = path;
+  let globalName = null;
+  // the walk may START at the landing's own member (`(v = gw)?.self?.Set` as an optional
+  // chainStart): seed the global from the starting member's OWN key - a parent-only walk
+  // read the tail key (`name`) as the global and missed the mutated `Set` entirely.
+  // `node` may sit BELOW the anchoring path (the text emitter anchors at the trailing
+  // instance member while deciding an inner optional): the seed comes from the node, the
+  // parent walk from the path - the ctor-slot clause answers even when the walked keys
+  // belong to members above the landing
+  const ownNode = node;
+  if (ownNode?.type === 'MemberExpression' || ownNode?.type === 'OptionalMemberExpression') {
+    const ownKey = memberKeyName(ownNode)
+      ?? (ownNode.computed ? resolveKey({ node: ownNode.property, computed: true, scope, adapter, path }) : null);
+    if (ownKey !== null && ownKey !== undefined && !POSSIBLE_GLOBAL_OBJECTS.has(ownKey)) globalName = ownKey;
+  }
+  for (let guard = 0; guard < 64 && current; guard++) {
+    const parent = current.parentPath;
+    const parentNode = parent?.node;
+    if (!parentNode) return false;
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(parentNode.type) && parentNode.expression === current.node) {
+      current = parent;
+      continue;
+    }
+    if ((parentNode.type === 'MemberExpression' || parentNode.type === 'OptionalMemberExpression')
+      && parentNode.object === current.node) {
+      const key = memberKeyName(parentNode)
+        ?? (parentNode.computed
+          ? resolveKey({ node: parentNode.property, computed: true, scope, adapter, path: parent }) : null);
+      if (key === null || key === undefined) return false;
+      if (globalName === null) {
+        if (!POSSIBLE_GLOBAL_OBJECTS.has(key)) globalName = key;
+        current = parent;
+        continue;
+      }
+      return isMutatedStaticMeta({ kind: 'property', object: globalName, key, placement: 'static' }, mutatedSet);
+    }
+    // the chain ended right after the global (a helper call consumed the static member on a
+    // re-visit): a SLOT-mutated constructor poisons every read through it, so the nav must
+    // stay raw exactly like the explicit static landing
+    return globalName !== null
+      && isMutatedStaticMeta({ kind: 'property', object: 'globalThis', key: globalName, placement: 'static' }, mutatedSet);
+  }
+  return false;
+}
+
+// true when the guarded value of a chain-assign-rooted proxy nav can genuinely be undefined:
+// the stored value navigates a hop with no ponyfill entry (`n = globalThis.window`). an
+// always-defined root (bare proxy name, resolvable nav) keeps the deopt even under a mutated
+// landing - the raw read then hangs off a defined object and cannot throw
+function proxyNavRootCanBeUndefined(navNode, resolve, aliasCtx) {
+  let root = unwrapRuntimeExpr(unwrapTransparentSeq(navNode));
+  for (let guard = 0; guard < 64; guard++) {
+    if (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+      root = unwrapRuntimeExpr(unwrapTransparentSeq(root.object));
+      continue;
+    }
+    break;
+  }
+  // a SEQUENCE-wrapped root (`(sc++, n = gw)?.self...`) carries the assign as its TAIL -
+  // definedness is the tail's, exactly like the deopt branches' own sequence handling
+  root = peelReceiverSequenceTail(root ?? navNode);
+  const { value, outer } = peelChainAssignment(root ?? navNode);
+  if (!outer) return false;
+  const valueCore = unwrapRuntimeExpr(peelReceiverSequenceTail(value));
+  return undefinableProxyRootValue(valueCore, resolve, aliasCtx);
+}
+
 export function isPolyfillableOptional({
   node, scope, adapter, resolve, path, resolveSuperStatic, mutatedSet, isShadowedByClassOwnMember,
+  mutatedKeptRootAware = false,
 }) {
   // an optional CALL (`Array.from?.(...)`) carries the polyfillable target on its `callee`, not
   // `.object`; unwrap to the callee so a call-shaped optional resolves against the member below.
@@ -324,7 +402,15 @@ export function isPolyfillableOptional({
   // matches the emit-side collapse walkers, which see through the assignment and preserve it as a SE
   if (member === node
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
-      { allowSideEffectKeys: true, throughChainAssign: true }) === objCore) return true;
+      { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
+    // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
+    // the raw nav reads through a value that can be undefined - the guard must survive.
+    // OPT-IN (`mutatedKeptRootAware`): only the AST emitter's skip-check arms its guard off
+    // this answer; the text emitter's guard-root locator walks past dead hops to the kept
+    // root its own machinery guards - flipping its answer stacked a SECOND guard with a
+    // re-evaluated root assignment
+    && !(mutatedKeptRootAware && proxyNavRootCanBeUndefined(objCore, resolve, { scope, adapter, path })
+      && chainNavigatesIntoMutatedStatic({ path, node: member, scope, adapter, mutatedSet }))) return true;
   // a chain-assign subject navigating a PROXY HOP (`(q = globalThis)?.self.x`, nested
   // `(m = n = globalThis)?.self.x`): the guarded value is the assign RESULT, so the `?.` is dead exactly
   // when that RESULT is always defined once substituted. that holds for a bare proxy name AND for a
