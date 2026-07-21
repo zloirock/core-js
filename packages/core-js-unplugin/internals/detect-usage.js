@@ -310,10 +310,10 @@ function hasRuntimeBinding(scope, name, path = null) {
   return true;
 }
 
-// factory: per-plugin-instance adapter closed over a getInjector callback. babel-plugin
-// uses the same shape (`createBabelAdapter(getInjector)`) - keeps unplugin's adapter
-// contract symmetric without leaning on module-level state. `getInjector()` returns the
-// active per-transform injector or null between transforms; both consumers
+// factory: per-plugin-instance adapter closed over callbacks (an options bag mirroring the
+// babel twin) - keeps unplugin's adapter contract symmetric without leaning on module-level
+// state. `getInjector()` returns the active per-transform injector or null between
+// transforms; both consumers
 // (adapter.getBinding's polyfillHint AND typeResolvers' getPolyfillBindingEntry) read
 // through the same callback so user-imported polyfill UIDs (`import _Promise from
 // '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`) get recognised as
@@ -324,8 +324,8 @@ function hasRuntimeBinding(scope, name, path = null) {
 // shares every resolution step with the read side via `mutation-prepass` (provider)
 export function collectMutationPrePass(ast, adapter, census = null) {
   const mutated = new Set();
-  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(ast))) return { mutated };
-  const handleSite = createMutationSiteHandler({ adapter, mutated });
+  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(ast, adapter.packages))) return { mutated };
+  const { handleSite, finalizeMutationSet } = createMutationSiteHandler({ adapter, mutated });
   // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
   // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
   const siteVisitors = {
@@ -356,6 +356,7 @@ export function collectMutationPrePass(ast, adapter, census = null) {
     TSAbstractPropertyDefinition: visitDecoratorSites,
     TSAbstractAccessorProperty: visitDecoratorSites,
   });
+  finalizeMutationSet();
   return { mutated };
 }
 
@@ -470,7 +471,9 @@ function resolveClosestBinding(scope, name, path) {
   return { native: null, synth };
 }
 
-export function createEstreeAdapter(getInjector = () => null, method = null, getMutatedStatics = () => null) {
+export function createEstreeAdapter({
+  getInjector = () => null, method = null, getMutatedStatics = () => null, getPackages = () => null,
+} = {}) {
   const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
     // a receiver-less helper (dropping the receiver), so the shared resolver gates the
@@ -483,9 +486,11 @@ export function createEstreeAdapter(getInjector = () => null, method = null, get
     isMutatedStatic(object, key) {
       return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
     },
-    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import
-    // detection in `bindingSymbolKey`. null between transforms (no injector active)
-    get packages() { return getInjector()?.packages ?? null; },
+    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
+    // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the
+    // resolved array before ANY injector exists, and the mutation pre-pass runs in exactly
+    // that window (injector-only sourcing left the pre-pass packages-blind there)
+    get packages() { return getPackages(); },
     hasBinding(scope, name, path = null) {
       return hasRuntimeBinding(scope, name, path);
     },
