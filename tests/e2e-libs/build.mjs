@@ -27,10 +27,11 @@ function pluginOpts(method, phase) {
 
 // Write a temp entry for (exercise, method), run fn(entryPath), always clean up. The entry sits
 // under HERE/.tmp so its `import 'core-js'` / the exercise's `import 'rxjs'` resolve to the suite's
-// node_modules. `label` disambiguates concurrent-safe filenames (runs are sequential anyway).
+// node_modules. `label` keeps the name readable; a pid+hrtime suffix makes it collision-safe across
+// concurrent processes sharing the checkout (matching `withTmpOut`), not just within one run.
 export async function withEntry(exerciseAbs, method, label, fn) {
   await mkdir(TMP, { recursive: true });
-  const file = join(TMP, `entry-${ label }.mjs`);
+  const file = join(TMP, `entry-${ label }-${ process.pid }-${ process.hrtime.bigint() }.mjs`);
   const spec = JSON.stringify(exerciseAbs);
   const body = method === 'entry-global'
     ? `import 'core-js';\nexport { run } from ${ spec };\n`
@@ -243,8 +244,11 @@ export async function captureInjections(exerciseAbs, method, phase) {
   return withEntry(exerciseAbs, method, `snap-${ method }-${ phase ?? 'x' }`, async entry => {
     const sink = new Set();
     const build = await rollup({ input: entry, plugins: [u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn() { /* ignore bundler warnings */ } });
-    await build.generate({ format: 'es' });
-    await build.close();
-    return [...sink].sort();
+    try {
+      await build.generate({ format: 'es' });
+      return [...sink].sort();
+    } finally {
+      await build.close();
+    }
   });
 }
