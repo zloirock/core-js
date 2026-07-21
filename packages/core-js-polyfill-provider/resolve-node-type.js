@@ -667,7 +667,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveBinaryOperatorType,
   } = createValueOps({
     getScopeBinding,
-    isLiteralOf,
     literalKeyValue,
     singleQuasiString,
     getKeyName,
@@ -965,7 +964,9 @@ function createResolveNodeType(babelNodeType, t, {
   // dispatcher over the two pattern-key walkers (ArrayPattern numeric index / ObjectPattern
   // string key). returns null for anything else (Identifier handled by caller, RestElement
   // / nested patterns covered inside the underlying walkers). shared by `assignmentBindsTarget`
-  // (predicate) and resolvePath's destructure branch (key-path consumer)
+  // (predicate) and resolvePath's destructure branch (key-path consumer). NOT collapsible onto
+  // the pattern-bindings cluster export: this hoisted declaration serves pre-cluster-init
+  // callers through its null path, where a const-destructured delegate dies in the TDZ
   function findPatternKeyPath(pattern, name, scope) {
     if (pattern?.type === 'ArrayPattern') return findArrayPatternKeyPath(pattern, name, scope);
     if (pattern?.type === 'ObjectPattern') return findDestructuredKeyPath(pattern, name, scope);
@@ -1330,8 +1331,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveThisAnchor` / `resolveThisClass` / `resolveThisObject` / `resolveSuperClassPath`
   // / `resolveClassContext` / `buildParentClassSubstFromNodes` / `buildParentClassSubst`
   // live in `resolve-node-type/class-context.js`. service captures `isReflectConstructCallee`
-  // from `binding-analysis` (destructured just above) and the late-bound `type-subst`
-  // `applyAliasSubstDeep` via thunk
+  // from `binding-analysis` (destructured just above) and the `type-subst` `applyAliasSubstDeep`
+  // directly - it is a const bound before this factory runs, no thunk needed
   const classContextCluster = createClassContext({
     t,
     resolveRuntimeExpression,
