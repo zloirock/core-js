@@ -53,6 +53,7 @@ export function createClassObjectMember({
   instanceMemberShadowable,
   getTypeMembers,
   findNamespacedFunctionPath,
+  classCallableSlotReassigned,
 }) {
   // computed key matches only when statically resolvable to a string (`['foo']` literal,
   // `[`foo`]` single-quasi, `[42]` numeric). binding-Identifier computed (`[sym]` over
@@ -360,6 +361,12 @@ export function createClassObjectMember({
       // arg-discriminated bodyless overload set wins over findClassMember's single last-match
       const overloaded = resolveBodylessMethodOverloads({ member, callPath, classSubst });
       if (overloaded !== undefined) return overloaded;
+      // EVERY callable member is a writable slot: `this.m = ...` replaces a method shorthand just
+      // as it replaces a function-valued field, and the replacement may return a foreign family.
+      // an OBSERVED write unseats the declared narrowing for every shape alike, or dispatch picks
+      // a type-specific helper and throws on the replacement's value. a merely unknown writer set
+      // is not enough here - a method body exists whatever an external monkey-patch might do
+      if (classCallableSlotReassigned(member) === 'written') return null;
       if (methodFn) {
         const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
         if (r) return r;
@@ -371,6 +378,9 @@ export function createClassObjectMember({
         // and degrades `_atMaybeArray` to generic `_at`)
         return resolveReturnType(declaredReturnPath, callPath, classSubst);
       } else if (isPropertyMember(member.node)) {
+        // a function-valued FIELD narrows from its INITIALIZER, which any write replaces - so an
+        // unenumerable writer set unseats it too, not just an observed write
+        if (classCallableSlotReassigned(member)) return null;
         // resolve the CALL return from the declared signature when annotated (folds a union return
         // across families); only an un-annotated field falls back to inferring from the init body
         if (member.node.typeAnnotation) {
