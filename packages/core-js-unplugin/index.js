@@ -32,8 +32,10 @@ const VALID_PHASES = new Set(['pre', 'post', 'pre+post']);
 // priority for ordering them against sibling plugins, so a guaranteed pre-then-post interleave
 // can't be expressed and the two passes may not straddle a sibling. on farm
 // `enforce` IS honored via priority mapping (pre->102 / post->98), so sibling default-priority
-// 100 lands BETWEEN our pre and post - that's the design intent for pre+post. fall back to
-// single-mode 'post' only where the ordering truly breaks; user gets a one-time warn
+// 100 lands BETWEEN our pre and post - that's the design intent for pre+post. rollup /
+// rolldown also ignore `enforce`, but there the ordering IS expressible - `stage` emits the
+// per-hook `order` form for them, so they stay off this list. fall back to single-mode 'post'
+// only where the ordering truly breaks; user gets a one-time warn
 const PRE_POST_UNSAFE_BUNDLERS = new Set(['bun', 'esbuild']);
 
 // `phase` controls when the plugin runs. See index.d.ts for the full trade-off matrix.
@@ -73,14 +75,23 @@ const unplugin = createUnplugin((options, meta) => {
   const plugin = createPlugin({ ...rest, bundler });
 
   function stage(enforce, pass) {
+    // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
+    // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
+    // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
+    function transform(code, id) { return plugin.transform.call(this, code, id, pass); }
     return {
       name: `${ plugin.name }:${ enforce }`,
       enforce,
       transformInclude: shouldTransform,
-      // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
-      // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
-      // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
-      transform(code, id) { return plugin.transform.call(this, code, id, pass); },
+      // rollup / rolldown ignore the vite-style top-level `enforce` (upstream maps it for
+      // webpack-family rules, farm priorities and vite's plugin sorting, but its rollup
+      // conversion leaves the field foreign) - without ordering, `pre+post` degenerates to two
+      // adjacent passes that never straddle sibling plugins. express the ordering there with
+      // the per-hook object form (`transform: { order, handler }`), which rollup >= 3 /
+      // rolldown honor natively and upstream's hook normalization passes through
+      transform: bundler === 'rollup' || bundler === 'rolldown'
+        ? { order: enforce, handler: transform }
+        : transform,
     };
   }
 
