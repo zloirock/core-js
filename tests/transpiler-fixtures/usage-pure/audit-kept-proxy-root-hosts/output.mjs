@@ -27,7 +27,7 @@ export const templateHole = `${null == (_ref2 = t = _globalThis.window) ? void 0
 let s;
 export const spreadArg = Math.max(...((null == (s = _globalThis.window) ? void 0 : _Array$from)?.([1, 2]) ?? [0]));
 let d;
-delete (d = _globalThis.window, _self).someUserKey;
+delete (null == (d = _globalThis.window) ? void 0 : _self.someUserKey);
 export { w };
 
 // an IIFE-arg SYNTH over a kept+SE-key chain: the swap renders the whole receiver (its own harvest),

@@ -249,9 +249,19 @@ export function planProxyReceiver(receiver, {
   // `bailOnPureLeaf` (synth-swap context): a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map`
   // elsewhere, so bail here (a root-collapse would emit native `_globalThis.Map` + a dead import). an INSTANCE-CALL
   // receiver keeps a pure ctor mid-chain (`globalThis.self.Array.prototype` -> `_globalThis.Array.prototype`) so it
-  // passes bailOnPureLeaf=false to collapse through. a WRITE target's leaf is the assignment slot - hops still collapse
+  // passes bailOnPureLeaf=false to collapse through. a WRITE target's leaf is the assignment slot - hops still collapse.
+  // a MUTATED ctor slot (`globalThis.Set = Patched`) cancels the whole-swap - nothing downstream owns the prefix -
+  // so when the collapse is FORCED anyway (an unresolvable hop in the chain, or an alias/ref root the leaf swap
+  // cannot reach), the plan proceeds and the leaf reads raw off the collapsed base. an all-resolvable
+  // literal-rooted nav keeps the bail: its leaf-adjacent hop still earns the natural ponyfill swap (`_self.Set`).
+  // a nav still CARRYING `?.` keeps the bail too: the exception's renders vouch no root guard, so a live
+  // optional must first pass the guard-building rewrite - its guarded REBUILD comes back here optional-free
   const leafName = memberKeyName(receiver);
-  if (bailOnPureLeaf && !isWriteTarget && leafName && resolvePure({ kind: 'global', name: leafName })) return null;
+  if (bailOnPureLeaf && !isWriteTarget && leafName && resolvePure({ kind: 'global', name: leafName })
+    && !(isMutatedGlobalSlot(aliasCtx?.adapter, leafName)
+      && ownChainOptionalCount(receiver) === 0
+      && (navHasUnresolvableProxyHop(receiver.object, resolvePure)
+        || (!keptAssignRoot && isAliasProxyRoot(throughRoot, aliasCtx))))) return null;
   // the leaf is itself a redundant proxy hop reached via a SE-bearing key (`globalThis[(e++, 'self')]`) - the
   // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
   const hopLeaf = staticMemberKeyName(receiver);
@@ -440,7 +450,11 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   if (meta && proxyNavRootIsSequence(obj.object)) {
     const protoCtorReceiverSE = [];
     collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE);
-    if (protoCtorReceiverSE.length) meta.protoCtorReceiverSE = protoCtorReceiverSE;
+    // a chain-assign ROOT re-emits through the claim's own receiver absorber - harvesting it
+    // here too would run the assignment twice (the symbol strand applies the same exemption)
+    const keptOuter = peelChainAssignment(descendToChainRoot(obj.object).root).outer;
+    const effects = keptOuter ? protoCtorReceiverSE.filter(effect => effect !== keptOuter) : protoCtorReceiverSE;
+    if (effects.length) meta.protoCtorReceiverSE = effects;
   }
   // a prototype-navigated read (`C.prototype[k]`) unions its reachable keys like every other
   // member: each alternative dispatches as a typeless prototype meta (over-inject-safe), with the
