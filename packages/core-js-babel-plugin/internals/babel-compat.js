@@ -10,6 +10,7 @@ import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-wa
 import {
   createTypeAnnotationChecker,
   isReusableReceiver,
+  singleRootOptionalReceiver,
   mayHaveSideEffects,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -573,13 +574,34 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     } else {
       replacePath.replaceWith(result);
       // a replacement that introduced its OWN optional (`_X(recv)?.call(recv)` from an `arr.flat?.()`
-      // optional CALL, with no receiver-level guard) leaves a trailing chain continuation
-      // (`...?.().next()` / `...?.().length`) as an in-chain OptionalMember/Call straight from the
-      // parse - it must STAY optional to short-circuit with the new `?.`. normalizeOptionalChain
-      // would deoptionalize the trailing to a PLAIN member, and babel codegen then parenthesizes the
-      // optional result off it (`(_X?.call(recv)).next()`), severing the trailing from the chain so
-      // it throws on the short-circuit path where native yields void 0 (matches unplugin once skipped)
-      if (!check && result.type === 'OptionalCallExpression') {
+      // optional CALL) leaves a trailing chain continuation (`...?.().next()` / `...?.().length`)
+      // as an in-chain OptionalMember/Call straight from the parse - it must STAY optional to
+      // short-circuit with the new `?.`. normalizeOptionalChain would deoptionalize the trailing
+      // to a PLAIN member, and babel codegen then parenthesizes the optional result off it
+      // (`(_X?.call(recv)).next()`), severing the trailing from the chain so it throws on the
+      // short-circuit path where native yields void 0 (matches unplugin once skipped)
+      if (result.type === 'OptionalCallExpression') {
+        if (check) {
+          // a receiver-level guard must wrap the whole SURVIVING chain: climb the NON-optional
+          // in-chain continuations (`.x` / `[k]` / a call pairing with the climbed member) and
+          // put the ternary around the tip, leaving the trailing links optional-typed inside it
+          // so the live `?.` still short-circuits past them. a genuine `?.x` continuation
+          // re-guards the ternary RESULT and stays outside; parens / casts end the chain at
+          // parse, so the climb stops there and their native throw-past-boundary survives
+          let tip = replacePath;
+          for (;;) {
+            const par = tip.parentPath;
+            if ((par?.isOptionalMemberExpression() && !par.node.optional && par.node.object === tip.node)
+              || (par?.isOptionalCallExpression() && par.node.callee === tip.node)) {
+              tip = par;
+              continue;
+            }
+            break;
+          }
+          tip.replaceWith(wrapConditional(check, tip.node));
+          graftGuardIntoHelperSlot(tip);
+          return;
+        }
         // an OptionalCallExpression standing in NewExpression.callee (`new (arr.flat?.())(z)`)
         // mis-prints without parens under babel codegen: `new _X(arr)?.call(arr)(z)` round-trips
         // to CONSTRUCT the helper instead of calling it. force the grouping so `new` applies to
@@ -839,18 +861,52 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     return clone;
   }
 
+  function nullTest(expr) {
+    return t.binaryExpression('==', t.nullLiteral(), expr);
+  }
+  function assignTo(ref, value) {
+    return t.assignmentExpression('=', t.cloneNode(ref), value);
+  }
+
+  // single root-level `?.` receiver of a chain combine (`o?.rows.flat?.()...`): the
+  // maybe-helpers are not nullish-tolerant, so folding the live optional into the helper
+  // ARGUMENT throws where native short-circuits to undefined. hoist the ROOT into a leading
+  // null-guard test and rebuild the receiver off it deoptionalized - the standalone
+  // dispatch's root-extraction canon. deeper / multiple `?.` shapes keep the fold (see TASKS)
+  function hoistCombinedRootGuard(receiverNode, scope, anchorNode) {
+    const rootOpt = singleRootOptionalReceiver(receiverNode);
+    if (!rootOpt) return { rootPreTest: null, receiverNode };
+    let rootExpr;
+    let rootPreTest;
+    if (isReusableReceiver(rootOpt.rootNode)) {
+      rootExpr = rootOpt.rootNode;
+      rootPreTest = t.binaryExpression('==', t.cloneNode(rootOpt.rootNode), t.nullLiteral());
+    } else {
+      const rootRef = generateRef(scope, anchorNode);
+      rootPreTest = nullTest(assignTo(rootRef, t.cloneNode(rootOpt.rootNode)));
+      rootExpr = rootRef;
+    }
+    const rebuilt = spliceChainInner(receiverNode, rootOpt.optionalLink,
+      t.memberExpression(t.cloneNode(rootExpr), t.cloneNode(rootOpt.optionalLink.property), rootOpt.optionalLink.computed));
+    // the cloned links above the root are dead Optional*-typed now - retype them plain so
+    // codegen keeps the plain chain spelling instead of a parenthesized boundary
+    for (let link = rebuilt; link && link.type !== 'MemberExpression' && link.type !== 'CallExpression';) {
+      if (link.type === 'OptionalMemberExpression') link.type = 'MemberExpression';
+      else if (link.type === 'OptionalCallExpression') link.type = 'CallExpression';
+      else break;
+      delete link.optional;
+      link = link.object ?? link.callee;
+    }
+    return { rootPreTest, receiverNode: rebuilt };
+  }
+
   function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     const outerCall = callerPath.parent;
     const { scope } = outerPath;
-    function nullTest(expr) {
-      return t.binaryExpression('==', t.nullLiteral(), expr);
-    }
-    function assign(ref, value) {
-      return t.assignmentExpression('=', t.cloneNode(ref), value);
-    }
 
-    const [anAssign, aRef] = memoize(innerCallee.object, scope, outerPath.node);
+    const { rootPreTest, receiverNode } = hoistCombinedRootGuard(innerCallee.object, scope, outerPath.node);
+    const [anAssign, aRef] = memoize(receiverNode, scope, outerPath.node);
     const mRef = generateRef(scope, outerPath.node);
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
@@ -864,8 +920,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     const methodGet = t.callExpression(t.cloneNode(innerId),
       [innerCallee.optional ? t.cloneNode(aRef) : anAssign]);
     const tests = innerCallee.optional
-      ? [nullTest(anAssign), nullTest(assign(mRef, methodGet))]
-      : [nullTest(assign(mRef, methodGet))];
+      ? [nullTest(anAssign), nullTest(assignTo(mRef, methodGet))]
+      : [nullTest(assignTo(mRef, methodGet))];
     // thread surviving non-optional hops (`.map(...)` between inner `flat?.()` and outer
     // `filter?.()`): splice the memoized inner result into the outer receiver sub-chain so the
     // hops re-emit (own pass polyfills them on the inner result) rather than being dropped
@@ -876,9 +932,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     // would drop `.map(f)` and call `.at` on the flat() result). with no hops outerObject === mCall
     if (outerPath.node.optional) {
       const vRef = generateRef(scope, outerPath.node);
-      tests.push(nullTest(assign(vRef, outerObject)));
+      tests.push(nullTest(assignTo(vRef, outerObject)));
       outerObject = t.cloneNode(vRef);
     }
+    // the hoisted root guard runs FIRST - native evaluates the root before everything else
+    if (rootPreTest) tests.unshift(rootPreTest);
     const testOr = tests.reduce((a, b) => t.logicalExpression('||', a, b));
 
     // outer-key computed SE (e.g. `arr?.at?.(0)?.[(fn(), 'map')](x => x)`) attaches to
@@ -893,13 +951,48 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
       id: outerId, object: outerRecv, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
       anchorNode: outerPath.node,
     }), foldedSE);
+    // trailing NON-optional in-chain continuations (`...flat?.()?.at(0).length`) ride the
+    // SUCCESS branch: native short-circuit skips them, while links left outside would apply
+    // to the ternary result and throw on the void 0 path where native yields undefined. a
+    // surviving optional continuation (`?.x`) guards the ternary RESULT and stays outside;
+    // parens / casts end the chain at parse (plain Member parent), so the climb stops there
+    // and their native throw-past-boundary semantics survive
+    let tipPath = callerPath.parentPath;
+    for (;;) {
+      const par = tipPath.parentPath;
+      // a CALL continuation climbs even when ITS `?.(` is genuine: the call pairs with the
+      // climbed member callee (severing them would strand `this` / sever later links), and
+      // inside the alternate its own `?.` still short-circuits the rest of the chain
+      if ((par?.isOptionalMemberExpression() && !par.node.optional && par.node.object === tipPath.node)
+        || (par?.isOptionalCallExpression() && par.node.callee === tipPath.node)) {
+        tipPath = par;
+        continue;
+      }
+      break;
+    }
+    let alternate = replacement;
+    if (tipPath.node !== outerCall) {
+      alternate = spliceChainInner(tipPath.node, outerCall, replacement);
+      // over a PLAIN dispatch root the spliced trailing links are DEAD Optional*-typed -
+      // retype them plain, else babel codegen parenthesizes the chain boundary. over a LIVE
+      // `?.call` root (optional outer call) they stay Optional*: they are genuine chain
+      // members and the retype would sever them from the short-circuit
+      if (replacement.type !== 'OptionalCallExpression') {
+        for (let link = alternate; link && link !== replacement; link = link.object ?? link.callee) {
+          if (link.type === 'OptionalMemberExpression') link.type = 'MemberExpression';
+          else if (link.type === 'OptionalCallExpression') link.type = 'CallExpression';
+          else break;
+          delete link.optional;
+        }
+      }
+    }
     const conditional = t.conditionalExpression(testOr,
-      t.unaryExpression('void', t.numericLiteral(0)), replacement);
+      t.unaryExpression('void', t.numericLiteral(0)), alternate);
     // chained outer calls read the hint off the result node; relocate the pre-combine
     // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve
     const outerCallType = resolvedType?.get(outerCall);
     if (outerCallType) resolvedType.set(conditional, outerCallType);
-    callerPath.parentPath.replaceWith(conditional);
+    tipPath.replaceWith(conditional);
   }
 
   return {
