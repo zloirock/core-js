@@ -259,10 +259,6 @@
             "title": "Stage 3 proposals",
             "children": [
               {
-                "title": "Await dictionary",
-                "url": "{docs-version}/docs/features/proposals/await-dictionary"
-              },
-              {
                 "title": "Iterator chunking",
                 "url": "{docs-version}/docs/features/proposals/iterator-chunking"
               },
@@ -273,6 +269,10 @@
               {
                 "title": "Iterator join",
                 "url": "{docs-version}/docs/features/proposals/iterator-join"
+              },
+              {
+                "title": "Await dictionary",
+                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               }
             ]
           },
@@ -282,10 +282,6 @@
               {
                 "title": "Symbol.metadata for decorators metadata proposal",
                 "url": "{docs-version}/docs/features/proposals/symbol-metadata"
-              },
-              {
-                "title": "Await dictionary",
-                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               }
             ]
           },
