@@ -331,3 +331,21 @@ QUnit.test('mutated-slots: presence guard probes the real binding', assert => {
     else delete globalThis[['Async', 'DisposableStack'].join('')];
   }
 });
+
+// a mutation key the transform cannot read could have replaced ANY member, so the receiver
+// deopts whole: the later read runs on the live global and observes the runtime patch
+// instead of a pristine ponyfill. the read is captured and the patch restored BEFORE any
+// assertion runs - test-harness internals must never see the broken global
+QUnit.test('mutated-slots: dynamic-key static patch wins over the ponyfill', assert => {
+  const key = ['fr', 'om'].join('');
+  const original = Array[key];
+  Array[key] = function patched() { return 'patched'; };
+  let observed;
+  try {
+    observed = Array.from('ab');
+  } finally {
+    Array[key] = original;
+  }
+  assert.same(observed, 'patched');
+});
+
