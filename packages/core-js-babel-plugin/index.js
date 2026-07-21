@@ -52,7 +52,6 @@ import {
   isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { chainNavigatesIntoMutatedStatic, isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
-import { isGeneratedSlotShapedName } from '@core-js/polyfill-provider/injector-base';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
@@ -1510,7 +1509,7 @@ export default function plugin(api, options) {
         // factory-time conditional that may leave `synthSwap` undefined
         synthSwap?.apply(path);
         injector?.flush();
-        finalizeInjector(path);
+        finalizeInjector();
         // outputDebug() + closure-captured state cleanup deferred to postHook so the
         // late-CJS detection (`postHook`'s markersGone check + diagnostic warn) can add to
         // debug output before format(). siblings' programExit + post may run AFTER ours;
@@ -1566,41 +1565,8 @@ export default function plugin(api, options) {
       // pre-normalize; prune only sees block-scoped vars). shared between the main
       // `programExit` and entry-global's `post()` so both modes produce the same
       // canonical layout regardless of sibling-plugin import-injection timing
-      // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing
-      // reads (`null == (_refY = null == (_refX = root) ? void 0 : ...)`) is write-only: the
-      // read it once served was replaced by a receiver-independent claim, which only exists
-      // AFTER all claims landed. unwrap the write; the declaration then falls to the standard
-      // unused-ref prune. a TOP-LEVEL guard keeps its memo (the locked kept-swap canon).
-      // mirrors the text emitter's ref-canon dead-memo strip
-      function unwrapDeadNestedGuardMemos(programPath) {
-        programPath.scope.crawl();
-        programPath.traverse({
-          ConditionalExpression(p) {
-            const { test, consequent } = p.node;
-            if (consequent?.type !== 'UnaryExpression' || consequent.operator !== 'void') return;
-            if (test?.type !== 'BinaryExpression' || test.operator !== '==') return;
-            const side = test.left?.type === 'AssignmentExpression' ? 'left'
-              : test.right?.type === 'AssignmentExpression' ? 'right' : null;
-            if (!side) return;
-            const write = test[side];
-            if (write.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(write.left.name)) return;
-            const pp = p.parentPath;
-            if (!pp?.isAssignmentExpression() || pp.node.right !== p.node
-              || pp.node.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(pp.node.left.name)) return;
-            const gp = pp.parentPath;
-            if (!gp?.isBinaryExpression() || gp.node.operator !== '==') return;
-            const other = gp.node.left === pp.node ? gp.node.right : gp.node.left;
-            if (other?.type !== 'NullLiteral') return;
-            const binding = p.scope.getBinding(write.left.name);
-            if (!binding || binding.references > 0) return;
-            test[side] = write.right;
-          },
-        });
-      }
-
-      function finalizeInjector(programPath = null) {
+      function finalizeInjector() {
         if (!injector) return;
-        if (programPath) unwrapDeadNestedGuardMemos(programPath);
         injector.reorderImportRegion();
         injector.normalizeArrowRefParams();
         injector.pruneUnusedRefs();

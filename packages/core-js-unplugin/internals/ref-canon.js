@@ -61,6 +61,44 @@ function isDeclaratorPosition(content, start) {
   }
 }
 
+// dead nested guard-memo strip (see the block comment inside): factored out of the
+// canonicalization body for statement budget - all context comes in via the services bag
+function stripDeadNestedGuardMemos({ occurrences, injector, pushEdit, nearestUnclosedParenBefore, declaratorExcision }) {
+  // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
+  // (`null == (_refY = null == (_refX = root) ? void 0 : ...)`) is write-only: the AST
+  // emitter allocates none there (the outer test already owns the one evaluation). the
+  // deadness only exists AFTER composition - the body that once read the ref was replaced
+  // by a receiver-independent claim - so the strip lives here. a TOP-LEVEL guard keeps its
+  // memo (the locked kept-swap canon)
+  const droppedRefs = new Set();
+  for (const [name, list] of occurrences) {
+    // exactly ONE real (non-declarator) occurrence qualifies; a SCOPED ref also carries its
+    // already-materialized declarator occurrence - that one is excised from its `var` list
+    const real = list.filter(occ => !occ.isDecl);
+    if (real.length !== 1) continue;
+    const [{ item, start, end }] = real;
+    const { content } = item.entry;
+    if (content.slice(Math.max(0, start - 9), start) !== 'null == (') continue;
+    const eq = skipGap(content, end);
+    if (content[eq] !== '=' || content[eq + 1] === '=') continue;
+    const regions = literalRegionsOf(content);
+    const open = nearestUnclosedParenBefore(content, start - 9, regions);
+    if (open < 8 || content.slice(open - 8, open) !== 'null == ') continue;
+    const outerAssign = /^\s*(?<ref>[\w$]+)\s*=(?!=)/.exec(content.slice(open + 1, open + 40));
+    if (!outerAssign || !isGeneratedSlotShapedName(outerAssign.groups.ref)) continue;
+    pushEdit(item.entry, start, skipGap(content, eq + 1), '');
+    for (const decl of list) {
+      if (!decl.isDecl) continue;
+      pushEdit(decl.item.entry, ...declaratorExcision(decl.item.entry.content, decl.start, decl.end));
+    }
+    droppedRefs.add(name);
+  }
+  if (droppedRefs.size) {
+    injector.dropRefs(droppedRefs);
+    for (const name of droppedRefs) occurrences.delete(name);
+  }
+}
+
 // the canonicalization entry point, invoked by the queue's apply() between composition and
 // the magic-string writes. mutates splice / insert `content` fields in place and syncs the
 // injector's declared-ref set so flush() declares the canonical survivors
@@ -100,7 +138,7 @@ export function canonicalizeRefNumbering({ splices, inserts, injector }) {
       }
       let list = occurrences.get(name);
       if (!list) occurrences.set(name, list = []);
-      list.push({ item, start, end });
+      list.push({ item, start, end, isDecl });
     });
   }
 
@@ -109,6 +147,29 @@ export function canonicalizeRefNumbering({ splices, inserts, injector }) {
     let list = editsByEntry.get(entry);
     if (!list) editsByEntry.set(entry, list = []);
     list.push({ start, end, text });
+  }
+
+  // excision span for a declarator NAME inside its `var` list: a middle/first name takes the
+  // following comma-gap, the last takes the preceding one, a sole name takes the whole
+  // `var name;` statement
+  function declaratorExcision(content, start, end) {
+    const after = skipGap(content, end);
+    let before = start;
+    while (before > 0 && /\s/.test(content[before - 1])) before -= 1;
+    const soleVar = content.startsWith('var', before - 3) && content[after] === ';';
+    if (soleVar) {
+      const stmtStart = before - 3;
+      let stmtEnd = after + 1;
+      if (content[stmtEnd] === '\n') stmtEnd += 1;
+      return [stmtStart, stmtEnd, ''];
+    }
+    if (content[after] === ',') return [start, skipGap(content, after + 1), ''];
+    if (content[before - 1] === ',') {
+      let commaStart = before - 1;
+      while (commaStart > 0 && /\s/.test(content[commaStart - 1])) commaStart -= 1;
+      return [commaStart, end, ''];
+    }
+    return [start, end, ''];
   }
 
   // nearest UNCLOSED `(` before `pos`, skipping literal/comment regions - identifies the
@@ -130,32 +191,7 @@ export function canonicalizeRefNumbering({ splices, inserts, injector }) {
     return -1;
   }
 
-  // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
-  // (`null == (_refY = null == (_refX = root) ? void 0 : ...)`) is write-only: the AST
-  // emitter allocates none there (the outer test already owns the one evaluation). the
-  // deadness only exists AFTER composition - the body that once read the ref was replaced
-  // by a receiver-independent claim - so the strip lives here. a TOP-LEVEL guard keeps its
-  // memo (the locked kept-swap canon)
-  const droppedRefs = new Set();
-  for (const [name, list] of occurrences) {
-    if (list.length !== 1) continue;
-    const [{ item, start, end }] = list;
-    const { content } = item.entry;
-    if (content.slice(Math.max(0, start - 9), start) !== 'null == (') continue;
-    const eq = skipGap(content, end);
-    if (content[eq] !== '=' || content[eq + 1] === '=') continue;
-    const regions = literalRegionsOf(content);
-    const open = nearestUnclosedParenBefore(content, start - 9, regions);
-    if (open < 8 || content.slice(open - 8, open) !== 'null == ') continue;
-    const outerAssign = /^\s*(?<ref>[\w$]+)\s*=(?!=)/.exec(content.slice(open + 1, open + 40));
-    if (!outerAssign || !isGeneratedSlotShapedName(outerAssign.groups.ref)) continue;
-    pushEdit(item.entry, start, skipGap(content, eq + 1), '');
-    droppedRefs.add(name);
-  }
-  if (droppedRefs.size) {
-    injector.dropRefs(droppedRefs);
-    for (const name of droppedRefs) occurrences.delete(name);
-  }
+  stripDeadNestedGuardMemos({ occurrences, injector, pushEdit, nearestUnclosedParenBefore, declaratorExcision });
 
   // rank = the sweep's print order, assigned one family at a time; a name with
   // declarator-only occurrences appends at the end (defensive - allocate-and-use
