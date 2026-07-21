@@ -21,6 +21,9 @@ import { join } from 'node:path';
 const FULL = process.argv.includes('--full');
 const [libFilter, bundlerFilter] = process.argv.slice(2).filter(a => a !== '--full');
 const N = Number(process.env.N ?? (FULL ? 5 : 1));
+// a bad N (empty `N=` → 0, `N=abc` → NaN) makes median() run zero times and every cell error out
+// with a misleading "bundler crashed" row — fail loud on the real cause instead
+if (!Number.isInteger(N) || N < 1) throw new Error(`N must be a positive integer, got '${ process.env.N }'`);
 
 // libs whose largest single module is huge enough that one usage-mode build is ~17s+ (the O(n^2)
 // scan). In smoke they run on ONE representative bundler instead of all seven: bundler-invariance is
