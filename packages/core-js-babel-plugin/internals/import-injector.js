@@ -389,7 +389,15 @@ export default class ImportInjector extends ImportInjectorState {
     // (the hoisted `var _ref, _ref2;` line would just reproduce allocation order, and the
     // text emitter's scanner skips declarator members the same way, so both emitters rank
     // by the first REAL use)
-    const { refCounts, printRank, foreignSlotName } = this.#censusGeneratedNames(allGenerated);
+    const { refCounts, printRank, foreignSlotName, nestedGuardMemoCandidates } = this.#censusGeneratedNames(allGenerated);
+    // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
+    // (`null == (_refY = null == (_refX = root) ? void 0 : ...)`) is write-only: the read it
+    // once served was replaced by a receiver-independent claim, which only exists after every
+    // claim landed - so the unwrap lives here, riding the census walk (no extra traversal, no
+    // scope crawl). the now declarator-only ref falls to the standard prune below; a TOP-LEVEL
+    // guard keeps its memo (the locked kept-swap canon). mirrors the text emitter's ref-canon
+    // dead-memo strip
+    ImportInjector.#unwrapWriteOnlyGuardMemos(nestedGuardMemoCandidates, refCounts);
     if (!foreignSlotName) {
       let hasDead = false;
       for (const [name, count] of refCounts) {
@@ -494,12 +502,45 @@ export default class ImportInjector extends ImportInjectorState {
   // would blind every position of the shared node. the path's `parentPath`/`key` are
   // per-POSITION, so only the actual declarator slot is excluded from ranking while the
   // same node's use positions rank normally
+  // apply the census-collected nested guard-memo unwraps: declarator + the write = exactly 2
+  // occurrences proves write-only; the unwrapped ref drops to declarator-only and the caller's
+  // standard prune removes the declaration
+  static #unwrapWriteOnlyGuardMemos(candidates, refCounts) {
+    for (const candidate of candidates) {
+      if (refCounts.get(candidate.name) !== 2) continue;
+      candidate.test[candidate.side] = candidate.test[candidate.side].right;
+      refCounts.set(candidate.name, 1);
+    }
+  }
+
   #censusGeneratedNames(allGenerated) {
     const refCounts = new Map();
     for (const name of allGenerated) refCounts.set(name, 0);
     const printRank = [];
     const rankedNames = new Set();
     let foreignSlotName = false;
+    // nested guard-memo candidates (see pruneUnusedRefs): the WHOLE pattern is visible
+    // downward from the inner ternary plus two parent links, so the census traversal
+    // collects it for free - write-only-ness is decided afterwards from refCounts
+    const nestedGuardMemoCandidates = [];
+    function guardCensus(p) {
+      const { test, consequent } = p.node;
+      if (consequent?.type !== 'UnaryExpression' || consequent.operator !== 'void') return;
+      if (test?.type !== 'BinaryExpression' || test.operator !== '==') return;
+      const side = test.left?.type === 'AssignmentExpression' ? 'left'
+        : test.right?.type === 'AssignmentExpression' ? 'right' : null;
+      if (!side) return;
+      const write = test[side];
+      if (write.left?.type !== 'Identifier' || !refCounts.has(write.left.name)) return;
+      const parent = p.parentPath?.node;
+      if (parent?.type !== 'AssignmentExpression' || parent.right !== p.node
+        || parent.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(parent.left.name)) return;
+      const grand = p.parentPath.parentPath?.node;
+      if (grand?.type !== 'BinaryExpression' || grand.operator !== '==') return;
+      const other = grand.left === parent ? grand.right : grand.left;
+      if (other?.type !== 'NullLiteral') return;
+      nestedGuardMemoCandidates.push({ test, side, name: write.left.name });
+    }
     function census(p) {
       const { node } = p;
       const count = refCounts.get(node.name);
@@ -516,8 +557,8 @@ export default class ImportInjector extends ImportInjectorState {
     }
     // JSXIdentifier included: a JSX reference to a user slot-shaped name compiles (by a
     // co-mounted transform) into the plain Identifier the renumber must keep avoiding
-    this.#programPath.traverse({ Identifier: census, JSXIdentifier: census });
-    return { refCounts, printRank, foreignSlotName };
+    this.#programPath.traverse({ Identifier: census, JSXIdentifier: census, ConditionalExpression: guardCensus });
+    return { refCounts, printRank, foreignSlotName, nestedGuardMemoCandidates };
   }
 
   // true when `familyRank` names occupy exactly slots `<prefix>..<prefix>N` in ascending
