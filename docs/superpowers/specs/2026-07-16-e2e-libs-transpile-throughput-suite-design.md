@@ -76,13 +76,13 @@ throughput and emitted as an ES5 artifact. The monsters, when added, are `tiers:
 tests/e2e-libs/
   libraries.mjs      # registry: [{ name, tiers, exercise, methods, notes }]
   exercises/
-    rxjs.mjs         # monstrous headless exercise: exports { results, checks }
+    rxjs.mjs         # monstrous headless exercise: exports run() -> { results, checks }
   build.mjs          # core: (lib, method, phase, bundler) -> bundle (unplugin [+ Babel for runtime tier])
   throughput.mjs     # tier-1 runner: bundlers x methods x phases, measure, write report/
   artifacts.mjs      # tier-2 runner: rollup+babel / webpack+babel-loader -> ES5 bundle + index.html + manifest.json
   snapshot.mjs       # injection snapshot per (lib x method); --update to rewrite
   report/            # generated: throughput.md + throughput.json
-  artifacts/         # generated: <lib>/<method>/{bundle.js,index.html} + manifest.json
+  artifacts/         # generated: <lib>/babel{7,8}/<method>/{bundle.js,index.html} + manifest.json
   snapshots/         # generated: <lib>.<method>.txt
   package.json
 ```
@@ -94,8 +94,8 @@ imported across branches).
 
 **Entry module per method**
 
-- `entry-global`: `import 'core-js'; export { results, checks } from <exercise>`
-- `usage-global` / `usage-pure`: `export { results, checks } from <exercise>`
+- `entry-global`: `import 'core-js'; export { run } from <exercise>`
+- `usage-global` / `usage-pure`: `export { run } from <exercise>`
 
 **Throughput tier** — plugins: `[ unplugin({ method, version, mode, targets: { ie: 11 }, phase }) ]`
 (+ `@rollup/plugin-node-resolve` + `@rollup/plugin-commonjs` where the bundler needs them, since
@@ -119,9 +119,10 @@ after:
   practical case for the pre/post phase distinction.
 - `babelHelpers:'inline'` — helpers are inlined per module (no `@babel/runtime` indirection), so
   usage-global sees them where they are used.
-- Bundlers in this tier are limited to those that actually emit ES5: **rollup +
-  `@rollup/plugin-babel`** and **webpack + `babel-loader`**. esbuild/rolldown/bun do not
-  down-compile below ES2015 and are excluded from the runtime tier (they remain in throughput).
+- Bundlers in this tier are limited to those that actually emit ES5: **rollup** (via a custom Babel
+  transform rather than `@rollup/plugin-babel` — see §13; webpack + `babel-loader` was deferred, §12).
+  esbuild/rolldown/bun do not down-compile below ES2015 and are excluded from the runtime tier (they
+  remain in throughput).
 
 ## 7. RxJS exercise (`exercises/rxjs.mjs`)
 

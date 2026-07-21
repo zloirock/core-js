@@ -159,5 +159,5 @@ for (const lib of libs) {
 await mkdir(ART, { recursive: true });
 await writeFile(join(ART, 'manifest.json'), `${ JSON.stringify(manifest, null, 2) }\n`);
 console.log(`\nartifacts → ${ ART }\nmanifest → ${ join(ART, 'manifest.json') }`);
-console.log('Upload each <lib>/<method>/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for the real-engine check.');
+console.log('Upload each <lib>/babel{7,8}/<method>/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for the real-engine check.');
 if (failed) process.exitCode = 1;
