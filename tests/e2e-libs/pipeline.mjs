@@ -30,10 +30,13 @@ const UMD = { format: 'umd', name: 'E2E', esModule: false };
 async function timedBuild(entry, plugins) {
   const t0 = process.hrtime.bigint();
   const build = await rollup({ input: entry, plugins, onwarn() { /* ignore bundler warnings */ } });
-  const { output } = await build.generate(UMD);
-  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-  await build.close();
-  return { bytes: output[0].code.length, ms, code: output[0].code };
+  try {
+    const { output } = await build.generate(UMD);
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    return { bytes: Buffer.byteLength(output[0].code), ms, code: output[0].code };
+  } finally {
+    await build.close();
+  }
 }
 
 // wrap a plugin's transform hook to accumulate the time spent inside it (handles sync + async)
@@ -61,7 +64,7 @@ async function measure(lib, method) {
       const counter = {
         name: 'src-count',
         transform(code) {
-          src += code.length;
+          src += Buffer.byteLength(code);
           return null;
         },
       };
