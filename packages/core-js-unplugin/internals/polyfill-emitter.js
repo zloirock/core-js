@@ -43,7 +43,7 @@ import { globalProxyMemberName } from '@core-js/polyfill-provider/helpers/class-
 import { resolveSymbolIteratorEntry, symbolIteratorHint } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint, deoptionalizeNeedleAtPositions } from './transform-queue.js';
 import {
-  isCallee,
+  calleeKind,
   isCalleeWrappedInParens,
   unwrapNode,
 } from './emit-utils.js';
@@ -573,8 +573,8 @@ export function createPolyfillEmitter({
   // rather than short-circuit to void 0. `node.optional || hasOptionalChainSegment` catches
   // both the introducing `?.` and a mid-chain one (`(a?.b.member)()`). shared by
   // `replaceInstance` (.call shape) and `handleSymbolIterator` (bare get-iterator shape)
-  function isParenLookupOnlyCall(node, parent) {
-    return isCallee(node, parent) && isCalleeWrappedInParens(parent, node)
+  function isParenLookupOnlyCall(node, parent, calleeParentKind) {
+    return calleeParentKind !== null && isCalleeWrappedInParens(parent, node)
       && (node.optional || hasOptionalChainSegment(node)) && !parent.optional;
   }
 
@@ -1187,11 +1187,17 @@ export function createPolyfillEmitter({
     return { outerRef, objectSrc, isNonIdent: true, tailBoundary };
   }
 
-  // build replacement, wrap guard if needed, add to transform queue
+  // build replacement, wrap guard if needed, add to transform queue. `calleeParentKind` is the
+  // canonical invocation-kind verdict ('call' / 'new' / null) - a single value keeps the
+  // callee-without-call state unrepresentable (two independent booleans allowed exactly the
+  // argument-position misclassification this file once shipped)
   function addInstanceTransform({
-    binding, node, parent, metaPath, isCall, replacementIsCall = isCall,
+    binding, node, parent, metaPath, calleeParentKind = null,
+    replacementIsCall = calleeParentKind !== null,
     sideEffects = null, receiverEffectCount = 0, parenLookupOnly = false, recvOverride = null,
   }) {
+    const isCall = calleeParentKind !== null;
+    const isNew = calleeParentKind === 'new';
     const seMode = resolveReceiverSeMode({ node, sideEffects });
     // `peel` (non-optional): peel the receiver to its SE tail; the prepended SequenceExpression
     // replays the full receiver-SE + key-SE the resolver collected. `suppress` (optional): leave
@@ -1305,7 +1311,6 @@ export function createPolyfillEmitter({
     const argsSrc = isCall ? sliceBetweenParens(parent) : null;
     const start = isCall ? parent.start : node.start;
     let end = isCall ? parent.end : node.end;
-    const isNew = parent?.type === 'NewExpression';
     // `methodCall` (optional method call `recv.m?.()` - keep `this` via `_ref.call(recv)`) is resolved
     // earlier, above the proxy-global guard-root block, so the memoized receiver ref precedes the guard ref
     const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
@@ -1414,10 +1419,11 @@ export function createPolyfillEmitter({
     // Symbol.iterator member) below so it is not also polyfilled in place; the prefix expressions
     // stay visitable so a polyfillable call inside them is still rewritten
     const keyTail = node.computed ? peelNestedSequenceExpressions(node.property).tail : node.property;
-    const isCallParent = isCallee(node, parent);
+    const calleeParentKind = calleeKind(node, parent);
+    const isCallParent = calleeParentKind !== null;
     // oxc has no OptionalCallExpression (optional calls are CallExpression + `optional`), and `new`
-    // must not take the direct-iterator form - so the plain-call test is the dialect-specific input
-    const entry = resolveSymbolIteratorEntry(node, parent, isCallParent && parent.type === 'CallExpression');
+    // must not take the direct-iterator form - so the plain-call kind is the dialect-specific input
+    const entry = resolveSymbolIteratorEntry(node, parent, calleeParentKind === 'call');
     // the ENTRY gate must run before any node is marked skipped: on a filtered entry this
     // member stays untouched, and a pre-marked dropped-key prefix would strand its raw
     // proxy-global (the early return skips the collapse that owns it)
@@ -1434,7 +1440,7 @@ export function createPolyfillEmitter({
     // collapse a proxy-global receiver to its ROOT pure import (provider-resolved), matching babel:
     // `globalThis[(e++, 'self')][Symbol.iterator]` -> `_getIterator((e++, _globalThis))`, NOT a dead
     // `_globalThis.self` hop. droppedSe is the SE the dropped hop chain carried (hop keys + chain-root call)
-    const parenLookupOnly = isParenLookupOnlyCall(node, parent);
+    const parenLookupOnly = isParenLookupOnlyCall(node, parent, calleeParentKind);
     let recvOverride = null;
     if (symbolReceiverProxyRoot
       // a KEPT root under a live `?.` keeps the plain path: its null-guard memoize replays the
@@ -1472,7 +1478,7 @@ export function createPolyfillEmitter({
     // whole `Symbol[...]` subtree and silently drop `fn()`. `addInstanceTransform` re-emits
     // via SequenceExpression wrap; outer paren and ASI guards already handle the wrap shape
     addInstanceTransform({
-      binding, node, parent, metaPath, isCall: isCallParent,
+      binding, node, parent, metaPath, calleeParentKind,
       replacementIsCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
       sideEffects, receiverEffectCount, parenLookupOnly, recvOverride,
     });
@@ -1933,16 +1939,15 @@ export function createPolyfillEmitter({
 
   // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined).
   // strictly call-only: babel-plugin's analogue gates on `isCallExpression || isOptionalCallExpression`,
-  // so NewExpression must fall through to `addInstanceTransform` (which emits the `isNew` branch
-  // `new (binding(obj))(args)`). without this gate the chain emit drops the `new` keyword and
-  // rewrites to `binding(...).call(_ref, args)` - silent semantic break (a regular call where
+  // so a 'new' kind must fall through to `addInstanceTransform` (which emits the constructor
+  // branch `new (binding(obj))(args)`). without this gate the chain emit drops the `new` keyword
+  // and rewrites to `binding(...).call(_ref, args)` - silent semantic break (a regular call where
   // the user wrote a constructor invocation)
-  function findInnerPolyChain(node, parent, metaPath) {
+  function findInnerPolyChain(node, parent, metaPath, calleeParentKind) {
     // computed-key outer (`?.[k](...)`) combines too: the method is resolved upstream into
     // `binding`, so the emit needs no key text. bailing forced the standalone fallback, which
     // drops the receiver for an optional inner (`_ref()` not `_ref.call(recv)`) - a runtime throw
-    if (!isCallee(node, parent) || node.type !== 'MemberExpression') return null;
-    if (parent.type !== 'CallExpression') return null;
+    if (calleeParentKind !== 'call' || node.type !== 'MemberExpression') return null;
     // any descent peel that crosses a chain-terminating paren bails the combine; babel's gate
     // rejects the same shape, and the OR-short-circuit emit would otherwise swallow the
     // resulting non-optional throw into `void 0`
@@ -2394,21 +2399,22 @@ export function createPolyfillEmitter({
 
   function replaceInstance({ binding, node, parent, metaPath, sideEffects, receiverEffectCount }) {
     skipDroppedKeyPrefix(node, sideEffects, skippedNodes);
-    if (isParenLookupOnlyCall(node, parent)) {
+    const kind = calleeKind(node, parent);
+    if (isParenLookupOnlyCall(node, parent, kind)) {
       addInstanceTransform({
-        binding, node, parent, metaPath, isCall: true, replacementIsCall: true, sideEffects, receiverEffectCount, parenLookupOnly: true,
+        binding, node, parent, metaPath, calleeParentKind: kind, replacementIsCall: true,
+        sideEffects, receiverEffectCount, parenLookupOnly: true,
       });
       return;
     }
-    const chain = findInnerPolyChain(node, parent, metaPath);
+    const chain = findInnerPolyChain(node, parent, metaPath, kind);
     // outer computed-key side effects fold into the combine's conditional alternate (see
     // replaceInstanceChainCombined), so the chain emit now carries them - no need to fall through
     // to addInstanceTransform, whose standalone shape drops the inner receiver for a computed outer
     if (chain) {
       return replaceInstanceChainCombined({ outerBinding: binding, node, parent, metaPath, chain, sideEffects });
     }
-    const isCall = isCallee(node, parent);
-    addInstanceTransform({ binding, node, parent, metaPath, isCall, replacementIsCall: isCall, sideEffects, receiverEffectCount });
+    addInstanceTransform({ binding, node, parent, metaPath, calleeParentKind: kind, sideEffects, receiverEffectCount });
   }
 
   // split-emit for `super.foo(args)` -> `binding.call(this, args)`. prefix replaces
@@ -2459,7 +2465,7 @@ export function createPolyfillEmitter({
     // inherited-static dispatch -> binding.call(this, args) to preserve the this-binding:
     // super.method(args) AND this.method(args) in static ctx (this = subclass ctor); a dropped
     // receiver downgrades the pure static result to the base class
-    if ((node.object?.type === 'Super' || inheritedStatic) && parent?.type === 'CallExpression' && isCallee(node, parent)) {
+    if ((node.object?.type === 'Super' || inheritedStatic) && calleeKind(node, parent) === 'call') {
       emitInheritedStaticCallSplit({ binding, parent, sideEffects, metaPath });
       return;
     }
@@ -2472,7 +2478,7 @@ export function createPolyfillEmitter({
       wrapperPath = wrapperPath.parentPath;
     }
     // deoptionalize `?.` - polyfill import is always defined
-    if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent)) {
+    if (parent?.optional && calleeKind(node, parent) === 'call') {
       start = parent.callee.start;
       end = afterOptional(parent.callee.end, false);
     } else if (parent?.type === 'MemberExpression' && parent.optional && unwrapNode(parent.object) === node) {
@@ -2519,8 +2525,9 @@ export function createPolyfillEmitter({
       // (the AST emitter's visible-deopt canon: `(guard ? void 0 : _Array$from)?.(x)`) - the
       // earlier optional-callee widen consumed the `?.` token into [start, end], so the sealed
       // claim re-emits it. only a PLAIN call folds its arguments into the alternate
-      const invoke = parent?.type === 'CallExpression' && !parent.optional && isCallee(node, parent);
-      const optionalCallee = parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent);
+      const claimCalleeKind = calleeKind(node, parent);
+      const invoke = claimCalleeKind === 'call' && !parent.optional;
+      const optionalCallee = claimCalleeKind === 'call' && parent.optional;
       // a surviving member TAIL over the claim (`delete <claim>?.someUserKey`) rides INSIDE the
       // guard alternate: buried under a raw member read outside it, the short-circuited void 0
       // would throw where native yields undefined (the AST emitter's tail-climb canon). the
@@ -2604,8 +2611,7 @@ export function createPolyfillEmitter({
             tipPath = par;
             continue;
           }
-          if (pn && (pn.type === 'CallExpression' || pn.type === 'OptionalCallExpression')
-            && isCallee(tipPath.node, pn)) {
+          if (calleeKind(tipPath.node, pn) === 'call') {
             tipPath = par;
             continue;
           }
