@@ -26,7 +26,8 @@ export const STRATEGIES = Object.freeze({
   FOR_INIT_MUTATE_DECL: 'for-init-mutate-decl',
   // for-init single-decl, no SE - replace whole declaration with extracted
   FOR_INIT_REPLACE: 'for-init-replace',
-  // block-level multi-decl + static value - defer SE to programExit, splice extracted in
+  // block-level multi-decl + static value - SE lifts INLINE as a statement between the
+  // split halves (programExit deferral mis-ordered it before pre-siblings), splice extracted in
   DEFER_SE_AND_SPLICE: 'defer-se-and-splice',
   // block-level single-decl + static value - defer SE to programExit, replace declaration
   DEFER_SE_AND_REPLACE: 'defer-se-and-replace',
@@ -85,7 +86,8 @@ function planVariableDeclarator({
     if (hasSideEffects) return isStaticValue ? STRATEGIES.FOR_INIT_SE_STATIC : STRATEGIES.FOR_INIT_SE_INSTANCE;
     return isMultiDecl ? STRATEGIES.FOR_INIT_MUTATE_DECL : STRATEGIES.FOR_INIT_REPLACE;
   }
-  // block-level empty - SE deferral applies only to static values (instance call consumes init)
+  // block-level or bodyless-without-SE empty (babel auto-block-wraps the bodyless slot) -
+  // the SE handling applies only to static values (instance call consumes init)
   if (isStaticValue) return isMultiDecl ? STRATEGIES.DEFER_SE_AND_SPLICE : STRATEGIES.DEFER_SE_AND_REPLACE;
   return isMultiDecl ? STRATEGIES.SPLICE_AND_SPLIT : STRATEGIES.REPLACE_DECL;
 }

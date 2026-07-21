@@ -503,7 +503,12 @@ export function canFuseWithOpenParen(src, pos) {
 // the slot shape (unbraced control body) to decide ASI `;` injection vs verbatim emission
 export function enclosingExpressionStatementPath(path) {
   let p = path;
-  while (p && p.node?.type !== 'ExpressionStatement') p = p.parentPath;
+  while (p && p.node?.type !== 'ExpressionStatement') {
+    const { type } = p.node ?? {};
+    if (type === 'FunctionDeclaration' || type === 'FunctionExpression'
+      || type === 'ArrowFunctionExpression' || type === 'Program') return null;
+    p = p.parentPath;
+  }
   return p ?? null;
 }
 

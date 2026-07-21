@@ -56,7 +56,7 @@ import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usa
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
-import detectEntries, { createTopLevelStatementRemover } from './detect-entry.js';
+import detectEntries, { createTopLevelStatementRemover, writeIndirectRequireSEPrefix } from './detect-entry.js';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -678,9 +678,7 @@ export default function createPlugin(options) {
           for (const node of removed) {
             const sePrefix = keptPrefixes.get(node);
             if (sePrefix) {
-              const text = sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n');
-              removeStatement.guardInjectionLeftBoundary(node.start, text);
-              ms.overwrite(node.start, node.end, text);
+              writeIndirectRequireSEPrefix({ node, sePrefix, ms, removeStatement });
               node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
             } else removeStatement(node);
           }

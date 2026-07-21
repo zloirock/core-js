@@ -17,7 +17,7 @@
 //
 // Service object passes ~22 factory helpers + cluster outputs. The biggest dep is
 // `resolveNodeType` (factory's main entry) - threaded through a thunk because it's defined
-// later in the factory body and recursive. Module-internal state (5 caches) reset together.
+// later in the factory body and recursive. Module-internal state (all module caches) reset together.
 import {
   createClassMemberShape,
   createMemberWriteShape,
