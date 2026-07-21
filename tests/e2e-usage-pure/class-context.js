@@ -321,3 +321,47 @@ QUnit.test('class: shadowed inherited static keeps short-circuit under rebound t
   const detached = C.make;
   assert.same(detached.call({}), undefined);
 });
+
+// a method slot is writable: once `this.<m> = ...` installs a foreign function, the declared
+// body's return type stops describing what a call yields. narrowing off that body picks an
+// Array-specific helper, which delegates to a native String method the target may not have -
+// the generic helper carries the string polyfill instead
+QUnit.test('class: reassigned method slot keeps the generic dispatch', assert => {
+  class Instance {
+    rows() {
+      return [1, 2];
+    }
+    swap() {
+      this.rows = () => 'text';
+    }
+    read() {
+      return this.rows().at(0);
+    }
+  }
+  const inst = new Instance();
+  assert.same(inst.read(), 1);
+  inst.swap();
+  assert.same(inst.read(), 't');
+});
+
+// the same slot on the STATIC side, written through the class binding rather than `this`
+QUnit.test('class: static method slot written via the class binding stays generic', assert => {
+  class Static {
+    static list() {
+      return [5, 6];
+    }
+    static swap() {
+      Static.list = () => 'text';
+    }
+    static read() {
+      return Static.list().at(1);
+    }
+    tag() {
+      return 'instance';
+    }
+  }
+  assert.same(new Static().tag(), 'instance');
+  assert.same(Static.read(), 6);
+  Static.swap();
+  assert.same(Static.read(), 'e');
+});
