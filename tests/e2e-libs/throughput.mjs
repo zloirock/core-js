@@ -72,7 +72,7 @@ for (const lib of libs) {
       baseline[name] = ms;
     } catch (err) {
       baseline[name] = null;
-      console.log(`baseline ${ name }: ERROR ${ (err.message || err).slice(0, 120) }`);
+      console.log(`baseline ${ name }: ERROR ${ (err.message || String(err)).slice(0, 120) }`);
     }
   }
 
@@ -88,7 +88,7 @@ for (const lib of libs) {
         injByCell[key] = (await captureInjections(lib.exercise, method, phase)).length;
       } catch (err) {
         injByCell[key] = null;
-        console.log(`inject-capture ${ method }${ phase ? `/${ phase }` : '' }: ERROR ${ (err.message || err).slice(0, 120) }`);
+        console.log(`inject-capture ${ method }${ phase ? `/${ phase }` : '' }: ERROR ${ (err.message || String(err)).slice(0, 120) }`);
       }
     }
   }

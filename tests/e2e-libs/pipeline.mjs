@@ -11,7 +11,7 @@
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import { makeBabelPlugin, u, withEntry, captureInjections, HERE } from './build.mjs';
+import { makeBabelPlugin, u, withEntry, captureInjections, METHODS, HERE } from './build.mjs';
 import { librariesIn } from './libraries.mjs';
 import { transform as esbuildTransform } from 'esbuild';
 import { gzip } from 'node:zlib';
@@ -23,7 +23,9 @@ const gzipP = promisify(gzip);
 
 const [libFilter, methodFilter] = process.argv.slice(2);
 const libs = librariesIn('runtime').filter(l => !libFilter || l.name === libFilter);
+// a typo'd filter that matches nothing must fail loudly, not write a green empty report
 if (!libs.length) throw new Error(`no runtime library matches filter '${ libFilter }'`);
+if (methodFilter && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
 
 const UMD = { format: 'umd', name: 'E2E', esModule: false };
 
