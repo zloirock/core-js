@@ -109,7 +109,7 @@ function html(lib, method, checks) {
 async function buildCell(lib, method, babelVersion) {
   const label = `${ lib.name }/babel${ babelVersion }/${ method }`;
   try {
-    const code = await runtimeBuild(lib.exercise, method, undefined, babelVersion); // usage-* -> phase 'post'
+    const code = await runtimeBuild(lib.exercise, method, babelVersion); // usage-* build at phase 'post'
     const injections = (await captureInjections(lib.exercise, method)).length;
     if (!injections) throw new Error('unplugin injected 0 polyfills — preflight would validate nothing');
     const checks = await preflight(code);
