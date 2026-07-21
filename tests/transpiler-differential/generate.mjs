@@ -1677,6 +1677,47 @@ function * generateAssertGuardStale() {
   for (const c of CASES) yield { ...snippet(`assert-guard-stale/${ c.id }`, c.code), strip: true, ts: true };
 }
 
+// --- Trailing continuations after a polyfilled call in an optional chain ---
+// the trailing links ride the SAME chain: a short-circuit anywhere before them must skip
+// them - a severed emit (paren wrap / conditional cut around the dispatch) throws on the
+// void 0 path where native yields undefined. receivers cover the short-circuit matrix
+// (nullish root / present root with the optional method missing / full path); the
+// paren-terminated spelling is the negative - parens END the chain, so the native throw
+// must survive there
+function * generateChainTrailingContinuations() {
+  // receivers come through JSON.parse so they stay OPAQUE to both type resolvers - a
+  // statically-known literal receiver lets one emitter legitimately skip a dead maybe-helper
+  // (a precision difference, not the semantics under test) and trips the import-set oracle
+  const CASES = [
+    { id: 'member-tail-root-nullish', code: "(o => o?.rows.flat?.().length)(JSON.parse('null'))" },
+    { id: 'member-tail-method-missing', code: '(o => o?.rows.flat?.().length)(JSON.parse(\'{"rows":{}}\'))' },
+    { id: 'member-tail-full', code: '(o => o?.rows.flat?.().length)(JSON.parse(\'{"rows":[[1],[2,3]]}\'))' },
+    { id: 'combined-tail-method-missing',
+      code: '(o => o?.rows.flat?.().map(x => x).filter?.(Boolean).length)(JSON.parse(\'{"rows":{}}\'))' },
+    { id: 'combined-tail-full',
+      code: '(o => o?.rows.flat?.().map(x => x + 1).filter?.(x => x > 1).length)(JSON.parse(\'{"rows":[[0],[1]]}\'))' },
+    { id: 'computed-tail-method-missing', code: '(o => o?.rows.flat?.().filter?.(Boolean)[0])(JSON.parse(\'{"rows":{}}\'))' },
+    { id: 'optional-call-tail-method-missing', code: '(o => o?.list.at?.(0).includes?.(2))(JSON.parse(\'{"list":{}}\'))' },
+    { id: 'optional-call-tail-full', code: '(o => o?.list.at?.(0).includes?.(2))(JSON.parse(\'{"list":[[2]]}\'))' },
+    { id: 'optional-member-tail', code: '(o => o?.rows.flat?.()?.length)(JSON.parse(\'{"rows":[[1],[2]]}\'))' },
+    { id: 'paren-terminated-throws',
+      code: '(o => { try { return (o?.rows.flat?.()).length; } catch (error) { return "native-throw"; } })(JSON.parse(\'{"rows":{}}\'))' },
+    // a CALL link under the optional root: the nested dispatch's guard must migrate into the
+    // enclosing combined test (nested-graft canon) instead of riding inside the helper-GET
+    // argument, where a nullish root would hand void 0 to the nullish-intolerant helper
+    { id: 'call-link-root-nullish', code: "(arr => arr?.slice().flat?.().at(0))(JSON.parse('null'))" },
+    { id: 'call-link-full', code: '(arr => arr?.slice().flat?.().at(0))(JSON.parse(\'[3,[1,2]]\'))' },
+    // a guarded dispatch inside the combined chain's ARGUMENTS keeps its guard local -
+    // hoisting it into the chain test would short-circuit the whole chain on an unrelated
+    // nullish and strip the callback's own guard
+    { id: 'arg-guard-inner-nullish',
+      code: '(o => o.arr.flat?.().map(x => o.inner?.at(0)).length)(JSON.parse(\'{"arr":[[1]],"inner":null}\'))' },
+    { id: 'arg-guard-inner-full',
+      code: '(o => o.arr.flat?.().map(x => o.inner?.at(0)).length)(JSON.parse(\'{"arr":[[1]],"inner":[7]}\'))' },
+  ];
+  for (const c of CASES) yield snippet(`chain-trailing/${ c.id }`, c.code);
+}
+
 // --- Conditional-receiver destructure mirror grammar ---
 // the receiver is a runtime-selected ternary / `&&` / `||` carrying a global-PROXY operand beside a
 // USER-object (or short-circuit) operand. each snippet exercises BOTH runtime selections; the bug
@@ -3598,6 +3639,7 @@ export function * generate() {
   yield * generateSeSplitNativeCtorAlias();
   yield * generateFieldNarrowStale();
   yield * generateAssertGuardStale();
+  yield * generateChainTrailingContinuations();
   yield * generateConditionalMirror();
   yield * generateChains();
   yield * generateComputedInnerCallChain();
