@@ -31,7 +31,12 @@ topologies**, which is what actually drives unplugin's cost — see the note at 
 - **throughput** — isolate unplugin's processing cost across the bundlers (unplugin only, **no Babel**;
   overhead = build-with-plugin − plugin-less baseline). A diagnostic — **not** the IE11 build cost
   (that's `[C]` in `pipeline`, which is Babel + unplugin and slower).
-  `node throughput.mjs [libFilter] [bundlerFilter]` → `report/throughput.md` + `.json`
+  `node throughput.mjs [libFilter] [bundlerFilter] [--full]` → `report/throughput.md` + `.json`
+  Two profiles. **Default = smoke** (~2 min): fast libs on all bundlers, slow libs (three, whose
+  usage-mode scan is ~20 s/build) on **rollup only**, phase `post` only, `N=1`. **`--full`** (~50 min):
+  every bundler × every phase, `N=5`. The exhaustive matrix showed the overhead is ~invariant across
+  bundlers and that `pre+post ≈ 2× post`, so the smoke drops exactly those re-proven dimensions;
+  reach for `--full` only to re-characterise. `N` overridable via env (`N=3 node throughput.mjs …`).
   (7 bundlers: rollup/rolldown/esbuild/vite/webpack/rspack/rsbuild — farm is excluded because its
   native compiler hard-crashes on the workspace v4 core-js modules; see `build.mjs`.)
 - **artifacts** — the real IE11 build: Babel (syntax → ES5) + unplugin (stdlib polyfills) → ES5 UMD +
