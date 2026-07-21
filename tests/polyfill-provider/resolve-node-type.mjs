@@ -3616,6 +3616,44 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     patternSlotSpreadShifted(arrayPattern(null, arrayPattern(ident('N'))), arrayExpr(spread, arrayExpr(ident('G'))), 'N'));
   checkTruthy('ast-patterns: a spread inside the nested rhs reports through the recursion',
     patternSlotSpreadShifted(arrayPattern(arrayPattern(ident('N'))), arrayExpr(arrayExpr(spread, ident('G'))), 'N'));
+  // an OBJECT layer shifts nothing itself, but a shifted array under a key must still be reported:
+  // the descent pairs each key against the rhs literal's own key, and an overriding trailing spread
+  // there pairs nothing at all (no rhs to descend into, so no shift to claim)
+  function objectPattern(key, value) {
+    return { type: 'ObjectPattern', properties: [{ type: 'Property', key: ident(key), computed: false, value }] };
+  }
+  function objectExpr(key, value) {
+    return { type: 'ObjectExpression', properties: [{ type: 'Property', key: ident(key), computed: false, value }] };
+  }
+  checkTruthy('ast-patterns: object key descends into a shifted array slot',
+    patternSlotSpreadShifted(objectPattern('x', arrayPattern(null, ident('O'))),
+      objectExpr('x', arrayExpr(spread, ident('G'))), 'O'));
+  check('ast-patterns: object key over an exactly-paired array stays quiet',
+    patternSlotSpreadShifted(objectPattern('x', arrayPattern(ident('O'))),
+      objectExpr('x', arrayExpr(ident('G'), spread)), 'O'), false);
+  const twoLayerPattern = objectPattern('x', objectPattern('y', arrayPattern(null, ident('O'))));
+  const twoLayerRhs = objectExpr('x', objectExpr('y', arrayExpr(spread, ident('G'))));
+  checkTruthy('ast-patterns: the descent reaches a shift nested under two object layers',
+    patternSlotSpreadShifted(twoLayerPattern, twoLayerRhs, 'O'));
+  check('ast-patterns: a mismatched object key pairs nothing to shift',
+    patternSlotSpreadShifted(objectPattern('x', arrayPattern(null, ident('O'))),
+      objectExpr('z', arrayExpr(spread, ident('G'))), 'O'), false);
+  // a COMPUTED key is only pairable through the ctx key canon - without it the completeness check
+  // would read no key at all and miss a shift on the very slot the value pairing did resolve
+  const computedPattern = {
+    type: 'ObjectPattern',
+    properties: [{ type: 'Property', key: ident('k'), computed: true, value: arrayPattern(null, ident('O')) }],
+  };
+  const keyResolvingCtx = { resolveKey: ({ node, computed }) => computed && node.name === 'k' ? 'x' : node.name };
+  checkTruthy('ast-patterns: computed key resolves through the ctx canon to see the shift',
+    patternSlotSpreadShifted(computedPattern, objectExpr('x', arrayExpr(spread, ident('G'))), 'O', keyResolvingCtx));
+  // the pre-spread slot under the same computed key pairs exactly - the canon must not over-report
+  const computedPatternHead = {
+    type: 'ObjectPattern',
+    properties: [{ type: 'Property', key: ident('k'), computed: true, value: arrayPattern(ident('O')) }],
+  };
+  check('ast-patterns: a computed key over an exact pairing stays quiet',
+    patternSlotSpreadShifted(computedPatternHead, objectExpr('x', arrayExpr(ident('G'), spread)), 'O', keyResolvingCtx), false);
   // a shifted candidate that is ITSELF a union contributes each arm; `&&` stays whole (its falsy
   // LEFT is the expression's value); exact pre-spread pairing never flattens
   function ternary(c, a, b) {
