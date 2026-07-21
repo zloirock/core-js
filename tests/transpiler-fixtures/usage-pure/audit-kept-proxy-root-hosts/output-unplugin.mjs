@@ -96,4 +96,3 @@ export { mapOfKept };
 // collapses once, feeding both levels.
 let nst;
 export const { constructor: { of: ofNested } = {} } = ((nst = _globalThis.window)?.[c4++, "Array"].prototype) ?? {};
-
