@@ -25,9 +25,10 @@ This extends, but does not replace, the two existing e2e efforts:
 1. **core-js polyfills ECMAScript stdlib**, plus a handful of web primitives (`URL`,
    `structuredClone`, `queueMicrotask`, `DOMException`, `atob`…). It does **not** provide
    Canvas / WebGL / SVG rendering / Web Workers / Node streams / `worker_threads` / most of
-   `Intl`. Libraries whose legacy-incompatibility comes from those (PDF.js, Monaco, CodeMirror,
-   pino) can never be *made to run* on IE11 by core-js — they are only useful as **throughput**
-   stress, never as **runtime** verification.
+   `Intl`. Libraries whose legacy-incompatibility comes from those (PDF.js, Monaco, pino) can never
+   be *made to run* on IE11 by core-js — they are only useful as **throughput** stress, never as
+   **runtime** verification. (CodeMirror is a partial exception: its view-independent
+   `@codemirror/state` + Lezer core is headless and *is* shipped as a runtime fixture — see §13.)
 
 2. **unplugin does not transpile syntax.** ES5 output (arrows, classes, `for-of`, spread,
    generators → ES5) is Babel's job. The pipeline is therefore **Babel for syntax +
@@ -154,9 +155,11 @@ iterator-protocol usage.
 
 ## 8. Throughput measurement (`throughput.mjs`)
 
-Per cell (bundler × method × phase), median of **N=5** runs, measured externally (wall-clock
+Per cell (bundler × method × phase), median of **N** runs, measured externally (wall-clock
 around the whole bundle call — an internal parse-vs-inject split would need to instrument
-unplugin's transform hook and is deferred):
+unplugin's transform hook and is deferred). The shipped default is a **smoke** profile (N=1, phase
+`post` only, slow libs on rollup only, fast libs on all bundlers, ~2 min); `--full` runs the
+exhaustive bundler × phase matrix at N=5 (~50 min). See §13.
 
 - total bundle ms **with** the plugin
 - total bundle ms **baseline** (same bundle, plugin omitted)
@@ -170,12 +173,12 @@ Output: `report/throughput.md` (human table) + `report/throughput.json` (machine
 
 ## 9. IE11 artifacts (`artifacts.mjs`)
 
-For each (lib × method) in the runtime tier:
+For each (lib × method × Babel 7/8) in the runtime tier:
 
 1. Build the ES5 bundle (rollup+babel path by default; webpack+babel-loader optional).
-2. Emit `artifacts/<lib>/<method>/bundle.js`.
-3. Emit `artifacts/<lib>/<method>/index.html`: loads `bundle.js`, runs `checks`, renders a
-   green/red banner with a per-check breakdown. No external assets (BrowserStack-friendly).
+2. Emit `artifacts/<lib>/babel{7,8}/<method>/bundle.js`.
+3. Emit `artifacts/<lib>/babel{7,8}/<method>/index.html`: loads `bundle.js`, runs `checks`, renders
+   a green/red banner with a per-check breakdown. No external assets (BrowserStack-friendly).
 4. **Node pre-flight:** execute the ES5 bundle in node and assert `checks` pass. This is *not* a
    stripped realm — just "does it execute and compute correctly at all" — to catch gross breakage
    before a manual IE11 run.
