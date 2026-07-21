@@ -56,13 +56,7 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
   function writeSEPrefixIfAny(node) {
     const sePrefix = extractIndirectRequireSEPrefix(node);
     if (!sePrefix.length) return false;
-    const text = sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n');
-    // the rewritten prefix can START with a fusion char (`+spy()` / `[spy()]` / a parenthesised
-    // `({ ... })`) that fuses into the prev `;`-less statement. the node parsed AS-DETECTED separate
-    // because its original leading `(` ASI-split a postfix `++` / `--` prev (`UpdateExpression Arguments`
-    // is a SyntaxError), but the rewritten first char carries no such guarantee - guard it like a removal
-    removeStatement.guardInjectionLeftBoundary(node.start, text);
-    ms.overwrite(node.start, node.end, text);
+    writeIndirectRequireSEPrefix({ node, sePrefix, ms, removeStatement });
     return true;
   }
   // pre-seed the plain removals (SE-prefix entries are rewritten in place, not removed) so the ASI
@@ -83,6 +77,20 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
 // siblings removed earlier in the same batch - their trailing `;` would otherwise look
 // like the active terminator. oxc extends ImportDeclaration.end past the trailing `;`,
 // so removing a guarded import (`import 'x';\n(fn)()`) can fuse without our injection
+// build + write the SE-prefix replacement for an indirect-require entry statement: the
+// observable prefix slots re-emit as standalone statements (sliced verbatim from ms.original
+// so formatting / comments survive). the rewritten prefix can START with a fusion char
+// (`+spy()` / `[spy()]` / a parenthesised `({ ... })`) that fuses into the prev `;`-less
+// statement - the node parsed AS-DETECTED separate because its original leading `(` ASI-split
+// a postfix `++` / `--` prev (`UpdateExpression Arguments` is a SyntaxError), but the
+// rewritten first char carries no such guarantee - guard it like a removal. shared by the
+// entry-global pass and the usage-mode post sweep so the seam cannot silently diverge
+export function writeIndirectRequireSEPrefix({ node, sePrefix, ms, removeStatement }) {
+  const text = sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n');
+  removeStatement.guardInjectionLeftBoundary(node.start, text);
+  ms.overwrite(node.start, node.end, text);
+}
+
 export function createTopLevelStatementRemover(ms) {
   const src = ms.original;
   const removedRanges = [];
