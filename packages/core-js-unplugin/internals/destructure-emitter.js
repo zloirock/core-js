@@ -3622,11 +3622,12 @@ export function createDestructureEmitter({
 
   // a proxy-hop chain the natural visitor never reaches on a consumed destructure residual keeps its
   // redundant `.self` hop, which reads an undefined hop off-engine (or leaks a raw `globalThis` =
-  // ReferenceError on ie:11). two such shapes: a no-SE ALIAS root (`const g = globalThis; {from} =
-  // g[(c++,'self')].Array` - never visited as a literal proxy root) and ANY proxy root buried under
-  // an SE sequence (`(c++, globalThis).self.Map` literal, `(c++, g).self.Map` alias - the receiver is
-  // skip-marked, and `isAliasProxyHopChain`'s `peelChainRootValue` does not peel the sequence to reach
-  // the root). both drop the redundant hop via the same climb + collapseProxyHopRoot (which follows
+  // ReferenceError on ie:11). this predicate exists for the LITERAL-proxy-NAME root under an SE
+  // sequence (`(c++, globalThis).self.Map`): the alias detector requires an alias-shaped root and
+  // rejects literal proxy names, so the literal-under-SE shape is its blind spot - alias roots
+  // (`(c++, g).self.Map`), which this predicate's own proxy-name gate excludes, are covered by the
+  // alias detector (its root peel DOES see through the sequence tail). the gate at the call site is
+  // the UNION of the two. both drop the redundant hop via the same climb + collapseProxyHopRoot (which follows
   // alias AND literal roots); `findProxyGlobal` already validates a real proxy root (literal or alias),
   // so the SE + hop conditions alone gate the sequence shape. any natural-visitor collapse of the same
   // range folds idempotently (the transform queue drops a byte-identical equal-range dup). skippedNodes

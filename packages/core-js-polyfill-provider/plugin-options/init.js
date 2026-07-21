@@ -9,6 +9,10 @@ import { buildShouldInjectPolyfill, resolveTargets } from './targets.js';
 import { createDebugOutputFactory } from './debug-output.js';
 
 export function initPluginOptions(options, { getBabelTargets } = {}) {
+  // a `null` options object skips the parameter default (`= {}` fires on undefined only) and
+  // would die on a raw un-branded destructure TypeError - degrade it to the branded
+  // method-required validation error instead
+  options ??= {};
   // single validation pass: `validateOptions` owns both shape-check and unknown-key
   // detection (via `...unknown` rest in its signature - that destructure is the source
   // of truth for known option names, so they don't have to be listed twice)
