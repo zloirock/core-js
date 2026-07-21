@@ -10,7 +10,7 @@ import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-wa
 import {
   createTypeAnnotationChecker,
   isReusableReceiver,
-  singleRootOptionalReceiver,
+  receiverCarriesLiveOptional,
   mayHaveSideEffects,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -414,6 +414,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
       callReceiver = t.cloneNode(receiverRef);
       // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
       methodNode.object = t.cloneNode(receiverRef);
+      // a receiver carrying its OWN live `?.` short-circuits the whole chain, so reading the
+      // method off its memo must short-circuit too - otherwise the guard test throws where
+      // native yields undefined
+      if (receiverCarriesLiveOptional(receiverNode)) {
+        methodNode.type = 'OptionalMemberExpression';
+        methodNode.optional = true;
+      }
     }
     const [methodMemo, methodRef] = memoize(methodNode, scope, chainStart.node);
     chainStart.node.callee = t.memberExpression(seededRefClone(methodRef, memoType), t.identifier('call'));
@@ -868,45 +875,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     return t.assignmentExpression('=', t.cloneNode(ref), value);
   }
 
-  // single root-level `?.` receiver of a chain combine (`o?.rows.flat?.()...`): the
-  // maybe-helpers are not nullish-tolerant, so folding the live optional into the helper
-  // ARGUMENT throws where native short-circuits to undefined. hoist the ROOT into a leading
-  // null-guard test and rebuild the receiver off it deoptionalized - the standalone
-  // dispatch's root-extraction canon. deeper / multiple `?.` shapes keep the fold (see TASKS)
-  function hoistCombinedRootGuard(receiverNode, scope, anchorNode) {
-    const rootOpt = singleRootOptionalReceiver(receiverNode);
-    if (!rootOpt) return { rootPreTest: null, receiverNode };
-    let rootExpr;
-    let rootPreTest;
-    if (isReusableReceiver(rootOpt.rootNode)) {
-      rootExpr = rootOpt.rootNode;
-      rootPreTest = t.binaryExpression('==', t.cloneNode(rootOpt.rootNode), t.nullLiteral());
-    } else {
-      const rootRef = generateRef(scope, anchorNode);
-      rootPreTest = nullTest(assignTo(rootRef, t.cloneNode(rootOpt.rootNode)));
-      rootExpr = rootRef;
-    }
-    const rebuilt = spliceChainInner(receiverNode, rootOpt.optionalLink,
-      t.memberExpression(t.cloneNode(rootExpr), t.cloneNode(rootOpt.optionalLink.property), rootOpt.optionalLink.computed));
-    // the cloned links above the root are dead Optional*-typed now - retype them plain so
-    // codegen keeps the plain chain spelling instead of a parenthesized boundary
-    for (let link = rebuilt; link && link.type !== 'MemberExpression' && link.type !== 'CallExpression';) {
-      if (link.type === 'OptionalMemberExpression') link.type = 'MemberExpression';
-      else if (link.type === 'OptionalCallExpression') link.type = 'CallExpression';
-      else break;
-      delete link.optional;
-      link = link.object ?? link.callee;
-    }
-    return { rootPreTest, receiverNode: rebuilt };
-  }
-
   function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     const outerCall = callerPath.parent;
     const { scope } = outerPath;
 
-    const { rootPreTest, receiverNode } = hoistCombinedRootGuard(innerCallee.object, scope, outerPath.node);
-    const [anAssign, aRef] = memoize(receiverNode, scope, outerPath.node);
+    // a receiver carrying a LIVE `?.` short-circuits the WHOLE chain natively, so it must be
+    // TESTED before the (nullish-intolerant) maybe-helper reads its member - the same shape an
+    // optional method access already produces. a receiver WITHOUT one keeps the testless form:
+    // `arr.flat?.()` must throw on the `.flat` read like native
+    const receiverShortCircuits = receiverCarriesLiveOptional(innerCallee.object);
+    const [anAssign, aRef] = memoize(innerCallee.object, scope, outerPath.node);
     const mRef = generateRef(scope, outerPath.node);
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
@@ -917,9 +896,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     // the throw into void 0). guard the receiver only when ITS access is optional too
     // (`arr?.flat?.()`). either way the method-get assigns `mRef`; fold the receiver assignment
     // into it in the non-optional case so a non-bare receiver still evaluates exactly once
+    const testsReceiver = innerCallee.optional || receiverShortCircuits;
     const methodGet = t.callExpression(t.cloneNode(innerId),
-      [innerCallee.optional ? t.cloneNode(aRef) : anAssign]);
-    const tests = innerCallee.optional
+      [testsReceiver ? t.cloneNode(aRef) : anAssign]);
+    const tests = testsReceiver
       ? [nullTest(anAssign), nullTest(assignTo(mRef, methodGet))]
       : [nullTest(assignTo(mRef, methodGet))];
     // thread surviving non-optional hops (`.map(...)` between inner `flat?.()` and outer
@@ -935,8 +915,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
       tests.push(nullTest(assignTo(vRef, outerObject)));
       outerObject = t.cloneNode(vRef);
     }
-    // the hoisted root guard runs FIRST - native evaluates the root before everything else
-    if (rootPreTest) tests.unshift(rootPreTest);
     const testOr = tests.reduce((a, b) => t.logicalExpression('||', a, b));
 
     // outer-key computed SE (e.g. `arr?.at?.(0)?.[(fn(), 'map')](x => x)`) attaches to

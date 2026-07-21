@@ -2767,32 +2767,25 @@ export function walkAstChildren(node, visit) {
 // this predicate; the three non-write-only forms are not caught by `isMemberWriteOnlyContext`
 // because they also READ the slot (so polyfill substitution of the read is wrong-but-not-
 // crash-causing, separate from the mutation-bypass divergence this predicate guards)
-// single ROOT-level `?.` receiver form (`o?.rows`, `o?.a.b` - the one live optional sits
-// DIRECTLY on the chain root and the chain is a pure MEMBER walk): returns its `{ rootNode,
-// optionalLink }` so a caller can hoist the root into a leading null-guard and read the rest
-// off the memo deoptionalized. null for every other shape - no live optional, several of
-// them, a deeper-seated one, ANY call link (`arr?.slice().flat?.()` - the call is its own
-// dispatch whose guard reaches the enclosing test through the ownership migration instead),
-// or a paren seal (parens end the chain; a sealed `?.` cannot be root-hoisted). both AST
-// flavors spell the flag as `optional: true` on the link
-export function singleRootOptionalReceiver(node) {
-  let liveLink = null;
-  let cur = node;
-  while (cur && typeof cur === 'object') {
-    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
-      if (cur.optional === true) {
-        if (liveLink) return null;
-        liveLink = cur;
-      } else if (liveLink) return null;
-      cur = cur.object;
-    } else if (cur.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(cur.type)) {
-      cur = cur.expression;
-    } else if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression'
-      || cur.type === 'ParenthesizedExpression') {
-      return null;
-    } else break;
+// does a chain-receiver carry a LIVE `?.` of its own? walks member / call links and the
+// transparent wrappers down to the root. a ParenthesizedExpression TERMINATES the walk: parens
+// end an optional chain, so a `?.` sealed inside them does not short-circuit what follows
+// (`(a?.b).c` throws natively on a nullish `a`) and must not lift a guard out here.
+// used by the chain combines: a receiver with a live `?.` short-circuits the WHOLE chain
+// natively, so it has to be tested before the (nullish-intolerant) maybe-helper reads it,
+// while a receiver without one must keep throwing on the helper's own member read
+export function receiverCarriesLiveOptional(node) {
+  for (let cur = node; cur && typeof cur === 'object';) {
+    // oxc keeps a paren NODE, babel only marks `extra.parenthesized` on the wrapped node -
+    // check both spellings or the two dialects disagree on where the chain ends
+    if (cur !== node && cur.extra?.parenthesized) return false;
+    if (cur.optional === true) return true;
+    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
+    else if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') cur = cur.callee;
+    else if (cur.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
+    else return false;
   }
-  return liveLink ? { rootNode: liveLink.object, optionalLink: liveLink } : null;
+  return false;
 }
 
 export function isMemberMutationContext(node, parent, grandparent) {

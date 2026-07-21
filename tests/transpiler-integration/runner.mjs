@@ -44,6 +44,7 @@ async function withTmpDir(fn) {
 
 // node verifier: import bundle, extract results, compare against expected
 async function verifyInNode(code, label, ext = '.mjs') {
+  assertRefsDeclared(code, label);
   await withTmpDir(async dir => {
     const file = join(dir, `bundle${ ext }`);
     await writeFile(file, code);
@@ -56,9 +57,25 @@ async function verifyInNode(code, label, ext = '.mjs') {
   });
 }
 
+// every plugin-minted temp the output USES must also be declared: a pass that emits a memo
+// without contributing its `var` produces a bundle that dies with `X is not defined` at
+// runtime - and only on the code paths that reach it, which a value assertion can miss
+function assertRefsDeclared(code, label) {
+  const declared = new Set();
+  for (const match of code.matchAll(/\bvar\s+(?<names>[^\n;]+);/g)) {
+    for (const name of match.groups.names.split(',')) declared.add(name.trim().split(/\s/u, 1)[0]);
+  }
+  const undeclared = new Set();
+  for (const match of code.matchAll(/\b(?<temp>_ref\d*)\b/g)) {
+    if (!declared.has(match.groups.temp)) undeclared.add(match.groups.temp);
+  }
+  if (undeclared.size) throw new Error(`${ label }: undeclared plugin temps ${ [...undeclared].join(', ') }`);
+}
+
 // pre+post contract verifier: the runtime must observe the user's Map patch (pre recorded the
 // mutation before the sibling mangled its spelling), and the control stays polyfilled
 async function verifyPhases(code, label, ext = '.mjs') {
+  assertRefsDeclared(code, label);
   await withTmpDir(async dir => {
     const file = join(dir, `bundle${ ext }`);
     await writeFile(file, code);
@@ -66,12 +83,22 @@ async function verifyPhases(code, label, ext = '.mjs') {
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
     deepStrictEqual(results.patched, 'patched', `${ label }: patched static observed`);
     deepStrictEqual([...results.control], expected.filterReject, `${ label }: control`);
+    deepStrictEqual(mod.injected ?? results.injected, 'sib', `${ label }: sibling-injected call ran`);
+    // the injected call is sibling-authored code the POST pass alone can see: it must be
+    // substituted there, or this leg silently degrades to testing the native method
+    // bundlers spell the injected helper binding every which way (farm prefixes it, CJS interop
+    // wraps it in `(0, ns.default)`), so assert the ABSENCE of the raw call instead: whatever
+    // the helper is named, a substituted call no longer reads the method off the array literal
+    if (/\[\s*(?<q1>["'])s\k<q1>\s*,\s*(?<q2>["'])ib\k<q2>\s*\]\s*\.\s*join\s*\(/u.test(code)) {
+      throw new Error(`${ label }: sibling-injected call was left unpolyfilled`);
+    }
   });
 }
 
 // dynamic-import verifier: the lazy module resolves through the bundler's loader machinery
 // and its own body ran polyfilled
 async function verifyDynamic(code, label, ext = '.mjs') {
+  assertRefsDeclared(code, label);
   await withTmpDir(async dir => {
     const file = join(dir, `bundle${ ext }`);
     await writeFile(file, code);
@@ -170,15 +197,24 @@ const siblingMangler = createUnplugin(() => ({
   transform(code) {
     // scoped to the phases input by its class marker. matches only the RAW-source spelling
     // (a leading boundary rejects the pre pass's `_globalThis.` rewrite), so with correct
-    // ordering the sibling no-ops; with broken ordering it mangles the raw source into a
-    // reassigned-`let` key that is GENUINELY unreadable (const aliases and literal concats
-    // fold in the resolver, so those would not discriminate)
-    if (!code.includes('PatchedMap') || !/(?<![\w$.])globalThis\.Map =/.test(code)) return null;
-    return {
-      code: code.replace(/(?<![\w$.])globalThis\.Map =/,
-        "let __mangledKey = 'Ma'; __mangledKey += 'p'; globalThis[__mangledKey] ="),
-      map: null,
-    };
+    // ordering the sibling no-ops. with broken ordering it mangles the raw source two ways at
+    // once: the mutation key becomes a reassigned-`let` (GENUINELY unreadable - const aliases
+    // and literal concats fold in the resolver, so those would not discriminate), and a
+    // POLYFILLABLE call lands beside it, which the post pass must both inject and declare
+    if (!code.includes('PatchedMap')) return null;
+    // two jobs, both scoped to the phases input by its class marker:
+    //   1. ORDER discrimination - a RAW mutation spelling means our pre pass has not run yet,
+    //      so mangle the key into a reassigned-`let` no pass can read (const aliases and
+    //      literal concats fold in the resolver, so those would not discriminate). with the
+    //      correct pre -> sibling -> post interleave the spelling is already rewritten and
+    //      this leg no-ops
+    //   2. INJECTION into sibling-introduced code - replace the marker with a polyfillable
+    //      call, which only the POST pass can ever see. it must be substituted AND have its
+    //      temps declared, or the bundle dies with `X is not defined` at runtime
+    let out = code.replace(/(?<![\w$.])globalThis\.Map =/,
+      "let __mangledKey = 'Ma'; __mangledKey += 'p'; globalThis[__mangledKey] =");
+    out = out.replace("'SIBLING_INJECTS_HERE'", "['s', 'ib'].join('')");
+    return out === code ? null : { code: out, map: null };
   },
 }));
 
