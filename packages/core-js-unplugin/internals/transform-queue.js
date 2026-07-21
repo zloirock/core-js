@@ -738,17 +738,23 @@ export default class TransformQueue {
 
   // content-survival probe for a NESTED rewrite: compose can fold a nested transform into a
   // containing one only when the containing content still carries the nested range's SOURCE
-  // text (exactly one identifier-boundary occurrence - ambiguity would mis-splice). true =
-  // the claiming transform re-emits the text verbatim (a raw receiver slice); false = a
-  // DROPPING consumer (e.g. a static dispatch discarding the chain) - nesting there has no
-  // needle left to compose into
+  // text. true = the claiming transform re-emits the text verbatim (a raw receiver slice);
+  // false = a DROPPING consumer (e.g. a static dispatch discarding the chain) - nesting there
+  // has no needle left to compose into.
+  // the probe is POSITIONAL, exactly like the splice it predicts: compose locates a nested
+  // range by its ORDINAL among identical needles (how many of them precede it in the source),
+  // so the question is whether the container kept an occurrence at THAT ordinal - not merely
+  // whether some occurrence survived. an existence-only answer let look-alike twins each
+  // believe a slot was theirs: the second to ask died on the compose invariant, and asking in
+  // the reverse order silently spliced the WRONG twin into the surviving slot
   containingContentIncludes(start, end) {
     const needle = this.#code.slice(start, end);
     if (!needle.length) return false;
     const entry = this.#properContainerOf(start, end);
     if (!entry) return false;
     const content = entry.splitInfo ? splitInnerContent(entry, new Map()) : entry.content;
-    return collectOccurrencePositions(content, needle).length === 1;
+    const ordinal = collectOccurrencePositions(this.#code.slice(entry.start, start), needle).length;
+    return collectOccurrencePositions(content, needle).length > ordinal;
   }
 
   // true when any already-queued transform sits fully within [start, end]. used before
@@ -1326,6 +1332,7 @@ export default class TransformQueue {
       // puts the enclosing range first, so the common nested-chain hit resolves in O(1)
       if (rangesEnclose(verbatimAbsorbing, inner.start, innerEndLogical)) continue;
       const needle = this.#code.slice(inner.start, innerEndLogical);
+
       // split inners expose their prefix-half text (the polyfill-helper invocation
       // `_polyfill(receiver)` emitted by addInstanceTransform). compose hands this to
       // substituteInner so the rootRaw-alone substitution path can swap in just the

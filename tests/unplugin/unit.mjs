@@ -409,6 +409,66 @@ function checkPartialOverlapThrows() {
 }
 checkPartialOverlapThrows();
 
+// the nesting gate is POSITIONAL: compose locates a nested range by its ORDINAL among
+// identical needles, so the gate must ask whether the container kept an occurrence at THAT
+// ordinal. an existence-only answer made the verdict depend on ARRIVAL ORDER - look-alike
+// twins each believed the surviving slot was theirs, so the second to ask died on the compose
+// invariant, and asking in reverse silently spliced the WRONG twin into it
+function checkNestingGateIsPositional() {
+  const code = 'wrap( pick(x) , pick(x) )';
+  const first = code.indexOf('pick(x)');
+  const second = code.lastIndexOf('pick(x)');
+  const span = 'pick(x)'.length;
+  function gatesFor(containerContent) {
+    const q = new TransformQueue(code, new MagicString(code));
+    q.add(0, code.length, containerContent);
+    return {
+      first: q.containingContentIncludes(first, first + span),
+      second: q.containingContentIncludes(second, second + span),
+    };
+  }
+  // container kept ONLY the first occurrence: its slot belongs to the first range
+  const keptFirst = gatesFor('KEEP( pick(x) )');
+  check('nesting gate/kept twin admitted', keptFirst.first, true);
+  check('nesting gate/dropped twin rejected', keptFirst.second, false);
+  // both kept - both compose, each into its own ordinal
+  const keptBoth = gatesFor('KEEP( pick(x) , pick(x) )');
+  check('nesting gate/both twins admitted when both kept', keptBoth.first && keptBoth.second, true);
+  // a DROPPING consumer keeps nothing
+  const dropped = gatesFor('DROPPED');
+  check('nesting gate/dropping consumer rejects', dropped.first || dropped.second, false);
+  // the verdict must not depend on which range asks first
+  function applyInOrder(order) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    q.add(0, code.length, 'KEEP( pick(x) )');
+    for (const [name, at] of order) {
+      if (q.containingContentIncludes(at, at + span)) q.add(at, at + span, `INNER_${ name }`);
+    }
+    q.apply();
+    return ms.toString();
+  }
+  check('nesting gate/natural order splices the kept twin',
+    applyInOrder([['A', first], ['B', second]]), 'KEEP( INNER_A )');
+  check('nesting gate/reverse order splices the same twin',
+    applyInOrder([['B', second], ['A', first]]), 'KEEP( INNER_A )');
+  // a SPLIT container answers from its joined halves, per ordinal on each side
+  function splitGates(prefix, suffix) {
+    const q = new TransformQueue(code, new MagicString(code));
+    q.addSplit(0, 14, code.length, prefix, suffix);
+    return {
+      first: q.containingContentIncludes(first, first + span),
+      second: q.containingContentIncludes(second, second + span),
+    };
+  }
+  const splitKeptBoth = splitGates('KEEP( pick(x) ', ' , pick(x) )');
+  check('nesting gate/split container keeps both ordinals',
+    splitKeptBoth.first && splitKeptBoth.second, true);
+  const splitDropped = splitGates('KEEP( pick(x) ', ' )');
+  check('nesting gate/split container drops the second ordinal', splitDropped.second, false);
+}
+checkNestingGateIsPositional();
+
 // addSplit type-checks both content args upfront. without the upfront guard, the prefix
 // `add` succeeds and changes #transforms / #byRange / #sorted state before suffix's `add`
 // throws on bad content - leaving an orphan half in the queue
