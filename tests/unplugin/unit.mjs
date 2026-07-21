@@ -4177,7 +4177,7 @@ checkSnapshotPeekWithParseNullAst();
 // destructure-LHS / pattern-target slots - so reads later in the file bail to preserve
 // the user's monkey-patch (polyfill import is `const`, can't see the mutation)
 function checkCollectMutatedStaticMembers() {
-  const mutationAdapter = createEstreeAdapter(() => null, 'usage-pure');
+  const mutationAdapter = createEstreeAdapter({ method: 'usage-pure' });
   function collect(src) {
     // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
     return collectMutationPrePass(parseSync('unit.js', src).program, mutationAdapter).mutated;
@@ -4216,20 +4216,23 @@ function checkCollectMutatedStaticMembers() {
   // (staticMemberKey normalizes the literal bracket key to its dot form for write detection)
   check('collectMutatedStaticMembers/computed string-literal key tracked',
     collect('Array["from"] = X;').has('Array.from'), true);
-  // NON-literal computed key (`Array[k] = X`) stays out of scope - resolving a dynamic key
-  // would need full value analysis the fast pre-walk doesn't do
-  check('collectMutatedStaticMembers/dynamic computed key not tracked',
-    collect('Array[k] = X;').has('Array.from'), false);
+  // NON-literal computed key (`Array[k] = X`) could have hit ANY member - the receiver deopts
+  // whole through the slot channel; no exact pair is fabricated
+  const dynamicKey = collect('Array[k] = X;');
+  check('collectMutatedStaticMembers/dynamic computed key deopts receiver whole',
+    dynamicKey.has('globalThis.Array'), true);
+  check('collectMutatedStaticMembers/dynamic computed key fabricates no exact pair',
+    dynamicKey.has('Array.from'), false);
   // `Object.assign(Builtin, { ...source })` copies each own key onto Builtin - method shorthand,
   // getter, and data props across multiple object-literal sources all count as a static mutation
   const assigned = collect('Object.assign(Array, { from() {}, get of() { return 1; } }, { isArray: 0 });');
   check('collectMutatedStaticMembers/assign method shorthand', assigned.has('Array.from'), true);
   check('collectMutatedStaticMembers/assign getter', assigned.has('Array.of'), true);
   check('collectMutatedStaticMembers/assign second-source data', assigned.has('Array.isArray'), true);
-  // a dynamic source (Identifier) + a computed key in an object source stay out of scope (the
-  // fast pre-walk under-collects rather than guess - bias-safe for the usage-pure bail)
-  check('collectMutatedStaticMembers/assign dynamic + computed sources not tracked',
-    [...collect('Object.assign(Map, src, { [k]: 1 });')].length, 0);
+  // a dynamic source (Identifier) / a computed key in an object source can carry ANY key -
+  // the receiver deopts whole instead of guessing exact pairs
+  check('collectMutatedStaticMembers/assign dynamic + computed sources deopt receiver whole',
+    [...collect('Object.assign(Map, src, { [k]: 1 });')].join(','), 'globalThis.Map');
   // Reflect call-forms monkey-patch a named static slot like the Object.* / assignment forms:
   // defineProperty / deleteProperty / set (set is the call-form of `T.k = v` and the [[Set]] twin
   // of Object.assign). setPrototypeOf is out of scope - it swaps [[Prototype]], not a named key
@@ -4241,8 +4244,17 @@ function checkCollectMutatedStaticMembers() {
     collect("Reflect.set(Array, 'from', fn);").has('Array.from'), true);
   check('collectMutatedStaticMembers/Reflect.setPrototypeOf not tracked',
     [...collect('Reflect.setPrototypeOf(Array, proto);')].length, 0);
-  check('collectMutatedStaticMembers/Reflect.set dynamic key not tracked',
-    [...collect('Reflect.set(Array, k, fn);')].length, 0);
+  check('collectMutatedStaticMembers/Reflect.set dynamic key deopts receiver whole',
+    [...collect('Reflect.set(Array, k, fn);')].join(','), 'globalThis.Array');
+  // identity self-copies: a BARE proxy receiver is exempt, a bound same-named local is not
+  // (over-record - the safe direction), and a file that replaces the trusted receiver's own
+  // slot re-records the skipped copy in either textual order
+  check('collectMutatedStaticMembers/bare-proxy identity self-copy exempt',
+    [...collect('Promise = globalThis.Promise;')].length, 0);
+  check('collectMutatedStaticMembers/bound self alias not exempt',
+    collect('const self = { Promise: 1 }; Promise = self.Promise;').has('globalThis.Promise'), true);
+  check('collectMutatedStaticMembers/identity re-records when receiver slot replaced',
+    collect('Promise = self.Promise; self = fake;').has('globalThis.Promise'), true);
 }
 checkCollectMutatedStaticMembers();
 
