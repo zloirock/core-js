@@ -1690,7 +1690,7 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
     if (!bindingName) return null;
     const values = patternSlotValues(left, assignment.right, bindingName, ctx);
     return values.length === 1 && !patternSlotHasDefault(left, bindingName)
-      && !patternSlotSpreadShifted(left, assignment.right, bindingName) ? values[0] : null;
+      && !patternSlotSpreadShifted(left, assignment.right, bindingName, ctx) ? values[0] : null;
   }
   return reassignmentRhs(node, ownerNode);
 }
@@ -1934,18 +1934,8 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   // a const-identifier rhs bound to a literal (`const arr = [Map]; [A] = arr`) - follow it so the
   // pairing sees the underlying array / object, like the direct-literal form
   rhs = followConstLiteralAlias(rhs, ctx);
-  // a computed property key (`{ [k]: A }`) resolves through the read-side key canon when a ctx is
-  // supplied; the binding-blind static-name fallback covers literal keys for ctx-less callers.
-  // the key EVALUATES at the destructure site - anchor the canon's reaching-value analysis on
-  // the PATTERN (source positions survive rewrites), or a key reassigned AFTER the capture
-  // would resolve to its post-capture value: a wrong-value pairing
   function propKey(prop) {
-    return ctx?.resolveKey
-      ? ctx.resolveKey({
-        node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter,
-        path: ctx.path, usageNode: ctx.usageNode ?? pattern,
-      })
-      : propertyKeyName(prop);
+    return patternPropKey(prop, ctx, pattern);
   }
   // a nested pattern slot (`[[M]]` / `{ x: [M] }`) pairs against the slot's RHS positionally /
   // by key - recurse so a binding bound through arbitrary nesting still surfaces its value union;
@@ -2009,9 +1999,28 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
 // does the binding `name` pair through a SPREAD-SHIFTED array slot (`[, { x: A }] = [...xs, V]`)?
 // there the enumerated candidates are an over-approximation whose union is INCOMPLETE (the spread's
 // own items are unenumerable), so a precision-needing consumer must not read a lone candidate as
-// certain - the maybe-union stays sound for inject-if-might. the object twin needs no predicate:
-// an overriding trailing spread already pairs nothing there. mirrors `patternSlotHasDefault`
-export function patternSlotSpreadShifted(pattern, rhs, name) {
+// certain - the maybe-union stays sound for inject-if-might. an OBJECT pattern shifts nothing by
+// itself (an overriding trailing spread already pairs nothing there), but it must still descend
+// into its slots: a shifted array sits just as well under a key (`{ x: [, A] } = { x: [...xs, V] }`).
+// mirrors `patternSlotHasDefault` / `patternSlotValues`, which walk both pattern kinds
+export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
+  if (pattern?.type === 'ObjectPattern') {
+    for (const prop of pattern.properties) {
+      if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+      if (!patternBindsIdentifier(prop.value, id => id.name === name)) continue;
+      const slot = prop.value.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      // the SAME key canon the value pairing uses - reading the key any less precisely here would
+      // let a computed key (`{ [k]: [, A] }`) pair a value the completeness check never inspects
+      const key = patternPropKey(prop, ctx, pattern);
+      // last matching key wins, but a trailing spread could override it -> pairs nothing (canon)
+      const paired = key !== null && rhs?.type === 'ObjectExpression'
+        ? findObjectKeyBeforeSpread(rhs.properties, rp => patternPropKey(rp, ctx, pattern) === key)?.value ?? null : null;
+      if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
+      if (prop.value.type === 'AssignmentPattern'
+        && patternSlotSpreadShifted(slot, prop.value.right, name, ctx)) return true;
+    }
+    return false;
+  }
   if (pattern?.type !== 'ArrayPattern') return false;
   for (let i = 0; i < pattern.elements.length; i++) {
     const element = pattern.elements[i];
@@ -2019,11 +2028,27 @@ export function patternSlotSpreadShifted(pattern, rhs, name) {
     if (rhs?.type === 'ArrayExpression' && spreadAtOrBefore(rhs.elements, i)) return true;
     const slot = element.type === 'AssignmentPattern' ? element.left : element;
     const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
-    if (slot?.type === 'ArrayPattern' && patternSlotSpreadShifted(slot, paired, name)) return true;
+    if (patternSlotSpreadShifted(slot, paired, name, ctx)) return true;
     if (element.type === 'AssignmentPattern'
-      && patternSlotSpreadShifted(slot, element.right, name)) return true;
+      && patternSlotSpreadShifted(slot, element.right, name, ctx)) return true;
   }
   return false;
+}
+
+// resolve a destructuring property's KEY. a computed key (`{ [k]: A }`) resolves through the
+// read-side key canon when a ctx is supplied; the binding-blind static-name fallback covers
+// literal keys for ctx-less callers. the key EVALUATES at the destructure site - anchor the
+// canon's reaching-value analysis on the PATTERN (source positions survive rewrites), or a key
+// reassigned AFTER the capture would resolve to its post-capture value: a wrong-value pairing.
+// single source shared by the value pairing and the completeness check, which must agree on
+// which slot a name pairs through
+function patternPropKey(prop, ctx, anchorPattern) {
+  return ctx?.resolveKey
+    ? ctx.resolveKey({
+      node: prop.key, computed: prop.computed, scope: ctx.scope, adapter: ctx.adapter,
+      path: ctx.path, usageNode: ctx.usageNode ?? anchorPattern,
+    })
+    : propertyKeyName(prop);
 }
 
 // every POSSIBLE value a reassignment site flows into the binding: a value-flow assignment's
