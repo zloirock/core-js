@@ -243,11 +243,25 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // scope is inside bindingScope's var-scope - same object, or nested through plain blocks
   // without crossing a function / StaticBlock boundary. so `var` writes in inner blocks
   // count as writes to the hoisted function-scope binding
-  function isInBindingVarScope(scope, bindingScope) {
-    for (let s = scope; s; s = s.parent) {
-      if (s === bindingScope) return true;
-      const node = scopeNode(s);
-      if (t.isFunction(node) || t.isStaticBlock?.(node)) return false;
+  // walks the PATH, not the scope chain: estree-toolkit paths carry no `.scope`, so a
+  // scope-object walk silently answered `false` for every estree query - the IIFE lift then
+  // never terminated and every IIFE-hosted write looked deferred. the AST walk answers both
+  // dialects: stop at the binding's var-scope node (true) or at the first function /
+  // static-block boundary crossed on the way (false)
+  function isInBindingVarScope(path, bindingScope) {
+    const targetNode = scopeNode(bindingScope);
+    for (let p = path; p?.node; p = p.parentPath) {
+      if (p.node === targetNode) return true;
+      if (p === path) continue;
+      // a static block is its own var-scope, but the two dialects disagree on which node
+      // OWNS a `let` declared inside one: babel names the block, estree-toolkit the class.
+      // treat the block as reached-target when the class it belongs to IS the target, so the
+      // same source classifies identically either way
+      if (t.isStaticBlock?.(p.node)) {
+        const owner = p.parentPath?.parentPath;
+        return owner?.node === targetNode;
+      }
+      if (t.isFunction(p.node)) return false;
     }
     return false;
   }
@@ -276,7 +290,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   // var-scope. arrow-with-expression-body short-circuits when the assignment IS the body
   function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
     let effectiveAp = ap;
-    while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
+    while (effectiveAp && !isInBindingVarScope(effectiveAp, bindingScope)) {
       const { call, fnBody } = findEnclosingIIFE(effectiveAp, bindingScope) ?? {};
       if (!call) return null;
       if (effectiveAp.node !== fnBody
@@ -352,7 +366,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     // use even when textually later - so the positional narrow below cannot be trusted
     // a recovered extra has no parent chain to prove it is NOT deferred - bail like one
     if (binding.constantViolations.some(v => v.canonicalRecovered || violationRunsDeferred(v, binding.scope))) return null;
-    if (!isInBindingVarScope(usagePath.scope, binding.scope)) return null;
+    if (!isInBindingVarScope(usagePath, binding.scope)) return null;
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
     if (bindingCrossesLoopBackEdge(t, usagePath, binding)) return null;
@@ -394,6 +408,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
 
   return {
     findLastStraightLineAssignment,
+    violationRunsDeferred,
     reset,
   };
 }

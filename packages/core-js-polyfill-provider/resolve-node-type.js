@@ -1447,6 +1447,7 @@ function createResolveNodeType(babelNodeType, t, {
     collectClassDescendantPaths,
     getClassBindingClosure,
     getClassConstructorNames,
+    resolveExpressionToClassPath,
     classRefLandsOutside,
     getClassInstanceClosure,
     getClassInstanceTemporalBound,
@@ -1493,6 +1494,7 @@ function createResolveNodeType(babelNodeType, t, {
     instanceMemberShadowable,
     getTypeMembers: (...args) => getTypeMembers(...args),
     findNamespacedFunctionPath,
+    classCallableSlotReassigned: classFieldsCluster.classCallableSlotReassigned,
   });
   ({
     classSubstInner,
@@ -1673,6 +1675,7 @@ function createResolveNodeType(babelNodeType, t, {
     withLookupPath,
     functionTypeParams: (...args) => functionTypeParams(...args),
     collectBindingReferences,
+    violationRunsDeferred: straightLineFlowCluster.violationRunsDeferred,
   });
   const {
     findArrayPatternKeyPath,
@@ -1786,6 +1789,7 @@ function createResolveNodeType(babelNodeType, t, {
     typeParamName,
     effectiveParam,
     resolveIndexedAccessMemberAnnotationAST,
+    foldUnionTypes,
   });
   ({ functionTypeReturnAnnotation, findExpressionAnnotation, buildCallSiteSubst } = callResolutionCluster);
   const { resolveCallReturnType, resolveIndexSignatureValue, indexAccessKeyKind, shadowedAliasReturnAnnotation } = callResolutionCluster;
