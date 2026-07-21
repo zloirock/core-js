@@ -7,7 +7,7 @@
 //
 // TWO PROFILES. The exhaustive matrix (every bundler x every phase, median of 5) took ~50 min,
 // almost all of it three's usage-mode O(n^2) scan re-run across dimensions the full run already
-// PROVED redundant: overhead is ~invariant across the 6 bundlers, and pre+post is always ~2x a
+// PROVED redundant: overhead is ~invariant across the 7 bundlers, and pre+post is always ~2x a
 // single phase. So the default is a SMOKE - fast libs on every bundler, the slow lib on one
 // representative bundler (rollup), phase `post` only, N=1 (~2 min) - and `--full` restores the
 // matrix (all bundlers x all phases, N defaults to 5) for the occasional re-characterisation.
@@ -23,8 +23,8 @@ const [libFilter, bundlerFilter] = process.argv.slice(2).filter(a => a !== '--fu
 const N = Number(process.env.N ?? (FULL ? 5 : 1));
 
 // libs whose largest single module is huge enough that one usage-mode build is ~17s+ (the O(n^2)
-// scan). In smoke they run on ONE representative bundler instead of all six: bundler-invariance is
-// already visible on the fast libs (which do run on all six here) and proven in --full, so paying
+// scan). In smoke they run on ONE representative bundler instead of all seven: bundler-invariance is
+// already visible on the fast libs (which do run on all seven here) and proven in --full, so paying
 // it again on the slow lib every run is the ~50-min tax. rollup is the one pipeline/artifacts use.
 const SLOW_LIBS = new Set(['three']);
 const SLOW_LIB_BUNDLERS = ['rollup'];
@@ -86,8 +86,9 @@ for (const lib of libs) {
       const key = `${ method }|${ phase ?? '' }`;
       try {
         injByCell[key] = (await captureInjections(lib.exercise, method, phase)).length;
-      } catch {
+      } catch (err) {
         injByCell[key] = null;
+        console.log(`inject-capture ${ method }${ phase ? `/${ phase }` : '' }: ERROR ${ (err.message || err).slice(0, 120) }`);
       }
     }
   }
