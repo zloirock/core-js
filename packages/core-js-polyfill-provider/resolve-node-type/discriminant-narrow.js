@@ -206,11 +206,12 @@ export function createDiscriminantNarrow({
       // write-host PATH so `violationInCapturedFunction` can walk `.parentPath`
       if (writeKey === targetKey || targetKey.startsWith(`${ writeKey }.`)) {
         out.push(p.parentPath);
-      } else if (writeKey.startsWith(`${ targetKey }.`) && !writeKey.slice(targetKey.length + 1).includes('.')) {
-        // a DIRECT field write (`s.kind` for target `s`) flips the variant ONLY when the field is a
-        // guard's discriminant; an unrelated field write (`s.data = ...`) leaves it intact. carry the
-        // key so `discriminantGuardApplies` can match it per-guard. a yet-deeper write (`s.a.b`) is a
-        // property mutation - excluded. the wrapper mirrors a path for the violation consumers
+      } else if (writeKey.startsWith(`${ targetKey }.`)) {
+        // a field write under the target (`s.kind`, or the deeper `s.m.k`) flips the variant ONLY
+        // when it lands on a guard's discriminant path; an unrelated field write (`s.data = ...`)
+        // leaves it intact. carry the key so `discriminantGuardApplies` can match it per-guard -
+        // depth is not the filter, the per-guard key comparison is, and a MULTI-HOP discriminant
+        // is invalidated by a write to exactly its own deep path
         out.push({ node: p.parentPath.node, parentPath: p.parentPath.parentPath, writeKey });
       }
     }
@@ -259,7 +260,17 @@ export function createDiscriminantNarrow({
   function relevantGuardViolations({ violations, fieldWrites }, testNode, targetKey, scope) {
     if (!fieldWrites.length) return violations;
     const discriminantKeys = guardDiscriminantWriteKeys(testNode, targetKey, scope);
-    return violations.concat(fieldWrites.filter(w => discriminantKeys.has(w.writeKey)));
+    return violations.concat(fieldWrites.filter(w => writeAffectsDiscriminant(w.writeKey, discriminantKeys)));
+  }
+
+  // a write invalidates the variant narrow when it lands ON the discriminant (`u.kind = ...`)
+  // or on any PREFIX of its path (`u.m = other.m` replaces the object holding `u.m.k`, so the
+  // guarded `u.m.k === 'a'` no longer describes the value). an exact-key match alone let every
+  // multi-hop discriminant keep a narrow its own write had already invalidated
+  function writeAffectsDiscriminant(writeKey, discriminantKeys) {
+    if (discriminantKeys.has(writeKey)) return true;
+    for (const key of discriminantKeys) if (key.startsWith(`${ writeKey }.`)) return true;
+    return false;
   }
 
   // ANY constantViolation whose `.node.start` falls inside one of `intervals`. each entry is

@@ -50,6 +50,7 @@ export function createPatternBindings({
   withLookupPath,
   functionTypeParams,
   collectBindingReferences,
+  violationRunsDeferred,
 }) {
   // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
   // sentinel conventions:
@@ -894,20 +895,32 @@ export function createPatternBindings({
       return resolveNodeType(lastAssign.get(rightKey));
     }
     // no assignment found - resolve from init when either const or all mutations are after usage
-    if (t.isVariableDeclarator(node) && node.init) {
-      // estree-toolkit block-scopes a `var`, so `binding.path` can be a stale declarator overwritten
-      // by a `var name = X` re-declaration before the use that it never recorded - don't trust its
-      // init then (babel records the redecl, so this only fires on the estree var-hoist gap)
-      if (varInitStaleByRedecl(binding, path, name)) return null;
-      const violations = binding.constantViolations;
-      if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
-      // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
-      // use, so the declarator init no longer describes the receiver from iteration 2 - degrade to generic
-      if (bindingCrossesLoopBackEdge(t, path, binding)) return null;
-      const usagePos = path.node.start;
-      if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
-        return resolveNodeType(bindingPath.get('init'));
-      }
+    if (t.isVariableDeclarator(node) && node.init) return resolveFromDeclaratorInit(binding, bindingPath, path, name);
+    return null;
+  }
+
+  // the declarator's own initializer describes the receiver only while every recorded write is
+  // provably irrelevant at the use: none at all, or all of them ordered after it in the same
+  // straight-line flow
+  function resolveFromDeclaratorInit(binding, bindingPath, path, name) {
+    // estree-toolkit block-scopes a `var`, so `binding.path` can be a stale declarator overwritten
+    // by a `var name = X` re-declaration before the use that it never recorded - don't trust its
+    // init then (babel records the redecl, so this only fires on the estree var-hoist gap)
+    if (varInitStaleByRedecl(binding, path, name)) return null;
+    const violations = binding.constantViolations;
+    if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
+    // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
+    // use, so the declarator init no longer describes the receiver from iteration 2 - degrade to generic
+    if (bindingCrossesLoopBackEdge(t, path, binding)) return null;
+    // a violation whose home runs at an UNKNOWN time (a captured function invoked before the use,
+    // an instance class-field initializer) fires regardless of source position, so the positional
+    // test below cannot see it. an IIFE body is NOT such a home - it lifts to a straight-line
+    // position and stays positionally bounded, which is why this uses the shared deferral
+    // predicate rather than the blanket captured-function gate
+    if (violations.some(v => violationRunsDeferred(v, binding.scope))) return null;
+    const usagePos = path.node.start;
+    if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
+      return resolveNodeType(bindingPath.get('init'));
     }
     return null;
   }

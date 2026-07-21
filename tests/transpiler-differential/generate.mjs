@@ -1537,6 +1537,179 @@ function * generateAssignAliasReassign() {
   }
 }
 
+// --- Reassigned callable slot: the DECLARED body no longer describes what a call yields ---
+// every callable member is a writable slot. once a write installs a function returning a FOREIGN
+// family, narrowing off the declaration dispatches a type-specific helper onto the replacement's
+// value - runtime-visible only where the foreign family's method is not native (the stripped leg),
+// which is exactly why the fixture channel alone could not see it. axes: WHO declares the slot x
+// WHO writes it; the no-write arms are the controls that must KEEP their narrow
+function * generateReassignedCallableSlot() {
+  // each host builds a class / object whose `rows` slot returns an array, plus `read()` calling
+  // the polyfilled method on the result. `write` is spliced in as the reassignment channel
+  const HOSTS = [
+    { id: 'instance-method',
+      build: write => `class C { rows() { return [1, 2]; } poison() { ${ write('this.rows') } } read() { return this.rows().at(0); } } const h = new C();` },
+    { id: 'static-method',
+      build: write => `class C { static rows() { return [1, 2]; } static poison() { ${ write('C.rows') } } static read() { return C.rows().at(0); } } const h = C;` },
+    { id: 'fn-field',
+      build: write => `class C { rows = () => [1, 2]; poison() { ${ write('this.rows') } } read() { return this.rows().at(0); } } const h = new C();` },
+    { id: 'object-shorthand',
+      build: write => `const h = { rows() { return [1, 2]; }, poison() { ${ write('h.rows') } }, read() { return h.rows().at(0); } };` },
+    { id: 'object-fn-prop',
+      build: write => `const h = { rows: () => [1, 2], poison() { ${ write('h.rows') } }, read() { return h.rows().at(0); } };` },
+  ];
+  // a write channel returns the statement that installs the foreign-family replacement
+  const WRITERS = [
+    { id: 'none', poison: false, write: () => '' },
+    { id: 'own-body', poison: true, write: slot => `${ slot } = () => "text";` },
+    // a COMPUTED key names the same slot - a write scan keyed on static names must still see it
+    { id: 'computed-key', poison: true, write: slot => `${ slot.replace(/\.(?<key>\w+)$/, '["$<key>"]') } = () => "text";` },
+    // the write arrives through a PATTERN rather than an assignment operator
+    { id: 'destructured-write', poison: true, write: slot => `({ v: ${ slot } } = { v: () => "text" });` },
+    // guarded by a condition that is always true at runtime: still an observed write
+    { id: 'conditional', poison: true, write: slot => `if (cond) { ${ slot } = () => "text"; }` },
+  ];
+  // the same reassignment dropped into different USE contexts: a deopt decided on the slot must
+  // survive optional-call lowering, a destructured result and a parameter default, where a second
+  // transform (optional guard / pattern extraction / default synth) rewrites the same expression
+  const USES = [
+    { id: 'direct', read: 'h.read()' },
+    { id: 'optional-call', read: 'h.read?.()' },
+    { id: 'destructured-result', read: '(() => { const [first] = [h.read()]; return first; })()' },
+    { id: 'param-default', read: '(() => { const f = (v = h.read()) => v; return f(); })()' },
+  ];
+  for (const host of HOSTS) {
+    for (const writer of WRITERS) {
+      for (const use of USES) {
+        const code = `(() => { ${ host.build(writer.write) } ${ writer.poison ? 'h.poison();' : '' } return ${ use.read }; })()`;
+        yield { ...snippet(`reassigned-callable-slot/${ host.id }/${ writer.id }/${ use.id }`, code), strip: true };
+      }
+    }
+  }
+  // the class-binding channels the this-write index cannot see: an ALIAS of the binding, and a
+  // SUBCLASS writing the inherited slot. both must degrade the narrow just like an own-body write
+  const BASE_WITH_READ = 'class B { rows() { return [1, 2]; } read() { return this.rows().at(0); } }';
+  const EXTERNAL = [
+    { id: 'alias-of-binding',
+      code: '(() => { class C { static rows() { return [1, 2]; } static read() { return C.rows().at(0); } } const D = C; D.rows = () => "text"; return C.read(); })()' },
+    { id: 'alias-no-write',
+      code: '(() => { class C { static rows() { return [1, 2]; } static read() { return C.rows().at(0); } } const D = C; return [C.read(), typeof D]; })()' },
+    { id: 'subclass-writes-inherited',
+      code: `(() => { ${ BASE_WITH_READ } class S extends B { poison() { this.rows = () => "text"; } }`
+        + ' const s = new S(); s.poison(); return s.read(); })()' },
+    { id: 'subclass-no-write',
+      code: `(() => { ${ BASE_WITH_READ } class S extends B { tag() { return "s"; } }`
+        + ' const s = new S(); return [s.read(), s.tag()]; })()' },
+    // a PRIVATE method has no writable slot at all - nothing can replace it, narrow stays
+    { id: 'private-method-sealed',
+      code: '(() => { class C { #rows() { return [1, 2]; } read() { return this.#rows().includes(1); } } return new C().read(); })()' },
+  ];
+  for (const c of EXTERNAL) yield { ...snippet(`reassigned-callable-slot/${ c.id }`, c.code), strip: true };
+}
+
+// --- Spread-shifted destructure slot: which value a slot pairs with, once a spread moves it ---
+// a spread contributes an unknown NUMBER of items, so an index past it does not pair with the
+// literal sitting there. reading a lone candidate as certain substitutes the WRONG constructor -
+// visible as a plain value divergence (a shifted slot here holds `Object`, not `Map`, and their
+// `groupBy` return different shapes), so this family needs no stripped leg. the no-spread arms
+// are controls whose pairing is exact and whose substitution is therefore legitimate
+function * generateSpreadShiftedSlot() {
+  const TAIL = 'const tail = [Object, Object];';
+  const OBSERVE = 'return Object.prototype.toString.call(A.groupBy([1, 2], v => v));';
+  const PATTERNS = [
+    { id: 'array', shifted: 'const [, , , A] = [...tail, Map];', exact: 'const [, A] = [Object, Map];' },
+    { id: 'object-key', shifted: 'const { x: [, , , A] } = { x: [...tail, Map] };', exact: 'const { x: [, A] } = { x: [Object, Map] };' },
+    { id: 'computed-key',
+      shifted: 'const k = "x"; const { [k]: [, , , A] } = { x: [...tail, Map] };',
+      exact: 'const k = "x"; const { [k]: [, A] } = { x: [Object, Map] };' },
+    { id: 'nested-deep',
+      shifted: 'const { x: { y: [, , , A] } } = { x: { y: [...tail, Map] } };',
+      exact: 'const { x: { y: [, A] } } = { x: { y: [Object, Map] } };' },
+  ];
+  for (const pattern of PATTERNS) {
+    yield { ...snippet(`spread-shifted-slot/${ pattern.id }/shifted`, `(() => { ${ TAIL } ${ pattern.shifted } ${ OBSERVE } })()`) };
+    yield { ...snippet(`spread-shifted-slot/${ pattern.id }/exact`, `(() => { ${ pattern.exact } ${ OBSERVE } })()`) };
+  }
+}
+
+// --- Type-parameter binding: what a call ACTUALLY returns, once positions shift or a constraint
+// is merely possible ---
+// binding a type parameter from a shifted position, or from a conditional whose constraint was
+// never established, narrows to a family the value may never have. natively invisible (the real
+// value's own methods exist), fatal on a target lacking them - hence the stripped leg
+function * generateTypeParamBindingTs() {
+  const CASES = [
+    // a SPREAD contributes an unknown number of values, so `second` is not the trailing argument:
+    // the call returns "b", while the shifted binding would claim `number[]`
+    { id: 'spread-shifted-binding',
+      code: '(() => { function pick<T>(first: unknown, second: T): T { return second; }'
+        + ' const words = ["a", "b"]; const nums = [1, 2]; return pick(...words, nums).at(0); })()' },
+    // no spread: the pairing is exact and the narrow is legitimate (control)
+    { id: 'exact-binding',
+      code: '(() => { function pick<T>(first: unknown, second: T): T { return second; }'
+        + ' const nums = [1, 2]; return pick("a", nums).at(0); })()' },
+    // `infer U extends string` binds U only when the check is ESTABLISHED. `object` is merely
+    // POSSIBLY assignable, so the false branch wins and the value is the string it returns
+    { id: 'unestablished-constraint',
+      code: '(() => { function make<T>(x: T): T extends Array<infer U extends string> ? number[] : string'
+        + ' { return "text" as any; } return make({} as object).at(0); })()' },
+    // the check IS established here, so the true branch and its narrow are legitimate (control)
+    { id: 'established-constraint',
+      code: '(() => { function make<T>(x: T): T extends Array<infer U extends string> ? U[] : string'
+        + ' { return ["a"] as any; } return make(["a"] as string[]).includes("a"); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`type-param-binding-ts/${ c.id }`, c.code), ts: true, strip: true };
+}
+
+// --- Deferred write before the read: the binding's value is not what its initializer said ---
+// a write that runs through a CALL (hoisted function, IIFE, method, static block) lands before the
+// read even though its source position sits after it. narrowing off the initializer then dispatches
+// an Array helper onto a string - natively invisible, fatal where the string method is not native.
+// the arms whose writer never RUNS are controls: their initializer still describes the value
+function * generateDeferredWriteNarrow() {
+  const READ = 'return data.at(0);';
+  const CHANNELS = [
+    { id: 'hoisted-call', code: `let data = [1, 2]; setup(); ${ READ } function setup() { data = "text"; }` },
+    { id: 'iife', code: `let data = [1, 2]; (function () { data = "text"; })(); ${ READ }` },
+    { id: 'object-method', code: `let data = [1, 2]; const o = { go() { data = "text"; } }; o.go(); ${ READ }` },
+    { id: 'static-block', code: `let data = [1, 2]; class C { static { data = "text"; } } void C; ${ READ }` },
+    // declared but NEVER called - the initializer still describes the value at the read
+    { id: 'uncalled-writer', code: `let data = [1, 2]; ${ READ } function never() { data = "text"; }` },
+    { id: 'no-writer', code: `let data = [1, 2]; ${ READ }` },
+    // the same deferred write reaching a binding introduced by a PATTERN rather than a declarator
+    { id: 'destructured-target',
+      code: `let [data] = [[1, 2]]; fill(); ${ READ } function fill() { data = "text"; }` },
+    { id: 'destructured-uncalled',
+      code: `let [data] = [[1, 2]]; ${ READ } function never() { data = "text"; }` },
+  ];
+  for (const c of CHANNELS) yield { ...snippet(`deferred-write-narrow/${ c.id }`, `(() => { ${ c.code } })()`), strip: true };
+}
+
+// --- Union hop fold: the branch a VALUE actually matches, not the first branch that resolves ---
+// an intermediate hop through a union must fold its branches. taking the first that resolves
+// dispatches a value matching a LATER branch through the first branch's type-specific helper -
+// invisible natively (the foreign family's method exists) and fatal on a target that lacks it,
+// so these carry the stripped leg. the convergent arms are controls: their narrow is legitimate
+function * generateUnionHopFoldTs() {
+  const CASES = [
+    // the value matches the STRING branch while the array branch resolves first
+    { id: 'call-return-divergent',
+      code: '(() => { const d: { make(): { rows: number[] } } | { make(): { rows: string } } = { make: () => ({ rows: "text" }) }; return d.make().rows.at(0); })()' },
+    { id: 'member-divergent',
+      code: '(() => { const d: { item: { rows: number[] } } | { item: { rows: string } } = { item: { rows: "text" } }; return d.item.rows.at(0); })()' },
+    // both branches are ARRAYS differing only in element type - the narrow is entitled
+    { id: 'call-return-convergent',
+      code: '(() => { const d: { make(): number[] } | { make(): string[] } = { make: () => ["a"] }; return d.make().includes("a"); })()' },
+    { id: 'member-convergent',
+      code: '(() => { const d: { item: number[] } | { item: string[] } = { item: ["a"] }; return d.item.at(0); })()' },
+    // a union of METHODS whose returns are the same family resolves; differing families degrade.
+    // both signatures collapse to `Function` under a runtime resolve, so only the RETURN separates them
+    { id: 'signature-family-divergent',
+      code: '(() => { const d: { go(): number[] } | { go(): string } = { go: () => "text" }; return d.go().at(0); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`union-hop-fold-ts/${ c.id }`, c.code), ts: true, strip: true };
+}
+
 // --- Synth-swap pure-ctor-leaf re-read ---
 // a param-default / IIFE synth-swap whose proxy-global receiver carries a PURE-CTOR leaf and
 // an UNPOLYFILLED sibling key: the sibling re-reads through a whole-swap to the pure ctor
@@ -3687,6 +3860,11 @@ export function * generate() {
   yield * generateNestedInstanceReceiver();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
+  yield * generateReassignedCallableSlot();
+  yield * generateUnionHopFoldTs();
+  yield * generateSpreadShiftedSlot();
+  yield * generateTypeParamBindingTs();
+  yield * generateDeferredWriteNarrow();
   yield * generateSynthSwapPureCtorReRead();
   yield * generateFlattenRebuiltInit();
   yield * generateThisStaticDestructure();
