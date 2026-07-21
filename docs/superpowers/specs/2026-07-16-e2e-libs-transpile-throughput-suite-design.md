@@ -166,7 +166,7 @@ Per cell (bundler × method × phase), median of **N** runs, measured externally
 around the whole bundle call — an internal parse-vs-inject split would need to instrument
 unplugin's transform hook and is deferred). The shipped default is a **smoke** profile (N=1, phase
 `post` only, slow libs on rollup only, fast libs on all bundlers, ~2 min); `--full` runs the
-exhaustive bundler × phase matrix at N=5 (~50 min). See §13.
+exhaustive bundler × phase matrix at N=5 (~50 min).
 
 - total bundle ms **with** the plugin
 - total bundle ms **baseline** (same bundle, plugin omitted)
