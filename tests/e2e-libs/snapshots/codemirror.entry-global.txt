@@ -293,6 +293,8 @@ core-js/modules/esnext.iterator.chunks
 core-js/modules/esnext.iterator.includes
 core-js/modules/esnext.iterator.join
 core-js/modules/esnext.iterator.windows
+core-js/modules/esnext.promise.all-keyed
+core-js/modules/esnext.promise.all-settled-keyed
 core-js/modules/web.atob
 core-js/modules/web.btoa
 core-js/modules/web.dom-collections.entries
