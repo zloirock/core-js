@@ -1898,6 +1898,36 @@ function * generateMutatedSibling() {
   }
 }
 
+// a MUTATED static behind a double proxy-hop optional chain (the combined-seal class): the
+// cancelled claim must leave the ROOT guard in place - the sealed emit threw on the absent
+// `window` where native short-circuits, and a nav-level memo would collapse into the
+// always-defined ponyfill (guard never firing). the rigged leg exercises the live-window
+// path, where the patched static must stay visible through the raw navigation
+const MUT_SEAL_SHAPES = [
+  { id: 'undefined-root', rig: false,
+    body: 'let n; let sc = 0; const r = (sc++, n = globalThis.window)?.self?.self.Array.of(1).flat?.(); log.push(sc, String(r)); return String(r);' },
+  { id: 'live-root', rig: true,
+    body: 'let n; const r = (n = globalThis.window)?.self?.self.Array.of(1).flat?.(); log.push(String(r)); return String(r);' },
+  // single hop under a DOUBLE `?.`: the leaf swap used to eat the ROOT guard (read a live
+  // value where native short-circuits on the absent `window`)
+  { id: 'single-hop-undefined-root', rig: false,
+    body: 'let v; const r = (v = globalThis.window)?.self?.Array.of(1); log.push(String(v), String(r)); return String(r);' },
+  { id: 'single-hop-live-root', rig: true,
+    body: 'let v; const r = (v = globalThis.window)?.self?.Array.of(1); log.push(String(r)); return String(r);' },
+  // a receiver-independent proto/static fallback claim under the same root: the fold used to
+  // eat the root guard and return a live value where native short-circuits
+  { id: 'proto-fallback-undefined-root', rig: false,
+    body: 'let c; const r = (c = globalThis.window)?.self.Set.prototype.has.call(new Set([1]), 1); log.push(String(c), String(r)); return String(r);' },
+  { id: 'proto-fallback-live-root', rig: true,
+    body: 'let c; const r = (c = globalThis.window)?.self.Set.prototype.has.call(new Set([1]), 1); log.push(String(r)); return String(r);' },
+];
+function * generateMutatedSealChain() {
+  for (const shape of MUT_SEAL_SHAPES) {
+    const body = `(() => { const _o = Array.of; globalThis.Array.of = function patched() { return [7]; }; try { ${ shape.body } } finally { globalThis.Array.of = _o; } })()`;
+    yield { ...snippet(`mutated-seal-chain/${ shape.id }`, body, { rig: shape.rig }), strip: false };
+  }
+}
+
 // the mutated static is consumed via DESTRUCTURE extraction (`const { from } = Array`) - a different
 // consumption path that must also consult the mutation set and bail (keep the patch), not lift the pure
 // static into a `const from = _Array$from` that would ignore the user's monkey-patch
@@ -3574,6 +3604,7 @@ export function * generate() {
   yield * generateIn();
   yield * generateMutatedStatic();
   yield * generateMutatedSibling();
+  yield * generateMutatedSealChain();
   yield * generateMutatedDestructure();
   yield * generateMutatedAnchoredSymbol();
   yield * generateSlotBackstop();
