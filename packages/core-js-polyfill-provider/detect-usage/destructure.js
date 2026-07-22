@@ -643,11 +643,36 @@ export function collectDestructureUnionCandidates({ meta, keyNode, computed, sco
       unionScope = desc.callPath.scope;
       unionPath = desc.callPath;
     }
+  } else if (host && FN_NODE_TYPES.has(host.type)) {
+    // plain IIFE `(function ({ [cond ? "from" : "of"]: v }) {})(Array)` - the destructure param
+    // binds from the caller-arg, resolved at the call site. the AssignmentPattern arm above covers
+    // the with-default form; the flat init reads cover declarator / assignment hosts
+    const desc = resolveFallbackReceiver(hostPath, path.parentPath?.node);
+    if (desc?.rhsNode) {
+      hostInitNode = desc.rhsNode;
+      if (desc.callPath) {
+        unionScope = desc.callPath.scope;
+        unionPath = desc.callPath;
+      }
+    }
+  }
+  // a branch-synthesized carrier (`{ [cond ? "from" : "of"]: v } = Array`) starts with a null
+  // object because the producer resolved no single key and bailed before typing the receiver.
+  // recover it from the destructure host so the arm keys cross with the resolved receiver
+  // (`Array.from` / `Array.of`) instead of enumerating typeless - mirrors the member path, whose
+  // producer resolves the object before building the branch-key carrier. an array-wrappered host
+  // (`[{ [cond?...]: v } = {}] = [Array]`) resolves through the same slot-paired peel the static
+  // producer uses; the flat declarator / assignment hosts fall back to the plain init read
+  let primaryObject = meta.object ?? null;
+  if (primaryObject === null && meta.key === null) {
+    primaryObject = resolveArrayWrapperedDestructureReceiver(path?.parentPath, adapter)
+      ?? (hostInitNode ? resolveObjectName({ objectNode: hostInitNode, scope: unionScope, adapter, path: unionPath }) : null)
+      ?? null;
   }
   const unionOptions = {
     objectNode: hostInitNode,
     computedKeyNode: computed ? keyNode : null,
-    primaryObject: meta.object ?? null,
+    primaryObject,
     primaryKey: meta.key,
     scope: unionScope, adapter, path: unionPath,
   };
