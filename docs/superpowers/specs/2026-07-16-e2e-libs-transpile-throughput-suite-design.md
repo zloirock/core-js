@@ -162,11 +162,12 @@ iterator-protocol usage.
 
 ## 8. Throughput measurement (`throughput.mjs`)
 
-Per cell (bundler × method × phase), median of **N** runs, measured externally (wall-clock
-around the whole bundle call — an internal parse-vs-inject split would need to instrument
-unplugin's transform hook and is deferred). The shipped default is a **smoke** profile (N=1, phase
-`post` only, slow libs on rollup only, fast libs on all bundlers, ~2 min); `--full` runs the
-exhaustive bundler × phase matrix at N=5 (~50 min).
+Per cell (bundler × method × phase), a **single** run, measured externally (wall-clock around the
+whole bundle call — an internal parse-vs-inject split would need to instrument unplugin's transform
+hook and is deferred). There is deliberately no repeat/median axis: the differences of interest are
+whole seconds against tens of ms of noise. The shipped default is a **smoke** profile (phase `post`
+only, slow libs on rollup only, fast libs on all bundlers, ~2 min); `--full` runs the exhaustive
+bundler × phase matrix.
 
 - total bundle ms **with** the plugin
 - total bundle ms **baseline** (same bundle, plugin omitted)
