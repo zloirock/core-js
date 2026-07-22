@@ -41,17 +41,21 @@ async function timedBuild(entry, plugins) {
   }
 }
 
-// wrap a plugin's transform hook to accumulate the time spent inside it (handles sync + async)
+// Wrap a plugin's transform hook to accumulate the time spent inside it (handles sync + async).
+// Rollup accepts the hook either as a plain function or in object form `{ order, handler }`
+// (unplugin emits the object form), so unwrap it and re-wrap in the shape it came in.
 function timeTransform(plugin, add) {
-  const orig = plugin.transform;
-  plugin.transform = async function transform(code, id) {
+  const hook = plugin.transform;
+  const orig = typeof hook === 'function' ? hook : hook.handler;
+  async function timed(code, id) {
     const t0 = process.hrtime.bigint();
     try {
       return await orig.call(this, code, id);
     } finally {
       add(Number(process.hrtime.bigint() - t0) / 1e6);
     }
-  };
+  }
+  plugin.transform = typeof hook === 'function' ? timed : { ...hook, handler: timed };
   return plugin;
 }
 
