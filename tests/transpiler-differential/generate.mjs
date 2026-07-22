@@ -1685,6 +1685,27 @@ function * generateDeferredWriteNarrow() {
   for (const c of CHANNELS) yield { ...snippet(`deferred-write-narrow/${ c.id }`, `(() => { ${ c.code } })()`), strip: true };
 }
 
+// --- Unplugin destructure text-emit: the rewrite must stay valid, non-crashing, and leak-free ---
+// the unplugin emitter splices text rather than mutating an AST, so its destructure rewrites have
+// failure modes the babel twin cannot have: an orphaned trailing comma or dropped paren (a PARSE
+// error), a sibling-walk double-claim (a compose CRASH), or a symbol-iterator default whose
+// instance call leaks native (a strip-realm THROW). all run natively and are compared three-way
+function * generateUnpluginDestructureTextEmit() {
+  const CASES = [
+    // a preserved sibling holding an ArrayPattern-wrapped nested proxy destructure - a sibling-walk
+    // double-claim crashes text compose (parse/run failure the three-way run surfaces)
+    { id: 'sibling-array-pattern',
+      code: '(() => { const { Array: { from } } = globalThis, val = (function () {'
+        + ' const [{ Array: { of } }] = [globalThis]; return of; })(); return [typeof from, typeof val]; })()' },
+    // a symbol-iterator default whose instance call must stay polyfilled - a native leak throws on
+    // the stripped realm (the trailing-comma / dead-fallback-conditional shapes are parity-only,
+    // locked by fixtures rather than this value oracle)
+    { id: 'symbol-iterator-default',
+      code: '(() => { const { Array: { from }, [Symbol.iterator]: it = [10, 20].at(-1) } = globalThis; return [typeof from, it]; })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`unplugin-destructure-text-emit/${ c.id }`, c.code), strip: true };
+}
+
 // --- Union hop fold: the branch a VALUE actually matches, not the first branch that resolves ---
 // an intermediate hop through a union must fold its branches. taking the first that resolves
 // dispatches a value matching a LATER branch through the first branch's type-specific helper -
@@ -3865,6 +3886,7 @@ export function * generate() {
   yield * generateSpreadShiftedSlot();
   yield * generateTypeParamBindingTs();
   yield * generateDeferredWriteNarrow();
+  yield * generateUnpluginDestructureTextEmit();
   yield * generateSynthSwapPureCtorReRead();
   yield * generateFlattenRebuiltInit();
   yield * generateThisStaticDestructure();
