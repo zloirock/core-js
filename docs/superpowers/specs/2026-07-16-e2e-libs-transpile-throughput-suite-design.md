@@ -198,14 +198,24 @@ headless runtime tier).
 
 ## 10. Commands
 
-- `node throughput.mjs [libFilter] [bundlerFilter] [--full]` → `report/` (smoke by default; `--full` = full matrix)
-- `node pipeline.mjs [libFilter] [methodFilter]` → `report/` (size + time per stage [A]/[B]/[C])
-- `node artifacts.mjs [libFilter]` → `artifacts/` + `manifest.json` + node pre-flight (Babel 7 & 8)
-- `node snapshot.mjs [--update]` → `snapshots/`
-- `node check-exercise.mjs [libFilter]` → run an exercise raw and print its checks
+Exposed as root `package.json` scripts, per the repo convention that runners are invoked through
+`npm run` rather than a bare `node`. Arguments follow `--`.
 
-(Node is used via the repo's toolchain; nvm path in this environment:
-`~/.nvm/versions/node/v22.20.0/bin/node`.)
+- `npm run e2e-libs-throughput [-- libFilter bundlerFilter --full]` → `report/` (smoke by default; `--full` = full matrix)
+- `npm run e2e-libs-pipeline [-- libFilter methodFilter]` → `report/` (size + time per stage [A]/[B]/[C])
+- `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/` + `manifest.json` + node pre-flight (Babel 7 & 8)
+- `npm run e2e-libs-snapshot [-- --update]` → `snapshots/`
+- `npm run e2e-libs-check-exercise [-- libFilter]` → run exercises raw and print their checks
+- `npm run e2e-libs` → the three asserting runners in order (check-exercise → snapshot → artifacts)
+
+`e2e-libs` is deliberately not wired into `test-raw` / `test-transpiling`: the suite pulls rxjs,
+three, codemirror and seven bundlers, and a full pass costs minutes.
+
+These go through `scripts/zxi.mjs` like every sibling suite, which brings the per-directory
+`npm install` and the timing line. zxi *imports* the runner rather than spawning it, so `process.argv`
+still carries zxi's own command line — the runners therefore take their arguments from
+`args.mjs::runnerArgs`, which cuts argv at the runner's own path and so behaves identically under
+`node runner.mjs …`.
 
 ## 11. Phasing / YAGNI
 
