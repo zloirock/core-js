@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
@@ -11,7 +12,7 @@ const symRoot = _Symbol;
 const symLink = symRoot;
 export function viaSymbolChain(symRoot) {
   const iterator = _Symbol$iterator;
-  return [1][iterator];
+  return _getIteratorMethod([1]);
 }
 
 // symbol fold where the shadow WINS (the var's init reads a block-local shadow) - no fold
