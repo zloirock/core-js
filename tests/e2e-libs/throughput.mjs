@@ -1,18 +1,21 @@
 // Tier-1 runner: measure how fast each bundler processes a library WITH unplugin vs a plugin-less
 // baseline, across method x phase. Emits report/throughput.md + report/throughput.json.
 //
-// Metric per cell = median of N total-bundle-ms WITH the plugin, minus the per-bundler baseline
+// Metric per cell = one total-bundle-ms WITH the plugin, minus the per-bundler baseline
 // (plugin-less bundle of the usage entry). An internal parse-vs-inject split would need to
 // instrument unplugin's transform hook and is intentionally out of scope here.
 //
-// TWO PROFILES. The exhaustive matrix (every bundler x every phase, median of 5) took ~50 min,
-// almost all of it three's usage-mode O(n^2) scan re-run across dimensions the full run already
-// PROVED redundant: overhead is ~invariant across the 7 bundlers, and pre+post is always ~2x a
-// single phase. So the default is a SMOKE - fast libs on every bundler, the slow lib on one
-// representative bundler (rollup), phase `post` only, N=1 (~2 min) - and `--full` restores the
-// matrix (all bundlers x all phases, N defaults to 5) for the occasional re-characterisation.
+// SINGLE RUN PER CELL. There is no repeat/median axis: the differences this suite looks for are
+// whole seconds, run-to-run noise is tens of ms, and the repeats cost more than they buy. Read the
+// numbers as indicative magnitudes, not as a benchmark.
 //
-// Usage:  node throughput.mjs [libFilter] [bundlerFilter] [--full]   (N via env N=)
+// TWO PROFILES. The exhaustive matrix (every bundler x every phase) took ~50 min, almost all of it
+// three's usage-mode scan re-run across dimensions the full run already PROVED redundant: overhead
+// is ~invariant across the 7 bundlers, and pre+post is always ~2x a single phase. So the default is
+// a SMOKE - fast libs on every bundler, the slow lib on one representative bundler (rollup), phase
+// `post` only - and `--full` restores the matrix for the occasional re-characterisation.
+//
+// Usage:  node throughput.mjs [libFilter] [bundlerFilter] [--full]
 import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, HERE } from './build.mjs';
 import { librariesIn } from './libraries.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -20,10 +23,6 @@ import { join } from 'node:path';
 
 const FULL = process.argv.includes('--full');
 const [libFilter, bundlerFilter] = process.argv.slice(2).filter(a => a !== '--full');
-const N = Number(process.env.N ?? (FULL ? 5 : 1));
-// a bad N (empty `N=` → 0, `N=abc` → NaN) makes median() run zero times and every cell error out
-// with a misleading "bundler crashed" row — fail loud on the real cause instead
-if (!Number.isInteger(N) || N < 1) throw new Error(`N must be a positive integer, got '${ process.env.N }'`);
 
 // libs whose largest single module is huge enough that one usage-mode build is ~17s+ (the O(n^2)
 // scan). In smoke they run on ONE representative bundler instead of all seven: bundler-invariance is
@@ -50,18 +49,12 @@ function phasesForRun(method) {
   return FULL ? phasesFor(method) : (method === 'entry-global' ? [undefined] : ['post']);
 }
 
-console.log(`profile: ${ FULL ? 'FULL matrix' : 'smoke (--full for the exhaustive matrix)' }, N=${ N }`);
+console.log(`profile: ${ FULL ? 'FULL matrix' : 'smoke (--full for the exhaustive matrix)' }`);
 
-async function median(fn) {
-  const times = [];
-  let out;
-  for (let i = 0; i < N; i++) {
-    const t0 = process.hrtime.bigint();
-    out = await fn();
-    times.push(Number(process.hrtime.bigint() - t0) / 1e6);
-  }
-  times.sort((a, b) => a - b);
-  return { ms: times[Math.floor(times.length / 2)], out };
+async function timed(fn) {
+  const t0 = process.hrtime.bigint();
+  const out = await fn();
+  return { ms: Number(process.hrtime.bigint() - t0) / 1e6, out };
 }
 
 const rows = [];
@@ -72,7 +65,7 @@ for (const lib of libs) {
   const baseline = {};
   for (const name of bundlers) {
     try {
-      const { ms } = await withEntry(lib.exercise, 'usage-global', `base-${ name }`, e => median(() => throughputBuilders[name](e, null)));
+      const { ms } = await withEntry(lib.exercise, 'usage-global', `base-${ name }`, e => timed(() => throughputBuilders[name](e, null)));
       baseline[name] = ms;
     } catch (err) {
       baseline[name] = null;
@@ -106,7 +99,7 @@ for (const lib of libs) {
         try {
           const injections = injByCell[`${ method }|${ phase ?? '' }`];
           const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`,
-            e => median(() => throughputBuilders[name](e, u(name, method, phase))));
+            e => timed(() => throughputBuilders[name](e, u(name, method, phase))));
           const base = baseline[name];
           const overhead = base === null ? null : +(ms - base).toFixed(1);
           rows.push({
@@ -128,7 +121,7 @@ for (const lib of libs) {
 // -------- report --------
 const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
-await writeFile(join(REPORT, 'throughput.json'), `${ JSON.stringify({ N, rows }, null, 2) }\n`);
+await writeFile(join(REPORT, 'throughput.json'), `${ JSON.stringify({ rows }, null, 2) }\n`);
 
 const cells = METHODS.flatMap(m => phasesFor(m).map(p => [m, p ?? '']));
 const head = ['bundler', 'entry', 'ug:pre', 'ug:post', 'ug:p+p', 'up:pre', 'up:post', 'up:p+p'];
@@ -138,7 +131,7 @@ function find(ln, b, m, p) {
 function fmt(c) {
   return !c ? '—' : c.error ? 'ERR' : `${ c.overhead ?? c.ms }`;
 }
-let md = `# Throughput (overhead ms over baseline, median of ${ N })\n\n`;
+let md = '# Throughput (overhead ms over baseline, single run per cell)\n\n';
 md += `Profile: **${ FULL ? 'full matrix' : 'smoke' }**`;
 if (!FULL) md += ` — slow libs (${ [...SLOW_LIBS].join(', ') }) on ${ SLOW_LIB_BUNDLERS.join('/') } only, phase \`post\` only; run \`--full\` for every bundler × phase`;
 md += '.\n\n';
