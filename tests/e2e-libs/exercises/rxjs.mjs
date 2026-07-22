@@ -1,9 +1,8 @@
 // Deterministic, headless RxJS exercise for the e2e-libs suite.
 //
-// `run()` returns a Promise of { results, checks }. `results` is a JSON-serializable dump of
-// every pipeline's output; `checks` is a list of { label, actual, expected, pass } where each
-// entry computed its own `pass` via a JSON deep-equal - so consumers (HTML harness, node
-// pre-flight) only render `pass`, they never need their own comparator.
+// `run()` returns a Promise of { checks } - a list of { label, actual, expected, pass } where each
+// entry computed its own `pass` via a JSON deep-equal, so consumers (HTML harness, node pre-flight)
+// only render `pass` and never need their own comparator.
 //
 // The surface is broad on purpose (creation / transform / filter / combine / subjects / errors /
 // aggregate / promise-interop / virtual-time) to maximize the ECMAScript stdlib that core-js must
@@ -29,12 +28,9 @@ function collect(obs) {
 }
 
 export function run() {
-  const results = {};
   const checks = [];
   function check(label, actual, expected) {
-    results[label] = actual;
     checks.push({ label, actual, expected, pass: eq(actual, expected) });
-    return actual;
   }
 
   // --- synchronous subjects (no promises) ---
@@ -68,8 +64,12 @@ export function run() {
   check('throttleTime_keepsFirst', throttled, [1]);
 
   // --- iterator-protocol syntax: for-of / spread over a non-array iterable. Babel down-compiles
-  // these to _createForOfIteratorHelper / _toConsumableArray, which reach for Symbol.iterator — so
-  // unplugin's post phase must inject es.symbol.iterator for the helper (the crux of the runtime tier).
+  // these to _createForOfIteratorHelper / _toConsumableArray, which reach for Symbol.iterator.
+  // NOTE this does NOT currently distinguish unplugin's phases: measured with Babel in the pipeline,
+  // `pre` and `post` inject the identical set for rxjs, because the source's own `new Set(...)`
+  // already pulls es.symbol.iterator in. What is unasserted is the injection SET at post (the
+  // snapshot runs without Babel, at the default phase); artifacts does build and pre-flight at
+  // post — see README.
   const forOfSeen = [];
   const forOfInput = [3, 1, 3, 2, 1]; // via a var: the Set dedups at runtime, without a literal-dup lint flag
   for (const v of new Set(forOfInput)) forOfSeen.push(v);
@@ -117,6 +117,6 @@ export function run() {
     check('catchError', r[15], ['recovered']);
     check('firstValueFrom', r[16], 42);
     check('lastValueFrom', r[17], 9);
-    return { results, checks };
+    return { checks };
   });
 }

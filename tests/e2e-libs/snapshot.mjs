@@ -6,16 +6,23 @@
 //
 // Usage:  node snapshot.mjs             compare vs snapshots/<lib>.<method>.txt (fail on drift)
 //         node snapshot.mjs --update    (re)write baselines
-import { captureInjections } from './build.mjs';
+import { captureInjections, errorReason, HERE } from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { libraries } from './libraries.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
 const SNAP = join(HERE, 'snapshots');
-const UPDATE = runnerArgs(import.meta.url).includes('--update') || process.env.UPDATE === '1';
+const argv = runnerArgs(import.meta.url);
+// every runner rejects an argument it does not understand; without this, `--updte` (or a library
+// name, which this runner does not take) would silently run a COMPARE pass and report success
+const unknown = argv.filter(a => a !== '--update');
+if (unknown.length) throw new Error(`unexpected argument(s): ${ unknown.join(' ') } — snapshot.mjs takes only --update`);
+// argv only. An `UPDATE=1` env var used to flip this too, which meant an ambient variable could turn
+// the suite's ONLY injection-set gate from compare into author, silently: real drift got written into
+// the baselines and the run still exited 0. The argv path three lines up is guarded against exactly
+// that class of accident, so the env path had no business being the unguarded one.
+const UPDATE = argv.includes('--update');
 
 async function baseline(file) {
   try {
@@ -29,18 +36,28 @@ async function baseline(file) {
 await mkdir(SNAP, { recursive: true });
 let drift = 0;
 let errored = 0;
+let missing = 0;
 for (const lib of libraries) {
   for (const method of lib.methods) {
     // isolate each cell: one failed capture is recorded, not fatal to the whole run
     try {
       const set = await captureInjections(lib.exercise, method);
+      // a snapshot of nothing asserts nothing, and would then "match" forever — refuse to author it
+      if (!set.length) throw new Error('unplugin injected 0 polyfills — refusing to snapshot an empty set');
       const file = join(SNAP, `${ lib.name }.${ method }.txt`);
       const base = await baseline(file);
       console.log(`\n=== ${ lib.name }/${ method } — ${ set.length } injected ===`);
       for (const s of set) console.log(`  ${ s }`);
-      if (UPDATE || !base) {
+      if (UPDATE) {
         await writeFile(file, `${ set.join('\n') }\n`);
         console.log(base ? `  → updated (${ set.length })` : `  → created (${ set.length })`);
+        continue;
+      }
+      // only an explicit --update may author a baseline. Auto-creating one here would make a new
+      // library (or a baseline lost in a merge) report success while having verified nothing.
+      if (!base) {
+        missing++;
+        console.log(`  ✗ no baseline at ${ file } — rerun with --update to author it`);
         continue;
       }
       const now = new Set(set);
@@ -56,11 +73,12 @@ for (const lib of libraries) {
       }
     } catch (err) {
       errored++;
-      console.log(`\n=== ${ lib.name }/${ method } — ERROR ===\n  ${ (err.message || String(err)).split('\n', 1)[0] }`);
+      console.log(`\n=== ${ lib.name }/${ method } — ERROR ===\n  ${ errorReason(err) }`);
     }
   }
 }
 if (drift) console.log(`\n✗ injection snapshot drifted in ${ drift } cell(s) — rerun with --update if intended`);
+if (missing) console.log(`\n✗ ${ missing } cell(s) have no baseline — rerun with --update to author them`);
 if (errored) console.log(`\n✗ ${ errored } cell(s) failed to capture`);
-if (drift || errored) process.exitCode = 1;
+if (drift || missing || errored) process.exitCode = 1;
 else console.log('\n✓ injection snapshot done');
