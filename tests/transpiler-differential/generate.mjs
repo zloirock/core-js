@@ -391,6 +391,52 @@ function * generateAliasHopShadow() {
     '(() => { const B = Array; return (function () { { const B = {}; var h = B; } { const { of } = h; return typeof of; } })(); })()') };
 }
 
+// --- alias RECEIVER shadowed by a nested-function `var` (distinct from the intermediate-NAME shadow
+// above) ---
+// a receiver-alias init (`const g = host.Map` / `const { Map: g } = host`) resolves the receiver
+// `host` in the alias's OWN declaration scope. the use-site walk descends into a nested function
+// whose `var host` estree hoists to that function's scope - invisible from the outer alias -, and
+// resolving there binds the alias to the inner shadow. the BAIL rows give `host` a USER value whose
+// static returns a sentinel, so an over-resolve to the built-in returns a DIFFERENT value the full-
+// env three-way catches (full-env only); the POSITIVE rows give the global so the static resolves and
+// the stripped realm catches the mirror under-resolve
+function * generateAliasReceiverShadow() {
+  yield { ...snippet('alias-receiver-shadow/member-bail',
+    '(() => { const host = { Map: { groupBy: () => "u" } }; const g = host.Map;'
+    + ' function make() { var host = globalThis; return g.groupBy([1], x => x); } return make(); })()') };
+  yield { ...snippet('alias-receiver-shadow/member-pos',
+    '(() => { const host = globalThis; const g = host.Array;'
+    + ' function make() { var host = {}; return g.from([1, 2]).join(","); } return make(); })()'), strip: true };
+  yield { ...snippet('alias-receiver-shadow/destructure-bail',
+    '(() => { const host = { Map: { groupBy: () => "u" } }; const { Map: g } = host;'
+    + ' function make() { var host = globalThis; return g.groupBy([1], x => x); } return make(); })()') };
+  yield { ...snippet('alias-receiver-shadow/destructure-pos',
+    '(() => { const host = globalThis; const { Array: g } = host;'
+    + ' function make() { var host = {}; return g.from([1, 2]).join(","); } return make(); })()'), strip: true };
+}
+
+// --- super-class alias RECEIVER shadowed (the same hop rule, reached through the super-class walk) ---
+// `class D extends Base` where `Base` aliases `host.Promise` / `{ Promise: Base } = host` resolves
+// `host` in the alias's declaration scope; an inner-function shadow of the receiver name must not
+// capture it. native classes run untranspiled here (no `@babel/transform-classes`), so `super.<m>`
+// executes against the resolved base - a BAIL user base returns a sentinel an over-resolved pure
+// helper diverges from (both emitters, shared provider); the POSITIVE global base + stripped realm
+// catch the under-resolve
+function * generateSuperClassAliasReceiverShadow() {
+  yield { ...snippet('super-class-alias-shadow/member-bail',
+    '(() => { const host = { Promise: class { static race() { return "u"; } } }; const Base = host.Promise;'
+    + ' function make() { var host = globalThis; class D extends Base { static go() { return super.race([]); } } return D.go(); } return make(); })()') };
+  yield { ...snippet('super-class-alias-shadow/member-pos',
+    '(() => { const host = globalThis; const Base = host.Array;'
+    + ' function make() { var host = {}; class D extends Base { static go() { return super.from([1, 2]).join(","); } } return D.go(); } return make(); })()'), strip: true };
+  yield { ...snippet('super-class-alias-shadow/destructure-bail',
+    '(() => { const host = { Promise: class { static race() { return "u"; } } }; const { Promise: Base } = host;'
+    + ' function make() { var host = globalThis; class D extends Base { static go() { return super.race([]); } } return D.go(); } return make(); })()') };
+  yield { ...snippet('super-class-alias-shadow/destructure-pos',
+    '(() => { const host = globalThis; const { Array: Base } = host;'
+    + ' function make() { var host = {}; class D extends Base { static go() { return super.from([1, 2]).join(","); } } return D.go(); } return make(); })()'), strip: true };
+}
+
 // --- Proxy-global full-consume from a side-effecting receiver ---
 // a full-consume proxy-global destructure (every binding resolves to a proxy-global static /
 // constructor) off a receiver wrapped in a side-effecting SequenceExpression. the emitter drops the
@@ -3854,6 +3900,8 @@ export function * generate() {
   yield * generateIifeArgShadow();
   yield * generateSharedAliasUnionArms();
   yield * generateAliasHopShadow();
+  yield * generateAliasReceiverShadow();
+  yield * generateSuperClassAliasReceiverShadow();
   yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
