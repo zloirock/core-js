@@ -453,6 +453,19 @@ export function closestVisibleNativeBinding(scope, name, path) {
   return native;
 }
 
+// the synth var-hoist twin recovers a function-scoped `var` estree failed to hoist, so it only
+// exists for a lookup taken from INSIDE its owner function. `synthVarHoistBinding` walks the use
+// `path`, which can descend into a nested function whose `var name` is invisible from the lookup
+// `scope` a resolver explicitly threaded (an alias's own declaration scope, resolved with a
+// deeper use-site path). true when the owner sits STRICTLY BELOW the lookup scope in the scope
+// tree - the only relation that proves its var invisible there. every other relation (scope IS
+// the owner, scope nested inside it, or an opaque wrapper off the scope chain) keeps the
+// established synth-preference, so frame / non-estree scopes stay on their existing path
+function synthOwnerStrictlyInsideScope(scope, synth) {
+  for (let cur = synth.ownerScope?.parent; cur; cur = cur.parent) if (cur === scope) return true;
+  return false;
+}
+
 // closest-binding resolution shared by getBinding / getBindingNodeType (hasRuntimeBinding
 // shares the same primitives and branch order): forward `path` so a makeFrameScope lookup
 // stays position-aware; walk past a native binding invisible at the use (over-hoisted namespace /
@@ -464,7 +477,7 @@ export function closestVisibleNativeBinding(scope, name, path) {
 function resolveClosestBinding(scope, name, path) {
   const native = closestVisibleNativeBinding(scope, name, path);
   const synth = path ? synthVarHoistBinding(path, name) : null;
-  if (!synth) return { native, synth: null };
+  if (!synth || synthOwnerStrictlyInsideScope(scope, synth)) return { native, synth: null };
   if (native && (native.path?.node === synth.node || pathContainedBy(native.path, synth.ownerNode))) {
     return { native, synth: null };
   }
