@@ -13,6 +13,7 @@
 @core-js/pure/full/function/instance/name
 @core-js/pure/full/get-iterator
 @core-js/pure/full/get-iterator-method
+@core-js/pure/full/instance/for-each
 @core-js/pure/full/instance/keys
 @core-js/pure/full/instance/values
 @core-js/pure/full/iterator/constructor

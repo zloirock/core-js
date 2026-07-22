@@ -208,9 +208,10 @@ export function makeBabelPlugin(babelVersion = '7') {
 
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel
 // `babelVersion` ('7' | '8'). usage-* build at phase 'post', entry-global at no phase. Ordering
-// matters: raw Rollup ignores unplugin's enforce:'post' field (enforce is a Vite/webpack-family
-// concept, not a raw-Rollup one), so transform order = array order. babel is listed FIRST so it
-// down-compiles to ES5, and unplugin runs LAST so its stdlib injection sees babel's helper output.
+// matters: raw Rollup ignores the plugin-level `enforce:'post'` field (that is a Vite/webpack-family
+// concept), but it DOES honour the hook-level `order` that unplugin sets on its transform, so for
+// `phase: 'post'` unplugin runs after Babel by declaration; listing babel FIRST keeps array order
+// agreeing with that. Either way unplugin runs LAST, so its injection sees babel's helper output.
 export async function runtimeBuild(exerciseAbs, method, babelVersion = '7') {
   const effPhase = method === 'entry-global' ? undefined : 'post';
   return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
@@ -230,12 +231,20 @@ export async function runtimeBuild(exerciseAbs, method, babelVersion = '7') {
 
 // -------- injection recorder (bundler-invariant set) --------
 const SPEC_RE = /(?:from|import|require\()\s*["'](?<spec>(?:core-js|@core-js\/pure)\/[^"']+)["']/g;
+// The recorder must observe each module AFTER unplugin has injected into it. unplugin declares its
+// transform in object form with an explicit `order` ('post' for `phase: 'post'`), which raw Rollup
+// DOES honour - so array position alone is not enough: an unordered recorder would run first and
+// see nothing. Declaring the recorder `order: 'post'` too puts it in the same bucket, where array
+// order decides, and it is listed after unplugin.
 function recorder(sink) {
   return {
     name: 'injection-recorder',
-    transform(code) {
-      for (const m of code.matchAll(SPEC_RE)) sink.add(m.groups.spec.replace(/\.m?js$/, ''));
-      return null;
+    transform: {
+      order: 'post',
+      handler(code) {
+        for (const m of code.matchAll(SPEC_RE)) sink.add(m.groups.spec.replace(/\.m?js$/, ''));
+        return null;
+      },
     },
   };
 }
