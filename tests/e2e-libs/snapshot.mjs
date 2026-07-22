@@ -7,6 +7,7 @@
 // Usage:  node snapshot.mjs             compare vs snapshots/<lib>.<method>.txt (fail on drift)
 //         node snapshot.mjs --update    (re)write baselines
 import { captureInjections } from './build.mjs';
+import { runnerArgs } from './args.mjs';
 import { libraries } from './libraries.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -14,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SNAP = join(HERE, 'snapshots');
-const UPDATE = process.argv.includes('--update') || process.env.UPDATE === '1';
+const UPDATE = runnerArgs(import.meta.url).includes('--update') || process.env.UPDATE === '1';
 
 async function baseline(file) {
   try {

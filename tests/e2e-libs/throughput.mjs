@@ -17,12 +17,14 @@
 //
 // Usage:  node throughput.mjs [libFilter] [bundlerFilter] [--full]
 import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, HERE } from './build.mjs';
+import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const FULL = process.argv.includes('--full');
-const [libFilter, bundlerFilter] = process.argv.slice(2).filter(a => a !== '--full');
+const argv = runnerArgs(import.meta.url);
+const FULL = argv.includes('--full');
+const [libFilter, bundlerFilter] = argv.filter(a => a !== '--full');
 
 // libs whose largest single module is huge enough that one usage-mode build is ~17s+ (the O(n^2)
 // scan). In smoke they run on ONE representative bundler instead of all seven: bundler-invariance is
