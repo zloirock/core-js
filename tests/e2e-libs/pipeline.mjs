@@ -1,5 +1,6 @@
 // Pipeline stats: size AND time at every stage of the real IE11 build, per (lib x method).
-// Rollup, Babel 7 (7 == 8 byte-for-byte), single run. Stages:
+// Rollup, Babel 7 (Babel 8 emits identical raw/minified sizes; on codemirror and three the bytes —
+// and so gzip, by a few — differ, because the two majors order their helpers differently). Stages:
 //   [A] library bundled, NO transforms      — modern syntax, tree-shaken (the library alone)
 //   [B] + Babel -> ES5                       — syntax down-compiled, NO polyfills
 //   [C] + unplugin                           — + core-js polyfills = the real IE11 bundle
@@ -11,32 +12,30 @@
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import { makeBabelPlugin, u, withEntry, captureInjections, METHODS, HERE } from './build.mjs';
+import { makeBabelPlugin, u, withEntry, recorder, assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, HERE } from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
-import { transform as esbuildTransform } from 'esbuild';
-import { gzip } from 'node:zlib';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
-const gzipP = promisify(gzip);
-
-const [libFilter, methodFilter] = runnerArgs(import.meta.url);
-const libs = librariesIn('runtime').filter(l => !libFilter || l.name === libFilter);
-// a typo'd filter that matches nothing must fail loudly, not write a green empty report
-if (!libs.length) throw new Error(`no runtime library matches filter '${ libFilter }'`);
+const [libFilter, methodFilter, ...surplus] = runnerArgs(import.meta.url);
+if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } — pipeline.mjs takes [libFilter] [methodFilter]`);
+const libs = librariesIn('runtime', libFilter);
 if (methodFilter && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
 
 const UMD = { format: 'umd', name: 'E2E', esModule: false };
 
-async function timedBuild(entry, plugins) {
+async function timedBuild(entry, plugins, label = 'stage') {
   const t0 = process.hrtime.bigint();
-  const build = await rollup({ input: entry, plugins, onwarn() { /* ignore bundler warnings */ } });
+  const build = await rollup({ input: entry, plugins, onwarn: strictWarn });
   try {
     const { output } = await build.generate(UMD);
+    const [chunk] = output;
     const ms = Number(process.hrtime.bigint() - t0) / 1e6;
-    return { bytes: Buffer.byteLength(output[0].code), ms, code: output[0].code };
+    // shared by every stage and by runtimeBuild: nothing this report measures - least of all [C],
+    // whose wire size it publishes - may leave a `require(...)` in the UMD header
+    assertNoExternals(chunk, label);
+    return { bytes: Buffer.byteLength(chunk.code), ms, code: chunk.code, chunk };
   } finally {
     await build.close();
   }
@@ -45,15 +44,22 @@ async function timedBuild(entry, plugins) {
 // Wrap a plugin's transform hook to accumulate the time spent inside it (handles sync + async).
 // Rollup accepts the hook either as a plain function or in object form `{ order, handler }`
 // (unplugin emits the object form), so unwrap it and re-wrap in the shape it came in.
+// Rollup transforms sibling modules CONCURRENTLY and both wrapped hooks are async, so summing each
+// call's wall-clock would double-count overlapping invocations and charge one plugin for time the
+// process spent inside the other. Accumulate the union of busy intervals instead: the clock starts
+// when the hook goes idle -> in-flight and stops when the last in-flight call settles. That is a
+// "window in which this hook was active", not a strict partition of the build.
 function timeTransform(plugin, add) {
   const hook = plugin.transform;
   const orig = typeof hook === 'function' ? hook : hook.handler;
+  let inFlight = 0;
+  let since = 0n;
   async function timed(code, id) {
-    const t0 = process.hrtime.bigint();
+    if (inFlight++ === 0) since = process.hrtime.bigint();
     try {
       return await orig.call(this, code, id);
     } finally {
-      add(Number(process.hrtime.bigint() - t0) / 1e6);
+      if (--inFlight === 0) add(Number(process.hrtime.bigint() - since) / 1e6);
     }
   }
   plugin.transform = typeof hook === 'function' ? timed : { ...hook, handler: timed };
@@ -62,9 +68,9 @@ function timeTransform(plugin, add) {
 
 async function measure(lib, method) {
   const effPhase = method === 'entry-global' ? undefined : 'post';
-  const injections = (await captureInjections(lib.exercise, method)).length;
+  const cell0 = `${ lib.name }/${ method }`;
   return withEntry(lib.exercise, method, `pipe-${ method }`, async entry => {
-    const cell = { lib: lib.name, method, injections };
+    const cell = { lib: lib.name, method };
 
     if (method !== 'entry-global') {
       let src = 0;
@@ -75,29 +81,49 @@ async function measure(lib, method) {
           return null;
         },
       };
-      const a = await timedBuild(entry, [counter, nodeResolve(), commonjs()]);
-      const b = await timedBuild(entry, [makeBabelPlugin('7'), nodeResolve(), commonjs()]);
+      const a = await timedBuild(entry, [counter, nodeResolve(), commonjs()], `${ cell0 } [A]`);
+      const b = await timedBuild(entry, [makeBabelPlugin('7'), nodeResolve(), commonjs()], `${ cell0 } [B]`);
       cell.src = src;
       cell.A = { bytes: a.bytes, ms: +a.ms.toFixed(0) };
       cell.B = { bytes: b.bytes, ms: +b.ms.toFixed(0) };
     }
 
-    // [C]: Babel + unplugin, instrumented for the babel-vs-unplugin split
+    // [C]: Babel + unplugin, instrumented for the babel-vs-unplugin split. Injections are recorded
+    // INSIDE this build: a separate captureInjections pass runs unplugin without Babel, and the post
+    // phase consumes Babel's helper output, so that pass undercounts by up to 18 specifiers here
+    // (three/usage-global: 154 captured vs 172 actually injected).
     let babelMs = 0;
     let unpluginMs = 0;
+    const sink = new Set();
     const babel = timeTransform(makeBabelPlugin('7'), ms => { babelMs += ms; });
     const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginMs += ms; });
-    const c = await timedBuild(entry, [babel, nodeResolve(), commonjs(), up]);
-    const min = (await esbuildTransform(c.code, { minify: true, legalComments: 'none' })).code;
-    const minBuf = Buffer.from(min);
-    const gz = (await gzipP(minBuf)).length;
+    const c = await timedBuild(entry, [babel, nodeResolve(), commonjs(), up, recorder(sink)], `${ cell0 } [C]`);
+    cell.injections = sink.size;
+    // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
+    assertPayload(c.chunk, `${ cell0 } [C]`);
+    // artifacts.mjs and snapshot.mjs refuse this shape for EVERY method, so this must too - an
+    // entry-global carve-out would be both weaker than they are and pointless, since entry-global
+    // records 318 injections here.
+    if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
+    // [B] == [A] with babelMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
+    // premise directly instead of inferring it from the numbers
+    assertES5(c.code, `${ lib.name }/${ method }`);
+    const { min, gz } = await wireSize(c.code, `${ cell0 } [C]`);
     cell.C = {
       bytes: c.bytes, ms: +c.ms.toFixed(0), babelMs: +babelMs.toFixed(0), unpluginMs: +unpluginMs.toFixed(0),
-      min: minBuf.length, gz,
+      min, gz,
     };
     return cell;
   });
 }
+
+// Warm the toolchain before anything is measured: the first build in the process pays the one-off
+// cost of rollup + @babel/core + preset-env + unplugin, and that landed entirely on whichever cell
+// happened to run first, making the cross-lib [C] column incomparable.
+process.stdout.write('warming the toolchain … ');
+await withEntry(libs[0].exercise, 'usage-global', 'warmup',
+  entry => timedBuild(entry, [makeBabelPlugin('7'), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
+console.log('done');
 
 const rows = [];
 for (const lib of libs) {
@@ -108,13 +134,24 @@ for (const lib of libs) {
     console.log('done');
   }
 }
+// a method filter that matches no library's declared `methods` must not write a green empty report
+if (!rows.length) throw new Error(`no (library × method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
 // -------- report --------
 function kb(b) {
   return `${ (b / 1024).toFixed(0) } KB`;
 }
+// A filtered run must not be mistakable for a full one: it overwrites the same report file, and the
+// method filter in particular just makes sections vanish. throughput.mjs marks its sibling report the
+// same way.
+const scope = libFilter || methodFilter
+  ? `Filtered run (${ libFilter ?? '*' } × ${ methodFilter ?? '*' }): ${ rows.length } cell(s)`
+  : `Full matrix: ${ rows.length } cell(s)`;
 let md = '# Pipeline: size and time per stage\n\n'
-  + 'Rollup, Babel 7 (≡ Babel 8), single run. Stages: **[A]** library with no transforms '
+  + `${ scope }. `
+  + 'Rollup, Babel 7 (Babel 8 emits identical raw and minified sizes; on codemirror and three the bytes '
+  + 'differ — helper emission order — which moves gzip by a few bytes), single run. '
+  + 'Stages: **[A]** library with no transforms '
   + '(modern, tree-shaken) → **[B]** + Babel (ES5, no polyfills) → **[C]** + unplugin '
   + '(polyfills = the real IE11 bundle). For `entry-global`, only [C].\n\n';
 for (const lib of libs) {
@@ -138,5 +175,5 @@ for (const lib of libs) {
 const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
 await writeFile(join(REPORT, 'pipeline.md'), md);
-await writeFile(join(REPORT, 'pipeline.json'), `${ JSON.stringify(rows, null, 2) }\n`);
+await writeFile(join(REPORT, 'pipeline.json'), `${ JSON.stringify({ scope, rows }, null, 2) }\n`);
 console.log(`\nreport → ${ join(REPORT, 'pipeline.md') }`);

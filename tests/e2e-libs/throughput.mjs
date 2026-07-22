@@ -5,29 +5,32 @@
 // (plugin-less bundle of the usage entry). An internal parse-vs-inject split would need to
 // instrument unplugin's transform hook and is intentionally out of scope here.
 //
-// SINGLE RUN PER CELL. There is no repeat/median axis: the differences this suite looks for are
-// whole seconds, run-to-run noise is tens of ms, and the repeats cost more than they buy. Read the
-// numbers as indicative magnitudes, not as a benchmark.
+// SINGLE RUN PER CELL. There is no repeat/median axis - the repeats cost more than they buy. What
+// they cannot buy back is the machine's own background load, which is the dominant source of spread
+// here: a cell measured while the box is busy reads high, and no amount of in-process repetition
+// fixes that. So read a cell as an order of magnitude, and take a RATIO between cells seriously only
+// when it is large. Ratios quoted in prose go stale for exactly this reason; the live numbers are in
+// report/throughput.{md,json}.
 //
-// ONE PROFILE - the whole matrix, every bundler x every phase, ~3.5 min for 147 cells. There used
-// to be a `--full` flag guarding it behind a trimmed `smoke` default, because the matrix once cost
-// ~50 min; that was almost entirely three's usage-mode scan, and v4 made it ~40x cheaper. The two
-// claims the trimming rested on did not survive being re-measured either: overhead is NOT
-// bundler-invariant (up to 14x spread on rxjs) and pre+post is ~1.3x a single phase, not ~2x. Only
-// `pre ~= post` held. So there is nothing left to justify dropping dimensions - run them all.
+// ONE PROFILE - the whole matrix, every bundler x every phase. There used to be a `--full` flag
+// guarding it behind a trimmed `smoke` default, because the matrix once cost ~50 min; that was
+// almost entirely three's usage-mode scan, and v4 made it far cheaper. The two claims the trimming
+// rested on did not survive re-measurement either: overhead is NOT bundler-invariant (the spread
+// across bundlers is large on the fast libs and small on three) and pre+post costs more than a
+// single phase without being anything like 2x. Only `pre ~= post` held. So there is nothing left to
+// justify dropping dimensions - run them all.
 //
 // Usage:  node throughput.mjs [libFilter] [bundlerFilter]
-import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, HERE } from './build.mjs';
+import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, errorReason, HERE } from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const [libFilter, bundlerFilter] = runnerArgs(import.meta.url);
+const [libFilter, bundlerFilter, ...surplus] = runnerArgs(import.meta.url);
+if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } — throughput.mjs takes [libFilter] [bundlerFilter]`);
 
-const libs = librariesIn('throughput').filter(l => !libFilter || l.name === libFilter);
-// a typo'd filter that matches nothing must fail loudly, not write a green empty report
-if (!libs.length) throw new Error(`no throughput library matches filter '${ libFilter }'`);
+const libs = librariesIn('throughput', libFilter);
 if (bundlerFilter && !THROUGHPUT_BUNDLERS.includes(bundlerFilter)) {
   throw new Error(`no bundler matches filter '${ bundlerFilter }'`);
 }
@@ -35,6 +38,64 @@ if (bundlerFilter && !THROUGHPUT_BUNDLERS.includes(bundlerFilter)) {
 const bundlers = bundlerFilter ? [bundlerFilter] : THROUGHPUT_BUNDLERS;
 
 console.log(`matrix: ${ libs.length } lib(s) x ${ bundlers.length } bundler(s) x every method/phase`);
+
+// Warm each bundler before anything is timed. Most builders in build.mjs do their `await import(...)`
+// inside themselves (rollup and esbuild are statically imported there), so the FIRST call into a
+// bundler pays that import plus cold JIT - and that first call would otherwise be its BASELINE.
+// Subtracting a cold baseline from warm cells understates every
+// overhead and can invert its sign (it once produced a NEGATIVE overhead for rxjs/webpack). The bias is
+// one-directional and worth hundreds of ms, so it is not the run-to-run noise noted above.
+async function warmBundlers() {
+  for (const name of bundlers) {
+    try {
+      await withEntry(libs[0].exercise, 'usage-global', `warm-${ name }`,
+        e => throughputBuilders[name](e, u(name, 'usage-global', 'post')));
+    } catch { /* a genuinely broken bundler resurfaces in its baseline below, with a real message */ }
+  }
+}
+await warmBundlers();
+
+// `rollupInjections` is captured via ROLLUP and reused across every bundler's row, so it says nothing
+// about what THIS bundler emitted. Without a size check, a bundler whose unplugin adapter stopped
+// injecting altogether still reports a plausible overhead and a healthy count - and since the runtime
+// tier is rollup-only, nothing else in the suite would notice.
+//
+// Two things make the comparison trustworthy. First, EQUAL-LENGTH temp-entry labels: webpack, rspack
+// and rsbuild embed the entry path in their output, so a longer cell label alone grew the bundle by
+// 12 bytes and satisfied a bare `bytes > baseline` on those three bundlers - the gate was inert on
+// 3 of 7 without anyone noticing. Second, a real MARGIN rather than `>`: measured across every
+// (lib, method, bundler), the smallest genuine payload is ~150 KB (three/usage-pure), so the margin
+// below sits well under any real one - it only has to clear a label-length wobble, not approach a
+// payload. Raising it towards the real figure would trade a false pass for a false failure.
+//
+// The size check applies to EVERY method, entry-global included. An earlier version exempted it on
+// the reasoning that entry-global's temp entry carries its own `import 'core-js'` so its size clears
+// any baseline regardless - which misread this file: the baseline is always built from the
+// `usage-global` entry (below), which has no such import, so the delta against it IS the whole
+// core-js payload and can collapse to zero. It did, under `sideEffects: false` on the pinned
+// core-js: the cell came out byte-identical to the baseline and still printed green.
+//
+// What the size delta cannot catch for entry-global is a bundler-specific dead adapter: there
+// `import 'core-js'` survives untransformed and drags the whole library in, so the bundle stays
+// large. The count check below covers the plugin-produced-nothing case; neither covers a dead
+// adapter on entry-global, and nothing in this runner can - see the report footer.
+const LABEL_WIDTH = 32; // longest is `rolldown-usage-global-pre+post` (30); pad both sides of the compare
+const MIN_PAYLOAD_BYTES = 10_000;
+// one definition for the injByCell key: writing it out at both the producer and the consumer
+// invites a typo that would silently yield `undefined` on lookup
+function cellKey(method, phase) {
+  return `${ method }|${ phase ?? '' }`;
+}
+function assertBundled(bytes, baseBytes, method, rollupInjections) {
+  // null means the capture itself threw; 0 means it ran and found nothing - different diagnoses
+  if (method === 'entry-global' && !rollupInjections) {
+    throw new Error(`rollup capture ${ rollupInjections === null ? 'failed' : 'found 0 injections' } for entry-global`);
+  }
+  if (baseBytes === undefined) return;
+  if (bytes - baseBytes < MIN_PAYLOAD_BYTES) {
+    throw new Error(`no polyfills bundled: ${ bytes }b vs plugin-less baseline ${ baseBytes }b`);
+  }
+}
 
 async function timed(fn) {
   const t0 = process.hrtime.bigint();
@@ -47,31 +108,34 @@ let captureFailures = 0; // baseline / inject-capture failures are logged but do
 for (const lib of libs) {
   // per-(bundler) baseline: plugin-less bundle of the usage entry (no core-js import)
   const baseline = {};
+  const baselineBytes = {};
   for (const name of bundlers) {
     try {
-      const { ms } = await withEntry(lib.exercise, 'usage-global', `base-${ name }`, e => timed(() => throughputBuilders[name](e, null)));
+      const { ms, out } = await withEntry(lib.exercise, 'usage-global', `base-${ name }`.padEnd(LABEL_WIDTH, '_'), e => timed(() => throughputBuilders[name](e, null)));
       baseline[name] = ms;
+      baselineBytes[name] = out.bytes;
     } catch (err) {
       baseline[name] = null;
       captureFailures++;
-      console.log(`baseline ${ name }: ERROR ${ (err.message || String(err)).slice(0, 120) }`);
+      console.log(`baseline ${ name }: ERROR ${ errorReason(err) }`);
     }
   }
 
-  // injection count is bundler-invariant (captureInjections always builds via rollup), but NOT
-  // phase-invariant (e.g. usage-pure/pre+post injects one extra module), so capture it once per
-  // (method, phase) and reuse across bundlers rather than per cell - each capture is a full
-  // rollup+unplugin build. A failed capture is null.
+  // injection count is captured via ROLLUP and reused across bundlers - it is not a measurement of
+  // what each bundler emitted (the `bytes > baseline` check above is what covers that). So capture it
+  // once per (method, phase) and reuse across bundlers rather than per cell - each capture is a full
+  // rollup+unplugin build. Keyed by phase too: no fixture currently shows a phase difference, but
+  // unplugin does not guarantee phase-invariance and the extra captures are cheap. Failure -> null.
   const injByCell = {};
   for (const method of lib.methods) {
     for (const phase of phasesFor(method)) {
-      const key = `${ method }|${ phase ?? '' }`;
+      const key = cellKey(method, phase);
       try {
         injByCell[key] = (await captureInjections(lib.exercise, method, phase)).length;
       } catch (err) {
         injByCell[key] = null;
         captureFailures++;
-        console.log(`inject-capture ${ method }${ phase ? `/${ phase }` : '' }: ERROR ${ (err.message || String(err)).slice(0, 120) }`);
+        console.log(`inject-capture ${ method }${ phase ? `/${ phase }` : '' }: ERROR ${ errorReason(err) }`);
       }
     }
   }
@@ -81,19 +145,20 @@ for (const lib of libs) {
       for (const phase of phasesFor(method)) {
         const label = `${ lib.name }/${ name }/${ method }${ phase ? `/${ phase }` : '' }`;
         try {
-          const injections = injByCell[`${ method }|${ phase ?? '' }`];
-          const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`,
+          const rollupInjections = injByCell[cellKey(method, phase)];
+          const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`.padEnd(LABEL_WIDTH, '_'),
             e => timed(() => throughputBuilders[name](e, u(name, method, phase))));
           const base = baseline[name];
           const overhead = base === null ? null : +(ms - base).toFixed(1);
+          assertBundled(out.bytes, baselineBytes[name], method, rollupInjections);
           rows.push({
             lib: lib.name, bundler: name, method, phase: phase ?? '',
             ms: +ms.toFixed(1), baseline: base === null ? null : +base.toFixed(1),
-            overhead, bytes: out.bytes, injections,
+            overhead, bytes: out.bytes, rollupInjections,
           });
-          console.log(`✓ ${ label }: ${ ms.toFixed(0) }ms (overhead ${ overhead ?? '?' }ms, ${ out.bytes }b, ${ injections } inj)`);
+          console.log(`✓ ${ label }: ${ ms.toFixed(0) }ms (overhead ${ overhead ?? '?' }ms, ${ out.bytes }b, ${ rollupInjections } inj via rollup)`);
         } catch (err) {
-          const reason = (err.message || String(err)).split('\n', 1)[0].slice(0, 160);
+          const reason = errorReason(err);
           rows.push({ lib: lib.name, bundler: name, method, phase: phase ?? '', error: reason });
           console.log(`✗ ${ label }: ${ reason }`);
         }
@@ -113,17 +178,27 @@ function find(ln, b, m, p) {
   return rows.find(r => r.lib === ln && r.bundler === b && r.method === m && r.phase === p);
 }
 function fmt(c) {
-  return !c ? '—' : c.error ? 'ERR' : `${ c.overhead ?? c.ms }`;
+  if (!c) return '—';
+  if (c.error) return 'ERR';
+  // the baseline for this bundler failed, so `ms` is an ABSOLUTE build time. Never let it sit
+  // unmarked in a column captioned "overhead" — the only other signal is a log line long scrolled off
+  return c.overhead === null ? `${ c.ms }*` : `${ c.overhead }`;
 }
 let md = '# Throughput (overhead ms over baseline, single run per cell)\n\n';
-md += `Full matrix: ${ libs.length } lib(s) × ${ bundlers.length } bundler(s) × every method/phase.\n\n`;
+md += `${ libFilter || bundlerFilter ? 'Filtered run' : 'Full matrix' }: ${ libs.length } lib(s) × ${ bundlers.length } bundler(s) × every method/phase.\n\n`;
 for (const lib of libs) {
   md += `## ${ lib.name }\n\n| ${ head.join(' | ') } |\n| ${ head.map(() => '---').join(' | ') } |\n`;
   for (const b of bundlers) {
     md += `| ${ b } | ${ cells.map(([m, p]) => fmt(find(lib.name, b, m, p))).join(' | ') } |\n`;
   }
   md += '\n_Cells show unplugin overhead (bundle-with-plugin − plugin-less baseline), in ms. '
-    + 'See throughput.json for absolute ms, bytes, injections._\n\n';
+    + '`*` = that bundler\'s baseline failed, so the cell is an ABSOLUTE build time, not an overhead. '
+    + 'The `entry` column shares the usage-entry baseline, so it also carries the cost of bundling the '
+    + 'core-js graph that `import \'core-js\'` pulls in — an end-to-end figure, not comparable with the '
+    + 'usage columns. See throughput.json for absolute ms, bytes, and `rollupInjections` — captured '
+    + 'once via rollup and reused across bundlers, so it is NOT what this bundler emitted; the size '
+    + 'gate covers that for every column, though on `entry` it cannot distinguish a dead adapter '
+    + '(the entry\'s own `import \'core-js\'` keeps the bundle large either way)._\n\n';
 }
 await writeFile(join(REPORT, 'throughput.md'), md);
 console.log(`\nreport → ${ join(REPORT, 'throughput.md') }`);

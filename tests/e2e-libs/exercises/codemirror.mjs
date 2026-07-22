@@ -80,12 +80,9 @@ function survey(tree) {
 }
 
 export function run() {
-  const results = {};
   const checks = [];
   function check(label, actual, expected) {
-    results[label] = actual;
     checks.push({ label, actual, expected, pass: JSON.stringify(actual) === JSON.stringify(expected) });
-    return actual;
   }
 
   // --- document layer: state + transactions ---
@@ -124,7 +121,10 @@ export function run() {
   check('class_decls', stats.byType.ClassDeclaration, 1);
   check('method_decls', stats.byType.MethodDeclaration, 2);
   check('var_decls', stats.byType.VariableDeclaration, 3);
-  check('max_depth', stats.maxDepth, 9);
+  // an inequality, not the exact 9: max nesting depth is a grammar-internal number that shifts when
+  // @lezer/javascript restructures a node, and this file's policy (see header) is version-robust
+  // invariants. What it actually cares about is that the parse descended into the class body.
+  check('deeply_nested_tree', stats.maxDepth >= 8, true);
 
   // top-level declared names, read back out of the source by node position
   const names = [];
@@ -139,16 +139,38 @@ export function run() {
   check('declared_names', names, ['greet', 'Counter']);
 
   // --- incremental reparse: the real editor invariant ---
-  const editAt = doc.indexOf('const double');
-  const tr3 = state.update({ changes: { from: editAt, to: editAt, insert: INSERT } });
+  // The document MUST exceed FOUR times Lezer's `bufferLength` — @lezer/lr only builds a
+  // FragmentCursor when `stream.end - from > parser.bufferLength * 4`, i.e. above 4096 chars, not
+  // above 1024. Below that it reuses nothing, the "incremental" parse silently degrades to a full
+  // one, and every check below passes just as happily with `fragments = []`. `doc` is only ~280
+  // chars; `SRC.repeat(24)` takes it to ~6.4k, comfortably clear (repeat(16) cleared 4096 by only
+  // ~280 chars, and repeat(12) does not clear it at all). The doc-layer checks above stay on the
+  // small `doc`, whose line count and depth they are calibrated to.
+  const bigDoc = doc + SRC.repeat(24);
+  const bigTree = jsParser.parse(bigDoc);
+  const editAt = bigDoc.lastIndexOf('const double');
+  const tr3 = EditorState.create({ doc: bigDoc }).update({ changes: { from: editAt, to: editAt, insert: INSERT } });
   const newDoc = tr3.state.doc.toString();
   const ranges = [];
   tr3.changes.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
   check('changed_ranges', ranges, [{ fromA: editAt, toA: editAt, fromB: editAt, toB: editAt + INSERT.length }]);
 
-  let fragments = TreeFragment.addTree(tree);
+  let fragments = TreeFragment.addTree(bigTree);
   fragments = TreeFragment.applyChanges(fragments, ranges);
-  check('fragments_reused', fragments.length > 0, true);
+  // NOTE deliberately not asserted here: `applyChanges` is a pure function of the change ranges,
+  // computed before the parse and never observed by it, so every property of `fragments` alone
+  // (length, extent) holds even for fragments built from a completely unrelated tree. The only
+  // assertion that can distinguish reuse from a full reparse is the step count below.
+
+  // the load-bearing assertion: the fragmented parse does strictly LESS work than the cold one.
+  // Nothing above observes the parse itself, so this is what proves reuse actually happened.
+  function parseSteps(src, frags) {
+    const p = jsParser.startParse(src, frags);
+    let n = 0;
+    while (!p.advance()) n++;
+    return n;
+  }
+  check('incremental_reuses_fragments', parseSteps(newDoc, fragments) < parseSteps(newDoc, []), true);
 
   const incremental = jsParser.parse(newDoc, fragments);
   const full = jsParser.parse(newDoc);
@@ -159,9 +181,12 @@ export function run() {
   // --- highlight layer (pure: emits ranges + class names, no DOM) ---
   const spans = [];
   highlightTree(tree, classHighlighter, (from, to, classes) => spans.push({ from, to, classes }));
-  check('highlight_has_spans', spans.length > 0, true);
+  // a real count, not `> 0`: highlightTree degrading to one whole-document span would satisfy that
+  // while asserting nothing about tokenisation. (The ordering check below is separately guarded by
+  // seeding `ordered` from `spans.length > 1`, since its loop never runs for <= 1 span.)
+  check('highlight_span_count', spans.length > 20, true);
 
-  let ordered = true;
+  let ordered = spans.length > 1;
   for (let i = 1; i < spans.length; i++) {
     if (spans[i].from < spans[i - 1].to) ordered = false;
   }
@@ -184,5 +209,5 @@ export function run() {
   check('html_no_errors', html.errors, 0);
   check('html_parsed', html.nodes > 20, true);
 
-  return { results, checks };
+  return { checks };
 }

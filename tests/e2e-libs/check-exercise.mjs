@@ -11,11 +11,12 @@
 // Usage:  node check-exercise.mjs [exercisePathOrLibName]
 import { runnerArgs } from './args.mjs';
 import { libraries } from './libraries.mjs';
-import { basename, dirname, isAbsolute, join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { basename, isAbsolute, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const [arg] = runnerArgs(import.meta.url);
+const HERE = import.meta.dirname;
+const [arg, ...surplus] = runnerArgs(import.meta.url);
+if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } — check-exercise.mjs takes one optional target`);
 const targets = arg
   ? [isAbsolute(arg) ? arg : join(HERE, arg.includes('/') ? arg : `exercises/${ arg }.mjs`)]
   : libraries.map(l => l.exercise);
@@ -23,14 +24,22 @@ const targets = arg
 let total = 0;
 let failing = 0;
 for (const target of targets) {
+  const name = basename(target);
   const mod = await import(pathToFileURL(target).href);
-  const { checks } = await mod.run();
+  if (typeof mod.run !== 'function') throw new Error(`${ name } does not export run()`);
+  const res = await mod.run();
+  // name the exercise in every failure mode: destructuring a malformed result would otherwise throw
+  // a bare "Cannot read properties of undefined", and with no argument all three exercises run
+  if (!Array.isArray(res?.checks)) {
+    throw new Error(`${ name } returned a malformed result: expected { checks: [...] }, got ${ JSON.stringify(res)?.slice(0, 120) }`);
+  }
+  const { checks } = res;
   // an exercise that silently stopped reporting would otherwise pass as "0 checks, 0 failing"
-  if (!checks.length) throw new Error(`${ basename(target) } returned no checks`);
+  if (!checks.length) throw new Error(`${ name } returned no checks`);
   const bad = checks.filter(c => !c.pass);
   total += checks.length;
   failing += bad.length;
-  console.log(`\n${ basename(target) }`);
+  console.log(`\n${ name }`);
   for (const c of checks) {
     console.log(`${ c.pass ? '✓' : '✗' } ${ c.label }${ c.pass ? '' : `  actual=${ JSON.stringify(c.actual) } expected=${ JSON.stringify(c.expected) }` }`);
   }
