@@ -536,9 +536,13 @@ function interopDefaultProxyName({ objectNode, scope, adapter, path }) {
 }
 
 // the static require source of a runtime TSImportEquals declaration (`import x = require('...')`),
-// or null. adapter-less callers (the scope-less census reducer) read the literal value directly
+// or null. adapter-less callers (the scope-less census reducer) read the literal value directly.
+// the `export` modifier (babel@7 flags `isExport` on the node; @8 / oxc wrap it in an
+// ExportNamedDeclaration the callers peel) doesn't change the local binding's value - an exported
+// `export import g = require('.../global-this')` still hosts the global for a mutation / interop
+// receiver, so it must not gate the source read (a non-proxy source is dropped downstream anyway)
 export function tsImportEqualsRequireSource(node, adapter) {
-  if (node?.type !== 'TSImportEqualsDeclaration' || node.isExport || node.importKind === 'type'
+  if (node?.type !== 'TSImportEqualsDeclaration' || node.importKind === 'type'
     || node.id?.type !== 'Identifier' || node.moduleReference?.type !== 'TSExternalModuleReference') return null;
   const source = adapter ? adapter.getStringValue(node.moduleReference.expression) : node.moduleReference.expression?.value;
   return typeof source === 'string' ? source : null;
