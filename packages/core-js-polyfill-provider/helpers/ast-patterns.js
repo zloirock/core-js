@@ -3210,6 +3210,9 @@ function tsModuleIsInstantiated(node) {
       case undefined:
       case 'TSInterfaceDeclaration':
       case 'TSTypeAliasDeclaration': return false;
+      // a `const enum` is fully inlined by tsc and emits no runtime member, so it does NOT
+      // instantiate the enclosing namespace (a regular `enum` does); mirrors the type-only cases
+      case 'TSEnumDeclaration': return !decl.declare && !decl.const;
       case 'TSModuleDeclaration': return !decl.declare && tsModuleIsInstantiated(decl);
       default: return !decl.declare;
     }
@@ -4597,13 +4600,15 @@ function statementShadowsRequireAtProgramScope(stmt) {
     // both reach runtime). `import type require = ...` is tsc-elided
     case 'TSImportEqualsDeclaration':
       return !isTypeOnlyImportEquals(node) && node.id?.name === 'require';
-    // non-ambient `enum X {}` / `const enum X {}` / `namespace X {}` emit IIFE-backed
-    // runtime bindings. babel's scope tracker exposes them only via
-    // `findTSRuntimeBindingInPath`, not `getBindingIdentifier`
+    // `enum require {}` / `namespace require {}` bind a runtime `require` only when the declaration
+    // actually emits an object: a `const enum` is tsc-inlined and an empty / type-only / const-enum-
+    // only namespace is elided. delegate to the shared runtime-binding predicate so entry detection
+    // (this path, consulted by the unplugin adapter) and the usage-side shadow walk
+    // (`findTSRuntimeBindingInPath`, the babel adapter's path) agree. `namespace require.X {}` binds
+    // the leftmost segment (`require`)
     case 'TSEnumDeclaration':
     case 'TSModuleDeclaration':
-      // `namespace require.X {}` binds the leftmost segment (`require`) at runtime
-      return tsRuntimeBindingName(node.id) === 'require';
+      return isTSRuntimeBindingDeclaration(node) && tsRuntimeBindingName(node.id) === 'require';
   }
   return false;
 }
