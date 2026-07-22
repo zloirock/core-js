@@ -1,8 +1,9 @@
 # e2e-libs: transpile + throughput suite for @core-js/unplugin
 
 - **Date:** 2026-07-16
-- **Status:** Design approved, spec under review
-- **Branch:** `v4` (the earlier `e2e-d3` experiment stays untouched on branch `e2e-d3-unplugin`)
+- **Status:** Implemented and shipped; §13 records the post-implementation resolutions
+- **Branch:** `e2e-libs-unplugin`, branched off `v4` (the earlier `e2e-d3` experiment stays untouched
+  on branch `e2e-d3-unplugin`)
 - **Location:** `tests/e2e-libs/`
 
 ## 1. Context & motivation
@@ -74,9 +75,9 @@ throughput and emitted as an ES5 artifact. The monsters, when added, are `tiers:
 
 ```
 tests/e2e-libs/
-  libraries.mjs      # registry: [{ name, tiers, exercise, methods, notes }]
+  libraries.mjs      # registry: [{ name, tiers, exercise, methods }]
   exercises/
-    rxjs.mjs         # monstrous headless exercise: exports run() -> { results, checks }
+    rxjs.mjs         # monstrous headless exercise: exports run() -> { checks }
     three.mjs        # headless three.js scene project (runtime + throughput)
     codemirror.mjs   # headless CodeMirror 6 / Lezer exercise (runtime + throughput)
   build.mjs          # core: (lib, method, phase, bundler) -> bundle (unplugin [+ Babel for runtime tier])
@@ -85,11 +86,15 @@ tests/e2e-libs/
   artifacts.mjs      # tier-2 runner: rollup+babel -> ES5 bundle + index.html + manifest.json (Babel 7 & 8)
   snapshot.mjs       # injection snapshot per (lib x method); --update to rewrite
   check-exercise.mjs # run an exercise raw and print its checks
+  args.mjs           # runnerArgs(import.meta.url): argv cut at the runner's own path (zxi imports, not spawns)
+  README.md          # suite docs: fixtures, the five runners, and the topology finding
   babel8/            # isolated @babel/core@8 toolchain (own package.json + node_modules)
   report/            # generated: throughput.{md,json} + pipeline.{md,json}
   artifacts/         # generated: <lib>/babel{7,8}/<method>/{bundle.js,index.html} + manifest.json
   snapshots/         # generated: <lib>.<method>.txt
+  .tmp/              # generated: temp entries + preflight scripts (pid+hrtime suffixed, always removed)
   package.json
+  package-lock.json
   .npmrc             # legacy-peer-deps=true (v4-alpha prerelease vs @rsbuild peerOptional)
 ```
 
@@ -112,18 +117,21 @@ producing runnable ES5.
 after:
 
 ```
-[ babel({ presets: [['@babel/preset-env', {
-            targets: { ie: 11 }, useBuiltIns: false, corejs: false }]],
-          babelHelpers: 'inline' }),           // syntax only, no builtins
-  unplugin({ method, targets: { ie: 11 }, phase: 'post' }) ]   // stdlib only
+[ makeBabelPlugin('7' | '8'),   // syntax only, no builtins: preset-env with
+                                // { targets: { ie: '11' }, useBuiltIns: false, modules: false }
+  unplugin({ method, targets: { ie: 11 },
+             ...(method === 'entry-global' ? {} : { phase: 'post' }) }) ]   // stdlib only
 ```
+(As shipped: `@rollup/plugin-babel` was dropped — see §13 — and `entry-global` is passed no `phase`
+at all: unplugin pins that method to `pre` and throws for any value other than `'pre'`/`null`.)
 
-- `useBuiltIns:false, corejs:false` — Babel must **not** inject core-js, or we double-polyfill.
+- `useBuiltIns:false` — Babel must **not** inject core-js, or we double-polyfill. With `useBuiltIns`
+  off, `corejs` is moot and is not passed at all.
 - `phase:'post'` — unplugin runs after Babel per module, so the stdlib that Babel's *helpers*
   introduce (spread / `for-of` / generators reach for `Symbol.iterator`, `Array.from`, etc.) is
   visible and gets polyfilled. In `pre` those helper-introduced usages are missed. This is the
   practical case for the pre/post phase distinction.
-- `babelHelpers:'inline'` — helpers are inlined per module (no `@babel/runtime` indirection), so
+- helpers are inlined per module (`@babel/core`'s default — no `@babel/runtime` indirection), so
   usage-global sees them where they are used.
 - Bundlers in this tier are limited to those that actually emit ES5: **rollup** (via a custom Babel
   transform rather than `@rollup/plugin-babel` — see §13; webpack + `babel-loader` was deferred, §12).
@@ -149,10 +157,9 @@ Operator coverage (a confidently hand-verifiable subset — enough to exercise t
 - aggregate: `reduce`, `toArray`
 - promise interop: `firstValueFrom`, `lastValueFrom` (exercises the `Promise` polyfill)
 
-Exports a single `run()` returning `Promise<{ results, checks }>` (a `Promise.then` chain, no
+Exports a single `run()` returning `Promise<{ checks }>` (a `Promise.then` chain, no
 async/await — so the ES5 down-compile needs no regenerator runtime):
 
-- `results` — JSON-serializable object of collected outputs.
 - `checks` — array of `{ label, actual, expected, pass }` (`pass` computed by the exercise via a
   JSON deep-equal) consumed by the node pre-flight and the generated HTML harness.
 
@@ -164,18 +171,30 @@ iterator-protocol usage.
 
 Per cell (bundler × method × phase), a **single** run, measured externally (wall-clock around the
 whole bundle call — an internal parse-vs-inject split would need to instrument unplugin's transform
-hook and is deferred). There is deliberately no repeat/median axis: the differences of interest are
-whole seconds against tens of ms of noise. There is also only one profile — the exhaustive
-bundler × phase matrix, 147 cells in ~3.5 min. A trimmed `smoke` default behind a `--full` flag was
-dropped once `v4` made `three` ~40x cheaper and re-measurement refuted the two invariances the
+hook and is deferred). There is deliberately no repeat/median axis: the dominant source of spread is
+whatever else the machine is doing, which in-process repetition cannot average away — so a cell is an
+order of magnitude, not a measurement. There is also only one profile — the exhaustive bundler × phase
+matrix, 147 cells; timings live in `report/throughput.{md,json}`, not here. A trimmed `smoke` default
+behind a `--full` flag was
+dropped once `v4` made `three` dramatically cheaper and re-measurement refuted the two invariances the
 trimming assumed (bundler-invariance of the overhead, and `pre+post ≈ 2× post`).
 
 - total bundle ms **with** the plugin
-- total bundle ms **baseline** (same bundle, plugin omitted)
+- total bundle ms **baseline** — one per bundler, always the plugin-less `usage-global` entry, reused
+  for every method. For `usage-*` that is the same bundle minus the plugin; for `entry-global` it is
+  not, so that column's overhead also carries the cost of the whole `import 'core-js'` graph
 - overhead ms = with − baseline (approximates unplugin cost: detect + inject + the extra core-js
   modules pulled in)
 - output size (bytes)
-- injection count (from the snapshot recorder plugin)
+- `rollupInjections` — injection count captured once per (method, phase) via **rollup** and reused
+  across every bundler's row; it is not a measurement of what the bundler under test emitted
+- a per-cell `assertBundled` gate — the bundle must exceed the plugin-less baseline by a real margin,
+  which is what actually proves this bundler's adapter injected anything. It applies to **every**
+  method, `entry-global` included: the baseline is always the plugin-less `usage-global` entry, which
+  carries no `import 'core-js'`, so the delta against it is the whole core-js payload and can collapse
+  to zero. `entry-global` additionally requires the rollup-derived count to be non-zero. What size
+  cannot catch there is a bundler-specific dead adapter — the entry's own `import 'core-js'` then
+  survives untransformed and keeps the bundle large either way
 
 Output: `report/throughput.md` (human table) + `report/throughput.json` (machine). Filterable by
 `libFilter` / `bundlerFilter` via argv.
@@ -192,6 +211,13 @@ For each (lib × method × Babel 7/8) in the runtime tier:
    stripped realm — just "does it execute and compute correctly at all" — to catch gross breakage
    before a manual IE11 run.
 5. Write `artifacts/manifest.json` listing every (lib, method, path) for manual upload.
+
+Gates per cell, all fatal: `injections > 0`; **`assertPayload`** — real core-js bytes present in the
+emitted chunk, since the injection count only observes specifier *text*, which survives tree-shaking;
+`assertNoExternals` — nothing left as a `require(...)` in the UMD header; `assertES5` on the bundle
+and on its minified form (the published wire size); and a non-empty `checks` array back from the
+pre-flight. The generated in-page harness is parsed as ES5 too, but once at load rather than per
+cell — every page differs from it only in a numeric literal.
 
 The actual IE11 pass/fail is a manual step in BrowserStack/SauceLabs; a green banner there
 confirms **syntax + stdlib** only (core-js cannot rescue any DOM/Worker path — irrelevant for the
@@ -253,10 +279,11 @@ BrowserStack Automate; CI wiring.
   majors can't share a `node_modules`) — matching the repo's `test-transpiling` convention of testing
   the babel-facing behaviour against both. `@rollup/plugin-babel@6` only supports `@babel/core@7`, so
   a small custom transform plugin runs the chosen Babel core (via `transformAsync`) instead. Note:
-  Babel 7.29 and 8.0 emit **byte-identical** ES5 — verified empirically across the seed exercise and
-  standalone `for-of`/spread/generator/async/private-method snippets (Babel 8's differences from 7 are
-  config/defaults/dropped-options, not codegen). So the two runs are a parity/regression guard rather
-  than two distinct outputs; a real delta would surface only from a future Babel that changes a helper
+  Babel 7.29 and 8.0 emit **identically sized** ES5, and byte-identical output on the seed exercise
+  and on standalone `for-of`/spread/generator/async/private-method snippets. On codemirror and three
+  the bytes DO differ: the two majors emit the same helpers in a different order (raw and minified
+  sizes unchanged, gzip moves by a few bytes). So the second run is mostly a parity guard, but it is
+  not a tautology; a larger delta would surface from a future Babel that changes a helper
   or preset-env's transform selection. (The exercise's `for_of_set`/`spread_set` checks still add
   value: they drive Babel's `_createForOfIteratorHelper`/`_toConsumableArray` → `Symbol.iterator`, so
   the post-phase helper injection the runtime tier exists to test is actually exercised at runtime.)
@@ -269,18 +296,21 @@ BrowserStack Automate; CI wiring.
   capturing bytes and wall-clock at each, the raw source loaded (pre-tree-shaking), the injection
   count, `[C]`'s Babel-vs-unplugin time split (instrumented transform hooks), and `[C]`'s minified +
   gzip wire size. `throughput.mjs` stays a separate, unplugin-only diagnostic — its overhead number
-  is NOT the IE11 build cost (that's `[C]`, Babel + unplugin, which is larger; e.g. three/usage-global
-  is ~30 s total, of which unplugin ~22 s / 73 %, Babel ~5.7 s / 19 %). `build.mjs` exports
+  is NOT the IE11 build cost (that's `[C]`, Babel + unplugin, which is larger — and on
+  three/usage-global, since `v4` reworked the resolution, it is **Babel** and not unplugin that
+  dominates that stage by a wide margin; on codemirror the two are closer.) Concrete per-run figures deliberately live only in `report/pipeline.{md,json}`:
+  quoted in prose they go stale with every instrumentation change and with the machine's load.
+  `build.mjs` exports
   `makeBabelPlugin(babelVersion)` so `pipeline.mjs` and `runtimeBuild` share the exact Babel config.
 - **wire size:** raw bundles are unminified/uncompressed (the suite builds with `minify:false` to
-  measure processing). Real delivery is minify (~28 % of raw) + gzip (~8–11 % of raw); e.g.
-  three/usage-global 1.15 MB raw → ~97 KB gzip, rxjs/usage-global 446 KB → ~47 KB gzip.
-  `artifacts.mjs`'s `manifest.json` and `pipeline.mjs` both report raw / min / gzip.
+  measure processing). Real delivery is minify + gzip, and the ratio varies enough by fixture that
+  it is not worth quoting here — codemirror compresses markedly worse than rxjs or three.
+  `artifacts.mjs`'s `manifest.json` and `pipeline.mjs` both report raw / min / gzip per cell.
 - **three.js fixture (`tiers: ['throughput', 'runtime']`):** a real headless three.js scene project
   — scene-graph + world transforms, an "animation" step, raycasting, geometry bounds, curve, and
   vector/matrix/quaternion math — asserted by 16 deterministic numeric checks (no WebGL/DOM, so it
   runs in node). It is both a large modern-ES **throughput** target (usage-global injects 154
-  polyfills vs rxjs's 95) and a **runtime** functional check: all 16 checks still pass after the ES5
+  polyfills vs rxjs's 96) and a **runtime** functional check: all 16 checks still pass after the ES5
   down-compile + polyfill, under both Babel 7 and 8, proving the project stays functional after the
   run — the requested "does the project still work after unplugin processes it" verification.
 - **codemirror fixture (`tiers: ['throughput', 'runtime']`), and what it proved.** Added as a third
@@ -295,14 +325,13 @@ BrowserStack Automate; CI wiring.
   version-robust invariants over magic node totals so a grammar bump can't redden the suite spuriously.
 
   The measurement it unlocked: unplugin's usage-mode cost tracks the size of the **individual
-  module**, not total code volume. At stage `[B]` (unplugin's real input) codemirror is 497 KB and
-  three is 647 KB — 1.3x the bytes — with largest single modules of 142 KB vs 1409 KB. This converts
+  module**, not total code volume. At stage `[B]` (unplugin's real input) three's byte count is close to
+  codemirror's, but their largest single SOURCE modules are 142 KB vs 1409 KB. This converts
   the earlier "superlinear scope resolution" hypothesis into a measurement and localises it *within*
   a module. Keep all three topologies: a regression there surfaces on `three` first.
 
-  The size of that effect has since collapsed. It was ~1 s vs **22–26 s** — well over an order of
-  magnitude — until `v4` reworked the resolution; the same row now reads ~0.4 s vs ~1.5 s, so ~3.7x
-  rather than ~25x. Worth noting it only ever appeared on **down-compiled ES5** input, which is why
+  The size of that effect has since collapsed. three used to cost well over an order of magnitude
+  more than codemirror until `v4` reworked the resolution; it is now a small multiple. Worth noting it only ever appeared on **down-compiled ES5** input, which is why
   `tests/transpiler-perf` — fed modern source — never caught it despite bounds of 5 s.
 
 - **An unplugin bug the suite caught (fixed on `v4`).** codemirror's `usage-pure` failed at runtime:

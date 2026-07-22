@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠️ Post-implementation note — the shipped `tests/e2e-libs/` code is the source of truth, not the snippets or the self-review claims below.** Review/execution changed several things after this plan was authored: Task 4's `runtimeBuild` plugin order was corrected to **`[babel, …, unplugin]`** (babel first — raw Rollup ignores unplugin's `enforce`, so array order decides; the `[unplugin, babel]` shown below was wrong); the `stripComments` pass and the naive `isES5-ish` grep were dropped (ES5 output is trusted from Babel's `targets:{ie:11}` down-compile; the real check is the manual IE11 run, not an in-suite parse); `byName` was never shipped; `runtimeBuild`'s third parameter became `babelVersion`, not `phase` (so the §"Type/name consistency" self-review below is stale); the exercise has **24** checks (not 20); `rxjs` resolved to `^7.8.2`; and code-review hardened the runners (isolated child-process pre-flight, `injections>0`/empty-`checks` gates, `lib.methods` iteration, per-cell error isolation, HTML escaping). Read the committed files.
+> **⚠️ Post-implementation note — the shipped `tests/e2e-libs/` code is the source of truth, not the snippets or the self-review claims below.** Review/execution changed several things after this plan was authored: Task 4's `runtimeBuild` plugin order was corrected to **`[babel, …, unplugin]`** (babel first; the `[unplugin, babel]` shown below was wrong). Note the reason evolved: raw Rollup ignores the plugin-level `enforce`, but it DOES honour the hook-level `order` unplugin sets on its transform, so array order only decides within one order bucket; the `stripComments` pass was dropped, and the naive `isES5-ish` grep was eventually replaced by a real in-suite parse (`build.mjs::assertES5`, acorn at `ecmaVersion: 5`) that every emitted bundle must pass — the real-engine check is still the manual IE11 run; `tests/e2e-libs/.gitignore` was not kept either, its entries live in the repo-root `.gitignore` alongside the other `/tests/**` generated paths, and a `.npmrc` (legacy-peer-deps) was added that Task 1 below does not mention; `byName` was never shipped; the registry's `notes` field was never shipped either, and `librariesIn` gained a `filter` parameter and now throws on an empty match; `@rollup/plugin-babel` was dropped from the suite's dependencies entirely in favour of `build.mjs::makeBabelPlugin`; the throughput row's `injections` field became `rollupInjections` (rollup-derived, reused across bundlers) alongside a new per-cell `assertBundled` payload-size gate; `runtimeBuild`'s third parameter became `babelVersion`, not `phase` (so the §"Type/name consistency" self-review below is stale); the exercise has **24** checks (not 20); `rxjs` resolved to `^7.8.2`; the `results` half of the exercise contract was dropped — `run()` returns `{ checks }` alone; the repeat/median axis Task 5 is built around (`N`, `median()`, `N=5`, the "median of N" report title, the `N=` env override) was later dropped — every cell is a single timed build; the `--full`/`smoke` split that briefly replaced it is gone too, the runner always walks the whole bundler × method × phase matrix; `runtimeBuild` now returns `{ code, injections }` rather than a bare string; the suite also grew components this plan never describes at all — a fourth runner `pipeline.mjs` (size + time per stage `[A]`/`[B]`/`[C]`), a shared `args.mjs` (`runnerArgs`, because zxi imports the runner rather than spawning it), an isolated `babel8/` toolchain so the runtime tier builds under both Babel majors, two further fixtures (`exercises/three.mjs`, `exercises/codemirror.mjs`), and six root `package.json` scripts (`e2e-libs` plus `e2e-libs-{artifacts,check-exercise,pipeline,snapshot,throughput}`), so the File structure table and Tech Stack above are both incomplete; Task 1's `package.json` also gained the workspace pin `"core-js": "file:../../packages/core-js"` (which is what the `.npmrc` below exists for) and a `postinstall` that installs `babel8/`; and the branch touches two files outside the suite that the Conventions below say it would not — `CONTRIBUTING.md` (a suite block under the test list) and `tests/eslint/eslint.config.js` (generated paths ignored, `tests/e2e-libs/**/*.mjs` enrolled in the node-script env); and code-review hardened the runners (isolated child-process pre-flight, `injections>0`/empty-`checks` gates, `lib.methods` iteration, per-cell error isolation, HTML escaping). Read the committed files.
 
 **Goal:** Build a registry-driven suite under `tests/e2e-libs/` that runs a library through `@core-js/unplugin` in two tiers — a **throughput** benchmark across all bundlers, and a **runtime** tier that combines Babel (syntax → ES5) with unplugin (stdlib polyfills) to emit self-checking ES5/IE11 artifacts — seeded with **RxJS**.
 
-**Architecture:** A `libraries.mjs` registry describes each library (name, tiers, exercise path, methods). `build.mjs` holds the bundling core: per-bundler throughput builders, a rollup+Babel+unplugin runtime builder emitting UMD ES5, temp-entry generation, and an injection recorder. Three runners consume it — `throughput.mjs` (measure + report), `artifacts.mjs` (ES5 bundle + HTML self-check + node pre-flight + manifest), `snapshot.mjs` (injection regression). The RxJS exercise is deterministic, headless, and self-verifying (`run()` returns `{ results, checks }`, each check carries its own `pass`).
+**Architecture:** A `libraries.mjs` registry describes each library (name, tiers, exercise path, methods). `build.mjs` holds the bundling core: per-bundler throughput builders, a rollup+Babel+unplugin runtime builder emitting UMD ES5, temp-entry generation, and an injection recorder. Three runners consume it — `throughput.mjs` (measure + report), `artifacts.mjs` (ES5 bundle + HTML self-check + node pre-flight + manifest), `snapshot.mjs` (injection regression). The RxJS exercise is deterministic, headless, and self-verifying (`run()` returns `{ checks }`, each check carries its own `pass`).
 
 **Tech Stack:** Node 22 (nvm: `~/.nvm/versions/node/v22.20.0/bin/node`), `@core-js/unplugin` (workspace), rollup + rolldown + esbuild + vite + webpack + rspack + rsbuild + farm, `@rollup/plugin-babel` + `@babel/preset-env`, rxjs ^7.
 
@@ -15,7 +15,7 @@
 ## Conventions for the executor
 
 - **Node binary:** this environment has no `node` on PATH. Use `~/.nvm/versions/node/v22.20.0/bin/node` (call it `NODE` below). If a different node ≥22.18 is on PATH, that is fine too.
-- **Commits are GATED.** The user's standing rule is *"commit only when I say."* Each task ends with a `git add` + commit **command written out**, but the executor must **stage only and pause for the user's go-ahead before actually committing** (or batch all commits to the end on the user's word). Do not push. Everything lands on branch `v4`.
+- **Commits are GATED.** The user's standing rule is *"commit only when I say."* Each task ends with a `git add` + commit **command written out**, but the executor must **stage only and pause for the user's go-ahead before actually committing** (or batch all commits to the end on the user's word). Do not push. Everything lands on branch `e2e-libs-unplugin` (branched off `v4`), per the spec header.
 - **Do not touch** `tests/e2e-d3/` or branch `e2e-d3-unplugin`.
 - All new files live under `tests/e2e-libs/`.
 - Spec: `docs/superpowers/specs/2026-07-16-e2e-libs-transpile-throughput-suite-design.md`.
@@ -26,7 +26,7 @@
 |---|---|
 | `tests/e2e-libs/package.json` | deps (bundlers + babel + rxjs) |
 | `tests/e2e-libs/.gitignore` | ignore `node_modules/`, `.tmp/`, `artifacts/`, `report/` |
-| `tests/e2e-libs/exercises/rxjs.mjs` | deterministic RxJS exercise → `run()` returning `{ results, checks }` |
+| `tests/e2e-libs/exercises/rxjs.mjs` | deterministic RxJS exercise → `run()` returning `{ checks }` |
 | `tests/e2e-libs/check-exercise.mjs` | dev helper: run one exercise raw, print pass/fail |
 | `tests/e2e-libs/libraries.mjs` | registry of libraries |
 | `tests/e2e-libs/build.mjs` | bundling core: entry gen, throughput builders, runtime UMD builder, injection recorder |
@@ -648,7 +648,7 @@ Expected: 7 `✓` lines (entry-global + 3 usage-global phases + 3 usage-pure pha
 - [ ] **Step 3: (optional) full run**
 
 Run: `~/.nvm/versions/node/v22.20.0/bin/node tests/e2e-libs/throughput.mjs rxjs`
-Expected: 56 cells across 8 bundlers. Some bundlers may print `✗`/`ERR` (config edge cases) — record them; they are data, not blockers. `report/` regenerated.
+Expected: 56 cells across 8 bundlers as written here — but farm was later excluded (its native compiler hard-crashes on the workspace v4 core-js modules), so the shipped runner does 7 bundlers × 7 (method × phase) cells per library: 49 for `rxjs` alone, 147 for the three-fixture registry. Some bundlers may print `✗`/`ERR` (config edge cases) — record them; they are data, not blockers. `report/` regenerated.
 
 - [ ] **Step 4: Stage + (gated) commit**
 
@@ -786,7 +786,7 @@ Expected: 3 lines (`✓ rxjs/entry-global`, `✓ rxjs/usage-global`, `✓ rxjs/u
 
 - [ ] **Step 3: Sanity-check the ES5 bundle is actually ES5**
 
-Run: `grep -nE '=>|\bclass |\`|\.\.\.[a-zA-Z]' tests/e2e-libs/artifacts/rxjs/usage-global/bundle.js | head`
+Run: ``grep -nE '=>|\bclass |`|\.\.\.[a-zA-Z]' tests/e2e-libs/artifacts/rxjs/usage-global/bundle.js | head``
 Expected: no arrow functions / `class` / template literals from OUR code path (a few may appear inside string literals; the point is the executable code is ES5). If genuine ES5 syntax leaks appear in executable positions, widen Babel's `include` (rxjs must not be excluded).
 
 - [ ] **Step 4: Stage + (gated) commit**
