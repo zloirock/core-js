@@ -43,6 +43,7 @@ import {
   resolveCallArgument,
   resolveFallbackReceiver,
   synthVarHoistBinding,
+  unwrapExportedDeclaration,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
@@ -168,7 +169,11 @@ function findTSImportEqualsDeclaration(path, name) {
     const body = Array.isArray(cur.node?.body) ? cur.node.body : cur.node?.body?.body;
     if (!Array.isArray(body)) continue;
     for (const stmt of body) {
-      if (stmt?.type === 'TSImportEqualsDeclaration' && stmt.id?.name === name) return stmt;
+      // peel the `export import X = require()` wrapper (ExportNamedDeclaration) - the runtime
+      // declaration sits in `.declaration`. mirrors the shadow-binding walk (`getTSRuntimeBindings`);
+      // without it the exported form's mutation / interop receiver goes unrecognised
+      const decl = unwrapExportedDeclaration(stmt);
+      if (decl?.type === 'TSImportEqualsDeclaration' && decl.id?.name === name) return decl;
     }
   }
   return null;
@@ -776,7 +781,14 @@ function makeFrameScope(parentScope, localDecls) {
       if (!binding) {
         binding = {
           constant: local.constant,
-          path: makeSynthPath({ node: local.node, parent: null, parentKey: null, parentPath: null, scope: frame }),
+          // a synthetic VariableDeclaration parent surfaces the declaration KIND (`var`/`let`/
+          // `const`) - the self-ref-var guard reads `path.parent.kind`, and a null parent left it
+          // undefined, so `var Map = Map` in a decorator's inline function lost its global read
+          path: makeSynthPath({
+            node: local.node,
+            parent: local.kind ? { type: 'VariableDeclaration', kind: local.kind } : null,
+            parentKey: null, parentPath: null, scope: frame,
+          }),
         };
         bindingCache.set(local, binding);
       }
@@ -863,7 +875,7 @@ function collectFunctionLocals(fnNode) {
       const scopeEnd = isVar ? fnEnd : blockEnd;
       const constant = node.kind === 'const';
       for (const d of node.declarations) {
-        addPatternLocals(locals, d.id, { constant, node: d, blockStart: scopeStart, blockEnd: scopeEnd });
+        addPatternLocals(locals, d.id, { constant, kind: node.kind, node: d, blockStart: scopeStart, blockEnd: scopeEnd });
       }
     } else if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
       // ClassDeclaration is block-scoped (strict mode); ClassExpression doesn't bind
