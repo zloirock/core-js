@@ -821,7 +821,13 @@ export function createUsageVisitors({
       if (!site) return;
       if (!key) return emitPropUsage(null, path);
       const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
-      const meta = buildDestructuringInitMeta({ initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path });
+      // anchor BOTH scope AND path at the call site: the receiver arg lives there, and the adapter's
+      // var-hoist / Annex-B / TS-runtime shadow fallback keys on `path` - leaving it at the USE path
+      // (inside the IIFE body) stops the function-scope walk at the IIFE boundary, missing a call-site
+      // shadow. matches the with-default sibling (8e18d8e0df) and the unplugin twin
+      const meta = buildDestructuringInitMeta({
+        initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path: site.callPath ?? path,
+      });
       emitPropUsage(meta, path);
       return;
     } else return;
