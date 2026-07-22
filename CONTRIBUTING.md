@@ -186,6 +186,15 @@ You can run parts of the test case separately:
   npm run test-transpiler-integration   # every supported bundler across methods and phases, runtime-verified
   npm run test-transpiler-perf          # complexity-class gates over real packages and synthetic worst-case shapes
   ```
+- Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js and CodeMirror. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes.
+  ```sh
+  npm run e2e-libs                      # the asserting runners: check-exercise -> snapshot -> artifacts
+  npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)
+  npm run e2e-libs-snapshot             # injection baselines vs tests/e2e-libs/snapshots (-- --update to rewrite)
+  npm run e2e-libs-artifacts            # ES5 UMD + self-checking HTML under Babel 7 and 8, with a node pre-flight
+  npm run e2e-libs-pipeline             # size/time per build stage -> tests/e2e-libs/report/pipeline.md (report only)
+  npm run e2e-libs-throughput           # unplugin overhead across the bundlers -> report/throughput.md (report only)
+  ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```sh
   npx run-s prepare bundle

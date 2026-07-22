@@ -2,18 +2,26 @@
 //   - method/phase enumeration and unplugin option construction
 //   - temp-entry generation (entries live UNDER this dir so bare `rxjs`/`core-js` imports resolve)
 //   - throughputBuilders: one per bundler, returns { bytes }, does NOT execute (measures processing)
-//   - runtimeBuild: rollup + Babel (syntax->ES5, both Babel 7 and 8) + unplugin(post) (stdlib), UMD
-//   - captureInjections: which core-js/@core-js/pure specifiers unplugin emits (bundler-invariant)
+//   - runtimeBuild: rollup + Babel (syntax->ES5, both Babel 7 and 8) + unplugin (post for usage-*,
+//     pre for entry-global) (stdlib), UMD
+//   - captureInjections: which core-js/@core-js/pure specifiers unplugin emits — via rollup ONLY,
+//     so a runner must not read it as what some other bundler emitted
+//   - reporting helpers shared by the runners: wireSize (minify+gzip), errorReason (one-line)
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import unplugin from '@core-js/unplugin';
+import { build as esbuildBuild, transform as esbuildTransform } from 'esbuild';
+import { parse as acornParse } from 'acorn';
 import { createRequire } from 'node:module';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 
-export const HERE = dirname(fileURLToPath(import.meta.url));
+const gzipP = promisify(gzip);
+
+export const HERE = import.meta.dirname;
 const TMP = join(HERE, '.tmp');
 
 export const METHODS = ['entry-global', 'usage-global', 'usage-pure'];
@@ -46,7 +54,7 @@ export async function withEntry(exerciseAbs, method, label, fn) {
 
 async function withTmpOut(fn) {
   await mkdir(TMP, { recursive: true });
-  const dir = join(TMP, `out-${ process.hrtime.bigint() }`);
+  const dir = join(TMP, `out-${ process.pid }-${ process.hrtime.bigint() }`);
   await mkdir(dir, { recursive: true });
   try {
     return await fn(dir);
@@ -79,8 +87,8 @@ export const throughputBuilders = {
     });
   },
   async esbuild(entry, plugin) {
-    const { build } = await import('esbuild');
-    const result = await build({ entryPoints: [entry], plugins: [plugin].filter(Boolean), bundle: true, write: false, format: 'esm', platform: 'node' });
+    // no lazy import here: this module already loads esbuild statically for `wireSize`
+    const result = await esbuildBuild({ entryPoints: [entry], plugins: [plugin].filter(Boolean), bundle: true, write: false, format: 'esm', platform: 'node' });
     return { bytes: Buffer.byteLength(result.outputFiles[0].text) };
   },
   async vite(entry, plugin) {
@@ -177,14 +185,32 @@ const babelToolchains = {};
 function babelToolchain(version) {
   if (!babelToolchains[version]) {
     const req = version === '8' ? require8 : require7;
-    babelToolchains[version] = { core: req('@babel/core'), preset: req.resolve('@babel/preset-env') };
+    const core = req('@babel/core');
+    // `babel8/node_modules` is gitignored and installed by this suite's `postinstall`, not by zxi
+    // (which only installs the runner's own directory). If that install is missing, `createRequire`
+    // does NOT fail - node resolution walks up and quietly finds the suite's own @babel/core@7, so
+    // every `babel8` artifact would be built by Babel 7 and the dual-Babel tier would silently
+    // become a tautology. Assert the major we actually got.
+    const [major] = String(core.version).split('.', 1);
+    if (major !== version) {
+      throw new Error(`Babel ${ version } toolchain resolved to @babel/core@${ core.version } — `
+        + 'run `npm install` in tests/e2e-libs (its postinstall installs tests/e2e-libs/babel8)');
+    }
+    babelToolchains[version] = { core, preset: req.resolve('@babel/preset-env') };
   }
   return babelToolchains[version];
 }
 
 // A rollup transform that down-compiles syntax to ES5 with a specific Babel core + preset-env.
 // core-js internals are already ES5, so skip them (unplugin still injects them, unbabeled).
-const BABEL_EXCLUDE = [/[/\\]core-js(?:-pure)?[/\\]/, /[/\\]@core-js[/\\]/];
+//
+// The package boundary (`node_modules/` or `packages/`) is load-bearing, not decoration. Matching a
+// bare `/core-js/` anywhere in the absolute module id also matches the CHECKOUT DIRECTORY - and
+// `git clone` of this repo produces exactly that name - which excluded every module in the graph,
+// silently reducing the whole ES5 down-compile to a no-op while `injections > 0` still held and the
+// pre-flight (a modern node realm) still passed. Every cell printed green with exit 0. This checkout
+// happens to be named `core-js-v4`, which is the only reason it was not visible here.
+const BABEL_EXCLUDE = [/[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\][^/\\]+)[/\\]/];
 function babelSyntaxPlugin(core, preset) {
   return {
     name: 'e2e-babel-syntax',
@@ -206,37 +232,89 @@ export function makeBabelPlugin(babelVersion = '7') {
   return babelSyntaxPlugin(core, preset);
 }
 
+// A rollup `onwarn` used by `runtimeBuild`, `captureInjections` and every build pipeline.mjs makes
+// (its `timedBuild` covers stages [A]/[B]/[C] and the warm-up). It exists for the builds gated on
+// unplugin's injections landing: swallowing UNRESOLVED_IMPORT there is not
+// tidiness, it is the failure mode: rollup turns the unresolved specifier into an external
+// `require(...)`, so the polyfill leaves the bundle while the node pre-flight still passes (node
+// resolves what rollup would not) and the operator uploads something dead on arrival in a browser.
+export function strictWarn(w) {
+  if (w.code === 'UNRESOLVED_IMPORT' || w.code === 'MISSING_EXPORT') throw new Error(`${ w.code }: ${ w.message }`);
+}
+
+// The other half of the same guard, and NOT covered by strictWarn. rollup DOES warn about an
+// externalised node builtin - MISSING_NODE_BUILTINS and MISSING_GLOBAL_NAME - but strictWarn only
+// throws on UNRESOLVED_IMPORT / MISSING_EXPORT and drops every other code without a word, so the
+// warning goes nowhere. An externalised specifier is a `require(...)` in the UMD header: fine in
+// node, fatal in the browser these bundles exist for. Called by runtimeBuild and by pipeline's
+// timedBuild (so [A]/[B]/[C] and the warm-up all get it), which is what stops the two builds that
+// publish "the real IE11 bundle" drifting apart - they already did once, with only runtimeBuild
+// carrying the check.
+export function assertNoExternals(chunk, label) {
+  if (chunk.imports.length) {
+    throw new Error(`${ label }: bundle left ${ chunk.imports.length } import(s) external: ${ chunk.imports.join(', ') }`);
+  }
+}
+
+// How many bytes of core-js actually reached the chunk. The injection COUNT cannot answer this: the
+// recorder matches specifier text, which survives in the module source even when rollup then drops
+// the module entirely. Flipping `sideEffects` to false in the pinned core-js is enough to do that -
+// every side-effect-only polyfill import is tree-shaken away, the bundle loses ~87% of its bytes,
+// and a count-based gate still reads a healthy 318. throughput.mjs catches that shape by comparing
+// against a plugin-less baseline; measuring the chunk's own module table works for every method and
+// needs no second build to compare against.
+// Smallest real payload measured across the suite is ~218 KB (codemirror/usage-pure).
+const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\])/;
+export function assertPayload(chunk, label, min = 10_000) {
+  const bytes = Object.entries(chunk.modules)
+    .filter(([id]) => CORE_JS_MODULE.test(id))
+    .reduce((n, [, m]) => n + m.renderedLength, 0);
+  if (bytes < min) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
+}
+
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel
 // `babelVersion` ('7' | '8'). usage-* build at phase 'post', entry-global at no phase. Ordering
 // matters: raw Rollup ignores the plugin-level `enforce:'post'` field (that is a Vite/webpack-family
-// concept), but it DOES honour the hook-level `order` that unplugin sets on its transform, so for
-// `phase: 'post'` unplugin runs after Babel by declaration; listing babel FIRST keeps array order
-// agreeing with that. Either way unplugin runs LAST, so its injection sees babel's helper output.
+// concept), but it DOES honour the hook-level `order` that unplugin sets on its transform. For
+// `usage-*` that order is 'post', so unplugin runs AFTER babel and its injection sees babel's helper
+// output; listing babel FIRST just keeps array order agreeing with that. `entry-global` is the
+// exception - unplugin pins it to order 'pre' regardless (see @core-js/unplugin), so there it runs
+// BEFORE babel. That is fine: entry-global only expands `import 'core-js'` and needs no helper output.
+//
+// Returns `{ code, injections }`, both observed inside THIS build: counting injections with a
+// separate `captureInjections` pass would gate on a different unplugin configuration (different
+// phase, no Babel), so a build whose own injection had gone no-op would still show a healthy number.
+// What proves the ES5 down-compile ran is `assertES5(code)`, which every caller runs.
 export async function runtimeBuild(exerciseAbs, method, babelVersion = '7') {
   const effPhase = method === 'entry-global' ? undefined : 'post';
   return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
+    const sink = new Set();
     const build = await rollup({
       input: entry,
-      plugins: [makeBabelPlugin(babelVersion), nodeResolve(), commonjs(), u('rollup', method, effPhase)],
-      onwarn() { /* ignore bundler warnings */ },
+      plugins: [makeBabelPlugin(babelVersion), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink)],
+      onwarn: strictWarn,
     });
     try {
       const { output } = await build.generate({ format: 'umd', name: 'E2E', esModule: false });
-      return output[0].code;
+      const [chunk] = output;
+      const label = `${ method }/babel${ babelVersion }`;
+      assertNoExternals(chunk, label);
+      assertPayload(chunk, label);
+      return { code: chunk.code, injections: sink.size };
     } finally {
       await build.close();
     }
   });
 }
 
-// -------- injection recorder (bundler-invariant set) --------
+// -------- injection recorder (rollup-derived set; NOT what another bundler emitted) --------
 const SPEC_RE = /(?:from|import|require\()\s*["'](?<spec>(?:core-js|@core-js\/pure)\/[^"']+)["']/g;
 // The recorder must observe each module AFTER unplugin has injected into it. unplugin declares its
 // transform in object form with an explicit `order` ('post' for `phase: 'post'`), which raw Rollup
 // DOES honour - so array position alone is not enough: an unordered recorder would run first and
 // see nothing. Declaring the recorder `order: 'post'` too puts it in the same bucket, where array
 // order decides, and it is listed after unplugin.
-function recorder(sink) {
+export function recorder(sink) {
   return {
     name: 'injection-recorder',
     transform: {
@@ -252,7 +330,7 @@ function recorder(sink) {
 export async function captureInjections(exerciseAbs, method, phase) {
   return withEntry(exerciseAbs, method, `snap-${ method }-${ phase ?? 'x' }`, async entry => {
     const sink = new Set();
-    const build = await rollup({ input: entry, plugins: [u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn() { /* ignore bundler warnings */ } });
+    const build = await rollup({ input: entry, plugins: [u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn: strictWarn });
     try {
       await build.generate({ format: 'es' });
       return [...sink].sort();
@@ -260,4 +338,46 @@ export async function captureInjections(exerciseAbs, method, phase) {
       await build.close();
     }
   });
+}
+
+// -------- shared gates and reporting helpers --------
+// Assert a bundle really is ES5. This is the only check that verifies the runtime tier's premise
+// rather than a proxy for it: the node pre-flight runs in a modern realm and the browser page in a
+// modern browser, so a bundle that skipped the down-compile passes everything else.
+//
+// It must PARSE, not transform. esbuild's `target: 'es5'` LOWERS what it can and only throws for
+// what it cannot, so it happily accepts arrows, template literals, `?.`, `??` and `**` — all of
+// which are SyntaxErrors in IE11. An earlier version of this gate used it and looked like it worked
+// only because the sample happened to contain `const`. acorn at `ecmaVersion: 5` answers the actual
+// question: does an ES5 parser accept this text.
+export function assertES5(code, label) {
+  try {
+    acornParse(code, { ecmaVersion: 5 });
+  } catch (err) {
+    throw new Error(`${ label }: bundle is not ES5 — ${ err.message }`);
+  }
+}
+
+// "wire size" of a bundle: minify (esbuild, keeps ES5) + gzip — what you'd actually ship. Shared so
+// pipeline.md and artifacts/manifest.json cannot drift apart if the minify settings ever change.
+export async function wireSize(code, label = 'wire size') {
+  // `target: 'es5'` is load-bearing, not cosmetic: without it esbuild minifies to esnext and emits
+  // e.g. optional catch bindings, so the published "wire size" would describe a bundle that cannot
+  // load in the very engine the artifact targets (and would understate it by ~400 bytes). Parse what
+  // is actually measured rather than trusting the option: this number is published to manifest.json
+  // and pipeline.md as shippable, so it carries the same ES5 premise the bundle itself does.
+  const minText = (await esbuildTransform(code, { minify: true, legalComments: 'none', target: 'es5' })).code;
+  assertES5(minText, `${ label } (minified)`);
+  const min = Buffer.from(minText);
+  return { min: min.length, gz: (await gzipP(min)).length };
+}
+
+// Turn an unknown throwable into one console-width line. Child-process failures carry the real
+// reason on stderr, not on `message` (which is just "Command failed: ..."), and node prints the
+// offending `file:line` BEFORE the actual `TypeError: ...` — so prefer the first line that names an
+// error and fall back to the first line at all.
+const REASON_MAX = 200; // one terminal row; long enough for a stack's first frame
+export function errorReason(err) {
+  const lines = String(err?.stderr || err?.message || err).split('\n').map(l => l.trim()).filter(Boolean);
+  return (lines.find(l => /^\w*(?:Error|Exception)\b/.test(l)) ?? lines[0] ?? '').slice(0, REASON_MAX);
 }
