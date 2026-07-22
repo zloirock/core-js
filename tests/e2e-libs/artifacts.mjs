@@ -6,24 +6,29 @@
 // The pre-flight runs each bundle in a FRESH child node process (isolation: core-js mode:full
 // permanently patches globals, so running methods in the same process would let one method's
 // injection mask another's missing one). It is NOT a stripped realm - native stdlib is present -
-// so it proves the bundle executes and computes correctly, and the `injections > 0` gate catches a
-// total unplugin no-op; it cannot prove every individual polyfill is load-bearing (that needs a
-// stripped realm / real IE11 - the manual BrowserStack step).
-import { runtimeBuild, captureInjections, BABEL_VERSIONS, HERE } from './build.mjs';
+// so it proves the bundle executes and computes correctly. Several gates cover what it cannot: the
+// bundle and its MINIFIED form (the wire size manifest.json publishes as shippable) must parse as
+// ES5; `assertPayload` (inside `runtimeBuild`) requires real core-js BYTES in the chunk, since
+// `injections > 0` only proves the specifier TEXT was seen and that survives tree-shaking; nothing
+// may be left external; and the pre-flight must come back with a non-empty `checks`. The generated
+// in-page harness is parsed once at load rather than per cell (see below). The authoritative list is
+// spec §9 - deliberately kept in ONE place, because maintaining a count here as well is what once
+// produced three documents with three different numbers. None of this proves every individual
+// polyfill is load-bearing (that needs a stripped realm / real IE11 - the manual BrowserStack step).
+import { runtimeBuild, assertES5, wireSize, errorReason, BABEL_VERSIONS, HERE } from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
-import { transform as esbuildTransform } from 'esbuild';
 import { execFile } from 'node:child_process';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { gzip } from 'node:zlib';
 
 const execFileP = promisify(execFile);
-const gzipP = promisify(gzip);
-const [libFilter] = runnerArgs(import.meta.url);
-const libs = librariesIn('runtime').filter(l => !libFilter || l.name === libFilter);
-if (!libs.length) throw new Error(`no runtime library matches filter '${ libFilter }'`);
+// surplus positionals are rejected, not dropped: `artifacts.mjs three usage-pure` is a natural
+// thing to type (pipeline.mjs does take that pair) and would otherwise build all three methods
+const [libFilter, ...surplus] = runnerArgs(import.meta.url);
+if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } — artifacts.mjs takes only [libFilter]`);
+const libs = librariesIn('runtime', libFilter);
 const ART = join(HERE, 'artifacts');
 const TMP = join(HERE, '.tmp');
 
@@ -35,11 +40,22 @@ const PREFLIGHT = 'const m = require(process.argv[1]); const run = m.run || (m.d
 // Run a UMD bundle in a fresh node process (full realm, isolated) and return its `run()` checks.
 async function preflight(code) {
   await mkdir(TMP, { recursive: true });
-  const f = join(TMP, `preflight-${ process.hrtime.bigint() }.cjs`);
+  // pid as well as hrtime: hrtime reads the same monotonic clock in every process, so two concurrent
+  // runs sharing this checkout could land on one path — and this file is executed, not just read
+  const f = join(TMP, `preflight-${ process.pid }-${ process.hrtime.bigint() }.cjs`);
   await writeFile(f, code);
   try {
-    const { stdout } = await execFileP(process.execPath, ['-e', PREFLIGHT, f]);
-    return JSON.parse(stdout);
+    // A bundle whose `run()` never settles (a plausible symptom of a broken Promise polyfill) lets
+    // the child's event loop drain and exit 0 with EMPTY stdout, so without these guards the failure
+    // surfaces as a bare `Unexpected end of JSON input` that names neither the child nor the bundle.
+    const { stdout } = await execFileP(process.execPath, ['-e', PREFLIGHT, f],
+      { timeout: 120_000, maxBuffer: 16 * 1024 * 1024 });
+    if (!stdout.trim()) throw new Error('preflight child produced no output — run() likely never settled');
+    try {
+      return JSON.parse(stdout);
+    } catch {
+      throw new Error(`preflight stdout is not JSON: ${ stdout.slice(0, 200) }`);
+    }
   } finally {
     await rm(f, { force: true });
   }
@@ -49,30 +65,22 @@ function esc(s) {
   return String(s).replaceAll(/["&'<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function html(title, method, checks) {
-  const rows = checks.map(c => `<tr class="${ c.pass ? 'ok' : 'bad' }"><td>${ esc(c.label) }</td><td>${ c.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
-  const failing = checks.filter(c => !c.pass).length;
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><title>e2e-libs ${ esc(title) }/${ esc(method) }</title>
-<style>
-  body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:720px}
-  #banner{padding:1rem;border-radius:8px;font-weight:700;font-size:18px;color:#fff}
-  .green{background:#166534}.red{background:#991b1b}.wait{background:#525252}
-  table{border-collapse:collapse;margin-top:1rem;width:100%}
-  td{border:1px solid #ccc;padding:4px 8px}
-  tr.ok td:nth-child(2){color:#166534;font-weight:700}
-  tr.bad td:nth-child(2){color:#991b1b;font-weight:700}
-</style></head>
-<body>
-  <h1>${ esc(title) } — <code>${ esc(method) }</code></h1>
-  <div id="banner" class="wait">running…</div>
-  <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
-  <table id="tbl"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
-  <script src="bundle.js"></script>
-  <script>
+// The in-page harness, as a standalone program so `assertES5` can parse it. It is hand-written ES5
+// and nothing used to check that: a single arrow function slipping in here is a SyntaxError in IE11,
+// which leaves the banner stuck on `running…` with no verdict and no signal anywhere — on the one
+// page a real IE11 result ever comes from. `expected` is the pre-flight count, baked in so an
+// exercise returning fewer checks than it did in node cannot paint the page green.
+function harnessJs(expected) {
+  return `
+    var EXPECTED = ${ expected };
     function render(res) {
-      var checks = res.checks, bad = checks.filter(function (c) { return !c.pass; });
+      var checks = (res && res.checks) || [], bad = checks.filter(function (c) { return !c.pass; });
       var b = document.getElementById('banner');
+      if (checks.length !== EXPECTED) {
+        b.className = 'red';
+        b.textContent = 'FAIL — got ' + checks.length + ' checks, pre-flight recorded ' + EXPECTED;
+        return;
+      }
       b.className = bad.length ? 'red' : 'green';
       b.textContent = bad.length ? ('FAIL — ' + bad.length + '/' + checks.length + ' checks failed') : ('PASS — all ' + checks.length + ' checks green in this browser');
       var tbody = document.querySelector('#tbl tbody');
@@ -101,35 +109,57 @@ function html(title, method, checks) {
       if (res && typeof res.then === 'function') res.then(render).catch(showError);
       else render(res);
     } catch (err) { showError(err); }
-  </script>
-</body></html>
 `;
 }
 
-// The injection set is Babel-invariant (captureInjections runs no Babel), but capturing it is a full
-// rollup+unplugin build - ~20s on three - so memoize per (lib x method) instead of repeating it for
-// every Babel version. Called from inside buildCell's try, so a capture failure stays cell-isolated.
-const injectionCounts = new Map();
-async function injectionsFor(lib, method) {
-  const key = `${ lib.name }|${ method }`;
-  if (!injectionCounts.has(key)) injectionCounts.set(key, (await captureInjections(lib.exercise, method)).length);
-  return injectionCounts.get(key);
+// Gated once at load, not per cell: the only per-cell variation is the numeric literal EXPECTED, so
+// every page is parse-equivalent to this one. Keep it that way - interpolating anything but a number
+// here would put text on the page that this parse never saw.
+assertES5(harnessJs(0), 'browser harness');
+
+function html(title, method, checks) {
+  const rows = checks.map(c => `<tr class="${ c.pass ? 'ok' : 'bad' }"><td>${ esc(c.label) }</td><td>${ c.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
+  const failing = checks.filter(c => !c.pass).length;
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>e2e-libs ${ esc(title) }/${ esc(method) }</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:720px}
+  #banner{padding:1rem;border-radius:8px;font-weight:700;font-size:18px;color:#fff}
+  .green{background:#166534}.red{background:#991b1b}.wait{background:#525252}
+  table{border-collapse:collapse;margin-top:1rem;width:100%}
+  td{border:1px solid #ccc;padding:4px 8px}
+  tr.ok td:nth-child(2){color:#166534;font-weight:700}
+  tr.bad td:nth-child(2){color:#991b1b;font-weight:700}
+</style></head>
+<body>
+  <h1>${ esc(title) } — <code>${ esc(method) }</code></h1>
+  <div id="banner" class="wait">running…</div>
+  <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
+  <table id="tbl"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
+  <script src="bundle.js"></script>
+  <script>${ harnessJs(checks.length) }  </script>
+</body></html>
+`;
 }
 
 // Build + pre-flight one (lib x method x Babel version) cell. Returns its manifest entry and `ok`.
 async function buildCell(lib, method, babelVersion) {
   const label = `${ lib.name }/babel${ babelVersion }/${ method }`;
   try {
-    const code = await runtimeBuild(lib.exercise, method, babelVersion); // usage-* build at phase 'post'
-    const injections = await injectionsFor(lib, method);
+    // `injections` is recorded inside this very build. Counting it with a separate captureInjections
+    // pass would gate on a different unplugin configuration (that pass runs at the default phase and
+    // without Babel), so a build whose own injection had silently become a no-op would still show a
+    // healthy number - and the pre-flight, which runs in a full node realm, would stay green too.
+    const { code, injections } = await runtimeBuild(lib.exercise, method, babelVersion);
     if (!injections) throw new Error('unplugin injected 0 polyfills — preflight would validate nothing');
+    // the artifact's whole premise is "ES5 for IE11", and nothing else here would notice if it were
+    // not: the pre-flight runs in a modern node realm, and the browser page in a modern browser
+    assertES5(code, label);
     const checks = await preflight(code);
     if (!checks.length) throw new Error('exercise produced 0 checks — nothing verified');
     const bad = checks.filter(c => !c.pass);
     const bytes = Buffer.byteLength(code);
-    // "wire size": minify (esbuild, keeps ES5) + gzip — what you'd actually ship, vs the raw bundle
-    const minBuf = Buffer.from((await esbuildTransform(code, { minify: true, legalComments: 'none' })).code);
-    const gz = (await gzipP(minBuf)).length;
+    const { min, gz } = await wireSize(code, label);
     const rel = join(lib.name, `babel${ babelVersion }`, method);
     const dir = join(ART, rel);
     await mkdir(dir, { recursive: true });
@@ -139,27 +169,34 @@ async function buildCell(lib, method, babelVersion) {
     for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
     return {
       ok: !bad.length,
-      entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, min: minBuf.length, gz, injections, checks: checks.length, preflightFailing: bad.length },
+      entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, min, gz, injections, checks: checks.length, preflightFailing: bad.length },
     };
   } catch (err) {
-    // child-process failures carry the real reason on stderr, not message ("Command failed: ...").
-    // node prints the offending `file:line` FIRST and the actual `TypeError: ...` several lines
-    // later, so take the first line that names an error and only fall back to the first line.
-    const text = err.stderr || err.message || String(err);
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    const reason = (lines.find(l => /^\w*(?:Error|Exception)\b/.test(l)) ?? lines[0] ?? '').slice(0, 200);
+    const reason = errorReason(err);
     console.log(`✗ ${ label }: ${ reason }`);
     return { ok: false, entry: { lib: lib.name, babel: babelVersion, method, error: reason } };
   }
 }
 
+// Cells are only written on the success path, so without a wipe a cell that fails leaves yesterday's
+// all-green page on disk while the manifest records the failure — and the operator is told below to
+// upload whatever is in those directories. An unfiltered run therefore clears everything; a filtered
+// one clears only what it is about to rebuild, and merges into the existing manifest below, so the
+// manifest never stops describing the libraries actually present on disk.
 const manifest = [];
 let failed = 0;
+if (libFilter) {
+  for (const lib of libs) await rm(join(ART, lib.name), { recursive: true, force: true });
+} else {
+  await rm(ART, { recursive: true, force: true });
+}
 for (const lib of libs) {
   for (const method of lib.methods) {
     // one artifact per (method x Babel version): both Babel majors are down-compiled and pre-flighted
-    // to match the repo's dual-Babel convention. Output is byte-identical for these fixtures, but the
-    // post phase consumes Babel's helper output — where any 7-vs-8 helper divergence would surface.
+    // to match the repo's dual-Babel convention. Raw and minified SIZES come out identical for these
+    // fixtures, but the bytes only match on rxjs - codemirror and three differ in the order Babel
+    // emits its helpers. The post phase consumes that helper output, which is where a 7-vs-8
+    // divergence would surface.
     for (const babelVersion of BABEL_VERSIONS) {
       const { ok, entry } = await buildCell(lib, method, babelVersion);
       manifest.push(entry);
@@ -169,7 +206,17 @@ for (const lib of libs) {
 }
 
 await mkdir(ART, { recursive: true });
-await writeFile(join(ART, 'manifest.json'), `${ JSON.stringify(manifest, null, 2) }\n`);
+// a filtered run keeps the entries of the libraries it did not touch — their pages are still on disk
+const rebuilt = new Set(libs.map(l => l.name));
+let previous = [];
+if (libFilter) {
+  try {
+    previous = JSON.parse(await readFile(join(ART, 'manifest.json'), 'utf8')).filter(e => !rebuilt.has(e.lib));
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err; // a corrupt manifest must not be silently discarded
+  }
+}
+await writeFile(join(ART, 'manifest.json'), `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
 console.log(`\nartifacts → ${ ART }\nmanifest → ${ join(ART, 'manifest.json') }`);
 console.log('Upload each <lib>/babel{7,8}/<method>/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for the real-engine check.');
 if (failed) process.exitCode = 1;

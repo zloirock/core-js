@@ -20,6 +20,7 @@
 @core-js/pure/full/regexp/instance/flags
 @core-js/pure/full/set/constructor
 @core-js/pure/full/string/from-code-point
+@core-js/pure/full/string/instance/repeat
 @core-js/pure/full/symbol/constructor
 @core-js/pure/full/symbol/iterator
 @core-js/pure/full/weak-map/constructor
