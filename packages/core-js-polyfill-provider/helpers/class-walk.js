@@ -53,6 +53,16 @@ export function isAliasProxyRoot(rootNode, aliasCtx) {
   return !!aliasCtx && !!rootNode && !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name);
 }
 
+// the scope an alias's init / next hop is canonical in: the binding's OWN declaration scope, not the
+// use site - a later hop reading an outer-declared name must not bind to an inner shadow of it. the
+// detect-usage adapter surfaces the declaration scope on `binding.scope` (its path carries no scope),
+// the raw babel binding on `binding.path.scope`; falls back to the use scope when neither is present.
+// single source so no hop site can drop the `binding.scope` arm (the gap that under-resolved an
+// alias-hop chain under a shadowed receiver)
+function aliasDeclScope(binding, scope) {
+  return binding.path?.scope ?? binding.scope ?? scope;
+}
+
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
@@ -212,7 +222,7 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
     const peeled = peelArrayWrapBindingLayers(decl.id, decl.init, name);
     if (peeled?.id?.type !== 'ObjectPattern') return null;
     const keyPath = objectPatternLiteralKeyPath(peeled.id, name);
-    const leaf = destructuredGlobalKeyPathLeaf(peeled.init, keyPath, binding.path?.scope ?? scope, adapter,
+    const leaf = destructuredGlobalKeyPathLeaf(peeled.init, keyPath, aliasDeclScope(binding, scope), adapter,
       new Set(seen).add(binding.node ?? binding));
     return leaf !== null && isPristineProxyGlobal(adapter, leaf) ? leaf : null;
   }
@@ -222,7 +232,7 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root
   if (init?.type === 'MemberExpression' || init?.type === 'OptionalMemberExpression') {
     const leaf = globalProxyMemberName({
-      node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path,
+      node: init, scope: aliasDeclScope(binding, scope), adapter, path: binding.path ?? path,
       seen: new Set(seen).add(binding.node ?? binding),
     });
     return isPristineProxyGlobal(adapter, leaf) ? leaf : null;
@@ -232,7 +242,7 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   // order proofs there, not at the outer use the caller carried (`readNode` rides the
   // declarator NODE for adapters whose bindings surface no path)
   return proxyGlobalRootName({
-    node: init, scope: binding.path?.scope ?? scope, adapter, path: binding.path ?? path,
+    node: init, scope: aliasDeclScope(binding, scope), adapter, path: binding.path ?? path,
     seen: new Set(seen).add(binding.node ?? binding), usageNode: binding.path ?? usageNode, readNode: decl,
   });
 }
@@ -826,7 +836,7 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
   const declNode = binding.node ?? declarator;
   if (seen?.has(declNode) || reassignmentBlocksGlobalResolve({ binding, adapter, path: null })) return false;
   const next = new Set(seen).add(declNode);
-  const nextScope = binding.path?.scope ?? scope;
+  const nextScope = aliasDeclScope(binding, scope);
   const hopCtx = hopAnchoredCtx(keyCtx, binding);
   if (declarator.id?.type === 'Identifier') {
     return aliasInitResolvesToSymbol(declarator.init, nextScope, adapter, injector, next, followDestructured, hopCtx);
@@ -1319,9 +1329,19 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       // polyfillHint wins: `handleDestructuredProperty` rewrites destructure-with-default
       // shapes in-place, so `binding.path.init` is unrecoverable. plugin adapters expose
       // via binding object; resolver-tier adapter via side-channel
-      const hint = adapter.getBinding?.(scope, name)?.polyfillHint
-        ?? adapter.getBindingPolyfillHint?.(scope, name);
-      if (hint) return hint;
+      const hintBinding = adapter.getBinding?.(scope, name);
+      const hint = hintBinding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, name);
+      if (hint) {
+        // usage-pure must not trust an assignment-form hint whose write ENDS after the capture read
+        // (`let P; class C extends P {...}; ({ Promise: P } = globalThis)` - the class captures P
+        // undefined pre-write). a narrow there un-throws the native undefined-base failure. shared
+        // gate with the canonical resolver; the super-class walk anchors the read at the class node
+        const readAnchor = classAnchor ?? path;
+        const readNode = readAnchor?.node ?? readAnchor ?? null;
+        if (adapter.method === 'usage-pure' && hintBinding
+          && !assignmentAliasHintSoundAtRead({ binding: hintBinding, adapter, readNode })) return null;
+        return hint;
+      }
       const binding = scope?.getBinding?.(name);
       // no binding: TS-runtime fallback (`enum X` / `namespace X` / `import X = require()`)
       // anchored on `path` - estree-toolkit's scope tracker misses these
@@ -1346,11 +1366,23 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         return injector.getPureImport?.(name) ? name : null;
       }
       if (decl?.type !== 'VariableDeclarator') return null;
+      // usage-pure must not resolve a conditional / non-dominating var init (`if (c) { var A =
+      // globalThis.Promise } class C extends A {...}`) - the super narrow would un-throw the native
+      // undefined-base access on the skipped path. shared dominance gate with the canonical resolver,
+      // anchored at the class capture point (extends evaluates the base at class-definition time)
+      if (adapter.method === 'usage-pure'
+        && !varInitDominatesUsage({ declaratorNode: decl, usagePath: classAnchor ?? path, kind: binding.kind })) return null;
       // upstream hops anchor their reassignment proofs at THIS declarator: the capture reads
       // the next binding here, so a reassignment AFTER the capture must not block (one
       // dominance policy with followLocalBindingToProxyGlobal)
       const captureAnchor = binding.path ?? classAnchor ?? path;
       const init = unwrapInitForResolution(decl.init);
+      // every init hop resolves in the alias's OWN declaration scope, not the super site's -
+      // `const MyP = R.Promise` reads `R` where `MyP` was declared, so an inner shadow of a
+      // receiver / intermediate name at the class site must not capture it (the missed-injection
+      // gap: `super.race` dropped `promise.race` under a shadow). mirrors the canonical resolver's
+      // `initScope` hop-threading in detect-usage/resolve.js
+      const declScope = aliasDeclScope(binding, scope);
       // ObjectPattern: `const { Promise: MyP } = R` -> `const MyP = R.Promise`. unplugin
       // keeps raw destructure; babel-plugin already rewrites it
       if (decl.id?.type === 'ObjectPattern') {
@@ -1361,23 +1393,25 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         // any other leaf (`globalThis.Reflect`) names an arbitrary member - short-circuiting
         // there dispatched a vendor slot (`Reflect.Map`) as the pristine global - so it falls
         // to the synthesized-member walk, which applies the hop rules and bails
-        if (isProxyGlobalIdentifierNode({ node: init, scope, adapter, path: captureAnchor })
-          || POSSIBLE_GLOBAL_OBJECTS.has(globalProxyMemberName({ node: init, scope, adapter, path: captureAnchor }))) return keyName;
+        const memberRoot = globalProxyMemberName({ node: init, scope: declScope, adapter, path: captureAnchor });
+        if (isProxyGlobalIdentifierNode({ node: init, scope: declScope, adapter, path: captureAnchor })
+          || POSSIBLE_GLOBAL_OBJECTS.has(memberRoot)) return keyName;
         return resolveBindingToGlobalName({
           type: 'MemberExpression',
           object: init,
           property: { type: 'Identifier', name: keyName },
           computed: false,
-        }, scope, seen, captureAnchor, captureAnchor);
+        }, declScope, seen, captureAnchor, captureAnchor);
       }
       if (init?.type === 'Identifier') {
         name = init.name;
+        scope = declScope;
         classAnchor = captureAnchor;
         continue;
       }
       // delegate proxy-global / namespace-member chains; share `seen` so namespace-member
       // recursion can't loop
-      return resolveBindingToGlobalName(init, scope, seen, captureAnchor, captureAnchor);
+      return resolveBindingToGlobalName(init, declScope, seen, captureAnchor, captureAnchor);
     }
     return null;
   }
