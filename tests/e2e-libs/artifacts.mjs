@@ -10,6 +10,7 @@
 // total unplugin no-op; it cannot prove every individual polyfill is load-bearing (that needs a
 // stripped realm / real IE11 - the manual BrowserStack step).
 import { runtimeBuild, captureInjections, BABEL_VERSIONS, HERE } from './build.mjs';
+import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
 import { transform as esbuildTransform } from 'esbuild';
 import { execFile } from 'node:child_process';
@@ -20,7 +21,7 @@ import { gzip } from 'node:zlib';
 
 const execFileP = promisify(execFile);
 const gzipP = promisify(gzip);
-const [libFilter] = process.argv.slice(2);
+const [libFilter] = runnerArgs(import.meta.url);
 const libs = librariesIn('runtime').filter(l => !libFilter || l.name === libFilter);
 if (!libs.length) throw new Error(`no runtime library matches filter '${ libFilter }'`);
 const ART = join(HERE, 'artifacts');
