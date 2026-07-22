@@ -56,6 +56,7 @@ core-js/modules/es.set.union
 core-js/modules/es.string.anchor
 core-js/modules/es.string.from-code-point
 core-js/modules/es.string.iterator
+core-js/modules/es.string.repeat
 core-js/modules/es.string.replace
 core-js/modules/es.string.split
 core-js/modules/es.symbol.constructor

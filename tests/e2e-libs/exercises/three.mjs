@@ -14,12 +14,9 @@ function arr(v, d = 3) {
 }
 
 export function run() {
-  const results = {};
   const checks = [];
   function check(label, actual, expected) {
-    results[label] = actual;
     checks.push({ label, actual, expected, pass: JSON.stringify(actual) === JSON.stringify(expected) });
-    return actual;
   }
 
   // --- vector / quaternion math ---
@@ -80,5 +77,5 @@ export function run() {
   mesh.getWorldPosition(worldPos);
   check('animated_world_pos', arr(worldPos, 2), [13, 2, -1]);
 
-  return { results, checks };
+  return { checks };
 }

@@ -2,7 +2,7 @@
   "name": "tests/e2e-libs-babel8",
   "private": true,
   "description": "Isolated Babel 8 toolchain for the e2e-libs runtime tier (kept separate so it doesn't collide with the suite's Babel 7 @babel/core).",
-  "dependencies": {
+  "devDependencies": {
     "@babel/core": "^8.0.0",
     "@babel/preset-env": "^8.0.0"
   }
