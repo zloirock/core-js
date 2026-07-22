@@ -19,8 +19,9 @@ topologies**, which is what actually drives unplugin's cost — see the note at 
   Its checks favour version-robust invariants (zero parse errors, incremental === full, ordered
   highlight spans, semantic names) over magic node totals, so a grammar bump doesn't redden the suite.
 
-  **Known-red:** `usage-pure` currently fails at runtime. This is a known `@core-js/unplugin` bug,
-  not a fixture bug — a fix is expected on the `v4` branch. `entry-global` and `usage-global` pass.
+  This fixture is what surfaced the `usage-pure` `new`-expression bug in `@core-js/unplugin`
+  (`new Foo(bar.name)` had its injected getter wrapper re-wrapped as a constructor call). Fixed on
+  `v4`; all three methods pass.
 
 - **pipeline** — the full picture: **size AND time at each stage** of the real IE11 build, per
   (lib × method). Stages: `[A]` library bundled, no transforms → `[B]` + Babel (ES5, no polyfills) →
@@ -31,14 +32,16 @@ topologies**, which is what actually drives unplugin's cost — see the note at 
 - **throughput** — isolate unplugin's processing cost across the bundlers (unplugin only, **no Babel**;
   overhead = build-with-plugin − plugin-less baseline). A diagnostic — **not** the IE11 build cost
   (that's `[C]` in `pipeline`, which is Babel + unplugin and slower).
-  `npm run e2e-libs-throughput [-- libFilter bundlerFilter --full]` → `report/throughput.md` + `.json`
+  `npm run e2e-libs-throughput [-- libFilter bundlerFilter]` → `report/throughput.md` + `.json`
   Every cell is a **single** build — no repeat/median axis. The suite looks for whole-second
   differences while run-to-run noise is tens of ms, so repeats cost more than they buy; read the
   numbers as indicative magnitudes, not as a benchmark.
-  Two profiles. **Default = smoke** (~2 min): fast libs on all bundlers, slow libs (three) on
-  **rollup only**, phase `post` only. **`--full`**: every bundler × every phase. The exhaustive
-  matrix showed the overhead is ~invariant across bundlers and that `pre+post ≈ 2× post`, so the
-  smoke drops exactly those re-proven dimensions; reach for `--full` only to re-characterise.
+  One profile: the whole matrix, every bundler × every phase — **147 cells, ~3.5 min**. It used to
+  hide behind a `--full` flag with a trimmed default, back when the matrix cost ~50 min; that was
+  almost all `three`, which `v4` made ~40x cheaper. Re-measuring also sank the two claims the
+  trimming rested on — overhead is *not* bundler-invariant (up to 14x spread on rxjs, 5.4x on
+  codemirror; only `three` is flat at 1.8x) and `pre+post` is ~1.3x a single phase, not ~2x. Only
+  `pre ≈ post` survived. Nothing left to justify dropping dimensions, so all of them run.
   (7 bundlers: rollup/rolldown/esbuild/vite/webpack/rspack/rsbuild — farm is excluded because its
   native compiler hard-crashes on the workspace v4 core-js modules; see `build.mjs`.)
 - **artifacts** — the real IE11 build: Babel (syntax → ES5) + unplugin (stdlib polyfills) → ES5 UMD +
@@ -75,18 +78,22 @@ libraries whose sole legacy barrier is syntax + stdlib.
 
 **Why the fixtures differ in module topology.** unplugin's usage-mode cost is driven by the size of
 the *individual module*, not by total code volume: the scope/variable resolution it runs is
-superlinear **within** a module, so the same bytes spread across a graph are far cheaper than the same
+superlinear **within** a module, so the same bytes spread across a graph are cheaper than the same
 bytes in one file. Measured at stage `[B]` (the actual input unplugin sees in an IE11 build):
 
-| fixture | topology | `[B]` size | unplugin time |
-| --- | --- | --- | --- |
-| rxjs | many small modules | 115 KB | 0.4 s |
-| codemirror | deep graph of mid-sized modules | 497 KB | **1.0 s** |
-| three | one ~1.4 MB monolith | 647 KB | **24.5 s** |
+| fixture | topology | `[B]` size | largest module | unplugin time |
+| --- | --- | --- | --- | --- |
+| rxjs | many small modules | 115 KB | small | 0.3 s |
+| codemirror | deep graph of mid-sized modules | 497 KB | 142 KB | 0.4 s |
+| three | one ~1.4 MB monolith | 647 KB | 1409 KB | **1.5 s** |
 
-1.3x the bytes, ~25x the time. (Same-run figures — `pipeline.mjs` is single-run, and codemirror
-measures ~2.6 s when run alone vs ~1.0 s after rxjs has warmed the JIT. three lands at 22–26 s
-either way, so the order of magnitude is not a measurement artefact.)
+three costs 1.3x codemirror's bytes but ~3.7x its time. The effect is real and still worth a fixture,
+but it is no longer dramatic: it used to be **24.5 s** for that same row — ~25x codemirror rather
+than ~3.7x — until `v4` reworked the resolution. Feeding the 647 KB of stage-`[B]` ES5 straight to
+`transform` now takes ~0.5 s where it took 22–26 s.
 
-Keep all three topologies represented — a regression in that resolution shows up on `three` long
-before it shows up anywhere else.
+Note this pathology only ever showed up on **down-compiled ES5** input (var hoisting, no block
+scopes, inlined helpers), which is why `tests/transpiler-perf` — which measures modern source — stayed
+green through all of it at bounds of 5 s.
+
+Keep all three topologies represented — a regression in that resolution shows up on `three` first.
