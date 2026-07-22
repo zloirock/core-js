@@ -181,6 +181,21 @@ function getPropRemovalRange(props, propNode, precededByRemoved) {
   return start < end ? { start, end } : null;
 }
 
+// pure helper: index of an extraction decl's TOP-LEVEL ` = ` operator (the one separating its
+// binding LHS from its RHS), tracking bracket depth so an inner default's ` = ` inside a pattern
+// LHS (`{ x = 1 } = rhs`) is skipped. these are emitter-GENERATED decls (no string/comment noise),
+// so a bracket-depth scan is exact. falls back to the first ` = ` when none sits at depth 0
+function topLevelAssignIndex(decl) {
+  let depth = 0;
+  for (let i = 0; i < decl.length; i += 1) {
+    const c = decl[i];
+    if (c === '{' || c === '[' || c === '(') depth += 1;
+    else if (c === '}' || c === ']' || c === ')') depth -= 1;
+    else if (depth === 0 && decl.startsWith(' = ', i)) return i;
+  }
+  return decl.indexOf(' = ');
+}
+
 // pure helper: the `<value> === void 0 ? <default> : <value>` default-guard RHS for a destructured
 // entry. when `ref` is given the value is memoized into it (`(ref = value) === void 0 ? d : ref`)
 // so an instance-polyfill receiver (`_at(x)`) isn't evaluated twice. shared by the catch-prelude
@@ -1103,6 +1118,25 @@ export function createDestructureEmitter({
     function renderOperand(operand) {
       const peeled = unwrapParens(operand);
       const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
+      // wrapping parens (and their whitespace) live in the span BETWEEN operand and peeled - a
+      // substituted operand must keep them, or a parenthesized nested logical loses its grouping:
+      // `A ?? (B || C)` reprinted as `A ?? B || C` changes precedence and is an illegal `??`/`||`
+      // mix. the raw-return path already carries them (rawSrc is the full operand span)
+      const parenIn = src.slice(operand.start - baseStart, peeled.start - baseStart);
+      const parenOut = src.slice(peeled.end - baseStart, operand.end - baseStart);
+      // reassemble a container operand from its sub-operands, substituting each through this same
+      // renderer and keeping the original separators (`? `, ` : `, `, `) verbatim. returns null when
+      // no sub-operand changed, so the caller falls back to the raw span (no spurious `any`)
+      function reassemble(sub) {
+        const rendered = sub.map(renderOperand);
+        if (rendered.every((text, i) => text === src.slice(sub[i].start - baseStart, sub[i].end - baseStart))) return null;
+        let acc = '';
+        for (let i = 0; i < sub.length; i++) {
+          if (i > 0) acc += src.slice(sub[i - 1].end - baseStart, sub[i].start - baseStart);
+          acc += rendered[i];
+        }
+        return src.slice(peeled.start - baseStart, sub[0].start - baseStart) + acc;
+      }
       let out = null;
       if (peeled.type === 'LogicalExpression') {
         out = polyfillLogicalInitOperands(peeled, src, baseStart, info);
@@ -1133,11 +1167,22 @@ export function createDestructureEmitter({
           } else {
             out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start, aliasCtx: ctx });
           }
+        // `walkInit` (init-globals) also skip-marks the globals inside a conditional's consequent /
+        // alternate and inside every sequence expression, suppressing the natural visitor - so
+        // renderOperand must re-substitute the SAME set or they leak native (a ReferenceError on the
+        // taken fallback branch in usage-pure). tried AFTER findProxyGlobal so an SE-prefixed pure-ctor
+        // operand (`(eff(), globalThis.self.Map)`) still routes through its own path (leaf-swap +
+        // verbatim-for-visitor), not a per-expression recurse that would fight the queue. the
+        // conditional's TEST is not skip-marked, so reassemble leaves it raw for the visitor
+        } else if (peeled.type === 'ConditionalExpression') {
+          out = reassemble([peeled.consequent, peeled.alternate]);
+        } else if (peeled.type === 'SequenceExpression') {
+          out = reassemble(peeled.expressions);
         }
       }
       if (out === null) return rawSrc;
       any = true;
-      return out;
+      return parenIn + out + parenOut;
     }
     const leftSrc = renderOperand(node.left);
     const rightSrc = renderOperand(node.right);
@@ -1694,7 +1739,17 @@ export function createDestructureEmitter({
     }
     if (outer.kind === 'symbol-iterator-key') {
       const symBinding = injectPureImport('symbol/iterator', 'Symbol$iterator');
-      return { preservedSrc: `[${ symBinding }]: ${ nodeSrc(outer.prop.value) }` };
+      const keyPrefix = `[${ symBinding }]: `;
+      const { value } = outer.prop;
+      // register a residual target for the value: under the flatten's blanket skip the natural
+      // visitor is suppressed, so a polyfillable default inside it (`it = [1].at(0)`) only
+      // re-anchors and rewrites when the compose knows where the verbatim value sits in the rebuilt
+      // string. without it the default leaks a native instance call in usage-pure (the same
+      // re-anchoring `renderRebuiltNestedProp` does for its verbatim survivors)
+      return {
+        preservedSrc: keyPrefix + nodeSrc(value),
+        residualTargets: [{ srcStart: value.start, srcEnd: value.end, dstStart: keyPrefix.length }],
+      };
     }
     if (outer.kind === 'rebuilt') return renderRebuiltNestedProp(outer);
     return { preservedSrc: nodeSrc(outer.prop) };
@@ -2004,7 +2059,12 @@ export function createDestructureEmitter({
       const sePrefix = extractions.length ? takeDiscardSe() : null;
       if (sePrefix) {
         const last = extractions.at(-1);
-        const eq = last.decl.indexOf(' = ');
+        // wrap the re-emitted SE prefix around the extraction's RHS: `lhs = rhs` -> `lhs = (se, rhs)`.
+        // the split is the extraction's TOP-LEVEL ` = ` operator, found at brace depth 0 - a plain
+        // `name = _binding` splits at its only ` = `, but a pattern LHS (`{ x = 1 } = _get(recv)`)
+        // carries an inner default whose ` = ` a first-occurrence search would wrongly split on,
+        // orphaning the brace (`{ x = (se, 1 } = ...)`)
+        const eq = topLevelAssignIndex(last.decl);
         last.decl = `${ last.decl.slice(0, eq) } = (${ sePrefix }, ${ last.decl.slice(eq + 3) })`;
       }
       return {
@@ -2275,8 +2335,12 @@ export function createDestructureEmitter({
         // outer walk for an Identifier consumed by inner-flatten would survive past the
         // inner-flatten's overwrite and trigger transform-queue compose's "needle missing"
         // invariant (inner flatten's rebuilt text drops the receiver entirely)
+        // an ArrayPattern-WRAPPED nested destructure (`[{ Array: { of } }] = [globalThis]`) is just
+        // as flatten-eligible as the bare ObjectPattern form - its inner flatten overwrites the
+        // receiver too, so a transform queued from this outer walk survives the overwrite and trips
+        // compose's "needle missing". mirror the `right`-slot skip below, which already covers both
         if (key === 'init' && node.type === 'VariableDeclarator'
-          && node.id?.type === 'ObjectPattern') continue;
+          && (node.id?.type === 'ObjectPattern' || node.id?.type === 'ArrayPattern')) continue;
         // SAME reason for the RIGHT of a destructure whose receiver a sibling synth-swap will own: a
         // destructure-ASSIGNMENT (`z = ({ Array: { from } } = globalThis)`) OR a destructure param DEFAULT
         // in a nested function (`z = function ({ Array: { from } } = globalThis) {}` - an AssignmentPATTERN).
@@ -2436,6 +2500,17 @@ export function createDestructureEmitter({
   // TYPELESS meta (a generic helper, `_at`); typing the default here refines it to the receiver-narrowed
   // variant (`_atMaybeArray`) - the precision the top-level declarator form gets through the resolver's
   // receiver walk. pure-only by construction: detection stays untyped so usage-global keeps its over-inject
+  // peel a PATH through the same transparent wrappers `receiver` peels off its node, so the receiver
+  // TYPING sees the runtime shape, not a TS cast's asserted annotation. `resolveNodeType` trusts a
+  // cast (`x as string`) over the real value, so an UNPEELED path refines to a type-specific Maybe
+  // (`_atMaybeString` on a runtime array -> throws on a target lacking String#at); the peeled path
+  // types off `x` itself and degrades to the generic dispatcher, matching the babel twins
+  function peelTransparentPath(path) {
+    let peeled = path;
+    while (peeled?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(peeled.node.type)) peeled = peeled.get('expression');
+    return peeled;
+  }
+
   function tryRegisterParamDefaultInstanceSynthPure(pureResult, metaPath, propNode) {
     const objectPattern = metaPath.parent;
     const wrapperPath = metaPath.parentPath?.parentPath;
@@ -2448,7 +2523,7 @@ export function createDestructureEmitter({
     })) return false;
     const use = refineParamDefaultInstancePure({
       pureResult, key: propNode.key.name ?? propNode.key.value,
-      receiverPath: wrapperPath.get('right'), resolveNodeType, toHint, resolvePure, path: metaPath,
+      receiverPath: peelTransparentPath(wrapperPath.get('right')), resolveNodeType, toHint, resolvePure, path: metaPath,
     });
     const binding = injectPureImport(use.entry, use.hintName);
     skipReplacedReceiver(receiver);
@@ -2487,7 +2562,7 @@ export function createDestructureEmitter({
     const argIndex = args ? args.findIndex(a => a === receiver || unwrapSafeSequenceTail(a) === receiver) : -1;
     const use = refineParamDefaultInstancePure({
       pureResult, key: propNode.key.name ?? propNode.key.value,
-      receiverPath: argIndex >= 0 ? callPath.get('arguments')[argIndex] : null,
+      receiverPath: argIndex >= 0 ? peelTransparentPath(callPath.get('arguments')[argIndex]) : null,
       resolveNodeType, toHint, resolvePure, path: metaPath,
     });
     const binding = injectPureImport(use.entry, use.hintName);
@@ -3148,9 +3223,38 @@ export function createDestructureEmitter({
     const idx = props.indexOf(propNode);
     const range = getPropRemovalRange(props, propNode, idx > 0 && removed.has(props[idx - 1]));
     if (!range) return false;
-    transforms.add(range.start, range.end, '');
+    // an own-span range (lone prop, or a fully-consumed tail run) ends exactly at `propNode.end`,
+    // before any trailing comma the source may carry - splicing it out orphans that comma inside the
+    // braces (`{ 'from': f, }` -> `{ , }`, a syntax error). the hasNext / leading-comma shapes already
+    // fold their adjacent comma into the range, so only the own-span end needs the trailing one
+    // consumed to empty the pattern cleanly (matching babel's AST `prop.remove()` reprint)
+    const end = range.end === propNode.end ? consumeTrailingComma(range.end) : range.end;
+    transforms.add(range.start, end, '');
     removed.add(propNode);
     return true;
+  }
+
+  // absolute source position just past a trailing comma following `end` (skipping whitespace), or
+  // `end` unchanged when the next non-space character is not a comma
+  function consumeTrailingComma(end) {
+    let i = end;
+    while (i < source.length) {
+      if (/\s/.test(source[i])) {
+        i += 1;
+        continue;
+      }
+      // a block comment can sit between the removed prop and its comma (`{ x: f /* c */, }`) - skip
+      // it so the comma is still found; the removed prop's trailing comment goes with it, as babel's
+      // AST reprint drops it too
+      if (source[i] === '/' && source[i + 1] === '*') {
+        const close = source.indexOf('*/', i + 2);
+        if (close === -1) break;
+        i = close + 2;
+        continue;
+      }
+      break;
+    }
+    return source[i] === ',' ? i + 1 : end;
   }
 
   // render the provider-normalized nested-param synth plan as source text replacing the
