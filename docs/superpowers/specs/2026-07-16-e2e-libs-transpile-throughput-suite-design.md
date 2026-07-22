@@ -165,9 +165,10 @@ iterator-protocol usage.
 Per cell (bundler × method × phase), a **single** run, measured externally (wall-clock around the
 whole bundle call — an internal parse-vs-inject split would need to instrument unplugin's transform
 hook and is deferred). There is deliberately no repeat/median axis: the differences of interest are
-whole seconds against tens of ms of noise. The shipped default is a **smoke** profile (phase `post`
-only, slow libs on rollup only, fast libs on all bundlers, ~2 min); `--full` runs the exhaustive
-bundler × phase matrix.
+whole seconds against tens of ms of noise. There is also only one profile — the exhaustive
+bundler × phase matrix, 147 cells in ~3.5 min. A trimmed `smoke` default behind a `--full` flag was
+dropped once `v4` made `three` ~40x cheaper and re-measurement refuted the two invariances the
+trimming assumed (bundler-invariance of the overhead, and `pre+post ≈ 2× post`).
 
 - total bundle ms **with** the plugin
 - total bundle ms **baseline** (same bundle, plugin omitted)
@@ -201,7 +202,7 @@ headless runtime tier).
 Exposed as root `package.json` scripts, per the repo convention that runners are invoked through
 `npm run` rather than a bare `node`. Arguments follow `--`.
 
-- `npm run e2e-libs-throughput [-- libFilter bundlerFilter --full]` → `report/` (smoke by default; `--full` = full matrix)
+- `npm run e2e-libs-throughput [-- libFilter bundlerFilter]` → `report/` (the full bundler × phase matrix)
 - `npm run e2e-libs-pipeline [-- libFilter methodFilter]` → `report/` (size + time per stage [A]/[B]/[C])
 - `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/` + `manifest.json` + node pre-flight (Babel 7 & 8)
 - `npm run e2e-libs-snapshot [-- --update]` → `snapshots/`
@@ -294,14 +295,19 @@ BrowserStack Automate; CI wiring.
   version-robust invariants over magic node totals so a grammar bump can't redden the suite spuriously.
 
   The measurement it unlocked: unplugin's usage-mode cost tracks the size of the **individual
-  module**, not total code volume. At stage `[B]` (unplugin's real input), codemirror is 497 KB and
-  costs ~1 s, while three is 647 KB and costs 22–26 s — 1.3x the bytes, well over an order of
-  magnitude in time. Largest single module: 142 KB vs 1409 KB. This converts the earlier
-  "superlinear scope resolution" hypothesis into a measurement and localises it *within* a module.
-  Keep all three topologies: a regression there surfaces on `three` first.
+  module**, not total code volume. At stage `[B]` (unplugin's real input) codemirror is 497 KB and
+  three is 647 KB — 1.3x the bytes — with largest single modules of 142 KB vs 1409 KB. This converts
+  the earlier "superlinear scope resolution" hypothesis into a measurement and localises it *within*
+  a module. Keep all three topologies: a regression there surfaces on `three` first.
 
-- **An unplugin bug the suite caught (known, fix expected on `v4`).** codemirror's `usage-pure` fails
-  at runtime. It is a defect in `@core-js/unplugin`, not in the fixture, and it is already known —
-  a fix is expected on the `v4` branch. `entry-global` and `usage-global` pass. The fixture therefore
-  stays registered with all three methods and `usage-pure` stays red until the fix lands: a suite
-  reporting a real defect is the suite working.
+  The size of that effect has since collapsed. It was ~1 s vs **22–26 s** — well over an order of
+  magnitude — until `v4` reworked the resolution; the same row now reads ~0.4 s vs ~1.5 s, so ~3.7x
+  rather than ~25x. Worth noting it only ever appeared on **down-compiled ES5** input, which is why
+  `tests/transpiler-perf` — fed modern source — never caught it despite bounds of 5 s.
+
+- **An unplugin bug the suite caught (fixed on `v4`).** codemirror's `usage-pure` failed at runtime:
+  in `new Foo(bar.name)`, the getter wrapper unplugin injects for `bar.name` was itself re-wrapped as
+  the constructor call, so a string got `new`-ed. A defect in `@core-js/unplugin`, not in the
+  fixture — `entry-global` and `usage-global` always passed. Fixed by `d23c9655dd`; all three methods
+  now pass under both Babel 7 and 8. The episode is the argument for the fixture: a suite reporting a
+  real defect is the suite working.
