@@ -26,12 +26,12 @@ topologies**, which is what actually drives unplugin's cost — see the note at 
   (lib × method). Stages: `[A]` library bundled, no transforms → `[B]` + Babel (ES5, no polyfills) →
   `[C]` + unplugin (polyfills = IE11). Also reports injection count, the Babel-vs-unplugin time split
   of `[C]`, and the minified + gzip **wire size** of `[C]`.
-  `node pipeline.mjs [libFilter] [methodFilter]` → `report/pipeline.md` + `.json`
+  `npm run e2e-libs-pipeline [-- libFilter methodFilter]` → `report/pipeline.md` + `.json`
   (This is the report to read for "how big / how slow is each stage". `entry-global` shows only `[C]`.)
 - **throughput** — isolate unplugin's processing cost across the bundlers (unplugin only, **no Babel**;
   overhead = build-with-plugin − plugin-less baseline). A diagnostic — **not** the IE11 build cost
   (that's `[C]` in `pipeline`, which is Babel + unplugin and slower).
-  `node throughput.mjs [libFilter] [bundlerFilter] [--full]` → `report/throughput.md` + `.json`
+  `npm run e2e-libs-throughput [-- libFilter bundlerFilter --full]` → `report/throughput.md` + `.json`
   Every cell is a **single** build — no repeat/median axis. The suite looks for whole-second
   differences while run-to-run noise is tens of ms, so repeats cost more than they buy; read the
   numbers as indicative magnitudes, not as a benchmark.
@@ -44,14 +44,26 @@ topologies**, which is what actually drives unplugin's cost — see the note at 
 - **artifacts** — the real IE11 build: Babel (syntax → ES5) + unplugin (stdlib polyfills) → ES5 UMD +
   self-checking HTML, under **both Babel 7 and Babel 8** (unplugin's post phase consumes Babel's helper
   output, so each version is exercised — matching the repo's `test-transpiling` dual-Babel convention).
-  `node artifacts.mjs [libFilter]` → `artifacts/<lib>/babel{7,8}/<method>/{bundle.js,index.html}` + `manifest.json`
+  `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/<lib>/babel{7,8}/<method>/{bundle.js,index.html}` + `manifest.json`
   (manifest records raw / minified / gzip sizes + injections). A node pre-flight runs first; the real
   IE11 check is manual (upload the HTML to BrowserStack/SauceLabs). Babel 8's toolchain lives in
   `babel8/` (its own install — two `@babel/core` majors can't share one `node_modules`).
-- **injection snapshot** — `node snapshot.mjs [--update]` → `snapshots/<lib>.<method>.txt`
-- **exercise self-check** — `node check-exercise.mjs [lib]`
+- **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.txt`
+- **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
+  (no bundler, no polyfills) when given no argument.
 
-Node ≥ 22.18 required. `npm install` here first. Add libraries in `libraries.mjs`.
+**Running it.** All five runners are exposed as root scripts, and `npm run e2e-libs` chains the three
+that assert (`check-exercise` → `snapshot` → `artifacts`); `pipeline` and `throughput` only report, so
+they stay out of it. The suite is deliberately NOT part of `test-raw` / `test-transpiling` — it pulls
+rxjs, three, codemirror and seven bundlers, and a full pass takes minutes.
+
+Arguments go after `--`, e.g. `npm run e2e-libs-throughput -- three rollup`. The scripts run through
+`scripts/zxi.mjs`, which installs this directory's dependencies for you (so no separate `npm install`
+here) but also *imports* the runner rather than spawning it — which is why the runners read their
+arguments via `args.mjs` instead of `process.argv.slice(2)`. Calling `node throughput.mjs …` directly
+still works and is equivalent.
+
+Node ≥ 22.18 required. Add libraries in `libraries.mjs`.
 
 `core-js` is pinned to the workspace **v4** (`file:../../packages/core-js`) so injected polyfills
 resolve to this monorepo's code, not a transitively-hoisted published v3. (`@core-js/pure`, used by
