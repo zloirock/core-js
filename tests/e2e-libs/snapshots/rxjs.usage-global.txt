@@ -90,6 +90,7 @@ core-js/modules/esnext.iterator.includes
 core-js/modules/esnext.iterator.join
 core-js/modules/esnext.iterator.to-async
 core-js/modules/esnext.iterator.windows
+core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
 core-js/modules/web.dom-collections.keys
 core-js/modules/web.dom-collections.values
