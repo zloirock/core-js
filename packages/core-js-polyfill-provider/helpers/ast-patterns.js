@@ -252,6 +252,11 @@ export function isNonReferencePosition(parent, identifierNode) {
   if ((type === 'BreakStatement' || type === 'ContinueStatement') && parent.label === identifierNode) return true;
   if (type === 'ImportSpecifier' && parent.imported === identifierNode) return true;
   if (type === 'ExportSpecifier' && (parent.local === identifierNode || parent.exported === identifierNode)) return true;
+  // JSX name-literal slots: an attribute NAME (`<X f={1} />`) is a prop key, and a member-tag TAIL
+  // (`<f.Bar />`) is a name on the root - neither references a binding. the referencing JSX slots
+  // (bare-tag / member-root) are recognised by the tag-reference walker, not here
+  if (type === 'JSXAttribute' && parent.name === identifierNode) return true;
+  if (type === 'JSXMemberExpression' && parent.property === identifierNode) return true;
   return false;
 }
 
@@ -587,23 +592,14 @@ function identifierReferencedInSubtree(node, name) {
   }
   // reached only as a JSXMemberExpression root now - the referencing position
   if (node.type === 'JSXIdentifier') return node.name === name;
-  // a JSX tag name is a runtime reference to the binding, and the same KIND of extra caller a bare
-  // `return f` is: the element hands the component to a renderer that calls it with props, so the
-  // param default never runs there. the tag-name slot is the only referencing position - namespaced
-  // parts are literals (`<ns:f />` names no binding), and the skips below drop the other slots
-  const keyProp = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
-    // `<f.Bar />` accesses a prop on `f`: the ROOT is the reference, the tail is a name literal
-    || node.type === 'JSXMemberExpression' ? 'property'
-    : node.type === 'ObjectProperty' || node.type === 'Property'
-      || node.type === 'ObjectMethod' || node.type === 'ClassMethod' ? 'key'
-      // `<X f={1} />` names a prop, not the binding
-      : node.type === 'JSXAttribute' ? 'name' : null;
-  for (const [key, value] of Object.entries(node)) {
-    // a non-computed member / property KEY is a name literal, not a reference
-    if (key === keyProp && !node.computed) continue;
-    if (Array.isArray(value)) {
-      if (value.some(child => identifierReferencedInSubtree(child, name))) return true;
-    } else if (identifierReferencedInSubtree(value, name)) return true;
+  // recurse, skipping the source-text name slots `isNonReferencePosition` recognises (member tail,
+  // object / class / method / field key, label, import / export specifier, JSX attribute name /
+  // member-tag tail) - those are name literals, not references
+  for (const child of Object.values(node)) {
+    if (isNonReferencePosition(node, child)) continue;
+    if (Array.isArray(child)
+      ? child.some(grandchild => identifierReferencedInSubtree(grandchild, name))
+      : identifierReferencedInSubtree(child, name)) return true;
   }
   return false;
 }
@@ -3672,24 +3668,6 @@ function bodyHasParamReference(node, paramNames) {
   return false;
 }
 
-// free-variable read scan: true if `name` is read anywhere in an expression subtree.
-// descends into nested closures (a default-position closure captures the param scope, so its
-// reads count) - unlike `bodyHasParamReference`, which conservatively bails on any closure.
-// shadowing inside a closure is not modelled, so a rebinding closure can over-report - safe,
-// the sole caller only widens a bail. `isNonReferencePosition` skips source-text name slots
-// (member tail, property / method key) across both parser member shapes
-function expressionReadsName(node, name) {
-  if (!node || typeof node !== 'object') return false;
-  if (Array.isArray(node)) return node.some(child => expressionReadsName(child, name));
-  if (typeof node.type !== 'string') return false;
-  if (node.type === 'Identifier') return node.name === name;
-  for (const child of Object.values(node)) {
-    if (isNonReferencePosition(node, child)) continue;
-    if (expressionReadsName(child, name)) return true;
-  }
-  return false;
-}
-
 // walk a parameter pattern for a value-position read of `name`: AssignmentPattern defaults
 // and computed keys. binding (declaration) positions recurse for nested reads but never
 // self-match the bindings they introduce
@@ -3698,7 +3676,7 @@ function paramPatternReadsValue(node, name) {
     if (!node || typeof node.type !== 'string') return false;
     switch (node.type) {
       case 'AssignmentPattern':
-        return expressionReadsName(node.right, name) || paramPatternReadsValue(node.left, name);
+        return identifierReferencedInSubtree(node.right, name) || paramPatternReadsValue(node.left, name);
       case 'ObjectPattern':
         return (node.properties ?? []).some(property => paramPatternReadsValue(property, name));
       case 'ArrayPattern':
@@ -3709,7 +3687,7 @@ function paramPatternReadsValue(node, name) {
       // babel: ObjectProperty; estree / oxc: Property
       case 'ObjectProperty':
       case 'Property':
-        return (node.computed && expressionReadsName(node.key, name)) || paramPatternReadsValue(node.value, name);
+        return (node.computed && identifierReferencedInSubtree(node.key, name)) || paramPatternReadsValue(node.value, name);
       // babel TS parameter-property wrapper (`constructor(public x)`)
       case 'TSParameterProperty':
         node = node.parameter;
