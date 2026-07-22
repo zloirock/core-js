@@ -1142,6 +1142,11 @@ export const LET_SCOPE_HOST_TYPES = new Set([
   'Program',
   'ForStatement',
   'SwitchStatement',
+  // a `let` / `const` inside `namespace N { ... }` scopes to the namespace body, so the reassignment
+  // scan must anchor there - the var path already treats a TSModuleBlock as a scope boundary
+  // (`climbVarScopeOwners` breaks after it), so omitting it here over-scanned namespace lets into the
+  // enclosing function
+  'TSModuleBlock',
 ]);
 
 // merge canonically-recovered reassignments the native scope model missed into a binding's

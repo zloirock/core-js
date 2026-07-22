@@ -660,10 +660,15 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
     // `usageNode` is the hop's read anchor, the plain use keeps its own position)
     const write = adapter.findTrustedAliasWrite(scope, name);
     if (write && (adapter.method !== 'usage-pure' || ((usageNode ?? path?.node)?.start ?? 0) > write.end)) {
+      // the write is adapter-verified as unconditionally placed in the binding's OWN scope, so its
+      // RHS receiver resolves there - `scope` (the use site) only located the write; resolving the
+      // RHS in it would rebind an outer receiver to an inner shadow (same missed-sibling gap as the
+      // declarator-init delegations)
+      const writeScope = binding.scope ?? scope;
       const alias = write.left?.type === 'ObjectPattern'
-        ? resolveProxyGlobalDestructureAlias({ pattern: write.left, init: write.right, name, scope, adapter, seen, path })
+        ? resolveProxyGlobalDestructureAlias({ pattern: write.left, init: write.right, name, scope: writeScope, adapter, seen, path })
         : write.left?.type === 'ArrayPattern'
-          ? resolveArrayWrappedProxyGlobalAlias({ pattern: write.left, init: write.right, name, scope, adapter, seen, path })
+          ? resolveArrayWrappedProxyGlobalAlias({ pattern: write.left, init: write.right, name, scope: writeScope, adapter, seen, path })
           : null;
       if (alias) return alias;
     }
@@ -696,13 +701,19 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   });
   const { init } = binding.node;
   const pattern = binding.node.id;
+  // the init/destructure RHS was written in the alias's OWN declaration scope, so its proxy-global
+  // receiver resolves there, not at the use site - an inner shadow of the receiver name must not
+  // capture it (mirror of the identifier-hop rule in `resolveAliasValueNode`; passing raw `scope`
+  // was the missed-sibling gap that dropped injection for `const { Map: M } = a` / `const [A] =
+  // [a.Map]` used under a shadowing param)
+  const initScope = binding.scope ?? scope;
   // `{ from, ...rest } = Array` - rest !=== init
   const props = pattern?.properties ?? pattern?.elements;
   if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
   // destructures bind `name` to a property of init, not init itself. proxy-global shorthand
   // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
   if (pattern?.type === 'ObjectPattern' && init) {
-    const alias = resolveProxyGlobalDestructureAlias({ pattern, init, name, scope, adapter, seen, path });
+    const alias = resolveProxyGlobalDestructureAlias({ pattern, init, name, scope: initScope, adapter, seen, path });
     if (alias) return alias;
   }
   // an array-wrapped proxy-global alias (`const [{ Array: A }] = [globalThis]`) nests the alias
@@ -710,7 +721,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // the wrapper to that (ObjectPattern, init) pair and resolve like the flat ObjectPattern form -
   // else the member off the alias (`A.from`) never resolves, so pure keeps the native static
   if (pattern?.type === 'ArrayPattern' && init) {
-    const alias = resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope, adapter, seen, path });
+    const alias = resolveArrayWrappedProxyGlobalAlias({ pattern, init, name, scope: initScope, adapter, seen, path });
     if (alias) return alias;
   }
   // a destructure that binds `name` to an element / value which is ITSELF a global
@@ -731,7 +742,9 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
         || patternSlotSpreadShifted(pattern, init, name, { scope, adapter, path, resolveKey }))) return null;
     const globals = new Set();
     for (const value of patternSlotValues(pattern, init, name, { scope, adapter, path, resolveKey })) {
-      const global = resolveObjectName({ objectNode: value, scope, adapter, seen: new Set(seen).add(name), path, usageNode: value });
+      const global = resolveObjectName({
+        objectNode: value, scope: initScope, adapter, seen: new Set(seen).add(name), path, usageNode: value,
+      });
       if (global) globals.add(global);
     }
     return globals.size === 1 ? [...globals][0] : null;
@@ -748,12 +761,16 @@ function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, pat
   // the binding's init declaration stays verbatim (only USES of the binding are rewritten / import-
   // injected), so preceding SE effects are preserved in place - resolution peels to the tail value
   const unwrapped = peelReceiverSequenceTail(value);
+  // resolve the init in the alias's OWN declaration scope, not the receiver-use scope - the init
+  // expression (`a.Map`, `(() => a.Map)()`, `require(...)`) was written where the alias was declared,
+  // so a later hop reading an outer-declared receiver must not bind to an inner shadow of it. EVERY
+  // init-shape delegation below threads `initScope`; passing the raw use `scope` was the missed-
+  // sibling gap that dropped injection under an inner-shadowed alias hop (`var g = a.Map` used where
+  // `a` is a shadowing param)
+  const initScope = binding.scope ?? scope;
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
-    // (recursion hits the top-level polyfillHint translation for plugin-managed imports).
-    // follow the init identifier in the alias's OWN declaration scope, not the receiver-use
-    // scope - a later hop reading an outer-declared name must not bind to an inner shadow of it
-    const initScope = binding.scope ?? scope;
+    // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
     if (unwrapped.name === name || !adapter.hasBinding(initScope, unwrapped.name, path)) return unwrapped.name;
     return resolveBindingToGlobal({ name: unwrapped.name, scope: initScope, adapter, seen, path, usageNode: unwrapped });
   }
@@ -765,20 +782,20 @@ function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, pat
   // and preserves its AST shape -- the identifier-visitor's inner-arg rewrite stays
   // unrivalled, no double-rewrite overlap with a wide polyfill substitution
   const iifePeeled = peelZeroArgIifeReturn(unwrapped);
-  if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope, adapter, seen, path, usageNode: iifePeeled });
+  if (iifePeeled) return resolveObjectName({ objectNode: iifePeeled, scope: initScope, adapter, seen, path, usageNode: iifePeeled });
   // `var g = require('<pkg>/<mode>/global-this')` - the require-style twin of the proxy-entry
   // import branch in resolveGuardedBindingToGlobal: same source canon, so the CJS import style
   // taints writes / resolves reads identically. an in-file `require` binding (bundler shim /
   // user function) keeps the name opaque - checked in the alias's own declaration scope
   if (unwrapped?.type === 'CallExpression' || unwrapped?.type === 'OptionalCallExpression') {
-    const required = requireCallSource(unwrapped, adapter, binding.scope ?? scope);
+    const required = requireCallSource(unwrapped, adapter, initScope);
     const requiredProxy = required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
     if (requiredProxy) return requiredProxy;
   }
   // MemberExpression / OptionalMemberExpression / CallExpression / OptionalCallExpression all
   // delegate to resolveObjectName - it handles each shape (proxy-global walk, call-inline).
   // unhandled shapes (NewExpression, BinaryExpression, etc.) safely return null
-  return unwrapped ? resolveObjectName({ objectNode: unwrapped, scope, adapter, seen, path, usageNode: unwrapped }) : null;
+  return unwrapped ? resolveObjectName({ objectNode: unwrapped, scope: initScope, adapter, seen, path, usageNode: unwrapped }) : null;
 }
 
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
