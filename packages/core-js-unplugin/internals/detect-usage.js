@@ -37,6 +37,7 @@ import {
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isMutatedStaticPair,
+  isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
@@ -73,12 +74,6 @@ const DECLARATION_ID_TYPES = new Set([
   'TSEnumMember',
 ]);
 
-const CLASS_MEMBER_TYPES = new Set([
-  'MethodDefinition',
-  'PropertyDefinition',
-  'AccessorProperty',
-]);
-
 const LABEL_TYPES = new Set([
   'LabeledStatement',
   'BreakStatement',
@@ -105,10 +100,10 @@ function isReferenced({ path, skipUpdateTargets }) {
   if (!parent) return true;
   // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
   if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
-  // property key positions
-  if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
-  if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
-  if (CLASS_MEMBER_TYPES.has(parent.type) && parentKey === 'key' && !parent.computed) return false;
+  // member NAME slots - object-literal and class keys (property, accessor and method shapes alike, in
+  // value space and in type space) plus a non-computed member tail. one shared predicate with the babel
+  // emitter, so a global-shaped key (`abstract Map: number`) is never rewritten to the polyfill import
+  if ((parentKey === 'key' || parentKey === 'property') && isNonReferencePosition(parent, node)) return false;
   if (parent.type === 'ImportAttribute' && parentKey === 'key') return false;
   // declaration id positions
   if (DECLARATION_ID_TYPES.has(parent.type) && parentKey === 'id') return false;
