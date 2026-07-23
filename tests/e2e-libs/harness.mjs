@@ -57,24 +57,33 @@ export function bannerHarness(expected) {
 `;
 }
 
-// One QUnit test per bundle. `label` names the cell (e.g. `rxjs/usage-pure`). Each check becomes a
-// pushResult so its own actual/expected show up in the Karma log; an empty `checks` fails explicitly
-// (an exercise that silently stopped reporting must not pass as a green test with zero assertions).
+// One QUnit test per bundle. `label` names the cell (e.g. `rxjs/usage-pure`). Each individual check
+// becomes its own pushResult — so a red run names the exact check plus its actual/expected — and an
+// empty `checks` fails explicitly (an exercise that silently stopped reporting must not pass as a
+// green test with zero assertions). On a GREEN run Karma's summary is only "Executed N of N"; the
+// console.log line makes the leg self-explanatory in the CI log — how many checks of the exercise
+// actually ran in this IE11, per library — which karma.conf.cjs forwards to the terminal.
 export function qunitHarness(label) {
   return `
-    QUnit.test(${ JSON.stringify(label) }, function (assert) {
+    var LABEL = ${ JSON.stringify(label) };
+    QUnit.test(LABEL, function (assert) {
       var done = assert.async();
       function report(res) {
         var checks = (res && res.checks) || [];
-        assert.ok(checks.length > 0, 'exercise produced checks');
-        for (var i = 0; i < checks.length; i++) {
+        var passed = 0, i;
+        for (i = 0; i < checks.length; i++) if (checks[i].pass) passed++;
+        if (window.console && window.console.log) {
+          window.console.log('[e2e-libs] ' + LABEL + ': ' + passed + '/' + checks.length + ' checks passed in this IE11');
+        }
+        assert.ok(checks.length > 0, LABEL + ': exercise produced ' + checks.length + ' checks');
+        for (i = 0; i < checks.length; i++) {
           var c = checks[i];
-          assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: c.label });
+          assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: LABEL + ' — ' + c.label });
         }
         done();
       }
       function fail(err) {
-        assert.ok(false, 'run() threw: ' + (err && err.message ? err.message : err));
+        assert.ok(false, LABEL + ': run() threw — ' + (err && err.message ? err.message : err));
         done();
       }
       try {
