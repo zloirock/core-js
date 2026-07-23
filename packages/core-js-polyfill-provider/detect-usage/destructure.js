@@ -1778,6 +1778,14 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     cur = parent;
   }
   if (!host?.node[slot]) return null;
+  // a destructure-ASSIGNMENT whose VALUE is CAPTURED (`alias = ({ Array: { of } } = globalThis)` - the
+  // assignment yields its RHS) must NOT synth-swap the receiver into a mirror literal: that makes the
+  // captured value the mirror instead of the receiver (`alias = { Array: { of: _Array$of } }`, wrong).
+  // bail to the inline-default fallback, which keeps the receiver (polyfilled to `_globalThis` by the
+  // natural visitor) and defaults the leaf to its polyfill on absence - preserving BOTH the captured
+  // value AND the leaf polyfill. a statement-context assignment (`({...} = R);`) discards the value, so
+  // it keeps synth-swapping; a param default (AssignmentPattern host) is caller-correct, not captured
+  if (host.node.type === 'AssignmentExpression' && !nestedAssignmentStatementOf(leafPatternPath)) return null;
   if (nestedParamSynthPlanned.has(host.node)) return { done: true };
   // descend ArrayPattern wrappers: an outer destructure may wrap the consumed object-pattern in
   // arrays (`const [, { Array: { from } }] = [0, R]`). resolve the element's object-pattern and the

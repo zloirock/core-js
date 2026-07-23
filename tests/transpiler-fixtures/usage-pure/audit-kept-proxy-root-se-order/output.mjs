@@ -68,9 +68,11 @@ export const aliasKeptSeKey = null == (_ref6 = z = alias.window) ? void 0 : _fin
 let sv;
 export const seqValueAndKey = null == (_ref7 = sv = (c++, _globalThis.window)) ? void 0 : _mapMaybeArray(_ref7[c++, "Array"].prototype).call([1], v => v);
 
-// two SE keys on one UNGUARDED kept root: both migrate into the surviving key, in source order
+// two SE keys on one UNGUARDED kept root: the assignment (the object) runs first, then both key
+// effects migrate into the surviving key in source order - a pre-root harvest would have run them
+// before the assignment
 let ud;
-export const unguardedDoubleKey = (c++, c++, ud = _globalThis.window, _Array$of)(5);
+export const unguardedDoubleKey = (ud = _globalThis.window, c++, c++, _Array$of)(5);
 
 // SEVERAL live `?.` along the kept chain: only the ROOT one guards anything real - the deeper hops
 // are realm-local self-references whose guards are dead once the root is defined - so ONE memo at

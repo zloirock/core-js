@@ -3525,7 +3525,13 @@ export function sequencePrefixWithSideEffects(expr) {
 // this with the scope-aware `collectChainRootCallEffect`, which drops a provably-pure inline receiver
 // call (`'groupBy' in (() => Map)()` -> bare `true`) - a purity check this structural walk can't make.
 // closes the prior gap that dropped SE sequence-tails (`(bar(), (k = Array))`) and computed keys
-export function collectFoldedReceiverSideEffects(node, out = [], rescue = null) {
+// `chainAssignAt` (a `{ at: null }` box) switches the RECEIVER-SPINE chain-assignment from
+// pushed-whole to position-recorded: the static-collapse emit re-emits the assignment itself via
+// `prependChainAssignmentEffect`, so the harvest must EXCLUDE it but record its eval slot. threaded
+// only down the receiver spine (object / sequence-tail), NOT into computed keys / `+` / template
+// operands - a chain-assign buried in a KEY is a discarded value, pushed whole. omitted (null) keeps
+// the assignment pushed whole (the `in`-fold / general discard, which re-emits nothing separately)
+export function collectFoldedReceiverSideEffects(node, out = [], rescue = null, chainAssignAt = null) {
   let cur = node;
   while (cur && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type) || cur.type === 'ChainExpression')) cur = cur.expression;
   // a value-position chain-root receiver CALL is intentionally NOT pushed by the structural walk
@@ -3541,11 +3547,11 @@ export function collectFoldedReceiverSideEffects(node, out = [], rescue = null) 
   switch (cur?.type) {
     case 'SequenceExpression':
       for (const e of cur.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) out.push(e);
-      collectFoldedReceiverSideEffects(cur.expressions.at(-1), out, rescue);
+      collectFoldedReceiverSideEffects(cur.expressions.at(-1), out, rescue, chainAssignAt);
       break;
     case 'MemberExpression':
     case 'OptionalMemberExpression':
-      collectFoldedReceiverSideEffects(cur.object, out, rescue);
+      collectFoldedReceiverSideEffects(cur.object, out, rescue, chainAssignAt);
       if (cur.computed) collectFoldedReceiverSideEffects(cur.property, out, rescue);
       break;
     // mirror the other shapes `resolveKey` folds to a static key: a `+`-concat (`(eff(), 'fr') + 'om'`)
@@ -3562,7 +3568,10 @@ export function collectFoldedReceiverSideEffects(node, out = [], rescue = null) 
       for (const e of cur.expressions) collectFoldedReceiverSideEffects(e, out, rescue);
       break;
     case 'AssignmentExpression':
-      out.push(cur);
+      // receiver-spine chain-assign under position-mode: record its eval slot (the emit re-emits it),
+      // else push whole (a discarded assignment value)
+      if (chainAssignAt && chainAssignAt.at === null) chainAssignAt.at = out.length;
+      else out.push(cur);
       break;
   }
   return out;

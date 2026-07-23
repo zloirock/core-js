@@ -41,7 +41,7 @@ export const viaHopLeaf = QH.m(competitors);
 // deep hops resolve the same way
 const {
   Object: OD
-} = _globalThis.self.window;
+} = _globalThis;
 class QD extends OD {
   static m(src) {
     return _Object$groupBy.call(this, src, tag2);

@@ -61,12 +61,13 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   computedPropKeyHostsMachinery,
+  harvestDiscardedReceiverSE,
   isSourcedSymbolIteratorMeta,
   planCallRootDiscardedProxySwap,
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { discardRescueNodes, maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
   registerBindinglessCtorAlias, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
@@ -2085,6 +2086,32 @@ export default function createDestructureEmitter({
     declaration.replaceWith(t.blockStatement(stmts));
   }
 
+  // peel a receiver init to the navigation tail the drop gate inspects: the discarded nav can sit under a
+  // sequence root (`(d++, globalThis['self'].Array)`), so peel to the tail member but keep the whole leaf
+  // for the SE harvest. MUST run on the RAW init - once the per-prop collapse re-roots the nav to
+  // `(se, _globalThis).member` the tail object is a bare identifier and the gate no longer recognizes it
+  function discardNavLeaf(initNode) {
+    const leaf = unwrapRuntimeExpr(initNode);
+    const { tail } = peelNestedSequenceExpressions(leaf);
+    return { leaf, navLeaf: tail !== leaf ? unwrapRuntimeExpr(tail) : leaf };
+  }
+
+  // a FULLY-DISCARDED destructure receiver (every prop a pure static, its value never read) that carries side
+  // effects keeps ONLY its COMPLETE harvested side effects (sequence prefixes + chain-assign + buried calls +
+  // hop-keys, via the canonical `harvestDiscardedReceiverSE`) - the whole proxy navigation is dead and would
+  // THROW off-browser on an unponyfillable hop, so re-emit the harvested SE in source-eval order (matching the
+  // unplugin drop). null (caller keeps the receiver verbatim, via its own collapse) when it is not a droppable
+  // proxy nav OR carries NO side effects: an effect-free nav has nothing to drop and its bare-value collapse is
+  // owned by the caller's `collapseRetainedProxyReceiver` / fold, keeping the two emitters' output identical.
+  // shared by the for-init sink AND the statement-lifted plain-decl discard so their decision stays consistent
+  function discardedReceiverSinkInit(initNode, path) {
+    const { leaf, navLeaf } = discardNavLeaf(initNode);
+    if (!shouldDropRescueReceiver(navLeaf)) return null;
+    const se = harvestDiscardedReceiverSE(leaf, { scope: path.scope, adapter, path });
+    if (!se.length) return null;
+    return se.length === 1 ? t.cloneDeep(se[0]) : t.sequenceExpression(se.map(node => t.cloneDeep(node)));
+  }
+
   // for-init with SE: keep SE inline so it doesn't escape the loop.
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
@@ -2092,7 +2119,29 @@ export default function createDestructureEmitter({
   // raw property/array mutations, so fresh bindings are re-registered on the mutated path
   function handleForInitSE({ declaration, parent, localBinding, value, scope, isStatic }) {
     if (isStatic) {
+      // a verbatim sink of a MULTI-hop proxy receiver reads an undefined intermediate hop off-browser
+      // (`sf()[(c++, 'self')].Map` keeps the raw `.self` - ie:11 / Node throw). the sink value is
+      // discarded (dummy binding), so re-emit ONLY the harvested side effects (shared discard helper).
+      // resolve the drop on the RAW init - foldBuriedProxyHopHosts re-roots the nav to a form the gate misses
+      let sinkInit = discardedReceiverSinkInit(parent.node.init, parent);
       foldBuriedProxyHopHosts(parent.get('init'));
+      // a droppable nav with NO harvestable SE (a provably-pure call root: `(() => globalThis)().self.Array`)
+      // still needs a SAFE sink - the fold leaves the raw `.self` hop the loop init reads undefined off-engine,
+      // and unlike a lifted plain-decl residual the for-init sink never re-enters the natural member detection.
+      // render the DISCARDED value through the shared plans: a pure-ctor leaf whole-swaps (`_Map`), a native-
+      // static leaf re-roots at the pure global (`_globalThis.Array`). plain-decl uses collapseRetainedProxyReceiver
+      if (!sinkInit) {
+        const initLeaf = unwrapRuntimeExpr(parent.node.init);
+        if (shouldDropRescueReceiver(initLeaf)) {
+          const aliasCtx = aliasCtxFromPath(parent);
+          const discarded = planCallRootDiscardedProxySwap({ receiver: initLeaf, ...aliasCtx, resolvePure });
+          if (discarded) {
+            const pureId = injectPureImport(discarded.leafPure.entry, discarded.leafPure.hintName);
+            sinkInit = discarded.harvestedSE.length
+              ? t.sequenceExpression([...discarded.harvestedSE.map(node => t.cloneDeep(node)), pureId]) : pureId;
+          } else sinkInit = synthSwap.collapseProxyGlobalReceiver(initLeaf, { aliasCtx });
+        }
+      }
       // static polyfill import - SE needs a dummy binding to stay in for-init. the sink
       // lands BEFORE every extraction of this declaration (SE-first, source-faithful),
       // not at the consumed slot where earlier per-prop inserts would precede it
@@ -2100,34 +2149,6 @@ export default function createDestructureEmitter({
       const decls = declaration.node.declarations;
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
-      // a verbatim sink of a MULTI-hop proxy receiver reads an undefined intermediate hop
-      // off-browser (`sf()[(c++, 'self')].Map` keeps the raw `.self` - ie:11 / Node throw).
-      // the sink value is discarded (dummy binding), so re-emit ONLY the harvested side
-      // effects, in source-eval order - the same drop decision the synth-swap emitters make
-      const initLeaf = unwrapRuntimeExpr(parent.node.init);
-      let sinkInit = null;
-      if (shouldDropRescueReceiver(initLeaf)) {
-        const rescue = discardRescueNodes({ node: initLeaf, scope: parent.scope, adapter, path: parent });
-        if (rescue.length) {
-          sinkInit = rescue.length === 1 ? t.cloneDeep(rescue[0])
-            : t.sequenceExpression(rescue.map(node => t.cloneDeep(node)));
-        } else {
-          // droppable receiver with NO surviving effects (a provably-pure call root): the verbatim
-          // clone would keep the raw multi-hop (`(() => globalThis)().self.Array` - `.self` reads
-          // undefined off-engine at loop init), and unlike a lifted residual the for-init sink
-          // never re-enters the natural member detection. render the DISCARDED value through the
-          // shared plans instead: a pure-ctor leaf whole-swaps (`_Map`), a native-static leaf
-          // re-roots at the pure global (`_globalThis.Array`)
-          const aliasCtx = aliasCtxFromPath(parent);
-          const discarded = planCallRootDiscardedProxySwap({ receiver: initLeaf, ...aliasCtx, resolvePure });
-          if (discarded) {
-            const pureId = injectPureImport(discarded.leafPure.entry, discarded.leafPure.hintName);
-            sinkInit = discarded.harvestedSE.length
-              ? t.sequenceExpression([...discarded.harvestedSE.map(node => t.cloneDeep(node)), pureId])
-              : pureId;
-          } else sinkInit = synthSwap.collapseProxyGlobalReceiver(initLeaf, { aliasCtx });
-        }
-      }
       const sink = t.variableDeclarator(ref, sinkInit ?? t.cloneDeep(parent.node.init));
       decls[idx] = t.variableDeclarator(localBinding, value);
       const firstExtraction = decls.findIndex(d => forInitExtractionDecls.has(d));
@@ -2201,7 +2222,9 @@ export default function createDestructureEmitter({
         anchorPrev: index > 0 ? body[index - 1] ?? null : null,
         anchor: body[index] ?? null,
         seq: deferredSideEffects.length,
-        node: t.expressionStatement(t.cloneDeep(trimSideEffectTail(initNode))),
+        // a fully-discarded proxy-nav receiver keeps only its harvested SE (the nav is dead and would throw
+        // off-browser on an unponyfillable hop); otherwise the whole init lifts verbatim minus a dead tail
+        node: t.expressionStatement(discardedReceiverSinkInit(initNode, containerPath) ?? t.cloneDeep(trimSideEffectTail(initNode))),
       });
     }
   }
@@ -2326,7 +2349,13 @@ export default function createDestructureEmitter({
     }
     const effectivelyEmpty = isEmpty || (!hasRest && survivingSiblingsAllConsumed);
     const seqTailDropped = effectivelyEmpty && !hasRest && retainedInit?.type === 'SequenceExpression';
-    if (hasRest || !effectivelyEmpty || (retainedInit && mayHaveSideEffects(retainedInit) && !seqTailDropped)) {
+    // a fully-discarded receiver whose nav carries side effects is HARVESTED + dropped whole by the SE-lift
+    // (`deferSideEffect` -> `discardedReceiverSinkInit`) on the RAW init - re-rooting it here would leave a
+    // `(se, _globalThis).member` dead read the drop gate no longer recognizes, diverging from the unplugin drop.
+    // gated on the drop actually firing (SE present), so an effect-free nav still collapses through the path below
+    const dropsDiscardedNav = effectivelyEmpty && !hasRest && retainedInit
+      && discardedReceiverSinkInit(retainedInit, parent) !== null;
+    if (!dropsDiscardedNav && (hasRest || !effectivelyEmpty || (retainedInit && mayHaveSideEffects(retainedInit) && !seqTailDropped))) {
       if (parent.isVariableDeclarator()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'init', aliasCtxFromPath(parent));
       else if (parent.isAssignmentExpression()) collapseRetainedProxyReceiver(synthSwap, parent.node, 'right', aliasCtxFromPath(parent));
     }

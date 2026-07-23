@@ -562,6 +562,31 @@ const KPR_SHAPES = [
   // well-known-symbol access over the kept root with a sequence-prefix SE: the harvest must
   // carry the prefix on both emitters (one dropped it - wrong effect count), guard preserved
   { id: 'kept-symbol-iterator-se', value: 'globalThis.window', tail: '?.self[Symbol.iterator]', se: true },
+  // NO-HOP direct forms off a kept undefinable window root (the `.self` alias hop absent): the whole KPR
+  // corpus above carries a `.self` hop, so these slipped through. the receiver-INDEPENDENT static must still
+  // collapse under the KEPT guard, its root nav must substitute (`t = _globalThis.window`, not raw), and a
+  // SE-sequence root must run its prefix ONCE (the `se` row's double-run shows in the log). REAL polyfilled
+  // terminals only - a polyfilled `.name` is not a sound pure-runtime observable (fixture-only). the static-
+  // through-ctor row (`.Number.MAX_SAFE_INTEGER.toFixed(1)`) is the import-set oracle for a missed collapse:
+  // babel imports `_Number$MAX_SAFE_INTEGER`, unplugin read `_ref.Number.MAX_SAFE_INTEGER` (native) off the memo
+  { id: 'nohop-static-call-instance', value: 'globalThis.window', tail: '?.Array.of(5).at(0)' },
+  { id: 'nohop-ctor-static-instance', value: 'globalThis.window', tail: '?.Array.from([1]).includes(1)' },
+  { id: 'nohop-proto-method-call', value: 'globalThis.window', tail: '?.Array.prototype.at.call([3, 4], 0)' },
+  { id: 'nohop-static-through-ctor', value: 'globalThis.window', tail: '?.Number.MAX_SAFE_INTEGER.toFixed(1)' },
+  { id: 'nohop-seq-static-through-ctor', value: 'globalThis.window', tail: '?.Number.MAX_SAFE_INTEGER.toFixed(1)', se: true },
+  { id: 'nohop-computed-static-through-ctor', value: 'globalThis.window', tail: '?.Number[(log.push("k"), "MAX_SAFE_INTEGER")].toFixed(1)' },
+  // a SE-SEQUENCE root + static-CALL leaf: the `.of` static must NOT re-fold the root SE into its body (the
+  // trailing `.at` guard owns it) - it emits BARE (`_Array$of(5)`), matching babel. the `se` log fires ONCE
+  { id: 'nohop-seq-static-call-instance', value: 'globalThis.window', tail: '?.Array.of(5).at(0)', se: true },
+  // COMPUTED static key with a buried SE, reached THROUGH the outer instance guard: the outer `.at` /
+  // `.includes` dispatch owns the root's nullability, so the static collapses to the pure ponyfill and the
+  // KEY SE (`log.push("k")`) rides ahead of it (`(log.push("k"), _Array$of)(5)`) - it must fire EXACTLY ONCE
+  // in source order, not be dropped (the outer-guard bare emit's `receiverEffectCount` split) nor double-run
+  { id: 'nohop-computed-static-call-instance', value: 'globalThis.window', tail: '?.Array[(log.push("k"), "of")](5).at(0)' },
+  { id: 'nohop-computed-ctor-static-call', value: 'globalThis.window', tail: '?.Array[(log.push("k"), "from")]([1]).includes(1)' },
+  // SE-SEQUENCE root AND computed-key SE together: the root SE (`se` log) rides the guard memo once, the
+  // key SE (`log.push("k")`) rides the bare body once - two distinct SE channels, neither dropped nor swapped
+  { id: 'nohop-seq-computed-static-call', value: 'globalThis.window', tail: '?.Array[(log.push("k"), "of")](5).at(0)', se: true },
 ];
 function * generateKeptProxyRoot() {
   for (const shape of KPR_SHAPES) {
