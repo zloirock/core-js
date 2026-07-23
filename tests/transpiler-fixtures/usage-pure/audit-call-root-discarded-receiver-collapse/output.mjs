@@ -1,10 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-import _self from "@core-js/pure/actual/self";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
@@ -20,7 +17,7 @@ function sf() {
   c++;
   return _globalThis;
 }
-sf(), c++, _Map;
+sf(), c++;
 const groupBy = _Map$groupBy;
 export const r = [typeof groupBy, c];
 const f = () => _globalThis;
@@ -32,7 +29,7 @@ function pf() {
   n++;
   return _globalThis;
 }
-pf(), _Promise;
+pf();
 const resolve = _Promise$resolve;
 export const p = [typeof resolve, n];
 let k = 0;
@@ -40,7 +37,7 @@ function af() {
   k++;
   return _globalThis;
 }
-(af(), _self)[k++, 'Array'];
+af(), k++;
 const from = _Array$from;
 export const a = [typeof from, k];
 let z = 0;
@@ -48,6 +45,6 @@ function nf() {
   z++;
   return _globalThis;
 }
-nf(), z++, _Symbol;
+nf(), z++;
 const asyncIterator = _Symbol$asyncIterator;
 export const i = [typeof asyncIterator, z];

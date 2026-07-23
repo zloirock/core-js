@@ -42,6 +42,7 @@ import {
   maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop,
   peelChainAssignment,
+  prependChainAssignmentEffect,
   peelReceiverSequenceTail,
   resolveKey,
   resolveObjectName,
@@ -387,14 +388,42 @@ export function shouldDropRescueReceiver(inner) {
 // can't reverse source `(call, key)` to `(key, call)`. STOPS at a chain-ASSIGNMENT (the emit re-emits the
 // whole rhs, so harvesting it here too would double-run). instance dispatch memoizes the receiver,
 // preserving its source + SE, so only the static path needs this
-function collectCollapsingReceiverEffects(node, effects, rescue = null) {
-  const peeled = unwrapParensCollectingEffects(node, effects);
-  if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
-    collectCollapsingReceiverEffects(peeled.object, effects, rescue);
-    if (peeled.computed) collectFoldedReceiverSideEffects(peeled.property, effects);
-  } else if (rescue?.has(peeled)) {
-    effects.push(peeled);
+// `chainAssignInsertAt` re-orders the spliced chain-assign ahead of a hop-key SE from a hop ABOVE its
+// root - correct ONLY for a TERMINAL static-method CALL, where the whole receiver flattens into one
+// side-effect sequence the emitters render identically (`(r = gt)[(k(), 'self')].Array.of()`). when
+// the static is instead READ as a value (a member receiver `...Map.name`, a bare reference), an
+// instance-helper / consumer MEMOIZES the ctor, and that memo owns the receiver-SE order - which the
+// two emitters spell differently (babel folds the harvested key into the memo, unplugin keeps it a
+// prepended prefix), so a flat re-order there splits them. a call callee is never memoized, so it is
+// the stable cross-emitter signal. peels the transparent wrappers the resolver's own walks peel
+function staticIsCallCallee(path) {
+  let current = path;
+  for (let guard = 0; guard < 64 && current; guard++) {
+    const parent = current.parentPath;
+    const parentNode = parent?.node;
+    if (!parentNode) return false;
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(parentNode.type) && parentNode.expression === current.node) {
+      current = parent;
+      continue;
+    }
+    return (parentNode.type === 'CallExpression' || parentNode.type === 'OptionalCallExpression')
+      && parentNode.callee === current.node;
   }
+  return false;
+}
+
+// COMPLETE side-effect harvest of a fully-discarded receiver, in source eval order: sequence
+// prefixes + buried hop-key effects + chain-root calls (via the canonical `collectFoldedReceiverSideEffects`
+// receiver walk) AND the chain-assignment spliced at its eval position. this is the EXACT set the
+// static-collapse re-emits, so a destructure that DROPS this receiver's navigation preserves every
+// effect the value-read would have run. passes `chainAssignAt` so the walk EXCLUDES the chain-assign
+// (the emit re-emits it via `prependChainAssignmentEffect`) and records its eval slot for the splice
+export function harvestDiscardedReceiverSE(node, { scope, adapter, path }) {
+  const effects = [];
+  const rescue = seedChainRootCallRescue({ node, scope, adapter, path });
+  const chainAssignAt = { at: null };
+  collectFoldedReceiverSideEffects(node, effects, rescue, chainAssignAt);
+  return prependChainAssignmentEffect(node, effects, chainAssignAt.at ?? effects.length);
 }
 
 function buildMemberMeta({ node, scope, adapter, path }) {
@@ -505,7 +534,12 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // source-eval order via the rescue-seeded fold walk
     if (placement === 'static' && !chainAssignOuter) {
       const rescue = seedChainRootCallRescue({ node: classifyTarget, scope, adapter, path });
-      collectCollapsingReceiverEffects(classifyTarget, sideEffects, rescue);
+      // a DEEP chain-assign (`(r = gt)[key(...)].X` - not the peeled outer) is skipped by the harvest
+      // but spliced back by the emitter. capture its eval position so the splice lands before the
+      // hop-key SE (`key(...)`) that runs AFTER it, not at the receiver/key boundary
+      const chainAssignAt = { at: null };
+      collectFoldedReceiverSideEffects(classifyTarget, sideEffects, rescue, chainAssignAt);
+      if (chainAssignAt.at !== null && staticIsCallCallee(path)) meta.chainAssignInsertAt = chainAssignAt.at;
     }
     // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)
     // carries through to the polyfill emit if the body block has a prefix expression statement
