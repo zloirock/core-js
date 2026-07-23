@@ -409,17 +409,12 @@ function chainAssignGuardRootSrc({ rootNode, metaPath, code, adapter, injectPure
     + injectPureImport(pure.entry, pure.hintName) + code.slice(rootIdent.end, span.end);
 }
 
-// guard text for a CALL-rooted captured chain (`(() => globalThis)()?.self.Array.from(x).at(0)`):
-// neither the member-chain nor the chain-assign resolver rebuilds a call root, and the root
-// identifier's own rewrite can be consumed by a static-method claim's detection over the tail -
-// the memo then reads a bare `globalThis` (off-engine ReferenceError; the AST emitter keeps the
-// substitution inside the kept call). substitute each unshadowed value-position proxy-global
-// identifier inside the root span in place. names declared anywhere within the span bail their
-// substitutions (a local binding may shadow them - raw source is the safe spelling). module-level
-// so the emitter factory stays in budget
-function callRootGuardSrc({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }) {
-  const core = unwrapNode(rootNode);
-  if (core?.type !== 'CallExpression' && core?.type !== 'OptionalCallExpression') return null;
+// substitute each unshadowed value-position proxy-global identifier inside `rootNode`'s SOURCE SPAN in
+// place, keeping the raw text otherwise. names declared anywhere within the span bail their substitutions
+// (a local binding may shadow them - raw source is the safe spelling). returns { src, subCount } so callers
+// can distinguish a proxy-rooted render (subCount > 0) from a purely-opaque span. module-level so the
+// emitter factory stays in budget
+function substituteSpanProxyGlobals({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }) {
   const declared = new Set();
   const nonValue = new Set();
   const candidates = [];
@@ -436,7 +431,6 @@ function callRootGuardSrc({ rootNode, metaPath, code, adapter, injectPureImport,
   } });
   const subs = candidates.filter(n => !nonValue.has(n) && !declared.has(n.name)
     && !shadowedAtUse(adapter, n.name, metaPath) && resolveGlobalPolyfill(n.name));
-  if (!subs.length) return null;
   subs.sort((a, b) => a.start - b.start);
   let out = '';
   let pos = rootNode.start;
@@ -445,7 +439,30 @@ function callRootGuardSrc({ rootNode, metaPath, code, adapter, injectPureImport,
     out += code.slice(pos, n.start) + injectPureImport(pure.entry, pure.hintName);
     pos = n.end;
   }
-  return out + code.slice(pos, rootNode.end);
+  return { src: out + code.slice(pos, rootNode.end), subCount: subs.length };
+}
+
+// guard text for a CALL-rooted captured chain (`(() => globalThis)()?.self.Array.from(x).at(0)`):
+// neither the member-chain nor the chain-assign resolver rebuilds a call root, and the root
+// identifier's own rewrite can be consumed by a static-method claim's detection over the tail -
+// the memo then reads a bare `globalThis` (off-engine ReferenceError; the AST emitter keeps the
+// substitution inside the kept call). bails (null) when no proxy-global was substituted so the
+// caller's `??` chain continues to the raw-span fallback
+function callRootGuardSrc({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }) {
+  const core = unwrapNode(rootNode);
+  if (core?.type !== 'CallExpression' && core?.type !== 'OptionalCallExpression') return null;
+  const { src, subCount } = substituteSpanProxyGlobals({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill });
+  return subCount ? src : null;
+}
+
+// FINAL guard-root fallback for an OPAQUE root the specific resolvers cannot collapse (an inline-call nav
+// `f()?.window`, an unknown-value nav): the raw source IS the correct guard test - babel keeps `null ==
+// f()?.window ? void 0 : ...` there, its `?.` guarding a genuinely-undefinable value. substitutes any
+// internal proxy-global identifier (a raw `globalThis` would ReferenceError on ie:11) but never bails, so
+// the fallback swap GUARDS instead of folding + dropping the receiver nav (its SE + short-circuit)
+function rawRootGuardSrc({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }) {
+  if (!rootNode) return null;
+  return substituteSpanProxyGlobals({ rootNode, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill }).src;
 }
 
 // guard text for a plain member-NAVIGATION root (`globalThis.window`): the `?.` guards this exact
@@ -2714,7 +2731,11 @@ export function createPolyfillEmitter({
           peelWrappers: 'parens',
         })
         ?? callRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill })
-        ?? resolveProxyGlobalChainSrc(rootNode, metaPath)?.src;
+        ?? resolveProxyGlobalChainSrc(rootNode, metaPath)?.src
+        // an OPAQUE root (inline-call nav `f()?.window`) collapses to nothing above; its raw source is the
+        // guard test, so the claim emits `(null == f()?.window ? void 0 : _Array$from)?.(x)` instead of
+        // bailing to the raw un-polyfilled chain (native `from` on ie:11 = missed polyfill)
+        ?? rawRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill });
       if (!rootSrc) return;
       // a kept-assign root spells paren-stripped (its usual consumer embeds it in a memo slot
       // that parenthesizes) - the `==` operand needs the parens back
@@ -2819,7 +2840,10 @@ export function createPolyfillEmitter({
           rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
           peelWrappers: 'full',
         })
-        ?? callRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill }));
+        ?? callRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill })
+        // an OPAQUE root (inline-call nav `f()?.window`) collapses to nothing above; its raw source is the
+        // guard test, so the fallback swap GUARDS rather than folds + drops the receiver nav
+        ?? rawRootGuardSrc({ rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill }));
       if (rootSrc) {
         if (unwrapNode(rootNode)?.type === 'AssignmentExpression') rootSrc = `(${ rootSrc })`;
         let tipPath = metaPath;
