@@ -238,9 +238,37 @@ export const TS_EXPR_WRAPPERS = new Set([
 // e.g. `Math.it` (`.it` is property name) as a reference to a binding `it`, or rewrite
 // `class { globalThis() {} }` (method name) to `class { _globalThis() {} }`. pure AST
 // analysis - parser-agnostic, so lives in the shared provider helpers
+// both parser spellings per shape (babel / ESTree-oxc). EVERY member shape belongs here - property,
+// accessor and method alike, in value space and in type space: a non-computed key is a source-text
+// name, never a runtime reference. whether babel's live scope also RESERVES that name for the UID
+// allocator is a separate question, answered by `blocksUidSlot`
 const NON_REF_KEY_BEARING_TYPES = new Set([
-  'Property', 'ObjectProperty', 'ObjectMethod',
-  'ClassMethod', 'MethodDefinition', 'ClassProperty', 'PropertyDefinition',
+  'Property',
+  'ObjectProperty',
+  'ObjectMethod',
+  'ClassMethod',
+  'MethodDefinition',
+  'ClassProperty',
+  'PropertyDefinition',
+  'AccessorProperty',
+  'ClassAccessorProperty',
+  'TSPropertySignature',
+  'TSAbstractPropertyDefinition',
+  'TSAbstractAccessorProperty',
+  'TSMethodSignature',
+  'TSAbstractMethodDefinition',
+  'TSDeclareMethod',
+]);
+
+// method-shaped members, whether they carry the function inline (`body`) or under `value`. one of these
+// with NO function body is an overload SIGNATURE (`f(): void;`) - the shape babel's live scope reserves
+const METHOD_MEMBER_KEY_TYPES = new Set([
+  'ObjectMethod',
+  'ClassMethod',
+  'MethodDefinition',
+  'TSMethodSignature',
+  'TSAbstractMethodDefinition',
+  'TSDeclareMethod',
 ]);
 export function isNonReferencePosition(parent, identifierNode) {
   if (!parent) return false;
@@ -248,6 +276,9 @@ export function isNonReferencePosition(parent, identifierNode) {
   if (NON_REF_KEY_BEARING_TYPES.has(type) && parent.key === identifierNode && !parent.computed) return true;
   if ((type === 'MemberExpression' || type === 'OptionalMemberExpression')
     && parent.property === identifierNode && !parent.computed) return true;
+  // an enum MEMBER name (`enum E { _ref }`) rides `id`, not `key`: at runtime it is a property of the enum
+  // object, never a standalone binding, so it must not block a UID slot (babel's live scope claims none)
+  if (type === 'TSEnumMember' && parent.id === identifierNode) return true;
   if (type === 'LabeledStatement' && parent.label === identifierNode) return true;
   if ((type === 'BreakStatement' || type === 'ContinueStatement') && parent.label === identifierNode) return true;
   if (type === 'ImportSpecifier' && parent.imported === identifierNode) return true;
@@ -258,6 +289,29 @@ export function isNonReferencePosition(parent, identifierNode) {
   if (type === 'JSXAttribute' && parent.name === identifierNode) return true;
   if (type === 'JSXMemberExpression' && parent.property === identifierNode) return true;
   return false;
+}
+
+// the node a `:` type slot introduces, in both dialects. single authority for the question, asked by
+// the annotation PEELERS (which strip it to reach the type) and by the census (which stops at it):
+// babel's scope crawler will not descend through this node, so a name written past it never reaches
+// `scope.globals` and never claims a UID slot. a type-alias RHS, an interface body and type ARGUMENTS
+// carry no such wrapper and are crawled at any depth - which is why this cannot delegate to
+// `isTypeAnnotationNodeType`, a deliberately wider "is this type-space at all" test
+export function isTypeAnnotationWrapper(node) {
+  if (!node) return false;
+  const { type } = node;
+  return type === 'TSTypeAnnotation' || type === 'TypeAnnotation';
+}
+
+// does this identifier occupy a name the UID allocator must not hand out? this is a DIFFERENT question
+// from `isNonReferencePosition` and the two disagree on exactly one shape - an overload SIGNATURE key.
+// babel's live scope registers it (babel spells the node `TSDeclareMethod`), so a UID must step around
+// the name for emitter parity; yet the key is still a source-text name that must never be REWRITTEN,
+// so the rewrite walkers keep asking `isNonReferencePosition`. oxc gives the class overload the same
+// `MethodDefinition` type as a body-bearing method, so only the missing body tells them apart
+export function blocksUidSlot(parent, identifierNode) {
+  if (!isNonReferencePosition(parent, identifierNode)) return true;
+  return METHOD_MEMBER_KEY_TYPES.has(parent.type) && !(parent.body ?? parent.value?.body);
 }
 
 // AST parent shapes where an Identifier child IS the binding being introduced (declarator
@@ -3073,24 +3127,33 @@ export function isScopeRebinding(node) {
 // wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
 // classifier distinguishes emit positions by
 export function collectFileCensus(programNode, reducers) {
-  const stack = [{ node: programNode, parentType: null, atTopLevel: true }];
+  // `parentNode` is the IMMEDIATE structural parent (unlike `parentType`, which skips transparent
+  // wrappers): a reducer that must tell a source-name position from a reference (an identifier that
+  // is a property key / member key / label, per `isNonReferencePosition`) needs the exact parent node
+  const stack = [{ node: programNode, parentType: null, atTopLevel: true, parentNode: null, underTypeAnnotation: false }];
   while (stack.length) {
     const frame = stack.pop();
     const { node } = frame;
     if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) {
-        stack.push({ node: node[i], parentType: frame.parentType, atTopLevel: frame.atTopLevel });
-      }
+      // an array is not a node: its members inherit the frame verbatim, only `node` advances
+      for (let i = node.length - 1; i >= 0; i--) stack.push({ ...frame, node: node[i] });
       continue;
     }
     if (!isASTNode(node)) continue;
     for (const reducer of reducers) reducer.visit(node, frame);
     const atTopLevel = frame.atTopLevel && !isScopeRebinding(node);
+    // sticky, same shape as `atTopLevel`: once inside an annotation the whole subtree is inside it.
+    // the boundary is the WRAPPER node a `:` slot introduces - deliberately NARROWER than
+    // `isTypeAnnotationNodeType` ("is this type-space at all"), which also covers union arms and
+    // type ARGUMENTS. a type-alias RHS, an interface body and type arguments carry no wrapper
+    const underTypeAnnotation = frame.underTypeAnnotation || isTypeAnnotationWrapper(node);
     const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? frame.parentType : node.type;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const value = node[key];
-      if (Array.isArray(value) || isASTNode(value)) stack.push({ node: value, parentType, atTopLevel });
+      if (Array.isArray(value) || isASTNode(value)) {
+        stack.push({ node: value, parentType, atTopLevel, parentNode: node, underTypeAnnotation });
+      }
     }
   }
   const census = {};
@@ -3120,10 +3183,6 @@ export function memberKeyNamesReducer() {
     },
     result() { return { memberKeyNames }; },
   };
-}
-
-export function collectUserMemberKeyNames(programNode) {
-  return collectFileCensus(programNode, [memberKeyNamesReducer()]).memberKeyNames;
 }
 
 // does any statement list carry the minifier sequence-destructure shape? drives the split

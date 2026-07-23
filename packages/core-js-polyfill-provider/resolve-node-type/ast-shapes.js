@@ -7,7 +7,7 @@
 //
 // the shape predicates here encode cross-parser compatibility (babel / oxc / flow), discovered
 // empirically per parser - change them only with care
-import { getTypeArgs, isDeferredContextStep } from '../helpers/ast-patterns.js';
+import { getTypeArgs, isDeferredContextStep, isTypeAnnotationWrapper } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 import { dropLeadingThisParam, literalNodeValue, PRIMITIVE_HINTS } from './base.js';
 
@@ -72,7 +72,7 @@ export function typeRefName(node) {
 // container. peels a leading TSTypeAnnotation and TSParenthesized (oxc keeps `(readonly T[])` parens
 // where babel strips them - without the peel the gate misfires on the oxc path)
 export function readonlyCollectionBase(node) {
-  const n = peelTSParenthesized(node?.type === 'TSTypeAnnotation' ? node.typeAnnotation : node);
+  const n = peelTSParenthesized(isTypeAnnotationWrapper(node) ? node.typeAnnotation : node);
   if (n?.type === 'TSTypeOperator' && n.operator === 'readonly') return 'Array';
   if (n?.type !== 'TSTypeReference') return null;
   const name = typeRefName(n);
@@ -100,7 +100,7 @@ export function isReadonlyArrayType(node) {
 // paired with `readonlyCollectionBase`: a readonly check is not assignable to the mutable form of the
 // SAME base, so a conditional `<readonly X> extends <mutable X>` takes the FALSE branch
 export function mutableCollectionName(node) {
-  const n = peelTSParenthesized(node?.type === 'TSTypeAnnotation' ? node.typeAnnotation : node);
+  const n = peelTSParenthesized(isTypeAnnotationWrapper(node) ? node.typeAnnotation : node);
   if (n?.type === 'TSArrayType') return 'Array';
   if (n?.type !== 'TSTypeReference') return null;
   const name = typeRefName(n);

@@ -202,6 +202,33 @@ await runEquivalence(
   { parserPlugins: ['typescript', 'decorators-legacy'] },
 );
 
+// member NAME slots: the two parsers spell these members differently (babel folds the bodyless
+// class signatures into `TSDeclareMethod`, oxc keeps a null-body `MethodDefinition` and separate
+// `TSAbstract*` types), and babel's own `isReferencedIdentifier` reports such a key as referenced.
+// so a global-shaped member name is exactly where the two pipelines can pick different polyfill
+// sets. each key below names a global used NOWHERE else, so any import for it is a false positive
+await runEquivalence(
+  'bodyless overload signature key named as a global',
+  'class C { Set(): void; Set(x?: number) {} }\nexport const r = [1].at(0);',
+  USAGE_GLOBAL_IE11,
+);
+await runEquivalence(
+  'abstract method key named as a global',
+  'abstract class C { abstract WeakMap(): void; }\nexport const r = [1].at(0);',
+  USAGE_GLOBAL_IE11,
+);
+await runEquivalence(
+  'abstract accessor key named as a global',
+  'abstract class C { abstract accessor Promise: number; }\nexport const r = [1].at(0);',
+  USAGE_GLOBAL_IE11,
+  { parserPlugins: ['typescript', 'decoratorAutoAccessors'] },
+);
+await runEquivalence(
+  'interface method signature key named as a global',
+  'interface I { Map(): void }\nexport const r = [1].at(0);',
+  USAGE_GLOBAL_IE11,
+);
+
 // NO Flow scenario here on purpose: oxc has no Flow mode on any extension, so a cross-parser
 // Flow equivalence is not expressible (both sides would emit zero imports and trivially agree -
 // a vacuous scenario that can never catch a regression). babel-side Flow dispatch is locked by
