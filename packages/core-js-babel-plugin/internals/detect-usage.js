@@ -34,6 +34,7 @@ import {
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
+  isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   buildOwnerWritePathIndex,
   buildScopeReassignmentIndex,
@@ -634,6 +635,13 @@ export function createUsageVisitors({
     // polyfilling is pure over-injection (and breaks TS output for exports / duplicates the
     // import LHS for TSImportEquals)
     if (isTSTypeOnlyIdentifierPath(path)) return;
+    // `isReferencedIdentifier` is permissive on a BODYLESS method-shaped member key (an overload
+    // signature `Map(): void;`, `abstract Map(): void`): it reports the key as referenced, so a
+    // global-shaped member NAME would pull in that global's polyfill. the key names a member, never
+    // the global - reject through the shared member-name predicate. only the KEY slot needs asking:
+    // the predicate's other member slot is a non-computed member tail, which `isReferencedIdentifier`
+    // (and, for a JSX member tail, the JSX branch above) has already rejected by this point
+    if (path.key === 'key' && isNonReferencePosition(path.parent, path.node)) return;
     // usage-pure cannot rewrite a global at a write position to a frozen import binding (the
     // write would TypeError): UpdateExpression operand (`Map++`, `--Map`, `(Map)++`), an
     // assignment LHS (`Map = x`, `Map ||= x`), or a for-of / for-in head bare-Identifier LHS
