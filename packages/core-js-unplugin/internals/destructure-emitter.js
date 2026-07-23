@@ -77,6 +77,7 @@ import {
   resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
+  harvestDiscardedReceiverSE,
   isSourcedSymbolIteratorMeta,
   planCallRootDiscardedProxySwap,
   planProxyReceiver,
@@ -1274,8 +1275,24 @@ export function createDestructureEmitter({
       const peeledLiftTail = liftTail !== info.initNode ? unwrapParens(liftTail) : null;
       liftTailDead = !!peeledLiftTail && (skippedNodes.has(peeledLiftTail)
         || (willLiftSE && !isForInit && !mayHaveSideEffects(peeledLiftTail)));
+      // a full-consume whose discarded receiver navigates a proxy chain keeps only its COMPLETE
+      // harvested SE (sequence prefixes + chain-assign + buried calls + hop-keys); the navigation
+      // just names the global the extracted static already is, and would THROW off-browser on an
+      // unponyfillable hop. gate on the peeled TAIL (a sequence-rooted init `(d++, gt[e++,'self'].X)`
+      // is not itself a member, but its tail is); the harvest walks the WHOLE init so it captures the
+      // sequence-root prefix AND the buried hop-key in eval order, dropping only the dead navigation.
+      // checked BEFORE the dead-tail policy: the skip marked the tail dead, but here it carries harvested
+      // SE (the hop-key), so `dropDeadSequenceTail` would keep only the prefix and lose that SE
+      const discardedSe = willLiftSE && shouldDropRescueReceiver(peeledLiftTail ?? info.initNode)
+        ? harvestDiscardedReceiverSE(info.initNode,
+          { scope: info.declaratorPath?.scope, adapter: estreeAdapter, path: info.declaratorPath }) : null;
+      if (discardedSe?.length) {
+        liftParts = discardedSe.map(node => ({ start: node.start, end: node.end }));
+        liftTailDead = true;
       // trailing PURE prefix elements are as dead as the tail - the shared dead-tail policy
-      if (liftPrefix.length && liftTailDead) liftParts = dropDeadSequenceTail(liftPrefix);
+      } else if (liftPrefix.length && liftTailDead) {
+        liftParts = dropDeadSequenceTail(liftPrefix);
+      }
     }
     // a lifted SE init keeps the bare receiver live as a statement even though its value is unread -
     // collapse its proxy hop too (mirrors the babel `collapseRetainedProxyReceiver` SE-retained branch
@@ -1359,7 +1376,10 @@ export function createDestructureEmitter({
     // the lifted text can START a statement (the tail-dropped prefix loses the sequence parens):
     // a `{` / `class` / `function` head needs the hazard parens the minifier split applies
     if (willLiftSE) {
-      if (isForInit) parts.push(`${ injector.generateLocalRef() } = ${ initTransformed }`);
+      // a multi-part lift (harvested discard-SE `r = _globalThis.window, f()`) is a comma sequence:
+      // as a for-init sink's declarator RHS it needs parens or the commas split the declarator list
+      const sinkInit = liftParts && liftParts.length > 1 ? `(${ initTransformed })` : initTransformed;
+      if (isForInit) parts.push(`${ injector.generateLocalRef() } = ${ sinkInit }`);
       else parts.push(parenthesizeExprStmtHazard(initTransformed));
     }
 
@@ -3762,11 +3782,26 @@ export function createDestructureEmitter({
   // (like the alias trigger), and SKIP the receiver subtree so the natural visitor does not pre-queue a
   // conflicting `(f()).self -> _self` transform that would nest inside this whole-receiver replacement (compose
   // crash). bailOnPureLeaf=false: the residual consumes the receiver, so a pure-ctor leaf has no whole-swap elsewhere
+  // a FULLY-DISCARDED destructure receiver whose COMPLETE harvest (sequence prefixes + chain-assign + buried
+  // calls + hop-keys, via the canonical `harvestDiscardedReceiverSE`) captures every effect drops its whole
+  // proxy navigation - the nav just names the global the extracted static already is, and would THROW off-
+  // browser on an unponyfillable hop. the receiver-collapse triggers DEFER this shape so the roots stay live
+  // for the natural rewrite and the discard lift re-emits only the harvested SE. an EMPTY harvest on a side-
+  // effecting init means the harvest can't fully account for it (a pathological shape) -> NOT droppable, keep.
+  // gates on the WHOLE declarator init (the exact node the skip + lift harvest) so all three stay consistent
+  function discardedProxyReceiverDropsNav(declaratorNode, scope, path) {
+    return declaratorNode?.type === 'VariableDeclarator'
+      && canFullyConsumeProxyDeclarator(declaratorNode, scope, path)
+      && harvestDiscardedReceiverSE(declaratorNode.init, { scope, adapter: estreeAdapter, path }).length > 0;
+  }
+
   function triggerCallRootReceiverCollapse(declaratorPath, isAssignment) {
     const initPath = isAssignment ? declaratorPath?.get('right') : declaratorPath?.get('init');
     if (!initPath?.node) return;
     const ctx = initPath.scope ? { scope: initPath.scope, adapter: estreeAdapter, path: initPath } : null;
     const peeled = unwrapInitForResolution(initPath.node);
+    // a fully-discarded receiver drops its whole navigation - defer to the discard lift (see helper)
+    if (!isAssignment && discardedProxyReceiverDropsNav(declaratorPath?.node, initPath.scope, initPath)) return;
     // the receiver is ALREADY in skippedNodes (the synth-swap pre-marks it), so a separate WeakSet gates the
     // once-per-pattern fire across multi-prop calls. a LITERAL / alias root (findProxyGlobal true) is handled elsewhere
     if ((peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression')
@@ -4213,11 +4248,21 @@ export function createDestructureEmitter({
     // ever matched the Identifier case, and the climb died at the first non-member parent
     const anchorRoot = descendToChainRoot(metaPath?.node ?? {}, true).root ?? metaPath?.node;
     let recPath = peelOxc(metaPath?.parentPath);
+    // track the DEEPEST all-proxy member: a chain with a non-proxy leaf breaks AT it, but an ALL-proxy chain
+    // (`globalThis.self.window` as a bare destructure SOURCE, no non-proxy leaf) walks past to a non-member
+    // parent - fall back to the deepest member so the whole chain still collapses to the root (`_globalThis`)
+    let allProxyMember = null;
+    let allProxyEnd = false;
     for (;;) {
       if (recPath?.node?.type === 'MemberExpression' || recPath?.node?.type === 'OptionalMemberExpression') {
         if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
           { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
+        allProxyMember = recPath;
       } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== anchorRoot) {
+        if (allProxyMember) {
+          recPath = allProxyMember;
+          allProxyEnd = true;
+        }
         break;
       }
       recPath = peelOxc(recPath.parentPath);
@@ -4248,6 +4293,10 @@ export function createDestructureEmitter({
     // off-engine). a plain default VALUE (`{ x = globalThis.self.Array }`, target Identifier) is NOT a source
     let ctxPath = recPath.parentPath;
     let climbedFrom = recPath.node;
+    // a value-OBSERVING carrier (`??` / `||` / `&&` / ternary) between the receiver and the binding OBSERVES
+    // the receiver's undefined/falsy (`{x} = globalThis.window ?? {}` reads `undefined ?? {}` = `{}` off-engine);
+    // the all-proxy root-collapse below (`.window` -> DEFINED `_globalThis`) would defeat that fallback
+    let valueObservingCarrier = false;
     // climb value carriers AND receiver-member reads off the collapsing chain (`{flat} = X.prototype`,
     // `{flatMap} = globalThis[(eff(), 'self')].Array.prototype`) to reach the binding context: a destructure
     // SOURCE is owned by the destructure path, which collapses the WHOLE receiver atomically via the shared
@@ -4257,6 +4306,7 @@ export function createDestructureEmitter({
     while (ctxPath && (PROXY_HOP_VALUE_CARRIERS.has(ctxPath.node?.type)
       || ((ctxPath.node?.type === 'MemberExpression' || ctxPath.node?.type === 'OptionalMemberExpression')
         && ctxPath.node.object === climbedFrom))) {
+      if (ctxPath.node.type === 'LogicalExpression' || ctxPath.node.type === 'ConditionalExpression') valueObservingCarrier = true;
       climbedFrom = ctxPath.node;
       ctxPath = ctxPath.parentPath;
     }
@@ -4277,16 +4327,41 @@ export function createDestructureEmitter({
     // as a fully-static synth-swap whose receiver SURVIVES as a residual also collapses HERE (the
     // synth-swap does not collapse the hop itself). the climb above already did the proxy / alias /
     // wrapper detection, so this only needs the pattern flags
-    if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)
-      && !consumedStaticResidualPatterns.has(target)) {
-      // ...unless the chain hangs off a KEPT root (a chain-assign whose value navigates a hop with
-      // no pure entry): the destructure pipeline renders such a source VERBATIM (its own collapse
-      // entry is gated off once the natural root rewrite touched the init), so deferring strands
-      // the raw hop unrescued. collapse here instead - the extraction composes this span into the
-      // re-emitted source by needle, and the init-collapse entry stays off (the init no longer
-      // matches its pristine source), so the two never race
-      const chainAssign = peelChainAssignment(descendToChainRoot(recv).root ?? recv);
-      if (!chainAssign.outer || !navHasUnresolvableProxyHop(chainAssign.value, resolvePure)) return false;
+    if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)) {
+      // a fully-discarded receiver drops its whole navigation (keeping only the harvested SE, re-emitted by
+      // the discard lift); DEFER so the roots stay live for the natural rewrite - collapsing here would strand
+      // a keep-terminal transform the drop cannot compose. covers both consumed-static-residual and kept-root
+      if (discardedProxyReceiverDropsNav(ctx, aliasCtx?.scope, aliasCtx?.path)) return false;
+      if (!consumedStaticResidualPatterns.has(target)) {
+        // ...unless the chain hangs off a KEPT root (a chain-assign whose value navigates a hop with
+        // no pure entry): the destructure pipeline renders such a source VERBATIM (its own collapse
+        // entry is gated off once the natural root rewrite touched the init), so deferring strands
+        // the raw hop unrescued. collapse here instead - the extraction composes this span into the
+        // re-emitted source by needle, and the init-collapse entry stays off (the init no longer
+        // matches its pristine source), so the two never race
+        const chainAssign = peelChainAssignment(descendToChainRoot(recv).root ?? recv);
+        if (!chainAssign.outer || !navHasUnresolvableProxyHop(chainAssign.value, resolvePure)) return false;
+      }
+    }
+    // an ALL-proxy chain END (`globalThis.self.window`, no non-proxy leaf) collapses to the bare root pure
+    // import ONLY as a DISCARDED destructure SOURCE, and only when SOME hop is UNRESOLVABLE (`.window`, no
+    // `_window` - the natural per-hop rewrite would leave `_globalThis.self.window`, undefined off-engine ->
+    // destructuring it throws). drop EVERY hop to `_globalThis`. a value-USE, a value-observing carrier
+    // (`?? {}` reads the undefined), an all-resolvable chain (`.self` -> `_self`), or a computed SE key defer
+    if (allProxyEnd) {
+      if (target?.type !== 'ObjectPattern' && target?.type !== 'ArrayPattern') return false;
+      if (valueObservingCarrier || !navHasUnresolvableProxyHop(recv, resolvePure)) return false;
+      const rootIdent = findProxyGlobal(recv, aliasCtx, true);
+      const rootPure = rootIdent && resolveGlobalPolyfill(rootIdent.name);
+      if (!rootPure) return false;
+      for (let n = recv; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = unwrapNode(n.object)) {
+        if (n.computed) return false;
+      }
+      if (transforms.hasRange(recv.start, recv.end)) return false;
+      const root = findProxyGlobal(recv, aliasCtx);
+      if (root) skippedNodes.add(root);
+      transforms.add(recv.start, recv.end, injectPureImport(rootPure.entry, rootPure.hintName));
+      return true;
     }
     // a mutation TARGET (the canonical `isMemberWriteHost` covers `=` / update / `delete` / destructuring /
     // wrappers) collapses a SE-bearing hop here rather than deferring its sub-chain to the natural visitor -

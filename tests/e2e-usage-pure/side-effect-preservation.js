@@ -180,6 +180,43 @@ QUnit.test('side effect: deep proxy-hop key under .Array.prototype harvests its 
   assert.strictEqual(b, 1);
 });
 
+// SE14: an OPTIONAL chain-ASSIGN root storing a CALL that inline-resolves to globalThis, navigating a `.self`
+// proxy hop into a static call with a trailing instance method (`((w = f()))?.self.Array.of(5).at(0)`). the
+// call is always-defined, so the dead `?.` guard ERASES and the receiver collapses to the pure static; the
+// assign SE (the call) folds ONCE into that static - not left in a kept guard (which re-ran the call on
+// unplugin) nor a raw `.self.Array.of` (a missed polyfill that throws in the stripped realm). the `.self` hop
+// is dropped, so it never reads in Node. value + effect count + the assigned binding pin single evaluation.
+QUnit.test('side effect: optional call-assign proxy-hop root folds its SE once into the collapsed static', assert => {
+  let calls = 0;
+  let w;
+  function f() {
+    calls += 1;
+    return globalThis;
+  }
+  const result = (w = f())?.self.Array.of(5).at(0);
+  assert.strictEqual(result, 5);
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(w, globalThis);
+});
+
+// SE15: the NO-HOP twin of SE14 - an OPTIONAL chain-assign root storing a CALL to globalThis with no proxy
+// hop, straight into a static call + trailing instance (`(w = f())?.Array.of(5).at(0)`). the `?.` guards only
+// the always-defined receiver, so it erases regardless of the non-hop member that follows; the receiver-
+// independent collapse folds the call ONCE. before, a kept dead guard let unplugin re-run the call in the fold
+// (SE twice) and read a raw native static on a `.name` twin - the erasure now matches the static-call canon.
+QUnit.test('side effect: optional no-hop call-assign root folds its SE once under an erased guard', assert => {
+  let calls = 0;
+  let w;
+  function f() {
+    calls += 1;
+    return globalThis;
+  }
+  const result = (w = f())?.Array.of(5).at(0);
+  assert.strictEqual(result, 5);
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(w, globalThis);
+});
+
 // SE: a side-effecting destructure key in a BODYLESS control body (`if (c) var {...} = R`). the polyfill
 // extract is emitted as a statement before the surviving residual, so the two must share a block - else the
 // residual escapes the guard and runs the key effect even when the branch is not taken. `var` is required:
