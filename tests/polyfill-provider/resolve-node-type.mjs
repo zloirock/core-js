@@ -1663,6 +1663,43 @@ runBoth('multi-hop type alias resolves through chain',
       { primitive: false, ctor: 'Array' });
   });
 
+// a NON-cyclic alias referenced 3+ times on one resolution walk must resolve every time, not
+// degrade. the walk marks a decl grey (open) before resolving and ungreys it on the way out; a
+// memo-hit early-return must not skip the ungrey, or the 3rd shared reference reads the leaked
+// grey membership as a cycle and folds the union to a generic (null) type. one arm per line
+runBoth('3+ shared alias references do not false-cycle to generic',
+  `
+    type P = number[];
+    type L = P | P | P | P;
+    let x: L;
+  `,
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    // every arm is the same Array alias, so the union resolves to Array; the 3rd/4th arm must not null
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the grey-leak is decl-kind-agnostic (it precedes the alias / interface / class / namespace dispatch),
+// so a 3+-shared reference degrades the same way through each. these lock the breadth: an interface
+// whose extends resolves to a container, a namespace-qualified alias, and a multi-hop alias chain
+for (const [label, src] of [
+  ['interface extends', 'type P = number[];\ninterface A extends P {}\ntype L = A | A | A;\nlet x: L;'],
+  ['namespace alias', 'namespace N { export type P = number[]; }\ntype L = N.P | N.P | N.P;\nlet x: L;'],
+  ['multi-hop chain', 'type A = number[];\ntype B = A;\ntype C = B;\ntype L = C | C | C;\nlet x: L;'],
+  // a shared node that is ITSELF a shared-DAG node: each level memoizes while an ancestor is grey,
+  // so the leak would compound across levels - the fix must hold recursively
+  ['nested shared DAG', 'type Q = number[];\ntype P = Q | Q | Q;\ntype L = P | P | P;\nlet x: L;'],
+  // the class-as-type branch (extends a known container) - a distinct decl kind from the aliases above
+  ['class extends container', 'class A extends Array {}\ntype L = A | A | A;\nlet x: L;'],
+]) {
+  runBoth(`3+ shared references resolve through ${ label }`, src, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+}
+
 // --- Cyclic HKT alias termination ---
 
 // `type Apply<F> = F<0>` re-splices the SAME type-param ref into a fresh clone every hop;
