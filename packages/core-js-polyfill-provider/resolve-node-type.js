@@ -4,6 +4,7 @@ import {
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   getTypeArgs,
+  isTypeAnnotationWrapper,
   kebabToCamel,
   ownerWritePathIndex,
   singleQuasiString,
@@ -537,7 +538,7 @@ function createResolveNodeType(babelNodeType, t, {
 
   function unwrapTypeAnnotation(node) {
     while (node) {
-      if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') {
+      if (isTypeAnnotationWrapper(node)) {
         node = node.typeAnnotation;
         continue;
       }
