@@ -70,7 +70,10 @@ if (!(process.env.CI || which.sync('iexplore.exe', { nothrow: true }))) {
 } else {
   const karmaBin = req.resolve('karma/bin/karma');
   const conf = join(HERE, 'karma.conf.cjs');
-  console.log(`\nrunning Karma (IE11) over ${ files.length } bundle(s) …`);
+  console.log(`\nrunning Karma over ${ files.length } bundle(s) in real IE11 — each reruns its library's`);
+  console.log('exercise (the same deterministic self-checks as e2e-libs / artifacts) via QUnit; a red check');
+  console.log('(a polyfill missing or misbehaving on IE11) fails the job. Per-library counts print as');
+  console.log('"[e2e-libs] <lib>/usage-pure: N/N checks passed in this IE11".');
   // forward slashes: this leg runs on windows-2022, and Karma matches `files` through glob, where a
   // backslash is an escape — native Windows paths would silently match nothing
   const fArg = files.map(f => f.replaceAll('\\', '/')).join(',');
