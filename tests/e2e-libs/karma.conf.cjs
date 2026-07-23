@@ -29,6 +29,11 @@ module.exports = config => config.set({
   basePath: '.',
   customLaunchers,
   browsers,
-  logLevel: config.LOG_ERROR,
+  // a green QUnit run is otherwise near-silent (just "Executed N of N"). Forward each bundle's
+  // console.log — the "[e2e-libs] <lib>: N/N checks passed in this IE11" line the driver prints — to
+  // the CI terminal, so the log states what actually ran in the browser, not just how many bundles.
+  client: { captureConsole: true },
+  browserConsoleLogOptions: { terminal: true, level: 'log' },
+  logLevel: config.LOG_INFO,
   singleRun: true,
 });
