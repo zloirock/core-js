@@ -47,6 +47,7 @@
     "e2e-libs": "run-s e2e-libs-check-exercise e2e-libs-snapshot e2e-libs-artifacts",
     "e2e-libs-artifacts": "npm run zxi time cd tests/e2e-libs/artifacts.mjs --",
     "e2e-libs-check-exercise": "npm run zxi time cd tests/e2e-libs/check-exercise.mjs --",
+    "e2e-libs-karma-bundles": "npm run zxi time cd tests/e2e-libs/karma-bundles.mjs --",
     "e2e-libs-pipeline": "npm run zxi time cd tests/e2e-libs/pipeline.mjs --",
     "e2e-libs-snapshot": "npm run zxi time cd tests/e2e-libs/snapshot.mjs --",
     "e2e-libs-throughput": "npm run zxi time cd tests/e2e-libs/throughput.mjs --",
