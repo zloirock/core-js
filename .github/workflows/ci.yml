@@ -80,6 +80,21 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-usage-pure-karma
 
+  # real IE11 for tests/e2e-libs: builds the usage-pure bundles (rollup + Babel 7 + unplugin) from the
+  # real libraries and runs them through Karma/QUnit in actual IE11 — the one method+engine where a
+  # detection miss cannot hide behind a global patch. Separate from `karma` so the heavy e2e-libs
+  # install (real libs + bundlers) does not slow the core browser job. zxi installs e2e-libs itself.
+  e2e-libs-ie11:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.0.0
+          cache: npm
+      - run: npm run prepare-monorepo
+      - run: npm run e2e-libs-karma-bundles
+
   bun:
     runs-on: ubuntu-latest
     steps:
