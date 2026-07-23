@@ -12,6 +12,9 @@ import {
   memberKeyName,
   objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
+  patternSlotHasDefault,
+  patternSlotSpreadShifted,
+  patternSlotValues,
   peelArrayWrapBindingLayers,
   peelZeroArgIifeReturn,
   reassignmentBlocksGlobalResolve,
@@ -186,6 +189,22 @@ function trustedWriteValue(assignNode) {
   }
 }
 
+// the definite value a trusted PATTERN-LHS write binds to `name` (`let W; [W] = [globalThis]`), or
+// null. the assignment-form mirror of the declarator container branch: same trust + read-after-write
+// gates as `trustedIdentifierAliasWrite`, same canonical slot pairing + three definiteness gates
+function trustedPatternWriteSlotValue({ scope, name, adapter, path }) {
+  if (!adapter?.findTrustedAliasWrite) return null;
+  const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
+  if (!write || (write.left?.type !== 'ObjectPattern' && write.left?.type !== 'ArrayPattern')) return null;
+  if (adapter.method === 'usage-pure'
+    && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)) return null;
+  const container = unwrapInitForResolution(write.right);
+  const slotCtx = { scope, adapter, path };
+  const values = patternSlotValues(write.left, container, name, slotCtx);
+  return values.length === 1 && !patternSlotHasDefault(write.left, name)
+    && !patternSlotSpreadShifted(write.left, container, name, slotCtx) ? values[0] : null;
+}
+
 function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter, path, seen, usageNode = null }) {
   const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
   // assignment-form alias (`var _g; (_g = g = globalThis) == null ? void 0 : _g.self.X` - the
@@ -196,8 +215,11 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   // requires the READ to sit textually after the write (a pre-assignment read holds undefined)
   let writeInit = null;
   if (decl?.type === 'VariableDeclarator' && !decl.init && decl.id?.type === 'Identifier') {
-    const write = trustedIdentifierAliasWrite({ scope, name: name ?? decl.id.name, adapter, path });
-    if (write) writeInit = trustedWriteValue(write);
+    const writeName = name ?? decl.id.name;
+    const write = trustedIdentifierAliasWrite({ scope, name: writeName, adapter, path });
+    // a plain-Identifier write carries its RHS directly; a PATTERN-LHS write binds `name` to a slot
+    // of a literal container it carries - both are the sole trusted value source for the binding
+    writeInit = write ? trustedWriteValue(write) : trustedPatternWriteSlotValue({ scope, name: writeName, adapter, path });
   }
   // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
   // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
@@ -217,16 +239,33 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   // reads `globalThis.x`, likely undefined - collapsing it un-throws the native failure).
   // resolve through the literal key-path instead: proxy-global root, pristine proxy hops, and
   // the LEAF itself must name a pristine proxy global (`{ self: s } = globalThis` re-enters)
+  let wrappedInit = null;
   if (decl?.id && decl.id.type !== 'Identifier') {
     if (!name) return null;
-    const peeled = peelArrayWrapBindingLayers(decl.id, decl.init, name);
-    if (peeled?.id?.type !== 'ObjectPattern') return null;
-    const keyPath = objectPatternLiteralKeyPath(peeled.id, name);
-    const leaf = destructuredGlobalKeyPathLeaf(peeled.init, keyPath, aliasDeclScope(binding, scope), adapter,
-      new Set(seen).add(binding.node ?? binding));
-    return leaf !== null && isPristineProxyGlobal(adapter, leaf) ? leaf : null;
+    // peel the CONTAINER's own wrappers first (`([globalThis])`, `[globalThis] as any`): both pairings
+    // below match on the literal container node, and a paren survives on one parser but not the other
+    const containerInit = unwrapInitForResolution(decl.init);
+    const peeled = peelArrayWrapBindingLayers(decl.id, containerInit, name);
+    if (peeled?.id?.type === 'ObjectPattern') {
+      const keyPath = objectPatternLiteralKeyPath(peeled.id, name);
+      const leaf = destructuredGlobalKeyPathLeaf(peeled.init, keyPath, aliasDeclScope(binding, scope), adapter,
+        new Set(seen).add(binding.node ?? binding));
+      // claim the binding only when the key-path actually resolved: a pattern whose RHS is a literal
+      // container is not a key-path read at all, and falls through to the slot pairing below
+      if (leaf !== null && isPristineProxyGlobal(adapter, leaf)) return leaf;
+    }
+    // the key-path arm above reads a slot OFF a proxy-global root (`{ Promise: P } = globalThis`).
+    // a LITERAL container instead binds the name to a value it carries (`const [wrap] = [globalThis]`,
+    // `const { x: wrap } = { x: globalThis }`), which is an ordinary alias - ask the canonical slot
+    // pairing for that value and resolve it like an unwrapped declarator. the three gates are the
+    // shared idiom: an ambiguous union, a default or a spread-shifted pairing is not a definite value
+    const slotCtx = { scope: aliasDeclScope(binding, scope), adapter, path: binding.path ?? path };
+    const values = patternSlotValues(decl.id, containerInit, name, slotCtx);
+    if (values.length !== 1 || patternSlotHasDefault(decl.id, name)
+      || patternSlotSpreadShifted(decl.id, containerInit, name, slotCtx)) return null;
+    [wrappedInit] = values;
   }
-  const init = writeInit ?? unwrapInitForResolution(decl?.init);
+  const init = wrappedInit ? unwrapInitForResolution(wrappedInit) : writeInit ?? unwrapInitForResolution(decl?.init);
   // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
   // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
   // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root
