@@ -22,11 +22,16 @@
     "acorn": "^8.17.0",
     "core-js": "file:../../packages/core-js",
     "esbuild": "^0.28.1",
+    "karma": "^6.4.4",
+    "karma-ie-launcher": "^1.0.0",
+    "karma-qunit": "^4.2.1",
+    "qunit": "^2.26.0",
     "rolldown": "^1.1.5",
     "rollup": "^4.62.2",
     "rxjs": "^7.8.2",
     "three": "^0.185.1",
     "vite": "^8.1.4",
-    "webpack": "^5.108.4"
+    "webpack": "^5.108.4",
+    "which": "^7.0.0"
   }
 }

@@ -15,7 +15,15 @@
 // spec §9 - deliberately kept in ONE place, because maintaining a count here as well is what once
 // produced three documents with three different numbers. None of this proves every individual
 // polyfill is load-bearing (that needs a stripped realm / real IE11 - the manual BrowserStack step).
+// Nor does a green pre-flight prove per-site DETECTION: it runs in a modern realm where the native is
+// present either way. On real IE11 a global polyfill still patches the prototype once, so one detected
+// use masks a missed sibling use of the same feature; usage-pure has no such masking (each site is
+// rewritten to a local import, so a missed site stays a native call and dies on IE11) - which is why
+// karma-bundles.mjs runs the usage-pure bundles in actual IE11. The global methods stay masked; their
+// per-site detection lives in the unplugin unit tests (tests/unplugin/unit.mjs). This tier proves the
+// exercise still executes.
 import { runtimeBuild, assertES5, wireSize, errorReason, BABEL_VERSIONS, HERE } from './build.mjs';
+import { bannerHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
 import { execFile } from 'node:child_process';
@@ -65,58 +73,9 @@ function esc(s) {
   return String(s).replaceAll(/["&'<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// The in-page harness, as a standalone program so `assertES5` can parse it. It is hand-written ES5
-// and nothing used to check that: a single arrow function slipping in here is a SyntaxError in IE11,
-// which leaves the banner stuck on `running…` with no verdict and no signal anywhere — on the one
-// page a real IE11 result ever comes from. `expected` is the pre-flight count, baked in so an
-// exercise returning fewer checks than it did in node cannot paint the page green.
-function harnessJs(expected) {
-  return `
-    var EXPECTED = ${ expected };
-    function render(res) {
-      var checks = (res && res.checks) || [], bad = checks.filter(function (c) { return !c.pass; });
-      var b = document.getElementById('banner');
-      if (checks.length !== EXPECTED) {
-        b.className = 'red';
-        b.textContent = 'FAIL — got ' + checks.length + ' checks, pre-flight recorded ' + EXPECTED;
-        return;
-      }
-      b.className = bad.length ? 'red' : 'green';
-      b.textContent = bad.length ? ('FAIL — ' + bad.length + '/' + checks.length + ' checks failed') : ('PASS — all ' + checks.length + ' checks green in this browser');
-      var tbody = document.querySelector('#tbl tbody');
-      tbody.innerHTML = '';
-      checks.forEach(function (c) {
-        var tr = document.createElement('tr');
-        tr.className = c.pass ? 'ok' : 'bad';
-        var name = document.createElement('td');
-        name.textContent = c.label;
-        var result = document.createElement('td');
-        result.textContent = c.pass ? 'PASS' : 'FAIL';
-        tr.appendChild(name);
-        tr.appendChild(result);
-        tbody.appendChild(tr);
-      });
-    }
-    function showError(err) {
-      var b = document.getElementById('banner');
-      b.className = 'red';
-      b.textContent = 'ERROR — ' + (err && err.message ? err.message : err);
-    }
-    // run() may return a Promise (rxjs) or a plain result (three) — handle both, and without needing
-    // a global Promise (usage-pure doesn't patch it), so branch on a thenable instead of Promise.resolve.
-    try {
-      var res = E2E.run();
-      if (res && typeof res.then === 'function') res.then(render).catch(showError);
-      else render(res);
-    } catch (err) { showError(err); }
-`;
-}
-
-// Gated once at load, not per cell: the only per-cell variation is the numeric literal EXPECTED, so
-// every page is parse-equivalent to this one. Keep it that way - interpolating anything but a number
-// here would put text on the page that this parse never saw.
-assertES5(harnessJs(0), 'browser harness');
-
+// The in-page harness (banner target) lives in harness.mjs, shared with the Karma/IE11 runner and
+// parsed as ES5 at that module's load. `bannerHarness(count)` bakes the pre-flight count in, so a
+// page whose in-browser run returns fewer checks than node did cannot paint itself green.
 function html(title, method, checks) {
   const rows = checks.map(c => `<tr class="${ c.pass ? 'ok' : 'bad' }"><td>${ esc(c.label) }</td><td>${ c.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
   const failing = checks.filter(c => !c.pass).length;
@@ -137,7 +96,7 @@ function html(title, method, checks) {
   <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
   <table id="tbl"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
   <script src="bundle.js"></script>
-  <script>${ harnessJs(checks.length) }  </script>
+  <script>${ bannerHarness(checks.length) }  </script>
 </body></html>
 `;
 }
