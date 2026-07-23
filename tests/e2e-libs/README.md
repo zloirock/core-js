@@ -54,7 +54,9 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   (it is in unplugin's `PRE_POST_UNSAFE_BUNDLERS`), so those two esbuild cells are not what the header
   says they are.
   (7 bundlers: rollup/rolldown/esbuild/vite/webpack/rspack/rsbuild — farm is excluded because its
-  native compiler hard-crashes on the workspace v4 core-js modules; see `build.mjs`.)
+  resolver fails on some of the extensionless `core-js/modules/*` specifiers unplugin injects in the
+  global methods — which node and the other bundlers resolve fine — not the native crash once assumed;
+  see `build.mjs` for the real cause and the one-plugin shim that fixes it.)
 - **artifacts** — the real IE11 build: Babel (syntax → ES5) + unplugin (stdlib polyfills) → ES5 UMD +
   self-checking HTML, under **both Babel 7 and Babel 8** (unplugin's post phase consumes Babel's helper
   output, so each version is exercised — matching the repo's `test-transpiling` dual-Babel convention).
