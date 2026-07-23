@@ -48,9 +48,11 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   descendToChainRoot, isAliasProxyHopChain, navHasUnresolvableProxyHop, peelChainAssignment,
-  resolveKey as sharedResolveKey,
+  resolveKey as sharedResolveKey, undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { isSourcedSymbolIteratorMeta, planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  harvestDiscardedReceiverSE, isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, shouldDropRescueReceiver,
+} from '@core-js/polyfill-provider/detect-usage/members';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
@@ -67,7 +69,7 @@ import {
 } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isCallee, isOutermostOptionalChainMember } from './emit-utils.js';
-import { createPolyfillEmitter } from './polyfill-emitter.js';
+import { collapseStandownRoot, createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
   walkAstNodes,
@@ -159,6 +161,16 @@ function semanticParentNode(metaPath) {
     parentPath = parentPath.parentPath;
   }
   return parentPath?.node;
+}
+
+// does a queued OUTER guard (a trailing instance dispatch that memoized this static's root) own the root's
+// nullability? descends the static member's receiver to its chain root (matching the emitter's descent) and
+// probes the transform queue. an owned root emits the static BARE into the guard body, so the standalone
+// guard-bail must stand down for it
+function outerGuardOwnsStaticRoot(node, transforms) {
+  let root = node.object;
+  while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) root = root.object;
+  return !!transforms.findOuterGuardRef(root);
 }
 
 function nonEmptyString(value) {
@@ -916,6 +928,15 @@ export default function createPlugin(options) {
           return pure && pure.kind !== 'instance' ? pure : null;
         }
 
+        // a ctor STATIC (`Number.MAX_SAFE_INTEGER` -> `_Number$MAX_SAFE_INTEGER`, `Array.of` -> `_Array$of`):
+        // the receiver-independent collapse under a kept proxy guard needs this to substitute a static reached
+        // THROUGH a ctor hop (`(w = globalThis.window)?.Number.MAX_SAFE_INTEGER`), where the ctor itself carries
+        // no pure global entry. `resolveGlobalPolyfill` is name-only and misses it - resolve the property meta
+        function resolveStaticPolyfill(object, key) {
+          const pure = resolvePure({ kind: 'property', object, key, placement: 'static' });
+          return pure && pure.kind === 'static' ? pure : null;
+        }
+
         // polyfill emission pipeline. covers all kinds dispatched from the usage-pure visitor:
         // instance-method member-calls (with optional-chain handling, Symbol.iterator special
         // path, receiver-polyfill substitution, chain composition), global / static member
@@ -937,6 +958,7 @@ export default function createPlugin(options) {
           mutatedStatics,
           NEEDS_GUARD_PARENS,
           resolveGlobalPolyfill,
+          resolveStaticPolyfill,
           resolvePureOrGlobalFallback,
           resolveStaticInheritedMember,
           scopeTracker,
@@ -1196,8 +1218,11 @@ export default function createPlugin(options) {
           // resolvePure misses and the global fallback fires - rewriting `this` to `_Y` would
           // silently change runtime semantics (`this` is the dynamic constructor, `_Y` is the
           // import binding). babel bails the same way; gate the fallback to keep parity
-          if (fallback && node.type === 'MemberExpression'
-          && node.object?.type !== 'Super' && !inheritedStatic) {
+          // static-FALLBACK swap: a member that is NOT itself polyfilled but whose receiver resolves to a pure
+          // ctor (`Promise.noSuchStatic` -> `_Promise.noSuchStatic`). returns true when handled (caller returns)
+          function emitStaticFallbackSwap() {
+            if (!(fallback && node.type === 'MemberExpression'
+              && node.object?.type !== 'Super' && !inheritedStatic)) return false;
             // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
             // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
             // `_Map.prototype.has`; the whole receiver swap would drop `.prototype` -> the undefined `_Map.has`
@@ -1209,8 +1234,19 @@ export default function createPlugin(options) {
             const receiverNode = isProtoReceiver ? protoReceiverNode.object : node.object;
             // a kept SE-bearing inline-call receiver already yields the polyfill binding through
             // its own rewritten return leaf - leave the member untouched, the inner visits do the job
-            if (staticFallbackSwapRedundant(receiverNode, meta.sideEffects)) return;
+            if (staticFallbackSwapRedundant(receiverNode, meta.sideEffects)) return true;
             skipProxyGlobal(node);
+            // a fallback swap over 2+ undefinable optional hops STANDS DOWN (keeps the raw chain). resolve the
+            // guard ONCE here (AFTER skipProxyGlobal - its verdict depends on that) and bail standdown BEFORE
+            // the import so the kept-raw claim strands no dead ctor import. thread it - a second resolve flips it
+            const fallbackGuard = !meta.sideEffects && !meta.receiverEffectCount && !meta.protoCtorReceiverSE?.length
+              ? undefinableOptionalGuard(node, ({ name }) => resolveGlobalPolyfill(name),
+                { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath })
+              : { kind: 'erase' };
+            if (fallbackGuard.kind === 'standdown') {
+              collapseStandownRoot({ node, metaPath, adapter: estreeAdapter, transforms, injectPureImport, resolveGlobalPolyfill });
+              return true;
+            }
             const binding = injectPureImport(fallback.entry, fallback.hintName);
             // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
             // proxy-global resolver gate excludes them from this branch. preserve user's `?.`
@@ -1223,7 +1259,7 @@ export default function createPlugin(options) {
             // `(called++, Promise).noSuchStatic` keeps the `called++` rather than dropping it
             replaceStaticFallback({
               binding, node, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount, receiverNode,
-              protoCtorReceiverSE: meta.protoCtorReceiverSE,
+              protoCtorReceiverSE: meta.protoCtorReceiverSE, fallbackGuard,
             });
             // outer text-emit absorbs the whole receiver: any inner Identifier whose name
             // matches the polyfill's substitution would compose into the emit (`_Map` substring
@@ -1231,8 +1267,9 @@ export default function createPlugin(options) {
             // the effective receiver leaf and mark it skipped before the Identifier visitor runs;
             // a leaf preserved by a re-emitted sideEffect subtree keeps its own substitution
             skipUnpreservedReceiverLeaf(receiverNode, meta.sideEffects);
-            return;
+            return true;
           }
+          if (emitStaticFallbackSwap()) return;
           // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
           // ancestor chain got polyfilled. on that re-visit, the now-replaced ancestor's call
           // returns unknown type, so `resolvePropertyObjectType` yields null and `resolveHint`
@@ -1269,6 +1306,28 @@ export default function createPlugin(options) {
           if (kind !== 'instance' && (rebindTailMembers.has(node)
             || (parent?.optional === true && parent.callee === node && nonInstanceSpanOwned(node)))) return;
 
+          // a static claim whose receiver navigates 2+ undefinable optional hops STANDS DOWN (keeps the raw
+          // chain - no single test expresses the union). resolve the guard ONCE (a second resolve is not
+          // idempotent) and thread the verdict to the emitter
+          const staticEraseGuard = node.type === 'MemberExpression' && kind !== 'instance'
+            ? undefinableOptionalGuard(node, ({ name }) => resolveGlobalPolyfill(name),
+              { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath })
+            : null;
+          // a single-hop 'guard' verdict whose SE channels (computed-key / receiver effects) the guard
+          // alternate can't re-emit bails the STANDALONE claim (`replaceGlobalOrStatic` returns raw there).
+          // when NO outer guard owns the root, the static swallows nothing, so its proxy-hop root must stay
+          // LIVE for its own global usage to collapse + deopt the chain (`globalThis.window?.Array[(c++, 'of')]`
+          // -> `_globalThis.Array[c++, 'of']`, babel's shape); suppressing it below would strand a raw
+          // `globalThis` (ie:11 ReferenceError). still INJECT the pure import - babel injects it on detection
+          // and leaves it dead after the collapse, so the import set matches. an OUTER-guarded root instead
+          // falls through: the emitter emits the static BARE into the owning guard's body (the guard owns the
+          // nullability), so it must NOT bail here
+          if (staticEraseGuard?.kind === 'guard' && (meta.sideEffects?.length || meta.receiverEffectCount)
+            && !outerGuardOwnsStaticRoot(node, transforms)) {
+            injectPureImport(importEntry, hintName);
+            return;
+          }
+
           // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
           // receiver Identifier live so its substitution composes into the outer guard's
           // rootRaw slot (`_globalThis.foo` instead of `globalThis?.foo` in the memo'd guard).
@@ -1277,6 +1336,12 @@ export default function createPlugin(options) {
           // injected import would strand as a dead line - single-pass runs carry no
           // reference tracking to filter it)
           if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
+
+          // bail standdown BEFORE the import so the kept-raw claim strands no dead pure import
+          if (staticEraseGuard?.kind === 'standdown') {
+            collapseStandownRoot({ node, metaPath, adapter: estreeAdapter, transforms, injectPureImport, resolveGlobalPolyfill });
+            return;
+          }
 
           // a proxy-global root navigating a NON-pure leaf through redundant hops collapses the prefix
           // (`globalThis.self.Array` -> `_globalThis.Array`); the bare identifier rewrite is skipped.
@@ -1304,6 +1369,7 @@ export default function createPlugin(options) {
             replaceGlobalOrStatic({
               binding, node, parent, metaPath, inheritedStatic,
               sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              chainAssignInsertAt: meta.chainAssignInsertAt, staticEraseGuard,
             });
             // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`):
             // without skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol` whose
@@ -1344,9 +1410,22 @@ export default function createPlugin(options) {
         // fallback inits (`cond ? Array : Set`) are also `tail === init` and rewritten per-branch, so
         // the tail guard leaves them visitable. enter fires before descending into the init, beating
         // the usage callback that would observe its children
-        function skipFullConsumeDeadInit(init, isForInit) {
+        function skipFullConsumeDeadInit(init, isForInit, declScope, declPath) {
           skippedNodes.add(init);
           const { prefix, tail } = peelNestedSequenceExpressions(init);
+          // a fully-discarded proxy-nav receiver whose COMPLETE harvest captures every effect: walk-skip the
+          // WHOLE init except those SE subtrees, so no per-hop collapse (`.self` -> `_globalThis`) queues a
+          // transform the discard lift then orphans in the compose. an EMPTY harvest on a side-effecting init
+          // means it can't be fully accounted for -> fall through to KEEP it, so no effect is lost. gated on
+          // the harvest of the WHOLE init (identical to the collapse-defer + discard lift), so all stay consistent
+          const navSe = tail && declPath && shouldDropRescueReceiver(tail)
+            ? harvestDiscardedReceiverSE(init, { scope: declScope, adapter: estreeAdapter, path: declPath }) : [];
+          if (navSe.length) {
+            const keep = new Set();
+            for (const se of navSe) walkAstNodes({ root: se, visit: n => keep.add(n) });
+            walkAstNodes({ root: init, visit: n => { if (!keep.has(n)) skippedNodes.add(n); } });
+            return;
+          }
           for (const operand of prefix) {
             if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
             // a kept SE operand is re-emitted verbatim (statement lift, or a for-init sink's
@@ -1371,7 +1450,9 @@ export default function createPlugin(options) {
           VariableDeclaration(path) {
             const isForInit = isForInitHost(path);
             for (const d of path.node.declarations) {
-              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) skipFullConsumeDeadInit(d.init, isForInit);
+              if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) {
+                skipFullConsumeDeadInit(d.init, isForInit, path.scope, path);
+              }
             }
             // unconditional proxy-hop trigger (the retired normalize pre-pass's job): an
             // anchored plan must fire even when no leaf resolves
@@ -1388,7 +1469,7 @@ export default function createPlugin(options) {
             const { node } = path;
             if (node.operator === '=' && node.left?.type === 'ObjectPattern' && peelToExpressionStatement(path)
               && canFullyConsumeProxyDeclarator({ id: node.left, init: node.right }, path.scope, path)) {
-              skipFullConsumeDeadInit(node.right, false);
+              skipFullConsumeDeadInit(node.right, false, path.scope, path);
             }
             tryFlattenProxyHopHost(path);
           },

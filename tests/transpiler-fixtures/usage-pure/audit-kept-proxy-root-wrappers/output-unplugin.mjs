@@ -19,7 +19,7 @@ let b;
 export const throughNonNull = null == (_ref2 = (b = _globalThis.window)!) ? void 0 : _atMaybeArray(_ref2.Array.prototype).call([1], 0);
 
 let c;
-export const throughParens = null == (_ref3 = (c = _globalThis.window)) ? void 0 : _includesMaybeArray(_ref3.Array.prototype).call([1], 1);
+export const throughParens = null == (_ref3 = c = _globalThis.window) ? void 0 : _includesMaybeArray(_ref3.Array.prototype).call([1], 1);
 
 let d;
 export const wrapperMidChain = _findLastMaybeArray(((d = _globalThis.window)?.Array).prototype).call([1], x => x);

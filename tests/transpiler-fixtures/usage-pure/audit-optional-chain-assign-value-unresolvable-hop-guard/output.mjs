@@ -31,7 +31,7 @@ export const guardedWindowHop = _atMaybeArray(_globalThis.Array.prototype).call(
 // splicing source rather than cloning nodes, so it has its own way to render a root - it must swap the
 // kept value's own raw root and nothing else, or the assignment leaks an unpolyfilled `globalThis`
 let d;
-(d = _globalThis.window).Array;
+d = _globalThis.window;
 export const ofKeptRoot = _Array$of;
 
 // the well-known-symbol strand reaches the same receiver through its OWN collapse: it too must keep the
