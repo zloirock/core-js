@@ -202,7 +202,10 @@ export function createUserTypeResolve({
       return null;
     }
     const visited = seen ?? new Set();
-    visited.add(declaration);
+    // the grey mark (`visited.add`) is deferred to just before the compute below, AFTER the black-set
+    // (memo) check: adding here would mark the decl open, and the memo-hit path returns WITHOUT the
+    // `finally` that ungreys it, leaking the decl into grey. a 3rd+ shared reference then reads that
+    // stale membership as a cycle and degrades to null. black check first, grey mark second.
     // scoped to the CURRENT descent: dropped on the way out, so the set answers "is this decl
     // already open above me" and not "was it ever seen". a set that only grows lets the first
     // arm of a union poison its siblings - a second `Wrap<...>` arm reads as a cycle, returns
@@ -225,6 +228,9 @@ export function createUserTypeResolve({
       const hit = memo.get(declaration);
       if (hit && hit.scope === scope) return hit.result;
     }
+    // grey mark: the decl is now OPEN above the compute below, so a self-recursive body re-entry
+    // hits the top-of-function cycle check. paired with the `finally` that ungreys it
+    visited.add(declaration);
     try {
       const walked = (() => {
         typeParamMap = resolveTypeArgs({ decl: declaration, node, typeParamMap, scope, depth, seen: visited });
