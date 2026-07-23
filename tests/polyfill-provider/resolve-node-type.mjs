@@ -73,6 +73,7 @@ import {
   IIFE_CALL_PATH_WRAPPERS,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
+  blocksUidSlot,
   createTypeAnnotationChecker,
   declaresRequireBinding,
   destructureReceiverSlot,
@@ -95,6 +96,7 @@ import {
   isRestProperty,
   isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
+  isTypeAnnotationWrapper,
   isThisReceiver,
   isTransparentDestructureWrapper,
   isTypeOnlyImportBinding,
@@ -3810,6 +3812,27 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('ast-patterns: isNonReferencePosition no parent',
     isNonReferencePosition(null, idNode), false);
 
+  // blocksUidSlot vs isNonReferencePosition: the two agree everywhere EXCEPT a bodyless method-shaped
+  // member (an overload signature), whose key names no runtime reference yet is claimed by babel's live
+  // scope - so a UID must step around it. a body-bearing method of the SAME node type must not.
+  const overloadSig = { type: 'MethodDefinition', key: idNode, computed: false, value: { type: 'FunctionExpression', body: null } };
+  const bodyMethod = { type: 'MethodDefinition', key: idNode, computed: false, value: { type: 'FunctionExpression', body: { type: 'BlockStatement', body: [] } } };
+  checkTruthy('ast-patterns: isNonReferencePosition bodyless method key is a name slot',
+    isNonReferencePosition(overloadSig, idNode));
+  checkTruthy('ast-patterns: blocksUidSlot bodyless method key claims the slot',
+    blocksUidSlot(overloadSig, idNode));
+  check('ast-patterns: blocksUidSlot body-bearing method key frees the slot',
+    blocksUidSlot(bodyMethod, idNode), false);
+  // an `abstract accessor` key is property-shaped: a name slot AND free for the allocator
+  const absAccessor = { type: 'TSAbstractAccessorProperty', key: idNode, computed: false, value: null };
+  checkTruthy('ast-patterns: isNonReferencePosition abstract accessor key',
+    isNonReferencePosition(absAccessor, idNode));
+  check('ast-patterns: blocksUidSlot abstract accessor key frees the slot',
+    blocksUidSlot(absAccessor, idNode), false);
+  // a computed key is a real reference on both questions
+  checkTruthy('ast-patterns: blocksUidSlot computed method key claims the slot',
+    blocksUidSlot({ ...overloadSig, computed: true }, idNode));
+
   // isBindingPosition: VariableDeclarator id IS a binding (not a reference)
   checkTruthy('ast-patterns: isBindingPosition VariableDeclarator',
     isBindingPosition({ type: 'VariableDeclarator', id: idNode, init: null }, idNode));
@@ -4963,6 +4986,25 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     }
     return parentPath;
   }
+  // the UID boundary is the `:` WRAPPER only, and its narrowness is the whole point: babel's crawler
+  // walks a type-alias RHS, an interface body and type ARGUMENTS at any depth, so the wider
+  // "is this type-space at all" node types must NOT read as the boundary
+  checkTruthy('ast-patterns: isTypeAnnotationWrapper TSTypeAnnotation',
+    isTypeAnnotationWrapper({ type: 'TSTypeAnnotation' }));
+  // both dialects: the annotation PEELERS share this predicate and babel-plugin does parse Flow,
+  // so a TS-only answer would make the peelers and the census disagree on a Flow annotation
+  checkTruthy('ast-patterns: isTypeAnnotationWrapper Flow TypeAnnotation',
+    isTypeAnnotationWrapper({ type: 'TypeAnnotation' }));
+  for (const wider of ['TSTypeParameterInstantiation', 'TSUnionType', 'TSTypeReference', 'TSTypeLiteral']) {
+    check(`ast-patterns: isTypeAnnotationWrapper excludes ${ wider }`,
+      isTypeAnnotationWrapper({ type: wider }), false);
+  }
+  // takes the NODE, so the absent-node case is answered once here instead of a `?.` at every peel site
+  for (const empty of [null, undefined, {}]) {
+    check(`ast-patterns: isTypeAnnotationWrapper nodeless ${ empty === undefined ? 'undefined' : JSON.stringify(empty) }`,
+      isTypeAnnotationWrapper(empty), false);
+  }
+
   // predicate: node.type startsWith 'TS'
   function isTSAnnotation(type) { return type.startsWith('TS'); }
 

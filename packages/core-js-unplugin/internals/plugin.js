@@ -18,6 +18,7 @@ import {
   isMemberWriteOnlyContext,
   isMutatedGlobalSlot,
   isMutatedStaticMeta,
+  isNonReferencePosition,
   isTaggedTemplateTag,
   collectFileCensus,
   memberKeyNamesReducer,
@@ -1484,7 +1485,13 @@ export default function createPlugin(options) {
           resolvePure,
         }));
         traverse(ast, trackReferences ? mergeVisitors(usageVisitors, {
-          Identifier(path) { injector.trackReferencedName(path.node.name); },
+          // a NON-REFERENCE occurrence (object-literal key, member key, label, import/export name)
+          // is not a live use of a pure-import binding: tracking it would keep a DEAD `_Hint$method`
+          // import alive when a user source-name coincides with it (babel's dead-import filter reads
+          // `binding.references`, which excludes these). mirror that so post-pass pruning matches
+          Identifier(path) {
+            if (!isNonReferencePosition(path.parent, path.node)) injector.trackReferencedName(path.node.name);
+          },
         }) : usageVisitors);
         applySynthSwaps();
         applyDestructuringTransforms();

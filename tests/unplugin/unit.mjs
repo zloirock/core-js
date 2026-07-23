@@ -2746,6 +2746,34 @@ checkOrphanTS('namespace decline + top-level orphan sibling',
 // regression: a genuine plugin-shape `null == (...)` test is still adopted with TS in the file
 checkOrphanTS('plugin binary-test still orphan (ts)', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 
+// a name written in type space claims a UID slot only up to the wrapper node a `:` slot introduces.
+// a type-alias RHS carries no wrapper and is walked at ANY depth, so nesting is NOT the criterion -
+// what matters is whether a `:` stands between. a real declaration is reserved either way: the
+// boundary gates only the bare-reference arm, never the structural declaration cases
+function checkNameTakenTS(label, src, taken) {
+  check(`collectBindings/annot/${ label }`, collectBindingsTS(src).names.has('_ref'), taken);
+}
+checkNameTakenTS('type-alias RHS member', 'type Flat = { _ref(): void };', true);
+checkNameTakenTS('type-alias RHS at depth 3', 'type Deep = Map<string, Set<{ _ref(): void }>>;', true);
+checkNameTakenTS('interface body member', 'interface I { _ref(): void }', true);
+checkNameTakenTS('past `:` on a declaration', 'declare const v: { _ref(): void };', false);
+checkNameTakenTS('past `:` on a parameter', 'export function f(p: { _ref(): void }) { return p; }', false);
+checkNameTakenTS('past `:` at depth 2', 'type T = { a: { _ref(): void } };', false);
+checkNameTakenTS('declared binding read in an annotation', 'const _ref = 1;\ndeclare const v: typeof _ref;', true);
+// the boundary gates the annotation subtree only - an ordinary read of the SAME name elsewhere in the
+// file still takes the slot, so a guard that swallowed a whole enclosing scope would be caught here
+checkNameTakenTS('bare read beside an annotation naming it',
+  'declare const v: { _ref(): void };\nexport const q = _ref;', true);
+// an interface body inside `declare global` carries no `:` wrapper, so it is walked like any other
+checkNameTakenTS('interface inside declare global',
+  'declare global { interface Window { _ref(): void } }\nexport {};', true);
+// the same holds for every other wrapper-less type host - a cast, a call type ARGUMENT and a
+// type-parameter constraint all keep the name taken. these pin the boundary's narrowness from the
+// census side: widening it to the general "is this type-space" test would free them and collide
+checkNameTakenTS('as-cast type literal', 'export const b = (mk() as { _ref(): void });', true);
+checkNameTakenTS('call type argument', 'export const b = mk<{ _ref(): void }>();', true);
+checkNameTakenTS('type-parameter constraint', 'export function f<T extends { _ref(): void }>(x: T) { return x; }', true);
+
 // --- deoptionalizeNeedle ---
 // `?.(`/`?.[` drop both chars regardless of intervening whitespace - ECMAScript parsers
 // allow `obj ?. (args)` / `obj?.\n[i]`, so the source slice the queue sees may have
