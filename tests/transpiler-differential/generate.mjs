@@ -597,6 +597,34 @@ function * generateKeptProxyRoot() {
   }
 }
 
+// --- Opaque (inline-call) proxy-nav root: a static / fallback reached THROUGH `f()?.window` ---
+// the root is a CALL (`f()` returning globalThis) navigating an unponyfilled window hop - no resolver can
+// collapse it, so the guard test is the RAW source (`null == f()?.window ? void 0 : _Array$from(...)`),
+// substituting only any internal proxy-global. before the raw-span fallback the static bailed to the raw
+// un-polyfilled chain (native `from` on ie:11 = missed polyfill) / the fallback swap folded + dropped the
+// nav (its SE + short-circuit). the `f()` and any computed-key `log.push` fire the oracle
+// NB: a trailing INSTANCE dispatch (`.at(0)`) over an opaque static-CALL is intentionally absent - there the
+// resolution bias diverges (unplugin collapses the ctor to the pure static, babel keeps `_ref.Array.of`
+// native), a pre-existing ambiguity outside this guard-rendering fix; the standalone static call locks it
+const OCRG_SHAPES = [
+  { id: 'static-opt-call', tail: '?.Array.from?.([7])' },
+  { id: 'static-plain-call', tail: '?.Array.of(5)' },
+  { id: 'ctor-static-get', tail: '?.Number.MAX_SAFE_INTEGER' },
+  { id: 'proto-method-call', tail: '?.Set.prototype.has.call(new Set([9]), 9)' },
+  { id: 'computed-key-se-static-plain', tail: '?.Array[(log.push("k"), "of")](5)' },
+  { id: 'fallback-computed-key-se', tail: '?.Promise[(log.push("k"), "noSuchStatic")]?.then' },
+  { id: 'fallback-proto-method', tail: '?.Map.prototype.has.call(new Map([[1, 2]]), 1)' },
+  // an INSTANCE dispatch through the opaque root: the guard memoizes `f()?.window` once, the body reads the
+  // ponyfill off it. the guard-root text is the raw call nav (`_ref = f()?.window`), same as the static paths
+  { id: 'instance-method-call', tail: '?.Array.prototype.includes.call([1, 2], 2)' },
+];
+function * generateOpaqueCallRootGuard() {
+  for (const shape of OCRG_SHAPES) {
+    const inner = `(() => { const f = () => globalThis; const v = f()?.window${ shape.tail }; log.push(String(v)); return String(v); })()`;
+    yield { ...snippet(`opaque-call-root-guard/${ shape.id }`, inner, { rig: true }), strip: false };
+  }
+}
+
 // --- Symbol receiver context fold ---
 // the well-known-symbol GET folds an unresolvable chain ROOT (`window.self`) to the nav's
 // resolvable VALUE - the text emitter used to strand the raw nav (import-set desync, off-realm
@@ -3931,6 +3959,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateKeptProxyRoot();
+  yield * generateOpaqueCallRootGuard();
   yield * generateSymbolReceiverContextFold();
   yield * generateLoweredOptionalAlias();
   yield * generateDiscardedKeyPrefixProxy();
