@@ -1239,7 +1239,7 @@ export default function createPlugin(options) {
             // a fallback swap over 2+ undefinable optional hops STANDS DOWN (keeps the raw chain). resolve the
             // guard ONCE here (AFTER skipProxyGlobal - its verdict depends on that) and bail standdown BEFORE
             // the import so the kept-raw claim strands no dead ctor import. thread it - a second resolve flips it
-            const fallbackGuard = !meta.sideEffects && !meta.receiverEffectCount && !meta.protoCtorReceiverSE?.length
+            const fallbackGuard = !meta.protoCtorReceiverSE?.length
               ? undefinableOptionalGuard(node, ({ name }) => resolveGlobalPolyfill(name),
                 { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath })
               : { kind: 'erase' };
