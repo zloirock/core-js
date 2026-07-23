@@ -1,5 +1,6 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
+  blocksUidSlot,
   collectFileCensus,
   isDirectiveStatement,
   isInitlessVarDecl,
@@ -587,7 +588,7 @@ export function bindingNamesReducer() {
     walkPatternIdentifiers(pat, id => addDecl(id.name));
   }
 
-  function visit(node, { parentType, atTopLevel }) {
+  function visit(node, { parentType, atTopLevel, parentNode, underTypeAnnotation }) {
     switch (node.type) {
       case 'VariableDeclarator':
         addPattern(node.id);
@@ -639,12 +640,15 @@ export function bindingNamesReducer() {
         break;
       // every Identifier surfaces here - bindings already reserved via their structural case,
       // but bare references (`console.log(_ref)` where `_ref` is undeclared) land only here.
-      // over-reserving property names from member access / object literal keys is harmless:
-      // plugin never allocates shape like `push` / `at` / etc., only `_ref*` / `_Xxx` UIDs.
-      // undeclared reads in user code would otherwise let plugin claim `_ref` and shadow
-      // `ReferenceError`-throwing references with silent `undefined`
+      // a NON-REFERENCE position (object-literal key, non-computed member property, statement
+      // label, import/export name slot) is a source-text name, not a binding the allocator can
+      // shadow: reserving it makes unplugin over-number a UID-shaped `{ _ref: 1 }` / `foo()._ref`
+      // / `_ref:` one slot above babel (which reserves only real bindings + references + id-rooted
+      // member keys - the latter kept via `memberKeyNamesReducer`). skip so the taken-set matches.
+      // undeclared reads in user code still land here referentially and stay reserved (a plugin
+      // `_ref` must not shadow a `ReferenceError`-throwing reference with a silent `undefined`)
       case 'Identifier':
-        names.add(node.name);
+        if (!underTypeAnnotation && blocksUidSlot(parentNode, node)) names.add(node.name);
         break;
     }
   }
