@@ -1,5 +1,7 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import { isDirectiveStatement, isInitlessVarDecl, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import ImportInjectorState, {
   assignCanonicalRefSlots,
   CANONICAL_REF_PREFIXES,
@@ -543,6 +545,13 @@ export default class ImportInjector extends ImportInjectorState {
     }
     function census(p) {
       const { node } = p;
+      // a NON-REFERENCE occurrence (member key on any root, object-literal key, statement label,
+      // import/export name slot, JSX name) is not a live USE: the slow path's `#removeDeadBindings`
+      // ignores those (only references / constantViolations / init keep a `var _refN;`), so the
+      // count proxy must too - else a dead ref whose name coincides with such a source-text name
+      // reads as live (count >= 2) and escapes the prune. also keeps a non-referential slot-shaped
+      // name from spuriously tripping `foreignSlotName` (a source-name never blocks a UID slot)
+      if (isNonReferencePosition(p.parentPath?.node, node)) return;
       const count = refCounts.get(node.name);
       if (count !== undefined) {
         refCounts.set(node.name, count + 1);
