@@ -45,6 +45,7 @@ import {
   isAliasProxyHopChain,
   prependChainAssignmentEffect,
   staticMayEraseReceiver,
+  undefinableOptionalGuard,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -782,7 +783,12 @@ export default function plugin(api, options) {
           // a kept SE-bearing inline-call receiver already yields the polyfill binding through its
           // own rewritten return leaf - leave the member untouched, the inner visits do the job
           if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects)) return;
-          const id = injectPureImport(fallback.entry, fallback.hintName);
+          // inject the pure ctor LAZILY - a multi-undefinable-hop chain stands down below (keeps the raw
+          // chain), and an eager import there would be dead. every real use funnels through `fallbackId()`
+          let fallbackImport = null;
+          function fallbackId() {
+            return fallbackImport ??= injectPureImport(fallback.entry, fallback.hintName);
+          }
           // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
           // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
           // `_Map.prototype.has`; swapping the whole receiver (`globalThis.Map.prototype`) would drop
@@ -813,10 +819,10 @@ export default function plugin(api, options) {
           // kept assign becomes the guard TEST, the swap plus its raw tail ride the alternate:
           // `null == (c = gw) ? void 0 : _Set.prototype.has.call(x)`. SE channels keep the fold
           const guardAssigns = baseEffects.filter(effect => !seOnlyEffects.includes(effect));
-          if (guardAssigns.length === 1 && allEffects.length === 1
-            && !staticMayEraseReceiver(path.node, resolveBuiltIn,
-              path.scope ? { scope: path.scope, adapter, path } : null)) {
-            receiverPath.replaceWith(t.cloneNode(id));
+          // re-hang the swapped receiver + its raw tail INSIDE a `null == <test> ? void 0 : ...`
+          // guard: the swap alone eats the `?.` short-circuit, so the guarded value rides the test
+          function emitReceiverGuard(guardTest) {
+            receiverPath.replaceWith(t.cloneNode(fallbackId()));
             normalizeOptionalChain(path, false);
             retypeDeadOptionalLinks(path);
             let tip = path;
@@ -833,13 +839,30 @@ export default function plugin(api, options) {
               break;
             }
             tip.replaceWith(t.conditionalExpression(
-              t.binaryExpression('==', t.nullLiteral(), guardAssigns[0]),
+              t.binaryExpression('==', t.nullLiteral(), guardTest),
               t.unaryExpression('void', t.numericLiteral(0)),
               tip.node,
             ));
+          }
+          if (guardAssigns.length === 1 && allEffects.length === 1
+            && !staticMayEraseReceiver(path.node, resolveBuiltIn,
+              path.scope ? { scope: path.scope, adapter, path } : null)) {
+            emitReceiverGuard(guardAssigns[0]);
             return;
           }
-          receiverPath.replaceWith(withSideEffects(id, allEffects));
+          // a mid-chain `?.` over a plain proxy nav (no SE to fold into the kept sequence): the swap
+          // would eat the guard. re-hang inside the undefinable hop's OBJECT; a multi-undefinable
+          // chain stands down (keeps the raw source, no single test expresses the union)
+          if (!allEffects.length) {
+            const eraseGuard = undefinableOptionalGuard(path.node, resolveBuiltIn,
+              path.scope ? { scope: path.scope, adapter, path } : null);
+            if (eraseGuard.kind === 'standdown') return;
+            if (eraseGuard.kind === 'guard') {
+              emitReceiverGuard(eraseGuard.object);
+              return;
+            }
+          }
+          receiverPath.replaceWith(withSideEffects(fallbackId(), allEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
           // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
@@ -902,6 +925,13 @@ export default function plugin(api, options) {
           // the inherited-static-resolves-to-instance bail lives in the provider's `resolvePureWith`
           // now (single-sourced with usage-global's `resolveUsage`), so `result` is already null here
           // for that shape and the `inheritedStatic && !result` bail above caught it
+          // a static claim whose receiver navigates 2+ undefinable optional hops STANDS DOWN (keeps the raw
+          // chain - no single test expresses the union). resolve it BEFORE the import so a kept-raw claim
+          // leaves no dead pure import: injectPureImport eagerly registers even when the id goes unused
+          const staticEraseGuard = kind !== 'instance' && !inheritedStatic
+            ? undefinableOptionalGuard(path.node, resolveBuiltIn, path.scope ? { scope: path.scope, adapter, path } : null)
+            : null;
+          if (staticEraseGuard?.kind === 'standdown') return;
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             // a SE-wrapped proxy-global RECEIVER (`(c++, globalThis.self).Array.prototype.flat`) is skipped by
@@ -973,15 +1003,21 @@ export default function plugin(api, options) {
             // .window) ? void 0 : _Array$from(x)` - the root evaluates once in the test (no memo: the
             // alternate is receiver-independent), short-circuit intact. the refusal fires only on
             // proxy-TIER unponyfilled hops (window-class forwarders), so the claim is sound there.
-            // SE channels keep the raw stand-down - no re-emit slot in this shape
-            if (!staticMayEraseReceiver(path.node, resolveBuiltIn, path.scope ? { scope: path.scope, adapter, path } : null)) {
-              emitGuardedClaim({
-                path, replacePath, id,
-                sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-              });
+            // SE channels keep the raw stand-down - no re-emit slot in this shape.
+            // reuse the pre-import decision (standdown already returned above, so this is 'erase' | 'guard')
+            const eraseGuard = staticEraseGuard;
+            if (eraseGuard.kind !== 'erase') {
+              // 'guard': exactly one undefinable `?.` - re-hang the claim inside its guard test
+              if (eraseGuard.kind === 'guard') {
+                emitGuardedClaim({
+                  path, replacePath, id, guardObject: eraseGuard.object,
+                  sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+                });
+              }
               return;
             }
-            const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects, meta.receiverEffectCount);
+            const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
+              meta.chainAssignInsertAt ?? meta.receiverEffectCount);
             replacePath.replaceWith(withSideEffects(id, allEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional) {

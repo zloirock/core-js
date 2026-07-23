@@ -604,15 +604,16 @@ testUnlessDetectLowered('global-proxy: unguarded chain-assign over an unpolyfill
   assert.true((m = k = globalThis).self.Array.prototype.includes.call([7], 7));
   assert.same(m, globalThis);
   assert.same(k, globalThis);
-  // the DESTRUCTURE-source shape of the same kept root: the text emitter splices source instead of cloning
-  // nodes, so it renders the root its own way - the kept value must still get its raw root polyfilled
+  // the DESTRUCTURE-source shape does NOT keep the root: the receiver value is never read, only the static
+  // `Array.of` is extracted - invariant of which global names it - so the whole nav drops and the chain-assign
+  // survives alone. unlike the value-use reads above there is nothing to throw off-browser; the dropped nav is
+  // dead weight and the static resolves the same in every environment. this is the one exception to the split
   let d;
   function destructureWindowValued() {
     const { of } = (d = globalThis.window).self.Array;
     return of;
   }
-  if (hasWindow) assert.same(typeof destructureWindowValued(), 'function');
-  else assert.throws(destructureWindowValued, TypeError);
+  assert.same(typeof destructureWindowValued(), 'function');
   assert.same(d, globalThis.window);
   // an effect the sequence around a kept root carries is not the assignment: the root re-emits itself, but
   // that effect still has to run, exactly once, before the guard tests the value

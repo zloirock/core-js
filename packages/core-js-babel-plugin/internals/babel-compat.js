@@ -221,17 +221,19 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     return null;
   }
 
-  function emitGuardedClaim({ path, replacePath, id, sideEffects, receiverEffectCount }) {
+  function emitGuardedClaim({ path, replacePath, id, sideEffects, receiverEffectCount, guardObject }) {
     // SE channels keep the raw stand-down - no re-emit slot in this shape
-    if (sideEffects || receiverEffectCount) return;
-    let rootNode = path.node.object;
-    while (rootNode.type === 'MemberExpression' || rootNode.type === 'OptionalMemberExpression') {
-      // user parens on a mid-chain node TERMINATE the chain there: native throws past the
-      // barrier where the chain would short-circuit, so a whole-chain guarded claim would
-      // swallow that throw - stand down entirely
-      if (rootNode.extra?.parenthesized) return;
-      rootNode = rootNode.object;
+    if (sideEffects || receiverEffectCount || !guardObject) return;
+    // user parens on a mid-chain node TERMINATE the chain there: native throws past the barrier
+    // where the chain would short-circuit, so a whole-chain guarded claim would swallow that throw
+    for (let n = path.node.object; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = n.object) {
+      if (n.extra?.parenthesized) return;
     }
+    // the guard tests the OBJECT of the `?.` hop that guards the undefinable value (resolved by the
+    // caller via `undefinableOptionalGuard`): `globalThis.window?.self.X` -> `globalThis.window`, a
+    // hop the always-defined descended root does not cover. left in the AST so the identifier visitor
+    // substitutes its proxy-global root in place (`_globalThis.window`)
+    let rootNode = guardObject;
     // a transparent wrapper on the ROOT gets explicit parens in the guard test: babel prints
     // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the text emitter keeps
     // the wrapped root grouped - `null == ((c = gw) as any) ? ...`

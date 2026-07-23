@@ -58,7 +58,9 @@ export const aliasKeptSeKey = (z = alias.window)?.[(c++, 'self')].Array.prototyp
 let sv;
 export const seqValueAndKey = (sv = (c++, globalThis.window))?.[(c++, 'self')].Array.prototype.map.call([1], v => v);
 
-// two SE keys on one UNGUARDED kept root: both migrate into the surviving key, in source order
+// two SE keys on one UNGUARDED kept root: the assignment (the object) runs first, then both key
+// effects migrate into the surviving key in source order - a pre-root harvest would have run them
+// before the assignment
 let ud;
 export const unguardedDoubleKey = (ud = globalThis.window)[(c++, 'self')][(c++, 'self')].Array.of(5);
 
