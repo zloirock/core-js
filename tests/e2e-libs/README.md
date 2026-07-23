@@ -23,7 +23,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   (`new Foo(bar.name)` had its injected getter wrapper re-wrapped as a constructor call). Fixed on
   `v4`; all three methods pass.
 
-**Runners.** Five entry points, each exposed as a root npm script:
+**Runners.** Six entry points, each exposed as a root npm script:
 
 - **pipeline** — the full picture: **size AND time at each stage** of the real IE11 build, per
   (lib × method). Stages: `[A]` library bundled, no transforms → `[B]` + Babel (ES5, no polyfills) →
@@ -62,8 +62,9 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   (manifest records raw / minified / gzip sizes + injections, counted inside the build itself).
   An unfiltered run wipes `artifacts/` first and a filtered one wipes just the libraries it rebuilds
   (merging into the existing manifest), so a failed cell cannot leave a stale green page behind while
-  the manifest claims otherwise. A node pre-flight runs first; the real IE11 check is manual (upload
-  the HTML to BrowserStack/SauceLabs). Every bundle is also **asserted to be ES5** — a real acorn
+  the manifest claims otherwise. A node pre-flight runs first; real IE11 is automated for the
+  `usage-pure` cells via the **karma** runner below (and in CI), with the HTML pages left for a manual
+  BrowserStack/SauceLabs pass over the other methods. Every bundle is also **asserted to be ES5** — a real acorn
   parse at `ecmaVersion: 5`, *not* an esbuild `target: 'es5'` transform, which silently **lowers**
   arrows, `?.`, `??` and template literals instead of rejecting them. Nothing else here would notice
   a broken down-compile: the pre-flight runs in a modern node realm and the browser page in a modern
@@ -87,11 +88,31 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   what is unasserted is the injection **set**.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
+- **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the `usage-pure`
+  bundle (rollup + Babel 7 + unplugin) for each library, appends a QUnit driver, and runs them in
+  **actual IE11** via Karma — the same karma-qunit / IE stack `tests/unit-karma` already drives.
+  Only `usage-pure` × Babel 7: that is the one method+engine where a green run validates per-site
+  *detection* rather than masking a miss behind a global patch (see the note below); the other
+  methods and Babel 8 stay on the node pre-flight. This is a rollup-adapter check on real libraries,
+  complementing the webpack `e2e-usage-pure` leg in `tests/unit-karma`. Off a machine with IE11 (and
+  outside CI) it still **builds** the bundles — running every gate `runtimeBuild` carries — but skips
+  Karma; the CI job `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
 
-**Running it.** All five runners are exposed as root scripts, and `npm run e2e-libs` chains the three
-that assert (`check-exercise` → `snapshot` → `artifacts`); `pipeline` and `throughput` only report, so
-they stay out of it. The suite is deliberately NOT part of `test-raw` / `test-transpiling` — it pulls
-rxjs, three, codemirror and seven bundlers, and a full pass takes minutes.
+**What a green artifact proves — and doesn't.** It proves the exercise still *executes* on the
+target; a green *node pre-flight* does **not** by itself prove per-site *detection*. A global polyfill
+patches the prototype once, so one correctly-detected use of a feature masks a missed sibling use of
+the same feature elsewhere in the same bundle — the bundle runs regardless. `usage-pure` has no such
+masking (each site is rewritten to a local import, so a missed site stays a native call) — but only on
+real IE11: the pre-flight's modern realm has the native either way. That real-IE11 run is exactly what
+the **karma** leg above automates for `usage-pure`, so a missed site on these libraries now reddens
+CI. The global methods stay masked even on IE11; per-site detection there is the unplugin unit tests'
+job (`tests/unplugin/unit.mjs`), on the transform output directly. Sibling to the snapshot gap above.
+
+**Running it.** All six runners are exposed as root scripts, and `npm run e2e-libs` chains the three
+that assert (`check-exercise` → `snapshot` → `artifacts`); `pipeline` and `throughput` only report and
+`karma` needs real IE11, so they stay out of it. The suite is deliberately NOT part of `test-raw` /
+`test-transpiling` — it pulls rxjs, three, codemirror and seven bundlers, and a full pass takes
+minutes; the IE11 leg runs as its own `e2e-libs-ie11` CI job on windows-2022.
 
 Arguments go after `--`, e.g. `npm run e2e-libs-throughput -- three rollup`. The scripts run through
 `scripts/zxi.mjs`, which installs this directory's dependencies for you (so no separate `npm install`
