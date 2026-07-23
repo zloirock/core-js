@@ -14,7 +14,7 @@ import {
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
 import {
   maximalProxyGlobalPrefix, navHasUnresolvableProxyHop, peelChainAssignment, peelReceiverSequenceTail,
-  resolveKey, undefinableProxyRootValue, unwrapTransparentSeq,
+  resolveKey, resolveObjectName, undefinableProxyRootValue, unwrapTransparentSeq,
 } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
@@ -411,26 +411,34 @@ export function isPolyfillableOptional({
     // re-evaluated root assignment
     && !(mutatedKeptRootAware && proxyNavRootCanBeUndefined(objCore, resolve, { scope, adapter, path })
       && chainNavigatesIntoMutatedStatic({ path, node: member, scope, adapter, mutatedSet }))) return true;
-  // a chain-assign subject navigating a PROXY HOP (`(q = globalThis)?.self.x`, nested
-  // `(m = n = globalThis)?.self.x`): the guarded value is the assign RESULT, so the `?.` is dead exactly
-  // when that RESULT is always defined once substituted. that holds for a bare proxy name AND for a
-  // navigation core-js ponyfills end to end (`(q = globalThis.self)?.x` -> `_self`) - the substitution is
-  // what makes it defined, so the source's own off-engine undefined says nothing. it does NOT hold when
-  // the value navigates a hop with no entry (`(w = globalThis.window)?.x`): that stays a raw read which
-  // really can be undefined off-browser, and its guard has to fire. gated on the hop key too: a non-hop
-  // member (`(q = globalThis)?.Array...`) keeps the (dead but harmless) guard - both emitters' guarded
-  // shape is already canonical there, and the text emitter has no hop-collapse claim to strip the `?.` into
-  if (member === node && objCore?.type === 'AssignmentExpression'
-    && memberKey && POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) {
+  // a chain-assign subject navigating a member (`(q = globalThis)?.self.x`, `(w = globalThis)?.Array.of()`,
+  // nested `(m = n = globalThis)?.self.x`): the `?.` guards the assign RESULT, so it is dead exactly when
+  // that RESULT is always defined once substituted - INDEPENDENT of which member follows, since the guard
+  // tests the receiver, not the member. that holds for a bare proxy name AND for a navigation core-js
+  // ponyfills end to end (`(q = globalThis.self)?.x` -> `_self`); it does NOT hold when the value navigates a
+  // hop with no entry (`(w = globalThis.window)?.x`) - a raw read that really can be undefined off-browser,
+  // its guard has to fire. this mirrors the static-call canon `undefinableOptionalGuard`, which erases off
+  // the same root value with NO member-key gate: an earlier hop-key gate here kept a DEAD guard on a non-hop
+  // member (`(q = globalThis)?.Array...`) that unplugin then double-ran the assign under (a receiver-
+  // independent static collapse re-folding the chain-assign the kept guard already ran)
+  if (member === node && objCore?.type === 'AssignmentExpression' && memberKey) {
     const { value, outer } = peelChainAssignment(objCore);
     // definedness of a sequence value is decided by its TAIL (`(e++, globalThis.self)` is exactly as
     // defined as `globalThis.self`), so peel SE-bearing tails too - the SE-bailing unwrap left such a
     // value unclassified and the guard stayed, while the AST emitter's collapse dropped it: same object
     // at runtime, drifting emit shapes and import sets
     const valueCore = unwrapRuntimeExpr(peelReceiverSequenceTail(value ?? objCore));
+    // a call value that inline-resolves to a proxy-global (`(w = f())?.self.X`, `f = () =>
+    // globalThis`) is as always-defined as a bare `globalThis`, and the receiver collapse ALREADY
+    // roots through it (`resolveObjectName` inlines the callee) - resolve it the same way here so
+    // the dead guard erases in step with that collapse, instead of a kept guard leaving babel a raw
+    // static and unplugin a re-run of the call in the fold. the `POSSIBLE_GLOBAL_OBJECTS` gate below
+    // discards any non-proxy resolution (an inlined ctor call)
     const valueName = valueCore?.type === 'Identifier'
       ? (isProxyGlobalIdentifierNode({ node: valueCore, scope, adapter, path }) ? valueCore.name : null)
-      : globalProxyMemberName({ node: valueCore, scope, adapter, path });
+      : valueCore?.type === 'CallExpression' || valueCore?.type === 'OptionalCallExpression'
+        ? resolveObjectName({ objectNode: valueCore, scope, adapter, path })
+        : globalProxyMemberName({ node: valueCore, scope, adapter, path });
     if (outer && valueName && POSSIBLE_GLOBAL_OBJECTS.has(valueName)
       && !navHasUnresolvableProxyHop(valueCore, resolve)) return true;
   }
