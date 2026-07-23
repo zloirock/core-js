@@ -363,6 +363,12 @@ export default function createSynthSwapEmitter({
     // the climb die at its first non-member parent, leaving the redundant hop raw
     const anchorRoot = descendToChainRoot(idPath.node, true).root ?? idPath.node;
     let recPath = idPath.parentPath;
+    // track the DEEPEST all-proxy member: a chain with a non-proxy leaf breaks AT that leaf (`.self.window
+    // .foo` -> collapse `.foo`), but an ALL-proxy chain with no non-proxy leaf (`globalThis.self.window` as a
+    // bare destructure SOURCE) has nothing to break at - the climb walks past it to a non-member parent. fall
+    // back to the deepest all-proxy member so the whole chain still collapses to the root (`_globalThis`)
+    let allProxyMember = null;
+    let allProxyEnd = false;
     // climb to the leaf member consuming the maximal proxy-hop prefix (stop at the first member
     // whose leaf is non-proxy), stepping THROUGH any construct the chain-walk canon peels on the
     // way down - chain-assignments (`(a = globalThis).self.X`), sequence tails, TS casts,
@@ -376,7 +382,12 @@ export default function createSynthSwapEmitter({
       if (recPath?.isMemberExpression() || recPath?.isOptionalMemberExpression()) {
         if (maximalProxyGlobalPrefix(recPath.node, aliasCtx,
           { allowSideEffectKeys: true, throughChainAssign: true }) !== recPath.node) break;
+        allProxyMember = recPath;
       } else if (!recPath?.node || descendToChainRoot(recPath.node, true).root !== anchorRoot) {
+        if (allProxyMember) {
+          recPath = allProxyMember;
+          allProxyEnd = true;
+        }
         break;
       }
       recPath = recPath.parentPath;
@@ -394,11 +405,40 @@ export default function createSynthSwapEmitter({
     // emitter could synth-swap, so the emitter never owns it - collapse the hop HERE too. a plain default
     // VALUE (`{ x = chain }`, target Identifier) is not a source. mirrors the unplugin gate
     let ctxPath = recPath.parentPath;
-    while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) ctxPath = ctxPath.parentPath;
+    // a value-OBSERVING carrier (`??` / `||` / `&&` / ternary) between the receiver and the binding OBSERVES
+    // the receiver's undefined/falsy: `{x} = globalThis.window ?? {}` reads `undefined ?? {}` = `{}` off-engine.
+    // the all-proxy root-collapse below (`.window` -> `_globalThis`, DEFINED) would defeat that fallback
+    let valueObservingCarrier = false;
+    while (PROXY_HOP_VALUE_CARRIERS.has(ctxPath?.node?.type)) {
+      if (ctxPath.node.type === 'LogicalExpression' || ctxPath.node.type === 'ConditionalExpression') valueObservingCarrier = true;
+      ctxPath = ctxPath.parentPath;
+    }
     const ctx = ctxPath?.node;
     const target = ctx?.type === 'VariableDeclarator' ? ctx.id
       : ctx?.type === 'AssignmentPattern' || ctx?.type === 'AssignmentExpression' ? ctx.left : null;
     if (target?.type === 'ObjectPattern' && claimedDestructurePatterns.has(target)) return false;
+    // an ALL-proxy chain END (`globalThis.self.window`, no non-proxy leaf) collapses to the bare root ONLY as
+    // a DISCARDED destructure SOURCE - the receiver value is invariant of which global names it, safe to drop
+    // the hops (`{Object:OD} = _globalThis`). a value-USE (`const x = globalThis.self.window`) keeps the raw
+    // hops: it reads `window`, which throws off-browser exactly as the source does (finding-e faithful-throw)
+    if (allProxyEnd && target?.type !== 'ObjectPattern' && target?.type !== 'ArrayPattern') return false;
+    // the all-proxy chain's LAST hop is itself a proxy. only root-collapse when SOME hop is UNRESOLVABLE
+    // (`.window`, no `_window` - `collapseProxyGlobalReceiver` keeps it as `_globalThis.window`, undefined
+    // off-engine): drop EVERY hop to the root pure import (`_globalThis`). when every hop resolves (`.self`
+    // -> `_self`) keep the natural per-hop resolution (`{x} = globalThis.self` -> `_self`). a computed hop
+    // key may carry SE (`globalThis[(c++,'self')].window`) - out of scope for this bare drop, defer
+    if (allProxyEnd) {
+      if (valueObservingCarrier) return false;
+      if (!navHasUnresolvableProxyHop(recPath.node, resolvePure)) return false;
+      const rootIdent = findProxyGlobal(recPath.node, aliasCtx, true);
+      const rootPure = rootIdent && resolvePure({ kind: 'global', name: rootIdent.name });
+      if (!rootPure) return false;
+      for (let n = recPath.node; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = n.object) {
+        if (n.computed) return false;
+      }
+      recPath.replaceWith(injectPureImport(rootPure.entry, rootPure.hintName));
+      return true;
+    }
     // a mutation TARGET (`globalThis.{self,window}.Map = fn` / `delete ...` / `...++`, the canonical
     // `isMemberWriteHost` covers `=` / update / `delete` / destructuring / wrappers) collapses through a pure-ctor
     // leaf - the leaf is the write slot, not a read whole-swap. unplugin's natural visitor resolves a hop that

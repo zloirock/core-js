@@ -115,6 +115,17 @@ QUnit.test('destructuring: assignment expression', assert => {
   assert.deepEqual(from([1, 2, 3]), [1, 2, 3]);
 });
 
+// a destructure-ASSIGNMENT whose VALUE is CAPTURED yields its RHS, so the captured value must be the
+// RECEIVER (globalThis), NOT the synth mirror the leaf polyfill would otherwise swap in. live oracle:
+// before the fix `alias` was the mirror `{ Array: { of: <polyfill> } }` and `same(alias, globalThis)` failed
+QUnit.test('destructuring: captured assignment value is the receiver, not a synth mirror', assert => {
+  let of;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- parens force a destructure-assignment; without them `{...}` is an object literal
+  const alias = ({ Array: { of } } = globalThis);
+  assert.same(alias, globalThis, 'the captured value is globalThis, not the synth mirror');
+  assert.deepEqual(of(1, 2, 3), [1, 2, 3], 'the leaf still polyfills Array.of');
+});
+
 // renamed binding
 QUnit.test('destructuring: renamed binding', assert => {
   const { from: arrayFrom } = Array;
