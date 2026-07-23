@@ -227,15 +227,41 @@ export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt
   return [...baseEffects.slice(0, at), ...collected, ...baseEffects.slice(at)];
 }
 
-// may a STATIC substitution ERASE its receiver navigation? normally yes - the navigation only names the
-// global the substituted import already is. but a live `?.` guarding a chain-assign whose VALUE navigates a
-// hop with no ponyfill entry (`(b = globalThis.window)?.self.Array.from?.(x)`) is not erasable: the guard
-// rides on that navigation, so dropping it runs the static where the source short-circuits. the same root
-// question the receiver plan asks - that value is not provably the global, so nothing here is always-defined.
-// the substitution then stands down; the raw chain is exactly what the source meant.
-// callers pass the CONSUMING member itself (not its `.object`): a leaf-hop claim carries the live
-// `?.` on its own node (`(v = gw)?.self` - the object below is optional-free), and only the full
-// descent sees it - the object-only spelling reported optionalCount 0 and let the swap eat the guard
+// classify a STATIC substitution's receiver navigation for the erase-vs-guard decision. a live `?.`
+// guarding a value that navigates an unponyfilled proxy hop (`globalThis.window`) is NOT erasable:
+// the guard rides on that navigation, so dropping it runs the static where the source short-circuits.
+// returns what the emit needs:
+//   { kind: 'erase' }         - no `?.` guards an undefinable value; the navigation only names the
+//                               global the substituted import already is, so drop it
+//   { kind: 'guard', object } - exactly one `?.` guards an undefinable value; re-hang the claim
+//                               inside `null == object ? void 0 : <claim>`, short-circuit intact
+//   { kind: 'standdown' }     - two or more; a single test cannot express the union of short-circuit
+//                               points, so keep the raw chain (exactly what the source meant)
+// `object` is that hop's OBJECT (`globalThis.window?.self.X` -> `globalThis.window`), NOT the descended
+// root - a mid-chain `?.` guards a hop the always-defined root does not, and checking only the root let
+// the swap eat the guard. callers pass the CONSUMING member itself (not its `.object`) so the full
+// descent sees a leaf-hop's own `?.`
+export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = null) {
+  if (!memberNode || !resolvePure) return { kind: 'erase' };
+  const { optionalObjects } = descendToChainRoot(memberNode);
+  // the member's OWN live `?.` counts only when its key is SE-free: an SE-computed key rides the
+  // fold's harvest canon (the key-SE migration IS the locked emit), while an SE-free leaf claim has
+  // no compensating canon - eating its guard loses the short-circuit. exclude its guarded object
+  const ownSEKeyOptional = (memberNode.type === 'MemberExpression' || memberNode.type === 'OptionalMemberExpression')
+    && memberNode.optional && memberNode.computed && memberKeyName(memberNode) === null;
+  const objects = ownSEKeyOptional
+    ? optionalObjects.filter(obj => obj !== memberNode.object) : optionalObjects;
+  const undefinable = objects.filter(obj => undefinableProxyRootValue(peelChainAssignment(obj).value, resolvePure, aliasCtx));
+  if (undefinable.length === 0) return { kind: 'erase' };
+  if (undefinable.length > 1) return { kind: 'standdown' };
+  return { kind: 'guard', object: undefinable[0] };
+}
+
+// may a STATIC substitution ERASE its receiver navigation? the INSTANCE / optional-chain callers
+// pass the SPECIFIC `?.` node and re-hang the guard on its own object, so the root-descended check
+// here is exactly what they need; the static-call sites instead route through `undefinableOptionalGuard`
+// which resolves WHICH `?.` guards the undefinable value (a multi-hop chain has more than one). the
+// two must not be merged: changing this verdict would break the instance path's own guard emit
 export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null) {
   if (!memberNode || !resolvePure) return true;
   const { root, optionalCount } = descendToChainRoot(memberNode);
@@ -1416,17 +1442,24 @@ export function descendToChainRoot(node, throughChainAssign = false) {
   let root = throughChainAssign ? peelChainRootValue(node) : peelReceiverSequenceTail(node);
   let firstHop = null;
   let optionalCount = 0;
+  // the OBJECT each `?.` hop guards (`a.b?.c` -> `a.b`). a mid-chain `?.` can guard a value that
+  // is undefinable on-target even when the descended ROOT is always-defined, so the guard decision
+  // must inspect these, not just the root
+  const optionalObjects = [];
   let depth = 0;
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-    if (++depth > MAX_KEY_DEPTH) return { root: null, firstHop, optionalCount };
+    if (++depth > MAX_KEY_DEPTH) return { root: null, firstHop, optionalCount, optionalObjects };
     // count the `.optional` FLAG only, NOT the node type: babel makes every member of an optional chain an
     // OptionalMemberExpression (`a?.b.c` -> all three) with `.optional` true only on the actual `?.` hop, so
     // a type-based count over-counts. the flag means "this hop uses `?.`" in both parsers
-    if (root.optional) optionalCount++;
+    if (root.optional) {
+      optionalCount++;
+      optionalObjects.push(root.object);
+    }
     firstHop = root;
     root = throughChainAssign ? peelChainRootValue(root.object) : peelReceiverSequenceTail(root.object);
   }
-  return { root, firstHop, optionalCount };
+  return { root, firstHop, optionalCount, optionalObjects };
 }
 
 // optional flags within the node's OWN unterminated chain: the raw member / call descent stops at
