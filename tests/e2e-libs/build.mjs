@@ -166,18 +166,21 @@ async function webpackLike(compiler, entry, plugin) {
 }
 
 // farm is excluded from the active set. NOT the native crash the previous note here claimed: its
-// Rust resolver fails on a GRAPH-DEPENDENT subset of the extensionless `core-js/modules/*` specifiers
-// unplugin injects in the GLOBAL methods (e.g. `es.json.parse`, `web.url.to-json`), reporting "Can
-// not resolve …" and exiting 1 — the silent logger the farm builder installs is what turned that into
-// a mute exit that looked like a hard crash. node and the other six bundlers resolve those specifiers
-// via core-js's `exports: { "./modules/*": "./modules/*.js" }`; farm resolves them only WITH an
-// explicit `.js`, so it mishandles that exports wildcard for extensionless subpaths. It is graph-
-// dependent, not per-module (the same specifier — `es.promise` — resolves in one import graph and
-// fails in another), which is why it reads as a farm resolver bug rather than anything about core-js.
-// usage-pure (`core-js-pure/*`) and the plugin-less baseline are unaffected. A resolve-hook plugin
-// delegating `core-js/*` to node's own resolver fixes it (verified across the whole matrix); we keep
-// farm excluded rather than carry that shim, until it is fixed upstream. throughput-only regardless
-// (the runtime tier uses rollup). The builder stays defined above for easy re-enable.
+// Rust resolver fails on the extensionless `core-js/modules/*` specifiers unplugin injects in the
+// GLOBAL methods whose NAME contains the substring `js`, reporting "Can not resolve …" and exiting 1
+// — the silent logger the farm builder installs is what turned that into a mute exit that looked like
+// a hard crash. node and the other six bundlers resolve them via core-js's
+// `exports: { "./modules/*": "./modules/*.js" }`. The trigger is the two-char substring `js` anywhere
+// in the name — `es.json.parse`, `es.json.stringify`, `web.url.to-json` all fail (the `js` is in
+// `json`); a name without it (`es.promise`, `es.array.flat`) always resolves. The one exception is a
+// specifier that ENDS in `.js`: farm appears to decide "the extension is already present" by matching
+// `js` as a substring, so it skips applying the exports `* -> *.js` target and looks for a file with
+// no real `.js`; when the specifier genuinely ends in `.js` that file exists, which is why importing
+// with an explicit `.js` is the workaround. Deterministic, not graph-dependent. usage-pure
+// (`core-js-pure/*`) and the plugin-less baseline are unaffected. A resolve-hook plugin delegating
+// `core-js/*` to node's own resolver fixes it (verified across the whole matrix); we keep farm
+// excluded rather than carry that shim, until it is fixed upstream. throughput-only regardless (the
+// runtime tier uses rollup). The builder stays defined above for easy re-enable.
 export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name => name !== 'farm');
 
 // The unplugin adapter instance for a bundler + (method, phase).
