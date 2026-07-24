@@ -40,6 +40,7 @@ import {
   SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   varInitDominatesUsage,
+  zeroArgIifeSideEffectFree,
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 
@@ -1226,29 +1227,37 @@ function isProxyGlobalIdentifier({ node, scope, adapter, seen, path, usageNode =
   return proxyGlobalRootName({ node, scope, adapter, path, seen, usageNode }) !== null;
 }
 
+// side-effecting computed key a caller with no effects channel (bailOnSideEffectKey) cannot re-emit
+const KEY_SIDE_EFFECT_BAIL = Symbol('key-side-effect-bail');
+
+// normalize a COMPUTED key node before identity resolution. oxc-parser preserves
+// ParenthesizedExpression / TS wrappers Babel strips - peel up front so the alias / Symbol-member
+// branches work uniformly across parsers. SequenceExpression tail: only the last element drives key
+// identity (its SE prefix is captured by unwrapParensCollectingEffects at meta-build sites, or replayed
+// by direct callers) - unwrap parens at EACH level (`(e++, (d++, 'self'))`). a zero-arg IIFE key
+// (`obj[(() => 'len')()]`) evaluates to its return - peel to a fixpoint; usage-pure relocates the key
+// by DROPPING the node, so it peels only an observably-pure IIFE, while usage-global keeps the node and
+// peels unconditionally (over-inject-safe). returns KEY_SIDE_EFFECT_BAIL when bailOnSideEffectKey and a
+// SE prefix survives (`[(fn(), 'X')]`), so the whole construct is skipped rather than dropping the effect
+function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter) {
+  node = unwrapTransparentSeq(node);
+  while (true) {
+    if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return KEY_SIDE_EFFECT_BAIL;
+    while (node?.type === 'SequenceExpression') node = unwrapTransparentSeq(node.expressions.at(-1));
+    if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
+    if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node)) return node;
+    const iifeRet = peelZeroArgIifeReturn(node);
+    if (!iifeRet) return node;
+    node = unwrapTransparentSeq(iifeRet);
+  }
+}
+
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
   while (true) {
     if (depth > MAX_KEY_DEPTH) return null;
-    // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
-    // binding inits; Babel strips them. unwrap up front so the identifier-alias and
-    // Symbol-member branches below work uniformly across parsers.
-    // SequenceExpression tail: only the last element's value drives key identity. SE
-    // prefix is captured by unwrapParensCollectingEffects at meta-build sites (members.js);
-    // direct callers without an effects channel (resolveStaticInheritedMember) get the
-    // peeled tail so super[(fn(),'X')] still classifies as super.X
     if (computed) {
-      node = unwrapTransparentSeq(node);
-      // a side-effecting key prefix (`[(fn(), 'X')]`) can only be re-emitted by callers with an
-      // effects channel. callers without one (destructure detection) pass bailOnSideEffectKey to
-      // leave the key unresolved, so the whole construct is skipped rather than silently dropping
-      // the side effect (babel) or feeding the text composer a needle it cannot place (unplugin).
-      // the flag is threaded into the fold recursions below (`+` / template / Symbol.X) so an SE
-      // BURIED in a fold operand (`[(fn(), 'se') + 'lf']`) bails transitively, not just a top-level one
-      if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return null;
-      // unwrap parens at EACH sequence level (mirror `sequenceKeyStaticName`): oxc keeps a
-      // `ParenthesizedExpression` between nested sequences (`(e++, (d++, 'self'))`), so a bare `.at(-1)`
-      // stops at the inner paren and bails the fold - babel folds the parens away so it never noticed
-      while (node?.type === 'SequenceExpression') node = unwrapTransparentSeq(node.expressions.at(-1));
+      node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter);
+      if (node === KEY_SIDE_EFFECT_BAIL) return null;
     }
     if (!computed && node.type === 'Identifier') return node.name;
     if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
