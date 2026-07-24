@@ -430,7 +430,7 @@ export function createAwaited({
       }
     } else if (annotation?.type !== 'TSTypeLiteral') return null;
     const members = getTypeMembers({ objectType: annotation, scope });
-    const thenMember = members?.find(m => keyMatchesName(m.key, 'then'));
+    const thenMember = members?.find(m => keyMatchesName(m.key, 'then', scope, m.computed));
     const valueAnn = cbFirstArgAnnotation(memberThenCbParam(thenMember));
     return valueAnn ? resolveThenableCbArgAwaited(valueAnn, scope) : null;
   }

@@ -478,7 +478,7 @@ export function createCallResolution({
     // ONE; ambiguous / divergent / no call context - null (the caller's generic bail).
     // this annotation domain carries single nodes, so a set can't fold - it discriminates
     // or bails, mirroring the Type-domain canon fold
-    const named = members.filter(m => keyMatchesName(m.key, propName)
+    const named = members.filter(m => keyMatchesName(m.key, propName, scope, m.computed)
       && m.kind !== 'get' && m.kind !== 'set' && m.type === 'TSMethodSignature');
     if (named.length >= 2) {
       const selected = callPath
@@ -487,7 +487,7 @@ export function createCallResolution({
       return { annotation: applySubst(selected, subst), scope };
     }
     for (const m of members) {
-      if (!keyMatchesName(m.key, propName)) continue;
+      if (!keyMatchesName(m.key, propName, scope, m.computed)) continue;
       // honor accessor kind like findTypeMember (keep the shape handling in sync): a setter is write-only
       // - skip to a paired getter (any parser shape, not just TSMethodSignature); a GETTER yields its
       // RETURN type - babel carries it on the node, oxc/ESTree nests it on `value.returnType` (a class
