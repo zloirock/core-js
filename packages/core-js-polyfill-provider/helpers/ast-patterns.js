@@ -200,7 +200,19 @@ export function memberKeyName(node) {
 // the caller). the ONE canonical member-name resolver for every proxy-global / enum consumer - a bare
 // memberKeyName under-resolves the SE-key form and diverges from the consumers that already fold it
 export function staticMemberKeyName(node) {
-  return memberKeyName(node) ?? (node.computed ? sequenceKeyStaticName(node.property) : null);
+  const direct = memberKeyName(node) ?? (node.computed ? sequenceKeyStaticName(node.property) : null);
+  if (direct !== null || !node.computed) return direct;
+  // a zero-arg IIFE computed key (`E[(() => 'A')()]`) folds to its return. gate on purity: the
+  // proxy-hop collapse consumers DROP a folded hop and the SE-key harvest only reaches a sequence
+  // prefix, not an IIFE's interior - so a SE-bearing IIFE stays unresolved (read consumers degrade,
+  // emit keeps the hop) rather than lose the effect. peel to a fixpoint for nested wrappers
+  let key = node.property;
+  while (zeroArgIifeSideEffectFree(key)) {
+    const ret = peelZeroArgIifeReturn(key);
+    if (!ret) break;
+    key = ret;
+  }
+  return key === node.property ? null : staticStringKey(key) ?? sequenceKeyStaticName(key);
 }
 
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
@@ -3710,6 +3722,36 @@ export function peelZeroArgIifeReturn(node) {
   // zero-arg/zero-param OR param-free body: lift the body verbatim (resolver-side
   // classification ignores arg side effects since it only needs receiver shape)
   return bodyHasParamReference(body, paramNames) ? null : body;
+}
+
+// true when evaluating a zero-arg IIFE is observably pure, so DROPPING the whole call loses no side
+// effect. `peelZeroArgIifeReturn` strips a body prefix / arg effects to expose the return shape -
+// fine for usage-global, which keeps the node in place. usage-pure RELOCATES a computed key by
+// removing the key node, so it may peel an IIFE key only when this confirms the args, callee prefix
+// and body carry no effects. shapes mirror the peel above (it gates the caller, so structure is valid)
+export function zeroArgIifeSideEffectFree(node) {
+  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return false;
+  if (!(node.arguments ?? []).every(exprSideEffectFree)) return false;
+  let callee = unwrapRuntimeExpr(node.callee);
+  while (callee?.type === 'SequenceExpression' && callee.expressions?.length) {
+    if (!callee.expressions.slice(0, -1).every(exprSideEffectFree)) return false;
+    callee = unwrapRuntimeExpr(callee.expressions.at(-1));
+  }
+  if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return false;
+  const { body } = callee;
+  if (body?.type !== 'BlockStatement') return exprSideEffectFree(body);
+  const stmts = body.body ?? [];
+  for (let i = 0; i < stmts.length - 1; i++) {
+    if (stmts[i]?.type !== 'ExpressionStatement' || !exprSideEffectFree(stmts[i].expression)) return false;
+  }
+  return exprSideEffectFree(stmts.at(-1)?.argument);
+}
+
+// an expression is observably pure if it has no side effects, OR is itself a droppable pure zero-arg
+// IIFE - a nested `(() => (() => 'x')())()` evaluates purely even though each CallExpression alone
+// reads as effectful. bounded recursion: the nested IIFE is strictly smaller
+function exprSideEffectFree(node) {
+  return !mayHaveSideEffects(node) || zeroArgIifeSideEffectFree(node);
 }
 
 // collect Identifier names introduced by the param list. supports simple Identifier
