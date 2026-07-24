@@ -207,7 +207,10 @@ function createResolveNodeType(babelNodeType, t, {
   // T["key"] / T[0] / T[`key`] index literal - unwrap TSLiteralType; fall through template-literal
   // for parity with computed-member resolution. null for non-literal / keyof / union indexes
   function indexedAccessKey(indexType) {
-    const literal = indexType?.type === 'TSLiteralType' ? indexType.literal : indexType;
+    // oxc keeps a `("len")` index / annotation as TSParenthesizedType where babel strips it at parse;
+    // peel so both parsers reach the inner literal (else the const-typed key folds on babel only)
+    const peeled = peelTSParenthesized(indexType);
+    const literal = peeled?.type === 'TSLiteralType' ? peeled.literal : peeled;
     return literalKeyValue(literal) ?? singleQuasiString(literal);
   }
 
@@ -221,8 +224,10 @@ function createResolveNodeType(babelNodeType, t, {
     const indexNodes = [];
     let root = node;
     while (root?.type === 'TSIndexedAccessType') {
-      indexNodes.unshift(root.indexType);
-      root = root.objectType;
+      // peel each collected index: oxc keeps `T[(K)]` as TSParenthesizedType, so the type-param /
+      // keyof / arg-literal analyses below would miss the inner index on that parser only
+      indexNodes.unshift(peelTSParenthesized(root.indexType));
+      root = peelTSParenthesized(root.objectType);
     }
     const rootName = root && typeRefName(root);
     if (rootName && typeParamMap.has(rootName)) {
@@ -437,9 +442,16 @@ function createResolveNodeType(babelNodeType, t, {
         const binding = getScopeBinding(scope, key.name);
         if (!binding || binding.constantViolations?.length) return null;
         const decl = binding.path;
-        if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
+        if (!t.isVariableDeclarator(decl.node)) return null;
+        if (!decl.node.init) {
+          // no value init: a binding typed by a string-literal type (`declare const k: 'len'`) still
+          // names a static key - TS only permits a literal-typed (or unique-symbol) binding as a
+          // computed key, so read the literal off the id's type annotation. non-literal types bail
+          return indexedAccessKey(decl.node.id?.typeAnnotation?.typeAnnotation);
+        }
         scope = decl.scope ?? scope;
-        key = decl.node.init;
+        // peel `as const` / `satisfies` / parens so `const k = 'len' as const` folds to its literal
+        key = unwrapRuntimeExpr(decl.node.init);
         depth += 1;
         continue;
       }
@@ -466,7 +478,12 @@ function createResolveNodeType(babelNodeType, t, {
     }
   }
 
-  function keyMatchesName(key, name) {
+  // a COMPUTED key is a value expression, not a name: `{ [k]: T }` keyed by a const must fold `k`
+  // to its string before matching, or `getKeyName` reads the bare identifier (`k`) and both misses
+  // the real member (`t.len` unresolved) and spuriously matches an accessed `t.k`. non-computed keys
+  // (and callers with no computed member) keep the literal read via the default flag
+  function keyMatchesName(key, name, scope = null, computed = false) {
+    if (computed) return scope ? resolveComputedKeyName(key, scope) === name : false;
     return getKeyName(key) === name;
   }
 
@@ -697,6 +714,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveKnownContainerType: (...args) => resolveKnownContainerType(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
+    resolveComputedKeyName,
+    getKeyName,
     babelBindingAdapter,
   });
 

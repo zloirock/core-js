@@ -130,7 +130,7 @@ export function createMemberResolve({
     // vs getter - to decide call-vs-read dispatch). `findTypeMember` returns the resolved
     // annotation only, which loses the signature shape, so leaf stays at members+find
     const members = getTypeMembers({ objectType: annotation, scope: scopeRef });
-    const member = members?.find(m => keyMatchesName(m.key, props[0]));
+    const member = members?.find(m => keyMatchesName(m.key, props[0], scopeRef, m.computed));
     return member ? { member, scope: scopeRef } : null;
   }
 
@@ -255,7 +255,7 @@ export function createMemberResolve({
   function resolveMemberCallReturnFromAnnotation({ annotation, name, scope, resolve, depth, subst, callPath }) {
     const members = getTypeMembers({ objectType: annotation, scope, depth });
     if (!members) return null;
-    const matchingMembers = members.filter(m => keyMatchesName(m.key, name) && isCallableMemberShape(m));
+    const matchingMembers = members.filter(m => keyMatchesName(m.key, name, scope, m.computed) && isCallableMemberShape(m));
     // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
     // through every nested shape (arrays/tuples/unions), not just top-level references. but a method
     // that declares its OWN `<T>` shadows the outer alias's `T`: remap those signature-local params
