@@ -440,6 +440,7 @@ QUnit.test('Map#@@iterator', assert => {
   map.set('a', 'q');
   map.set('s', 'w');
   map.set('d', 'e');
+  // eslint-disable-next-line unicorn/no-collection-bracket-access -- testing
   const iterator = map[Symbol.iterator]();
   assert.isIterator(iterator);
   assert.isIterable(iterator);

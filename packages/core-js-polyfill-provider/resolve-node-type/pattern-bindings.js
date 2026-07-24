@@ -353,14 +353,14 @@ export function createPatternBindings({
     if (pattern?.type !== 'ArrayPattern') return null;
     for (const el of pattern.elements ?? []) {
       if (!el) continue;
+      let nested;
       if (el.type === 'RestElement') {
         if (el.argument?.type === 'Identifier' && el.argument.name === varName) return new $Object('Array');
-        const nested = nestedRestType(el.argument, varName);
-        if (nested) return nested;
+        nested = nestedRestType(el.argument, varName);
       } else {
-        const nested = nestedRestType(peelAssignmentPattern(el), varName);
-        if (nested) return nested;
+        nested = nestedRestType(peelAssignmentPattern(el), varName);
       }
+      if (nested) return nested;
     }
     return null;
   }

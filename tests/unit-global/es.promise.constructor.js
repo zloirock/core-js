@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/prefer-promise-with-resolvers -- ok */
 import { GLOBAL, NATIVE } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
