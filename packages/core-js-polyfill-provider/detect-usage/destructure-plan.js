@@ -211,9 +211,12 @@ function hasExtractions(planNode) {
 // surviving sibling will be EXTRACTED - emptying the pattern and dropping a SE init's receiver tail).
 // the bare `resolveBuiltIn` instance pre-filter is required: a pathless `resolvePure` crashes on
 // `enhanceMeta`'s member-like check for instance resolutions
-export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled = null }) {
+export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled = null, keyName = null }) {
   if (isDisabled?.(prop)) return null;
-  const name = isPropertyNode(prop) ? propertyKeyName(prop) : null;
+  // caller may pre-resolve a scope-aware key (an Identifier computed key `[K]` folds to its binding
+  // value); structural propertyKeyName only reads literals, so without it an `[K]` residual reads an
+  // unimported static off the pure ctor (undefined at runtime)
+  const name = keyName ?? (isPropertyNode(prop) ? propertyKeyName(prop) : null);
   if (name === null) return null;
   const valueNode = propBindingIdentifier(prop.value);
   if (!valueNode) return null;
@@ -267,8 +270,22 @@ export function buildNestedDestructurePlan({
   // `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`; rest / default-only /
   // computed / instance / unresolved / disabled fall back to verbatim. user's default is dropped: the
   // polyfill is always defined, so the user's default fires only on undefined property (dead code)
+  // a prop's key as a static name, scope-aware: an Identifier computed key `[K]` folds to its binding
+  // value like a literal `["from"]`, so the static extracts + imports its module rather than staying a
+  // residual reading the static off the pure ctor (unimported -> undefined at runtime, the unplugin
+  // break vs babel). a SIDE-EFFECTING key bails to null - it must stay a residual so its effect runs
+  // once in place (consuming would drop the key node). non-computed keys read structurally
+  function propKeyNameScoped(prop) {
+    if (!isPropertyNode(prop)) return null;
+    return prop.computed
+      ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, path, bailOnSideEffectKey: true })
+      : propertyKeyName(prop);
+  }
+
   function planInnerProp(prop, receiverName) {
-    const resolved = resolvePolyfillableStaticProp({ prop, receiverName, resolvePure, isDisabled: leafDisabled });
+    const resolved = resolvePolyfillableStaticProp({
+      prop, receiverName, resolvePure, isDisabled: leafDisabled, keyName: propKeyNameScoped(prop),
+    });
     if (!resolved) return { kind: 'verbatim', prop };
     return {
       kind: 'consumed', prop,
@@ -335,7 +352,7 @@ export function buildNestedDestructurePlan({
   function planOuterProp(outerProp) {
     const symbolPlanned = planSymbolIteratorProp(outerProp);
     if (symbolPlanned) return symbolPlanned;
-    const name = isPropertyNode(outerProp) ? propertyKeyName(outerProp) : null;
+    const name = propKeyNameScoped(outerProp);
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     // a MUTATED slot (`globalThis.Promise = Shim` / `window.self = fake` in-file) must read off
     // the patched native binding, not the pure import - the user's replacement wins for the
@@ -378,7 +395,7 @@ export function buildNestedDestructurePlan({
     // a `core-js-disable`d prop opts out of polyfilling: keep it on the native residual
     if (leafDisabled(planned.prop)) return planned;
     if (outerPattern.properties.some(p => p.type === 'RestElement')) return planned;
-    const name = isPropertyNode(planned.prop) ? propertyKeyName(planned.prop) : null;
+    const name = propKeyNameScoped(planned.prop);
     if (name === null || POSSIBLE_GLOBAL_OBJECTS.has(name)) return planned;
     // a MUTATED ctor (`globalThis.Map = Shim` in-file) must read off the PATCHED native binding, not the
     // pure import - the user's replacement wins. mirror the single-ctor anchor's `anchorSlotMutated` bail
@@ -409,7 +426,7 @@ export function buildNestedDestructurePlan({
   // Identifier-valued outer props are NOT supported here - they would name a local binding
   // outside the static path, so static-object descent doesn't apply
   function planOuterPropStatic(outerProp, hostInit, walkPath) {
-    const name = isPropertyNode(outerProp) ? propertyKeyName(outerProp) : null;
+    const name = propKeyNameScoped(outerProp);
     if (name === null) return { kind: 'verbatim', prop: outerProp };
     const value = peelInnerDefault(outerProp.value);
     if (value?.type !== 'ObjectPattern') return { kind: 'verbatim', prop: outerProp };

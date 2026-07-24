@@ -717,8 +717,11 @@ export function createUsageVisitors({
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
   // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
   function emitNestedDestructureMeta(path, outerProp) {
+    // thread the key's own path so the flow gates anchor at the capture (a reassigned/hoisted key
+    // alias reaches its dominating value), matching the `resolveKey` wrapper and the unplugin twin -
+    // without it babel defaults to the declarator init and diverges on a reassigned key
     const innerKey = sharedResolveKey({
-      node: path.node.key, computed: path.node.computed, scope: path.scope, adapter,
+      node: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path: path.get('key'),
     });
     const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
     // a BRANCHING inner key rides a null-key carrier that KEEPS the resolved nested receiver,
