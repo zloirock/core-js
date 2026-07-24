@@ -14,7 +14,7 @@
 //
 // Service object collects factory helpers + the two `type-expansion` cluster outputs
 // (`unwrapMappedTypePassthrough`, `evaluateConditionalType`) the handlers call into.
-import { $Object, MAX_DEPTH } from './base.js';
+import { $Object, MAX_DEPTH, firstTypeParamIsInner } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import { readonlyCollectionBase } from './ast-shapes.js';
 
@@ -78,6 +78,10 @@ export function createTypeResolveDispatch({
   function applyHigherKindedArgs({ bound, node, typeParamMap, scope, depth, seen }) {
     const firstArg = firstTypeArg(node);
     if (!firstArg || !(bound instanceof $Object) || !bound.constructor || bound.inner !== null) return bound;
+    // only stamp param-0 as `.inner` for element-first containers - a key-first Map/WeakMap bound as
+    // the higher-kinded `F` would otherwise record its KEY here, diverging from the direct-annotation
+    // lane (`resolveKnownContainerType`) which gates the same way
+    if (!firstTypeParamIsInner(bound.constructor)) return bound;
     const inner = substRecurse({ node: firstArg, typeParamMap, scope, depth, seen });
     return new $Object(bound.constructor, safeInnerType(inner));
   }
