@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable unicorn/no-collection-bracket-access -- ok */
 var getBuiltIn = require('../internals/get-built-in');
 
 var createSetLike = function (size) {

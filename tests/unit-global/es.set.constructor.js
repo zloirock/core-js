@@ -421,6 +421,7 @@ QUnit.test('Set#@@iterator', assert => {
   set.add('q');
   set.add('w');
   set.add('e');
+  // eslint-disable-next-line unicorn/no-collection-bracket-access -- testing
   const iterator = set[Symbol.iterator]();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
