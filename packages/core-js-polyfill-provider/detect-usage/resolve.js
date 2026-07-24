@@ -1012,6 +1012,36 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
 // receiver name / key string
 export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapter, path, seen, usageNode = null }) {
   const values = primary ? [primary] : [];
+  // follow an Identifier alias SOURCE (a declarator init OR a reassignment value) to the aliased
+  // binding's own reachable values, so `const/let M = M0`, `M = M0` and `[M] = [M0]` all reach M0's
+  // transitive reassignments (`let M0 = Object; if (c) M0 = Array; ...; M.from()`). ADDITIVE to the
+  // reassigned-arm: a reassigned alias whose source aliases another reassigned binding still reaches
+  // the source's targets on the no-own-write path. anchored at the alias read site (a later write to
+  // the source does not enter the union); `asCall` re-enters the factory branch for an `f()` receiver;
+  // `seen` guards alias cycles
+  function pushAliasHop(source, currentName, asCall) {
+    let node = source && unwrapTransparentSeq(source);
+    // a source wrapped in zero-arg IIFEs (`const f = (() => f0)()`, nested `(() => (() => f0)())()`)
+    // aliases the IIFEs' return, so peel to a fixpoint to reach the underlying binding - the same
+    // wrapper the container / global resolvers peel
+    while (node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression') {
+      const ret = peelZeroArgIifeReturn(node);
+      if (!ret) break;
+      node = unwrapTransparentSeq(ret);
+    }
+    if (node?.type !== 'Identifier' || node.name === currentName || seen?.has(node.name)) return;
+    const recursed = asCall ? { type: 'CallExpression', callee: node, arguments: [] } : node;
+    // an `f()` receiver has no caller-resolved primary (the call is opaque to `resolveObjectName`), so
+    // the aliased factory's DECLARED return is captured here beside its reassignments: `const f = f0`
+    // with `let f0 = () => Object; if (c) f0 = () => Map` reaches BOTH Object and Map. `node` anchors
+    // the dominance check at the alias-read, excluding a dead factory init. an Identifier receiver
+    // already gets its declared value from the caller's primary, so re-resolving it would double-count
+    // (and mis-anchor a dead init) - it stays null
+    values.push(...reachableAliasValues({
+      aliasNode: recursed, primary: asCall ? resolve(recursed, node) : null, resolve, scope, adapter, path,
+      seen: new Set(seen).add(currentName), usageNode: node,
+    }));
+  }
   if (aliasNode?.type === 'Identifier') {
     const binding = adapter.getBinding(scope, aliasNode.name, path);
     if (binding && isReassignedBeyondDeclarator(binding)) {
@@ -1022,26 +1052,10 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       })) {
         const value = resolve(rhs);
         if (value) values.push(value);
+        pushAliasHop(rhs, aliasNode.name, false);
       }
     }
-    if (binding) {
-      // init-alias hop: `const M = M0` aliases M0, so the union must see M0's transitive
-      // reassignments (`let M0 = Object; if (c) M0 = Array; const M = M0; M.from()`). the hop
-      // is ADDITIVE to the reassigned-arm above, not exclusive with it: a reassigned alias
-      // whose INIT aliases another reassigned binding still reaches the init's targets on the
-      // no-own-write path (`let M = M0; if (d) M = Map` - the d-false path holds M0's values).
-      // the primary already captured the resolved init value; recurse on the init Identifier
-      // to add the underlying binding's reachable reassignments. `seen` guards alias cycles
-      const init = unwrapTransparentSeq(binding.node?.init);
-      if (init?.type === 'Identifier' && init.name !== aliasNode.name && !seen?.has(init.name)) {
-        // anchor the transitive source's reachable values at THIS hop's read site (the init), so a
-        // write to the source AFTER `const M = M0` does not enter the union (`M` captured M0 earlier)
-        values.push(...reachableAliasValues({
-          aliasNode: init, primary: null, resolve, scope, adapter, path,
-          seen: new Set(seen).add(aliasNode.name), usageNode: init,
-        }));
-      }
-    }
+    if (binding) pushAliasHop(binding.node?.init, aliasNode.name, false);
   } else if (aliasNode?.type === 'CallExpression' || aliasNode?.type === 'OptionalCallExpression') {
     // IIFE-callee receiver `f()` whose factory `f` is a reassigned alias: each reachable `() => X`
     // value returns X. recover each so a dominating reassignment to a polyfillable global (`let f =
@@ -1061,9 +1075,10 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
           const ret = singleReturnBodyExpression(fn.body);
           const value = ret && resolve(ret);
           if (value) values.push(value);
-        }
+        } else pushAliasHop(rhs, callee.name, true); // a factory bound through an Identifier alias
       }
     }
+    if (binding) pushAliasHop(binding.node?.init, callee.name, true);
   }
   return [...new Set(values)];
 }
