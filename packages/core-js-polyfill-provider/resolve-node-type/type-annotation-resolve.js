@@ -14,7 +14,7 @@
 // and `resolveNonNullableAnnotation` live in the factory (they're consumed both inside this
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
-import { $Object, $Primitive, literalNodeValue } from './base.js';
+import { $Object, $Primitive, literalNodeValue, firstTypeParamIsInner } from './base.js';
 import {
   isMethodShapeMember, isOpenKeywordAnnotation, isUnionType, peelTSParenthesized, readonlyCollectionBase, typeRefSegments,
 } from './ast-shapes.js';
@@ -32,7 +32,6 @@ export function createTypeAnnotationResolve({
   CONSTRUCTOR_ALIASES,
   PROMISE_SYNONYMS,
   STRUCTURE_PRESERVING_WRAPPERS,
-  SINGLE_ELEMENT_COLLECTIONS,
   MAX_DEPTH,
   isAmbientClassNode,
   typeRefSegmentsEqual,
@@ -124,7 +123,7 @@ export function createTypeAnnotationResolve({
 
   function resolveKnownContainerType({ name, base, node, innerResolver }) {
     if (!base) return null;
-    if (!SINGLE_ELEMENT_COLLECTIONS.has(name) && name !== 'Promise') return base;
+    if (!firstTypeParamIsInner(name)) return base;
     const firstArg = getTypeArgs(node)?.params?.[0];
     if (firstArg) {
       const inner = safeInnerType(innerResolver(firstArg));

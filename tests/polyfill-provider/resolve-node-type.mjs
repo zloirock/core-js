@@ -1031,6 +1031,29 @@ runBoth('readonly check through a member-lookup conditional picks the FALSE bran
     checkType(lbl, type, { primitive: true, kind: 'string' });
   });
 
+// higher-kinded apply (`type Wrap<F, X> = F<X>`) stamps type-param 0 as `.inner` only for
+// element-first containers (Set / Array / Promise); a key-first Map / WeakMap bound as F keeps
+// `.inner` null so this lane matches the direct-annotation lane, instead of recording the KEY
+// type where the element type belongs
+for (const [label, ctor, resolvedCtor, wantInnerKind] of [
+  ['Set keeps its element', 'Set', 'Set', 'string'],
+  ['Array keeps its element', 'Array', 'Array', 'string'],
+  ['Promise keeps its value', 'Promise', 'Promise', 'string'],
+  ['Map drops the key from inner', 'Map', 'Map', null],
+  ['WeakMap drops the key from inner', 'WeakMap', 'WeakMap', null],
+  // ReadonlyMap normalises to the mutable Map ctor and stays key-first (null inner)
+  ['ReadonlyMap drops the key from inner', 'ReadonlyMap', 'Map', null],
+]) {
+  runBoth(`HKT Wrap<${ ctor }, string> element-precision: ${ label }`,
+    `type Wrap<F, X> = F<X>; declare const m: Wrap<${ ctor }, string>;`,
+    (adapter, prog, lbl) => {
+      const type = adapter.makeResolver().resolveNodeType(adapter.pickPath(prog, 'VariableDeclarator').get('id'));
+      check(`${ lbl } ctor`, type?.constructor, resolvedCtor);
+      if (wantInnerKind === null) check(`${ lbl } inner`, type?.inner, null);
+      else check(`${ lbl } inner`, type?.inner?.type, wantInnerKind);
+    });
+}
+
 runBoth('mutable check through a member-lookup conditional binds array U',
   'type Box<X> = X extends Array<infer U> ? { v: U[] } : { v: string }; declare const d: Box<number[]>; d.v;',
   (adapter, prog, lbl) => {
@@ -1774,6 +1797,18 @@ runBoth('Awaited<number[]> passthrough (non-Promise)',
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
     const resolver = adapter.makeResolver();
     // Awaited<T> where T is not Promise-like returns T directly
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('Awaited<indexed-access into a getter> peels the getter RETURN, not the getter fn',
+  'declare class C { get p(): Promise<number[]>; }\nlet x: Awaited<C["p"]>;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator');
+    const resolver = adapter.makeResolver();
+    // `C['p']` is the getter's PROPERTY type (`Promise<number[]>`), not a callable - so
+    // Awaited peels through to `number[]`. Treating the getter as a method Function would
+    // leave Awaited<Function> = Function and drop the array narrow
     checkType(lbl, resolver.resolveNodeType(decl.get('id')),
       { primitive: false, ctor: 'Array' });
   });
