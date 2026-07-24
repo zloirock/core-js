@@ -2297,7 +2297,11 @@ function computeNestedDestructureReceiver(outerProp, adapter) {
     // destructure cannot change the captured value)
     const captureRef = {};
     const receiverNode = allIndices.length
-      ? descendArrayWrapperInit(slotNode, allIndices, parent.scope, adapter, parent, captureRef)
+      // thread the usage-global "inject-if-might" flag like the ArrayPattern-rooted sibling
+      // (arrayWrapReceiverFromHost): a spread-shifted slot with one static candidate keeps the walk
+      // going (over-inject, the safe direction) so this ObjectProperty-rooted nested path matches it
+      ? descendArrayWrapperInit(slotNode, allIndices, parent.scope, adapter, parent, captureRef,
+        adapter?.method === 'usage-global')
       : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
