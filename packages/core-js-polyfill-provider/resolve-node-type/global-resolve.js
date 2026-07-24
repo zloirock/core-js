@@ -41,8 +41,22 @@ export function createGlobalResolve({
   resolveRuntimeExpression,
   resolveKnownContainerType,
   resolveTypeAnnotation,
+  resolveComputedKeyName,
+  getKeyName,
   babelBindingAdapter,
 }) {
+  // a destructure key-path context for `objectPatternLiteralKeyPath`: a computed key that is a
+  // const-bound string (`const k = 'Array'; { [k]: A } = globalThis`) folds through the canonical
+  // scope-aware resolver, a plain key reads its literal name - without this the const key resolves
+  // to nothing and the whole destructured-global alias degrades to a generic dispatch
+  function destructureKeyCtx(scope, path) {
+    return {
+      scope,
+      adapter: babelBindingAdapter,
+      path,
+      resolveKey: ({ node, computed, scope: keyScope }) => computed ? resolveComputedKeyName(node, keyScope) : getKeyName(node),
+    };
+  }
   // TS-runtime shadow filter: raw `scope.getBinding(name)` returns a binding for `declare
   // const X` / `import type { X }` / TSEnumDeclaration / TSInterfaceDeclaration / etc.,
   // but at RUNTIME those declarations are elided by tsc and `name` falls through to the
@@ -161,14 +175,17 @@ export function createGlobalResolve({
     const declarator = binding?.path?.node;
     if (!declarator || binding.constantViolations?.length || !t.isVariableDeclarator(declarator)) return null;
     if (!declarator.init) return null;
+    const declScope = binding.scope ?? binding.path?.scope ?? path.scope;
+    const keyCtx = destructureKeyCtx(declScope, binding.path);
     // peel array-wrap layers (`const [{ Array: A }] = [globalThis]`) positionally to the inner
     // ObjectPattern + init element (mirrors the usage-side resolveArrayWrappedProxyGlobalAlias)
-    // so the leaf still resolves; spread-shifted pairing bails inside the shared peel
-    const peeled = peelArrayWrapBindingLayers(declarator.id, declarator.init, path.node.name);
+    // so the leaf still resolves; spread-shifted pairing bails inside the shared peel. `keyCtx`
+    // lets the slot-detection fold a computed const key (`[{ [k]: A }]`) as the outer read does
+    const peeled = peelArrayWrapBindingLayers(declarator.id, declarator.init, path.node.name, keyCtx);
     if (!peeled) return null;
     const { id, init } = peeled;
     if (id?.type !== 'ObjectPattern') return null;
-    const keyPath = objectPatternLiteralKeyPath(id, path.node.name);
+    const keyPath = objectPatternLiteralKeyPath(id, path.node.name, keyCtx);
     if (!keyPath?.length) return null;
     return walkStaticReceiverChain({
       receiverNode: init,
