@@ -1359,7 +1359,7 @@ export function createPolyfillEmitter({
     // substituted body tail (`recv.substituted`) - it must be substituted HERE even when the receiver path
     // reported `substituted`, else the chain-assign guard keeps a raw `globalThis` (ie:11 ReferenceError)
     const guardGateOpen = !rootSeTail && optionalRoot && (!recv.substituted || recv.receiverIndependent) && rootNode
-      && !(methodCall && !isBareIdentifier(optionalRoot));
+      && (!methodCall || isBareIdentifier(optionalRoot));
     const directRoot = guardGateOpen && rootLeaf?.type === 'Identifier' ? resolveReceiverPolyfill(rootLeaf, metaPath) : null;
     if (rootSeTail) optionalRoot = buildSeTailSrc(rootSeTail.prefixSrcs, seTailRootBinding(rootSeTail, injectPureImport));
     else if (directRoot) optionalRoot = injectPureImport(directRoot.entry, directRoot.hintName);
@@ -2251,7 +2251,7 @@ export function createPolyfillEmitter({
     // entirely, so a bail here would strand the trailing polys the same way
     const inheritedStaticHost = (isSuper || isThisReceiver(callee.object))
       && isInStaticContext(currentPath)
-      && !(!isSuper && isShadowedByClassOwnMember?.(currentPath.get('callee'), innerMethodName));
+      && (isSuper || !isShadowedByClassOwnMember?.(currentPath.get('callee'), innerMethodName));
     if (inheritedStaticHost && inheritedStaticFallback(
       currentPath.get('callee'), innerMethodName, resolveStaticInheritedMember, resolvePureOrGlobalFallback, mutatedStatics,
     )) return null;

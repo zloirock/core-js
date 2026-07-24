@@ -647,6 +647,7 @@ QUnit.test('IIFE-identity peel: direct param rebind bails, native throws', asser
 QUnit.test('IIFE-identity peel: immediately-invoked closure rebind bails, native throws', assert => {
   assert.throws(() => {
     const { of } = (arg => {
+      // eslint-disable-next-line unicorn/prefer-block-statement-over-iife -- testing
       (() => { arg = 'reassigned'; })();
       return arg;
     })(Array);
