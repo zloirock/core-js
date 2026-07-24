@@ -1222,8 +1222,7 @@ export default function createPlugin(options) {
           // static-FALLBACK swap: a member that is NOT itself polyfilled but whose receiver resolves to a pure
           // ctor (`Promise.noSuchStatic` -> `_Promise.noSuchStatic`). returns true when handled (caller returns)
           function emitStaticFallbackSwap() {
-            if (!(fallback && node.type === 'MemberExpression'
-              && node.object?.type !== 'Super' && !inheritedStatic)) return false;
+            if (!(fallback && node.type === 'MemberExpression') || node.object?.type === 'Super' || inheritedStatic) return false;
             // a `prototype`-placement fallback (`globalThis.Map.prototype.has`) swaps only the CTOR sub-
             // receiver (`globalThis.Map`, possibly through proxy hops) to `_Map`, KEEPING `.prototype` ->
             // `_Map.prototype.has`; the whole receiver swap would drop `.prototype` -> the undefined `_Map.has`

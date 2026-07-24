@@ -1360,7 +1360,7 @@ export default function createDestructureEmitter({
     // owns its SE: the rebuild already replayed it INSIDE the new init, and lifting that
     // sequence to the declaration would hoist the effect above pre-sibling declarator inits
     // (reordering vs the native left-to-right evaluation)
-    if (!isForInit && !(plan.anchor && !patternEmpties)) liftDeclaratorInitSE(t, declarator.node, declaration);
+    if (!isForInit && (!plan.anchor || patternEmpties)) liftDeclaratorInitSE(t, declarator.node, declaration);
     const moved = reanchorBlockWrappedDeclaration(declaration, declarator.node);
     if (moved) ({ declaration, declarator } = moved);
     // host wrapped in `export const { ... } = X` - every emitted statement re-exports its
