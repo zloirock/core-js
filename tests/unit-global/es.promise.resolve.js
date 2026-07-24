@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/prefer-promise-try -- testing */
 QUnit.test('Promise.resolve', assert => {
   const { resolve } = Promise;
   assert.isFunction(resolve);
