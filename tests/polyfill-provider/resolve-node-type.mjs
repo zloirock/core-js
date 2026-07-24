@@ -1718,6 +1718,19 @@ runBoth('cyclic HKT alias body terminates with no type',
     check(lbl, resolver.resolveNodeType(param), null);
   });
 
+// a generic return `T[(K)]` with a PARENTHESIZED type-param index resolves through the substituting
+// dispatcher on both parsers - oxc keeps the paren, so the type-param analysis must peel it
+runBoth('generic indexed-access return with parenthesized type-param index',
+  `
+    interface Store { rows: number[] }
+    declare function get<K extends keyof Store>(k: K): Store[(K)];
+    const x = get("rows").at(0);
+  `,
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', pp => pp.node.callee?.property?.name === 'at');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: true, kind: 'number' });
+  });
+
 runBoth('HKT alias self-application terminates with no type',
   `
     type Apply<F> = F<0>;
@@ -2215,7 +2228,91 @@ runBoth('wrapper-peel: (a = Array).from([]).at narrows to Array via AssignmentEx
       { primitive: false, ctor: 'Array' });
   });
 
+// a type-literal member keyed by a COMPUTED CONST (`const k = 'len'; type T = { [k]: number[] }`)
+// must match the folded name, not the bare key identifier: an access of the real member resolves to
+// its type, and an access of the key identifier itself does NOT spuriously match. one member per line
+runBoth('type member via computed const key resolves the folded name',
+  `
+    const k = "len";
+    type T = { [k]: number[]; other: string };
+    declare const t: T;
+    const x = t.len;
+  `,
+  (adapter, prog, lbl) => {
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// TS permits a computed type-member key only when the binding is a string-literal (or unique-symbol)
+// type: a value-less `declare const` reads its literal from the type annotation, and an `as const`
+// init peels to its literal. a unique-symbol / non-literal-typed binding is not a foldable string key
+for (const [label, decl, want] of [
+  ['declare const literal type', 'declare const k: "len";', true],
+  ['as const init', 'const k = "len" as const;', true],
+  ['annotated literal init', 'const k: "len" = "len";', true],
+  ['unique symbol (bails)', 'declare const k: unique symbol;', false],
+]) {
+  runBoth(`type member keyed by ${ label }`,
+    `${ decl }\ntype T = { [k]: number[] };\ndeclare const t: T;\nconst x = t.len;`,
+    (adapter, prog, lbl) => {
+      const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+      const type = adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init'));
+      check(lbl, type?.constructor === 'Array', want);
+    });
+}
+
+runBoth('type member computed const key does not spuriously match the key identifier',
+  `
+    const k = "len";
+    type T = { [k]: number[] };
+    declare const t: T;
+    const x = t.k;
+  `,
+  (adapter, prog, lbl) => {
+    // `t.k` names no member (the member is "len", not "k"); resolving it must yield no Array type
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    const type = adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init'));
+    check(lbl, type?.constructor === 'Array', false);
+  });
+
+// oxc keeps a parenthesized type (`("len")`, `(0)`) as TSParenthesizedType where babel strips it at
+// parse: an unpeeled `.type` dispatch folds the key on babel only, so a receiver typed through such a
+// key desyncs between the emitters. these lock parity across both parsers on every paren index/key form
+for (const [label, src] of [
+  ['computed const key with parenthesized literal type',
+    'declare const k: ("len");\ntype T = { [k]: number[] };\ndeclare const t: T;\nconst x = t.len;'],
+  ['string indexed access with parenthesized index',
+    'type T = { len: number[] };\ntype E = T[("len")];\ndeclare const e: E;\nconst x = e;'],
+  ['numeric indexed access with parenthesized index',
+    'type T = [number[]];\ntype E = T[(0)];\ndeclare const e: E;\nconst x = e;'],
+  ['keyof-self indexed access with parenthesized index',
+    'type T = { a: number[]; b: number[] };\ntype E = T[(keyof T)];\ndeclare const e: E;\nconst x = e;'],
+]) {
+  runBoth(`${ label } resolves the inner type`, src, (adapter, prog, lbl) => {
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+}
+
 // --- globalThis member access ---
+
+// a global destructured through a COMPUTED CONST key (`const k = 'Array'; { [k]: A } = globalThis`)
+// names the same proxy-global as a literal key. the destructured-global type resolver folds the const
+// key through the canonical scope-aware resolver; without it, the key is unresolved and the alias
+// degrades to a generic dispatch. covers the plain, array-wrapped, and nested-method forms
+for (const [label, src] of [
+  ['computed const key', 'const k = "Array";\nconst { [k]: A } = globalThis;\nconst x = A.from([]);'],
+  ['array-wrapped const key', 'const k = "Array";\nconst [{ [k]: A }] = [globalThis];\nconst x = A.from([]);'],
+  ['const key static call', 'const k = "Array";\nconst { [k]: A } = globalThis;\nconst x = A.of(1);'],
+]) {
+  runBoth(`destructured global via ${ label } resolves to the proxy global`, src, (adapter, prog, lbl) => {
+    const ds = adapter.collectPaths(prog, 'VariableDeclarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(ds[ds.length - 1].get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+}
 
 runBoth('globalThis.Map() resolved as Map constructor invocation',
   'const m = new globalThis.Map();',
