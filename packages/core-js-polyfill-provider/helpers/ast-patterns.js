@@ -3003,7 +3003,7 @@ export function classOwnThisMethodInfo(classNode, statics) {
   let accessors = false;
   for (const member of classNode?.body?.body ?? []) {
     const { type } = member;
-    if ((member.static === true) !== statics) continue;
+    if (!!member.static !== statics) continue;
     let isMethod = false;
     if (type === 'ClassMethod' || type === 'ClassPrivateMethod'
       || type === 'MethodDefinition' || type === 'TSAbstractMethodDefinition') {
