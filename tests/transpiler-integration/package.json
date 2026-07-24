@@ -8,9 +8,11 @@
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rsbuild/core": "^2.2.11",
     "@rspack/core": "^2.2.8",
+    "core-js": "file:../../packages/core-js",
     "esbuild": "^0.28.2",
     "rolldown": "^1.2.11",
     "rollup": "^4.63.5",
+    "unplugin": "^3.4.0",
     "vite": "^8.3.1",
     "webpack": "^5.111.1"
   }
