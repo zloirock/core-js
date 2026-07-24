@@ -502,7 +502,10 @@ export function collectMemberUnionCandidates(options) {
   if (adapter.method !== 'usage-global') return [];
   const objects = reachableAliasValues({
     aliasNode: objectNode, primary: primaryObject, scope, adapter, path,
-    resolve: rhs => resolveObjectName({ objectNode: rhs, scope, adapter, path }),
+    // `usageNode` anchors the reassignment-dominance check: an alias hop resolves a source binding's
+    // DECLARED value from the alias-read site, so a dead init (unconditionally overwritten before the
+    // read) is correctly excluded while a live conditional init survives
+    resolve: (rhs, usageNode = null) => resolveObjectName({ objectNode: rhs, scope, adapter, path, usageNode }),
   });
   // an UNRESOLVED receiver (a local instance, an unclassifiable expression) still dispatches every
   // reachable KEY at runtime, so it enumerates as the typeless receiver itself - each union key then
@@ -1820,7 +1823,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // arrows whose WHOLE expression body becomes a target: a text replacement with an object
   // literal there needs wrapping parens (block ambiguity); AST printers add them automatically
   const expressionBodyLeaves = new Set();
-  function collectValueLeaves(node) {
+  // `atBodyStart` tracks whether the current node sits at an arrow's expression-body START, where a
+  // spliced object literal would make `=> {...}` read as a block body. it only matters for the
+  // unplugin text splice (babel's printer parenthesises on its own); the leaf that finally lands
+  // there is marked so the renderer wraps it in parens
+  function collectValueLeaves(node, atBodyStart = false) {
     while (true) {
       const { tail } = peelNestedSequenceExpressions(node);
       if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
@@ -1830,29 +1837,36 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         if (inlined) {
           let calleeNode = unwrapRuntimeExpr(tail.callee);
           while (calleeNode?.type === 'SequenceExpression') calleeNode = unwrapRuntimeExpr(calleeNode.expressions.at(-1));
-          if (calleeNode?.type === 'ArrowFunctionExpression' && calleeNode.body === inlined) {
-            expressionBodyLeaves.add(inlined);
-          }
+          // the inlined value is at body-start only for an arrow whose body IS this expression
+          // (a block-bodied or function-expression IIFE splices inside a `{ return ... }`, no `=>`
+          // hazard); this overrides any incoming flag since the splice position is the inner wrapper's
+          atBodyStart = calleeNode?.type === 'ArrowFunctionExpression' && calleeNode.body === inlined;
           node = inlined;
           continue;
         }
       }
       if (tail?.type === 'ConditionalExpression') {
-        // both branches are reachable - the runtime test picks per call and stays native
+        // both branches are reachable - the runtime test picks per call and stays native. the test
+        // occupies body-start (never a value leaf), so the branch values are never at body-start
         const consequentFalsy = collectValueLeaves(tail.consequent);
         return collectValueLeaves(tail.alternate) || consequentFalsy;
       }
       if (tail?.type !== 'LogicalExpression') {
         targetLeaves.push(tail);
+        if (atBodyStart) expressionBodyLeaves.add(tail);
         // a proxy operand is truthy, so a `||` / `??` right beside it is dead; any other value may
         // be falsy, so its fallback IS reachable and the caller must collect it for the mirror
         return rootContext(tail)?.kind !== 'proxy';
       }
       if (tail.operator === '&&') {
+        // only the RIGHT operand is a value leaf; the left is a truthiness gate that stays verbatim,
+        // so no collected leaf lands at body-start
         collectValueLeaves(tail.right);
         return true;
       }
-      return collectValueLeaves(tail.left) ? collectValueLeaves(tail.right) : false;
+      // `||` / `??`: the LEFT operand occupies body-start, so the flag rides into it; the right is
+      // past the operator and never at body-start
+      return collectValueLeaves(tail.left, atBodyStart) ? collectValueLeaves(tail.right) : false;
     }
   }
   const rootCanBeFalsy = collectValueLeaves(receiverNode);

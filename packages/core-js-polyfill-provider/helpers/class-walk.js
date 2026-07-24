@@ -47,6 +47,21 @@ export function unwrapInitForResolution(node) {
   return node;
 }
 
+// peel zero-arg IIFEs returning the target so an inline `(() => X)()` resolves like `X`, to a
+// fixpoint (a nested `(() => (() => X)())()` peels every layer), re-unwrapping between peels.
+// `node` must already be runtime-unwrapped. shared by the container and global resolvers and the
+// alias-init lookup so the wrapper resolves identically on every path into container / global
+// resolution (an inline extends-IIFE, one bound to a const alias, and any depth of nesting).
+// each peel consumes one IIFE layer off a finite AST, so the loop always terminates
+function peelIifeReturnTarget(node) {
+  while (node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression') {
+    const ret = peelZeroArgIifeReturn(node);
+    if (!ret) break;
+    node = unwrapRuntimeExpr(ret);
+  }
+  return node;
+}
+
 // classify a root that `findProxyGlobal(node, aliasCtx)` matched: true when it resolved through a
 // const-alias (`g` in `const g = globalThis; g.X`) rather than by a direct global NAME. the emit-side
 // collapse KEEPS an alias root verbatim (its own declaration already rewrote it to the pure global)
@@ -265,7 +280,11 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
       || patternSlotSpreadShifted(decl.id, containerInit, name, slotCtx)) return null;
     [wrappedInit] = values;
   }
-  const init = wrappedInit ? unwrapInitForResolution(wrappedInit) : writeInit ?? unwrapInitForResolution(decl?.init);
+  // a proxy-global bound through a zero-arg IIFE (`const g = (() => globalThis)(); g.X`) names the
+  // same surface as a bare alias (`const g = globalThis`), so peel the wrapper before classifying -
+  // the container / global-name resolvers peel the identical shape
+  const init = peelIifeReturnTarget(
+    wrappedInit ? unwrapInitForResolution(wrappedInit) : writeInit ?? unwrapInitForResolution(decl?.init));
   // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
   // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
   // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root
@@ -1482,7 +1501,9 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
         computed: false,
       }, scope, seen, classAnchor);
     }
-    return unwrapInitForResolution(declNode?.init);
+    // a container bound through a zero-arg IIFE (`const NS = (() => ({...}))(); NS.X`) resolves
+    // to the IIFE's returned container, same as the inline-IIFE extends clause
+    return peelIifeReturnTarget(unwrapInitForResolution(declNode?.init));
   }
 
   // member-access value lookup: outer -> container, look up leaf property. shared by
@@ -1499,7 +1520,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // handles bare Identifier (lookup), nested member chain (recurse + property lookup), direct
   // container literals. null when no static container is reachable
   function resolveToContainer(node, scope, seen, classAnchor = null) {
-    const peeled = unwrapRuntimeExpr(node);
+    const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node));
     if (peeled?.type === 'Identifier') return bindingContainerValue(peeled.name, scope, seen, classAnchor);
     if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
       const value = resolveMemberAccess(peeled, scope, seen, classAnchor);
@@ -1515,13 +1536,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   // class-as-namespace, and any N-level composition through them. shared `seen` enables
   // mutually-recursive alias cycle detection; `path` anchors TS-runtime shadow checks
   function resolveBindingToGlobalName(node, scope, seen = new Set(), path = null, classAnchor = null) {
-    let peeled = unwrapRuntimeExpr(node);
-    // a zero-arg IIFE returning the target resolves like the target itself (`class extends
-    // (() => globalThis.Array)()`); the hop walk already peels the same shape mid-chain
-    if (peeled?.type === 'CallExpression' || peeled?.type === 'OptionalCallExpression') {
-      const ret = peelZeroArgIifeReturn(peeled);
-      if (ret) peeled = unwrapRuntimeExpr(ret);
-    }
+    const peeled = peelIifeReturnTarget(unwrapRuntimeExpr(node));
     if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen, path, classAnchor);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     const proxyKey = globalProxyMemberName({ node: peeled, scope, adapter, path });
