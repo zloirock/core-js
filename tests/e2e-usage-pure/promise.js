@@ -137,6 +137,7 @@ QUnit.test('Promise.allSettled + chaining', assert => {
 
 QUnit.test('Promise constructor with polyfill inside', assert => {
   const async = assert.async();
+  // eslint-disable-next-line unicorn/prefer-promise-try -- testing
   new Promise(resolve => {
     resolve(Array.from([1, 2, 3]));
   }).then(arr => {
