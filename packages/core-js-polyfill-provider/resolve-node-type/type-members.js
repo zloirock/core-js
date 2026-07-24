@@ -603,17 +603,17 @@ export function createTypeMembers({
           // rather than `return null` so iteration continues to a typed sibling. without that,
           // the first hit halts the walk and over-emits the generic polyfill family
           case 'TSPropertySignature':
-            if (!keyMatchesName(member.key, key) || !member.typeAnnotation) break;
+            if (!keyMatchesName(member.key, key, scope, member.computed) || !member.typeAnnotation) break;
             return withOptional(withSubst(member.typeAnnotation), member);
           // getter: read the return; setter: continue iteration to a paired getter;
           // plain method: expose the full signature (see returnMemberMethodNode)
           case 'TSMethodSignature':
-            if (!keyMatchesName(member.key, key)) break;
+            if (!keyMatchesName(member.key, key, scope, member.computed)) break;
             if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
             if (member.kind === 'set') break;
             return returnMemberMethodNode(member, subst);
           case 'ObjectTypeProperty':
-            if (!keyMatchesName(member.key, key)) break;
+            if (!keyMatchesName(member.key, key, scope, member.computed)) break;
             // Flow getter (`{ get items(): T }`) has kind 'get' with a FunctionTypeAnnotation
             // value: return its return type, not the function type itself (else `.at()` on the
             // result is dispatched against Function and the narrow is lost). setter: skip to a

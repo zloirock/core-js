@@ -1927,9 +1927,9 @@ export function pairedArrayWrapInitElement(initElements, index) {
 // `{ id, init }` (id = the slot with any `= default` unwrapped) or `null` when no sound pairing
 // exists. shared by the destructured-global resolver and the class-walk symbol-alias
 // chain-follow, which must agree on nesting
-export function peelArrayWrapBindingLayers(id, init, name) {
+export function peelArrayWrapBindingLayers(id, init, name, ctx = null) {
   while (id?.type === 'ArrayPattern' && init?.type === 'ArrayExpression') {
-    const idx = id.elements.findIndex(element => element && arrayWrapSlotBindsName(element, name));
+    const idx = id.elements.findIndex(element => element && arrayWrapSlotBindsName(element, name, ctx));
     const paired = pairedArrayWrapInitElement(init.elements, idx);
     if (!paired) return null;
     id = id.elements[idx].type === 'AssignmentPattern' ? id.elements[idx].left : id.elements[idx];
@@ -2656,10 +2656,10 @@ export function objectPatternLiteralKeyPath(pattern, name, ctx = null) {
 // does an array-wrap slot (an ObjectPattern directly, or a nested ArrayPattern) bind `name` below
 // it? used to locate the positional array-wrap element (`const [{ Array: A }] = [globalThis]`) that
 // binds a leaf name before descending into it. peels an `= default` wrapper on the slot
-export function arrayWrapSlotBindsName(slot, name) {
+export function arrayWrapSlotBindsName(slot, name, ctx = null) {
   slot = slot?.type === 'AssignmentPattern' ? slot.left : slot;
-  if (slot?.type === 'ObjectPattern') return !!objectPatternLiteralKeyPath(slot, name);
-  if (slot?.type === 'ArrayPattern') return (slot.elements ?? []).some(el => el && arrayWrapSlotBindsName(el, name));
+  if (slot?.type === 'ObjectPattern') return !!objectPatternLiteralKeyPath(slot, name, ctx);
+  if (slot?.type === 'ArrayPattern') return (slot.elements ?? []).some(el => el && arrayWrapSlotBindsName(el, name, ctx));
   return false;
 }
 
