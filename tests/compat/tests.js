@@ -229,6 +229,7 @@ function createSetLikeWithInfinitySize(size) {
   };
 }
 
+/* eslint-disable unicorn/no-collection-bracket-access -- ok */
 function createSetMethodTest(METHOD_NAME, callback) {
   return function () {
     try {
@@ -255,6 +256,7 @@ function createSetMethodTest(METHOD_NAME, callback) {
     }
   };
 }
+/* eslint-enable unicorn/no-collection-bracket-access -- ok */
 
 function createSetMethodTestShouldGetKeysBeforeCloning(METHOD_NAME) {
   return function () {
@@ -1323,6 +1325,7 @@ GLOBAL.tests = {
     return RegExp[Symbol.species] === RegExp;
   },
   'es.regexp.sticky': function () {
+    // eslint-disable-next-line unicorn/no-unnecessary-boolean-comparison -- testing
     return new RegExp('a', 'y').sticky === true;
   },
   'es.regexp.test': function () {

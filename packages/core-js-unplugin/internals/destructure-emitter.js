@@ -2204,8 +2204,9 @@ export function createDestructureEmitter({
       if (!decl) return;
       if (decl.type === 'VariableDeclaration' && SIBLING_LEXICAL_DECL_KINDS.has(decl.kind)) {
         for (const d of decl.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
-      } else if (decl.type === 'ClassDeclaration' && decl.id?.name) locals.add(decl.id.name);
-      else if (decl.type === 'FunctionDeclaration' && decl.id?.name) locals.add(decl.id.name);
+      } else if ((decl.type === 'ClassDeclaration' || decl.type === 'FunctionDeclaration') && decl.id?.name) {
+        locals.add(decl.id.name);
+      }
     }
 
     // unified scope push: dispatches on node.type to collect bindings native to that
