@@ -976,7 +976,7 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
   // separately (`resolveVariableBindingToGlobal`); direct member-receiver IIFE preserves
   // its AST shape so identifier-visitor's inner rewrite stays the single source of truth
   if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
-    const inlined = inlineCallReturnExpression({ callNode: objectNode, scope, adapter, seen, path });
+    const inlined = inlineCallReturnExpression({ callNode: objectNode, scope, adapter, seen, path, usageNode });
     // an SE-arrow body inlines to a SEQUENCE (`() => (r++, globalThis)`) - classify through its
     // tail value like the proxy-root walk does; SE preservation stays the emit side's concern
     // (`inlineCallHasObservableEffects`), this is pure shape classification
@@ -1094,7 +1094,7 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
 // `seen` (caller-owned Set) tracks binding names already in the resolution chain for
 // cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
 // recursion isn't possible at the call site
-function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam = false }) {
+function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam = false, usageNode = null }) {
   // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
   // makes the resolver inline it, but the emit layer cannot compose a receiver-less static
   // substitution over the SE-wrapped callee (transform-queue "could not locate inner needle" crash).
@@ -1104,9 +1104,11 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, all
     const { name } = callee;
     if (!adapter.hasBinding(scope, name, path) || seen.has(name)) return null;
     const binding = adapter.getBinding(scope, name, path);
-    // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when
-    // the binding's reassignment does not dominate the use (init still live); pure / narrowing bail
-    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path })) return null;
+    // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when the binding's
+    // reassignment does not dominate the use (init still live); pure / narrowing bail. `usageNode`
+    // anchors the dominance at an alias-hop's read site so a write AFTER the capture (`const f = f0;
+    // f0 = () => Map`) does not block the still-live declared init
+    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
     if (adapter.getBindingNodeType(scope, name, path) === 'VariableDeclarator') {
       const initNode = binding.node?.init;
       if (!initNode) return null;
@@ -1141,8 +1143,8 @@ function identityParam({ callee, allowIdentityParam }) {
 // isn't inlineable or the body has multiple returns / local bindings (see
 // `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
 // are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`
-export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path }) {
-  const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true });
+export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path, usageNode = null }) {
+  const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true, usageNode });
   if (!callee) return null;
   const body = singleReturnBodyExpression(callee.body);
   if (!callee.params?.length) return body;
