@@ -1702,6 +1702,10 @@ function * generateReassignedCallableSlot() {
     // a PRIVATE method has no writable slot at all - nothing can replace it, narrow stays
     { id: 'private-method-sealed',
       code: '(() => { class C { #rows() { return [1, 2]; } read() { return this.#rows().includes(1); } } return new C().read(); })()' },
+    // a PRIVATE FIELD read (`this.#x`) is skipped as a polyfill candidate on both parsers - the
+    // member-meta builder must recognise the private-name property under either spelling
+    { id: 'private-field-read',
+      code: '(() => { class C { #rows = [1, 2, 3]; read() { return this.#rows.at(-1); } } return new C().read(); })()' },
   ];
   for (const c of EXTERNAL) yield { ...snippet(`reassigned-callable-slot/${ c.id }`, c.code), strip: true };
 }
