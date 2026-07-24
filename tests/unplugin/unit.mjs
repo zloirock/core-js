@@ -2819,6 +2819,12 @@ check('boundary/astral ident char after needle suppresses boundary',
 // reads the whole code point and classifies it, it does not blindly suppress on any surrogate pair
 check('boundary/astral non-ident char before needle is a boundary',
   hasIdentifierBoundary(`${ String.fromCodePoint(0x1F600) }Promise`, 2, 'Promise'), true);
+// a needle ending exactly at end-of-source has NO following char: the tail index must short-circuit
+// before the code-point read, otherwise `codePointAt(length)` is undefined and `fromCodePoint` throws
+check('boundary/needle at end of source is a boundary',
+  hasIdentifierBoundary('Promise', 0, 'Promise'), true);
+check('boundary/needle at end of source after a space is a boundary',
+  hasIdentifierBoundary(' Promise', 1, 'Promise'), true);
 
 // --- patternToRegExp: alternation grouping ---
 // `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b).
