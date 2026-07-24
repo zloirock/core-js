@@ -17,6 +17,7 @@ import {
   patternSlotValues,
   peelArrayWrapBindingLayers,
   peelZeroArgIifeReturn,
+  reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
   SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
@@ -114,7 +115,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // a non-proxy self-cycle (`var Map = Map`) stays false. avoids recursion either way (returns here)
   if (binding) return seen?.has(binding.node ?? binding)
     ? (POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null)
-    : followLocalBindingToProxyGlobal({ binding, name: node.name, scope, adapter, path, seen, usageNode });
+    : followLocalBindingToProxyGlobal({ binding, name: node.name, scope, adapter, path, seen, usageNode, readNode });
   if (adapter.hasBinding?.(scope, node.name, path)) return null;
   return isPristineProxyGlobal(adapter, node.name) ? node.name : null;
 }
@@ -220,7 +221,7 @@ function trustedPatternWriteSlotValue({ scope, name, adapter, path }) {
     && !patternSlotSpreadShifted(write.left, container, name, slotCtx) ? values[0] : null;
 }
 
-function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter, path, seen, usageNode = null }) {
+function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter, path, seen, usageNode = null, readNode = null }) {
   const decl = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
   // assignment-form alias (`var _g; (_g = g = globalThis) == null ? void 0 : _g.self.X` - the
   // shape `?.`-lowering transpilers emit ahead of this plugin): the binding's single TRUSTED
@@ -239,7 +240,26 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   // dominance-aware - ONE reassignment policy with the extends-target gate: a reassignment
   // that cannot reach the binding's READ does not block (the flat `constantViolations` bail
   // dropped a const-captured alias whose upstream source is reassigned only after the capture)
-  if (!writeInit && reassignmentBlocksGlobalResolve({ binding, adapter, path: usageNode ?? path })) return null;
+  // `readNode` (a multi-hop alias's declarator) anchors the dominance at the capture site, so an
+  // upstream write AFTER that read (`const g = A; A = self; g.X` - `A = self` follows `const g = A`)
+  // does not kill the value `g` captured. it overrides the plain use the caller carried
+  if (!writeInit && reassignmentBlocksGlobalResolve({ binding, adapter, path: usageNode ?? path, usageNode: readNode })) {
+    // a DOMINATING reassignment whose reaching value is ITSELF a proxy-global still names the surface
+    // (`let A = globalThis; A = self; A.X` - A holds self, a proxy, at the use). resolve that reaching
+    // write's value as the root; a non-proxy reaching value keeps the bail (native)
+    const reaching = reachingReassignmentValueNode({ binding, usagePath: usageNode ?? path, usageNode: readNode });
+    // peel the same wrappers the value-path (`resolveObjectName`) peels off a reaching write's RHS: a
+    // SE-prefix sequence (`A = (eff(), self)`) resolves through its tail and a zero-arg IIFE
+    // (`A = (() => self)()`) through its return - the effects stay in the kept write
+    const peeled = reaching && peelIifeReturnTarget(unwrapInitForResolution(reaching));
+    const reachSeen = new Set(seen).add(binding.node ?? binding);
+    const reachingRoot = peeled?.type === 'Identifier'
+      ? proxyGlobalRootName({ node: peeled, scope, adapter, path, seen: reachSeen })
+      : peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression'
+        ? globalProxyMemberName({ node: peeled, scope, adapter, path, seen: reachSeen })
+        : null;
+    return isPristineProxyGlobal(adapter, reachingRoot) ? reachingRoot : null;
+  }
   // a hoisted-var declarator assigned on ONE path (`if (c) { var g = globalThis }`) binds the
   // name everywhere but holds the global only through that branch. the pure rewrites this follow
   // feeds (proxy-hop collapse, receiver substitution, type narrows) would rescue the
