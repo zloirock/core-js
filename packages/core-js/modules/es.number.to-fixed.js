@@ -94,8 +94,8 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       z = e < 0 ? number * pow(2, -e, 1) : number / pow(2, e, 1);
       z *= 0x10000000000000;
       e = 52 - e;
+      multiply(data, 0, z);
       if (e > 0) {
-        multiply(data, 0, z);
         j = fractDigits;
         while (j >= 7) {
           multiply(data, 1e7, 0);
@@ -112,7 +112,6 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
         divide(data, 2);
         result = dataToString(data);
       } else {
-        multiply(data, 0, z);
         multiply(data, 1 << -e, 0);
         result = dataToString(data) + repeat('0', fractDigits);
       }
