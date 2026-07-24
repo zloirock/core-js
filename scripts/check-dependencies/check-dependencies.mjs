@@ -6,6 +6,10 @@ const ignore = {
     // eslint-plugin-sonarjs does not work with typescript@7
     'typescript',
   ],
+  'tests/transpiler-integration': [
+    // specify monorepo dep explicitly because of farm dependency from core-js@3
+    'core-js',
+  ],
 };
 
 const pkgs = await glob([
