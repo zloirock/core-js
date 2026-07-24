@@ -141,7 +141,7 @@ function init() {
       return `Blob { size: ${ value.size }, type: "${ value.type }" }`;
     }
 
-    if (value instanceof Error) {
+    if (Error.isError(value)) {
       return `${ value.name || 'Error' }: ${ value.message }`;
     }
 
