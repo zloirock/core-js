@@ -3176,3 +3176,22 @@ QUnit.test('destructuring: IIFE-argument instance methods extract', assert => {
   assert.same(viaSeTail.call([3, 4], 3), true, 'SE-tail argument: the dispatcher reads the tail');
   assert.deepEqual(marks, ['m'], 'the argument prefix effect runs exactly once');
 });
+
+// a nested proxy-destructure whose inner computed key is an Identifier binding `[K]` must EXTRACT the
+// static and import its module (const gb = _Map$groupBy), not keep a residual `{ [K]: gb } = _Map`
+// that reads the static off the pure constructor without importing it (undefined -> a bare call throws)
+QUnit.test('destructuring: nested identifier computed key extracts the polyfill', assert => {
+  const K = 'groupBy';
+  const { Map: { [K]: gb } } = globalThis;
+  const grouped = gb([1, 2, 3, 4], x => x % 2 === 0 ? 'even' : 'odd');
+  assert.deepEqual(grouped.get('odd'), [1, 3], 'const identifier key resolves + imports the static');
+  assert.deepEqual(grouped.get('even'), [2, 4]);
+  const K2 = 'from';
+  const { Array: { [K2]: af } } = globalThis;
+  assert.deepEqual(af('ab'), ['a', 'b'], 'a second identifier-keyed static resolves independently');
+  const K3 = 'Object';
+  const { [K3]: { groupBy: og } } = globalThis;
+  const byParity = og([1, 2, 3, 4], x => x % 2 === 0 ? 'even' : 'odd');
+  assert.deepEqual(byParity.odd, [1, 3], 'an OUTER identifier ctor key resolves + imports the static too');
+  assert.deepEqual(byParity.even, [2, 4]);
+});
