@@ -446,7 +446,7 @@ export const KEY_FILTERING_WRAPPERS = new Set(['Pick', 'Omit']);
 // changing dispatch outcome. callers that don't care about precise member-set semantics
 // (peelStructurePreservingWrapper, resolveNamedType inner-type resolve, tuple walk) use
 // this. callers that DO care (getTypeMembers) branch separately on key-filter case
-export const STRUCTURE_PRESERVING_WRAPPERS = new Set([...TRANSPARENT_WRAPPERS, ...KEY_FILTERING_WRAPPERS]);
+export const STRUCTURE_PRESERVING_WRAPPERS = TRANSPARENT_WRAPPERS.union(KEY_FILTERING_WRAPPERS);
 
 // TS `PromiseLike<T>` / Flow `Thenable<T>` are structural supertypes of Promise that
 // `await` / `Awaited<>` unwrap identically; alias them to Promise for type resolution
