@@ -29,6 +29,7 @@ import {
   isDeclaratorSelfViolation,
   withoutValuelessDeclarationViolations,
   walkPatternIdentifiers,
+  unwrapSafeSequenceTail,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
@@ -1190,8 +1191,13 @@ export function isClassifiableReceiverArg(node, scope, adapter) {
 // `undefined`, where the runtime applies the default) is not usable and keeps the default. shared by
 // every meta / synth receiver-choice so the call-arg-wins rule never drifts between sites
 export function isUsableFallbackReceiverArg(node, scope, adapter) {
-  return isClassifiableReceiverArg(node, scope, adapter)
-    || node?.type === 'ConditionalExpression' || node?.type === 'LogicalExpression';
+  // peel a safe SE tail so an SE-prefixed arg (`(eff(), c ? Set : Iterator)`) classifies by its
+  // receiver value, not the raw SequenceExpression - the provider enumeration callers pass the raw
+  // arg, and without this an SE-branching arg is judged unusable and the runtime-dead default wins,
+  // dropping the arg's reachable branch polyfill. the detect callers pre-peel too (now idempotent)
+  const peeled = unwrapSafeSequenceTail(node);
+  return isClassifiableReceiverArg(peeled, scope, adapter)
+    || peeled?.type === 'ConditionalExpression' || peeled?.type === 'LogicalExpression';
 }
 
 // permissive: no wrapper-default - accept bare Identifier OR proxy-global MemberExpression

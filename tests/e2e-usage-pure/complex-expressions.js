@@ -217,3 +217,16 @@ QUnit.test('complex: instance method dispatched through a zero-arg IIFE computed
   assert.same([10, 20, 30][key](-1), 30);
   assert.same([5, 6, 7][(() => (() => 'at')())()](0), 5);
 });
+
+// an inline-resolvable identity-param IIFE receiver folds to its returned static and the call is
+// dropped - the call's PREFIX side effect must still run once (re-emitted ahead of the polyfill),
+// not be silently discarded by the receiver fold
+QUnit.test('complex: inline IIFE receiver prefix side effect runs once', assert => {
+  let log = 0;
+  const fromResult = (x => {
+    log++;
+    return x;
+  })(Array).from([9]);
+  assert.deepEqual(fromResult, [9], 'identity-param IIFE receiver still dispatches the static');
+  assert.same(log, 1, 'its prefix effect runs exactly once (not dropped by the fold)');
+});
