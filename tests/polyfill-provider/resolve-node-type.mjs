@@ -471,6 +471,29 @@ runBoth('index-sig call union keeps the narrow on convergent arms',
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
   });
 
+// --- computed member keys folded through a zero-arg IIFE ---
+// a zero-arg IIFE computed key evaluates to its return, so a member accessed through one classifies like
+// the literal-keyed form. read-only classification keeps the node in place - null before the peel
+
+runBoth('IIFE computed key on a type-literal member resolves the member type',
+  "interface I { data: number[]; } declare const o: I; const t = o[(() => 'data')()];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('nested IIFE computed key folds to the same member type',
+  "interface I { data: number[]; } declare const o: I; const t = o[(() => (() => 'data')())()];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { primitive: false, ctor: 'Array' });
+  });
+runBoth('IIFE computed key on a string-enum member resolves the string value',
+  "enum E { A = 'x' } const t = E[(() => 'A')()];",
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { kind: 'string', primitive: true });
+  });
+
 runBoth('ReturnType<typeof static getter> bails instead of returning the value type',
   'class X { static get sg(): () => number[] { return () => [1]; } } declare const v: ReturnType<typeof X.sg>; const t = v;',
   (adapter, prog, lbl) => {
