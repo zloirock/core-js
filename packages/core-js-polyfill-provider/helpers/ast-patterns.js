@@ -2916,21 +2916,24 @@ export function propertyKeyName(prop) {
 // key spelling shared by the own-this method-extraction gates: private members keep a `#name`
 // spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
 // the canonical property-key extractor. null = dynamic / unresolvable
+// the `#name` spelling of a private-name node under either parser (babel `PrivateName` nests the
+// identifier under `.id`, estree `PrivateIdentifier` carries `.name` directly); null when the node is
+// not a private name. single canon so the two spellings never drift apart across the private-key sites
+export function privateNameSpelling(node) {
+  if (node?.type === 'PrivateName') return `#${ node.id?.name }`;
+  if (node?.type === 'PrivateIdentifier') return `#${ node.name }`;
+  return null;
+}
+
 export function ownThisMemberKeyName(member) {
-  const { key } = member;
-  if (key?.type === 'PrivateName') return `#${ key.id?.name }`;
-  if (key?.type === 'PrivateIdentifier') return `#${ key.name }`;
-  return propertyKeyName(member);
+  return privateNameSpelling(member?.key) ?? propertyKeyName(member);
 }
 
 // member-READ twin of `ownThisMemberKeyName`: the key a member ACCESS reads, with the same
 // private spelling, dotted and static-string-computed forms via the canonical member-key
 // extractor. null = dynamic computed read
 export function memberReadKeyName(member) {
-  const prop = member?.property;
-  if (prop?.type === 'PrivateName') return `#${ prop.id?.name }`;
-  if (prop?.type === 'PrivateIdentifier') return `#${ prop.name }`;
-  return memberKeyName(member);
+  return privateNameSpelling(member?.property) ?? memberKeyName(member);
 }
 
 // own-`this` FUNCTION members of an object literal: methods and function-expression-valued
@@ -2983,8 +2986,12 @@ export function classOwnThisMethodInfo(classNode, statics) {
         continue;
       }
       isMethod = member.kind !== 'constructor';
+    // reads the RAW `member.type`, so every parser spelling must be listed: unlike the paths that go
+    // through the adapter's node-type mapper (which folds the estree auto-accessor onto the babel
+    // name), an auto-accessor field arrives here as `AccessorProperty` on one parser and
+    // `ClassAccessorProperty` on the other - matching only one silently drops its initializer
     } else if (type === 'ClassProperty' || type === 'ClassPrivateProperty'
-      || type === 'PropertyDefinition' || type === 'ClassAccessorProperty') {
+      || type === 'PropertyDefinition' || type === 'ClassAccessorProperty' || type === 'AccessorProperty') {
       isMethod = unwrapRuntimeExpr(member.value)?.type === 'FunctionExpression';
     }
     if (!isMethod) continue;
