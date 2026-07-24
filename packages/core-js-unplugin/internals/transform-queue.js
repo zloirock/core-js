@@ -103,9 +103,9 @@ export function hasIdentifierBoundary(str, idx, needle) {
   // a boundary and mis-classify the needle as standalone
   if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_PART_RE.test(codePointEndingAt(str, idx - 1))) return false;
   const tail = idx + needle.length;
-  if (isIdentifierEdge(needle, 'end') && tail < str.length
-    && IDENT_PART_RE.test(String.fromCodePoint(str.codePointAt(tail)))) return false;
-  return true;
+  return !isIdentifierEdge(needle, 'end')
+    || tail >= str.length
+    || !IDENT_PART_RE.test(String.fromCodePoint(str.codePointAt(tail)));
 }
 
 // the nth-occurrence index MUST come from the same enumeration the counter uses

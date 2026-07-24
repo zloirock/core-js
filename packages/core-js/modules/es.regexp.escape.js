@@ -8,6 +8,7 @@ var hasOwn = require('../internals/has-own-property');
 var WHITESPACES = require('../internals/whitespaces');
 
 var $Array = Array;
+// eslint-disable-next-line es/no-regexp-escape -- ok
 var $escape = RegExp.escape;
 var charCodeAt = uncurryThis(''.charCodeAt);
 // @dependency: es.string.pad-start
