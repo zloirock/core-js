@@ -830,7 +830,8 @@ export function createDiscriminantNarrow({
       current = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope).node;
     }
     const literal = current?.type === 'TSLiteralType' ? discriminantLiteralValue(current.literal) : null;
-    return literal === null || (literal === value) === positive;
+    // a positive guard needs the literal to match, a negated one needs it to differ
+    return literal === null || (positive ? literal === value : literal !== value);
   }
 
   return {

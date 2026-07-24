@@ -1794,6 +1794,7 @@ QUnit.test('destructuring: identity IIFE with effectful argument', assert => {
 // falsy-path TypeError while the truthy path polyfills
 QUnit.test('destructuring: chain assignment inits', assert => {
   let w;
+  // eslint-disable-next-line unicorn/no-duplicate-logical-operands -- testing
   const { Array: { from } } = w = globalThis || globalThis;
   assert.deepEqual(from([5]), [5]);
   assert.same(w, globalThis);
@@ -1815,7 +1816,7 @@ QUnit.test('destructuring: chain assignment inits', assert => {
 // IIFE RHS runs exactly once
 QUnit.test('destructuring: assignment-form fallback RHS', assert => {
   let from;
-  // eslint-disable-next-line prefer-const -- assignment-form host is the shape under test
+  // eslint-disable-next-line prefer-const, unicorn/no-duplicate-logical-operands -- assignment-form host is the shape under test
   ({ Array: { from } } = globalThis || globalThis);
   assert.deepEqual(from([6]), [6]);
   let of;
