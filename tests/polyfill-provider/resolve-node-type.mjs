@@ -5501,8 +5501,9 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('ast-patterns: singleReturnBodyExpression null body',
     singleReturnBodyExpression(null), null);
 
-  // unwrapReceiverLeaf: peels transparent wrappers + zero-param IIFE shells
-  // `(() => x)()` -> x
+  // unwrapReceiverLeaf: peels transparent wrappers + IIFE shells - zero-param `(() => x)()`, and a
+  // param-bearing IIFE whose return is a stable receiver (identity-param lifts the arg, an
+  // unused-param body is the receiver; a body referencing its param non-identity-wise stays unpeeled)
   const iife = {
     type: 'CallExpression',
     callee: {
@@ -5533,7 +5534,7 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   };
   check('ast-patterns: unwrapReceiverLeaf function-IIFE',
     unwrapReceiverLeaf(iifeFn)?.name, 'x');
-  // arrow with params -> not peeled (zero-param contract)
+  // arrow with a param whose body does NOT reference it: the return IS the receiver, peel to it
   const arrowWithParam = {
     type: 'CallExpression',
     callee: {
@@ -5543,8 +5544,36 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     },
     arguments: [{ type: 'NumericLiteral' }],
   };
-  check('ast-patterns: unwrapReceiverLeaf arrow with param -> not peeled',
-    unwrapReceiverLeaf(arrowWithParam)?.type, 'CallExpression');
+  check('ast-patterns: unwrapReceiverLeaf arrow with unused param -> body peeled',
+    unwrapReceiverLeaf(arrowWithParam)?.name, 'x');
+  // identity-param IIFE `((p) => p)(recv)` lifts the arg - the receiver a static fold drops
+  const identityParam = {
+    type: 'CallExpression',
+    callee: {
+      type: 'ArrowFunctionExpression',
+      params: [{ type: 'Identifier', name: 'p' }],
+      body: { type: 'Identifier', name: 'p' },
+    },
+    arguments: [{ type: 'Identifier', name: 'recv' }],
+  };
+  check('ast-patterns: unwrapReceiverLeaf identity-param IIFE -> arg',
+    unwrapReceiverLeaf(identityParam)?.name, 'recv');
+  // a body that references its param non-identity-wise cannot be lifted -> stays the call
+  const paramReferencingBody = {
+    type: 'CallExpression',
+    callee: {
+      type: 'ArrowFunctionExpression',
+      params: [{ type: 'Identifier', name: 'p' }],
+      body: {
+        type: 'MemberExpression', computed: false,
+        object: { type: 'Identifier', name: 'p' },
+        property: { type: 'Identifier', name: 'foo' },
+      },
+    },
+    arguments: [{ type: 'Identifier', name: 'recv' }],
+  };
+  check('ast-patterns: unwrapReceiverLeaf param-referencing body -> not peeled',
+    unwrapReceiverLeaf(paramReferencingBody)?.type, 'CallExpression');
   // bare passes through
   check('ast-patterns: unwrapReceiverLeaf bare',
     unwrapReceiverLeaf(inner)?.name, 'x');
