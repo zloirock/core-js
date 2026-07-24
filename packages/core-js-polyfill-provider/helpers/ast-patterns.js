@@ -1795,7 +1795,7 @@ function patternBindsNameUnderDefault(node, name, underDefault) {
   }
 }
 
-export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, usageNode = null }) {
+export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, usageNode = null, requireSingleObservation = false }) {
   if (!usagePath) return null;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return null;
@@ -1823,6 +1823,12 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, 
   // closure-defined-before-write) yields none -> null, keeping the still-live init (over-inject-safe).
   // reassignment nodes are `AssignmentExpression`s here (babel + the estree adapter's let/var recompute),
   // so `reassignmentRhs` reads `.right` directly without the declarator's scope; a non-plain write -> null
+  // a re-invoked closure observes a write that lands AFTER its definition between calls (`() => Array[K]`
+  // with a later `K = 'of'`), so a single dominating value is not the UNIQUELY observed one. the pure
+  // consumer (requireSingleObservation) must bail when any write lies textually after the captured read -
+  // substituting one value would silently miscompile the other invocations. global stays over-inject-safe
+  if (requireSingleObservation
+    && reassignmentNodesBeyondDeclarator(binding).some(node => !nodePrecedesUsage(node, readNode))) return null;
   const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true, usageNode }) === true);
   if (!dominating.length) return null;
   const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
@@ -1867,10 +1873,18 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // a closure body) has an owner that does not contain an outer-scope write. babel scopes
   // carry the AST node on `.block`, estree-toolkit ones on `.path.node`
   const violationSearchRoot = binding.scope?.block ?? binding.scope?.path?.node ?? owner.node;
+  // a read captured in a nested closure (its var-scope owner is a FUNCTION below the binding's
+  // declaring scope) re-runs on every re-invocation, so an enclosing-scope write that lands AFTER
+  // the closure is defined reaches a later read (`let K='from'; const f=()=>Array[K]; f(); K='of';
+  // f()` dispatches Array.of on the 2nd call). that write is normally dropped as strictly-after,
+  // just as a loop back-edge re-runs the body after its tail write. global-only: the larger union is
+  // over-inject-safe, and usage-pure bails on any reassigned alias upstream (it must never widen)
+  const closureReenters = ctx?.adapter?.method === 'usage-global'
+    && FUNCTION_LIKE_NODE_TYPES.has(owner.node?.type) && violationSearchRoot !== owner.node;
   const out = [];
   let complete = true;
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
-    if (!useInLoop && endsBeforeStart(readNode, node, false)) continue;
+    if (!useInLoop && !closureReenters && endsBeforeStart(readNode, node, false)) continue;
     const values = reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx);
     if (!values.length) complete = false;
     out.push(...values);
@@ -4581,7 +4595,7 @@ export function unwrapReceiverLeaf(node) {
   for (let depth = 0; depth < MAX_DEPTH; depth++) {
     const before = node;
     node = unwrapInitValue(unwrapRuntimeExpr(node));
-    const iifeReturn = peelIIFEReturn(node);
+    const iifeReturn = peelZeroArgIifeReturn(node);
     if (iifeReturn) {
       node = iifeReturn;
       continue;

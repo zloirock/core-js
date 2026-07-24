@@ -1178,7 +1178,10 @@ function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
     // the call's own ARGUMENTS run when the call runs; folding the call down to its inlined receiver
     // drops them, so a side-effecting argument (`(() => Array)(c++)`) must force SE preservation
     if (callNode.arguments?.some(mayHaveSideEffects)) return true;
-    const body = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen })?.body;
+    // `allowIdentityParam` MUST mirror the fold (`inlineCallReturnExpression`): the fold inlines an
+    // identity-param IIFE (`((x) => { g(); return x; })(Array)`), so the effect gate has to inspect its
+    // block body too - a stricter gate here misses the `g()` prefix and drops it at the source
+    const body = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true })?.body;
     if (!body) return false;
     const isBlock = body.type === 'BlockStatement';
     // filter out leading directive ExpressionStatements (`'use strict';`) - parser-shape
@@ -1189,9 +1192,15 @@ function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
     if (isBlock && (stmts.length !== 1 || stmts[0].type !== 'ReturnStatement')) return true;
     // chain target: block-body extracts return arg, expression-body is itself the target.
     const next = isBlock ? stmts[0].argument : body;
-    // recurse when next is an inline-resolvable call (`() => inner()` with its own prefix effects)
-    if (isCallShape(next)) {
-      callNode = next;
+    // mirror the fold's `peelReceiverSequenceTail` + recurse: a sequence return (`() => (0, inner())`)
+    // is peeled to its tail and re-driven, so an inner call in the tail keeps its own prefix effects.
+    // the peeled-away prefix runs at the source too, so its effects count when the fold drops the call
+    const peeled = peelReceiverSequenceTail(next);
+    if (peeled !== next && next?.type === 'SequenceExpression'
+      && next.expressions.slice(0, -1).some(mayHaveSideEffects)) return true;
+    // recurse when the (peeled) target is an inline-resolvable call (`() => inner()` with its own effects)
+    if (isCallShape(peeled)) {
+      callNode = peeled;
       continue;
     }
     // else the returned value IS the inlined receiver; it carries observable effects only when the
@@ -1323,7 +1332,10 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
         // `let K = 'from'; K = 'of'; Array[K]()`) when it is unambiguous. null when flow-dependent
         const binding = adapter.getBinding(scope, node.name, path);
         const reaching = binding && isReassignedBeyondDeclarator(binding)
-          ? reachingReassignmentValueNode({ binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode }) : null;
+          ? reachingReassignmentValueNode({
+            binding, usagePath: path, ctx: { scope, adapter, path, resolveKey }, usageNode,
+            requireSingleObservation: adapter.method === 'usage-pure',
+          }) : null;
         if (reaching) {
           // extend the cycle-guard set BEFORE overwriting `node` - it reads the current name
           seen = new Set(seen).add(node.name);
