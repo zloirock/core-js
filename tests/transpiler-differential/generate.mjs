@@ -232,12 +232,15 @@ function * generateDestructure() {
 // distinct from the member-extraction family above: `const [A] = [Array]` binds A to the Array
 // constructor itself (the array element), so the LATER static call resolves through A. covers the
 // const-array-init (rhs is a const-identifier bound to the literal), computed-key and object-value
-// alias shapes. the observable IS the folded static call's result, so the stripped-realm oracle
+// alias shapes. the computed key is folded from a const alias, a zero-arg IIFE, and a nested IIFE - all
+// naming the same slot. the observable IS the folded static call's result, so the stripped-realm oracle
 // stays valid (the static is replaced by its polyfill on every realm). declaration host => strippable
 const D_ALIAS = [
   { id: 'element', setup: 'const [A] = [Array];', use: 'A.from([1, 2])' },
   { id: 'const-array-init', setup: 'const arr = [Array]; const [A] = arr;', use: 'A.from([1, 2])' },
   { id: 'computed-key', setup: 'const k = "x"; const { [k]: A } = { x: Array };', use: 'A.from([1, 2])' },
+  { id: 'computed-iife-key', setup: 'const { [(() => "x")()]: A } = { x: Array };', use: 'A.from([1, 2])' },
+  { id: 'computed-nested-iife-key', setup: 'const { [(() => (() => "x")())()]: A } = { x: Array };', use: 'A.from([1, 2])' },
   { id: 'object-value', setup: 'const { y: A } = { y: Object };', use: 'A.fromEntries([["a", 1]])' },
 ];
 function * generateDestructureAlias() {
