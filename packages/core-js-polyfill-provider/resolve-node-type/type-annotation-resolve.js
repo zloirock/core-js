@@ -435,10 +435,13 @@ export function createTypeAnnotationResolve({
     // both parsers keep `(T)` as TSParenthesizedType in type position, and the member / tuple /
     // index-sig helpers below would otherwise see the wrapper and bail to null
     const objectType = peelTSParenthesized(node.objectType);
+    // the index operand needs the same peel: oxc keeps a `T[('a')]` index as TSParenthesizedType,
+    // so every `.type ===` dispatch below would miss the inner literal and bail on that parser only
+    const indexType = peelTSParenthesized(node.indexType);
     // T[number] - element type of array/tuple
-    if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(objectType, scope, depth + 1);
+    if (indexType?.type === 'TSNumberKeyword') return resolveElementType(objectType, scope, depth + 1);
     // T[string] - string index signature type
-    if (node.indexType?.type === 'TSStringKeyword') {
+    if (indexType?.type === 'TSStringKeyword') {
       const members = getTypeMembers({ objectType, scope });
       if (members) for (const member of members) {
         if (member.type === 'TSIndexSignature' && member.typeAnnotation
@@ -450,13 +453,14 @@ export function createTypeAnnotationResolve({
     }
     // `T[keyof T]` self-indexed access folds to value-union of T's properties.
     // delegated to helper to keep dispatcher under max-statements lint
-    const keyofSelf = resolveKeyofSelfValueUnion(node, objectType, scope, depth);
+    // pass the PEELED index so `T[(keyof T)]` reaches the keyof-self fold on oxc too
+    const keyofSelf = resolveKeyofSelfValueUnion({ ...node, indexType }, objectType, scope, depth);
     if (keyofSelf !== undefined) return keyofSelf;
     // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
     // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to the
     // widest common type, handing us precise inference when all branches agree
-    if (node.indexType?.type === 'TSUnionType') {
-      return foldUnionTypes(node.indexType.types, branch => resolveTypeAnnotation(
+    if (indexType?.type === 'TSUnionType') {
+      return foldUnionTypes(indexType.types, branch => resolveTypeAnnotation(
         { type: 'TSIndexedAccessType', objectType, indexType: branch },
         scope,
         depth + 1,
@@ -467,14 +471,14 @@ export function createTypeAnnotationResolve({
     // interpolations (`T[\`_${K}\`]`) would require compile-time type-string computation
     // (mapped-type renamers like `as \`_${K & string}\``); conservative bail for now.
     // TS wraps template literals in TSLiteralType { literal: TemplateLiteral }; unwrap first
-    const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
+    const literalIndex = indexType?.type === 'TSLiteralType' ? indexType.literal : indexType;
     const quasi = singleQuasiString(literalIndex);
     if (quasi !== null) {
       const member = findTypeMember({ objectType, key: quasi, scope });
       return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
     }
-    if (node.indexType?.type !== 'TSLiteralType') return null;
-    const { literal } = node.indexType;
+    if (indexType?.type !== 'TSLiteralType') return null;
+    const { literal } = indexType;
     let member;
     if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType, key: literal.value, scope });
     else if (isLiteralOf(literal, 'Numeric')) {
