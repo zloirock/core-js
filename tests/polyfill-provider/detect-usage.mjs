@@ -566,8 +566,8 @@ for (const op of ['||=', '&&=', '??=']) {
 // VALUE, so skip non-computed key positions - the same filter the real visitors apply
 function namedIdentPath(adapter, prog, name) {
   return adapter.collectPaths(prog, 'Identifier', p => p.node.name === name
-    && !((p.parentPath?.node?.type === 'Property' || p.parentPath?.node?.type === 'ObjectProperty')
-      && p.parentPath.node.key === p.node && !p.parentPath.node.computed && p.parentPath.node.value !== p.node))[0];
+    && (!((p.parentPath?.node?.type === 'Property' || p.parentPath?.node?.type === 'ObjectProperty')
+      && p.parentPath.node.key === p.node && !p.parentPath.node.computed) || p.parentPath.node.value === p.node))[0];
 }
 for (const [id, src, expected] of [
   ['array element', '[Promise] = arr;', true],
