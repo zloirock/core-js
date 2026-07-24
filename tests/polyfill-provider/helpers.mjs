@@ -33,6 +33,8 @@ import {
   isDirectiveStatement,
   isFunctionParamDestructureParent,
   isReusableReceiver,
+  classOwnThisMethodInfo,
+  privateNameSpelling,
   paramListReadsName,
   peelMemoizeWrappers,
   spreadAtOrBefore,
@@ -1076,5 +1078,27 @@ check('findObjectKeyBeforeSpread/duplicate keys last-wins',
 check('findObjectKeyBeforeSpread/match after a mid spread wins',
   findObjectKeyBeforeSpread([prop('a', 1), SP, prop('a', 2)], matchA)?.tag, 2);
 check('findObjectKeyBeforeSpread/no match', findObjectKeyBeforeSpread([prop('b', 1)], matchA), null);
+
+// `privateNameSpelling` is the single canon for the private-name `#name`: babel nests the id under
+// `.id`, estree carries `.name` directly - both must spell identically, and a non-private node is null
+check('privateNameSpelling/babel PrivateName', privateNameSpelling({ type: 'PrivateName', id: { name: 'x' } }), '#x');
+check('privateNameSpelling/estree PrivateIdentifier', privateNameSpelling({ type: 'PrivateIdentifier', name: 'x' }), '#x');
+check('privateNameSpelling/non-private is null', privateNameSpelling({ type: 'Identifier', name: 'x' }), null);
+check('privateNameSpelling/nullish is null', privateNameSpelling(null), null);
+
+// `classOwnThisMethodInfo` reads the RAW member type, so both parser spellings of an auto-accessor
+// field must collect its initializer: babel emits ClassAccessorProperty, ESTree/oxc AccessorProperty.
+// matching one only would silently drop the own-this method and leave a leak undetected on that parser
+function accessorFieldClass(memberType) {
+  const fn = { type: 'FunctionExpression', params: [], body: { type: 'BlockStatement', body: [] } };
+  return { type: 'ClassDeclaration', body: { type: 'ClassBody', body: [
+    { type: memberType, static: false, computed: false, key: { type: 'Identifier', name: 'm' }, value: fn },
+  ] } };
+}
+for (const spelling of ['ClassAccessorProperty', 'AccessorProperty']) {
+  const info = classOwnThisMethodInfo(accessorFieldClass(spelling), false);
+  check(`classOwnThisMethodInfo/${ spelling } collects the accessor-held method`,
+    [...info?.methodKeys ?? []].join(','), 'm');
+}
 
 finish();
