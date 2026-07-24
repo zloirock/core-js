@@ -206,3 +206,14 @@ QUnit.test('complex: polyfillable member reads in new-expression argument slots'
   assert.deepEqual(effects, ['e', 'k']);
   assert.same(typeof keyTag.parts[0], 'function');
 });
+
+QUnit.test('complex: instance method dispatched through a zero-arg IIFE computed key', assert => {
+  // the method name comes from a side-effect-free IIFE - usage-pure folds it and collapses to the
+  // polyfill, so the dispatch survives a realm with the native method stripped. direct key,
+  // const-init alias, and a nested IIFE all resolve
+  const arr = [1, [2, 3]];
+  assert.deepEqual(arr[(() => 'flat')()](), [1, 2, 3]);
+  const key = (() => 'at')();
+  assert.same([10, 20, 30][key](-1), 30);
+  assert.same([5, 6, 7][(() => (() => 'at')())()](0), 5);
+});
