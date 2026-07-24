@@ -278,6 +278,11 @@ const FA_ARG_SHAPES = [
   { id: 'call', arg: '(() => Array)()' },
   { id: 'seq', arg: '(log.push("e"), Array)' },
   { id: 'conditional', arg: 'cond ? Array : Boolean' },
+  // SE-prefix AND a branching tail together: the usable-arg gate must peel the sequence to see the
+  // conditional, else the raw SequenceExpression is judged unusable and the dead default wins - a
+  // missed injection on the taken (Array) branch flips `typeof from` in the stripped realm. `cond` is
+  // falsy at runtime, so the ALTERNATE (Array) branch runs and carries the strippable statics
+  { id: 'seq-conditional', arg: '(log.push("e"), cond ? Boolean : Array)' },
 ];
 // the dead default must miss EVERY key; the single resolved receiver carries them all
 const FA_KEY_SETS = [
@@ -1636,6 +1641,31 @@ function * generateAssignAliasReassign() {
   ];
   for (const c of REFUSED_NATIVE) {
     yield { ...snippet(`assign-alias-reassign/${ c.id }`, c.code), strip: false, ts: !!c.ts };
+  }
+}
+
+// --- Closure-captured reassigned computed KEY: re-observed across invocations ---
+// a computed key read inside a closure is re-evaluated on every call, so a reassignment that lands
+// AFTER the closure is defined switches which static a later call dispatches. usage-pure must NOT
+// fold the key to the first-observed static: an over-resolve folds every call to that one static and
+// returns the WRONG value on the later call, diverging from native (last-write-wins dynamic dispatch).
+// `Array.from("ab")` has length 2, `Array.of("ab")` length 1 - a wrong fold reads 2 both times. NOT
+// stripped: the sound bail keeps the raw `Array[K]`, which the stripped realm's absent statics throw on
+function * generateClosureReassignedKey() {
+  const CASES = [
+    { id: 'after-def-write',
+      body: 'let K = "from"; const f = s => Array[K](s); const a = f("ab").length; K = "of"; const b = f("ab").length; return a + "|" + b;' },
+    { id: 'dead-init-plus-after',
+      body: 'let K = "of"; K = "from"; const f = s => Array[K](s); const a = f("ab").length; K = "of"; const b = f("ab").length; return a + "|" + b;' },
+    { id: 'nested-closure',
+      body: 'let K = "from"; const outer = () => s => Array[K](s); const g = outer(); const a = g("ab").length; K = "of"; const b = outer()("ab").length; return a + "|" + b;' },
+    // a single write with NO reassignment after the closure definition IS the uniquely observed value
+    // - pure still folds it; the native and folded results must agree (guards against over-bailing)
+    { id: 'no-after-write-resolves',
+      body: 'let K = "from"; const f = s => Array[K](s); const a = f("ab").length; const b = f("cd").length; return a + "|" + b;' },
+  ];
+  for (const c of CASES) {
+    yield { ...snippet(`closure-reassigned-key/${ c.id }`, `(() => { ${ c.body } })()`), strip: false };
   }
 }
 
@@ -3990,6 +4020,7 @@ export function * generate() {
   yield * generateNestedInstanceReceiver();
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
+  yield * generateClosureReassignedKey();
   yield * generateReassignedCallableSlot();
   yield * generateUnionHopFoldTs();
   yield * generateSpreadShiftedSlot();
