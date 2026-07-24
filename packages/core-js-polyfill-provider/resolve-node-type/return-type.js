@@ -21,7 +21,7 @@
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
 // `wrapAsyncPromise`, `applyCallSiteSubst`.
 import {
-  MAX_DEPTH, SINGLE_ELEMENT_COLLECTIONS, $Object, $Primitive,
+  MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
   argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
@@ -427,7 +427,7 @@ export function createReturnType({
       return typeRefName(annotation.elementType);
     }
     // Container<T>: Set<T>, Promise<T>, Iterator<T>, Array<T>, ReadonlyArray<T>, etc.
-    if (refName && (SINGLE_ELEMENT_COLLECTIONS.has(refName) || refName === 'Promise')) {
+    if (refName && firstTypeParamIsInner(refName)) {
       const typeArgs = getTypeArgs(annotation)?.params;
       if (typeArgs?.length >= 1) return typeRefName(typeArgs[0]);
     }
