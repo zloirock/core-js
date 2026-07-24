@@ -83,6 +83,17 @@ export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   ...GENERATOR_LIKE_NAMES,
 ]);
 
+// resolved container names whose `.inner` slot is built from type-param 0: the single-element
+// collections plus Promise (whose param-0 is the resolved value). key-first containers
+// (Map / WeakMap / ReadonlyMap) are EXCLUDED - their param-0 is the KEY, not the element - so
+// stamping it as `.inner` would misrepresent the element type. the container-inner builders share
+// this gate so the direct-annotation lane and the higher-kinded-apply lane can't drift apart.
+// `name` must already be resolved (synonyms folded); the synonym-aware variant is
+// `isInferContainerName` for pre-resolution infer-pattern names
+export function firstTypeParamIsInner(name) {
+  return SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise';
+}
+
 export const PATTERN_WRAPPERS = new Set([
   'ArrayPattern',
   'ObjectPattern',
