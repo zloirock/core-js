@@ -10,6 +10,7 @@ import {
   isMutatedGlobalSlot,
   isTaggedTemplateTagPosition,
   memberKeyName,
+  privateNameSpelling,
   proxyNavRootIsSequence,
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -440,8 +441,9 @@ function buildMemberMeta({ node, scope, adapter, path }) {
   const obj = unwrapParensCollectingEffects(node.object, sideEffects);
   // `this.#foo` / `obj.#field` - private field access; not a candidate for any polyfill
   // table (keys never carry `#` prefix). skip explicitly so downstream resolver scans
-  // don't chase a doomed key lookup
-  if (!node.computed && node.property?.type === 'PrivateIdentifier') return null;
+  // don't chase a doomed key lookup. the canon recognises the private-name node under either
+  // parser spelling, so the babel side no longer runs the doomed scan
+  if (!node.computed && privateNameSpelling(node.property) !== null) return null;
   // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
   // resolveKey can't walk identifier-alias chain through a TS expression wrapper root.
   // the outer key SE goes into a separate list so receiver-chain SE (collected below once the
