@@ -75,7 +75,7 @@ console.log(targets);
 
 ### `targets` option
 `targets` could be [a `browserslist` query](https://github.com/browserslist/browserslist) or a targets object that specifies minimum environment versions to support:
-```js
+```ts
 // browserslist query:
 'defaults, not IE 11, maintained node versions';
 // object (sure, all those fields optional):

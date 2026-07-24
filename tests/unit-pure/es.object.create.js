@@ -5,9 +5,9 @@ const { getPrototypeOf } = Object;
 
 QUnit.test('Object.create', assert => {
   function getPropertyNames(object) {
-    let result = [];
+    const result = [];
     do {
-      result = result.concat(getOwnPropertyNames(object));
+      result.push(...getOwnPropertyNames(object));
     } while (object = getPrototypeOf(object));
     return result;
   }

@@ -102,8 +102,7 @@ export function collapseWhitespace(code) {
         }
         if (code[i] === '[') inClass = true;
         else if (code[i] === ']') inClass = false;
-        else if (code[i] === '/' && !inClass) break;
-        else if (code[i] === '\n') break; // not a regex after all - bail without swallowing the file
+        else if ((code[i] === '\n') || (code[i] === '/' && !inClass)) break;
       }
       for (i++; i < code.length && /[a-z]/i.test(code[i]); i++) result += code[i];
       continue;

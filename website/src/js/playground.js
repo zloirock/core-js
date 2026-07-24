@@ -289,12 +289,11 @@ function init() {
   }
   if (pageParams.has('code')) {
     codeInput.value = pageParams.get('code');
-    codeInput.dispatchEvent(event);
   } else {
     const code = localStorage.getItem('code');
     codeInput.value = code && code !== '' ? code : defaultCode;
-    codeInput.dispatchEvent(event);
   }
+  codeInput.dispatchEvent(event);
 
   if (document.referrer !== '') {
     backLinkBlock.classList.add('active');
