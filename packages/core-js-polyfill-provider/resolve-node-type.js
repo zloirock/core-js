@@ -7,6 +7,7 @@ import {
   isTypeAnnotationWrapper,
   kebabToCamel,
   ownerWritePathIndex,
+  peelZeroArgIifeReturn,
   singleQuasiString,
   spreadAtOrBefore,
   staleVarRedeclNodes,
@@ -426,6 +427,16 @@ function createResolveNodeType(babelNodeType, t, {
     // re-drives the whole resolution on the binding's init at an incremented depth
     while (true) {
       if (depth > MAX_DEPTH) return null;
+      // a zero-arg IIFE computed key (`o[(() => 'data')()]`) evaluates to its return - peel and
+      // re-drive. read-only classification keeps the node in place, so peeling a SE-bearing IIFE is
+      // still sound (the correct runtime key). the Identifier branch reaches an IIFE-valued alias init
+      // through this same top on its next loop turn
+      const iifeRet = peelZeroArgIifeReturn(key);
+      if (iifeRet) {
+        key = iifeRet;
+        depth += 1;
+        continue;
+      }
       const literal = literalKeyValue(key);
       if (literal !== null) return literal;
       // single-quasi TemplateLiteral (`` `foo` `` with no interpolations) resolves to its
