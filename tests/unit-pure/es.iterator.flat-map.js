@@ -3,9 +3,10 @@ import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import Iterator from 'core-js-pure/es/iterator';
 import Map from 'core-js-pure/es/map';
+import values from 'core-js-pure/es/array/values';
 
 QUnit.test('Iterator#flatMap', assert => {
-  const { flatMap } = Iterator.prototype;
+  const { flatMap, find } = Iterator.prototype;
 
   assert.isFunction(flatMap);
   assert.arity(flatMap, 1);
@@ -32,6 +33,8 @@ QUnit.test('Iterator#flatMap', assert => {
     iter.next();
     iter.return();
   }, 'iterator without `return` method');
+
+  assert.same(find.call(flatMap.call(values([1]), () => [1]), () => true), 1, 'iterator without `return` method #2');
 
   if (STRICT) {
     assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);

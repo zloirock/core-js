@@ -15,10 +15,11 @@ var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-he
 // https://bugs.webkit.org/show_bug.cgi?id=297532
 function throwsOnIteratorWithoutReturn() {
   try {
-    // eslint-disable-next-line es/no-map, es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
-    var it = Iterator.prototype.flatMap.call(new Map([[4, 5]]).entries(), function (v) { return v; });
-    it.next();
-    it['return']();
+    // eslint-disable-next-line es/no-array-prototype-values, es/no-iterator-prototype-flatmap, es/no-iterator-prototype-find -- testing
+    [1].values()
+      .flatMap(function () { return [1]; })
+      .find(function () { return true; });
+    return false;
   } catch (error) {
     return true;
   }
@@ -26,6 +27,7 @@ function throwsOnIteratorWithoutReturn() {
 
 var FLAT_MAP_WITHOUT_THROWING_ON_INVALID_ITERATOR = !IS_PURE
   && !iteratorHelperThrowsOnInvalidIterator('flatMap', function () { /* empty */ });
+
 var flatMapWithoutClosingOnEarlyError = !IS_PURE && !FLAT_MAP_WITHOUT_THROWING_ON_INVALID_ITERATOR
   && iteratorHelperWithoutClosingOnEarlyError('flatMap', TypeError);
 
