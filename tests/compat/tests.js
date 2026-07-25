@@ -829,12 +829,9 @@ GLOBAL.tests = {
     // Should not throw an error for an iterator without `return` method. Fixed in Safari 26.2
     // https://bugs.webkit.org/show_bug.cgi?id=297532
     function () {
-      try {
-        var it = new Map([[4, 5]]).entries().flatMap(function (v) { return v; });
-        it.next();
-        it['return']();
-        return true;
-      } catch (error) { /* empty */ }
+      return [1].values()
+        .flatMap(function () { return [1]; })
+        .find(function () { return true; }) !== 1;
     }
   ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
