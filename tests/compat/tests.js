@@ -831,7 +831,7 @@ GLOBAL.tests = {
     function () {
       return [1].values()
         .flatMap(function () { return [1]; })
-        .find(function () { return true; }) !== 1;
+        .find(function () { return true; }) === 1;
     }
   ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
