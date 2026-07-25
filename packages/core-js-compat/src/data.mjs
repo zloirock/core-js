@@ -2786,8 +2786,12 @@ export const data = {
   },
   'esnext.observable.of': {
   },
+  'esnext.promise.all-keyed': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
+  'esnext.promise.all-settled-keyed': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,
   // TODO: Remove from `core-js@4`

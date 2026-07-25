@@ -328,5 +328,7 @@ export default {
     'es.iterator.zip-keyed',
     'esnext.iterator.includes',
     'esnext.iterator.join',
+    'esnext.promise.all-keyed',
+    'esnext.promise.all-settled-keyed',
   ],
 };

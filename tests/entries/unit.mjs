@@ -725,6 +725,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
+    ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
+    ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
     ok(load(NS, 'symbol/metadata'));
 
     const instanceGroup = load(NS, 'instance/group');
@@ -933,6 +935,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');
+  load('proposals/await-dictionary');
   load('proposals/change-array-by-copy');
   load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');

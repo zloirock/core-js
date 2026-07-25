@@ -2068,6 +2068,12 @@ GLOBAL.tests = {
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
+  'esnext.promise.all-keyed': function () {
+    return Promise.allKeyed;
+  },
+  'esnext.promise.all-settled-keyed': function () {
+    return Promise.allSettledKeyed;
+  },
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },

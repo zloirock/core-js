@@ -175,6 +175,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Iterator` chunking](#iterator-chunking)
       - [`Iterator` includes](#iterator-includes)
       - [`Iterator` join](#iterator-join)
+      - [Await dictionary](#await-dictionary)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2 proposals](#stage-2-proposals)
@@ -2939,6 +2940,35 @@ core-js(-pure)/actual|full/iterator/join
 [1, 2, 3].values().join();     // => '1,2,3'
 [1, 2, 3].values().join('-');  // => '1-2-3'
 [1, null, 3].values().join();  // => '1,,3'
+```
+
+##### [Await dictionary](https://github.com/tc39/proposal-await-dictionary)[⬆](#index)
+Modules [`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-keyed.js)
+and [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
+```ts
+class Promise {
+  allKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, any>>;
+  allSettledKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, { status: 'fulfilled', value: any } | { status: 'rejected', reason: any }>>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/await-dictionary
+core-js(-pure)/actual|full/promise/all-keyed
+core-js(-pure)/actual|full/promise/all-settled-keyed
+```
+```js
+await Promise.allKeyed({
+  a: Promise.resolve(1),
+  b: Promise.resolve(2),
+  c: 3,
+}); // => { a: 1, b: 2, c: 3 }
+
+await Promise.allSettledKeyed({
+  a: Promise.resolve(1),
+  b: Promise.reject(2),
+  c: 3,
+}); // => { a: { status: "fulfilled", value: 1 }, b: { status: "rejected", reason: 2 }, c: { status: "fulfilled", value: 3 } }
 ```
 
 #### Stage 2.7 proposals[⬆](#index)
