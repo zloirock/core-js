@@ -718,6 +718,8 @@ const base = {
   'unicorn/no-late-current-target-access': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
+  // disallow calling `Promise` executor resolver functions more than once on the same execution path
+  'unicorn/no-multiple-promise-resolver-calls': ERROR,
   // disallow named usage of default import and export
   'unicorn/no-named-default': ERROR,
   // disallow negated array predicate calls
@@ -767,6 +769,8 @@ const base = {
   'unicorn/no-unnecessary-slice-end': ERROR,
   // disallow `Array#splice()` when simpler alternatives exist
   'unicorn/no-unnecessary-splice': ERROR,
+  // disallow `String#trim()` before `String#startsWith()` or `String#endsWith()`
+  'unicorn/no-unnecessary-string-trim': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
@@ -813,6 +817,8 @@ const base = {
   'unicorn/no-useless-promise-resolve-reject': ERROR,
   // disallow simple recursive function calls that can be replaced with a loop
   'unicorn/no-useless-recursion': ERROR,
+  // disallow redundant re-exports
+  'unicorn/no-useless-re-export': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements
@@ -1736,6 +1742,8 @@ const forbidES2019BuiltIns = {
   'es/no-object-fromentries': ERROR,
   'es/no-string-prototype-trimstart-trimend': ERROR,
   'es/no-symbol-prototype-description': ERROR,
+  // disallow `String#trim()` before `String#startsWith()` or `String#endsWith()`
+  'unicorn/no-unnecessary-string-trim': OFF,
   // use `.flat()` to flatten an array of arrays
   'unicorn/prefer-array-flat': OFF,
   // prefer using `Object.fromEntries()` to transform a list of key-value pairs into an object
@@ -2830,6 +2838,10 @@ export default [
   {
     files: ['**/*.md'],
     processor: 'markdown/markdown',
+    rules: {
+      // disallow references to missing local resources
+      'unicorn/no-missing-local-resource': ERROR,
+    },
   },
   {
     files: ['**/*.md/*.js'],
