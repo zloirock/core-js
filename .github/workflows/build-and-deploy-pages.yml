@@ -57,7 +57,7 @@ jobs:
         with:
           path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         with:
           node-version: 26
