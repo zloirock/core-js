@@ -128,6 +128,7 @@ export default {
     [147, '2.7.8'],
     [149, '2.8.0'],
     [149, '2.9.0'],
+    [150, '2.9.4'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
