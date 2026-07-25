@@ -727,7 +727,7 @@ const base = {
   // prefer `Response.json()` over `new Response(JSON.stringify())`
   'unicorn/prefer-response-static-json': ERROR,
   // prefer simple conditions first in logical expressions
-  'unicorn/prefer-simple-condition-first': ERROR,
+  // 'unicorn/prefer-simple-condition-first': ERROR,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`
