@@ -720,7 +720,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=291195
     // with changes related to changed limit validation
     // https://github.com/tc39/ecma262/pull/3776
-    // bun: '1.2.11', // '1.2.4', // '1.1.31',
+    bun: '1.3.15', // '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '150', // '135', // '122',
     // deno: '2.2.5', // '1.38.1',
     // firefox: '141', // '131',
@@ -817,7 +817,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=291195
     // with changes related to changed limit validation
     // https://github.com/tc39/ecma262/pull/3776
-    // bun: '1.2.11', // '1.2.4', // '1.1.31',
+    bun: '1.3.15', // '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '150', // '135', // '122',
     // deno: '2.2.5', // '1.38.1',
     // firefox: '141', // '131',
