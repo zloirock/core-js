@@ -23,7 +23,7 @@ QUnit.test('chain: Array flat -> includes', assert => {
 
 // string chains
 QUnit.test('chain: String trim -> startsWith', assert => {
-  assert.true('  hello world  '.trim().startsWith('hello'));
+  assert.true('  hello world  '.trimStart().startsWith('hello'));
 });
 
 QUnit.test('chain: String padStart -> endsWith', assert => {
@@ -126,7 +126,7 @@ QUnit.test('type: Object.keys().at()', assert => {
 });
 
 QUnit.test('type: string .trim().startsWith()', assert => {
-  assert.true('  hello'.trim().startsWith('hello'));
+  assert.true('  hello'.trimStart().startsWith('hello'));
 });
 
 // Set -> Array.from -> instance method chain
