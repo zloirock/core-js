@@ -214,6 +214,7 @@ export default {
   ChromeToChromeAndroid(chrome) {
     return chrome <= 18 ? 18 : Math.max(chrome, 25);
   },
+  // https://developer.samsung.com/internet/release-note/windows-release-note.html
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
