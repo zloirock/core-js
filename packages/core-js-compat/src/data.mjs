@@ -1512,11 +1512,13 @@ export const data = {
     safari: '11.0',
   },
   'es.promise.try': {
-    bun: '1.1.22',
-    chrome: '128',
-    firefox: '134',
-    rhino: '1.9.0',
-    safari: '18.2',
+    // includes `PromiseResolve` semantics detection from
+    // https://github.com/tc39/ecma262/pull/3883
+    // bun: '1.1.22',
+    // chrome: '128',
+    // firefox: '134',
+    // rhino: '1.9.0',
+    // safari: '18.2',
   },
   'es.promise.with-resolvers': {
     bun: '0.7.1',

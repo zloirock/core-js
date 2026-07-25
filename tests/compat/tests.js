@@ -1211,10 +1211,15 @@ GLOBAL.tests = {
   'es.promise.resolve': PROMISES_SUPPORT,
   'es.promise.try': [PROMISES_SUPPORT, function () {
     var ACCEPT_ARGUMENTS = false;
+    var p = Promise.resolve();
     Promise['try'](function (argument) {
+      // avoiding the use of polyfills of the previous iteration of this proposal
+      // that does not accept arguments of the callback
       ACCEPT_ARGUMENTS = argument === 8;
-    }, 8);
-    return ACCEPT_ARGUMENTS;
+      return p;
+      // it should use `PromiseResolve`
+      // https://github.com/tc39/ecma262/pull/3883
+    }, 8) === p && ACCEPT_ARGUMENTS;
   }],
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
