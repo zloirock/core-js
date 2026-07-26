@@ -19,6 +19,10 @@ QUnit.test('URL.canParse', assert => {
   assert.true(canParse('x', 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'), 'x, https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment');
 
   assert.throws(() => canParse(), 'no args');
+
+  assert.false(canParse('http://a\u0001b.example.com/'), 'forbidden domain code point');
+  assert.false(canParse('http://a\uFE6Ab.example.com/'), 'code point mapped onto a forbidden domain code point');
+  assert.true(canParse('http://a\u180Eb.example.com/'), 'ignored code point in a domain');
   assert.throws(() => canParse({ toString() { throw new Error('thrower'); } }), 'conversion thrower #1');
   assert.throws(() => canParse('q:w', { toString() { throw new Error('thrower'); } }), 'conversion thrower #2');
 });

@@ -46,6 +46,72 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http://1.2.3.4.5/'), 'IPv4 with > 4 parts');
   assert.throws(() => new URL('http://a.b.c.d.5/'), 'host ending in number with non-numeric parts');
   assert.throws(() => new URL('http://foo.1/'), 'host ending in number with non-IPv4');
+
+  // https://url.spec.whatwg.org/#forbidden-domain-code-point
+  assert.throws(() => new URL('http://a\u0001b.example.com/'), 'C0 control in a domain');
+  assert.throws(() => new URL('https://a\u001Fb/'), 'C0 control in a domain');
+  assert.throws(() => new URL('ws://a\u000Bb/'), 'C0 control in a domain');
+  // assert.throws(() => new URL('file://a\u000Cb/c'), 'C0 control in a file: domain'); // 'ab' in Chromium and WebKit, '' in FF
+  assert.throws(() => new URL('http://a\u007Fb.example.com/'), 'DELETE in a domain');
+  assert.throws(() => new URL('http://a\u0085b.example.com/'), 'C1 control in a domain');
+  assert.throws(() => new URL('http://a\u202Eb.example.com/'), 'right-to-left override in a domain');
+  assert.throws(() => new URL('http://a\uFFFDb.example.com/'), 'replacement character in a domain');
+  assert.throws(() => new URL('http://a\uFDD0b.example.com/'), 'noncharacter in a domain');
+  assert.throws(() => new URL('http://a\uFFFFb.example.com/'), 'noncharacter in a domain');
+  assert.throws(() => new URL('http://a\uE000b.example.com/'), 'private use character in a domain');
+  assert.throws(() => new URL('http://a\uD800b.example.com/'), 'lone surrogate in a domain');
+  // assert.throws(() => new URL('http://a\u00A0b.example.com/'), 'no-break space in a domain'); // 'a%20b.example.com' in Chromium
+  // assert.throws(() => new URL('http://a\u3000b.example.com/'), 'ideographic space in a domain'); // 'a%20b.example.com' in Chromium
+  assert.throws(() => new URL('http://a\uFF03b.example.com/'), 'full-width form of a forbidden domain code point');
+  assert.throws(() => new URL('http://\u00AD/'), 'domain mapped to the empty string');
+
+  // the forbidden host code point set is smaller - an opaque host keeps them percent-encoded
+  assert.same(new URL('nonspecial://a\u0001b/').hostname, 'a%01b', 'C0 control in an opaque host');
+  assert.same(new URL('nonspecial://a\u007Fb/').hostname, 'a%7Fb', 'DELETE in an opaque host');
+
+  // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
+  assert.same(new URL('http://a\u00ADb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u200Bb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u206Ab.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u180Eb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u115Fb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u17B4b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u3164b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\uFFA0b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://\uFF27\uFF4F.com/').hostname, 'go.com', 'full-width form mapped to ASCII');
+  assert.same(new URL('http://\uFF10\uFF38\uFF43\uFF10\uFF0E\uFF10\uFF12\uFF15\uFF10\uFF0E\uFF10\uFF11/').hostname, '192.168.0.1', 'full-width form mapped to an IPv4 address');
+
+  // a domain is percent-decoded first, https://url.spec.whatwg.org/#concept-host-parser
+  assert.same(new URL('http://%41.example.com/').hostname, 'a.example.com', 'percent-decoded domain');
+  assert.same(new URL('http://%D0%B1.com/').hostname, 'xn--90a.com', 'percent-decoded non-ASCII domain');
+  assert.throws(() => new URL('http://%01.example.com/'), 'percent-decoded forbidden domain code point');
+  assert.throws(() => new URL('http://a%b'), 'invalid percent sequence in a domain');
+  assert.same(new URL('http://%31%32%37.0.0.1/').hostname, '127.0.0.1', 'percent-decoded domain parsed as IPv4');
+  assert.same(new URL('http://127.0.0.%31/').hostname, '127.0.0.1', 'percent-decoded IPv4 last part');
+  assert.same(new URL('http://%30x7f.0.0.1/').hostname, '127.0.0.1', 'percent-decoded hexadecimal IPv4 part');
+  assert.throws(() => new URL('http://a%D0/'), 'percent sequence truncated by the end of a domain');
+
+  // a code point whose UTS#46 mapping holds a forbidden domain code point is rejected too
+  assert.throws(() => new URL('http://a\uFE6Ab.example.com/'), 'small percent sign in a domain');
+  assert.throws(() => new URL('http://a\uFE5Fb.example.com/'), 'small number sign in a domain');
+  assert.throws(() => new URL('http://a\uFE68b.example.com/'), 'small reverse solidus in a domain');
+  assert.throws(() => new URL('http://a\u2100b.example.com/'), 'account-of sign in a domain');
+  assert.throws(() => new URL('http://a\u2A74b.example.com/'), 'double colon equal in a domain');
+  // assert.throws(() => new URL('http://a\u00A8b.example.com/'), 'diaeresis in a domain'); // 'xn--a%20b-eec' in Chromium
+  assert.same(new URL('http://a\u180Ab.example.com/').hostname, 'xn--ab-t0o.example.com', 'code point just outside the ignored range');
+
+  // the mapping table holds no supplementary code point, and must not be probed with a truncated one
+  assert.same(new URL('http://a\uD807\uDFC0b.example.com/').hostname, 'xn--ab-ed4p.example.com', 'supplementary code point sharing low units with the table');
+  assert.same(new URL('http://a\uD808\uDD00b.example.com/').hostname, 'xn--ab-t44p.example.com', 'supplementary code point sharing low units with the table');
+
+  // a lone surrogate is percent-encoded as U+FFFD, https://encoding.spec.whatwg.org/#utf-8-encoder
+  assert.same(new URL('http://example.com/a\uD800b').pathname, '/a%EF%BF%BDb', 'lone surrogate in a path');
+  assert.same(new URL('http://example.com/?a\uD800b').search, '?a%EF%BF%BDb', 'lone surrogate in a query');
+  assert.same(new URL('http://example.com/#a\uD800b').hash, '#a%EF%BF%BDb', 'lone surrogate in a fragment');
+  assert.same(new URL('nonspecial://a\uD800b/').hostname, 'a%EF%BF%BDb', 'lone surrogate in an opaque host');
+  assert.same(new URL('http://a\uD800b@example.com/').username, 'a%EF%BF%BDb', 'lone surrogate in a username');
+  assert.same(new URL('http://example.com/\uDC00').pathname, '/%EF%BF%BD', 'trailing lone surrogate');
+  assert.same(new URL('http://example.com/\uD83D\uDE00').pathname, '/%F0%9F%98%80', 'surrogate pair is kept');
   assert.same(String(new URL('file:///var/log/system.log')), 'file:///var/log/system.log', 'file scheme');
 
   // Chromium ~ 145 on Windows works differently
@@ -368,6 +434,11 @@ QUnit.test('URL#host', assert => {
 });
 
 QUnit.test('URL#hostname', assert => {
+  // a value the domain parser rejects leaves the URL untouched
+  const forbiddenMapped = new URL('http://example.com/p?q#h');
+  forbiddenMapped.hostname = 'a\uFE6Ab.example.com';
+  assert.same(forbiddenMapped.href, 'http://example.com/p?q#h', 'hostname setter is a no-op on a rejected domain');
+
   let url = new URL('http://zloirock.ru:81/');
 
   if (DESCRIPTORS) {

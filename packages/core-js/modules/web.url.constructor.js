@@ -16,6 +16,7 @@ var arrayFrom = require('../internals/array-from');
 var arraySlice = require('../internals/array-slice');
 var codeAt = require('../internals/string-multibyte').codeAt;
 var toASCII = require('../internals/string-punycode-to-ascii');
+var percentCoding = require('../internals/url-percent-coding');
 var $toString = require('../internals/to-string');
 var setToStringTag = require('../internals/set-to-string-tag');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
@@ -26,13 +27,15 @@ var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
+var percentDecode = percentCoding.decode;
+var percentEncode = percentCoding.encode;
 
 var NativeURL = globalThis.URL;
 var TypeError = globalThis.TypeError;
-var encodeURIComponent = globalThis.encodeURIComponent;
 var parseInt = globalThis.parseInt;
 var floor = Math.floor;
 var pow = Math.pow;
+var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(/./.exec);
 var join = uncurryThis([].join);
@@ -42,6 +45,7 @@ var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
 var shift = uncurryThis([].shift);
 var split = uncurryThis(''.split);
+var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
 var toLowerCase = uncurryThis(''.toLowerCase);
 var unshift = uncurryThis([].unshift);
@@ -59,14 +63,87 @@ var OCT = /^[0-7]+$/;
 var DEC = /^\d+$/;
 var HEX = /^[\da-f]+$/i;
 /* eslint-disable regexp/no-control-character -- safe */
-var FORBIDDEN_HOST_CODE_POINT = /[\0\t\n\r #%/:<>?@[\\\]^|]/;
-var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /[\0\t\n\r #/:<>?@[\\\]^|]/;
+// https://url.spec.whatwg.org/#forbidden-domain-code-point
+var FORBIDDEN_DOMAIN_CODE_POINT = /[\u0000-\u0020#%/:<>?@[\\\]^|\u007F]/;
+// https://url.spec.whatwg.org/#forbidden-host-code-point
+var FORBIDDEN_HOST_CODE_POINT = /[\0\t\n\r #/:<>?@[\\\]^|]/;
 var LEADING_C0_CONTROL_OR_SPACE = /^[\u0000-\u0020]+/;
 var TRAILING_C0_CONTROL_OR_SPACE = /(^|[^\u0000-\u0020])[\u0000-\u0020]+$/;
 var TAB_AND_NEW_LINE = /[\t\n\r]/g;
+var NON_ASCII = /[^\u0000-\u007F]/;
 /* eslint-enable regexp/no-control-character -- safe */
+// UTS#46 maps these onto a string containing a forbidden domain code point, so a domain
+// holding one is rejected - listing them is far smaller than shipping the mapping table
+var MAPPED_ONTO_FORBIDDEN = '\u00A8\u00AF\u00B4\u00B8\u02D8\u02D9\u02DA\u02DB\u02DC\u02DD\u037A\u0384\u0385\u1FBD\u1FBF\u1FC0'
+  + '\u1FC1\u1FCD\u1FCE\u1FCF\u1FDD\u1FDE\u1FDF\u1FED\u1FEE\u1FFD\u1FFE\u2017\u203E\u2047\u2048\u2049'
+  + '\u2100\u2101\u2105\u2106\u2A74\u309B\u309C\uFC5E\uFC5F\uFC60\uFC61\uFC62\uFC63\uFDFA\uFDFB\uFE13'
+  + '\uFE16\uFE47\uFE48\uFE49\uFE4A\uFE4B\uFE4C\uFE55\uFE56\uFE5F\uFE64\uFE65\uFE68\uFE6A\uFE6B\uFE70'
+  + '\uFE72\uFE74\uFE76\uFE78\uFE7A\uFE7C\uFE7E\uFFE3';
 // eslint-disable-next-line no-unassigned-vars -- expected `undefined` value
 var EOF;
+
+// https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
+var isIgnoredCodePoint = function (code) {
+  return code === 0xAD || code === 0x34F || code === 0x200B || code === 0x3164
+    || code === 0xFEFF || code === 0xFFA0
+    || (code >= 0x115F && code <= 0x1160)
+    || (code >= 0x17B4 && code <= 0x17B5)
+    || (code >= 0x180B && code <= 0x180F)
+    || (code >= 0x2060 && code <= 0x2064) || (code >= 0x206A && code <= 0x206F)
+    || (code >= 0xFE00 && code <= 0xFE0F)
+    || (code >= 0xE0100 && code <= 0xE01EF);
+};
+
+var isDisallowedCodePoint = function (code) {
+  return code === 0xFFFD
+    // lone surrogate - a matched pair is a single code point and never lands here
+    || (code >= 0xD800 && code <= 0xDFFF)
+    // C1 controls
+    || (code >= 0x80 && code <= 0x9F)
+    // line and paragraph separators, bidirectional formatting characters
+    || (code >= 0x200E && code <= 0x200F) || (code >= 0x2028 && code <= 0x2029)
+    || (code >= 0x202A && code <= 0x202E) || (code >= 0x2065 && code <= 0x2069)
+    // noncharacters
+    || (code >= 0xFDD0 && code <= 0xFDEF) || (code & 0xFFFE) === 0xFFFE
+    // private use
+    || (code >= 0xE000 && code <= 0xF8FF) || (code >= 0xF0000 && code <= 0x10FFFD);
+};
+
+var mapCodePoint = function (code) {
+  // full-width forms
+  if (code >= 0xFF01 && code <= 0xFF5E) return code - 0xFEE0;
+  // spaces and the listed code points collapse onto a forbidden domain code point; a space
+  // stands in for the real mapping since either way the domain is rejected
+  if (code === 0xA0 || code === 0x1680 || code === 0x202F || code === 0x205F || code === 0x3000) return 0x20;
+  if (code >= 0x2000 && code <= 0x200A) return 0x20;
+  // the list holds no supplementary code point, and `fromCharCode` would truncate one
+  if (code <= 0xFFFF && stringIndexOf(MAPPED_ONTO_FORBIDDEN, fromCharCode(code)) > -1) return 0x20;
+  return code;
+};
+
+// https://url.spec.whatwg.org/#concept-domain-to-ascii
+// A subset of UTS#46 processing - the full mapping table is too large to ship. Covered are the
+// entries cheap to express: the ignored and disallowed code points, full-width forms, and the
+// code points mapping onto a forbidden domain code point. Not covered, so such domains are
+// punycoded rather than mapped or rejected: unassigned code points, half-width forms,
+// compatibility decompositions, NFC, CheckJoiners, CheckBidi, and labels that already arrive
+// punycoded - those are not decoded back for validation.
+var domainToASCII = function (domain) {
+  // every mapped, ignored and disallowed code point is non-ASCII, so an ASCII domain
+  // needs the punycode step only - this keeps the common case off the slow path
+  if (!exec(NON_ASCII, domain)) return domain === '' ? null : toASCII(domain);
+  var codePoints = arrayFrom(domain);
+  var result = '';
+  var index, code, mapped;
+  for (index = 0; index < codePoints.length; index++) {
+    code = codeAt(codePoints[index], 0);
+    if (isDisallowedCodePoint(code)) return null;
+    if (isIgnoredCodePoint(code)) continue;
+    mapped = mapCodePoint(code);
+    result += mapped === code ? codePoints[index] : fromCharCode(mapped);
+  }
+  return result === '' ? null : toASCII(result);
+};
 
 // https://url.spec.whatwg.org/#ends-in-a-number-checker
 var endsInNumber = function (input) {
@@ -259,6 +336,9 @@ var serializeHost = function (host) {
   return host;
 };
 
+// https://url.spec.whatwg.org/#c0-control-percent-encode-set
+// empty because the set is the code points outside U+0020..U+007E, which the range
+// check below already covers; the sets extending it only add code points inside it
 var C0ControlPercentEncodeSet = {};
 var queryPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
   ' ': 1, '"': 1, '#': 1, '<': 1, '>': 1
@@ -276,10 +356,11 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
   '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1
 });
 
-var percentEncode = function (chr, set) {
+// https://url.spec.whatwg.org/#string-utf-8-percent-encode
+var utf8PercentEncode = function (chr, set) {
   var code = codeAt(chr, 0);
-  // encodeURIComponent does not encode ', which is in the special-query percent-encode set
-  return code >= 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : chr === "'" && hasOwn(set, chr) ? '%27' : encodeURIComponent(chr);
+  // percent-encoding leaves ' alone, but it belongs to the special-query percent-encode set
+  return code >= 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : chr === "'" && hasOwn(set, chr) ? '%27' : percentEncode(chr);
 };
 
 // https://url.spec.whatwg.org/#special-scheme
@@ -551,7 +632,7 @@ URLState.prototype = {
                 seenPasswordToken = true;
                 continue;
               }
-              var encodedCodePoints = percentEncode(codePoint, userinfoPercentEncodeSet);
+              var encodedCodePoints = utf8PercentEncode(codePoint, userinfoPercentEncodeSet);
               if (seenPasswordToken) url.password += encodedCodePoints;
               else url.username += encodedCodePoints;
             }
@@ -739,7 +820,7 @@ URLState.prototype = {
               state = FRAGMENT;
             }
           } else {
-            buffer += percentEncode(chr, pathPercentEncodeSet);
+            buffer += utf8PercentEncode(chr, pathPercentEncodeSet);
           } break;
 
         case CANNOT_BE_A_BASE_URL_PATH:
@@ -753,7 +834,7 @@ URLState.prototype = {
             if (chr === ' ') {
               url.path[0] += codePoints[pointer + 1] === '?' || codePoints[pointer + 1] === '#' ? '%20' : ' ';
             } else {
-              url.path[0] += percentEncode(chr, C0ControlPercentEncodeSet);
+              url.path[0] += utf8PercentEncode(chr, C0ControlPercentEncodeSet);
             }
           } break;
 
@@ -762,11 +843,11 @@ URLState.prototype = {
             url.fragment = '';
             state = FRAGMENT;
           } else if (chr !== EOF) {
-            url.query += percentEncode(chr, url.isSpecial() ? specialQueryPercentEncodeSet : queryPercentEncodeSet);
+            url.query += utf8PercentEncode(chr, url.isSpecial() ? specialQueryPercentEncodeSet : queryPercentEncodeSet);
           } break;
 
         case FRAGMENT:
-          if (chr !== EOF) url.fragment += percentEncode(chr, fragmentPercentEncodeSet);
+          if (chr !== EOF) url.fragment += utf8PercentEncode(chr, fragmentPercentEncodeSet);
           break;
       }
 
@@ -783,16 +864,16 @@ URLState.prototype = {
       this.host = result;
     // opaque host
     } else if (!this.isSpecial()) {
-      if (exec(FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT, input)) return INVALID_HOST;
+      if (exec(FORBIDDEN_HOST_CODE_POINT, input)) return INVALID_HOST;
       result = '';
       codePoints = arrayFrom(input);
       for (index = 0; index < codePoints.length; index++) {
-        result += percentEncode(codePoints[index], C0ControlPercentEncodeSet);
+        result += utf8PercentEncode(codePoints[index], C0ControlPercentEncodeSet);
       }
       this.host = result;
     } else {
-      input = toASCII(input);
-      if (exec(FORBIDDEN_HOST_CODE_POINT, input)) return INVALID_HOST;
+      input = domainToASCII(percentDecode(input));
+      if (input === null || exec(FORBIDDEN_DOMAIN_CODE_POINT, input)) return INVALID_HOST;
       if (endsInNumber(input)) {
         result = parseIPv4(input);
         if (result === null) return INVALID_HOST;
@@ -882,7 +963,7 @@ URLState.prototype = {
     if (this.cannotHaveUsernamePasswordPort()) return;
     this.username = '';
     for (var i = 0; i < codePoints.length; i++) {
-      this.username += percentEncode(codePoints[i], userinfoPercentEncodeSet);
+      this.username += utf8PercentEncode(codePoints[i], userinfoPercentEncodeSet);
     }
   },
   // https://url.spec.whatwg.org/#dom-url-password
@@ -894,7 +975,7 @@ URLState.prototype = {
     if (this.cannotHaveUsernamePasswordPort()) return;
     this.password = '';
     for (var i = 0; i < codePoints.length; i++) {
-      this.password += percentEncode(codePoints[i], userinfoPercentEncodeSet);
+      this.password += utf8PercentEncode(codePoints[i], userinfoPercentEncodeSet);
     }
   },
   // https://url.spec.whatwg.org/#dom-url-host
