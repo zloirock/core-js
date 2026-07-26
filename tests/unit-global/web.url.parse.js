@@ -18,7 +18,7 @@ QUnit.test('URL.parse', assert => {
   assert.same(parse('https://login:password@examp:le.com:8080/?a=1&b=2&a=3&c=4#fragment'), null, 'https://login:password@examp:le.com:8080/?a=1&b=2&a=3&c=4#fragment');
   assert.same(parse('http://a\u0001b.example.com/'), null, 'forbidden domain code point');
   assert.same(parse('http://a\uFE6Ab.example.com/'), null, 'code point mapped onto a forbidden domain code point');
-  assert.same(parse('http://a\u180Eb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(parse('http://a\u00ADb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
   assert.deepEqual(parse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'), new URL('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'), 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment');
   assert.deepEqual(parse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment', undefined), new URL('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment', undefined), 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment, undefined');
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing

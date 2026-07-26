@@ -71,13 +71,22 @@ QUnit.test('URL constructor', assert => {
 
   // https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table
   assert.same(new URL('http://a\u00ADb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u034Fb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u180Bb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
   assert.same(new URL('http://a\u200Bb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  assert.same(new URL('http://a\u206Ab.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  assert.same(new URL('http://a\u180Eb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  assert.same(new URL('http://a\u115Fb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  assert.same(new URL('http://a\u17B4b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  assert.same(new URL('http://a\u3164b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
-  assert.same(new URL('http://a\uFFA0b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\u2060b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\uFE00b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\uFEFFb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  assert.same(new URL('http://a\uDB40\uDD00b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  // an older UTS#46 table rejects the entries below instead of ignoring them - Node < 24 ships one
+  if (URL.canParse('http://a\u180Eb.example.com/')) {
+    assert.same(new URL('http://a\u115Fb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+    assert.same(new URL('http://a\u17B4b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+    assert.same(new URL('http://a\u180Eb.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+    assert.same(new URL('http://a\u206Ab.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+    assert.same(new URL('http://a\u3164b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+    assert.same(new URL('http://a\uFFA0b.example.com/').hostname, 'ab.example.com', 'ignored code point in a domain');
+  }
   assert.same(new URL('http://\uFF27\uFF4F.com/').hostname, 'go.com', 'full-width form mapped to ASCII');
   assert.same(new URL('http://\uFF10\uFF38\uFF43\uFF10\uFF0E\uFF10\uFF12\uFF15\uFF10\uFF0E\uFF10\uFF11/').hostname, '192.168.0.1', 'full-width form mapped to an IPv4 address');
 
