@@ -621,10 +621,12 @@ export function createTypeMembers({
             if (member.kind === 'get') return withSubst(functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value)));
             if (member.kind === 'set') break;
             return withOptional(withSubst(member.value), member);
-          case 'ClassProperty':         // flow
+          case 'ClassProperty':         // flow, and babel TS `abstract` / `declare` fields
           case 'PropertyDefinition':    // babel TS / ESTree spec
+          case 'TSAbstractPropertyDefinition': // oxc `abstract x: T` (babel keeps ClassProperty)
           case 'ClassAccessorProperty': // babel decoratorAutoAccessors plugin
           case 'AccessorProperty':      // TC39 stage-4 auto-accessor: oxc / ESTree spec
+          case 'TSAbstractAccessorProperty': // oxc `abstract accessor x: T`
             // class body property: typeAnnotation if present, otherwise `break` so a sibling
             // iface-merge property with the annotation supplies the type (`class C { items=[] };
             // interface C { items: number[] }`). returning null here would halt iteration and
