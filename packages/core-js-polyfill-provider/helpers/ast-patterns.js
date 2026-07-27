@@ -1877,10 +1877,11 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   // declaring scope) re-runs on every re-invocation, so an enclosing-scope write that lands AFTER
   // the closure is defined reaches a later read (`let K='from'; const f=()=>Array[K]; f(); K='of';
   // f()` dispatches Array.of on the 2nd call). that write is normally dropped as strictly-after,
-  // just as a loop back-edge re-runs the body after its tail write. global-only: the larger union is
-  // over-inject-safe, and usage-pure bails on any reassigned alias upstream (it must never widen)
-  const closureReenters = ctx?.adapter?.method === 'usage-global'
-    && FUNCTION_LIKE_NODE_TYPES.has(owner.node?.type) && violationSearchRoot !== owner.node;
+  // just as a loop back-edge re-runs the body after its tail write. no method gate: a WIDER value set
+  // is the safe direction everywhere - the union candidates it feeds are global-only by their own
+  // early return, the mutation census over-records (more bails), and a type built from it is LESS
+  // narrow, which is exactly what a bail-safe consumer wants
+  const closureReenters = readRunsDeferredWithin(usagePath, binding.scope?.block ?? binding.scope?.path?.node);
   const out = [];
   let complete = true;
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
@@ -2939,6 +2940,116 @@ export function propertyKeyName(prop) {
   return staticStringKey(key);
 }
 
+// `void <expr>` - the operator always evaluates to `undefined` whatever its operand, so the VALUE is
+// undefined even when the operand has effects (callers that also care about dropping the operand test
+// its effects separately). the narrower `void 0` spelling and the effect-free variant live with their
+// own consumers; this is the value question every one of them shares
+export function isVoidExpression(node) {
+  return node?.type === 'UnaryExpression' && node.operator === 'void';
+}
+
+// bare-`undefined` Identifier shape. callers needing the runtime-`undefined` SEMANTIC must also
+// check that nothing shadows it (`var undefined`, `const undefined = X`, `(undefined) => ...`) -
+// this is the parser-side shape only. lives here so both the type-resolver and the detect clusters
+// read one definition
+export function isBareUndefinedIdentifier(node) {
+  return node?.type === 'Identifier' && node.name === 'undefined';
+}
+
+// a literal `null` under either parser spelling (babel `NullLiteral`, ESTree `Literal` with a null
+// value). the regex guard matters on the ESTree side, where `/x/` also carries `value: null`
+export function isNullLiteralNode(node) {
+  return node?.type === 'NullLiteral' || (node?.type === 'Literal' && node.value === null && !node.regex);
+}
+
+// can this value, used as a prototype, install a DISPATCHER? per spec only an Object changes what an
+// object dispatches: `null` gives a prototype-less object, and any other primitive is a NO-OP in the
+// `__proto__` channels (the object keeps `Object.prototype`) and throws in `setPrototypeOf` /
+// `Object.create` - none of them add a member a polyfill could serve. a template literal is always a
+// string; an ESTree regex literal is an OBJECT and stays in. anything not statically decidable (an
+// identifier, a call, a member) may be an object, so it does dispatch
+export function prototypeValueMayDispatch(node, undefinedShadowed = false) {
+  if (!node || isNullLiteralNode(node)) return false;
+  const { type } = node;
+  if (type === 'TemplateLiteral' || type === 'NumericLiteral' || type === 'StringLiteral'
+    || type === 'BooleanLiteral' || type === 'BigIntLiteral') return false;
+  // `undefined` is shadowable, and a shadowed one is an ordinary value that CAN be an object -
+  // the caller reports whether anything binds the name here (the same gate the nullish canon uses)
+  if (isVoidExpression(node)) return false;
+  if (type === 'Identifier') return node.name !== 'undefined' || undefinedShadowed;
+  if (type !== 'Literal') return true;
+  return !!node.regex || typeof node.value === 'object';
+}
+
+// does an object literal install a custom prototype through a `__proto__:` DATA property? such an
+// object INHERITS that prototype's methods (`{ __proto__: Array.prototype }` dispatches
+// `Array.prototype.at`), so it is neither a plain `Object` for typing nor instance-inert for the
+// union - both consumers read this one predicate. only the colon form with an Identifier / string
+// `__proto__` key sets the prototype: computed, shorthand, method and accessor spellings define an
+// ordinary own property, and a spread copies a VALUE (never the prototype). `__proto__: null` gives a
+// null-prototype object that dispatches nothing; any other value may carry a polyfilled method
+export function objectLiteralPrototypeValue(node, undefinedShadowed = false) {
+  for (const prop of node?.properties ?? []) {
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+    if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) continue;
+    if (propertyKeyName(prop) !== '__proto__') continue;
+    if (prototypeValueMayDispatch(prop.value, undefinedShadowed)) return prop.value;
+  }
+  return null;
+}
+
+export function objectLiteralInstallsPrototype(node, undefinedShadowed = false) {
+  return !!objectLiteralPrototypeValue(node, undefinedShadowed);
+}
+
+// climb a reference to the node its consumer sees: transparent wrappers plus sequence-VALUE
+// positions (a sequence evaluates to its last expression, so the reference is what a surrounding
+// write or call receives). shared by the prototype-install channels below
+export function prototypeWriteHostPath(ref) {
+  let cur = peelTransparentExprAncestorPath(ref);
+  while (cur?.parentPath?.node?.type === 'SequenceExpression'
+    && cur.parentPath.node.expressions?.at(-1) === cur.node) {
+    cur = peelTransparentExprAncestorPath(cur.parentPath);
+  }
+  return cur;
+}
+
+// does this REFERENCE install a foreign prototype on the value it names? the two runtime channels
+// that change an object's dispatcher after creation: a `__proto__` member write and a
+// `setPrototypeOf` call in its TARGET slot (the PROTO slot argument is a source, not a target).
+// `__proto__ = null` installs no dispatcher. the literal-side twin is `objectLiteralInstallsPrototype`.
+// the CALLEE's identity is not decidable from the raw AST (`Object` can be shadowed, and usage-pure
+// rewrites the call to its own injected binding), so the caller supplies `isProtoSetterCallee` and
+// gets the callee PATH to resolve
+export function installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedShadowed = false) {
+  // the reference may sit under transparent wrappers or be the VALUE of a sequence
+  // (`Object.setPrototypeOf((eff(), o), P)`) - the install still lands on it, so climb to the node
+  // the write / call actually sees before matching
+  const host = prototypeWriteHostPath(ref);
+  const parent = host?.parentPath?.node;
+  if (!parent) return null;
+  if ((parent.type === 'MemberExpression' || parent.type === 'OptionalMemberExpression')
+    && parent.object === host.node && memberKeyName(parent) === '__proto__') {
+    const assign = host.parentPath.parentPath?.node;
+    return assign?.type === 'AssignmentExpression' && assign.left === parent
+      && prototypeValueMayDispatch(assign.right, undefinedShadowed) ? assign.right : null;
+  }
+  if ((parent.type !== 'CallExpression' && parent.type !== 'OptionalCallExpression')
+    || parent.arguments?.[0] !== host.node) return null;
+  // the PROTO slot argument of a resolved setter call. a missing one (`setPrototypeOf(o)`) throws at
+  // runtime, so nothing can be read off it - report the install without a value
+  return isProtoSetterCallee?.(host.parentPath.get('callee')) ? parent.arguments[1] ?? NO_PROTOTYPE_VALUE : null;
+}
+
+// an install whose prototype VALUE cannot be pointed at: the channel fired, but a consumer reading
+// the value gets nothing. distinct from `null` (no install at all) so a boolean consumer still
+// reports the install while a value consumer declines
+export const NO_PROTOTYPE_VALUE = { type: 'NoPrototypeValue' };
+
+export function isPrototypeInstallingReference(ref, isProtoSetterCallee, undefinedShadowed = false) {
+  return !!installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedShadowed);
+}
+
 // key spelling shared by the own-this method-extraction gates: private members keep a `#name`
 // spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
 // the canonical property-key extractor. null = dynamic / unresolvable
@@ -3151,6 +3262,15 @@ export function isScopeRebinding(node) {
   return SCOPE_REBINDING_TYPES.has(node.type);
 }
 
+// `this` REbinding is a narrower boundary than scope rebinding: an arrow inherits the enclosing
+// `this`, so a `this` inside a top-level arrow is still the top-level one. mirrors the canon
+// `isTopLevelThisContext` walks, so a census frame and a path walk answer alike
+const THIS_REBINDING_TYPES = new Set([...SCOPE_REBINDING_TYPES].filter(type => type !== 'ArrowFunctionExpression'));
+
+export function isThisRebinding(node) {
+  return THIS_REBINDING_TYPES.has(node.type);
+}
+
 // ONE full-file raw walk driving every per-file census reducer. each reducer keeps its own
 // per-node logic and closure state in its home module ({ visit(node, frame), result() });
 // the driver owns only the traversal. every reducer output is an order-insensitive set /
@@ -3163,7 +3283,10 @@ export function collectFileCensus(programNode, reducers) {
   // `parentNode` is the IMMEDIATE structural parent (unlike `parentType`, which skips transparent
   // wrappers): a reducer that must tell a source-name position from a reference (an identifier that
   // is a property key / member key / label, per `isNonReferencePosition`) needs the exact parent node
-  const stack = [{ node: programNode, parentType: null, atTopLevel: true, parentNode: null, underTypeAnnotation: false }];
+  const stack = [{
+    node: programNode, parentType: null, atTopLevel: true, atThisTopLevel: true,
+    parentNode: null, underTypeAnnotation: false,
+  }];
   while (stack.length) {
     const frame = stack.pop();
     const { node } = frame;
@@ -3175,6 +3298,8 @@ export function collectFileCensus(programNode, reducers) {
     if (!isASTNode(node)) continue;
     for (const reducer of reducers) reducer.visit(node, frame);
     const atTopLevel = frame.atTopLevel && !isScopeRebinding(node);
+    // an arrow keeps the enclosing `this`, so it does not end the top-level-`this` region
+    const atThisTopLevel = frame.atThisTopLevel && !isThisRebinding(node);
     // sticky, same shape as `atTopLevel`: once inside an annotation the whole subtree is inside it.
     // the boundary is the WRAPPER node a `:` slot introduces - deliberately NARROWER than
     // `isTypeAnnotationNodeType` ("is this type-space at all"), which also covers union arms and
@@ -3185,7 +3310,7 @@ export function collectFileCensus(programNode, reducers) {
     for (const key in node) {
       const value = node[key];
       if (Array.isArray(value) || isASTNode(value)) {
-        stack.push({ node: value, parentType, atTopLevel, parentNode: node, underTypeAnnotation });
+        stack.push({ node: value, parentType, atTopLevel, atThisTopLevel, parentNode: node, underTypeAnnotation });
       }
     }
   }
@@ -3256,6 +3381,68 @@ export function mutatedGlobalSlotNames(mutatedSet) {
 // object see the replacement, so canon walks must stop resolving the pristine built-in behind it.
 // the host is canonical by construction - every proxy alias names the ONE global object. bare
 // references stay on the ponyfill canon and never consult this
+// --- Global-proxy import recognition ---
+
+// the pure GLOBAL-PROXY entries (`global-this` / `self` - the only proxy globals shipped as pure
+// entries): a default binding of one carries the global object itself, so every receiver recogniser
+// must treat it like the bare proxy name. these live in the shared layer rather than beside one of
+// their callers because there are TWO recognisers - the read-side name resolver and the proxy-ROOT
+// walk - in modules with a one-way import between them; a copy in either drifts, and the drift is
+// silent: a write through such an import fails to taint the slot while reads through the SAME
+// binding resolve, so the ponyfill is substituted over the user's runtime patch
+const CORE_JS_IMPORT_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
+const GLOBAL_PROXY_ENTRY_SOURCE = /(?:^|\/)(?<name>global-this|self)(?:\/index)?(?:\.js)?$/;
+
+// match `<pkg>/...` for any pkg in the user's resolved `packages` array (main + additional). allows
+// aliased / monorepo polyfill packages to participate in detection alongside the built-in core-js
+// prefix. lowercased prefix comparison mirrors `packages` already being lowercased at construction
+export function importSourceMatchesUserPackage(source, packages) {
+  if (!packages?.length) return false;
+  const lower = source.toLowerCase();
+  for (const pkg of packages) if (lower.startsWith(`${ pkg }/`)) return true;
+  return false;
+}
+
+// `<pkg>/<mode>/global-this` module source -> `globalThis` (same for `self`), or null when the
+// source is absent / unrelated. SOURCE-based rather than polyfillHint-based on purpose: the mutation
+// prepass runs BEFORE the injector registers user pure imports, so hint-only recognition left the
+// WRITE channel blind to a receiver the READ channel resolves
+export function globalProxyNameFromImportSource(source, packages = null) {
+  if (!source) return null;
+  if (!CORE_JS_IMPORT_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
+  const match = GLOBAL_PROXY_ENTRY_SOURCE.exec(source);
+  return match ? match.groups.name.replaceAll(/-(?<letter>[a-z])/g, (...args) => args.at(-1).letter.toUpperCase()) : null;
+}
+
+// true when `node` binds the module's default export (either as default specifier or as named
+// `default` re-export). namespace bindings and other named specifiers reject - they alias something
+// other than the module's default, even if the module-source matches. `null` is accepted as
+// "default-like" for adapter-supplied virtual bindings: the plugin only emits virtual bindings for
+// its own default pure-imports, and reference-tracking / super-mapping rely on that
+export function bindsModuleDefault(node) {
+  if (!node) return true;
+  if (node.type === 'ImportDefaultSpecifier') return true;
+  if (node.type === 'ImportSpecifier') {
+    const importedName = node.imported?.name ?? node.imported?.value;
+    return !importedName || importedName === 'default';
+  }
+  return false;
+}
+
+// both `import type X` / `import { type X }` and Flow's `import typeof X` / `import { typeof X }`
+// erase before runtime, so a name they bind must never register as a dedup target or resolve as a
+// runtime value - a later real use rewritten onto the erased binding throws ReferenceError. only
+// babel parses Flow (`typeof`), but the predicate is shared so every import-kind site stays in lockstep
+export function isTypeOnlyImportKind(kind) {
+  return kind === 'type' || kind === 'typeof';
+}
+
+// the proxy-global name an import BINDING stands for, or null when it is not such an import
+export function importedGlobalProxyName(binding, packages) {
+  return bindsModuleDefault(binding?.node) && !isTypeOnlyImportKind(binding?.node?.importKind)
+    ? globalProxyNameFromImportSource(binding?.importSource, packages) : null;
+}
+
 export function isMutatedGlobalSlot(adapter, key) {
   return !!key && !!adapter?.isMutatedStatic?.('globalThis', key);
 }
@@ -4973,6 +5160,23 @@ export const CLASS_FIELD_TYPES = new Set([
 export function isDeferredContextStep(t, node, child) {
   if (t.isFunction(node)) return true;
   return CLASS_FIELD_TYPES.has(node.type) && !node.static && child?.key === 'value';
+}
+
+// can a write that is textually AFTER a read still reach it? true when the read sits in a DEFERRED
+// context below `stopNode` - a closure re-invoked later, or a non-static class-field initializer that
+// runs at construction. an IIFE body is excluded: it runs at its definition position and stays
+// straight-line. bounded at the binding's own scope, so a read in the SAME activation as the writes
+// keeps its positional order. the one predicate behind both the value-union and the type narrow
+export function readRunsDeferredWithin(usagePath, stopNode) {
+  for (let p = usagePath?.parentPath, child = usagePath; p?.node && p.node !== stopNode; child = p, p = p.parentPath) {
+    const { node } = p;
+    if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) {
+      if (!isImmediatelyInvokedFunction(p)) return true;
+      continue;
+    }
+    if (CLASS_FIELD_TYPES.has(node.type) && !node.static && child?.key === 'value') return true;
+  }
+  return false;
 }
 
 // walk ancestors from `startPath` up to (excluding) Program, returning true at the first DEFERRED
