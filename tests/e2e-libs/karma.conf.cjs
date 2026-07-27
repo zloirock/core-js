@@ -3,8 +3,8 @@
 // only target that matters here: real IE11. No Chromium/Firefox/WebKit (and so no Playwright dep) —
 // modern engines are already covered by artifacts.mjs's node pre-flight. This leg runs the full runtime
 // matrix (every library × method × unplugin phase × Babel version) on real IE11, where a usage-pure
-// detection miss cannot hide; karma-bundles.mjs invokes it once per (library × isolation-class ×
-// gate/diagnostic) — see README.
+// detection miss cannot hide; karma-bundles.mjs invokes it once per bundle (one page per cell, so
+// nothing is co-loaded) — see README.
 //
 // QUnit is the same karma-qunit@4 / qunit@2 stack the unit-karma job already runs green in IE11.
 // The bundles come in via `-f=` (absolute paths, comma-separated): each is a self-contained UMD from
