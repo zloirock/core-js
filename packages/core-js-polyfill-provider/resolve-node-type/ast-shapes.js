@@ -187,12 +187,10 @@ export function isTypeQueryOverImportType(node) {
   return node?.type === 'TSTypeQuery' && node.exprName?.type === 'TSImportType';
 }
 
-// bare-`undefined` Identifier shape. callers needing the runtime-`undefined` semantic
-// MUST additionally check scope binding (`undefined` is shadowable: `(undefined => ...)`,
-// `var undefined`, `const undefined = "X"`); the pure-shape predicate is parser-side only
-export function isBareUndefinedIdentifier(node) {
-  return node?.type === 'Identifier' && node.name === 'undefined';
-}
+// re-exported from the shared canon so the detect cluster (which must not import this one) and the
+// type resolver read ONE definition of the shape; the runtime-`undefined` semantic still needs the
+// caller's scope check on top
+export { isBareUndefinedIdentifier } from '../helpers/ast-patterns.js';
 
 // wide-open keyword annotations: `any` / `unknown` / `object` / Flow `any` / `mixed`.
 // `resolveTypeAnnotation` collapses each to null (too broad to narrow polyfills); callers
