@@ -647,8 +647,14 @@ export function createBindingAnalysis({
           && prototypeReadLeaks(refPath?.parentPath, prototypeInfo)) return 'leak';
       }
       if (!methodInfo) return base(parent, refNode, refPath);
-      if (parent?.type === 'SpreadElement' && (methodInfo.methodKeys.size || methodInfo.unknownKey)
-        && refPath?.parentPath?.parent?.type === 'ObjectExpression') return 'leak';
+      if (parent?.type === 'SpreadElement' && (methodInfo.methodKeys.size || methodInfo.unknownKey)) {
+        // an OBJECT spread copies the holder's own props - methods included - into the new object.
+        // an ARRAY spread only iterates, which hands nothing out unless the holder can iterate
+        // ITSELF: a computed key may be `Symbol.iterator`, and such an iterator can yield `this`
+        const container = refPath?.parentPath?.parent?.type;
+        if (container === 'ObjectExpression'
+          || (container === 'ArrayExpression' && methodInfo.unknownKey)) return 'leak';
+      }
       if (parent?.type === 'VariableDeclarator' && parent.init === refNode
         && patternBindsMethodKey(parent.id, methodInfo)) return 'leak';
       // the walker hands `refNode` as the OUTERMOST wrapper, so a cast-wrapped argument

@@ -560,6 +560,32 @@ runBoth('prototype-routed read skips a parent field and reaches a grandparent ac
       { primitive: true, kind: 'string' });
   });
 
+// an anonymous object's `this.<field>` narrow survives only while the object stays local. a spread
+// decides by CONTAINER: into an object it copies the own properties out (the copy carries the method,
+// which can then run with a foreign field), into an array it only iterates and copies nothing - unless
+// the object can iterate ITSELF, where a computed key may be `Symbol.iterator` yielding `this`
+runBoth('array spread keeps an anonymous object local',
+  'const c = [...{ items: [1], read() { const t = this.items; return t; } }];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('object spread lets an anonymous object escape',
+  'const c = { ...{ items: [1], read() { const t = this.items; return t; } } };',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('array spread of a self-iterable anonymous object escapes',
+  'const c = [...{ items: [1], *[Symbol.iterator]() { yield this; }, read() { const t = this.items; return t; } }];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
 runBoth('object method member still resolves to a Function object',
   'const obj = { m() {} }; const t = obj.m;', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
