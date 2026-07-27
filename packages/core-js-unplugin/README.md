@@ -169,7 +169,6 @@ Like `usage-global`, but replaces usage of standard library features with import
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules - same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
-| `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |

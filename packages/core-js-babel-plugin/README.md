@@ -111,7 +111,6 @@ Array.from(items);
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfills by module name, entry path (for pure version), or pattern. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfills - same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
-| `shippedProposals` | `boolean` | `false` | Treat proposals that have been shipped in browsers as stable features |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config, only explicit `targets` |
@@ -249,10 +248,6 @@ module.exports = {
   }]],
 };
 ```
-
-### `shippedProposals`
-
-When `true` and `mode` is `'es'` or `'stable'`, upgrades the effective mode to `'actual'`, allowing Stage 3+ proposals.
 
 ### `configPath`
 
