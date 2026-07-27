@@ -298,8 +298,10 @@ export function assertPayload(chunk, label, min = 10_000) {
 // separate `captureInjections` pass would gate on a different unplugin configuration (different
 // phase, no Babel), so a build whose own injection had gone no-op would still show a healthy number.
 // What proves the ES5 down-compile ran is `assertES5(code)`, which every caller runs.
-export async function runtimeBuild(exerciseAbs, method, babelVersion = '7') {
-  const effPhase = method === 'entry-global' ? undefined : 'post';
+export async function runtimeBuild(exerciseAbs, method, babelVersion = '7', phase = 'post') {
+  // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel — see above),
+  // but karma-bundles.mjs passes an explicit phase to also build `pre` / `pre+post`.
+  const effPhase = method === 'entry-global' ? undefined : phase;
   return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
     const build = await rollup({
@@ -310,7 +312,7 @@ export async function runtimeBuild(exerciseAbs, method, babelVersion = '7') {
     try {
       const { output } = await build.generate({ format: 'umd', name: 'E2E', esModule: false });
       const [chunk] = output;
-      const label = `${ method }/babel${ babelVersion }`;
+      const label = `${ method }/${ effPhase ?? 'entry' }/babel${ babelVersion }`;
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
       return { code: chunk.code, injections: sink.size };
