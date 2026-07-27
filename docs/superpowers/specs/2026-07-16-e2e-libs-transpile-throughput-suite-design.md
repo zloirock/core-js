@@ -287,10 +287,11 @@ BrowserStack Automate; CI wiring.
   probes unplugin's ordering relative to Babel: `post` and `pre+post` **gate** the job, while `pre` —
   unplugin *before* Babel, so it can miss the polyfills Babel's helpers introduce — is a **non-gating
   per-library diagnostic** (expected to fail for some libraries on IE11, which is the per-library signal
-  the phase axis exists to surface). Karma runs once per (library × isolation-class × gate/diagnostic):
-  `usage-pure` never shares a page with the global methods, nor a `pre` cell with anything else, or a
-  global bundle's load-time prototype patching would mask a `usage-pure` (or `pre`) miss into a false
-  green. The driver also asserts it is really on IE11 (`document.documentMode`), so an `iexplore`→Edge
+  the phase axis exists to surface). Karma runs one bundle per page (a separate IE11 run per cell):
+  nothing is co-loaded, so a global bundle's load-time prototype patching can never mask another cell's
+  `usage-pure` (or `pre`) miss into a false green, and each page holds a single library copy (which also
+  sidesteps three's runtime "multiple instances" warning). The driver also asserts it is really on IE11
+  (`document.documentMode`), so an `iexplore`→Edge
   substitution reddens rather than passing green. The generated HTML pages stay for an optional manual
   BrowserStack pass. (The five runners in §5 are now six with `karma-bundles.mjs`.)
 - **dual Babel (7 + 8):** the runtime tier builds every (method) under both Babel 7 (the suite's own
