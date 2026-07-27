@@ -241,8 +241,15 @@ export function createClosureAnalysis({
             fieldPath.unshift({ key: String(key) });
             break;
           }
+          // a spread into an OBJECT literal copies the anon's own enumerable props - field values and
+          // method shorthands alike - so the fields become reachable from outside; a spread into a
+          // CALL / `new` hands the iterated values to a callee this scan cannot see. only an ARRAY
+          // spread keeps everything local, and only while the anon cannot iterate itself: with no
+          // iterator the spread throws and extracts nothing, while a declared (necessarily computed)
+          // key could be `Symbol.iterator` yielding `this`
           case 'SpreadElement':
-            return true;
+            return parentPath.parentPath?.node?.type !== 'ArrayExpression'
+              || objectPath.node.properties?.some(prop => prop.computed);
           // ConditionalExpression / LogicalExpression / SequenceExpression: value-forwarders, no slot step
         }
         valuePath = carrier;
@@ -261,11 +268,14 @@ export function createClosureAnalysis({
         case 'ArrowFunctionExpression':
         case 'ThrowStatement':
           return true;
-        // a JSX ATTRIBUTE value (`<Foo data={{...}} />`) is the moral call argument of
-        // `createElement(Foo, { data: anon })` - the component holds a live reference.
-        // a JSX CHILD expression container renders the value, it doesn't retain it
+        // every JSX position hands the value to the element factory and the component keeps it: an
+        // attribute value and a spread attribute land in the props object, a child container and a
+        // spread child land in `props.children`. all four are the moral call argument of
+        // `createElement(Foo, props, ...children)`, so an outside holder can write the fields
         case 'JSXExpressionContainer':
-          return parentPath.parentPath?.node?.type === 'JSXAttribute';
+        case 'JSXSpreadAttribute':
+        case 'JSXSpreadChild':
+          return true;
         // a TAGGED template substitution is handed raw to the tag function (`tag`${obj}`` -> tag(s, obj));
         // an untagged template string-coerces the value, keeping it local
         case 'TemplateLiteral':
