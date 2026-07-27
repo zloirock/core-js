@@ -175,7 +175,12 @@ export function createClassContext({
     if (node?.type === 'Super') {
       const thisCtx = resolveThisClass(objectPath);
       const parentPath = thisCtx && resolveSuperClassPath(thisCtx.classPath);
-      return parentPath ? { classPath: parentPath, isStatic: thisCtx.isStatic } : null;
+      // an INSTANCE `super.x` reads the parent PROTOTYPE, where instance fields never live - they
+      // are own properties of the instance, so such a read sees only methods and accessors. a
+      // STATIC `super.x` reads the parent constructor, where a static field IS an own property
+      return parentPath
+        ? { classPath: parentPath, isStatic: thisCtx.isStatic, viaPrototype: !thisCtx.isStatic }
+        : null;
     }
     return null;
   }
