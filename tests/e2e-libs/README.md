@@ -64,9 +64,10 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   (manifest records raw / minified / gzip sizes + injections, counted inside the build itself).
   An unfiltered run wipes `artifacts/` first and a filtered one wipes just the libraries it rebuilds
   (merging into the existing manifest), so a failed cell cannot leave a stale green page behind while
-  the manifest claims otherwise. A node pre-flight runs first; real IE11 is automated for the
-  `usage-pure` cells via the **karma** runner below (and in CI), with the HTML pages left for a manual
-  BrowserStack/SauceLabs pass over the other methods. Every bundle is also **asserted to be ES5** — a real acorn
+  the manifest claims otherwise. A node pre-flight runs first; real IE11 runs the whole matrix via the
+  **karma** runner below (and in CI) — `usage-pure` is where a missed site reddens, the global methods
+  run but stay masked — with the HTML pages left for a manual BrowserStack/SauceLabs pass (a stripped
+  realm the global methods still need). Every bundle is also **asserted to be ES5** — a real acorn
   parse at `ecmaVersion: 5`, *not* an esbuild `target: 'es5'` transform, which silently **lowers**
   arrows, `?.`, `??` and template literals instead of rejecting them. Nothing else here would notice
   a broken down-compile: the pre-flight runs in a modern node realm and the browser page in a modern
@@ -96,10 +97,13 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   `tests/unit-karma` already drives. `usage-pure` is the method whose green run also validates per-site
   *detection* (see the note below); the global methods prove the exercise still *executes* on IE11.
   This is a rollup-adapter check on real libraries, complementing the webpack `e2e-usage-pure` leg in
-  `tests/unit-karma`. Karma runs **once per library** (each bundle inlines its whole library, so mixing
-  all three onto one IE11 page would be ~16 MB). Off a machine with IE11 (and outside CI) it still
-  **builds** the bundles — running every gate `runtimeBuild` carries — but skips Karma; the CI job
-  `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
+  `tests/unit-karma`. Karma runs **once per (library × isolation-class)** — `usage-pure` never shares a
+  page with the global methods, or a global bundle's load-time prototype patching would mask a
+  `usage-pure` miss into a false green (and it keeps pages small: each bundle inlines its whole
+  library). The driver also asserts it is **really on IE11** (`document.documentMode`), so an
+  `iexplore`→Edge substitution on the runner reddens rather than passing green. Off a machine with IE11
+  (and outside CI) it still **builds** the bundles — running every gate `runtimeBuild` carries — but
+  skips Karma; the CI job `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
 
 **What a green artifact proves — and doesn't.** It proves the exercise still *executes* on the
 target; a green *node pre-flight* does **not** by itself prove per-site *detection*. A global polyfill
