@@ -187,31 +187,13 @@ export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name =
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
 
 // -------- runtime builder: ES5 UMD via Babel(syntax) + unplugin(post, stdlib) --------
-// Two isolated Babel toolchains: '7' from the suite's own node_modules, '8' from ./babel8 (kept
-// separate because two @babel/core majors can't share one node_modules). @rollup/plugin-babel@6
-// only supports @babel/core@7, so Babel runs through a small custom transform plugin instead — which
-// also keeps the only variable between the two runs the Babel version itself.
-export const BABEL_VERSIONS = ['7', '8'];
-const require7 = createRequire(join(HERE, 'package.json'));
-const require8 = createRequire(join(HERE, 'babel8', 'package.json'));
-const babelToolchains = {};
-function babelToolchain(version) {
-  if (!babelToolchains[version]) {
-    const req = version === '8' ? require8 : require7;
-    const core = req('@babel/core');
-    // `babel8/node_modules` is gitignored and installed by this suite's `postinstall`, not by zxi
-    // (which only installs the runner's own directory). If that install is missing, `createRequire`
-    // does NOT fail - node resolution walks up and quietly finds the suite's own @babel/core@7, so
-    // every `babel8` artifact would be built by Babel 7 and the dual-Babel tier would silently
-    // become a tautology. Assert the major we actually got.
-    const [major] = String(core.version).split('.', 1);
-    if (major !== version) {
-      throw new Error(`Babel ${ version } toolchain resolved to @babel/core@${ core.version } — `
-        + 'run `npm install` in tests/e2e-libs (its postinstall installs tests/e2e-libs/babel8)');
-    }
-    babelToolchains[version] = { core, preset: req.resolve('@babel/preset-env') };
-  }
-  return babelToolchains[version];
+// Babel runs through a small custom transform plugin (below) rather than @rollup/plugin-babel, so the
+// suite's own @babel/core / @babel/preset-env drive the down-compile directly.
+const localRequire = createRequire(join(HERE, 'package.json'));
+let cachedToolchain;
+function babelToolchain() {
+  if (!cachedToolchain) cachedToolchain = { core: localRequire('@babel/core'), preset: localRequire.resolve('@babel/preset-env') };
+  return cachedToolchain;
 }
 
 // A rollup transform that down-compiles syntax to ES5 with a specific Babel core + preset-env.
@@ -238,10 +220,10 @@ function babelSyntaxPlugin(core, preset) {
   };
 }
 
-// Public: the rollup Babel(syntax->ES5) transform for a given Babel major ('7' | '8'). Used by
-// runtimeBuild and by pipeline.mjs so both share the exact same Babel config.
-export function makeBabelPlugin(babelVersion = '7') {
-  const { core, preset } = babelToolchain(babelVersion);
+// Public: the rollup Babel(syntax->ES5) transform. Used by runtimeBuild and by pipeline.mjs so both
+// share the exact same Babel config.
+export function makeBabelPlugin() {
+  const { core, preset } = babelToolchain();
   return babelSyntaxPlugin(core, preset);
 }
 
@@ -285,8 +267,8 @@ export function assertPayload(chunk, label, min = 10_000) {
   if (bytes < min) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
 }
 
-// Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel
-// `babelVersion` ('7' | '8'). usage-* build at phase 'post', entry-global at no phase. Ordering
+// Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel.
+// usage-* build at phase 'post', entry-global at no phase. Ordering
 // matters: raw Rollup ignores the plugin-level `enforce:'post'` field (that is a Vite/webpack-family
 // concept), but it DOES honour the hook-level `order` that unplugin sets on its transform. For
 // `usage-*` that order is 'post', so unplugin runs AFTER babel and its injection sees babel's helper
@@ -298,21 +280,21 @@ export function assertPayload(chunk, label, min = 10_000) {
 // separate `captureInjections` pass would gate on a different unplugin configuration (different
 // phase, no Babel), so a build whose own injection had gone no-op would still show a healthy number.
 // What proves the ES5 down-compile ran is `assertES5(code)`, which every caller runs.
-export async function runtimeBuild(exerciseAbs, method, babelVersion = '7', phase = 'post') {
+export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel — see above),
   // but karma-bundles.mjs passes an explicit phase to also build `pre` / `pre+post`.
   const effPhase = method === 'entry-global' ? undefined : phase;
-  return withEntry(exerciseAbs, method, `rt-${ babelVersion }-${ method }-${ effPhase ?? 'x' }`, async entry => {
+  return withEntry(exerciseAbs, method, `rt-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
     const build = await rollup({
       input: entry,
-      plugins: [makeBabelPlugin(babelVersion), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink)],
+      plugins: [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink)],
       onwarn: strictWarn,
     });
     try {
       const { output } = await build.generate({ format: 'umd', name: 'E2E', esModule: false });
       const [chunk] = output;
-      const label = `${ method }/${ effPhase ?? 'entry' }/babel${ babelVersion }`;
+      const label = `${ method }/${ effPhase ?? 'entry' }`;
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
       return { code: chunk.code, injections: sink.size };
