@@ -92,18 +92,23 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
 - **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the **full runtime
-  matrix** (every library × method × Babel version, 18 bundles: rollup + Babel + unplugin), appends a
-  QUnit driver to each, and runs them in **actual IE11** via Karma — the same karma-qunit / IE stack
-  `tests/unit-karma` already drives. `usage-pure` is the method whose green run also validates per-site
-  *detection* (see the note below); the global methods prove the exercise still *executes* on IE11.
-  This is a rollup-adapter check on real libraries, complementing the webpack `e2e-usage-pure` leg in
-  `tests/unit-karma`. Karma runs **once per (library × isolation-class)** — `usage-pure` never shares a
-  page with the global methods, or a global bundle's load-time prototype patching would mask a
-  `usage-pure` miss into a false green (and it keeps pages small: each bundle inlines its whole
-  library). The driver also asserts it is **really on IE11** (`document.documentMode`), so an
-  `iexplore`→Edge substitution on the runner reddens rather than passing green. Off a machine with IE11
-  (and outside CI) it still **builds** the bundles — running every gate `runtimeBuild` carries — but
-  skips Karma; the CI job `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
+  matrix** (every library × method × unplugin phase × Babel version, 42 bundles: rollup + Babel +
+  unplugin), appends a QUnit driver to each, and runs them in **actual IE11** via Karma — the same
+  karma-qunit / IE stack `tests/unit-karma` already drives. `usage-pure` is the method whose green run
+  also validates per-site *detection* (see the note below); the global methods prove the exercise still
+  *executes* on IE11. The **phase** axis (`pre` / `post` / `pre+post`) tests unplugin's ordering
+  relative to Babel: `post` and `pre+post` **gate**, while `pre` — which runs unplugin *before* Babel
+  and so can miss the polyfills Babel's own helpers pull in — is a **non-gating per-library diagnostic**
+  (expected to fail for some libraries on IE11, which is exactly the per-library signal we want, not a
+  job failure). This is a rollup-adapter check on real libraries, complementing the webpack
+  `e2e-usage-pure` leg in `tests/unit-karma`. Karma runs **once per (library × isolation-class ×
+  gate/diagnostic)** — `usage-pure` never shares a page with the global methods, nor a `pre` cell with
+  anything else, or a global bundle's load-time prototype patching would mask a `usage-pure` (or `pre`)
+  miss into a false green (and it keeps pages small: each bundle inlines its whole library). The driver
+  also asserts it is **really on IE11** (`document.documentMode`), so an `iexplore`→Edge substitution on
+  the runner reddens rather than passing green. Off a machine with IE11 (and outside CI) it still
+  **builds** the bundles — running every gate `runtimeBuild` carries — but skips Karma; the CI job
+  `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
 
 **What a green artifact proves — and doesn't.** It proves the exercise still *executes* on the
 target; a green *node pre-flight* does **not** by itself prove per-site *detection*. A global polyfill
