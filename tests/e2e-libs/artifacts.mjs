@@ -22,7 +22,7 @@
 // runs the full matrix in actual IE11, so usage-pure's per-site detection is checked there; the global
 // methods run too but stay masked, and their per-site detection lives in the unplugin unit tests
 // (tests/unplugin/unit.mjs). This tier (the node pre-flight) proves the exercise still executes.
-import { runtimeBuild, assertES5, wireSize, errorReason, BABEL_VERSIONS, HERE } from './build.mjs';
+import { runtimeBuild, assertES5, wireSize, errorReason, HERE } from './build.mjs';
 import { bannerHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -101,15 +101,15 @@ function html(title, method, checks) {
 `;
 }
 
-// Build + pre-flight one (lib x method x Babel version) cell. Returns its manifest entry and `ok`.
-async function buildCell(lib, method, babelVersion) {
-  const label = `${ lib.name }/babel${ babelVersion }/${ method }`;
+// Build + pre-flight one (lib x method) cell. Returns its manifest entry and `ok`.
+async function buildCell(lib, method) {
+  const label = `${ lib.name }/${ method }`;
   try {
     // `injections` is recorded inside this very build. Counting it with a separate captureInjections
     // pass would gate on a different unplugin configuration (that pass runs at the default phase and
     // without Babel), so a build whose own injection had silently become a no-op would still show a
     // healthy number - and the pre-flight, which runs in a full node realm, would stay green too.
-    const { code, injections } = await runtimeBuild(lib.exercise, method, babelVersion);
+    const { code, injections } = await runtimeBuild(lib.exercise, method);
     if (!injections) throw new Error('unplugin injected 0 polyfills — preflight would validate nothing');
     // the artifact's whole premise is "ES5 for IE11", and nothing else here would notice if it were
     // not: the pre-flight runs in a modern node realm, and the browser page in a modern browser
@@ -119,21 +119,21 @@ async function buildCell(lib, method, babelVersion) {
     const bad = checks.filter(c => !c.pass);
     const bytes = Buffer.byteLength(code);
     const { min, gz } = await wireSize(code, label);
-    const rel = join(lib.name, `babel${ babelVersion }`, method);
+    const rel = join(lib.name, method);
     const dir = join(ART, rel);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'bundle.js'), code);
-    await writeFile(join(dir, 'index.html'), html(`${ lib.name } (Babel ${ babelVersion })`, method, checks));
+    await writeFile(join(dir, 'index.html'), html(lib.name, method, checks));
     console.log(`${ bad.length ? '✗' : '✓' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, ${ injections } inj (${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz)`);
     for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
     return {
       ok: !bad.length,
-      entry: { lib: lib.name, babel: babelVersion, method, dir: rel, bytes, min, gz, injections, checks: checks.length, preflightFailing: bad.length },
+      entry: { lib: lib.name, method, dir: rel, bytes, min, gz, injections, checks: checks.length, preflightFailing: bad.length },
     };
   } catch (err) {
     const reason = errorReason(err);
     console.log(`✗ ${ label }: ${ reason }`);
-    return { ok: false, entry: { lib: lib.name, babel: babelVersion, method, error: reason } };
+    return { ok: false, entry: { lib: lib.name, method, error: reason } };
   }
 }
 
@@ -151,16 +151,9 @@ if (libFilter) {
 }
 for (const lib of libs) {
   for (const method of lib.methods) {
-    // one artifact per (method x Babel version): both Babel majors are down-compiled and pre-flighted
-    // to match the repo's dual-Babel convention. Raw and minified SIZES come out identical for these
-    // fixtures, but the bytes only match on rxjs - codemirror and three differ in the order Babel
-    // emits its helpers. The post phase consumes that helper output, which is where a 7-vs-8
-    // divergence would surface.
-    for (const babelVersion of BABEL_VERSIONS) {
-      const { ok, entry } = await buildCell(lib, method, babelVersion);
-      manifest.push(entry);
-      if (!ok) failed++;
-    }
+    const { ok, entry } = await buildCell(lib, method);
+    manifest.push(entry);
+    if (!ok) failed++;
   }
 }
 
@@ -177,5 +170,5 @@ if (libFilter) {
 }
 await writeFile(join(ART, 'manifest.json'), `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
 console.log(`\nartifacts → ${ ART }\nmanifest → ${ join(ART, 'manifest.json') }`);
-console.log('Upload each <lib>/babel{7,8}/<method>/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for the real-engine check.');
+console.log('Upload each <lib>/<method>/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for the real-engine check.');
 if (failed) process.exitCode = 1;
