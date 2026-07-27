@@ -160,7 +160,6 @@ Configuration example:
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules (e.g. `'es.array.at'`) or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) — a leading `es.` matches any submodule, `*` is a regex quantifier |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
-| `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from `sourceType` |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
@@ -332,7 +331,6 @@ await Bun.build({
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
-| `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
