@@ -35,7 +35,6 @@ plugin({}, {
   configPath: null,
   browserslistEnv: null,
   ignoreBrowserslistConfig: null,
-  shippedProposals: null,
   importStyle: null,
 }, '/path');
 
@@ -88,8 +87,6 @@ plugin({}, { method: 'usage-global', absoluteImports: false }, '/path');
 plugin({}, { method: 'usage-global', configPath: '.' }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: true }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: false }, '/path');
-plugin({}, { method: 'usage-global', shippedProposals: true }, '/path');
-plugin({}, { method: 'usage-global', shippedProposals: false }, '/path');
 plugin({}, { method: 'usage-global', importStyle: 'import' }, '/path');
 plugin({}, { method: 'usage-global', importStyle: 'require' }, '/path');
 plugin({}, { method: 'usage-global', browserslistEnv: 'production' }, '/path');
@@ -113,7 +110,6 @@ plugin({}, {
   shouldInjectPolyfill: (name, shouldInject) => shouldInject,
   absoluteImports: false,
   configPath: '.',
-  shippedProposals: true,
   importStyle: 'import',
 }, '/path');
 
@@ -176,8 +172,8 @@ plugin({}, { method: 'usage-global', absoluteImports: '/absolute/path' }, '/path
 plugin({}, { method: 'usage-global', configPath: 123 }, '/path');
 // @ts-expect-error — configPath must be a string
 plugin({}, { method: 'usage-global', configPath: 123 }, '/path');
-// @ts-expect-error — shippedProposals must be a boolean
-plugin({}, { method: 'usage-global', shippedProposals: 'yes' }, '/path');
+// @ts-expect-error — shippedProposals was removed and is no longer a known option
+plugin({}, { method: 'usage-global', shippedProposals: true }, '/path');
 // @ts-expect-error — importStyle must be 'import' or 'require'
 plugin({}, { method: 'usage-global', importStyle: 'esm' }, '/path');
 // @ts-expect-error — browserslistEnv must be a string

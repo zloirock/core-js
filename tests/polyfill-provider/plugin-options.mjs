@@ -53,7 +53,6 @@ doesNotThrow('validateOptions/full happy path', () => validateOptions({
   absoluteImports: true,
   debug: false,
   ignoreBrowserslistConfig: false,
-  shippedProposals: true,
   configPath: '/path/to/config',
   browserslistEnv: 'production',
   package: 'core-js',
@@ -94,7 +93,7 @@ throwsWith('validateOptions/importStyle invalid',
 
 // --- validateOptions: boolean options ---
 
-for (const key of ['absoluteImports', 'debug', 'ignoreBrowserslistConfig', 'shippedProposals']) {
+for (const key of ['absoluteImports', 'debug', 'ignoreBrowserslistConfig']) {
   doesNotThrow(`validateOptions/${ key } boolean OK`,
     () => validateOptions({ ...validBase, [key]: true }));
   doesNotThrow(`validateOptions/${ key } false OK`,
@@ -816,6 +815,14 @@ throwsWith('initPluginOptions/multiple unknown keys', () => initPluginOptions({
   bogusB: 2,
 }), 'Unknown plugin options');
 
+// a removed option must be REJECTED rather than silently ignored, so a config carried over
+// from an older setup fails loudly instead of quietly resolving a different entry layer
+throwsWith('initPluginOptions/removed shippedProposals rejected', () => initPluginOptions({
+  method: 'usage-global',
+  version: '4.0',
+  shippedProposals: true,
+}), 'Unknown plugin option: shippedProposals');
+
 // `validateOptions`'s `...unknown` rest is the single source of truth for known option
 // names. data-driven coverage: for each known option, verify (a) the happy-path value
 // type-checks, and (b) appending `X` to the name produces an `Unknown plugin option`
@@ -833,7 +840,6 @@ const HAPPY_PATH_VALUES = {
   method: 'usage-global',
   mode: 'actual',
   package: 'core-js',
-  shippedProposals: false,
   shouldInjectPolyfill: undefined,
   targets: { ie: 11 },
   version: '4.0',

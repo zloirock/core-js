@@ -123,16 +123,11 @@ check('entryToGlobalHint/empty returns null', entryToGlobalHint(''), null);
   check('createPolyfillContext/usage-pure default pkg', ctx.pkg, '@core-js/pure');
 }
 
-// shippedProposals on `es` collapses to `actual`
-{
-  const ctx = createPolyfillContext({ method: 'usage-global', mode: 'es', shippedProposals: true });
-  check('createPolyfillContext/shippedProposals+es promoted to actual', ctx.mode, 'actual');
-}
-
-// shippedProposals on `actual` stays `actual`
-{
-  const ctx = createPolyfillContext({ method: 'usage-global', mode: 'actual', shippedProposals: true });
-  check('createPolyfillContext/shippedProposals+actual stays', ctx.mode, 'actual');
+// an explicit mode is carried through untouched - nothing promotes `es` / `stable` to a
+// wider layer, so a caller asking for stable-only entries cannot be handed stage 3+ ones
+for (const mode of ['es', 'stable', 'actual', 'full']) {
+  const ctx = createPolyfillContext({ method: 'usage-global', mode });
+  check(`createPolyfillContext/mode '${ mode }' kept as-is`, ctx.mode, mode);
 }
 
 // mode === null defaults to 'actual' (??= guard)
