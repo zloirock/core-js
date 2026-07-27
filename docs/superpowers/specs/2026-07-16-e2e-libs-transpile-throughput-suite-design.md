@@ -219,9 +219,11 @@ and on its minified form (the published wire size); and a non-empty `checks` arr
 pre-flight. The generated in-page harness is parsed as ES5 too, but once at load rather than per
 cell — every page differs from it only in a numeric literal.
 
-The actual IE11 pass/fail is a manual step in BrowserStack/SauceLabs; a green banner there
-confirms **syntax + stdlib** only (core-js cannot rescue any DOM/Worker path — irrelevant for the
-headless runtime tier).
+The actual IE11 pass/fail is now automated (see §13, "automated Karma/IE11 CI leg"): the **karma**
+runner builds the full runtime matrix and runs it in real IE11 via Karma in the `e2e-libs-ie11` CI
+job. The generated HTML pages remain for an optional manual BrowserStack/SauceLabs pass (a stripped
+realm the global methods still need). Either way, a green IE11 result confirms **syntax + stdlib**
+only (core-js cannot rescue any DOM/Worker path — irrelevant for the headless runtime tier).
 
 ## 10. Commands
 
@@ -268,12 +270,25 @@ BrowserStack Automate; CI wiring.
   transitively-hoisted published v3 (which `@farmfe` pulls in). Without the pin, node's node_modules
   walk found the nested v3 first. Injected specifiers (and thus the snapshots) are unchanged — they
   come from v4 `@core-js/compat`, not from the installed package.
-- **farm on v4:** farm's native compiler hard-crashes on the v4 core-js modules and, being
-  uncaught, kills the whole throughput run — so farm is excluded from the active throughput bundler
-  set (7 remain). It's throughput-only; the runtime tier uses rollup and is unaffected. The builder
-  stays in `build.mjs` for easy re-enable. (Root cause: farm's resolver mishandles v4 core-js's
-  `"./modules/*.js"` exports subpath for extensionless `*json*` specifiers, e.g.
-  `core-js/modules/es.json.stringify`.)
+- **farm on v4:** farm is excluded from the active throughput bundler set (7 remain). NOT the native
+  crash first assumed here: farm's Rust **resolver** fails to resolve the extensionless
+  `core-js/modules/*` specifiers whose name contains the two-char substring **`js`** (`es.json.*`,
+  `web.url.to-json`), reporting "Can not resolve …" and exiting 1 — the farm builder's silent logger
+  masked that as a mute "crash." The trigger is deterministic (not graph-dependent) and needs v4
+  core-js's two `exports` wildcards present together (`"./modules/*"` **and** `"./modules/*.js"`); a
+  specifier that ends in `.js` resolves, which is the workaround. node and the other seven bundlers
+  resolve these fine. It's throughput-only; the runtime tier uses rollup and is unaffected. The
+  builder stays in `build.mjs` for easy re-enable.
+- **automated Karma/IE11 CI leg:** what §9 first called a manual BrowserStack step is now automated.
+  `karma-bundles.mjs` + `harness.mjs` build the full runtime matrix (every library × method × Babel
+  version = 18 bundles), append a QUnit driver to each, and run them in **real IE11** via Karma (the
+  same karma-qunit@4 / qunit@2 stack `tests/unit-karma` drives), in the `e2e-libs-ie11` CI job on
+  `windows-2022`. Karma runs once per (library × isolation-class): `usage-pure` never shares a page
+  with the global methods, or a global bundle's load-time prototype patching would mask a `usage-pure`
+  detection miss into a false green. The driver also asserts it is really on IE11
+  (`document.documentMode`), so an `iexplore`→Edge substitution reddens rather than passing green. The
+  generated HTML pages stay for an optional manual BrowserStack pass. (The five runners in §5 are now
+  six with `karma-bundles.mjs`.)
 - **dual Babel (7 + 8):** the runtime tier builds every (method) under both Babel 7 (the suite's own
   `@babel/core`/`@babel/preset-env`) and Babel 8 (isolated in `babel8/`, since two `@babel/core`
   majors can't share a `node_modules`) — matching the repo's `test-transpiling` convention of testing

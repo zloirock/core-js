@@ -169,7 +169,7 @@ async function webpackLike(compiler, entry, plugin) {
 // Rust resolver fails on the extensionless `core-js/modules/*` specifiers unplugin injects in the
 // GLOBAL methods whose NAME contains the substring `js`, reporting "Can not resolve …" and exiting 1
 // — the silent logger the farm builder installs is what turned that into a mute exit that looked like
-// a hard crash. node and the other six bundlers resolve them via core-js's
+// a hard crash. node and the other seven bundlers resolve them via core-js's
 // `exports: { "./modules/*": "./modules/*.js" }`. The trigger is the two-char substring `js` anywhere
 // in the name — `es.json.parse`, `es.json.stringify`, `web.url.to-json` all fail (the `js` is in
 // `json`); a name without it (`es.promise`, `es.array.flat`) always resolves. The one exception is a
