@@ -57,41 +57,49 @@ export function bannerHarness(expected) {
 `;
 }
 
-// One QUnit test per bundle. `label` names the cell (e.g. `rxjs/usage-pure`). Each individual check
-// becomes its own pushResult — so a red run names the exact check plus its actual/expected — and an
-// empty `checks` fails explicitly (an exercise that silently stopped reporting must not pass as a
+// One QUnit test per bundle. `label` names the cell (e.g. `rxjs/usage-pure/babel7`). Each individual
+// check becomes its own pushResult — so a red run names the exact check plus its actual/expected — and
+// an empty `checks` fails explicitly (an exercise that silently stopped reporting must not pass as a
 // green test with zero assertions). On a GREEN run Karma's summary is only "Executed N of N"; the
 // console.log line makes the leg self-explanatory in the CI log — how many checks of the exercise
-// actually ran in this IE11, per library — which karma.conf.cjs forwards to the terminal.
+// actually ran in this IE11, per cell — which karma.conf.cjs forwards to the terminal.
+//
+// Every bundle is a UMD with the SAME global name (`E2E`), and Karma loads them all into ONE page, so
+// each later bundle overwrites `window.E2E`. Capture this bundle's `E2E` into a closure NOW, as this
+// appended snippet runs (right after its own UMD), rather than reading the global inside the test
+// callback (which fires after every bundle has loaded, when `E2E` is only the last one).
 export function qunitHarness(label) {
   return `
-    var LABEL = ${ JSON.stringify(label) };
-    QUnit.test(LABEL, function (assert) {
-      var done = assert.async();
-      function report(res) {
-        var checks = (res && res.checks) || [];
-        var passed = 0, i;
-        for (i = 0; i < checks.length; i++) if (checks[i].pass) passed++;
-        if (window.console && window.console.log) {
-          window.console.log('[e2e-libs] ' + LABEL + ': ' + passed + '/' + checks.length + ' checks passed in this IE11');
+    (function () {
+      var LABEL = ${ JSON.stringify(label) };
+      var NS = E2E;
+      QUnit.test(LABEL, function (assert) {
+        var done = assert.async();
+        function report(res) {
+          var checks = (res && res.checks) || [];
+          var passed = 0, i;
+          for (i = 0; i < checks.length; i++) if (checks[i].pass) passed++;
+          if (window.console && window.console.log) {
+            window.console.log('[e2e-libs] ' + LABEL + ': ' + passed + '/' + checks.length + ' checks passed in this IE11');
+          }
+          assert.ok(checks.length > 0, LABEL + ': exercise produced ' + checks.length + ' checks');
+          for (i = 0; i < checks.length; i++) {
+            var c = checks[i];
+            assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: LABEL + ' — ' + c.label });
+          }
+          done();
         }
-        assert.ok(checks.length > 0, LABEL + ': exercise produced ' + checks.length + ' checks');
-        for (i = 0; i < checks.length; i++) {
-          var c = checks[i];
-          assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: LABEL + ' — ' + c.label });
+        function fail(err) {
+          assert.ok(false, LABEL + ': run() threw — ' + (err && err.message ? err.message : err));
+          done();
         }
-        done();
-      }
-      function fail(err) {
-        assert.ok(false, LABEL + ': run() threw — ' + (err && err.message ? err.message : err));
-        done();
-      }
-      try {
-        var res = E2E.run();
-        if (res && typeof res.then === 'function') res.then(report)['catch'](fail);
-        else report(res);
-      } catch (err) { fail(err); }
-    });
+        try {
+          var res = NS.run();
+          if (res && typeof res.then === 'function') res.then(report)['catch'](fail);
+          else report(res);
+        } catch (err) { fail(err); }
+      });
+    })();
 `;
 }
 
