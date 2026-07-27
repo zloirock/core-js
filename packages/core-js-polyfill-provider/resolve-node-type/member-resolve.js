@@ -394,7 +394,11 @@ export function createMemberResolve({
           if (result) return result;
         }
         const ctx = resolveClassContext(resolved);
-        if (ctx) return resolveClassMember({ classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath });
+        if (ctx) {
+          return resolveClassMember({
+            classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath, viaPrototype: ctx.viaPrototype,
+          });
+        }
         return null;
       }
       // TSEnumDeclaration has no runtime binding path in `resolveTypeQueryBinding`; route
@@ -639,7 +643,8 @@ export function createMemberResolve({
       // `viaThis` marks a `this`-rooted static read: the runtime receiver can be a subclass,
       // so a static-field narrow must verify no subclass shadow is reachable
       const result = resolveClassMember({
-        classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath, viaThis: t.isThisExpression(objectPath.node),
+        classPath: ctx.classPath, name, isStatic: ctx.isStatic, callPath, viaPrototype: ctx.viaPrototype,
+        viaThis: t.isThisExpression(objectPath.node),
       });
       if (result) return result;
     }
