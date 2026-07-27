@@ -163,14 +163,6 @@ export function createPolyfillResolver(options, {
     method, mode, version, package: pkg, additionalPackages, include, exclude, shouldInjectPolyfill,
   });
 
-  // statically-known incompatible receiver: enhanceMeta either rejects the hint (returns
-  // null) or folds it into a TYPE_HINT slot for which desc lacks a variant (resolveHint
-  // already returned null upstream). gates the generic-fallback path against typed receivers
-  function receiverIncompatibleWithDesc(meta, path, desc) {
-    const enhanced = enhanceMeta(meta, path, desc);
-    return enhanced === null || TYPE_HINTS.has(enhanced.object);
-  }
-
   // any inherited `receiverHint` from destructure-meta is stale once `enhanceMeta` derives
   // its own placement / hint info; defensive `receiverHint: undefined` in the new-shape
   // returns blocks future writers / `resolveHint` re-orderings from leaking that stale state
@@ -307,8 +299,7 @@ export function createPolyfillResolver(options, {
 
   // shared pure-resolve protocol: resolve meta -> require `pure` desc -> extract (kind, desc)
   // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
-  // both consumers (`resolvePure` standard path, `resolvePureGeneric` fallback path) differ
-  // ONLY in step 3 (effectiveMeta construction); steps 1-2 and 4-5 are identical
+  // the caller supplies step 3 (effectiveMeta construction); every other step is fixed
   function resolvePureWith(meta, path, buildEffectiveMeta) {
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
@@ -339,33 +330,6 @@ export function createPolyfillResolver(options, {
       // narrows by receiver type-hint (e.g. `arr.at()` -> Array-specific entry vs common)
       if (kind !== 'instance') return meta;
       return enhanceMeta(meta, path, desc) ?? null;
-    });
-  }
-
-  // generic-fallback resolve: look up the `common` entry directly, bypassing the type-hint
-  // narrowing `enhanceMeta` performs. Exists to mirror babel's AST-mutation re-visit behavior -
-  // after an inner polyfill replaces an ancestor, that ancestor's call returns unknown type,
-  // so the outer member's `resolvePropertyObjectType` yields null and `resolveHint` lands on
-  // `common`. Unplugin's text-based rewrite never mutates the AST, so downstream members keep
-  // seeing their "correct" primitive/element type from `known-built-in-return-types` - the
-  // inferred type often has no matching desc variant, so `resolveHint` returns null and the
-  // outer bails. Callers (unplugin's optional-chain retry path) invoke this explicitly when
-  // they've detected the "ancestor polyfill breaks type inference" scenario and want the
-  // generic entry that would have fired on babel's re-visit
-  function resolvePureGeneric(meta, path) {
-    return resolvePureWith(meta, path, (kind, desc, baseMeta) => {
-      if (kind !== 'instance') return null;
-      if (!hasOwn(desc, 'common')) return null;
-      // bail when the receiver type is statically known and incompatible with desc's variants.
-      // enhanceMeta returns null when the hint isn't in TYPE_HINTS but desc requires hints;
-      // returns a meta with `object` in TYPE_HINTS when the type folded into a primitive /
-      // collection slot. either way the upstream resolvePure already concluded "no polyfill
-      // applies" - emitting common here over-injects relative to babel's natural-bail (babel
-      // only deopts to common AFTER an inner polyfill mutation, never for a typed receiver)
-      if (path && receiverIncompatibleWithDesc(baseMeta, path, desc)) return null;
-      // pass meta with object stripped so resolveHint's placement-based branch skips and the
-      // `!excludedHints && !includedHints && hasOwn(desc, 'common')` branch picks up common
-      return { ...baseMeta, object: null };
     });
   }
 
@@ -415,7 +379,7 @@ export function createPolyfillResolver(options, {
   }
 
   return {
-    resolver: { ...ctx, resolveUsage, resolvePure, resolvePureGeneric, resolvePureOrGlobalFallback },
+    resolver: { ...ctx, resolveUsage, resolvePure, resolvePureOrGlobalFallback },
     createDebugOutput,
   };
 }
