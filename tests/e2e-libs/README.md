@@ -90,25 +90,27 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   what is unasserted is the injection **set**.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
-- **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the `usage-pure`
-  bundle (rollup + Babel 7 + unplugin) for each library, appends a QUnit driver, and runs them in
-  **actual IE11** via Karma — the same karma-qunit / IE stack `tests/unit-karma` already drives.
-  Only `usage-pure` × Babel 7: that is the one method+engine where a green run validates per-site
-  *detection* rather than masking a miss behind a global patch (see the note below); the other
-  methods and Babel 8 stay on the node pre-flight. This is a rollup-adapter check on real libraries,
-  complementing the webpack `e2e-usage-pure` leg in `tests/unit-karma`. Off a machine with IE11 (and
-  outside CI) it still **builds** the bundles — running every gate `runtimeBuild` carries — but skips
-  Karma; the CI job `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
+- **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the **full runtime
+  matrix** (every library × method × Babel version, 18 bundles: rollup + Babel + unplugin), appends a
+  QUnit driver to each, and runs them in **actual IE11** via Karma — the same karma-qunit / IE stack
+  `tests/unit-karma` already drives. `usage-pure` is the method whose green run also validates per-site
+  *detection* (see the note below); the global methods prove the exercise still *executes* on IE11.
+  This is a rollup-adapter check on real libraries, complementing the webpack `e2e-usage-pure` leg in
+  `tests/unit-karma`. Karma runs **once per library** (each bundle inlines its whole library, so mixing
+  all three onto one IE11 page would be ~16 MB). Off a machine with IE11 (and outside CI) it still
+  **builds** the bundles — running every gate `runtimeBuild` carries — but skips Karma; the CI job
+  `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
 
 **What a green artifact proves — and doesn't.** It proves the exercise still *executes* on the
 target; a green *node pre-flight* does **not** by itself prove per-site *detection*. A global polyfill
 patches the prototype once, so one correctly-detected use of a feature masks a missed sibling use of
 the same feature elsewhere in the same bundle — the bundle runs regardless. `usage-pure` has no such
 masking (each site is rewritten to a local import, so a missed site stays a native call) — but only on
-real IE11: the pre-flight's modern realm has the native either way. That real-IE11 run is exactly what
-the **karma** leg above automates for `usage-pure`, so a missed site on these libraries now reddens
-CI. The global methods stay masked even on IE11; per-site detection there is the unplugin unit tests'
-job (`tests/unplugin/unit.mjs`), on the transform output directly. Sibling to the snapshot gap above.
+real IE11: the pre-flight's modern realm has the native either way. The **karma** leg above runs the
+whole matrix on real IE11, so for `usage-pure` a missed site on these libraries now reddens CI. The
+global methods run there too but stay masked even on IE11 (they only prove the exercise executes);
+per-site detection for them is the unplugin unit tests' job (`tests/unplugin/unit.mjs`), on the
+transform output directly. Sibling to the snapshot gap above.
 
 **Running it.** All six runners are exposed as root scripts, and `npm run e2e-libs` chains the three
 that assert (`check-exercise` → `snapshot` → `artifacts`); `pipeline` and `throughput` only report and
