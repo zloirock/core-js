@@ -2938,24 +2938,6 @@ export function createPolyfillEmitter({
     asiGuardLeadingParen,
     handleInExpression,
     handleSymbolIterator,
-    // mirror of the AST emitter's memo-blind re-visit: a dispatch whose receiver chain root is
-    // already guarded by an OUTER queued transform gets its receiver rebound on that memo ref, and
-    // the AST side re-types the tail through the memo's initializer. an OBJECT nav re-resolves
-    // there (`_ref.Array.prototype` keeps its typed variant), but a kept-assign value navigating
-    // an unresolvable hop stays opaque, and a PRIMITIVE receiver (a `.name` string) is the result
-    // of a replaced value-read that side no longer tracks - both land on the common variant, so
-    // the typed Maybe entry here widens to match. exposed so the usage callback widens BEFORE
-    // injecting the import - a late widen would strand the typed import as dead
-    memoBlindWidensInstanceDispatch(node, metaPath) {
-      if (node.type !== 'MemberExpression') return false;
-      const rootNode = findChainRoot(node, metaPath?.scope, metaPath)?.rootNode;
-      if (!rootNode || !transforms.findOuterGuardRef(rootNode)) return false;
-      // ONLY a primitive receiver widens: the AST emitter re-types object navs through the
-      // memo's registered write (the plugin's own provenance channel), so a kept-assign root
-      // no longer blinds it - a primitive (a `.name` string) is the result of a replaced
-      // value-read that side still does not track
-      return resolveNodeType(metaPath.get('object'))?.primitive === true;
-    },
     nodeSrc,
     replaceGlobalOrStatic,
     replaceInstance,

@@ -70,7 +70,7 @@ import {
   createSyntaxVisitors,
 } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
-import { isCallee, isOutermostOptionalChainMember } from './emit-utils.js';
+import { isCallee } from './emit-utils.js';
 import { collapseStandownRoot, createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
@@ -376,7 +376,7 @@ export default function createPlugin(options) {
   const { method, absoluteImports, importStyle: importStyleOption } = providerOptions;
   const {
     mode, pkg, packages, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
-    resolveUsage, resolvePure: resolvePureUnfiltered, resolvePureGeneric, resolvePureOrGlobalFallback,
+    resolveUsage, resolvePure: resolvePureUnfiltered, resolvePureOrGlobalFallback,
   } = resolver;
   // per-transform mutated-statics set, readable by the factory-scoped adapter / resolvePure
   // filter (the transform-local const cannot be closed over from here)
@@ -986,7 +986,6 @@ export default function createPlugin(options) {
         const {
           handleInExpression,
           handleSymbolIterator,
-          memoBlindWidensInstanceDispatch,
           nodeSrc,
           replaceGlobalOrStatic,
           replaceInstance,
@@ -1163,18 +1162,6 @@ export default function createPlugin(options) {
             && !transforms.containingContentIncludes(node.start, node.end);
         }
 
-        // mirror babel's memo-blind re-visit: a dispatch whose receiver rebinds on an OUTER
-        // guard's memo ref re-types through the memo initializer on the AST side - an opaque
-        // (kept-assign) value or a replaced primitive value-read resolves at the COMMON variant
-        // there, so the typed Maybe entry widens to match - decided BEFORE the import goes in,
-        // so the typed entry never strands as a dead import
-        function widenMemoBlindInstance(pureResult, meta, metaPath, node) {
-          if (pureResult.kind !== 'instance' || node.type !== 'MemberExpression'
-            || !memoBlindWidensInstanceDispatch(node, metaPath)) return pureResult;
-          const generic = resolvePureGeneric(meta, metaPath);
-          return generic && generic.entry !== pureResult.entry ? { ...pureResult, ...generic } : pureResult;
-        }
-
         function usagePureCallback(meta, metaPath) {          // bundle early-return gates: disable directives + already-handled nodes + JSX
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
           // type-annotation positions. monkey-patched statics never reach here: detection
@@ -1229,7 +1216,7 @@ export default function createPlugin(options) {
           }
 
           if (deoptMutatedSlotRead(meta)) return;
-          let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
+          const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
           // inherited-static lookup (`this.X()` in static block of `class C extends Y`) has
           // already been retargeted to `Y`-static-meta above. when `Y` has no static `X`,
           // resolvePure misses and the global fallback fires - rewriting `this` to `_Y` would
@@ -1286,20 +1273,6 @@ export default function createPlugin(options) {
             return true;
           }
           if (emitStaticFallbackSwap()) return;
-          // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
-          // ancestor chain got polyfilled. on that re-visit, the now-replaced ancestor's call
-          // returns unknown type, so `resolvePropertyObjectType` yields null and `resolveHint`
-          // lands on `desc.common`. text-based rewrite never mutates the AST, so the outer
-          // sees its "correct" type-inferred primitive (e.g. 4-deep `.at` on a 3-deep array
-          // resolves to `number` via element-tracking) - no matching desc variant, bail.
-          // detect the equivalent scenario proactively. scope matches babel's re-visit reach:
-          // only the OUTERMOST chain member gets the fallback - inner bailed members stay raw
-          // the same way babel leaves them (avoids over-injection relative to babel's output)
-          if (!pureResult && meta.kind === 'property' && node.type === 'MemberExpression'
-          && !inheritedStatic && isOutermostOptionalChainMember(metaPath)) {
-            const generic = resolvePureGeneric(meta, metaPath);
-            if (generic) pureResult = generic;
-          }
           // the inherited-static-resolves-to-instance bail (`super.X` / `this.X` in static ctx where
           // X has no static on the super class) lives in the provider's `resolvePureWith` now (single
           // sourced with usage-global's `resolveUsage`), so `pureResult` is already null for that shape
@@ -1309,7 +1282,7 @@ export default function createPlugin(options) {
             tryCollapseAliasProxyHop(node, metaPath);
             return;
           }
-          const { entry: importEntry, kind, hintName } = widenMemoBlindInstance(pureResult, meta, metaPath, node);
+          const { entry: importEntry, kind, hintName } = pureResult;
 
           // a member of a raw rebound/reused receiver tail: every non-instance rewrite is
           // suppressed (the tail re-emits its source verbatim), while an instance dispatch
