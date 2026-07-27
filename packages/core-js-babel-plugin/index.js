@@ -22,6 +22,7 @@ import {
   peelNestedSequenceExpressions,
   peelSkippableWrappers,
   BRACE_STATEMENT_HOST_TYPES,
+  forEachStatementPosition,
   TS_EXPR_WRAPPERS,
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
@@ -87,7 +88,7 @@ function peelWrapperPath(p) {
 // comma-joined statements, nested sequences) - the destructure-emitter gate would silently
 // bail without this split. shape detection is shared with unplugin's
 // text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
-// pre-pass routes through `forEachStatementListBody` over the raw AST). walks every
+// pre-pass routes through the same shared statement-position walk over the raw AST). walks every
 // Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
 // so function / loop / try / class-static / namespace bodies are covered too; a Program-only
 // walk would silently bail destructure-emitter inside non-Program statement lists
@@ -140,6 +141,15 @@ function splitMinifierSequenceDestructure(programPath, t) {
   // callers gate on the file census (`hasMinifierShapes`): real-world files rarely carry
   // the minifier shape at all, and the path-materializing traverse below costs an order of
   // magnitude more than the shared census recursion
+  // an un-braced control-flow body holds its statement in a single slot, so a split has nowhere to
+  // put the extra products. brace it first and the statement-list walk below takes it from there -
+  // a block around a sequence's operands declares nothing, so the added scope is unobservable
+  forEachStatementPosition(programPath.node, {
+    onUnbracedSlot(hostNode, key) {
+      if (getMinifierSequenceDestructureExpressions(hostNode[key]) === null) return;
+      hostNode[key] = t.blockStatement([hostNode[key]]);
+    },
+  });
   splitInBody(programPath);
   // the brace-delimited statement-list hosts as a babel-traverse union visitor key (Program is the
   // traverse root, handled by the direct splitInBody(programPath) above). SwitchCase's `consequent`
