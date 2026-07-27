@@ -719,6 +719,20 @@ export const BRACE_STATEMENT_HOST_TYPES = new Set([...RUNTIME_BLOCK_TYPES, 'TSMo
 // `.body.body`, and babel's `File` wraps Program - both folded in by callers where needed, not here
 export const STATEMENT_LIST_HOST_TYPES = new Set([...BRACE_STATEMENT_HOST_TYPES, 'Program']);
 
+// the other half of the statement lattice: slots holding exactly ONE statement rather than a list -
+// an un-braced control-flow body. no statement-list walk can reach them, so a pass that rewrites a
+// statement into SEVERAL has to brace the slot first: the extra statements have nowhere else to go
+export const SINGLE_STATEMENT_SLOTS = new Map([
+  ['DoWhileStatement', ['body']],
+  ['ForInStatement', ['body']],
+  ['ForOfStatement', ['body']],
+  ['ForStatement', ['body']],
+  ['IfStatement', ['consequent', 'alternate']],
+  ['LabeledStatement', ['body']],
+  ['WhileStatement', ['body']],
+  ['WithStatement', ['body']],
+]);
+
 // statement hosts whose numbered `.body` children are scanned in SOURCE ORDER for sibling / flow
 // analysis (a preceding sibling is guaranteed to run before the use site): the plain blocks plus
 // Program. the TS namespace body is intentionally excluded - these callers do not scan namespace
@@ -3357,6 +3371,11 @@ export function minifierShapesReducer() {
       if (hasMinifierShapes) return;
       if (STATEMENT_LIST_HOST_TYPES.has(node.type)) scanList(node.body);
       else if (node.type === 'SwitchCase') scanList(node.consequent);
+      // an un-braced control-flow body holds the shape in a single-statement slot, which no
+      // statement-list scan reaches - miss it here and the whole split pre-pass is gated off
+      else for (const key of SINGLE_STATEMENT_SLOTS.get(node.type) ?? []) {
+        if (getMinifierSequenceDestructureExpressions(node[key]) !== null) hasMinifierShapes = true;
+      }
     },
     result() { return { hasMinifierShapes }; },
   };
@@ -5328,20 +5347,29 @@ function sequenceSlotsHaveDestructure(seq, depth) {
   return false;
 }
 
-// invoke `visitor(body)` for every Statement-list slot rooted at `rootNode`. structural
-// recursion via `isASTNode` filter stays safe against plugin-stamped sidecar keys without
-// a hand-curated skip list - new visitor metadata won't poison the walk. `SwitchCase` uses
-// the `consequent` field for its statement list (not `body`); special-case the slot name
-// here so minifier-sequence-split + other statement-walkers reach `case L: stmt;` lists
-export function forEachStatementListBody(rootNode, visitor) {
-  function visitListHosts(node) {
+// invoke the handlers for every statement POSITION rooted at `rootNode`, in one structural
+// recursion: `onList` for each Statement-list slot, `onUnbracedSlot(hostNode, slotKey)` for each
+// single-statement control-flow body. the two partition the positions - a braced body is a list
+// host and never reaches `onUnbracedSlot` - so a caller wanting both never walks the tree twice.
+// the `isASTNode` filter stays safe against plugin-stamped sidecar keys without a hand-curated
+// skip list; `SwitchCase` holds its list at `consequent`, so that slot name is special-cased
+export function forEachStatementPosition(rootNode, { onList, onUnbracedSlot } = {}) {
+  function visitPositions(node) {
     if (!isASTNode(node)) {
-      if (Array.isArray(node)) for (const item of node) visitListHosts(item);
+      if (Array.isArray(node)) for (const item of node) visitPositions(item);
       return;
     }
-    if (STATEMENT_LIST_HOST_TYPES.has(node.type) && Array.isArray(node.body)) visitor(node.body);
-    if (node.type === 'SwitchCase' && Array.isArray(node.consequent)) visitor(node.consequent);
-    for (const value of Object.values(node)) visitListHosts(value);
+    if (onList) {
+      if (STATEMENT_LIST_HOST_TYPES.has(node.type) && Array.isArray(node.body)) onList(node.body);
+      if (node.type === 'SwitchCase' && Array.isArray(node.consequent)) onList(node.consequent);
+    }
+    if (onUnbracedSlot) {
+      for (const key of SINGLE_STATEMENT_SLOTS.get(node.type) ?? []) {
+        const slot = node[key];
+        if (isASTNode(slot) && !STATEMENT_LIST_HOST_TYPES.has(slot.type)) onUnbracedSlot(node, key);
+      }
+    }
+    for (const value of Object.values(node)) visitPositions(value);
   }
-  visitListHosts(rootNode);
+  visitPositions(rootNode);
 }
