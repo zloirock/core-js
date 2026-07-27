@@ -156,11 +156,11 @@ export function createPolyfillResolver(options, {
   const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
   const {
     method, mode, version, package: pkg, additionalPackages,
-    include, exclude, shippedProposals,
+    include, exclude,
     shouldInjectPolyfill, createDebugOutput,
   } = initPluginOptions(options, { getBabelTargets });
   const ctx = createPolyfillContext({
-    method, mode, version, package: pkg, additionalPackages, include, exclude, shippedProposals, shouldInjectPolyfill,
+    method, mode, version, package: pkg, additionalPackages, include, exclude, shouldInjectPolyfill,
   });
 
   // statically-known incompatible receiver: enhanceMeta either rejects the hint (returns
