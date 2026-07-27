@@ -375,7 +375,9 @@ function createResolveNodeType(babelNodeType, t, {
           for (let j = i - 1; j >= 0; j--) {
             const earlier = propsPath[j];
             if (earlier.node.type === 'SpreadElement') return null;
-            if (earlier.node.kind === 'get' && !earlier.node.computed && getKeyName(earlier.node.key) === key) return onMethod(earlier);
+            if (earlier.node.computed || getKeyName(earlier.node.key) !== key) continue;
+            // nearest earlier definition decides - see the `findObjectMember` twin
+            return earlier.node.kind === 'get' ? onMethod(earlier) : null;
           }
           return null;
         }

@@ -448,6 +448,118 @@ runBoth('class static getter member resolves the return type, not Function',
       { primitive: true, kind: 'number', ctor: null });
   });
 
+// --- which member answers a READ: own field vs prototype accessor/method ---
+// a class FIELD is defined after the body's methods and accessors are installed, so it answers the
+// read whatever the source order. an INSTANCE field is an own property of the one instance, so it
+// also shadows accessors declared further along the prototype chain; a STATIC read instead walks the
+// constructor chain, where the nearest class declaring the name wins
+
+runBoth('instance field declared BEFORE a same-name getter still answers the read',
+  'class C { x = [1, 2]; get x() { return "s"; } } const t = new C().x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('static field declared BEFORE a same-name getter still answers the read',
+  'class C { static x = [1, 2]; static get x() { return "s"; } } const t = C.x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('instance field of a BASE class shadows a subclass getter',
+  'class A { x = [1, 2]; } class B extends A { get x() { return "s"; } } const t = new B().x;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the static counterpart must NOT follow the instance rule: an own accessor on the subclass
+// constructor shadows the field it inherits
+runBoth('static subclass getter shadows a base static field',
+  'class A { static x = [1, 2]; } class B extends A { static get x() { return "s"; } } const t = B.x;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+// object literals define their keys in source order on ONE object, so a data definition resets the
+// slot and the trailing setter leaves it setter-only - the earlier getter is dead and the read is
+// undecided, while a getter/setter PAIR still reads through the getter
+runBoth('data property between a getter and a setter kills the getter read',
+  'const o = { get x() { return [1]; }, x: 5, set x(v) {} }; const t = o.x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('getter paired with a trailing setter still supplies the read',
+  'const o = { get x() { return [1]; }, set x(v) {} }; const t = o.x;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the held prototype member may only be taken once the WHOLE chain has been walked. a cycle (and,
+// the same way, a chain past the depth cap) cuts the walk short, and an ancestor field could still
+// be out there - answering with the accessor would narrow to a type that field contradicts
+runBoth('cyclic superclass chain gives up instead of taking the accessor',
+  'class A extends B { get x() { return "s"; } } class B extends A {} const t = new A().x;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+// each parser spells an `abstract` field differently, and a member-shape list that names only one
+// of them resolves on that parser alone - the abstract METHOD twin was listed, the field twin was not
+runBoth('abstract field reached through a type reference resolves its annotation',
+  'abstract class C { abstract a: number[]; } declare const c: C; const t = c.a;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  }, ['typescript']);
+
+// an instance `super.x` reads the parent PROTOTYPE, where instance fields never live - they are own
+// properties of the instance. so the field-wins rule inverts here: the field is invisible and the
+// read lands on the accessor, or on nothing at all. a STATIC `super.x` is the opposite case - the
+// parent constructor really does own its static field
+runBoth('instance super read skips a base field and takes the accessor',
+  'class A { get x() { return "s"; } } class B extends A { x = [1]; m() { return super.x; } } const t = new B().m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
+runBoth('instance super read of a field-only base resolves to nothing',
+  'class A { x = [1]; } class B extends A { m() { return super.x; } } const t = new B().m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
+runBoth('static super read still sees the base static field',
+  'class A { static x = [1]; } class B extends A { static m() { return super.x; } } const t = B.m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: false, ctor: 'Array' });
+  });
+
+// the prototype-routed read still walks the whole chain: a field on the immediate parent is skipped
+// and the grandparent's accessor answers, which is exactly what the runtime does
+runBoth('prototype-routed read skips a parent field and reaches a grandparent accessor',
+  'class G { get x() { return "s"; } } class P extends G { x = [1]; }'
+  + ' class C extends P { m() { return super.x; } } const t = new C().m();',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')),
+      { primitive: true, kind: 'string' });
+  });
+
 runBoth('object method member still resolves to a Function object',
   'const obj = { m() {} }; const t = obj.m;', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
