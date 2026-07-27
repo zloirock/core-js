@@ -37,6 +37,8 @@ import {
   privateNameSpelling,
   paramListReadsName,
   peelMemoizeWrappers,
+  forEachStatementPosition,
+  SINGLE_STATEMENT_SLOTS,
   spreadAtOrBefore,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
@@ -1100,5 +1102,50 @@ for (const spelling of ['ClassAccessorProperty', 'AccessorProperty']) {
   check(`classOwnThisMethodInfo/${ spelling } collects the accessor-held method`,
     [...info?.methodKeys ?? []].join(','), 'm');
 }
+
+// --- forEachStatementPosition: the un-braced slot half ---
+// the un-braced half of the statement lattice: slots that hold ONE statement instead of a list.
+// a pass rewriting a statement into several has to brace these first, so the enumeration has to
+// name every such slot, skip the braced ones (they belong to the statement-list walk, and visiting
+// both would double-handle the same statement), and reach slots nested inside other statements
+
+function stmt(tag) {
+  return { type: 'ExpressionStatement', expression: { type: 'Identifier', name: tag } };
+}
+function slotsOf(root) {
+  const seen = [];
+  forEachStatementPosition(root, { onUnbracedSlot: (host, key) => seen.push(`${ host.type }.${ key }`) });
+  return seen.sort().join(',');
+}
+
+// every declared host reports its slot when the slot holds a bare statement
+for (const [type, keys] of SINGLE_STATEMENT_SLOTS) {
+  const node = { type };
+  for (const key of keys) node[key] = stmt(key);
+  check(`forEachStatementPosition/${ type } reports its slots`,
+    slotsOf(node), keys.map(key => `${ type }.${ key }`).sort().join(','));
+}
+
+// a braced body is a statement-list host, so it belongs to the other walk and must NOT be reported
+check('forEachStatementPosition/braced body skipped',
+  slotsOf({ type: 'ForStatement', body: { type: 'BlockStatement', body: [stmt('a')] } }), '');
+
+// only one arm of an `if` braced - the bare arm still reports
+check('forEachStatementPosition/mixed if arms',
+  slotsOf({ type: 'IfStatement', consequent: { type: 'BlockStatement', body: [] }, alternate: stmt('b') }),
+  'IfStatement.alternate');
+
+// an absent slot (`if` with no else) reports nothing for it
+check('forEachStatementPosition/absent alternate',
+  slotsOf({ type: 'IfStatement', consequent: stmt('a'), alternate: null }), 'IfStatement.consequent');
+
+// slots nested inside another statement are reached - the walk recurses structurally
+check('forEachStatementPosition/nested slot reached',
+  slotsOf({ type: 'WhileStatement', body: { type: 'ForStatement', body: stmt('a') } }),
+  'ForStatement.body,WhileStatement.body');
+
+// a node type outside the table never reports, whatever it holds at `body`
+check('forEachStatementPosition/non-slot host ignored',
+  slotsOf({ type: 'SwitchCase', consequent: [stmt('a')], body: stmt('b') }), '');
 
 finish();
