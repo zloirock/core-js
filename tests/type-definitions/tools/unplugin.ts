@@ -21,7 +21,6 @@ vite({
   configPath: null,
   browserslistEnv: null,
   ignoreBrowserslistConfig: null,
-  shippedProposals: null,
   importStyle: null,
   phase: null,
 });
@@ -95,7 +94,6 @@ vite({ method: 'usage-global', shouldInjectPolyfill: (name, shouldInject) => sho
 vite({ method: 'usage-global', absoluteImports: true });
 vite({ method: 'usage-global', configPath: '.' });
 vite({ method: 'usage-global', ignoreBrowserslistConfig: true });
-vite({ method: 'usage-global', shippedProposals: true });
 vite({ method: 'usage-global', importStyle: 'import' });
 vite({ method: 'usage-global', importStyle: 'require' });
 vite({ method: 'usage-global', browserslistEnv: 'production' });
@@ -123,7 +121,6 @@ vite({
   absoluteImports: false,
   configPath: '.',
   ignoreBrowserslistConfig: false,
-  shippedProposals: true,
   importStyle: 'import',
 });
 
@@ -172,8 +169,8 @@ vite({ method: 'usage-global', importStyle: 'esm' });
 vite({ method: 'usage-global', absoluteImports: 'path' });
 // @ts-expect-error — configPath must be a string
 vite({ method: 'usage-global', configPath: true });
-// @ts-expect-error — shippedProposals must be a boolean
-vite({ method: 'usage-global', shippedProposals: 'yes' });
+// @ts-expect-error — shippedProposals was removed and is no longer a known option
+vite({ method: 'usage-global', shippedProposals: true });
 // @ts-expect-error — browserslistEnv must be a string
 vite({ method: 'usage-global', browserslistEnv: 1 });
 // @ts-expect-error — entry-global rejects phase 'post' (discriminated union)
