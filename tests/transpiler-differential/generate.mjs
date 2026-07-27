@@ -381,6 +381,30 @@ function * generateSharedAliasUnionArms() {
     + ' const u = mk(1); return u.kind === "a" ? u.v.at(0) : ""; })()'), ts: true, strip: true };
 }
 
+// --- foreign receiver at the end of an optional chain ---
+// a statically known receiver holding no variant of the method must resolve to nothing in pure,
+// and the type reaches the lookup on carriers that do NOT look alike: a cross-family union narrows
+// to a hint SET and leaves the concrete slot empty, a receiver named after its constructor keeps
+// the type in the name's own case. both throw on every engine, so only the import-set leg
+// discriminates - the value oracle would pass on a bogus injection just as happily. the
+// unresolved-receiver row is the other side: it must keep resolving, and it runs stripped because
+// the polyfill has to carry the call there
+function * generateOptionalForeignReceiver() {
+  yield { ...snippet('optional-foreign-receiver/union-all-foreign',
+    '(() => { const mk = (n: number): Date | RegExp => n ? new Date() : /a/; const u = mk(1);'
+    + ' try { return String(u?.at(0)); } catch (e) { return "throws"; } })()'), ts: true };
+  // second desc shape on the same carrier - `includes` narrows differently from `at`
+  yield { ...snippet('optional-foreign-receiver/union-all-foreign-includes',
+    '(() => { const mk = (n: number): Date | Map<string, number> => n ? new Date() : new Map();'
+    + ' const u = mk(1); try { return String(u?.includes(1)); } catch (e) { return "throws"; } })()'), ts: true };
+  // constructor-named receiver: plain JS, so it also covers the non-TS parse path
+  yield snippet('optional-foreign-receiver/ctor-named-proto',
+    '(() => { try { return String(RegExp.prototype?.at(0)); } catch (e) { return "throws"; } })()');
+  yield { ...snippet('optional-foreign-receiver/unresolved-receiver',
+    '(() => { const mk = (n: number): any => n ? ["p", "q"] : "ab"; const u = mk(1);'
+    + ' return String(u?.at(0)); })()'), ts: true, strip: true };
+}
+
 // --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
 // every hop of an alias chain resolves in the scope its own declarator was written in, so a
 // binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
@@ -4052,6 +4076,7 @@ export function * generate() {
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
   yield * generateSharedAliasUnionArms();
+  yield * generateOptionalForeignReceiver();
   yield * generateAliasHopShadow();
   yield * generateAliasReceiverShadow();
   yield * generateSuperClassAliasReceiverShadow();
