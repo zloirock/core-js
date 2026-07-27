@@ -5,7 +5,7 @@ import MagicString from 'magic-string';
 import {
   namespaceScopedBindingBlock,
   staticFallbackSwapRedundant,
-  forEachStatementListBody,
+  forEachStatementPosition,
   getMinifierSequenceDestructureExpressions,
   sequenceHeadDirectiveHazard,
   createTypeAnnotationChecker,
@@ -195,11 +195,21 @@ function nonEmptyString(value) {
 // reach nested matches (see the call site for why one pass can't take them all)
 function applyMinifierSequenceSplitPass(code, ast) {
   const matches = [];
-  forEachStatementListBody(ast, statements => {
-    for (const stmt of statements) {
-      const expressions = getMinifierSequenceDestructureExpressions(stmt);
-      if (expressions) matches.push({ start: stmt.start, end: stmt.end, expressions });
-    }
+  // an un-braced control-flow body holds its statement in a single slot, so its split products have
+  // nowhere to go until the slot is braced. both position kinds come from ONE walk, and the brace is
+  // emitted in this same pass - a block around a sequence's operands declares nothing, so the added
+  // scope is unobservable
+  function collect(stmt, brace) {
+    const expressions = getMinifierSequenceDestructureExpressions(stmt);
+    if (expressions) matches.push({ start: stmt.start, end: stmt.end, expressions, brace });
+  }
+  forEachStatementPosition(ast, {
+    onList(statements) {
+      for (const stmt of statements) collect(stmt, false);
+    },
+    onUnbracedSlot(hostNode, key) {
+      collect(hostNode[key], true);
+    },
   });
   if (!matches.length) return null;
   const mutated = new MagicString(code);
@@ -230,8 +240,8 @@ function applyMinifierSequenceSplitPass(code, ast) {
     // (which ASI-splits a postfix `++` / `--` prev), but the split's FIRST product re-roots the line on a
     // hazard char (`+eff()` / `/re/...`) that the prev no longer separates from - inject the `;` to keep
     // them two statements (and so the re-parse below doesn't choke on the fused form and abandon the split)
-    if (statementOverwriteFusesLeft(code, match.start, splitText[0])) mutated.prependLeft(match.start, ';');
-    mutated.overwrite(match.start, match.end, splitText);
+    if (!match.brace && statementOverwriteFusesLeft(code, match.start, splitText[0])) mutated.prependLeft(match.start, ';');
+    mutated.overwrite(match.start, match.end, match.brace ? `{ ${ splitText } }` : splitText);
     lastKeptEnd = match.end;
   }
   return mutated.toString();

@@ -405,6 +405,30 @@ function * generateOptionalForeignReceiver() {
     + ' return String(u?.at(0)); })()'), ts: true, strip: true };
 }
 
+// --- minifier-collapsed destructure in an UN-BRACED control-flow body ---
+// the split that un-collapses `(effect, ({m} = src))` walks statement LISTS, but an un-braced body
+// holds one statement in a slot instead, so the slot has to be braced before the products have
+// anywhere to go. both emitters bail the same way when that is missed, so the parity leg is blind -
+// the stripped realm is the oracle: an un-split row keeps the NATIVE member read, which is gone
+// there, while the split row holds the ponyfill. distinct host and method per row
+function * generateUnbracedBodyMinifierSplit() {
+  const rows = [
+    ['for', 'at', 'for (let i = 0; i < 1; i++) (log.push("e"), ({ at: m } = src));'],
+    ['while', 'includes', 'let n = 1; while (n--) (log.push("e"), ({ includes: m } = src));'],
+    ['if', 'flat', 'if (cond) (log.push("e"), ({ flat: m } = src));'],
+    ['label', 'flatMap', 'lbl: (log.push("e"), ({ flatMap: m } = src));'],
+    ['for-of', 'findLast', 'for (const k of [0]) (log.push("e"), ({ findLast: m } = src));'],
+  ];
+  // the fixpoint has to run THROUGH the brace: the inner sequence only becomes a free-standing
+  // statement after the outer one is braced and split, so this row needs a second pass to resolve
+  rows.push(['for-nested', 'flatMap',
+    'for (let i = 0; i < 1; i++) (log.push("e"), (log.push("i"), ({ flatMap: m } = src)));']);
+  for (const [host, method, stmt] of rows) {
+    yield { ...snippet(`unbraced-body-split/${ host }-${ method }`,
+      `(() => { const src = ["p", "q"]; let m; ${ stmt } return typeof m; })()`), strip: true };
+  }
+}
+
 // --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
 // every hop of an alias chain resolves in the scope its own declarator was written in, so a
 // binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
@@ -4077,6 +4101,7 @@ export function * generate() {
   yield * generateIifeArgShadow();
   yield * generateSharedAliasUnionArms();
   yield * generateOptionalForeignReceiver();
+  yield * generateUnbracedBodyMinifierSplit();
   yield * generateAliasHopShadow();
   yield * generateAliasReceiverShadow();
   yield * generateSuperClassAliasReceiverShadow();
