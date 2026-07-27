@@ -23,6 +23,7 @@
 //   resolveMemberFromMembers({ members, name, scope, callPath })
 //   isMethodMember(node)
 //   isPropertyMember(node)
+//   isDataFieldMember(node)
 import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
 import { isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
@@ -67,7 +68,7 @@ export function createClassObjectMember({
   // babel splits public/private/accessor into distinct types; ESTree uses MethodDefinition /
   // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
   // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
-  const { isMethodMember, isPropertyMember } = createClassMemberShape({ t });
+  const { isMethodMember, isPropertyMember, isDataFieldMember } = createClassMemberShape({ t });
 
   // does the class body own a getter / setter for `name` matching `isStatic`? used to
   // gate `resolveMergedNamespaceStatic` fallback - setter-only members own the slot even
@@ -84,21 +85,46 @@ export function createClassObjectMember({
     return false;
   }
 
-  function findClassMember({ classPath, name, isStatic, classSubst, depth = 0, visited = undefined }) {
+  function findClassMember({ classPath, name, isStatic, classSubst, viaPrototype = false, depth = 0, visited = undefined }) {
+    // instance-only: the nearest prototype member seen so far, held back in case a FIELD turns up
+    // further along the chain (see the walk-up note below). it may only be taken once the walk has
+    // seen the WHOLE chain - a walk cut short by the depth cap or the cycle guard cannot rule out an
+    // ancestor field, and answering with the prototype member there would narrow to a type the
+    // shadowing field contradicts
+    let heldPrototype = null;
     while (true) {
       if (depth > MAX_DEPTH) return null;
-      // reverse-walk: duplicate member keys are legal; the last matching definition wins. setters are
-      // skipped because a read resolves to the getter / data member, never the setter - and a class
-      // FIELD is an own data property that shadows a prototype setter on read, so returning an earlier
-      // field past a setter is correct here. NOTE this legitimately diverges from `findObjectMember`,
-      // where a later setter makes the object-literal key a setter-only accessor (read -> undefined)
+      // which member answers a READ of `name`. a FIELD is defined by [[DefineOwnProperty]] AFTER the
+      // body's methods and accessors are installed - instance fields at construction, static fields
+      // once the class is evaluated - so a field always wins, whatever the source order and whether
+      // the member is static. with no field the read lands on the method / accessor, where duplicate
+      // keys make the LAST definition win and a setter is skipped (setter-only reads `undefined`).
+      // NOTE this legitimately diverges from `findObjectMember`: an object literal defines its keys
+      // in source order on ONE object, so there a later setter really does shadow an earlier value
       const members = classPath.get('body').get('body');
+      let onPrototype = null;
       for (let i = members.length - 1; i >= 0; i--) {
         const member = members[i];
         if (!memberKeyMatches(member.node.key, member.node.computed, name)) continue;
         if (!!member.node.static !== isStatic) continue;
+        // reverse order, so the first field reached is the source-LAST one - the define that stands.
+        // a prototype-routed read (instance `super.x`) never sees one: the field is an own property
+        // of the instance, so such a read falls through to the methods and accessors
+        if (isDataFieldMember(member.node)) {
+          if (viaPrototype) continue;
+          return { member, subst: classSubst ?? null };
+        }
         if (member.node.kind === 'set') continue;
-        return { member, subst: classSubst ?? null };
+        onPrototype ??= member;
+      }
+      // a STATIC read walks the CONSTRUCTOR chain, so the nearest class declaring the name answers
+      // and an own accessor there shadows a field inherited from a base. an INSTANCE field is
+      // different: wherever in the chain it is declared, it lands as an own property of the ONE
+      // instance and shadows every prototype member in the chain - so hold the prototype member and
+      // keep walking, taking it only if no ancestor supplies a field
+      if (onPrototype) {
+        if (isStatic) return { member: onPrototype, subst: classSubst ?? null };
+        heldPrototype ??= { member: onPrototype, subst: classSubst ?? null };
       }
       // `class A extends B; class B extends A` cycle: MAX_DEPTH bottoms out via 64-frame
       // CPU-burn. visited Set on class nodes short-circuits at the second visit (parallels
@@ -107,7 +133,8 @@ export function createClassObjectMember({
       if (seen.has(classPath.node)) return null;
       seen.add(classPath.node);
       const parentPath = resolveSuperClassPath(classPath);
-      if (!parentPath) return null;
+      // no superclass: the chain is fully walked, so a held prototype member is now the answer
+      if (!parentPath) return heldPrototype;
       const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst, classPath.scope);
       classPath = parentPath;
       classSubst = parentSubst;
@@ -156,9 +183,9 @@ export function createClassObjectMember({
     return isStatic ? staticFieldShadowable(classPath, name, foundNode !== null) : instanceMemberShadowable(classPath, name);
   }
 
-  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis }) {
+  function resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs, viaThis, viaPrototype }) {
     const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs, classPath.scope);
-    const found = findClassMember({ classPath, name, isStatic, classSubst });
+    const found = findClassMember({ classPath, name, isStatic, classSubst, viaPrototype });
     // hoisted above the found / fall-through dispatch so the shadow bail also guards the
     // merged-interface instance and merged-namespace static paths below - a via-`this` narrow
     // off a merged declaration is just as unsound under a subclass override as off the class body
@@ -370,14 +397,25 @@ export function createClassObjectMember({
       if (methodFn) {
         const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
         if (r) return r;
-      } else if (declaredReturnPath) {
+      }
+      // a bodyless member reaches here either with no `methodFn` at all (babel models the ambient
+      // method as its own node type) or with one whose empty body gave nothing - both parsers land
+      // on the declared signature, so the fall-through is shared rather than parser-shaped
+      if (declaredReturnPath) {
+        // a GETTER read yields its declared return type; CALLING it then invokes that value, so the
+        // call result is that type's own call return - the two-step the concrete getter path takes.
+        // a declared method needs no step: its return type already IS the call result
+        if (member.node.kind === 'get') {
+          return declaredCallableReturn(classSubstInner(declaredReturnPath.node.returnType, classSubst), member.scope) ?? null;
+        }
         // the bodyless signature exposes `params` / `returnType` / `typeParameters` the same shape
         // `resolveReturnType` reads from. routing through it picks up method-level type-args from
         // `<T>(...)` plus call-site `<string>` so `static make<T>(): T[]` with `Box.make<string>()`
         // resolves to `string[]` instead of leaking the bare type-param T (which loses precision
         // and degrades `_atMaybeArray` to generic `_at`)
         return resolveReturnType(declaredReturnPath, callPath, classSubst);
-      } else if (isPropertyMember(member.node)) {
+      }
+      if (isPropertyMember(member.node)) {
         // a function-valued FIELD narrows from its INITIALIZER, which any write replaces - so an
         // unenumerable writer set unseats it too, not just an observed write
         if (classCallableSlotReassigned(member)) return null;
@@ -500,7 +538,11 @@ export function createClassObjectMember({
         for (let j = i - 1; j >= 0; j--) {
           const earlier = properties[j];
           if (t.isSpreadElement(earlier.node)) return null;
-          if (earlier.node.kind === 'get' && memberKeyMatches(earlier.node.key, earlier.node.computed, name)) return earlier;
+          if (!memberKeyMatches(earlier.node.key, earlier.node.computed, name)) continue;
+          // the nearest earlier definition decides: a getter pairs with the setter and supplies the
+          // read value, while a DATA definition resets the slot to a data descriptor - which the
+          // later setter then turns into a setter-only accessor, so any getter behind it is dead
+          return earlier.node.kind === 'get' ? earlier : null;
         }
         return null;
       }
