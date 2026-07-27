@@ -155,7 +155,6 @@ export function createPolyfillContext({
   additionalPackages,
   include,
   exclude,
-  shippedProposals = false,
   shouldInjectPolyfill = () => true,
 }) {
   // explicit `null` (common in conditional config spreads) skips destructuring defaults -
@@ -163,7 +162,6 @@ export function createPolyfillContext({
   // absent" advertised in `index.d.ts` (`version?: string | null` / `mode?: Mode | null` / ...)
   mode ??= 'actual';
   version ??= 'node_modules';
-  if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
 
   const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
   const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
