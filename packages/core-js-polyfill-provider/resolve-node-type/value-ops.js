@@ -21,6 +21,7 @@
 //   resolveBinaryOperatorType(op, left, right)        - `+` / `-` / `*` / `/` / `%` / `**` /
 //                                                       bitwise / shift narrowing (number vs
 //                                                       bigint vs string disambiguation)
+import { isNullLiteralNode } from '../helpers/ast-patterns.js';
 import { $Primitive, primitiveTypeOf } from './base.js';
 import { isBareUndefinedIdentifier } from './ast-shapes.js';
 
@@ -120,8 +121,7 @@ function selfTernaryRefName(left, right, isLoose, isLocalUndefinedName) {
   if (left?.type !== 'Identifier') return null;
   if (isVoidZeroNode(right)) return left.name;
   if (isBareUndefinedIdentifier(right) && !isLocalUndefinedName()) return left.name;
-  if (isLoose && (right?.type === 'NullLiteral'
-    || (right?.type === 'Literal' && right.value === null && !right.regex))) return left.name;
+  if (isLoose && isNullLiteralNode(right)) return left.name;
   return null;
 }
 

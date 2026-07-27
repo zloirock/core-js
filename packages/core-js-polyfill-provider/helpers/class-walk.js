@@ -2,6 +2,7 @@ import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
+  importedGlobalProxyName,
   LET_SCOPE_HOST_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
@@ -114,6 +115,12 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // proxy - matching the node-only natural-global rewrite that already turns it into `_self`, so the hop
   // collapse fires consistently in both emitters (unplugin has no AST re-visit to recover it otherwise);
   // a non-proxy self-cycle (`var Map = Map`) stays false. avoids recursion either way (returns here)
+  // an IMPORT of a global-proxy entry binds the global object exactly like `const g = globalThis`.
+  // the read-side name resolver follows it; without the same step here a WRITE through that binding
+  // (`g.Object.create = shim`) never reaches the proxy-root check, so the slot stays untainted and
+  // the ponyfill is substituted over the user's patch
+  const imported = binding && importedGlobalProxyName(binding, adapter.packages);
+  if (imported) return isPristineProxyGlobal(adapter, imported) ? imported : null;
   if (binding) return seen?.has(binding.node ?? binding)
     ? (POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null)
     : followLocalBindingToProxyGlobal({ binding, name: node.name, scope, adapter, path, seen, usageNode, readNode });
