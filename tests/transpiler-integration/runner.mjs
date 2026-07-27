@@ -262,7 +262,8 @@ const builders = {
         lib: { entry: input, formats: ['es'] },
         minify: false,
         commonjsOptions: { include: [/core-js/] },
-        rollupOptions: extra.inlineDynamic ? { output: { inlineDynamicImports: true } } : {},
+        // vite bundles with rolldown, so the output option follows rolldown's spelling
+        rollupOptions: extra.inlineDynamic ? { output: { codeSplitting: false } } : {},
       },
       resolve: { dedupe: ['core-js'] },
       plugins: [...extra.siblings ?? [], pluginFor('vite')(pluginOpts(method, phase))],
@@ -331,7 +332,9 @@ const builders = {
         plugins: [...extra.siblings ?? [], pluginFor('rolldown')(pluginOpts(method, phase))],
         output: {
           format: 'esm', file, externalLiveBindings: false, keepNames: true,
-          inlineDynamicImports: !!extra.inlineDynamic,
+          // rolldown spells single-chunk output as `codeSplitting: false` and deprecated
+          // `inlineDynamicImports`, which warns whenever the key is PRESENT - even set to `false`
+          ...extra.inlineDynamic ? { codeSplitting: false } : {},
         },
       });
       return { code: await readFile(file, 'utf8') };
