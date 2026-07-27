@@ -16,13 +16,14 @@
 // fail for some libraries on real IE11, which is exactly the per-library signal we want to surface.
 // It therefore does NOT fail the job; only `post` and `pre+post` (and entry-global) gate.
 //
-// Karma runs ONCE PER (library × isolation-class), never co-loading usage-pure with the global
-// methods, and never co-loading a `pre` cell with anything else. Correctness is why: entry-global /
-// usage-global bundles patch global prototypes at script load, before any test runs, and a `pre`
-// bundle's whole point is that it may be MISSING a polyfill — a co-loaded sibling that patches that
-// global would mask the gap into a false green. So each isolation-class × gate/diagnostic combination
-// gets its own IE11 page. Size is a bonus: every bundle inlines its whole library (three's is ~1.4 MB),
-// so splitting also keeps each page well under the ~16 MB an all-in-one page would be.
+// Karma runs ONE BUNDLE PER PAGE — a separate IE11 run per cell, never co-loading two bundles in one
+// realm. Correctness is why: entry-global / usage-global bundles patch global prototypes at script
+// load, before any test runs, so a co-loaded sibling could mask another cell's usage-pure or `pre` gap
+// into a false green (a `pre` bundle's whole point is that it may be MISSING a polyfill). One bundle
+// per page makes that impossible by construction — maximal isolation — and keeps each page to a single
+// library copy (three's is ~1.4 MB) rather than stacking them (which also stops three's runtime
+// "multiple instances" warning). The cost is a fresh IE launch per cell, ~30 s over the whole leg —
+// dwarfed by the ~6 min the 42 rollup builds take.
 //
 // Off a machine with IE11 (and outside CI) the bundles are still built — that alone runs every gate
 // above — but Karma is skipped: there is no IE to capture. karma.conf.cjs makes the same check.
@@ -50,13 +51,10 @@ const libs = librariesIn('runtime', libFilter);
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 
-// build the full matrix, grouped for Karma by (library × isolation-class × gate/diagnostic). `global`
-// = entry-global + usage-global (they patch prototypes); the `pre` phase forms its own diagnostic
-// groups so a co-loaded sibling can't mask a `pre` gap (see header). Each group carries a `gating` flag.
-const groups = new Map();
-// flat cell list — a 4-deep build loop (lib × method × phase × babel) plus one try/if body would nest
-// too deep; flatten first so the processing loop stays shallow. entry-global -> [undefined]; usage-* ->
-// pre / post / pre+post.
+// build the full matrix. Each cell is its own bundle file, run on its own IE11 page (see the run loop),
+// so there is nothing to group. A 4-deep build loop (lib × method × phase × babel) plus one try/if body
+// would nest too deep; flatten first so the processing loop stays shallow. entry-global -> [undefined];
+// usage-* -> pre / post / pre+post.
 const cells = [];
 for (const lib of libs) {
   for (const method of lib.methods) {
@@ -65,6 +63,7 @@ for (const lib of libs) {
     }
   }
 }
+const built = [];
 for (const { lib, method, phase, babelVersion } of cells) {
   const label = `${ lib.name }/${ method }${ phase ? `/${ phase }` : '' }/babel${ babelVersion }`;
   try {
@@ -74,16 +73,9 @@ for (const { lib, method, phase, babelVersion } of cells) {
     // page IS the check, and a non-ES5 bundle would just SyntaxError with no QUnit verdict).
     assertES5(code, label);
     if (!injections) throw new Error('unplugin injected 0 polyfills');
-    // UMD exposes global `E2E`; the appended driver captures it at load (harness.mjs) so the shared
-    // global name does not make every test run the last-loaded bundle.
     const file = join(OUT, `e2e-libs-${ lib.name }-${ method }-${ phase ?? 'noph' }-babel${ babelVersion }.js`);
     await writeFile(file, `${ code }\n${ qunitHarness(label) }`);
-    const isolation = method === 'usage-pure' ? 'usage-pure' : 'global';
-    const gating = phase !== 'pre'; // `pre` is a non-gating diagnostic (see header)
-    const key = `${ lib.name } (${ isolation }${ gating ? '' : ', pre-diagnostic' })`;
-    let group = groups.get(key);
-    if (!group) groups.set(key, group = { files: [], gating });
-    group.files.push(file);
+    built.push({ file, label, gating: phase !== 'pre' }); // `pre` is a non-gating diagnostic (see header)
     console.log(`✓ built ${ label }: ${ injections } inj`);
   } catch (err) {
     console.log(`✗ ${ label }: ${ errorReason(err) }`);
@@ -91,14 +83,12 @@ for (const { lib, method, phase, babelVersion } of cells) {
   }
 }
 
-let total = 0;
-for (const group of groups.values()) total += group.files.length;
-if (!total) throw new Error('no bundles built — nothing to run in IE11');
+if (!built.length) throw new Error('no bundles built — nothing to run in IE11');
 
-function runKarma(karmaBin, conf, files) {
+function runKarma(karmaBin, conf, file) {
   // forward slashes: this leg runs on windows-2022, and Karma matches `files` through glob, where a
-  // backslash is an escape — native Windows paths would silently match nothing
-  const fArg = files.map(f => f.replaceAll('\\', '/')).join(',');
+  // backslash is an escape — a native Windows path would silently match nothing.
+  const fArg = file.replaceAll('\\', '/');
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, [karmaBin, 'start', conf, `-f=${ fArg }`], { cwd: HERE, stdio: 'inherit' });
     p.on('error', reject);
@@ -109,26 +99,24 @@ function runKarma(karmaBin, conf, files) {
 // Only start Karma where IE11 actually exists: the windows CI runner (CI set) or a dev box with
 // iexplore. Elsewhere the build above already ran every gate; the browser run is the CI-only part.
 if (!(process.env.CI || which.sync('iexplore.exe', { nothrow: true }))) {
-  console.log(`\n${ total } bundle(s) built in ${ OUT }. IE11 not present and not CI — skipping Karma.`);
+  console.log(`\n${ built.length } bundle(s) built in ${ OUT }. IE11 not present and not CI — skipping Karma.`);
 } else {
   const karmaBin = req.resolve('karma/bin/karma');
   const conf = join(HERE, 'karma.conf.cjs');
-  console.log(`\nrunning Karma in real IE11 over the full matrix (${ total } bundle(s), one page per`);
-  console.log('(library × isolation-class × gate/diagnostic) so nothing masks a usage-pure or pre gap).');
-  console.log('post + pre+post (and entry-global) GATE the job; the `pre` phase is a NON-GATING per-');
-  console.log('library diagnostic (pre runs unplugin before Babel, so it can miss Babel-helper polyfills');
-  console.log('— expected to fail for some libraries, which is the signal we want, not a job failure).');
-  console.log('Per-cell counts print as "[e2e-libs] <lib>/<method>/<phase>/babel<v>: N/N checks passed".');
+  console.log(`\nrunning Karma in real IE11 over the full matrix — ONE bundle per page (${ built.length } pages),`);
+  console.log('so no sibling shares a realm: a global-patching method can never mask the usage-pure or pre gap of');
+  console.log('another cell, and each page holds a single library copy. post + pre+post (and entry-global) GATE the');
+  console.log('job; the `pre` phase is a NON-GATING per-library diagnostic (pre runs unplugin before Babel, so it');
+  console.log('can miss Babel-helper polyfills — expected to fail for some libraries, which is the signal we want,');
+  console.log('not a job failure). Per-cell counts print as "[e2e-libs] <lib>/<method>/<phase>/babel<v>: N/N passed".');
   let failCode = 0;
-  for (const [key, { files, gating }] of groups) {
-    console.log(`\n— IE11: ${ key } (${ files.length } bundle(s))${ gating ? '' : ' [diagnostic, non-gating]' } —`);
+  for (const { file, label, gating } of built) {
+    console.log(`\n— IE11: ${ label }${ gating ? '' : ' [pre diagnostic, non-gating]' } —`);
     // one IE11 page at a time, on purpose (see header) — sequential await is intended here
-    const code = await runKarma(karmaBin, conf, files);
-    if (!gating) {
-      console.log(`  pre diagnostic for ${ key }: Karma exit ${ code } (${ code === 0 ? 'all pre cells ran' : 'some pre cells failed — see above' }); not gating the job`);
-    } else if (code !== 0) {
-      failCode = code || 1;
-    }
+    const code = await runKarma(karmaBin, conf, file);
+    if (code === 0) continue;
+    if (gating) failCode = code || 1;
+    else console.log(`  pre diagnostic ${ label }: Karma exit ${ code } — an expected-possible pre failure; not gating the job`);
   }
   if (failCode) process.exitCode = failCode;
 }

@@ -101,11 +101,11 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   and so can miss the polyfills Babel's own helpers pull in — is a **non-gating per-library diagnostic**
   (expected to fail for some libraries on IE11, which is exactly the per-library signal we want, not a
   job failure). This is a rollup-adapter check on real libraries, complementing the webpack
-  `e2e-usage-pure` leg in `tests/unit-karma`. Karma runs **once per (library × isolation-class ×
-  gate/diagnostic)** — `usage-pure` never shares a page with the global methods, nor a `pre` cell with
-  anything else, or a global bundle's load-time prototype patching would mask a `usage-pure` (or `pre`)
-  miss into a false green (and it keeps pages small: each bundle inlines its whole library). The driver
-  also asserts it is **really on IE11** (`document.documentMode`), so an `iexplore`→Edge substitution on
+  `e2e-usage-pure` leg in `tests/unit-karma`. Karma runs **one bundle per page** (a separate IE11 run
+  per cell) — nothing is co-loaded, so a global bundle's load-time prototype patching can never mask
+  another cell's `usage-pure` (or `pre`) miss into a false green; it also keeps each page to a single
+  library copy (three's is ~1.4 MB) and sidesteps three's runtime "multiple instances" warning. The
+  driver also asserts it is **really on IE11** (`document.documentMode`), so an `iexplore`→Edge substitution on
   the runner reddens rather than passing green. Off a machine with IE11 (and outside CI) it still
   **builds** the bundles — running every gate `runtimeBuild` carries — but skips Karma; the CI job
   `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
