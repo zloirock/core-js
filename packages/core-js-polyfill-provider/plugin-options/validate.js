@@ -101,7 +101,6 @@ export function validateOptions({
   method,
   mode,
   package: pkg,
-  shippedProposals,
   shouldInjectPolyfill,
   targets,
   version,
@@ -122,7 +121,6 @@ export function validateOptions({
   expectOptional('absoluteImports', 'boolean', absoluteImports);
   expectOptional('debug', 'boolean', debug);
   expectOptional('ignoreBrowserslistConfig', 'boolean', ignoreBrowserslistConfig);
-  expectOptional('shippedProposals', 'boolean', shippedProposals);
   // configPath / browserslistEnv accept '' for env-var passthrough (`process.env.X || ''`);
   // targets rejects empty as suspicious. asymmetric by design
   expectOptional('configPath', 'string', configPath);
