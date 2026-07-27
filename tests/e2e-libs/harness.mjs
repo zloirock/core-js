@@ -8,8 +8,8 @@
 //   - banner: paints a green/red banner + a checks table into a standalone HTML page — the artifact
 //     uploaded manually to BrowserStack/SauceLabs (see artifacts.mjs).
 //   - qunit:  reports each check as a QUnit assertion, for the automated Karma/IE11 run in CI (see
-//     karma-bundles.mjs). QUnit here is the qunit@1 fork the repo already drives in IE11, which has
-//     `assert.async()` and `assert.pushResult` (used by the existing e2e-usage-pure IE tests).
+//     karma-bundles.mjs). QUnit here is the qunit@2 / karma-qunit@4 stack the repo already drives in
+//     IE11 (tests/unit-karma), which has `assert.async()` and `assert.pushResult`.
 //
 // E2E.run() may return a Promise (rxjs) or a plain result (three), and must not assume a global
 // Promise (usage-pure doesn't patch it) — so both targets branch on a thenable, never Promise.resolve.
@@ -75,6 +75,12 @@ export function qunitHarness(label) {
       var NS = E2E;
       QUnit.test(LABEL, function (assert) {
         var done = assert.async();
+        // fail loudly if this is NOT real IE11: on a modern engine (e.g. an iexplore -> Edge redirect
+        // on the CI runner) the natives are present, so a missed usage-pure rewrite would resolve and
+        // pass green — the exact modern-realm blind spot this leg exists to eliminate. Only IE exposes
+        // document.documentMode (11 in standards mode); Edge/Chromium do not.
+        assert.ok(!!(window.document && document.documentMode),
+          LABEL + ': expected real IE11 (document.documentMode set), got documentMode=' + (window.document && document.documentMode));
         function report(res) {
           var checks = (res && res.checks) || [];
           var passed = 0, i;
