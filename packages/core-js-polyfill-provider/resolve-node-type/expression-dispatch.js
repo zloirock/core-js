@@ -15,12 +15,20 @@
 // loss when a sibling polyfill plugin stashes a pre-mutation Type for the rewritten node.
 // WeakMap (vs node-attached property) keeps the side-channel opaque to AST-cloning libs.
 import { $Object, $Primitive } from './base.js';
+import {
+  NO_PROTOTYPE_VALUE, installedPrototypeValueAt, objectLiteralPrototypeValue,
+  peelTransparentExprAncestorPath, prototypeValueMayDispatch, prototypeWriteHostPath,
+} from '../helpers/ast-patterns.js';
 import { unaryOperatorResultKind } from './value-ops.js';
 
 const { hasOwn } = Object;
 
 export function createExpressionDispatch({
   t,
+  isMutatedStatic,
+  getScopeBinding,
+  collectBindingReferences,
+  resolveStaticCalleePair,
   babelNodeType,
   KNOWN_GLOBAL_METHOD_RETURN_TYPES,
   getCachedType,
@@ -105,6 +113,18 @@ export function createExpressionDispatch({
       // known global function: parseInt(), parseFloat(), etc.
       if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
     }
+    // `Object.create` with a prototype that cannot dispatch (null gives a prototype-less object, any
+    // other primitive throws) yields nothing a polyfill could serve - the same verdict the
+    // `__proto__:` channels carry for those values. an argument that MAY be an object installs a
+    // prototype the resolver does not follow, so the call stays unmodelled and keeps typeless dispatch
+    // the inert verdict below models the NATIVE `Object.create`; a user-replaced static may return
+    // anything, so a mutated slot keeps the call unmodelled (the mutated-static invariant)
+    const calleePair = resolveStaticCalleePair(callee.node, callee.scope);
+    if (calleePair?.constructor === 'Object' && calleePair.method === 'create'
+      && !isMutatedStatic('Object', 'create')
+      && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding(path.scope, 'undefined', path))) {
+      return new $Object('Object');
+    }
     if (t.isImport(callee.node)) return new $Object('Promise');
     return resolveCallReturnType(callee);
   }
@@ -118,6 +138,114 @@ export function createExpressionDispatch({
     const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
     if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
     return null;
+  }
+
+  // both channels that give an object literal a foreign dispatcher: the `__proto__:` property on the
+  // literal itself, and a post-creation write through the binding it initializes (`o.__proto__ = X`,
+  // `Object.setPrototypeOf(o, X)`). the binding scan runs only for a declarator-initializing literal -
+  // a literal used inline has no binding to write through. unenumerable references prove nothing
+  // an object carrying ANY installed prototype is no plain `Object` for typing. an unenumerable
+  // reference set answers the same way: an install may hide in it
+  function objectDispatchesForeignPrototype(path) {
+    const values = installedPrototypeValuePaths(path);
+    return values === null || values.length > 0;
+  }
+
+  // the FAMILY an installed prototype dispatches, for the receiver-hint channel: an object whose
+  // prototype is `Array.prototype` inherits the ARRAY methods and can inherit no other family's, so
+  // naming the family drops every variant the receiver provably cannot reach. only a prototype the
+  // canonical static-member pair resolves counts - that resolution rejects a shadowed `Array` and
+  // follows a proxy-global hop, so the hint is never read off a name alone
+  function prototypeValueFamily(valuePath) {
+    if (!valuePath?.node || valuePath.node === NO_PROTOTYPE_VALUE) return null;
+    // the general resolver, not a `X.prototype` shape match: an object installed as a prototype
+    // hands down its OWN chain, so an instance (`{ __proto__: /re/ }`) names its family exactly as
+    // the prototype object does. it also rejects a shadowed constructor and follows a proxy hop
+    const type = resolveNodeType(valuePath);
+    return type?.constructor ?? null;
+  }
+
+  // every prototype installed on the object `path`, as the value PATHS the channels write. null when
+  // the reference set itself cannot be enumerated - an install may then exist that this never saw.
+  // the ONE walk of the install channels: both the "is any prototype installed" question and the
+  // family read below run off it, so the channel list cannot drift between them
+  function installedPrototypeValuePaths(path) {
+    const undefinedShadowed = !!getScopeBinding(path.scope, 'undefined', path);
+    const values = [];
+    if (path.node?.type === 'ObjectExpression') {
+      const literalValue = objectLiteralPrototypeValue(path.node, undefinedShadowed);
+      // located by node IDENTITY off the same literal, so the property-shape rules stay in the canon
+      if (literalValue) values.push(path.get('properties').find(p => p.node?.value === literalValue)?.get('value') ?? NO_PROTOTYPE_VALUE);
+    }
+    // `Object.create(P)` installs P directly; a non-dispatching argument is already inert upstream
+    const created = createdPrototypeArgumentPath(path);
+    if (created) values.push(created);
+    const host = peelTransparentExprAncestorPath(path);
+    const declarator = host.parentPath?.node;
+    if (declarator?.type !== 'VariableDeclarator' || declarator.init !== host.node
+      || declarator.id?.type !== 'Identifier') return values;
+    const binding = getScopeBinding(host.scope, declarator.id.name, host);
+    if (!binding) return values;
+    const refs = collectBindingReferences(binding, host);
+    if (refs === null) return null;
+    for (const ref of refs) {
+      const installed = installedPrototypeValuePathAt(ref, undefinedShadowed);
+      if (installed) values.push(installed);
+    }
+    return values;
+  }
+
+  // the FAMILIES those prototypes dispatch. null when any of them cannot be named - the receiver then
+  // keeps the full dispatch, since an unnamed prototype may carry any family's methods
+  function installedPrototypeFamilies(path) {
+    const values = installedPrototypeValuePaths(path);
+    if (values === null) return null;
+    const families = new Set();
+    for (const valuePath of values) {
+      const family = prototypeValueFamily(valuePath);
+      if (!family) return null;
+      families.add(family);
+    }
+    return families;
+  }
+
+  // the value PATH of a reference's prototype install: the canon decides WHETHER the reference
+  // installs, this only re-reads the value slot it matched off the same host
+  function installedPrototypeValuePathAt(ref, undefinedShadowed) {
+    const valueNode = installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedShadowed);
+    if (!valueNode || valueNode === NO_PROTOTYPE_VALUE) return valueNode ? NO_PROTOTYPE_VALUE : null;
+    // the SAME host climb the canon matched on - transparent wrappers plus sequence-VALUE positions.
+    // re-deriving it with a narrower walk dropped every install made through a sequence
+    const host = prototypeWriteHostPath(ref);
+    const parent = host?.parentPath;
+    // `o.__proto__ = P` - the write sits above the member; `setPrototypeOf(o, P)` - the PROTO slot
+    if (parent?.node?.type === 'MemberExpression' || parent?.node?.type === 'OptionalMemberExpression') {
+      return parent.parentPath?.get('right');
+    }
+    return parent?.get('arguments')?.[1] ?? null;
+  }
+
+  // the PROTOTYPE argument PATH of a native `Object.create` call, null when the call is anything else
+  function createdPrototypeArgumentPath(path) {
+    if (path.node?.type !== 'CallExpression' && path.node?.type !== 'OptionalCallExpression') return null;
+    const callee = path.get('callee');
+    const pair = resolveStaticCalleePair(callee.node, callee.scope);
+    if (pair?.constructor !== 'Object' || pair.method !== 'create' || isMutatedStatic('Object', 'create')) return null;
+    return path.get('arguments')?.[0] ?? null;
+  }
+
+  // `Object.setPrototypeOf` / `Reflect.setPrototypeOf` only - a same-named method on any other object
+  // installs nothing, and the owner is resolved (not name-matched) so a shadowed `Object` is rejected.
+  // usage-pure polyfills `setPrototypeOf` itself, so the call may already read as the injected static
+  // binding by the time a later receiver is typed; those are minted `_<Ctor>$<method>` (plus babel's
+  // collision suffix), a namespace the plugin reserves
+  // `Object.setPrototypeOf` / `Reflect.setPrototypeOf` only. the canonical callee resolver handles
+  // every spelling this needs - the source member form (with its shadow bail), a proxy-global hop,
+  // and the plugin's own injected static binding after usage-pure rewrites the call - so identity is
+  // RESOLVED rather than name-matched at every one of them
+  function isProtoSetterCallee(calleePath) {
+    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope);
+    return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
   }
 
   function resolveNodeTypeExpression(path) {
@@ -169,7 +297,12 @@ export function createExpressionDispatch({
       case 'RegExpLiteral':
         return new $Object('RegExp');
       case 'ObjectExpression':
-        return new $Object('Object');
+        // an object whose prototype is not `Object.prototype` INHERITS that prototype's methods, so
+        // it is not a plain `Object`: typing it as one narrows the receiver to a family whose
+        // descriptor has no variant and drops the injection the inherited method needs. the installed
+        // prototype is not resolved here (it can be any expression) - the receiver stays unknown,
+        // which keeps the typeless dispatch and is over-inject-safe
+        return objectDispatchesForeignPrototype(path) ? null : new $Object('Object');
       case 'ArrayExpression':
         return new $Object('Array', resolveArrayLiteralCommonType(path));
       case 'FunctionExpression':
@@ -262,6 +395,7 @@ export function createExpressionDispatch({
   }
 
   return {
+    installedPrototypeFamilies,
     resolveNodeTypeExpression,
   };
 }

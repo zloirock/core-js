@@ -18,6 +18,7 @@ import {
   isMemberWriteOnlyContext,
   isMutatedGlobalSlot,
   isMutatedStaticMeta,
+  isMutatedStaticPair,
   isNonReferencePosition,
   isTaggedTemplateTag,
   collectFileCensus,
@@ -32,7 +33,7 @@ import {
   unwrapReceiverLeaf,
   unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { createClassHelpers, ctorAliasShapesReducer, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -307,6 +308,7 @@ export default function createPlugin(options) {
     getInjector: () => currentInjector,
     method: options.method,
     getMutatedStatics: () => currentMutatedStatics,
+    isTypingMutatedSlot,
     // lazy: `packages` is destructured from the resolver below; transforms run after
     getPackages: () => packages,
   });
@@ -323,7 +325,7 @@ export default function createPlugin(options) {
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
     // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`
-    isMutatedStatic: (object, key) => estreeAdapter.isMutatedStatic(object, key),
+    isMutatedStatic: (object, key) => estreeAdapter.isMutatedStaticSlot(object, key),
     // estree-toolkit OVER-HOISTS `namespace N { export var x }` bindings to the enclosing
     // program / function scope - a raw lookup surfaced the namespace twin for a use OUTSIDE
     // the block and narrowed the outer binding to the WRONG flavor. position-aware (the
@@ -379,6 +381,16 @@ export default function createPlugin(options) {
   // per-transform mutated-statics set, readable by the factory-scoped adapter / resolvePure
   // filter (the transform-local const cannot be closed over from here)
   let currentMutatedStatics = null;
+  // typing asks a YES/NO about ONE namespace, and the cheap census the shared walk already produced
+  // answers it: its target roots are a SUPERSET of what a scoped walk could attribute, so a namespace
+  // none of them names is provably untouched, and an over-report only degrades a narrow (over-inject,
+  // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required
+  let currentMutationRoots = null;
+  function isTypingMutatedSlot(object, key) {
+    if (options.method === 'usage-pure') return isMutatedStaticPair(object, key, currentMutatedStatics);
+    if (!currentMutationRoots) return false;
+    return currentMutationRoots.open || currentMutationRoots.names.has(object);
+  }
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
   // filter, so the read keeps flowing through the substituted constructor instead
@@ -572,6 +584,8 @@ export default function createPlugin(options) {
       ctorAliasShapesReducer(),
     ]);
     let mutationInfo = null;
+    // INJECTION policy only, so usage-pure only: a global-flavor bail here would drop an import
+    // instead of adding one. the typing side asks the same data separately and lazily (below)
     if (method === 'usage-pure') {
       const outerMutatedStatics = currentMutatedStatics;
       currentMutatedStatics = null;
@@ -616,8 +630,10 @@ export default function createPlugin(options) {
     // constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
     const previousInjector = currentInjector;
     const previousMutatedStatics = currentMutatedStatics;
+    const previousMutationRoots = currentMutationRoots;
     currentInjector = injector;
     currentMutatedStatics = mutatedStatics;
+    currentMutationRoots = fileCensus.mutationRoots ?? null;
     try {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
@@ -1504,6 +1520,7 @@ export default function createPlugin(options) {
     } finally {
       currentInjector = previousInjector;
       currentMutatedStatics = previousMutatedStatics;
+      currentMutationRoots = previousMutationRoots;
     }
   }
 

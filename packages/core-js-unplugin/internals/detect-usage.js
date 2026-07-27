@@ -14,7 +14,7 @@ import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfi
 import {
   createMutationSiteHandler,
   hasMutationCandidateShapes,
-} from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+} from '@core-js/polyfill-provider/detect-usage/mutations';
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
@@ -321,7 +321,7 @@ function hasRuntimeBinding(scope, name, path = null) {
 // runTransform try/finally - early-returns before the save leave the outer injector intact.
 // scoped mutation pre-pass (estree side): the cheap shape gate first; only files that
 // actually monkey-patch pay for the scoped toolkit traverse + canonical receiver resolution.
-// shares every resolution step with the read side via `mutation-prepass` (provider)
+// shares every resolution step with the read side via `mutations` (provider)
 export function collectMutationPrePass(ast, adapter, census = null) {
   const mutated = new Set();
   if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(ast, adapter.packages))) return { mutated };
@@ -486,6 +486,7 @@ function resolveClosestBinding(scope, name, path) {
 
 export function createEstreeAdapter({
   getInjector = () => null, method = null, getMutatedStatics = () => null, getPackages = () => null,
+  isTypingMutatedSlot = null,
 } = {}) {
   const adapter = {
     // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
@@ -498,6 +499,14 @@ export function createEstreeAdapter({
     // injected constructor object
     isMutatedStatic(object, key) {
       return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
+    },
+    // the TYPE layer asks a DIFFERENT question than the injection policy above: a patched static no
+    // longer returns what its declaration says, so its result type is unknown in EVERY method - a
+    // global-flavor narrow taken off the declaration silently drops the polyfill the replacement
+    // actually needs. the pure-only gate belongs to the injection skip, not to typing
+    isMutatedStaticSlot(object, key) {
+      return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
+        : isMutatedStaticPair(object, key, getMutatedStatics());
     },
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
     // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the

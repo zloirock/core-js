@@ -25,7 +25,7 @@ import {
   argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
-import { getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
+import { isVoidExpression, getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
@@ -174,7 +174,7 @@ export function createReturnType({
     // it (JS coerces `undefined` at a defaulted param to the default), so the default's declared
     // type stays authoritative - narrowing to the arg's `undefined` would drop the polyfill. any
     // `void <x>` yields undefined; bare `undefined` only when unshadowed (it's a writable global)
-    if (arg.type === 'UnaryExpression' && arg.operator === 'void') return false;
+    if (isVoidExpression(arg)) return false;
     if (isBareUndefinedIdentifier(arg) && !getScopeBinding(callPath.scope, 'undefined')) return false;
     return true;
   }

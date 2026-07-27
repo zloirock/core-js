@@ -862,6 +862,7 @@ export function createBindingAnalysis({
     buildProgramIndex,
     programCensus,
     collectBindingReferences,
+    resolveStaticCalleePair,
     classBindingName,
     isClassExported,
     isNewOfClass,

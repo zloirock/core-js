@@ -20,7 +20,6 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.array.values";
 import "core-js/modules/es.iterator.constructor";
-import "core-js/modules/es.iterator.concat";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";
 import "core-js/modules/es.iterator.every";
@@ -39,7 +38,10 @@ import "core-js/modules/es.map.species";
 import "core-js/modules/es.map.group-by";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.regexp.exec";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/es.string.replace";
+import "core-js/modules/es.string.replace-all";
 import "core-js/modules/esnext.iterator.chunks";
 import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/esnext.iterator.join";
@@ -100,7 +102,7 @@ for ([A3, B3] of [[Promise, Iterator]]) {
   break;
 }
 A3.race([]);
-B3.concat([]);
+B3.from(other);
 
 // a slot DEFAULT is a possible value too (fires on the undefined element)
 let D = Object;
@@ -122,10 +124,8 @@ for (T2 of [(eff(), Reflect)]) {
 }
 T2.ownKeys(x);
 
-// negatives: a for-IN head yields string keys and an OPAQUE iterable enumerates nothing -
-// a rebound-but-unresolvable binding injects NOTHING for its keyed member (isolated probes;
-// same-module noise in this file can only come from other rows' constructor value reads,
-// so both negative keys are chosen to collide with no other row)
+// a for-IN head yields string keys, and no string carries this static - the row injects NOTHING
+// (isolated probe; its key is chosen to collide with no other row)
 let K = Object;
 for (K in {
   a: 1
@@ -133,6 +133,12 @@ for (K in {
   break;
 }
 K.fromAsync([4]);
+
+// an OPAQUE iterable enumerates no value the resolver can name, so the rebound alias may hold
+// ANYTHING at the use - including a string, whose instance method needs the polyfill off target.
+// the declarator's resolved `Object` describes only the pre-loop value, so the typeless instance
+// row rides beside it (over-inject-safe); locking "injects nothing" here assumed the unresolvable
+// rebind could not dispatch an instance method
 let V = Object;
 for (V of gen()) {
   break;

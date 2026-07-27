@@ -34,7 +34,7 @@ Z.try(() => 1);
 let A3 = Object, B3 = Object;
 for ([A3, B3] of [[Promise, Iterator]]) { break; }
 A3.race([]);
-B3.concat([]);
+B3.from(other);
 
 // a slot DEFAULT is a possible value too (fires on the undefined element)
 let D = Object;
@@ -51,14 +51,17 @@ let T2 = Object;
 for (T2 of [(eff(), Reflect)]) { break; }
 T2.ownKeys(x);
 
-// negatives: a for-IN head yields string keys and an OPAQUE iterable enumerates nothing -
-// a rebound-but-unresolvable binding injects NOTHING for its keyed member (isolated probes;
-// same-module noise in this file can only come from other rows' constructor value reads,
-// so both negative keys are chosen to collide with no other row)
+// a for-IN head yields string keys, and no string carries this static - the row injects NOTHING
+// (isolated probe; its key is chosen to collide with no other row)
 let K = Object;
 for (K in { a: 1 }) { break; }
 K.fromAsync([4]);
 
+// an OPAQUE iterable enumerates no value the resolver can name, so the rebound alias may hold
+// ANYTHING at the use - including a string, whose instance method needs the polyfill off target.
+// the declarator's resolved `Object` describes only the pre-loop value, so the typeless instance
+// row rides beside it (over-inject-safe); locking "injects nothing" here assumed the unresolvable
+// rebind could not dispatch an instance method
 let V = Object;
 for (V of gen()) { break; }
 V.replaceAll(other);

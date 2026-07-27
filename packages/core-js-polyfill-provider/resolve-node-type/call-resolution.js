@@ -743,6 +743,7 @@ export function createCallResolution({
   // internally)
   return {
     resolveCallReturnType,
+    violationToAssignment,
     resolveCallReturnTypeFromAnnotation,
     functionTypeReturnAnnotation,
     shadowedAliasReturnAnnotation,
