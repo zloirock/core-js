@@ -19,7 +19,7 @@ import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from
 import {
   createMutationSiteHandler,
   hasMutationCandidateShapes,
-} from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+} from '@core-js/polyfill-provider/detect-usage/mutations';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   collectFunctionScopeVarReassignments,
@@ -73,7 +73,7 @@ function stringLiteralValue(node) {
 // under parallel transforms (Vite/Rollup/thread-loader)
 // scoped mutation pre-pass: the cheap shape gate runs first; only files that actually
 // monkey-patch pay for the path traverse + canonical receiver resolution. shares every
-// resolution step with the read side via `mutation-prepass` (provider)
+// resolution step with the read side via `mutations` (provider)
 export function collectMutationPrePass(programPath, adapter, census = null) {
   const mutated = new Set();
   if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(programPath.node, adapter.packages))) return { mutated };
@@ -110,6 +110,7 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
 
 export function createBabelAdapter({
   getInjector = () => null, method = null, getMutatedStatics = () => null, getPackages = () => null,
+  isTypingMutatedSlot = null,
 } = {}) {
   // the injector's declarator registry serves plugin-minted memo refs whose scope model
   // misrepresents the binding: scope-invisible on the memo-dense append path, or param-landed
@@ -133,6 +134,14 @@ export function createBabelAdapter({
     // injected constructor object
     isMutatedStatic(object, key) {
       return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
+    },
+    // the TYPE layer asks a DIFFERENT question than the injection policy above: a patched static no
+    // longer returns what its declaration says, so its result type is unknown in EVERY method - a
+    // global-flavor narrow taken off the declaration silently drops the polyfill the replacement
+    // actually needs. the pure-only gate belongs to the injection skip, not to typing
+    isMutatedStaticSlot(object, key) {
+      return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
+        : isMutatedStaticPair(object, key, getMutatedStatics());
     },
     // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
     // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the
