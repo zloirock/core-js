@@ -78,7 +78,8 @@ for (const lib of libs) {
   }
 }
 
-const total = [...byGroup.values()].reduce((n, f) => n + f.length, 0);
+let total = 0;
+for (const files of byGroup.values()) total += files.length;
 if (!total) throw new Error('no bundles built — nothing to run in IE11');
 
 // Only start Karma where IE11 actually exists: the windows CI runner (CI set) or a dev box with
