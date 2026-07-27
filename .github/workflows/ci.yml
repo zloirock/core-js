@@ -81,7 +81,7 @@ jobs:
       - run: npm run test-e2e-usage-pure-karma
 
   # real IE11 for tests/e2e-libs: builds the full runtime matrix (every library × method × unplugin
-  # phase × Babel version, rollup + unplugin) from the real libraries and runs each through Karma/QUnit
+  # phase, rollup + unplugin) from the real libraries and runs each through Karma/QUnit
   # in actual IE11 (one bundle per page, so nothing is co-loaded; the `pre` phase is a non-gating
   # per-library diagnostic). Separate from `karma` so the heavy e2e-libs install (real libs + bundlers)
   # does not slow the core browser job. zxi installs e2e-libs itself.
