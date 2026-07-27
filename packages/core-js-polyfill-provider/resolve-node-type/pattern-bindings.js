@@ -189,8 +189,9 @@ export function createPatternBindings({
       // numeric key `{ 0: ... }` (stringified to `'0'` by getKeyName) matches its path entry - a raw
       // `prop.key.value` probe compared the number `0` against the string `'0'` and judged it absent.
       // findLast honours ECMAScript last-property-wins for duplicate keys. deliberately NOT
-      // findObjectMember: its set-accessor skip would mis-read a data-then-setter slot
-      // (`{ a: 1, set a(v) {} }` reads undefined) as present
+      // findObjectMember: that one answers "which node supplies the read TYPE" and hands back the
+      // getter paired with a trailing setter, while the question here is "is a defined value
+      // present", which an accessor leaves undecided (handled just below)
       const match = init.properties.findLast(prop => getKeyName(prop.key) === keyPath[0]);
       // a method / accessor property (babel ObjectMethod; estree Property with a get / set /
       // method kind) carries a defined value the plain `.value` probe cannot see - stay

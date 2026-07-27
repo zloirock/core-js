@@ -429,6 +429,32 @@ function * generateUnbracedBodyMinifierSplit() {
   }
 }
 
+// --- own field vs prototype accessor: which member answers the read ---
+// a class field is defined after the body's methods and accessors exist, so it answers the read
+// whatever the source order - and an INSTANCE field also shadows an accessor further along the
+// prototype chain. picking the accessor instead narrows to its family, which the FULL environment
+// hides (the wrong-family helper still delegates to the native) - only the stripped realm shows it,
+// where that helper has nothing to delegate to and throws. so every row runs stripped
+function * generateFieldShadowsAccessor() {
+  const rows = [
+    ['instance', 'class C { a = ["p", "q"]; get a() { return "s"; } } const recv = new C();'],
+    ['static', 'class C { static a = ["p", "q"]; static get a() { return "s"; } } const recv = C;'],
+    ['inherited', 'class A { a = ["p", "q"]; } class B extends A { get a() { return "s"; } } const recv = new B();'],
+    ['field-last', 'class C { get a() { return "s"; } a = ["p", "q"]; } const recv = new C();'],
+  ];
+  for (const [id, decl] of rows) {
+    yield { ...snippet(`field-shadows-accessor/${ id }`,
+      `(() => { ${ decl } return String(recv.a.includes("p")); })()`), strip: true };
+  }
+  // the boundary: with no field the accessor really is the answer, and a STATIC read follows the
+  // constructor chain, where an own accessor on the subclass shadows the field it inherits
+  yield { ...snippet('field-shadows-accessor/accessor-only',
+    '(() => { class C { get a() { return "pq"; } } return String(new C().a.includes("p")); })()'), strip: true };
+  yield { ...snippet('field-shadows-accessor/static-subclass-accessor-wins',
+    '(() => { class A { static a = ["p", "q"]; } class B extends A { static get a() { return "pq"; } }'
+    + ' return String(B.a.includes("p")); })()'), strip: true };
+}
+
 // --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
 // every hop of an alias chain resolves in the scope its own declarator was written in, so a
 // binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
@@ -4102,6 +4128,7 @@ export function * generate() {
   yield * generateSharedAliasUnionArms();
   yield * generateOptionalForeignReceiver();
   yield * generateUnbracedBodyMinifierSplit();
+  yield * generateFieldShadowsAccessor();
   yield * generateAliasHopShadow();
   yield * generateAliasReceiverShadow();
   yield * generateSuperClassAliasReceiverShadow();
