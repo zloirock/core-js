@@ -64,15 +64,13 @@ export function bannerHarness(expected) {
 // console.log line makes the leg self-explanatory in the CI log — how many checks of the exercise
 // actually ran in this IE11, per cell — which karma.conf.cjs forwards to the terminal.
 //
-// Every bundle is a UMD with the SAME global name (`E2E`), and Karma loads them all into ONE page, so
-// each later bundle overwrites `window.E2E`. Capture this bundle's `E2E` into a closure NOW, as this
-// appended snippet runs (right after its own UMD), rather than reading the global inside the test
-// callback (which fires after every bundle has loaded, when `E2E` is only the last one).
+// karma-bundles.mjs gives each bundle its OWN IE11 page (one bundle per Karma run), so the UMD's `E2E`
+// global is unambiguously this cell's — no co-loaded sibling can overwrite it, or patch a global that
+// masks another cell's miss. The IIFE just keeps `LABEL` and the helpers out of the page's global scope.
 export function qunitHarness(label) {
   return `
     (function () {
       var LABEL = ${ JSON.stringify(label) };
-      var NS = E2E;
       QUnit.test(LABEL, function (assert) {
         var done = assert.async();
         // fail loudly if this is NOT real IE11: on a modern engine (e.g. an iexplore -> Edge redirect
@@ -100,7 +98,7 @@ export function qunitHarness(label) {
           done();
         }
         try {
-          var res = NS.run();
+          var res = E2E.run();
           if (res && typeof res.then === 'function') res.then(report)['catch'](fail);
           else report(res);
         } catch (err) { fail(err); }
