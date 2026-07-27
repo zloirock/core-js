@@ -648,7 +648,7 @@ Expected: 7 `✓` lines (entry-global + 3 usage-global phases + 3 usage-pure pha
 - [ ] **Step 3: (optional) full run**
 
 Run: `~/.nvm/versions/node/v22.20.0/bin/node tests/e2e-libs/throughput.mjs rxjs`
-Expected: 56 cells across 8 bundlers as written here — but farm was later excluded (its native compiler hard-crashes on the workspace v4 core-js modules), so the shipped runner does 7 bundlers × 7 (method × phase) cells per library: 49 for `rxjs` alone, 147 for the three-fixture registry. Some bundlers may print `✗`/`ERR` (config edge cases) — record them; they are data, not blockers. `report/` regenerated.
+Expected: 56 cells across 8 bundlers as written here — but farm was later excluded (its resolver mishandles core-js's `js`-named module specifiers — see design §13, not the native crash first assumed), so the shipped runner does 7 bundlers × 7 (method × phase) cells per library: 49 for `rxjs` alone, 147 for the three-fixture registry. Some bundlers may print `✗`/`ERR` (config edge cases) — record them; they are data, not blockers. `report/` regenerated.
 
 - [ ] **Step 4: Stage + (gated) commit**
 
