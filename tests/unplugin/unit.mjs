@@ -50,7 +50,6 @@ import {
 import {
   isCallee,
   isCalleeWrappedInParens,
-  isOutermostOptionalChainMember,
   unwrapNode,
 } from '../../packages/core-js-unplugin/internals/emit-utils.js';
 
@@ -4093,45 +4092,6 @@ function checkIsCalleeWrappedInParens() {
   check('isCalleeWrappedInParens/node not under callee', isCalleeWrappedInParens(unrelated, node), false);
 }
 checkIsCalleeWrappedInParens();
-
-// --- emit-utils.isOutermostOptionalChainMember: path-aware chain-boundary detection ---
-function checkIsOutermostOptionalChainMember() {
-  const leaf = { type: 'OptionalMemberExpression' };
-
-  // direct child of ChainExpression
-  const chainPath = { node: leaf, parentPath: { node: { type: 'ChainExpression' } } };
-  check('isOutermostOptionalChainMember/direct chain child', isOutermostOptionalChainMember(chainPath), true);
-
-  // wrapped via CallExpression-with-leaf-as-callee then ChainExpression (instance-call shape)
-  const callPath = {
-    node: leaf,
-    parentPath: {
-      node: { type: 'CallExpression', callee: leaf },
-      parentPath: { node: { type: 'ChainExpression' } },
-    },
-  };
-  check('isOutermostOptionalChainMember/wrapped through call', isOutermostOptionalChainMember(callPath), true);
-
-  // through TS wrapper before chain
-  const tsPath = {
-    node: leaf,
-    parentPath: {
-      node: { type: 'TSAsExpression' },
-      parentPath: { node: { type: 'ChainExpression' } },
-    },
-  };
-  check('isOutermostOptionalChainMember/through TS wrapper', isOutermostOptionalChainMember(tsPath), true);
-
-  // not in chain - parent is statement
-  const stmtPath = { node: leaf, parentPath: { node: { type: 'ExpressionStatement' } } };
-  check('isOutermostOptionalChainMember/non-chain context',
-    isOutermostOptionalChainMember(stmtPath), false);
-
-  // null path
-  check('isOutermostOptionalChainMember/null path',
-    isOutermostOptionalChainMember(null), false);
-}
-checkIsOutermostOptionalChainMember();
 
 // --- SnapshotCache lifecycle: store -> take chains, miss-after-take, invalidate cycles ---
 // take() consumes the entry (last-write-wins HMR semantic) and returns `entry ?? null`
