@@ -8,7 +8,6 @@
         "absoluteImports": null,
         "debug": null,
         "ignoreBrowserslistConfig": null,
-        "shippedProposals": null,
         "targets": {
           "ie": 11
         }
