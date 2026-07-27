@@ -1669,6 +1669,69 @@ function * generateClosureReassignedKey() {
   }
 }
 
+// --- Installed prototype: the receiver dispatches a prototype it did not start with ---
+// an object whose prototype is not `Object.prototype` INHERITS that prototype's methods, so typing it
+// as a plain object drops the polyfill the inherited member needs. every install channel is exercised
+// (literal `__proto__:` property, a later `__proto__` write, a `setPrototypeOf` call, and the same
+// call behind a sequence VALUE) plus the two shapes that install nothing. `Array.prototype.at` is
+// strippable, so the stripped realm is the load-bearing oracle here: a missed injection leaves the
+// raw member read on an absent native and the row throws instead of returning its element
+const PROTO_INSTALL = [
+  { id: 'literal', body: 'const o = { __proto__: Array.prototype, length: 2, 0: "a", 1: "b" }; return String(o.at(-1));' },
+  { id: 'member-write', body: 'const o = { length: 2, 0: "a", 1: "b" }; o.__proto__ = Array.prototype; return String(o.at(-1));' },
+  { id: 'set-prototype-of', body: 'const o = { length: 2, 0: "a", 1: "b" }; Object.setPrototypeOf(o, Array.prototype); return String(o.at(-1));' },
+  { id: 'sequence-target', body: 'const o = { length: 2, 0: "a", 1: "b" }; Object.setPrototypeOf((log.push("e"), o), Array.prototype); return String(o.at(-1));' },
+  { id: 'object-create', body: 'const o = Object.create(Array.prototype); o.length = 2; o[0] = "a"; o[1] = "b"; return String(o.at(-1));' },
+  // no dispatcher installed: the member is genuinely absent and the read yields undefined on every path
+  { id: 'null-proto', body: 'const o = { __proto__: null }; return String(o.at);' },
+  { id: 'object-create-null', body: 'const o = Object.create(null); return String(o.at);' },
+  // a PRIMITIVE prototype value installs no dispatcher: the `__proto__` spellings are spec no-ops
+  { id: 'primitive-proto-literal', body: 'const o = { __proto__: 42, length: 0 }; return String(o.at);' },
+  { id: 'primitive-proto-write', body: 'const o = { length: 0 }; o.__proto__ = "s"; return String(o.at);' },
+  // a SHADOWED `undefined` is an ordinary value: as a prototype it installs a dispatcher, and in a
+  // destructuring slot it keeps the paired default dead. both read the shape through a scope gate
+  { id: 'shadowed-undefined-proto', body: 'const undefined = Array.prototype; const o = { __proto__: undefined, length: 2, 0: "a", 1: "b" }; return String(o.at(-1));' },
+  { id: 'shadowed-undefined-slot', body: 'const undefined = ["x", "y"]; const { a = "str" } = { a: undefined }; return String(a.at(-1));' },
+  { id: 'plain-object', body: 'const o = { length: 2 }; return String(o.at);' },
+];
+function * generateProtoInstall() {
+  for (const c of PROTO_INSTALL) {
+    yield { ...snippet(`proto-install/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+  }
+}
+
+// --- Deferred read union: the receiver is every value that can reach a re-run read ---
+// a read inside a closure / instance field runs at an unknown time, so a write placed textually
+// after it still reaches it. the receiver type is then the UNION of the init and every reachable
+// write: an unshadowable NULLISH arm drops out (nothing dispatches off it), arms of different
+// dispatching families leave the set open, and a write whose value cannot be decomposed - a
+// destructuring slot, a shadowed `undefined` the two parsers model differently - leaves it open
+// too. `at` is strippable, so a union narrowed the wrong way leaves the read on an absent native
+const DEFERRED_UNION = [
+  { id: 'nullish-init-array', body: 'let x = null; const read = () => String(x.at(-1)); x = ["a", "b"]; return read();' },
+  { id: 'nullish-init-string', body: 'let x = null; const read = () => String(x.at(-1)); x = "yz"; return read();' },
+  { id: 'void-arm-drops', body: 'let x = ["a", "b"]; const read = () => String(x.at(-1)); const first = read(); x = void 0; return first;' },
+  { id: 'mixed-arms', body: 'let x = ["a", "b"]; const read = () => String(x.at(-1)); const first = read(); x = "yz"; return first + read();' },
+  { id: 'opaque-slot-write', body: 'let x = null; const read = () => String(x.at(-1)); [x] = [["a", "b"]]; return read();' },
+  { id: 'alias-write', body: 'let x = null; const read = () => String(x.at(-1)); const src = ["a", "b"]; x = src; return read();' },
+  { id: 'alias-write-shadowed', body: 'let x = null; const read = () => String(x.at(-1)); { const src = ["a", "b"]; x = src; } return read();' },
+  // shapes whose family only the scope-dependent routes can name - the axis the two parsers disagreed on
+  { id: 'member-write', body: 'const holder = { rows: ["a", "b"] }; let x = null; const read = () => String(x.at(-1)); x = holder.rows; return read();' },
+  { id: 'call-write', body: 'function mk() { return ["a", "b"]; } let x = null; const read = () => String(x.at(-1)); x = mk(); return read();' },
+  { id: 'instance-write', body: 'class P { constructor() { this.v = "z"; } } let x = null; const read = () => String(x.v); x = new P(); return read();' },
+  { id: 'shadowed-undefined-write', body: 'let x = null; const read = () => String(x.at(-1)); { const undefined = ["a", "b"]; x = undefined; } return read();' },
+  { id: 'compound-write', body: 'let x = null; const read = () => String(x.at(-1)); x = "a"; x += "b"; return read();' },
+  { id: 'instance-field-read', body: 'let x = null; class C { held = String(x.at(-1)); } x = ["a", "b"]; return new C().held;' },
+  // controls: the read is NOT deferred, so the write cannot reach it and the init narrow stands
+  { id: 'same-scope-control', body: 'let x = null; x = ["a", "b"]; return String(x.at(-1));' },
+  { id: 'static-field-control', body: 'let x = ["a", "b"]; class C { static held = String(x.at(-1)); } x = "yz"; return C.held;' },
+];
+function * generateDeferredUnion() {
+  for (const c of DEFERRED_UNION) {
+    yield { ...snippet(`deferred-read-union/${ c.id }`, `(() => { ${ c.body } })()`), strip: true };
+  }
+}
+
 // --- Reassigned callable slot: the DECLARED body no longer describes what a call yields ---
 // every callable member is a writable slot. once a write installs a function returning a FOREIGN
 // family, narrowing off the declaration dispatches a type-specific helper onto the replacement's
@@ -4021,6 +4084,8 @@ export function * generate() {
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
   yield * generateClosureReassignedKey();
+  yield * generateProtoInstall();
+  yield * generateDeferredUnion();
   yield * generateReassignedCallableSlot();
   yield * generateUnionHopFoldTs();
   yield * generateSpreadShiftedSlot();

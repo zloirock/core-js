@@ -15,6 +15,7 @@ import {
   TS_EXPR_WRAPPERS,
   isIifeCallNode,
   isDeferredContextStep,
+  readRunsDeferredWithin,
 } from '../helpers/ast-patterns.js';
 
 // always-evaluated wrappers between assignment and its enclosing statement.
@@ -355,6 +356,17 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     return !liftThroughIIFEs(ap, wrapStmtType, bindingScope);
   }
 
+  // the READ-side mirror: a use captured in a closure BELOW the binding's scope re-runs on every
+  // invocation, so a write textually AFTER it is still observable on a later call (`let O = null;
+  // const f = () => O.at(0); O = []; f()` reads the array). the positional "every write follows the
+  // use" test then no longer proves the declarator init describes the receiver. bounded at the
+  // binding's own scope - a use in the SAME activation as the writes stays positionally ordered -
+  // and an IIFE body is excluded for the same reason the write side excludes it: it runs at its
+  // definition position, so it stays straight-line
+  function usageRunsDeferred(usagePath, bindingScope) {
+    return readRunsDeferredWithin(usagePath, scopeNode(bindingScope));
+  }
+
   // last straight-line assignment before usagePath: `x = v`, `x += v`, `({x} = v)`, or a
   // `var x = v` redecl in the same var-scope (possibly through plain blocks / sync IIFEs).
   // O(V) build per binding (cached), O(log V) per query
@@ -409,6 +421,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
   return {
     findLastStraightLineAssignment,
     violationRunsDeferred,
+    usageRunsDeferred,
     reset,
   };
 }
