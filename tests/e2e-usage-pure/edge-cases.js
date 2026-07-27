@@ -718,3 +718,44 @@ QUnit.test('shadow: nested-block var shadows an outer symbol alias', assert => {
 });
 /* eslint-enable no-var, no-redeclare, no-lone-blocks, no-shadow, block-scoped-var, prefer-destructuring,
    es/no-nonstandard-array-prototype-properties -- end of the var-hoist shadow shapes */
+
+// a receiver read captured in a closure re-runs on every call, so a write that lands AFTER the
+// closure is defined reaches it. typing the receiver from the (dead) declarator init left the read
+// on the native method, which a realm without it cannot serve - the polyfilled dispatch must run
+QUnit.test('inference: closure-captured receiver reassigned after definition still dispatches', assert => {
+  let target = null;
+  function read() {
+    return target.at(-1);
+  }
+  target = [1, 2, 3];
+  assert.same(read(), 3, 'the closure observes the reassigned array');
+  target = [7];
+  assert.same(read(), 7, 'and each later invocation re-reads the current value');
+});
+
+// the deferred read's receiver is the UNION of every reachable value, not the declarator init and
+// not the last write: with an array and a string both reachable the two share no dispatching type,
+// so the generic dispatch has to run. typing the read from either arm alone would forward the OTHER
+// one to a method its own prototype may not carry in the target realm
+QUnit.test('inference: deferred read with mixed reachable types keeps the generic dispatch', assert => {
+  let target = [1, 2, 3];
+  function read() {
+    return target.at(-1);
+  }
+  assert.same(read(), 3, 'the array arm dispatches');
+  target = 'xyz';
+  assert.same(read(), 'z', 'the string arm dispatches through the same read');
+});
+
+// `Object.setPrototypeOf` installs a prototype the target engines DO support, so the object really
+// dispatches that prototype's methods there and the read must reach the polyfilled dispatch rather
+// than the (possibly absent) native method. the installed prototype also NAMES the family, so the
+// family-specific helper is the one that runs: it keys on the prototype CHAIN, not on the receiver
+// being an instance of that family, so an object that merely inherits the prototype is served. the
+// object-literal `__proto__:` channel is NOT asserted at runtime: old engines treat that key as an
+// ordinary property, so only the transform matters there and the fixtures plus the differential cover it
+QUnit.test('inference: prototype installed via setPrototypeOf dispatches inherited methods', assert => {
+  const arrayLike = { length: 3, 0: 'a', 1: 'b', 2: 'c' };
+  Object.setPrototypeOf(arrayLike, Array.prototype);
+  assert.same(arrayLike.at(-1), 'c', 'the inherited instance method runs on the array-like');
+});

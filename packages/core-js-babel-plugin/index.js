@@ -12,6 +12,7 @@ import {
   getMinifierSequenceDestructureExpressions,
   isMutatedGlobalSlot,
   isMutatedStaticMeta,
+  isMutatedStaticPair,
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
   memberKeyNamesReducer,
@@ -26,7 +27,7 @@ import {
   resolveBatchDirectivePromotionPolicy,
   sequenceHeadDirectiveHazard,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutation-prepass';
+import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
@@ -182,7 +183,7 @@ export default function plugin(api, options) {
     },
     // `adapter` (and its per-file `mutatedStatics`) is created below; the closure only runs during
     // traversal, after init, so the deferred reference is safe
-    isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
+    isMutatedStatic: (object, key) => adapter.isMutatedStaticSlot(object, key),
   });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 
@@ -222,6 +223,16 @@ export default function plugin(api, options) {
   // the current file (`Array.from = X`, `[Array.from] = X`, `delete Array.from`, ...).
   // factory-scoped so the resolvePure filter and the adapter getter see the per-file value
   let mutatedStatics = null;
+  // typing asks a YES/NO about ONE namespace, and the cheap census the shared walk already produced
+  // answers it: its target roots are a SUPERSET of what a scoped walk could attribute, so a namespace
+  // none of them names is provably untouched, and an over-report only degrades a narrow (over-inject,
+  // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required
+  let mutationRoots = null;
+  function isTypingMutatedSlot(object, key) {
+    if (method === 'usage-pure') return isMutatedStaticPair(object, key, mutatedStatics);
+    if (!mutationRoots) return false;
+    return mutationRoots.open || mutationRoots.names.has(object);
+  }
   let fileCensus = null;
   // a static the user monkey-patches must never bind to the frozen receiver-less import:
   // every pipeline (member emission, destructure props, param synth) resolves through this
@@ -263,6 +274,7 @@ export default function plugin(api, options) {
     getInjector: () => injector,
     method,
     getMutatedStatics: () => mutatedStatics,
+    isTypingMutatedSlot,
     getPackages: () => packages,
   });
 
@@ -1152,14 +1164,15 @@ export default function plugin(api, options) {
           mutationShapesReducer(packages),
         ]);
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
-        // `Object.key` reads - so it is needed ONLY in usage-pure (entry-global / usage-global
-        // never read `mutatedStatics`, the whole-AST walk was dead work there, matching unplugin).
+        // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
+        // before: a global-flavor bail there would drop an import instead of adding one.
         // internal core-js files don't need it either (they manage their own globals).
         // reset FIRST: the read canons the pre-pass shares consult the live slot through the
         // adapter, and the previous file's set must not gate this file's collection
         mutatedStatics = null;
         mutatedStatics = method === 'usage-pure' && !isInternalCoreJS
           ? collectMutationPrePass(path, adapter, fileCensus).mutated : null;
+        mutationRoots = isInternalCoreJS ? null : fileCensus.mutationRoots ?? null;
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
