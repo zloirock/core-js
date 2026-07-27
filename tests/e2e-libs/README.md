@@ -58,9 +58,8 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   `js` (`es.json.*`, `web.url.to-json`) — which node and the other bundlers resolve fine — not the
   native crash once assumed; see `build.mjs` for the real cause and the one-plugin shim that fixes it.)
 - **artifacts** — the real IE11 build: Babel (syntax → ES5) + unplugin (stdlib polyfills) → ES5 UMD +
-  self-checking HTML, under **both Babel 7 and Babel 8** (unplugin's post phase consumes Babel's helper
-  output, so each version is exercised — matching the repo's `test-transpiling` dual-Babel convention).
-  `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/<lib>/babel{7,8}/<method>/{bundle.js,index.html}` + `manifest.json`
+  self-checking HTML.
+  `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/<lib>/<method>/{bundle.js,index.html}` + `manifest.json`
   (manifest records raw / minified / gzip sizes + injections, counted inside the build itself).
   An unfiltered run wipes `artifacts/` first and a filtered one wipes just the libraries it rebuilds
   (merging into the existing manifest), so a failed cell cannot leave a stale green page behind while
@@ -78,8 +77,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   is parsed as ES5 too, that being the byte count `manifest.json` publishes as shippable. The
   hand-written in-page harness is parsed once per run — one arrow function there would leave the
   banner stuck on `running…` with no verdict. The full list lives in the design doc's §9, in one
-  place on purpose. Babel 8's toolchain lives in `babel8/` (its own install — two `@babel/core`
-  majors can't share one `node_modules`).
+  place on purpose.
 - **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.txt`
   Baselines are captured at unplugin's default phase and **without Babel**, so they do not cover the
   configuration the runtime tier actually builds. In that no-Babel pipeline `pre` and `post` inject
@@ -92,8 +90,8 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
 - **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the **full runtime
-  matrix** (every library × method × unplugin phase × Babel version, 42 bundles: rollup + Babel +
-  unplugin), appends a QUnit driver to each, and runs them in **actual IE11** via Karma — the same
+  matrix** (every library × method × unplugin phase, 21 bundles: rollup + Babel + unplugin), appends a
+  QUnit driver to each, and runs them in **actual IE11** via Karma — the same
   karma-qunit / IE stack `tests/unit-karma` already drives. `usage-pure` is the method whose green run
   also validates per-site *detection* (see the note below); the global methods prove the exercise still
   *executes* on IE11. The **phase** axis (`pre` / `post` / `pre+post`) tests unplugin's ordering

@@ -2,9 +2,6 @@
   "name": "tests/e2e-libs",
   "type": "module",
   "private": true,
-  "scripts": {
-    "postinstall": "npm install --prefix babel8 --no-audit --no-fund --lockfile-version=3 --loglevel=error --force"
-  },
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@babel/preset-env": "^7.24.0",
