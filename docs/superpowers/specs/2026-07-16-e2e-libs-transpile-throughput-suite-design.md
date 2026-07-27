@@ -45,7 +45,7 @@ These two constraints produce the tiering in §4 and the plugin ordering in §6.
   `bundler`, seeded with **RxJS**.
 - **Throughput tier:** measure total-bundle time (a parse-vs-inject split is deferred — see §8),
   output size, injection count, against a no-plugin baseline.
-- **Runtime tier:** emit an ES5 bundle + a self-checking `index.html` per (lib × method × Babel 7/8) for
+- **Runtime tier:** emit an ES5 bundle + a self-checking `index.html` per (lib × method) for
   **manual** upload to BrowserStack/SauceLabs; plus a node pre-flight that the bundle at least
   executes and its checks pass.
 - Injection snapshots per (lib × method), like e2e-d3.
@@ -83,14 +83,14 @@ tests/e2e-libs/
   build.mjs          # core: (lib, method, phase, bundler) -> bundle (unplugin [+ Babel for runtime tier])
   throughput.mjs     # tier-1 runner: bundlers x methods x phases, measure, write report/
   pipeline.mjs       # size + time per stage [A]/[B]/[C] per (lib x method), write report/
-  artifacts.mjs      # tier-2 runner: rollup+babel -> ES5 bundle + index.html + manifest.json (Babel 7 & 8)
+  artifacts.mjs      # tier-2 runner: rollup+babel -> ES5 bundle + index.html + manifest.json
   snapshot.mjs       # injection snapshot per (lib x method); --update to rewrite
   check-exercise.mjs # run an exercise raw and print its checks
   args.mjs           # runnerArgs(import.meta.url): argv cut at the runner's own path (zxi imports, not spawns)
   README.md          # suite docs: fixtures, the five runners, and the topology finding
   babel8/            # isolated @babel/core@8 toolchain (own package.json + node_modules)
   report/            # generated: throughput.{md,json} + pipeline.{md,json}
-  artifacts/         # generated: <lib>/babel{7,8}/<method>/{bundle.js,index.html} + manifest.json
+  artifacts/         # generated: <lib>/<method>/{bundle.js,index.html} + manifest.json
   snapshots/         # generated: <lib>.<method>.txt
   .tmp/              # generated: temp entries + preflight scripts (pid+hrtime suffixed, always removed)
   package.json
@@ -201,11 +201,11 @@ Output: `report/throughput.md` (human table) + `report/throughput.json` (machine
 
 ## 9. IE11 artifacts (`artifacts.mjs`)
 
-For each (lib × method × Babel 7/8) in the runtime tier:
+For each (lib × method) in the runtime tier:
 
 1. Build the ES5 bundle (rollup+babel path by default; webpack+babel-loader optional).
-2. Emit `artifacts/<lib>/babel{7,8}/<method>/bundle.js`.
-3. Emit `artifacts/<lib>/babel{7,8}/<method>/index.html`: loads `bundle.js`, runs `checks`, renders
+2. Emit `artifacts/<lib>/<method>/bundle.js`.
+3. Emit `artifacts/<lib>/<method>/index.html`: loads `bundle.js`, runs `checks`, renders
    a green/red banner with a per-check breakdown. No external assets (BrowserStack-friendly).
 4. **Node pre-flight:** execute the ES5 bundle in node and assert `checks` pass. This is *not* a
    stripped realm — just "does it execute and compute correctly at all" — to catch gross breakage
@@ -232,7 +232,7 @@ Exposed as root `package.json` scripts, per the repo convention that runners are
 
 - `npm run e2e-libs-throughput [-- libFilter bundlerFilter]` → `report/` (the full bundler × phase matrix)
 - `npm run e2e-libs-pipeline [-- libFilter methodFilter]` → `report/` (size + time per stage [A]/[B]/[C])
-- `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/` + `manifest.json` + node pre-flight (Babel 7 & 8)
+- `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/` + `manifest.json` + node pre-flight
 - `npm run e2e-libs-snapshot [-- --update]` → `snapshots/`
 - `npm run e2e-libs-check-exercise [-- libFilter]` → run exercises raw and print their checks
 - `npm run e2e-libs` → the three asserting runners in order (check-exercise → snapshot → artifacts)
@@ -281,7 +281,7 @@ BrowserStack Automate; CI wiring.
   builder stays in `build.mjs` for easy re-enable.
 - **automated Karma/IE11 CI leg:** what §9 first called a manual BrowserStack step is now automated.
   `karma-bundles.mjs` + `harness.mjs` build the full runtime matrix (every library × method × unplugin
-  phase × Babel version = 42 bundles), append a QUnit driver to each, and run them in **real IE11** via
+  phase = 21 bundles), append a QUnit driver to each, and run them in **real IE11** via
   Karma (the same karma-qunit@4 / qunit@2 stack `tests/unit-karma` drives), in the `e2e-libs-ie11` CI
   job on `windows-2022`. The **phase** axis (`pre` / `post` / `pre+post`, for the usage-* methods)
   probes unplugin's ordering relative to Babel: `post` and `pre+post` **gate** the job, while `pre` —
@@ -294,19 +294,20 @@ BrowserStack Automate; CI wiring.
   (`document.documentMode`), so an `iexplore`→Edge
   substitution reddens rather than passing green. The generated HTML pages stay for an optional manual
   BrowserStack pass. (The five runners in §5 are now six with `karma-bundles.mjs`.)
-- **dual Babel (7 + 8):** the runtime tier builds every (method) under both Babel 7 (the suite's own
-  `@babel/core`/`@babel/preset-env`) and Babel 8 (isolated in `babel8/`, since two `@babel/core`
-  majors can't share a `node_modules`) — matching the repo's `test-transpiling` convention of testing
-  the babel-facing behaviour against both. `@rollup/plugin-babel@6` only supports `@babel/core@7`, so
-  a small custom transform plugin runs the chosen Babel core (via `transformAsync`) instead. Note:
-  Babel 7.29 and 8.0 emit **identically sized** ES5, and byte-identical output on the seed exercise
-  and on standalone `for-of`/spread/generator/async/private-method snippets. On codemirror and three
-  the bytes DO differ: the two majors emit the same helpers in a different order (raw and minified
-  sizes unchanged, gzip moves by a few bytes). So the second run is mostly a parity guard, but it is
-  not a tautology; a larger delta would surface from a future Babel that changes a helper
-  or preset-env's transform selection. (The exercise's `for_of_set`/`spread_set` checks still add
-  value: they drive Babel's `_createForOfIteratorHelper`/`_toConsumableArray` → `Symbol.iterator`, so
-  the post-phase helper injection the runtime tier exists to test is actually exercised at runtime.)
+- **dropped dual Babel (7 + 8):** the runtime tier once built every (method) under both Babel 7 (the
+  suite's own `@babel/core`/`@babel/preset-env`) and an isolated Babel 8 (`babel8/`, its own install
+  since two `@babel/core` majors can't share a `node_modules`), matching the repo's `test-transpiling`
+  convention. It was **removed** — empirically it added no signal: for these fixtures Babel 7.29 and
+  8.0 drive unplugin to the **identical** injected set (same specifiers, same count) and produce the
+  identical IE11 pass/fail in every cell (build-only and the real-IE11 run both confirmed it — even
+  `rxjs/usage-pure/pre`, the one cell that fails on IE11, fails under both). The injection this suite
+  tests is Babel-version-independent, so the second Babel just doubled every tier (artifacts, karma)
+  for nothing; it, the `babel8/` install, and its `postinstall` are gone, and the suite builds under
+  Babel 7 only. `@rollup/plugin-babel@6` is still not used — a small custom transform plugin runs
+  `@babel/core` via `transformAsync`, keeping the exact config shared between runners. (The exercise's
+  `for_of_set`/`spread_set` checks still earn their place: they drive Babel's
+  `_createForOfIteratorHelper`/`_toConsumableArray` → `Symbol.iterator`, so the post-phase helper
+  injection the runtime tier exists to test is actually exercised at runtime.)
 - **install (`.npmrc`):** the v4-alpha `core-js` pin is a prerelease that doesn't satisfy
   `@rsbuild/core`'s `peerOptional core-js ">= 3.0.0"`, so strict peer resolution errors. `.npmrc`
   sets `legacy-peer-deps=true` so `npm install` succeeds.
@@ -331,7 +332,7 @@ BrowserStack Automate; CI wiring.
   vector/matrix/quaternion math — asserted by 16 deterministic numeric checks (no WebGL/DOM, so it
   runs in node). It is both a large modern-ES **throughput** target (usage-global injects 154
   polyfills vs rxjs's 96) and a **runtime** functional check: all 16 checks still pass after the ES5
-  down-compile + polyfill, under both Babel 7 and 8, proving the project stays functional after the
+  down-compile + polyfill, proving the project stays functional after the
   run — the requested "does the project still work after unplugin processes it" verification.
 - **codemirror fixture (`tiers: ['throughput', 'runtime']`), and what it proved.** Added as a third
   fixture to cover a third **module topology**: rxjs = many small modules, three = one ~1.4 MB
@@ -358,5 +359,5 @@ BrowserStack Automate; CI wiring.
   in `new Foo(bar.name)`, the getter wrapper unplugin injects for `bar.name` was itself re-wrapped as
   the constructor call, so a string got `new`-ed. A defect in `@core-js/unplugin`, not in the
   fixture — `entry-global` and `usage-global` always passed. Fixed by `d23c9655dd`; all three methods
-  now pass under both Babel 7 and 8. The episode is the argument for the fixture: a suite reporting a
+  now pass. The episode is the argument for the fixture: a suite reporting a
   real defect is the suite working.

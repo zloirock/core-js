@@ -1,8 +1,8 @@
 // CI IE11 leg: build the real-IE11 bundles and run them in actual IE11 through Karma — the FULL
-// runtime matrix, every (library × method × unplugin phase × Babel version). The Babel axis (7/8)
-// tests the down-compile toolchain; the phase axis (pre / post / pre+post) tests unplugin's ordering
-// relative to Babel. entry-global carries no phase. usage-pure is the method whose green run also
-// validates per-site DETECTION; the global methods prove the exercise still EXECUTES on IE11.
+// runtime matrix, every (library × method × unplugin phase). The phase axis (pre / post / pre+post)
+// tests unplugin's ordering relative to Babel. entry-global carries no phase. usage-pure is the method
+// whose green run also validates per-site DETECTION; the global methods prove the exercise still
+// EXECUTES on IE11.
 //
 // Each bundle is a self-contained UMD from `runtimeBuild` (the exact artifact artifacts.mjs ships, and
 // rollup-produced — so this also exercises unplugin's ROLLUP adapter in real IE11, complementing the
@@ -22,14 +22,14 @@
 // into a false green (a `pre` bundle's whole point is that it may be MISSING a polyfill). One bundle
 // per page makes that impossible by construction — maximal isolation — and keeps each page to a single
 // library copy (three's is ~1.4 MB) rather than stacking them (which also stops three's runtime
-// "multiple instances" warning). The cost is a fresh IE launch per cell, ~30 s over the whole leg —
-// dwarfed by the ~6 min the 42 rollup builds take.
+// "multiple instances" warning). The cost is a fresh IE launch per cell, ~15 s over the whole leg —
+// dwarfed by the minutes the rollup builds take.
 //
 // Off a machine with IE11 (and outside CI) the bundles are still built — that alone runs every gate
 // above — but Karma is skipped: there is no IE to capture. karma.conf.cjs makes the same check.
 //
 // Usage:  node karma-bundles.mjs [libFilter]   ->  builds .tmp/karma/*.js, runs Karma when IE present
-import { runtimeBuild, assertES5, errorReason, BABEL_VERSIONS, phasesFor, HERE } from './build.mjs';
+import { runtimeBuild, assertES5, errorReason, phasesFor, HERE } from './build.mjs';
 import { qunitHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -52,34 +52,28 @@ await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 
 // build the full matrix. Each cell is its own bundle file, run on its own IE11 page (see the run loop),
-// so there is nothing to group. A 4-deep build loop (lib × method × phase × babel) plus one try/if body
-// would nest too deep; flatten first so the processing loop stays shallow. entry-global -> [undefined];
-// usage-* -> pre / post / pre+post.
-const cells = [];
+// so there is nothing to group. entry-global -> [undefined]; usage-* -> pre / post / pre+post.
+const built = [];
 for (const lib of libs) {
   for (const method of lib.methods) {
     for (const phase of phasesFor(method)) {
-      for (const babelVersion of BABEL_VERSIONS) cells.push({ lib, method, phase, babelVersion });
+      const label = `${ lib.name }/${ method }${ phase ? `/${ phase }` : '' }`;
+      try {
+        const { code, injections } = await runtimeBuild(lib.exercise, method, phase);
+        // runtimeBuild asserts payload / no-externals; the ES5 down-compile is the caller's to assert,
+        // and it is the whole premise of an IE11 bundle — nothing downstream would catch a miss (the
+        // browser page IS the check, and a non-ES5 bundle would just SyntaxError with no QUnit verdict).
+        assertES5(code, label);
+        if (!injections) throw new Error('unplugin injected 0 polyfills');
+        const file = join(OUT, `e2e-libs-${ lib.name }-${ method }-${ phase ?? 'noph' }.js`);
+        await writeFile(file, `${ code }\n${ qunitHarness(label) }`);
+        built.push({ file, label, gating: phase !== 'pre' }); // `pre` is a non-gating diagnostic
+        console.log(`✓ built ${ label }: ${ injections } inj`);
+      } catch (err) {
+        console.log(`✗ ${ label }: ${ errorReason(err) }`);
+        process.exitCode = 1;
+      }
     }
-  }
-}
-const built = [];
-for (const { lib, method, phase, babelVersion } of cells) {
-  const label = `${ lib.name }/${ method }${ phase ? `/${ phase }` : '' }/babel${ babelVersion }`;
-  try {
-    const { code, injections } = await runtimeBuild(lib.exercise, method, babelVersion, phase);
-    // runtimeBuild asserts payload / no-externals; the ES5 down-compile is the caller's to assert, and
-    // it is the whole premise of an IE11 bundle — nothing downstream would catch a miss (the browser
-    // page IS the check, and a non-ES5 bundle would just SyntaxError with no QUnit verdict).
-    assertES5(code, label);
-    if (!injections) throw new Error('unplugin injected 0 polyfills');
-    const file = join(OUT, `e2e-libs-${ lib.name }-${ method }-${ phase ?? 'noph' }-babel${ babelVersion }.js`);
-    await writeFile(file, `${ code }\n${ qunitHarness(label) }`);
-    built.push({ file, label, gating: phase !== 'pre' }); // `pre` is a non-gating diagnostic (see header)
-    console.log(`✓ built ${ label }: ${ injections } inj`);
-  } catch (err) {
-    console.log(`✗ ${ label }: ${ errorReason(err) }`);
-    process.exitCode = 1;
   }
 }
 
@@ -108,7 +102,7 @@ if (!(process.env.CI || which.sync('iexplore.exe', { nothrow: true }))) {
   console.log('another cell, and each page holds a single library copy. post + pre+post (and entry-global) GATE the');
   console.log('job; the `pre` phase is a NON-GATING per-library diagnostic (pre runs unplugin before Babel, so it');
   console.log('can miss Babel-helper polyfills — expected to fail for some libraries, which is the signal we want,');
-  console.log('not a job failure). Per-cell counts print as "[e2e-libs] <lib>/<method>/<phase>/babel<v>: N/N passed".');
+  console.log('not a job failure). Per-cell counts print as "[e2e-libs] <lib>/<method>/<phase>: N/N passed".');
   let failCode = 0;
   for (const { file, label, gating } of built) {
     console.log(`\n— IE11: ${ label }${ gating ? '' : ' [pre diagnostic, non-gating]' } —`);
