@@ -66,8 +66,9 @@ for (const lib of libs) {
         const file = join(OUT, `e2e-libs-${ lib.name }-${ method }-babel${ babelVersion }.js`);
         await writeFile(file, `${ code }\n${ qunitHarness(label) }`);
         const group = `${ lib.name } (${ method === 'usage-pure' ? 'usage-pure' : 'global' })`;
-        if (!byGroup.has(group)) byGroup.set(group, []);
-        byGroup.get(group).push(file);
+        let files = byGroup.get(group);
+        if (!files) byGroup.set(group, files = []);
+        files.push(file);
         console.log(`✓ built ${ label }: ${ injections } inj`);
       } catch (err) {
         console.log(`✗ ${ label }: ${ errorReason(err) }`);
