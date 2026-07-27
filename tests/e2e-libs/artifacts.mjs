@@ -12,7 +12,7 @@
 // `injections > 0` only proves the specifier TEXT was seen and that survives tree-shaking; nothing
 // may be left external; and the pre-flight must come back with a non-empty `checks`. The generated
 // in-page harness is parsed once at load rather than per cell (see below). The authoritative list is
-// spec §9 - deliberately kept in ONE place, because maintaining a count here as well is what once
+// the design doc's §9 - deliberately kept in ONE place, because maintaining a count here as well is what once
 // produced three documents with three different numbers. None of this proves every individual
 // polyfill is load-bearing (that needs a stripped realm / real IE11 - the manual BrowserStack step).
 // Nor does a green pre-flight prove per-site DETECTION: it runs in a modern realm where the native is
