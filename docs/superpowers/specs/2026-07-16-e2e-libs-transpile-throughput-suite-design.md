@@ -280,15 +280,19 @@ BrowserStack Automate; CI wiring.
   resolve these fine. It's throughput-only; the runtime tier uses rollup and is unaffected. The
   builder stays in `build.mjs` for easy re-enable.
 - **automated Karma/IE11 CI leg:** what §9 first called a manual BrowserStack step is now automated.
-  `karma-bundles.mjs` + `harness.mjs` build the full runtime matrix (every library × method × Babel
-  version = 18 bundles), append a QUnit driver to each, and run them in **real IE11** via Karma (the
-  same karma-qunit@4 / qunit@2 stack `tests/unit-karma` drives), in the `e2e-libs-ie11` CI job on
-  `windows-2022`. Karma runs once per (library × isolation-class): `usage-pure` never shares a page
-  with the global methods, or a global bundle's load-time prototype patching would mask a `usage-pure`
-  detection miss into a false green. The driver also asserts it is really on IE11
-  (`document.documentMode`), so an `iexplore`→Edge substitution reddens rather than passing green. The
-  generated HTML pages stay for an optional manual BrowserStack pass. (The five runners in §5 are now
-  six with `karma-bundles.mjs`.)
+  `karma-bundles.mjs` + `harness.mjs` build the full runtime matrix (every library × method × unplugin
+  phase × Babel version = 42 bundles), append a QUnit driver to each, and run them in **real IE11** via
+  Karma (the same karma-qunit@4 / qunit@2 stack `tests/unit-karma` drives), in the `e2e-libs-ie11` CI
+  job on `windows-2022`. The **phase** axis (`pre` / `post` / `pre+post`, for the usage-* methods)
+  probes unplugin's ordering relative to Babel: `post` and `pre+post` **gate** the job, while `pre` —
+  unplugin *before* Babel, so it can miss the polyfills Babel's helpers introduce — is a **non-gating
+  per-library diagnostic** (expected to fail for some libraries on IE11, which is the per-library signal
+  the phase axis exists to surface). Karma runs once per (library × isolation-class × gate/diagnostic):
+  `usage-pure` never shares a page with the global methods, nor a `pre` cell with anything else, or a
+  global bundle's load-time prototype patching would mask a `usage-pure` (or `pre`) miss into a false
+  green. The driver also asserts it is really on IE11 (`document.documentMode`), so an `iexplore`→Edge
+  substitution reddens rather than passing green. The generated HTML pages stay for an optional manual
+  BrowserStack pass. (The five runners in §5 are now six with `karma-bundles.mjs`.)
 - **dual Babel (7 + 8):** the runtime tier builds every (method) under both Babel 7 (the suite's own
   `@babel/core`/`@babel/preset-env`) and Babel 8 (isolated in `babel8/`, since two `@babel/core`
   majors can't share a `node_modules`) — matching the repo's `test-transpiling` convention of testing
