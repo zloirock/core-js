@@ -43,8 +43,6 @@ type Options = {
   browserslistEnv?: string | null,
   /** do not use browserslist config, only explicit `targets` */
   ignoreBrowserslistConfig?: boolean | null,
-  /** treat proposals that have been shipped in browsers as stable features */
-  shippedProposals?: boolean | null,
   /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from sourceType */
   importStyle?: 'import' | 'require' | null,
 };
