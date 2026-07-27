@@ -1,6 +1,8 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
 import {
+  isVoidExpression,
+  isNullLiteralNode,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   getTypeArgs,
@@ -100,6 +102,25 @@ const { hasOwn } = Object;
 // string-literal helpers + `packages` mirror the detect-usage adapter surface so the same
 // `walkStaticReceiverChain` / `resolveKey` machinery reaches into ObjectExpression keys
 // from the resolver path (destructure-leaf -> proxy-global)
+// one parser attaches a scope only to the paths that OWN one, so a CHILD path handed to the resolver
+// (`assign.get('right')`, an expression inside a statement) carries none, and every scope-dependent
+// route below it silently resolves nothing - a member, a call return, a `new C()` all came back
+// unresolved where the other parser resolved them. a path's scope IS its nearest enclosing one, so
+// anchor it once at this single entry rather than teaching each route about the gap. paths that
+// already carry a scope (always, on the other parser) pass through untouched
+const scopeAnchoredPaths = new WeakMap();
+function anchorPathScope(path) {
+  if (!path || path.scope) return path;
+  const cached = scopeAnchoredPaths.get(path);
+  if (cached) return cached;
+  let scope = null;
+  for (let cur = path.parentPath; cur && !scope; cur = cur.parentPath) scope = cur.scope ?? null;
+  if (!scope) return path;
+  const anchored = Object.create(path, { scope: { value: scope, enumerable: true } });
+  scopeAnchoredPaths.set(path, anchored);
+  return anchored;
+}
+
 function makeBabelBindingAdapter(getPolyfillBindingHint, babelNodeType, getScopeBinding, isMutatedStatic) {
   return {
     packages: null,
@@ -1218,7 +1239,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') return null;
     let initPath = bindingPath.get('init');
     if (!initPath?.node) return null;
-    if (id?.typeAnnotation && isNullishInit(initPath.node, initPath.scope)) return null;
+    if (id?.typeAnnotation && isNullishInit(initPath.node, bindingPath.scope, bindingPath)) return null;
     // zero-arg IIFE on init (`const x = (() => RHS)()`) evaluates to the function body's
     // sole expression at runtime. peel one IIFE layer when the callee is an expression-body
     // arrow with no params - downstream alias-walker then reaches RHS just like `const x = RHS`.
@@ -1267,16 +1288,20 @@ function createResolveNodeType(babelNodeType, t, {
   // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree.
   // shared `unwrapRuntimeExpr` strips ParenthesizedExpression / TS expression wrappers
   // (`null as any`, `(null)`) so the nullish-tail is recognized through user-applied wrappers
-  function isNullishInit(node, scope) {
+  // `scope` / `path` must come from the node's OWNER (the declarator, the assignment), not from a
+  // `.get(...)` child: estree child paths carry no scope, and a scope-less lookup silently reports
+  // every `undefined` as the global one
+  function isNullishInit(node, scope, path = null) {
     const inner = unwrapRuntimeExpr(node);
     if (!inner) return false;
-    if (inner.type === 'NullLiteral') return true;
-    if (inner.type === 'Literal' && inner.value === null && !inner.regex) return true;
+    if (isNullLiteralNode(inner)) return true;
     // `undefined` is shadowable (`const undefined = X` / `(undefined) => ...`), so the bare shape ALONE is
     // over-resolve - require no local binding too, the scope gate the docstring mandates and the sibling
     // consumers (return-type / pattern-bindings) already apply; a shadowed local is a value, not nullish
-    if (isBareUndefinedIdentifier(inner) && !scope?.getBinding?.('undefined')) return true;
-    return inner.type === 'UnaryExpression' && inner.operator === 'void';
+    // through the injected scope bridge, not `scope.getBinding` directly: the estree adapter
+    // supplies its own lookup, and the raw call silently misses every shadow on that side
+    if (isBareUndefinedIdentifier(inner) && !getScopeBinding(scope, 'undefined', path)) return true;
+    return isVoidExpression(inner);
   }
 
   // TS lib types whose first type-param is the yielded element type, structurally
@@ -1677,11 +1702,14 @@ function createResolveNodeType(babelNodeType, t, {
   const patternBindingsCluster = createPatternBindings({
     t,
     getScopeBinding,
+    violationToAssignment: (...args) => callResolutionCluster.violationToAssignment(...args),
     babelNodeType,
     resolveNodeType,
     resolveRuntimeExpression,
     resolveInnerType,
     commonType,
+    isNullishInit,
+    anchorPathScope,
     isNullableOrNever,
     findAllEnumDeclarations,
     resolveEnumMemberType,
@@ -1706,6 +1734,7 @@ function createResolveNodeType(babelNodeType, t, {
     functionTypeParams: (...args) => functionTypeParams(...args),
     collectBindingReferences,
     violationRunsDeferred: straightLineFlowCluster.violationRunsDeferred,
+    usageRunsDeferred: straightLineFlowCluster.usageRunsDeferred,
   });
   const {
     findArrayPatternKeyPath,
@@ -1721,6 +1750,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveDestructuredMember,
     collectPatternKeyPath,
     resolveBindingType,
+    reachableValuePaths,
   } = patternBindingsCluster;
 
   // type-query <-> call-return form a small dep cycle (typeQuery's `resolveReturnTypeFromTypeQuery`
@@ -2126,8 +2156,12 @@ function createResolveNodeType(babelNodeType, t, {
   // patternBindings / classContext / awaited / known-globals / global-resolve / value-ops)
   // are bound as direct const refs. `resolvedTypeCache` shared via factory `let` (reassigned
   // in `reset()` below)
-  const { resolveNodeTypeExpression } = createExpressionDispatch({
+  const { resolveNodeTypeExpression, installedPrototypeFamilies } = createExpressionDispatch({
     t,
+    isMutatedStatic,
+    getScopeBinding,
+    collectBindingReferences,
+    resolveStaticCalleePair: bindingAnalysisCluster.resolveStaticCalleePair,
     babelNodeType,
     KNOWN_GLOBAL_METHOD_RETURN_TYPES,
     getCachedType: node => resolvedTypeCache.get(node),
@@ -2208,7 +2242,8 @@ function createResolveNodeType(babelNodeType, t, {
     // parsers (estree-toolkit) that don't expose TSModuleDeclaration as scope can then
     // fall back to walking path ancestors for namespace-local type decls regardless of
     // how deep into the resolver chain the lookup happens
-    return withLookupPath(path, () => resolveNodeTypeInternal(path, node));
+    const anchored = anchorPathScope(path);
+    return withLookupPath(anchored, () => resolveNodeTypeInternal(anchored, node));
   }
 
   // explicit-annotation override of expression-derived Identifier resolution. fires only
@@ -2340,9 +2375,36 @@ function createResolveNodeType(babelNodeType, t, {
     const { type } = path.node;
     if (type === 'LogicalExpression') return mergeArmHints([path.get('left'), path.get('right')], depth);
     if (type === 'ConditionalExpression') return mergeArmHints([path.get('consequent'), path.get('alternate')], depth);
+    // an object carrying an INSTALLED prototype dispatches that prototype's family and no other, so
+    // the family names the receiver even though the object itself stays untyped. checked on the
+    // RUNTIME expression the caller already resolved the alias to - the install channels read the
+    // object's own literal and the declarator's reference set from there
+    const installed = installedPrototypeHints(path);
+    if (installed) return installed;
     const info = findExpressionAnnotation(path);
     const annotation = info && unwrapTypeAnnotation(info.annotation);
-    return isUnionType(annotation) ? annotationUnionHints(annotation, info.scope) : null;
+    if (isUnionType(annotation)) return annotationUnionHints(annotation, info.scope);
+    // a mutable binding's reachable VALUES form a union exactly as an annotation's arms do - fold
+    // the declarator init with every write the resolver could enumerate. reached only after the
+    // single-Type resolution already failed, so a narrow the positional analysis DID prove is
+    // never widened by this
+    return type === 'Identifier' ? bindingValueUnionHints(path, depth) : null;
+  }
+
+  // the binding must be a declarator that binds the name DIRECTLY: a param / for-x / catch value is
+  // an open set, and a pattern-bound leaf holds a property extraction rather than the init itself.
+  // a function-scoped `var` is excluded outright: one parser hoists it natively and the other
+  // block-scopes it, so its write set is RECOVERED on one side and native on the other - the two
+  // emitters would then enumerate different values and inject different sets for the same source
+  function bindingValueUnionHints(path, depth) {
+    const binding = getScopeBinding(path.scope, path.node.name, path);
+    const declaratorPath = binding?.path;
+    const declarator = declaratorPath?.node;
+    if (!declarator || declarator.type !== 'VariableDeclarator' || !declarator.init
+      || declarator.id?.type !== 'Identifier' || declarator.id.name !== path.node.name
+      || binding.kind === 'var') return null;
+    const arms = reachableValuePaths(binding, declaratorPath, path.node.name, path);
+    return arms?.length ? mergeArmHints(arms, depth) : null;
   }
 
   function mergeArmHints(arms, depth) {
@@ -2362,6 +2424,22 @@ function createResolveNodeType(babelNodeType, t, {
       for (const hint of inner) merged.add(hint);
     }
     return merged;
+  }
+
+  // installed-prototype families as HINTS. an empty family set means no install was found, which is
+  // not a narrowing statement about the receiver - only a non-empty one names it
+  function installedPrototypeHints(initPath) {
+    const families = initPath?.node ? installedPrototypeFamilies(initPath) : null;
+    if (!families?.size) return null;
+    const hints = new Set();
+    for (const family of families) {
+      const hint = toHint(new $Object(family));
+      // a family outside the hint-dispatch domain (`Map` / `Set` / ...) cannot restrict the variant
+      // set - its methods are not hint-dispatched, so declining keeps the receiver's full dispatch
+      if (!hint || !TYPE_HINTS.has(hint)) return null;
+      hints.add(hint);
+    }
+    return hints;
   }
 
   function annotationUnionHints(annotation, scope) {

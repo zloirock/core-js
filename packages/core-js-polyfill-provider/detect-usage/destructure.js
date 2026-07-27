@@ -37,6 +37,9 @@ import {
   resolveFallbackReceiver,
   unwrapExpressionChain,
   POSSIBLE_GLOBAL_OBJECTS,
+  isBareUndefinedIdentifier,
+  isNullLiteralNode,
+  isReassignedBeyondDeclarator,
 } from '../helpers/ast-patterns.js';
 import {
   assignmentAliasHintSoundAtRead,
@@ -479,12 +482,31 @@ function receiverProvablyInstanceFree({ objectNode, scope, adapter, path }) {
   return values.every(valueNode => {
     const value = unwrapTransparentSeq(valueNode);
     if (!value) return false;
-    if (value.type === 'NullLiteral' || value.type === 'ObjectExpression'
-      || (value.type === 'Literal' && value.value === null && !value.regex)
-      || (value.type === 'Identifier' && value.name === 'undefined')) return true;
+    if (isNullLiteralNode(value)) return true;
+    // `undefined` is shadowable, so the bare shape ALONE is not proof of nullishness - a shadowed
+    // local is an ordinary value that may well dispatch. unlike the sibling nullish canons, whose
+    // value node sits at the scope they gate on, the enumerated WRITES here come from anywhere in
+    // the binding's subtree: a write in a sibling block that shadows `undefined` reads as the global
+    // one from the usage's scope chain, and proving the receiver instance-free off that drops a live
+    // instance row. only the INIT arm shares the usage's chain, so only it can be gated
+    if (isBareUndefinedIdentifier(value)) {
+      return valueNode === declarator.init && !adapter.getBinding(scope, 'undefined', path);
+    }
     const objectName = resolveObjectName({ objectNode: value, scope, adapter, path });
     return !!(objectName && isStaticPlacement(objectName));
   });
+}
+
+// TRUE when a receiver alias whose declarator RESOLVED can still hold an instance at the use: it is
+// a local binding, it is reassigned beyond its declarator, and its reachable value set is not
+// provably instance-free. gated on the local reassigned binding so a plain global static receiver
+// (`Array.from()`, no binding) and a never-reassigned alias never grow a typeless row
+function resolvedAliasMayDispatchInstance({ objectNode, scope, adapter, path }) {
+  const alias = objectNode && unwrapTransparentSeq(objectNode);
+  if (alias?.type !== 'Identifier') return false;
+  const binding = adapter.getBinding(scope, alias.name, path);
+  if (!binding || !isReassignedBeyondDeclarator(binding)) return false;
+  return !receiverProvablyInstanceFree({ objectNode, scope, adapter, path });
 }
 
 // usage-global UNION of reachable member-dispatch targets for a conditionally reassigned receiver
@@ -515,7 +537,16 @@ export function collectMemberUnionCandidates(options) {
   // resolved values, when the receiver alias ALSO varies, keep their own static extras beside it.
   // EXCEPT a provably instance-free receiver (the caller computed the flag): its static rows
   // carry the whole injection and the null rows would fabricate instance variants
-  if (primaryObject === null && !receiverInstanceFree) objects.unshift(null);
+  // a RESOLVED primary describes the declarator value only - a reassignment can install something
+  // else at the use (`let M = Array; if (c) M = makeArr(); M.at()`). when such an alias is not
+  // provably instance-free, an unresolvable reachable value may be an instance, and the static-only
+  // axis carries nothing for it (`M.at` is no Array static, so the primary meta resolves to no
+  // module at all), so the typeless row rides beside the static primary there too - over-inject-safe,
+  // and inert for a non-reassigned alias or one whose reachable values are all instance-free
+  const typelessRowReachable = primaryObject === null
+    ? !receiverInstanceFree
+    : resolvedAliasMayDispatchInstance({ objectNode, scope, adapter, path });
+  if (typelessRowReachable) objects.unshift(null);
   // a receiver alias whose ctor narrow was REFUSED (guarded registration: conditional
   // placement, SE-carrying init, var redecl, cross-function write) still holds the hinted
   // ctor whenever the refused write actually ran. the alias walk resolves such a binding to

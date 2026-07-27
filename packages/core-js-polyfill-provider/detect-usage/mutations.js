@@ -1,13 +1,17 @@
-// Mutation pre-pass: canonicalizes monkey-patch receivers through the SAME resolution canons
-// the read side uses (`resolveObjectName` for names, `walkStaticReceiverChain` for static
-// containers, `reassignmentValueNodes` for the alias value union), so the mutation set and
-// the substitution decisions cannot diverge by construction. Replaces the former parallel
-// node-only alias graph.
+// Monkey-patch detection: canonicalizes patched receivers through the SAME resolution canons the
+// read side uses (`resolveObjectName` for names, `walkStaticReceiverChain` for static containers,
+// `reassignmentValueNodes` for the alias value union), so the mutation set and the substitution
+// decisions cannot diverge by construction. Replaces the former parallel node-only alias graph.
 //
-// Two stages for cost: `hasMutationCandidateShapes` is a cheap node walk (no scopes); the
-// SCOPED per-site resolution runs only when it fires - files without monkey-patch shapes
-// (the overwhelming majority) pay nothing beyond the walk. The plugins own the scoped
-// traversal (each dialect collects sites with live paths) and feed `resolveMutationSite`.
+// Two consumers with different needs, and the split is what keeps the cost honest:
+//   - SUBSTITUTION (usage-pure) needs the COMPLETE set before it rewrites anything, so it drives a
+//     scoped per-site pass. The plugins own that traversal (each dialect collects sites with live
+//     paths) and feed `resolveMutationSite`; this module owns every resolution step it takes.
+//   - TYPING (both usage methods) asks a yes/no about ONE namespace, and answers it off the cheap
+//     census reducer below - `mutationRoots` names every namespace a write in this file could
+//     reach, a SUPERSET of what the scoped pass can attribute. No extra walk: the reducer rides
+//     the shared per-file census. An over-report only degrades a narrow, which is the safe
+//     direction; an under-report would drop a polyfill, so the roots must stay a superset.
 import {
   collectFileCensus,
   followConstLiteralAlias,
@@ -26,6 +30,9 @@ import {
   walkAstChildren,
 } from '../helpers/ast-patterns.js';
 import {
+  requireCallSource,
+  interopDefaultProxyName,
+  requireBoundProxyGlobalName,
   bindsModuleDefault,
   globalProxyNameFromImportSource,
   resolveKey,
@@ -184,75 +191,193 @@ function gatherPatternMemberTargets(pattern, out) {
 // verdict is computed once in `result` over everything collected. `packages` (main pkg +
 // additionalPackages prefixes) keeps the import-alias recognition in lockstep with the scoped
 // canon - without it a user-aliased global-proxy entry never fires the gate
+// alias sources the scoped stage can follow to a namespace: a bare name, a member chain, `this`,
+// and the wrappers around them. anything else (a call, a `new`, an operator result) resolves to no
+// namespace there, so the point-query gate may treat it as naming nothing
+// an alias source that resolves to no namespace at all - distinct from `null`, which means the gate
+// cannot tell and must keep the query open
+const NAMES_NOTHING = Symbol('names-nothing');
+
+const FOLLOWABLE_ALIAS_SOURCES = new Set([
+  'Identifier',
+  'MemberExpression',
+  'OptionalMemberExpression',
+  'ThisExpression',
+  'ConditionalExpression',
+  'LogicalExpression',
+  'SequenceExpression',
+  'AssignmentExpression',
+]);
+
 export function mutationShapesReducer(packages = null) {
   const targets = [];
+  let markTopLevelThis = false;
+  function pushTarget(node) {
+    if (!node) return;
+    targets.push(node);
+    if (markTopLevelThis && typeof node === 'object') topLevelThisTargets.add(node);
+  }
   const valueBound = new Set();
   // name -> container nodes: the gate checks the chain's FIRST key against the container's
   // static keys, so `config.foo.bar = v` over `const config = {}` stays silent while
   // `NS.M.of = v` over `const NS = { M: Map }` fires
   const containerBound = new Map();
+  // what an alias SOURCE names, for the point-query gate: a plain root names itself; a `this`-rooted
+  // source names the key read off it (`const M = this.Map` in a global-object context IS `Map`); a
+  // CALL-rooted one names nothing the scoped stage could attribute either, so it rules out rather
+  // than opening. `null` = names nothing AND cannot be ruled out (a dynamic key)
+  function aliasSourceName(root) {
+    if (!root) return NAMES_NOTHING;
+    if (root.callRooted) return NAMES_NOTHING;
+    // a `this` source is the global object only in a top-level `this` context; anywhere else it
+    // names nothing the scoped stage could attribute, so `const scope = this` rules out instead of
+    // opening. at top level the key names the namespace (`const M = this.Map`), and a dynamic one
+    // leaves the query open
+    if (root.thisRooted) return markTopLevelThis ? root.firstKey ?? null : NAMES_NOTHING;
+    // a MEMBER source names the member, not the namespace it was read from: `const cos = Math.cos`
+    // makes `cos` the function, so writing its slot never touches a `Math` slot. the key nearest the
+    // root is what such an alias stands for (`const S = globalThis.Set` -> `Set`). a DYNAMIC key
+    // names nothing, and only off the global object could it still land on a namespace
+    if (root.chained) {
+      if (root.firstKey !== null) return root.firstKey;
+      return POSSIBLE_GLOBAL_OBJECTS.has(root.name) ? null : NAMES_NOTHING;
+    }
+    return root.name;
+  }
+
+  // alias name -> the ROOT NAME its source chain starts from (`const O = Object` -> 'Object',
+  // `const x = a.b` -> 'a'), or null when the source names nothing the gate can follow
+  const aliasSourceRoot = new Map();
+  // bindings that ARE the global object (a proxy-entry import / require): a chain off one names the
+  // namespace in its FIRST key exactly as `globalThis.Object` does
+  const proxyGlobalBound = new Set();
+  // the module source a `require('<entry>')` / `<interop>(require('<entry>'))` init names, or null.
+  // the require shape itself comes from the shared canon (it also knows the optional-call, sequence
+  // -callee and TS-wrapper spellings); this adds only the single interop-wrapper layer, matched by
+  // SHAPE rather than by helper name so every bundler's spelling is covered
+  function requiredSourceOfInit(value) {
+    const node = unwrapRuntimeExpr(value);
+    const direct = requireCallSource(node, null, null);
+    if (direct) return direct;
+    const inner = node?.type === 'CallExpression' && node.arguments?.length === 1 ? node.arguments[0] : null;
+    return inner ? requireCallSource(inner, null, null) : null;
+  }
+
   function recordValueSource(id, value) {
     if (id?.type === 'Identifier') {
+      // module lowering turns a proxy-entry import into a require (bare, or behind an interop
+      // wrapper whose `.default` is the global) - the gate must name those bindings too
+      const required = requiredSourceOfInit(value);
+      if (required && globalProxyNameFromImportSource(required, packages)) proxyGlobalBound.add(id.name);
       if (!value || INERT_VALUE_TYPES.has(value.type)) return;
       if (value.type === 'ObjectExpression' || value.type === 'ClassExpression') {
         let nodes = containerBound.get(id.name);
         if (!nodes) containerBound.set(id.name, nodes = []);
         nodes.push(value);
-      } else valueBound.add(id.name);
+      } else {
+        valueBound.add(id.name);
+        // an alias whose source is a NAME chain may stand for a global (`const O = Object`,
+        // `const R = globalThis.Reflect`); one bound to a call / new / literal cannot be followed
+        // to one by the scoped stage either, so the point-query gate may rule it out
+        if (FOLLOWABLE_ALIAS_SOURCES.has(unwrapRuntimeExpr(value)?.type)) {
+          aliasSourceRoot.set(id.name, aliasSourceName(collectGateRoots(value, [])[0]));
+        }
+      }
     } else if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
       // pattern slots pair positionally / by key downstream - flat over-approximation here
-      const work = [id];
-      while (work.length) {
-        const node = work.pop();
-        if (!node || typeof node !== 'object') continue;
-        if (node.type === 'Identifier') valueBound.add(node.name);
-        else walkAstChildren(node, child => work.push(child));
-      }
+      recordPatternSlots(id, null, value);
     }
   }
-  function visit(node) {
+
+  // an object-pattern slot extracts the property its KEY names, so that key is what the slot can
+  // stand for (`const { Object: O } = globalThis` makes O the `Object` namespace). a positional or
+  // computed slot names nothing the gate can follow, and keeps the point query open
+  function recordPatternSlots(pattern, key, source) {
+    if (!pattern || typeof pattern !== 'object') return;
+    switch (pattern.type) {
+      case 'Identifier':
+        valueBound.add(pattern.name);
+        aliasSourceRoot.set(pattern.name, key);
+        return;
+      case 'ObjectPattern':
+        for (const prop of pattern.properties ?? []) {
+          if (prop.type === 'RestElement') recordPatternSlots(prop.argument, null, null);
+          else recordPatternSlots(prop.value, prop.computed ? null : propertyKeyName(prop), null);
+        }
+        return;
+      case 'ArrayPattern': {
+        // a positional slot takes the source's element: an array LITERAL names it exactly, and any
+        // other source names whatever its own chain starts from - the resolver could only follow it
+        // that far either. an unreadable source keeps those slots open
+        const elements = unwrapRuntimeExpr(source)?.type === 'ArrayExpression'
+          ? unwrapRuntimeExpr(source).elements : null;
+        const fallback = source ? aliasSourceName(collectGateRoots(source, [])[0]) : null;
+        for (let i = 0; i < (pattern.elements?.length ?? 0); i++) {
+          const slotSource = elements ? elements[i] : null;
+          recordPatternSlots(pattern.elements[i], elements
+            ? aliasSourceName(slotSource ? collectGateRoots(slotSource, [])[0] : null)
+            : fallback, null);
+        }
+        return;
+      }
+      case 'AssignmentPattern':
+        recordPatternSlots(pattern.left, key, null);
+        return;
+      case 'RestElement':
+        recordPatternSlots(pattern.argument, null, null);
+        return;
+      default:
+        walkAstChildren(pattern, child => recordPatternSlots(child, null, null));
+    }
+  }
+  // a `this` target names the global object only in a top-level `this` context - exactly what the
+  // scoped stage checks before attributing one. recorded per target while the frame is at hand
+  const topLevelThisTargets = new WeakSet();
+  function visit(node, frame) {
+    if (frame?.atThisTopLevel) markTopLevelThis = true;
+    else markTopLevelThis = false;
     switch (node.type) {
       case 'AssignmentExpression': {
         const left = unwrapRuntimeExpr(node.left);
         if (left?.type === 'MemberExpression' || left?.type === 'OptionalMemberExpression') {
-          targets.push(gateMemberTarget(left));
+          pushTarget(gateMemberTarget(left));
         } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
-          gatherPatternMemberTargets(left, targets);
+          gatherPatternMemberTargets(left, { push: pushTarget });
           // bare identifier elements assign global slots like the flat form - gate on them too
-          walkPatternIdentifiers(left, id => targets.push(id));
+          walkPatternIdentifiers(left, id => pushTarget(id));
           recordValueSource(left, node.right);
         } else {
           recordValueSource(left, node.right);
           // a bare reassignment of a global name writes the global slot - the Identifier
           // itself gates the scoped pass (bound / lowercase writes filter out there)
-          if (left?.type === 'Identifier') targets.push(left);
+          if (left?.type === 'Identifier') pushTarget(left);
         }
         break;
       }
       case 'UpdateExpression': {
         const arg = unwrapRuntimeExpr(node.argument);
-        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(gateMemberTarget(arg));
-        else if (arg?.type === 'Identifier') targets.push(arg);
+        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') pushTarget(gateMemberTarget(arg));
+        else if (arg?.type === 'Identifier') pushTarget(arg);
         break;
       }
       case 'UnaryExpression': {
         const arg = node.operator === 'delete' ? unwrapRuntimeExpr(node.argument) : null;
-        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') targets.push(gateMemberTarget(arg));
+        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') pushTarget(gateMemberTarget(arg));
         break;
       }
       case 'ForInStatement':
       case 'ForOfStatement':
         switch (node.left?.type) {
           case 'MemberExpression':
-            targets.push(gateMemberTarget(node.left));
+            pushTarget(gateMemberTarget(node.left));
             break;
           case 'ArrayPattern':
           case 'ObjectPattern':
-            gatherPatternMemberTargets(node.left, targets);
-            walkPatternIdentifiers(node.left, id => targets.push(id));
+            gatherPatternMemberTargets(node.left, { push: pushTarget });
+            walkPatternIdentifiers(node.left, id => pushTarget(id));
             break;
           case 'Identifier':
-            targets.push(node.left);
+            pushTarget(node.left);
             break;
         }
         break;
@@ -271,6 +396,7 @@ export function mutationShapesReducer(packages = null) {
           for (const s of node.specifiers ?? []) {
             if ((bindsModuleDefault(s) || s.type === 'ImportNamespaceSpecifier') && s.local?.name) {
               valueBound.add(s.local.name);
+              proxyGlobalBound.add(s.local.name);
             }
           }
         }
@@ -278,7 +404,10 @@ export function mutationShapesReducer(packages = null) {
       case 'TSImportEqualsDeclaration':
         // the TS require-import twin of the case above; adapter-less reducer reads the
         // module-reference string directly
-        if (tsImportEqualsProxyName(node, null, packages)) valueBound.add(node.id.name);
+        if (tsImportEqualsProxyName(node, null, packages)) {
+          valueBound.add(node.id.name);
+          proxyGlobalBound.add(node.id.name);
+        }
         break;
       case 'ClassDeclaration':
         if (node.id?.type === 'Identifier') {
@@ -308,11 +437,11 @@ export function mutationShapesReducer(packages = null) {
           ? (callee.computed || OBJECT_MUTATORS.has(method) || REFLECT_MUTATORS.has(method))
           : callee?.type === 'Identifier';
         if (fires && node.arguments?.[0]) {
-          targets.push(node.arguments[0]);
+          pushTarget(node.arguments[0]);
           // Reflect.set(target, key, value, RECEIVER): a receiver arg redirects the data-property
           // write to the receiver, making IT the mutation host - flag both candidates
           if (node.arguments[3] && (method === 'set' || method === null || callee.computed)) {
-            targets.push(node.arguments[3]);
+            pushTarget(node.arguments[3]);
           }
         }
         break;
@@ -320,14 +449,35 @@ export function mutationShapesReducer(packages = null) {
       default:
     }
   }
+  const rootNames = new Set();
+
+  // a write THROUGH the global object names its namespace in the key nearest the root - record it
+  // and report success. the walk carries only that one key, so anything deeper stays unnamed: a
+  // dynamic key, the interop wrapper's `default` hop, and a further proxy-global hop
+  // (`globalThis.self.Object.create = x`) all leave the caller to open the query instead
+  function nameGlobalObjectKey(root) {
+    const key = root.firstKey;
+    if (key === null || key === 'default' || POSSIBLE_GLOBAL_OBJECTS.has(key)) return false;
+    rootNames.add(key);
+    return true;
+  }
+
   function result() {
+    // the point-query gate: a slot of `Ctor` can only be written through a target whose ROOT is
+    // `Ctor` itself or an alias that follows to it. collecting those root names lets a typing
+    // question about one slot skip the scoped pass entirely, instead of paying a whole-file walk
+    // for a file that never touches that namespace. `open` keeps the gate a SUPERSET: a root the
+    // walk cannot name (a call result, `this`, a followable alias) rules nothing out
+    let open = false;
+    let hasMutationShapes = false;
     for (const target of targets) {
-      // a value-fan mutation target (`(cond ? Array : Map).from`, `(a || globalThis).Promise`,
-      // `(h = Array).of`, `(c ? globalThis : self).Array.of`) reaches a built-in through any branch -
-      // collectGateRoots fans the same composites the scoped pass resolves, keeping the cheap gate a
-      // SUPERSET; otherwise the monkey-patch escapes the gate and usage-pure substitutes over it
       for (const root of collectGateRoots(target, [])) {
-        if (root.callRooted) return { hasMutationShapes: true };
+        // a CALL-rooted target names no namespace the scoped stage could attribute either, so it
+        // fires the coarse verdict without opening the point query
+        if (root.callRooted) {
+          hasMutationShapes = true;
+          continue;
+        }
         // a `this`-rooted target fires when the key nearest the root is built-in-shaped, or
         // when the target is the bare `this` itself (a mutator-call arg whose resolvable
         // literal keys can land on the global). dynamic-key members (`this[k] = v`) and
@@ -337,19 +487,45 @@ export function mutationShapesReducer(packages = null) {
         if (root.thisRooted) {
           if (root.firstKey === null ? !root.chained
             : (root.firstKey[0] >= 'A' && root.firstKey[0] <= 'Z') || POSSIBLE_GLOBAL_OBJECTS.has(root.firstKey)) {
-            return { hasMutationShapes: true };
+            hasMutationShapes = true;
+            // outside a top-level `this` context the scoped stage attributes this target to no
+            // namespace at all, so the point query may rule it out rather than open
+            if (!topLevelThisTargets.has(target)) continue;
+            // `this.Map = shim` on the global object writes the `Map` slot - the key names it
+            if (!nameGlobalObjectKey(root)) open = true;
           }
           continue;
         }
-        if (root.name[0] >= 'A' && root.name[0] <= 'Z') return { hasMutationShapes: true };
-        if (POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return { hasMutationShapes: true };
-        if (valueBound.has(root.name)) return { hasMutationShapes: true };
-        if (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey)) {
-          return { hasMutationShapes: true };
+        const fires = (root.name[0] >= 'A' && root.name[0] <= 'Z')
+          || POSSIBLE_GLOBAL_OBJECTS.has(root.name)
+          || valueBound.has(root.name)
+          || (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey));
+        if (!fires) continue;
+        hasMutationShapes = true;
+        // an ALIAS root stands for whatever its source chain starts from: follow that instead of
+        // surrendering, so a file full of ordinary `const x = a.b; x.c = v` writes still rules out
+        // an untouched namespace. an unnameable source (a pattern slot, a call) keeps it open
+        rootNames.add(root.name);
+        for (let { name } = root, hops = 0; aliasSourceRoot.has(name) && hops < 8; hops++) {
+          const source = aliasSourceRoot.get(name);
+          if (source === NAMES_NOTHING) break;
+          if (source === null) {
+            open = true;
+            break;
+          }
+          rootNames.add(source);
+          if (source === name) break;
+          name = source;
         }
+        // through the GLOBAL OBJECT the namespace is the next key, not the root: `globalThis.Object
+        // .create = x` patches `Object`, so the point query for it must still reach the scoped pass.
+        // a binding that IS the global object (a proxy-entry import) heads the same shape.
+        // a dynamic key there names nothing and leaves the gate open
+        if ((POSSIBLE_GLOBAL_OBJECTS.has(root.name) || proxyGlobalBound.has(root.name)) && root.chained
+          && !nameGlobalObjectKey(root)) open = true;
       }
     }
-    return { hasMutationShapes: false };
+    return { hasMutationShapes, mutationRoots: { names: rootNames, open } };
   }
   return { visit, result };
 }
@@ -815,6 +991,21 @@ function valueFanLeaves(node, leaves, depth = 0) {
   return leaves;
 }
 
+// the namespace a chain names when its ROOT is a lowered proxy-entry binding: the require-bound one
+// is the global object itself, the interop wrapper becomes it after the `.default` hop. every hop
+// between must stay on the global-object surface, and the LAST key is the namespace written to
+function loweredProxyGlobalNamespace(parts, { scope, adapter, path }) {
+  if (!parts?.keys?.length || parts.rootNode.type !== 'Identifier') return null;
+  let { keys } = parts;
+  if (!requireBoundProxyGlobalName({ node: parts.rootNode, scope, adapter, path })) {
+    if (keys[0] !== 'default'
+      || !interopDefaultProxyName({ objectNode: parts.rootNode, scope, adapter, path })) return null;
+    keys = keys.slice(1);
+  }
+  if (!keys.length) return null;
+  return keys.slice(0, -1).every(key => POSSIBLE_GLOBAL_OBJECTS.has(key)) ? keys.at(-1) : null;
+}
+
 // member chain -> { rootNode, keys } when every hop key resolves to a static name (const-aliased
 // hops follow the read-side canon); an unreadable hop keeps walking to the root but nulls `keys`
 // (the reached value is unknowable - callers deopt the ROOT whole). the root node is returned
@@ -879,6 +1070,12 @@ function resolveLeafName(leaf, ctx) {
         return `${ parts.keys.at(-2) }.prototype`;
       }
     }
+    // a proxy entry reached through MODULE LOWERING roots the chain at the global object: a bare CJS
+    // require binds it directly, an interop wrapper hangs it on `.default`. resolved here, on the
+    // write path, rather than in the shared proxy-root walk - reads use that walk too, and widening
+    // it makes a disable-directive leaf read the ponyfill's namespace instead of the native one
+    const lowered = loweredProxyGlobalNamespace(parts, { scope, adapter, path });
+    if (lowered) return lowered;
     // static-container chains (`NS.M` over `const NS = { M: Map }` / class statics): the
     // destructure receiver canon walks the same literal hops
     return walkStaticReceiverChain({ receiverNode: parts.rootNode, walkPath: parts.keys, scope, adapter, path });
