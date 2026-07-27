@@ -1,6 +1,5 @@
 // Pipeline stats: size AND time at every stage of the real IE11 build, per (lib x method).
-// Rollup, Babel 7 (Babel 8 emits identical raw/minified sizes; on codemirror and three the bytes —
-// and so gzip, by a few — differ, because the two majors order their helpers differently). Stages:
+// Rollup + Babel (syntax down-compile) + unplugin (polyfills). Stages:
 //   [A] library bundled, NO transforms      — modern syntax, tree-shaken (the library alone)
 //   [B] + Babel -> ES5                       — syntax down-compiled, NO polyfills
 //   [C] + unplugin                           — + core-js polyfills = the real IE11 bundle
@@ -82,7 +81,7 @@ async function measure(lib, method) {
         },
       };
       const a = await timedBuild(entry, [counter, nodeResolve(), commonjs()], `${ cell0 } [A]`);
-      const b = await timedBuild(entry, [makeBabelPlugin('7'), nodeResolve(), commonjs()], `${ cell0 } [B]`);
+      const b = await timedBuild(entry, [makeBabelPlugin(), nodeResolve(), commonjs()], `${ cell0 } [B]`);
       cell.src = src;
       cell.A = { bytes: a.bytes, ms: +a.ms.toFixed(0) };
       cell.B = { bytes: b.bytes, ms: +b.ms.toFixed(0) };
@@ -95,7 +94,7 @@ async function measure(lib, method) {
     let babelMs = 0;
     let unpluginMs = 0;
     const sink = new Set();
-    const babel = timeTransform(makeBabelPlugin('7'), ms => { babelMs += ms; });
+    const babel = timeTransform(makeBabelPlugin(), ms => { babelMs += ms; });
     const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginMs += ms; });
     const c = await timedBuild(entry, [babel, nodeResolve(), commonjs(), up, recorder(sink)], `${ cell0 } [C]`);
     cell.injections = sink.size;
@@ -122,7 +121,7 @@ async function measure(lib, method) {
 // happened to run first, making the cross-lib [C] column incomparable.
 process.stdout.write('warming the toolchain … ');
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
-  entry => timedBuild(entry, [makeBabelPlugin('7'), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
+  entry => timedBuild(entry, [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
 console.log('done');
 
 const rows = [];
@@ -149,8 +148,7 @@ const scope = libFilter || methodFilter
   : `Full matrix: ${ rows.length } cell(s)`;
 let md = '# Pipeline: size and time per stage\n\n'
   + `${ scope }. `
-  + 'Rollup, Babel 7 (Babel 8 emits identical raw and minified sizes; on codemirror and three the bytes '
-  + 'differ — helper emission order — which moves gzip by a few bytes), single run. '
+  + 'Rollup + Babel (syntax down-compile) + unplugin, single run. '
   + 'Stages: **[A]** library with no transforms '
   + '(modern, tree-shaken) → **[B]** + Babel (ES5, no polyfills) → **[C]** + unplugin '
   + '(polyfills = the real IE11 bundle). For `entry-global`, only [C].\n\n';
