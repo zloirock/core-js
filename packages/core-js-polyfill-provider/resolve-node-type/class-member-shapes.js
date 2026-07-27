@@ -36,7 +36,13 @@ export function createClassMemberShape({ t }) {
   function isPropertyMember(node) {
     return t.isClassProperty(node) || t.isClassAccessorProperty(node) || t.isClassPrivateProperty?.(node);
   }
-  return { isMethodMember, isPropertyMember };
+  // narrower question than `isPropertyMember`: does the member install an OWN DATA property? an
+  // auto-accessor (`accessor x = 1`) does not - it puts a getter/setter pair on the prototype over a
+  // private slot, so it answers a read through the accessor path like any other accessor
+  function isDataFieldMember(node) {
+    return t.isClassProperty(node) || t.isClassPrivateProperty?.(node);
+  }
+  return { isMethodMember, isPropertyMember, isDataFieldMember };
 }
 
 // member-write semantics: extract the field name from a write-target MemberExpression
