@@ -18,10 +18,10 @@
 // Nor does a green pre-flight prove per-site DETECTION: it runs in a modern realm where the native is
 // present either way. On real IE11 a global polyfill still patches the prototype once, so one detected
 // use masks a missed sibling use of the same feature; usage-pure has no such masking (each site is
-// rewritten to a local import, so a missed site stays a native call and dies on IE11) - which is why
-// karma-bundles.mjs runs the usage-pure bundles in actual IE11. The global methods stay masked; their
-// per-site detection lives in the unplugin unit tests (tests/unplugin/unit.mjs). This tier proves the
-// exercise still executes.
+// rewritten to a local import, so a missed site stays a native call and dies on IE11). karma-bundles.mjs
+// runs the full matrix in actual IE11, so usage-pure's per-site detection is checked there; the global
+// methods run too but stay masked, and their per-site detection lives in the unplugin unit tests
+// (tests/unplugin/unit.mjs). This tier (the node pre-flight) proves the exercise still executes.
 import { runtimeBuild, assertES5, wireSize, errorReason, BABEL_VERSIONS, HERE } from './build.mjs';
 import { bannerHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
