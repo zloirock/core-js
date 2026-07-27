@@ -26,7 +26,6 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     ignoreBrowserslistConfig,
     importStyle,
     include,
-    shippedProposals,
     shouldInjectPolyfill: userCallback,
     targets,
     ...rest
@@ -45,7 +44,6 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     createDebugOutput,
     exclude,
     include,
-    shippedProposals,
     shouldInjectPolyfill,
   };
 }
