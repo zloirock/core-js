@@ -1,9 +1,10 @@
 'use strict';
 // Karma config for the e2e-libs IE11 leg. Mirrors tests/unit-karma/karma.conf.js but trimmed to the
 // only target that matters here: real IE11. No Chromium/Firefox/WebKit (and so no Playwright dep) —
-// modern engines are already covered by artifacts.mjs's node pre-flight. This leg runs the full
-// runtime matrix (every library × method × Babel version) on real IE11, where a usage-pure detection
-// miss cannot hide; karma-bundles.mjs invokes it once per (library × isolation-class) — see README.
+// modern engines are already covered by artifacts.mjs's node pre-flight. This leg runs the full runtime
+// matrix (every library × method × unplugin phase × Babel version) on real IE11, where a usage-pure
+// detection miss cannot hide; karma-bundles.mjs invokes it once per (library × isolation-class ×
+// gate/diagnostic) — see README.
 //
 // QUnit is the same karma-qunit@4 / qunit@2 stack the unit-karma job already runs green in IE11.
 // The bundles come in via `-f=` (absolute paths, comma-separated): each is a self-contained UMD from
@@ -31,8 +32,8 @@ module.exports = config => config.set({
   customLaunchers,
   browsers,
   // a green QUnit run is otherwise near-silent (just "Executed N of N"). Forward each bundle's
-  // console.log — the "[e2e-libs] <lib>/<method>/babel<v>: N/N checks passed in this IE11" line the
-  // driver prints — to the CI terminal, so the log states what actually ran, not just how many bundles.
+  // console.log — the "[e2e-libs] <lib>/<method>/<phase>/babel<v>: N/N checks passed in this IE11" line
+  // the driver prints — to the CI terminal, so the log states what actually ran, not just bundle counts.
   client: { captureConsole: true },
   browserConsoleLogOptions: { terminal: true, level: 'log' },
   logLevel: config.LOG_INFO,
