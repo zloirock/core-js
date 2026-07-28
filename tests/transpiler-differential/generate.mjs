@@ -4357,7 +4357,82 @@ function * generateNullableTruthyFold() {
   }
 }
 
+// --- discriminant tags that share their TEXT across types ---
+// `1` and `"1"` name the same property key but are different values under `===`, so a union tagged
+// with both has to separate them by the tag's TYPE. a NEGATED guard is what makes that observable:
+// collapsing the two tags drops BOTH of them, leaving only the third member - whose type carries no
+// `at` at all, so nothing is injected and the stripped realm throws on the string this really is.
+// under a positive guard the same collapse only KEEPS an extra branch, which degrades to a generic
+// helper and runs fine - so that direction is deliberately not an axis here.
+// the union has to stay opaque behind a call: an annotated literal resolves the member off its
+// initializer and the discriminant never runs
+const SAME_TEXT_TAG_UNION = '(n: number): { k: 1, v: string[] } | { k: "1", v: string } | { k: 2, v: number } =>'
+  + ' n === 1 ? { k: 1, v: ["x", "y"] } : n === 2 ? { k: "1", v: "ab" } : { k: 2, v: 5 }';
+
+function * generateSameTextTagUnion() {
+  // written literal and folded enum member reach the guard value through different paths; both
+  // have to keep the number a number
+  for (const [id, prelude, tag] of [
+    ['negated-literal', '', '1'],
+    ['negated-enum-member', 'enum K { A = 1 } ', 'K.A'],
+  ]) {
+    yield { ...snippet(`same-text-tag/${ id }`,
+      `(() => { ${ prelude }const mk = ${ SAME_TEXT_TAG_UNION }; const src = mk(2);`
+      + ` if (src.k !== ${ tag }) { return src.v.at(0); } return "no"; })()`), ts: true, strip: true };
+  }
+}
+
+// --- declaration-driven narrows the runtime can contradict ---
+// the shapes below all resolve a receiver from DECLARATIONS rather than from the value in front of
+// them, and each is arranged so the runtime lands on the family a plausible mis-resolution would
+// rule out. that is what makes them stripped-realm oracles: over-narrowing imports one family and
+// leaves the one actually needed unimported, so the call throws where native returns a value. the
+// full-env legs cannot see it - the natives satisfy both families there.
+// each pair runs the SAME shape twice, once landing on each family, so neither direction can pass
+// by the resolver simply preferring one
+function * generateDeclarationNarrowRuntime() {
+  // a `break` inside a switch leaves the switch and control resumes after it, so the assignment in
+  // the other arm did NOT run. reading the else-arm as a function-level exit narrows to the
+  // assigned type while the binding still holds its initialiser
+  for (const [id, flag, init] of [
+    ['keeps-initialiser', '0', '["a", "b"]'],
+    ['takes-assignment', '1', '["a", "b"]'],
+  ]) {
+    yield { ...snippet(`declared-narrow/branch-exit-${ id }`,
+      `(() => { const c = ${ flag }; let x: string[] | string = ${ init };`
+      + ' if (c) { x = "xy"; } else { switch (0) { default: break; return "no"; } }'
+      + ' return x.at(0); })()'), ts: true, strip: true };
+  }
+  // the same narrow reached through each receiver-access shape: the deopt / memoisation decisions
+  // for optional and side-effecting receivers are taken separately from the narrow itself, so a
+  // narrow that survives a plain read still has to survive them
+  for (const [id, read] of [
+    ['optional', 'x?.at(0)'],
+    ['se-comma', '(0, x).at(0)'],
+    ['nonnull', '(x)!.at(0)'],
+  ]) {
+    yield { ...snippet(`declared-narrow/branch-exit-via-${ id }`,
+      '(() => { const c = 0; let x: string[] | string = ["a", "b"];'
+      + ' if (c) { x = "xy"; } else { switch (0) { default: break; return "no"; } }'
+      + ` return ${ read }; })()`), ts: true, strip: true };
+  }
+  // `typeof o.f` may read the initialiser only while nothing reassigns `o` - after a reassignment
+  // the first init no longer describes what the binding holds. the query has to sit in a PARAMETER
+  // annotation: given to a declarator that also has an initialiser, the resolver reads the
+  // initialiser instead and the annotation path never runs
+  for (const [id, second] of [
+    ['reassigned-to-string', '{ f: "xy" } as any'],
+    ['reassigned-to-array', '{ f: ["a", "b"] } as any'],
+  ]) {
+    yield { ...snippet(`declared-narrow/typeof-member-${ id }`,
+      `(() => { let o = { f: ["q", "r"] }; o = ${ second };`
+      + ' function take(v: typeof o.f) { return v.at(0); } return take(o.f); })()'), ts: true, strip: true };
+  }
+}
+
 export function * generate() {
+  yield * generateDeclarationNarrowRuntime();
+  yield * generateSameTextTagUnion();
   yield * generateAsiFusion();
   yield * generateBranchKey();
   yield * generateGetIteratorKeySE();
