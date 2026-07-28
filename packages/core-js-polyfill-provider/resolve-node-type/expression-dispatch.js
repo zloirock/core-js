@@ -44,6 +44,9 @@ export function createExpressionDispatch({
   typeFromHint,
   resolveArrayLiteralCommonType,
   resolveThisClass,
+  resolveThisObject,
+  computeObjectAliasClosure,
+  thisAnchorIsProvable,
   resolveExpressionToClassPath,
   resolveClassInheritance,
   resolveFromMemberExpression,
@@ -313,11 +316,25 @@ export function createExpressionDispatch({
         return new $Object('Function');
       case 'ThisExpression': {
         const context = resolveThisClass(path);
-        if (!context) return null;
+        // `this` inside an object-literal method IS that literal - the same assumption the field
+        // read through `this` already makes, taken under the same gate: an enumerable closure means
+        // no method of the object can be handed out and re-bound to a foreign receiver. re-entering
+        // the dispatcher on the literal keeps the foreign-prototype guard. without it the receiver
+        // stays untyped and a member whose name matches a built-in instance method (`this.entries`
+        // reading an own data property) injects a polyfill a plain object can never need
+        if (!context) {
+          const objAnchor = resolveThisObject(path);
+          return objAnchor && computeObjectAliasClosure(objAnchor) ? resolveNodeType(objAnchor) : null;
+        }
         // static-context `this` IS the constructor value, not an instance: instance-flavored
         // narrowing rewrote static aliases of `class C extends Array` to instance helpers
         // (native TypeError became a silent undefined)
         if (context.isStatic) return new $Object('Function');
+        // an instance method extracted off the prototype and re-invoked (`C.prototype.m.call(arr)`)
+        // runs the same body with a foreign `this`, so the lexical class answers for the receiver
+        // only while no own-this method of the hierarchy can be handed out - the gate the field read
+        // through `this` already applies. same question, same answer as the object-literal flavor
+        if (!thisAnchorIsProvable(context.classPath)) return null;
         // base-less `this` -> Object; unknowable super -> null (generic), not a re-suppressing Object floor
         return resolveClassInheritance(context.classPath);
       }
