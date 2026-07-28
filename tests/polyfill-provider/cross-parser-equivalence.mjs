@@ -483,4 +483,79 @@ await runEquivalence('deferred ctor-alias host full consume',
 await runEquivalence('deferred static + rest sibling keeps polyfill-wins',
   'let fv2, rv2;\nexport const { entries } = (({ Promise: { allSettled: fv2, ...rv2 } } = globalThis), Object);\nexport const r = [fv2, rv2, entries];', USAGE_PURE);
 
+// --- declaration-driven type resolution, swept ---
+// three resolver paths whose inputs form small CLOSED sets, each swept element-wise rather than
+// sampled: the kind an enum member carries, the shape a discriminant guard's value is folded from,
+// and the way a branch leaves its statement list. every value drives a different arm, and both
+// parsers have to agree on all of them - a single-arm divergence here would otherwise only show up
+// as one fixture drifting
+
+// initialiser kind x the position it is read from. `single` reads the BARE member following the
+// initialised one, `merged` the bare member opening a second block, `direct` the member itself
+// the parenthesised forms matter for parser agreement specifically: oxc keeps the wrapper node
+// that babel strips at parse, so an unwrap missing on one side would diverge here and nowhere else
+const ENUM_INITIALISERS = ['1', '"x"', '1n', '1 + 2', '-1', '"a" + "b"', '1 > 2', '`t`', '(1 + 2)', '("x")'];
+for (const init of ENUM_INITIALISERS) {
+  for (const [shape, source] of [
+    ['bare successor', `enum E { A = ${ init }, B }\nconst v = E.B;\nv.at(0);`],
+    ['bare opening a merged block', `enum E { A = ${ init } }\nenum E { B }\nconst v = E.B;\nv.at(0);`],
+    ['the initialised member itself', `enum E { A = ${ init } }\nconst v = E.A;\nv.at(0);`],
+    // a QUOTED member name is an id shape only one parser reports as a string literal
+    ['a quoted member name', `enum E { "A" = ${ init } }\nconst v = E.A;\nv.at(0);`],
+  ]) {
+    for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
+      await runEquivalence(`enum member kind: ${ init } -> ${ shape } [${ options.method }]`, source, options);
+    }
+  }
+}
+
+// the guard's value side: written literals and every binding shape it can be folded from, each in
+// a numeric and a string flavour against a union carrying the same tag TEXT in both types
+const GUARD_FOLDS = [
+  ['', '1'], ['', '"1"'], ['', '`1`'],
+  ['declare const g: 1;\n', 'g'], ['declare const g: "1";\n', 'g'],
+  ['enum G { A = 1 }\n', 'G.A'], ['enum G { A = "1" }\n', 'G.A'],
+  ['const g = 1;\n', 'g'], ['const g = "1";\n', 'g'],
+  // boolean and bigint tags are literal kinds a property key never carries, so they reach the
+  // equality extractor through arms the numeric / string rows leave untouched
+  ['', 'true', '{ k: true; v: number[]; } | { k: "true"; v: string; }'],
+  ['', '2n', '{ k: 2n; v: number[]; } | { k: 2; v: string; }'],
+  ['', '(1)', undefined],
+];
+for (const [prelude, guard, union] of GUARD_FOLDS) {
+  const members = union ?? '{ k: 1; v: number[]; } | { k: "1"; v: string; }';
+  const source = `type U = ${ members };\ndeclare const u: U;\n`
+    + `${ prelude }if (u.k === ${ guard }) { u.v.at(0); }`;
+  for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
+    await runEquivalence(`discriminant fold: ${ prelude.trim() || 'bare' } ${ guard } [${ options.method }]`, source, options);
+  }
+}
+
+// an `export` wrapper sits between an ambient head and the statement list that holds it, so the
+// overload set has to be recognised THROUGH it - the exported implementation otherwise reads its
+// own inferred return instead of the last head's
+for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
+  await runEquivalence(`exported overload heads retarget the implementation [${ options.method }]`,
+    'export declare function fn(x: number): string;\nexport declare function fn(x: string): number[];\n'
+    + 'export function fn(x: any) { return x; }\ndeclare const r: ReturnType<typeof fn>;\nr.at(0);', options);
+}
+
+// how the sibling branch leaves: only a function-level exit lets the other branch's assignment
+// dominate the later read, and a statement behind a diverting one is dead
+const BRANCH_EXITS = [
+  'return;', 'throw 0;',
+  'switch (0) { default: break; }', 'switch (0) { default: break; return; }', 'switch (0) { default: return; }',
+  'lbl: { break lbl; }', 'lbl: { break lbl; return; }', 'lbl: { return; }',
+  'while (c) { continue; return; }',
+  'switch (0) { default: try { break; } finally { return; } }',
+  'switch (0) { default: try { return; } catch { break; } }',
+];
+for (const exit of BRANCH_EXITS) {
+  const source = 'declare const c: boolean;\nfunction f() {\n  let x: number[] | string = [1, 2, 3];\n'
+    + `  if (c) { x = "abc"; } else { ${ exit } }\n  return x.at(0);\n}`;
+  for (const options of [USAGE_GLOBAL_IE11, USAGE_PURE]) {
+    await runEquivalence(`branch exit: ${ exit } [${ options.method }]`, source, options);
+  }
+}
+
 finish();
