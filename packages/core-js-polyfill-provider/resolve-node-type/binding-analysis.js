@@ -30,9 +30,15 @@
 import { PATTERN_WRAPPERS } from './base.js';
 import {
   FUNCTION_LIKE_NODE_TYPES,
+  POSSIBLE_GLOBAL_OBJECTS,
+  TS_EXPR_WRAPPERS,
   isBindingPosition,
   isForXStatement,
   isMemberAccessNode,
+  isMemberMutationContext,
+  NO_PROTOTYPE_VALUE,
+  installedPrototypeValueAt,
+  prototypeValueMayDispatch,
   isMemberWriteHost,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
@@ -40,11 +46,12 @@ import {
   objectOwnThisMethodInfo,
   ownThisMethodKeyMatches,
   peelTransparentExprAncestorPath,
+  aliasTargetName,
+  positionDisposition,
+  POSITION_CONSUMES,
   propertyKeyName,
-  TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
-  POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 
 // walk up from an Identifier through destructuring pattern wrappers to the enclosing binding / assign
@@ -471,6 +478,19 @@ export function createBindingAnalysis({
     return isMemberWriteHost(refPath?.parentPath);
   }
 
+  // does handing a value to this call at this argument slot EXPOSE it? the single decision both walks
+  // ask - the named-holder classifier and the anonymous-object one - so an object written inline at the
+  // argument reads exactly like one bound to a name first. three layers: a value carrying own-`this`
+  // methods additionally needs the slot listed as method-safe (anything else may extract a method and
+  // rebind its `this`), the callee must not mutate that slot, and an identity-returning callee must not
+  // have its result held (the result aliases the value back out)
+  function callArgumentEscapes({ callNode, argNode, argPath, hasOwnThisMethods }) {
+    if (referenceInstallsUnreadBody(callNode, argNode, argPath, null)) return true;
+    if (hasOwnThisMethods && !methodSafeCallArgSlot(callNode, argNode, argPath?.scope)) return true;
+    if (!isKnownNonMutatingCallSite(callNode, argNode, argPath)) return true;
+    return heldIdentityReturningResult(callNode, argNode, argPath);
+  }
+
   function defaultAliasRefClassifier(parent, refNode, refPath) {
     // a dynamic computed-key write is an unenumerable mutation channel - leak before the
     // member-receiver shortcut would otherwise treat it as trivial
@@ -481,18 +501,26 @@ export function createBindingAnalysis({
     // closure-narrow stays in scope. shared helper covers both declaration-level and
     // per-specifier `exportKind` and the implements-heritage walk
     if (refPath && isTSTypeOnlyIdentifierPath(refPath)) return 'trivial';
-    if (parent?.type === 'VariableDeclarator' && parent.init === refNode && parent.id?.type === 'Identifier') {
-      return 'alias';
-    }
+    // a declarator id and a simple assignment target both bind the value to ONE name, through which
+    // the closure keeps tracking it. an assignment ALSO forwards the value on from its own position
+    // (`sink(b = a)` hands it to sink), so that position has to consume it for the alias to hold
+    if (parent?.type === 'VariableDeclarator' && parent.init === refNode && aliasTargetName(parent)) return 'alias';
+    if (parent?.type === 'AssignmentExpression' && parent.right === refNode && aliasTargetName(parent)
+      && positionDisposition(refPath?.parentPath?.parent, parent, refPath?.parentPath?.parentPath) === POSITION_CONSUMES) return 'alias';
     // VariableDeclarator destructure init `const {x} = o` / `const [x] = o` - destructure
     // only reads named/indexed properties off `o`, no mutation channel. equivalent to a
     // bag of `o.x` / `o[N]` member-receiver reads
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode
       && (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')) return 'trivial';
-    // for-of / for-in iteration source: `for (const x of o) {}` invokes
-    // `o[Symbol.iterator]()`; `for (const k in o) {}` reads enumerable keys. neither
-    // mutates `o` through any standard channel
-    if (isForXStatement(parent) && parent.right === refNode) return 'trivial';
+    // the shared position enumeration: a value this reference names is evaluated here and nothing
+    // downstream can reach it - a `for...in` head among them, since it only enumerates keys. this walk
+    // cannot follow a FORWARDS into a container, so anything but CONSUMES falls through to the rules
+    // below and, failing those, to the leak default
+    if (positionDisposition(parent, refNode, refPath?.parentPath) === POSITION_CONSUMES) return 'trivial';
+    // a `for...of` head is deliberately NOT in that list: it invokes `o[Symbol.iterator]()`, and an
+    // own iterator is free to yield `this`. with no own iterator to invoke the loop throws before it
+    // binds anything, so the holder stays local here and the method-aware wrapper draws the line
+    if (parent?.type === 'ForOfStatement' && parent.right === refNode) return 'trivial';
     // obj is the target of a WRITE that rebinds the binding, not a leaking read - a constantViolation
     // babel drops from `referencePaths` (the estree-toolkit program-index collects writes, so neutralize
     // to match). covers any AssignmentExpression LHS: direct (`o = v`, `o += v`, `o ||= v`) or
@@ -584,8 +612,14 @@ export function createBindingAnalysis({
   // name ANY method, so it applies whenever the object has one (or hides one behind an untrackable
   // key). a DISCARDED read (`c[k];` statement / `void c[k]`) cannot hold the function - no rebind
   function methodReadLeaks(memberNode, memberPath, methodInfo) {
-    if (!ownThisMethodKeyMatches(methodInfo, memberReadKeyName(memberNode))) return false;
-    if (memberUseIsDirectCall(memberPath)) return false;
+    const key = memberReadKeyName(memberNode);
+    // a key this module never wrote may still name a body it copied in through a spread. such a body
+    // runs with our receiver as `this`, so unlike an own method it is NOT made safe by being called
+    // directly - nobody scanned what it does with that receiver
+    const foreign = !!methodInfo.unscannableBodies
+      && !(key !== null && key !== undefined && methodInfo.declaredKeys?.has(key));
+    if (!foreign && !ownThisMethodKeyMatches(methodInfo, key)) return false;
+    if (memberUseIsDirectCall(memberPath)) return foreign;
     const ctx = peelTransparentExprAncestorPath(memberPath)?.parentPath?.node;
     if (ctx?.type === 'ExpressionStatement') return false;
     if (ctx?.type === 'UnaryExpression' && ctx.operator === 'void') return false;
@@ -615,6 +649,9 @@ export function createBindingAnalysis({
   // (`Object.values` exposes property values, `Object.assign` copies them onto the target, a
   // descriptor read exposes accessor functions) - the base's non-mutating trivial is
   // overridden in the bias-safe direction
+  // the `setPrototypeOf` pair sits here because neither hands the value OUT - which is what this
+  // table answers - but both INSTALL a prototype on it, and an installed prototype brings inherited
+  // bodies nobody read. that second property is decided per CALL, on the argument, just below
   const METHOD_SAFE_STATIC_CALLEE_SLOTS = new Map([
     // value / replacer / space: functions are skipped, a replacer array is read as key strings
     ['JSON.stringify', [0, 1, 2]],
@@ -631,6 +668,18 @@ export function createBindingAnalysis({
     ['Reflect.ownKeys', [0]],
     ['Reflect.setPrototypeOf', [0]],
   ]);
+
+  function methodSafeCallArgSlot(callNode, argNode, scope) {
+    const pair = resolveStaticCalleePair(callNode.callee, scope);
+    const safeSlots = pair && METHOD_SAFE_STATIC_CALLEE_SLOTS.get(`${ pair.constructor }.${ pair.method }`);
+    if (!safeSlots) return false;
+    const argIndex = callNode.arguments.findIndex(a => unwrapRuntimeExpr(a) === argNode || a === argNode);
+    if (argIndex === -1 || !safeSlots.includes(argIndex)) return false;
+    // a preceding spread shifts runtime positions - the slot cannot be proven safe
+    for (let i = 0; i < argIndex; i++) if (callNode.arguments[i]?.type === 'SpreadElement') return false;
+    return true;
+  }
+
   // wrap a base classifier with the own-this method-extraction gate: any channel that can HOLD one
   // of the object's methods rebinds `this` at a later invocation, so the this-field narrow premise
   // breaks and the closure must die. gated channels: a held method read (dotted / static-computed /
@@ -639,36 +688,73 @@ export function createBindingAnalysis({
   // cannot reach named methods), and call / new argument positions outside the method-safe table.
   // `prototypeInfo` (class flavor) gates the `C.prototype` hop the same way: a held
   // `C.prototype.<instanceMethod>` read - or `C.prototype` itself held - hands instance methods out
+  function invokesOwnIterator(parent, refNode, refPath) {
+    if (parent?.type === 'SpreadElement') return refPath?.parentPath?.parent?.type !== 'ObjectExpression';
+    return parent?.type === 'ForOfStatement' && parent.right === refNode;
+  }
+
+  // does this REFERENCE to the holder INSTALL a body nobody read? two shapes reach that, and the
+  // classifier asks about both in one place: a member WRITE - on the holder itself or on the
+  // prototype every instance shares - and a call that installs a PROTOTYPE, whose members the holder
+  // then inherits. a key the caller reports as DECLARED is exempt on a holder, where those writes
+  // feed the field fold the narrow already reads; a prototype has no such fold and passes nothing.
+  // a value that cannot BE an object cannot be called either, so storing one installs nothing.
+  // READING a member is the other question, and what the holder's own SHAPE says is the third
+  function isProtoSetterCallee(calleePath) {
+    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope);
+    return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
+  }
+
+  function referenceInstallsUnreadBody(parent, refNode, refPath, declaredKeys) {
+    if (isMemberRefReceiver(parent, refNode)) {
+      const host = refPath?.parentPath?.parentPath;
+      if (!isMemberMutationContext(parent, host?.node, host?.parentPath?.node)) return false;
+      const key = memberReadKeyName(parent);
+      if (key !== null && key !== undefined && declaredKeys?.has(key)) return false;
+      const stored = host?.node?.type === 'AssignmentExpression' ? unwrapRuntimeExpr(host.node.right) : null;
+      return !stored || prototypeValueMayDispatch(stored, true);
+    }
+    // POSITION comes from the canonical detector - it climbs the wrappers and sequences a reference
+    // can sit under (`setPrototypeOf((eff(), o), P)`) and covers the `o.__proto__ = P` spelling. the
+    // VALUE is this arm's own question: the canon reports the slot, its consumers decide what landed
+    // in it. a missing second argument makes the call throw, so nothing is installed
+    const undefinedShadowed = !!getScopeBinding(refPath?.scope, 'undefined');
+    const installed = installedPrototypeValueAt(refPath, isProtoSetterCallee, undefinedShadowed);
+    return !!installed && installed !== NO_PROTOTYPE_VALUE
+      && prototypeValueMayDispatch(unwrapRuntimeExpr(installed), undefinedShadowed);
+  }
+
   function makeMethodAwareRefClassifier(base, { methodInfo, prototypeInfo }) {
     return function (parent, refNode, refPath) {
       if (isMemberRefReceiver(parent, refNode)) {
         if (methodInfo && methodReadLeaks(parent, refPath?.parentPath, methodInfo)) return 'leak';
+        // only a holder whose members this module can enumerate has a declared set to compare
+        // against; a class instance has no literal and its writes are the field fold's business
+        // only a holder whose members this module can enumerate has a declared set to compare
+        // against; a class instance has no literal and its writes are the field fold's business
+        if (methodInfo?.declaredKeys
+          && referenceInstallsUnreadBody(parent, refNode, refPath, methodInfo.declaredKeys)) return 'leak';
         if (prototypeInfo && memberReadKeyName(parent) === 'prototype'
           && prototypeReadLeaks(refPath?.parentPath, prototypeInfo)) return 'leak';
       }
       if (!methodInfo) return base(parent, refNode, refPath);
-      if (parent?.type === 'SpreadElement' && (methodInfo.methodKeys.size || methodInfo.unknownKey)) {
-        // an OBJECT spread copies the holder's own props - methods included - into the new object.
-        // an ARRAY spread only iterates, which hands nothing out unless the holder can iterate
-        // ITSELF: a computed key may be `Symbol.iterator`, and such an iterator can yield `this`
-        const container = refPath?.parentPath?.parent?.type;
-        if (container === 'ObjectExpression'
-          || (container === 'ArrayExpression' && methodInfo.unknownKey)) return 'leak';
-      }
+      // an OBJECT spread copies the holder's own props - methods included - into the new object
+      if (parent?.type === 'SpreadElement' && (methodInfo.methodKeys.size || methodInfo.unknownKey)
+        && refPath?.parentPath?.parent?.type === 'ObjectExpression') return 'leak';
+      // positions that invoke the holder's OWN iterator - an array / call spread, a `for...of` /
+      // `for await...of` head - hand nothing out on their own, but a holder that can carry an
+      // iterator is free to yield `this` straight to the consumer. `for...in` is NOT one of them:
+      // it enumerates keys and never calls into the holder
+      if (methodInfo.mayIterate && invokesOwnIterator(parent, refNode, refPath)) return 'leak';
       if (parent?.type === 'VariableDeclarator' && parent.init === refNode
         && patternBindsMethodKey(parent.id, methodInfo)) return 'leak';
       // the walker hands `refNode` as the OUTERMOST wrapper, so a cast-wrapped argument
       // (`Object.setPrototypeOf(x, o as any)`) IS the argument node - compare by identity
       if ((parent?.type === 'CallExpression' || parent?.type === 'NewExpression'
-        || parent?.type === 'OptionalCallExpression')
-        && parent.arguments?.includes(refNode)) {
-        const pair = resolveStaticCalleePair(parent.callee, refPath?.scope);
-        const safeSlots = pair && METHOD_SAFE_STATIC_CALLEE_SLOTS.get(`${ pair.constructor }.${ pair.method }`);
-        if (!safeSlots) return 'leak';
-        const argIndex = parent.arguments.indexOf(refNode);
-        // a preceding spread shifts runtime positions - the slot cannot be proven safe
-        for (let i = 0; i < argIndex; i++) if (parent.arguments[i]?.type === 'SpreadElement') return 'leak';
-        if (!safeSlots.includes(argIndex)) return 'leak';
+        || parent?.type === 'OptionalCallExpression') && parent.arguments?.includes(refNode)) {
+        return callArgumentEscapes({
+          callNode: parent, argNode: refNode, argPath: refPath, hasOwnThisMethods: true,
+        }) ? 'leak' : 'trivial';
       }
       return base(parent, refNode, refPath);
     };
@@ -680,7 +766,14 @@ export function createBindingAnalysis({
   function prototypeReadLeaks(protoMemberPath, prototypeInfo) {
     const outer = peelTransparentExprAncestorPath(protoMemberPath);
     const next = outer?.parentPath?.node;
-    if (isMemberRefReceiver(next, outer?.node)) return methodReadLeaks(next, outer.parentPath, prototypeInfo);
+    if (isMemberRefReceiver(next, outer?.node)) {
+      // WRITING through the hop (`C.prototype.m = fn`, `delete C.prototype.m`) installs or REPLACES
+      // a body on the shared prototype - a declared name is no exemption here, since replacing a
+      // scanned body leaves an unscanned one. reading is the other question below
+      const host = outer.parentPath;
+      if (referenceInstallsUnreadBody(next, outer.node, outer, null)) return true;
+      return methodReadLeaks(next, host, prototypeInfo);
+    }
     if (!prototypeInfo.methodKeys.size && !prototypeInfo.unknownKey) return false;
     if (next?.type === 'ExpressionStatement') return false;
     if (next?.type === 'UnaryExpression' && next.operator === 'void') return false;
@@ -827,7 +920,7 @@ export function createBindingAnalysis({
         const kind = classifier(parent, refNode, refContext);
         if (kind === 'trivial') continue;
         if (kind === 'alias') {
-          const aliasName = parent.id.name;
+          const aliasName = aliasTargetName(parent);
           // 3rd arg is a use-PATH (drives rebuildLaggedScopeBinding / pathContainedBy recovery), not
           // a node: `parent` is `refContext.parent` (a VariableDeclarator NODE) and defeats both
           // recoveries -> over-bail. pass the reference PATH, mirroring the sibling site
@@ -875,6 +968,7 @@ export function createBindingAnalysis({
     isReceiverNewOfClass,
     objectBindingName,
     isReflectConstructCallee,
+    callArgumentEscapes,
     classBindingRefClassifier,
     computeAliasClosureFromBinding,
     methodReadLeaks,
