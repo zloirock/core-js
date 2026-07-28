@@ -31,7 +31,7 @@ import {
 import { scopeNode, bindingLoopAnchor, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { nodeAlwaysHardExits } from './exit-analysis.js';
 import { isUnionType, loopReExecRegionHasViolation, violationInCapturedFunction } from './ast-shapes.js';
-import { bigIntLiteralValue, isBigIntLiteralNode, MAX_DEPTH } from './base.js';
+import { MAX_DEPTH } from './base.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
 // nullish-keyword annotation shapes: any property-access guard (`x.kind === 'a'`)
@@ -61,7 +61,7 @@ export function createDiscriminantNarrow({
   resolveComputedKeyName,
   getStatementSiblings,
   siblingExitCondition,
-  literalKeyValue,
+  literalExactValue,
   findPatternKeyPath,
   getKeyName,
   unwrapTypeAnnotation,
@@ -117,28 +117,17 @@ export function createDiscriminantNarrow({
     return null;
   }
 
-  // discriminant literal VALUES span more than KEY literals: a union member can be
-  // discriminated by `true` / `false` and bigint literal TYPES, which `literalKeyValue`
-  // (key-domain: string / number) never extracts. bigints key off the canonical real-BigInt
-  // VALUE (via the shared `bigIntLiteralValue`) so the babel shape (BigIntLiteral, magnitude in
-  // `.value` - decimal OR `0x`/`0o`/`0b` prefixed) and the estree shape (Literal with a real
-  // bigint `.value`) compare equal regardless of source radix, suffixed `n` so a same-digit
-  // NUMBER (key `1`) never collides with a bigint (key `1n`). null / undefined discriminants are
-  // KEYWORD types (TSNullKeyword), not literal nodes - they keep the permissive pass-through.
-  // used by BOTH comparison sides: the test expression and the union member's TSLiteralType
-  function discriminantLiteralValue(node) {
-    if (!node) return null;
-    if (typeof node.value === 'boolean' && (node.type === 'BooleanLiteral' || node.type === 'Literal')) return node.value;
-    if (isBigIntLiteralNode(node)) return `${ bigIntLiteralValue(node) }n`;
-    return literalKeyValue(node);
-  }
-
-  // bare literal first (cheap, no scope walk), then enum-member / alias-chain /
-  // template-literal via `resolveComputedKeyName`. without the second branch,
-  // `box.kind === Kind.A` (and `Kind['A']` / `Kind[`A`]`) stays unmatched and the
-  // discriminant narrowing falls back to the unrefined union receiver
+  // discriminants compare with `===`, so they key off `literalExactValue` (runtime type kept)
+  // rather than the coerced property key - `{ kind: 1 }` and `{ kind: '1' }` are distinct union
+  // members. null / undefined discriminants are KEYWORD types (TSNullKeyword), not literal
+  // nodes, and keep the permissive pass-through.
+  //
+  // bare literal first (cheap, no scope walk), then enum-member / alias-chain / template-literal
+  // via `resolveComputedKeyName` - without that branch `box.kind === Kind.A` (and `Kind['A']` /
+  // `Kind[`A`]`) stays unmatched and the narrowing falls back to the unrefined union receiver.
+  // the fold is handed the same exact-value leaf so both sides of the comparison agree
   function resolveLiteralOrComputed(node, scope) {
-    return discriminantLiteralValue(node) ?? (scope ? resolveComputedKeyName(node, scope) : null);
+    return literalExactValue(node) ?? (scope ? resolveComputedKeyName(node, scope, literalExactValue) : null);
   }
 
   function memberLiteralPair({ memberExpr, literalNode, targetKey, scope }) {
@@ -673,7 +662,7 @@ export function createDiscriminantNarrow({
       if (p.type === 'SpreadElement' || p.type === 'ExperimentalSpreadProperty') return null;
       if (p.computed || (p.type !== 'ObjectProperty' && p.type !== 'Property')) continue;
       const keyName = getKeyName(p.key);
-      const literalValue = discriminantLiteralValue(p.value);
+      const literalValue = literalExactValue(p.value);
       if (keyName !== null && literalValue !== null) literals.set(keyName, literalValue);
     }
     return literals;
@@ -726,7 +715,7 @@ export function createDiscriminantNarrow({
       if (m.type !== 'TSPropertySignature' || m.computed) continue;
       const memberType = m.typeAnnotation && unwrapTypeAnnotation(m.typeAnnotation);
       if (memberType?.type !== 'TSLiteralType') continue;
-      const expected = discriminantLiteralValue(memberType.literal);
+      const expected = literalExactValue(memberType.literal);
       const keyName = getKeyName(m.key);
       if (expected === null || keyName === null || !rhsLiterals.has(keyName)) continue;
       if (rhsLiterals.get(keyName) !== expected) return false;
@@ -829,7 +818,7 @@ export function createDiscriminantNarrow({
       if (!memberType) return true;
       current = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope).node;
     }
-    const literal = current?.type === 'TSLiteralType' ? discriminantLiteralValue(current.literal) : null;
+    const literal = current?.type === 'TSLiteralType' ? literalExactValue(current.literal) : null;
     // a positive guard needs the literal to match, a negated one needs it to differ
     return literal === null || (positive ? literal === value : literal !== value);
   }

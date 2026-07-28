@@ -1,0 +1,40 @@
+import _at from "@core-js/pure/actual/instance/at";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+var _ref, _ref2;
+// A labeled break leaves its own wrapper and nothing more, so a statement behind it is dead and
+// the case still falls through into the next one - which then sees both branches. Only a real
+// function-level exit stops the fall-through and lets the next case keep its own narrow: pure
+// hands the fall-through row the family-agnostic helper and the exiting row a string-specific one.
+type Box = {
+  kind: "a";
+  body: number[];
+} | {
+  kind: "b";
+  body: string;
+};
+type Crate = {
+  tag: "x";
+  items: number[];
+} | {
+  tag: "y";
+  items: string;
+};
+declare const box: Box;
+declare const crate: Crate;
+switch (box.kind) {
+  case "a":
+    outer: {
+      break outer;
+      throw 0;
+    }
+  case "b":
+    _at(_ref = box.body).call(_ref, 0);
+}
+switch (crate.tag) {
+  case "x":
+    guarded: {
+      throw 0;
+    }
+  case "y":
+    _includesMaybeString(_ref2 = crate.items).call(_ref2, "a");
+}
