@@ -828,16 +828,10 @@ export function createMemberResolve({
     // SE-bearing key `E[(c++, 'A')]` - all look up the same member (staticMemberKeyName folds the SE
     // tail); numeric / dynamic keys fall through to the reverse-map fallback below
     const memberName = staticMemberKeyName(path.node);
-    if (memberName !== null) {
-      for (const decl of enumDecls) {
-        const memberType = resolveEnumMemberType(decl, memberName);
-        if (memberType) return memberType;
-      }
-      return null;
-    }
+    if (memberName !== null) return resolveEnumMemberType(enumDecls, memberName);
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;
-    if (enumDecls.some(decl => resolveEnumType(decl)?.type !== 'number')) return null;
+    if (resolveEnumType(enumDecls)?.type !== 'number') return null;
     return resolveNodeType(path.get('property'))?.type === 'number' ? new $Primitive('string') : null;
   }
 
