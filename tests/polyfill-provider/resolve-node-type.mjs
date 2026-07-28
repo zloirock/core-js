@@ -586,6 +586,17 @@ runBoth('array spread of a self-iterable anonymous object escapes',
     check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
+// an anonymous object reaching a for-of loop variable stays reachable through that variable, so a
+// write through it retypes the field. the alias has to be tracked for that write to fold - keeping
+// only a yes/no escape verdict made it invisible and left the array narrow standing over a string
+runBoth('write through a for-of loop variable widens the anonymous field',
+  'for (const w of [{ items: [1], read() { const t = this.items; return t; } }])'
+  + ' { w.items = "abc"; w.read(); }',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
+    check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
+  });
+
 runBoth('object method member still resolves to a Function object',
   'const obj = { m() {} }; const t = obj.m;', (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 't');
