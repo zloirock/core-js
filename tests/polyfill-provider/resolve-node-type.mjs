@@ -13,7 +13,7 @@ import {
   collectMutationPrePass as collectEstreeMutationPrePass,
   createEstreeAdapter,
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
-import { blockAlwaysExits, canFallThrough, nodeAlwaysExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
+import { blockAlwaysExits, canFallThrough, nodeAlwaysExits, nodeAlwaysHardExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
 import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
 import {
   isAmbientClassNode,
@@ -1410,8 +1410,8 @@ runBoth('discriminant union: decimal bigint guard narrows decimal bigint member'
   });
 
 // disjointness control: a bigint guard must NOT match a same-DIGIT number member - `1n !== 1`, so
-// neither branch matches and the narrow yields the unrefined union (the trailing `n` suffix keeps
-// the bigint key disjoint from the number key)
+// neither branch matches and the narrow yields the unrefined union (both sides resolve to their
+// real runtime values, and a BigInt never equals a Number)
 runBoth('discriminant union: bigint guard does not narrow same-digit number member',
   `
     type U = { kind: 1; x: string } | { kind: 2; x: number[] };
@@ -1434,6 +1434,47 @@ runBoth('discriminant union: bigint guard does not narrow same-digit number memb
       throw new Error(`${ lbl }: bigint guard wrongly narrowed a same-digit NUMBER member to string`);
     }
   });
+
+// the guard's value side is a closed set of fold paths: a bare literal, a single-quasi template,
+// a literal-TYPED binding with no init, an enum member, and a const alias to a literal. every one
+// of them must yield the value's runtime TYPE, because `===` separates `1` from `'1'` where a
+// property key does not. each union below carries the same tag TEXT in both types, so a path that
+// coerced its value to a key would select the wrong member - and the pairs make the two selections
+// symmetric, so neither direction can pass by accident
+const DISCRIMINANT_FOLD_CASES = [
+  { label: 'bare numeric literal', prelude: '', guard: '1', member: 'number' },
+  { label: 'bare string literal', prelude: '', guard: '"1"', member: 'string' },
+  { label: 'single-quasi template', prelude: '', guard: '`1`', member: 'string' },
+  { label: 'literal-typed binding, numeric', prelude: 'declare const k: 1;', guard: 'k', member: 'number' },
+  { label: 'literal-typed binding, string', prelude: 'declare const k: "1";', guard: 'k', member: 'string' },
+  { label: 'enum member, numeric', prelude: 'enum E { A = 1 }', guard: 'E.A', member: 'number' },
+  { label: 'enum member, string', prelude: 'enum E { A = "1" }', guard: 'E.A', member: 'string' },
+  { label: 'const alias, numeric', prelude: 'const k = 1;', guard: 'k', member: 'number' },
+  { label: 'const alias, string', prelude: 'const k = "1";', guard: 'k', member: 'string' },
+];
+
+for (const { label, prelude, guard, member } of DISCRIMINANT_FOLD_CASES) {
+  // the numeric member carries `x: string`, the string member `x: number[]` - so the assertion
+  // names which branch the fold picked, not merely that something narrowed
+  const expected = member === 'number' ? { primitive: true, kind: 'string' } : { primitive: false, ctor: 'Array' };
+  runBoth(`discriminant fold: ${ label } -> ${ member } member`,
+    `
+      type U = { kind: 1; x: string } | { kind: "1"; x: number[] };
+      ${ prelude }
+      function f(u: U) { if (u.kind === ${ guard }) { return u.x; } }
+    `,
+    (adapter, prog, lbl) => {
+      const refs = adapter.collectPaths(prog, 'MemberExpression', p => {
+        let parent = p.parentPath;
+        while (parent) {
+          if (parent.node?.type === 'ReturnStatement') return true;
+          parent = parent.parentPath;
+        }
+        return false;
+      });
+      checkType(lbl, adapter.makeResolver().resolveNodeType(refs.at(-1)), expected);
+    });
+}
 
 // --- Mapped types ---
 // covers `parseMappedTypeShape` (`keyof` vs literal-union dispatch),
@@ -2800,6 +2841,24 @@ const ENUM_MEMBER_CASES = [
   { label: 'decl-merge member in 2nd block (string)', src: 'enum E { A = "x" } enum E { B = "y" } const v = E.B;', kind: 'string' },
   { label: 'decl-merge member in 2nd block (numeric)', src: 'enum E { A = 1 } enum E { B = 2 } const v = E.B;', kind: 'number' },
   { label: 'decl-merge member in 1st block still resolves', src: 'enum E { A = "x" } enum E { B = "y" } const v = E.A;', kind: 'string' },
+  // initialiser-less members are auto-numbered from the one before them, so the kind comes from
+  // the nearest preceding INITIALISED member. a member opening the block auto-numbers from 0, and
+  // the walk-back skips over any run of bare members between the read and that initialiser
+  { label: 'bare leading member', src: 'enum E { A, B } const v = E.A;', kind: 'number' },
+  { label: 'bare after numeric', src: 'enum E { A = 1, B } const v = E.B;', kind: 'number' },
+  { label: 'bare after numeric, two hops', src: 'enum E { A = 1, B, C } const v = E.C;', kind: 'number' },
+  { label: 'bare after numeric expression', src: 'enum E { A = 1 + 2, B } const v = E.B;', kind: 'number' },
+  { label: 'bare between numerics reads its own predecessor', src: 'enum E { A = 1, B, C = 9 } const v = E.B;', kind: 'number' },
+  // merging does not carry the auto-numbering across the block boundary - a member opening a later
+  // block restarts at 0, so it is numeric even where the previous block ended on a string
+  { label: 'bare opening a merged block after string', src: 'enum E { A = "x" } enum E { B } const v = E.B;', kind: 'number' },
+  { label: 'bare opening a merged block after numeric', src: 'enum E { A = 1 } enum E { B } const v = E.B;', kind: 'number' },
+  // a QUOTED member name is a value-bearing id node on both parsers rather than an identifier -
+  // reading only the identifier slot loses the member, and a parity oracle cannot see it because
+  // both sides lose it identically
+  { label: 'quoted member name, string', src: 'enum E { "A" = "x" } const v = E.A;', kind: 'string' },
+  { label: 'quoted member name, numeric', src: 'enum E { "A" = 1 } const v = E.A;', kind: 'number' },
+  { label: 'bare successor of a quoted numeric member', src: 'enum E { "A" = 1, B } const v = E.B;', kind: 'number' },
 ];
 
 for (const { label, src, kind } of ENUM_MEMBER_CASES) {
@@ -2815,6 +2874,14 @@ for (const { label, src, kind } of ENUM_MEMBER_CASES) {
 const ENUM_BAIL_CASES = [
   { label: 'identifier back-ref to peer (numeric)', src: 'enum E { A = 1, B = A } const v = E.B;' },
   { label: 'member back-ref (E.A forward-ref)', src: 'enum E { A = "x", B = E.A } const v = E.B;' },
+  // a bare member after a NON-numeric one is only reachable through non-type-checked input, and the
+  // emitters disagree on what it then holds - babel refuses the enum outright, swc leaves the member
+  // `undefined`. neither is an enum value kind, so all of these stay opaque instead of assuming number
+  { label: 'bare after string', src: 'enum E { A = "x", B } const v = E.B;' },
+  { label: 'bare after string, two hops', src: 'enum E { A = "x", B, C } const v = E.C;' },
+  { label: 'bare after bigint', src: 'enum E { A = 1n, B } const v = E.B;' },
+  { label: 'bare after unclassified predecessor', src: 'enum E { A = 1 > 2, B } const v = E.B;' },
+  { label: 'bare successor of a quoted string member', src: 'enum E { "A" = "x", B } const v = E.B;' },
 ];
 
 for (const { label, src } of ENUM_BAIL_CASES) {
@@ -5880,6 +5947,56 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
         { type: 'ExpressionStatement' },
       ],
     }), false);
+}
+
+// --- exit-analysis: a diverting statement makes the rest of its list unreachable ---
+
+// the closed domain is the four statements that transfer control out of their list. under the
+// FUNCTION-level question (`nodeAlwaysHardExits`) only return / throw count as the exit, while
+// break / continue divert to somewhere the caller's later statements may still be reached from -
+// so a return AFTER one of them is dead and must not be read as an unconditional exit. under the
+// full-set question (`nodeAlwaysExits`) all four are exits and the same lists answer true
+{
+  const DIVERTERS = [
+    { type: 'BreakStatement', hardExits: false },
+    { type: 'ContinueStatement', hardExits: false },
+    { type: 'ReturnStatement', hardExits: true },
+    { type: 'ThrowStatement', hardExits: true },
+  ];
+  for (const { type, hardExits } of DIVERTERS) {
+    const body = [{ type }, { type: 'ReturnStatement' }];
+    check(`exit-analysis: hard-exit past ${ type }`,
+      nodeAlwaysHardExits({ type: 'BlockStatement', body }), hardExits);
+    checkTruthy(`exit-analysis: any-exit past ${ type }`,
+      nodeAlwaysExits({ type: 'BlockStatement', body }));
+    // the same list as a switch case: the switch as a whole exits only when every case reaches a
+    // function-level exit, so a case that merely diverts leaves the switch falling through
+    check(`exit-analysis: switch case ending past ${ type }`,
+      nodeAlwaysHardExits({
+        type: 'SwitchStatement',
+        cases: [{ test: null, consequent: body }],
+      }), hardExits);
+  }
+  // a non-diverting statement in front changes nothing - only diversion truncates the list
+  checkTruthy('exit-analysis: hard-exit past a plain statement',
+    nodeAlwaysHardExits({
+      type: 'BlockStatement',
+      body: [{ type: 'ExpressionStatement' }, { type: 'ReturnStatement' }],
+    }));
+  // a labeled break escapes its wrapper and no more, so neither walk may call the labeled
+  // statement an exit - and the return behind it is dead for the same reason
+  const labeledBreakThenReturn = {
+    type: 'LabeledStatement',
+    label: { name: 'outer' },
+    body: {
+      type: 'BlockStatement',
+      body: [{ type: 'BreakStatement', label: { name: 'outer' } }, { type: 'ReturnStatement' }],
+    },
+  };
+  check('exit-analysis: labeled break then return does not hard-exit',
+    nodeAlwaysHardExits(labeledBreakThenReturn), false);
+  check('exit-analysis: labeled break then return does not exit',
+    nodeAlwaysExits(labeledBreakThenReturn), false);
 }
 
 // --- name-resolution: ambient node predicates (module-level surface) ---

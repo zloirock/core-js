@@ -448,10 +448,8 @@ export function createPatternBindings({
       const rootName = segments?.[0];
       if (rootName && segments.length === 1) {
         // TS merges enum blocks - the member may live in any block
-        for (const enumDecl of findAllEnumDeclarations(rootName, scope)) {
-          const type = resolveEnumMemberType(enumDecl, keyName);
-          if (type) return type;
-        }
+        const type = resolveEnumMemberType(findAllEnumDeclarations(rootName, scope), keyName);
+        if (type) return type;
       }
     }
     const memberType = findTypeMember({ objectType: unwrapped, key: keyName, scope });

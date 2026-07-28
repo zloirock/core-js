@@ -29,8 +29,10 @@ import {
   STRUCTURE_PRESERVING_WRAPPERS,
   TYPE_HINTS,
   TYPEOF_HINT_GROUPS,
+  bigIntLiteralValue,
   canonicalArrayIndex,
   intersectHintSets,
+  isBigIntLiteralNode,
   primitiveTypeOf,
   toHint,
 } from './resolve-node-type/base.js';
@@ -189,17 +191,29 @@ function createResolveNodeType(babelNodeType, t, {
     return babelNodeType(node) === `${ kind }Literal`;
   }
 
-  function literalKeyValue(node) {
-    if (isLiteralOf(node, 'String')) return node.value;
-    if (isLiteralOf(node, 'Numeric')) return String(node.value);
+  // every literal node the resolver folds, as its real runtime VALUE. equality narrowing keys off
+  // this directly - `===` separates `1` from `'1'`, and a bigint from a same-digit number. bigints
+  // read through the shared reader so source radix does not matter
+  function literalExactValue(node) {
+    if (isLiteralOf(node, 'String') || isLiteralOf(node, 'Numeric') || isLiteralOf(node, 'Boolean')) return node.value;
+    if (isBigIntLiteralNode(node)) return bigIntLiteralValue(node);
     // negative numeric literals (`-1`, `-0`) parse as UnaryExpression { operator: '-',
     // argument: NumericLiteral } - the raw `value` slot is undefined on the wrapper,
     // so callers that compare against stringified numeric keys (`K extends -1 ? ...`)
     // would otherwise see `null` from the wrapper and bail
     if (node?.type === 'UnaryExpression' && node.operator === '-' && isLiteralOf(node.argument, 'Numeric')) {
-      return String(-node.argument.value);
+      return -node.argument.value;
     }
     return null;
+  }
+
+  // the same values as a property KEY: only strings and numbers name one, and `obj[1]` / `obj['1']`
+  // index the same slot, so the number coerces. booleans and bigints are not keys on their own
+  // terms and drop out here rather than being spelled out as a second literal-shape list
+  function literalKeyValue(node) {
+    const value = literalExactValue(node);
+    if (typeof value === 'string') return value;
+    return typeof value === 'number' ? String(value) : null;
   }
 
   // statically-known property name from a Member/OptionalMemberExpression. accepts:
@@ -227,12 +241,14 @@ function createResolveNodeType(babelNodeType, t, {
 
   // T["key"] / T[0] / T[`key`] index literal - unwrap TSLiteralType; fall through template-literal
   // for parity with computed-member resolution. null for non-literal / keyof / union indexes
-  function indexedAccessKey(indexType) {
+  // `literalValue` is the leaf extractor, defaulting to the key domain - a caller folding a
+  // literal-typed binding for an EQUALITY comparison passes the type-keeping one instead
+  function indexedAccessKey(indexType, literalValue = literalKeyValue) {
     // oxc keeps a `("len")` index / annotation as TSParenthesizedType where babel strips it at parse;
     // peel so both parsers reach the inner literal (else the const-typed key folds on babel only)
     const peeled = peelTSParenthesized(indexType);
     const literal = peeled?.type === 'TSLiteralType' ? peeled.literal : peeled;
-    return literalKeyValue(literal) ?? singleQuasiString(literal);
+    return literalValue(literal) ?? singleQuasiString(literal);
   }
 
   // unified TSIndexedAccessType dispatcher under generic substitution. walks down the
@@ -322,7 +338,7 @@ function createResolveNodeType(babelNodeType, t, {
     // arg object-literal hop-by-hop to the final key's property type. keyof / number / constraint
     // forms are NOT resolved here - they fall through to the constraint branch below or, for
     // `T[keyof T]`, downstream via resolveTypeAnnotation -> resolveKeyofSelfValueUnion
-    const literalKeys = indexNodes.map(indexedAccessKey);
+    const literalKeys = indexNodes.map(node => indexedAccessKey(node));
     if (literalKeys.every(k => k !== null)) {
       let argPath = returnTypeCluster.getTypeParamArgPath(typeParamMap, rootName);
       for (let i = 0; i < literalKeys.length - 1; i++) {
@@ -444,10 +460,15 @@ function createResolveNodeType(babelNodeType, t, {
   }
 
   // [key] where key is a string/number literal, a const binding (chain) to one, or an
-  // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots)
-  function resolveComputedKeyName(key, scope, depth = 0) {
+  // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots).
+  // `literalValue` is the LEAF extractor: the key domain coerces every literal to its string
+  // key (`obj[1]` and `obj['1']` index the same slot), while a caller comparing with `===`
+  // passes an extractor that keeps the runtime type apart. only the leaves differ - the
+  // alias / IIFE / enum-member folding above them is identical, so it is not duplicated
+  function resolveComputedKeyName(key, scope, literalValue = literalKeyValue) {
     // follow const-binding chains by looping instead of recursing - the Identifier branch
     // re-drives the whole resolution on the binding's init at an incremented depth
+    let depth = 0;
     while (true) {
       if (depth > MAX_DEPTH) return null;
       // a zero-arg IIFE computed key (`o[(() => 'data')()]`) evaluates to its return - peel and
@@ -460,7 +481,7 @@ function createResolveNodeType(babelNodeType, t, {
         depth += 1;
         continue;
       }
-      const literal = literalKeyValue(key);
+      const literal = literalValue(key);
       if (literal !== null) return literal;
       // single-quasi TemplateLiteral (`` `foo` `` with no interpolations) resolves to its
       // cooked text. matches `getMemberProperty`'s template handling so `box.kind === \`A\``
@@ -480,7 +501,7 @@ function createResolveNodeType(babelNodeType, t, {
           // no value init: a binding typed by a string-literal type (`declare const k: 'len'`) still
           // names a static key - TS only permits a literal-typed (or unique-symbol) binding as a
           // computed key, so read the literal off the id's type annotation. non-literal types bail
-          return indexedAccessKey(decl.node.id?.typeAnnotation?.typeAnnotation);
+          return indexedAccessKey(decl.node.id?.typeAnnotation?.typeAnnotation, literalValue);
         }
         scope = decl.scope ?? scope;
         // peel `as const` / `satisfies` / parens so `const k = 'len' as const` folds to its literal
@@ -502,7 +523,7 @@ function createResolveNodeType(babelNodeType, t, {
           // TS merges enum blocks - the member may live in any block
           for (const enumDecl of findAllEnumDeclarations(objectName, scope)) {
             const member = findEnumMember(enumDecl, memberName);
-            const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
+            const initValue = member?.initializer ? literalValue(member.initializer) : null;
             if (initValue !== null) return initValue;
           }
         }
@@ -1632,7 +1653,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveComputedKeyName,
     getStatementSiblings: (...args) => typeofGuardsCluster.getStatementSiblings(...args),
     siblingExitCondition: (...args) => typeofGuardsCluster.siblingExitCondition(...args),
-    literalKeyValue,
+    literalExactValue,
     findPatternKeyPath,
     getKeyName,
     unwrapTypeAnnotation,
