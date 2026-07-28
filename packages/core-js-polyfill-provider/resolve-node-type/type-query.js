@@ -16,9 +16,18 @@
 //
 // Service object is heavy (~20 entries) but the deps are pure factory function decls
 // (hoisted) and upstream cluster outputs; no late binding needed
+import { STATEMENT_LIST_HOST_TYPES } from '../helpers/ast-patterns.js';
 import { $Object } from './base.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
 import { isAmbientFunctionNode, isAmbientFunctionOrClassNode } from './name-resolution.js';
+
+// nearest ancestor holding `path` in a statement LIST - the unit an overload set lives in.
+// climbs past `export declare function` wrappers, which sit between the declaration and its list
+function statementContainer(path) {
+  let p = path?.parentPath;
+  while (p?.node && !STATEMENT_LIST_HOST_TYPES.has(p.node.type)) p = p.parentPath;
+  return p?.node ?? null;
+}
 
 // getter/setter members carry `kind` 'get'/'set' (a plain method is 'method'): a `typeof obj.accessor`
 // reads the accessor's RETURN value, not the function, so callers must not resolve it as a method
@@ -99,18 +108,14 @@ export function createTypeQuery({
     const bindingPath = bindingDeclaratorPath(objectName, scope);
     // TS merges enum blocks, so a member may live in any block - search them all
     if (memberPath.length === 1 && enumIsNearestValue(objectName, scope, bindingPath)) {
-      for (const decl of findAllEnumDeclarations(objectName, scope)) {
-        const type = resolveEnumMemberType(decl, memberPath[0]);
-        if (type) return type;
-      }
+      const type = resolveEnumMemberType(findAllEnumDeclarations(objectName, scope), memberPath[0]);
+      if (type) return type;
     } else if (memberPath.length > 1) {
       // namespaced `typeof NS.E.Member` - findAllEnumDeclarations walks the namespace segments to
       // the enum blocks; map the trailing segment as the enum member
       const enumSegments = [objectName, ...memberPath.slice(0, -1)];
-      for (const decl of findAllEnumDeclarations(enumSegments, scope)) {
-        const type = resolveEnumMemberType(decl, memberPath.at(-1));
-        if (type) return type;
-      }
+      const type = resolveEnumMemberType(findAllEnumDeclarations(enumSegments, scope), memberPath.at(-1));
+      if (type) return type;
     }
     if (!memberPath.length) return null;
     // ambient `declare class K` has no runtime value binding on Babel (estree-toolkit binds it
@@ -123,10 +128,16 @@ export function createTypeQuery({
         ? resolveClassMember({ classPath: ambientClass, name: memberPath[0], isStatic: true })
         : null;
     }
-    const initPath = t.isVariableDeclarator(bindingPath.node) ? bindingPath.get('init')
-      : t.isClassDeclaration(bindingPath.node) ? bindingPath : null;
+    // the init is the binding's value only while nothing reassigns it - `let o = { x: [1] };
+    // o = { x: 's' }` would otherwise read `typeof o.x` off the FIRST init and hand a runtime
+    // string an array-specific helper. mirrors `resolveTypeofBinding`'s split: const-only for
+    // VALUE reads, const-agnostic for the declared annotation below (TS reads the annotation,
+    // not the narrowed value, and reassignment cannot change it)
+    const constPath = constantBindingPath(objectName, scope);
+    const initPath = t.isVariableDeclarator(constPath?.node) ? constPath.get('init')
+      : t.isClassDeclaration(constPath?.node) ? constPath : null;
     if (initPath?.node) {
-      const resolved = t.isVariableDeclarator(bindingPath.node)
+      const resolved = t.isVariableDeclarator(constPath.node)
         ? resolveRuntimeExpression(initPath) : initPath;
       // class static: `class K {static x...}; typeof K.x` or aliased `const C = K; typeof C.x` -
       // class members aren't ObjectProperties, dispatch through the class-aware resolver.
@@ -293,6 +304,11 @@ export function createTypeQuery({
     if (!isRetargetableOverloadSubject(resolved.node)) return resolved;
     const overloads = findOverloadsForName(collectQualifiedSegments(param.exprName), scope);
     if (!overloads.length) return resolved;
+    // an overload set is a run of same-name declarations in ONE statement list. the head walk stops
+    // at the first ENCLOSING scope that declares the name, which may be outside the subject - and a
+    // same-named declaration nested inside that scope SHADOWS those heads instead of overloading
+    // them, so an escaped outer set must not displace the inner subject
+    if (statementContainer(overloads[0]) !== statementContainer(resolved)) return resolved;
     // ambient head: only retarget when there's a LATER head (count > 1, since `resolved`
     // is itself one of the entries). impl: ANY ambient heads supersede the impl body
     const minHeadsForRetarget = isAmbientFunctionNode(resolved.node) ? 2 : 1;
