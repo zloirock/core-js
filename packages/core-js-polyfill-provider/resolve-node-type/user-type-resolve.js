@@ -155,21 +155,14 @@ export function createUserTypeResolve({
     return resolveParentAnchored(parentPath, { name: segments, node: parent, scope, depth, typeParamMap, seen: visited });
   }
 
-  // fold the value-kind across all merged `enum E {}` blocks: uniform -> that kind, a cross-block
-  // mismatch -> null (generic), matching a single-block mixed enum instead of masquerading the
-  // nearest block's kind. `name` is the (possibly namespace-qualified) lookup key so merged blocks
-  // inside a `namespace` resolve too; the `includes` guard keeps the fold to THIS declaration's
-  // merge-set - if the lookup resolves a different enum, fall back to the single-declaration kind
+  // the value-kind of a merged `enum E {}` is folded over ALL its blocks' members at once, so a
+  // cross-block mismatch yields null (generic) instead of masquerading the nearest block's kind.
+  // `name` is the (possibly namespace-qualified) lookup key so merged blocks inside a `namespace`
+  // resolve too; the `includes` guard keeps the fold to THIS declaration's merge-set - if the
+  // lookup resolves a different enum, fall back to reading the declaration alone
   function resolveMergedEnumType(declaration, name, scope) {
     const blocks = findAllEnumDeclarations(name ?? declaration.id?.name, scope);
-    if (!blocks.includes(declaration)) return resolveEnumType(declaration);
-    let kind = null;
-    for (const block of blocks) {
-      const blockKind = resolveEnumType(block);
-      if (!blockKind || (kind && kind.type !== blockKind.type)) return null;
-      kind ??= blockKind;
-    }
-    return kind;
+    return resolveEnumType(blocks.includes(declaration) ? blocks : [declaration]);
   }
 
   function resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen }) {
