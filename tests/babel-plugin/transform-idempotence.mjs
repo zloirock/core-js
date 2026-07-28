@@ -25,6 +25,16 @@ const CASES = [
   ['patch through a proxy import', 'import g from "core-js/actual/global-this";\ng.Object.create = shim;\nvar o = Object.create(null);\nexport const r = o.at(0);'],
   ['patch through a lowered require', 'var g = require("core-js/actual/global-this");\ng.Object.create = shim;\nvar o = Object.create(null);\nexport const r = o.at(0);'],
   ['prototype patch', 'Array.prototype.at = shim;\nvar a = [1];\nexport const r = a.at(0);'],
+  // declaration-driven resolution: the type each of these reads is re-derived from source on the
+  // second pass, so a rule that depends on statement ORDER or on a declaration's neighbours has to
+  // land on the same answer once the injected imports sit in front of it
+  ['enum member kind', 'enum E { A = "x", B }\nconst v = E.B;\nexport const r = v.at(0);', true],
+  ['discriminant narrow', 'type U = { k: 1; v: number[]; } | { k: "1"; v: string; };\ndeclare const u: U;\nexport const r = u.k === 1 ? u.v.at(0) : "";', true],
+  ['branch-exit narrow', 'declare const c: boolean;\nexport function f() {\n  let x: number[] | string = [1, 2, 3];\n'
+    + '  if (c) { x = "abc"; } else { return; }\n  return x.at(0);\n}', true],
+  ['typeof member of a reassigned container', 'let o = { f: [1, 2, 3] };\no = { f: "t" } as any;\ndeclare const q: typeof o.f;\nexport const r = q.at(0);', true],
+  ['overload retarget', 'declare function fn(x: number): number[];\ndeclare function fn(x: string): number[];\n'
+    + 'declare const q: ReturnType<typeof fn>;\nexport const r = q.at(0);', true],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
@@ -33,13 +43,16 @@ function injectedModules(code) {
   return code.matchAll(/modules\/(?<name>[\w\-.]+)"/g).map(match => match.groups.name).toArray();
 }
 
-for (const [label, source] of CASES) {
-  const first = (await transformAsync(source, {
-    configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
-  })).code;
-  const second = (await transformAsync(first, {
-    configFile: false, babelrc: false, filename: 'input.mjs', plugins: [[babelPlugin, OPTIONS]],
-  })).code;
+for (const [label, source, ts] of CASES) {
+  // a TS case keeps its annotations in the output, so the second pass re-parses them - hence the
+  // parser plugin and a filename the pipeline reads as TS
+  const config = {
+    configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]],
+    filename: ts ? 'input.ts' : 'input.mjs',
+    ...ts && { parserOpts: { plugins: ['typescript'] } },
+  };
+  const first = (await transformAsync(source, config)).code;
+  const second = (await transformAsync(first, config)).code;
   const before = injectedModules(first);
   const after = injectedModules(second);
   check(`re-transform keeps the set: ${ label }`, after.join(','), before.join(','));

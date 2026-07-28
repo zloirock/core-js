@@ -23,6 +23,23 @@ const FUNCTION_EXIT_STATEMENTS = new Set([
   'ThrowStatement',
 ]);
 
+// scan a statement list IN ORDER and stop at the first statement that diverts control - a
+// later exit is unreachable through it. the divert probe runs on the FULL exit set and with
+// no blocked labels, because any break / continue / return / throw leaves the current list no
+// matter which construct it targets. it can only disagree with the exit question above when
+// that question is narrower - the function-level set, where `break` diverts without matching
+// (`{ break; return; }` is not an unconditional return) - or when a blocked label suppresses
+// the match (`outer: { break outer; return; }` leaves the label, so the return is dead too).
+// otherwise both questions read the same statement the same way and the probe is skipped
+function statementsExit(body, depth, exitTypes, blockedLabels) {
+  const divertMayDiffer = exitTypes !== EXIT_STATEMENTS || Boolean(blockedLabels?.size);
+  for (let i = 0; i < body.length; i++) {
+    if (alwaysExitsWithKind(body[i], depth + 1, exitTypes, blockedLabels)) return true;
+    if (divertMayDiffer && alwaysExitsWithKind(body[i], depth + 1, EXIT_STATEMENTS, null)) return false;
+  }
+  return false;
+}
+
 function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
   while (true) {
     if (depth > MAX_DEPTH) return false;
@@ -38,7 +55,7 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
       return !isLabeled;
     }
     if (node.type === 'BlockStatement') {
-      return node.body.some(stmt => alwaysExitsWithKind(stmt, depth + 1, exitTypes, blockedLabels));
+      return statementsExit(node.body, depth, exitTypes, blockedLabels);
     }
     if (node.type === 'IfStatement') {
       // both arms must exit for the `if` to always exit; a missing `else` cannot -> return a real
@@ -82,9 +99,7 @@ function alwaysExitsWithKind(node, depth, exitTypes, blockedLabels) {
         // `case 1: case 2: return;` exits via case 2). only the trailing case can't fall through
         // past the switch, so an empty consequent there is a real non-exit
         if (!$case.consequent.length && i < cases.length - 1) continue;
-        if ($case.consequent.every(stmt => !alwaysExitsWithKind(stmt, depth + 1, FUNCTION_EXIT_STATEMENTS, blockedLabels))) {
-          return false;
-        }
+        if (!statementsExit($case.consequent, depth, FUNCTION_EXIT_STATEMENTS, blockedLabels)) return false;
       }
       return hasDefault;
     }
@@ -109,7 +124,5 @@ export function nodeAlwaysHardExits(node, depth = 0) {
 }
 
 export function canFallThrough($case) {
-  const { consequent } = $case;
-  for (let i = 0; i < consequent.length; i++) if (nodeAlwaysExits(consequent[i])) return false;
-  return true;
+  return !statementsExit($case.consequent, 0, EXIT_STATEMENTS, null);
 }
