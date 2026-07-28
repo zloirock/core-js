@@ -455,6 +455,249 @@ function * generateFieldShadowsAccessor() {
     + ' return String(B.a.includes("p")); })()'), strip: true };
 }
 
+// --- `this` as a receiver: is the lexical anchor proof of the runtime one ---
+// a method extracted off the prototype (or off a leaked object) runs its body against whatever
+// receiver the caller supplies, so the class / literal it was written in stops answering for the
+// type of `this`. resolving it anyway picks a family the receiver does not belong to, which the
+// FULL environment hides behind the native the wrong helper delegates to - only the stripped realm
+// shows the throw. the last two rows are the boundary: an anchor nothing can extract from keeps the
+// precise family, so the axis fails on an over-correction too
+function * generateThisAnchorProvability() {
+  const rows = [
+    ['proto-extracted-to-string',
+      'class C extends Array { read() { return String(this.includes("p")); } } return C.prototype.read.call("pq");'],
+    ['proto-extracted-to-array',
+      'class C { read() { return String(this.includes("p")); } } return C.prototype.read.call(["p"]);'],
+    ['instance-method-handed-out',
+      'class C extends Array { read() { return String(this.at(0)); } } const f = C.prototype.read; return f.call("pq");'],
+    ['object-method-extracted',
+      'const o = { read() { return String(this.at(0)); } }; return o.read.call("pq");'],
+    ['object-own-member-under-builtin-name',
+      'const o = { entries: ["p", "q"], read() { return String(this.entries.at(0)); } }; return o.read();'],
+    ['anchor-provable-class', 'class C extends Array { read() { return String(this.at(0)); } } return new C("p").read();'],
+  ];
+  for (const [id, body] of rows) {
+    yield { ...snippet(`this-anchor-provability/${ id }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// --- an own method that hands `this` out ---
+// the field scan collects what a method writes INSIDE the receiver, so a method that passes `this`
+// ON is invisible to it: the value lands wherever the callee puts it, and a write through that lands
+// on the very field the narrow was taken from. reading the field afterwards with a family-precise
+// helper is what the stripped realm reports, since the family it names is no longer the field's.
+// the read-only rows are the boundary - a method that only reads `this` opens no channel
+function * generateOwnThisHandedOut() {
+  const rows = [
+    ['object-method-passes-this',
+      'const h = { rows: ["p", "q"], leak() { poison(this); }, read() { return String(this.rows.at(0)); } };'
+      + ' function poison(o) { o.rows = "xy"; } h.leak(); return h.read();'],
+    ['object-method-returns-this',
+      'const h = { rows: ["p", "q"], self() { return this; }, read() { return String(this.rows.at(0)); } };'
+      + ' h.self().rows = "xy"; return h.read();'],
+    ['instance-member-passes-this',
+      'class C { rows = ["p", "q"]; leak() { poison(this); } read() { return String(this.rows.at(0)); } }'
+      + ' function poison(o) { o.rows = "xy"; } const c = new C(); c.leak(); return c.read();'],
+    ['static-member-passes-this',
+      'class C { static rows = ["p", "q"]; static leak() { poison(this); } }'
+      + ' function poison(o) { o.rows = "xy"; } C.leak(); return String(C.rows.at(0));'],
+    // a FIELD initializer runs at construction with the instance as `this`, so it opens the channel
+    // without a method being involved at all
+    ['field-initializer-passes-this',
+      'class C { rows = ["p", "q"]; hook = poison(this); read() { return String(this.rows.at(0)); } }'
+      + ' function poison(o) { o.rows = "xy"; return 1; } return new C().read();'],
+    ['read-only-method-keeps-narrow',
+      'const h = { rows: ["p", "q"], size() { return this.rows.length; }, read() { return String(this.rows.at(0)); } };'
+      + ' h.size(); return h.read();'],
+    // the leaking body need not be written in the literal at all: a spread copies another object's
+    // own enumerable properties in, and calling one of them runs it with THIS receiver
+    ['spread-brings-the-leaking-method',
+      'const src = { leak() { poison(this); } };'
+      + ' const h = { ...src, rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' function poison(o) { o.rows = "xy"; } h.leak(); return h.read();'],
+    // a key spelled out AFTER the spread supersedes the copy, so reading it reaches nothing foreign
+    ['own-key-after-spread-keeps-narrow',
+      'const src = { rows: "zz" };'
+      + ' const h = { ...src, rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' return h.read();'],
+    // a PARAM DEFAULT runs with the same receiver as the body it belongs to
+    ['param-default-passes-this',
+      'const h = { rows: ["p", "q"], m(a = poison(this)) { return a; }, read() { return String(this.rows.at(0)); } };'
+      + ' function poison(o) { o.rows = "xy"; return 1; } h.m(); return h.read();'],
+    // an inherited body runs with the SUBCLASS instance as `this`, so a base-class write lands on the
+    // slot the subclass declared
+    ['base-class-writes-subclass-field',
+      'class Base { touch() { this.rows = "xy"; } }'
+      + ' class C extends Base { rows = ["p", "q"]; read() { return String(this.rows.at(0)); } }'
+      + ' const c = new C(); c.touch(); return c.read();'],
+    // a base this module holds a binding for but cannot read as a class owns bodies nobody scanned
+    ['foreign-base-owns-unscanned-bodies',
+      'const Base = (() => class { inherited() { this.rows = "xy"; } })();'
+      + ' class C extends Base { rows = ["p", "q"]; read() { return String(this.rows.at(0)); } }'
+      + ' const c = new C(); c.inherited(); return c.read();'],
+    // a `__proto__` key installs a PROTOTYPE whose members the literal inherits, bodies included
+    ['proto-key-installs-foreign-bodies',
+      'const base = { inherited() { this.rows = "xy"; } };'
+      + ' const h = { __proto__: base, rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' h.inherited(); return h.read();'],
+    // the iterator is looked up along the prototype chain, so an installed prototype supplies one
+    ['proto-key-supplies-the-iterator',
+      'const base = { [Symbol.iterator]() { let sent = false; const self = this;'
+      + ' return { next: () => sent ? { done: true } : (sent = true, { value: self, done: false }) }; } };'
+      + ' const h = { __proto__: base, rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' for (const el of h) el.rows = "xy"; return h.read();'],
+    // a body written onto the shared prototype after the class is declared belongs to every instance
+    ['prototype-write-installs-a-body',
+      'class C { rows = ["p", "q"]; read() { return String(this.rows.at(0)); } }'
+      + ' C.prototype.added = function () { this.rows = "xy"; };'
+      + ' const c = new C(); c.added(); return c.read();'],
+    // a member written onto the object after it is declared is a body nobody read either
+    ['member-written-onto-the-object',
+      'const h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' h.added = function () { this.rows = "xy"; }; h.added(); return h.read();'],
+    // the prototype can be installed at RUNTIME too, with the same consequence as a `__proto__` key
+    ['set-prototype-of-installs-bodies',
+      'const base = { inherited() { this.rows = "xy"; } };'
+      + ' const h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' Object.setPrototypeOf(h, base); h.inherited(); return h.read();'],
+    // the STATIC surface acquires the same way the instance one does
+    ['unread-base-writes-a-static',
+      'const Base = (() => class { static touch() { this.rows = "xy"; } })();'
+      + ' class C extends Base { static rows = ["p", "q"]; }'
+      + ' C.touch(); return String(C.rows.at(0));'],
+    // an ANCESTOR's body runs with the subclass instance as `this`
+    ['ancestor-method-passes-this',
+      'class B { leak() { poison(this); } }'
+      + ' class C extends B { rows = ["p", "q"]; read() { return String(this.rows.at(0)); } }'
+      + ' function poison(o) { o.rows = "xy"; } const c = new C(); c.leak(); return c.read();'],
+    // a nested NON-arrow function re-binds `this` to its own call receiver, so what it hands out is
+    // not this object - the narrow has to survive that
+    ['nested-function-rebinds-this',
+      'const h = { rows: ["p", "q"], m() { function inner() { return this; } inner(); },'
+      + ' read() { return String(this.rows.at(0)); } }; h.m(); return h.read();'],
+  ];
+  for (const [id, body] of rows) {
+    yield { ...snippet(`own-this-handed-out/${ id }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// --- COMBINATIONS of the receiver-body channels ---
+// every channel was enumerated and locked one at a time; this axis crosses them, because a holder
+// can acquire members it never wrote AND hand its receiver out through a body it did write, and the
+// two answers are produced by different halves of the analysis. a combination that loses the narrow
+// for one reason must not regain it because the other half looked elsewhere
+function * generateChannelCombinations() {
+  const READ = 'read() { return String(this.rows.at(0)); }';
+  const ACQUIRE = [
+    ['plain', ''],
+    ['spread', '...src, '],
+    ['proto', '__proto__: base, '],
+  ];
+  const HANDOUT = [
+    ['own-method', `leak() { poison(this); }, ${ READ }`],
+    ['param-default', `m(a = poison(this)) { return a; }, ${ READ }`],
+    ['getter', `get peek() { poison(this); return 1; }, ${ READ }`],
+    ['none', READ],
+  ];
+  const SETUP = 'const src = { borrowed() { return 1; } };'
+    + ' const base = { inherited() { return 1; } };'
+    + ' function poison(o) { o.rows = "xy"; return 1; }';
+  for (const [aid, acquire] of ACQUIRE) {
+    for (const [hid, handout] of HANDOUT) {
+      // every shape runs the same way: build it, trigger whatever it has, then read the field
+      const trigger = hid === 'own-method' ? 'h.leak();' : hid === 'param-default' ? 'h.m();'
+        : hid === 'getter' ? 'String(h.peek);' : '';
+      yield { ...snippet(`channel-combinations/${ aid }-${ hid }`,
+        `(() => { ${ SETUP } const h = { ${ acquire }rows: ["p", "q"], ${ handout } };`
+        + ` ${ trigger } return h.read(); })()`), strip: true };
+    }
+  }
+}
+
+// --- the CLASS half of the same cross ---
+// a class acquires unread members through a base this module cannot read or through a decorator,
+// and hands its receiver out from an own body, a field initializer or a static. the two halves are
+// answered by different code, so the crossings are worth running as such
+function * generateClassChannelCombinations() {
+  const READ = 'read() { return String(this.rows.at(0)); }';
+  const BASES = [
+    ['plain', '', 'class Base { touched() { return 1; } }'],
+    ['unread-base', ' extends Base', 'const Base = (() => class { touched() { return 1; } })();'],
+    ['known-base', ' extends Base', 'class Base { touched() { return 1; } }'],
+  ];
+  const HANDOUT = [
+    ['own-method', `leak() { poison(this); } ${ READ }`, 'c.leak();'],
+    ['field-init', `hook = poison(this); ${ READ }`, ''],
+    ['param-default', `m(a = poison(this)) { return a; } ${ READ }`, 'c.m();'],
+    ['none', READ, ''],
+  ];
+  for (const [bid, ext, decl] of BASES) {
+    for (const [hid, body, trigger] of HANDOUT) {
+      yield { ...snippet(`class-channel-combinations/${ bid }-${ hid }`,
+        `(() => { function poison(o) { o.rows = "xy"; return 1; } ${ decl }`
+        + ` class C${ ext } { rows = ["p", "q"]; ${ body } }`
+        + ` const c = new C(); ${ trigger } return c.read(); })()`), strip: true };
+    }
+  }
+}
+
+// --- a holder that hands ITSELF to whoever iterates it ---
+// `for (const x of o)` and `[...o]` call `o[Symbol.iterator]()`, and an object literal can only
+// declare that key computed - so a computed key means the holder may yield `this` straight into the
+// loop variable, where an external write reaches the very field the narrow was taken from. reading
+// the head as a harmless key-walk keeps a family-precise helper for a value that is no longer of
+// that family, which only the stripped realm reports. the no-computed-key rows are the boundary:
+// nothing can iterate them, the loop throws before binding, and the narrow must survive
+function * generateSelfYieldingIterator() {
+  const ITER = '[Symbol.iterator]() { let sent = false; const self = this;'
+    + ' return { next: () => sent ? { done: true } : (sent = true, { value: self, done: false }) }; },';
+  const rows = [
+    ['named-for-of',
+      `const h = { rows: ["p", "q"], ${ ITER } read() { return String(this.rows.at(0)); } };`
+      + ' for (const el of h) el.rows = "xy"; return h.read();'],
+    ['named-array-spread',
+      `const h = { rows: ["p", "q"], ${ ITER } read() { return String(this.rows.at(0)); } };`
+      + ' for (const el of [...h]) el.rows = "xy"; return h.read();'],
+    ['no-computed-key-keeps-narrow',
+      'const h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' try { for (const el of h) el.rows = "xy"; } catch (e) {} return h.read();'],
+    ['for-in-head-keeps-narrow',
+      'const h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' for (const k in h) String(k); return h.read();'],
+    // the iterator need not be written in the literal at all: a spread copies another object's own
+    // enumerable properties in, `Symbol.iterator` among them
+    ['spread-brings-the-iterator',
+      `const src = { ${ ITER } };`
+      + ' const h = { ...src, rows: ["p", "q"], read() { return String(this.rows.at(0)); } };'
+      + ' for (const el of h) el.rows = "xy"; return h.read();'],
+  ];
+  for (const [id, body] of rows) {
+    yield { ...snippet(`self-yielding-iterator/${ id }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
+// --- a holder written inline that reaches a NAME mid-climb ---
+// `(h = { ... }).rows` binds the object to `h` AND reads a member off the assignment's value. the
+// read ends the climb, but the object is reachable as `h` from there on, so writes through that name
+// still join the field union. answering the read with "no external writers" keeps a family-precise
+// helper for a field a later write has already replaced - again only the stripped realm reports it
+function * generateCarrierReachedMidClimb() {
+  const rows = [
+    ['member-read-after-assign',
+      'let h; (h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } }).rows;'
+      + ' h.rows = "xy"; return h.read();'],
+    ['call-after-assign',
+      'let h; (h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } }).read();'
+      + ' h.rows = "xy"; return h.read();'],
+    // the boundary: no write through the name, so the narrow the read allows is the right one
+    ['no-write-keeps-narrow',
+      'let h; (h = { rows: ["p", "q"], read() { return String(this.rows.at(0)); } }).rows; return h.read();'],
+  ];
+  for (const [id, body] of rows) {
+    yield { ...snippet(`carrier-reached-mid-climb/${ id }`, `(() => { ${ body } })()`), strip: true };
+  }
+}
+
 // --- const-alias HOP shadowed (distinct from the arg-name shadow above) ---
 // every hop of an alias chain resolves in the scope its own declarator was written in, so a
 // binding that shadows an intermediate hop NAME somewhere else must not swallow the receiver.
@@ -4129,6 +4372,12 @@ export function * generate() {
   yield * generateOptionalForeignReceiver();
   yield * generateUnbracedBodyMinifierSplit();
   yield * generateFieldShadowsAccessor();
+  yield * generateThisAnchorProvability();
+  yield * generateSelfYieldingIterator();
+  yield * generateChannelCombinations();
+  yield * generateClassChannelCombinations();
+  yield * generateOwnThisHandedOut();
+  yield * generateCarrierReachedMidClimb();
   yield * generateAliasHopShadow();
   yield * generateAliasReceiverShadow();
   yield * generateSuperClassAliasReceiverShadow();

@@ -3,6 +3,9 @@ import { MAX_DEPTH } from '../resolve-node-type/base.js';
 
 // `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
+// every constructor the engine provides. an `extends` naming one of these inherits ENGINE bodies:
+// they touch no user-declared field, unlike a base this module holds a binding for but cannot read
+export const KNOWN_GLOBAL_CONSTRUCTORS = new Set(Object.keys(knownBuiltInReturnTypes.constructors));
 
 // typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
@@ -3002,18 +3005,21 @@ export function prototypeValueMayDispatch(node, undefinedShadowed = false) {
 // `__proto__` key sets the prototype: computed, shorthand, method and accessor spellings define an
 // ordinary own property, and a spread copies a VALUE (never the prototype). `__proto__: null` gives a
 // null-prototype object that dispatches nothing; any other value may carry a polyfilled method
-export function objectLiteralPrototypeValue(node, undefinedShadowed = false) {
-  for (const prop of node?.properties ?? []) {
-    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) continue;
-    if (propertyKeyName(prop) !== '__proto__') continue;
-    if (prototypeValueMayDispatch(prop.value, undefinedShadowed)) return prop.value;
-  }
-  return null;
+// is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
+// `__proto__` data property does - a method, an accessor or a computed key of the same name creates
+// an ordinary own property instead. one rule, read both per-literal and per-property
+export function propertyInstallsPrototype(prop, undefinedShadowed = false) {
+  if (prop?.type !== 'Property' && prop?.type !== 'ObjectProperty') return false;
+  if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) return false;
+  if (propertyKeyName(prop) !== '__proto__') return false;
+  return prototypeValueMayDispatch(prop.value, undefinedShadowed);
 }
 
-export function objectLiteralInstallsPrototype(node, undefinedShadowed = false) {
-  return !!objectLiteralPrototypeValue(node, undefinedShadowed);
+export function objectLiteralPrototypeValue(node, undefinedShadowed = false) {
+  for (const prop of node?.properties ?? []) {
+    if (propertyInstallsPrototype(prop, undefinedShadowed)) return prop.value;
+  }
+  return null;
 }
 
 // climb a reference to the node its consumer sees: transparent wrappers plus sequence-VALUE
@@ -3060,10 +3066,6 @@ export function installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedSha
 // reports the install while a value consumer declines
 export const NO_PROTOTYPE_VALUE = { type: 'NoPrototypeValue' };
 
-export function isPrototypeInstallingReference(ref, isProtoSetterCallee, undefinedShadowed = false) {
-  return !!installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedShadowed);
-}
-
 // key spelling shared by the own-this method-extraction gates: private members keep a `#name`
 // spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
 // the canonical property-key extractor. null = dynamic / unresolvable
@@ -3093,6 +3095,22 @@ export function memberReadKeyName(member) {
 // (lexical `this` - extraction cannot rebind). getters / setters cannot be read out as
 // functions by a plain member read (the read INVOKES them), but value-exposing calls
 // (descriptor extraction) still reach them - they only raise the `accessors` flag.
+// can this object literal reach a `Symbol.iterator`, and so hand ITSELF to whatever iterates it
+// (`for (const x of o)`, `[...o]`)? the summary below is where that is decided - it already walks the
+// properties once for the method set, and the answer falls out of the same pass. this reader exists
+// for the walks that hold the literal's NODE and want only this one fact
+export function mayIterateItself(objectNode) {
+  return !!objectOwnThisMethodInfo(objectNode)?.mayIterate;
+}
+
+// does a decorator sit on this class or on any of its members? a decorator receives the class or the
+// member and may replace it, wrap it, or install new ones, so what the body of any member does is no
+// longer read from the source in front of us
+export function classCarriesDecorators(classNode) {
+  if (classNode?.decorators?.length) return true;
+  return !!classNode?.body?.body?.some(member => member?.decorators?.length);
+}
+
 // `unknownKey` marks a method behind a dynamic / numeric key: any held or dynamic read could
 // extract it, so key-precise gates degrade to conservative. null when the literal has no
 // own-this function members at all - the common data-only case stays zero-cost
@@ -3101,8 +3119,25 @@ export function objectOwnThisMethodInfo(objectNode) {
   const methodKeys = new Set();
   let unknownKey = false;
   let accessors = false;
+  // the literal ends up owning members it never wrote in three ways, and every consumer of this
+  // summary needs to know: a SPREAD copies another object's own enumerable properties in, methods
+  // included; a `__proto__` key installs a PROTOTYPE whose members it inherits; a COMPUTED key can
+  // be `Symbol.iterator` (and either of the first two can carry one). a key spelled out AFTER the
+  // last spread is not among them - an own definition supersedes the copy, while one written before
+  // it can be overwritten by exactly that copy. one pass computes all of it: this summary is built
+  // per literal on a hot path, and each extra sweep over the properties is paid there
+  let unscannableBodies = false;
+  let mayIterate = false;
+  let declaredKeys = new Set();
   for (const prop of objectNode.properties ?? []) {
     const { type } = prop;
+    if (type === 'SpreadElement') {
+      unscannableBodies = true;
+      mayIterate = true;
+      declaredKeys = new Set();
+      continue;
+    }
+    if (prop.computed) mayIterate = true;
     let isMethod = false;
     if (type === 'ObjectMethod') {
       if (prop.kind === 'method') isMethod = true;
@@ -3111,12 +3146,22 @@ export function objectOwnThisMethodInfo(objectNode) {
       if (prop.kind === 'get' || prop.kind === 'set') accessors = true;
       else isMethod = unwrapRuntimeExpr(prop.value)?.type === 'FunctionExpression';
     }
-    if (!isMethod) continue;
     const key = ownThisMemberKeyName(prop);
+    if (key !== null && key !== undefined) declaredKeys.add(key);
+    // `undefinedShadowed` is read conservatively: a summary carries no scope, and mis-reading an
+    // install as absent is the unsafe direction
+    if (propertyInstallsPrototype(prop, true)) {
+      unscannableBodies = true;
+      mayIterate = true;
+    }
+    if (!isMethod) continue;
     if (key === null || key === undefined) unknownKey = true;
     else methodKeys.add(key);
   }
-  return methodKeys.size || unknownKey || accessors ? { methodKeys, unknownKey, accessors } : null;
+  // `mayIterate` alone is enough to return a summary: a literal with a computed key and no methods
+  // at all can still hand itself to whatever iterates it
+  return methodKeys.size || unknownKey || accessors || unscannableBodies || mayIterate
+    ? { methodKeys, unknownKey, accessors, mayIterate, unscannableBodies, declaredKeys } : null;
 }
 
 // class twin of `objectOwnThisMethodInfo`: `statics` picks the static side (`this` = the
@@ -3164,6 +3209,9 @@ export function mergeOwnThisMethodInfo(base, extra) {
     methodKeys,
     unknownKey: base.unknownKey || extra.unknownKey,
     accessors: base.accessors || extra.accessors,
+    mayIterate: !!base.mayIterate || !!extra.mayIterate,
+    unscannableBodies: !!base.unscannableBodies || !!extra.unscannableBodies,
+    declaredKeys: new Set([...base.declaredKeys ?? [], ...extra.declaredKeys ?? []]),
   };
 }
 
@@ -5372,4 +5420,98 @@ export function forEachStatementPosition(rootNode, { onList, onUnbracedSlot } = 
     for (const value of Object.values(node)) visitPositions(value);
   }
   visitPositions(rootNode);
+}
+
+// what a POSITION does to a value that lands in it. the escape analyses used to answer this with a
+// case list each, drifting apart position by position; this is the single enumeration they both ask.
+// four outcomes, and every syntactic position has exactly one:
+//   CONSUMES  - evaluated here and unreachable afterwards, so a narrow taken on it stands
+//   FORWARDS  - flows on unchanged; the position it lands in is what decides
+//   INSPECTS  - a call argument: the CALLEE decides, per slot, so the walks ask the slot predicate
+//   HANDS_OUT - reaches code this scan cannot see
+// HANDS_OUT is the DEFAULT on purpose: the ways a value can be handed out are an open set no
+// enumeration can finish, while the positions that consume or forward one are few and listed here.
+// an unlisted position therefore costs a generic helper instead of a wrong narrow. `parentNodePath`
+// is the path OF `parent` - the tagged-template test needs the position one hop above it
+export const POSITION_CONSUMES = 'consumes';
+export const POSITION_FORWARDS = 'forwards';
+export const POSITION_INSPECTS = 'inspects';
+export const POSITION_HANDS_OUT = 'hands-out';
+
+export function positionDisposition(parent, node, parentNodePath) {
+  switch (parent?.type) {
+    // evaluated and dropped: a statement, a `for (;;)` head slot, an update that stores a NUMBER back
+    case 'ExpressionStatement':
+    case 'ForStatement':
+    case 'UpdateExpression':
+      return POSITION_CONSUMES;
+    // operators reading a FACT about the value - its type, truthiness, identity, key presence. a
+    // coercing one calls the value's own `valueOf` / `toString`, which reaches no further than any
+    // other own-method call. `instanceof` is the exception: it invokes `RHS[Symbol.hasInstance](LHS)`
+    case 'UnaryExpression':
+      return POSITION_CONSUMES;
+    case 'BinaryExpression':
+      return parent.operator === 'instanceof' ? POSITION_HANDS_OUT : POSITION_CONSUMES;
+    // a `for...in` head enumerates KEYS without ever calling into the value. `for...of` is NOT here:
+    // it invokes the value's own iterator, which is free to yield `this` - the walks gate that
+    case 'ForInStatement':
+      return parent.right === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+    case 'SwitchStatement':
+      return parent.discriminant === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+    case 'SwitchCase':
+      return parent.test === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+    // a branch / loop head takes only the truthiness; a conditional's BRANCHES forward instead
+    case 'DoWhileStatement':
+    case 'IfStatement':
+    case 'WhileStatement':
+      return parent.test === node ? POSITION_CONSUMES : POSITION_HANDS_OUT;
+    case 'ConditionalExpression':
+      return parent.test === node ? POSITION_CONSUMES : POSITION_FORWARDS;
+    // an untagged template string-coerces the value; a TAGGED one hands the raw value to the tag
+    case 'TemplateLiteral':
+      return parentNodePath?.parentPath?.node?.type === 'TaggedTemplateExpression'
+        ? POSITION_HANDS_OUT : POSITION_CONSUMES;
+    // every element of a sequence but the LAST is evaluated and dropped; the last one IS the value
+    case 'SequenceExpression':
+      return parent.expressions?.at(-1) === node ? POSITION_FORWARDS : POSITION_CONSUMES;
+    // containers and binders the value flows THROUGH - the walk that can follow it continues there,
+    // the walk that cannot treats an unfollowable forward as a hand-out
+    case 'ArrayExpression':
+    case 'AssignmentExpression':
+    case 'AssignmentPattern':
+    case 'LogicalExpression':
+    case 'SpreadElement':
+    case 'VariableDeclarator':
+      return POSITION_FORWARDS;
+    // a property stores its VALUE; standing in the computed KEY slot instead coerces the value to a
+    // string and keeps nothing of it. shorthand (`{ x }`) puts one node in both slots - it stores
+    case 'ObjectProperty':
+    case 'Property':
+      return unwrapRuntimeExpr(parent.value) === node ? POSITION_FORWARDS : POSITION_CONSUMES;
+    // the CALLEE slot is a read of the value, not a hand-out of it; an ARGUMENT is the callee's call
+    case 'CallExpression':
+    case 'NewExpression':
+    case 'OptionalCallExpression':
+      return parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === node) ? POSITION_INSPECTS : POSITION_CONSUMES;
+    // reading a member OFF the value yields the member, not the value; standing in the computed KEY
+    // slot coerces the value to a string. which member, and whether reading it hands a re-bindable
+    // method out, is the walks' own business
+    case 'MemberExpression':
+    case 'OptionalMemberExpression':
+      return POSITION_CONSUMES;
+    default:
+      return POSITION_HANDS_OUT;
+  }
+}
+
+// the NAME a forwarding position binds the value to: a declarator id (`const b = a`) or a simple
+// assignment target (`b = a`, `b ||= a`). NOT a default's target: a reference standing in a default
+// VALUE slot is an escaping read both walks report as such, so that the value cannot be narrowed as
+// a trusted object while the default's holder may still have mutated it the value stays reachable through that one name, so both
+// walks keep tracking it there. a coercing compound operator is excluded by the shared value-flow op
+// set - it stores a converted value, not the reference
+export function aliasTargetName(parent) {
+  if (parent?.type === 'VariableDeclarator') return parent.id?.type === 'Identifier' ? parent.id.name : null;
+  return parent?.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(parent.operator)
+    && parent.left?.type === 'Identifier' ? parent.left.name : null;
 }

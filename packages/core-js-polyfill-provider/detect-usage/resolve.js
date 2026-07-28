@@ -1234,6 +1234,10 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter) {
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
   while (true) {
     if (depth > MAX_KEY_DEPTH) return null;
+    // a mutator called with fewer arguments than it takes (`Object.defineProperty(target)`) leaves
+    // the key slot EMPTY. it is legal source that throws at runtime, and callers already treat a
+    // null key as "not resolvable", so the absent node answers the same way rather than crashing
+    if (!node) return null;
     if (computed) {
       node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter);
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
