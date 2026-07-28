@@ -1380,6 +1380,7 @@ function createResolveNodeType(babelNodeType, t, {
     isReceiverNewOfClass,
     objectBindingName,
     isReflectConstructCallee,
+    callArgumentEscapes,
     classBindingRefClassifier,
     computeAliasClosureFromBinding,
     methodReadLeaks,
@@ -1451,6 +1452,11 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs. service deps from `binding-analysis` are already destructured; the rest are
   // factory function decls (hoisted) or pure imports
   const closureAnalysisCluster = createClosureAnalysis({
+    // forward-decl thunks: the own-`this` scan reuses the class-fields method enumerators, and that
+    // cluster is instantiated after this one
+    ownerMethodFns: (...args) => ownerMethodFns(...args),
+    staticOwnerMethodFns: (...args) => staticOwnerMethodFns(...args),
+    callArgumentEscapes,
     getScopeBinding,
     t,
     babelBindingAdapter,
@@ -1472,6 +1478,7 @@ function createResolveNodeType(babelNodeType, t, {
     getClassInstanceTemporalBound,
     getClassInstanceClosure,
     getClassBindingClosure,
+    classAncestorPaths,
     getClassConstructorNames,
     classRefLandsOutside,
     collectClassDescendantPaths,
@@ -1502,6 +1509,7 @@ function createResolveNodeType(babelNodeType, t, {
     isClassExported,
     isReceiverNewOfClass,
     collectClassDescendantPaths,
+    classAncestorPaths,
     getClassBindingClosure,
     getClassConstructorNames,
     resolveExpressionToClassPath,
@@ -1519,6 +1527,9 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectFieldFlow,
     staticFieldShadowable,
     instanceMemberShadowable,
+    thisAnchorIsProvable,
+    ownerMethodFns,
+    staticOwnerMethodFns,
   } = classFieldsCluster;
 
   // class-object-member cluster: class body + merged-interface + object literal member
@@ -2179,6 +2190,9 @@ function createResolveNodeType(babelNodeType, t, {
     typeFromHint,
     resolveArrayLiteralCommonType,
     resolveThisClass,
+    resolveThisObject,
+    computeObjectAliasClosure,
+    thisAnchorIsProvable,
     resolveExpressionToClassPath,
     resolveClassInheritance,
     resolveFromMemberExpression,
