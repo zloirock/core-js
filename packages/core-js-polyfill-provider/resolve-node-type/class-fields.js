@@ -53,6 +53,7 @@ export function createClassFields({
   classRefLandsOutside,
   collectClassDescendantPaths,
   getClassBindingClosure,
+  classAncestorPaths,
   getClassConstructorNames,
   resolveExpressionToClassPath,
   getClassInstanceClosure,
@@ -216,6 +217,17 @@ export function createClassFields({
   // earlyBail short-circuit; this is the comprehensive fallback
   function classBindingEscapes(classPath, program) {
     return getClassBindingClosure(classPath, program) === null;
+  }
+
+  // is a `this` inside an instance member PROVABLY an instance of the lexical class? both closures
+  // answer one half of the extraction question - the binding side covers the `C.prototype.<method>`
+  // hop, an escaped class binding and a held static, the instance side covers `new C().<method>` and
+  // a held `super.<method>`. either bailing means an own-this method can reach a foreign receiver,
+  // and the method body then runs against a type the lexical class does not describe
+  function thisAnchorIsProvable(classPath) {
+    const program = findProgramPath(classPath);
+    if (!program) return false;
+    return getClassBindingClosure(classPath, program) !== null && getClassInstanceClosure(classPath, program) !== null;
   }
 
   // descendant paths when the subclass universe is closed and enumerable; null when the class
@@ -474,6 +486,12 @@ export function createClassFields({
         for (const sub of descendant.paths) {
           if (sub === classPath) continue;
           appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
+        }
+        // and every ANCESTOR's non-static methods: an inherited method runs with this instance as
+        // `this`, so a base-class `this.<field> = Y` writes the slot the SUBCLASS declared. the
+        // descendant walk above covers the other direction only
+        for (const ancestor of classAncestorPaths(classPath)) {
+          if (ancestor.path) appendThisWritesFor(getInstanceMethodThisWrites(ancestor.path), fieldName, candidates);
         }
         function predicate(p) {
           // the constructor-name set is the fast filter; the class NODES are the proof. a
@@ -929,6 +947,9 @@ export function createClassFields({
     resolveObjectFieldFlow,
     staticFieldShadowable,
     instanceMemberShadowable,
+    thisAnchorIsProvable,
+    ownerMethodFns,
+    staticOwnerMethodFns,
     reset,
   };
 }
