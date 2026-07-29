@@ -127,7 +127,7 @@ for (const lib of libs) {
   // rollup+unplugin build. Keyed by phase too: no fixture currently shows a phase difference, but
   // unplugin does not guarantee phase-invariance and the extra captures are cheap. Failure -> null.
   const injByCell = {};
-  for (const method of lib.methods) {
+  for (const method of METHODS) {
     for (const phase of phasesFor(method)) {
       const key = cellKey(method, phase);
       try {
@@ -141,7 +141,7 @@ for (const lib of libs) {
   }
 
   for (const name of bundlers) {
-    for (const method of lib.methods) {
+    for (const method of METHODS) {
       for (const phase of phasesFor(method)) {
         const label = `${ lib.name }/${ name }/${ method }${ phase ? `/${ phase }` : '' }`;
         try {

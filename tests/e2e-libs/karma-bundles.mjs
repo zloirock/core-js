@@ -29,7 +29,7 @@
 // above — but Karma is skipped: there is no IE to capture. karma.conf.cjs makes the same check.
 //
 // Usage:  node karma-bundles.mjs [libFilter]   ->  builds .tmp/karma/*.js, runs Karma when IE present
-import { runtimeBuild, assertES5, errorReason, phasesFor, HERE } from './build.mjs';
+import { runtimeBuild, assertES5, errorReason, METHODS, phasesFor, HERE } from './build.mjs';
 import { qunitHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -55,7 +55,7 @@ await mkdir(OUT, { recursive: true });
 // so there is nothing to group. entry-global -> [undefined]; usage-* -> pre / post / pre+post.
 const built = [];
 for (const lib of libs) {
-  for (const method of lib.methods) {
+  for (const method of METHODS) {
     for (const phase of phasesFor(method)) {
       const label = `${ lib.name }/${ method }${ phase ? `/${ phase }` : '' }`;
       try {
