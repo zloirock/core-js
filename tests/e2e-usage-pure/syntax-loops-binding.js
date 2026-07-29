@@ -294,3 +294,40 @@ QUnit.test('loop: for-of member write target aliases the body read to the assign
     assert.same(o.flat(), 'assigned');
   }
 });
+
+// a write textually AFTER the read proves nothing once the function holding both is called
+// again: the previous call's write runs before the next call's read. regression: the read
+// resolved the declarator init, so the second call answered with the FIRST value
+QUnit.test('binding: re-invoked function sees its own later write on the next call', assert => {
+  // only the SECOND call is asserted, and deliberately: the first reads the engine's own
+  // `Number.parseFloat`, which the oldest targets do not ship - and a target that DOES lack it is
+  // exactly one where the plugin would have substituted, so no static can be both natively present
+  // and substituted. the invariant that holds everywhere is the one under test: the second call
+  // must not still see the first call's value
+  let N = Number;
+  const seen = [];
+  function f() {
+    const { parseFloat: p } = N;
+    seen.push(typeof p);
+    N = Math;
+  }
+  f();
+  f();
+  assert.same(N, Math);
+  assert.same(seen[1], 'undefined');
+});
+
+// same exposure through a destructure read, and with the write buried in a nested block -
+// the reach test must not treat "later in this activation" as "never before the read"
+QUnit.test('binding: re-invoked function sees a nested later write on the next call', assert => {
+  let R = Reflect;
+  const seen = [];
+  function f() {
+    const { ownKeys } = R;
+    seen.push(typeof ownKeys);
+    if (seen.length) { R = Math; }
+  }
+  f();
+  f();
+  assert.deepEqual(seen, ['function', 'undefined']);
+});

@@ -49,7 +49,7 @@ export const entries = _Object$entries;
 // a FOR-INIT consumed prefix re-embeds into the sink AND folds: the host rebuilds before
 // the sink captures it, so the re-anchored read lands inside the re-embedded slot
 let customV, out;
-for (const _ref4 = (({ customV } = _Map), Object), keys = _Object$keys; !out;) out = keys;
+for (const _ref2 = (({ customV } = _Map), Object), keys = _Object$keys; !out;) out = keys;
 export { out };
 // a VERBATIM computed sibling + consumed static under one anchored ctor: the static
 // extraction rides the discarded-value slot (polyfill always wins - a default-injection
@@ -75,7 +75,7 @@ export const crD = _Object$create;
 export { fRe, rRe };
 let fRf, rRf, oRf;
 var _unused2;
-for (const _ref2 = (({ fromAsync: _unused2, ...rRf } = _globalThis.Array, fRf = _Array$fromAsync), Object), isSealed = _Object$isSealed; !oRf;) oRf = isSealed;
+for (const _ref4 = (({ fromAsync: _unused2, ...rRf } = _globalThis.Array, fRf = _Array$fromAsync), Object), isSealed = _Object$isSealed; !oRf;) oRf = isSealed;
 // an anchor-less full consume with an SE-bearing init: the prefix stays verbatim ahead of
 // the alias assign (by parts, no anchor read involved)
 let mS2;
