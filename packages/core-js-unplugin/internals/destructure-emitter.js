@@ -27,7 +27,6 @@ import {
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
-  nestedMirrorOwnsMixedPattern,
   objectPatternPropNeedsReceiverRewrite,
   paramsHaveInvisibleCallers,
   peelFallbackBranchInner,
@@ -3133,10 +3132,10 @@ export function createDestructureEmitter({
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
       // synthesized literal - fully caller-correct (see buildNestedParamSynthPlan)
       if (renderNestedParamSynth({ metaPath, meta })) return;
-      // a MIXED pattern is owned WHOLLY by the nested mirror; a transient unresolved leaf can make
-      // `renderNestedParamSynth` return false mid-rewrite. do NOT fall through to body-extract / inline-
-      // default (which would race the mirror's eventual synth on the same receiver and diverge from babel)
-      if (nestedMirrorOwnsMixedPattern(objectPattern)) return;
+      // no deferral to the nested mirror here: `renderNestedParamSynth` returns true whenever the
+      // mirror rendered, was already planned, or deliberately bailed - a false means the plan never
+      // resolved a host, so the mirror will not run for this pattern at all. deferring then dropped
+      // the flat sibling's polyfill to a native read
       // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
       // first: insert `let from = _polyfill;` at function body top + remove the prop from
       // destructure. preserves "polyfill always wins" even at the cost of caller-
