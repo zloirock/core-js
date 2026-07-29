@@ -32,6 +32,7 @@ export function createTypeResolveDispatch({
   resolveKnownContainerType,
   resolveUserDefinedType,
   resolveNamedType,
+  findTypeParameter,
   isNullableOrNever,
   safeInnerType,
   tupleAsArrayType,
@@ -62,9 +63,12 @@ export function createTypeResolveDispatch({
     if (segments.length === 1 && typeParamMap.has(name)) {
       return applyHigherKindedArgs({ bound: typeParamMap.get(name), node, typeParamMap, scope, depth, seen });
     }
-    const ctor = resolveKnownConstructor(name);
-    const known = resolveKnownContainerType({
-      name, base: ctor, node, innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
+    // a type-PARAMETER in scope outranks the same-named global here too. this lane resolves type
+    // ARGUMENTS (`Outer<Array>` written inside `function f<Array>`), where the map binds the
+    // alias's own parameters rather than the caller's, so the bound-check above does not see it.
+    // only the container lookup is suppressed - the ref still resolves through the lanes below
+    const known = findTypeParameter(name, scope) ? null : resolveKnownContainerType({
+      name, base: resolveKnownConstructor(name), node, innerResolver: p => substRecurse({ node: p, typeParamMap, scope, depth, seen }),
     });
     if (known) return known;
     return resolveUserDefinedType({ name, node, scope, depth, typeParamMap, seen })
@@ -106,7 +110,7 @@ export function createTypeResolveDispatch({
 
   // TSTypeOperator: `keyof T` opaque, other operators (e.g. `readonly`) transparent
   function substTypeOperatorAsType(node, typeParamMap, scope, depth, seen) {
-    if (node.operator === 'keyof') return resolveTypeAnnotation(node, scope, depth);
+    if (node.operator === 'keyof') return resolveTypeAnnotation(node, scope, depth, seen);
     return substRecurse({ node: node.typeAnnotation, typeParamMap, scope, depth, seen });
   }
 
@@ -165,11 +169,13 @@ export function createTypeResolveDispatch({
 
   function substituteTypeParams(node, typeParamMap, scope, depth, seen) {
     if (depth > MAX_DEPTH) return null;
-    if (!typeParamMap) return resolveTypeAnnotation(node, scope, depth);
+    // the plain lane accepts the decl-cycle guard, so hand it over instead of restarting it empty -
+    // a cyclic user type would otherwise be re-walked to MAX_DEPTH on every re-entry
+    if (!typeParamMap) return resolveTypeAnnotation(node, scope, depth, seen);
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
     const handler = SUBST_TYPE_DISPATCH[node.type];
-    const result = handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth);
+    const result = handler ? handler(node, typeParamMap, scope, depth, seen) : resolveTypeAnnotation(node, scope, depth, seen);
     // same outer readonly stamp as the plain lane (`resolveTypeAnnotation`): without it a
     // `readonly T[]` / `ReadonlyArray<T>` resolved through generic substitution loses
     // `.readonly`, flipping a readonly-discriminating conditional to the wrong family.

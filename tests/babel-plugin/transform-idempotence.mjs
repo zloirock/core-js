@@ -35,6 +35,9 @@ const CASES = [
   ['typeof member of a reassigned container', 'let o = { f: [1, 2, 3] };\no = { f: "t" } as any;\ndeclare const q: typeof o.f;\nexport const r = q.at(0);', true],
   ['overload retarget', 'declare function fn(x: number): number[];\ndeclare function fn(x: string): number[];\n'
     + 'declare const q: ReturnType<typeof fn>;\nexport const r = q.at(0);', true],
+  ['boxed-wrapper conditional', 'type C<T> = T extends String ? number[] : string;\ndeclare const v: C<string>;\nexport const r = v.at(0);', true],
+  ['mapped key-set', 'type M<T> = { [K in keyof { a: unknown; }]: T[K] };\ndeclare const p: M<{ a: number[]; extra: string; }>;\nexport const r = p.a.at(0);', true],
+  ['type-param shadows a container', 'export function f<Array>(x: Array) { return x.at(0); }', true],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
