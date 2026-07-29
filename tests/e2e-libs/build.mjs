@@ -15,7 +15,7 @@ import { build as esbuildBuild, transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
 import { createRequire } from 'node:module';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 
@@ -288,9 +288,12 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
   const effPhase = method === 'entry-global' ? undefined : phase;
   return withEntry(exerciseAbs, method, `rt-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
+    // recorded alongside the set so a snapshot drift can name the module the extra injection came
+    // from, without a second build in a different configuration to go looking for it
+    const origins = new Map();
     const build = await rollup({
       input: entry,
-      plugins: [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink)],
+      plugins: [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink, origins)],
       onwarn: strictWarn,
     });
     try {
@@ -299,7 +302,7 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
       const label = `${ method }/${ effPhase ?? 'entry' }`;
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
-      return { code: chunk.code, chunk, injected: [...sink].sort() };
+      return { code: chunk.code, chunk, injected: [...sink].sort(), origins };
     } finally {
       await build.close();
     }
@@ -313,13 +316,25 @@ const SPEC_RE = /(?:from|import|require\()\s*["'](?<spec>(?:core-js|@core-js\/pu
 // DOES honour - so array position alone is not enough: an unordered recorder would run first and
 // see nothing. Declaring the recorder `order: 'post'` too puts it in the same bucket, where array
 // order decides, and it is listed after unplugin.
-export function recorder(sink) {
+// `origins` is optional: a Map of specifier -> Set of the module ids unplugin injected it into. The
+// set alone says WHAT was injected, which is all a passing snapshot needs; when one drifts, the only
+// question worth answering is WHERE the extra (or missing) injection came from, and that is the piece
+// the plain set throws away. Ids are normalized to forward slashes and made relative to the suite so
+// a linux baseline and a windows run print comparable paths.
+export function recorder(sink, origins) {
   return {
     name: 'injection-recorder',
     transform: {
       order: 'post',
-      handler(code) {
-        for (const m of code.matchAll(SPEC_RE)) sink.add(m.groups.spec.replace(/\.m?js$/, ''));
+      handler(code, id) {
+        for (const m of code.matchAll(SPEC_RE)) {
+          const spec = m.groups.spec.replace(/\.m?js$/, '');
+          sink.add(spec);
+          if (!origins) continue;
+          let where = origins.get(spec);
+          if (!where) origins.set(spec, where = new Set());
+          where.add(relative(HERE, id).replaceAll('\\', '/'));
+        }
         return null;
       },
     },
