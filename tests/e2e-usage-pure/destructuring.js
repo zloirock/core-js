@@ -1042,6 +1042,21 @@ QUnit.test('destructuring: nested instance method in a for-init declarator polyf
   assert.deepEqual(bound.call(arr), [1, 2]);
 });
 
+// a loop header is the one destructure host that cannot lift its init, so the receiver collapse
+// re-emits the harvested effect INSIDE the header. regression: that re-emitted copy was taken
+// before the effect's own polyfill landed and nothing walked it afterwards, so an instance call
+// buried in the receiver key stayed native and threw on an engine without it
+QUnit.test('destructuring: for-header receiver effect keeps its own polyfill', assert => {
+  const arr = [3, 1, 2];
+  let calls = 0;
+  let bound;
+  let once = true;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence hop key is the form under test
+  for (const { any: a } = globalThis[(arr.at(0), calls++, 'Promise')]; once; once = false) bound = a;
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(typeof bound, 'function');
+});
+
 // a nested instance method in a MULTI-declarator: the polyfill binds as a TRAILING sibling declarator
 // (`..., m = _flatMaybeArray(arr)`), safe even when the receiver is bound earlier in the same declaration
 QUnit.test('destructuring: nested instance method in a multi-declarator polyfills', assert => {
