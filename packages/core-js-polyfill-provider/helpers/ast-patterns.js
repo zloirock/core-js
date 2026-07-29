@@ -4411,11 +4411,6 @@ export function objectPatternHasNestedValue(objectPattern) {
 // makes the mirror BAIL structurally - the rest collects unsynthesizable receiver keys). both emitters'
 // flat-key fallbacks (body-extract / inline-default) DEFER to the mirror here rather than body-extract
 // (caller-lossy) a key the mirror's synth default provides, or race it when a leaf resolves transiently
-export function nestedMirrorOwnsMixedPattern(objectPattern) {
-  return objectPatternHasNestedValue(objectPattern)
-    && objectPattern.properties.every(p => p.type !== 'RestElement');
-}
-
 export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
   let bound = null;
   // duplicate static keys bail the synth (the literal would need duplicate properties or a
@@ -5138,16 +5133,14 @@ function computeSideEffects(node, depth, strict) {
   if (type === 'SequenceExpression' || type === 'TemplateLiteral') {
     return node.expressions.some(e => recurse(e, depth, strict));
   }
-  // `[...a]` invokes `a[Symbol.iterator]` / `{...a}` invokes `a`'s Proxy traps - neither
-  // can be proven pure from source alone. treat SpreadElement as SE uniformly across
-  // Array and Object literals. without this, `const { from } = [1, ...Array]` would be
-  // considered SE-free and run through the no-SE-path
-  if (type === 'ArrayExpression') {
-    return node.elements.some(el => el?.type === 'SpreadElement' || recurse(el, depth, strict));
-  }
-  if (type === 'ObjectExpression') {
-    return node.properties.some(p => p?.type === 'SpreadElement' || recurse(p, depth, strict));
-  }
+  // `...a` invokes `a[Symbol.iterator]` in a value position and `a`'s Proxy traps in an object
+  // one - neither can be proven pure from source, and a non-iterable throws. answering it HERE
+  // covers every container the spread can sit in (array / object literal, call arguments, JSX)
+  // instead of each of them repeating the check; a REST element is the pattern-side shape and
+  // stays a no-op wrapper below
+  if (type === 'SpreadElement') return true;
+  if (type === 'ArrayExpression') return node.elements.some(el => recurse(el, depth, strict));
+  if (type === 'ObjectExpression') return node.properties.some(p => recurse(p, depth, strict));
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {
     return recurse(node.left, depth, strict) || recurse(node.right, depth, strict);
   }
@@ -5192,7 +5185,10 @@ const JSX_NODE_TYPES = new Set([
 ]);
 function jsxHasSideEffects(node, type, depth, strict) {
   // `.expression`-only carriers
-  if (type === 'JSXExpressionContainer' || type === 'JSXSpreadChild') return recurse(node.expression, depth, strict);
+  // `{...children}` iterates its operand exactly as a spread attribute does - mirror that arm
+  // rather than treating the child as a plain expression container
+  if (type === 'JSXSpreadChild') return true;
+  if (type === 'JSXExpressionContainer') return recurse(node.expression, depth, strict);
   if (type === 'JSXAttribute') return recurse(node.value, depth, strict);
   // JSXElement | JSXFragment: walk children. JSXElement also walks attributes -
   // spread attributes are SE unconditionally (iteration over their object operand)
@@ -5295,7 +5291,6 @@ const TRANSPARENT_WRAPPER_TYPES = new Set([
   'ChainExpression',
   'ParenthesizedExpression',
   'RestElement',
-  'SpreadElement',
 ]);
 
 // walk every Identifier reachable from a binding pattern (`{a, b: [c]}`, `[d, ...e]`,
