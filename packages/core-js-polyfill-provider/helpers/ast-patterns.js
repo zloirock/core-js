@@ -1724,13 +1724,20 @@ function nodeFollowsUsageInScope({ node, readNode, owner }) {
 // when the init is provably DEAD; pure resolves only when it is provably the LIVE value). `usageNode`
 // overrides the read position like in the mirror: an alias hop / destructure CAPTURE reads the value
 // there, so a same-scope write between the capture and the eventual use cannot reach the captured value
-export function noReassignmentReachesUsage({ reassignmentNodes, usagePath, usageNode = null }) {
+export function noReassignmentReachesUsage({
+  reassignmentNodes, usagePath, usageNode = null, bindingScopeNode = null,
+}) {
   if (!usagePath) return false;
   if (!reassignmentNodes?.length) return true;
   const owner = findNearestVarScopeOwner(usagePath);
   if (!owner) return false;
   const readNode = usageNode ?? usagePath.node;
   if (nodeSitsInLoopRerunWithin(owner.node, readNode)) return false;
+  // "textually after the read" proves nothing beyond ONE activation of that owner. when the owner
+  // is re-invocable while the binding outlives it, the previous activation's write runs before the
+  // next activation's read - the same exposure a loop back-edge creates, one scope level up. the
+  // read-side deferral predicate is the shared one the reachable-value union already gates on
+  if (bindingScopeNode && readRunsDeferredWithin(usagePath, bindingScopeNode)) return false;
   return reassignmentNodes.every(node => nodeFollowsUsageInScope({ node, readNode, owner }));
 }
 
@@ -2383,7 +2390,10 @@ export function reassignBailApplies({ binding, adapter, path, usageNode = null }
   // that read neither dominates it (global) nor reaches the value captured there (pure) - without
   // the anchor, pure bails a provably-live init whose only writes flip the key AFTER the capture
   if (method === 'usage-global') return reassignmentDominatesUsage({ reassignmentNodes, usagePath: path, usageNode });
-  return !noReassignmentReachesUsage({ reassignmentNodes, usagePath: path, usageNode });
+  return !noReassignmentReachesUsage({
+    reassignmentNodes, usagePath: path, usageNode,
+    bindingScopeNode: binding?.scope?.block ?? binding?.scope?.path?.node ?? null,
+  });
 }
 
 // for the sibling resolvers that need a flow-sensitive reassignment check (not a flat

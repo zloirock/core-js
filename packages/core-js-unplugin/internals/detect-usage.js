@@ -583,10 +583,15 @@ export function createEstreeAdapter({
       // twin's declarator, or a for-init `const` self) - the boundary-respecting scan excludes them,
       // matching babel; without this a const shadowed by a namespace twin keeps the phantom and a
       // resolvable use (e.g. a computed key `obj[K]`) wrongly bails
-      const constantViolations = !path ? b.constantViolations
+      // the two RECOMPUTED branches are phantom-free by construction, but the raw-list branches
+      // (`!path`, and a kind the recompute does not cover) carry estree's valueless-redeclaration
+      // self-record (`var { Map: M } = g; var M;`). filter the whole ternary through the shared
+      // helper the babel twin wraps its own ternary in, so both adapters hand the resolver the
+      // same violation list for identical source
+      const constantViolations = withoutValuelessDeclarationViolations(!path ? b.constantViolations
         : b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
           : b.kind === 'let' || b.kind === 'const' ? collectScopeLetReassignments(b.path, name)
-            : b.constantViolations;
+            : b.constantViolations);
       // the shared alias guard reads the RECOMPUTED violations (an assignment-form alias matches them
       // against its registered write span; the raw estree list carries phantoms) - so it runs after them
       // a VERIFIED identity hit needs no live shape verification - see the babel twin
