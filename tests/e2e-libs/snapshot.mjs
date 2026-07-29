@@ -1,8 +1,17 @@
 // Injection snapshot: records WHICH core-js / @core-js/pure specifiers unplugin injects for each
-// library x method, and flags drift. This uses the plain unplugin pipeline (no Babel) so the set
-// is stable and comparable - it captures what unplugin does with the SOURCE, independent of Babel
+// library x usage-* method, and flags drift. This uses the plain unplugin pipeline (no Babel) so the
+// set is stable and comparable - it captures what unplugin does with the SOURCE, independent of Babel
 // version. Babel-helper-driven injections (a function of the Babel version) are intentionally not
 // snapshotted here.
+//
+// `entry-global` is deliberately NOT snapshotted. It never reads the library: it expands
+// `import 'core-js'` into the whole set selected by `targets`, so the result is a function of
+// (version, mode, targets) alone - the three per-library baselines came out BYTE-IDENTICAL, making
+// the `<lib>` half of the key a fiction and tripling the diff every time core-js gains a module.
+// That set is already pinned exactly, by full-text compare, in tests/transpiler-fixtures/entry-global
+// (`require-root-ie11-*` pins the same 318 specifiers), which is also where a PARTIAL expansion
+// regression would surface - this suite's other gates would not catch one, since `injections > 0`
+// and a green exercise both survive it.
 //
 // Usage:  node snapshot.mjs             compare vs snapshots/<lib>.<method>.txt (fail on drift)
 //         node snapshot.mjs --update    (re)write baselines
@@ -13,6 +22,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const SNAP = join(HERE, 'snapshots');
+// the methods whose injected set actually derives from the library (see the header)
+const SNAPSHOT_METHODS = ['usage-global', 'usage-pure'];
 const argv = runnerArgs(import.meta.url);
 // every runner rejects an argument it does not understand; without this, `--updte` (or a library
 // name, which this runner does not take) would silently run a COMPARE pass and report success
@@ -37,8 +48,10 @@ await mkdir(SNAP, { recursive: true });
 let drift = 0;
 let errored = 0;
 let missing = 0;
+let checked = 0;
 for (const lib of libraries) {
-  for (const method of lib.methods) {
+  for (const method of SNAPSHOT_METHODS) {
+    checked++;
     // isolate each cell: one failed capture is recorded, not fatal to the whole run
     try {
       const set = await captureInjections(lib.exercise, method);
@@ -77,6 +90,9 @@ for (const lib of libraries) {
     }
   }
 }
+// a run that snapshotted nothing must not report success: an emptied SNAPSHOT_METHODS (or an empty
+// registry) would otherwise turn this gate green while verifying nothing at all
+if (!checked) throw new Error('no cells snapshotted — SNAPSHOT_METHODS or the library registry is empty');
 if (drift) console.log(`\n✗ injection snapshot drifted in ${ drift } cell(s) — rerun with --update if intended`);
 if (missing) console.log(`\n✗ ${ missing } cell(s) have no baseline — rerun with --update to author them`);
 if (errored) console.log(`\n✗ ${ errored } cell(s) failed to capture`);
