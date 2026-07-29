@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 //
 // The bare `--` drop is why each npm script body ends in `--`. Those scripts nest one `npm run`
 // inside another, and npm hands the inner one its extra args WITHOUT a separator — so a flag like
-// `snapshot.mjs --update` gets parsed as an option to npm itself and never reaches the runner,
+// `runtime.mjs --update` gets parsed as an option to npm itself and never reaches the runner,
 // while positional filters pass through fine. The trailing `--` restores the separator; it leaves
 // no residue on its own, but an extra one typed by hand would otherwise land here as a filter.
 export function runnerArgs(metaUrl) {
