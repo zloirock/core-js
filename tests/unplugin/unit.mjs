@@ -5085,6 +5085,47 @@ function checkRefCanonForeignSlots() {
 }
 checkRefCanonForeignSlots();
 
+// --- file strictness: which id / body combination makes the Program a script ---
+// Annex-B block-function hoisting exists only in a script, so the strictness answer decides whether
+// a block-nested `function Promise(){}` shadows the global. the answer has to be the SAME one that
+// picks the import style, in BOTH directions: a `.cjs` parses as script yet is a module when it
+// carries top-level ESM, and every other id parses as module yet may be a script by body or option
+function checkFileStrictness() {
+  const CJS_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\nmodule.exports = out;\n';
+  const ESM_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\nexport default out;\n';
+  const BARE_BODY = '{ function Promise() {} }\nvar out = Promise.withResolvers;\n';
+  // a script honours the shadow and keeps the native read; a module substitutes the pure import
+  function strictness(id, source, importStyle) {
+    const options = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+    if (importStyle) options.importStyle = importStyle;
+    const out = createPlugin(options).transform(source, id)?.code ?? source;
+    return /promise\/with-resolvers/.test(out) ? 'module' : 'script';
+  }
+  for (const [id, body, want] of [
+    ['/p.js', CJS_BODY, 'script'],
+    ['/p.cjs', CJS_BODY, 'script'],
+    ['/p.cts', CJS_BODY, 'script'],
+    ['/p.ts', CJS_BODY, 'script'],
+    ['/p.mjs', CJS_BODY, 'module'],
+    ['/p.mts', CJS_BODY, 'module'],
+    ['/p.mjs?vue&type=script', CJS_BODY, 'module'],
+    ['/p.js?import', CJS_BODY, 'script'],
+    ['/p.js', ESM_BODY, 'module'],
+    // source wins over extension in BOTH directions - the regression this pins
+    ['/p.cjs', ESM_BODY, 'module'],
+    // no marker either way: the plugin has nothing to go on and stays a module
+    ['/p.js', BARE_BODY, 'module'],
+  ]) {
+    check(`strictness/${ id } ${ body === CJS_BODY ? 'cjs-body' : body === ESM_BODY ? 'esm-body' : 'bare' }`,
+      strictness(id, body), want);
+  }
+  // the explicit option is a declaration and reaches strictness too, except where the extension pins
+  check('strictness/option require on bare .js', strictness('/p.js', BARE_BODY, 'require'), 'script');
+  check('strictness/option import on cjs body', strictness('/p.js', CJS_BODY, 'import'), 'module');
+  check('strictness/option require cannot flip .mjs', strictness('/p.mjs', BARE_BODY, 'require'), 'module');
+}
+checkFileStrictness();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
