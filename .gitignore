@@ -9,6 +9,7 @@ node_modules/
 .idea
 
 /.work/
+/docs/superpowers/
 /docs/web/blog/
 /docs/web/changelog.md
 /docs/web/contributing.md
