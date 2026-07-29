@@ -146,6 +146,14 @@ export function createTypeAnnotationResolve({
   }
 
   function resolveNamedType({ name, node, scope, depth, typeParamMap, seen }) {
+    // a type-PARAMETER in scope outranks a same-named global: in `function f<Set>(x: Set)` the
+    // annotation names the parameter, and resolving it as the container would hand a Set-specific
+    // helper to whatever the caller actually passed - an over-resolve that throws on a foreign
+    // runtime value. read on the SOURCE spelling, before the alias folding below rewrites it. a
+    // name that is no container makes this a no-op, and a qualified name arrives dotted, which
+    // never matches a parameter. only the CONTAINER lookup is suppressed: the parameter still
+    // resolves through its own constraint / default further down, as TS reads it
+    const shadowedByTypeParam = Boolean(findTypeParameter(name, scope));
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
@@ -153,7 +161,8 @@ export function createTypeAnnotationResolve({
     function resolveArgInner(arg) {
       return resolveAnnotationInContext({ node: arg, scope, depth, typeParamMap, seen });
     }
-    const known = resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
+    const known = shadowedByTypeParam ? null
+      : resolveKnownContainerType({ name, base: resolveKnownConstructor(name), node, innerResolver: resolveArgInner });
     // capital `Object` accepts primitives in assignability (unlike lowercase `object`);
     // its resolution stays constructor-null so member dispatch keeps the generic helpers
     if (known) return name === 'Object' ? known.mark('topObject') : known;
