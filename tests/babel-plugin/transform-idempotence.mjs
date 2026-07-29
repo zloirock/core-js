@@ -38,6 +38,10 @@ const CASES = [
   ['boxed-wrapper conditional', 'type C<T> = T extends String ? number[] : string;\ndeclare const v: C<string>;\nexport const r = v.at(0);', true],
   ['mapped key-set', 'type M<T> = { [K in keyof { a: unknown; }]: T[K] };\ndeclare const p: M<{ a: number[]; extra: string; }>;\nexport const r = p.a.at(0);', true],
   ['type-param shadows a container', 'export function f<Array>(x: Array) { return x.at(0); }', true],
+  // the second pass re-reads a sequence whose first operand carries the spread, and a pattern whose
+  // flat key already holds the default the first pass gave it - both have to stay put
+  ['spread argument keeps its receiver', 'export const r = (() => Array)(...poison).from(x);'],
+  ['mixed pattern permanent mirror bail', 'export const r = (({ Set, Array: { from }, [k()]: y } = globalThis) => [Set, from, y])();'],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };

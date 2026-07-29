@@ -4832,6 +4832,79 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   // UpdateExpression -> always SE
   checkTruthy('ast-patterns: mayHaveSideEffects UpdateExpression',
     mayHaveSideEffects({ type: 'UpdateExpression', operator: '++' }));
+  // a spread ITERATES its operand (`a[Symbol.iterator]()`, or Proxy traps in an object literal) and
+  // throws on a non-iterable, so it is effectful wherever it stands - the containers below are the
+  // closed set of places one can appear. a REST element is the pattern-side shape and stays a no-op
+  const PURE_OPERAND = { type: 'Identifier', name: 'a' };
+  const SPREAD_HOSTS = [
+    ['bare spread', { type: 'SpreadElement', argument: PURE_OPERAND }],
+    ['array element', { type: 'ArrayExpression', elements: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+    ['object property', { type: 'ObjectExpression', properties: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+    ['sequence operand', { type: 'SequenceExpression', expressions: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+    ['conditional branch', {
+      type: 'ConditionalExpression',
+      test: PURE_OPERAND,
+      consequent: { type: 'SpreadElement', argument: PURE_OPERAND },
+      alternate: PURE_OPERAND,
+    }],
+    ['parenthesized', { type: 'ParenthesizedExpression', expression: { type: 'SpreadElement', argument: PURE_OPERAND } }],
+  ];
+  for (const [label, node] of SPREAD_HOSTS) {
+    checkTruthy(`ast-patterns: mayHaveSideEffects spread as ${ label }`, mayHaveSideEffects(node));
+  }
+  // the domain is closed in both directions, so it is swept rather than sampled: every container a
+  // spread can sit in crossed with every operand shape it can carry. the operand is irrelevant to
+  // the answer - the spread iterates whatever it is given - and the mirror sweep below feeds the
+  // SAME containers the bare operand, which must stay pure. a container that answered by its own
+  // type rather than by its contents would fail one half or the other
+  const SPREAD_CONTAINERS = [
+    ['array element', inner => ({ type: 'ArrayExpression', elements: [inner] })],
+    ['object property', inner => ({ type: 'ObjectExpression', properties: [inner] })],
+    ['nested array', inner => ({ type: 'ArrayExpression', elements: [{ type: 'ArrayExpression', elements: [inner] }] })],
+    ['sequence operand', inner => ({ type: 'SequenceExpression', expressions: [inner] })],
+    ['conditional branch', inner => ({ type: 'ConditionalExpression', test: PURE_OPERAND, consequent: inner, alternate: PURE_OPERAND })],
+    ['parenthesized', inner => ({ type: 'ParenthesizedExpression', expression: inner })],
+    ['template expression', inner => ({ type: 'TemplateLiteral', expressions: [inner], quasis: [] })],
+  ];
+  const SPREAD_OPERANDS = [
+    ['identifier', PURE_OPERAND],
+    ['numeric literal', { type: 'NumericLiteral', value: 1 }],
+    ['string literal', { type: 'StringLiteral', value: 'a' }],
+    ['member expression', { type: 'MemberExpression', object: PURE_OPERAND, property: { type: 'Identifier', name: 'p' } }],
+    ['array literal', { type: 'ArrayExpression', elements: [{ type: 'NumericLiteral', value: 1 }] }],
+    ['object literal', { type: 'ObjectExpression', properties: [] }],
+    ['nested spread', { type: 'ArrayExpression', elements: [{ type: 'SpreadElement', argument: PURE_OPERAND }] }],
+  ];
+  for (const [containerLabel, wrap] of SPREAD_CONTAINERS) {
+    for (const [operandLabel, operand] of SPREAD_OPERANDS) {
+      checkTruthy(`ast-patterns: spread of ${ operandLabel } in ${ containerLabel } is effectful`,
+        mayHaveSideEffects(wrap({ type: 'SpreadElement', argument: operand })));
+    }
+    // the same container holding the operand DIRECTLY answers by its contents, not its type
+    check(`ast-patterns: pure operand in ${ containerLabel } stays pure`,
+      mayHaveSideEffects(wrap(PURE_OPERAND)), false);
+  }
+  // the same containers holding the pure operand DIRECTLY stay pure - otherwise the rows above
+  // would pass on a blanket "container is effectful" answer
+  check('ast-patterns: mayHaveSideEffects array of pure operand',
+    mayHaveSideEffects({ type: 'ArrayExpression', elements: [PURE_OPERAND] }), false);
+  check('ast-patterns: mayHaveSideEffects parenthesized pure operand',
+    mayHaveSideEffects({ type: 'ParenthesizedExpression', expression: PURE_OPERAND }), false);
+  // a rest element binds, it does not iterate
+  check('ast-patterns: mayHaveSideEffects rest element',
+    mayHaveSideEffects({ type: 'RestElement', argument: PURE_OPERAND }), false);
+  // a JSX spread child iterates exactly as a spread attribute does
+  checkTruthy('ast-patterns: mayHaveSideEffects JSX spread child',
+    mayHaveSideEffects({ type: 'JSXSpreadChild', expression: PURE_OPERAND }));
+  checkTruthy('ast-patterns: mayHaveSideEffects JSX spread attribute',
+    mayHaveSideEffects({
+      type: 'JSXElement',
+      openingElement: { type: 'JSXOpeningElement', attributes: [{ type: 'JSXSpreadAttribute', argument: PURE_OPERAND }] },
+      children: [],
+    }));
+  check('ast-patterns: mayHaveSideEffects JSX expression container stays transparent',
+    mayHaveSideEffects({ type: 'JSXExpressionContainer', expression: PURE_OPERAND }), false);
+
   // Array literal of pure elements -> pure
   check('ast-patterns: mayHaveSideEffects array of literals',
     mayHaveSideEffects({
