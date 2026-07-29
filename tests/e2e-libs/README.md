@@ -57,65 +57,60 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   resolver fails on the extensionless `core-js/modules/*` specifiers whose name contains the substring
   `js` (`es.json.*`, `web.url.to-json`) — which node and the other bundlers resolve fine — not the
   native crash once assumed; see `build.mjs` for the real cause and the one-plugin shim that fixes it.)
-- **artifacts** — the real IE11 build: Babel (syntax → ES5) + unplugin (stdlib polyfills) → ES5 UMD +
-  self-checking HTML.
-  `npm run e2e-libs-artifacts [-- libFilter]` → `artifacts/<lib>/<method>/{bundle.js,index.html}` + `manifest.json`
-  (manifest records raw / minified / gzip sizes + injections, counted inside the build itself).
-  An unfiltered run wipes `artifacts/` first and a filtered one wipes just the libraries it rebuilds
-  (merging into the existing manifest), so a failed cell cannot leave a stale green page behind while
-  the manifest claims otherwise. A node pre-flight runs first; real IE11 runs the whole matrix via the
-  **karma** runner below (and in CI) — `usage-pure` is where a missed site reddens, the global methods
-  run but stay masked — with the HTML pages left for a manual BrowserStack/SauceLabs pass (a stripped
-  realm the global methods still need). Every bundle is also **asserted to be ES5** — a real acorn
-  parse at `ecmaVersion: 5`, *not* an esbuild `target: 'es5'` transform, which silently **lowers**
-  arrows, `?.`, `??` and template literals instead of rejecting them. Nothing else here would notice
-  a broken down-compile: the pre-flight runs in a modern node realm and the browser page in a modern
-  browser. Further gates run per cell: the chunk must actually **contain core-js bytes**
-  (`assertPayload`) — the injection count only proves the specifier *text* was seen, and that text
-  survives even when rollup tree-shakes the polyfills away; nothing may be left **external**, since a
-  `require(...)` in the UMD header is fine in node and fatal in a browser; and the **minified** form
-  is parsed as ES5 too, that being the byte count `manifest.json` publishes as shippable. The
-  hand-written in-page harness is parsed once per run — one arrow function there would leave the
-  banner stuck on `running…` with no verdict. The full list lives in the design doc's §9, in one
-  place on purpose.
-- **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.<phase>.txt`,
-  18 cells: the **usage-\*** methods × all three phases (`pre` / `post` / `pre+post`). `entry-global`
-  is not snapshotted: it never reads the library, it expands `import 'core-js'` into whatever
-  `targets` selects, so its three per-library baselines were byte-identical — a fiction of a
-  per-library gate that tripled the diff on every core-js module added. That set is pinned exactly
-  (full-text compare) in `tests/transpiler-fixtures/entry-global`.
-  Baselines are captured through the **real runtime pipeline** — Babel down-compiles, then unplugin
-  injects — the same chain `runtimeBuild` uses, so the snapshot pins the set that actually reaches the
-  IE11 bundle. That is what gives the phase axis meaning: with plain unplugin (no Babel) all three
-  phases inject byte-identical sets, whereas with Babel in front `post` also sees what Babel's own
-  helpers reach for — codemirror's `usage-global` goes 120 (`pre`) → 133 (`post`), three's 154 → 172,
-  while rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta
-  used to be unsnapshotted, so a post-phase ordering regression (the class of bug commit `20718df3b0`
-  fixed) could not redden this gate; now it can. `post` is a strict superset of `pre` on every
-  fixture, and `pre+post` currently equals `post` — the `pre+post` cells gate exactly that, and would
-  diverge if `pre` ever detected a site that Babel rewrites out of `post`'s view.
-  The trade-off: these baselines are **Babel-dependent**. A `@babel/preset-env` update that changes
-  helper emission may legitimately move them — read the diff, then rerun with `--update`.
+- **runtime (one pass, the whole tier)** — `npm run e2e-libs-runtime [-- libFilter] [-- --update]` —
+  the real IE11 build for every (library × method × unplugin phase) = **21 cells**: rollup + Babel
+  (syntax → ES5) + unplugin (stdlib polyfills). Each cell is built **once**, and that single build then
+  feeds every consumer:
+  - **gates** — a real acorn parse at `ecmaVersion: 5` (*not* an esbuild `target: 'es5'` transform,
+    which silently **lowers** arrows, `?.`, `??` and template literals instead of rejecting them); the
+    chunk must actually **contain core-js bytes** (`assertPayload`) — an injection count only proves the
+    specifier *text* was seen, and that survives even when rollup tree-shakes the polyfills away;
+    nothing may be left **external**, since a `require(...)` in the UMD header is fine in node and fatal
+    in a browser; and the injected set must be non-empty.
+  - **injection snapshot** → `snapshots/<lib>.<method>.<phase>.txt`, 18 cells (the **usage-\*** methods ×
+    all three phases). `entry-global` is not snapshotted: it never reads the library, it expands
+    `import 'core-js'` into whatever `targets` selects, so its per-library baselines came out
+    byte-identical — a fiction of a per-library gate. That set is pinned exactly (full-text compare) in
+    `tests/transpiler-fixtures/entry-global`. Because the snapshot comes from the shipping build, Babel
+    runs before unplugin, and *that* is what gives the phase axis meaning: with plain unplugin (no
+    Babel) all three phases inject byte-identical sets, whereas here `post` also sees what Babel's own
+    helpers reach for — codemirror `usage-global` 120 (`pre`) → 133 (`post`), three 154 → 172, while
+    rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta used to
+    be unsnapshotted, so a post-phase ordering regression (the class of bug commit `20718df3b0` fixed)
+    could not redden this gate; now it can. `post` is a strict superset of `pre` on every fixture and
+    `pre+post` currently equals `post` — the `pre+post` cells gate exactly that. Trade-off: these
+    baselines are **Babel-dependent**; a `@babel/preset-env` update may legitimately move them — read
+    the diff, then rerun with `--update`.
+  - **node pre-flight** — the bundle executed in a **fresh child process** (isolation is required, not
+    tidiness: `mode: full` permanently patches globals, so two methods in one process would let one
+    method's injection mask another's miss), with every self-check passing.
+  - **artifact** → `artifacts/<lib>/<method>[/<phase>]/{bundle.js,index.html}` + `manifest.json`
+    (raw / minified / gzip sizes + injections). The minified form is parsed as ES5 too, that being the
+    byte count the manifest publishes as shippable. An unfiltered run wipes `artifacts/` first and a
+    filtered one wipes just the libraries it rebuilds (merging into the existing manifest), so a failed
+    cell cannot leave a stale green page behind while the manifest claims otherwise. The HTML pages are
+    for a manual BrowserStack/SauceLabs pass.
+  - **real IE11 via Karma** — the same bundle plus a QUnit driver, run in **actual IE11** (the
+    karma-qunit / IE stack `tests/unit-karma` already drives), **one bundle per page**: nothing is
+    co-loaded, so a global bundle's load-time prototype patching can never mask another cell's
+    `usage-pure` (or `pre`) miss into a false green; it also keeps each page to a single library copy
+    (three's is ~1.4 MB) and sidesteps three's "multiple instances" warning. The driver asserts it is
+    **really on IE11** (`document.documentMode`), so an `iexplore`→Edge substitution reddens rather than
+    passing green. `post` / `pre+post` / `entry-global` **gate**; `pre` — which runs unplugin *before*
+    Babel and so can miss the polyfills Babel's helpers pull in — is a **non-gating per-library
+    diagnostic**, expected to fail for some libraries, which is exactly the signal we want. Off a
+    machine with IE11 (and outside CI) everything above still runs and only Karma is skipped; the CI job
+    `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
+
+  One build per cell is the point. These consumers used to be three runners that each rebuilt the same
+  configurations — 48 builds for 21 distinct cells — and each gated on a build of its own, so the set
+  being snapshotted was not provably the set inside the bundle that shipped. Now it is, by construction.
+  **Timings are deliberately not measured here** — minification, pre-flight child processes and file
+  writes land between consecutive builds and move the CPU state each one starts from; `pipeline` does
+  the measuring, in its own quiet process. Sizes and injection counts *are* reported here: they are
+  deterministic.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
-- **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the **full runtime
-  matrix** (every library × method × unplugin phase, 21 bundles: rollup + Babel + unplugin), appends a
-  QUnit driver to each, and runs them in **actual IE11** via Karma — the same
-  karma-qunit / IE stack `tests/unit-karma` already drives. `usage-pure` is the method whose green run
-  also validates per-site *detection* (see the note below); the global methods prove the exercise still
-  *executes* on IE11. The **phase** axis (`pre` / `post` / `pre+post`) tests unplugin's ordering
-  relative to Babel: `post` and `pre+post` **gate**, while `pre` — which runs unplugin *before* Babel
-  and so can miss the polyfills Babel's own helpers pull in — is a **non-gating per-library diagnostic**
-  (expected to fail for some libraries on IE11, which is exactly the per-library signal we want, not a
-  job failure). This is a rollup-adapter check on real libraries, complementing the webpack
-  `e2e-usage-pure` leg in `tests/unit-karma`. Karma runs **one bundle per page** (a separate IE11 run
-  per cell) — nothing is co-loaded, so a global bundle's load-time prototype patching can never mask
-  another cell's `usage-pure` (or `pre`) miss into a false green; it also keeps each page to a single
-  library copy (three's is ~1.4 MB) and sidesteps three's runtime "multiple instances" warning. The
-  driver also asserts it is **really on IE11** (`document.documentMode`), so an `iexplore`→Edge substitution on
-  the runner reddens rather than passing green. Off a machine with IE11 (and outside CI) it still
-  **builds** the bundles — running every gate `runtimeBuild` carries — but skips Karma; the CI job
-  `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
 
 **What a green artifact proves — and doesn't.** It proves the exercise still *executes* on the
 target; a green *node pre-flight* does **not** by itself prove per-site *detection*. A global polyfill
@@ -128,9 +123,10 @@ global methods run there too but stay masked even on IE11 (they only prove the e
 per-site detection for them is the unplugin unit tests' job (`tests/unplugin/unit.mjs`), on the
 transform output directly. Sibling to the snapshot gap above.
 
-**Running it.** All six runners are exposed as root scripts, and `npm run e2e-libs` chains the three
-that assert (`check-exercise` → `snapshot` → `artifacts`); `pipeline` and `throughput` only report and
-`karma` needs real IE11, so they stay out of it. The suite is deliberately NOT part of `test-raw` /
+**Running it.** All four runners are exposed as root scripts, and `npm run e2e-libs` chains the two
+that assert (`check-exercise` → `runtime`); `pipeline` and `throughput` only report, so they stay out
+of it. `runtime` needs no special environment — off a machine with IE11 it runs every gate and skips
+only the browser leg. The suite is deliberately NOT part of `test-raw` /
 `test-transpiling` — it pulls rxjs, three, codemirror and seven bundlers, and a full pass takes
 minutes; the IE11 leg runs as its own `e2e-libs-ie11` CI job on windows-2022.
 
