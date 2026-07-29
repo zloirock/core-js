@@ -22,7 +22,7 @@
 // runs the full matrix in actual IE11, so usage-pure's per-site detection is checked there; the global
 // methods run too but stay masked, and their per-site detection lives in the unplugin unit tests
 // (tests/unplugin/unit.mjs). This tier (the node pre-flight) proves the exercise still executes.
-import { runtimeBuild, assertES5, wireSize, errorReason, HERE } from './build.mjs';
+import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, HERE } from './build.mjs';
 import { bannerHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -150,7 +150,7 @@ if (libFilter) {
   await rm(ART, { recursive: true, force: true });
 }
 for (const lib of libs) {
-  for (const method of lib.methods) {
+  for (const method of METHODS) {
     const { ok, entry } = await buildCell(lib, method);
     manifest.push(entry);
     if (!ok) failed++;
