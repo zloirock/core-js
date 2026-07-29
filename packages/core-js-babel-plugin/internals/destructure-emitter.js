@@ -402,6 +402,21 @@ export default function createDestructureEmitter({
   // side-effect expressions from destructuring inits - drained at programExit
   // (re-traverse for nested polyfill detection then splice into the body in source order)
   const deferredSideEffects = [];
+  // `for` headers that hosted a destructure. the header is the one host with no statement slot,
+  // so its init is RETAINED in place instead of being lifted, and the drain above - which is what
+  // re-walks a lifted init - never sees it. recorded at dispatch so the drain visits exactly the
+  // headers that were rewritten; scanning the program for them would charge every file for a
+  // shape almost none contain
+  const retainedForInitHosts = new Set();
+  function noteRetainedForInitHost(prop) {
+    const host = destructurePatternHost(prop);
+    if (!host?.isVariableDeclarator?.()) return;
+    const declaration = host.parentPath;
+    const forStatement = declaration?.parentPath;
+    if (forStatement?.isForStatement?.() && forStatement.node.init === declaration.node) {
+      retainedForInitHosts.add(forStatement);
+    }
+  }
   function canTransformDestructuring(path) {
     const parent = path.parentPath?.parentPath;
     if (!sharedCanTransformDestructuring({
@@ -1783,6 +1798,7 @@ export default function createDestructureEmitter({
     // after the host rebuild requeues the pattern subtree): the natural computed-key
     // visitor owns the key-text, nothing to extract
     if (keySwapOwnedProps.has(prop.node)) return;
+    noteRetainedForInitHost(prop);
     // claim the whole enclosing pattern chain up front (before any branch can bail) - the
     // synth-swap proxy-hop collapse keys its defer on the ROOT pattern; an unclaimed pattern
     // collapses there like a non-destructure receiver
@@ -2666,5 +2682,8 @@ export default function createDestructureEmitter({
     flatTouchedMultiDecls.clear();
   }
 
-  return { deferredSideEffects, extractCatchClause, handleObjectPropertyResult, splitFlatMultiDecls, tryFlattenProxyHopHost };
+  return {
+    deferredSideEffects, retainedForInitHosts, extractCatchClause, handleObjectPropertyResult,
+    splitFlatMultiDecls, tryFlattenProxyHopHost,
+  };
 }
