@@ -942,14 +942,54 @@ const scopeBlockFunctionsCache = new WeakMap();
 // the lexical names (`let` / `const` / `class`) bound at the TOP of a block body - an Annex-B
 // block-function hoist is BLOCKED (B.3.2) when any block between the function and its var-scope
 // owner lexically rebinds the name, so the top-level reference stays the global
-function blockLexicalNames(bodyStatements) {
-  const lex = new Set();
+const NO_LEXICAL_NAMES = new Set();
+// null rather than an empty Set when nothing is bound: this runs on every construct of every scope
+// walk, and the common shapes (a `var` head, a block with no lexicals) bind nothing at all
+function blockLexicalNames(bodyStatements, into = null) {
+  let lex = into;
   for (const stmt of bodyStatements ?? []) {
     if (stmt?.type === 'VariableDeclaration' && stmt.kind !== 'var') {
-      for (const d of stmt.declarations ?? []) walkPatternIdentifiers(d.id, id => lex.add(id.name));
-    } else if (stmt?.type === 'ClassDeclaration' && stmt.id?.name) lex.add(stmt.id.name);
+      for (const d of stmt.declarations ?? []) walkPatternIdentifiers(d.id, id => (lex ??= new Set()).add(id.name));
+    } else if (stmt?.type === 'ClassDeclaration' && stmt.id?.name) (lex ??= new Set()).add(stmt.id.name);
   }
   return lex;
+}
+// a lexical VariableDeclaration head (`for (let x ...)`), or null - a `var` head hoists to the
+// function scope and a bare-identifier / expression head binds nothing, so neither blocks
+function lexicalHeadStatements(head) {
+  return head?.type === 'VariableDeclaration' && head.kind !== 'var' ? head : null;
+}
+// every lexical binding a node introduces AROUND its subtree, which is what blocks the Annex-B
+// hoist for that name. a block body is only one of the shapes: a for-head `let`/`const` scopes to
+// the whole loop, case-level lexicals live in the switch's single case-block env, and a
+// DESTRUCTURING catch param is a lexical too. an IDENTIFIER catch param is deliberately absent -
+// B.3.5 exempts it, so `catch (X) { { function X(){} } }` still hoists
+function annexBBlockingNames(node) {
+  switch (node.type) {
+    case 'BlockStatement': return blockLexicalNames(node.body);
+    case 'SwitchStatement': {
+      // the cases share ONE block env, so their lexicals merge - accumulated in place rather than
+      // through a flattened copy of every case body
+      let lex = null;
+      for (const c of node.cases ?? []) lex = blockLexicalNames(c.consequent, lex);
+      return lex;
+    }
+    case 'ForStatement': {
+      const head = lexicalHeadStatements(node.init);
+      return head ? blockLexicalNames([head]) : null;
+    }
+    case 'ForOfStatement': case 'ForInStatement': {
+      const head = lexicalHeadStatements(node.left);
+      return head ? blockLexicalNames([head]) : null;
+    }
+    case 'CatchClause': {
+      if (!node.param || node.param.type === 'Identifier') return null;
+      const names = new Set();
+      walkPatternIdentifiers(node.param, id => names.add(id.name));
+      return names;
+    }
+    default: return null;
+  }
 }
 function collectScopeBlockFunctions(scopeNode) {
   const names = new Set();
@@ -963,9 +1003,9 @@ function collectScopeBlockFunctions(scopeNode) {
       return;
     }
     if (isVarScopeBoundary(node.type)) return;
-    // entering a block extends the blocked set with that block's lexical declarations
-    const next = node.type === 'BlockStatement'
-      ? new Set([...blocked, ...blockLexicalNames(node.body)]) : blocked;
+    // entering a lexical-introducing construct extends the blocked set with the names it binds
+    const introduced = annexBBlockingNames(node);
+    const next = introduced?.size ? new Set([...blocked, ...introduced]) : blocked;
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) for (const v of value) visit(v, next);
       else visit(value, next);
@@ -973,7 +1013,7 @@ function collectScopeBlockFunctions(scopeNode) {
   }
   // the owner scope's own body-block lexicals block the hoist too
   const body = Array.isArray(scopeNode?.body) ? scopeNode.body : scopeNode?.body?.body;
-  const ownerLex = blockLexicalNames(Array.isArray(body) ? body : null);
+  const ownerLex = blockLexicalNames(Array.isArray(body) ? body : null) ?? NO_LEXICAL_NAMES;
   if (Array.isArray(body)) for (const stmt of body) visit(stmt, ownerLex);
   else visit(scopeNode?.body, ownerLex);
   return names;
@@ -1134,6 +1174,13 @@ export function buildScopeReassignmentIndex(ownerNode) {
     const names = [];
     for (const param of node.params ?? []) patternNames(param, names);
     for (const name of cachedScopeVars(node).keys()) names.push(name);
+    // a `static { }` / namespace body holds its statements DIRECTLY, so the block-level rebind scan
+    // never runs over them even though their `let` / `const` / class / function shadow exactly as a
+    // nested block's do; and a named function EXPRESSION binds its own name inside itself. a write
+    // to either targets that INNER binding - recording it against the outer one invents a
+    // reassignment, which costs the outer binding its narrow and leaves the native in its place
+    if (Array.isArray(node.body)) for (const stmt of node.body) stmtRebindNames(stmt, names);
+    if (node.type === 'FunctionExpression' && node.id?.name) names.push(node.id.name);
     return names;
   }
   function visit(node, atOwnerRoot) {
