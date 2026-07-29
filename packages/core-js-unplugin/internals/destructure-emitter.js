@@ -4727,9 +4727,13 @@ export function createDestructureEmitter({
     // X)`) must emit BEFORE its container, so the container's `consumeRefsAndInserts` over its init
     // range drains the inner's genRef'd scoped-var. left un-drained, `scopeTracker.applyTransforms`
     // re-wraps the inner scope's block over a range overlapping the container overwrite, tripping
-    // "could not locate inner needle". start-descending puts the higher-start (nested) declaration
-    // first; independent sibling declarations don't overlap, so their relative order is immaterial
-    const orderedStatements = [...byStatement].sort(([a], [b]) => b.start - a.start);
+    // "could not locate inner needle". statement ranges are laminar (properly nested or disjoint)
+    // and distinct keys never co-terminate, so ascending END is a total order that delivers both
+    // halves at once: a nested declaration always ends before its container, and independent
+    // siblings keep SOURCE order. that second half is not cosmetic - ref names are allocated as
+    // this loop emits, so ordering siblings by anything else numbers them against source order
+    // and against the babel twin
+    const orderedStatements = [...byStatement].sort(([a], [b]) => a.end - b.end);
     for (const [, infos] of orderedStatements) {
       const [{ declPath, isAssignment, isCatchClause }] = infos;
 

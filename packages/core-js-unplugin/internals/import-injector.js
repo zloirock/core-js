@@ -8,7 +8,7 @@ import ImportInjectorState, {
   UNUSED_NAME_PATTERN,
 } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
+import { isInlineWhitespace, isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
 function blockify(lines) {
   return `${ lines.join('\n') }\n`;
@@ -460,7 +460,7 @@ function needsLeadingNewlineAt(src, pos) {
 function skipTrailingComments(src, pos) {
   let p = pos;
   for (;;) {
-    while (src[p] === ' ' || src[p] === '\t') p++;
+    while (isInlineWhitespace(src[p])) p++;
     if (src[p] === '/' && src[p + 1] === '/') {
       // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). `isLineTerminator`
       // covers all four; literal `\n`/`\r` check misses LS/PS mid-source

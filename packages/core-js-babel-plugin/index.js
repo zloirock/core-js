@@ -1369,6 +1369,11 @@ export default function plugin(api, options) {
         return { ...visitors, CatchClause: path => destructureEmit.extractCatchClause(path) };
       }
 
+      // every pass that walks source-shaped nodes - the main pre-traverse, the deferred-SE drain
+      // and the retained-header re-walk - needs the SAME augmented set. compose it once instead of
+      // rebuilding the merged visitor object per drain batch
+      const usageWalkVisitors = usageVisitors ? withProxyHopTrigger(withCatchExtractor(usageVisitors)) : null;
+
       // re-traversing an inserted SE can itself trigger `deferSideEffect` (nested destructuring
       // inside the lifted SE, e.g. `const { of } = (innerCall(), Array)` in an arrow body).
       // loop until the queue stays empty so nothing is silently dropped; termination is
@@ -1402,16 +1407,34 @@ export default function plugin(api, options) {
           // walkAnnotations) is correct. `helperVisitors` (walkAnnotations=false) targets
           // sibling-plugin-injected helper bodies (already TS-stripped), wrong contract
           // here. usage-pure case: usageVisitors === helperVisitors so behaviour identical
-          if (!usageVisitors) continue;
-          const deferredVisitors = withProxyHopTrigger(withCatchExtractor(usageVisitors));
+          if (!usageWalkVisitors) continue;
           path.traverse({
             ExpressionStatement(p) {
               if (!inserted.delete(p.node)) return;
-              p.traverse(deferredVisitors);
+              p.traverse(usageWalkVisitors);
               if (!inserted.size) p.stop();
             },
           });
         }
+      }
+
+      // a `for` header is the one destructure host with no statement slot: its init is RETAINED
+      // in the loop header instead of being lifted, so the drain above never sees it. every
+      // emitter that collapses a receiver plants RAW clones of the harvested side effects -
+      // copies taken before the main traversal reached their source - and relies on the
+      // substrate re-visiting them, which only happens where the host lifts. walk the recorded
+      // headers with the same visitors the drain uses, so a `for`-hosted claim polyfills its own
+      // re-emitted effects like every other position instead of shipping them raw. the emitter
+      // records the hosts as it dispatches, so this costs nothing on a file that has none
+      function rewalkRetainedForInits() {
+        const hosts = destructureEmit?.retainedForInitHosts;
+        if (!hosts?.size) return;
+        if (usageWalkVisitors) {
+          for (const forStatement of hosts) {
+            if (forStatement.node?.init) forStatement.get('init').traverse(usageWalkVisitors);
+          }
+        }
+        hosts.clear();
       }
 
       // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
@@ -1430,6 +1453,10 @@ export default function plugin(api, options) {
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
         // against the pre-split body
         destructureEmit.splitFlatMultiDecls();
+        // AFTER the split canon: a host that renders its declarator late (the retained `for`
+        // header) has planted its SE clones by now, and BEFORE the flush so the walk's own
+        // imports still make this batch
+        rewalkRetainedForInits();
         // emit visitor-collected imports BEFORE synth-swap apply: each flush unshift's
         // at program top, so imports added between flushes land ABOVE the previous batch.
         // keeps synth-swap imports on top - the two-phase emission ordering existing
@@ -1565,6 +1592,7 @@ export default function plugin(api, options) {
         processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.splitFlatMultiDecls();
+        rewalkRetainedForInits();
         postSweepIntroduced(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via
         // node-identity WeakMap regardless of where sibling plugins (transform-parameters
@@ -1715,7 +1743,7 @@ export default function plugin(api, options) {
 
       return {
         pre: withFileTag(function usagePurePre() {
-          preTraverse(this.file.path, withProxyHopTrigger(withCatchExtractor(usageVisitors)));
+          preTraverse(this.file.path, usageWalkVisitors);
         }),
         visitor: { Program: { exit: withFileTag(programExit) } },
         post: withFileTag(postHook),
