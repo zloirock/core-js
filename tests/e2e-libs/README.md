@@ -78,7 +78,11 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   hand-written in-page harness is parsed once per run — one arrow function there would leave the
   banner stuck on `running…` with no verdict. The full list lives in the design doc's §9, in one
   place on purpose.
-- **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.txt`
+- **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.txt`,
+  for the **usage-\*** methods only. `entry-global` is not snapshotted: it never reads the library, it
+  expands `import 'core-js'` into whatever `targets` selects, so its three per-library baselines were
+  byte-identical — a fiction of a per-library gate that tripled the diff on every core-js module
+  added. That set is pinned exactly (full-text compare) in `tests/transpiler-fixtures/entry-global`.
   Baselines are captured at unplugin's default phase and **without Babel**, so they do not cover the
   configuration the runtime tier actually builds. In that no-Babel pipeline `pre` and `post` inject
   the identical set on every fixture. Put Babel in front of it and `post` can inject more —
