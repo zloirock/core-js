@@ -560,6 +560,16 @@ export default function createPlugin(options) {
     // must emit `import`, or bundlers reject the mixed output
     const importStyle = importStyleOption
       ?? (!hasTopLevelESM(ast) && (isCJSFile || detectCommonJS(ast)) ? 'require' : 'import');
+    // the SAME answer decides strictness, because it is the same question: a CommonJS file is a
+    // script, and a script is the only place Annex-B block-function hoisting exists. the parse is
+    // told `script` only by extension, so BOTH directions have to be written back or the answer
+    // splits - a `.cjs` carrying top-level ESM parses as script yet is a module by its own syntax,
+    // and every other id parses as module yet may be a script by body or option. reading the
+    // resolved `importStyle` is what keeps the two consumers single-sourced: an explicit
+    // `importStyle: 'require'` DECLARES a CommonJS input, and that declaration must reach the
+    // strictness model too. an `.mjs`/`.mts` id is a module by EXTENSION whatever the body or the
+    // option says, so it is the one signal neither the heuristic nor the option can override
+    ast.sourceType = importStyle === 'require' && !/\.m[jt]s$/.test(cleanId) ? 'script' : 'module';
 
     const { offsetToLine, disabledLines } = parseDisableState(code, ast, comments);
     if (disabledLines === true) return null; // entire file disabled
