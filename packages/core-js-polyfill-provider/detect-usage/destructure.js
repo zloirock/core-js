@@ -1769,6 +1769,25 @@ function selfHostAllowed(cur, leafPatternPath) {
     || (cur.node?.type === 'ObjectPattern' && objectPatternHasNestedValue(cur.node));
 }
 
+// the one property-level question the mirror asks: can it spell this key statically, exactly once,
+// and as a bare identifier? a REST element and any non-Property shape have no key at all; a computed
+// key resolves to its VALUE (`const k = 'from'` / `(eff(), 'from')` -> 'from') and the synth literal
+// carries that resolved STATIC name, which the pattern's own computed key then reads - the effect
+// stays in the UNTOUCHED LHS and runs exactly once, so a side-effecting key is accepted while a
+// runtime-unresolvable one is not. a non-identifier key (`'with-dash'`) would make babel throw and
+// unplugin emit non-reparsing text, and a key folded from the REAL Symbol has no static string slot
+// the literal could carry
+function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) {
+  if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
+  const key = prop.computed
+    ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, bailOnSideEffectKey: false })
+    : prop.key?.name ?? prop.key?.value;
+  if (typeof key !== 'string' || seenKeys.has(key)) return null;
+  if (!isValidIdentifierName(key)) return null;
+  if (prop.computed && symbolSourcedFoldedKey({ key, keyNode: prop.key, scope, adapter, path })) return null;
+  return key;
+}
+
 export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, adapter }) {
   if (!resolvePure || !meta?.object || meta.placement !== 'static') return null;
   if (leafPatternPath?.node?.type !== 'ObjectPattern') return null;
@@ -1941,29 +1960,10 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     // or a subtree-merge policy - the established fallbacks handle the exotic shape soundly
     const seenKeys = new Set();
     for (const prop of patternNode.properties) {
-      if (prop.type === 'RestElement') return null;
-      if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return null;
-      // a computed key resolves to its VALUE (`const k = 'from'` / `(eff(), 'from')` -> 'from'): the
-      // synth literal carries the resolved STATIC key, which the pattern's own computed key then reads.
-      // a side-effecting key resolves here too (bailOnSideEffectKey:false) - the synth only needs the
-      // name, and the effect stays in the UNTOUCHED LHS pattern (the mirror swaps only the receiver
-      // operand), so it runs exactly once. only a runtime-unresolvable key returns null and bails
-      const key = prop.computed
-        ? sharedResolveKey({ node: prop.key, computed: true, scope: leafPatternPath.scope, adapter, bailOnSideEffectKey: false })
-        : prop.key?.name ?? prop.key?.value;
-      if (typeof key !== 'string' || seenKeys.has(key)) return null;
-      // both renderers spell the resolved key via `t.identifier(key)` (object property + passthrough
-      // member): a non-identifier key (`'with-dash'`, a computed key folding to one) makes babel throw
-      // and unplugin emit non-reparsing text. bail the whole mirror to the sound per-branch native
-      // fallback - the same rejection the flat synth-swap path applies to non-Identifier keys
-      if (!isValidIdentifierName(key)) return null;
-      // a computed key folding from the REAL Symbol (`[Symbol.iterator]`) has no static string
-      // slot a synth literal could carry - the folded string would render an invalid bare
-      // `Symbol.iterator:` key reading a bogus dotted path off the receiver. bail the whole
-      // mirror: the un-mirrorable fallback keeps sound native semantics per branch
-      if (prop.computed && symbolSourcedFoldedKey({
-        key, keyNode: prop.key, scope: leafPatternPath.scope, adapter, path: leafPatternPath,
-      })) return null;
+      const key = mirrorAcceptedKey({
+        prop, scope: leafPatternPath.scope, adapter, path: leafPatternPath, seenKeys,
+      });
+      if (key === null) return null;
       seenKeys.add(key);
       if (ctx.kind === 'proxy') {
         const inner = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
