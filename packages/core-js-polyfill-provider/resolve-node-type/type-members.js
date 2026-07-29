@@ -118,6 +118,10 @@ export function createTypeMembers({
   let getTypeMembersCache = new WeakMap();
   function getTypeMembers(args) {
     if (args.visited) return computeGetTypeMembers(args);
+    // a MAX_DEPTH refusal belongs to the CALL, not to the node: the memo is keyed by node and
+    // scope only, so caching that null would answer a later SHALLOW lookup of the same node with
+    // the deep lookup's bail. take the guard before the cache and leave the slot unfilled
+    if ((args.depth ?? 0) > MAX_DEPTH) return null;
     const { objectType, scope } = args;
     let perObject = getTypeMembersCache.get(objectType);
     if (!perObject) getTypeMembersCache.set(objectType, perObject = new WeakMap());
