@@ -100,7 +100,7 @@ async function measure(lib, method) {
     cell.injections = sink.size;
     // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
     assertPayload(c.chunk, `${ cell0 } [C]`);
-    // artifacts.mjs and snapshot.mjs refuse this shape for EVERY method, so this must too - an
+    // runtime.mjs refuses this shape for EVERY method, so this must too - an
     // entry-global carve-out would be both weaker than they are and pointless, since entry-global
     // records 318 injections here.
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
