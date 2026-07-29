@@ -1,3 +1,4 @@
+import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
@@ -6,7 +7,9 @@ import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 // TEST and the for-in/of LEFT (its pattern defaults and computed keys) all re-execute per
 // iteration, so an alias-keyed static read there observes a textually-later write on iteration
 // 2+ and must NOT resolve the first-iteration key. the for INIT and the for-of RIGHT run once
-// per entry, so reads there still resolve. distinct constructor per cell so each import set is
+// per ENTRY, so reads there still resolve - but only where the entry itself happens once: inside a
+// re-invocable function the next call re-runs them AFTER the write, so those cells sit at module
+// level to keep the once-per-entry claim true. distinct constructor per cell so each import set is
 // attributable
 let kTest = "from";
 export function inForTest(stop) {
@@ -33,18 +36,17 @@ export function inForInLeftKey(obj) {
     kIn = "sign";
   }
 }
-// once-per-entry slots keep resolving
+// once-per-entry slots keep resolving - at module level the entry happens exactly once
 let kInit = "fromEntries";
-export function inForInit(n) {
-  for (let acc = _Object$fromEntries([["a", 1]]); n--; kInit = "keys") {
-    acc = acc;
-  }
+export let initAcc;
+for (let acc = _Object$fromEntries([["a", 1]]); false; kInit = "keys") {
+  initAcc = acc;
 }
 let kRight = "fromCodePoint";
-export function inForOfRight() {
-  for (const ch of _String$fromCodePoint(66, 67)) {
-    kRight = "raw";
-  }
+export const rightChars = [];
+for (const ch of _String$fromCodePoint(66, 67)) {
+  _pushMaybeArray(rightChars).call(rightChars, ch);
+  kRight = "raw";
 }
 // a for-UPDATE write runs 0+ times (never on a zero-iteration loop), so it must not pin the
 // post-loop static to the updated key
