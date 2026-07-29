@@ -4460,7 +4460,24 @@ function * generateDeclaredTypeOverResolve() {
     + ' return take({ inner: "xy" } as any); })()'), ts: true, strip: true };
 }
 
+// --- a spread in an argument list is not an inert wrapper ---
+// spreading iterates its operand, so an argument list carrying one can never be treated as
+// effect-free: folding the receiver away would swallow that iteration. the operand counts its own
+// `Symbol.iterator` calls, so the dropped effect shows up as a plain VALUE difference in the
+// full-env three-way leg - no stripped realm needed
+function * generateSpreadArgumentIteration() {
+  yield { ...snippet('spread-argument/counted-iteration',
+    '(() => { let n = 0; const src = { [Symbol.iterator]() { n += 1; return [1][Symbol.iterator](); } };'
+    + ' const out = (() => Array)(...src).from(["x"]); return out[0] + "|" + n; })()') };
+  // the mirror control: the same receiver with a plainly effectful argument, which was already
+  // preserved - it keeps the pair from passing on a blanket "never fold" answer
+  yield { ...snippet('spread-argument/counted-call-argument',
+    '(() => { let n = 0; const bump = () => { n += 1; return 0; };'
+    + ' const out = (() => Array)(bump()).from(["x"]); return out[0] + "|" + n; })()') };
+}
+
 export function * generate() {
+  yield * generateSpreadArgumentIteration();
   yield * generateDeclaredTypeOverResolve();
   yield * generateDeclarationNarrowRuntime();
   yield * generateSameTextTagUnion();
