@@ -4430,7 +4430,38 @@ function * generateDeclarationNarrowRuntime() {
   }
 }
 
+// --- a declared type the runtime contradicts by landing on the OTHER family ---
+// both shapes resolve a receiver from a type declaration and are arranged so the runtime value is
+// the family a mis-resolution rules out. importing only the ruled-out family leaves the needed one
+// missing, which the stripped realm reports as a TypeError where native returns a value; the
+// full-env legs stay blind because the natives satisfy either family
+function * generateDeclaredTypeOverResolve() {
+  // `string extends String` is TRUE - a primitive is assignable to the wrapper it boxes into - so
+  // the conditional's TRUE branch types the receiver. deciding it FALSE picks the other branch
+  for (const [id, extend, arg] of [
+    ['matching-wrapper', 'String', '["a", "b"]'],
+    ['foreign-wrapper', 'Number', '"xy"'],
+  ]) {
+    yield { ...snippet(`declared-over-resolve/boxed-${ id }`,
+      `(() => { type C<T> = T extends ${ extend } ? string[] : string;`
+      + ` function take(v: C<string>) { return v.at(0); } return take(${ arg } as any); })()`),
+    ts: true, strip: true };
+  }
+  // a type-parameter shadows the same-named global, so the receiver is opaque and both families
+  // have to be imported; resolving it as the container imports only that one
+  yield { ...snippet('declared-over-resolve/type-param-shadows-container',
+    '(() => { function take<Array>(v: Array) { return v.at(0); } return take("xy" as any); })()'),
+  ts: true, strip: true };
+  // the same shadowed name in a type-ARGUMENT resolves through the substitution lane instead -
+  // a separate container lookup that needs the same suppression
+  yield { ...snippet('declared-over-resolve/type-param-shadows-in-argument',
+    '(() => { type Box<T> = { inner: T };'
+    + ' function take<Array>(v: Box<Array>) { return v.inner.at(0); }'
+    + ' return take({ inner: "xy" } as any); })()'), ts: true, strip: true };
+}
+
 export function * generate() {
+  yield * generateDeclaredTypeOverResolve();
   yield * generateDeclarationNarrowRuntime();
   yield * generateSameTextTagUnion();
   yield * generateAsiFusion();

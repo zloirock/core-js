@@ -24,6 +24,7 @@ import {
   SINGLE_ELEMENT_COLLECTIONS,
   STRUCTURAL_WALK_SKIP_KEYS,
   literalNodeValue,
+  primitiveTypeOf,
   quasiText,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
@@ -164,13 +165,17 @@ export function createTypeExpansion({
     const indexParam = peelTSParenthesized(body.indexType);
     if (indexParam?.type !== 'TSTypeReference' || indexParam.typeName?.type !== 'Identifier'
       || indexParam.typeName.name !== shape.paramName) return null;
-    // when source IS a type-ref, require body.objectType to be the SAME ref by name. the
-    // type-ref-vs-type-ref capture is the bug class - both look like single-segment refs
-    // and silently substitute past their lexical scope. non-Ref source (literal, etc.) has
-    // a syntactically distinct shape - downstream callers walk it as a structural type, no
-    // capture risk. for non-ref source, accept body.objectType as-is (legacy behavior)
-    if (typeRefSegments(shape.source)?.length
-        && !typeRefSegmentsEqual(shape.source, body.objectType)) return null;
+    // the body must index the very type the keys are taken from - otherwise this is a cross-type
+    // projection (`{ [K in keyof A]: B[K] }`), whose members are A's keys carrying B's value types,
+    // and handing B back would walk B's keys instead. two type-REFS match by name; anything
+    // structural has to be the SAME node, because a caller may already have substituted a concrete
+    // type into the body: `{ x, y }` and `{ x, y, extra }` are then both non-refs yet different
+    // types. a structural source paired with a distinct structural body loses only the fast path -
+    // the per-key expansion below builds the same members from the source's own keys
+    const sourceIsRef = Boolean(typeRefSegments(shape.source)?.length);
+    if (sourceIsRef
+      ? !typeRefSegmentsEqual(shape.source, body.objectType)
+      : shape.source !== body.objectType) return null;
     return body.objectType ?? null;
   }
 
@@ -586,8 +591,14 @@ export function createTypeExpansion({
     // disjoint. EXCEPT wide-Object extend (`Object` keyword resolves to $Object(null)), where
     // boxing makes `string extends Object` true per TS spec - that shape is excluded by the
     // `extend.constructor` guard and falls through to `null` below (fold both branches), an
-    // under-resolve rather than a decided true
-    if (check.primitive && !extend.primitive && extend.constructor !== null) return false;
+    // under-resolve rather than a decided true.
+    // the extend may also be the check's OWN boxed wrapper (`string extends String`), which TS
+    // decides TRUE - a primitive is assignable to the wrapper it boxes into. running both sides
+    // through the shared unboxer names that pairing without spelling the five wrappers out again;
+    // every other wrapper (`string extends Number`) and every container unboxes to something else
+    if (check.primitive && !extend.primitive && extend.constructor !== null) {
+      return primitiveTypeOf(extend) === primitiveTypeOf(check);
+    }
     // different primitive types (number vs string): truly disjoint
     if (check.primitive && extend.primitive) return false;
     // anything else (Array vs Iterable etc) - subtype relations exist, can't decide

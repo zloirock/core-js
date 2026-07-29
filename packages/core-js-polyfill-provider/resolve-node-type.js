@@ -2099,6 +2099,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveKnownContainerType,
     resolveUserDefinedType,
     resolveNamedType,
+    findTypeParameter,
     isNullableOrNever,
     safeInnerType,
     tupleAsArrayType,
