@@ -126,7 +126,7 @@ console.log('done');
 
 const rows = [];
 for (const lib of libs) {
-  for (const method of lib.methods) {
+  for (const method of METHODS) {
     if (methodFilter && method !== methodFilter) continue;
     process.stdout.write(`measuring ${ lib.name }/${ method } … `);
     rows.push(await measure(lib, method));
