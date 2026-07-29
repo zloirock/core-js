@@ -1,8 +1,18 @@
 // Injection snapshot: records WHICH core-js / @core-js/pure specifiers unplugin injects for each
-// library x usage-* method, and flags drift. This uses the plain unplugin pipeline (no Babel) so the
-// set is stable and comparable - it captures what unplugin does with the SOURCE, independent of Babel
-// version. Babel-helper-driven injections (a function of the Babel version) are intentionally not
-// snapshotted here.
+// library x usage-* method x phase, and flags drift.
+//
+// The capture runs the REAL runtime pipeline (Babel down-compiles, then unplugin injects), not plain
+// unplugin. That choice is what makes the phase axis mean anything: without Babel in front of it,
+// `pre`, `post` and `pre+post` inject byte-identical sets on every fixture, so a phase matrix would
+// be two thirds copies. With Babel the phases separate, because `post` also sees what Babel's own
+// helpers reach for - codemirror `usage-global` goes 120 (pre) -> 133 (post), three 154 -> 172, while
+// rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta used
+// to be unsnapshotted, which is why a post-phase ordering regression (the class of bug commit
+// `20718df3b0` fixed) could not redden this gate; now it can.
+//
+// The cost of that choice: these baselines are Babel-dependent. A `@babel/preset-env` update that
+// changes helper emission may legitimately move them, and the fix is to re-read the diff and rerun
+// with `--update` - not to assume drift means a core-js bug.
 //
 // `entry-global` is deliberately NOT snapshotted. It never reads the library: it expands
 // `import 'core-js'` into the whole set selected by `targets`, so the result is a function of
@@ -13,9 +23,9 @@
 // regression would surface - this suite's other gates would not catch one, since `injections > 0`
 // and a green exercise both survive it.
 //
-// Usage:  node snapshot.mjs             compare vs snapshots/<lib>.<method>.txt (fail on drift)
+// Usage:  node snapshot.mjs             compare vs snapshots/<lib>.<method>.<phase>.txt (fail on drift)
 //         node snapshot.mjs --update    (re)write baselines
-import { captureInjections, errorReason, HERE } from './build.mjs';
+import { captureRuntimeInjections, errorReason, phasesFor, HERE } from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { libraries } from './libraries.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -49,45 +59,51 @@ let drift = 0;
 let errored = 0;
 let missing = 0;
 let checked = 0;
+// one cell per (library x method x phase); flattened so the body below stays shallow
+const cells = [];
 for (const lib of libraries) {
   for (const method of METHODS) {
-    checked++;
-    // isolate each cell: one failed capture is recorded, not fatal to the whole run
-    try {
-      const set = await captureInjections(lib.exercise, method);
-      // a snapshot of nothing asserts nothing, and would then "match" forever — refuse to author it
-      if (!set.length) throw new Error('unplugin injected 0 polyfills — refusing to snapshot an empty set');
-      const file = join(SNAP, `${ lib.name }.${ method }.txt`);
-      const base = await baseline(file);
-      console.log(`\n=== ${ lib.name }/${ method } — ${ set.length } injected ===`);
-      for (const s of set) console.log(`  ${ s }`);
-      if (UPDATE) {
-        await writeFile(file, `${ set.join('\n') }\n`);
-        console.log(base ? `  → updated (${ set.length })` : `  → created (${ set.length })`);
-        continue;
-      }
-      // only an explicit --update may author a baseline. Auto-creating one here would make a new
-      // library (or a baseline lost in a merge) report success while having verified nothing.
-      if (!base) {
-        missing++;
-        console.log(`  ✗ no baseline at ${ file } — rerun with --update to author it`);
-        continue;
-      }
-      const now = new Set(set);
-      const old = new Set(base);
-      const added = set.filter(s => !old.has(s));
-      const removed = base.filter(s => !now.has(s));
-      if (!added.length && !removed.length) {
-        console.log('  ✓ matches baseline');
-      } else {
-        drift++;
-        for (const s of added) console.log(`  + ${ s }  (new)`);
-        for (const s of removed) console.log(`  - ${ s }  (gone)`);
-      }
-    } catch (err) {
-      errored++;
-      console.log(`\n=== ${ lib.name }/${ method } — ERROR ===\n  ${ errorReason(err) }`);
+    for (const phase of phasesFor(method)) cells.push({ lib, method, phase });
+  }
+}
+for (const { lib, method, phase } of cells) {
+  const label = `${ lib.name }/${ method }/${ phase }`;
+  checked++;
+  // isolate each cell: one failed capture is recorded, not fatal to the whole run
+  try {
+    const set = await captureRuntimeInjections(lib.exercise, method, phase);
+    // a snapshot of nothing asserts nothing, and would then "match" forever — refuse to author it
+    if (!set.length) throw new Error('unplugin injected 0 polyfills — refusing to snapshot an empty set');
+    const file = join(SNAP, `${ lib.name }.${ method }.${ phase }.txt`);
+    const base = await baseline(file);
+    console.log(`\n=== ${ label } — ${ set.length } injected ===`);
+    for (const s of set) console.log(`  ${ s }`);
+    if (UPDATE) {
+      await writeFile(file, `${ set.join('\n') }\n`);
+      console.log(base ? `  → updated (${ set.length })` : `  → created (${ set.length })`);
+      continue;
     }
+    // only an explicit --update may author a baseline. Auto-creating one here would make a new
+    // library (or a baseline lost in a merge) report success while having verified nothing.
+    if (!base) {
+      missing++;
+      console.log(`  ✗ no baseline at ${ file } — rerun with --update to author it`);
+      continue;
+    }
+    const now = new Set(set);
+    const old = new Set(base);
+    const added = set.filter(s => !old.has(s));
+    const removed = base.filter(s => !now.has(s));
+    if (!added.length && !removed.length) {
+      console.log('  ✓ matches baseline');
+    } else {
+      drift++;
+      for (const s of added) console.log(`  + ${ s }  (new)`);
+      for (const s of removed) console.log(`  - ${ s }  (gone)`);
+    }
+  } catch (err) {
+    errored++;
+    console.log(`\n=== ${ label } — ERROR ===\n  ${ errorReason(err) }`);
   }
 }
 // a run that snapshotted nothing must not report success: an emptied METHODS (or an empty
