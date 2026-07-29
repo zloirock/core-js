@@ -66,11 +66,12 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-usage-pure-karma
 
-  # real IE11 for tests/e2e-libs: builds the full runtime matrix (every library × method × unplugin
-  # phase, rollup + unplugin) from the real libraries and runs each through Karma/QUnit
-  # in actual IE11 (one bundle per page, so nothing is co-loaded; the `pre` phase is a non-gating
-  # per-library diagnostic). Separate from `karma` so the heavy e2e-libs install (real libs + bundlers)
-  # does not slow the core browser job. zxi installs e2e-libs itself.
+  # real IE11 for tests/e2e-libs: one pass over the full runtime matrix (every library × method ×
+  # unplugin phase, rollup + Babel + unplugin). Each cell is built once and then gated, snapshotted,
+  # pre-flighted in node, emitted as an artifact, and finally run through Karma/QUnit in actual IE11
+  # (one bundle per page, so nothing is co-loaded; the `pre` phase is a non-gating per-library
+  # diagnostic). Separate from `karma` so the heavy e2e-libs install (real libs + bundlers) does not
+  # slow the core browser job. zxi installs e2e-libs itself.
   e2e-libs-ie11:
     runs-on: windows-2022
     steps:
@@ -80,7 +81,7 @@ jobs:
           node-version: 26.0.0
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npm run e2e-libs-karma-bundles
+      - run: npm run e2e-libs-runtime
 
   bun:
     runs-on: ubuntu-latest
