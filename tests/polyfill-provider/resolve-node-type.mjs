@@ -2909,6 +2909,186 @@ for (const { label, src } of ENUM_MERGE_TYPEOF_CASES) {
   });
 }
 
+// --- declaration-driven type resolution: three closed domains ---
+
+// resolve the receiver of `v.at(0)` written against an annotation - the shape these three tables
+// share, since none of them has a value initialiser to read instead
+function annotatedReceiverType(adapter, prog) {
+  const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at');
+  return adapter.makeResolver().resolveNodeType(member.get('object'));
+}
+
+// a primitive is assignable to the wrapper it boxes into, so `string extends String` is TRUE and
+// the conditional takes its true branch. every OTHER pairing on that arm stays false: a foreign
+// wrapper, a concrete container. the wide `Object` is deliberately left undecided (it folds both
+// branches) - pairing each wrapper with its own primitive AND with a foreign one keeps a blanket
+// answer in either direction from passing
+// the domain is closed and small, so it is swept in full rather than sampled: every primitive
+// against every wrapper (its own and the four foreign ones) and against two concrete containers.
+// wide `Object` / `object` / `{}` are excluded here - those fold both branches instead of deciding,
+// and the fold is asserted separately below
+const BOXED_CHECKS = ['string', 'number', 'boolean', 'bigint', 'symbol'];
+const BOXED_WRAPPERS = ['String', 'Number', 'Boolean', 'BigInt', 'Symbol'];
+const CONCRETE_EXTENDS = ['Array<number>', 'Map<string, number>'];
+const BOXED_WRAPPER_CASES = [];
+for (const checked of BOXED_CHECKS) {
+  const own = BOXED_WRAPPERS[BOXED_CHECKS.indexOf(checked)];
+  for (const extend of [...BOXED_WRAPPERS, ...CONCRETE_EXTENDS]) {
+    BOXED_WRAPPER_CASES.push({ label: `${ checked } / ${ extend }`, checked, extend, taken: extend === own });
+  }
+}
+
+for (const { label, checked, extend, taken } of BOXED_WRAPPER_CASES) {
+  // the true branch is an Array and the false branch a Set, so the assertion names the branch that
+  // fired rather than merely observing that something resolved
+  runBoth(`conditional boxed wrapper: ${ label } -> ${ taken ? 'true' : 'false' } branch`,
+    `type C<T> = T extends ${ extend } ? number[] : Set<number>;
+     declare const v: C<${ checked }>;
+     v.at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: taken ? 'Array' : 'Set' });
+    });
+}
+
+// the wide-object extends fold both branches instead of deciding, so the receiver keeps neither
+// branch's type - asserting that separately keeps the table above about DECIDED pairings only
+for (const extend of ['Object', 'object', '{}']) {
+  runBoth(`conditional wide extends: string / ${ extend } stays undecided`,
+    `type C<T> = T extends ${ extend } ? number[] : Set<number>;
+     declare const v: C<string>;
+     v.at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = annotatedReceiverType(adapter, prog);
+      if (resolved?.constructor === 'Array' || resolved?.constructor === 'Set') {
+        return fail(lbl, `a wide extends decided a branch (${ resolved.constructor })`);
+      }
+      pass();
+    });
+}
+
+// a decided conditional and a mapped key-set have to answer the same in every position their
+// reference can occupy, not only when written directly on the binding. the mapped rows come in
+// pairs - a key inside the source key-set and one only in the indexed type - so a position that
+// stopped resolving at all fails the first row rather than passing the second by accident
+const NESTED_POSITIONS = [
+  ['directly', v => `declare const v: ${ v };`, 'v'],
+  ['in an object-type member', v => `declare const v: { i: ${ v } };`, 'v.i'],
+  ['as an alias argument', v => `type O<T> = { i: T };\ndeclare const v: O<${ v }>;`, 'v.i'],
+];
+
+for (const [position, decl, read] of NESTED_POSITIONS) {
+  runBoth(`conditional boxed wrapper ${ position }`,
+    `type C<T> = T extends String ? number[] : Set<number>;\n${ decl('C<string>') }\n${ read }.at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+    });
+  runBoth(`mapped key inside the source set ${ position }`,
+    `type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: number[] }>') }\n${ read }.a.at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+    });
+  runBoth(`mapped key outside the source set ${ position }`,
+    `type M<T> = { [K in keyof { a: unknown; }]: T[K] };\n${ decl('M<{ a: unknown; extra: number[] }>') }\n${ read }.extra.at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = annotatedReceiverType(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a key outside the mapped key-set resolved');
+      pass();
+    });
+}
+
+// a mapped type carries the keys of the type it iterates, not the keys of the type its body
+// indexes. the passthrough shortcut may only fire when those are the SAME type - two refs by name,
+// anything structural by node - so a cross-type projection falls through to the per-key expansion
+const MAPPED_PASSTHROUGH_CASES = [
+  { label: 'ref source indexed by the same ref', src: 'type M<T> = { [K in keyof T]: T[K] }; declare const v: M<{ a: number[] }>;', ctor: 'Array' },
+  { label: 'literal source indexed by a ref', src: 'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: number[] }>;', ctor: 'Array' },
+  { label: 'literal source, same structural body', src: 'type M = { [K in keyof { a: unknown }]: { a: number[] }[K] }; declare const v: M;', ctor: 'Array' },
+  { label: 'cross-type projection keeps the source keys', src: 'type M<A, B> = { [K in keyof A]: B[K] }; declare const v: M<{ a: unknown }, { a: number[] }>;', ctor: 'Array' },
+];
+
+for (const { label, src, ctor } of MAPPED_PASSTHROUGH_CASES) {
+  runBoth(`mapped passthrough: ${ label }`, `${ src } v.a.at(0);`, (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor });
+  });
+}
+
+// a member that exists only in the INDEXED type is not a member of the mapped type, so it must not
+// resolve - the negative half of the table above, and the direction the passthrough shortcut used
+// to get wrong
+runBoth('mapped passthrough: a key outside the source key-set does not resolve',
+  'type M<T> = { [K in keyof { a: unknown }]: T[K] }; declare const v: M<{ a: unknown; extra: number[] }>; v.extra.at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (resolved && resolved.constructor === 'Array') {
+      return fail(lbl, 'a key absent from the mapped key-set resolved to the indexed type\'s member');
+    }
+    pass();
+  });
+
+// a type-parameter outranks a same-named global: the annotation names the parameter, which is
+// opaque, not the built-in container. only a single-segment reference can be shadowed, and a name
+// that matches no global has nothing to shadow
+const TYPE_PARAM_SHADOW_CASES = [
+  { label: 'parameter named Array shadows the container', src: 'function f<Array>(v: Array) { v.at(0); }', shadowed: true },
+  { label: 'parameter named Set shadows the container', src: 'function f<Set>(v: Set) { v.at(0); }', shadowed: true },
+  { label: 'qualified reference cannot be shadowed', src: 'namespace NS { export type Array = number[]; } function f<Array>(v: NS.Array) { v.at(0); }', shadowed: false },
+  { label: 'unshadowed container resolves', src: 'function f(v: Array<number>) { v.at(0); }', shadowed: false },
+  { label: 'constrained ordinary parameter still resolves', src: 'function f<T extends number[]>(v: T) { v.at(0); }', shadowed: false },
+  // shadowing suppresses the GLOBAL, not the parameter: a constrained parameter named after a
+  // container still resolves through its own constraint, exactly as TS reads it
+  { label: 'constrained parameter named Array resolves via its constraint', src: 'function f<Array extends number[]>(v: Array) { v.at(0); }', shadowed: false },
+  { label: 'constrained parameter named Set resolves via its constraint', src: 'function f<Set extends number[]>(v: Set) { v.at(0); }', shadowed: false },
+  // the same shadow through the positions a type-ref can occupy - a return annotation and a
+  // generic alias argument reach the resolver by different lanes than a parameter annotation
+  { label: 'shadow in a return annotation', src: 'declare const q: any;\nfunction f<Array>(x: any): Array { return x; }\nconst r = f(q);\nr.at(0);', shadowed: true },
+  { label: 'shadow in a generic alias argument', src: 'type W<Array> = Array;\ndeclare const r: W<any>;\nr.at(0);', shadowed: true },
+  // the type-ARGUMENT position resolves through the substitution lane, where the parameter map
+  // holds the ALIAS's own parameters and not the caller's - the bound-parameter check there does
+  // not see the shadow, so the container lookup needs the same guard as the plain lane
+  { label: 'shadow in a type-argument position', src: 'type Outer<T> = { inner: T };\nfunction f<Array>(x: Outer<Array>) { x.inner.at(0); }', shadowed: true },
+  { label: 'shadow in a nested type-argument position',
+    src: 'type Outer<T> = { inner: { deep: T } };\nfunction f<Array>(x: Outer<Array>) { x.inner.deep.at(0); }',
+    shadowed: true },
+  { label: 'a real container in the same argument position resolves', src: 'type Outer<T> = { inner: T };\ndeclare const x: Outer<number[]>;\nx.inner.at(0);', shadowed: false },
+];
+
+// the shadow has to hold in EVERY position a type-ref can occupy, not just the ones a bug was
+// once found in - each entry pairs the shadowed spelling with the same position carrying a real
+// container, so a position that stopped resolving at all would fail the control rather than pass
+// the shadow by accident
+const SHADOW_POSITIONS = [
+  ['array element', 'function f<Array>(x: Array[]) { x[0].at(0); }', 'declare const x: number[][];\nx[0].at(0);'],
+  ['tuple element', 'function f<Array>(x: [Array]) { x[0].at(0); }', 'declare const x: [number[]];\nx[0].at(0);'],
+  ['union member', 'function f<Array>(x: Array | Array) { x.at(0); }', 'declare const x: number[] | number[];\nx.at(0);'],
+  ['intersection member', 'type Tag = { t: 1 };\nfunction f<Array>(x: Array & Tag) { x.at(0); }',
+    'type Tag = { t: 1 };\ndeclare const x: number[] & Tag;\nx.at(0);'],
+  ['object-type member', 'function f<Array>(x: { i: Array }) { x.i.at(0); }', 'declare const x: { i: number[] };\nx.i.at(0);'],
+  ['conditional branch', 'function f<Array>(x: 1 extends 1 ? Array : string) { x.at(0); }', 'declare const x: 1 extends 1 ? number[] : string;\nx.at(0);'],
+  ['mapped body', 'function f<Array>(x: { [K in "a"]: Array }) { x.a.at(0); }', 'declare const x: { [K in "a"]: number[] };\nx.a.at(0);'],
+  ['indexed access', 'function f<Array>(x: { a: Array }["a"]) { x.at(0); }', 'declare const x: { a: number[] }["a"];\nx.at(0);'],
+  ['awaited', 'function f<Array>(x: Awaited<Array>) { x.at(0); }', 'declare const x: Awaited<number[]>;\nx.at(0);'],
+];
+
+for (const [position, shadowedSrc, controlSrc] of SHADOW_POSITIONS) {
+  TYPE_PARAM_SHADOW_CASES.push(
+    { label: `shadow in ${ position }`, src: shadowedSrc, shadowed: true },
+    { label: `real container in ${ position }`, src: controlSrc, shadowed: false },
+  );
+}
+
+for (const { label, src, shadowed } of TYPE_PARAM_SHADOW_CASES) {
+  runBoth(`type-param shadow: ${ label }`, src, (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (shadowed) {
+      if (resolved?.constructor === 'Array' || resolved?.constructor === 'Set') {
+        return fail(lbl, `shadowed parameter resolved to the built-in ${ resolved.constructor }`);
+      }
+      return pass();
+    }
+    checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
+  });
+}
+
 // computed member key `o[E.B]` resolves the enum member's value to the static key name - the 2nd-block
 // member must resolve too (decl-merge), so `o[E.B]` picks the same property as `o.x` when `E.B = "x"`
 runBoth('enum decl-merge via computed key: o[E.B] resolves the 2nd-block member value',
