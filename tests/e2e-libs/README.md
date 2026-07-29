@@ -78,19 +78,24 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   hand-written in-page harness is parsed once per run — one arrow function there would leave the
   banner stuck on `running…` with no verdict. The full list lives in the design doc's §9, in one
   place on purpose.
-- **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.txt`,
-  for the **usage-\*** methods only. `entry-global` is not snapshotted: it never reads the library, it
-  expands `import 'core-js'` into whatever `targets` selects, so its three per-library baselines were
-  byte-identical — a fiction of a per-library gate that tripled the diff on every core-js module
-  added. That set is pinned exactly (full-text compare) in `tests/transpiler-fixtures/entry-global`.
-  Baselines are captured at unplugin's default phase and **without Babel**, so they do not cover the
-  configuration the runtime tier actually builds. In that no-Babel pipeline `pre` and `post` inject
-  the identical set on every fixture. Put Babel in front of it and `post` can inject more —
-  codemirror's `usage-global` goes from 120 to 133, three's from 154 to 172, while rxjs is unchanged
-  at 96 because its own source already pulls the iterator machinery in — and none of that delta is
-  snapshotted. So a post-phase ordering regression (the class of bug commit `20718df3b0` fixed)
-  would not redden this gate. Known coverage gap; `artifacts` does build and pre-flight at `post`,
-  what is unasserted is the injection **set**.
+- **injection snapshot** — `npm run e2e-libs-snapshot [-- --update]` → `snapshots/<lib>.<method>.<phase>.txt`,
+  18 cells: the **usage-\*** methods × all three phases (`pre` / `post` / `pre+post`). `entry-global`
+  is not snapshotted: it never reads the library, it expands `import 'core-js'` into whatever
+  `targets` selects, so its three per-library baselines were byte-identical — a fiction of a
+  per-library gate that tripled the diff on every core-js module added. That set is pinned exactly
+  (full-text compare) in `tests/transpiler-fixtures/entry-global`.
+  Baselines are captured through the **real runtime pipeline** — Babel down-compiles, then unplugin
+  injects — the same chain `runtimeBuild` uses, so the snapshot pins the set that actually reaches the
+  IE11 bundle. That is what gives the phase axis meaning: with plain unplugin (no Babel) all three
+  phases inject byte-identical sets, whereas with Babel in front `post` also sees what Babel's own
+  helpers reach for — codemirror's `usage-global` goes 120 (`pre`) → 133 (`post`), three's 154 → 172,
+  while rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta
+  used to be unsnapshotted, so a post-phase ordering regression (the class of bug commit `20718df3b0`
+  fixed) could not redden this gate; now it can. `post` is a strict superset of `pre` on every
+  fixture, and `pre+post` currently equals `post` — the `pre+post` cells gate exactly that, and would
+  diverge if `pre` ever detected a site that Babel rewrites out of `post`'s view.
+  The trade-off: these baselines are **Babel-dependent**. A `@babel/preset-env` update that changes
+  helper emission may legitimately move them — read the diff, then rerun with `--update`.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
 - **karma (real IE11)** — `npm run e2e-libs-karma-bundles [-- libFilter]` — builds the **full runtime
