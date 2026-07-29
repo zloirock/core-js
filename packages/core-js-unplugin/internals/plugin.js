@@ -1410,7 +1410,14 @@ export default function createPlugin(options) {
         // the tail guard leaves them visitable. enter fires before descending into the init, beating
         // the usage callback that would observe its children
         function skipFullConsumeDeadInit(init, isForInit, declScope, declPath) {
-          skippedNodes.add(init);
+          // the init NODE ITSELF is dead only when nothing of it reaches the output. an SE-bearing
+          // init is LIFTED VERBATIM as a standalone statement, so its own claim must stay live -
+          // suppressing it kills the whole-ctor member rewrite while the proxy-global root UNDER it
+          // stays visitable, and the lift then polyfills that root instead of the ctor
+          // (`_globalThis[(e++, 'Map')]` where babel's re-traversal of the same lift reads
+          // `e++, _Map`). a sequence init is never a claim host itself, so this only widens the
+          // bare-expression case; the per-operand and dead-tail walks below still skip what IS dropped
+          if (!mayHaveSideEffects(init)) skippedNodes.add(init);
           const { prefix, tail } = peelNestedSequenceExpressions(init);
           // a fully-discarded proxy-nav receiver whose COMPLETE harvest captures every effect: walk-skip the
           // WHOLE init except those SE subtrees, so no per-hop collapse (`.self` -> `_globalThis`) queues a

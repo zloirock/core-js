@@ -10,7 +10,9 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
-import { codePointEndingAt, IDENT_PART_RE, IDENT_START_RE, isLineTerminator, skipBlockComment, skipGap } from './text-scan.js';
+import {
+  codePointEndingAt, IDENT_PART_RE, IDENT_START_RE, isInlineWhitespace, isLineTerminator, skipBlockComment, skipGap,
+} from './text-scan.js';
 
 // re-export the shared `isDirectiveStatement` so existing unplugin consumers
 // (`directivePrologueEnd`, `lastUserImportEnd`, `plugin.js`) keep working without
@@ -23,7 +25,7 @@ export { liftSfcLangSuffix };
 
 // re-export the lexical scanners so sibling modules (`detect-entry`, `import-injector`) keep
 // importing them from here; canonical impls live in `text-scan.js`
-export { isLineTerminator, skipBlockComment, skipGap };
+export { isInlineWhitespace, isLineTerminator, skipBlockComment, skipGap };
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
 // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).

@@ -1130,6 +1130,40 @@ function checkDrainSplitAndInsertSameRange() {
 }
 checkDrainSplitAndInsertSameRange();
 
+// --- ref-block anchor vs a trailing comment separated by exotic whitespace ---
+
+// the anchor scan skips inter-token whitespace before a same-line trailing comment so the injected
+// `var _ref;` block lands AFTER that comment instead of splitting the import from it. the gap may be
+// any ES WhiteSpace - the two rows below feed one char per class boundary and assert the comment
+// still precedes the block; the line terminator row is the negative, where the scan MUST stop
+{
+  const GAPS = [
+    ['space', ' '],
+    ['tab', '\t'],
+    ['form feed', '\f'],
+    ['vertical tab', '\v'],
+    ['no-break space', '\u00A0'],
+    ['byte order mark', '\uFEFF'],
+    ['en quad', '\u2000'],
+  ];
+  for (const [label, gap] of GAPS) {
+    const source = `import x from "y";${ gap }// keep\nexport const r = [...x].at(0);\n`;
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+    const comment = out.indexOf('// keep');
+    const refBlock = out.indexOf('var _ref');
+    check(`import-injector: trailing comment keeps its import across a ${ label }`,
+      comment !== -1 && refBlock !== -1 && comment < refBlock, true);
+  }
+  // a LINE TERMINATOR is not inter-token whitespace here: the comment belongs to the next line, so
+  // the block anchors before it
+  for (const [label, gap] of [['newline', '\n'], ['line separator', '\u2028']]) {
+    const source = `import x from "y";${ gap }// next line\nexport const r = [...x].at(0);\n`;
+    const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs')?.code ?? '';
+    check(`import-injector: a ${ label } ends the anchor scan`,
+      out.indexOf('var _ref') < out.indexOf('// next line'), true);
+  }
+}
+
 // --- ImportInjector.snapshot() ---
 // snapshot must hand the post-pass an immutable view; mutating the pre injector after
 // a snapshot was taken should NOT leak into the snapshot's collections
