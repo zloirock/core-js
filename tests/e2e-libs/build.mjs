@@ -276,26 +276,21 @@ export function assertPayload(chunk, label, min = 10_000) {
 // exception - unplugin pins it to order 'pre' regardless (see @core-js/unplugin), so there it runs
 // BEFORE babel. That is fine: entry-global only expands `import 'core-js'` and needs no helper output.
 //
-// Returns `{ code, injections }`, both observed inside THIS build: counting injections with a
-// separate `captureInjections` pass would gate on a different unplugin configuration (different
-// phase, no Babel), so a build whose own injection had gone no-op would still show a healthy number.
-// What proves the ES5 down-compile ran is `assertES5(code)`, which every caller runs.
-// The plugin chain of the real IE11 build, in the order the comment above describes. Shared with
-// `captureRuntimeInjections` so a snapshot pins the set of THIS configuration, not of a neighbouring
-// one - the two drifting apart is exactly how an injection gate stops describing what ships.
-function runtimePlugins(method, phase, sink) {
-  return [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, phase), recorder(sink)];
-}
-
+// Returns `{ code, chunk, injected }`, all observed inside THIS build: capturing the injected set
+// with a separate pass would describe a different unplugin configuration (different phase, no
+// Babel), so a build whose own injection had gone no-op would still report a healthy set. That is
+// why `injected` is the SET, not a count - runtime.mjs snapshots it, gates on it and ships the very
+// bundle it came from, all from this one build. What proves the ES5 down-compile ran is
+// `assertES5(code)`, which every caller runs.
 export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel — see above),
-  // but karma-bundles.mjs passes an explicit phase to also build `pre` / `pre+post`.
+  // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`.
   const effPhase = method === 'entry-global' ? undefined : phase;
   return withEntry(exerciseAbs, method, `rt-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
     const build = await rollup({
       input: entry,
-      plugins: runtimePlugins(method, effPhase, sink),
+      plugins: [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink)],
       onwarn: strictWarn,
     });
     try {
@@ -304,7 +299,7 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
       const label = `${ method }/${ effPhase ?? 'entry' }`;
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
-      return { code: chunk.code, injections: sink.size };
+      return { code: chunk.code, chunk, injected: [...sink].sort() };
     } finally {
       await build.close();
     }
@@ -335,29 +330,12 @@ export function recorder(sink) {
 // per-cell reference count to compare the other bundlers against, where Babel would only add work
 // that is not being measured. Note that without Babel in front of it the phase axis collapses -
 // `pre`, `post` and `pre+post` all inject the identical set (measured on every fixture) - so this is
-// NOT the capture to snapshot a phase matrix with; see `captureRuntimeInjections`.
+// NOT the capture to snapshot a phase matrix with - runtime.mjs snapshots the set `runtimeBuild`
+// produces, where Babel runs first and the phases separate.
 export async function captureInjections(exerciseAbs, method, phase) {
   return withEntry(exerciseAbs, method, `snap-${ method }-${ phase ?? 'x' }`, async entry => {
     const sink = new Set();
     const build = await rollup({ input: entry, plugins: [u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn: strictWarn });
-    try {
-      await build.generate({ format: 'es' });
-      return [...sink].sort();
-    } finally {
-      await build.close();
-    }
-  });
-}
-
-// The same set `runtimeBuild` would inject, captured as the SPECIFIER LIST rather than a count -
-// Babel down-compiles first, so this includes the polyfills Babel's own helpers pull in (a for-of
-// helper reaching for Symbol.iterator, and so on). That is what gives the phase axis meaning: on
-// codemirror `usage-global` this is 120 at `pre` but 133 at `post`, where the no-Babel capture above
-// reports 120 for both. Skips the UMD/assert work of `runtimeBuild`, which a snapshot does not need.
-export async function captureRuntimeInjections(exerciseAbs, method, phase) {
-  return withEntry(exerciseAbs, method, `snap-rt-${ method }-${ phase ?? 'x' }`, async entry => {
-    const sink = new Set();
-    const build = await rollup({ input: entry, plugins: runtimePlugins(method, phase, sink), onwarn: strictWarn });
     try {
       await build.generate({ format: 'es' });
       return [...sink].sort();
