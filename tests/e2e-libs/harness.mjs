@@ -6,9 +6,9 @@
 //
 // Two render targets over one run()-scaffold:
 //   - banner: paints a green/red banner + a checks table into a standalone HTML page — the artifact
-//     uploaded manually to BrowserStack/SauceLabs (see artifacts.mjs).
+//     uploaded manually to BrowserStack/SauceLabs (see runtime.mjs).
 //   - qunit:  reports each check as a QUnit assertion, for the automated Karma/IE11 run in CI (see
-//     karma-bundles.mjs). QUnit here is the qunit@2 / karma-qunit@4 stack the repo already drives in
+//     runtime.mjs). QUnit here is the qunit@2 / karma-qunit@4 stack the repo already drives in
 //     IE11 (tests/unit-karma), which has `assert.async()` and `assert.pushResult`.
 //
 // E2E.run() may return a Promise (rxjs) or a plain result (three), and must not assume a global
@@ -64,7 +64,7 @@ export function bannerHarness(expected) {
 // console.log line makes the leg self-explanatory in the CI log — how many checks of the exercise
 // actually ran in this IE11, per cell — which karma.conf.cjs forwards to the terminal.
 //
-// karma-bundles.mjs gives each bundle its OWN IE11 page (one bundle per Karma run), so the UMD's `E2E`
+// runtime.mjs gives each bundle its OWN IE11 page (one bundle per Karma run), so the UMD's `E2E`
 // global is unambiguously this cell's — no co-loaded sibling can overwrite it, or patch a global that
 // masks another cell's miss. The IIFE just keeps `LABEL` and the helpers out of the page's global scope.
 export function qunitHarness(label) {

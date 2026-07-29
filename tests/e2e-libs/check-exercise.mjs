@@ -6,7 +6,7 @@
 //
 // Running them all in one process is safe precisely because they are raw: nothing here imports
 // core-js, so there is no global patching for one exercise to leak into the next (that isolation
-// concern is real for `artifacts.mjs`, which is why its pre-flight forks a child per bundle).
+// concern is real for `runtime.mjs`, which is why its pre-flight forks a child per bundle).
 //
 // Usage:  node check-exercise.mjs [exercisePathOrLibName]
 import { runnerArgs } from './args.mjs';
