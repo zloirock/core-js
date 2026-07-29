@@ -68,7 +68,12 @@ async function baseline(file) {
 }
 
 // Compare (or author) the injected set. Returns 'ok' | 'updated' | 'drift' | 'missing'.
-async function snapshot(lib, method, phase, injected) {
+//
+// A drift prints WHERE, not just what. The set alone ("`es.iterator.filter` is new") cannot be acted
+// on: the interesting question is always which module unplugin decided to inject it into, because
+// that is what identifies the detection site that changed its mind. `origins` comes free out of the
+// same build (see build.mjs::recorder), so this costs nothing on the passing path.
+async function snapshot(lib, method, phase, injected, origins) {
   const file = join(SNAP, `${ lib.name }.${ method }.${ phase }.txt`);
   const base = await baseline(file);
   if (UPDATE) {
@@ -87,7 +92,12 @@ async function snapshot(lib, method, phase, injected) {
   const added = injected.filter(s => !old.has(s));
   const removed = base.filter(s => !now.has(s));
   if (!added.length && !removed.length) return 'ok';
-  for (const s of added) console.log(`    + ${ s }  (new)`);
+  for (const s of added) {
+    console.log(`    + ${ s }  (new)`);
+    // a specifier can land in several modules; all of them are candidates for the changed decision
+    for (const where of origins.get(s) ?? []) console.log(`        injected into ${ where }`);
+  }
+  // no origins for a removed one — by definition this build never injected it
   for (const s of removed) console.log(`    - ${ s }  (gone)`);
   return 'drift';
 }
@@ -181,6 +191,28 @@ await rm(KARMA_OUT, { recursive: true, force: true });
 await mkdir(KARMA_OUT, { recursive: true });
 await mkdir(SNAP, { recursive: true });
 
+// Printed unconditionally, because the expensive question to answer after the fact is "was this the
+// same input?" — and a snapshot that drifts between two machines is answered almost entirely by this
+// line plus the injection origins above. `oxc-parser` earns its place: unplugin parses through it and
+// it ships per-platform native bindings, so it is the one dependency whose behaviour could plausibly
+// differ across runners at an identical version.
+async function version(pkg) {
+  // `require('<pkg>/package.json')` is the direct route but fails for packages whose `exports` map
+  // does not list it (three, @codemirror/state) - fall back to reading it off disk before giving up
+  try {
+    return req(`${ pkg }/package.json`).version;
+  } catch { /* fall through to the on-disk read */ }
+  try {
+    return JSON.parse(await readFile(join(HERE, 'node_modules', pkg, 'package.json'), 'utf8')).version;
+  } catch {
+    return '?'; // a missing version is diagnostic noise, never a reason to abort a run
+  }
+}
+const [oxc, cjs, vRxjs, vThree, vCm] = await Promise.all(
+  ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
+console.log(`environment: ${ process.platform }/${ process.arch } node ${ process.version }`
+  + ` | oxc-parser ${ oxc } | core-js ${ cjs } | rxjs ${ vRxjs } three ${ vThree } @codemirror/state ${ vCm }`);
+
 const cells = [];
 for (const lib of libs) {
   for (const method of METHODS) {
@@ -199,7 +231,7 @@ for (const { lib, method, phase } of cells) {
   try {
     // ONE build. Everything below reads from it — the set that gets snapshotted is the set inside the
     // bundle that gets pre-flighted, measured and shipped to IE11.
-    const { code, injected } = await runtimeBuild(lib.exercise, method, phase);
+    const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase);
     // runtimeBuild asserts payload / no-externals. The ES5 down-compile is the caller's to assert and
     // is the whole premise of an IE11 bundle: the pre-flight runs in a modern node realm and the
     // browser page in a modern browser, so nothing else here would notice a skipped down-compile.
@@ -209,7 +241,7 @@ for (const { lib, method, phase } of cells) {
     // entry-global is not snapshotted — see the header
     let snap = 'skipped';
     if (phase) {
-      snap = await snapshot(lib, method, phase, injected);
+      snap = await snapshot(lib, method, phase, injected, origins);
       if (snap === 'drift') drift++;
       else if (snap === 'missing') missing++;
     }
