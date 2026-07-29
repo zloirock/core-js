@@ -23,7 +23,7 @@ import { join } from 'node:path';
 
 const SNAP = join(HERE, 'snapshots');
 // the methods whose injected set actually derives from the library (see the header)
-const SNAPSHOT_METHODS = ['usage-global', 'usage-pure'];
+const METHODS = ['usage-global', 'usage-pure'];
 const argv = runnerArgs(import.meta.url);
 // every runner rejects an argument it does not understand; without this, `--updte` (or a library
 // name, which this runner does not take) would silently run a COMPARE pass and report success
@@ -50,7 +50,7 @@ let errored = 0;
 let missing = 0;
 let checked = 0;
 for (const lib of libraries) {
-  for (const method of SNAPSHOT_METHODS) {
+  for (const method of METHODS) {
     checked++;
     // isolate each cell: one failed capture is recorded, not fatal to the whole run
     try {
@@ -90,9 +90,9 @@ for (const lib of libraries) {
     }
   }
 }
-// a run that snapshotted nothing must not report success: an emptied SNAPSHOT_METHODS (or an empty
+// a run that snapshotted nothing must not report success: an emptied METHODS (or an empty
 // registry) would otherwise turn this gate green while verifying nothing at all
-if (!checked) throw new Error('no cells snapshotted — SNAPSHOT_METHODS or the library registry is empty');
+if (!checked) throw new Error('no cells snapshotted — METHODS or the library registry is empty');
 if (drift) console.log(`\n✗ injection snapshot drifted in ${ drift } cell(s) — rerun with --update if intended`);
 if (missing) console.log(`\n✗ ${ missing } cell(s) have no baseline — rerun with --update to author them`);
 if (errored) console.log(`\n✗ ${ errored } cell(s) failed to capture`);
