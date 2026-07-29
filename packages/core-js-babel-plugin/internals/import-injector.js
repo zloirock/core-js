@@ -234,9 +234,14 @@ export default class ImportInjector extends ImportInjectorState {
   #refUseEscapesScopeBlock(scope, useNode) {
     if (scope.path.isLoop()) {
       const { body } = scope.path.node;
-      return body?.type === 'BlockStatement'
-        || (useNode?.start !== undefined && body
-          && !(useNode.start >= body.start && useNode.end <= body.end));
+      if (body?.type === 'BlockStatement') return true;
+      if (!useNode || !body) return false;
+      // a use the plugin re-emitted from a copy carries no range, so the body test cannot confirm
+      // it - and only a BODY use is safe to host inside the loop. treat the unprovable case as the
+      // header use it comes from: hoisting is valid for either (`var` is function-scoped), it just
+      // stops a bodyless body from being block-converted to host a declaration after its own use
+      return useNode.start === undefined
+        || !(useNode.start >= body.start && useNode.end <= body.end);
     }
     if (scope.path.isFunction() && useNode?.start !== undefined) {
       return scope.path.node.params?.some(p => useNode.start >= p.start && useNode.end <= p.end) ?? false;
