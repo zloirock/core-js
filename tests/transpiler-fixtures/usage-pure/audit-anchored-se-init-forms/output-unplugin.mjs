@@ -53,7 +53,7 @@ if (cond) { eff();
 ({ isSecureContext: ok } = _globalThis); }
 // for-init-buried host: the fold reaches the sink's re-embedded slot (proxy key + chain init)
 let q8, onx, out8;
-for (const _ref6 = (({ ononline: onx } = (q8 = _globalThis, _globalThis)), Object), fk = _Object$keys; !out8;) out8 = fk;
+for (const _ref = (({ ononline: onx } = (q8 = _globalThis, _globalThis)), Object), fk = _Object$keys; !out8;) out8 = fk;
 // for-init FULL-consume host whose receiver is a proxy global (the flatten-route sink):
 // the buried host folds before the sink assembly captures it
 let customY2, outFC;
@@ -65,7 +65,7 @@ for (const { customFR: fr } = (({ self: { onoffline: customFR } } = _globalThis)
 // a symbol-iterator leaf in a buried host folds expression-shaped: the synth assign rides
 // the discarded-value slot, reading the iterator method off the anchored constructor
 let itF, outSF;
-for (const _ref5 = ((itF = _getIteratorMethod(_WeakSet)), Object), gopn = _Object$getOwnPropertyNames; !outSF;) outSF = gopn;
+for (const _ref2 = ((itF = _getIteratorMethod(_WeakSet)), Object), gopn = _Object$getOwnPropertyNames; !outSF;) outSF = gopn;
 // symbol leaf + residual sibling + SE prefix: residual reads first, synth assign after,
 // the effect exactly once
 let it4, cIX;
@@ -74,7 +74,7 @@ export const gpo2 = _Object$getPrototypeOf;
 // FULL consume with an SE-bearing init folds too: the prefix stays verbatim ahead of the
 // synth assign, the dead hop read drops
 let itQ, outQ;
-for (const _ref4 = (((eff(), itQ = _getIteratorMethod(_Map))), Object), vq = _Object$values; !outQ;) outQ = vq;
+for (const _ref3 = (((eff(), itQ = _getIteratorMethod(_Map))), Object), vq = _Object$values; !outQ;) outQ = vq;
 // full consume over a chain-assignment: the chain target keeps its write, synth assign after
 let qC, itC2;
 ((qC = _globalThis, itC2 = _getIteratorMethod(_Set)));
@@ -86,14 +86,14 @@ let itD2;
 export const asg = _Object$assign;
 // a PURE (literal) prefix on an SE-free init drops with the whole consumed operand
 let itP, outP;
-for (const _ref3 = ((itP = _getIteratorMethod(_WeakSet)), Object), gpd = _Object$getOwnPropertyDescriptors; !outP;) outP = gpd;
+for (const _ref4 = ((itP = _getIteratorMethod(_WeakSet)), Object), gpd = _Object$getOwnPropertyDescriptors; !outP;) outP = gpd;
 // duplicate symbol leaves consume into TWO synth assigns in source order
 let dupA, dupB;
 (dupA = _getIteratorMethod(_Set), dupB = _getIteratorMethod(_Set));
 export const crt = _Object$create;
 // a rest sibling under the buried hop bails the fold (rest excludes the peel) - verbatim
 let onc, rst, outRS;
-for (const _ref2 = (({ self: { onclick: onc, ...rst } } = _globalThis), Object), gops = _Object$getOwnPropertySymbols; !outRS;) outRS = gops;
+for (const _ref5 = (({ self: { onclick: onc, ...rst } } = _globalThis), Object), gops = _Object$getOwnPropertySymbols; !outRS;) outRS = gops;
 // multi-declarator host: the replayed effect stays BETWEEN sibling inits (native order) -
 // the anchored residual owns its SE inline instead of lifting it above the pre-sibling
 const sA = sideA();
@@ -119,5 +119,5 @@ const { onblur: tb } = (eff(), _globalThis);
 const { onfocus: pf } = ((eff()), _globalThis);
 // marked NON-host SE operands in a for-init sink stay verbatim, each effect exactly once
 let outNH;
-for (const _ref = ((eff(), other()), Object), gpo = _Object$getPrototypeOf; !outNH;) outNH = gpo;
+for (const _ref6 = ((eff(), other()), Object), gpo = _Object$getPrototypeOf; !outNH;) outNH = gpo;
 export const r = [nav, q, loc, customB, w, groupBy, tryFn, customP, customC, nv2, q2, cr, ok, q8, onx, out8, customY2, outFC, customFR, outFR, itF, outSF, onc, rst, outRS, sA, onrs, sB, customEX, customML, sC, fe, sD, bod, tb, pf, outNH, it4, cIX, gpo2, itQ, outQ, qC, itC2, eq, itD2, asg, itP, outP, bif, dupA, dupB, crt];

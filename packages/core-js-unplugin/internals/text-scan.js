@@ -30,6 +30,14 @@ export function skipBlockComment(src, p) {
 // NBSP / BOM / FF / VT etc, treating them as significant
 const WS_OR_LT_RE = /\s/;
 
+// WhiteSpace WITHOUT the line terminators - what an inter-token scan that must STOP at the end
+// of a line skips. spelled here rather than at the call site so the two-char `' '`/`'\t'` pair
+// cannot drift from the class above: `\f`, `\v`, NBSP and BOM are WhiteSpace and separate a
+// statement from its trailing comment exactly as a space does
+export function isInlineWhitespace(ch) {
+  return ch !== undefined && WS_OR_LT_RE.test(ch) && !isLineTerminator(ch);
+}
+
 // scan forward from `pos`, skipping whitespace + line/block comments, to the first non-gap
 // char (or `src.length` for an unterminated trailing run). parser-tolerant boundary - source
 // can hold `obj ?. (args)`, `obj?./*c*/(args)`, `obj?.// hint\n(args)` between tokens
