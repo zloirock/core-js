@@ -27,6 +27,7 @@ core-js/modules/es.data-view.to-string-tag
 core-js/modules/es.error.cause
 core-js/modules/es.function.name
 core-js/modules/es.iterator.constructor
+core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
 core-js/modules/es.iterator.for-each
 core-js/modules/es.iterator.map
@@ -132,6 +133,7 @@ core-js/modules/es.weak-map.constructor
 core-js/modules/es.weak-map.get-or-insert
 core-js/modules/es.weak-map.get-or-insert-computed
 core-js/modules/esnext.async-iterator.constructor
+core-js/modules/esnext.async-iterator.filter
 core-js/modules/esnext.async-iterator.find
 core-js/modules/esnext.async-iterator.map
 core-js/modules/esnext.async-iterator.to-array

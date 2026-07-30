@@ -113,6 +113,7 @@ core-js/modules/esnext.async-iterator.find
 core-js/modules/esnext.async-iterator.map
 core-js/modules/esnext.async-iterator.reduce
 core-js/modules/esnext.async-iterator.some
+core-js/modules/esnext.iterator.chunks
 core-js/modules/esnext.typed-array.filter-reject
 core-js/modules/esnext.typed-array.unique-by
 core-js/modules/web.dom-collections.for-each
