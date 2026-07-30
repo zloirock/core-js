@@ -1,4 +1,5 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 var _ref;
 // A mutated `self` lives in its OWN fixture: the mutation pre-pass marks the name mutated for the
@@ -24,7 +25,9 @@ export const mutatedSelfHop = null == (_ref = (ms = _globalThis.window)?.self) ?
 let mu;
 export const mutatedUnguarded = _flatMaybeArray((mu = _globalThis.window).self.self.Array.prototype).call([5, [6]]);
 
-// NEGATIVE: a 'self'-spelled hop on a NON-proxy object is no proxy hop at all - stays verbatim.
+// A 'self'-spelled hop on a NON-proxy object is no proxy hop at all, so the file-wide standdown does
+// not reach it - and the local object IS a static container, so the walk reaches the real `Array` and
+// its static resolves. the mutation here is on `self`, never on `Array.of`.
 const selfBox = {
   self: {
     self: {
@@ -32,4 +35,4 @@ const selfBox = {
     }
   }
 };
-export const plainSelfKey = selfBox.self?.self?.Array.of(4);
+export const plainSelfKey = _Array$of(4);
