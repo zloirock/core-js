@@ -1,5 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { MAX_DEPTH } from '../resolve-node-type/base.js';
+import { canonicalArrayIndex, MAX_DEPTH } from '../resolve-node-type/base.js';
 
 // `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
@@ -1795,14 +1795,20 @@ export function noReassignmentReachesUsage({
 // locate the enclosing `name = <expr>` in `ownerNode` to read its right operand. null for a non-plain
 // write (`name++` / `name += x`) whose value isn't a simple replacement
 function reassignmentRhs(node, ownerNode) {
-  if (node.type === 'AssignmentExpression') return node.operator === '=' ? node.right : null;
+  // the assignment's VALUE is its RHS tail: an SE-carrying sequence (`w = (se(), Map)`) installs
+  // the last operand, and every consumer here asks what the write INSTALLED - the prefix stays in
+  // the untouched write site, so peeling it costs nothing and loses nothing
+  if (node.type === 'AssignmentExpression') {
+    return node.operator === '=' ? peelNestedSequenceExpressions(node.right).tail : null;
+  }
   if (node.type !== 'Identifier') return null;
   // the shared owner index resolves the enclosing assignment; only a PLAIN `=` whose LHS is
   // this very identifier flows a recoverable RHS (a pattern-contained id maps to its
   // assignment too, but its value is a slot, not the whole RHS - the pattern-aware variant
   // below owns that shape)
   const assignment = ownerValueFlowIndex(ownerNode).assignment.get(node);
-  return assignment?.operator === '=' && assignment.left === node ? assignment.right : null;
+  return assignment?.operator === '=' && assignment.left === node
+    ? peelNestedSequenceExpressions(assignment.right).tail : null;
 }
 
 // reaching-definition VALUE node of a reassigned variable at `usagePath`: the RHS of the last
@@ -1932,6 +1938,22 @@ export function reassignmentValueNodes({ binding, usagePath, name = null, ctx = 
   return reassignmentValueEnumeration({ binding, usagePath, name, ctx, usageNode }).nodes;
 }
 
+// a BRANCHING written value (`w = c ? A : B`, `w = A || B`) installs one of its ARM values -
+// flatten each arm into the enumeration (a wider value set is the safe direction for every
+// consumer, per the enumeration's own contract). arms peel their sequence tails the same way
+// the direct RHS readers do, and nested branching unfolds to a fixpoint under a step cap
+function flattenBranchingValueNodes(nodes) {
+  const out = [];
+  const work = [...nodes];
+  for (let step = 0; work.length && step < 64; step++) {
+    const { tail } = peelNestedSequenceExpressions(work.pop());
+    const slots = getFallbackBranchSlots(tail);
+    if (slots) work.push(...slots.map(slot => tail[slot]));
+    else out.push(tail);
+  }
+  return out;
+}
+
 function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode }) {
   // adapter wrappers do not all surface the bound identifier - callers that know the alias
   // name pass it explicitly (needed only for pattern-LHS pairing)
@@ -1959,7 +1981,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   let complete = true;
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
     if (!useInLoop && !closureReenters && endsBeforeStart(readNode, node, false)) continue;
-    const values = reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx);
+    const values = flattenBranchingValueNodes(reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx));
     if (!values.length) complete = false;
     out.push(...values);
   }
@@ -2081,6 +2103,16 @@ export function followConstLiteralAlias(node, ctx) {
 // `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
 // follows a const-identifier rhs to its literal init and resolves computed keys through the read-
 // side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
+// the canonical ARRAY-slot read: `container[key]` for a literal container, with the same guards
+// both destructure sides apply - a spread makes every position untrustworthy, a hole / OOB reads
+// nothing. `key` folds through the canonical index, so '0' and 0 name the same slot
+export function arrayLiteralSlotValue(node, key) {
+  if (node?.type !== 'ArrayExpression') return null;
+  const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
+  if (index === null || node.elements.some(e => e?.type === 'SpreadElement')) return null;
+  return node.elements[index] ?? null;
+}
+
 export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
   function slotFor(target) {
@@ -2127,8 +2159,14 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       const slot = slotFor(prop.value);
       const key = propKey(prop);
       // last matching key wins, but a trailing spread could override it -> bail (canonical helper)
-      const paired = key !== null && rhs?.type === 'ObjectExpression'
-        ? findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key)?.value ?? null : null;
+      // an object-pattern key can spell a canonical ARRAY index (`({ 0: w } = [v])` reads
+      // property '0' off the array exactly as the language does) - the same cross-form read
+      // the nested-receiver walk performs, guarded the same way
+      const paired = key !== null
+        ? rhs?.type === 'ObjectExpression'
+          ? findObjectKeyBeforeSpread(rhs.properties, rp => propKey(rp) === key)?.value ?? null
+          : arrayLiteralSlotValue(rhs, key)
+        : null;
       if (descend(slot, prop.value, paired)) continue;
       if (slot?.type !== 'Identifier' || slot.name !== name) continue;
       if (prop.value.type === 'AssignmentPattern') out.push(prop.value.right);
@@ -2211,7 +2249,9 @@ function patternPropKey(prop, ctx, anchorPattern) {
 function reassignmentValueNodesAt(node, ownerNode, bindingName, ctx) {
   if (node.type === 'AssignmentExpression') {
     if (!VALUE_FLOW_ASSIGN_OPS.has(node.operator)) return [];
-    if (node.left?.type === 'Identifier') return [node.right];
+    // the assignment flows its RHS TAIL (a sequence yields its last operand - the for-of head
+    // peel below and the reaching canon already agree on this value view)
+    if (node.left?.type === 'Identifier') return [peelNestedSequenceExpressions(node.right).tail];
     return bindingName ? patternSlotValues(node.left, node.right, bindingName, ctx) : [];
   }
   // a for-x HEAD rebinds the alias each iteration; parsers record it unevenly (babel: the
@@ -2227,7 +2267,7 @@ function reassignmentValueNodesAt(node, ownerNode, bindingName, ctx) {
   if (node.type !== 'Identifier') return [];
   const assignment = enclosingValueFlowAssignment(node, ownerNode);
   if (assignment) {
-    if (assignment.left === node) return [assignment.right];
+    if (assignment.left === node) return [peelNestedSequenceExpressions(assignment.right).tail];
     return patternSlotValues(assignment.left, assignment.right, node.name, ctx);
   }
   const forX = enclosingForXStatement(node, ownerNode);
@@ -2386,7 +2426,7 @@ export function isCleanDestructureAliasBinding(binding) {
       .filter(node => node !== own && node !== own?.id).length
     : 0;
   const writes = (withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [])
-    .filter(v => !isDeclaratorSelfViolation(v, own))
+    .filter(v => !isDeclaratorSelfViolation(v, own) && !isIdentitySelfAssignViolation(v, own))
     .length;
   const total = Math.max(writes, canonicalWrites);
   return total === 0 || (total === 1 && !binding.path?.node?.init);
@@ -2410,13 +2450,31 @@ export function isDeclaratorSelfViolation(v, ownDeclarator) {
   return false;
 }
 
-// the real reassignment site nodes (every violation other than the loop-reinit declarator-self).
-// counting the self-rebind sent every `for (const k in ...)` body read - and every for-init
-// DESTRUCTURED alias - through the flow-sensitive walks as "reassigned"
+// an identity self-assign (`w = w`, paren / TS wrappers included) writes the binding's own
+// current value back - a value no-op for every flow-sensitive walk: it neither kills the init
+// for the global dominance proof, nor makes the value ambiguous for pure, nor contributes an
+// enumeration value. only the plain `=` with both sides the SAME name counts (a compound or
+// logical form derives / conditions the value); estree surfaces the LHS Identifier, so the
+// enclosing assignment comes from the violation's parent. the RHS read sits in the same
+// expression as the LHS write, so it can only name the violated binding itself
+function isIdentitySelfAssignViolation(v, own) {
+  const name = own?.id?.name;
+  if (!name) return false;
+  const node = violationNode(v);
+  const assignment = node?.type === 'Identifier' ? v?.parentPath?.node : node;
+  if (assignment?.type !== 'AssignmentExpression' || assignment.operator !== '=') return false;
+  const lhs = unwrapRuntimeExpr(assignment.left);
+  const rhs = peelNestedSequenceExpressions(assignment.right).tail;
+  return lhs?.type === 'Identifier' && lhs.name === name && rhs?.type === 'Identifier' && rhs.name === name;
+}
+
+// the real reassignment site nodes (every violation other than the loop-reinit declarator-self
+// and identity self-assigns). counting the self-rebind sent every `for (const k in ...)` body
+// read - and every for-init DESTRUCTURED alias - through the flow-sensitive walks as "reassigned"
 export function reassignmentNodesBeyondDeclarator(binding) {
   const own = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
   return binding.constantViolations
-    .filter(v => !isDeclaratorSelfViolation(v, own))
+    .filter(v => !isDeclaratorSelfViolation(v, own) && !isIdentitySelfAssignViolation(v, own))
     .map(violationNode);
 }
 
