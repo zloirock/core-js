@@ -2542,7 +2542,7 @@ export function createDestructureEmitter({
       scope: metaPath.scope, adapter: estreeAdapter, path: metaPath, resolvePure,
     })) return false;
     const use = refineParamDefaultInstancePure({
-      pureResult, key: propNode.key.name ?? propNode.key.value,
+      pureResult, key: resolveSynthKeys({ node: propNode, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath }).lookupKey,
       receiverPath: peelTransparentPath(wrapperPath.get('right')), resolveNodeType, toHint, resolvePure, path: metaPath,
     });
     const binding = injectPureImport(use.entry, use.hintName);
@@ -2581,7 +2581,7 @@ export function createDestructureEmitter({
     const args = callPath?.node?.type === 'CallExpression' ? callPath.node.arguments : null;
     const argIndex = args ? args.findIndex(a => a === receiver || unwrapSafeSequenceTail(a) === receiver) : -1;
     const use = refineParamDefaultInstancePure({
-      pureResult, key: propNode.key.name ?? propNode.key.value,
+      pureResult, key: resolveSynthKeys({ node: propNode, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath }).lookupKey,
       receiverPath: argIndex >= 0 ? peelTransparentPath(callPath.get('arguments')[argIndex]) : null,
       resolveNodeType, toHint, resolvePure, path: metaPath,
     });
@@ -3125,7 +3125,11 @@ export function createDestructureEmitter({
       return;
     }
     const objectPattern = metaPath.parent;
-    const receiver = isSynthSimpleObjectPattern(objectPattern, { allowSideEffectComputedKeys: true })
+    // the pattern gate must not be narrower than what the synth literal can REPLAY: a computed key
+    // folding to a static string is replayable and its synth is caller-correct, while the fallback
+    // below is caller-lossy - declining it here traded a sound emission for a lossy one
+    const receiver = isSynthSimpleObjectPattern(objectPattern,
+      { allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true })
       && computedKeysAllBound(objectPattern, metaPath.scope)
       ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern, metaPath.scope, estreeAdapter, resolvePure) : null;
     if (!receiver) {

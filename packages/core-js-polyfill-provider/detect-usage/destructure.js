@@ -5,11 +5,14 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
+  canHoldBuiltIn,
   findArrayWrappedDestructureHost,
   propBindingIdentifier,
+  plainSynthKeyName,
   unwrapRuntimeExpr,
   isReceiverShapedNode,
   objectPatternHasNestedValue,
+  isReplayableSynthKey,
   peelNestedSequenceExpressions,
   FUNCTION_LIKE_NODE_TYPES,
   FN_NODE_TYPES,
@@ -49,6 +52,7 @@ import {
   peelProxyGlobalObject,
   proxyGlobalRootName,
 } from '../helpers/class-walk.js';
+import { canonicalArrayIndex } from '../resolve-node-type/base.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
@@ -516,6 +520,30 @@ function resolvedAliasMayDispatchInstance({ objectNode, scope, adapter, path }) 
 // polyfill). returns extra `{ kind:'property', object, key, placement }` metas minus the primary pair
 // the caller already emits, empty in the common no-reassignment case. global-only: usage-pure bails
 // on any reassignment upstream, so a reassigned alias never reaches a receiver-dropping substitute
+// REPOSITIONED-container candidates for the union axis: once an in-place mutator ran on a container
+// binding (the census wildcard - queried as the canonical `*` slot), the read slot may hold ANY of
+// the literal's values - repositioning permutes positions, never values - so every element that
+// resolves to a constructor is a reachable receiver. usage-global injects for each (over-inject
+// canon); pure is untouched - its walk bails on the same wildcard, keeping the read native. this is
+// why no position analysis is needed here, unlike the slot-WRITE half (see the TASKS record)
+function containerRepositionCandidates({ objectNode, scope, adapter, path, resolve }) {
+  const member = unwrapRuntimeExpr(objectNode);
+  // the receiver may be the wildcard-marked container ITSELF (a destructure host reads `b` directly)
+  // or a member off it (`b[0].of`) - both dispatch on values the literal's elements supply
+  const owner = member?.type === 'MemberExpression' || member?.type === 'OptionalMemberExpression'
+    ? unwrapRuntimeExpr(member.object) : member;
+  if (owner?.type !== 'Identifier' || !adapter.isWrittenContainerSlot?.(owner.name, '*')) return [];
+  const binding = adapter.getBinding(scope, owner.name, path);
+  const init = unwrapTransparentSeq(peelChainAssignmentDeep(binding?.path?.node?.init ?? binding?.node?.init ?? null) ?? null);
+  if (init?.type !== 'ArrayExpression') return [];
+  const names = [];
+  for (const element of init.elements) {
+    const name = element ? resolve(element) : null;
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
 export function collectMemberUnionCandidates(options) {
   const {
     objectNode, computedKeyNode, primaryObject, primaryKey,
@@ -562,6 +590,10 @@ export function collectMemberUnionCandidates(options) {
       if (guardedHint && !objects.includes(guardedHint)) objects.push(guardedHint);
     }
   }
+  for (const candidate of containerRepositionCandidates({
+    objectNode, scope, adapter, path,
+    resolve: rhs => resolveObjectName({ objectNode: rhs, scope, adapter, path }),
+  })) if (!objects.includes(candidate)) objects.push(candidate);
   // a BRANCHING receiver value - direct or reached through safe indirection - contributes each
   // branch's resolved object to the union axis, so reachable KEYS cross with reachable branch
   // OBJECTS (`const M = c ? Array : Iterator; let k = 'from'; if (c2) k = 'of'; M[k]` reaches
@@ -741,10 +773,12 @@ function destructureStaticKeys(objectPattern) {
   const keys = [];
   for (const prop of props) {
     if ((prop.type !== 'ObjectProperty' && prop.type !== 'Property') || prop.computed) return null;
-    const name = prop.key?.type === 'Identifier' ? prop.key.name
-      : prop.key?.type === 'StringLiteral' || prop.key?.type === 'Literal' ? prop.key.value : null;
-    if (name === null || name === undefined) return null;
-    keys.push(String(name));
+    // through the shared resolver: spelling the accepted node types out here made the answer depend on
+    // the PARSER (babel numeric keys are `NumericLiteral`, estree `Literal`), so one emitter kept a
+    // polyfill-dead default the other superseded - and dropped the polyfill with it
+    const name = plainSynthKeyName(prop.key);
+    if (name === null) return null;
+    keys.push(name);
   }
   return keys;
 }
@@ -924,10 +958,10 @@ export function paramDefaultInstanceSynthAllowed({ objectPatternNode, receiverNo
   if (!receiverNode || !objectPatternNode?.properties?.length) return false;
   for (const prop of objectPatternNode.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return false;
-    // Identifier keys only - the synth-literal renderers replay a plain Identifier key
-    // (`isReplayableSynthKey`); a string-literal key would be DROPPED from the rebuilt literal,
-    // losing the binding (and stranding the import), so it must stay native here
-    if (prop.computed || prop.key?.type !== 'Identifier') return false;
+    // whatever the synth literal can replay is admissible here: the renderers spell a string /
+    // numeric key through its resolved name and clone a folded computed one, so none of those
+    // loses its binding. a key that resolves to no slot stays native
+    if (!isReplayableSynthKey(prop)) return false;
     if (!propBindingIdentifier(prop.value)) return false;
   }
   function unboundPureGlobal(name) {
@@ -1111,9 +1145,12 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
       const { key, computed } = owner.node;
       if (computed) return null;
-      if (key?.type === 'Identifier') segs.unshift({ key: key.name });
-      else if (key?.type === 'StringLiteral' || key?.type === 'NumericLiteral' || key?.type === 'Literal') segs.unshift({ key: key.value });
-      else return null;
+      // through the canonical resolver on BOTH sides of the later match: a raw `.value` compares the
+      // number `0` against the string `'0'`, so a pattern and a literal that spell one slot differently
+      // failed to pair and the polyfill was lost on a receiver that was fully known
+      const segKey = plainSynthKeyName(key);
+      if (segKey === null) return null;
+      segs.unshift({ key: segKey });
       pattern = owner.parentPath;
       continue;
     }
@@ -1129,21 +1166,22 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
     if (!rhs) return null;
     let node = unwrapCollectingSePrefixes(rhs, elidedPrefixes);
     for (const seg of segs) {
-      if (seg.index === undefined) {
-        if (node?.type !== 'ObjectExpression') return null;
-        // last match wins (duplicate keys); only plain non-computed data properties resolve, and a
-        // trailing spread that could override the matched key bails (canonical helper)
-        const match = findObjectKeyBeforeSpread(node.properties, p => !p.computed
-          && (p.key?.type === 'Identifier' ? p.key.name : p.key?.value) === seg.key);
-        if (!match) return null;
-        node = unwrapCollectingSePrefixes(match.value, elidedPrefixes);
-      } else {
-        // a spread anywhere shifts the static index mapping; a hole / out-of-bounds element has no node
-        if (node?.type !== 'ArrayExpression' || node.elements.some(e => e?.type === 'SpreadElement')) return null;
-        const element = node.elements[seg.index];
-        if (!element) return null;
+      // an OBJECT-pattern key can still name an array SLOT (`{ 0: { at } } = [[1, 2]]` reads property
+      // '0' off the array, exactly as the language does), so ONE canonical index read serves both
+      // segment kinds: an array pattern's positional segment and a key that spells that same index
+      const element = arrayLiteralSlotValue(node, seg.index === undefined ? seg.key : seg.index);
+      if (element) {
         node = unwrapCollectingSePrefixes(element, elidedPrefixes);
+        continue;
       }
+      // a positional segment carries no property name to look up instead
+      if (seg.index !== undefined || node?.type !== 'ObjectExpression') return null;
+      // last match wins (duplicate keys); only plain non-computed data properties resolve, and a
+      // trailing spread that could override the matched key bails (canonical helper)
+      const match = findObjectKeyBeforeSpread(node.properties, p => !p.computed
+        && plainSynthKeyName(p.key) === seg.key);
+      if (!match) return null;
+      node = unwrapCollectingSePrefixes(match.value, elidedPrefixes);
     }
     if (!allowSePeeledFragment && elidedPrefixes.some(mayHaveSideEffects)) return null;
     if (isReReferenceableReceiver(node)) return node;
@@ -1244,6 +1282,16 @@ export function canTransformDestructuring({ parentType, parentInit }) {
 
 const STATIC_WALK_DEPTH = 64;
 
+// an array literal is a static container indexed by CANONICAL index: `[Array][0]` names its slot
+// exactly as `{ a: Array }.a` names a property. a spread anywhere shifts every static index and a
+// hole / out-of-bounds slot has no node - both bail, so every element read shares one set of guards
+function arrayLiteralSlotValue(node, key) {
+  if (node?.type !== 'ArrayExpression') return null;
+  const index = key === null || key === undefined ? null : canonicalArrayIndex(key);
+  if (index === null || node.elements.some(e => e?.type === 'SpreadElement')) return null;
+  return node.elements[index] ?? null;
+}
+
 // resolve a destructure receiver chain through static const-bound ObjectExpression hops:
 // `{ a: { from } } = wrapper` where `wrapper = { a: Array }` walks `wrapper.a` to
 // `Array`. complements the proxy-global path (`{ Array: { from } } = globalThis` reads
@@ -1256,13 +1304,18 @@ const STATIC_WALK_DEPTH = 64;
 //   - missing / computed / shorthand-mismatched property
 //   - non-Identifier leaf - need a constructor name to dispatch polyfill
 // depth-bounded against pathological alias chains (`a -> b -> c -> ...`)
-export function walkStaticReceiverChain({ receiverNode, walkPath, scope, adapter, path = null, usageNode = null }) {
+export function walkStaticReceiverChain({
+  receiverNode, walkPath, scope, adapter, path = null, usageNode = null, ignoreWrittenSlots = false,
+}) {
   // `usageNode` overrides the walk's initial read site (a wrapper's capture point); the step
   // otherwise anchors at the host `path` node
-  return walkStaticReceiverStep({ node: receiverNode, walkPath, scope, adapter, depth: 0, path, readNode: usageNode });
+  return walkStaticReceiverStep({ node: receiverNode, walkPath, scope, adapter, depth: 0, path, readNode: usageNode, ignoreWrittenSlots });
 }
 
-function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = null, seen = null, readNode: incomingReadNode = null }) {
+function walkStaticReceiverStep({
+  node, walkPath, scope, adapter, depth, path = null, seen = null, readNode: incomingReadNode = null,
+  ignoreWrittenSlots = false,
+}) {
   if (depth > STATIC_WALK_DEPTH) return null;
   let current = unwrapTransparentSeq(node);
   let currentScope = scope;
@@ -1281,6 +1334,7 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
   // bounce between names until STATIC_WALK_DEPTH burns out. Set short-circuits at the
   // second visit with O(1) check, complementing the depth cap as a defensive lower bound
   const visited = seen ?? new Set();
+  let containerName = null;
   // dereference const-bound Identifier through its VariableDeclarator initializer,
   // chasing re-aliases (`const Foo = Array; const wrapper = { a: Foo }`) until we
   // either land on an unbound Identifier (the global - leaf name we return) or an
@@ -1363,16 +1417,24 @@ function walkStaticReceiverStep({ node, walkPath, scope, adapter, depth, path = 
       // static-method aliasing; safe miss preferred over false-positive constructor
       return null;
     }
+    // the name this container is BOUND to: a write to one of its slots replaces what the literal
+    // spells, and the descent has to consult that before trusting the initial member
+    containerName = current.name;
     current = unwrapTransparentSeq(initNode);
     currentScope = binding.scope ?? currentScope;
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
-  return walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited, readNode });
+  return walkStaticReceiverTerminal({
+    current, walkPath, currentScope, adapter, depth, path, visited, readNode, containerName, ignoreWrittenSlots,
+  });
 }
 
 // post-dereference terminal: leaf extraction, proxy mid-chain lift, intermediate member
 // resolution, and the static-container descents (object literal / class statics)
-function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, depth, path, visited, readNode = null }) {
+function walkStaticReceiverTerminal({
+  current, walkPath, currentScope, adapter, depth, path, visited, readNode = null, containerName = null,
+  ignoreWrittenSlots = false,
+}) {
   // leaf return: walkPath consumed - extract the leaf global name.
   // bare Identifier returns its name directly; proxy-global member access
   // (`globalThis.Array` / `_globalThis.Array` after polyfill-injected rewrite) routes
@@ -1416,14 +1478,32 @@ function walkStaticReceiverTerminal({ current, walkPath, currentScope, adapter, 
   // class STATIC fields and object-literal properties are both name-indexable static containers;
   // the canonical resolver descends the matching member's value with LAST-wins semantics and bails
   // on an ambiguous computed key / a method-or-accessor winner / a spread that could override
-  if (current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression'
-    || current?.type === 'ObjectExpression') {
-    const value = findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey);
-    return value ? walkStaticReceiverStep({
-      node: value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path, seen: visited, readNode,
-    }) : null;
-  }
-  return null;
+  // an ARRAY literal is the INDEX-indexable member of that same family: a canonical index names one
+  // of its slots exactly as a key names an object property. only a slot that can REACH a built-in is
+  // the static channel's though - a slot holding data is an instance receiver, and claiming it here
+  // would block the receiver channel that resolves it. same predicate the write side counts a
+  // container by, so the two sides agree; a dead end still returns null and yields the leaf back
+  // a slot REPLACED after the literal (`const w = { k: Object }; w.k = Map`) no longer holds what the
+  // literal spells, so descending it resolves a DIFFERENT constructor's static - a wrong value, not a
+  // missed one. the class arm already bails on a static block for exactly this reason.
+  // method-aware like the binding reassignment canon: pure bails (a write ANYWHERE in the file may
+  // reach the read - the record carries no positions, so reach is not disprovable), while global
+  // bails only on PROVEN dominance, which the record cannot establish - so it keeps resolving and
+  // over-injects the literal's candidate, the safe direction there
+  // the MUTATION resolver walks these chains to REGISTER a patch - bailing it on the very record
+  // its own writes feed would lose the patch (`const m = NS.M; m.groupBy = shim` must still route
+  // reads through the injected constructor), so it opts out of the slot consult
+  if (!ignoreWrittenSlots && containerName && adapter.method === 'usage-pure'
+    && adapter.isWrittenContainerSlot?.(containerName, walkPath[0])) return null;
+  const arraySlot = arrayLiteralSlotValue(current, walkPath[0]);
+  const value = current?.type === 'ClassDeclaration' || current?.type === 'ClassExpression'
+    || current?.type === 'ObjectExpression'
+    ? findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey)
+    : (canHoldBuiltIn(arraySlot) ? arraySlot : null);
+  return value ? walkStaticReceiverStep({
+    node: value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path,
+    seen: visited, readNode, ignoreWrittenSlots,
+  }) : null;
 }
 
 // find the source-key PATH in an ObjectPattern that produces the binding named `bindingName`.

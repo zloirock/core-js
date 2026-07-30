@@ -12,7 +12,11 @@
 //     reach, a SUPERSET of what the scoped pass can attribute. No extra walk: the reducer rides
 //     the shared per-file census. An over-report only degrades a narrow, which is the safe
 //     direction; an under-report would drop a polyfill, so the roots must stay a superset.
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
+  plainSynthKeyName,
+  computedKeyStaticName,
+  canHoldBuiltIn,
   collectFileCensus,
   followConstLiteralAlias,
   unwrapRuntimeExpr,
@@ -39,6 +43,7 @@ import {
   resolveObjectName,
   tsImportEqualsProxyName,
 } from './resolve.js';
+import { canonicalArrayIndex } from '../resolve-node-type/base.js';
 import { walkStaticReceiverChain } from './destructure.js';
 
 // --- Stage 1: cheap shape gate ---
@@ -55,6 +60,13 @@ import { walkStaticReceiverChain } from './destructure.js';
 // value shapes that cannot reach a built-in constructor through the resolver: primitives,
 // derived expressions, fresh instances and function values. everything ELSE marks the bound
 // name as a potential alias (over-fire is just one wasted traverse)
+// `Array.prototype` methods that mutate in place, read off the SAME `mutatesElements` flag the type
+// tables already carry - the reason a method belongs here is a property of `Array.prototype`, not of
+// this pass, so there is nothing to restate locally
+const ARRAY_REPOSITIONING_METHODS = new Set(Object.entries(knownBuiltInReturnTypes.instanceMethods.Array)
+  .filter(([, hint]) => (Array.isArray(hint) ? hint[0] : hint)?.mutatesElements)
+  .map(([name]) => name));
+
 const INERT_VALUE_TYPES = new Set([
   'StringLiteral',
   'NumericLiteral',
@@ -209,6 +221,22 @@ const FOLLOWABLE_ALIAS_SOURCES = new Set([
   'AssignmentExpression',
 ]);
 
+// does this member READ make its receiver's element list untrustworthy? a key that folds to a
+// repositioning method's name does; a key that folds to any OTHER name (or to a numeric SLOT - a
+// plain element read) does not; and a key that folds to nothing is a read of an UNKNOWN member -
+// `box[k]()` may invoke any mutator, so the cheap census can only admit the possibility, exactly
+// like the container gate does for an unreadable chain key. publish-time filtering still keeps all
+// of this to container bindings
+function memberReadDetachesRepositioner(node) {
+  if (!node.computed) return node.property?.type === 'Identifier' && ARRAY_REPOSITIONING_METHODS.has(node.property.name);
+  // a computed IDENTIFIER key reads the slot named by its VALUE, which the scope-less census cannot
+  // fold - that is an unreadable key, not the slot spelled by the variable's own name. a numeric
+  // literal stays a plain slot read; a foldable spelling resolves like the plain form
+  const prop = node.property;
+  const name = computedKeyStaticName(prop) ?? (prop?.type === 'Identifier' ? null : plainSynthKeyName(prop));
+  return name !== null ? ARRAY_REPOSITIONING_METHODS.has(name) : true;
+}
+
 export function mutationShapesReducer(packages = null) {
   const targets = [];
   let markTopLevelThis = false;
@@ -222,6 +250,113 @@ export function mutationShapesReducer(packages = null) {
   // static keys, so `config.foo.bar = v` over `const config = {}` stays silent while
   // `NS.M.of = v` over `const NS = { M: Map }` fires
   const containerBound = new Map();
+  // raw `[rootName, key]` of every member WRITE, filtered at publish time to roots that are actually
+  // bound to a container literal. a single-hop write to a local object is no built-in mutation - the
+  // namespace gate rightly drops it - but it DOES replace what that container's slot holds, and the
+  // receiver walk must stop trusting the literal's initial member. collected raw because the
+  // declaration may be traversed after the write
+  const rawSlotWrites = [];
+  // receivers of an in-place array mutator: these REPOSITION existing indices, so the literal's
+  // element list stops describing what a slot holds. `push` only appends and the `to*` / `with`
+  // family returns copies, so neither disturbs an existing index
+  const rawRepositioned = [];
+  // an OBJECT PATTERN detaches a method exactly like a member read does (`const { reverse } = box`),
+  // just without a MemberExpression node - record the source the same way. non-computed keys only:
+  // a computed key resolves through the member-read guard when it is static, and a dynamic one
+  // already deopts the read side
+  // a container handed to ANY call escapes: the callee may write any of its slots (`poison(box)` /
+  // `Object.assign(box, ...)` / a detached method via `.call` / a template tag's interpolation), and
+  // none of those writes spell the container's name at a member-write site. the container may sit
+  // INSIDE the argument's value - an array / object literal, a member read off one, a spread, a
+  // branch - so the walk descends value positions recursively. one wildcard covers the family;
+  // publish-time filtering keeps it to container bindings, and the global flavor stays untouched
+  // (the bail is method-aware at the reader)
+  function recordEscapedContainers(argNodes) {
+    const work = [...argNodes ?? []];
+    for (let step = 0; work.length && step < 64; step++) {
+      const node = unwrapRuntimeExpr(work.pop());
+      if (!node) continue;
+      switch (node.type) {
+        case 'Identifier': rawSlotWrites.push([node.name, '*']); break;
+        case 'SpreadElement': case 'RestElement': work.push(node.argument); break;
+        case 'ArrayExpression': work.push(...node.elements); break;
+        case 'ObjectExpression':
+          for (const prop of node.properties) {
+            work.push(prop.type === 'SpreadElement' ? prop.argument : prop.value);
+          }
+          break;
+        case 'MemberExpression': case 'OptionalMemberExpression': {
+          // a member read re-homes the SLOT's value, not its owner: `const m = NS.M` leaks what
+          // slot M holds (writes through `m` are invisible under `NS.M`), while NS itself stays
+          // put. an unreadable key leaks an unknown slot; a non-Identifier owner descends
+          const owner = unwrapRuntimeExpr(node.object);
+          if (owner?.type === 'Identifier') rawSlotWrites.push([owner.name, memberKeyName(node) ?? '*']);
+          else work.push(node.object);
+          break;
+        }
+        case 'ConditionalExpression': work.push(node.consequent, node.alternate); break;
+        case 'LogicalExpression': work.push(node.left, node.right); break;
+        case 'SequenceExpression': work.push(node.expressions.at(-1)); break;
+        // any other shape (a call result, a literal, a class) is not a traced container leak
+      }
+    }
+  }
+
+  // a PATTERN over a LITERAL init re-homes exactly the members that land on an IDENTIFIER binding
+  // (`const [a] = [box]` makes `a` the container itself), so those values escape. a NESTED pattern
+  // keeps unpacking - a read - so it recurses only where its value is itself a literal; a nested
+  // pattern over an Identifier is the plain container read and must stay live (the flatten fixtures
+  // depend on it). a rest target swallows the untraversed remainder, so that remainder escapes
+  function recordPatternLiteralReHomes(patternNode, initNode) {
+    if (initNode?.type !== 'ArrayExpression' && initNode?.type !== 'ObjectExpression') return;
+    const pairs = [];
+    if (patternNode.type === 'ArrayPattern' && initNode.type === 'ArrayExpression') {
+      patternNode.elements.forEach((target, index) => {
+        if (target?.type === 'RestElement') pairs.push([target.argument, { rest: initNode.elements.slice(index) }]);
+        else if (target) pairs.push([target, initNode.elements[index]]);
+      });
+    } else if (patternNode.type === 'ObjectPattern' && initNode.type === 'ObjectExpression') {
+      for (const prop of patternNode.properties) {
+        if (prop.type === 'RestElement') {
+          pairs.push([prop.argument, { rest: initNode.properties }]);
+          continue;
+        }
+        if (prop.type !== 'ObjectProperty' && prop.type !== 'Property') continue;
+        const wanted = prop.computed ? computedKeyStaticName(prop.key) : propertyKeyName(prop);
+        const match = wanted === null ? null : initNode.properties.find(entry => (entry.type === 'ObjectProperty'
+          || entry.type === 'Property') && !entry.computed && propertyKeyName(entry) === wanted);
+        pairs.push([prop.value, wanted === null ? { rest: initNode.properties } : match?.value]);
+      }
+    } else return;
+    for (const [rawTarget, value] of pairs) {
+      const target = rawTarget?.type === 'AssignmentPattern' ? rawTarget.left : rawTarget;
+      if (value && typeof value === 'object' && 'rest' in value) {
+        for (const entry of value.rest) {
+          recordEscapedContainers([entry?.type === 'ObjectProperty' || entry?.type === 'Property' ? entry.value : entry]);
+        }
+        continue;
+      }
+      if (!value) continue;
+      if (target?.type === 'Identifier') recordEscapedContainers([value]);
+      else if (target?.type === 'ObjectPattern' || target?.type === 'ArrayPattern') {
+        recordPatternLiteralReHomes(target, unwrapRuntimeExpr(value));
+      }
+    }
+  }
+
+  function recordPatternDetachedRepositioners(patternNode, sourceNode) {
+    const source = unwrapRuntimeExpr(sourceNode);
+    if (patternNode?.type !== 'ObjectPattern' || source?.type !== 'Identifier') return;
+    for (const prop of patternNode.properties) {
+      if (prop.type !== 'ObjectProperty' && prop.type !== 'Property') continue;
+      const key = prop.computed ? computedKeyStaticName(prop.key) : propertyKeyName(prop);
+      // an unfoldable computed key detaches an UNKNOWN member - admit the possibility, like the
+      // member-read guard does; a numeric key is a plain slot read and detaches nothing
+      const detaches = key !== null ? ARRAY_REPOSITIONING_METHODS.has(key)
+        : prop.computed && plainSynthKeyName(prop.key) === null;
+      if (detaches) rawRepositioned.push(source.name);
+    }
+  }
   // what an alias SOURCE names, for the point-query gate: a plain root names itself; a `this`-rooted
   // source names the key read off it (`const M = this.Map` in a global-object context IS `Map`); a
   // CALL-rooted one names nothing the scoped stage could attribute either, so it rules out rather
@@ -263,14 +398,34 @@ export function mutationShapesReducer(packages = null) {
     return inner ? requireCallSource(inner, null, null) : null;
   }
 
-  function recordValueSource(id, value) {
+  function recordValueSource(id, rawValue) {
+    // a value RE-HOMED under another name escapes like a call argument does: an alias
+    // (`const a = box`) takes writes the container's own name never sees, and a wrapper literal
+    // (`const w = { ref: box }`) hands the same reference out through its member chain. the walk
+    // is the shared escape collector, so the two families cannot drift. a PATTERN id is a READ
+    // (`const { k } = box` unpacks, it re-homes nothing) - escaping it would bail every clean
+    // destructure in the file
+    if (id?.type === 'Identifier') recordEscapedContainers([rawValue]);
+    else if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') {
+      recordPatternLiteralReHomes(id, unwrapRuntimeExpr(rawValue));
+    }
+    // classification reads the VALUE, not its wrapper: a TS cast / paren around a container init
+    // (`const w = { k: Object } as T`) otherwise lands on the alias path and the binding never
+    // registers as a container - the slot-write filter then drops its writes at publish time
+    const value = unwrapRuntimeExpr(rawValue);
     if (id?.type === 'Identifier') {
       // module lowering turns a proxy-entry import into a require (bare, or behind an interop
       // wrapper whose `.default` is the global) - the gate must name those bindings too
       const required = requiredSourceOfInit(value);
       if (required && globalProxyNameFromImportSource(required, packages)) proxyGlobalBound.add(id.name);
-      if (!value || INERT_VALUE_TYPES.has(value.type)) return;
-      if (value.type === 'ObjectExpression' || value.type === 'ClassExpression') {
+      // an array literal is inert as DATA, but a container when a slot could hold a built-in: its
+      // slots are index-keyed members the receiver walk descends, so a patch THROUGH one
+      // (`box[0].from = shim`) has to reach the gate or the polyfill overrides the replacement.
+      // a data-only array stays inert - marking every `[1, 2, 3]` deopts namespaces wholesale,
+      // since a chain whose first key cannot be read keeps every bound container in play
+      const arrayContainer = value?.type === 'ArrayExpression' && value.elements.some(canHoldBuiltIn);
+      if (!arrayContainer && (!value || INERT_VALUE_TYPES.has(value.type))) return;
+      if (arrayContainer || value.type === 'ObjectExpression' || value.type === 'ClassExpression') {
         let nodes = containerBound.get(id.name);
         if (!nodes) containerBound.set(id.name, nodes = []);
         nodes.push(value);
@@ -336,10 +491,24 @@ export function mutationShapesReducer(packages = null) {
   function visit(node, frame) {
     if (frame?.atThisTopLevel) markTopLevelThis = true;
     else markTopLevelThis = false;
+    // ANY read of an in-place array mutator off an identifier makes that receiver's element list
+    // untrustworthy: the inline call, the detached `.call` / `.apply` / `Reflect.apply` spellings and
+    // a method stored for later (`const m = box.reverse; m.call(box)`) all pass through this ONE
+    // member read - once the method escapes, its invocation is not statically visible at all.
+    // publish-time filtering keeps this to container bindings, so data arrays cost nothing
+    if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+      && !frame?.underTypeAnnotation && memberReadDetachesRepositioner(node)) {
+      const owner = unwrapRuntimeExpr(node.object);
+      if (owner?.type === 'Identifier') rawRepositioned.push(owner.name);
+    }
     switch (node.type) {
       case 'AssignmentExpression': {
         const left = unwrapRuntimeExpr(node.left);
         if (left?.type === 'MemberExpression' || left?.type === 'OptionalMemberExpression') {
+          const writeRoot = unwrapRuntimeExpr(left.object);
+          // an unreadable write key writes an UNKNOWN slot - the wildcard admits the possibility,
+          // mirroring the read guard's rule for an unreadable member key
+          if (writeRoot?.type === 'Identifier') rawSlotWrites.push([writeRoot.name, memberKeyName(left) ?? '*']);
           pushTarget(gateMemberTarget(left));
         } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
           gatherPatternMemberTargets(left, { push: pushTarget });
@@ -361,27 +530,47 @@ export function mutationShapesReducer(packages = null) {
         break;
       }
       case 'UnaryExpression': {
+        // `delete container.key` empties the slot the literal spells - the read after it must not
+        // resolve the literal's member (native reads undefined / throws deeper). an unreadable key
+        // deletes an UNKNOWN slot - the wildcard admits the possibility
+        if (node.operator === 'delete') {
+          const target = unwrapRuntimeExpr(node.argument);
+          if (target?.type === 'MemberExpression' || target?.type === 'OptionalMemberExpression') {
+            const owner = unwrapRuntimeExpr(target.object);
+            if (owner?.type === 'Identifier') rawSlotWrites.push([owner.name, memberKeyName(target) ?? '*']);
+          }
+        }
         const arg = node.operator === 'delete' ? unwrapRuntimeExpr(node.argument) : null;
         if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') pushTarget(gateMemberTarget(arg));
         break;
       }
-      case 'ForInStatement':
       case 'ForOfStatement':
+        // iterating hands each VALUE to the loop binding - writes through it never spell the
+        // source's name, so the iterable escapes like a call argument. `for-in` yields KEYS only
+        // and leaks no value, so it stays on the shared handling below
+        recordEscapedContainers([node.right]);
+      // eslint-disable-next-line no-fallthrough -- the shared left-pattern handling below applies to both
+      case 'ForInStatement':
         switch (node.left?.type) {
           case 'MemberExpression':
             pushTarget(gateMemberTarget(node.left));
             break;
           case 'ArrayPattern':
           case 'ObjectPattern':
+            recordPatternDetachedRepositioners(node.left, node.right);
+            recordPatternLiteralReHomes(node.left, unwrapRuntimeExpr(node.right));
             gatherPatternMemberTargets(node.left, { push: pushTarget });
             walkPatternIdentifiers(node.left, id => pushTarget(id));
             break;
           case 'Identifier':
             pushTarget(node.left);
+            // an assignment re-homes the value under the LEFT name - the right side escapes
+            recordEscapedContainers([node.right]);
             break;
         }
         break;
       case 'VariableDeclarator':
+        recordPatternDetachedRepositioners(node.id, node.init);
         recordValueSource(node.id, node.init);
         break;
       case 'ImportDeclaration':
@@ -416,8 +605,19 @@ export function mutationShapesReducer(packages = null) {
           nodes.push(node);
         }
         break;
+      case 'ThrowStatement':
+        // a throw re-homes its value into some catch binding - writes through it never spell the
+        // container's name, so the thrown value escapes like a call argument
+        recordEscapedContainers([node.argument]);
+        break;
+      case 'TaggedTemplateExpression':
+        // the tag receives every interpolated value like a call receives its arguments
+        recordEscapedContainers(node.quasi?.expressions);
+        break;
+      case 'NewExpression':
       case 'CallExpression':
       case 'OptionalCallExpression': {
+        recordEscapedContainers(node.arguments);
         // babel models `Object?.assign(Array, ...)` as OptionalCallExpression with an
         // OptionalMemberExpression callee; without these both an optional `Object.assign` /
         // `Reflect.defineProperty` mutation escapes the gate and usage-pure silently substitutes
@@ -525,7 +725,16 @@ export function mutationShapesReducer(packages = null) {
           && !nameGlobalObjectKey(root)) open = true;
       }
     }
-    return { hasMutationShapes, mutationRoots: { names: rootNames, open } };
+    // only a root BOUND to a container literal matters: `config.foo = v` over a plain object is
+    // ordinary code, and reporting it would deopt every namespace read in the file. ONE published
+    // set serves both records: a written slot as `name.key`, a repositioned container as the
+    // wildcard `name.*` - repositioning invalidates every slot, and the reader checks both spellings
+    const writtenContainerSlots = new Set();
+    for (const [name, key] of rawSlotWrites) {
+      if (containerBound.has(name)) writtenContainerSlots.add(mutatedStaticKey(name, key));
+    }
+    for (const name of rawRepositioned) if (containerBound.has(name)) writtenContainerSlots.add(`${ name }.*`);
+    return { hasMutationShapes, mutationRoots: { names: rootNames, open }, writtenContainerSlots };
   }
   return { visit, result };
 }
@@ -543,6 +752,17 @@ function containerHasKey(containers, key) {
   // computed-key monkey-patch over a container slot escape before resolution runs
   if (!key) return true;
   for (const container of containers) {
+    // an ARRAY container is keyed by INDEX, so its members are ELEMENTS, not named properties. this
+    // cheap gate only has to admit the POSSIBILITY - the scoped stage resolves which slot it was. a
+    // spread makes every later index unknowable, so it admits everything. load-bearing exactly
+    // because a numeric hop RESOLVES: while it did not, the unreadable-key path admitted the shape
+    // generously and this branch looked dead
+    if (container.type === 'ArrayExpression') {
+      if (container.elements.some(element => element?.type === 'SpreadElement')) return true;
+      const index = canonicalArrayIndex(key);
+      if (index !== null && index < container.elements.length) return true;
+      continue;
+    }
     const members = container.type === 'ObjectExpression' ? container.properties : container.body?.body;
     for (const member of members ?? []) {
       if (member.type === 'SpreadElement') return true;
@@ -1078,7 +1298,7 @@ function resolveLeafName(leaf, ctx) {
     if (lowered) return lowered;
     // static-container chains (`NS.M` over `const NS = { M: Map }` / class statics): the
     // destructure receiver canon walks the same literal hops
-    return walkStaticReceiverChain({ receiverNode: parts.rootNode, walkPath: parts.keys, scope, adapter, path });
+    return walkStaticReceiverChain({ receiverNode: parts.rootNode, walkPath: parts.keys, scope, adapter, path, ignoreWrittenSlots: true });
   }
   return null;
 }
