@@ -94,6 +94,7 @@ import {
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isRestProperty,
+  buildFlatSynthEntries,
   isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
   isTypeAnnotationWrapper,
@@ -5854,14 +5855,14 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
         { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'of' } },
       ],
     }));
-  // duplicate static keys bail the synth: the literal would need duplicate properties
-  check('ast-patterns: isSynthSimpleObjectPattern duplicate keys',
+  // duplicate static keys name ONE slot, which the literal carries once - the pattern still synths
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern duplicate keys',
     isSynthSimpleObjectPattern({
       properties: [
         { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
         { type: 'ObjectProperty', computed: false, key: { type: 'Identifier', name: 'from' } },
       ],
-    }), false);
+    }));
   // bare-Identifier computed key that does NOT read a sibling binding -> true (synth-swap parity)
   checkTruthy('ast-patterns: isSynthSimpleObjectPattern computed-ident',
     isSynthSimpleObjectPattern({
@@ -5888,13 +5889,29 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
         { type: 'ObjectProperty', computed: true, key: { type: 'MemberExpression' }, value: { type: 'Identifier', name: 'x' } },
       ],
     }), false);
-  // numeric-literal key -> false
-  check('ast-patterns: isSynthSimpleObjectPattern numeric key',
+  // numeric-literal key names a static slot like a string one -> true
+  checkTruthy('ast-patterns: isSynthSimpleObjectPattern numeric key',
     isSynthSimpleObjectPattern({
       properties: [
-        { type: 'ObjectProperty', computed: false, key: { type: 'NumericLiteral' } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'NumericLiteral', value: 0 } },
       ],
-    }), false);
+    }));
+  // the numeric and string spellings name the SAME slot, so the entry builder emits one key for both
+  {
+    const oneSlot = {
+      properties: [
+        { type: 'ObjectProperty', computed: false, key: { type: 'NumericLiteral', value: 0 } },
+        { type: 'ObjectProperty', computed: false, key: { type: 'StringLiteral', value: '0' } },
+      ],
+    };
+    checkTruthy('ast-patterns: isSynthSimpleObjectPattern numeric and string spellings of one slot',
+      isSynthSimpleObjectPattern(oneSlot));
+    const collapsed = buildFlatSynthEntries(oneSlot, new Map([['0', 'POLYFILL']]));
+    check('ast-patterns: buildFlatSynthEntries collapses one slot to a single entry', collapsed.length, 1);
+    // the resolved occurrence wins over a passthrough, or the import would be dropped
+    check('ast-patterns: buildFlatSynthEntries keeps the resolved value of a collapsed slot',
+      collapsed[0].polyfill, 'POLYFILL');
+  }
   // RestElement among properties -> false
   check('ast-patterns: isSynthSimpleObjectPattern rest',
     isSynthSimpleObjectPattern({
