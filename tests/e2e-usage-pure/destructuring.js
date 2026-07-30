@@ -3270,3 +3270,34 @@ QUnit.test('destructure: a replaced container slot is not resolved', assert => {
   const { 0: { groupBy: viaSlot } } = box;
   assert.same(viaSlot, Map.groupBy);
 });
+
+// a FLAT destructure whose init is a container MEMBER resolves through the same walk the nested
+// spelling uses: the clean slot extracts the pure static (polyfill-always-wins), and a written
+// slot bails the flat spelling exactly like the nested one - the read stays native
+QUnit.test('destructure: a flat pattern over a container member', assert => {
+  const flatWrap = { c: Object };
+  const { keys: flatKeys } = flatWrap.c;
+  assert.deepEqual(flatKeys({ q: 1 }), ['q']);
+  const flatReplaced = { c: Object };
+  flatReplaced.c = Map;
+  const { groupBy: flatBailed } = flatReplaced.c;
+  assert.same(flatBailed, Map.groupBy);
+});
+
+// an identity self-assign (`box = box`) is a value NO-OP: the census does not treat it as an
+// escape and the walks do not treat it as a reassignment, so the container read still resolves
+// and the extracted static stays polyfill-backed. a REAL cross-write keeps the bail - the read
+// matches native exactly
+QUnit.test('destructure: identity self-assign keeps the container resolving', assert => {
+  let selfBox = { c: Object };
+  // eslint-disable-next-line no-self-assign -- the identity no-op is the shape under test
+  selfBox = selfBox;
+  const { c: { values: selfValues } } = selfBox;
+  assert.deepEqual(selfValues({ q: 7 }), [7]);
+  // eslint-disable-next-line no-useless-assignment -- the dead init IS the shape under test
+  let crossA = { c: Object };
+  const crossB = { c: Map };
+  crossA = crossB;
+  const { c: { groupBy: crossRead } } = crossA;
+  assert.same(crossRead, Map.groupBy);
+});
