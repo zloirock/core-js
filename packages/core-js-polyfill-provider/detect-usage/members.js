@@ -2,6 +2,7 @@
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
+  varInitDominatesUsage,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   getFallbackBranchSlots,
@@ -24,7 +25,7 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
   symbolKeyToEntry,
 } from '../helpers/class-walk.js';
-import { attachMemberUnionExtras } from './destructure.js';
+import { attachMemberUnionExtras, walkStaticReceiverChain } from './destructure.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
@@ -54,6 +55,29 @@ import {
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
 // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
 // via `enhanceMeta`, not here
+// a receiver hidden inside a const-bound static CONTAINER (`const w = { k: Array }; w.k.from(...)`,
+// `const box = [Array]; box[0].of(...)`) names the constructor the destructure side already resolves
+// through this very walk - `resolveObjectName` only follows PROXY-GLOBAL chains, so without this the
+// two sides disagreed. the container binding has to REACH this use: a hoisted `var` alias declared on
+// a path the read escapes is not the value read here, so it goes through the SAME dominance gate the
+// key-alias fold applies rather than around it
+function staticContainerReceiverName({ node, scope, adapter, path }) {
+  const keys = [];
+  let root = node;
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    const key = staticMemberKeyName(root);
+    if (key === null) return null;
+    keys.unshift(key);
+    root = unwrapRuntimeExpr(root.object);
+  }
+  if (root?.type !== 'Identifier' || !keys.length) return null;
+  const binding = adapter.getBinding(scope, root.name, path);
+  const declaratorNode = binding?.path?.node ?? binding?.node;
+  if (!declaratorNode) return null;
+  if (!varInitDominatesUsage({ declaratorNode, usagePath: path, usageNode: node, kind: binding.kind })) return null;
+  return walkStaticReceiverChain({ receiverNode: root, walkPath: keys, scope, adapter, path });
+}
+
 function tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) {
   if (obj.type !== 'MemberExpression' && obj.type !== 'OptionalMemberExpression') return null;
   if (resolveKey({ node: obj.property, computed: obj.computed, scope, adapter, path }) !== 'prototype') return null;
@@ -507,7 +531,8 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // here - instance dispatch captures the assignment via memoize `_ref = (a = Array)`,
     // and static dispatch picks up the outermost assignment separately at emission time
     const { value: classifyTarget, outer: chainAssignOuter } = peelChainAssignment(obj);
-    const objectName = resolveObjectName({ objectNode: classifyTarget, scope, adapter, path });
+    const objectName = resolveObjectName({ objectNode: classifyTarget, scope, adapter, path })
+      ?? staticContainerReceiverName({ node: classifyTarget, scope, adapter, path });
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
     // (`import { items } from './data'`) have NO polyfillHint and must fall through so the

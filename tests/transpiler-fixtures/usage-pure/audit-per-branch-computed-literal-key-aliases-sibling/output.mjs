@@ -9,7 +9,6 @@ const {
   of,
   ['of']: x
 } = cond ? {
-  of: _Array$of,
-  ['of']: _Array$of
+  of: _Array$of
 } : _Set;
 [of, x];

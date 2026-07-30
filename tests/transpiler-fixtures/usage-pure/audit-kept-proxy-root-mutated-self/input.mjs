@@ -13,6 +13,8 @@ export const mutatedSelfHop = (ms = globalThis.window)?.self?.self.Array.prototy
 let mu;
 export const mutatedUnguarded = (mu = globalThis.window).self.self.Array.prototype.flat.call([5, [6]]);
 
-// NEGATIVE: a 'self'-spelled hop on a NON-proxy object is no proxy hop at all - stays verbatim.
+// A 'self'-spelled hop on a NON-proxy object is no proxy hop at all, so the file-wide standdown does
+// not reach it - and the local object IS a static container, so the walk reaches the real `Array` and
+// its static resolves. the mutation here is on `self`, never on `Array.of`.
 const selfBox = { self: { self: { Array } } };
 export const plainSelfKey = selfBox.self?.self?.Array.of(4);

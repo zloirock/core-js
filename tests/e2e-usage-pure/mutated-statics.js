@@ -515,3 +515,96 @@ QUnit.test('mutated-statics: single-hop double-optional chain keeps its root gua
     globalThis.Set = original;
   }
 });
+
+// an array literal is a static container on the WRITE side too: its slots are index-keyed members, so
+// a patch THROUGH one names the same static the receiver walk reads. regression: only the read side
+// saw the slot, and the polyfill silently overrode the replacement. the patch is restored right after
+// the read - a live one would follow every later `Array.of` in this module
+QUnit.test('mutated-statics: a patch through an array slot beats the polyfill', assert => {
+  const originalOf = Array.of;
+  const box = [Array];
+  box[0].of = function patchedOf() { return 'PATCHED'; };
+  try {
+    const { 0: { of } } = box;
+    assert.same(of(1, 2), 'PATCHED');
+  } finally {
+    globalThis.Array.of = originalOf;
+  }
+  // the same slot with NO patch resolves its static, so the pairing is not vacuous
+  const clean = [Object];
+  const { 0: { keys } } = clean;
+  assert.deepEqual(keys({ a: 1 }), ['a']);
+});
+
+// the slot-write family that never spells a member write still replaces what the container's slot
+// holds - a mutator call, a callee that may write, a delete, a dynamic key. each must keep the
+// program's replacement winning over the polyfill; no global is touched, so nothing to restore
+QUnit.test('mutated-statics: non-member-write slot changes keep their replacement', assert => {
+  const viaAssign = { k: Array };
+  Object.assign(viaAssign, { k: { of: () => 'ASSIGN' } });
+  const { k: { of: assignOf } } = viaAssign;
+  assert.same(assignOf(1), 'ASSIGN');
+  const viaClosure = { k: Array };
+  (function poison(target) { target.k = { of: () => 'CLOSURE' }; })(viaClosure);
+  const { k: { of: closureOf } } = viaClosure;
+  assert.same(closureOf(1), 'CLOSURE');
+  const viaDynamic = { k: Array };
+  const dynamicKey = 'k';
+  viaDynamic[dynamicKey] = { of: () => 'DYNAMIC' };
+  const { k: { of: dynamicOf } } = viaDynamic;
+  assert.same(dynamicOf(1), 'DYNAMIC');
+  const viaDelete = { k: Array };
+  delete viaDelete.k;
+  const { k: deletedSlot } = viaDelete;
+  assert.same(deletedSlot, undefined);
+});
+
+// the escape family at runtime: a repositioned container, a thrown-and-patched one and an aliased
+// one must all read what the PROGRAM left in the slot, never the polyfill. locals only - no restore
+QUnit.test('mutated-statics: escape-family reads match native', assert => {
+  const repositioned = [{ of: () => 'FIRST' }, Array];
+  repositioned.reverse();
+  const { 0: { of: shifted } } = repositioned;
+  assert.same(shifted, Array.of);
+  const thrown = { k: Array };
+  try {
+    throw thrown;
+  } catch (error) {
+    error.k = { of: () => 'CAUGHT' };
+  }
+  const { k: { of: fromThrown } } = thrown;
+  assert.same(fromThrown(1), 'CAUGHT');
+  const aliased = { k: Array };
+  const aliasHandle = aliased;
+  aliasHandle.k = { of: () => 'ALIASED' };
+  const { k: { of: fromAlias } } = aliased;
+  assert.same(fromAlias(1), 'ALIASED');
+});
+
+// the remaining bail family at runtime: an optional receiver keeps NATIVE throw semantics when the
+// chain is undefined, and a wholly-reassigned / conditionally-written / parameter-passed container
+// reads what the program put there - the polyfill never overrides any of them
+QUnit.test('mutated-statics: bail-family runtime semantics match native', assert => {
+  const holeHost = {};
+  assert.throws(() => {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the native throw IS the case under test
+    const { at } = holeHost.missing?.list;
+    return at;
+  }, TypeError);
+  // the initial container value is intentionally dead - the reassignment IS the case under test
+  // eslint-disable-next-line no-useless-assignment -- see above
+  let swapped = { k: Array };
+  swapped = { k: { of: () => 'SWAPPED' } };
+  const { k: { of: fromSwapped } } = swapped;
+  assert.same(fromSwapped(1), 'SWAPPED');
+  const conditional = { k: Array };
+  const always = true;
+  if (always) conditional.k = { of: () => 'CONDITIONAL' };
+  const { k: { of: fromConditional } } = conditional;
+  assert.same(fromConditional(1), 'CONDITIONAL');
+  const viaParam = (function (incoming) {
+    const { k: { of } } = incoming;
+    return of;
+  })({ k: { of: () => 'PARAM' } });
+  assert.same(viaParam(1), 'PARAM');
+});

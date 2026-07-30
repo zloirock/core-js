@@ -250,6 +250,64 @@ function * generateDestructureAlias() {
   }
 }
 
+// --- Container-slot family (const-bound container literals holding constructors) ---
+// the receiver walk descends a container literal's slot to the constructor it holds - unless the
+// program made the slot untrustworthy: a slot WRITE replaces the value, and ANY read of an in-place
+// array mutator detaches a method whose invocation is then statically invisible. every cell's
+// observable is the runtime VALUE the binding ends up with, so the three-way oracle pins both the
+// resolve side (clean cells inject) and the bail side (dirty cells match native exactly).
+// patched / repositioned cells are full-env only: their observable IS the untransformed native value
+const C_SLOTS = [
+  { id: 'object-clean', setup: 'const w = { k: Array };', use: 'JSON.stringify(w.k.of(1, 2))', strip: true },
+  { id: 'array-clean', setup: 'const b = [Array];', use: 'JSON.stringify(b[0].from([3]))', strip: true },
+  { id: 'nested-clean', setup: 'const n = [[Array]];', use: 'JSON.stringify(n[0][0].of(4))', strip: true },
+  { id: 'slot-patched', setup: 'const w = { k: Array }; w.k = { of: () => "P" };', use: 'w.k.of(1)', strip: false },
+  // a REPOSITIONED container: repositioning permutes positions, never values, so every literal
+  // element is a reachable receiver - usage-global injects for each (the union axis), pure keeps
+  // the read native. the observable is the runtime value, so the global leg pins the injection
+  { id: 'reposition-inline', setup: 'const b = [{ q: 1 }, Array]; b.reverse();', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-stored', setup: 'const b = [{ q: 1 }, Array]; const m = b.reverse; m.call(b);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-pattern', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; reverse.call(b);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-multi', setup: 'const b = [Array, Map]; b.reverse();', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'readonly-still-clean', setup: 'const b = [Array]; b.slice(0);', use: 'JSON.stringify(b[0].of(5))', strip: true },
+  // the slot-WRITE family that never spells a member write: a mutator call, a callee that may
+  // write (the escape), a delete, a dynamic key. all full-env - the observable is the native value
+  { id: 'write-via-assign', setup: 'const w = { k: Array }; Object.assign(w, { k: { of: () => "P" } });', use: 'w.k.of(1)', strip: false },
+  { id: 'write-via-closure', setup: 'const poison = t => { t.k = { of: () => "C" }; }; const w = { k: Array }; poison(w);', use: 'w.k.of(1)', strip: false },
+  { id: 'write-via-delete', setup: 'const w = { k: Array, spare: 1 }; delete w.k;', use: 'typeof w.k', strip: false },
+  { id: 'write-via-dynamic-key', setup: 'const w = { k: Array }; const key = "k"; w[key] = { of: () => "D" };', use: 'w.k.of(1)', strip: false },
+  { id: 'write-via-logical-assign', setup: 'const w = { k: Array }; w.k &&= { of: () => "L" };', use: 'w.k.of(1)', strip: false },
+  { id: 'write-via-define-property', setup: 'const w = { k: Array }; Object.defineProperty(w, "k", { value: { of: () => "DP" } });', use: 'w.k.of(1)', strip: false },
+  // the ESCAPE family: every way a container leaves by value takes writes its own name never sees
+  { id: 'escape-spread', setup: 'const eat = t => { t.k = { of: () => "S" }; }; const w = { k: Array }; eat(...[w]);', use: 'w.k.of(1)', strip: false },
+  // eslint-disable-next-line no-template-curly-in-string -- the interpolation belongs to the GENERATED snippet
+  { id: 'escape-tag', setup: 'const tag = (q, v) => { v.k = { of: () => "T" }; return ""; }; const w = { k: Array }; void tag`x${ w }`;', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-optional-call', setup: 'const eat = t => { t.k = { of: () => "O" }; }; const w = { k: Array }; eat?.(w);', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-alias', setup: 'const w = { k: Array }; const a = w; a.k = { of: () => "A" };', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-wrapper-literal', setup: 'const w = { k: Array }; const wrap = { ref: w }; wrap.ref.k = { of: () => "W" };', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-for-of', setup: 'const w = { k: Array }; for (const x of [w]) x.k = { of: () => "F" };', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-throw', setup: 'const w = { k: Array }; try { throw w; } catch (c) { c.k = { of: () => "TH" }; }', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-pattern-rehome', setup: 'const w = { k: Array }; const [r] = [w]; r.k = { of: () => "P" };', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-pattern-rehome-nested', setup: 'const w = { k: Array }; const [{ q: r }] = [{ q: w }]; r.k = { of: () => "PN" };', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-arg-array-literal', setup: 'const eat = t => { t.k = { of: () => "AL" }; }; const w = { k: Array }; eat([w][0]);', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-arg-object-value', setup: 'const eat = t => { t.k = { of: () => "OV" }; }; const w = { k: Array }; eat({ inner: w }.inner);', use: 'w.k.of(1)', strip: false },
+  { id: 'escape-apply-array', setup: 'const eat = t => { t.k = { of: () => "AP" }; }; const w = { k: Array }; eat.apply(null, [w]);', use: 'w.k.of(1)', strip: false },
+  // the REPOSITION spellings beyond the four locked earlier
+  { id: 'reposition-fill', setup: 'const b = [{ q: 1 }, Array]; b.fill(b[1]);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-sort', setup: 'const b = [Array, { q: 1 }]; b.sort(() => 1);', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-concat-key', setup: 'const b = [{ q: 1 }, Array]; b["rev" + "erse"]();', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-dynamic-key', setup: 'const b = [{ q: 1 }, Array]; const m = "reverse"; b[m]();', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-optional-call', setup: 'const b = [{ q: 1 }, Array]; b?.reverse();', use: 'typeof b[0].of', strip: false },
+  { id: 'reposition-destructured', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; reverse.call(b);', use: 'typeof b[0].of', strip: false },
+];
+
+function * generateContainerSlots() {
+  for (const s of C_SLOTS) {
+    const body = `(() => { ${ s.setup } return ${ s.use }; })()`;
+    yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip };
+  }
+}
+
 // --- IIFE destructure-param default with a WINNING call-arg (caller-args-must-win) ---
 // `(({ from } = Number) => typeof from)(<arg>)`: the live call-arg supersedes the param-default. the
 // default `Number` is a polyfill DEAD-END, so whenever the arg STATICALLY RESOLVES to a constructor
@@ -4489,6 +4547,7 @@ export function * generate() {
   yield * generateNullableTruthyFold();
   yield * generateDestructure();
   yield * generateDestructureAlias();
+  yield * generateContainerSlots();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
   yield * generateSharedAliasUnionArms();

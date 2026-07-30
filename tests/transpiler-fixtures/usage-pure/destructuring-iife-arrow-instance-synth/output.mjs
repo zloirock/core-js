@@ -115,11 +115,13 @@ export const viaNestedIifes = (({
   concat: _concatMaybeArray([1, [2]])
 }))([3, 4]);
 
-// NEGATIVES the shared gate keeps native: a computed key is not replayable in the synth literal;
-// a getter-bearing literal is not re-eval-inert
-export const viaComputedKeyBails = (({
+// a computed key that folds to a static name replays like a plain one, so it synths too;
+// the NEGATIVE the shared gate keeps native is a getter-bearing literal, which is not re-eval-inert
+export const viaComputedKeyFolds = (({
   ["at"]: aKey
-}) => aKey)([1, 2]);
+}) => aKey)({
+  ["at"]: _atMaybeArray([1, 2])
+});
 export const viaGetterObjectBails = (({
   flat: fg
 }) => fg)({
