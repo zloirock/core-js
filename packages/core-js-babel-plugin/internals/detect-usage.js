@@ -40,6 +40,7 @@ import {
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
   isMutatedStaticPair,
+  mutatedStaticKey,
   resolveCallArgument,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
@@ -109,7 +110,7 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
 }
 
 export function createBabelAdapter({
-  getInjector = () => null, method = null, getMutatedStatics = () => null, getPackages = () => null,
+  getInjector = () => null, method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null, getPackages = () => null,
   isTypingMutatedSlot = null,
 } = {}) {
   // the injector's declarator registry serves plugin-minted memo refs whose scope model
@@ -139,6 +140,14 @@ export function createBabelAdapter({
     // longer returns what its declaration says, so its result type is unknown in EVERY method - a
     // global-flavor narrow taken off the declaration silently drops the polyfill the replacement
     // actually needs. the pure-only gate belongs to the injection skip, not to typing
+    // a container SLOT written anywhere (`const w = { k: Object }; w.k = Map`) is no built-in mutation,
+    // so it is deliberately NOT part of the mutated-static set - reporting it there would deopt every
+    // namespace gate in the file. its ONE reader is the receiver walk's container descent, which must
+    // stop trusting the literal's initial member once the slot has been replaced
+    isWrittenContainerSlot(object, key) {
+      const slots = getWrittenContainerSlots?.();
+      return !!slots && (slots.has(`${ object }.*`) || slots.has(mutatedStaticKey(object, key)));
+    },
     isMutatedStaticSlot(object, key) {
       return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
         : isMutatedStaticPair(object, key, getMutatedStatics());

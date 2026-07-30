@@ -21,6 +21,7 @@ import {
   mayHaveSideEffects,
   peelZeroArgIifeReturn,
   propBindingIdentifier,
+  plainSynthKeyName,
   propertyKeyName,
   reassignmentBlocksGlobalResolve,
   unwrapCollectingSePrefixes,
@@ -279,7 +280,10 @@ export function buildNestedDestructurePlan({
     if (!isPropertyNode(prop)) return null;
     return prop.computed
       ? sharedResolveKey({ node: prop.key, computed: true, scope, adapter, path, bailOnSideEffectKey: true })
-      : propertyKeyName(prop);
+      // through the synth namer, which also names a NUMERIC key: it addresses an array SLOT and the
+      // static descent reads that slot like any other container member. the narrower namer stays for
+      // the mutation pre-pass, which tracks NAMED statics a numeric slot can never be
+      : plainSynthKeyName(prop.key);
   }
 
   function planInnerProp(prop, receiverName) {
