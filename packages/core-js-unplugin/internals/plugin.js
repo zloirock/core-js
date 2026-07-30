@@ -318,6 +318,7 @@ export default function createPlugin(options) {
     getInjector: () => currentInjector,
     method: options.method,
     getMutatedStatics: () => currentMutatedStatics,
+    getWrittenContainerSlots: () => currentWrittenContainerSlots,
     isTypingMutatedSlot,
     // lazy: `packages` is destructured from the resolver below; transforms run after
     getPackages: () => packages,
@@ -396,6 +397,7 @@ export default function createPlugin(options) {
   // none of them names is provably untouched, and an over-report only degrades a narrow (over-inject,
   // the safe direction in usage-global). the scoped pre-pass stays where its completeness is required
   let currentMutationRoots = null;
+  let currentWrittenContainerSlots = null;
   function isTypingMutatedSlot(object, key) {
     if (options.method === 'usage-pure') return isMutatedStaticPair(object, key, currentMutatedStatics);
     if (!currentMutationRoots) return false;
@@ -654,6 +656,7 @@ export default function createPlugin(options) {
     currentInjector = injector;
     currentMutatedStatics = mutatedStatics;
     currentMutationRoots = fileCensus.mutationRoots ?? null;
+    currentWrittenContainerSlots = fileCensus.writtenContainerSlots ?? null;
     try {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
