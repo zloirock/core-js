@@ -23,7 +23,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   (`new Foo(bar.name)` had its injected getter wrapper re-wrapped as a constructor call). Fixed on
   `v4`; all three methods pass.
 
-**Runners.** Six entry points, each exposed as a root npm script:
+**Runners.** Four entry points, each exposed as a root npm script:
 
 - **pipeline** — the full picture: **size AND time at each stage** of the real IE11 build, per
   (lib × method). Stages: `[A]` library bundled, no transforms → `[B]` + Babel (ES5, no polyfills) →
@@ -74,7 +74,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     `tests/transpiler-fixtures/entry-global`. Because the snapshot comes from the shipping build, Babel
     runs before unplugin, and *that* is what gives the phase axis meaning: with plain unplugin (no
     Babel) all three phases inject byte-identical sets, whereas here `post` also sees what Babel's own
-    helpers reach for — codemirror `usage-global` 120 (`pre`) → 133 (`post`), three 154 → 172, while
+    helpers reach for — codemirror `usage-global` 121 (`pre`) → 133 (`post`), three 156 → 172, while
     rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta used to
     be unsnapshotted, so a post-phase ordering regression (the class of bug commit `20718df3b0` fixed)
     could not redden this gate; now it can. `post` is a strict superset of `pre` on every fixture and
