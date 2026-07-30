@@ -40,6 +40,7 @@ import {
   singleReturnBodyExpression,
   spreadAtOrBefore,
   staticMemberKeyName,
+  plainSynthKeyName,
   synthSwapPropKey,
   SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
@@ -1231,19 +1232,28 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter) {
   }
 }
 
+// a numeric literal key node under either parser (babel `NumericLiteral`, estree `Literal`)
+function isNumericLiteralKeyNode(node) {
+  return node.type === 'NumericLiteral' || (node.type === 'Literal' && typeof node.value === 'number');
+}
+
 export function resolveKey({ node, computed, scope, adapter, seen, path, depth = 0, bailOnSideEffectKey = false, usageNode = null }) {
   while (true) {
-    if (depth > MAX_KEY_DEPTH) return null;
-    // a mutator called with fewer arguments than it takes (`Object.defineProperty(target)`) leaves
-    // the key slot EMPTY. it is legal source that throws at runtime, and callers already treat a
-    // null key as "not resolvable", so the absent node answers the same way rather than crashing
-    if (!node) return null;
+    // an over-deep chain and an ABSENT key answer alike: a mutator called with fewer arguments than it
+    // takes (`Object.defineProperty(target)`) leaves the key slot empty - legal source that throws at
+    // runtime, and callers already treat a null key as "not resolvable"
+    if (depth > MAX_KEY_DEPTH || !node) return null;
     if (computed) {
       node = normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter);
       if (node === KEY_SIDE_EFFECT_BAIL) return null;
     }
     if (!computed && node.type === 'Identifier') return node.name;
-    if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
+    // a NUMERIC literal names its slot as much as the string spelling does (`obj[0]` and `obj['0']`
+    // are one property). naming only strings split READ from WRITE: a mutation through the numeric
+    // spelling stayed untracked while a read resolved, so a user's patch lost to the polyfill
+    if (adapter.isStringLiteral(node) || isNumericLiteralKeyNode(node)) {
+      return adapter.isStringLiteral(node) ? adapter.getStringValue(node) : String(node.value);
+    }
     // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
     if (node.type === 'TemplateLiteral') {
       const single = singleQuasiString(node);
@@ -1356,7 +1366,9 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
 // the two keys a synth-swap pattern property needs, derived once so babel-plugin and unplugin agree:
 // `lookupKey` is the resolved static NAME used to probe a receiver for a polyfillable static (a computed
 // `[k]` with `const k = 'from'` resolves to 'from'); `slotKey` is the stable map / emit slot that
-// distinguishes `[k]` from a plain `k` (`{ k: v, [k]: w }`). a non-computed key uses its name for both;
+// distinguishes `[k]` from a plain `k` (`{ k: v, [k]: w }`). a non-computed key uses its name for both -
+// through the shared resolver, since a string / numeric key carries its name somewhere other than
+// `.name` and reading that slot raw probes the receiver with `undefined`, losing the polyfill.
 // a dynamic computed key (`resolveKey` -> null) yields `lookupKey: null` so the caller bails the synth
 export function resolveSynthKeys({ node, scope, adapter, path }) {
   const slotKey = synthSwapPropKey(node);
@@ -1365,7 +1377,7 @@ export function resolveSynthKeys({ node, scope, adapter, path }) {
   // conditional init for usage-pure - a null path defaults the dominance check to true and folds wrongly
   const lookupKey = node.computed
     ? resolveKey({ node: node.key, computed: true, scope, adapter, path })
-    : node.key.name;
+    : plainSynthKeyName(node.key);
   return { lookupKey, slotKey };
 }
 

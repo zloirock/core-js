@@ -1,11 +1,12 @@
-// A caller-lossy body-extract is sound only when every call site is visible. An immediately
-// invoked function qualifies - unless its own name is referenced inside, which is an extra
-// caller that can supply the param the default would otherwise fill. A JSX tag name is such a
-// reference: the element hands the component to a renderer that calls it with props, so the
-// param default never runs there and the extracted value would be wrong.
+// A JSX tag name REFERENCES the function it names: the element hands the component to a renderer
+// that calls it with props, so such a function has callers the file cannot see. That rules out the
+// caller-lossy body-extract - but not the synthesized default, which is right for every caller
+// since it only evaluates when the argument is omitted. So all of these now polyfill, self-reference
+// or not, and what the file locks is that JSX shapes never cost a param its polyfill.
+// The extract-versus-verbatim decision the scan drives is exercised where a pattern cannot synth.
 var cond = true;
 
-// The tag name references the function itself - stays verbatim.
+// The tag name references the function itself - an extra caller the synth still covers.
 export const viaTagName = (function F({ ['from']: from } = Array) {
   return cond ? (cond = false, <F x={1} />) : from;
 })();
@@ -15,7 +16,7 @@ export const viaMemberRoot = (function G({ ['of']: of } = Array) {
   return cond ? (cond = false, <G.Sub x={1} />) : of;
 })();
 
-// NEGATIVE: an attribute NAME is a prop name, not a binding reference - extract stays sound.
+// An attribute NAME is a prop name, not a binding reference - no extra caller either way.
 export const attributeNameNotRef = (function H({ ['assign']: assign } = Object) {
   return <div H={1}>{assign({}, { a: 1 }).a}</div>;
 })();
@@ -30,8 +31,8 @@ export const namespacedNotRef = (function L({ ['keys']: keys } = Object) {
   return <ns:L x={1}>{keys({ a: 1 }).length}</ns:L>;
 })();
 
-// NEGATIVE: a lowercase BARE tag names an intrinsic element - the string, not the binding of that
-// same spelling - so every call site really is visible and the extract stays sound.
+// A lowercase BARE tag names an intrinsic element - the string, not the binding of that same
+// spelling - so it adds no caller at all.
 export const intrinsicTagNotRef = (function div({ ['values']: values } = Object) {
   return <div>{values({ a: 1 }).length}</div>;
 })();
