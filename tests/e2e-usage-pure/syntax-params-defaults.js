@@ -454,3 +454,105 @@ QUnit.test('params: self-reference in a param default - the re-entry receiver wi
   })();
   assert.same(seen[1], 'via-default');
 });
+
+// a string-keyed destructure default is replayed as a synthesized literal, which the caller's own
+// argument still beats - the default only evaluates when the argument is omitted. regression: the
+// key shape fell back to a body binding instead, and that binding ignored what the caller passed
+QUnit.test('params: string-keyed destructure default keeps the caller value', assert => {
+  // eslint-disable-next-line no-useless-rename, @stylistic/quote-props -- the quoted key is the shape under test
+  const seen = (function ({ 'from': from } = Array) {
+    return from;
+  })({ from: 'CUSTOM' });
+  assert.same(seen, 'CUSTOM');
+  // eslint-disable-next-line no-useless-rename, @stylistic/quote-props -- the quoted key is the shape under test
+  const omitted = (function ({ 'of': of } = Array) {
+    return of;
+  })();
+  assert.same(typeof omitted, 'function');
+});
+
+// a self-reference is an extra, invisible caller, which rules out binding the polyfill in the body.
+// the synthesized default has no such limit: it only evaluates when the argument is omitted, so the
+// recursive call's own argument still wins. regression: the shape bailed to the native global here,
+// leaving the parameter unpolyfilled on the very engines the target list names
+QUnit.test('params: self-referencing function keeps its synthesized default', assert => {
+  const seen = [];
+  // a FOLDED key on the self-referencing shape is the combination that bailed to the native global
+  // eslint-disable-next-line no-useless-concat, unicorn/no-useless-concat -- the fold is under test
+  const out = (function r({ ['o' + 'f']: of } = Array, depth = 0) {
+    seen.push(typeof of);
+    return depth ? of : r({ of: 'FROM_CALLER' }, 1);
+  })();
+  assert.same(seen[0], 'function');
+  assert.same(out, 'FROM_CALLER');
+});
+
+// a key folds to its name through concatenation and interpolation as well, and an effect-bearing
+// fold must still run its effect exactly once - the key node stays on the pattern, and only the
+// resolved name is mirrored into the synthesized literal
+QUnit.test('params: a folded computed key resolves and runs its effect once', assert => {
+  let effects = 0;
+  // eslint-disable-next-line no-useless-concat, unicorn/no-useless-concat -- the fold is the shape under test
+  const concatenated = (function ({ ['fr' + 'om']: from } = Array) {
+    return from;
+  })();
+  assert.same(typeof concatenated, 'function');
+  const interpolated = (function ({ [`isArr${ 'ay' }`]: isArray } = Array) {
+    return isArray;
+  })();
+  assert.same(interpolated([]), true);
+  // eslint-disable-next-line prefer-template -- the effect must sit in the concat's left operand
+  const withEffect = (function ({ [(effects++, 'i') + 'sArray']: isArray } = Array) {
+    return isArray;
+  })();
+  assert.same(effects, 1);
+  assert.same(withEffect([]), true);
+});
+
+// several props may name one slot. the synthesized literal carries it once, so both bindings must
+// still see the polyfill. regression: the duplicate handed the whole pattern to the body fallback,
+// which binds in the body and ignores whatever the caller passed
+QUnit.test('params: duplicate slots collapse and keep every polyfill', assert => {
+  /* eslint-disable @stylistic/quote-props -- the second spelling of the slot is the shape under test */
+  const omitted = (function ({ of: of1, 'of': of2 } = Array) {
+    return [of1, of2];
+  })();
+  assert.same(typeof omitted[0], 'function');
+  assert.same(omitted[0], omitted[1]);
+  const passed = (function ({ of: a, 'of': b } = Array) {
+    return [a, b];
+  })({ of: 'FROM_CALLER' });
+  /* eslint-enable @stylistic/quote-props -- back to the default beyond the shape under test */
+  assert.same(passed[0], 'FROM_CALLER');
+  assert.same(passed[1], 'FROM_CALLER');
+});
+
+// the key's resolved name is what picks the polyfill, so every spelling of one slot must reach it.
+// regression: only a bare Identifier did - a string or folded key probed the receiver with nothing
+// and left the parameter holding whatever the engine natively had, which on the target list is
+// nothing at all. the binding holds the UNBOUND dispatcher, exactly like the native extraction
+QUnit.test('params: instance default synth resolves every key spelling', assert => {
+  // eslint-disable-next-line @stylistic/quote-props -- the quoted spelling is the shape under test
+  const viaString = (function ({ 'flat': f } = [1, [2]]) {
+    return f;
+  })();
+  assert.same(typeof viaString, 'function');
+  assert.deepEqual(viaString.call([1, [2]]), [1, 2]);
+  // eslint-disable-next-line no-useless-concat, unicorn/no-useless-concat -- the fold is under test
+  const viaFolded = (function ({ ['fl' + 'at']: f } = [3, [4]]) {
+    return f;
+  })();
+  assert.deepEqual(viaFolded.call([3, [4]]), [3, 4]);
+});
+
+// a numeric key is never polyfillable itself, but it must not stop the receiver choice from
+// enumerating the OTHER keys - a polyfill-dead default would otherwise win and take their
+// polyfills down with it
+QUnit.test('params: a numeric sibling key does not sink the receiver choice', assert => {
+  const deadDefault = { entries: null };
+  const seen = (function ({ 0: z, entries: e } = deadDefault) {
+    return [z, e];
+  })(globalThis.Object);
+  assert.same(typeof seen[1], 'function');
+  assert.deepEqual(seen[1]({ a: 1 }), [['a', 1]]);
+});
