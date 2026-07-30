@@ -1022,7 +1022,9 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
       for (const rhs of reassignmentValueNodes({
         binding, usagePath: path, name: aliasNode.name, ctx: { scope, adapter, path, resolveKey }, usageNode,
       })) {
-        const value = resolve(rhs);
+        // the written value was READ at its write site - anchor its own resolution there, so a
+        // cross-write (`a = b; b = x`) resolves b's value as captured BEFORE `b = x` overwrote it
+        const value = resolve(rhs, rhs);
         if (value) values.push(value);
         pushAliasHop(rhs, aliasNode.name, false);
       }

@@ -299,6 +299,48 @@ const C_SLOTS = [
   { id: 'reposition-dynamic-key', setup: 'const b = [{ q: 1 }, Array]; const m = "reverse"; b[m]();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-optional-call', setup: 'const b = [{ q: 1 }, Array]; b?.reverse();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-destructured', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; reverse.call(b);', use: 'typeof b[0].of', strip: false },
+  // the REACHING-VALUE family: the value a write installs is a receiver of later slot reads -
+  // usage-global unions its statics beside the literal candidate's, pure keeps the bail. member
+  // and destructure spellings read through the same walk, so both lock the union channel
+  { id: 'write-reaching-member', setup: 'const w = { k: Object }; w.k = Map;', use: 'typeof w.k.groupBy', strip: false },
+  { id: 'write-reaching-destructure', setup: 'const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'write-reaching-dynamic-key', setup: 'const w = { k: Object }; const dk = "k"; w[dk] = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'write-reaching-nested', setup: 'const i = { g: Object }; const w = { k: i }; i.g = Map; const { k: { g: { groupBy: g } } } = w;', use: 'typeof g', strip: false },
+  { id: 'reposition-destructure-read', setup: 'const b = [{ q: 1 }, Array]; b.reverse(); const { 0: { of: o } } = b;', use: 'typeof o', strip: false },
+  // the FLAT destructure spelling over a container member asks the same walk: clean extracts
+  // (strippable - the pure static must be polyfill-backed), written unions in global and bails pure
+  { id: 'flat-destructure-clean', setup: 'const w = { k: Array }; const { of: o } = w.k;', use: 'JSON.stringify(o(6))', strip: true },
+  { id: 'flat-destructure-written', setup: 'const w = { k: Object }; w.k = Map; const { groupBy: g } = w.k;', use: 'typeof g', strip: false },
+  // a REASSIGNED container binding: the dominating write's value is the reaching primary, a
+  // conditional write joins the union, a wrapper chain follows the same hop canon. pure bails all
+  { id: 'reassigned-dominating', setup: 'let w = { k: Object }; w = { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  { id: 'reassigned-conditional', setup: 'let w = { k: Object }; if (Math.random() < 2) w = { k: Map }; const { groupBy: g } = w.k;', use: 'typeof g', strip: false },
+  { id: 'reassigned-wrapper', setup: 'let w = [{ p: Object }]; w = [{ p: Map }]; const [{ p: { groupBy: g } }] = w;', use: 'typeof g', strip: false },
+  // reassignment VALUE semantics: an identity self-assign is a no-op (pure still resolves -
+  // strippable), an SE-carrying write installs its sequence tail, cross-writes capture at the
+  // write site (`a = b` reads b BEFORE `b = a` overwrites it)
+  { id: 'reassigned-self-noop', setup: 'let w = { k: Array }; w = w; const { k: { of: o } } = w;', use: 'JSON.stringify(o(6))', strip: true },
+  {
+    id: 'reassigned-se-tail',
+    setup: 'let n = 0; const eff = () => n++; let w = { k: Object }; w = (eff(), { k: Map }); const { k: { groupBy: g } } = w;',
+    use: 'typeof g + n', strip: false,
+  },
+  { id: 'reassigned-cross-write', setup: 'let a = { k: Object }; let b = { k: Map }; a = b; b = a; const { k: { groupBy: g } } = a;', use: 'typeof g', strip: false },
+  // an object-pattern key spelling an array index pairs cross-form - the written value reaches
+  { id: 'reassigned-pattern-obj-lhs', setup: 'let w = { k: Object }; ({ 0: w } = [{ k: Map }]); const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
+  // a branching / ambiguous write installs one of its arm values - each arm joins the union
+  {
+    id: 'reassigned-branching-write',
+    setup: 'let w = { k: Object }; w = Math.random() < 2 ? { k: Map } : { k: Object }; const { k: { groupBy: g } } = w;',
+    use: 'typeof g', strip: false,
+  },
+  {
+    id: 'reassigned-ambiguous-default',
+    setup: 'let w = { k: Object }; ({ 0: w = { k: Map } } = [{ k: Object }]); const { k: { groupBy: g } } = w;',
+    use: 'typeof g', strip: false,
+  },
+  // a logical BINDING assign flows its RHS as a possible value
+  { id: 'reassigned-logical-binding', setup: 'let w = null; w ||= { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
 ];
 
 function * generateContainerSlots() {
