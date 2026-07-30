@@ -13,8 +13,9 @@ import "core-js/modules/web.dom-collections.iterator";
 // a container slot write must not SILENCE injection in the global flavor: the binding reassignment
 // canon is method-aware - pure bails (a write anywhere may reach the read), global bails only on
 // PROVEN dominance, which the slot record cannot establish, so it keeps resolving and over-injects
-// the literal's candidate. the written value's own statics through the slot remain an open gap -
-// reaching-value for slots needs the position analysis the record does not carry
+// the literal's candidate. the written value's own statics inject too (the recorded value joins
+// the union axis); here that import coincides with the binding-canon cell's, so this file locks
+// the literal candidate surviving - the reaching union has its own fixture
 const w = {
   k: Object
 };
