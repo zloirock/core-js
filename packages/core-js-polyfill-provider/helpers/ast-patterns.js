@@ -192,9 +192,7 @@ export function singleQuasiString(node) {
 export function memberKeyName(node) {
   const { property, computed } = node;
   if (!computed) return property?.type === 'Identifier' ? property.name : null;
-  // computed key resolves through the same static-string extraction as a property key
-  // (string literal under babel `StringLiteral` / oxc `Literal`, or single-quasi template)
-  return staticStringKey(property);
+  return property?.type === 'Identifier' ? null : plainSynthKeyName(property);
 }
 
 // the static member name, FOLDING a side-effecting computed key to its static tail
@@ -609,7 +607,11 @@ export function paramsHaveInvisibleCallers(path, { paramNeverOverridden = null }
   // references its own name inside the body: that name can re-invoke it with arguments the
   // caller-lossy emission never sees (`(function f({from} = Array){ return c ? f(1) : from })()`
   // - the self-call passes 1, so the default never runs there, yet an extract emits `_Array$from`
-  // unconditionally). fall through to the param-override scan / conservative bail for that shape
+  // unconditionally). fall through to the param-override scan / conservative bail for that shape.
+  // the lexical name is the ONLY such channel: `arguments.callee` would be the other one, but every
+  // shape that reaches this gate binds through a PATTERN or a DEFAULT, and a non-simple parameter
+  // list gets an unmapped arguments object whose `callee` is the poison-pill accessor - so a
+  // callee-recursing caller cannot coexist with the emission this guards
   if (isImmediatelyInvokedFunction(fnPath) && !namedFunctionSelfReferences(fnPath)) return false;
   if (paramNeverOverridden?.(paramPath)) return false;
   return true;
@@ -2989,15 +2991,57 @@ export function staticStringKey(node) {
   return singleQuasiString(node);
 }
 
+// a value that can REACH a built-in constructor: the constructor itself (an Identifier, bare or
+// aliased) or a container that may hold one deeper. every other value is data no walk can follow to a
+// built-in. shared by the receiver walk (which slot to descend) and the mutation gate (which binding
+// counts as a container) so read and write agree on what a container is
+export function canHoldBuiltIn(node) {
+  return node?.type === 'Identifier' || node?.type === 'ObjectExpression'
+    || node?.type === 'ArrayExpression' || node?.type === 'ClassExpression';
+}
+
 // a computed key that is a (paren-wrapped) SequenceExpression with a static-string TAIL
-// (`[(eff(), 'from')]`) resolves to that tail name ('from'); null otherwise. used by the synth-swap
-// gates so a side-effecting computed key is replayable: the SE prefix stays on the PATTERN key
-// (evaluated once at destructure), and only the resolved tail name is mirrored into the synth
-// literal as a plain key - the receiver-replacement never re-runs the effect. synth-swap only
+// (`[(eff(), 'from')]`) resolves to that tail name ('from'); null otherwise. the member-access side
+// stops here: a member key is READ in place, so only the sequence form needs its prefix accounted for
 export function sequenceKeyStaticName(keyNode) {
   let node = unwrapParens(keyNode);
   if (node?.type !== 'SequenceExpression') return null;
   while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
+  return staticStringKey(node);
+}
+
+// the static NAME a COMPUTED key resolves to, mirroring the shapes `resolveKey` folds structurally:
+// a sequence tail (`[(eff(), 'from')]`), a `+` concat (`['fr' + 'om']`) and a template with
+// resolvable interpolations, nested in any combination. this is the single fact every synth gate
+// needs, and it must stay a SUPERSET of what the caller-LOSSY extraction resolves: extraction and
+// synth decide on the same key name, so a shape only extraction folds would emit the lossy form
+// where the caller-correct one was available. scope-dependent folds (an Identifier key followed to
+// its binding) are deliberately not mirrored - the gates accept `[k]` structurally and check its
+// binding separately, where the pattern is rendered rather than where the plan resolved it
+export function computedKeyStaticName(keyNode) {
+  let node = unwrapParens(keyNode);
+  while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
+  if (node?.type === 'BinaryExpression' && node.operator === '+') {
+    const left = computedKeyStaticName(node.left);
+    const right = left === null ? null : computedKeyStaticName(node.right);
+    return right === null ? null : left + right;
+  }
+  if (node?.type === 'TemplateLiteral') {
+    let out = '';
+    for (let i = 0; i < node.quasis.length; i++) {
+      // an invalid escape leaves `cooked` unset post-ES2018 - runtime concat sees the same
+      // absence, so no valid lookup key can be formed
+      const { cooked } = node.quasis[i].value;
+      if (cooked === null || cooked === undefined) return null;
+      out += cooked;
+      if (i < node.expressions.length) {
+        const part = computedKeyStaticName(node.expressions[i]);
+        if (part === null) return null;
+        out += part;
+      }
+    }
+    return out;
+  }
   return staticStringKey(node);
 }
 
@@ -3934,6 +3978,15 @@ export function sequencePrefixWithSideEffects(expr) {
 // only down the receiver spine (object / sequence-tail), NOT into computed keys / `+` / template
 // operands - a chain-assign buried in a KEY is a discarded value, pushed whole. omitted (null) keeps
 // the assignment pushed whole (the `in`-fold / general discard, which re-emits nothing separately)
+// one member of a discarded container: a NESTED container recurses (re-emitting the whole literal
+// would rebuild it for nothing), anything else is pushed when it carries an effect - the same
+// push-if-observable rule the sequence prefix uses
+function collectContainerMemberSideEffect(node, out, rescue) {
+  if (node?.type === 'ObjectExpression' || node?.type === 'ArrayExpression') {
+    collectFoldedReceiverSideEffects(node, out, rescue);
+  } else if (mayHaveSideEffects(node)) out.push(node);
+}
+
 export function collectFoldedReceiverSideEffects(node, out = [], rescue = null, chainAssignAt = null) {
   let cur = node;
   while (cur && (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type) || cur.type === 'ChainExpression')) cur = cur.expression;
@@ -3969,6 +4022,21 @@ export function collectFoldedReceiverSideEffects(node, out = [], rescue = null, 
       break;
     case 'TemplateLiteral':
       for (const e of cur.expressions) collectFoldedReceiverSideEffects(e, out, rescue);
+      break;
+    // a CONTAINER literal is discarded WHOLE by the static-container collapse (`{ k: { keys } } =
+    // { k: Object, x: eff() }` becomes `keys = _Object$keys`), so every effect it carries goes with
+    // it - in a sibling member as much as in the consumed one. walk members in source-eval order:
+    // an object's computed key evaluates before its value, and elements left to right
+    case 'ObjectExpression':
+      for (const prop of cur.properties) {
+        if (prop.computed) collectContainerMemberSideEffect(prop.key, out, rescue);
+        collectContainerMemberSideEffect(prop.type === 'SpreadElement' ? prop.argument : prop.value, out, rescue);
+      }
+      break;
+    case 'ArrayExpression':
+      for (const element of cur.elements) {
+        collectContainerMemberSideEffect(element?.type === 'SpreadElement' ? element.argument : element, out, rescue);
+      }
       break;
     case 'AssignmentExpression':
       // receiver-spine chain-assign under position-mode: record its eval slot (the emit re-emits it),
@@ -4470,18 +4538,17 @@ export function objectPatternHasNestedValue(objectPattern) {
 // (caller-lossy) a key the mirror's synth default provides, or race it when a leaf resolves transiently
 export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
   let bound = null;
-  // duplicate static keys bail the synth (the literal would need duplicate properties or a
-  // merge policy) - the established fallbacks handle the exotic shape soundly
-  const seenNames = new Set();
   // a NESTED-value prop (`{ Array: { from } }`) belongs to the nested mirror (it replaces the WHOLE
   // receiver); a flat synth-swap here would race it on the same receiver and lose the nested polyfill
   if (objectPatternHasNestedValue(objectPattern)) return false;
   for (const p of objectPattern.properties) {
     if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
     if (!p.computed) {
-      if (p.key?.type !== 'Identifier') return false;
-      if (seenNames.has(p.key.name)) return false;
-      seenNames.add(p.key.name);
+      // several props may name ONE slot (`{ 'z': a, 'z': b }`, `{ 0: a, '0': b }`). that is not a
+      // reason to decline: the literal carries the slot once and both reads destructure the same
+      // value - the entry builder collapses them. declining would hand a shape the literal expresses
+      // perfectly well to the caller-lossy fallback
+      if (plainSynthKeyName(p.key) === null) return false;
       continue;
     }
     if (p.key?.type === 'Identifier') {
@@ -4493,17 +4560,28 @@ export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputed
         walkPatternIdentifiers(objectPattern, n => bound.add(n.name));
       }
       if (bound.has(p.key.name)) return false;
-    } else if (allowSideEffectComputedKeys && sequenceKeyStaticName(p.key) !== null) {
-      // a side-effecting computed key `[(eff(), 'from')]` is replayable when the caller opts in: the SE
-      // prefix stays on the pattern key (evaluated once), the synth literal mirrors only the tail name -
-      // accept it (fall through) like the Identifier / static-string cases
-    } else if (!allowLiteralComputedKeys || staticStringKey(p.key) === null) {
-      // a non-Identifier computed key: only a static string / template literal is replayable, and only
-      // when the caller opts in. anything else is dynamic / side-effecting - not replayable
+      // a non-Identifier computed key is replayable once its name folds statically: an effect-free
+      // one clones into the literal and evaluates to the same slot, an effect-BEARING one mirrors
+      // through the resolved name while its prefix stays on the pattern and runs once. gate on
+      // whether the key carries an effect, not on which shape produced the name
+    } else if (computedKeyStaticName(p.key) === null
+      || !(mayHaveSideEffects(p.key) ? allowSideEffectComputedKeys : allowLiteralComputedKeys)) {
       return false;
     }
   }
   return true;
+}
+
+// the slot a NON-computed key names, for synth purposes. a numeric key names one as much as a string
+// does (`{ 0: x }` and `{ '0': x }` read the same property) and the literal clones it verbatim, so the
+// synth families resolve it. the string-key resolvers stay narrower deliberately: their other consumer
+// is the mutation pre-pass, which tracks NAMED statics that a numeric slot can never be
+export function plainSynthKeyName(key) {
+  if (key?.type === 'Identifier') return key.name;
+  if (key?.type === 'NumericLiteral' || (key?.type === 'Literal' && typeof key.value === 'number')) {
+    return String(key.value);
+  }
+  return staticStringKey(key);
 }
 
 // stable per-receiver polyfill-map key for a synth-swap property: distinguishes a computed key from a
@@ -4511,17 +4589,30 @@ export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputed
 // name (`[k]`); a computed string / template literal keys by its QUOTED static value (`["from"]`) so it
 // can't collide with a same-named computed Identifier. shared so babel-plugin and unplugin key identically
 export function synthSwapPropKey(prop) {
-  if (!prop.computed) return prop.key.name;
+  if (!prop.computed) return plainSynthKeyName(prop.key);
   if (prop.key.type === 'Identifier') return `[${ prop.key.name }]`;
-  return `[${ JSON.stringify(staticStringKey(prop.key) ?? sequenceKeyStaticName(prop.key)) }]`;
+  return `[${ JSON.stringify(computedKeyStaticName(prop.key)) }]`;
 }
 
-// a synth-literal builder can replay a property whose key is a plain Identifier or a computed static
-// string / template literal (`['from']` / [`from`]); anything else (dynamic / side-effecting computed
-// key) is skipped. shared so both emitters apply the same rule isSynthSimpleObjectPattern gated on
-function isReplayableSynthKey(prop) {
-  return prop.key?.type === 'Identifier'
-    || (prop.computed && (staticStringKey(prop.key) !== null || sequenceKeyStaticName(prop.key) !== null));
+// the SLOT a pattern property names, for synth purposes; null when nothing static resolves. ONE fold
+// answers every question the synth families ask - which slot the prop names (so duplicate spellings
+// collapse onto it), whether it is replayable at all, and whether the literal can clone the key or
+// has to spell the resolved name instead
+export function synthSlotName(prop) {
+  return prop.computed ? computedKeyStaticName(prop.key) : plainSynthKeyName(prop.key);
+}
+
+// a computed Identifier key (`[k]`) replays as the variable itself, so it names no statically known
+// slot yet is still replayable - the one shape that is not just "the slot resolved"
+function isComputedIdentifierKey(prop) {
+  return !!prop.computed && prop.key?.type === 'Identifier';
+}
+
+// a synth-literal builder can replay a property whose key resolves to a static slot - a plain
+// Identifier / string / numeric key, or a computed key the folder reduces to a name. anything else
+// (dynamic / side-effecting computed key) is skipped. shared so both emitters apply the same rule
+export function isReplayableSynthKey(prop) {
+  return isComputedIdentifierKey(prop) || synthSlotName(prop) !== null;
 }
 
 // per-property CONTENT plan for a synthesized receiver literal - the single classification both
@@ -4538,15 +4629,33 @@ function isReplayableSynthKey(prop) {
 //              null -> re-read through the receiver
 export function buildFlatSynthEntries(objectPatternNode, polyfills) {
   const entries = [];
+  // props naming the SAME slot collapse to one entry: the literal may hold a key once (twice is an
+  // ES5 strict-mode syntax error), and every pattern read of that slot destructures the same value
+  const bySlot = new Map();
   for (const prop of objectPatternNode.properties) {
-    if ((prop.type !== 'Property' && prop.type !== 'ObjectProperty') || !isReplayableSynthKey(prop)) continue;
-    const seName = prop.computed ? sequenceKeyStaticName(prop.key) : null;
-    entries.push({
-      keyNode: prop.key,
-      computed: prop.computed && seName === null,
-      seName,
-      polyfill: polyfills.get(synthSwapPropKey(prop)) ?? null,
-    });
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+    const computedIdentifier = isComputedIdentifierKey(prop);
+    // an Identifier computed key names no statically known slot, so it can never be collapsed
+    const slot = synthSlotName(prop);
+    if (slot === null && !computedIdentifier) continue;
+    // a key replays THROUGH its resolved NAME (the literal spells it as a string, the passthrough
+    // reads it computed) exactly when it cannot be CLONED into the literal: an effect-bearing
+    // computed key would run its effect a second time, and a plain string / numeric key carries no
+    // Identifier to clone into either slot. an effect-free key clones and names the same slot
+    const cloneable = computedIdentifier
+      || (prop.computed ? !mayHaveSideEffects(prop.key) : prop.key?.type === 'Identifier');
+    const seName = cloneable ? null : slot;
+    const polyfill = polyfills.get(synthSwapPropKey(prop)) ?? null;
+    const kept = slot === null ? undefined : bySlot.get(slot);
+    if (kept) {
+      // whichever occurrence resolved wins: the others read the same slot either way, and a
+      // passthrough kept over a polyfill would silently drop the import
+      if (kept.polyfill === null) kept.polyfill = polyfill;
+      continue;
+    }
+    const entry = { keyNode: prop.key, computed: prop.computed && seName === null, seName, polyfill };
+    if (slot !== null) bySlot.set(slot, entry);
+    entries.push(entry);
   }
   return entries;
 }

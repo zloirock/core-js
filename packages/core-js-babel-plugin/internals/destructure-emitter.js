@@ -18,6 +18,7 @@ import {
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isNonReferencePosition,
+  isReplayableSynthKey,
   isRestProperty,
   isSynthSimpleObjectPattern,
   isTransparentDestructureWrapper,
@@ -29,7 +30,6 @@ import {
   peelToExpressionStatement,
   propBindingIdentifier,
   resolveFallbackReceiverPath,
-  sequenceKeyStaticName,
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
@@ -66,7 +66,7 @@ import {
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { maximalProxyGlobalHop, patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { maximalProxyGlobalHop, patternBindingName, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
   registerBindinglessCtorAlias, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
@@ -402,6 +402,19 @@ export default function createDestructureEmitter({
   // side-effect expressions from destructuring inits - drained at programExit
   // (re-traverse for nested polyfill detection then splice into the body in source order)
   const deferredSideEffects = [];
+  // structural synth-eligibility of an ObjectPattern, judged on the shape it had when the FIRST of
+  // its props reached the dispatch - later props see a spliced-down pattern
+  const patternSynthEligibility = new WeakMap();
+  function patternSynthEligible(objectPattern, scope) {
+    let verdict = patternSynthEligibility.get(objectPattern.node);
+    if (verdict === undefined) {
+      verdict = isSynthSimpleObjectPattern(objectPattern.node,
+        { allowSideEffectComputedKeys: true, allowLiteralComputedKeys: true })
+        && patternComputedKeysSynthSafe(t, objectPattern.node, scope, node => injector.isInjectedReference(node));
+      patternSynthEligibility.set(objectPattern.node, verdict);
+    }
+    return verdict;
+  }
   // `for` headers that hosted a destructure. the header is the one host with no statement slot,
   // so its init is RETAINED in place instead of being lifted, and the drain above - which is what
   // re-walks a lifted init - never sees it. recorded at dispatch so the drain visits exactly the
@@ -486,15 +499,16 @@ export default function createDestructureEmitter({
     }
     if (!isIdentifierPropValue(prop.node.value)) return;
     const objectPattern = prop.parentPath;
-    // synth-swap fits any Identifier key - plain `{ of }` or a bare-Identifier computed key
-    // `{ [k]: of }` (mirrored as `{ [k]: _polyfill }`). `isSynthSimpleObjectPattern` gates the
-    // whole pattern: it rejects a string / numeric / side-effecting key and a computed key that
-    // reads a SIBLING binding (`{ of, [of]: x }`). non-Identifier keys still fall through to the
-    // body-extract / inline-default fallback, which binds via `prop.node.value` keeping key text intact
-    const synthKey = t.isIdentifier(prop.node.key)
-      || (prop.node.computed && sequenceKeyStaticName(prop.node.key) !== null);
-    const targetPath = synthKey && isSynthSimpleObjectPattern(objectPattern.node, { allowSideEffectComputedKeys: true })
-      && patternComputedKeysSynthSafe(t, objectPattern.node, prop.scope, node => injector.isInjectedReference(node))
+    // synth-swap fits every key the synth literal can REPLAY: a plain `{ of }`, a bare-Identifier
+    // computed key `{ [k]: of }` (mirrored as `{ [k]: _polyfill }`), and a computed key that folds
+    // to a static string - ask the RENDERER's own predicate rather than restating it, so this gate
+    // can never drift narrower than what the literal is able to spell. `isSynthSimpleObjectPattern`
+    // gates the whole pattern (duplicate keys, a computed key that reads a SIBLING binding)
+    const synthKey = isReplayableSynthKey(prop.node);
+    // the pattern SHRINKS as siblings emit (a body-extract splices its prop out), so asking the
+    // structural gate again on a later prop would judge a different shape than the first one saw -
+    // and the text emitter, which never mutates, would judge the original. decide once per pattern
+    const targetPath = synthKey && patternSynthEligible(objectPattern, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
       // a NESTED / array-wrapped parameter default replaces the DEFAULT itself with a
@@ -589,7 +603,7 @@ export default function createDestructureEmitter({
       scope: prop.scope, adapter, path: prop, resolvePure,
     })) return false;
     const use = refineParamDefaultInstancePure({
-      pureResult: { entry, hintName }, key: prop.node.key.name ?? prop.node.key.value,
+      pureResult: { entry, hintName }, key: resolveSynthKeys({ node: prop.node, scope: prop.scope, adapter, path: prop }).lookupKey,
       receiverPath: rightPath, resolveNodeType, toHint, resolvePure, path: prop,
     });
     synthSwap.registerPolyfill({
@@ -615,7 +629,7 @@ export default function createDestructureEmitter({
       scope: prop.scope, adapter, path: prop, resolvePure,
     })) return false;
     const use = refineParamDefaultInstancePure({
-      pureResult: { entry, hintName }, key: prop.node.key.name ?? prop.node.key.value,
+      pureResult: { entry, hintName }, key: resolveSynthKeys({ node: prop.node, scope: prop.scope, adapter, path: prop }).lookupKey,
       receiverPath: argPath, resolveNodeType, toHint, resolvePure, path: prop,
     });
     synthSwap.registerPolyfill({
@@ -1717,11 +1731,16 @@ export default function createDestructureEmitter({
   function handleSideEffectComputedKey({ prop, kind, entry, hintName, meta = null }) {
     const objectPattern = prop.parentPath;
     const { parent: synthHost } = peelTransparentWrappers(objectPattern);
-    // param-default / IIFE host (static): no room for a separate binding statement -> synth-swap receiver.
+    // param-default / IIFE host: no room for a separate binding statement -> synth-swap receiver. an
+    // INSTANCE method routes here too, but ONLY on such a host - the receiver synth spells the key
+    // through its resolved name and leaves the effect on the pattern, so nothing needs a separate
+    // binding. an ASSIGNMENT host keeps the post-statement overwrite below, which is what preserves
+    // the in-place effect there.
     // `meta` MUST thread through: the nested-mirror plan gates on `meta.object`, and dropping it here
     // demotes a wrapped-pattern SE key from the caller-correct receiver synth (key text + effect stay in
     // the pattern) to the native-wins inline default - diverging from the text emitter
-    if (kind !== 'instance' && !synthHost?.isVariableDeclarator() && !synthHost?.isObjectProperty()) {
+    const paramHost = !!synthHost?.isAssignmentPattern() || !!synthHost?.isFunction();
+    if ((kind !== 'instance' || paramHost) && !synthHost?.isVariableDeclarator() && !synthHost?.isObjectProperty()) {
       handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return true;
     }
