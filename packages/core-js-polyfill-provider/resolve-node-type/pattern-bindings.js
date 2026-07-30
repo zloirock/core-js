@@ -13,7 +13,7 @@
 // (resolveBindingType, type-query, plus various back-reference paths). `resolveNodeType`
 // is late-bound via thunk since the cluster recurses into the main resolver.
 import {
-  $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,
+  $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
@@ -539,6 +539,15 @@ export function createPatternBindings({
         if (spreadAtOrBefore(objPath.node.elements, step)) return null;
         objPath = resolveRuntimeExpression(objPath.get('elements')[step]);
         keyPath = rest;
+        continue;
+      }
+      // a STRING step may still name an array SLOT: the pattern side stringifies a numeric key
+      // (`{ 0: ... }` -> '0') and the language reads that property off an array host. fold it back to
+      // the index and re-enter, so the element read above - with its bounds and spread guards - is the
+      // one place that resolves a slot, whichever spelling reached it
+      const asIndex = canonicalArrayIndex(step);
+      if (asIndex !== null && t.isArrayExpression(objPath.node)) {
+        keyPath = [asIndex, ...rest];
         continue;
       }
       if (!t.isObjectExpression(objPath.node)) return null;
