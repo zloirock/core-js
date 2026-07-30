@@ -19,6 +19,7 @@ import {
   canHoldBuiltIn,
   collectFileCensus,
   followConstLiteralAlias,
+  peelNestedSequenceExpressions,
   unwrapRuntimeExpr,
   isMemberMutationContext,
   isMutatedStaticPair,
@@ -404,8 +405,11 @@ export function mutationShapesReducer(packages = null) {
     // (`const w = { ref: box }`) hands the same reference out through its member chain. the walk
     // is the shared escape collector, so the two families cannot drift. a PATTERN id is a READ
     // (`const { k } = box` unpacks, it re-homes nothing) - escaping it would bail every clean
-    // destructure in the file
-    if (id?.type === 'Identifier') recordEscapedContainers([rawValue]);
+    // destructure in the file. an identity self-assign (`box = box`) re-homes nothing either -
+    // the value stays under the ONE name the census already tracks
+    const selfTail = id?.type === 'Identifier' ? peelNestedSequenceExpressions(rawValue).tail : null;
+    const identitySelfAssign = selfTail?.type === 'Identifier' && selfTail.name === id.name;
+    if (id?.type === 'Identifier' && !identitySelfAssign) recordEscapedContainers([rawValue]);
     else if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') {
       recordPatternLiteralReHomes(id, unwrapRuntimeExpr(rawValue));
     }
@@ -507,8 +511,14 @@ export function mutationShapesReducer(packages = null) {
         if (left?.type === 'MemberExpression' || left?.type === 'OptionalMemberExpression') {
           const writeRoot = unwrapRuntimeExpr(left.object);
           // an unreadable write key writes an UNKNOWN slot - the wildcard admits the possibility,
-          // mirroring the read guard's rule for an unreadable member key
-          if (writeRoot?.type === 'Identifier') rawSlotWrites.push([writeRoot.name, memberKeyName(left) ?? '*']);
+          // mirroring the read guard's rule for an unreadable member key.
+          // the written VALUE rides along as a reaching candidate for later reads of the slot -
+          // plain and logical assigns install the right operand verbatim, while an arithmetic
+          // compound DERIVES its value, so no candidate is known for it
+          if (writeRoot?.type === 'Identifier') {
+            const value = IDENTITY_PRESERVING_ASSIGN_OPS.has(node.operator) ? node.right : null;
+            rawSlotWrites.push([writeRoot.name, memberKeyName(left) ?? '*', value]);
+          }
           pushTarget(gateMemberTarget(left));
         } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
           gatherPatternMemberTargets(left, { push: pushTarget });
@@ -727,13 +737,22 @@ export function mutationShapesReducer(packages = null) {
     }
     // only a root BOUND to a container literal matters: `config.foo = v` over a plain object is
     // ordinary code, and reporting it would deopt every namespace read in the file. ONE published
-    // set serves both records: a written slot as `name.key`, a repositioned container as the
-    // wildcard `name.*` - repositioning invalidates every slot, and the reader checks both spellings
-    const writtenContainerSlots = new Set();
-    for (const [name, key] of rawSlotWrites) {
-      if (containerBound.has(name)) writtenContainerSlots.add(mutatedStaticKey(name, key));
+    // map serves both records: a written slot as `name.key`, a repositioned container as the
+    // wildcard `name.*` - repositioning invalidates every slot, and the reader checks both
+    // spellings. each entry's value lists the KNOWN written value nodes of that slot (empty for
+    // escapes / deletes / repositioning), so usage-global can union the reaching candidates
+    const writtenContainerSlots = new Map();
+    function writtenSlot(slotKey) {
+      let values = writtenContainerSlots.get(slotKey);
+      if (!values) writtenContainerSlots.set(slotKey, values = []);
+      return values;
     }
-    for (const name of rawRepositioned) if (containerBound.has(name)) writtenContainerSlots.add(`${ name }.*`);
+    for (const [name, key, value] of rawSlotWrites) {
+      if (!containerBound.has(name)) continue;
+      const values = writtenSlot(mutatedStaticKey(name, key));
+      if (value) values.push(value);
+    }
+    for (const name of rawRepositioned) if (containerBound.has(name)) writtenSlot(`${ name }.*`);
     return { hasMutationShapes, mutationRoots: { names: rootNames, open }, writtenContainerSlots };
   }
   return { visit, result };

@@ -1446,7 +1446,21 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       // the base at class-definition time - so both modes anchor the proof at the class node
       // (`classAnchor`), letting a reassignment after capture (post-class OR in-method, before the
       // super call) still resolve. fall back to the super site (`path`) only when no anchor was supplied
-      if (reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor ?? path })) return null;
+      if (reassignmentBlocksGlobalResolve({ binding, adapter, path: classAnchor ?? path })) {
+        // usage-global: the dominating reassignment IS the captured base - keep resolving through
+        // its enumerable value, like the container walk; pure keeps the flat bail
+        const anchor = classAnchor ?? path;
+        const reaching = adapter.method === 'usage-global' ? reachingReassignmentValueNode({
+          binding, usagePath: anchor, usageNode: anchor?.node ?? null,
+        }) : null;
+        if (!reaching) return null;
+        const reachingValue = unwrapInitForResolution(reaching);
+        if (reachingValue?.type === 'Identifier') {
+          name = reachingValue.name;
+          continue;
+        }
+        return resolveBindingToGlobalName(reachingValue, scope, seen, anchor, anchor);
+      }
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
         || decl?.type === 'ImportNamespaceSpecifier') {
