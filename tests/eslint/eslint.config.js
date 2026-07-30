@@ -2583,9 +2583,6 @@ export default [
       'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
       'tests/e2e-libs/.tmp/**',
       'tests/e2e-libs/@(artifacts|report)/**',
-      // reduced from real library sources; the shapes under test (`this.filter = null` in a
-      // constructor, an empty method) are the reproduction itself and must not be rewritten
-      'tests/e2e-libs/pre-inference-bug/@(control|fixture).mjs',
       'tests/transpiler-differential/tmp/**',
       'tests/type-definitions/tmp/**',
       'website/dist/**',
