@@ -148,6 +148,15 @@ export function createBabelAdapter({
       const slots = getWrittenContainerSlots?.();
       return !!slots && (slots.has(`${ object }.*`) || slots.has(mutatedStaticKey(object, key)));
     },
+    // the KNOWN written value nodes reaching a slot: direct writes to the named slot plus
+    // unknown-slot (dynamic-key) writes, which may land anywhere on the container
+    writtenContainerSlotValues(object, key) {
+      const slots = getWrittenContainerSlots?.();
+      if (!slots) return [];
+      const direct = slots.get(mutatedStaticKey(object, key)) ?? [];
+      const viaUnknownSlot = key === '*' ? [] : slots.get(`${ object }.*`) ?? [];
+      return viaUnknownSlot.length ? [...direct, ...viaUnknownSlot] : direct;
+    },
     isMutatedStaticSlot(object, key) {
       return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
         : isMutatedStaticPair(object, key, getMutatedStatics());
@@ -716,7 +725,7 @@ export function createUsageVisitors({
   // destructure-prop emit funnel: every prop meta gets its computed `Symbol.X` key provenance
   // checked once here, so a string spelling of the key stays untagged and the symbol-routed
   // emit paths leave it as a plain property read
-  function emitPropUsage(meta, path) {
+  function emitPropUsage(meta, path, containerWalkObjects = null) {
     // capture the key slots BEFORE dispatch: a usage-pure emit may REPLACE the ObjectProperty
     // (extraction / rewrite), detaching `path.node` for the union pass below.
     // `meta` may be null (an unresolvable - e.g. BRANCHING - computed key, or a mutated-static
@@ -728,7 +737,7 @@ export function createUsageVisitors({
     // usage-global reachable receiver / key union: each extra destructure target earns a
     // side-effect import beside the primary, mirroring the member funnel
     for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path, resolvePure,
+      meta, keyNode, computed, scope, adapter, path, resolvePure, containerWalkObjects,
     })) onUsage(extra, path);
   }
 
@@ -741,13 +750,16 @@ export function createUsageVisitors({
     const innerKey = sharedResolveKey({
       node: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path: path.get('key'),
     });
-    const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
+    // the container walk collects the slot's OTHER reaching values (written / repositioned)
+    // beside its primary answer - they join the usage-global union axis in the prop funnel
+    const containerUnion = [];
+    const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter, containerUnion);
     // a BRANCHING inner key rides a null-key carrier that KEEPS the resolved nested receiver,
     // so the union pairs the arm keys with it as statics
     // (`{ Array: { [cond ? "from" : "of"]: f } } = globalThis` reaches both statics)
     if (!innerKey) {
       return emitPropUsage(receiverKey !== null
-        ? { kind: 'property', object: receiverKey, key: null, placement: 'static' } : null, path);
+        ? { kind: 'property', object: receiverKey, key: null, placement: 'static' } : null, path, containerUnion);
     }
     // a monkey-patched static is NOT a polyfillable destructure source (the same gate the
     // provider's init-meta builder applies): emit NO meta at all - the typeless form would
@@ -756,7 +768,7 @@ export function createUsageVisitors({
     if (receiverKey !== null && adapter.isMutatedStatic?.(receiverKey, innerKey)) return;
     emitPropUsage(receiverKey !== null
       ? { kind: 'property', object: receiverKey, key: innerKey, placement: 'static' }
-      : { kind: 'property', object: null, key: innerKey, placement: null }, path);
+      : { kind: 'property', object: null, key: innerKey, placement: null }, path, containerUnion);
   }
 
   // `function({ from } = Array)` - AssignmentPattern wraps the param; the default expression
@@ -780,8 +792,11 @@ export function createUsageVisitors({
     const argWins = argNode && receiverNode === argNode;
     const receiverScope = argWins ? desc.callPath.scope : parent.scope;
     const receiverPath = argWins ? desc.callPath : path;
-    const meta = buildDestructuringInitMeta({ initNode: receiverNode, key, scope: receiverScope, adapter, path: receiverPath });
-    emitPropUsage(meta, path);
+    const paramContainerUnion = [];
+    const meta = buildDestructuringInitMeta({
+      initNode: receiverNode, key, scope: receiverScope, adapter, path: receiverPath, unionSink: paramContainerUnion,
+    });
+    emitPropUsage(meta, path, paramContainerUnion);
   }
 
   function handleDestructuring(path) {
@@ -854,15 +869,20 @@ export function createUsageVisitors({
       // var-hoist / Annex-B / TS-runtime shadow fallback keys on `path` - leaving it at the USE path
       // (inside the IIFE body) stops the function-scope walk at the IIFE boundary, missing a call-site
       // shadow. matches the with-default sibling (8e18d8e0df) and the unplugin twin
+      const iifeContainerUnion = [];
       const meta = buildDestructuringInitMeta({
         initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path: site.callPath ?? path,
+        unionSink: iifeContainerUnion,
       });
-      emitPropUsage(meta, path);
+      emitPropUsage(meta, path, iifeContainerUnion);
       return;
     } else return;
     if (!initPath?.node) return;
     if (!key) return emitPropUsage(null, path);
-    let meta = buildDestructuringInitMeta({ initNode: initPath.node, key, scope: initPath.scope, adapter, path });
+    const containerUnion = [];
+    let meta = buildDestructuringInitMeta({
+      initNode: initPath.node, key, scope: initPath.scope, adapter, path, unionSink: containerUnion,
+    });
     // null = monkey-patched static: the prop stays raw, the receiver substitutes elsewhere
     // (the funnel's union no-ops on a resolved single key, so routing null through is inert)
     if (!meta) return emitPropUsage(null, path);
@@ -876,7 +896,7 @@ export function createUsageVisitors({
       const objectHint = toHint?.(cachedInitType);
       if (objectHint) meta = { ...meta, object: objectHint, placement: 'prototype' };
     }
-    emitPropUsage(meta, path);
+    emitPropUsage(meta, path, containerUnion);
   }
 
   function handleBinaryExpression(path) {
