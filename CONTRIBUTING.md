@@ -176,10 +176,11 @@ You can run parts of the test case separately:
   ```
 - Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js and CodeMirror. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes.
   ```sh
-  npm run e2e-libs                      # the asserting runners: check-exercise -> snapshot -> artifacts
+  npm run e2e-libs                      # the asserting runners: check-exercise -> runtime
   npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)
-  npm run e2e-libs-snapshot             # injection baselines vs tests/e2e-libs/snapshots (-- --update to rewrite)
-  npm run e2e-libs-artifacts            # ES5 UMD + self-checking HTML under Babel 7 and 8, with a node pre-flight
+  npm run e2e-libs-runtime              # one build per (lib x method x phase) cell: gates, injection snapshot,
+                                         # node pre-flight, ES5 UMD + self-checking HTML, real IE11 via Karma
+                                         # (-- --update to rewrite the injection snapshot baselines)
   npm run e2e-libs-pipeline             # size/time per build stage -> tests/e2e-libs/report/pipeline.md (report only)
   npm run e2e-libs-throughput           # unplugin overhead across the bundlers -> report/throughput.md (report only)
   ```
