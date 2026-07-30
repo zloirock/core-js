@@ -513,6 +513,15 @@ export function createEstreeAdapter({
       const slots = getWrittenContainerSlots?.();
       return !!slots && (slots.has(`${ object }.*`) || slots.has(mutatedStaticKey(object, key)));
     },
+    // the KNOWN written value nodes reaching a slot: direct writes to the named slot plus
+    // unknown-slot (dynamic-key) writes, which may land anywhere on the container
+    writtenContainerSlotValues(object, key) {
+      const slots = getWrittenContainerSlots?.();
+      if (!slots) return [];
+      const direct = slots.get(mutatedStaticKey(object, key)) ?? [];
+      const viaUnknownSlot = key === '*' ? [] : slots.get(`${ object }.*`) ?? [];
+      return viaUnknownSlot.length ? [...direct, ...viaUnknownSlot] : direct;
+    },
     isMutatedStaticSlot(object, key) {
       return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
         : isMutatedStaticPair(object, key, getMutatedStatics());
@@ -1050,7 +1059,7 @@ export function createUsageVisitors({
 
   // build meta for destructuring property: const { from } = Array, ({ from } = Array)
 
-  function buildDestructuringMeta(propNode, parentPath) {
+  function buildDestructuringMeta(propNode, parentPath, containerUnionSink = null) {
     const objectPattern = parentPath;
     const parent = objectPattern?.parentPath;
     if (!parent) return null;
@@ -1100,7 +1109,7 @@ export function createUsageVisitors({
         // fires, so it's transparent under "polyfill always wins")
         if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
           const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-          const constructor = sharedResolveNestedDestructureReceiver(parent.parentPath, adapter);
+          const constructor = sharedResolveNestedDestructureReceiver(parent.parentPath, adapter, containerUnionSink);
           // a BRANCHING inner key rides a null-key carrier keeping the resolved receiver -
           // the union pairs the arm keys with it as statics, mirroring babel's nested funnel
           if (!innerKey) {
@@ -1128,7 +1137,7 @@ export function createUsageVisitors({
         // up to the destructure host and returns the constructor name across proxy-global
         // and static-object descent shapes (see helper docstring)
         const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-        const constructor = sharedResolveNestedDestructureReceiver(parent, adapter);
+        const constructor = sharedResolveNestedDestructureReceiver(parent, adapter, containerUnionSink);
         // a BRANCHING inner key rides a null-key carrier keeping the resolved receiver -
         // the union pairs the arm keys with it as statics, mirroring babel's nested funnel
         if (!innerKey) {
@@ -1176,7 +1185,9 @@ export function createUsageVisitors({
 
     const key = extractPropertyKey(propNode, scope, objectPattern);
     if (!key) return null;
-    return buildDestructuringInitMeta({ initNode, key, scope: initScope ?? scope, adapter, path: initPath ?? parent });
+    return buildDestructuringInitMeta({
+      initNode, key, scope: initScope ?? scope, adapter, path: initPath ?? parent, unionSink: containerUnionSink,
+    });
   }
 
   function annotationGlobal(path) {
@@ -1251,7 +1262,10 @@ export function createUsageVisitors({
   // node type, and without the entry the decorator subtree never reaches destructure handling
   function propertyVisitor(path) {
     if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
-    const meta = buildDestructuringMeta(path.node, path.parentPath);
+    // the container walk collects the slot's OTHER reaching values (written / repositioned)
+    // beside its primary answer - they join the usage-global union axis below
+    const containerUnion = [];
+    const meta = buildDestructuringMeta(path.node, path.parentPath, containerUnion);
     // a computed key folding to `Symbol.X` gets its provenance checked ONCE at this funnel
     // (every destructure meta flows through here) - string spellings stay untagged so the
     // symbol-routed emit paths leave them as plain property reads.
@@ -1266,7 +1280,7 @@ export function createUsageVisitors({
     // usage-global reachable receiver / key union: each extra destructure target earns a
     // side-effect import beside the primary, mirroring the member funnel
     for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path, resolvePure,
+      meta, keyNode, computed, scope, adapter, path, resolvePure, containerWalkObjects: containerUnion,
     })) onUsage(extra, path);
   }
 
