@@ -284,6 +284,7 @@ export default function plugin(api, options) {
     getInjector: () => injector,
     method,
     getMutatedStatics: () => mutatedStatics,
+    getWrittenContainerSlots: () => fileCensus?.writtenContainerSlots ?? null,
     isTypingMutatedSlot,
     getPackages: () => packages,
   });
