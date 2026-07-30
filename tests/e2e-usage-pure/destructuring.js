@@ -1940,8 +1940,11 @@ QUnit.test('destructuring: se-buried proxy static and sibling wrapper statics', 
   const grouped = (n++, globalThis).Map.groupBy(['ab', 'c'], s => s.length);
   assert.same(grouped.get(2)[0], 'ab');
   assert.same(n, 1);
-  const w = { a: Array, b: Promise };
-  const { a: { of }, b: { resolve } } = w;
+  // uniquely named: the census records are per-file by NAME, and `w` escapes as a call ARGUMENT in
+  // another test of this module (an escaped container may be written by the callee), so a shared
+  // spelling would bail this container's reads
+  const wrapperStatics = { a: Array, b: Promise };
+  const { a: { of }, b: { resolve } } = wrapperStatics;
   assert.same(of(5)[0], 5);
   assert.same(typeof resolve, 'function');
 });
@@ -3211,4 +3214,59 @@ QUnit.test('destructuring: nested identifier computed key extracts the polyfill'
   const byParity = og([1, 2, 3, 4], x => x % 2 === 0 ? 'even' : 'odd');
   assert.deepEqual(byParity.odd, [1, 3], 'an OUTER identifier ctor key resolves + imports the static too');
   assert.deepEqual(byParity.even, [2, 4]);
+});
+
+// a nesting key and the host literal's key may SPELL one slot differently; the language pairs them by
+// name, so the walk must too. regression: raw literal values were compared, putting the number 0
+// against the string '0', and the polyfill was dropped on a receiver whose value was fully known
+QUnit.test('destructure: a nested key pairs across spellings', assert => {
+  // eslint-disable-next-line @stylistic/quote-props -- the differing spellings are the shape under test
+  const { 0: { flat: numericPattern } } = { '0': [1, [2]] };
+  assert.same(typeof numericPattern, 'function');
+  assert.deepEqual(numericPattern.call([1, [2]]), [1, 2]);
+  // eslint-disable-next-line @stylistic/quote-props -- the differing spellings are the shape under test
+  const { '0': { at: stringPattern } } = { 0: [3, 4] };
+  assert.same(stringPattern.call([3, 4], 0), 3);
+});
+
+// an object-pattern key can name an array SLOT: the language reads property '0' off an array host,
+// so the walk to the receiver reads the element and the type behind it stays array-specific.
+// regression: only an object literal was walked into, so the polyfill was dropped entirely
+QUnit.test('destructure: a nested key reads an array slot', assert => {
+  const { 0: { at } } = [[1, 2]];
+  assert.same(typeof at, 'function');
+  assert.same(at.call([1, 2], -1), 2);
+  // eslint-disable-next-line @stylistic/quote-props -- the string spelling of the slot is under test
+  const { '1': { flat } } = [[3], [4, [5]]];
+  assert.deepEqual(flat.call([4, [5]]), [4, 5]);
+  // a hole leaves nothing to read, so the extraction stays native and the binding is undefined
+  // eslint-disable-next-line no-sparse-arrays -- the hole is the negative under test
+  const { 1: overHole } = [[6], , [7]];
+  assert.same(overHole, undefined);
+});
+
+// an array literal is a static container: the receiver walk descends its slots, so a constructor in
+// one resolves its statics. the patch-wins half of that pairing lives with the other slot writes -
+// a write here would patch the real global and leak into every later test in this module
+QUnit.test('destructure: an array slot resolves statics', assert => {
+  const clean = [Object];
+  const { 0: { keys } } = clean;
+  assert.deepEqual(keys({ a: 1 }), ['a']);
+  // the INLINE literal is what the receiver walk descends; a const-bound one is a different shape
+  const { 0: { at } } = [[1, 2]];
+  assert.same(at.call([1, 2], -1), 2);
+});
+
+// a container slot REPLACED after the literal no longer holds what the literal spells, so resolving
+// it would hand back a DIFFERENT constructor's static. regression: the read trusted the initial
+// member and returned `Object.groupBy` where the program had put `Map.groupBy` there
+QUnit.test('destructure: a replaced container slot is not resolved', assert => {
+  const holder = { k: Object };
+  holder.k = Map;
+  const { k: { groupBy } } = holder;
+  assert.same(groupBy, Map.groupBy);
+  const box = [Object];
+  box[0] = Map;
+  const { 0: { groupBy: viaSlot } } = box;
+  assert.same(viaSlot, Map.groupBy);
 });

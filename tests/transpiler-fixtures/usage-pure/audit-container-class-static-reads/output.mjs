@@ -1,9 +1,11 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$try from "@core-js/pure/actual/promise/try";
 // static-container reads resolve through the same canon the destructure receivers use:
 // a class STATIC field is a container, duplicate literal keys read the LAST (live) value,
-// and a deep object inside a class static walks hop by hop. constructors substitute to the
+// and a deep object inside a class static walks hop by hop - for a MEMBER read as much as for a
+// destructure, which is the point: both sides ask the same walk. constructors substitute to the
 // pure ponyfill (whose own statics carry the methods); the dead duplicate stays native
 class NS {
   static M = _Map;
@@ -25,4 +27,4 @@ class NS2 {
     P: _Promise
   };
 }
-export const r = NS2.a.P.try(fn);
+export const r = _Promise$try(fn);
