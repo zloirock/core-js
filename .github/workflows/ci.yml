@@ -96,6 +96,14 @@ jobs:
           cache: npm
       - run: npm run prepare-monorepo
       - run: npm run e2e-libs-runtime
+      # Diagnostic, not a gate. The snapshot drift above reproduces only on windows, so this probe
+      # exists to answer why, on the one runner that shows it. `always()` because the step above is
+      # currently expected to fail (and installs the e2e-libs deps this needs); `continue-on-error`
+      # because a reproduction here is the point, not a reason to fail the job twice.
+      - name: unplugin pre-phase over-polyfilling probe (diagnostic)
+        if: always()
+        continue-on-error: true
+        run: node tests/e2e-libs/pre-inference-bug/repro.mjs --verbose
 
   bun:
     runs-on: ubuntu-latest
