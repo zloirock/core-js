@@ -832,6 +832,22 @@ function * generateAliasHopShadow() {
   // the receiver is a plain object - neither side may fold a static onto it
   yield { ...snippet('alias-hop-shadow/var-init-block-shadow',
     '(() => { const B = Array; return (function () { { const B = {}; var h = B; } { const { of } = h; return typeof of; } })(); })()') };
+  // a computed-KEY alias resolves its source in the declarator's scope. the block shadow holds a
+  // DIFFERENT valid key, so a use-site resolve dispatches the WRONG static (`of` for `from` -
+  // `[[7]]` for `[7]`); the param row locks the positive collapse, whose miss the stripped realm
+  // catches as the raw dispatch of a stripped native
+  yield { ...snippet('alias-hop-shadow/key-block-shadow-wrong-static',
+    '(() => { const j = "from"; const k = j; { const j = "of"; void j; return JSON.stringify(Array[k]?.([7])); } })()') };
+  yield { ...snippet('alias-hop-shadow/key-chain-param',
+    '(() => { const j = "from"; const k = j; return (function (j) { return JSON.stringify(Array[k]?.([1])); })("of"); })()'), strip: true };
+  // a CALLEE alias follows to the provable arrow through its own scope, while an alias of the
+  // PARAM stays the caller's value - a wrong proof swaps the caller's own object for the ponyfill
+  yield { ...snippet('alias-hop-shadow/callee-param-alias-fake',
+    '(() => { const fake = { window: { self: { WeakSet: "callers-own" } } };'
+    + ' return (function (mk) { const inner = mk; return String(inner()?.window?.self?.WeakSet); })(() => fake); })()') };
+  yield { ...snippet('alias-hop-shadow/nav-root-param-alias-fake',
+    '(() => { const fake = { window: { self: { WeakMap: "callers-own" } } };'
+    + ' return (function (root) { const p = root; return String(p.window?.self?.WeakMap); })(fake); })()') };
 }
 
 // --- alias RECEIVER shadowed by a nested-function `var` (distinct from the intermediate-NAME shadow
@@ -1046,9 +1062,9 @@ function * generateKeptProxyRoot() {
 // substituting only any internal proxy-global. before the raw-span fallback the static bailed to the raw
 // un-polyfilled chain (native `from` on ie:11 = missed polyfill) / the fallback swap folded + dropped the
 // nav (its SE + short-circuit). the `f()` and any computed-key `log.push` fire the oracle
-// NB: a trailing INSTANCE dispatch (`.at(0)`) over an opaque static-CALL is intentionally absent - there the
-// resolution bias diverges (unplugin collapses the ctor to the pure static, babel keeps `_ref.Array.of`
-// native), a pre-existing ambiguity outside this guard-rendering fix; the standalone static call locks it
+// a trailing INSTANCE dispatch (`.at(0)`) over the opaque static: BOTH emitters collapse the static
+// into the guard body (call and FIELD spellings alike) - the memoized ref keeps only the guard's
+// nullability, so the polyfill backs the read on target engines
 const OCRG_SHAPES = [
   { id: 'static-opt-call', tail: '?.Array.from?.([7])' },
   { id: 'static-plain-call', tail: '?.Array.of(5)' },
@@ -1060,11 +1076,46 @@ const OCRG_SHAPES = [
   // an INSTANCE dispatch through the opaque root: the guard memoizes `f()?.window` once, the body reads the
   // ponyfill off it. the guard-root text is the raw call nav (`_ref = f()?.window`), same as the static paths
   { id: 'instance-method-call', tail: '?.Array.prototype.includes.call([1, 2], 2)' },
+  { id: 'guarded-static-call-trailing-instance', tail: '?.Array.of(5).at(0)' },
+  { id: 'guarded-static-field-trailing-instance', tail: '?.Number.MAX_SAFE_INTEGER.toFixed(2)' },
+  { id: 'guarded-computed-se-trailing', tail: '?.Array.from([3])[(log.push("k"), "at")](0)' },
+  { id: 'guarded-ctor-new', tail: '?.Map && new (f()?.window?.Map)([[1, 2]]).size' },
+  { id: 'guarded-chain-assign-root', tail: '?.Array.of(5).at(0)', root: '(held = f())' },
+  // hops SWAPPED: the unresolvable window hop precedes the ponyfillable self hop - ONE nested
+  // test on the window prefix guards the chain. the BARE variant skips the rig, so window stays
+  // absent and the test must short-circuit (a guard on the always-defined ponyfill would run
+  // the branch where native yields undefined)
+  { id: 'guarded-hop-order-swap', tail: '?.self?.Array.of(5).at(0)' },
+  { id: 'guarded-hop-order-swap-bare', tail: '?.self?.Array.of(5).at(0)', bare: true },
+  // an SE-carrying provable inline BODY of the root call replays exactly once (the count is the
+  // case); self-first hop order reaches the sequence-prefix collapse
+  { id: 'guarded-se-body-root', hops: '?.self', tail: '?.window?.Array.of(6).at(0)',
+    def: 'let c = 0; const f = () => { c++; return globalThis; };', post: 'log.push(String(c)); ' },
+  // a CONST-bound computed hop key resolves like the dotted spelling; the BARE variant proves
+  // the nested window test short-circuits (a collapse to the bare ponyfill would run the branch
+  // where native yields undefined)
+  { id: 'guarded-computed-mid-hop-bare', tail: '?.[hopKey]?.Array.of(7).at(0)', bare: true,
+    def: "const hopKey = 'self'; const f = () => globalThis;" },
+  // a NESTED provable wrapper proves through the inline canon layer by layer - a stalled
+  // recursion strands the raw chain in one emitter (import-set parity is the tripwire)
+  { id: 'guarded-nested-call-root', tail: '?.self?.Array.of(8).at(0)',
+    def: 'const g = () => globalThis; const f = () => g();' },
+  // an IDENTITY-IIFE directly at the chain root, BARE: window stays absent, so the chain must
+  // short-circuit to undefined - a claim sealed inside the instance helper slot throws instead.
+  // the bare `self` anchor equalizes the import-set: the emitters legitimately differ on
+  // whether the guard spelling reads the self ponyfill (locked by fixture sidecar), and this
+  // axis exists for the runtime short-circuit invariant
+  { id: 'guarded-identity-root-bare', tail: '?.self?.Array.of(9).at(0)', bare: true,
+    rootExpr: '((x) => x)(globalThis)', def: 'void self; ' },
 ];
 function * generateOpaqueCallRootGuard() {
   for (const shape of OCRG_SHAPES) {
-    const inner = `(() => { const f = () => globalThis; const v = f()?.window${ shape.tail }; log.push(String(v)); return String(v); })()`;
-    yield { ...snippet(`opaque-call-root-guard/${ shape.id }`, inner, { rig: true }), strip: false };
+    const root = shape.root ? 'let held; ' : '';
+    const rootExpr = shape.rootExpr ?? shape.root ?? 'f()';
+    const def = shape.def ?? 'const f = () => globalThis;';
+    const inner = `(() => { ${ root }${ def } const v = ${ rootExpr }${ shape.hops ?? '?.window' }${ shape.tail }; `
+      + `log.push(String(v)); ${ shape.post ?? '' }return String(v); })()`;
+    yield { ...snippet(`opaque-call-root-guard/${ shape.id }`, inner, { rig: !shape.bare }), strip: false };
   }
 }
 

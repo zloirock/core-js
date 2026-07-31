@@ -1,5 +1,5 @@
-// inline-call resolution walks at most ONE binding-hop. covers four shapes:
-//   1) `const f = g; const g = () => Map; f()` - two hops, must NOT inline
+// inline-call resolution follows identifier binding-hops transitively. covers four shapes:
+//   1) `const g = () => Map; const f = g; f()` - two hops, follows to the arrow and inlines
 //   2) `const h = () => Promise; h()` - one hop with pure body, inlines and rewrites
 //   3) block body with prefix statement (`calls++; return Promise`) - inlines but the
 //      receiver call must remain observable so the side effect runs

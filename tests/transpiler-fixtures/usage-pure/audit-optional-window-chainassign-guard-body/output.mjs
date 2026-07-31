@@ -5,6 +5,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4, _ref5;
 // a chain-assign root storing an UNDEFINABLE proxy nav (`globalThis.window` - `window` has no pure entry)
 // under an optional `?.`, consumed by a polyfilled dispatch. the value is STORED, so the chain cannot root
@@ -16,4 +17,4 @@ var _ref, _ref2, _ref3, _ref4, _ref5;
 let w, v, u;
 export const ctorName = null == (_ref = w = _globalThis.window) ? void 0 : _nameMaybeFunction(_Map);
 export const staticAt = null == (_ref2 = v = _globalThis.window) ? void 0 : _at(_ref3 = _Array$of(5)).call(_ref3, 0);
-export const multiHopFrom = null == (_ref4 = u = _globalThis.self.window) ? void 0 : _includes(_ref5 = _Array$from([1])).call(_ref5, 1);
+export const multiHopFrom = null == (_ref4 = u = _self.window) ? void 0 : _includes(_ref5 = _Array$from([1])).call(_ref5, 1);
