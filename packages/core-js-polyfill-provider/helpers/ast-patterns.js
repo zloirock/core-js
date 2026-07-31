@@ -3663,9 +3663,44 @@ export function isTypeOnlyImportKind(kind) {
   return kind === 'type' || kind === 'typeof';
 }
 
-// the proxy-global name an import BINDING stands for, or null when it is not such an import
-export function importedGlobalProxyName(binding, packages) {
-  return bindsModuleDefault(binding?.node) && !isTypeOnlyImportKind(binding?.node?.importKind)
+// type-only at EITHER level: the specifier (`import { type X }`) carries its own kind, while
+// `import type X from ...` puts the kind on the ImportDeclaration and leaves the specifier's
+// null - both parsers agree, and both spellings erase the binding, so both must gate
+export function importBindingIsTypeOnly(binding) {
+  return isTypeOnlyImportKind(binding?.importKind ?? binding?.node?.importKind)
+    || isTypeOnlyImportKind((binding?.path?.parent ?? binding?.path?.parentPath?.node)?.importKind);
+}
+
+// the `export` modifier (babel@7 flags `isExport` on the node; @8 / oxc wrap it in an
+// ExportNamedDeclaration the callers peel) doesn't change the local binding's value - an exported
+// `export import g = require('.../global-this')` still hosts the global for a mutation / interop
+// receiver, so it must not gate the source read (a non-proxy source is dropped downstream anyway)
+// adapter-less callers (the scope-less census reducer) read the literal value directly
+export function tsImportEqualsRequireSource(node, adapter) {
+  if (node?.type !== 'TSImportEqualsDeclaration' || node.importKind === 'type'
+    || node.id?.type !== 'Identifier' || node.moduleReference?.type !== 'TSExternalModuleReference') return null;
+  const source = adapter ? adapter.getStringValue(node.moduleReference.expression) : node.moduleReference.expression?.value;
+  return typeof source === 'string' ? source : null;
+}
+
+// `import g = require('<pkg>/<mode>/global-this')` - the TS require-import shape. tsc /
+// esbuild emit it for CJS interop; `scanExistingCoreJSImports` already recognizes it as a
+// pure import for dedup, so the resolution canon must see the same binding or the write
+// channel goes blind to a receiver the import scan trusts
+export function tsImportEqualsProxyName(node, adapter, packages = null) {
+  return globalProxyNameFromImportSource(tsImportEqualsRequireSource(node, adapter), packages);
+}
+
+// the proxy-global name an import BINDING stands for, or null when it is not such an import.
+// covers BOTH import forms one surface serves: the ES default/namespace specifier and the TS
+// `import g = require(...)` declaration - a consumer branching on just one goes blind to the
+// other's receiver (the member-read channel missed the TS twin exactly that way)
+export function importedGlobalProxyName(binding, packages, adapter = null) {
+  if (binding?.node?.type === 'TSImportEqualsDeclaration') {
+    return tsImportEqualsProxyName(binding.node, adapter, packages);
+  }
+
+  return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
     ? globalProxyNameFromImportSource(binding?.importSource, packages) : null;
 }
 
