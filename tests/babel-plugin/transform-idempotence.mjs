@@ -46,7 +46,15 @@ const CASES = [
   ['interop default chain', 'function _interopRequireDefault(m) { return m && m.__esModule ? m : { default: m }; }\n'
     + 'var X = _interopRequireDefault(require("@core-js/pure/actual/global-this"));\nexport const r = X.default.Map.groupBy([], x => x);'],
   ['ts import-equals member read', 'import g = require("@core-js/pure/actual/global-this");\nexport const r = g.Map.groupBy([], x => x);', true],
+  // the opaque-root guarded static: the second pass re-reads the memoized guard + collapsed
+  // static and must neither re-guard nor re-collapse
+  ['opaque root guarded static', 'const f = () => globalThis;\nexport const r = f()?.window?.Array.of(5).at(0);'],
   ['mixed pattern permanent mirror bail', 'export const r = (({ Set, Array: { from }, [k()]: y } = globalThis) => [Set, from, y])();'],
+  // the per-hop scope-advanced alias walks: the key alias, the transitive callee alias and the
+  // bare-global alias each re-resolve through their declaration scopes on the second pass
+  ['alias-resolved computed key', "const j = 'from';\nconst k = j;\nexport const r = Array[k]?.([1]);"],
+  ['transitive callee alias root', 'const mk = () => globalThis;\nconst q = mk;\nexport const r = q()?.window?.self?.Array.of(1).at(0);'],
+  ['bare-global alias static claim', 'const g = globalThis;\nconst h = g;\nexport const r = h.window?.self?.Map;'],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };

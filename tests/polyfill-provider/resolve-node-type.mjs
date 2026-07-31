@@ -2573,7 +2573,7 @@ runBoth('globalThis.Map() resolved as Map constructor invocation',
   });
 
 // `isProxyGlobalIifeReturn` walks the call's `fnPath` to locate the arrow / fn-expr body.
-// `peelIIFEReturn` (the node-level companion) peels TS / paren / chain wrappers on the
+// the node-level IIFE peel used to peel TS / paren / chain wrappers on the
 // callee via `unwrapInitValue + unwrapRuntimeExpr`. when the path-level walk only peeled
 // `ParenthesizedExpression`, TS-wrapped callees never matched their body, breaking
 // proxy-global detection for shapes like `((() => globalThis) as any)().Map`
@@ -2587,7 +2587,7 @@ runBoth('proxy-global: TS-wrapped IIFE callee resolves through proxy-global chai
 
 // FunctionExpression IIFE variant of the same shape - `(function(){ return self })().Map`.
 // distinct from the arrow case: callee shape goes through a different branch of
-// `peelIIFEReturn` (function-expression vs arrow), and the inner body return-path differs
+// the IIFE peel (function-expression vs arrow), and the inner body return-path differs
 runBoth('proxy-global: FunctionExpression IIFE returning self resolves through Map ctor',
   'const m = new ((function () { return self; })()).Map();',
   (adapter, prog, lbl) => {
@@ -7805,7 +7805,7 @@ runBoth('union inside 3-way intersection keeps two-hop member type',
   });
 
 // a doubly-nested SequenceExpression IIFE returning a proxy global is recognized by the path walk
-// (it peels SE-callee tails to a fixpoint, matching the node-level peelIIFEReturn), so the chained
+// (it peels SE-callee tails to a fixpoint, matching the node-level IIFE peel), so the chained
 // instance-method receiver narrows
 runBoth('double-SE IIFE proxy-global `(0, (1, () => globalThis))().Array.from(...).at` narrows to Array',
   '(0, (1, () => globalThis))().Array.from([1, 2, 3]).at(0);',
