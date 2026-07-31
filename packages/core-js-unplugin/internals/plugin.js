@@ -32,6 +32,7 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapReceiverLeaf,
   unwrapRuntimeExpr,
+  migratableClaimSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { createClassHelpers, ctorAliasShapesReducer, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -166,12 +167,16 @@ function semanticParentNode(metaPath) {
 }
 
 // does a queued OUTER guard (a trailing instance dispatch that memoized this static's root) own the root's
-// nullability? descends the static member's receiver to its chain root (matching the emitter's descent) and
-// probes the transform queue. an owned root emits the static BARE into the guard body, so the standalone
-// guard-bail must stand down for it
+// nullability? descends the static member's receiver toward its chain root, probing the transform queue at
+// EVERY hop (the guard may memoize a mid-chain hop, e.g. a collapsed proxy-hop prefix, not the chain root
+// itself). an owned root emits the static BARE into the guard body, so the standalone guard-bail must stand
+// down for it
 function outerGuardOwnsStaticRoot(node, transforms) {
   let root = node.object;
-  while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) root = root.object;
+  while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) {
+    if (transforms.findOuterGuardRef(root)) return true;
+    root = root.object;
+  }
   return !!transforms.findOuterGuardRef(root);
 }
 
@@ -1335,7 +1340,11 @@ export default function createPlugin(options) {
           // falls through: the emitter emits the static BARE into the owning guard's body (the guard owns the
           // nullability), so it must NOT bail here
           if (staticEraseGuard?.kind === 'guard' && (meta.sideEffects?.length || meta.receiverEffectCount)
-            && !outerGuardOwnsStaticRoot(node, transforms)) {
+            && !outerGuardOwnsStaticRoot(node, transforms)
+            && migratableClaimSe({
+              sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              rootNode: staticEraseGuard.object, end: node.end,
+            }) === null) {
             injectPureImport(importEntry, hintName);
             return;
           }
