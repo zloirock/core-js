@@ -3,6 +3,7 @@ import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
   importedGlobalProxyName,
+  tsImportEqualsProxyName,
   LET_SCOPE_HOST_TYPES,
   FUNCTION_LIKE_NODE_TYPES,
   isMutatedGlobalSlot,
@@ -119,8 +120,15 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // the read-side name resolver follows it; without the same step here a WRITE through that binding
   // (`g.Object.create = shim`) never reaches the proxy-root check, so the slot stays untainted and
   // the ponyfill is substituted over the user's patch
-  const imported = binding && importedGlobalProxyName(binding, adapter.packages);
+  const imported = binding && importedGlobalProxyName(binding, adapter.packages, adapter);
   if (imported) return isPristineProxyGlobal(adapter, imported) ? imported : null;
+  // estree-toolkit registers no binding for TSImportEquals - the dedicated adapter lookup
+  // surfaces the declaration node instead, mirroring the name-resolution canon's fallback
+  if (!binding && adapter.getTSImportEqualsNode) {
+    const tsImportNode = adapter.getTSImportEqualsNode(scope, node.name, path);
+    const viaTsImport = tsImportNode && tsImportEqualsProxyName(tsImportNode, adapter, adapter.packages);
+    if (viaTsImport) return isPristineProxyGlobal(adapter, viaTsImport) ? viaTsImport : null;
+  }
   if (binding) return seen?.has(binding.node ?? binding)
     ? (POSSIBLE_GLOBAL_OBJECTS.has(node.name) ? node.name : null)
     : followLocalBindingToProxyGlobal({ binding, name: node.name, scope, adapter, path, seen, usageNode, readNode });
@@ -437,12 +445,20 @@ function positionalArrayWrapInit(idPattern, init, boundName) {
 // shared by the init arm and the duplicate-var split anchor of `isPolyfillAliasBinding`, which
 // must apply IDENTICAL pattern rejections (the anchor judging `write.init` wholesale folded a
 // mispaired / nested shadow the init arm correctly rejected)
+// an ArrayExpression init can only alias through an ArrayPattern's positional wrap: an
+// ObjectPattern (or a plain Identifier binding the whole array) reads NAMED keys off the array -
+// always undefined for the ctor-named keys this registry serves (numeric slot keys never register:
+// the known-global gate filters them), so the key-blind element scan must not accept it
+function arrayInitServesPattern(id, init) {
+  return unwrapInitForResolution(init)?.type !== 'ArrayExpression' || id?.type === 'ArrayPattern';
+}
+
 function declaratorInitResolvesForName({ id, init, boundName, scope, adapter, injector }) {
   if (!init) return false;
   const positional = positionalArrayWrapInit(id, init, boundName);
   if (positional !== undefined) return !!positional && aliasInitResolvesToGlobal(positional, scope, adapter, injector);
   if (id?.type === 'ObjectPattern' && patternBindsNameNested(id, boundName)) return false;
-  return aliasInitResolvesToGlobal(init, scope, adapter, injector);
+  return arrayInitServesPattern(id, init) && aliasInitResolvesToGlobal(init, scope, adapter, injector);
 }
 
 export function isPolyfillAliasBinding({ info, binding, scope, adapter, injector, boundName = null }) {
@@ -583,7 +599,8 @@ export function registerCtorAliasExtractions({ plan, declarator, scope, adapter,
 // agree on nesting with the alias judge and the receiver mirror, else a deep alias never gets its
 // hint and its static reads stay raw in babel only (unplugin's text visitor re-derives them)
 function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
-  if (!init || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), scope, adapter, injector)) return [];
+  if (!init || !arrayInitServesPattern(pattern, init)
+    || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), scope, adapter, injector)) return [];
   const pairs = [];
   function collectFromObjectPattern(pat) {
     for (const prop of pat.properties ?? []) {
