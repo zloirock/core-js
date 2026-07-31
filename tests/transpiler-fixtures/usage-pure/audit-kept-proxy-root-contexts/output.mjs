@@ -10,6 +10,7 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
+import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref4, _ref5;
 // the syntactic CONTEXTS a kept proxy root can be reached from. the rule does not depend on any of them -
 // the assignment stays as the root, the redundant proxy hop drops, the guard survives - but each context
@@ -17,7 +18,7 @@ var _ref, _ref2, _ref4, _ref5;
 // kept root's value, a destructuring default, a class static method, an async arrow body, and a computed
 // leaf key. distinct methods per line.
 let n;
-export const nestedKeptRoot = null == (_ref = n = _globalThis.window?.self.window) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
+export const nestedKeptRoot = null == (_ref = n = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
 let p;
 export const inDestructureDefault = (({
   x = null == (_ref2 = p = _globalThis.window) ? void 0 : _includesMaybeArray(_ref2.Array.prototype)
@@ -37,11 +38,11 @@ export const computedLeafKey = null == (_ref4 = s = _globalThis.window) ? void 0
 // the remaining syntactic contexts, each reaching the migration through its own visitor
 let c = 0;
 let fh;
-for (const v of (fh = _globalThis.window)?.[c++, "Array"].of(1, 2) ?? []) void v;
+for (const v of (null == (fh = _globalThis.window) ? void 0 : (c++, _Array$of(1, 2))) ?? []) void v;
 let tp;
 export const inTemplate = `${null == (_ref5 = tp = _globalThis.window) ? void 0 : _findIndexMaybeArray(_ref5[c++, "Array"].prototype).call([7], v => v === 7)}`;
 let sp;
-export const spreadOut = [...((sp = _globalThis.window)?.[c++, "Array"].from?.([3]) ?? [])];
+export const spreadOut = [...((null == (sp = _globalThis.window) ? void 0 : (c++, _Array$from))?.([3]) ?? [])];
 class KeptHost {
   static probe = (c++, _globalThis).Array;
   field = (_globalThis.window ?? _globalThis)[c++, 'self']?.Array;
@@ -86,9 +87,9 @@ export const fromSynthDefault = (({
 // defer). One memo at the root in the first two; the synth renders its own harvest in the third.
 let c2 = 0;
 let ap;
-export const [firstOfKept] = (ap = _globalThis.window)?.[c2++, "Array"].of(1, 2) ?? [];
+export const [firstOfKept] = (null == (ap = _globalThis.window) ? void 0 : (c2++, _Array$of(1, 2))) ?? [];
 let fh2;
-for (const v of (fh2 = _globalThis.window)?.[c2++, "Array"].of(3) ?? []) void v;
+for (const v of (null == (fh2 = _globalThis.window) ? void 0 : (c2++, _Array$of(3))) ?? []) void v;
 let sy;
 export const ofKeptDouble = (({
   isArray
