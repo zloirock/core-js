@@ -448,3 +448,206 @@ QUnit.test('optional chain: receiver-level short-circuit reaches the combined di
   assert.same(twoLive(counted), 2);
   assert.same(reads, 1);
 });
+
+// a static reached through an OPAQUE inline-call proxy-nav root under an OUTER instance
+// dispatch: the guard keeps the short-circuit (one root evaluation), and the guarded branch
+// collapses the static onto the ponyfill - the value must be polyfill-backed on stripped
+// engines for both the call and the FIELD static spellings. the pristine hop is `globalThis`
+// (`window` does not exist in the Node runner; the window spelling is fixture-locked)
+QUnit.test('optional chaining: opaque call root with outer-guarded static', assert => {
+  function opaqueRoot() { return globalThis; }
+  assert.same(opaqueRoot()?.globalThis?.Array.of(5).at(0), 5);
+  assert.same(opaqueRoot()?.globalThis?.Number.MAX_SAFE_INTEGER.toFixed(0), '9007199254740991');
+  let opaqueCalls = 0;
+  function countedRoot() {
+    opaqueCalls += 1;
+    return globalThis;
+  }
+  assert.same(countedRoot()?.globalThis?.Array.of(7).at(-1), 7);
+  assert.same(opaqueCalls, 1);
+  function nullRoot() { return null; }
+  assert.same(nullRoot()?.globalThis?.Array.of(5).at(0), undefined);
+});
+
+// DEEP pristine hops over the provably pure root read off the PONYFILL leaf: `self` does not
+// exist in the Node runner, so this value is polyfill-backed or nothing. the detect-lowered leg
+// sees the chain pre-lowered onto temp variables (`_root.self` off a local) - the hop is
+// structurally unresolvable there and the raw read stays native, so the leg skips
+const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+testUnlessDetectLowered('optional chaining: deep pristine hops read the ponyfill leaf', assert => {
+  function deepRoot() { return globalThis; }
+  assert.same(deepRoot()?.self?.globalThis?.Array.of(3).at(0), 3);
+});
+
+// hops SWAPPED (the unresolvable `window` hop before the ponyfillable `self` hop): ONE nested
+// test on the window prefix guards the chain. `window` does not exist in the Node runner, so
+// the guard must fire (undefined) WITHOUT evaluating the branch - a guard that tested the
+// always-defined ponyfill instead would run the branch and yield the array value
+QUnit.test('optional chaining: swapped-hop guard fires on the raw prefix', assert => {
+  let swapCalls = 0;
+  function swappedRoot() {
+    swapCalls += 1;
+    return globalThis;
+  }
+  assert.same(swappedRoot()?.window?.self?.Array.of(12).at(0), undefined);
+  assert.same(swapCalls, 1);
+});
+
+// the same short-circuit through a CONST-bound computed hop key, a CHAIN-ASSIGN root (the
+// write still runs exactly once), and an SE-PREFIXED computed key (the key effect must NOT
+// run - native short-circuits at the absent `window` before evaluating the key)
+QUnit.test('optional chaining: swapped-hop guard variants keep native semantics', assert => {
+  const hopKey = 'self';
+  function computedRoot() { return globalThis; }
+  assert.same(computedRoot()?.window?.[hopKey]?.Array.of(13).at(0), undefined);
+  let held;
+  let assignCalls = 0;
+  function assignRoot() {
+    assignCalls += 1;
+    return globalThis;
+  }
+  assert.same((held = assignRoot())?.window?.self?.Array.of(14).at(0), undefined);
+  assert.same(assignCalls, 1);
+  assert.same(held, globalThis);
+  let keyEffects = 0;
+  function seKeyRoot() { return globalThis; }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
+  assert.same(seKeyRoot()?.window?.[(keyEffects++, 'self')]?.Array.of(15).at(0), undefined);
+  assert.same(keyEffects, 0);
+});
+
+// an SE-carrying computed key on a collapsible hop MIGRATES with the collapse: the effect
+// runs exactly once, in native order (test -> key effect -> leaf read). the globalThis-named
+// key stays defined in the Node runner on every leg (`self` would read undefined on the
+// modern-targets legs, where no ponyfill substitutes it)
+QUnit.test('optional chaining: SE computed key keeps its single run through the collapse', assert => {
+  let keyRuns = 0;
+  function seKeyHost() { return globalThis; }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
+  assert.same(seKeyHost()?.globalThis?.[(keyRuns++, 'globalThis')]?.Array.of(21).at(0), 21);
+  assert.same(keyRuns, 1);
+});
+
+// an ALIAS holding an undefinable nav keeps its `?.` LIVE: the prefix walks see through the
+// binding to the always-defined global, but the runtime VALUE is the nav's - `window` is
+// absent in the Node runner, so the alias is undefined and the read must short-circuit
+QUnit.test('optional chaining: alias of an undefinable nav keeps its guard', assert => {
+  let held;
+  // eslint-disable-next-line prefer-const -- the assignment-form alias IS the case
+  held = globalThis.window?.self.window;
+  assert.same(held?.Array.of(2).at(0), undefined);
+});
+
+// a DESTRUCTURE over a guarded opaque chain: native destructuring of undefined THROWS -
+// the extraction helper must receive the guarded value (and throw on void 0) instead of a
+// guard swallowing the TypeError above it. the defined-path value still extracts the method
+QUnit.test('optional chaining: destructure over a guarded chain keeps the native throw', assert => {
+  function nullRoot() { return null; }
+  assert.throws(() => {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the native throw IS the case
+    const { at: picked } = nullRoot()?.globalThis?.Array.of(9);
+    return picked;
+  }, TypeError);
+  function liveRoot() { return globalThis; }
+  // eslint-disable-next-line no-unsafe-optional-chaining -- provably live root
+  const { at: pickedLive } = liveRoot()?.globalThis?.Array.of(9, 8);
+  assert.same(typeof pickedLive, 'function');
+});
+
+// an IDENTITY-IIFE root: the buried global proves through the identity-param inline canon.
+// `window` does not exist in the Node runner, so the whole chain must short-circuit to
+// undefined - a claim sealed inside the instance helper slot would THROW here instead
+QUnit.test('optional chaining: identity-IIFE root keeps the short-circuit', assert => {
+  let idCalls = 0;
+  assert.same((x => x)((idCalls++, globalThis))?.window?.self?.Array.of(16).at(0), undefined);
+  assert.same(idCalls, 1);
+});
+
+// a computed-key alias resolves in its own declaration scope: the inner function's same-name
+// param must not swallow the outer alias value (the dispatch collapses to the pure static),
+// hop by hop through a second alias
+QUnit.test('optional chaining: key alias resolves through a use-site shadow', assert => {
+  const from = 'from';
+  const aliasedKey = from;
+  // eslint-disable-next-line no-shadow, no-unused-vars -- the same-name shadow IS the case
+  function readViaOuterAlias(from) {
+    return Array[aliasedKey]?.([7]);
+  }
+  assert.deepEqual(readViaOuterAlias('unused'), [7]);
+  const twoHop = aliasedKey;
+  assert.deepEqual(Array[twoHop]?.([9]), [9]);
+});
+
+// a callee ALIAS follows transitively to the provable arrow, keeping its body effect single-run;
+// an alias of a PARAM-bound callee is the caller's value - the kept raw chain must read the
+// caller's own object, which a wrong collapse would swap for the ponyfill
+QUnit.test('optional chaining: callee alias follows transitively, param callee stays raw', assert => {
+  let bodyRuns = 0;
+  function mk() {
+    bodyRuns++;
+    return globalThis;
+  }
+  const aliasedMk = mk;
+  assert.same(aliasedMk()?.window?.self?.Array.of(5).at(0), undefined);
+  assert.same(bodyRuns, 1);
+  function readViaParamCallee(factory) {
+    const inner = factory;
+    return inner()?.window?.self?.WeakSet;
+  }
+  const fake = { window: { self: { WeakSet: 'callers-own' } } };
+  assert.same(readViaParamCallee(() => fake), 'callers-own');
+});
+
+// the bare-global alias proof is scope-correct both ways: the module-side alias proves under a
+// same-name param shadow (guard short-circuits - `window` is absent in the Node runner), while
+// an alias of the PARAM keeps the raw chain reading the caller's own object
+QUnit.test('optional chaining: bare-global alias proof respects scope', assert => {
+  const globalAlias = globalThis;
+  const held = globalAlias;
+  // eslint-disable-next-line no-shadow, no-unused-vars -- the same-name shadow IS the case
+  function readUnderShadow(globalAlias) {
+    return held.window?.self?.WeakMap;
+  }
+  assert.same(readUnderShadow('shadow'), undefined);
+  function readParamAlias(root) {
+    const p = root;
+    return p.window?.self?.WeakMap;
+  }
+  assert.same(readParamAlias({ window: { self: { WeakMap: 'callers-own' } } }), 'callers-own');
+});
+
+// a BLOCK shadow holding a DIFFERENT valid key must not swap the resolved method: the alias
+// binds the outer 'from', so the dispatch stays Array.from - a use-site resolve would emit
+// Array.of and yield a nested array
+QUnit.test('optional chaining: key alias ignores a block shadow of its source name', assert => {
+  const from = 'from';
+  const aliasedKey = from;
+  {
+    // eslint-disable-next-line no-shadow, no-unused-vars -- the same-name block shadow IS the case
+    const from = 'of';
+    assert.deepEqual(Array[aliasedKey]?.([6]), [6]);
+  }
+});
+
+// a var-hoisted key alias resolves in its declarator's block (the later block shadow must not
+// swap the key), and a callee-alias capture of a later-reassigned source bails to the raw
+// chain reading the captured value
+QUnit.test('optional chaining: hoisted key alias and reassigned-source capture', assert => {
+  const sourceKey = 'from';
+  // eslint-disable-next-line no-lone-blocks -- the hoisting block IS the case
+  {
+    // eslint-disable-next-line no-var -- the hoisted var IS the case
+    var hoistedKey = sourceKey;
+  }
+  {
+    // eslint-disable-next-line no-shadow, no-unused-vars -- the same-name block shadow IS the case
+    const sourceKey = 'of';
+    // eslint-disable-next-line block-scoped-var -- the hoisted read IS the case
+    assert.deepEqual(Array[hoistedKey]?.([3]), [3]);
+  }
+  let factory = () => ({ window: { self: { WeakMap: 'captured' } } });
+  const capturedFactory = factory;
+  // eslint-disable-next-line no-useless-assignment -- the post-capture reassignment IS the case
+  factory = () => globalThis;
+  assert.same(capturedFactory()?.window?.self?.WeakMap, 'captured');
+});
