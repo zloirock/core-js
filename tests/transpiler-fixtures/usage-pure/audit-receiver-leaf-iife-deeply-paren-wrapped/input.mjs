@@ -1,4 +1,4 @@
-// IIFE receiver wrapped in many paren layers: `((((() => Array))()).from(...)`. peelIIFEReturn
+// IIFE receiver wrapped in many paren layers: `((((() => Array))()).from(...)`. the zero-param IIFE peel
 // (called from unwrapReceiverLeaf) must reach `Array` through the paren stack. uses two
 // distinct invocations on different polyfillable receivers to surface the helper's behavior:
 // Array.from and Promise.allSettled. depth here is below the 64-hop cap
