@@ -264,6 +264,8 @@ export default function plugin(api, options) {
     isInTypeAnnotation,
     deoptionalizeNode,
     emitGuardedClaim,
+    flushKeptNavCollapses,
+    markThrowingExtraction,
     generateRef,
     generateLocalRef,
     generateUnusedId,
@@ -274,7 +276,19 @@ export default function plugin(api, options) {
     unwrapTSExpressionParent,
     withSideEffects,
     reset: resetASTHelpers,
-  } = createASTHelpers(t, { getInjector: () => injector, getAdapter: () => adapter, typeResolvers });
+  } = createASTHelpers(t, {
+    getInjector: () => injector,
+    getAdapter: () => adapter,
+    typeResolvers,
+    resolvePureGlobalEntry(name, path = null) {
+      return resolvePure({ kind: 'global', name }, path);
+    },
+    // late-bound like getInjector: the per-file injector exists only inside the program visit
+    injectPureGlobal(entry, hintName) {
+      debugOutput?.add(entry);
+      return injector.addPureImport(entry, hintName);
+    },
+  });
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
@@ -1035,6 +1049,10 @@ export default function plugin(api, options) {
                 emitGuardedClaim({
                   path, replacePath, id, guardObject: eraseGuard.object,
                   sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+                  substituteGlobal(name) {
+                    const resolved = resolvePure({ kind: 'global', name }, path);
+                    return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
+                  },
                 });
               }
               return;
@@ -1222,6 +1240,7 @@ export default function plugin(api, options) {
           synthSwap,
           t,
           resolvedType,
+          markThrowingExtraction,
         });
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
@@ -1580,6 +1599,8 @@ export default function plugin(api, options) {
         // would crash inside `injector?.flush()` / `reorderImportRegion()` etc. on the
         // method calls of a null receiver. symmetric with postHook's own `if (!injector) return`
         if (!injector) return;
+        // kept nav-collapse mutations land after every claim resolver has seen the source chain
+        flushKeptNavCollapses();
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
         // pre() early-returned without a snapshot; running the postHook walk would
         // re-traverse helper bodies that the primary pass intentionally skipped, queue

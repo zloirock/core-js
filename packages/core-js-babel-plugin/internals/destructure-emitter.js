@@ -329,6 +329,7 @@ export default function createDestructureEmitter({
   skippedNodes,
   synthSwap,
   getDebugOutput,
+  markThrowingExtraction,
 }) {
   // alias-resolution context for the proxy-global collapse: lets `findProxyGlobal` follow a
   // const-alias root (`const g = globalThis; g.self.X`) through the canonical resolver, so the
@@ -1590,7 +1591,7 @@ export default function createDestructureEmitter({
       // the polyfill `_m(receiver)` re-references the receiver (the residual reads it too). the planner
       // (`planSideEffectKeyStrategy`) already admitted only re-referenceable receivers, so clone directly -
       // no local re-check (a duplicate gate here once drifted from the planner and left a literal native)
-      polyfillValue = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverArg)]);
+      polyfillValue = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverArg)]));
       // the clone is skip-seeded: the text emitter re-emits the default AS WRITTEN (its
       // sentinel rename owns the original span), so inner rewrites stay symmetric-raw
       if (!patternValue && prop.node.value?.type === 'AssignmentPattern') {
@@ -1699,7 +1700,7 @@ export default function createDestructureEmitter({
       // chain each overwrite off the previous one for this statement: the elements of a multi-element
       // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one wins,
       // as native destructuring does - a bare `statement.insertAfter` per element reverses them
-      const overwriteCall = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]);
+      const overwriteCall = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]));
       const overwriteStmt = inheritSpan(t.expressionStatement(
         inheritSpan(t.assignmentExpression('=', t.cloneNode(bindingId), overwriteCall), statement.node)), statement.node);
       const prevInsert = nestedOverwriteLastInsert.get(statement.node);
@@ -1941,7 +1942,7 @@ export default function createDestructureEmitter({
       // itself routes the dropped key SE through the call-rooted plan (`(e++, c++, _globalThis).Array.prototype`)
       const collapsedObj = instAliasCtx && maximalProxyGlobalHop(objectNode, instAliasCtx, { allowSideEffectKeys: true })
         ? synthSwap.collapseProxyGlobalReceiver(objectNode, { aliasCtx: instAliasCtx }) : null;
-      value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(collapsedObj ?? objectNode)]);
+      value = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(collapsedObj ?? objectNode)]));
       // a `X || fallback` logical source (`{flat} = (c++, globalThis.self).Array.prototype || {}`) keeps each
       // operand live; the single-member gate above misses it, so collapse the proxy hop in the WRAPPED operands
       // (collapseRetainedProxyReceiver recurses logical operands) - else an evaluated proxy operand reads raw `.self`

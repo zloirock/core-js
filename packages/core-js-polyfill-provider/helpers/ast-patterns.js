@@ -2509,6 +2509,25 @@ export function reassignBailApplies({ binding, adapter, path, usageNode = null }
 // otherwise delegates to the method-aware `reassignBailApplies`. (resolveVariableBindingToGlobal
 // uses isReassignedBeyondDeclarator + reassignBailApplies instead - it excludes the loop-reinit
 // declarator-self for BOTH methods, where these sites keep the conservative flat bail off-global)
+// claim-SE migration canon: an SE INSIDE the guarded root runs once in the test; an SE BETWEEN
+// the root and the claim (a dropped hop's computed-key effect - `window?.[(e++, 'self')].Array`)
+// migrates into the guarded branch as a sequence prefix, in native order (test -> key effect ->
+// leaf read). returns the migratable set (empty when no SE channel fires), or null when any
+// effect has no slot (position-less synthesized nodes, an SE outside the claim span) - the
+// caller keeps the raw stand-down there
+export function migratableClaimSe({ sideEffects, receiverEffectCount = 0, rootNode, end }) {
+  if (!sideEffects?.length && !receiverEffectCount) return [];
+  if (!sideEffects?.length || rootNode?.start === undefined || end === undefined) return null;
+  const out = [];
+  for (const se of sideEffects) {
+    if (se?.start === undefined) return null;
+    if (se.start >= rootNode.start && se.end <= rootNode.end) continue;
+    if (se.start >= rootNode.end && se.end <= end) out.push(se);
+    else return null;
+  }
+  return out;
+}
+
 export function reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode = null }) {
   return !!binding.constantViolations?.length && reassignBailApplies({ binding, adapter, path, usageNode });
 }
@@ -5076,18 +5095,6 @@ export function singleReturnBodyExpression(body) {
     if (stmt.type !== 'ExpressionStatement') return null;
   }
   return ret?.argument ?? null;
-}
-
-// peel an IIFE shell `(() => X)()` / `(() => X)?.()` / `(function(){return X})()` to its
-// body's return expression. callee must be a sync, non-generator, zero-param arrow / fn
-// expression; call-site args are ignored (zero params drop them at runtime). mirrors the
-// inline contract `inlineCallReturnExpression` uses for receiver-name resolution
-export function peelIIFEReturn(node) {
-  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
-  const callee = unwrapInitValue(unwrapRuntimeExpr(node.callee));
-  if ((callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression')
-    || callee.params?.length || callee.async || callee.generator) return null;
-  return singleReturnBodyExpression(callee.body);
 }
 
 // peel transparent wrappers AND no-arg arrow / function-expression IIFE shells around an
