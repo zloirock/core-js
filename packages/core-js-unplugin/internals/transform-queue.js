@@ -685,6 +685,13 @@ export default class TransformQueue {
   // contribute their FULL [start, logicalEnd) span - currently call sites pass `null`
   // guardedRoot for split entries so this is latent, but the API allows split entries
   // here and physical span would understate their reach
+  // is ANY guard-bearing transform queued over `root`? a bare-Identifier guard (`n == null ?
+  // void 0 : ...`) needs no memo, so it carries no guardRef - but a claim composing into its
+  // body must still emit PLAIN (a second guard would double-wrap the alternate)
+  hasOuterGuard(root) {
+    return !!root && !!this.#byGuardedRoot.get(root)?.length;
+  }
+
   findOuterGuardRef(root) {
     if (!root) return null;
     const list = this.#byGuardedRoot.get(root);

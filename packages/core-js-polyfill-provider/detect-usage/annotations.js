@@ -403,6 +403,12 @@ export function isPolyfillableOptional({
   if (member === node
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
       { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
+    // an UNDEFINABLE nav root (an alias holding `globalThis.window?...`, a window-class hop)
+    // keeps its `?.` LIVE: the prefix walk sees through the binding to the global, but the
+    // VALUE read at runtime can be undefined - the deopt would run the branch where native
+    // short-circuits (the verdict canon counts exactly this object as undefinable)
+    && !(objCore?.type === 'Identifier'
+      && undefinableProxyRootValue(objCore, resolve, { scope, adapter, path }))
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
     // the raw nav reads through a value that can be undefined - the guard must survive.
     // OPT-IN (`mutatedKeptRootAware`): only the AST emitter's skip-check arms its guard off
