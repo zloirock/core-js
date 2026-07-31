@@ -350,6 +350,24 @@ function * generateContainerSlots() {
   }
 }
 
+// --- proxy-global alias-root arms ---
+// resolving an identifier to the global-proxy ROOT: the ARRAY-init negative is runtime-critical
+// (a named key off an array literal is undefined - `typeof` flips if pure wrongly substitutes),
+// the positional / computed spellings pin the positive arms. full-env: observables are native
+const PROXY_ALIAS = [
+  { id: 'obj-pattern-over-array', setup: 'const { Promise: P } = [globalThis];', use: 'typeof P' },
+  { id: 'ident-over-array', setup: 'const M = [globalThis];', use: 'typeof M.resolve' },
+  { id: 'bare-element', setup: 'const [g] = [globalThis];', use: 'typeof g.Map.groupBy' },
+  { id: 'computed-key-root', setup: "const K = 'self'; const { [K]: s } = globalThis;", use: 'typeof s.Map.groupBy' },
+];
+
+function * generateProxyAliasCells() {
+  for (const s of PROXY_ALIAS) {
+    const body = `(() => { ${ s.setup } return ${ s.use }; })()`;
+    yield { ...snippet(`proxy-alias/${ s.id }`, body), strip: false };
+  }
+}
+
 // --- IIFE destructure-param default with a WINNING call-arg (caller-args-must-win) ---
 // `(({ from } = Number) => typeof from)(<arg>)`: the live call-arg supersedes the param-default. the
 // default `Number` is a polyfill DEAD-END, so whenever the arg STATICALLY RESOLVES to a constructor
@@ -4590,6 +4608,7 @@ export function * generate() {
   yield * generateDestructure();
   yield * generateDestructureAlias();
   yield * generateContainerSlots();
+  yield * generateProxyAliasCells();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
   yield * generateSharedAliasUnionArms();
