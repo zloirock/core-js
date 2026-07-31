@@ -84,7 +84,7 @@ export const doubleOptionalSeKey = null == (_ref8 = db = _globalThis.window) ? v
 let dd;
 export const doubleOptionalDotted = (dd = _globalThis.window)?.Array.prototype.indexOf.call([2], 2);
 let tr;
-export const tripleOptionalMixed = (tr = _globalThis.window)?.[c++, c++, "Array"].of(9);
+export const tripleOptionalMixed = null == (tr = _globalThis.window) ? void 0 : (c++, c++, _Array$of(9));
 
 // An effect around the assignment AND one in a hop key, under TWO optionals: the value effect stays
 // inside the root memo (always runs, as written), the key effect rides the migrated key past the
