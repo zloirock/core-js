@@ -15,7 +15,9 @@ import {
   bindsModuleDefault,
   globalProxyNameFromImportSource,
   importSourceMatchesUserPackage,
-  isTypeOnlyImportKind,
+  importBindingIsTypeOnly,
+  tsImportEqualsProxyName,
+  tsImportEqualsRequireSource,
   isTopLevelThisContext,
   collectFoldedReceiverSideEffects,
   isDirectiveStatement,
@@ -319,7 +321,10 @@ const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier
 
 // re-exported from the shared helper layer: the proxy-ROOT recogniser lives in a module this one
 // imports FROM, so the canon cannot sit here without a cycle
-export { bindsModuleDefault, globalProxyNameFromImportSource, isTypeOnlyImportKind } from '../helpers/ast-patterns.js';
+export {
+  bindsModuleDefault, globalProxyNameFromImportSource, isTypeOnlyImportKind,
+  tsImportEqualsProxyName, tsImportEqualsRequireSource,
+} from '../helpers/ast-patterns.js';
 
 // shared Identifier-binding gate for key-resolution walks: cycle guard via `seen`, fork
 // before recurse, reject reassigned bindings. precomputes `VariableDeclarator` init for
@@ -505,7 +510,9 @@ export function interopDefaultProxyName({ objectNode, scope, adapter, path }) {
     const binding = adapter.getBinding(lookupScope, name, path);
     if (!binding || isReassignedBeyondDeclarator(binding)) return null;
     if (binding.node?.type === 'ImportNamespaceSpecifier') {
-      return globalProxyNameFromImportSource(binding.importSource, adapter.packages);
+      // `import type * as X` erases like every type-only form - same gate as the default-import arm
+      return importBindingIsTypeOnly(binding)
+        ? null : globalProxyNameFromImportSource(binding.importSource, adapter.packages);
     }
     const init = binding.node?.type === 'VariableDeclarator' && binding.node.id?.type === 'Identifier'
       ? unwrapTransparentSeq(binding.node.init) : null;
@@ -531,27 +538,6 @@ export function requireBoundProxyGlobalName({ node, scope, adapter, path }) {
     ? unwrapTransparentSeq(binding.node.init) : null;
   const required = init && requireCallSource(init, adapter, binding.scope ?? scope);
   return required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
-}
-
-// the static require source of a runtime TSImportEquals declaration (`import x = require('...')`),
-// or null. adapter-less callers (the scope-less census reducer) read the literal value directly.
-// the `export` modifier (babel@7 flags `isExport` on the node; @8 / oxc wrap it in an
-// ExportNamedDeclaration the callers peel) doesn't change the local binding's value - an exported
-// `export import g = require('.../global-this')` still hosts the global for a mutation / interop
-// receiver, so it must not gate the source read (a non-proxy source is dropped downstream anyway)
-export function tsImportEqualsRequireSource(node, adapter) {
-  if (node?.type !== 'TSImportEqualsDeclaration' || node.importKind === 'type'
-    || node.id?.type !== 'Identifier' || node.moduleReference?.type !== 'TSExternalModuleReference') return null;
-  const source = adapter ? adapter.getStringValue(node.moduleReference.expression) : node.moduleReference.expression?.value;
-  return typeof source === 'string' ? source : null;
-}
-
-// `import g = require('<pkg>/<mode>/global-this')` - the TS require-import shape. tsc /
-// esbuild emit it for CJS interop; `scanExistingCoreJSImports` already recognizes it as a
-// pure import for dedup, so the resolution canon must see the same binding or the write
-// channel goes blind to a receiver the import scan trusts
-export function tsImportEqualsProxyName(node, adapter, packages = null) {
-  return globalProxyNameFromImportSource(tsImportEqualsRequireSource(node, adapter), packages);
 }
 
 // `path` (optional) - an AST path inside the lookup site so the adapter can anchor TS-runtime
@@ -608,7 +594,9 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // and immutable, so no flow-soundness gate applies; type-only imports erase before runtime
   // and must stay unresolvable
   if (IMPORT_BINDING_TYPES.has(bindingType)) {
-    return bindsModuleDefault(binding?.node) && !isTypeOnlyImportKind(binding?.node?.importKind)
+    // type-only gates at BOTH levels (specifier and declaration) - the erased binding must not
+    // resolve to a runtime global, matching the shared erasure canon
+    return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
       ? globalProxyNameFromImportSource(binding?.importSource, adapter.packages)
       : null;
   }
@@ -899,8 +887,14 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
         ? resolveKey({ node: obj.property, computed: true, scope, adapter, seen, path, usageNode })
         : obj.property?.name;
       // a mutated hop slot (`window.self = fake`) is the user's replacement, not the global -
-      // the chain no longer re-enters the pristine global-object surface
-      if (!memberKey || !isPristineProxyGlobal(adapter, memberKey)) return false;
+      // the chain no longer re-enters the pristine global-object surface.
+      // a `.default` hop off a CJS-interop-wrapped pure global-proxy require re-enters it
+      // (`X.default.Map.groupBy()`) exactly like the top-level interop read the sibling
+      // resolver recognizes - the wrapper below the hop IS the chain's global root then
+      if (!memberKey || !isPristineProxyGlobal(adapter, memberKey)) {
+        return memberKey === 'default'
+          && !!interopDefaultProxyName({ objectNode: obj.object, scope, adapter, path });
+      }
       obj = peelChainRootValue(obj.object);
     }
     if (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression') {
@@ -960,7 +954,9 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
   // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
   // identifier name directly. either way the receiver chain must bottom out on a proxy global
   const propertyName = objectNode.computed
-    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, path, usageNode })
+    // `seen` shared with the receiver walk, matching the chain-root walker's convention (a shared
+    // alias chain across the walk and its member keys must not restart the cycle guard)
+    ? resolveKey({ node: objectNode.property, computed: true, scope, adapter, seen, path, usageNode })
     : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
   if (!propertyName) return null;
   // `X.default` of a CJS-interop-wrapped pure GLOBAL-PROXY require resolves to the proxy
