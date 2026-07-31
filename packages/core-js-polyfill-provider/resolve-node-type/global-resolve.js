@@ -25,11 +25,11 @@ import {
   isAmbientBindingShape,
   objectPatternLiteralKeyPath,
   peelArrayWrapBindingLayers,
-  peelIIFEReturn,
   peelSkippableWrapperPath,
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
+import { inlineCallProxyGlobalRoot } from '../detect-usage/resolve.js';
 
 export function createGlobalResolve({
   t,
@@ -85,27 +85,6 @@ export function createGlobalResolve({
       && isGlobalProxy(objectPath.get('object'));
   }
 
-  // IIFE returning a proxy-global: `(() => globalThis)()` / `(function(){ return self })()`.
-  // peel SKIPPABLE_WRAPPER_TYPES on the callee path so the walk matches `peelIIFEReturn`'s
-  // node-level coverage - else TS-wrapped callees like `((() => globalThis) as any)()`
-  // find a body in `peelIIFEReturn` but fail the path walk
-  function isProxyGlobalIifeReturn(callPath) {
-    const ret = peelIIFEReturn(callPath.node);
-    if (!ret) return false;
-    let fnPath = peelSkippableWrapperPath(callPath.get('callee'));
-    // peel SequenceExpression-callee tails on the PATH side too (`(0, function(){...})()` /
-    // `(spy(), () => globalThis)()` / nested `(0, (1, () => globalThis))()`): peelIIFEReturn unwraps
-    // SE tails to a FIXPOINT on the node side, so loop here to match - a single peel stalls on a
-    // doubly-nested SE and the return path is never found, dropping the proxy-global recognition
-    while (fnPath?.node?.type === 'SequenceExpression') {
-      fnPath = peelSkippableWrapperPath(fnPath.get('expressions').at(-1));
-    }
-    if (!fnPath?.node) return false;
-    const fnBody = fnPath.get('body');
-    const retPath = fnBody?.node === ret ? fnBody : findReturnPath(fnBody, ret);
-    return retPath ? isGlobalProxy(retPath) : false;
-  }
-
   function isGlobalProxy(objectPath) {
     // peel transparent wrappers up front - oxc preserves ParenthesizedExpression around
     // shapes like `(((() => globalThis) as any)()).Map` where the inner shape IS a
@@ -126,7 +105,18 @@ export function createGlobalResolve({
     if (t.isThisExpression(objectPath.node) && isTopLevelThisContext(objectPath)) return true;
     if (isProxyGlobalChainLink(objectPath)) return true;
     if (t.isCallExpression(objectPath.node) || t.isOptionalCallExpression(objectPath.node)) {
-      return isProxyGlobalIifeReturn(objectPath);
+      // a provable call root - a literal IIFE, a NAMED single-return wrapper chain (`const f =
+      // () => g(); const g = () => globalThis; f().Array...`) or an identity-param pass-through
+      // - proves through the canonical inline walk, the same canon the detect channels collapse
+      // this root with. a weaker bespoke IIFE walk here split the channels: the value channel
+      // collapsed the chain while the type walk bailed, leaving a generic instance helper and
+      // over-injected es.string.* imports on a provably Array receiver
+      const buried = inlineCallProxyGlobalRoot({
+        callNode: objectPath.node, scope: objectPath.scope, adapter: babelBindingAdapter, path: objectPath,
+      });
+      return !!buried && isProxyGlobalIdentifierNode({
+        node: buried, scope: objectPath.scope, adapter: babelBindingAdapter, path: objectPath,
+      });
     }
     // a SequenceExpression `(eff(), globalThis.self)` evaluates to its tail; the proxy-global root IS the
     // tail. peel transparent-to-tail (mirrors the IIFE-callee SE peel above and the runtime value-path) so a
@@ -137,20 +127,6 @@ export function createGlobalResolve({
       return exprs.length ? isGlobalProxy(exprs.at(-1)) : false;
     }
     return false;
-  }
-
-  // locate the path for an IIFE return expression inside a BlockStatement body. walks
-  // top-level statements until the matching ReturnStatement.argument node is found.
-  // narrow scan (top-level only) matches `singleReturnBodyExpression`'s contract: nested
-  // control-flow / declarations already bailed before reaching here
-  function findReturnPath(bodyPath, retNode) {
-    if (!bodyPath.node || bodyPath.node.type !== 'BlockStatement') return null;
-    for (const stmtPath of bodyPath.get('body')) {
-      if (stmtPath.node?.type === 'ReturnStatement' && stmtPath.node.argument === retNode) {
-        return stmtPath.get('argument');
-      }
-    }
-    return null;
   }
 
   // user-aliased global `const A = Array; new A()`: walk const aliases through

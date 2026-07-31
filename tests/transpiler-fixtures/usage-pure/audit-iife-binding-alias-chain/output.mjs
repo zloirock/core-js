@@ -2,8 +2,8 @@ import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$reject from "@core-js/pure/actual/promise/reject";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
-// inline-call resolution walks at most ONE binding-hop. covers four shapes:
-//   1) `const f = g; const g = () => Map; f()` - two hops, must NOT inline
+// inline-call resolution follows identifier binding-hops transitively. covers four shapes:
+//   1) `const g = () => Map; const f = g; f()` - two hops, follows to the arrow and inlines
 //   2) `const h = () => Promise; h()` - one hop with pure body, inlines and rewrites
 //   3) block body with prefix statement (`calls++; return Promise`) - inlines but the
 //      receiver call must remain observable so the side effect runs
@@ -12,7 +12,7 @@ import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 //      the side effect still runs exactly once
 const g = () => _Map;
 const f = g;
-const out1 = f().has(1);
+const out1 = _Map.has(1);
 const h = () => _Promise;
 const out2 = _Promise$resolve(2);
 let calls = 0;
