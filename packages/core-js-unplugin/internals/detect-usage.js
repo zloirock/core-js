@@ -586,6 +586,9 @@ export function createEstreeAdapter({
       const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null) ?? null;
       const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
       const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
+      // the EFFECTIVE kind: `import { type X }` carries it on the specifier, `import type X`
+      // on the declaration - the erasure canon needs one field covering both spellings
+      const importKind = isImportBinding ? b.path.node?.importKind ?? b.path.parent?.importKind ?? null : null;
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
       // same-named namespace/declare-global var twin as a violation. recompute from the AST via the
@@ -631,7 +634,7 @@ export function createEstreeAdapter({
         node: b.path.node,
         kind: b.kind,
         constantViolations,
-        importSource,
+        importSource, importKind,
         // the scope the DECLARATOR is written in - see the babel twin. here it IS `b.scope`: unlike
         // babel, estree-toolkit never hoists a `var` out of its block, so a binding it DOES report
         // already sits in the scope the declarator was written in (a use that outruns the block

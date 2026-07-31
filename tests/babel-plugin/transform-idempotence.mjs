@@ -41,6 +41,11 @@ const CASES = [
   // the second pass re-reads a sequence whose first operand carries the spread, and a pattern whose
   // flat key already holds the default the first pass gave it - both have to stay put
   ['spread argument keeps its receiver', 'export const r = (() => Array)(...poison).from(x);'],
+  // the proxy-root import surface: the interop `.default` hop and the TS require-import twin both
+  // re-resolve on the second pass off the SAME source recognition, so the injection set holds
+  ['interop default chain', 'function _interopRequireDefault(m) { return m && m.__esModule ? m : { default: m }; }\n'
+    + 'var X = _interopRequireDefault(require("@core-js/pure/actual/global-this"));\nexport const r = X.default.Map.groupBy([], x => x);'],
+  ['ts import-equals member read', 'import g = require("@core-js/pure/actual/global-this");\nexport const r = g.Map.groupBy([], x => x);', true],
   ['mixed pattern permanent mirror bail', 'export const r = (({ Set, Array: { from }, [k()]: y } = globalThis) => [Set, from, y])();'],
 ];
 
