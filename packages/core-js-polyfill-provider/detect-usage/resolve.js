@@ -256,10 +256,100 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
   // fold's harvest canon (the key-SE migration IS the locked emit), while an SE-free leaf claim has
   // no compensating canon - eating its guard loses the short-circuit. exclude its guarded object
   const ownSEKeyOptional = (memberNode.type === 'MemberExpression' || memberNode.type === 'OptionalMemberExpression')
-    && memberNode.optional && memberNode.computed && memberKeyName(memberNode) === null;
-  const objects = ownSEKeyOptional
-    ? optionalObjects.filter(obj => obj !== memberNode.object) : optionalObjects;
-  const undefinable = objects.filter(obj => undefinableProxyRootValue(peelChainAssignment(obj).value, resolvePure, aliasCtx));
+    && memberNode.optional && memberNode.computed && memberKeyName(memberNode) === null
+    // a binding-resolvable SE-free key (`const k = 'self'; chain?.[k]`) is the dotted form in
+    // disguise - only a genuinely SE-carrying / opaque key rides the harvest canon
+    && !(aliasCtx && resolveKey({
+      node: memberNode.property, computed: true, scope: aliasCtx.scope, adapter: aliasCtx.adapter,
+      seen: new Set(), path: aliasCtx.path, bailOnSideEffectKey: true,
+    }));
+  const objects = optionalObjects;
+  const undefinable = [];
+  const provenSources = new Map();
+  // objects of one chain share the root - prove the inline call once per verdict
+  const provenRootCache = new Map();
+  for (const obj of objects) {
+    // the own SE-key `?.` guard is the FOLD's to re-emit (harvest canon), so its object stays
+    // out of the count - EXCEPT when its undefinedness flows from a live OPTIONAL hop of a
+    // proven-call chain (`f()?.window?.[(se, 'self')]`): dropping that object collapsed the
+    // chain to the bare ponyfill, running the key SE and the branch where native short-circuits
+    const ownKey = ownSEKeyOptional && obj === memberNode.object;
+    const { value } = peelChainAssignment(obj);
+    // a chain rooted in an opaque CALL that provably yields a proxy-global (the inline canon
+    // admits only effect-transparent returns) is undefinable ONLY through its own unresolvable
+    // hops - the call is always defined and contributes no source of undefined. objects sharing
+    // the same outermost unresolvable hop dedupe onto the SHORTEST of them, so both hop orders
+    // of `dw()?.window?.self` guard as ONE test on the window hop (the AST emitter's shape)
+    if (aliasCtx) {
+      let root = value;
+      const hopsInfo = [];
+      let depth = 0;
+      while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+        depth++;
+        // a COMPUTED hop resolves through the canonical key resolver - a const-bound string names
+        // its hop like the dotted spelling. an SE-prefixed key still RESOLVES for the count (the
+        // effect rides the kept test text; only a genuinely opaque key is a source of its own)
+        const name = root.computed
+          ? resolveKey({
+            node: root.property, computed: true, scope: aliasCtx.scope, adapter: aliasCtx.adapter,
+            seen: new Set(), path: aliasCtx.path,
+          })
+          : root.property?.name ?? null;
+        hopsInfo.push({ node: root, name });
+        root = root.object;
+      }
+      // a chain-assign wrapper at the bottom peels for the proof - the write is an emit concern
+      if (root) root = peelChainAssignment(root).value;
+      let proven = provenRootCache.get(root);
+      if (proven === undefined && (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression')) {
+        proven = inlineCallProxyGlobalRoot({ callNode: root, ...aliasCtx }) ? 'call' : false;
+        provenRootCache.set(root, proven);
+      } else if (proven === undefined && root?.type === 'Identifier') {
+        // an identifier chain root proves DIRECTLY as a proxy-global - literal (`globalThis
+        // .window?.self.window`) or an alias of the BARE global (`const g = globalThis;
+        // g.window?...`). an alias of a NAVIGATION (`const w2 = globalThis.window`) stays
+        // unproven - its value is exactly the undefinable thing the guard exists for
+        proven = bareProxyGlobalAliasName(root, aliasCtx) ? 'ident' : false;
+        provenRootCache.set(root, proven);
+      }
+      if (proven) {
+        // the hop-level source criterion depends on the ROOT proof: an opaque-but-proven CALL
+        // may yield a global whose non-POSSIBLE members are still target-dependent (`f()?.
+        // chrome`), so ANY unresolvable name counts. a proxy-global IDENTIFIER root keeps the
+        // prior nav canon - only a POSSIBLE forwarder without a ponyfill is a source
+        // (`globalThis?.Array` stays erasable; `globalThis.window` guards)
+        let source = null;
+        const sourceNames = new Set();
+        for (const hop of hopsInfo) {
+          const { name } = hop;
+          const unresolvable = proven === 'ident'
+            ? !name || (POSSIBLE_GLOBAL_OBJECTS.has(name) && !resolvePure({ kind: 'global', name }))
+            : !name || !resolvePure({ kind: 'global', name });
+          if (unresolvable) {
+            source ??= hop.node;
+            sourceNames.add(name ?? '<opaque>');
+          }
+        }
+        const counted = source && (!ownKey || source.optional);
+        if (!counted) continue;
+        // objects sharing ONE unresolvable NAME dedupe onto the structurally SHORTEST of them
+        // (depth, not text span - destructure claims arrive on position-less clones): under the
+        // realm-self-reference assumption a repeated hop name reads the same value, so one test
+        // covers both (`globalThis.window?.self.window`). a SECOND distinct name (`?.chrome`
+        // past the ponyfillable hop) is its own source and keeps the stand-down count
+        if (sourceNames.size > 1) {
+          undefinable.push(obj);
+          continue;
+        }
+        const [key] = [...sourceNames];
+        const prior = provenSources.get(key);
+        if (!prior || depth < prior.depth) provenSources.set(key, { obj, depth });
+        continue;
+      }
+    }
+    if (!ownKey && undefinableProxyRootValue(value, resolvePure, aliasCtx)) undefinable.push(obj);
+  }
+  for (const entry of provenSources.values()) undefinable.push(entry.obj);
   if (undefinable.length === 0) return { kind: 'erase' };
   if (undefinable.length > 1) return { kind: 'standdown' };
   return { kind: 'guard', object: undefinable[0] };
@@ -290,13 +380,33 @@ export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null)
 // hides the same navigation; the POSSIBLE gate keeps non-proxy resolutions - a follow that
 // lands on a plain local - out of the refusal); false for resolvable navs and other values
 export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
-  if (navHasUnresolvableProxyHop(value, resolvePure)) return true;
-  if (aliasCtx && value?.type === 'Identifier') {
+  const seen = new Set();
+  while (true) {
+    if (navHasUnresolvableProxyHop(value, resolvePure)) return true;
+    if (!aliasCtx || value?.type !== 'Identifier' || seen.has(value.name)) return false;
     const aliasName = proxyGlobalRootName({ node: value, ...aliasCtx });
     if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName)
       && !resolvePure({ kind: 'global', name: aliasName })) return true;
+    // an alias HOLDING an undefinable nav (`let n; n = globalThis.window?.self.window;
+    // n?.X...`) is as undefinable as the nav itself: follow the init or the single write and
+    // keep walking. the prefix walks see through the binding to the always-defined global, but
+    // the VALUE read at runtime is the nav's - eating the alias guard ran the branch where
+    // native short-circuits
+    seen.add(value.name);
+    const binding = aliasCtx.adapter?.getBinding?.(aliasCtx.scope, value.name, aliasCtx.path);
+    const bindingNode = binding?.node ?? binding?.path?.node;
+    let held = bindingNode?.type === 'VariableDeclarator' ? bindingNode.init : null;
+    if (!held && binding?.constantViolations?.length === 1) {
+      const write = unwrapTransparentSeq(binding.constantViolations[0]?.node ?? binding.constantViolations[0]);
+      if (write?.type === 'AssignmentExpression' && write.operator === '='
+        && write.left?.type === 'Identifier' && write.left.name === value.name) held = write.right;
+    }
+    if (!held) return false;
+    value = unwrapTransparentSeq(held);
+    // the held value's identifiers resolve in the alias's own declaration scope (same
+    // per-hop advance as the key/global alias walks)
+    if (binding?.scope && binding.scope !== aliasCtx.scope) aliasCtx = { ...aliasCtx, scope: binding.scope };
   }
-  return false;
 }
 
 export function isStaticPlacement(name) {
@@ -350,9 +460,15 @@ export function enterIdentifierBindingFollow({ node, scope, adapter, seen, path 
   // S.iterator, and when S is itself a well-known-symbol VALUE the slot is undefined - resolving
   // `it` to the receiver's symbol key is a wrong-value fold). REGISTERED pattern slots resolve
   // through the aliasKey path callers run BEFORE the init branch; unregistered ones bail here
-  const init = binding.node?.type === 'VariableDeclarator' && binding.node.id?.type === 'Identifier'
-    ? binding.node.init : null;
-  return { binding, init, nextSeen };
+  // binding shape differs per channel: estree adapters carry `.node`, babel's scope Binding
+  // only `.path` (the same duality the inline-callee resolver covers)
+  const bindingNode = binding.node ?? binding.path?.node;
+  const init = bindingNode?.type === 'VariableDeclarator' && bindingNode.id?.type === 'Identifier'
+    ? bindingNode.init : null;
+  // the returned scope anchors the NEXT hop: the init's identifiers resolve in the alias's OWN
+  // declaration scope, not the use scope - a use-site shadow of an init name (`const k = j;
+  // function f(j) { obj[k] }`) must not swallow the module-level value the alias actually holds
+  return { binding, init, nextSeen, scope: binding.scope ?? scope };
 }
 
 // resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
@@ -1055,7 +1171,8 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
 
 // resolve a call-expression callee to a function-like node (arrow / fn-expr) suitable
 // for inlining. handles direct IIFE (callee = arrow/fn-expr) AND identifier-bound callees
-// (`const f = () => X; f()` walks through the binding's init to the same form).
+// (`const f = () => X; f()` walks through the binding's init to the same form, following
+// identifier-to-identifier hops transitively).
 // rejects shapes where inlining would change semantics: non-VariableDeclarator bindings,
 // reassigned bindings (constantViolations), parameter-bearing fn (would shadow free
 // identifiers), async / generator fn (wrapped return value misrepresents the result type
@@ -1070,20 +1187,44 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, all
   // substitution over the SE-wrapped callee (transform-queue "could not locate inner needle" crash).
   // the SE-bail keeps the shape unresolved (native call survives) - the safe-from-crash outcome
   let callee = unwrapTransparentSeq(callNode.callee);
-  if (callee.type === 'Identifier') {
+  // identifier hops follow transitively (`const f = () => X; const q = f; q()`), each hop
+  // re-anchored at the alias's own declaration scope (per-hop advance like the key/global
+  // alias walks) with the seen-set guarding cycles
+  let hopScope = scope;
+  while (callee.type === 'Identifier') {
     const { name } = callee;
-    if (!adapter.hasBinding(scope, name, path) || seen.has(name)) return null;
-    const binding = adapter.getBinding(scope, name, path);
-    // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when the binding's
-    // reassignment does not dominate the use (init still live); pure / narrowing bail. `usageNode`
-    // anchors the dominance at an alias-hop's read site so a write AFTER the capture (`const f = f0;
-    // f0 = () => Map`) does not block the still-live declared init
-    if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
-    if (adapter.getBindingNodeType(scope, name, path) === 'VariableDeclarator') {
-      const initNode = binding.node?.init;
-      if (!initNode) return null;
+    if (!adapter.hasBinding(hopScope, name, path) || seen.has(name)) return null;
+    const binding = adapter.getBinding(hopScope, name, path);
+    if (!binding) return null;
+    if (adapter.getBindingNodeType(hopScope, name, path) === 'VariableDeclarator') {
+      // binding shape differs per channel: detect adapters carry `.node`, the type-resolver
+      // channel only `.path` (same duality the FunctionDeclaration arm below already covers)
+      const initNode = (binding.node ?? binding.path?.node)?.init;
+      if (!initNode) {
+        // an init-less binding whose ONE write assigns a function literal (`let f; if (c) f =
+        // () => globalThis;`) proves through that write: on every path the value is either
+        // undefined or that literal. the CALL ITSELF becomes an observable effect (it may
+        // throw / short-circuit on the unassigned path), so the collapse must keep it - the
+        // marker feeds `inlineCallHasObservableEffects`, which every dropping caller consults
+        const write = binding.constantViolations?.length === 1
+          ? unwrapTransparentSeq(binding.constantViolations[0]?.node ?? binding.constantViolations[0]) : null;
+        const rhs = write?.type === 'AssignmentExpression' && write.operator === '='
+          && write.left?.type === 'Identifier' && write.left.name === name
+          ? unwrapTransparentSeq(write.right) : null;
+        if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return null;
+        conditionallyProvenCallees.add(rhs);
+        callee = rhs;
+        seen.add(name);
+        return finishInlineCallee({ callee, allowIdentityParam });
+      }
+      // method-aware reassignment bail: usage-global keeps inlining the IIFE-callee when the binding's
+      // reassignment does not dominate the use (init still live); pure / narrowing bail. `usageNode`
+      // anchors the dominance at an alias-hop's read site so a write AFTER the capture (`const f = f0;
+      // f0 = () => Map`) does not block the still-live declared init
+      if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
       callee = unwrapTransparentSeq(initNode);
     } else {
+      if (reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode })) return null;
       // a zero-param FunctionDeclaration is the same inline shape (`function g() { return X; }
       // const B = g();`) - the declaration node IS the callee function
       const declNode = binding.path?.node ?? binding.node;
@@ -1091,12 +1232,23 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, all
       callee = declNode;
     }
     seen.add(name);
+    hopScope = binding.scope ?? hopScope;
   }
+  return finishInlineCallee({ callee, allowIdentityParam });
+}
+
+// the shared callee-shape validation every proof arm funnels through
+function finishInlineCallee({ callee, allowIdentityParam }) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression'
     && callee.type !== 'FunctionDeclaration')
     || (callee.params?.length && !identityParam({ callee, allowIdentityParam })) || callee.async || callee.generator) return null;
   return callee;
 }
+
+// function literals proven through a SINGLE conditional assignment (`let f; if (c) f = () =>
+// globalThis;`): the call site may run with `f` still undefined, so the CALL is an observable
+// effect the collapse must keep in the output (throw / short-circuit fidelity)
+const conditionallyProvenCallees = new WeakSet();
 
 // an `(x) => x` identity callee is inlineable when `allowIdentityParam` is set: its single Identifier
 // param is substituted with the call arg by `inlineCallReturnExpression`. every other param shape
@@ -1129,6 +1281,111 @@ export function isCallShape(node) {
   return node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression';
 }
 
+// the identifier's name when it IS a proxy-global or a transitive alias of the BARE global
+// (`const g = globalThis; const h = g;`), null otherwise - an alias whose init NAVIGATES
+// (`const w = globalThis.window`) is an undefinable VALUE, not the global itself
+export function bareProxyGlobalAliasName(node, aliasCtx) {
+  let cur = node;
+  let ctx = aliasCtx;
+  for (let depth = 0; depth < MAX_KEY_DEPTH; depth++) {
+    if (cur?.type !== 'Identifier') return null;
+    if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) {
+      return findProxyGlobal(node, aliasCtx) ? cur.name : null;
+    }
+    const followed = enterIdentifierBindingFollow({ node: cur, ...ctx, seen: new Set() });
+    if (!followed?.init) {
+      // a TERMINAL init-less identifier that is a plugin-minted pure import (`const g =
+      // _globalThis` after the in-place rewrite walks here) names its source global through
+      // the polyfillHint side-channel (binding field OR adapter hook - the canonical duality);
+      // a plain init-less binding (`let n; n = nav;`) stays unproven - its value is the
+      // write's, exactly what the guard exists for
+      const hint = followed?.binding?.polyfillHint
+        ?? (followed ? ctx.adapter.getBindingPolyfillHint?.(ctx.scope, cur.name) : null);
+      return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
+    }
+    cur = unwrapTransparentSeq(followed.init);
+    if (followed.scope !== ctx.scope) ctx = { ...ctx, scope: followed.scope };
+  }
+  return null;
+}
+
+// PLAN a proven-nav guard collapse: the shared semantics both emitters render. a navigation
+// over a PROVEN root (an inline-provable call, a pristine proxy-global identifier), optionally
+// wrapped in a kept chain-assign, whose hops are all pristine proxy-global names splits into:
+//   - the raw PREFIX up to the LAST unresolvable hop (stays in the guard test - collapsing it
+//     would test an always-defined ponyfill and break the short-circuit),
+//   - the ponyfill LEAF at the last resolvable hop,
+//   - the TAIL hop names above it (kept spelling, live `?.`),
+//   - SE computed-key expressions of collapsed hops (replayed before the leaf, native order).
+// kinds: 'nested' (a prefix test survives), 'sequence' (no prefix, but the root or its arg
+// carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
+// shape; the callers keep their own canons there
+export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq }) {
+  let core = unwrap(rootNode);
+  const { outer: topAssign, value: topValue } = peelChainAssignment(core);
+  if (topAssign) core = unwrap(topValue);
+  if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return null;
+  const hops = [];
+  let n = core;
+  while (n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') {
+    if (!n.computed && !isPristineProxyGlobal(adapter, n.property?.name)) return null;
+    hops.unshift({ name: n.computed ? null : n.property.name, node: n, optional: !!n.optional, keySeExprs: null });
+    n = unwrap(n.object);
+  }
+  const { outer: chainAssign } = peelChainAssignment(n);
+  const call = chainAssign ? unwrap(peelChainAssignment(n).value) : n;
+  const aliasCtx = { scope, adapter, path };
+  const identRoot = !chainAssign && call?.type === 'Identifier' && bareProxyGlobalAliasName(call, aliasCtx)
+    ? call : null;
+  if (!identRoot && call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression') return null;
+  for (const hop of hops) {
+    if (hop.name !== null) continue;
+    hop.name = resolveKey({ node: hop.node.property, computed: true, scope, adapter, seen: new Set(), path });
+    if (!hop.name || !isPristineProxyGlobal(adapter, hop.name)) return null;
+    const prop = unwrap(hop.node.property);
+    if (prop.type === 'SequenceExpression' && prop.expressions.length > 1
+      && prop.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+      hop.keySeExprs = prop.expressions.slice(0, -1);
+    } else if (mayHaveSideEffects(prop)) return null;
+  }
+  const rootId = identRoot ?? inlineCallProxyGlobalRoot({ callNode: call, scope, adapter, path });
+  if (!rootId || !isPristineProxyGlobal(adapter, rootId.name)) return null;
+  let collapseIdx = -1;
+  for (let i = hops.length - 1; i >= 0; i--) {
+    if (resolvePure({ kind: 'global', name: hops[i].name })) {
+      collapseIdx = i;
+      break;
+    }
+  }
+  if (collapseIdx === -1) return null;
+  if (hops.some((hop, i) => hop.keySeExprs && i > collapseIdx)) return null;
+  let lastUnresolvableIdx = -1;
+  for (let i = 0; i < collapseIdx; i++) {
+    if (!resolvePure({ kind: 'global', name: hops[i].name })) lastUnresolvableIdx = i;
+  }
+  const keySeExprs = hops.flatMap(hop => hop.keySeExprs ?? []);
+  const rootEffects = !!chainAssign
+    || (!identRoot && inlineCallHasObservableEffects({ callNode: call, scope, adapter, path }));
+  return {
+    kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
+    topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
+    leafName: hops[collapseIdx].name, rootValueNode: n, call: identRoot ? null : call,
+  };
+}
+
+// resolve a call ROOT to the proxy-global it provably yields, walking NESTED single-return
+// wrappers (`const f = () => g(); const g = () => globalThis`) - each layer inlines through the
+// same canon; one `seen` set guards cycles across the whole walk
+export function inlineCallProxyGlobalRoot({ callNode, scope, adapter, path }) {
+  const seen = new Set();
+  let value = callNode;
+  while (isCallShape(value)) {
+    value = inlineCallReturnExpression({ callNode: value, scope, adapter, path, seen });
+    if (!value) return null;
+  }
+  return findProxyGlobal(value, { scope, adapter, path });
+}
+
 // does the inline-resolved call carry prefix statements that would be lost if the site is
 // replaced by the polyfill? expression-body (`() => X`) and direct-return block-body
 // (`() => { return X; }`) - false. block bodies with any non-return statement - true;
@@ -1150,8 +1407,12 @@ function hasObservableEffectsRec({ callNode, scope, adapter, path, seen }) {
     // `allowIdentityParam` MUST mirror the fold (`inlineCallReturnExpression`): the fold inlines an
     // identity-param IIFE (`((x) => { g(); return x; })(Array)`), so the effect gate has to inspect its
     // block body too - a stricter gate here misses the `g()` prefix and drops it at the source
-    const body = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true })?.body;
-    if (!body) return false;
+    const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true });
+    if (!callee) return false;
+    // a conditionally-proven callee makes the CALL itself observable: the unassigned path
+    // must keep its native throw / short-circuit, so the collapse may not drop the call
+    if (conditionallyProvenCallees.has(callee)) return true;
+    const { body } = callee;
     const isBlock = body.type === 'BlockStatement';
     // filter out leading directive ExpressionStatements (`'use strict';`) - parser-shape
     // diff only: oxc inlines them in body[]; babel separates into `program.directives`.
@@ -1302,10 +1563,10 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
           // Array[K]` can never dispatch Array.of). prefer the reaching value so the dead init does not
           // become the primary key; fall through to the init when no such value is determinable
           const target = reachingValueOverDeadInit({ binding: entry.binding, adapter, path, scope, usageNode }) || entry.init;
-          node = target;
+          node = usageNode = target;
           seen = entry.nextSeen;
+          scope = entry.scope;
           depth += 1;
-          usageNode = target;
           continue;
         }
       } else if (!seen?.has(node.name)) {
@@ -1740,6 +2001,7 @@ export function isSymbolSourcedKey({ node, scope, adapter, seen, path, depth = 0
     if (entry.init) {
       node = entry.init;
       seen = entry.nextSeen;
+      scope = entry.scope;
       depth += 1;
       continue;
     }
