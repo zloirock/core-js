@@ -3,27 +3,30 @@
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
-  classifyReceiverSE, keySideEffectsOnly, maximalProxyGlobalPrefix, peelReceiverSequenceTail,
-  findProxyGlobal, inlineCallReturnExpression,
+  classifyReceiverSE, descendToChainRoot, keySideEffectsOnly, maximalProxyGlobalPrefix,
+  peelReceiverSequenceTail, inlineCallProxyGlobalRoot, planProvenNavGuardCollapse, resolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   createTypeAnnotationChecker,
   isReusableReceiver,
+  POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
   mayHaveSideEffects,
+  migratableClaimSe,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
-export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
+export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry, injectPureGlobal } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
 
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
   function reset() {
     isInTypeAnnotation.reset();
+    pendingKeptNavCollapses.length = 0;
   }
 
   // useNode (optional) - the source node at the use site, so generateDeclaredRef can place a
@@ -92,7 +95,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   // guard ternaries this factory built (`test == null ? void 0 : alt`): the combined-chain
   // emitter grafts its helper INTO such an alternate instead of wrapping the whole ternary
   const pluginGuardTernaries = new WeakSet();
-  const parenTerminated = new WeakSet();
+  // helper-GET calls minted for DESTRUCTURE extractions: native destructuring of undefined
+  // THROWS, so an erase-refusal guard must stay INSIDE the helper argument (the helper then
+  // throws on the short-circuited void 0 exactly like native) instead of climbing above it
+  const throwingExtractions = new WeakSet();
+  function markThrowingExtraction(node) {
+    throwingExtractions.add(node);
+    return node;
+  }
+  const parenTerminated = new WeakSet(),
+        pendingKeptNavCollapses = [];
   function markGuardedClaim(node) {
     guardedClaims.add(node);
     return node;
@@ -149,12 +161,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     const p = basePath.parentPath;
     if (!p) return null;
     if (p.isCallExpression() && isHelperCall(p.node, basePath.node)) {
+      if (throwingExtractions.has(p.node)) return null;
       return [p, t.callExpression(t.cloneNode(p.node.callee), [body]), 'helper'];
     }
     if (p.isAssignmentExpression() && p.node.operator === '='
       && p.node.right === basePath.node && p.node.left.type === 'Identifier') {
       const gp = p.parentPath;
       if (gp?.isCallExpression() && isHelperCall(gp.node, p.node)) {
+        if (throwingExtractions.has(gp.node)) return null;
         return [gp, t.callExpression(t.cloneNode(gp.node.callee),
           [t.assignmentExpression('=', t.cloneNode(p.node.left), body)]), 'helper'];
       }
@@ -221,9 +235,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     return null;
   }
 
-  function emitGuardedClaim({ path, replacePath, id, sideEffects, receiverEffectCount, guardObject }) {
-    // SE channels keep the raw stand-down - no re-emit slot in this shape
-    if (sideEffects || receiverEffectCount || !guardObject) return;
+  function emitGuardedClaim({ path, replacePath, id, sideEffects, receiverEffectCount, guardObject, substituteGlobal = null }) {
+    if (!guardObject) return;
+    // a kept chain-assign VALUE with collapsible pony hops spells through the shared plan
+    // (`v = _globalThis.self.window` -> `v = _self.window`) before the test freezes it
+    collapseKeptNavValueNode(guardObject, path);
+    const migratedSe = migratableClaimSe({
+      sideEffects, receiverEffectCount, rootNode: guardObject, end: path.node.end,
+    });
+    if (!migratedSe) return;
     // user parens on a mid-chain node TERMINATE the chain there: native throws past the barrier
     // where the chain would short-circuit, so a whole-chain guarded claim would swallow that throw
     for (let n = path.node.object; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = n.object) {
@@ -234,6 +254,32 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     // hop the always-defined descended root does not cover. left in the AST so the identifier visitor
     // substitutes its proxy-global root in place (`_globalThis.window`)
     let rootNode = guardObject;
+    // the kept test still holds the chain's ROOT proxy-global (a bare `globalThis.window`
+    // prefix or one BURIED in an inline-provable call arg): the member visitor's subtree-skip
+    // means the identifier visitor never reaches it, and the claim freezes the kept text - a
+    // raw `globalThis` would ReferenceError on ie:11. no tree walk: the canonical spine
+    // descent + inline proof land on the ONE identifier, substituted by name in place. the
+    // `?.` directly above a substituted bare root deoptionalizes (the deopt canon both
+    // emitters lock); optionals over genuinely undefinable hops stay live
+    if (substituteGlobal) {
+      const { root, firstHop } = descendToChainRoot(guardObject, true);
+      const buried = root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression'
+        ? inlineCallProxyGlobalRoot({ callNode: root, scope: path.scope, adapter: getAdapter?.(), path })
+        : root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name) ? root : null;
+      // `noGlobals` - the built-in globals registry would report `globalThis` itself as
+      // bound; only a REAL binding (param / var / destructured pattern) shadows
+      if (buried && !path.scope.hasBinding(buried.name, true)) {
+        const sub = substituteGlobal(buried.name);
+        if (sub) {
+          const bareRoot = buried === root;
+          buried.name = sub.name;
+          if (bareRoot && firstHop?.optional) {
+            firstHop.type = 'MemberExpression';
+            delete firstHop.optional;
+          }
+        }
+      }
+    }
     // a transparent wrapper on the ROOT gets explicit parens in the guard test: babel prints
     // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the text emitter keeps
     // the wrapped root grouped - `null == ((c = gw) as any) ? ...`
@@ -245,6 +291,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     let claimBody = isInvoke
       ? t.callExpression(t.cloneNode(id), invokeParent.node.arguments.map(a => t.cloneNode(a)))
       : t.cloneNode(id);
+    if (migratedSe.length) {
+      claimBody = t.sequenceExpression([...migratedSe.map(se => t.cloneNode(se)), claimBody]);
+    }
     let climbedHelper = false;
     for (let lifted = liftThroughWrapper(target, claimBody, 'claim'); lifted;
       lifted = liftThroughWrapper(target, claimBody, lifted[2])) {
@@ -443,14 +492,80 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
   function tagProxyGlobalMemoRef(ref, rootNode, scope) {
     const adapter = getAdapter?.();
     if (!adapter || !scope || !ref?.name) return;
-    // only a call / IIFE root loses its proxy-global provenance through the memo; an identifier root keeps
-    // it (the natural rewrite handles `g?.self.X`). gate on the call shape - `inlineCallReturnExpression`
-    // dereferences a callee and throws on a non-call
-    if (rootNode?.type !== 'CallExpression' && rootNode?.type !== 'OptionalCallExpression') return;
-    const inner = inlineCallReturnExpression({ callNode: rootNode, scope, adapter, path: null, seen: new Set() });
-    const rootId = inner && findProxyGlobal(inner, { scope, adapter, path: null });
-    const name = rootId && proxyGlobalRootName({ node: rootId, scope, adapter, path: null });
+    let name = null;
+    if (rootNode?.type === 'CallExpression' || rootNode?.type === 'OptionalCallExpression') {
+      // a bare call / IIFE root: inline its return and recognise the proxy-global it yields
+      const rootId = inlineCallProxyGlobalRoot({ callNode: rootNode, scope, adapter, path: null });
+      name = rootId && proxyGlobalRootName({ node: rootId, scope, adapter, path: null });
+    } else if (rootNode?.type === 'MemberExpression' || rootNode?.type === 'OptionalMemberExpression') {
+      // the same provenance loss with the call BURIED under pristine proxy hops (`f()?.window`):
+      // the canonical receiver resolution walks the hops and the inline call in one go, and a
+      // non-proxy result stays untagged (an identifier root keeps its provenance naturally).
+      // an SE-carrying sequence at the chain root tags too - the memo assignment runs the
+      // effect exactly once in the guard test, so the tagged ref is safe in the branch
+      const resolved = resolveObjectName({ objectNode: rootNode, scope, adapter, path: null });
+      name = resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved) ? resolved : null;
+    }
     if (name) getInjector().registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
+  }
+
+  // the AST spelling of a nav-collapse plan (mirrors the text emitter's forms byte-for-byte)
+  function renderNavCollapseAst(plan, pureId) {
+    const keySeExprs = plan.keySeExprs.map(se => t.cloneNode(se));
+    const leaf = keySeExprs.length ? t.sequenceExpression([...keySeExprs, t.cloneNode(pureId)]) : t.cloneNode(pureId);
+    // the TAIL hangs off the leaf INSIDE the guarded alternate (`null == X ? void 0 : _self
+    // .window`) - hung off the whole ternary it would read `.window` off the short-circuited
+    // void 0. the sequence / bare spellings keep the tail outside (`(dh(), _self).window`)
+    function withTail(base) {
+      let out = base;
+      for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
+        out = hop.optional
+          ? t.optionalMemberExpression(out, t.identifier(hop.name), false, true)
+          : t.memberExpression(out, t.identifier(hop.name));
+      }
+      return out;
+    }
+    if (plan.kind === 'nested') {
+      return t.conditionalExpression(
+        t.binaryExpression('==', t.nullLiteral(), plan.hops[plan.lastUnresolvableIdx].node),
+        t.unaryExpression('void', t.numericLiteral(0)), withTail(leaf),
+      );
+    }
+    if (plan.kind === 'sequence') {
+      const parts = keySeExprs.length ? [plan.rootValueNode, ...keySeExprs, t.cloneNode(pureId)]
+        : [plan.rootValueNode, t.cloneNode(pureId)];
+      return withTail(t.sequenceExpression(parts));
+    }
+    return withTail(leaf);
+  }
+
+  // node-level twin of `collapseProvenNavPath` for channels that hold a NODE, not a path (the
+  // static claim's guard test): a kept chain-assign VALUE collapses in place by mutating the
+  // assignment's right slot - the node is live in the tree, so the spelling lands in the test
+  // KEPT chain-assign values only: bare / call-rooted shapes collapse through the claim +
+  // guard channels (with the stronger static-in-branch substitution). the plan resolves NOW
+  // (live scopes), but the right-slot mutation DEFERS to program exit: an early rewrite hid
+  // the member chain from every claim resolver still due to visit it (`(n = X)?.Array.of(...)`
+  // lost its static claim), while the assignment node itself stays live through any memoize,
+  // so the deferred mutation lands in whatever emit captured it
+  function collapseKeptNavValueNode(rootNode, anchorPath) {
+    const adapter = getAdapter?.();
+    if (!adapter || !anchorPath?.scope || !resolvePureGlobalEntry) return;
+    const plan = planProvenNavGuardCollapse({
+      rootNode, scope: anchorPath.scope, adapter, path: anchorPath,
+      resolvePure: ({ name }) => resolvePureGlobalEntry(name, anchorPath),
+    });
+    if (!plan?.topAssign) return;
+    const pure = resolvePureGlobalEntry(plan.leafName, anchorPath);
+    if (!pure) return;
+    pendingKeptNavCollapses.push({ plan, pureId: injectPureGlobal(pure.entry, pure.hintName) });
+  }
+
+  function flushKeptNavCollapses() {
+    for (const { plan, pureId } of pendingKeptNavCollapses) {
+      plan.topAssign.right = renderNavCollapseAst(plan, pureId);
+    }
+    pendingKeptNavCollapses.length = 0;
   }
 
   // a guard target that is PURE PROXY NAVIGATION over a chain-assign root: the memo must
@@ -509,6 +624,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
       // pass `path` as third arg so `skipPolyfillableOptional` can anchor TS-runtime
       // shadow detection at the reference site (path-aware `adapter.hasBinding`)
       if (skipOptional?.(node, path.scope, path)) return [null, node.object, false];
+      collapseKeptNavValueNode(node.object, path);
       const navCheck = memoizeProxyNavRoot(node.object, path.scope, node, path);
       if (navCheck) return [navCheck, node.object, false];
       const [memoCheck, memoRef] = memoize(node.object, path.scope, node);
@@ -542,6 +658,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     // remain untouched, so computed-property bootstrapping isn't disturbed
     let check = null;
     if (!skipOptional?.(chainStart.node, path.scope, chainStart)) {
+      collapseKeptNavValueNode(chainStart.node[key], chainStart);
       const memoType = pathType(chainStart.get(key));
       check = rewriteOptionalMethodCall(chainStart, key, path.scope, memoType);
       if (check === null) check = memoizeProxyNavRoot(chainStart.node[key], path.scope, chainStart.node, chainStart);
@@ -979,6 +1096,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers } = {}) {
     isInTypeAnnotation,
     deoptionalizeNode,
     emitGuardedClaim,
+    flushKeptNavCollapses,
+    markThrowingExtraction,
     generateRef,
     generateLocalRef,
     generateUnusedId,
