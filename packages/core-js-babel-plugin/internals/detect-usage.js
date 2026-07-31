@@ -257,6 +257,9 @@ export function createBabelAdapter({
       if (b) {
         const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
         const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
+        // the EFFECTIVE kind: `import { type X }` carries it on the specifier, `import type X`
+        // on the declaration - the erasure canon needs one field covering both spellings
+        const importKind = isImportBinding ? b.path.node?.importKind ?? b.path.parent?.importKind ?? null : null;
         // `info.source !== null` means a registered pure import - only attach the hint when the
         // actual scope binding IS that import. `info.source === null` is a destructure-alias from
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
@@ -295,7 +298,7 @@ export function createBabelAdapter({
           info, binding: b, scope, adapter, injector: getInjector(), boundName: name, keyCtx: { resolveKey: sharedResolveKey, path },
         }) ? info.source : null;
         return {
-          node: b.path.node, kind: b.kind, constantViolations, importSource,
+          node: b.path.node, kind: b.kind, constantViolations, importSource, importKind,
           // the scope the DECLARATOR is written in - the const-alias walkers advance to it per hop
           // so a later hop reading an outer-declared name resolves it there, not against the
           // receiver-use scope where an inner shadow of that name would swallow the value.
