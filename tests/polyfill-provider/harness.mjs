@@ -214,7 +214,7 @@ export function createChecker(name) {
   // print summary; throw if any failures. consolidated boilerplate so suites don't repeat
   // the same `summary(name) + if (failed) throw new Error(...)` two-liner at every tail
   function finish() {
-    echo(`\n${ name }: ${ green(counts.passed) } passed, ${ counts.failed ? red(counts.failed) : green(counts.failed) } failed`);
+    echo(`\n${ cyan(name) }: ${ green(counts.passed) } passed, ${ counts.failed ? red(counts.failed) : green(counts.failed) } failed`);
     if (counts.failed) throw new Error(`${ name }: ${ counts.failed } failed`);
   }
 
