@@ -17,8 +17,8 @@
     "eslint-plugin-n": "^18.2.2",
     "eslint-plugin-name": "^0.0.1",
     "eslint-plugin-node-dependencies": "^2.2.0",
-    "eslint-plugin-package-json": "^1.6.1",
-    "eslint-plugin-playwright": "^2.10.5",
+    "eslint-plugin-package-json": "^1.6.2",
+    "eslint-plugin-playwright": "^2.11.0",
     "eslint-plugin-promise": "^7.3.0",
     "eslint-plugin-qunit": "^8.2.6",
     "eslint-plugin-redos": "^4.5.0",
@@ -26,7 +26,7 @@
     "eslint-plugin-sonarjs": "^4.2.0",
     "eslint-plugin-unicorn": "^72.0.0",
     "eslint-yaml": "^0.1.0",
-    "globals": "^17.7.0",
+    "globals": "^17.8.0",
     "jsonc-eslint-parser": "^3.1.0",
     "typescript": "^6.0.3"
   }
