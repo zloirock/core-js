@@ -14,7 +14,8 @@ import {
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
 import {
   maximalProxyGlobalPrefix, navHasUnresolvableProxyHop, peelChainAssignment, peelReceiverSequenceTail,
-  resolveKey, resolveObjectName, undefinableProxyRootValue, unwrapTransparentSeq,
+  proxyReceiverValueCanBeUndefined, resolveKey, resolveObjectName, undefinableProxyRootValue,
+  unwrapTransparentSeq,
 } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
@@ -400,15 +401,19 @@ export function isPolyfillableOptional({
   // `globalProxyMemberName` below is literal-only (a SE computed key yields null), so resolve this directly
   // off the SE-aware maximal prefix - both emitters then drop the guard identically. `throughChainAssign`
   // matches the emit-side collapse walkers, which see through the assignment and preserve it as a SE
+  // an UNDEFINABLE receiver VALUE keeps its `?.` LIVE against EVERY member-shape deopt arm
+  // below (they all reason "always-defined once collapsed", which needs a value-defined
+  // receiver): an alias holding `globalThis.window?...` (the verdict canon counts it
+  // undefinable), and the inline paren-sealed spelling of the same value (`(globalThis
+  // .window?.self.window)?.X`) - a live internal `?.` over an unresolvable read short-circuits
+  // where the deopt would run the branch. an ALL-PLAIN multi-hop nav stays deoptable (the
+  // proxy-collapse assumption keeps it the always-defined realm global)
+  const undefinableReceiver = member === node
+    && proxyReceiverValueCanBeUndefined(objCore, resolve, { scope, adapter, path });
   if (member === node
+    && !undefinableReceiver
     && maximalProxyGlobalPrefix(objCore, { scope, adapter, path },
       { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
-    // an UNDEFINABLE nav root (an alias holding `globalThis.window?...`, a window-class hop)
-    // keeps its `?.` LIVE: the prefix walk sees through the binding to the global, but the
-    // VALUE read at runtime can be undefined - the deopt would run the branch where native
-    // short-circuits (the verdict canon counts exactly this object as undefinable)
-    && !(objCore?.type === 'Identifier'
-      && undefinableProxyRootValue(objCore, resolve, { scope, adapter, path }))
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
     // the raw nav reads through a value that can be undefined - the guard must survive.
     // OPT-IN (`mutatedKeptRootAware`): only the AST emitter's skip-check arms its guard off
@@ -462,9 +467,14 @@ export function isPolyfillableOptional({
   // pure root, so the `?.` over a multi-hop proxy receiver is as dead as over a single-hop one. a non-alias
   // member (`globalThis.self.foo?.x`) stays guarded (`foo` may be undefined) - globalProxyMemberName returns
   // the raw last-hop name without an alias check, so the POSSIBLE_GLOBAL_OBJECTS gate distinguishes the two
-  if (member === node && (resolve({ kind: 'global', name: objName }) || POSSIBLE_GLOBAL_OBJECTS.has(objName))) return true;
+  if (member === node && !undefinableReceiver
+    && (resolve({ kind: 'global', name: objName }) || POSSIBLE_GLOBAL_OBJECTS.has(objName))) return true;
   const resolved = memberKey && resolve({ kind: 'property', object: objName, key: memberKey, placement: 'static' });
   if (resolved?.kind !== 'static' && resolved?.kind !== 'global') return false;
+  // the resolved-member deopt leans on the same collapse claim as the arms above: an
+  // undefinable receiver VALUE keeps the `?.` (the branch must not run where native
+  // short-circuits), however well the member itself resolves
+  if (undefinableReceiver) return false;
   // a monkey-patched / deleted static (`delete Array.from; Array.from?.()`) is no longer always-
   // defined: usage-pure bailed the substitution and kept the native member, so dropping the `?.`
   // would call a deleted slot unconditionally (throws) where the native chain short-circuits to

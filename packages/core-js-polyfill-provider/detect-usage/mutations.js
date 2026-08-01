@@ -707,6 +707,10 @@ export function mutationShapesReducer(packages = null) {
           continue;
         }
         const fires = (root.name[0] >= 'A' && root.name[0] <= 'Z')
+          // the minted ctor-import spelling (`_Map.groupBy = patched` - a second plugin pass
+          // over rewritten output, or a user-held pure ctor binding): the underscore-led
+          // capitalized shape is a real candidate; over-fire costs one scoped traverse
+          || MINTED_CAPITALIZED_NAME.test(root.name)
           || POSSIBLE_GLOBAL_OBJECTS.has(root.name)
           || valueBound.has(root.name)
           || (root.chained && containerHasKey(containerBound.get(root.name), root.firstKey));
@@ -880,6 +884,8 @@ function sourceKeysEntries(target, { keys, open }) {
 // value-globals are non-writable (a bare write silently fails or TypeErrors) and their reads
 // are compile-time constants - recording or rerouting them buys nothing and only churns emit
 const NON_WRITABLE_VALUE_GLOBALS = new Set(['undefined', 'NaN', 'Infinity']);
+
+const MINTED_CAPITALIZED_NAME = /^_+[A-Z]/;
 
 function bareGlobalSlotEntry(node, ctx) {
   if (node?.type !== 'Identifier' || NON_WRITABLE_VALUE_GLOBALS.has(node.name)) return null;
