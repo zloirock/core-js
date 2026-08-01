@@ -33,6 +33,7 @@ import {
   patternSlotValues,
   peelSkippableWrappers,
   peelZeroArgIifeReturn,
+  pureCtorNameFromImportSource,
   reachingReassignmentValueNode,
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
@@ -236,6 +237,26 @@ export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt
 }
 
 // classify a STATIC substitution's receiver navigation for the erase-vs-guard decision. a live `?.`
+// the objects guarded by the node's OWN live `?.` hops (seal-aware, the
+// `ownChainOptionalCount` walk): a `?.` inside a PARENTHESIZED sub-chain guards only the
+// sealed value - a plain read above the seal observes it (throw semantics), so those
+// optionals are not the outer chain's to count
+export function ownChainOptionalObjects(node) {
+  const objects = [];
+  for (let cur = node, depth = 0; cur && depth++ <= MAX_KEY_DEPTH;) {
+    if (cur !== node && cur.extra?.parenthesized) break;
+    if (cur.type === 'TSNonNullExpression') {
+      cur = cur.expression;
+      continue;
+    }
+    if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression'
+      && cur.type !== 'CallExpression' && cur.type !== 'OptionalCallExpression') break;
+    if (cur.optional) objects.push(cur.object ?? cur.callee);
+    cur = cur.object ?? cur.callee;
+  }
+  return objects;
+}
+
 // guarding a value that navigates an unponyfilled proxy hop (`globalThis.window`) is NOT erasable:
 // the guard rides on that navigation, so dropping it runs the static where the source short-circuits.
 // returns what the emit needs:
@@ -249,9 +270,40 @@ export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt
 // root - a mid-chain `?.` guards a hop the always-defined root does not, and checking only the root let
 // the swap eat the guard. callers pass the CONSUMING member itself (not its `.object`) so the full
 // descent sees a leaf-hop's own `?.`
+// hop walk for the guard-source count: collect each member hop's resolved key name down to
+// the chain root. a COMPUTED hop resolves through the canonical key resolver - a const-bound
+// string names its hop like the dotted spelling; an SE-prefixed key still RESOLVES for the
+// count (the effect rides the kept test text; only a genuinely opaque key is a source of its
+// own). value-transparent wrapper layers peel between hops (`nav!.x` - erasure keeps the
+// chain); a SEALED (parenthesized) layer ends the walk - the sealed value is its own chain
+// and stays with the unproven arm, exactly as an opaque root does
+function walkGuardSourceHops(value, aliasCtx) {
+  const hopsInfo = [];
+  let root = value;
+  let depth = 0;
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    depth++;
+    const name = root.computed
+      ? resolveKey({
+        node: root.property, computed: true, scope: aliasCtx.scope, adapter: aliasCtx.adapter,
+        seen: new Set(), path: aliasCtx.path,
+      })
+      : root.property?.name ?? null;
+    hopsInfo.push({ node: root, name });
+    const rawNext = root.object;
+    const next = peelSkippableWrappers(rawNext);
+    if (next !== rawNext && sealedLayerBetween(rawNext, next)) {
+      root = rawNext;
+      break;
+    }
+    root = next;
+  }
+  return { hopsInfo, root, depth };
+}
+
 export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = null) {
   if (!memberNode || !resolvePure) return { kind: 'erase' };
-  const { optionalObjects } = descendToChainRoot(memberNode);
+  const optionalObjects = ownChainOptionalObjects(memberNode);
   // the member's OWN live `?.` counts only when its key is SE-free: an SE-computed key rides the
   // fold's harvest canon (the key-SE migration IS the locked emit), while an SE-free leaf claim has
   // no compensating canon - eating its guard loses the short-circuit. exclude its guarded object
@@ -274,30 +326,15 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     // proven-call chain (`f()?.window?.[(se, 'self')]`): dropping that object collapsed the
     // chain to the bare ponyfill, running the key SE and the branch where native short-circuits
     const ownKey = ownSEKeyOptional && obj === memberNode.object;
-    const { value } = peelChainAssignment(obj);
+    const { value, outer: objAssign } = peelChainAssignment(obj);
     // a chain rooted in an opaque CALL that provably yields a proxy-global (the inline canon
     // admits only effect-transparent returns) is undefinable ONLY through its own unresolvable
     // hops - the call is always defined and contributes no source of undefined. objects sharing
     // the same outermost unresolvable hop dedupe onto the SHORTEST of them, so both hop orders
     // of `dw()?.window?.self` guard as ONE test on the window hop (the AST emitter's shape)
     if (aliasCtx) {
-      let root = value;
-      const hopsInfo = [];
-      let depth = 0;
-      while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-        depth++;
-        // a COMPUTED hop resolves through the canonical key resolver - a const-bound string names
-        // its hop like the dotted spelling. an SE-prefixed key still RESOLVES for the count (the
-        // effect rides the kept test text; only a genuinely opaque key is a source of its own)
-        const name = root.computed
-          ? resolveKey({
-            node: root.property, computed: true, scope: aliasCtx.scope, adapter: aliasCtx.adapter,
-            seen: new Set(), path: aliasCtx.path,
-          })
-          : root.property?.name ?? null;
-        hopsInfo.push({ node: root, name });
-        root = root.object;
-      }
+      const { hopsInfo, root: walkedRoot, depth } = walkGuardSourceHops(value, aliasCtx);
+      let root = walkedRoot;
       // a chain-assign wrapper at the bottom peels for the proof - the write is an emit concern
       if (root) root = peelChainAssignment(root).value;
       let proven = provenRootCache.get(root);
@@ -326,11 +363,23 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
             ? !name || (POSSIBLE_GLOBAL_OBJECTS.has(name) && !resolvePure({ kind: 'global', name }))
             : !name || !resolvePure({ kind: 'global', name });
           if (unresolvable) {
-            source ??= hop.node;
+            // keep the DEEPEST unresolvable hop (hopsInfo runs leaf -> root): its prefix is
+            // the shortest expression carrying the source of undefined - the guard tests THAT
+            // value (`null == _globalThis.window`), not the whole navigation above it
+            source = hop.node;
             sourceNames.add(name ?? '<opaque>');
           }
         }
-        const counted = source && (!ownKey || source.optional);
+        // the object's VALUE must genuinely be undefinable (the shared canon): a dead `?.`
+        // over a declared all-plain nav / a pony-backed read is not a source, however its
+        // hop names look (the AST emitter reaches the same verdict on its post-deopt tree).
+        // a CHAIN-ASSIGN object keeps its own locked rule: the captured value's undefinedness
+        // is hop-based (`(v = globalThis.self.window)?.x` guards - the write observes the raw
+        // read), matching the deopt gate's chain-assign arm
+        const counted = source && (!ownKey || source.optional)
+          && (objAssign
+            ? navHasUnresolvableProxyHop(value, resolvePure)
+            : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx));
         if (!counted) continue;
         // objects sharing ONE unresolvable NAME dedupe onto the structurally SHORTEST of them
         // (depth, not text span - destructure claims arrive on position-less clones): under the
@@ -343,7 +392,12 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         }
         const [key] = [...sourceNames];
         const prior = provenSources.get(key);
-        if (!prior || depth < prior.depth) provenSources.set(key, { obj, depth });
+        // the GUARD OBJECT is the source prefix itself (the deepest undefinable value), not
+        // the whole navigation - one test on it covers every object sharing the name. a
+        // CHAIN-ASSIGN object keeps its wrapper whole: the write is observable and rides the
+        // kept test (`_ref = w = _globalThis.window` - the locked kept-swap canon)
+        const guardObj = objAssign ? obj : source;
+        if (!prior || depth < prior.depth) provenSources.set(key, { obj: guardObj, depth });
         continue;
       }
     }
@@ -379,10 +433,33 @@ export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null)
 // (`globalThis.window`) and for an ALIAS of one (`const w = globalThis.window` - the binding
 // hides the same navigation; the POSSIBLE gate keeps non-proxy resolutions - a follow that
 // lands on a plain local - out of the refusal); false for resolvable navs and other values
+// evaluation of a claim RECEIVER may itself throw: its own member get reads off a
+// nullish-able base (an undefinable probe nav, a guard-shaped alias). a migrated
+// computed-key SE must then ride BEHIND a receiver memo - ECMA receiver-before-key: native
+// evaluates the receiver, and its throw, before the key. a bare identifier / call /
+// conditional VALUE evaluates without a get (native runs the key SE before ITS get throws),
+// and an optional base short-circuits instead of throwing - both keep the plain SE prepend
+export function claimReceiverEvaluationMayThrow(receiverObj, resolvePure, aliasCtx = null) {
+  const core = peelSkippableWrappers(peelReceiverSequenceTail(receiverObj));
+  if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return false;
+  if (core.optional) return false;
+  return proxyReceiverValueCanBeUndefined(peelSkippableWrappers(core.object), resolvePure, aliasCtx);
+}
+
+// a literal `undefined` reference or an effect-free `void X` - the statically-undefined value shape
+export function isUndefinedNode(node) {
+  if (node?.type === 'Identifier') return node.name === 'undefined';
+  return node?.type === 'UnaryExpression' && node.operator === 'void' && !mayHaveSideEffects(node.argument);
+}
+
 export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
   const seen = new Set();
   while (true) {
     if (navHasUnresolvableProxyHop(value, resolvePure)) return true;
+    // a GUARD-shaped conditional (`test == null ? void 0 : X` - the probe render, or any
+    // ternary with a void/undefined arm): the held value can be undefined on the guard branch
+    if (value?.type === 'ConditionalExpression'
+      && (isUndefinedNode(value.consequent) || isUndefinedNode(value.alternate))) return true;
     if (!aliasCtx || value?.type !== 'Identifier' || seen.has(value.name)) return false;
     const aliasName = proxyGlobalRootName({ node: value, ...aliasCtx });
     if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName)
@@ -432,7 +509,7 @@ const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier
 // re-exported from the shared helper layer: the proxy-ROOT recogniser lives in a module this one
 // imports FROM, so the canon cannot sit here without a cycle
 export {
-  bindsModuleDefault, globalProxyNameFromImportSource, isTypeOnlyImportKind,
+  bindsModuleDefault, globalProxyNameFromImportSource, isTypeOnlyImportKind, pureCtorNameFromImportSource,
   tsImportEqualsProxyName, tsImportEqualsRequireSource,
 } from '../helpers/ast-patterns.js';
 
@@ -714,6 +791,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     // resolve to a runtime global, matching the shared erasure canon
     return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
       ? globalProxyNameFromImportSource(binding?.importSource, adapter.packages)
+        ?? pureCtorNameFromImportSource(binding?.importSource, adapter.packages)
       : null;
   }
   // the TS require-import twin (`import g = require('.../global-this')`) binds the module
@@ -1335,8 +1413,11 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   const { outer: chainAssign } = peelChainAssignment(n);
   const call = chainAssign ? unwrap(peelChainAssignment(n).value) : n;
   const aliasCtx = { scope, adapter, path };
-  const identRoot = !chainAssign && call?.type === 'Identifier' && bareProxyGlobalAliasName(call, aliasCtx)
-    ? call : null;
+  // an ALIAS root (`const g = globalThis; g.window?.self...`) resolves to the global it names -
+  // the pristine gate below must ask about THAT name, not the local alias identifier (which is
+  // never a possible-global name and would bail the whole plan for a semantically identical nav)
+  const identRootName = !chainAssign && call?.type === 'Identifier' ? bareProxyGlobalAliasName(call, aliasCtx) : null;
+  const identRoot = identRootName ? call : null;
   if (!identRoot && call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression') return null;
   for (const hop of hops) {
     if (hop.name !== null) continue;
@@ -1349,7 +1430,12 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
     } else if (mayHaveSideEffects(prop)) return null;
   }
   const rootId = identRoot ?? inlineCallProxyGlobalRoot({ callNode: call, scope, adapter, path });
-  if (!rootId || !isPristineProxyGlobal(adapter, rootId.name)) return null;
+  // the AST emitter may have already rewritten the proven root INSIDE the callee to its pure
+  // import (`() => _globalThis`); the import binding names its source global through the
+  // polyfillHint side-channel - resolve through it exactly like the bare-alias walk
+  const rootName = identRootName
+    ?? (rootId && (POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name : bareProxyGlobalAliasName(rootId, aliasCtx)));
+  if (!rootName || !isPristineProxyGlobal(adapter, rootName)) return null;
   let collapseIdx = -1;
   for (let i = hops.length - 1; i >= 0; i--) {
     if (resolvePure({ kind: 'global', name: hops[i].name })) {
@@ -1370,6 +1456,10 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
     topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
     leafName: hops[collapseIdx].name, rootValueNode: n, call: identRoot ? null : call,
+    // an effect-bearing CALL root the render re-emits (nested: inside the prefix test;
+    // sequence: as the kept prefix) - it runs exactly ONCE there, so every other SE channel
+    // (a discard harvest, a claim side-effect replay) must not re-run it
+    rootEffectCall: !chainAssign && !identRoot && rootEffects ? call : null,
   };
 }
 
@@ -1887,6 +1977,118 @@ export function proxyGlobalMemberCtorPureSwap({ receiver, aliasCtx = null, resol
 // resolves stays with the natural per-hop rewrite (`(a = globalThis).self.Set = v` -> `(a = _globalThis,
 // _self).Set = v`), and claiming it here would conflict with that already-queued rewrite. `staticMemberKeyName`
 // folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is detected
+// the runtime VALUE of an inline proxy-nav can short-circuit to undefined: a LIVE `?.` in its
+// chain guards a read that can itself be undefined (an unresolvable hop read - `globalThis
+// .window?.self...`). an ALL-PLAIN nav stays the always-defined realm global under the
+// proxy-collapse assumption (no live source of undefined, the spelling declares the env), and
+// a live `?.` over a resolvable read (`globalThis.self?.x`) tests a ponyfill-backed value -
+// both stay erasable. a PARENTHESIZED object SEALS its own chain (`(nav).X` - the nav's
+// internal `?.` short-circuits only the sealed value; the plain read above observes it, throw
+// semantics, never skips), so the walk stops at a seal after testing the link's own `?.`.
+// entry parens are value-transparent - the question asked IS the sealed value's
+// SEALED objects of a nav chain: each member OBJECT wrapped in a parenthesized layer (source
+// parens, a paren'd cast - `(nav).X`, `(nav as any).X`). the seal hides the inner nav from
+// own-chain walks (the outer chain parses PLAIN above it), but the sealed VALUE still
+// short-circuits internally - callers ask the value canon about each inner nav
+// PARENTHESIZED / seal layer scan between a member's RAW object and its peeled core:
+// source parens (babel: extra.parenthesized; oxc: ParenthesizedExpression), a paren'd cast,
+// or the estree ChainExpression boundary itself. sequence layers are value-transparent
+export function sealedLayerBetween(rawObj, object) {
+  if (rawObj?.extra?.parenthesized) return true;
+  for (let layer = rawObj; layer && layer !== object;
+    layer = layer.type === 'SequenceExpression' ? layer.expressions.at(-1) : layer.expression) {
+    // a bare ChainExpression layer is NOT a seal: oxc closes the chain at a bare TS wrapper
+    // (`a?.b!.c` - TSNonNull over a ChainExpression), yet the erased form is one chain whose
+    // short-circuit survives. real source parens arrive as a ParenthesizedExpression node
+    // (oxc preserves them) or the parenthesized flag (babel)
+    if (layer.type === 'ParenthesizedExpression' || layer.extra?.parenthesized) return true;
+  }
+  return false;
+}
+
+// the FIRST sealed boundary of a nav chain: the member whose object is a sealed layer, plus
+// the peeled inner nav. probe/render callers need both - the member's KEY spells the read the
+// source performs on the sealed value (the throw the erase must reproduce)
+export function sealedChainBoundary(node) {
+  let cur = peelReceiverSequenceTail(node);
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    const object = peelSkippableWrappers(peelReceiverSequenceTail(cur.object));
+    if (sealedLayerBetween(cur.object, object)) return { member: cur, inner: object };
+    cur = object;
+  }
+  return null;
+}
+
+export function chainSealedObjects(node) {
+  const sealed = [];
+  let cur = peelReceiverSequenceTail(node);
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    const object = peelSkippableWrappers(peelReceiverSequenceTail(cur.object));
+    if (sealedLayerBetween(cur.object, object)) {
+      sealed.push(object);
+      break;
+    }
+    cur = object;
+  }
+  return sealed;
+}
+
+export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null) {
+  let cur = peelSkippableWrappers(peelReceiverSequenceTail(navNode));
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
+    const raw = peelReceiverSequenceTail(cur.object);
+    const object = peelSkippableWrappers(raw);
+    if (cur.optional) {
+      // a live `?.` directly over a CALL value: an opaque call is a genuine guard (the
+      // opaque-root canon keeps these); an inline-PROVEN proxy-global call is always defined,
+      // so its `?.` is vestigial (the optional-count collapse canon)
+      if (object?.type === 'CallExpression' || object?.type === 'OptionalCallExpression') {
+        return !(aliasCtx && inlineCallProxyGlobalRoot({ callNode: object, ...aliasCtx }));
+      }
+      if (navHasUnresolvableProxyHop(object, resolvePure)) return true;
+    }
+    // a PARENTHESIZED layer seals (source parens or a paren'd cast - `(nav).X`, `(nav as any)
+    // .X`): the seal stops the OUTER chain's short-circuit (a plain read above it observes the
+    // value - throw semantics), but the SEALED VALUE itself still short-circuits internally, so
+    // the verdict is the inner value's - a sealed probe nav CAN be undefined and may not
+    // collapse. a BARE TS wrapper (`nav!.X`, erasure keeps the chain) is value-transparent and
+    // the walk continues through it
+    if (sealedLayerBetween(cur.object, object)) {
+      return proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx);
+    }
+    cur = object;
+  }
+  return false;
+}
+
+// THE canonical "can this proxy-receiver VALUE be undefined at runtime" verdict, shared by
+// the erase / deopt decisions of both emitters. undefined arises from exactly two shapes:
+//   - the bare ENVIRONMENT PROBE: the FIRST hop off the proxy root reads the host environment
+//     (`globalThis.window` - undefined off-window hosts). DEEPER unresolvable hops are realm
+//     self-references, defined under the proxy-collapse assumption (`globalThis.self.window`
+//     collapses whole - the multihop deopt canon);
+//   - a live `?.` in the chain guarding such a probe (short-circuit - `navValueCanShortCircuit`,
+//     seal-aware).
+// an Identifier resolves through the alias walk (`undefinableProxyRootValue` - an alias
+// HOLDING a probe/nav is as undefinable as the nav); other shapes (opaque calls, ...) stay
+// with each caller's own arm - pass only nav/Identifier cores here
+export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = null) {
+  const core = peelSkippableWrappers(peelReceiverSequenceTail(node));
+  if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') {
+    return undefinableProxyRootValue(core, resolvePure, aliasCtx);
+  }
+  if (navValueCanShortCircuit(core, resolvePure, aliasCtx)) return true;
+  const hop = staticMemberKeyName(core);
+  if (!hop || !POSSIBLE_GLOBAL_OBJECTS.has(hop) || resolvePure({ kind: 'global', name: hop })) return false;
+  const rootRaw = peelSkippableWrappers(peelReceiverSequenceTail(core.object));
+  const rootObj = peelSkippableWrappers(peelChainAssignment(rootRaw).value ?? rootRaw);
+  if (rootObj?.type === 'Identifier') return !!isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx });
+  // the probe read off a PROVEN inline call is the same environment probe (`f()?.window`,
+  // `f = () => globalThis` - the opaque-root canon guards it)
+  return (rootObj?.type === 'CallExpression' || rootObj?.type === 'OptionalCallExpression')
+    && !!aliasCtx && !!inlineCallProxyGlobalRoot({ callNode: rootObj, ...aliasCtx });
+}
+
 export function navHasUnresolvableProxyHop(navNode, resolvePure) {
   // peel transparent wrappers / SE tails at entry and at every hop, mirroring the sibling
   // walkers (`maximalProxyGlobalPrefix` / `findProxyGlobal`): a TS cast or a sequence

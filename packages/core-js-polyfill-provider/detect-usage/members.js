@@ -49,6 +49,7 @@ import {
   resolveObjectName,
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
+  chainSealedObjects, ownChainOptionalObjects, proxyReceiverValueCanBeUndefined,
 } from './resolve.js';
 
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
@@ -210,6 +211,23 @@ export function planProxyReceiver(receiver, {
   const chainAssign = throughChainAssign ? peelChainAssignment(descendToChainRoot(receiver).root) : null;
   const keptAssignRoot = chainAssign?.outer && navHasUnresolvableProxyHop(chainAssign.value, resolvePure)
     ? chainAssign.outer : null;
+  // a live `?.` in the chain over an undefinable read (the environment probe - `globalThis
+  // .window?.[(c++, 'self')]?.X`) may not collapse: the erase runs the key SE and reads the
+  // leaf where native short-circuits. a kept-assign root keeps its own canon (the
+  // guard-building rewrite owns it); the refusal leaves the chain raw with the root
+  // substituted in place - the standdown shape, the AST emitter's spelling. per-link via
+  // the shared value canon, so declared all-plain navs (`globalThis.self.window?.X`) and
+  // pony-backed hops keep collapsing. a WRITE target bails the same way: the only legal
+  // write through an optional chain is `delete`, and no write canon builds the guard - a
+  // collapse would delete the slot on the very branch native short-circuits past
+  if (!keptAssignRoot && aliasCtx
+    && (ownChainOptionalObjects(receiver)
+      .some(object => proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx))
+      // a SEALED probe under the chain (`(c++, globalThis.window).X` - the paren'd sequence
+      // hides the probe from the own-chain walk) may not collapse either: the read/write host
+      // is the probe VALUE, and dropping the hop erases the source throw
+      || chainSealedObjects(receiver)
+        .some(inner => proxyReceiverValueCanBeUndefined(inner, resolvePure, aliasCtx)))) return null;
   // collapsible only when the whole `.object` is the proxy-nav prefix; else try call/IIFE-rooted, then a deeper
   // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`). compare against the
   // WRAPPER-peeled object - the prefix walker returns the peeled member while the raw `.object` may be a

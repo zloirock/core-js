@@ -63,6 +63,7 @@ import {
   findProxyGlobal,
   isAliasProxyHopChain,
   navHasUnresolvableProxyHop,
+  proxyReceiverValueCanBeUndefined,
   isCallShape,
   isStaticPlacement,
   maximalProxyGlobalHop,
@@ -111,6 +112,7 @@ import {
   buildNestedDestructurePlan,
   isSymbolIteratorPatternProp,
   peelArrayWrapperPair,
+  probedNavProbeKey,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
@@ -121,6 +123,7 @@ import {
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
 import { unwrapNode } from './emit-utils.js';
+import { inlineCallNavGuardRootSrc, skipCollapsedChainExceptRootCall } from './polyfill-emitter.js';
 import {
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
@@ -226,6 +229,8 @@ export function createDestructureEmitter({
   toHint = null,
   resolvePure,
   resolveReceiverSource,
+  sealedNavReceiverSrc,
+  sealedThrowProbePrefix,
   scopeTracker,
   skippedNodes,
   source,
@@ -1228,11 +1233,34 @@ export function createDestructureEmitter({
         // into the verbatim init, so an SE receiver `(gg(), globalThis.Map)` becomes `(gg(), _Map)` -
         // this shadow resolver must not fight it with a root-only swap
         if (!skippedNodes.has(tail)) return null;
+        // a PROBED bare nav as the whole init (`(globalThis.window?.self)` under a rest /
+        // partial consume) takes the `probedNav` decline in the residual renders instead of
+        // this swap: deferring (null) leaves the nav visible and the natural visitor's guard
+        // canon reproduces the source read - an always-defined ponyfill here would erase it
+        if (proxyReceiverValueCanBeUndefined(tail, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) return null;
         return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
       }
     }
     if (info.initStart === undefined) return null;
-    return substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart, aliasCtx });
+    const substituted = substituteProxyGlobalRoot({ node: initNode, src: info.initSrc, baseStart: info.initStart, aliasCtx });
+    if (substituted !== null) return substituted;
+    // every canon bailed (a mutated hop under a sealed chain) but the ROOT identifier's own
+    // rewrite is SUPPRESSED (this init is re-emitted by the extraction): substitute just the
+    // root in place - raw hops stay, the AST emitter's standdown spelling (`_entries((
+    // _globalThis.window?.self).Object)` under a mutated-self deopt). a LIVE root keeps the
+    // verbatim init: its visitor rewrite composes in by needle, and a second substitution
+    // here would break that needle. this is the FINAL consumer - no later canon to defer to
+    const proxyRoot = findProxyGlobal(peelNestedSequenceExpressions(initNode).tail ?? initNode, aliasCtx);
+    if (proxyRoot?.type === 'Identifier' && skippedNodes.has(proxyRoot)) {
+      const rootPure = resolveGlobalPolyfill(proxyRoot.name);
+      if (rootPure) {
+        const off = proxyRoot.start - info.initStart;
+        return info.initSrc.slice(0, off)
+          + injectPureImport(rootPure.entry, rootPure.hintName)
+          + info.initSrc.slice(off + proxyRoot.name.length);
+      }
+    }
+    return null;
   }
 
   function propKeySource(p) {
@@ -1261,6 +1289,42 @@ export function createDestructureEmitter({
     // falsy node, so it subsumes the `info.initNode` presence check
     const willLiftSE = !hasInstance && !hasRest && remaining.length === 0 && initSrc
         && mayHaveSideEffects(info.initNode);
+    // a SEALED probe init on a FULL consume (`{ of } = (globalThis.window?.self).Array` - no
+    // residual re-reads the init): the collapse drops the read the source performs on the
+    // sealed VALUE. re-emit it as a THROW probe (carrying the nav's key SE) on the LAST
+    // extracted binding - the AST emitter's slot - and record the carried SE nodes so the
+    // lift harvest does not re-run them. any residual carries the throw and the SE itself
+    if (!hasInstance && !hasRest && remaining.length === 0 && entries.length && info.initNode) {
+      const throwProbe = sealedThrowProbePrefix?.(info.initNode, info.declaratorPath);
+      const last = entries.at(-1);
+      if (throwProbe) {
+        last.binding = `(${ throwProbe.src }, ${ last.binding })`;
+        info.probeSeNodes = [...info.probeSeNodes ?? [], ...throwProbe.keySeExprs];
+      } else {
+        // a BARE probed nav (`{ structuredClone } = (globalThis.window?.self)` - no member
+        // read to seal): native throws reading the pattern key off the probe value, so
+        // re-emit that read as `(guard).<key>` on the same slot. static identifier keys
+        // only - a computed SE key keeps its residual channel; a nav the shared guard plan
+        // cannot collapse (no ponyfillable leaf) keeps today's render
+        const bareKey = !last.propNode.computed && last.propNode.key?.type === 'Identifier' ? last.propNode.key.name : null;
+        if (bareKey && proxyReceiverValueCanBeUndefined(info.initNode, ({ name }) => resolveGlobalPolyfill(name),
+          { scope: info.declaratorPath?.scope, adapter: estreeAdapter, path: info.declaratorPath })) {
+          const navBase = unwrapNode(info.initNode);
+          const navNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
+          const navGuard = inlineCallNavGuardRootSrc({
+            rootNode: navNode, metaPath: info.declaratorPath, code: source, adapter: estreeAdapter,
+            injectPureImport, resolveGlobalPolyfill,
+          });
+          if (navGuard && !navGuard.keySeExprs.length) {
+            skipCollapsedChainExceptRootCall(navNode, skippedNodes, []);
+            // an effect-bearing CALL root runs once in the guard test - register it with the
+            // probe-carried SE so the lift harvest's identity filter does not replay it
+            if (navGuard.rootEffectCall) info.probeSeNodes = [...info.probeSeNodes ?? [], navGuard.rootEffectCall];
+            last.binding = `((${ navGuard.src }).${ bareKey }, ${ last.binding })`;
+          }
+        }
+      }
+    }
     // an effect-free droppable SE tail (a dead proxy-member chain or consumed bare
     // constructor marked by the collection pre-pass, or ANY effect-free tail of a
     // full-consume lift): process only the SE PREFIX, so the kept text receives the same
@@ -1282,10 +1346,16 @@ export function createDestructureEmitter({
       // sequence-root prefix AND the buried hop-key in eval order, dropping only the dead navigation.
       // checked BEFORE the dead-tail policy: the skip marked the tail dead, but here it carries harvested
       // SE (the hop-key), so `dropDeadSequenceTail` would keep only the prefix and lose that SE
-      const discardedSe = willLiftSE && shouldDropRescueReceiver(peeledLiftTail ?? info.initNode)
+      const harvested = willLiftSE && shouldDropRescueReceiver(peeledLiftTail ?? info.initNode)
         ? harvestDiscardedReceiverSE(info.initNode,
           { scope: info.declaratorPath?.scope, adapter: estreeAdapter, path: info.declaratorPath }) : null;
-      if (discardedSe?.length) {
+      // SE nodes the sealed throw probe already carries must not lift a second run; when the
+      // probe covers EVERY harvested effect the lift is fully subsumed - emit nothing
+      const discardedSe = info.probeSeNodes ? harvested?.filter(node => !info.probeSeNodes.includes(node)) : harvested;
+      if (harvested?.length && !discardedSe?.length) {
+        liftParts = [];
+        liftTailDead = true;
+      } else if (discardedSe?.length) {
         liftParts = discardedSe.map(node => ({ start: node.start, end: node.end }));
         liftTailDead = true;
       // trailing PURE prefix elements are as dead as the tail - the shared dead-tail policy
@@ -1374,7 +1444,8 @@ export function createDestructureEmitter({
     // comma-list member; a statement host emits a standalone (paren-guarded) expression.
     // the lifted text can START a statement (the tail-dropped prefix loses the sequence parens):
     // a `{` / `class` / `function` head needs the hazard parens the minifier split applies
-    if (willLiftSE) {
+    // a lift fully subsumed by the sealed throw probe (empty parts) emits nothing
+    if (willLiftSE && initTransformed) {
       // a multi-part lift (harvested discard-SE `r = _globalThis.window, f()`) is a comma sequence:
       // as a for-init sink's declarator RHS it needs parens or the commas split the declarator list
       const sinkInit = liftParts && liftParts.length > 1 ? `(${ initTransformed })` : initTransformed;
@@ -1928,7 +1999,35 @@ export function createDestructureEmitter({
     // init for an ANCHORED residual: the plan-resolved ctor entry when present (`= _Map` -
     // patch-visible for mutated statics, defined on missing-global targets), else a member
     // read off the proxy's own binding (`= _globalThis.Math`)
+    // guard-value spelling of an UNDEFINABLE probe nav init (`null == _globalThis.window ?
+    // void 0 : _self`): the anchored read must ride it so the destructure still throws where
+    // the source does - the always-defined ctor / receiver bindings erase that throw. null
+    // for defined navs and shapes the shared plan cannot guard (callers keep their renders)
+    function probedAnchorGuardSrc() {
+      if (!plan.probedNav) return null;
+      // an array-wrapped init's probe value is the DESCENDED element, not the wrapper array
+      const navBase = unwrapNode(plan.initElement ?? declarator.init);
+      const navNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
+      const navGuard = inlineCallNavGuardRootSrc({
+        rootNode: navNode, metaPath: usePath, code: source, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
+      });
+      if (!navGuard || navGuard.keySeExprs.length) return null;
+      skipCollapsedChainExceptRootCall(navNode, skippedNodes, []);
+      // the guard test runs an effect-bearing CALL root exactly once - the discard harvest
+      // must not replay it (identity plus span symmetry, a harvest node may wrap the call)
+      const embedded = navGuard.rootEffectCall;
+      if (embedded && plan.discardSe) {
+        const kept = plan.discardSe.filter(node => node !== embedded
+          && !(node.start >= embedded.start && node.end <= embedded.end)
+          && !(embedded.start >= node.start && embedded.end <= node.end));
+        discardSeSrc = kept.length ? kept.map(node => nodeSrc(node)).join(', ') : null;
+      }
+      return navGuard.src;
+    }
     function anchoredInitSrc() {
+      // plain `.anchor` above the guard reproduces the source TypeError at the absent probe
+      const guardSrc = probedAnchorGuardSrc();
+      if (guardSrc) return `(${ guardSrc }).${ plan.anchor }`;
       if (plan.anchorPure) return injectPureImport(plan.anchorPure.entry, plan.anchorPure.hintName);
       const proxyPure = resolveGlobalPolyfill(plan.receiver);
       return `${ proxyPure ? injectPureImport(proxyPure.entry, proxyPure.hintName) : plan.receiver }.${ plan.anchor }`;
@@ -1962,7 +2061,11 @@ export function createDestructureEmitter({
       // stays verbatim: the surviving residual must keep the branching read (operands earn their
       // own proxy substitutions), matching the babel residual render
       const tailIsFallback = tail?.type === 'ConditionalExpression' || tail?.type === 'LogicalExpression';
-      const receiverPure = isAliasedIdentifier || plan.discardSe || tailIsFallback ? null : resolveGlobalPolyfill(plan.receiver);
+      // a PROBED nav init must not whole-swap to the always-defined receiver binding (the
+      // probe's throw would vanish) - fall through to the shared resolver, whose guard
+      // spelling reproduces the source read
+      const receiverPure = isAliasedIdentifier || plan.discardSe || tailIsFallback || plan.probedNav
+        ? null : resolveGlobalPolyfill(plan.receiver);
       if (!receiverPure && plan.discardSe) takeDiscardSe();
       // wrap-peeled init: the swap targets the DESCENDED element inside the (SE-peeled) tail's
       // text, keeping the array brackets and sibling elements verbatim. consumed wrapper levels
@@ -2072,6 +2175,19 @@ export function createDestructureEmitter({
       }
     }
     if (!preservedOuter.length) {
+      // an UNDEFINABLE probe nav under a FULL consume: the discarded init's read must still
+      // throw where the source does - ride the guarded first-key read ahead of the FIRST
+      // extraction's binding, once per pattern (native throws before any prop read). covers
+      // the anchored hop AND the flat / array-wrapped consumed shapes via the shared key
+      const fullConsumeProbeKey = probedNavProbeKey(plan);
+      if (fullConsumeProbeKey && extractions.length) {
+        const guardSrc = probedAnchorGuardSrc();
+        if (guardSrc) {
+          const [first] = extractions;
+          const eq = topLevelAssignIndex(first.decl);
+          first.decl = `${ first.decl.slice(0, eq) } = ((${ guardSrc }).${ fullConsumeProbeKey }, ${ first.decl.slice(eq + 3) })`;
+        }
+      }
       // full consume discards the whole init: re-emit the harvested SE ahead of the last
       // extraction's binding (a synth extraction's receiver arg is SE-peeled, so the harvest
       // is always still unconsumed here)
@@ -3173,6 +3289,11 @@ export function createDestructureEmitter({
       })) return;
       if (isAssign) transforms.add(value.right.start, value.right.end, binding);
       else transforms.insert(value.end, ` = ${ binding }`);
+      // the inline default keeps the WHOLE pattern and its source in place (the key runs once
+      // in the residual read) - mark the prop so the proxy-hop drive knows the surviving
+      // source is unowned and renders an undefinable probe/sealed nav there (the assignment
+      // host's kept init has no other rendering channel)
+      if (keyHasSideEffect) handledSideEffectKeyProps.add(propNode);
       return;
     }
     const binding = injectPureImport(pureResult.entry, pureResult.hintName);
@@ -4055,6 +4176,16 @@ export function createDestructureEmitter({
         return `(${ [...ctorSwap.se.map(effect => nodeSrc(effect)), binding].join(', ') })`;
       }
     }
+    // an alias-rooted READ nav that short-circuits over an undefinable probe (a live `?.` or a
+    // sealed paren layer) renders the kept-nav guard: the guard test keeps the alias identifier
+    // verbatim (`null == g.window ? void 0 : _self`), so the alias-keep contract holds, while
+    // the ctor-swap / hop-drop reconstructions below would erase the probe's short-circuit and
+    // read the polyfillable hop raw off a defined receiver. a defined nav resolves null and
+    // falls through to those reconstructions
+    if (aliasRooted && !isWriteTarget) {
+      const aliasSealedSrc = sealedNavReceiverSrc?.(unwrapNode(node), metaPath);
+      if (aliasSealedSrc) return aliasSealedSrc;
+    }
     // an ASSIGN-buried root (`(a = globalThis).self.X`, visible only to the chain-assign-aware
     // walk) must not pre-claim either: the shared resolver renders by raw slices, which would
     // re-emit the buried `globalThis` untransformed - the plan reconstruction below keeps the
@@ -4337,6 +4468,24 @@ export function createDestructureEmitter({
       // a keep-terminal transform the drop cannot compose. covers both consumed-static-residual and kept-root
       if (discardedProxyReceiverDropsNav(ctx, aliasCtx?.scope, aliasCtx?.path)) return false;
       if (!consumedStaticResidualPatterns.has(target)) {
+        // an SE-computed-key extraction keeps the WHOLE pattern in place (value renamed to a
+        // sentinel), so the source read survives as its residual and no pipeline channel
+        // re-renders the init. when that surviving nav short-circuits over an undefinable
+        // probe (a live `?.` or a sealed paren layer), deferring leaves only the root-only
+        // rewrite - a raw polyfillable hop read off a defined receiver (`_globalThis.window
+        // ?.self...`, undefined on the ponyfill's target class). render the kept-nav canon
+        // here instead (guard-value probe, ponyfill hop, plain-or-optionalized tail) - the
+        // AST emitter's render of the same residual. a defined nav resolves null and defers
+        if (target.properties?.some(p => handledSideEffectKeyProps.has(p))
+          && !transforms.hasRange(recv.start, recv.end)) {
+          const sealedSrc = sealedNavReceiverSrc?.(recv, aliasCtx?.path);
+          if (sealedSrc) {
+            const sealedRoot = findProxyGlobal(recv, aliasCtx);
+            if (sealedRoot) skippedNodes.add(sealedRoot);
+            transforms.add(recv.start, recv.end, sealedSrc);
+            return true;
+          }
+        }
         // ...unless the chain hangs off a KEPT root (a chain-assign whose value navigates a hop with
         // no pure entry): the destructure pipeline renders such a source VERBATIM (its own collapse
         // entry is gated off once the natural root rewrite touched the init), so deferring strands
@@ -4511,7 +4660,9 @@ export function createDestructureEmitter({
         return receiverSrc ??= memoName ?? (receiverPure
           ? injectPureImport(receiverPure.entry, receiverPure.hintName)
           : ctorPure ? injectPureImport(ctorPure.entry, ctorPure.hintName)
-          : synthMemberReceiverSrc(readReceiver, ctx));
+          // a receiver whose chain crosses the probe nav renders through the shared guarded
+          // descend (pony hop, seal-aware tail) - a raw `.self` read misses the ponyfill class
+          : sealedNavReceiverSrc?.(readReceiver, path) ?? synthMemberReceiverSrc(readReceiver, ctx));
       }
       // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
       // only renders the entries as source text
@@ -4542,8 +4693,16 @@ export function createDestructureEmitter({
       // the memo argument (keeping it would emit the raw right global - and diverge from the AST
       // emitter, which drops it). matches the all-resolved leftSe path, which collapses to the left
       const memoNode = inner.type === 'LogicalExpression' ? inner.left : inner;
+      // a SEALED probe receiver (`{ values } = (globalThis.window?.self).Object`): the swap
+      // drops the read the source performs on the sealed VALUE - re-emit it as a THROW probe
+      // (carrying the nav's key SE - it replaces the whole-receiver rescue re-emit) ahead of
+      // the literal; the text render substitutes the raw proxy root itself
+      // a fallback-LOGICAL receiver probes through its peeled LEFT branch (the branch the
+      // value reads through; the collapse supplants exactly that read)
+      const throwProbe = !needMemo ? sealedThrowProbePrefix?.(readReceiver, path) : null;
       const body = needMemo
         ? `(function (${ memoName }) { return ${ literal }; })(${ synthMemoArgSrc(memoNode, ctx) })`
+        : throwProbe ? `(${ throwProbe.src }, ${ literal })`
         : rescueSe ? `(${ nodeSrc(inner) }, ${ literal })` : literal;
       // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||`/`??`
       // collapses to the literal (its left is the always-resolved receiver, its right short-circuits),
@@ -4552,7 +4711,10 @@ export function createDestructureEmitter({
       // prefixes + a call-rooted left's chain-root call). inner rewrites compose into each node's
       // source text by needle. a pure left plans nothing, so the clean collapse is unchanged.
       // suppressed when memoizing - the memo argument (the left) already runs its SE once there
-      const leftSe = needMemo ? [] : (leftSePlan ?? []).map(node => nodeSrc(node));
+      const leftSe = needMemo ? [] : (leftSePlan ?? [])
+        // SE nodes the sealed throw probe already carries must not re-emit ahead of it
+        .filter(node => !throwProbe?.keySeExprs.includes(node))
+        .map(node => nodeSrc(node));
       transforms.add(inner.start, inner.end, leftSe.length ? `(${ leftSe.join(', ') }, ${ body })` : body);
     }
   }
