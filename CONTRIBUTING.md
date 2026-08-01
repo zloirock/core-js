@@ -116,17 +116,25 @@ You can run parts of the test case separately:
   ```sh
   npm run lint
   ```
-- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), ancient WebKit (PhantomJS), IE11 (if available)):
+- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), ancient WebKit (PhantomJS), IE11 (if available)); the test bundles are built by the script itself, `bundle-package` provides the `core-js-bundle` legs:
   ```sh
-  npx run-s prepare bundle test-unit-karma
+  npx run-s prepare bundle-package test-unit-karma
   ```
 - Unit test case in NodeJS:
   ```sh
-  npx run-s prepare bundle test-unit-node
+  npx run-s prepare bundle-package test-unit-node
   ```
 - Unit test case in Bun:
   ```sh
-  npx run-s prepare bundle test-unit-bun
+  npx run-s prepare bundle-package test-unit-bun
+  ```
+- End-to-end `usage-pure` transpiler tests (polyfilled code at runtime after the babel-plugin / unplugin transformations; the script builds its own bundles). In NodeJS (also part of `test-transpiling`):
+  ```sh
+  npx run-s prepare test-e2e-usage-pure
+  ```
+  In Karma (real browsers):
+  ```sh
+  npx run-s prepare test-e2e-usage-pure-karma
   ```
 - [Test262](https://github.com/tc39/test262) test case (it's not included to the default tests):
   ```sh
@@ -161,6 +169,7 @@ You can run parts of the test case separately:
   npm run test-babel-plugin-unit-v7     # babel-plugin internals unit against @babel/core@7
   npm run test-unplugin                 # unplugin shared transpiler fixtures
   npm run test-unplugin-unit            # unplugin internals (unit)
+  npm run test-e2e-usage-pure           # end-to-end usage-pure bundles in NodeJS (builds them first; Karma leg is separate)
   npm run test-transpiler-differential  # 3-way native == babel == unplugin fuzzer + import-set parity + stripped-realm oracle
   npm run test-transpiler-integration   # real bundlers (esbuild, webpack, Rspack, Rolldown, Rsbuild, Farm, Bun) across methods and phases, runtime-verified
   npm run test-transpiler-perf          # performance gates (three.js bundles + synthetic reassignment-heavy stress); complexity-class discriminators
