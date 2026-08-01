@@ -404,12 +404,23 @@ QUnit.test('global-proxy: for-init destructure over pure-call-rooted proxy chain
 // a SEQUENCE-wrapped write host over a raw `.window` hop: the write-target collapse must peel the
 // sequence tail and drop the hop - `window` does not exist in Node, so an uncollapsed host is an
 // undefined write target (TypeError at the assignment)
-QUnit.test('global-proxy: SE-tail write host .window hop collapses (runs without it in Node)', assert => {
+// the SE-tail write host reads `.window` RAW - source-faithful: with `window` present the
+// write lands on the realm global; without it the host is undefined and the write THROWS
+// exactly as the untranspiled source does. the sequence SE runs first either way
+QUnit.test('global-proxy: SE-tail write host .window hop keeps the source throw', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
   let c = 0;
-  (c++, globalThis.window).seTailWriteProbeKey = 42;
-  assert.same(globalThis.seTailWriteProbeKey, 42);
-  assert.same(c, 1);
-  delete (0, globalThis.window).seTailWriteProbeKey;
+  if (WINDOW_PRESENT) {
+    (c++, globalThis.window).seTailWriteProbeKey = 42;
+    assert.same(globalThis.seTailWriteProbeKey, 42);
+    assert.same(c, 1);
+    delete (0, globalThis.window).seTailWriteProbeKey;
+  } else {
+    assert.throws(() => {
+      (c++, globalThis.window).seTailWriteProbeKey = 42;
+    }, TypeError);
+    assert.same(c, 1);
+  }
   assert.false('seTailWriteProbeKey' in globalThis);
 });
 
