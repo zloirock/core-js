@@ -8,7 +8,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2;
+var _ref, _ref2, _ref3;
 // Rooting the proxy-hop collapse THROUGH a chain-assignment proves the ROOT is a proxy global - it says
 // nothing about what the assignment STORED. when the assigned value navigates a hop core-js does not
 // ponyfill (`globalThis.window`, unlike `globalThis.self`), the two part ways: the collapse would read off
@@ -25,7 +25,7 @@ let w;
 export const guardedWindowValue = null == (_ref = w = _globalThis.window) ? void 0 : _includesMaybeArray(_ref.Array.prototype).call([1, 2], 2);
 let n;
 export const unguardedWindowValue = _flatMaybeArray((n = _globalThis.window).Array.prototype).call([1, [2]]);
-export const guardedWindowHop = _atMaybeArray(_globalThis.Array.prototype).call([9], 0);
+export const guardedWindowHop = null == (_ref2 = _globalThis.window) ? void 0 : _atMaybeArray(_ref2.Array.prototype).call([9], 0);
 
 // the DESTRUCTURE-source shape of the same kept root: the text emitter reconstructs the receiver by
 // splicing source rather than cloning nodes, so it has its own way to render a root - it must swap the
@@ -69,5 +69,5 @@ export const nestedGuardsOffKeptRoot = (ng = _globalThis.window)?.Array?.prototy
 // still ride ahead, in source order
 let sc = 0;
 let sq;
-export const seAroundKeptRoot = null == (_ref2 = (sc++, sq = _globalThis.window)) ? void 0 : _findIndexMaybeArray(_ref2.Array.prototype).call([1], x => x);
+export const seAroundKeptRoot = null == (_ref3 = (sc++, sq = _globalThis.window)) ? void 0 : _findIndexMaybeArray(_ref3.Array.prototype).call([1], x => x);
 export { sc };

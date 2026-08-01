@@ -264,6 +264,10 @@ export default function plugin(api, options) {
     isInTypeAnnotation,
     deoptionalizeNode,
     emitGuardedClaim,
+    collapseShortCircuitNavInPlace,
+    probedNavGuardValueNode,
+    sealedClaimThrowProbeNode,
+    flushKeptNavCollapseAt,
     flushKeptNavCollapses,
     markThrowingExtraction,
     generateRef,
@@ -899,7 +903,13 @@ export default function plugin(api, options) {
               return;
             }
           }
-          receiverPath.replaceWith(withSideEffects(fallbackId(), allEffects));
+          // a SEALED probe receiver: the swap drops the read the source performs on the sealed
+          // VALUE - re-emit it as a THROW probe (carrying the nav's key SE) ahead of the swap
+          const throwProbe = sealedClaimThrowProbeNode(path);
+          const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
+          const fbEffects = probeSe ? allEffects.filter(se => !probeSe.has(se)) : allEffects;
+          receiverPath.replaceWith(withSideEffects(fallbackId(),
+            throwProbe ? [throwProbe.node, ...fbEffects] : fbEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
           // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
@@ -931,7 +941,10 @@ export default function plugin(api, options) {
           if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
             let rootPath = path;
             while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
-            synthSwap.collapseProxyHopRoot(rootPath, aliasCtx);
+            // the hop collapse refuses a short-circuitable nav (the probe canon) - render the
+            // kept-nav plan in place there, or a raw polyfillable hop key strands off a
+            // defined receiver (`window['self']` - the web.self class miss)
+            if (!synthSwap.collapseProxyHopRoot(rootPath, aliasCtx)) collapseShortCircuitNavInPlace(path);
           }
           return;
         }
@@ -954,6 +967,21 @@ export default function plugin(api, options) {
           if (!(drivePath.isIdentifier() && injector?.getMemoWrite?.(drivePath.node.name)
             && chainNavigatesIntoMutatedStatic({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }))) drivePath = path;
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null)) return;
+          // the hop collapse refused a short-circuitable nav (the probe canon): render the
+          // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands
+          // off a defined receiver (`window['self']` - the web.self class miss)
+          let chainEnd = path;
+          for (;;) {
+            let up = chainEnd.parentPath;
+            // step through TS wrappers between hops. a BARE wrapper (`nav!.X`) erases and the
+            // chain's short-circuit survives; a PARENTHESIZED layer seals - the member above
+            // parses PLAIN, so the render keeps the source's throw semantics by node type
+            while (up && TS_EXPR_WRAPPERS.has(up.node?.type)
+              && up.node.expression === chainEnd.node) up = up.parentPath;
+            if (up?.isMemberExpression() || up?.isOptionalMemberExpression()) chainEnd = up;
+            else break;
+          }
+          if (chainEnd !== path && collapseShortCircuitNavInPlace(chainEnd)) return;
         }
 
         if (path.isObjectProperty()) {
@@ -1059,7 +1087,14 @@ export default function plugin(api, options) {
             }
             const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
               meta.chainAssignInsertAt ?? meta.receiverEffectCount);
-            replacePath.replaceWith(withSideEffects(id, allEffects));
+            // a SEALED probe receiver: re-emit the read the erase drops as a THROW probe ahead
+            // of the claim - an absent `window` throws exactly where the source does. the probe
+            // carries the nav's key SE, so those nodes leave the claim's own SE channel
+            const throwProbe = sealedClaimThrowProbeNode(path);
+            const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
+            const claimEffects = probeSe ? (allEffects ?? []).filter(se => !probeSe.has(se)) : allEffects;
+            replacePath.replaceWith(withSideEffects(id,
+              throwProbe ? [throwProbe.node, ...claimEffects ?? []] : claimEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional) {
               // walk through ParenthesizedExpression / ChainExpression / TS wrappers when
@@ -1220,7 +1255,9 @@ export default function plugin(api, options) {
         skippedNodes = new WeakSet();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
-        synthSwap = createSynthSwapEmitter({ adapter, injectPureImport, injector, resolvePure, skippedNodes, t });
+        synthSwap = createSynthSwapEmitter({
+          adapter, injectPureImport, injector, resolvePure, skippedNodes, t, sealedClaimThrowProbeNode,
+        });
         destructureEmit = createDestructureEmitter({
           adapter,
           generateRef,
@@ -1241,6 +1278,8 @@ export default function plugin(api, options) {
           t,
           resolvedType,
           markThrowingExtraction,
+          probedNavGuardValueNode,
+          sealedClaimThrowProbeNode,
         });
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
@@ -1371,6 +1410,17 @@ export default function plugin(api, options) {
         return mergeVisitors(visitors, {
           'VariableDeclarator|AssignmentExpression': {
             enter(path) { destructureEmit.tryFlattenProxyHopHost(path); },
+            // probed-anchor guard retypes land at the HOST's exit: every per-prop channel of
+            // the pattern has dispatched by then (the traversal-time resolvable spelling never
+            // leaks), and a sibling plugin's later lowering (preset-env destructuring in a
+            // composed pipeline) clones the emitted node - a Program-exit flush would retype
+            // the orphaned original and lose the guard
+            exit(path) {
+              destructureEmit.flushProbedAnchorSwaps(path.node);
+              // kept nav-collapse renders land here too - requeued, so the remaining merged
+              // passes (ES5 lowerings included) still visit everything they carry
+              if (path.isAssignmentExpression()) flushKeptNavCollapseAt(path);
+            },
           },
         });
       }
@@ -1601,6 +1651,8 @@ export default function plugin(api, options) {
         if (!injector) return;
         // kept nav-collapse mutations land after every claim resolver has seen the source chain
         flushKeptNavCollapses();
+        // probed-anchor destructure inits retype into their guard spelling at the same point
+        destructureEmit?.flushProbedAnchorSwaps();
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
         // pre() early-returned without a snapshot; running the postHook walk would
         // re-traverse helper bodies that the primary pass intentionally skipped, queue
@@ -1684,6 +1736,7 @@ export default function plugin(api, options) {
         injector.reorderImportRegion();
         injector.normalizeArrowRefParams();
         injector.pruneUnusedRefs();
+        injector.pruneUnusedPureImports();
         injector.reorderRefsAfterImports();
       }
 
