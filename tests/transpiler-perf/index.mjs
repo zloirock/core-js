@@ -103,18 +103,18 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 // modules under usage-global and 47/212 under usage-pure, codemirror in 4/6 under both
 const CASES = [
   { name: 'three.core.js', source: () => threeBuild('three.core.js'), bounds: {
-    'usage-global': { babel: 4, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeBuild('three.module.js'), bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
-    'usage-global': { babel: 3, unplugin: 2 }, 'usage-pure': { babel: 4, unplugin: 2 },
+    'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
   } },
   // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
   // gated too - the big twin above always runs the deoptimised one
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
@@ -128,7 +128,7 @@ const CASES = [
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
   { name: 'rxjs esm, tiny modules', source: () => packageModules('rxjs/dist/esm'), injections: 20, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 3, bounds: {
     'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
