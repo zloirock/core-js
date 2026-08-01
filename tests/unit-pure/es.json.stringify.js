@@ -1,8 +1,6 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-bigint -- testing */
-import { GLOBAL } from '../helpers/constants.js';
-
 import stringify from '@core-js/pure/es/json/stringify';
 import Symbol from '@core-js/pure/es/symbol';
 import values from '@core-js/pure/es/object/values';
@@ -96,7 +94,7 @@ QUnit.test('JSON.stringify', assert => {
   }
 
   // `JSON.parse` is used since a computed key could be compiled to an assignment triggering the setter
-  const ownProto = GLOBAL.JSON.parse('{"__proto__":1,"a":2}');
+  const ownProto = JSON.parse('{"__proto__":1,"a":2}');
   assert.same(stringify(ownProto, ['__proto__', 'a']), '{"__proto__":1,"a":2}', 'replacer-array-proto-key-1');
   assert.same(stringify(ownProto, ['__proto__', 'a', '0']), '{"__proto__":1,"a":2}', 'replacer-array-proto-key-2');
 
