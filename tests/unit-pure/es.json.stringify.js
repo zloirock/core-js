@@ -60,6 +60,83 @@ if (GLOBAL.JSON?.stringify) {
     sparse[1] = 'key';
     assert.same(stringify({ undefined: 1, key: 2 }, sparse), '{"key":2}', 'replacer-array-undefined-3');
 
+    assert.same(stringify({ b: 1, a: 2 }, ['a', 'b']), '{"a":2,"b":1}', 'replacer-array-order-1');
+    assert.same(stringify({ 0: 'a', 1: 'b', c: 'c' }, ['c', '1', '0']), '{"c":"c","1":"b","0":"a"}', 'replacer-array-order-2');
+    assert.same(stringify({ a: { d: 1, c: 2 }, b: 3 }, ['b', 'a', 'c', 'd']), '{"b":3,"a":{"c":2,"d":1}}', 'replacer-array-order-3');
+    assert.same(stringify({ b: 1, a: 2 }, ['a', 'b'], 1), '{\n "a": 2,\n "b": 1\n}', 'replacer-array-order-4');
+    assert.same(stringify([{ b: 1, a: 2 }], ['a', 'b']), '[{"a":2,"b":1}]', 'replacer-array-order-5');
+    assert.same(stringify({ 'a"b\n': 1, 0: 2 }, ['0', 'a"b\n']), '{"0":2,"a\\"b\\n":1}', 'replacer-array-key-escaping');
+    assert.same(stringify({ a: [2, 1] }, ['a']), '{"a":[2,1]}', 'replacer-array-not-applied-to-arrays');
+
+    // a boxed primitive should be unwrapped instead of being reordered as an object
+    assert.same(stringify({ a: new Number(5) }, ['a']), '{"a":5}', 'replacer-array-boxed-primitive-1');
+    assert.same(stringify({ a: new String('str') }, ['a']), '{"a":"str"}', 'replacer-array-boxed-primitive-2');
+    assert.same(stringify({ a: new Boolean(true) }, ['a']), '{"a":true}', 'replacer-array-boxed-primitive-3');
+
+    // an ordinary object only inheriting from a primitive prototype is still serialized as an object
+    function Inherited() { /* empty */ }
+    Inherited.prototype = new String('str');
+    const inheritedFromBoxed = new Inherited();
+    inheritedFromBoxed.b = 1;
+    assert.same(stringify(inheritedFromBoxed, ['0', 'b']), '{"0":"s","b":1}', 'replacer-array-inherits-boxed-primitive-1');
+    function InheritedNumber() { /* empty */ }
+    InheritedNumber.prototype = Number.prototype;
+    const inheritedFromNumber = new InheritedNumber();
+    inheritedFromNumber.b = 2;
+    inheritedFromNumber.a = 1;
+    assert.same(stringify(inheritedFromNumber, ['a', 'b']), '{"a":1,"b":2}', 'replacer-array-inherits-boxed-primitive-2');
+
+    // eslint-disable-next-line es/no-proxy -- testing
+    if (typeof Proxy == 'function') {
+      // a boxed primitive is detected by inspecting the value, a proxy trap should not affect the result
+      // eslint-disable-next-line es/no-proxy -- testing
+      const traps = new Proxy({ b: 1, a: 2 }, {
+        getPrototypeOf() { throw new EvalError('should not affect the result'); },
+      });
+      assert.same(stringify({ x: traps }, ['x', 'a', 'b']), '{"x":{"a":2,"b":1}}', 'replacer-array-proxy-traps');
+    }
+
+    // `JSON.parse` is used since a computed key could be compiled to an assignment triggering the setter
+    const ownProto = GLOBAL.JSON.parse('{"__proto__":1,"a":2}');
+    assert.same(stringify(ownProto, ['__proto__', 'a']), '{"__proto__":1,"a":2}', 'replacer-array-proto-key-1');
+    assert.same(stringify(ownProto, ['__proto__', 'a', '0']), '{"__proto__":1,"a":2}', 'replacer-array-proto-key-2');
+
+    function Parent() { /* empty */ }
+    Parent.prototype.inherited = 1;
+    const child = new Parent();
+    child.own = 2;
+    assert.same(stringify(child, ['inherited', 'own']), '{"inherited":1,"own":2}', 'replacer-array-inherited');
+
+    const shared = { key: 1 };
+    assert.same(stringify({ a: shared, b: shared }, ['a', 'b', 'key']), '{"a":{"key":1},"b":{"key":1}}', 'replacer-array-repeated');
+
+    const circular4 = {};
+    circular4.prop = circular4;
+    assert.throws(() => stringify(circular4, ['prop']), TypeError, 'replacer-array-circular-1');
+    const circular5 = { p1: { p2: {} } };
+    circular5.p1.p2.p3 = circular5;
+    assert.throws(() => stringify(circular5, ['p1', 'p2', 'p3']), TypeError, 'replacer-array-circular-2');
+    const circular6 = { prop: [] };
+    circular6.prop.push(circular6);
+    assert.throws(() => stringify(circular6, ['prop']), TypeError, 'replacer-array-circular-3');
+
+    const toJSONKeys = [];
+    assert.same(stringify({
+      1: { toJSON(key) { toJSONKeys.push(key); return 'a'; } },
+      b: { toJSON(key) { toJSONKeys.push(key); return 'b'; } },
+    }, ['b', '1']), '{"b":"b","1":"a"}', 'replacer-array-tojson-1');
+    assert.arrayEqual(toJSONKeys, ['b', '1'], 'replacer-array-tojson-2');
+    assert.same(stringify({
+      key: { toJSON() { return { toJSON() { return 'should not be called'; } }; } },
+    }, ['key']), '{"key":{}}', 'replacer-array-tojson-3');
+
+    // properties should be read one by one, in the order of the replacer array
+    const mutated = {
+      a: { toJSON() { mutated.b = 'late'; return 'a'; } },
+      b: 'early',
+    };
+    assert.same(stringify(mutated, ['a', 'b']), '{"a":"a","b":"late"}', 'replacer-array-lazy');
+
     assert.throws(() => stringify({}, () => { throw new EvalError('should not be called'); }), EvalError, 'replacer-function-abrupt');
 
     const calls = [];
@@ -455,6 +532,29 @@ if (GLOBAL.JSON?.stringify) {
         },
       }), ['key', 'key']), '{"key":true}', 'replacer-array-duplicates-1');
       assert.same(getCalls, 1, 'replacer-array-duplicates-2');
+
+      assert.same(stringify(defineProperty({ b: 2 }, 'a', {
+        value: 1,
+      }), ['a', 'b']), '{"a":1,"b":2}', 'replacer-array-non-enumerable');
+
+      // a polluted `Object.prototype` should not intercept the internal object creation
+      defineProperty(Object.prototype, 'pollutedSetter', {
+        configurable: true,
+        set() { /* empty */ },
+        get() { return 'from prototype'; },
+      });
+      defineProperty(Object.prototype, 'pollutedReadOnly', {
+        configurable: true,
+        writable: false,
+        value: 'from prototype',
+      });
+      try {
+        assert.same(stringify({ pollutedSetter: 1, a: 2 }, ['pollutedSetter', 'a']), '{"pollutedSetter":1,"a":2}', 'replacer-array-prototype-setter');
+        assert.same(stringify({ pollutedReadOnly: 1, a: 2 }, ['pollutedReadOnly', 'a']), '{"pollutedReadOnly":1,"a":2}', 'replacer-array-prototype-read-only');
+      } finally {
+        delete Object.prototype.pollutedSetter;
+        delete Object.prototype.pollutedReadOnly;
+      }
 
       /* old WebKit bug - however, fixing of this is not in priority
       const obj3 = defineProperty({}, 'a', {

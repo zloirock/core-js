@@ -27,6 +27,7 @@
 - Use `PromiseResolve` semantics in `Promise.try`, following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883)
 - Added detection of missed [Webkit ~ Safari < 26.2 `Iterator.prototype.flatMap` bug](https://bugs.webkit.org/show_bug.cgi?id=297532) case, [#1538](https://github.com/zloirock/core-js/issues/1538)
 - Deno 2.9+ [*replaces* `Object.prototype.__proto__`](https://github.com/denoland/deno/pull/35192) instead of removing it, so the feature detection updated
+- Fixed `JSON.stringify` polyfill with an array replacer - keys order now follows the replacer, inherited and non-enumerable properties are no longer ignored, [#1539](https://github.com/zloirock/core-js/issues/1539)
 - Make `URL` / `URLSearchParams` parsing a little more correct (char sets, percent coding, etc)
 - Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
 - Fixed possible crash on some keys in `Symbol.for`
