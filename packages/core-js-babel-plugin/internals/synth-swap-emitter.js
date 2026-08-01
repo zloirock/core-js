@@ -39,7 +39,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
-  navHasUnresolvableProxyHop, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
+  navHasUnresolvableProxyHop, navValueCanShortCircuit, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
   proxyGlobalMemberCtorPureSwap, resolveSynthKeys,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
@@ -48,6 +48,7 @@ export default function createSynthSwapEmitter({
   adapter,
   injectPureImport,
   injector,
+  sealedClaimThrowProbeNode,
   resolvePure,
   skippedNodes,
   t,
@@ -395,6 +396,12 @@ export default function createSynthSwapEmitter({
     if (!recPath?.isMemberExpression() && !recPath?.isOptionalMemberExpression()) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
     if (!maximalProxyGlobalHop(recPath.node, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
+    // a LIVE `?.` in the collapsed span testing a short-circuitable value (`(globalThis.window
+    // ?.self.window)?.X` - the sealed nav CAN be undefined) may not erase: the render drops the
+    // `?.` with the hops and runs the member where native short-circuits. the guard channels own
+    // the shape. the seal-aware canon keeps a PLAIN read over the same sealed nav collapsing
+    // (`(nav).X` - the locked erase) and an all-plain span deopting as before
+    if (navValueCanShortCircuit(recPath.node, resolvePure, aliasCtx)) return false;
     // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
     // it CLAIMED (named props feed a synth literal `{ from: _Array$from }`); collapsing here too
     // double-injects a dead `_globalThis`, even when the source sits under value carriers (`{from} =
@@ -597,11 +604,39 @@ export default function createSynthSwapEmitter({
         // undefined off-browser, and diverging from the text emitter which can't AST-restructure the
         // computed hop. shared `shouldDropRescueReceiver` keeps the drop decision identical across emitters
         const dropRescueReceiver = pending.rescueSe && shouldDropRescueReceiver(path.node);
+        // a SEALED probe receiver (`{ values } = (globalThis.window?.self).Object`): the swap
+        // drops the read the source performs on the sealed VALUE - re-emit it as a THROW
+        // probe (carrying the nav's key SE - the rescue harvest drops those nodes) ahead of
+        // the literal. the swap runs at apply() time (post-traversal, `path.skip()`), so the
+        // probe's raw proxy root substitutes BY HAND - no re-enter ever visits it
+        // a fallback-LOGICAL receiver probes through its LEFT branch (the branch the value
+        // reads through; the collapse supplants exactly that read)
+        const probeSource = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
+        const throwProbe = !needMemo ? sealedClaimThrowProbeNode?.(path, probeSource) : null;
+        if (throwProbe) {
+          const cond = throwProbe.node.object;
+          const prefixNode = cond?.test?.left?.type === 'NullLiteral' ? cond.test.right : cond?.test?.left;
+          const { root } = descendToChainRoot(prefixNode ?? {}, true);
+          if (root?.type === 'Identifier' && !path.scope.hasBinding(root.name, true)) {
+            const sub = resolvePure({ kind: 'global', name: root.name });
+            if (sub) root.name = injectPureImport(sub.entry, sub.hintName).name;
+          }
+        }
+        const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
         let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
             // the memo argument takes the same canonical re-read target as the direct path
             [buildMemoArg(memoReceiver, aliasCtx)])
+          : throwProbe
+            ? t.sequenceExpression([
+              ...dropRescueReceiver
+                ? discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
+                  .filter(n => !probeSe.has(n)).map(n => t.cloneNode(n, true))
+                : [],
+              throwProbe.node,
+              literal,
+            ])
           : dropRescueReceiver
             ? t.sequenceExpression([
               ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
@@ -621,7 +656,10 @@ export default function createSynthSwapEmitter({
         // plans nothing, so the clean collapse is unchanged (no fixture churn). suppressed when
         // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
         if (!needMemo && path.node.type === 'LogicalExpression') {
-          const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path });
+          // the probe carries the left's read (and its key SE) - the rescue re-emits only the
+          // effects the probe does not already run
+          const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path })
+            .filter(n => !probeSe?.has(n));
           if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
         }
         path.replaceWith(replacement);

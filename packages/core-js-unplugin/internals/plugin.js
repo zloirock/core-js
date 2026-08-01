@@ -1019,6 +1019,8 @@ export default function createPlugin(options) {
           replaceInstance,
           replaceStaticFallback,
           resolveReceiverSource,
+          sealedNavReceiverSrc,
+          sealedThrowProbePrefix,
           skipProxyGlobal,
         } = emitter;
 
@@ -1043,6 +1045,8 @@ export default function createPlugin(options) {
           toHint: typeResolvers.toHint,
           resolvePure,
           resolveReceiverSource,
+          sealedNavReceiverSrc,
+          sealedThrowProbePrefix,
           scopeTracker,
           skippedNodes,
           source: code,
@@ -1190,7 +1194,7 @@ export default function createPlugin(options) {
             && !transforms.containingContentIncludes(node.start, node.end);
         }
 
-        function usagePureCallback(meta, metaPath) {          // bundle early-return gates: disable directives + already-handled nodes + JSX
+        function usagePureCallback(meta, metaPath) {
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
           // type-annotation positions. monkey-patched statics never reach here: detection
           // returns no meta for them and the receiver flows through the identifier machinery

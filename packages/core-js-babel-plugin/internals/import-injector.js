@@ -1,6 +1,6 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
-  isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike,
+  isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike, kebabToCamel,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import ImportInjectorState, {
   assignCanonicalRefSlots,
@@ -378,6 +378,68 @@ export default class ImportInjector extends ImportInjectorState {
   // over all in-file polyfill rewrites it's negligible vs the O(N) traversal that already
   // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
   // out of sync with the live AST
+  // a pure-import binding whose ONLY occurrence is its own import specifier is an ORPHAN:
+  // a claim requested it and a later routing superseded the read (a user-mutated static rides
+  // the injected CONSTRUCTOR, stranding the static's earlier-ordered import). bundle weight,
+  // not correctness. raw name census like the ref prune - the local names are minted UIDs, so
+  // an occurrence count needs no scope graph; the specifier / require-declarator id itself is
+  // exactly one occurrence, a second proves a live read. mirrors the text emitter's
+  // referenced-name emission filter
+  pruneUnusedPureImports() {
+    const nameBySource = new Map();
+    for (const [source, name] of this.pureImports) nameBySource.set(name, source);
+    if (!nameBySource.size) return;
+    const counts = new Map();
+    // member-access census: a pure STATIC module ATTACHES its method to the pure constructor
+    // on load (`import '.../promise/all-settled'` defines `_Promise.allSettled`), so an
+    // unused-BINDING import stays LOAD-BEARING whenever any emission reads that static
+    // through the injected constructor - dropping it breaks the read (the differential's
+    // runtime legs caught exactly this). record `obj.prop` pairs to detect those reads
+    const memberPairs = new Set();
+    const stack = [this.#programPath.node];
+    while (stack.length) {
+      const n = stack.pop();
+      if (!n || typeof n !== 'object') continue;
+      if (Array.isArray(n)) {
+        for (const item of n) stack.push(item);
+        continue;
+      }
+      if (!n.type) continue;
+      if (n.type === 'Identifier' && nameBySource.has(n.name)) counts.set(n.name, (counts.get(n.name) ?? 0) + 1);
+      if ((n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression')
+        && n.object?.type === 'Identifier') {
+        const key = n.computed
+          ? (n.property?.type === 'StringLiteral' ? n.property.value : null)
+          : n.property?.name;
+        if (key) memberPairs.add(`${ n.object.name }.${ key }`);
+      }
+      for (const key of Object.keys(n)) {
+        if (key === 'loc' || key === 'start' || key === 'end' || key === 'extra' || key === 'leadingComments'
+          || key === 'trailingComments' || key === 'innerComments') continue;
+        stack.push(n[key]);
+      }
+    }
+    const ctorLocalByNamespace = new Map();
+    for (const [name, source] of nameBySource) {
+      const segments = source.split('/');
+      if (segments.at(-1) === 'constructor') ctorLocalByNamespace.set(segments.at(-2), name);
+    }
+    for (const bodyPath of this.#programPath.get('body')) {
+      const { node } = bodyPath;
+      const local = node?.type === 'ImportDeclaration' && node.specifiers?.length === 1
+        && node.specifiers[0].type === 'ImportDefaultSpecifier' ? node.specifiers[0].local.name
+        : node?.type === 'VariableDeclaration' && node.declarations?.length === 1
+          && node.declarations[0].id?.type === 'Identifier'
+          && node.declarations[0].init?.type === 'CallExpression'
+          && node.declarations[0].init.callee?.name === 'require' ? node.declarations[0].id.name : null;
+      if (!local || !nameBySource.has(local) || (counts.get(local) ?? 0) > 1) continue;
+      const segments = nameBySource.get(local).split('/');
+      const ctorLocal = segments.length >= 2 ? ctorLocalByNamespace.get(segments.at(-2)) : null;
+      if (ctorLocal && memberPairs.has(`${ ctorLocal }.${ kebabToCamel(segments.at(-1)) }`)) continue;
+      bodyPath.remove();
+    }
+  }
+
   pruneUnusedRefs() {
     const families = [...this.#generatedByPrefix].filter(([, names]) => names.size);
     if (!families.length) return;

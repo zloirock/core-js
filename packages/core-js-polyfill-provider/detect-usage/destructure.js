@@ -63,6 +63,7 @@ import {
   inlineCallReturnExpression,
   isCallShape,
   isStaticPlacement,
+  isUndefinedNode,
   peelChainAssignmentDeep,
   resolveKey as sharedResolveKey,
   reachableAliasValues,
@@ -1902,10 +1903,7 @@ function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = 
 // `void <expr>` (`void 0`); a side-effecting `void f()` keeps its effect, so it stays a real value (the
 // receiver swap must not drop it). a shadowed local `undefined` is not tracked (detection-layer trust).
 // SHARED by the identification (here) and the flatten-plan emit gate, so both fire on the same slots
-export function isUndefinedNode(node) {
-  if (node?.type === 'Identifier') return node.name === 'undefined';
-  return node?.type === 'UnaryExpression' && node.operator === 'void' && !mayHaveSideEffects(node.argument);
-}
+export { isUndefinedNode };
 
 // a RECEIVER-SHAPED inner default in an array wrapper (`[{ from } = Array] = [undefined]`): peeling
 // stops at the default because it IS a host, so the outer walk yields no array index. its right is the

@@ -8,4 +8,5 @@ import './catch-extractor-mode.mjs';
 import './fresh-path-memo.mjs';
 import './mutation-gate-superset.mjs';
 import './transform-idempotence.mjs';
+import './transform-idempotence-pure.mjs';
 import './post-sweep-introduced-global.mjs';
