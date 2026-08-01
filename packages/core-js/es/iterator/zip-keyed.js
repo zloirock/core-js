@@ -19,6 +19,6 @@ require('../../modules/es.iterator.to-array');
 require('../../modules/es.iterator.zip-keyed');
 require('../../modules/web.dom-collections.iterator');
 
-var entryUnbind = require('../../internals/entry-unbind');
+var path = require('../../internals/path');
 
-module.exports = entryUnbind('Iterator', 'zipKeyed');
+module.exports = path.Iterator.zipKeyed;
