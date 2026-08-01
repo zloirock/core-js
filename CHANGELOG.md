@@ -55,7 +55,7 @@
   - [`queueMicrotask` Bun bug](https://github.com/oven-sh/bun/issues/9249) marked as fixed in the next Bun (1.4.0?) release
   - Added [Node 26.0](https://github.com/nodejs/node/pull/62526) compat data mapping
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8), [Deno 2.8.0](https://github.com/denoland/deno/releases/tag/v2.8.0), and [Deno 2.9.4](https://github.com/denoland/deno/releases/tag/v2.9.4) compat data mapping
-  - Updated [Electron 42 and added 43 and 44](https://releases.electronjs.org/) compat data mapping
+  - Updated [Electron 42 and added 43, 44, and 45](https://releases.electronjs.org/) compat data mapping
   - Added Samsung Browser 30 compat data mapping
   - Added Oculus Quest Browser 144+ compat data mapping
   - Added Opera for Android [97](https://forums.opera.com/topic/88511/opera-for-android-97), [98](https://forums.opera.com/topic/88625/opera-for-android-98), [99](https://forums.opera.com/topic/88883/opera-for-android-99), and [100](https://forums.opera.com/topic/88999/opera-for-android-100) compat data mapping
