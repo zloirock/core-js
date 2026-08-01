@@ -11,8 +11,11 @@
 //      prefers a `<stem>.<variant>.<ext>` sibling for each expected file and falls back
 //      to the baseline otherwise.
 const { strictEqual } = require('node:assert');
-const { pathToFileURL } = require('node:url');
+const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
+
+const { FIXTURE_SHARD, defaultShardCount, emitShardSummary, runShards, shardSlice } =
+  await import('./fixture-shards.mjs');
 
 const { BABEL_REQUIRE_FROM, BABEL_SKIP, BABEL_VARIANT, OVERWRITE } = process.env;
 
@@ -98,9 +101,9 @@ function label(directory) {
   return path.relative(fixturesDir, directory);
 }
 
-function pass(directory) {
+// counted silently - with 8k+ fixtures the per-pass line drowns the failures
+function pass() {
   passed++;
-  echo`${ cyan(label(directory)) } ${ green('passed') }`;
 }
 
 // the 4 expected-output slots a fixture may produce; mapped to friendly keys for downstream
@@ -148,18 +151,25 @@ async function overwriteVariant(directory, slots) {
     return await exists(file) ? readFile(file, UTF8) : null;
   }));
   const matchesBaseline = slots.every(([, content], i) => content === baseline[i]);
+  // touch (and report) only what actually changes - an OVERWRITE sweep over thousands of
+  // untouched fixtures must stay silent so the real regen deltas are the whole output
+  let changed = false;
   for (const [name, content] of slots) {
     const file = variantPath(directory, name);
-    if (matchesBaseline || content === null) await rm(file, { force: true });
-    else await writeFile(file, content, UTF8);
+    const desired = matchesBaseline || content === null ? null : content;
+    const previous = await exists(file) ? await readFile(file, UTF8) : null;
+    if (previous === desired) continue;
+    changed = true;
+    if (desired === null) await rm(file, { force: true });
+    else await writeFile(file, desired, UTF8);
   }
-  return echo`${ cyan(label(directory)) } ${ matchesBaseline ? green('baseline') : yellow('variant') }`;
+  if (changed) echo`${ cyan(label(directory)) } ${ matchesBaseline ? green('baseline') : yellow('variant rewritten') }`;
 }
 
 async function runFixture(directory) {
   if (skipPaths.has(label(directory))) {
     skipped++;
-    return echo`${ cyan(label(directory)) } ${ yellow('skipped') }`;
+    return;
   }
   const source = await readFile(join(directory, 'input.mjs'), UTF8);
   const optionsMjs = join(directory, 'options.mjs');
@@ -205,12 +215,18 @@ async function runFixture(directory) {
       [EXPECTED_SLOTS.debugFile, debugOutput],
       [EXPECTED_SLOTS.warningsFile, warningsOutput],
     ]);
+    // touch (and report) only what actually changes - the regen deltas ARE the output
+    let changed = await exists(staleFile);
     await rm(staleFile, { force: true });
     for (const [file, content] of expected) {
+      const previous = await exists(file) ? await readFile(file, UTF8) : null;
+      if (previous === content) continue;
+      changed = true;
       if (content !== null) await writeFile(file, content, UTF8);
       else await rm(file, { force: true });
     }
-    return echo`${ cyan(label(directory)) } ${ yellow('created') }`;
+    if (changed) echo`${ cyan(label(directory)) } ${ yellow('rewritten') }`;
+    return;
   }
 
   if (await exists(staleFile)) {
@@ -252,19 +268,48 @@ async function runFixture(directory) {
     }
   }
 
-  pass(directory);
+  pass();
 }
 
-async function walkFixtures(directory) {
-  const names = await readdir(directory);
-  if (names.includes('input.mjs')) return runFixture(directory);
+// the walk COLLECTS (sorted - readdir order is OS-dependent and the shard slices must be
+// identical across processes), the run loop below dispatches
+async function collectFixtures(directory, out = []) {
+  const names = (await readdir(directory)).sort();
+  if (names.includes('input.mjs')) {
+    out.push(directory);
+    return out;
+  }
   for (const name of names) {
     const subdirectory = join(directory, name);
-    if ((await stat(subdirectory)).isDirectory()) await walkFixtures(subdirectory);
+    if ((await stat(subdirectory)).isDirectory()) await collectFixtures(subdirectory, out);
   }
+  return out;
 }
 
-await walkFixtures(args.length ? `${ fixturesDir }/${ args[0] }` : fixturesDir);
+// a shard child receives the subtree filter via env (the zx CLI keeps the script name in
+// argv._, so a positional arg would land off-by-one against the zxi-invoked parent)
+const subtree = FIXTURE_SHARD ? process.env.FIXTURE_SUBTREE : args[0];
+const fixtures = await collectFixtures(subtree ? `${ fixturesDir }/${ subtree }` : fixturesDir);
+
+// a child reports through the marker only; the parent aggregates and decides the exit
+if (FIXTURE_SHARD) {
+  for (const directory of shardSlice(fixtures)) await runFixture(directory);
+  emitShardSummary({ passed, failed, skipped });
+} else {
+  const shards = defaultShardCount(fixtures.length);
+  echo(green(`babel-plugin fixtures: ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));
+  if (shards > 1) {
+    ({ passed = 0, failed = 0, skipped = 0 } = await runShards({
+      script: fileURLToPath(import.meta.url),
+      shards,
+      extraEnv: subtree ? { FIXTURE_SUBTREE: subtree } : {},
+    }));
+  } else {
+    for (const directory of fixtures) await runFixture(directory);
+  }
+  logSummary();
+  if (failed) throw new Error('Some tests have failed');
+}
 
 // alternate-workspace runs prefix the summary with the resolved babel version and append
 // a Skipped count; default v7 path keeps the original concise two-line shape
@@ -280,6 +325,3 @@ function logSummary() {
     : '';
   echo(`${ BABEL_REQUIRE_FROM ? '' : '\n' }Passed: ${ passedLabel }, Failed: ${ failedLabel }${ skippedTail }`);
 }
-logSummary();
-
-if (failed) throw new Error('Some tests have failed');
