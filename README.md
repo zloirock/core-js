@@ -146,6 +146,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Float16` methods](#float16-methods)
       - [`Iterator` helpers](#iterator-helpers)
       - [`Iterator` sequencing](#iterator-sequencing)
+      - [Joint iteration](#joint-iteration)
       - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
       - [`Object.fromEntries`](#objectfromentries)
       - [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
@@ -171,10 +172,12 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Map` upsert](#map-upsert)
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
-      - [Joint iteration](#joint-iteration)
-      - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
-    - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` chunking](#iterator-chunking)
+      - [`Iterator` includes](#iterator-includes)
+      - [`Iterator` join](#iterator-join)
+      - [Await dictionary](#await-dictionary)
+    - [Stage 2.7 proposals](#stage-27-proposals)
+      - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -869,11 +872,25 @@ await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), i => i ** 
 ```
 
 #### ECMAScript: Iterator[⬆](#index)
-Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js)
+Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js), [`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
 ```ts
 class Iterator {
   static concat(...items: Array<IterableObject>): Iterator<any>;
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
+  static zip<T extends readonly Iterable<unknown>[]>(
+    iterables: T,
+    options?: {
+      mode?: 'shortest' | 'longest' | 'strict';
+      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
+    }
+  ): Iterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
+  static zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
+    iterables: V,
+    options?: {
+      mode?: 'shortest' | 'longest' | 'strict';
+      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
+    }
+  ): Iterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
   drop(limit: uint): Iterator<any>;
   every(callbackfn: (value: any, counter: uint) => boolean): boolean;
   filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
@@ -906,8 +923,10 @@ core-js(-pure)/es|stable|actual|full/iterator/reduce
 core-js(-pure)/es|stable|actual|full/iterator/some
 core-js(-pure)/es|stable|actual|full/iterator/take
 core-js(-pure)/es|stable|actual|full/iterator/to-array
+core-js(-pure)/es|stable|actual|full/iterator/zip
+core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
-[Examples](https://tinyurl.com/24af2z7v):
+[Examples](https://tinyurl.com/2bkma5dq):
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -924,6 +943,28 @@ Iterator.concat([0, 1].values(), [2, 3], function * () {
   yield 4;
   yield 5;
 }()).toArray(); // => [0, 1, 2, 3, 4, 5]
+
+Iterator.zip([
+  [0, 1, 2],
+  [3, 4, 5],
+]).toArray();  // => [[0, 3], [1, 4], [2, 5]]
+
+Iterator.zipKeyed({
+  a: [0, 1, 2],
+  b: [3, 4, 5, 6],
+  c: [7, 8, 9],
+}, {
+  mode: 'longest',
+  padding: { c: 10 },
+}).toArray(); // =>
+/*
+[
+  { a: 0,         b: 3, c: 7  },
+  { a: 1,         b: 4, c: 8  },
+  { a: 2,         b: 5, c: 9  },
+  { a: undefined, b: 6, c: 10 },
+];
+ */
 ```
 
 > [!WARNING]
@@ -2491,6 +2532,57 @@ class Iterator {
 core-js/proposals/iterator-sequencing
 ```
 
+##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
+Modules [es.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [es.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
+```ts
+class Iterator {
+  zip<T extends readonly Iterable<unknown>[]>(
+    iterables: T,
+    options?: {
+      mode?: 'shortest' | 'longest' | 'strict';
+      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
+    }
+  ): IterableIterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
+  zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
+    iterables: V,
+    options?: {
+      mode?: 'shortest' | 'longest' | 'strict';
+      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
+    }
+  ): IterableIterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/joint-iteration
+core-js(-pure)/es|stable|actual|full/iterator/zip
+core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
+```
+[*Example*](https://tinyurl.com/vutnf2nu):
+```js
+Iterator.zip([
+  [0, 1, 2],
+  [3, 4, 5],
+]).toArray();  // => [[0, 3], [1, 4], [2, 5]]
+
+Iterator.zipKeyed({
+  a: [0, 1, 2],
+  b: [3, 4, 5, 6],
+  c: [7, 8, 9],
+}, {
+  mode: 'longest',
+  padding: { c: 10 },
+}).toArray();
+/*
+[
+  { a: 0,         b: 3, c: 7  },
+  { a: 1,         b: 4, c: 8  },
+  { a: 2,         b: 5, c: 9  },
+  { a: undefined, b: 6, c: 10 },
+];
+ */
+```
+
 ##### [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)[⬆](#index)
 ```ts
 class Object {
@@ -2784,55 +2876,105 @@ core-js/proposals/math-sum
 core-js(-pure)/stage/3
 ```
 
-##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
-Modules [esnext.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [esnext.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
+##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
+Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js)
+and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
 ```ts
 class Iterator {
-  zip<T extends readonly Iterable<unknown>[]>(
-    iterables: T,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
-    }
-  ): IterableIterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
-  zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
-    iterables: V,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
-    }
-  ): IterableIterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+  chunks(chunkSize: number): Iterator<any>;
+  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): Iterator<any>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/joint-iteration
-core-js(-pure)/actual|full/iterator/zip
-core-js(-pure)/actual|full/iterator/zip-keyed
+core-js/proposals/iterator-chunking-v2
+core-js(-pure)/actual|full/iterator/chunks
+core-js(-pure)/actual|full/iterator/windows
 ```
-[*Example*](https://tinyurl.com/vutnf2nu):
+[*Examples*](https://tinyurl.com/24xnkcnn)
 ```js
-Iterator.zip([
-  [0, 1, 2],
-  [3, 4, 5],
-]).toArray();  // => [[0, 3], [1, 4], [2, 5]]
+const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
 
-Iterator.zipKeyed({
-  a: [0, 1, 2],
-  b: [3, 4, 5, 6],
-  c: [7, 8, 9],
-}, {
-  mode: 'longest',
-  padding: { c: 10 },
-}).toArray();
-/*
-[
-  { a: 0,         b: 3, c: 7  },
-  { a: 1,         b: 4, c: 8  },
-  { a: 2,         b: 5, c: 9  },
-  { a: undefined, b: 6, c: 10 },
-];
- */
+let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
+
+let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
+
+let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
+
+let windowsFull = Array.from([0, 1].values().windows(3));  // []
+```
+
+##### [`Iterator` includes](https://github.com/tc39/proposal-iterator-includes)[⬆](#index)
+Module [`esnext.iterator.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.includes.js)
+```ts
+class Iterator {
+  includes(searchElement: any, skippedElements?: number): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-includes
+core-js(-pure)/actual|full/iterator/includes
+```
+```js
+[1, 2, 3].values().includes(2);     // => true
+[1, 2, 3].values().includes(4);     // => false
+[NaN].values().includes(NaN);       // => true
+[1, 2, 3].values().includes(3, 2);  // => true
+[1, 2, 3].values().includes(1, 1);  // => false
+```
+
+##### [`Iterator` join](https://github.com/tc39/proposal-iterator-join)[⬆](#index)
+Module [`esnext.iterator.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.join.js)
+```ts
+class Iterator {
+  join(separator?: string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-join
+core-js(-pure)/actual|full/iterator/join
+```
+```js
+[1, 2, 3].values().join();     // => '1,2,3'
+[1, 2, 3].values().join('-');  // => '1-2-3'
+[1, null, 3].values().join();  // => '1,,3'
+```
+
+##### [Await dictionary](https://github.com/tc39/proposal-await-dictionary)[⬆](#index)
+Modules [`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-keyed.js)
+and [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
+```ts
+class Promise {
+  allKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, any>>;
+  allSettledKeyed(obj: Record<string | symbol, any>): Promise<Record<string | symbol, { status: 'fulfilled', value: any } | { status: 'rejected', reason: any }>>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/await-dictionary
+core-js(-pure)/actual|full/promise/all-keyed
+core-js(-pure)/actual|full/promise/all-settled-keyed
+```
+```js
+await Promise.allKeyed({
+  a: Promise.resolve(1),
+  b: Promise.resolve(2),
+  c: 3,
+}); // => { a: 1, b: 2, c: 3 }
+
+await Promise.allSettledKeyed({
+  a: Promise.resolve(1),
+  b: Promise.reject(2),
+  c: 3,
+}); // => { a: { status: "fulfilled", value: 1 }, b: { status: "rejected", reason: 2 }, c: { status: "fulfilled", value: 3 } }
+```
+
+#### Stage 2.7 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/stage/2.7
 ```
 
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
@@ -2851,40 +2993,6 @@ class Function {
 core-js/proposals/decorator-metadata-v2
 core-js(-pure)/actual|full/symbol/metadata
 core-js(-pure)/actual|full/function/metadata
-```
-
-#### Stage 2.7 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stage/2.7
-```
-
-##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
-Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js)
-and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
-```ts
-class Iterator {
-  chunks(chunkSize: number): Iterator<any>;
-  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): Iterator<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-chunking-v2
-core-js(-pure)/full/iterator/chunks
-core-js(-pure)/full/iterator/windows
-```
-[*Examples*](https://tinyurl.com/24xnkcnn)
-```js
-const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
-
-let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
-
-let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
-
-let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
-
-let windowsFull = Array.from([0, 1].values().windows(3));  // []
 ```
 
 #### Stage 2 proposals[⬆](#index)

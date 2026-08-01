@@ -21,6 +21,13 @@ QUnit.test('URLSearchParams', assert => {
 
   assert.same(String(new URLSearchParams('?a=b')), 'a=b', 'leading ? should be ignored');
   assert.same(String(new URLSearchParams('??a=b')), '%3Fa=b');
+
+  // a lone surrogate is percent-encoded as U+FFFD, https://encoding.spec.whatwg.org/#utf-8-encoder
+  assert.same(String(new URLSearchParams([['k', 'a\uD800b']])), 'k=a%EF%BF%BDb', 'lone surrogate in a value');
+  assert.same(String(new URLSearchParams([['a\uD800b', 'v']])), 'a%EF%BF%BDb=v', 'lone surrogate in a key');
+  assert.same(String(new URLSearchParams([['k', '\uDC00\uD800']])), 'k=%EF%BF%BD%EF%BF%BD', 'reversed surrogates');
+  assert.same(String(new URLSearchParams([['k', '\uD83D\uDE00']])), 'k=%F0%9F%98%80', 'surrogate pair is kept');
+  assert.same(new URLSearchParams('a=%ED%A0%80').get('a'), '\uFFFD\uFFFD\uFFFD', 'percent-encoded surrogate decodes to U+FFFD');
   assert.same(String(new URLSearchParams('?')), '');
   assert.same(String(new URLSearchParams('??')), '%3F=');
 

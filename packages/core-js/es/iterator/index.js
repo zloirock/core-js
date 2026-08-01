@@ -1,6 +1,8 @@
 'use strict';
 require('../../modules/es.array.iterator');
+require('../../modules/es.object.create');
 require('../../modules/es.object.to-string');
+require('../../modules/es.reflect.own-keys');
 require('../../modules/es.string.iterator');
 require('../../modules/es.iterator.constructor');
 require('../../modules/es.iterator.concat');
@@ -17,6 +19,8 @@ require('../../modules/es.iterator.reduce');
 require('../../modules/es.iterator.some');
 require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
+require('../../modules/es.iterator.zip');
+require('../../modules/es.iterator.zip-keyed');
 
 var path = require('../../internals/path');
 

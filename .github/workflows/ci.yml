@@ -9,12 +9,12 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 25
+          node-version: 26
           cache: npm
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: 3.14
       - run: npm run prepare-monorepo
@@ -23,22 +23,28 @@ jobs:
 
   karma:
     runs-on: windows-2022
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 25
+          node-version: ^24.18
           cache: npm
+      - uses: actions/cache@v6
+        with:
+          path: D:\ms-playwright
+          key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
       - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-karma
 
   bun:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 25
+          node-version: 26
           cache: npm
       - uses: oven-sh/setup-bun@v2
         with:
@@ -55,10 +61,11 @@ jobs:
           - 23
           - 24
           - 25
+          - 26
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -78,10 +85,11 @@ jobs:
           - 23
           - 24
           - 25
+          - 26
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm

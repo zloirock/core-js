@@ -2,11 +2,16 @@ import { minify } from 'terser';
 import builder from 'core-js-builder';
 import config from 'core-js-builder/config.js';
 
+function namedArg(name, fallback) {
+  const idx = argv._.indexOf(name);
+  return idx === -1 ? fallback : argv._[idx + 1];
+}
+
 const { cyan, green } = chalk;
 const DENO = argv._.includes('deno');
 const ESMODULES = argv._.includes('esmodules');
-const BUNDLED_NAME = argv._.includes('bundled-name') ? argv._[argv._.indexOf('bundled-name') + 1] : 'index';
-const MINIFIED_NAME = argv._.includes('minified-name') ? argv._[argv._.indexOf('minified-name') + 1] : 'minified';
+const BUNDLED_NAME = namedArg('bundled-name', 'index');
+const MINIFIED_NAME = namedArg('minified-name', 'minified');
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {

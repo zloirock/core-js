@@ -360,6 +360,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/some') == 'function');
     ok(typeof load(NS, 'iterator/take') == 'function');
     ok(typeof load(NS, 'iterator/to-array') == 'function');
+    const iteratorZip = load(NS, 'iterator/zip');
+    ok([...iteratorZip([[1], [2]])][0][1] === 2);
+    const iteratorZipKeyed = load(NS, 'iterator/zip-keyed');
+    ok([...iteratorZipKeyed({ first: [1], second: [2] })][0].second === 2);
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
@@ -718,9 +722,13 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
+    ok(typeof load(NS, 'iterator/chunks') == 'function');
+    ok(load(NS, 'iterator/includes')([1, 2].values(), 2) === true);
+    ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
-    ok(typeof load(NS, 'iterator/zip') == 'function');
-    ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
+    ok(typeof load(NS, 'iterator/windows') == 'function');
+    ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
+    ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
     ok(load(NS, 'symbol/metadata'));
 
     const instanceGroup = load(NS, 'instance/group');
@@ -779,9 +787,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
-    ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(typeof load(NS, 'iterator/sliding') == 'function');
-    ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
     ok(load(NS, 'map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
@@ -931,6 +937,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');
+  load('proposals/await-dictionary');
   load('proposals/change-array-by-copy');
   load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');
@@ -956,6 +963,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-sequencing');
   load('proposals/iterator-chunking');
   load('proposals/iterator-chunking-v2');
+  load('proposals/iterator-includes');
+  load('proposals/iterator-join');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');

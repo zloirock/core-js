@@ -1,14 +1,11 @@
 'use strict';
-var classof = require('../internals/classof');
-var getMethod = require('../internals/get-method');
-var isNullOrUndefined = require('../internals/is-null-or-undefined');
-var Iterators = require('../internals/iterators');
+var classof = require('../internals/classof-raw');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
+var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {
-  if (!isNullOrUndefined(it)) return getMethod(it, ITERATOR)
-    || getMethod(it, '@@iterator')
-    || Iterators[classof(it)];
+  return it[ITERATOR] || it['@@iterator']
+    || (classof(it) === 'Arguments' ? ArrayPrototype[ITERATOR] : undefined);
 };

@@ -70,6 +70,7 @@ export default {
     [129, '23.0'],
     [136, '24.0'],
     [141, '25.0'],
+    [146, '26.0'],
   ],
   // https://github.com/denoland/deno/releases
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/deno.json
@@ -125,6 +126,9 @@ export default {
     [145, '2.7'],
     [146, '2.7.2'],
     [147, '2.7.8'],
+    [149, '2.8.0'],
+    [149, '2.9.0'],
+    [150, '2.9.4'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
@@ -188,6 +192,9 @@ export default {
     [144, '40.0'],
     [146, '41.0'],
     [148, '42.0'],
+    [150, '43.0'],
+    [152, '44.0'],
+    [153, '45.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   ChromeToOpera(chrome) {
@@ -208,6 +215,7 @@ export default {
   ChromeToChromeAndroid(chrome) {
     return chrome <= 18 ? 18 : Math.max(chrome, 25);
   },
+  // https://developer.samsung.com/internet/release-note/windows-release-note.html
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
@@ -244,6 +252,7 @@ export default {
     [125, '27.0'],
     [130, '28.0'],
     [136, '29.0'],
+    [143, '30.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   // https://forums.opera.com/category/20/opera-for-android
@@ -302,11 +311,16 @@ export default {
     [143, 94],
     [144, 95],
     [145, 96],
+    [146, 97],
+    [147, 98],
+    [148, 99],
+    [149, 100],
   ],
   // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   // https://whatmyuseragent.com/browser/oc/oculus-browser
+  // Quest Browser after 42 uses a similar version to Chromium
   ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],

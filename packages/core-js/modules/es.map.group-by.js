@@ -4,6 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var iterate = require('../internals/iterate');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var MapHelpers = require('../internals/map-helpers');
 var IS_PURE = require('../internals/is-pure');
 var fails = require('../internals/fails');
@@ -30,6 +31,7 @@ $({ target: 'Map', stat: true, forced: IS_PURE || DOES_NOT_WORK_WITH_PRIMITIVES 
     var map = new Map();
     var k = 0;
     iterate(items, function (value) {
+      doesNotExceedSafeInteger(k);
       var key = callbackfn(value, k++);
       if (!has(map, key)) set(map, key, [value]);
       else push(get(map, key), value);

@@ -309,14 +309,17 @@ export const data = {
     safari: '9.0',
   },
   'es.array.includes': {
+    // WebKit < Bun 1.3.12 broken on sparse arrays with fromIndex
+    // https://bugs.webkit.org/show_bug.cgi?id=309342
+    bun: '1.3.12',
     chrome: '53',
     edge: '14',
     // FF99-101 broken on sparse arrays
     firefox: '102', // '48',
     rhino: '1.8.0',
-    // Safari broken on sparse arrays with fromIndex
+    // WebKit broken on sparse arrays with fromIndex
     // https://bugs.webkit.org/show_bug.cgi?id=309342
-    // safari: '10.0',
+    safari: '27.0', // '10.0',
   },
   'es.array.index-of': {
     chrome: '51',
@@ -715,11 +718,13 @@ export const data = {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
     // https://bugs.webkit.org/show_bug.cgi?id=291195
-    bun: '1.2.11', // '1.2.4', // '1.1.31',
-    chrome: '135', // '122',
-    deno: '2.2.5', // '1.38.1',
-    firefox: '141', // '131',
-    safari: '26.0', // 18.4',
+    // with changes related to changed limit validation
+    // https://github.com/tc39/ecma262/pull/3776
+    bun: '1.3.15', // '1.2.11', // '1.2.4', // '1.1.31',
+    chrome: '150', // '135', // '122',
+    // deno: '2.2.5', // '1.38.1',
+    // firefox: '141', // '131',
+    safari: '27.0', // '26.0', // 18.4',
   },
   'es.iterator.every': {
     // with changes related to the new iteration closing approach on early error
@@ -810,11 +815,13 @@ export const data = {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
     // https://bugs.webkit.org/show_bug.cgi?id=291195
-    bun: '1.2.11', // '1.2.4', // '1.1.31',
-    chrome: '135', // '122',
-    deno: '2.2.5', // '1.38.1',
-    firefox: '141', // '131',
-    safari: '26.0', // 18.4',
+    // with changes related to changed limit validation
+    // https://github.com/tc39/ecma262/pull/3776
+    bun: '1.4.0', // '1.2.11', // '1.2.4', // '1.1.31',
+    chrome: '150', // '135', // '122',
+    // deno: '2.2.5', // '1.38.1',
+    // firefox: '141', // '131',
+    safari: '27.0', // '26.0', // 18.4',
   },
   'es.iterator.to-array': {
     bun: '1.1.31',
@@ -822,6 +829,12 @@ export const data = {
     deno: '1.38.1',
     firefox: '131',
     safari: '18.4',
+  },
+  'es.iterator.zip': {
+    firefox: '148',
+  },
+  'es.iterator.zip-keyed': {
+    firefox: '148',
   },
   'es.json.is-raw-json': {
     bun: '1.1.43',
@@ -1499,11 +1512,13 @@ export const data = {
     safari: '11.0',
   },
   'es.promise.try': {
-    bun: '1.1.22',
-    chrome: '128',
-    firefox: '134',
-    rhino: '1.9.0',
-    safari: '18.2',
+    // includes `PromiseResolve` semantics detection from
+    // https://github.com/tc39/ecma262/pull/3883
+    // bun: '1.1.22',
+    // chrome: '128',
+    // firefox: '134',
+    // rhino: '1.9.0',
+    // safari: '18.2',
   },
   'es.promise.with-resolvers': {
     bun: '0.7.1',
@@ -2604,6 +2619,7 @@ export const data = {
   'esnext.iterator.as-indexed-pairs': {
   },
   'esnext.iterator.chunks': {
+    firefox: '154',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.concat': null,
@@ -2623,7 +2639,13 @@ export const data = {
   'esnext.iterator.for-each': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.from': null,
+  'esnext.iterator.includes': {
+    firefox: '154',
+  },
   'esnext.iterator.indexed': {
+  },
+  'esnext.iterator.join': {
+    firefox: '154',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.map': null,
@@ -2642,13 +2664,12 @@ export const data = {
   'esnext.iterator.to-async': {
   },
   'esnext.iterator.windows': {
+    firefox: '154',
   },
-  'esnext.iterator.zip': {
-    firefox: '148',
-  },
-  'esnext.iterator.zip-keyed': {
-    firefox: '148',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.zip': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.zip-keyed': null,
   // TODO: Remove from `core-js@4`
   'esnext.json.is-raw-json': null,
   // TODO: Remove from `core-js@4`
@@ -2767,8 +2788,12 @@ export const data = {
   },
   'esnext.observable.of': {
   },
+  'esnext.promise.all-keyed': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
+  'esnext.promise.all-settled-keyed': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,
   // TODO: Remove from `core-js@4`
@@ -3062,8 +3087,8 @@ export const data = {
     node: '0.9.1',
   },
   'web.queue-microtask': {
-    // wrong arity in Bun ~ 1.0.30, https://github.com/oven-sh/bun/issues/9249
-    // bun: '0.1.1',
+    // wrong arity in Bun <= 1.3.14, https://github.com/oven-sh/bun/issues/9249
+    bun: '1.4.0', // '0.1.1',
     chrome: '71',
     deno: '1.0',
     firefox: '69',
@@ -3254,6 +3279,8 @@ export const renamed = new Map([
   ['esnext.iterator.some', 'es.iterator.some'],
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
+  ['esnext.iterator.zip', 'es.iterator.zip'],
+  ['esnext.iterator.zip-keyed', 'es.iterator.zip-keyed'],
   ['esnext.json.is-raw-json', 'es.json.is-raw-json'],
   ['esnext.json.parse', 'es.json.parse'],
   ['esnext.json.raw-json', 'es.json.raw-json'],

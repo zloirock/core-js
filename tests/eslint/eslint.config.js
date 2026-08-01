@@ -727,7 +727,7 @@ const base = {
   // prefer `Response.json()` over `new Response(JSON.stringify())`
   'unicorn/prefer-response-static-json': ERROR,
   // prefer simple conditions first in logical expressions
-  'unicorn/prefer-simple-condition-first': ERROR,
+  // 'unicorn/prefer-simple-condition-first': ERROR,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`
@@ -1297,11 +1297,11 @@ const forbidCompletelyNonExistentBuiltIns = {
   ] }],
   'es/no-nonstandard-iterator-properties': [ERROR, { allow: [
     'range',
-    'zip',
-    'zipKeyed',
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'chunks',
+    'includes',
+    'join',
     'sliding',
     'toAsync',
     'windows',
@@ -1363,6 +1363,10 @@ const forbidCompletelyNonExistentBuiltIns = {
     'iterateEntries',
     'iterateKeys',
     'iterateValues',
+  ] }],
+  'es/no-nonstandard-promise-properties': [ERROR, { allow: [
+    'allKeyed',
+    'allSettledKeyed',
   ] }],
   'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
     // TODO: drop from `core-js@4`
@@ -1724,6 +1728,11 @@ const forbidES2026BuiltIns = {
   'math/prefer-math-sum-precise': OFF,
 };
 
+const forbidES2027BuiltIns = {
+  'es/no-iterator-zip': ERROR,
+  'es/no-iterator-zipkeyed': ERROR,
+};
+
 const forbidES2016IntlBuiltIns = {
   'es/no-intl-getcanonicallocales': ERROR,
 };
@@ -1798,6 +1807,7 @@ const forbidModernBuiltIns = {
   ...forbidES2024BuiltIns,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
+  ...forbidES2027BuiltIns,
   ...forbidES2016IntlBuiltIns,
   ...forbidES2017IntlBuiltIns,
   ...forbidES2018IntlBuiltIns,
@@ -1902,6 +1912,7 @@ const nodePackages = {
   ...forbidES2024BuiltIns,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
+  ...forbidES2027BuiltIns,
   ...disable(forbidES2016IntlBuiltIns),
   ...disable(forbidES2017IntlBuiltIns),
   ...forbidES2018IntlBuiltIns,
@@ -1924,6 +1935,7 @@ const nodeDev = {
   'es/no-string-prototype-towellformed': OFF,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
+  ...forbidES2027BuiltIns,
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
   // ReDoS vulnerability check

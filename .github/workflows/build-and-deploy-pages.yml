@@ -13,7 +13,7 @@ jobs:
       branches: ${{ steps.set-branches.outputs.branches }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Get branch list and set output
@@ -32,29 +32,35 @@ jobs:
   build-compat-pages:
     needs: list-branches
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         branch: ${{ fromJson(needs.list-branches.outputs.branches) }}
     name: Build for ${{ matrix.branch }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.branch }}
       - name: Build cache key
         id: cache-key
+        env:
+          BRANCH: ${{ matrix.branch }}
         run: |
           HASH=$(git rev-parse --short HEAD)
-          echo "CACHE_KEY=${{ matrix.branch }}-$HASH" >> "$GITHUB_ENV"
+          SAFE_BRANCH="${BRANCH//\//-}"
+          echo "SAFE_BRANCH=$SAFE_BRANCH" >> "$GITHUB_ENV"
+          echo "CACHE_KEY=$SAFE_BRANCH-$HASH" >> "$GITHUB_ENV"
       - name: Restore cached artifacts
         id: artifacts-restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
-          path: ${{ matrix.branch }}
+          path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         with:
-          node-version: 25
+          node-version: 26
           cache: npm
       - name: Build
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
@@ -65,23 +71,23 @@ jobs:
       - name: Prepare build artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         run: |
-          mkdir -p ${{ matrix.branch }}/compat
-          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js ${{ matrix.branch }}/compat
-          mkdir -p ${{ matrix.branch }}/bundles
-          cp tests/bundles/* ${{ matrix.branch }}/bundles
-          mkdir -p ${{ matrix.branch }}/unit-browser
-          cp tests/unit-browser/* ${{ matrix.branch }}/unit-browser
+          mkdir -p ${{ env.SAFE_BRANCH }}/compat
+          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js ${{ env.SAFE_BRANCH }}/compat
+          mkdir -p ${{ env.SAFE_BRANCH }}/bundles
+          cp tests/bundles/* ${{ env.SAFE_BRANCH }}/bundles
+          mkdir -p ${{ env.SAFE_BRANCH }}/unit-browser
+          cp tests/unit-browser/* ${{ env.SAFE_BRANCH }}/unit-browser
       - name: Save cached artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
-          path: ${{ matrix.branch }}
+          path: ${{ env.SAFE_BRANCH }}
           key: ${{ env.CACHE_KEY }}
       - name: Upload artifacts for branch ${{ matrix.branch }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.branch }}
-          path: ${{ matrix.branch }}
+          name: ${{ env.SAFE_BRANCH }}
+          path: ${{ env.SAFE_BRANCH }}
 
   combine-pages-and-deploy:
     needs: build-compat-pages
@@ -90,17 +96,17 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Download artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: pages
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: pages
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

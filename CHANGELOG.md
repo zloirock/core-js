@@ -1,13 +1,65 @@
 # Changelog
 ### Unreleased
-- Improved performance of `Uint8Array` base64 methods
-- Improved performance of `es.escape`
-- Improved the way of inner iterators cleaning in iterator helpers
-- Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
+- [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration):
+  - Built-ins:
+    - `Iterator.zip`
+    - `Iterator.zipKeyed`
+  - Moved to stable ES, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7e2d9a45e71525984d4c35313a3daeb4260773ef)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Built-ins:
+    - `Iterator.prototype.chunks`
+    - `Iterator.prototype.windows`
+  - Throw a `TypeError` instead of `RangeError` on non integer number `chunkSize` / `windowSize`, following [tc39/proposal-iterator-chunking/#30](https://github.com/tc39/proposal-iterator-chunking/pull/30)
+  - Moved to stage 3, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7226f0af93443025010efcad219115cec7dc8b2a)
+  - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
+- Added [`Iterator` includes stage 3 proposal](https://github.com/tc39/proposal-iterator-includes):
+  - Added built-in:
+    - `Iterator.prototype.includes`
+- Added [`Iterator` join stage 3 proposal](https://github.com/tc39/proposal-iterator-join):
+  - Added built-in:
+    - `Iterator.prototype.join`
+- Added [Await dictionary of Promises stage 3 proposal](https://github.com/tc39/proposal-await-dictionary):
+  - Added built-ins:
+    - `Promise.allKeyed`
+    - `Promise.allSettledKeyed`
+- Throw a `RangeError` on finite unsafe integer `limit` in `Iterator.prototype.{ drop, take }`, following [tc39/ecma262/#3776](https://github.com/tc39/ecma262/pull/3776)
+- Use `PromiseResolve` semantics in `Promise.try`, following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883)
+- Added detection of missed [Webkit ~ Safari < 26.2 `Iterator.prototype.flatMap` bug](https://bugs.webkit.org/show_bug.cgi?id=297532) case, [#1538](https://github.com/zloirock/core-js/issues/1538)
+- Deno 2.9+ [*replaces* `Object.prototype.__proto__`](https://github.com/denoland/deno/pull/35192) instead of removing it, so the feature detection updated
+- Fixed `JSON.stringify` polyfill with an array replacer - keys order now follows the replacer, inherited and non-enumerable properties are no longer ignored, [#1539](https://github.com/zloirock/core-js/issues/1539)
+- Make `URL` / `URLSearchParams` parsing a little more correct (char sets, percent coding, etc)
+- Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
 - Fix `URL#toJSON` when `URL#toString` is reassigned after core-js is imported
+- Fixed possible crash on some keys in `Symbol.for`
+- Some `get-iterator` / `get-iterator-method` fixes
+- Fixed `String.prototype.{ match, search }` polyfills conversion order
+- Added missed `MAX_SAFE_INTEGER` excess check in `Array.from` and `{ Map, Object }.groupBy` polyfills
+- Improved the way of inner iterators cleaning in iterator helpers
+- Improved accuracy of `Math.{ asinh, cbrt, log1p }` polyfills with big and small values
+- Improved performance of `Uint8Array` base64 methods
+- Improved performance of `escape`
+- Slight performance improvement for engines with native `Array.prototype.fill` on `ArrayBuffer` constructor and `%TypedArray%.prototype.fill`
+- Clarify supported Node versions in `package.json` of some missed packages (just to satisfy `publint`)
 - Compat data improvements:
-  - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) compat data mapping
-  - Updated Electron 42 compat data mapping
+  - Following [tc39/ecma262/#3776](https://github.com/tc39/ecma262/pull/3776), `Iterator.prototype.{ drop, take }` properly supported from:
+    - [V8 ~ Chrome 150](https://github.com/v8/v8/commit/ce52c1d84268311648c9362e8d3bbb08fc58bd3c)
+    - Safari 27.0
+    - Next Bun (1.4.0?) release
+  - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` marked as not properly supported in all engines
+  - [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2047997)
+  - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2034104)
+  - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2047995)
+  - [`Array.prototype.includes` WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=309342) marked as fixed in:
+    - Safari 27.0
+    - Bun 1.3.12
+  - [`queueMicrotask` Bun bug](https://github.com/oven-sh/bun/issues/9249) marked as fixed in the next Bun (1.4.0?) release
+  - Added [Node 26.0](https://github.com/nodejs/node/pull/62526) compat data mapping
+  - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8), [Deno 2.8.0](https://github.com/denoland/deno/releases/tag/v2.8.0), and [Deno 2.9.4](https://github.com/denoland/deno/releases/tag/v2.9.4) compat data mapping
+  - Updated [Electron 42 and added 43, 44, and 45](https://releases.electronjs.org/) compat data mapping
+  - Added Samsung Browser 30 compat data mapping
+  - Added Oculus Quest Browser 144+ compat data mapping
+  - Added Opera for Android [97](https://forums.opera.com/topic/88511/opera-for-android-97), [98](https://forums.opera.com/topic/88625/opera-for-android-98), [99](https://forums.opera.com/topic/88883/opera-for-android-99), and [100](https://forums.opera.com/topic/88999/opera-for-android-100) compat data mapping
 
 ### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
 - Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)

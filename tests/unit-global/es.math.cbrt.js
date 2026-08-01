@@ -16,6 +16,12 @@ QUnit.test('Math.cbrt', assert => {
   assert.same(cbrt(8), 2);
   assert.closeTo(cbrt(-1000), -10, 1e-11);
   assert.closeTo(cbrt(1000), 10, 1e-11);
+  assert.same(cbrt(27), 3, 'exact cube root of 27');
+  assert.same(cbrt(64), 4, 'exact cube root of 64');
+  assert.same(cbrt(125), 5, 'exact cube root of 125');
+  assert.same(cbrt(-27), -3, 'exact cube root of -27');
+  assert.closeTo(cbrt(1e-300), 1e-100, 1e-114, 'extreme small value');
+  assert.closeTo(cbrt(1e300), 1e100, 1e86, 'extreme large value');
 
   const checker = createConversionChecker(1000);
   assert.closeTo(cbrt(checker), 10, 1e-11);

@@ -15,6 +15,7 @@ QUnit.test('Iterator#drop', assert => {
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 1.5).toArray(), [2, 3], 'float');
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 4).toArray(), [], 'big');
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 0).toArray(), [1, 2, 3], 'zero');
+  assert.arrayEqual(drop.call(createIterator([1, 2, 3]), Infinity).toArray(), [], Infinity);
 
   if (STRICT) {
     assert.throws(() => drop.call(undefined, 1), TypeError);
@@ -26,6 +27,8 @@ QUnit.test('Iterator#drop', assert => {
   assert.throws(() => drop.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => drop.call(it, NaN), RangeError, 'NaN');
+  assert.throws(() => drop.call(it, -Infinity), RangeError, '-Infinity');
+  assert.throws(() => drop.call(it, 0x20000000000000), RangeError, 'unsafe integer');
   assert.true(it.closed, 'drop closes iterator on validation error');
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => drop.call({ next: null }, 0).next(), TypeError);

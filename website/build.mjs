@@ -109,10 +109,7 @@ let fileMetadata = {};
 
 function metadata(markdown) {
   const { attributes, body } = fm(markdown);
-  fileMetadata = {};
-  for (const prop of Object.keys(attributes)) {
-    fileMetadata[prop] = attributes[prop];
-  }
+  fileMetadata = { ...attributes };
   return body;
 }
 
@@ -176,7 +173,7 @@ async function buildBlogMenu() {
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
-    const content = await readFileContent(mdPath);
+    const content = await readFile(mdPath, 'utf8');
     const tokens = marked.lexer(content);
     const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
 
@@ -212,11 +209,6 @@ async function getVersionFromMdFile(mdPath) {
   return match?.groups?.version ?? DEFAULT_VERSION;
 }
 
-async function readFileContent(filePath) {
-  const content = await readFile(filePath, 'utf8');
-  return content.toString();
-}
-
 async function buildPlaygrounds(template, versions) {
   for (const version of versions) {
     await buildPlayground(template, version, versions);
@@ -228,7 +220,7 @@ async function buildPlayground(template, version, versions) {
   const bundleScript = `<script nomodule src="${ bundlesPath }/${ config.bundleName }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
   const babelScript = '<script src="./babel.min.js"></script>';
-  const playgroundContent = await readFileContent(`${ config.srcDir }playground.html`);
+  const playgroundContent = await readFile(`${ config.srcDir }playground.html`, 'utf8');
   const versionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
   let playground = template.replace('{content}', playgroundContent);
   playground = playground.replace('{base}', BASE);
@@ -290,7 +282,7 @@ function getTitle(content) {
 }
 
 async function build() {
-  const template = await readFileContent(config.templatePath);
+  const template = await readFile(config.templatePath, 'utf8');
   await buildBlogMenu();
   const mdFiles = await getAllMdFiles(config.docsDir);
   const versions = await getVersions();
@@ -302,9 +294,8 @@ async function build() {
   let currentVersion = '';
   let versionsMenu = '';
   let isChangelog;
-  for (let i = 0; i < mdFiles.length; i++) {
-    const mdPath = mdFiles[i];
-    const content = await readFileContent(mdPath);
+  for (const mdPath of mdFiles) {
+    const content = await readFile(mdPath, 'utf8');
     isDocs = mdPath.includes('/docs');
     isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
@@ -342,7 +333,7 @@ async function build() {
         anchor.innerHTML = '<svg viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg>';
         newHeading.append(anchor);
         newHeading.classList.add('with-anchor');
-        resultHtml = resultHtml.split(heading.outerHTML).join(newHeading.outerHTML);
+        resultHtml = resultHtml.replaceAll(heading.outerHTML, newHeading.outerHTML);
       });
     }
 

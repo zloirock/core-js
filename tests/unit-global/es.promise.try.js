@@ -18,6 +18,11 @@ QUnit.test('Promise.try, resolved, with args', assert => {
   });
 });
 
+QUnit.test('Promise.try, resolved, PromiseResolve inside', assert => {
+  const p = Promise.resolve();
+  assert.same(Promise.try(() => p), p, 'PromiseResolve inside');
+});
+
 QUnit.test('Promise.try, rejected', assert => {
   return Promise.try(() => {
     throw new Error();
