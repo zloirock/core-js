@@ -56,7 +56,8 @@ import {
   collectEnclosingObjectPatterns,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  buildNestedDestructurePlan, isSymbolIteratorPatternProp, peelArrayWrapperPair, resolvePolyfillableStaticProp,
+  buildNestedDestructurePlan, isSymbolIteratorPatternProp, peelArrayWrapperPair,
+  probedNavProbeKey, resolvePolyfillableStaticProp,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   computedPropKeyHostsMachinery,
@@ -66,7 +67,9 @@ import {
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
-import { maximalProxyGlobalHop, patternBindingName, resolveSynthKeys } from '@core-js/polyfill-provider/detect-usage/resolve';
+import {
+  maximalProxyGlobalHop, patternBindingName, proxyReceiverValueCanBeUndefined, resolveSynthKeys,
+} from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
   registerBindinglessCtorAlias, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
@@ -330,6 +333,8 @@ export default function createDestructureEmitter({
   synthSwap,
   getDebugOutput,
   markThrowingExtraction,
+  probedNavGuardValueNode = null,
+  sealedClaimThrowProbeNode,
 }) {
   // alias-resolution context for the proxy-global collapse: lets `findProxyGlobal` follow a
   // const-alias root (`const g = globalThis; g.self.X`) through the canonical resolver, so the
@@ -837,6 +842,21 @@ export default function createDestructureEmitter({
     // host is the emission). both require no SE prefixes / rest sentinels around them
     const fullyConsumed = plan.outerProps.every(o => o.kind === 'consumed')
       && !plan.pattern.properties.some(isRestProperty);
+    // an UNDEFINABLE probe nav under a full-consume assignment host: ride the guarded
+    // first-key read ahead of the first extraction assign - same canon as the declarator host
+    if (fullyConsumed && assigns.length) {
+      const cascadeProbeKey = probedNavProbeKey(plan);
+      if (cascadeProbeKey) {
+        const navBase = plan.initElement ?? assignPath.node.right;
+        const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
+        const guarded = probedNavGuardValueNode?.(probedNavNode, assignPath);
+        if (guarded) {
+          assigns[0].expression.right = t.sequenceExpression([
+            t.memberExpression(guarded.node, t.identifier(cascadeProbeKey)), assigns[0].expression.right,
+          ]);
+        }
+      }
+    }
     const seFree = !peeled?.sequencePrefix?.length
       && !peelNestedSequenceExpressions(assignPath.node.right).prefix.length
       && !mayHaveSideEffects(assignPath.node.right);
@@ -895,8 +915,8 @@ export default function createDestructureEmitter({
     const oldRight = assignPath.node.right;
     assignPath.node.left = plan.pattern;
     assignPath.node.right = mayHaveSideEffects(oldRight)
-      ? t.sequenceExpression([t.cloneNode(oldRight, true), anchorInitNode(plan)])
-      : anchorInitNode(plan);
+      ? t.sequenceExpression([t.cloneNode(oldRight, true), anchorInitNode(plan, assignPath, oldRight)])
+      : anchorInitNode(plan, assignPath, oldRight);
     t.traverseFast(oldRight, node => { skippedNodes.add(node); });
   }
 
@@ -1031,6 +1051,8 @@ export default function createDestructureEmitter({
   // (a fresh synthetic re-plan of the mutated node no longer anchors), so anchored-ness is
   // recorded at rebuild time for the host-walk below
   const anchoredRebuiltAssignments = new WeakSet();
+  // probed-anchor init nodes awaiting their program-exit guard retype (see anchorInitNode)
+  const pendingProbedAnchorSwaps = [];
 
   // a symbol leaf on an SE-bearing key keeps the KEY-SWAP whenever its host ANCHORS: the
   // effect stays in the kept key (swapped by the natural visitors, effect once), values
@@ -1137,11 +1159,44 @@ export default function createDestructureEmitter({
   // missing-global targets), else a member read off the proxy's own binding
   // (`= _globalThis.Math`). anchor keys come from the static-placement whitelist, so a
   // plain identifier key node is always valid
-  function anchorInitNode(plan) {
-    if (plan.anchorPure) return t.cloneNode(injectPureImport(plan.anchorPure.entry, plan.anchorPure.hintName));
-    const proxyPure = resolveGlobalPure(plan.receiver);
-    const root = proxyPure ? t.cloneNode(injectPureImport(proxyPure.entry, proxyPure.hintName)) : t.identifier(plan.receiver);
-    return t.memberExpression(root, t.identifier(plan.anchor));
+  function anchorInitNode(plan, anchorPath = null, initNode = null) {
+    // an UNDEFINABLE probe nav init: the anchored read must ride the guard-value spelling
+    // (`(null == _globalThis.window ? void 0 : _self).Math`) so the destructure still throws
+    // where the source does; the always-defined ctor / receiver bindings below erase that
+    // throw. the swap is DEFERRED to program exit: this emitter mutates the AST in place, and
+    // an early conditional init would read as a diverging receiver to the per-prop channels
+    // still due to visit the pattern (an SE-key extraction declined on it) - the defined-nav
+    // render below stays resolvable through the traversal, the flush retypes it in place.
+    // bails to the plain defined-nav render when the shared plan cannot guard this nav shape
+    const emitted = plan.anchorPure
+      ? t.cloneNode(injectPureImport(plan.anchorPure.entry, plan.anchorPure.hintName))
+      : t.memberExpression(
+        resolveGlobalPure(plan.receiver)
+          ? t.cloneNode(injectPureImport(resolveGlobalPure(plan.receiver).entry, resolveGlobalPure(plan.receiver).hintName))
+          : t.identifier(plan.receiver),
+        t.identifier(plan.anchor));
+    if (plan.probedNav && initNode && anchorPath) {
+      const navNode = peelNestedSequenceExpressions(initNode).tail ?? initNode;
+      const guarded = probedNavGuardValueNode?.(navNode, anchorPath);
+      if (guarded) pendingProbedAnchorSwaps.push({ emitted, guarded: guarded.node, anchor: plan.anchor, hostNode: anchorPath.node });
+    }
+    return emitted;
+  }
+
+  // drain for the probed-anchor guard swaps: retype the emitted defined-nav init IN PLACE
+  // into the guarded member read (`_self.Math` / `_Map` -> `(null == _globalThis.window ?
+  // void 0 : _self).Math`). fired at the HOST's exit with that host's node (every per-prop
+  // channel of the pattern has dispatched, and a sibling plugin's later lowering hasn't yet
+  // cloned the emitted node away), and host-less at program exit as the backstop
+  function flushProbedAnchorSwaps(hostNode = null) {
+    for (let i = pendingProbedAnchorSwaps.length - 1; i >= 0; i--) {
+      const swap = pendingProbedAnchorSwaps[i];
+      if (hostNode && swap.hostNode !== hostNode) continue;
+      const swapped = t.memberExpression(swap.guarded, t.identifier(swap.anchor));
+      for (const key of Object.keys(swap.emitted)) delete swap.emitted[key];
+      Object.assign(swap.emitted, swapped);
+      pendingProbedAnchorSwaps.splice(i, 1);
+    }
   }
 
   // unconditional proxy-hop trigger, wired into the MAIN usage-pure traversal (replaces the
@@ -1225,6 +1280,19 @@ export default function createDestructureEmitter({
     // drops (clones are traversed on insertion, earning their own substitutions)
     if (!plan.pattern.properties.length) {
       const { prefix, tail } = peelNestedSequenceExpressions(assignPath.node.right);
+      // an UNDEFINABLE probe nav under a full-consume cascade: ride the guarded first-key
+      // read ahead of the first assign, once per pattern - same canon as the declarator host
+      const cascadeProbeKey = assignExprs.length ? probedNavProbeKey(plan) : null;
+      if (cascadeProbeKey) {
+        const navBase = plan.initElement ?? assignPath.node.right;
+        const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
+        const guarded = probedNavGuardValueNode?.(probedNavNode, assignPath);
+        if (guarded) {
+          assignExprs[0].right = t.sequenceExpression([
+            t.memberExpression(guarded.node, t.identifier(cascadeProbeKey)), assignExprs[0].right,
+          ]);
+        }
+      }
       // an SE-free init drops whole (its pure prefixes too - the text emitter's collapse
       // replaces the full operand, so keeping a dead literal here would desync the shape)
       const kept = mayHaveSideEffects(assignPath.node.right)
@@ -1315,6 +1383,57 @@ export default function createDestructureEmitter({
     return extracted;
   }
 
+  // init-side rebuilds of the flatten render, shared ordering-sensitive channels:
+  // - ANCHORED residual: rebuild the declarator as `<innerPattern> = <ctorBinding>` - the hop
+  //   wrapper and the proxy read are dead (every surviving read goes through the constructor);
+  //   the old init subtree is skip-seeded so the detached proxy root doesn't earn a dead
+  //   import; an SE-bearing original replays its sequence prefixes and harvested discard-SE
+  //   ahead of the anchor read, exactly once (clones are traversed on insertion, so inner
+  //   `globalThis` references still earn their substitutions)
+  // - UNDEFINABLE probe nav under an anchored FULL consume: the discarded init's read must
+  //   still throw where the source does - ride the guarded anchor read ahead of the FIRST
+  //   extraction's binding, once per pattern (native throws before any prop read)
+  // - SE-bearing chain-root call / chain-assignment in a fully-DISCARDED init: re-emit as a
+  //   sequence prefix on the LAST extraction so the setup still runs, exactly once (a partial
+  //   consume keeps the declarator with its init, so the setup already runs there)
+  function applyAnchoredInitRebuilds(plan, declarator, extracted, patternEmpties) {
+    if (plan.anchor && !patternEmpties) {
+      const oldInit = declarator.node.init;
+      declarator.node.id = plan.pattern;
+      const replayed = [...plan.anchorSe ?? [], ...plan.discardSe ?? []];
+      declarator.node.init = replayed.length
+        ? t.sequenceExpression([...replayed.map(node => t.cloneNode(node)), anchorInitNode(plan, declarator, oldInit)])
+        : anchorInitNode(plan, declarator, oldInit);
+      t.traverseFast(oldInit, node => { skippedNodes.add(node); });
+    }
+    const fullConsumeProbeKey = patternEmpties && extracted.length ? probedNavProbeKey(plan) : null;
+    let probeOwnedCall = null;
+    if (fullConsumeProbeKey) {
+      // an array-wrapped init's probe value is the DESCENDED element, not the wrapper array
+      const navBase = plan.initElement ?? declarator.node.init;
+      const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
+      const guarded = probedNavGuardValueNode?.(probedNavNode, declarator);
+      if (guarded) {
+        const [first] = extracted;
+        first.init = t.sequenceExpression([t.memberExpression(guarded.node, t.identifier(fullConsumeProbeKey)), first.init]);
+        probeOwnedCall = guarded.rootEffectCall;
+      }
+    }
+    if (patternEmpties && plan.discardSe) {
+      // the probe's guard test runs an effect-bearing CALL root exactly once - the discard
+      // replay must not re-run it (identity plus span symmetry with the harvested node)
+      const replayable = probeOwnedCall
+        ? plan.discardSe.filter(node => node !== probeOwnedCall
+          && !(node.start >= probeOwnedCall.start && node.end <= probeOwnedCall.end)
+          && !(probeOwnedCall.start >= node.start && probeOwnedCall.end <= node.end))
+        : plan.discardSe;
+      if (replayable.length) {
+        const last = extracted.at(-1);
+        last.init = t.sequenceExpression([...replayable.map(node => t.cloneNode(node)), last.init]);
+      }
+    }
+  }
+
   // declaration-host renderer for the shared nested-flatten plan: ONE batch render on the
   // first dispatched leaf replaces the old per-prop incremental cascade. extraction order =
   // plan order = source order, matching both the old visit order and unplugin's text render.
@@ -1334,32 +1453,7 @@ export default function createDestructureEmitter({
     const extracted = buildExtractionDeclarators(plan, declarator);
     prunePatternByPlan(plan.pattern, plan.outerProps);
     const patternEmpties = plan.pattern.properties.length === 0;
-    // ANCHORED residual: rebuild the declarator as `<innerPattern> = <ctorBinding>` - the
-    // hop wrapper and the proxy read are dead (every surviving read goes through the
-    // constructor). the old init subtree is skip-seeded so the detached proxy root doesn't
-    // earn a dead import
-    if (plan.anchor && !patternEmpties) {
-      const oldInit = declarator.node.init;
-      declarator.node.id = plan.pattern;
-      // the re-anchored init REPLACES the SE-bearing original: replay the collected
-      // sequence prefixes and the harvested discard-SE ahead of the anchor read, exactly
-      // once (clones are traversed on insertion, so inner `globalThis` references still
-      // earn their substitutions; the original init subtree stays skipped)
-      const replayed = [...plan.anchorSe ?? [], ...plan.discardSe ?? []];
-      declarator.node.init = replayed.length
-        ? t.sequenceExpression([...replayed.map(node => t.cloneNode(node)), anchorInitNode(plan)])
-        : anchorInitNode(plan);
-      t.traverseFast(oldInit, node => { skippedNodes.add(node); });
-    }
-    // an SE-bearing chain-root call / chain-assignment in the DISCARDED init: re-emit it as
-    // a sequence prefix on the LAST extraction so the setup still runs, exactly once (a
-    // partial consume KEEPS the declarator with its init, so the setup already runs there).
-    // the CLONE is traversed on insertion, so its inner references (`globalThis`) still earn
-    // their own substitutions; the original init subtree stays skipped with the declarator
-    if (patternEmpties && plan.discardSe) {
-      const last = extracted.at(-1);
-      last.init = t.sequenceExpression([...plan.discardSe.map(node => t.cloneNode(node)), last.init]);
-    }
+    applyAnchoredInitRebuilds(plan, declarator, extracted, patternEmpties);
     // seed skippedNodes for the subtree about to be orphaned so scheduled visitor re-entries
     // short-circuit. for-init+SE preserves the init (under a sink id), so its inner
     // Identifier visits (`globalThis` inside `(se(), globalThis)`) still need to fire for
@@ -1813,6 +1907,46 @@ export default function createDestructureEmitter({
   // branch (`_Set.from` is undefined). pure mode has no side-effect import channel either,
   // so we leave the code intact and warn - runtime correctness depends on which branch
   // fires and on native availability
+  // a SEALED probe init (`{ of } = (globalThis.window?.self).Array`): the collapse drops
+  // the read the source performs on the sealed VALUE - prepend it as a THROW probe so an
+  // absent `window` throws before ANY binding, exactly as the untranspiled source does
+  function sealedProbedDestructureValue(prop, value) {
+    // ONE probe per pattern, and only on a FULL consume: extraction removes each handled
+    // prop from the pattern, so the LAST prop standing sees itself alone - any residual
+    // (leftover props, rest) re-reads the init and carries the throw AND the key SE itself,
+    // making a probe a double run
+    const props = prop.parentPath?.node?.properties;
+    if (!props || props.length !== 1 || props[0] !== prop.node) return value;
+    const sourceNode = destructureSourceNode(prop);
+    const throwProbe = sourceNode && sealedClaimThrowProbeNode?.(prop, sourceNode);
+    if (throwProbe) return t.sequenceExpression([throwProbe.node, value]);
+    // a BARE probed nav (`{ structuredClone } = (globalThis.window?.self)` - no member read
+    // to seal): native throws reading the pattern key off the probe value, so re-emit that
+    // read as `(guard).<key>` ahead of the binding. static identifier keys only - a computed
+    // SE key keeps its residual channel; a nav the shared guard plan cannot collapse keeps
+    // today's render
+    const bareKey = !prop.node.computed && prop.node.key?.type === 'Identifier' ? prop.node.key.name : null;
+    if (bareKey && sourceNode && probedNavGuardValueNode
+      && proxyReceiverValueCanBeUndefined(sourceNode, ({ name }) => resolveGlobalPure(name),
+        { scope: prop.scope, adapter, path: prop })) {
+      const navNode = peelNestedSequenceExpressions(sourceNode).tail ?? sourceNode;
+      const guarded = probedNavGuardValueNode(navNode, prop);
+      if (guarded) return t.sequenceExpression([t.memberExpression(guarded.node, t.identifier(bareKey)), value]);
+    }
+    return value;
+  }
+
+  // the enclosing destructure SOURCE expression (declarator init / assignment right) for a
+  // pattern property - the read the source performs before any binding lands
+  function destructureSourceNode(prop) {
+    for (let p = prop.parentPath; p; p = p.parentPath) {
+      if (p.isVariableDeclarator()) return p.node.init;
+      if (p.isAssignmentExpression()) return p.node.right;
+      if (!p.isObjectPattern() && !p.isObjectProperty() && !p.isArrayPattern()) return null;
+    }
+    return null;
+  }
+
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
     // a key-swap survivor of an already-rendered flatten / fold (revisits re-enter here
     // after the host rebuild requeues the pattern subtree): the natural computed-key
@@ -1950,7 +2084,7 @@ export default function createDestructureEmitter({
         collapseRetainedProxyReceiver(synthSwap, value.arguments, 0, instAliasCtx);
       }
     } else {
-      value = injectPureImport(entry, hintName);
+      value = sealedProbedDestructureValue(prop, injectPureImport(entry, hintName));
     }
     // body-extract alias for static methods: AST mutation rewrites the destructure value
     // to `_unused` (rest sibling) or removes the prop entirely, leaving the new
@@ -2704,6 +2838,6 @@ export default function createDestructureEmitter({
 
   return {
     deferredSideEffects, retainedForInitHosts, extractCatchClause, handleObjectPropertyResult,
-    splitFlatMultiDecls, tryFlattenProxyHopHost,
+    flushProbedAnchorSwaps, splitFlatMultiDecls, tryFlattenProxyHopHost,
   };
 }

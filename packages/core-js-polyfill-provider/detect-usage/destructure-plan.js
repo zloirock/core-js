@@ -29,7 +29,10 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
-import { discardRescueNodes, isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName } from './resolve.js';
+import {
+  discardRescueNodes, isStaticPlacement, proxyReceiverValueCanBeUndefined,
+  resolveKey as sharedResolveKey, resolveObjectName,
+} from './resolve.js';
 import {
   destructureRightIsReceiver, fallbackInitWhollyDiscardable, isUndefinedNode, resolveBranchProxyName, walkStaticReceiverChain,
 } from './destructure.js';
@@ -233,6 +236,19 @@ export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure,
 // AssignmentExpression cascade plans a synthetic `{ id, init }` host and the render-time
 // re-entry on the same object must read THAT plan (the cascade also neutralizes
 // `plan.discardSe` on the shared object before rendering)
+// the KEY a full-consume throw probe re-reads off the guarded PROBED value: native
+// destructuring of the probe value throws reading its FIRST key, so `(guard).<key>`
+// reproduces the source TypeError ahead of the extractions. the anchored hop IS that first
+// key; a flat plan reads its first consumed prop's static identifier name. null (no probe)
+// for computed / non-identifier first keys - those keep their own residual channels
+export function probedNavProbeKey(plan) {
+  if (!plan?.probedNav) return null;
+  if (plan.anchor) return plan.anchor;
+  const first = plan.outerProps?.[0];
+  if (!first || first.kind !== 'consumed' || !first.prop || first.prop.computed) return null;
+  return first.prop.key?.type === 'Identifier' ? first.prop.key.name : null;
+}
+
 const planCache = new WeakMap();
 
 // classify a destructure declarator (`{ id, init }` - a real VariableDeclarator or the
@@ -511,11 +527,18 @@ export function buildNestedDestructurePlan({
     // setup already runs at the alias declaration, so harvesting it would double-run
     const probed = init ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
     const inSlot = declarator.init
-      ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [];
-    const discardSe = inSlot.length ? inSlot : null;
+            ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [],
+          discardSe = inSlot.length ? inSlot : null;
     const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
     planReceiverName = receiver;
     if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
+      // an UNDEFINABLE probe nav as the init (`globalThis.window?.self`, its sealed paren
+      // spelling): destructuring THROWS where the probe yields undefined, so an anchored /
+      // flattened render reading the always-defined receiver binding would erase that throw
+      // (and run computed-key effects the source never reaches). the flag routes those
+      // renders back through the guard-value spelling of the source read
+      const probedNav = proxyReceiverValueCanBeUndefined(init,
+        ({ name }) => resolveGlobalPolyfill(name), { scope, adapter, path });
       // single-key proxy-hop ANCHOR: `{ K: <pattern> } = <proxy>` on a value-discarded host
       // (the callers' contract - declarator inits are never read, the cascade gates on
       // statement context) plans like its flat twin `<pattern> = <proxy>.K`: inner props are
@@ -557,7 +580,7 @@ export function buildNestedDestructurePlan({
         const outerProps = inner.properties.map(p => planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
         return {
-          receiver, anchor: key,
+          receiver, anchor: key, probedNav,
           anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(key),
           outerProps, pattern: inner, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
@@ -583,7 +606,7 @@ export function buildNestedDestructurePlan({
           && reanchored.some(p => p.kind === 'anchored') && reanchored.some(p => p.kind === 'consumed')
           ? reanchored : planned;
         if (outerProps.some(p => hasExtractions(p) || p.kind === 'anchored')) {
-          plan = { receiver, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+          plan = { receiver, probedNav, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
         }
       }
       // a pattern hop that is ITSELF a proxy-global alias (`{ self: { x } } = globalThis`, deeper
@@ -615,7 +638,7 @@ export function buildNestedDestructurePlan({
         }
         if (!lastHop) return null;
         return planCtorKeyAnchor(effPattern) ?? {
-          receiver, anchor: lastHop, anchorPure: receiverPure,
+          receiver, anchor: lastHop, anchorPure: receiverPure, probedNav,
           outerProps: effPattern.properties.map(p => planSymbolIteratorProp(p) ?? planOuterProp(p)),
           pattern: effPattern, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };

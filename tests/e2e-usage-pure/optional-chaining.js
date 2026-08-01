@@ -480,40 +480,191 @@ testUnlessDetectLowered('optional chaining: deep pristine hops read the ponyfill
 });
 
 // hops SWAPPED (the unresolvable `window` hop before the ponyfillable `self` hop): ONE nested
-// test on the window prefix guards the chain. `window` does not exist in the Node runner, so
-// the guard must fire (undefined) WITHOUT evaluating the branch - a guard that tested the
-// always-defined ponyfill instead would run the branch and yield the array value
+// test on the window prefix guards the chain. the browser legs have `window`, so the guard
+// takes the ponyfill-backed branch; the Node runner does not, so the guard must fire
+// (undefined) WITHOUT evaluating the branch - a guard that tested the always-defined
+// ponyfill instead would run the branch on BOTH
+const WINDOW_PRESENT = typeof window != 'undefined';
 QUnit.test('optional chaining: swapped-hop guard fires on the raw prefix', assert => {
   let swapCalls = 0;
   function swappedRoot() {
     swapCalls += 1;
     return globalThis;
   }
-  assert.same(swappedRoot()?.window?.self?.Array.of(12).at(0), undefined);
+  assert.same(swappedRoot()?.window?.self?.Array.of(12).at(0), WINDOW_PRESENT ? 12 : undefined);
   assert.same(swapCalls, 1);
 });
 
-// the same short-circuit through a CONST-bound computed hop key, a CHAIN-ASSIGN root (the
-// write still runs exactly once), and an SE-PREFIXED computed key (the key effect must NOT
-// run - native short-circuits at the absent `window` before evaluating the key)
+// the same guard through a CONST-bound computed hop key, a CHAIN-ASSIGN root (the write
+// still runs exactly once), and an SE-PREFIXED computed key (native evaluates the key ONLY
+// past a present `window` - where it is absent the short-circuit precedes the key effect)
 QUnit.test('optional chaining: swapped-hop guard variants keep native semantics', assert => {
   const hopKey = 'self';
   function computedRoot() { return globalThis; }
-  assert.same(computedRoot()?.window?.[hopKey]?.Array.of(13).at(0), undefined);
+  assert.same(computedRoot()?.window?.[hopKey]?.Array.of(13).at(0), WINDOW_PRESENT ? 13 : undefined);
   let held;
   let assignCalls = 0;
   function assignRoot() {
     assignCalls += 1;
     return globalThis;
   }
-  assert.same((held = assignRoot())?.window?.self?.Array.of(14).at(0), undefined);
+  assert.same((held = assignRoot())?.window?.self?.Array.of(14).at(0), WINDOW_PRESENT ? 14 : undefined);
   assert.same(assignCalls, 1);
   assert.same(held, globalThis);
   let keyEffects = 0;
   function seKeyRoot() { return globalThis; }
   // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
-  assert.same(seKeyRoot()?.window?.[(keyEffects++, 'self')]?.Array.of(15).at(0), undefined);
-  assert.same(keyEffects, 0);
+  assert.same(seKeyRoot()?.window?.[(keyEffects++, 'self')]?.Array.of(15).at(0), WINDOW_PRESENT ? 15 : undefined);
+  assert.same(keyEffects, WINDOW_PRESENT ? 1 : 0);
+});
+
+// the BARE proxy-root probe (`globalThis.window` with no call / assignment around the root):
+// the guard tests the raw `window` read, and past a present `window` the chain continues off
+// the ponyfill-backed hop - a raw `self` read there would miss the ponyfill class
+QUnit.test('optional chaining: bare proxy-root probe guards on the raw prefix', assert => {
+  let keyEffects = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
+  assert.same(globalThis.window?.[(keyEffects++, 'self')]?.Array.of(21).at(0), WINDOW_PRESENT ? 21 : undefined);
+  assert.same(keyEffects, WINDOW_PRESENT ? 1 : 0);
+  assert.same(globalThis.window?.self?.Array.of(22).at(0), WINDOW_PRESENT ? 22 : undefined);
+  // a PLAIN claimless tail after the guarded hop: the source `?.` short-circuits the WHOLE
+  // chain, so past an absent `window` the tail read must not throw and the key effect must
+  // not run
+  let plainKeyEffects = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed key IS the case
+  assert.same(typeof globalThis.window?.[(plainKeyEffects++, 'self')].Number, WINDOW_PRESENT ? 'function' : 'undefined');
+  assert.same(plainKeyEffects, WINDOW_PRESENT ? 1 : 0);
+  assert.same(typeof globalThis.window?.self.JSON, WINDOW_PRESENT ? 'object' : 'undefined');
+});
+
+// a PAREN-SEALED probe nav: the seal ends the chain, so a PLAIN read above it THROWS where
+// the window probe is absent (the guarded render reproduces the source TypeError), and reads
+// through the ponyfill where it is present; the sealed hop's key SE runs only past a present
+// window
+QUnit.test('optional chaining: sealed probe nav keeps the source throw', assert => {
+  let k = 0;
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
+    assert.same((globalThis.window?.self).Array.of(31).at(0), 31);
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
+    assert.true((globalThis.window?.[(k++, 'self')]).Number.isInteger(5));
+    assert.same(k, 1);
+  } else {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
+    assert.throws(() => (globalThis.window?.self).Array.of(31), TypeError);
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed SE-key IS the case
+    assert.throws(() => (globalThis.window?.[(k++, 'self')]).Number, TypeError);
+    assert.same(k, 0);
+  }
+});
+
+// a pattern-hop (anchored) destructure over an undefinable probe nav: destructuring the
+// probe VALUE throws where `window` is absent - the anchored renders must keep that throw
+// (an always-defined ctor binding would swallow it AND run the computed-key effect the
+// source never reaches), and extract the polyfill where it is present
+QUnit.test('optional chaining: anchored destructure over a probe nav keeps the source throw', assert => {
+  let k = 0;
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed probe source IS the case
+    const { Object: { [(k++, 'keys')]: pickedKeys } } = (globalThis.window?.self);
+    assert.same(typeof pickedKeys, 'function');
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed probe source IS the case
+    const { JSON: { stringify: pickedStringify } } = (globalThis.window?.self);
+    assert.same(pickedStringify({ a: 1 }), '{"a":1}');
+    assert.same(k, 1);
+  } else {
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the probe throw IS the case
+      const { Object: { [(k++, 'keys')]: pickedKeys } } = (globalThis.window?.self);
+      return pickedKeys;
+    }, TypeError);
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the probe throw IS the case
+      const { JSON: { stringify: pickedStringify } } = (globalThis.window?.self);
+      return pickedStringify;
+    }, TypeError);
+    assert.same(k, 0);
+  }
+});
+
+// a REST sibling next to the pattern hop declines the anchor: the flat residual must keep
+// the guard-value init - an always-defined receiver binding would erase the probe's throw
+// AND hand rest the realm global's own keys where native throws
+QUnit.test('optional chaining: rest sibling over a probe nav keeps the source throw', assert => {
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed probe source IS the case
+    const { Math: { trunc: pickedTrunc }, ...restBag } = (globalThis.window?.self);
+    assert.same(typeof pickedTrunc, 'function');
+    assert.same(typeof restBag, 'object');
+  } else {
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the probe throw IS the case
+      const { Math: { trunc: pickedTrunc }, ...restBag } = (globalThis.window?.self);
+      return [pickedTrunc, restBag];
+    }, TypeError);
+  }
+});
+
+// FULL consumes outside the anchor gate carry the same once-per-pattern probe: a flat
+// single-level pattern re-reads its own key off the guarded value, an array wrapper probes
+// the descended element - an absent `window` throws before any binding, a present one
+// extracts the polyfills
+QUnit.test('optional chaining: flat and wrapped full consumes keep the probe throw', assert => {
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the sealed probe source IS the case
+    const { structuredClone: pickedClone } = (globalThis.window?.self);
+    assert.same(typeof pickedClone, 'function');
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the sealed probe source IS the case
+    const [{ Math: { hypot: pickedHypot } }] = [(globalThis.window?.self)];
+    assert.same(pickedHypot(3, 4), 5);
+  } else {
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the probe throw IS the case
+      const { structuredClone: pickedClone } = (globalThis.window?.self);
+      return pickedClone;
+    }, TypeError);
+    assert.throws(() => {
+      // eslint-disable-next-line @stylistic/no-extra-parens -- the probe throw IS the case
+      const [{ Math: { hypot: pickedHypot } }] = [(globalThis.window?.self)];
+      return pickedHypot;
+    }, TypeError);
+  }
+});
+
+// a CALL-rooted probe nav: the guard test owns the SINGLE root-call run - a replayed
+// harvest would double the call's effect against native, and an erased probe would drop
+// the throw at an absent `window`
+QUnit.test('optional chaining: call-rooted probe nav runs its root call exactly once', assert => {
+  let calls = 0;
+  function dhe() {
+    calls++;
+    return globalThis;
+  }
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the probe source IS the case
+    const { JSON: { parse: pickedParse } } = dhe().window?.self;
+    assert.same(pickedParse('{"a":2}').a, 2);
+  } else {
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining -- the probe throw IS the case
+      const { JSON: { parse: pickedParse } } = dhe().window?.self;
+      return pickedParse;
+    }, TypeError);
+  }
+  assert.same(calls, 1);
+});
+
+// an ALIAS-rooted sealed claim rides the same probe canon: the claim's throw probe re-reads
+// the sealed value, throwing at an absent `window` where a plain erase would just run
+QUnit.test('optional chaining: alias-rooted sealed claim keeps the source throw', assert => {
+  const gAlias = globalThis;
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
+    assert.same((gAlias.window?.self).Array.of(41).at(0), 41);
+  } else {
+    // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed throw IS the case
+    assert.throws(() => (gAlias.window?.self).Array.of(41), TypeError);
+  }
 });
 
 // an SE-carrying computed key on a collapsible hop MIGRATES with the collapse: the effect
@@ -529,13 +680,13 @@ QUnit.test('optional chaining: SE computed key keeps its single run through the 
 });
 
 // an ALIAS holding an undefinable nav keeps its `?.` LIVE: the prefix walks see through the
-// binding to the always-defined global, but the runtime VALUE is the nav's - `window` is
-// absent in the Node runner, so the alias is undefined and the read must short-circuit
+// binding to the always-defined global, but the runtime VALUE is the nav's - undefined where
+// `window` is absent (the read must short-circuit), the nav value where it is present
 QUnit.test('optional chaining: alias of an undefinable nav keeps its guard', assert => {
   let held;
   // eslint-disable-next-line prefer-const -- the assignment-form alias IS the case
   held = globalThis.window?.self.window;
-  assert.same(held?.Array.of(2).at(0), undefined);
+  assert.same(held?.Array.of(2).at(0), WINDOW_PRESENT ? 2 : undefined);
 });
 
 // a DESTRUCTURE over a guarded opaque chain: native destructuring of undefined THROWS -
@@ -555,11 +706,11 @@ QUnit.test('optional chaining: destructure over a guarded chain keeps the native
 });
 
 // an IDENTITY-IIFE root: the buried global proves through the identity-param inline canon.
-// `window` does not exist in the Node runner, so the whole chain must short-circuit to
-// undefined - a claim sealed inside the instance helper slot would THROW here instead
+// where `window` is absent the whole chain must short-circuit to undefined - a claim sealed
+// inside the instance helper slot would THROW there instead
 QUnit.test('optional chaining: identity-IIFE root keeps the short-circuit', assert => {
   let idCalls = 0;
-  assert.same((x => x)((idCalls++, globalThis))?.window?.self?.Array.of(16).at(0), undefined);
+  assert.same((x => x)((idCalls++, globalThis))?.window?.self?.Array.of(16).at(0), WINDOW_PRESENT ? 16 : undefined);
   assert.same(idCalls, 1);
 });
 
@@ -588,7 +739,7 @@ QUnit.test('optional chaining: callee alias follows transitively, param callee s
     return globalThis;
   }
   const aliasedMk = mk;
-  assert.same(aliasedMk()?.window?.self?.Array.of(5).at(0), undefined);
+  assert.same(aliasedMk()?.window?.self?.Array.of(5).at(0), WINDOW_PRESENT ? 5 : undefined);
   assert.same(bodyRuns, 1);
   function readViaParamCallee(factory) {
     const inner = factory;
@@ -599,8 +750,9 @@ QUnit.test('optional chaining: callee alias follows transitively, param callee s
 });
 
 // the bare-global alias proof is scope-correct both ways: the module-side alias proves under a
-// same-name param shadow (guard short-circuits - `window` is absent in the Node runner), while
-// an alias of the PARAM keeps the raw chain reading the caller's own object
+// same-name param shadow (the guard short-circuits where `window` is absent, the branch reads
+// the ponyfill ctor where it is present), while an alias of the PARAM keeps the raw chain
+// reading the caller's own object
 QUnit.test('optional chaining: bare-global alias proof respects scope', assert => {
   const globalAlias = globalThis;
   const held = globalAlias;
@@ -608,7 +760,7 @@ QUnit.test('optional chaining: bare-global alias proof respects scope', assert =
   function readUnderShadow(globalAlias) {
     return held.window?.self?.WeakMap;
   }
-  assert.same(readUnderShadow('shadow'), undefined);
+  assert.same(typeof readUnderShadow('shadow'), WINDOW_PRESENT ? 'function' : 'undefined');
   function readParamAlias(root) {
     const p = root;
     return p.window?.self?.WeakMap;
@@ -650,4 +802,40 @@ QUnit.test('optional chaining: hoisted key alias and reassigned-source capture',
   // eslint-disable-next-line no-useless-assignment -- the post-capture reassignment IS the case
   factory = () => globalThis;
   assert.same(capturedFactory()?.window?.self?.WeakMap, 'captured');
+});
+
+// a PAREN-SEALED undefinable nav as a chain root: the outer `?.` guards the sealed VALUE -
+// where `window` is absent the call and field claims must short-circuit (the eaten guard
+// returned the branch value here), where it is present the branch reads the ponyfill
+QUnit.test('optional chaining: paren-sealed nav root keeps its guard', assert => {
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren SEAL is the case
+  assert.same((globalThis.window?.self.window)?.Array.of(3).at(0), WINDOW_PRESENT ? 3 : undefined);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren SEAL is the case
+  assert.same((globalThis.window?.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(2), WINDOW_PRESENT ? '9007199254740991.00' : undefined);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren SEAL is the case
+  function viaParamDefault(x = (globalThis.window?.self.window)?.Array.of(5).at(0)) {
+    return x;
+  }
+  assert.same(viaParamDefault(), WINDOW_PRESENT ? 5 : undefined);
+});
+
+// the sealed-root claim family at runtime: where `window` is present the guarded branch reads
+// ponyfills; where absent every spelling short-circuits, and the destructure keeps the native
+// throw on the undefined path
+QUnit.test('optional chaining: paren-sealed nav claim spellings', assert => {
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren SEAL is the case
+  assert.deepEqual((globalThis.window?.self.window)?.Array.of?.(3), WINDOW_PRESENT ? [3] : undefined);
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren SEAL is the case
+  assert.same(typeof (globalThis.window?.self.window)?.Map, WINDOW_PRESENT ? 'function' : 'undefined');
+  if (WINDOW_PRESENT) {
+    // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- window-present branch
+    const { at: picked } = (globalThis.window?.self.window)?.Array.of(9);
+    assert.same(typeof picked, 'function');
+  } else {
+    assert.throws(() => {
+      // eslint-disable-next-line no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the native throw IS the case
+      const { at: picked } = (globalThis.window?.self.window)?.Array.of(9);
+      return picked;
+    }, TypeError);
+  }
 });
