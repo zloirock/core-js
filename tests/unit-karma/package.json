@@ -10,5 +10,8 @@
     "playwright": "^1.62.1",
     "qunit": "^2.26.0",
     "which": "^7.0.0"
+  },
+  "overrides": {
+    "yauzl": "^3.4.0"
   }
 }
