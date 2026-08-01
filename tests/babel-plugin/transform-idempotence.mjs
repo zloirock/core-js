@@ -55,6 +55,10 @@ const CASES = [
   ['alias-resolved computed key', "const j = 'from';\nconst k = j;\nexport const r = Array[k]?.([1]);"],
   ['transitive callee alias root', 'const mk = () => globalThis;\nconst q = mk;\nexport const r = q()?.window?.self?.Array.of(1).at(0);'],
   ['bare-global alias static claim', 'const g = globalThis;\nconst h = g;\nexport const r = h.window?.self?.Map;'],
+  // the second pass sees the FIRST pass's minted ctor import; the patch through it must
+  // register the mutated static (the minted-shape gate + ctor-source recognition), or the
+  // re-run substitutes the polyfill over the user's patch
+  ['patch through a minted ctor import', 'import _Map from "@core-js/pure/actual/map/constructor";\n_Map.groupBy = patched;\nexport const r = _Map.groupBy([], f);'],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };

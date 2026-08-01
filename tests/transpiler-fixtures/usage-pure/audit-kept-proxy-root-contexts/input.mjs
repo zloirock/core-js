@@ -35,6 +35,15 @@ export const spreadOut = [...((sp = globalThis.window)?.[(c++, 'self')].Array.fr
 
 class KeptHost {
   static probe = globalThis.window?.[(c++, 'self')]?.Array;
+  // a PLAIN claimless tail after the guarded hop rides the source short-circuit: past an
+  // absent `window` it must read nothing (not throw), and the key effect must not run
+  static plainTail = globalThis.window?.[(c++, 'self')].Number;
+  plainDotTail = globalThis.window?.self.JSON;
+  // a chain END that is ITSELF a proxy hop - dotted, static-string computed or SE-keyed
+  // computed alike - belongs to the alias / kept canons and stays raw (a value render of
+  // only its object would strand the end hop outside the guard)
+  static endHop = globalThis.window?.self?.['window'];
+  endHopSeKey = globalThis.window?.self?.[(c++, 'window')];
   field = (globalThis.window ?? globalThis)[(c++, 'self')]?.Array;
   static {
     let sb;
@@ -42,6 +51,28 @@ class KeptHost {
   }
 }
 export const keptHost = new KeptHost();
+
+// a claimless ctor read in a `new` callee: the render stays inside the callee parens (a bare
+// optional chain is not legal there), and an absent `window` throws in source and render alike
+export const newCallee = new (globalThis.window?.self.CustomOther)(1);
+
+// a call in the MIDDLE of the probe chain: the render lands on the deepest member whose object
+// is the pure proxy nav, and the call rides the chain's own short-circuit outside it
+export const midCall = globalThis.window?.self.foo().bar;
+
+// a nullish-coalescing carrier over the probe chain: the guarded render is the left operand
+export const nullishCarrier = globalThis.window?.[(c++, 'self')].JSON ?? 'absent';
+
+// SE-keyed hop under a claimed static + instance dispatch: the dispatch's guard memoizes the
+// probe root only, so the hop-key SE rides the claim body on the non-null branch
+export const seKeyClaimDispatch = globalThis.window?.[(c++, 'self')].Array.of(8).flat();
+
+// bare-probe INSTANCE guard-memo spellings: the prototype-method call keeps the raw nav in
+// the guard body (the locked alias/kept canon), the call-argument SE stays put; the SE-key
+// claimless `new`-callee renders the pony guard inside the callee parens
+export const bareProtoCall = globalThis.window?.[(c++, 'self')].Array.prototype.find.call([5], v => v === (c++, 5));
+export const bareProtoUnpolyfilled = globalThis.window?.[(c++, 'self')].Array.prototype.indexOf.call([5], 5);
+export const bareSeKeyNewCallee = new (globalThis.window?.[(c++, 'self')]?.CustomThing)();
 
 export async function awaited() {
   let aw;
