@@ -1,11 +1,9 @@
-import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // prototype (instance-property) mutations: the mutated key's INSTANCE entry is imported up
 // front, so core-js caches its own implementation from the pristine prototype BEFORE the

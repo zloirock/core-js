@@ -2329,6 +2329,9 @@ function createResolveNodeType(babelNodeType, t, {
   function getPatternInit(p) {
     if (t.isAssignmentExpression(p?.node)) return p.get('right');
     if (t.isVariableDeclarator(p?.node)) return p.get('init');
+    // NO AssignmentPattern arm ON PURPOSE: a param default is NOT an authoritative receiver -
+    // it feeds only the undefined-argument branch, and a runtime argument may be ANY type
+    // (the provider's union-hints unit locks this; over-inject stays the safe verdict)
     return null;
   }
 

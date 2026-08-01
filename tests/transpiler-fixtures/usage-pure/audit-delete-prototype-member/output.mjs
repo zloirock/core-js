@@ -1,4 +1,3 @@
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Map from "@core-js/pure/actual/map/constructor";
 // `delete X.prototype.method` operand: the method name is preserved verbatim, only
 // the receiver gets the standard polyfill rewrite.
