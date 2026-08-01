@@ -30,6 +30,7 @@
 - Fixed `JSON.stringify` polyfill with an array replacer - keys order now follows the replacer, inherited and non-enumerable properties are no longer ignored, [#1539](https://github.com/zloirock/core-js/issues/1539)
 - Make `URL` / `URLSearchParams` parsing a little more correct (char sets, percent coding, etc)
 - Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
+- Fix `URL#toJSON` when `URL#toString` is reassigned after core-js is imported
 - Fixed possible crash on some keys in `Symbol.for`
 - Some `get-iterator` / `get-iterator-method` fixes
 - Fixed `String.prototype.{ match, search }` polyfills conversion order
