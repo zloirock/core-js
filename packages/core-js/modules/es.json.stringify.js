@@ -12,7 +12,7 @@ var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof-raw');
 var thisNumberValue = require('../internals/this-number-value');
-var contains = require('../internals/array-includes').includes;
+var includes = require('../internals/array-includes').includes;
 var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/to-string');
 var parseJSONString = require('../internals/parse-json-string');
@@ -202,7 +202,7 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
         if (root) root = false;
         // the innermost reordered object already contains only keys of the property list and arrays are not
         // affected by it, the rest of objects (like objects with a fake `Symbol.toStringTag`) are filtered here
-        else if (this !== currentOrdered && !isArray(this) && !contains(propertyList, key)) return;
+        else if (this !== currentOrdered && !isArray(this) && !includes(propertyList, key)) return;
       } else if (replacerFunction) value = call(replacerFunction, this, key, value);
 
       if (isRawJSONValue(value)) {
@@ -213,7 +213,7 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
 
       if (propertyList && isSerializedAsObject(value)) {
         // reordered objects are new each time, so cycles should be detected before the engine does it
-        if (contains(openObjects, value)) throw new $TypeError('Converting circular structure to JSON');
+        if (includes(openObjects, value)) throw new $TypeError('Converting circular structure to JSON');
         var ordered = createOrderedObject(value, propertyList, keyPrefix);
         push(openObjects, value);
         push(parentOrdered, currentOrdered);
