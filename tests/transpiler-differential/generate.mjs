@@ -1056,6 +1056,157 @@ function * generateKeptProxyRoot() {
   }
 }
 
+// --- Bare proxy-root probe: pristine `globalThis.window?.<hop>` with NO assignment / call around
+// the root - the claimless value canon guards on the raw probe and serves the hop through the
+// ponyfill. UNRIGGED rows run with `window` ABSENT: the source `?.` short-circuits the WHOLE
+// chain, so a PLAIN tail stranded outside the guard is a throw where native yields undefined,
+// and the key SE must not fire. RIGGED rows take the present-window branch: pony-backed value,
+// key SE exactly once
+const BARE_PROBE_SHAPES = [
+  { id: 'plain-tail-se-key', tail: "?.[(log.push('k'), 'self')].Number" },
+  { id: 'plain-dot-tail', tail: '?.self.JSON' },
+  { id: 'optional-tail-se-key', tail: "?.[(log.push('k'), 'self')]?.Number" },
+  { id: 'optional-dot-tail', tail: '?.self?.JSON' },
+  // SE-keyed hop UNDER a claimed static + instance dispatch: the dispatch's outer guard memoizes
+  // only the probe root, so the hop-key SE must ride the claim BODY (a receiver-count cut dropped
+  // it - the memo never captured an effect past the guarded root)
+  { id: 'se-key-claim-dispatch', tail: "?.[(log.push('k'), 'self')].Array.of(5).at(0)" },
+];
+function * generateBareProxyProbe() {
+  for (const shape of BARE_PROBE_SHAPES) {
+    const inner = `(() => { const v = globalThis.window${ shape.tail }; return typeof v; })()`;
+    yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // SEALED probe navs: parens end the inner chain, so the read above is PLAIN - an absent
+  // `window` must THROW exactly as the source does (a guardless hop collapse returned a value),
+  // and a present one reads through the ponyfill. the sequence-paren'd write host is the same
+  // class (the host is the probe VALUE)
+  const sealedRead = '(() => { try { return typeof (globalThis.window?.self).Number; } catch (e) { return "throw"; } })()';
+  const sealedClaim = '(() => { try { return (globalThis.window?.self).Array.of(5).at(0); } catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/sealed-plain-claim', sealedClaim), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-plain-claim-rigged', sealedClaim, { rig: true }), strip: false };
+  // SE-keyed hop INSIDE the sealed nav: the throw probe CARRIES the key SE (native order -
+  // test, key effect, read), and the claim's own channel must not re-run it. the log length
+  // is the oracle: absent window skips the effect entirely (short-circuit before the key),
+  // a present one runs it exactly once
+  const sealedSeKey = '(() => { try { return [(globalThis.window?.[(log.push("k"), "self")]).Array.of(5).at(0), log.length]; }'
+    + ' catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/sealed-se-key-claim', sealedSeKey), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-se-key-claim-rigged', sealedSeKey, { rig: true }), strip: false };
+  // the probe rides the prototype-placement swap and the static-FALLBACK swap channels too
+  const sealedProto = '(() => { try { return (globalThis.window?.self).Map.prototype.has.call(new Map([[1, 1]]), 1); }'
+    + ' catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/sealed-proto-method', sealedProto), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-proto-method-rigged', sealedProto, { rig: true }), strip: false };
+  const sealedFallback = '(() => { try { return [(globalThis.window?.[(log.push("k"), "self")]).Promise.noSuchStatic, log.length]; }'
+    + ' catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/sealed-fallback-static', sealedFallback), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-fallback-static-rigged', sealedFallback, { rig: true }), strip: false };
+  const sealedDestructure = '(() => { try { const { of: o } = (globalThis.window?.[(log.push("k"), "self")]).Array;'
+    + ' return [typeof o, log.length]; } catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/sealed-destructure', sealedDestructure), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-destructure-rigged', sealedDestructure, { rig: true }), strip: false };
+  const sealedInstance = '(() => { try { return (globalThis.window?.self).Array.prototype.flat.call([[7]]).at(0); }'
+    + ' catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/sealed-instance-recv', sealedInstance), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-instance-recv-rigged', sealedInstance, { rig: true }), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-plain-read', sealedRead), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-plain-read-rigged', sealedRead, { rig: true }), strip: false };
+  const seqWrite = '(() => { try { (log.push("se"), globalThis.window).__sealSlot = 1; }'
+    + ' catch (e) { return ["threw", "__sealSlot" in globalThis, log.length]; }'
+    + ' const kept = "__sealSlot" in globalThis; delete globalThis.__sealSlot; return ["wrote", kept, log.length]; })()';
+  yield { ...snippet('bare-proxy-probe/sealed-seq-write-host', seqWrite), strip: false };
+  yield { ...snippet('bare-proxy-probe/sealed-seq-write-host-rigged', seqWrite, { rig: true }), strip: false };
+  // `delete` through the probe: the ONLY legal write through an optional chain. an absent
+  // `window` short-circuits - the slot must SURVIVE (a guardless collapse deletes it), and the
+  // emitted form must stay a Reference (a tail folded inside a ternary deletes nothing)
+  const del = '(() => { globalThis.__probeSlot = 1; const r = delete globalThis.window?.self.__probeSlot;'
+    + ' const kept = "__probeSlot" in globalThis; delete globalThis.__probeSlot; return [r, kept]; })()';
+  yield { ...snippet('bare-proxy-probe/delete-plain-tail', del), strip: false };
+  yield { ...snippet('bare-proxy-probe/delete-plain-tail-rigged', del, { rig: true }), strip: false };
+  // SE-computed-key destructures over the probe: the extraction claims the static while the
+  // KEPT residual re-reads the source - the residual must ride the guard (an absent `window`
+  // throws BEFORE the key effect; a raw `.self` hop misses the ponyfill's target class).
+  // sealed / live / assignment-host / alias-rooted forms are DISTINCT residual channels
+  const seKeyResidualSealed = '(() => { try { const { [(log.push("k"), "defineProperty")]: d } ='
+    + ' (globalThis.window?.self).Object; return [typeof d, log.length]; } catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/se-key-residual-sealed', seKeyResidualSealed), strip: false };
+  yield { ...snippet('bare-proxy-probe/se-key-residual-sealed-rigged', seKeyResidualSealed, { rig: true }), strip: false };
+  const seKeyResidualLive = '(() => { try { const { [(log.push("k"), "getOwnPropertyNames")]: d } ='
+    + ' globalThis.window?.self.Object; return [typeof d, log.length]; } catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/se-key-residual-live', seKeyResidualLive), strip: false };
+  yield { ...snippet('bare-proxy-probe/se-key-residual-live-rigged', seKeyResidualLive, { rig: true }), strip: false };
+  const seKeyAssign = '(() => { let v; try { ({ [(log.push("k"), "entries")]: v } = (globalThis.window?.self).Object);'
+    + ' return [typeof v, log.length]; } catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/se-key-residual-assign', seKeyAssign), strip: false };
+  yield { ...snippet('bare-proxy-probe/se-key-residual-assign-rigged', seKeyAssign, { rig: true }), strip: false };
+  // ALIAS-rooted probe navs ride the same canon (the shared plan resolves the alias for the
+  // pristine gate; the guard test keeps the alias identifier verbatim)
+  const aliasSealedClaim = '(() => { const g = globalThis; try { return (g.window?.self).Array.of(5).at(0); }'
+    + ' catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/alias-sealed-claim', aliasSealedClaim), strip: false };
+  yield { ...snippet('bare-proxy-probe/alias-sealed-claim-rigged', aliasSealedClaim, { rig: true }), strip: false };
+  const aliasSeKeyResidual = '(() => { const g = globalThis; try { const { [(log.push("k"), "values")]: v } ='
+    + ' (g.window?.self).Object; return [typeof v, log.length]; } catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/alias-se-key-residual', aliasSeKeyResidual), strip: false };
+  yield { ...snippet('bare-proxy-probe/alias-se-key-residual-rigged', aliasSeKeyResidual, { rig: true }), strip: false };
+  // ANCHORED pattern-hop destructures over the probe VALUE: the residual re-anchors onto the
+  // GUARDED member read (an always-defined ctor binding erases the source throw), and a full
+  // consume carries the guarded anchor read as a throw probe on the first extraction
+  const anchoredSeKey = '(() => { try { const { Object: { [(log.push("k"), "freeze")]: f } } ='
+    + ' (globalThis.window?.self); return [typeof f, log.length]; } catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/anchored-se-key-residual', anchoredSeKey), strip: false };
+  yield { ...snippet('bare-proxy-probe/anchored-se-key-residual-rigged', anchoredSeKey, { rig: true }), strip: false };
+  const anchoredFull = '(() => { try { const { JSON: { stringify: s } } = (globalThis.window?.self);'
+    + ' return typeof s; } catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/anchored-full-consume', anchoredFull), strip: false };
+  yield { ...snippet('bare-proxy-probe/anchored-full-consume-rigged', anchoredFull, { rig: true }), strip: false };
+  // a REST sibling next to the pattern hop declines the anchor - the flat residual keeps the
+  // guard init (an always-defined receiver swap erases the throw AND hands rest the realm
+  // global's keys where native throws)
+  const restProbe = '(() => { try { const { Math: { trunc: t }, ...rest } = (globalThis.window?.self);'
+    + ' return [typeof t, typeof rest]; } catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/anchored-rest-declined', restProbe), strip: false };
+  yield { ...snippet('bare-proxy-probe/anchored-rest-declined-rigged', restProbe, { rig: true }), strip: false };
+  // FULL consumes outside the anchor gate carry the once-per-pattern probe: multi-prop
+  // nested, flat single-level (the probe re-reads the pattern key), array-wrapped (the
+  // probe value is the descended element)
+  const fullConsumeFlat = '(() => { try { const { structuredClone: s } = (globalThis.window?.self);'
+    + ' return typeof s; } catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/full-consume-flat-bare-nav', fullConsumeFlat), strip: false };
+  yield { ...snippet('bare-proxy-probe/full-consume-flat-bare-nav-rigged', fullConsumeFlat, { rig: true }), strip: false };
+  const fullConsumeWrapped = '(() => { try { const [{ Math: { hypot: h } }] = [(globalThis.window?.self)];'
+    + ' return typeof h; } catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/full-consume-array-wrapped', fullConsumeWrapped), strip: false };
+  yield { ...snippet('bare-proxy-probe/full-consume-array-wrapped-rigged', fullConsumeWrapped, { rig: true }), strip: false };
+  // CALL-rooted probe navs: the guard test owns the SINGLE root-call run (log length is the
+  // oracle - a replayed harvest doubles it, an erased probe drops the throw)
+  const callRootSeDestructure = '(() => { const dhe = () => { log.push("c"); return globalThis; };'
+    + ' try { const { JSON: { parse: p } } = (dhe().window?.self); return [typeof p, log.length]; }'
+    + ' catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/call-root-se-destructure', callRootSeDestructure), strip: false };
+  yield { ...snippet('bare-proxy-probe/call-root-se-destructure-rigged', callRootSeDestructure, { rig: true }), strip: false };
+  const callRootSeClaim = '(() => { const dhe = () => { log.push("c"); return globalThis; };'
+    + ' try { return [(dhe().window?.self).Array.of(5).at(0), log.length]; }'
+    + ' catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/call-root-se-claim', callRootSeClaim), strip: false };
+  yield { ...snippet('bare-proxy-probe/call-root-se-claim-rigged', callRootSeClaim, { rig: true }), strip: false };
+  const callRootPure = '(() => { const dh = () => globalThis;'
+    + ' try { const { Math: { trunc: t } } = (dh().window?.self); return typeof t; }'
+    + ' catch (e) { return "throw"; } })()';
+  yield { ...snippet('bare-proxy-probe/call-root-pure-destructure', callRootPure), strip: false };
+  yield { ...snippet('bare-proxy-probe/call-root-pure-destructure-rigged', callRootPure, { rig: true }), strip: false };
+  // SE-computed-key claim whose RECEIVER evaluation can throw (a guard-held member read):
+  // ECMA receiver-before-key - an absent `window` throws with the key effect NEVER run (the
+  // plain SE prepend ran it first), a present one runs it exactly once
+  const throwingRecvClaim = '(() => { const h = globalThis.window == null ? void 0 : globalThis.self;'
+    + ' try { const v = h.Object[(log.push("k"), "keys")]; return [typeof v, log.length]; }'
+    + ' catch (e) { return ["throw", log.length]; } })()';
+  yield { ...snippet('bare-proxy-probe/se-key-throwing-receiver', throwingRecvClaim), strip: false };
+  yield { ...snippet('bare-proxy-probe/se-key-throwing-receiver-rigged', throwingRecvClaim, { rig: true }), strip: false };
+}
+
 // --- Opaque (inline-call) proxy-nav root: a static / fallback reached THROUGH `f()?.window` ---
 // the root is a CALL (`f()` returning globalThis) navigating an unponyfilled window hop - no resolver can
 // collapse it, so the guard test is the RAW source (`null == f()?.window ? void 0 : _Array$from(...)`),
@@ -1107,6 +1258,14 @@ const OCRG_SHAPES = [
   // axis exists for the runtime short-circuit invariant
   { id: 'guarded-identity-root-bare', tail: '?.self?.Array.of(9).at(0)', bare: true,
     rootExpr: '((x) => x)(globalThis)', def: 'void self; ' },
+  // a PAREN-SEALED undefinable nav root, BARE: the sealed value is undefined off-window, so the
+  // outer `?.` must short-circuit - an eaten guard returns the branch value (the flatten read
+  // the static off the always-defined root). `void self;` anchors the import-set like the
+  // identity row
+  { id: 'paren-sealed-nav-root-bare', hops: '', tail: '?.Array.of(9).at(0)', bare: true,
+    rootExpr: '(globalThis.window?.self.window)', def: 'void self; ' },
+  { id: 'paren-sealed-nav-field-bare', hops: '', tail: '?.Number.MAX_SAFE_INTEGER.toFixed(2)', bare: true,
+    rootExpr: '(globalThis.window?.self.window)', def: 'void self; ' },
 ];
 function * generateOpaqueCallRootGuard() {
   for (const shape of OCRG_SHAPES) {
@@ -4679,6 +4838,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateProxyHopCtor();
   yield * generateKeptProxyRoot();
+  yield * generateBareProxyProbe();
   yield * generateOpaqueCallRootGuard();
   yield * generateSymbolReceiverContextFold();
   yield * generateLoweredOptionalAlias();

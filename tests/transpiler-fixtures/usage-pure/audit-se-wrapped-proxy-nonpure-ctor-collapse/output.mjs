@@ -12,5 +12,5 @@ function eff(tag) {
 }
 const ctorRead = (eff('a'), _globalThis).Headers;
 const protoMethod = (eff('b'), _globalThis).Element.prototype.remove;
-const optionalProto = (eff('c'), _globalThis).Range?.prototype?.cloneRange;
+const optionalProto = (eff('c'), _globalThis.window).Range?.prototype?.cloneRange;
 export { ctorRead, protoMethod, optionalProto, log };

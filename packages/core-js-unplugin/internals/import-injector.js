@@ -1,3 +1,4 @@
+import { kebabToCamel } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { safeErrorMessage } from '@core-js/polyfill-provider/helpers/pattern-matching';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState, {
@@ -372,8 +373,35 @@ export default class ImportInjector extends ImportInjectorState {
     // line into `existingPureImports`; without this filter post would re-emit a second identical
     // line. `addPureImport`'s own early-return covers the single-pass case but never sees the
     // inherited `pureImports` entries
+    // single-pass (no tracker mounted): the transformed BODY text is already in the MagicString
+    // at flush time, so an import whose minted name never appears there is an ORPHAN (a claim
+    // requested it, a later routing superseded the read). EXCEPT a pure STATIC whose module
+    // ATTACHES the method to the pure constructor on load: when any emission reads that static
+    // through the injected constructor (`_Map.groupBy` - mutated routing, awaited statics), the
+    // binding-unused import stays LOAD-BEARING (the differential runtime caught the drop). the
+    // pre/post flows keep the event-driven tracker. `$` is the only regex-special char minted
+    const bodyText = this.referencedInSource ? null : this.#ms.toString();
+    const ctorNameByNamespace = new Map();
+    if (bodyText !== null) {
+      for (const [source, name] of this.pureImports) {
+        const segments = source.split('/');
+        if (segments.at(-1) === 'constructor') ctorNameByNamespace.set(segments.at(-2), name);
+      }
+    }
+    function esc(name) {
+      return name.replaceAll('$', '\\$');
+    }
+    function liveInBody(source, name) {
+      if (new RegExp(`\\b${ esc(name) }\\b`).test(bodyText)) return true;
+      const segments = source.split('/');
+      const ctor = segments.length >= 2 ? ctorNameByNamespace.get(segments.at(-2)) : null;
+      if (!ctor) return false;
+      const key = kebabToCamel(segments.at(-1));
+      return new RegExp(`\\b${ esc(ctor) }\\s*[.\\[]\\s*["']?${ key }\\b`).test(bodyText);
+    }
     const activePure = [...this.pureImports].filter(([source, name]) => !this.existingPureImports.has(source)
-      && (!this.referencedInSource || this.referencedInSource.has(name)));
+      && (this.referencedInSource ? this.referencedInSource.has(name)
+        : !bodyText || liveInBody(source, name)));
     // canonical-sort pure imports by source path through the SHARED comparator (pure sources are
     // not compat-data keys, so they fall to its lexicographic unknown-key tail) - the same single
     // ordering rule babel runs the whole flushed-import union through; insertion order alone produces

@@ -59,24 +59,32 @@ QUnit.test('mutated-slots: mirror passthrough keeps the slot-mutated ctor', asse
   }
 });
 
-// a SEQUENCE-wrapped write host over a raw `.window` hop with a POLYFILLABLE ctor leaf: the
-// write-target collapse must peel the sequence tail and drop the hop - `window` does not exist
-// in Node, so an uncollapsed host is an undefined write target (TypeError at the patch). the
-// slot restores through the same sequence-wrapped shape so only the path under test touches it
-QUnit.test('mutated-slots: SE-tail write host ctor slot collapses (runs without window in Node)', assert => {
+// a SEQUENCE-wrapped write host over a raw `.window` hop with a POLYFILLABLE ctor leaf keeps
+// the source semantics: with `window` present the patch lands on the realm global; without it
+// the host is undefined and the write THROWS exactly as the untranspiled source does
+QUnit.test('mutated-slots: SE-tail write host ctor slot keeps the source throw', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
   // opaque key: substituted reads yield the pure ctor by the pure-flavor contract, so the REAL
-  // global slot the collapsed write lands on is observed through a non-resolvable computed key
+  // global slot a landed write reaches is observed through a non-resolvable computed key
   const key = ['Weak', 'Set'].join('');
   const had = key in globalThis;
   const original = globalThis[key];
   let c = 0;
-  (c++, globalThis.window).WeakSet = function patched() { return null; };
-  try {
+  if (WINDOW_PRESENT) {
+    (c++, globalThis.window).WeakSet = function patched() { return null; };
+    try {
+      assert.same(c, 1);
+      assert.same(globalThis[key].name, 'patched');
+    } finally {
+      if (had) (0, globalThis.window).WeakSet = original;
+      else delete (0, globalThis.window).WeakSet;
+    }
+  } else {
+    assert.throws(() => {
+      (c++, globalThis.window).WeakSet = function patched() { return null; };
+    }, TypeError);
     assert.same(c, 1);
-    assert.same(globalThis[key].name, 'patched');
-  } finally {
-    if (had) (0, globalThis.window).WeakSet = original;
-    else delete (0, globalThis.window).WeakSet;
+    assert.same(globalThis[key], original);
   }
 });
 
@@ -349,3 +357,17 @@ QUnit.test('mutated-slots: dynamic-key static patch wins over the ponyfill', ass
   assert.same(observed, 'patched');
 });
 
+// `delete` through the environment probe - the only legal WRITE through an optional chain.
+// past an absent `window` the source short-circuits, so the slot must SURVIVE; past a
+// present one the emitted form must stay a REFERENCE (a tail folded inside a guard ternary
+// evaluates and deletes nothing) and actually clear the slot
+QUnit.test('mutated-slots: delete through a probe chain keeps the short-circuit', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  globalThis.probeDeleteSlot = 1;
+  try {
+    assert.true(delete globalThis.window?.self.probeDeleteSlot);
+    assert.same('probeDeleteSlot' in globalThis, !WINDOW_PRESENT);
+  } finally {
+    delete globalThis.probeDeleteSlot;
+  }
+});
