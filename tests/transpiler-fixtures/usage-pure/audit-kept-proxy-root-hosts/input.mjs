@@ -85,3 +85,10 @@ export { mapOfKept };
 let nst;
 export const { constructor: { of: ofNested } = {} } = ((nst = globalThis.window)?.[(c4++, 'self')].Array.prototype) ?? {};
 
+// probed delete edges locked verbatim: a DOUBLE undefinable hop stands down (no single test
+// spells the union), an OPAQUE call root keeps its raw guard, a nested value context rides
+// the same canon as the statement form
+export const delDoubleHop = delete globalThis.window?.frames?.customZ;
+function opaqueRoot() { return globalThis; }
+export const delOpaque = delete opaqueRoot()?.window?.customW;
+export const delNested = [delete globalThis.window?.self.customV];

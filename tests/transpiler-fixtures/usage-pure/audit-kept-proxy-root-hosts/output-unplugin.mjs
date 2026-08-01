@@ -9,7 +9,7 @@ import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // the HOST positions a kept proxy root can sit in. the rule is the same everywhere - the assignment stays
 // as the root, its redundant proxy hops still drop - but each host reaches the collapse through its own
 // emit path, so each has to be pinned separately: a `new` callee, a write target, a logical operand, a
@@ -33,7 +33,7 @@ let s;
 export const spreadArg = Math.max(...((null == (s = _globalThis.window) ? void 0 : _Array$from)?.([1, 2]) ?? [0]));
 
 let d;
-delete (null == (d = _globalThis.window) ? void 0 : _self.someUserKey);
+delete (null == (d = _globalThis.window) ? void 0 : _self)?.someUserKey;
 
 export { w };
 
@@ -66,7 +66,7 @@ export { c4 };
 
 // A BARE proxy root under two dead proxy-hop optionals: the root is always defined, so every guard
 // is dead and the whole navigation collapses with no memo at all.
-export const bareDoubleOptional = _flatMaybeArray(_globalThis.Array.prototype).call([2, [3]]);
+export const bareDoubleOptional = null == (_ref4 = null == _globalThis.window ? void 0 : _self) ? void 0 : _flatMaybeArray(_ref4.Array.prototype).call([2, [3]]);
 
 // An optional CALL between the hops is not a member hop: the dead-hop descent must not claim it -
 // the value lands on the ponyfilled global and the call guard dies by that substitution.
@@ -78,12 +78,12 @@ export { oc };
 // An ALIAS-carried kept root under two live-looking optionals: one memo at the root, keys migrate.
 const galias = _globalThis;
 let alk;
-export const aliasDoubleOptional = null == (_ref4 = alk = galias.window) ? void 0 : _atMaybeArray(_ref4[c3++, "Array"].prototype).call([7], 0);
+export const aliasDoubleOptional = null == (_ref5 = alk = galias.window) ? void 0 : _atMaybeArray(_ref5[c3++, "Array"].prototype).call([7], 0);
 
 // NEGATIVE: an ordinary (non-proxy) double-optional chain keeps its leaf-nearest memo anchor -
 // the inner `?.` lives inside the memoized expression, which is exactly its short-circuit meaning.
 const holder = { p: { q: [4, [5]] } };
-export const ordinaryDoubleOptional = null == (_ref5 = holder.p?.q) ? void 0 : _findLastIndexMaybeArray(_ref5).call(_ref5, v => Array.isArray(v));
+export const ordinaryDoubleOptional = null == (_ref6 = holder.p?.q) ? void 0 : _findLastIndexMaybeArray(_ref6).call(_ref6, v => Array.isArray(v));
 
 // The ASSIGNMENT form of a destructure over the kept chain: same ownership rule as the declarator -
 // the extraction claims the pattern, the drive still collapses the kept source under it.
@@ -96,3 +96,11 @@ export { mapOfKept };
 // collapses once, feeding both levels.
 let nst;
 export const { constructor: { of: ofNested } = {} } = ((nst = _globalThis.window)?.[c4++, "Array"].prototype) ?? {};
+
+// probed delete edges locked verbatim: a DOUBLE undefinable hop stands down (no single test
+// spells the union), an OPAQUE call root keeps its raw guard, a nested value context rides
+// the same canon as the statement form
+export const delDoubleHop = delete _globalThis.window?.frames?.customZ;
+function opaqueRoot() { return _globalThis; }
+export const delOpaque = delete opaqueRoot()?.window?.customW;
+export const delNested = [delete (null == _globalThis.window ? void 0 : _self)?.customV];

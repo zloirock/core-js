@@ -34,4 +34,21 @@ await Promise.all([
   fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.css', '../../tests/bundles/qunit.css'),
 ]);
 
+// ES5-syntax gate over the ie11-targeted e2e bundles: any emit channel that inserts AST
+// content behind the lowering passes (a Program-exit slot mutation once froze a raw arrow
+// out of a kept call argument) breaks these bundles ONLY on the legacy browser itself -
+// parse each with an ES5 parser so the class fails right here instead of in a karma run
+// nobody has an IE11 for
+const { parse } = await import('acorn');
+for (const bundle of ['e2e-usage-pure-babel', 'e2e-usage-pure-unplugin-pre',
+  'e2e-usage-pure-unplugin-pre-post', 'e2e-usage-pure-unplugin-post']) {
+  const source = await fs.readFile(`../../tests/bundles/${ bundle }.js`, 'utf8');
+  try {
+    parse(source, { ecmaVersion: 5 });
+  } catch (error) {
+    throw new Error(`${ bundle }.js is not ES5: ${ error.message }`);
+  }
+}
+echo(chalk.green('e2e bundles parse as ES5'));
+
 echo(chalk.green('\ntests bundled, qunit and core-js bundles copied into /tests/bundles/'));
