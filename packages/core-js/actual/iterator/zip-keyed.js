@@ -1,5 +1,5 @@
 'use strict';
-var parent = require('../../stable/iterator/zip');
+var parent = require('../../stable/iterator/zip-keyed');
 require('../../modules/esnext.iterator.chunks');
 require('../../modules/esnext.iterator.includes');
 require('../../modules/esnext.iterator.join');

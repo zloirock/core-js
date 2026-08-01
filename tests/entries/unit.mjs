@@ -360,8 +360,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/some') == 'function');
     ok(typeof load(NS, 'iterator/take') == 'function');
     ok(typeof load(NS, 'iterator/to-array') == 'function');
-    ok(typeof load(NS, 'iterator/zip') == 'function');
-    ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
+    const iteratorZip = load(NS, 'iterator/zip');
+    ok([...iteratorZip([[1], [2]])][0][1] === 2);
+    const iteratorZipKeyed = load(NS, 'iterator/zip-keyed');
+    ok([...iteratorZipKeyed({ first: [1], second: [2] })][0].second === 2);
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
