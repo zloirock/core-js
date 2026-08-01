@@ -195,6 +195,15 @@ export function memberKeyName(node) {
   return property?.type === 'Identifier' ? null : plainSynthKeyName(property);
 }
 
+// is the member's OWN hop a pristine proxy-global name - dotted, static-string computed, or
+// an SE-keyed computed folding to one? a nav CHAIN-END with such a hop belongs to the alias /
+// kept canons: a value-canon render of only its OBJECT would strand the proxy hop outside the
+// guard (a throw where the source short-circuits, or a raw polyfillable read)
+export function memberProxyHopName(node) {
+  const key = staticMemberKeyName(node);
+  return key !== null && POSSIBLE_GLOBAL_OBJECTS.has(key) ? key : null;
+}
+
 // the static member name, FOLDING a side-effecting computed key to its static tail
 // (`globalThis[(e++, 'Map')]` -> 'Map'): memberKeyName covers dotted / static-string-computed keys,
 // sequenceKeyStaticName recovers the tail of an SE-bearing computed key (its SE prefix is replayed by
@@ -3659,6 +3668,22 @@ export function globalProxyNameFromImportSource(source, packages = null) {
   return match ? match.groups.name.replaceAll(/-(?<letter>[a-z])/g, (...args) => args.at(-1).letter.toUpperCase()) : null;
 }
 
+// `<pkg>/<mode>/<ns>/constructor` module source -> the CONSTRUCTOR global name (`.../map/
+// constructor` -> `Map`, `.../weak-map/constructor` -> `WeakMap`), or null when the source is
+// absent / unrelated. SOURCE-based for the same reason as the proxy twin above: the mutation
+// prepass runs BEFORE the injector registers user pure imports, so a second-pass patch through
+// the minted ctor binding (`_Map.groupBy = patched`) must still register the mutated static -
+// hint-only recognition left the WRITE channel blind while the READ channel substitutes
+const PURE_CTOR_ENTRY_SOURCE = /(?:^|\/)(?<ns>[a-z][\w-]*)\/constructor(?:\.js)?$/;
+export function pureCtorNameFromImportSource(source, packages = null) {
+  if (!source) return null;
+  if (!CORE_JS_IMPORT_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
+  const match = PURE_CTOR_ENTRY_SOURCE.exec(source);
+  if (!match) return null;
+  const name = kebabToCamel(match.groups.ns);
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 // true when `node` binds the module's default export (either as default specifier or as named
 // `default` re-export). namespace bindings and other named specifiers reject - they alias something
 // other than the module's default, even if the module-source matches. `null` is accepted as
@@ -5418,6 +5443,15 @@ function computeSideEffects(node, depth, strict) {
   }
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
     if (strict) return true;
+    // the minted THROW PROBE (`(null == X ? void 0 : Y).key` - a plain read whose object is a
+    // void-0-armed guard ternary) throws BY DESIGN on the guarded branch: dropping it as an
+    // effect-free prefix (a re-transform / pre+post pass) erases the source's throw semantics
+    if (!node.optional && node.object?.type === 'ConditionalExpression'
+      && node.object.test?.type === 'BinaryExpression' && node.object.test.operator === '=='
+      && (node.object.test.left?.type === 'NullLiteral' || node.object.test.right?.type === 'NullLiteral')
+      && node.object.consequent?.type === 'UnaryExpression' && node.object.consequent.operator === 'void') {
+      return true;
+    }
     return recurse(node.object, depth, strict) || (node.computed && recurse(node.property, depth, strict));
   }
   if (type === 'Property' || type === 'ObjectProperty') {

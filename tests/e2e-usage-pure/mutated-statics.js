@@ -1,3 +1,4 @@
+import HeldMap from '@core-js/pure/actual/map/constructor';
 // Monkey-patched STATICS live in their own module: the mutation pre-pass is per-FILE, so a
 // patch here would poison the key for every sibling test in a shared module. SLOT writes
 // (bare reassign / ctor replacement / delete) are BANNED here - a slot write deopts the
@@ -620,5 +621,18 @@ QUnit.test('mutated-statics: patch wins through an alias-resolved computed key',
     assert.same(Array[aliasedKey]?.([1]), 'ALIAS-KEY');
   } finally {
     Array.from = original;
+  }
+});
+
+// a patch through a HELD pure ctor import (the spelling a second plugin pass sees after the
+// first pass minted the ctor binding): the minted-shape mutation gate must register it, so
+// the read dispatches the patch - a substituted polyfill here would defeat the user's patch
+QUnit.test('mutated-statics: patch through a held pure ctor import wins', assert => {
+  const original = HeldMap.groupBy;
+  HeldMap.groupBy = function patched() { return 'HELD-CTOR'; };
+  try {
+    assert.same(HeldMap.groupBy([], it => it), 'HELD-CTOR');
+  } finally {
+    HeldMap.groupBy = original;
   }
 });
