@@ -141,7 +141,7 @@ export const viaHopOrderDead = _atMaybeArray(_ref8 = _Array$of(10)).call(_ref8, 
 // (the residual claims nothing), a DEFINED hop nav keeps its plain collapse (no guard)
 let c9 = 0;
 export const viaProbeSeKeyResidual = _Object$getOwnPropertyNames;
-export const { [(c9++, 'getOwnPropertyNames')]: _unused2 } = (null == _globalThis.window ? void 0 : _self)?.Object;
+export const { [(c9++, 'getOwnPropertyNames')]: _unused2 } = null == _globalThis.window ? void 0 : _self.Object;
 export const viaSealedCtorLeafResidual = _Array$from;
 export const { [(c9++, 'from')]: _unused3 } = (null == _globalThis.window ? void 0 : _self).Array;
 export const { [(c9++, 'isArray')]: viaDefinedHopSeKeyResidual } = _globalThis.Array;
@@ -153,7 +153,7 @@ let ca = 0;
 let viaSealedAssignSeKey;
 ({ [(ca++, 'entries')]: viaSealedAssignSeKey = _Object$entries } = (null == _globalThis.window ? void 0 : _self).Object);
 let viaProbeAssignSeKey;
-({ [(ca++, 'keys')]: viaProbeAssignSeKey = _Object$keys } = (null == _globalThis.window ? void 0 : _self)?.Object);
+({ [(ca++, 'keys')]: viaProbeAssignSeKey = _Object$keys } = null == _globalThis.window ? void 0 : _self.Object);
 export { viaSealedAssignSeKey, viaProbeAssignSeKey, ca };
 
 // ALIAS-rooted probe navs ride the same canon with the alias identifier kept verbatim in
@@ -161,7 +161,7 @@ export { viaSealedAssignSeKey, viaProbeAssignSeKey, ca };
 const gAlias = _globalThis;
 let cb = 0;
 export const viaAliasKeptSealed = (null == gAlias.window ? void 0 : _self).Object;
-export const viaAliasKeptLive = (null == gAlias.window ? void 0 : _self)?.Object;
+export const viaAliasKeptLive = null == gAlias.window ? void 0 : _self.Object;
 export const viaAliasSealedClaim = ((null == gAlias.window ? void 0 : _self).Array, _Array$of)(3);
 export const viaAliasSealedSeKey = _Object$values;
 export const { [(cb++, 'values')]: _unused4 } = (null == gAlias.window ? void 0 : _self).Object;

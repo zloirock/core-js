@@ -13,6 +13,7 @@ const { basename, join } = path;
 const { cyan, green, red, yellow } = chalk;
 
 const { OVERWRITE } = process.env;
+const { _: args } = argv;
 const UTF8 = { encoding: 'utf8' };
 const ROOT = path.resolve('../..').replaceAll('\\', '/');
 const fixturesDir = path.resolve('../transpiler-fixtures');
@@ -504,9 +505,15 @@ async function runFixture(directory) {
   }
 }
 
+// a shard child receives the subtree filter via env (the zx CLI keeps the script name in
+// argv._, so a positional arg would land off-by-one against the zxi-invoked parent)
+const subtree = FIXTURE_SHARD ? process.env.FIXTURE_SUBTREE : args[0];
 const fixtures = [];
 for (const mode of ['entry-global', 'usage-global', 'usage-pure']) {
+  if (subtree && subtree !== mode && !subtree.startsWith(`${ mode }/`)) continue;
+  const only = subtree?.startsWith(`${ mode }/`) ? subtree.slice(mode.length + 1) : null;
   for (const name of (await readdir(join(fixturesDir, mode))).sort()) {
+    if (only && name !== only) continue;
     const dir = join(fixturesDir, mode, name);
     if ((await stat(dir)).isDirectory()) fixtures.push(dir);
   }
@@ -520,7 +527,9 @@ if (FIXTURE_SHARD) {
   const shards = defaultShardCount(fixtures.length);
   echo(green(`unplugin fixtures: ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));
   if (shards > 1) {
-    Object.assign(counts, await runShards({ script: fileURLToPath(import.meta.url), shards }));
+    Object.assign(counts, await runShards({
+      script: fileURLToPath(import.meta.url), shards, extraEnv: subtree ? { FIXTURE_SUBTREE: subtree } : {},
+    }));
   } else {
     for (const dir of fixtures) await runFixture(dir);
   }
