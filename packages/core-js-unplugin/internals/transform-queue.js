@@ -1,3 +1,4 @@
+import { canFuseWithOpenParen } from './plugin-helpers.js';
 import { codePointEndingAt, IDENT_PART_RE, skipGap } from './text-scan.js';
 
 // is [start, end] strictly contained within any range in the start-sorted array?
@@ -518,6 +519,7 @@ export default class TransformQueue {
   // Set gives O(1) delete + insertion-order iteration (vs O(N) findIndex/splice on an array)
   #transforms = new Set();
   // sorted snapshot + prefix max maintained incrementally for O(log n) containsRange
+  #asiFusableStarts = null;
   #sorted = [];
   #prefixMaxEnd = [];
   // guardedRoot -> entries. linear scan per query, M typically <= 2-3 in practice
@@ -532,9 +534,23 @@ export default class TransformQueue {
   // entry shape: { pos, content }. preserves insertion order via Set
   #inserts = new Set();
 
-  constructor(code, ms) {
+  constructor(code, ms, asiFusableStarts = null) {
     this.#code = code;
     this.#ms = ms;
+    this.#asiFusableStarts = asiFusableStarts;
+  }
+
+  // ASI: a `(`-leading replacement at the head of an ExpressionStatement fuses with an
+  // unterminated previous statement and turns it into a CALL. every channel that can spell a
+  // parenthesized guard passes through here, so the `;` is owned once instead of per emitter.
+  // the offsets are asked for lazily - a file whose replacements never lead with `(` (the
+  // common case) never walks its AST for them
+  #asiStarts = null;
+  #asiGuarded(start, content) {
+    if (typeof content !== 'string' || content[0] !== '(' || !this.#asiFusableStarts) return content;
+    if (!canFuseWithOpenParen(this.#code, start)) return content;
+    this.#asiStarts ??= this.#asiFusableStarts();
+    return this.#asiStarts.has(start) ? `;${ content }` : content;
   }
 
   // single-source-of-truth for invariant error messages - prepends the `transform-queue: `
@@ -547,6 +563,7 @@ export default class TransformQueue {
   }
 
   add(start, end, content, guardedRoot, rewriteHint, splitInfo = null) {
+    content = this.#asiGuarded(start, content);
     // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
     // (and any `start > end`) as a caller bug immediately rather than corrupting silently.

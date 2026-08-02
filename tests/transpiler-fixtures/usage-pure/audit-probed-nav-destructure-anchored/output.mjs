@@ -78,7 +78,7 @@ export const {
 export const viaPartialProbed = _Number$isInteger;
 export const {
   customZ: viaPartialCustom
-} = (null == _globalThis.window ? void 0 : _self)?.Number;
+} = null == _globalThis.window ? void 0 : _self.Number;
 
 // FULL consumes outside the anchor gate carry the same once-per-pattern probe: multi-prop
 // nested, single-level flat (the probe read is the pattern key itself), array-wrapped
