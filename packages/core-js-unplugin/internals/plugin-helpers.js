@@ -2,6 +2,7 @@ import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-
 import {
   blocksUidSlot,
   collectFileCensus,
+  forEachStatementPosition,
   isDirectiveStatement,
   isInitlessVarDecl,
   isTopLevelImportLike,
@@ -501,6 +502,21 @@ export function canFuseWithOpenParen(src, pos) {
   return i >= 0 && FUSES_WITH_OPEN_PAREN.test(codePointEndingAt(src, i));
 }
 
+// offsets where a `(`-leading replacement would fuse with an unterminated previous statement:
+// the starts of every ExpressionStatement in a statement LIST. an unbraced control body is
+// deliberately absent - its slot holds exactly one statement, so a `;` ahead of the replacement
+// would empty the body instead of separating anything. asked once per file, by offset, so every
+// emitting channel is covered by the one rule rather than each remembering to spell it
+export function asiFusableStatementStarts(ast) {
+  const starts = new Set();
+  forEachStatementPosition(ast, {
+    onList(statements) {
+      for (const stmt of statements) if (stmt.type === 'ExpressionStatement') starts.add(stmt.start);
+    },
+  });
+  return starts;
+}
+
 // walk up to the nearest enclosing ExpressionStatement path (null when a function / program
 // boundary is hit first). consumers test `.node.start` for statement-leading position and
 // the slot shape (unbraced control body) to decide ASI `;` injection vs verbatim emission
@@ -709,20 +725,6 @@ export function hasCoreJSImport(ast, packages) {
   }
   return false;
 }
-
-// ternary guard needs () only when parent operator has higher precedence than ?: or parent
-// grammar restricts the expression (extends clause expects LeftHandSideExpression)
-export const NEEDS_GUARD_PARENS = new Set([
-  'BinaryExpression',
-  'LogicalExpression',
-  'UnaryExpression',
-  'AwaitExpression',
-  'UpdateExpression',
-  'TaggedTemplateExpression',
-  'SpreadElement',
-  'ClassDeclaration',
-  'ClassExpression',
-]);
 
 // `UnpluginContextMeta.framework` union (upstream unplugin). validating here so typos
 // like `webpaaack` fail loudly instead of silently falling to the non-webpack default.

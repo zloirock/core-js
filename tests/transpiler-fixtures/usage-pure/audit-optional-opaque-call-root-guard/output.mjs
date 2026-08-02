@@ -14,8 +14,8 @@ var _ref, _ref2, _ref3;
 // prototype-navigated receiver off the ref by placement design. distinct method per line.
 const f = () => _globalThis;
 const g = () => _globalThis;
-export const knownStatic = (null == f()?.window ? void 0 : _Array$from)?.([1]);
+export const knownStatic = (null == f().window ? void 0 : _Array$from)?.([1]);
 export const ctorStatic = null == (_ref = g()?.window) ? void 0 : _toFixedMaybeNumber(_ref2 = _Number$MAX_SAFE_INTEGER).call(_ref2, 2);
-export const protoMethod = null == f()?.window ? void 0 : _Set.prototype.has.call(new _Set([1]), 1);
-export const fallbackSwap = null == f()?.window ? void 0 : _Promise.noSuchStatic?.then(x => x);
+export const protoMethod = null == f().window ? void 0 : _Set.prototype.has.call(new _Set([1]), 1);
+export const fallbackSwap = null == f().window ? void 0 : _Promise.noSuchStatic?.then(x => x);
 export const instanceMethod = null == (_ref3 = g()?.window) ? void 0 : _includesMaybeArray(_ref3.Array.prototype).call([1, 2], 2);

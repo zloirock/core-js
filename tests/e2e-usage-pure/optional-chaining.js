@@ -537,6 +537,119 @@ QUnit.test('optional chaining: bare proxy-root probe guards on the raw prefix', 
   assert.same(typeof globalThis.window?.self.JSON, WINDOW_PRESENT ? 'object' : 'undefined');
 });
 
+// a SECOND unresolvable hop past the probe (`window?.window` - the realm self-reference):
+// the guard tests the DEEPER prefix, so the `?.` inside that test guards the probe itself and
+// stays live. rendering the test with the whole spine plain read `.window` off the absent
+// probe - a TypeError where the source yields undefined
+QUnit.test('optional chaining: a second unresolvable hop keeps the inner guard live', assert => {
+  assert.same(globalThis.window?.window?.self?.Array.of(31).at(0), WINDOW_PRESENT ? 31 : undefined);
+  assert.same(globalThis?.window?.window?.self?.Array.of(32).at(0), WINDOW_PRESENT ? 32 : undefined);
+  let hopCalls = 0;
+  function deepRoot() {
+    hopCalls += 1;
+    return globalThis;
+  }
+  assert.same(deepRoot()?.window?.window?.self?.Array.of(33).at(0), WINDOW_PRESENT ? 33 : undefined);
+  assert.same(hopCalls, 1);
+});
+
+// a CHAIN-ASSIGN root under an instance dispatch: the memo may bind only the assignment (the
+// hops fold out of the test) ONLY while they are always defined - an unresolvable hop is the
+// probe itself, so the memoized value must keep it. binding the bare write instead tested an
+// always-defined global and ran the branch where the source short-circuits
+QUnit.test('optional chaining: chain-assign root memo keeps the probe hop', assert => {
+  let held;
+  assert.same((held = globalThis)?.window?.self?.Array.of(34).at(0), WINDOW_PRESENT ? 34 : undefined);
+  assert.same(held, globalThis);
+  let deepHeld;
+  assert.same((deepHeld = globalThis)?.window?.window?.self?.Array.of(35).at(0), WINDOW_PRESENT ? 35 : undefined);
+  assert.same(deepHeld, globalThis);
+  // the write runs exactly once even though the guard and the branch both mention the value
+  let writes = 0;
+  let counted;
+  function countingRoot() {
+    writes += 1;
+    return globalThis;
+  }
+  assert.same((counted = countingRoot())?.window?.self?.Array.of(36).at(0), WINDOW_PRESENT ? 36 : undefined);
+  assert.same(writes, 1);
+  assert.same(counted, globalThis);
+});
+
+// a CONDITIONALLY proven callee: the unassigned path is exactly what the chain's `?.` guards,
+// so neither the call's own `?.()` nor the `?.` over its value is vestigial. eating either one
+// throws on the path where the callee was never assigned
+QUnit.test('optional chaining: a conditionally proven callee keeps its guards', assert => {
+  let never;
+  if (typeof never === 'function') never = () => globalThis;
+  assert.same(never?.()?.window?.self?.Array.of(37).at(0), undefined);
+  let assigned;
+  if (typeof globalThis.Array === 'function') assigned = () => globalThis;
+  assert.same(assigned?.()?.window?.self?.Array.of(38).at(0), WINDOW_PRESENT ? 38 : undefined);
+});
+
+// hops the guard plan does not cover ride INSIDE its alternate while the rendered value is
+// provably defined. that fold must keep the RECEIVER: invoked off the ternary instead, the
+// callee reads as a bare value and `this` is lost - `performance.now()` rejects a foreign this
+// with a TypeError in every browser leg, so the present-window branch is the oracle
+QUnit.test('optional chaining: an unplanned tail keeps its receiver through the guard', assert => {
+  assert.same(typeof globalThis.window?.self?.performance.now(), WINDOW_PRESENT ? 'number' : 'undefined');
+  assert.same(typeof globalThis.window?.self?.performance?.now(), WINDOW_PRESENT ? 'number' : 'undefined');
+  // a plain hop chain past the first one folds along with it. the tail is read as a VALUE, and
+  // it names a member every target engine has - a property only newer engines carry would fail
+  // the oldest browser leg on its own absence rather than on the fold
+  assert.same(typeof globalThis.window?.self?.performance.now, WINDOW_PRESENT ? 'function' : 'undefined');
+  // the continuation may sit PAST the span the fold started from - taking it is what keeps the
+  // receiver; leaving it outside invokes the callee off the guard value, with `this` lost
+  globalThis.e2eGuardMethod = function () {
+    return { tag: this === globalThis ? 'kept' : 'lost' };
+  };
+  assert.same(globalThis.window?.self.e2eGuardMethod().tag, WINDOW_PRESENT ? 'kept' : undefined);
+  assert.same(globalThis.window?.self?.e2eGuardMethod().tag, WINDOW_PRESENT ? 'kept' : undefined);
+  // a render carrying a hop of its own (`self.window`) folds the tail the same way, and the
+  // root effect still runs exactly once
+  let hopCalls = 0;
+  function hopRoot() {
+    hopCalls += 1;
+    return globalThis;
+  }
+  assert.same(hopRoot()?.window?.self.window.e2eGuardMethod().tag, WINDOW_PRESENT ? 'kept' : undefined);
+  assert.same(hopCalls, 1);
+  // an OPTIONAL call on the tail binds the same receiver - read off the guard value instead,
+  // the callee would run with `this` undefined
+  assert.same(globalThis.window?.self.e2eGuardMethod?.().tag, WINDOW_PRESENT ? 'kept' : undefined);
+  // PARENS around the callee keep the chain's reference (`this` still binds) while ending the
+  // short-circuit: past an absent probe the source calls `undefined` and throws
+  /* eslint-disable no-unsafe-optional-chaining -- the parenthesized callee IS the case */
+  if (WINDOW_PRESENT) assert.same((globalThis.window?.self.e2eGuardMethod)().tag, 'kept');
+  else assert.throws(() => (globalThis.window?.self.e2eGuardMethod)(), TypeError);
+  /* eslint-enable no-unsafe-optional-chaining -- back to the default */
+  delete globalThis.e2eGuardMethod;
+});
+
+// `delete` needs the MEMBER, not its value: folded into the alternate the ternary evaluates and
+// deletes nothing. the present-window branch deletes for real, the absent one yields true
+// without touching anything (native `delete undefined?.x` is a no-op true)
+QUnit.test('optional chaining: delete over a guarded nav still removes the property', assert => {
+  globalThis.e2eGuardProbe = 'present';
+  assert.same(delete globalThis.window?.self?.e2eGuardProbe, true);
+  assert.same(globalThis.e2eGuardProbe, WINDOW_PRESENT ? undefined : 'present');
+  // a deeper tail under `delete` keeps the short-circuit too: past an absent probe the whole
+  // chain is a no-op `true`, never a read off the guarded `void 0`
+  globalThis.e2eGuardNest = { key: 'present' };
+  assert.same(delete globalThis.window?.self.e2eGuardNest.key, true);
+  assert.same(globalThis.e2eGuardNest.key, WINDOW_PRESENT ? undefined : 'present');
+  delete globalThis.e2eGuardNest;
+  delete globalThis.e2eGuardProbe;
+});
+
+// a folded tail ENDS in the guard ternary, so an operator continuing the expression must not
+// bind to its alternate - `?? 'absent'` has to see the guarded value, on both branches
+QUnit.test('optional chaining: a carrier past the folded tail sees the guarded value', assert => {
+  assert.same(globalThis.window?.self?.e2eGuardMissing ?? 'absent', 'absent');
+  assert.same(globalThis.window?.self?.e2eGuardMissing || 'fallback', 'fallback');
+});
+
 // a PAREN-SEALED probe nav: the seal ends the chain, so a PLAIN read above it THROWS where
 // the window probe is absent (the guarded render reproduces the source TypeError), and reads
 // through the ponyfill where it is present; the sealed hop's key SE runs only past a present
@@ -838,4 +951,113 @@ QUnit.test('optional chaining: paren-sealed nav claim spellings', assert => {
       return picked;
     }, TypeError);
   }
+});
+
+// a folded guard tail is a bare ternary - the loosest expression there is. an OPERAND slot
+// (either side of a comparison / shift) swallows it, so the fold owes the consumer its parens:
+// unparenthesized, `1 !== <guard>` re-parses as `(1 !== null) == window`, and the whole
+// comparison silently returns the operand instead of a boolean. the emitters read that slot
+// from the source text, where `=` and `>` also END operators (`===`, `>=`, `>>`)
+QUnit.test('optional chaining: folded guard under an operand slot', assert => {
+  /* eslint-disable yoda -- the guard on the RIGHT of the operator IS the case */
+  assert.same(1 === globalThis.window?.self.Array.of(1).at(0), WINDOW_PRESENT);
+  assert.same(1 !== globalThis.window?.self.Object.assign({}, { a: 1 }).a, !WINDOW_PRESENT);
+  assert.same(2 > globalThis.window?.self.Math.trunc(1.5), WINDOW_PRESENT);
+  assert.same(2 >= globalThis.window?.self.Number.parseFloat('1.5'), WINDOW_PRESENT);
+  assert.same(1 <= globalThis.window?.self.Reflect.ownKeys({ a: 1 }).length, WINDOW_PRESENT);
+  assert.same(4 >> globalThis.window?.self.Array.from([1]).length, WINDOW_PRESENT ? 2 : 4);
+  /* eslint-enable yoda -- back to the default */
+  // the guard on the LEFT of an operator is an operand too: an unparenthesized fold swallows
+  // the operator into its own alternate branch
+  assert.same(globalThis.window?.self.Promise.resolve(1).constructor.length === 1, WINDOW_PRESENT);
+  assert.same(globalThis.window?.self.Number.parseInt('4', 10) >> 1, WINDOW_PRESENT ? 2 : 0);
+});
+
+// the negatives that pin the same classification: a slot which already delimits a whole
+// expression keeps the fold BARE. `=` opens one only as a (compound) assignment and `>` only
+// as an arrow, and a keyword operand (`of`, `case`, `return`) runs to the next delimiter
+QUnit.test('optional chaining: folded guard in a delimited slot', assert => {
+  let assigned;
+  // eslint-disable-next-line prefer-const -- the standalone assignment slot IS the case
+  assigned = globalThis.window?.self.Symbol.for('e2e').description;
+  assert.same(assigned, WINDOW_PRESENT ? 'e2e' : undefined);
+  let compound = 10;
+  compound -= globalThis.window?.self.Math.cbrt(8);
+  assert.same(compound, WINDOW_PRESENT ? 8 : NaN);
+  // eslint-disable-next-line unicorn/consistent-function-style -- the arrow BODY slot IS the case
+  const arrowBody = () => globalThis.window?.self.Object.entries({ a: 1 }).length;
+  assert.same(arrowBody(), WINDOW_PRESENT ? 1 : undefined);
+  function returned() {
+    return globalThis.window?.self.Array.of(2).keys();
+  }
+  assert.same(returned()?.next().value, WINDOW_PRESENT ? 0 : undefined);
+  const collected = [];
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the for-of head slot IS the case
+  if (WINDOW_PRESENT) for (const item of globalThis.window?.self.Array.of(3, 4)) collected.push(item);
+  assert.deepEqual(collected, WINDOW_PRESENT ? [3, 4] : []);
+  let switched = 0;
+  // eslint-disable-next-line sonarjs/no-small-switch -- the case-arm slot IS the case
+  switch (1) {
+    case 1: switched = globalThis.window?.self.Math.hypot(3, 4); break;
+    default: break;
+  }
+  assert.same(switched, WINDOW_PRESENT ? 5 : undefined);
+  // a ternary CONSEQUENT delimits a whole expression as well - the nested fold is read whole
+  // before the parser looks for the `:`. after `??` the same character opens an OPERAND
+  const pick = WINDOW_PRESENT || true;
+  assert.same(pick ? globalThis.window?.self.Math.sign(-2) : 0, WINDOW_PRESENT ? -1 : undefined);
+  assert.same(!pick ? 9 : globalThis.window?.self.Math.expm1(0), WINDOW_PRESENT ? 0 : undefined);
+  const seed = null;
+  assert.same(seed ?? globalThis.window?.self.Number.EPSILON, WINDOW_PRESENT ? Number.EPSILON : undefined);
+});
+
+// an `extends` clause takes a LeftHandSideExpression, so it parenthesizes the fold exactly as
+// an operator does and the last tail step rides outside behind `?.`. past an absent probe the
+// clause sees undefined and the class definition throws, as the source does
+QUnit.test('optional chaining: folded guard under an extends clause', assert => {
+  globalThis.e2eGuardBox = { Base: class { tag = 'base'; }, count: 2 };
+  /* eslint-disable no-unsafe-optional-chaining -- the extends clause slot IS the case */
+  if (WINDOW_PRESENT) {
+    class Extended extends globalThis.window?.self.e2eGuardBox.Base {}
+    assert.same(new Extended().tag, 'base');
+  } else {
+    assert.throws(() => {
+      class Extended extends globalThis.window?.self.e2eGuardBox.Base {}
+      return Extended;
+    }, TypeError);
+  }
+  /* eslint-enable no-unsafe-optional-chaining -- back to the default */
+  assert.same(-globalThis.window?.self.e2eGuardBox.count, WINDOW_PRESENT ? -2 : NaN);
+  delete globalThis.e2eGuardBox;
+});
+
+// a guard render leading with `(` at the head of an ExpressionStatement fuses with an
+// unterminated previous statement and turns it into a call (`sink = 1(...)` throws). the text
+// emitter edits source in place, so it owes the separator the reprinting one gets for free
+QUnit.test('optional chaining: a paren-leading guard at statement start keeps its separator', assert => {
+  globalThis.e2eGuardAsi = {
+    calls: 0,
+    field: 'v',
+    run() {
+      this.calls += 1;
+      return this.calls;
+    },
+  };
+  /* eslint-disable @stylistic/semi -- the missing separator IS the case */
+  let sink = 1
+  globalThis.window?.self.e2eGuardAsi.run()
+  assert.same(sink, 1);
+  assert.same(globalThis.e2eGuardAsi.calls, WINDOW_PRESENT ? 1 : 0);
+  sink = 2
+  globalThis.window?.self.e2eGuardAsi.field
+  assert.same(sink, 2);
+  sink = 3
+  globalThis.window?.self.e2eGuardAsi?.run?.()
+  assert.same(sink, 3);
+  assert.same(globalThis.e2eGuardAsi.calls, WINDOW_PRESENT ? 2 : 0);
+  sink = 4
+  globalThis.window?.self.Number.parseInt('4', 10) >> 1
+  assert.same(sink, 4);
+  /* eslint-enable @stylistic/semi -- back to the default */
+  delete globalThis.e2eGuardAsi;
 });

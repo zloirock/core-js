@@ -50,11 +50,11 @@ let sp;
 export const spreadOut = [...((null == (sp = _globalThis.window) ? void 0 : (c++, _Array$from))?.([3]) ?? [])];
 
 class KeptHost {
-  static probe = (null == _globalThis.window ? void 0 : (c++, _self))?.Array;
+  static probe = null == _globalThis.window ? void 0 : (c++, _self).Array;
   // a PLAIN claimless tail after the guarded hop rides the source short-circuit: past an
   // absent `window` it must read nothing (not throw), and the key effect must not run
-  static plainTail = (null == _globalThis.window ? void 0 : (c++, _self))?.Number;
-  plainDotTail = (null == _globalThis.window ? void 0 : _self)?.JSON;
+  static plainTail = null == _globalThis.window ? void 0 : (c++, _self).Number;
+  plainDotTail = null == _globalThis.window ? void 0 : _self.JSON;
   // a chain END that is ITSELF a proxy hop - dotted, static-string computed or SE-keyed
   // computed alike - belongs to the alias / kept canons and stays raw (a value render of
   // only its object would strand the end hop outside the guard)
@@ -71,14 +71,14 @@ export const keptHost = new KeptHost();
 
 // a claimless ctor read in a `new` callee: the render stays inside the callee parens (a bare
 // optional chain is not legal there), and an absent `window` throws in source and render alike
-export const newCallee = new ((null == _globalThis.window ? void 0 : _self)?.CustomOther)(1);
+export const newCallee = new (null == _globalThis.window ? void 0 : _self.CustomOther)(1);
 
 // a call in the MIDDLE of the probe chain: the render lands on the deepest member whose object
 // is the pure proxy nav, and the call rides the chain's own short-circuit outside it
-export const midCall = (null == _globalThis.window ? void 0 : _self)?.foo().bar;
+export const midCall = null == _globalThis.window ? void 0 : _self.foo().bar;
 
 // a nullish-coalescing carrier over the probe chain: the guarded render is the left operand
-export const nullishCarrier = (null == _globalThis.window ? void 0 : (c++, _self))?.JSON ?? 'absent';
+export const nullishCarrier = (null == _globalThis.window ? void 0 : (c++, _self).JSON) ?? 'absent';
 
 // SE-keyed hop under a claimed static + instance dispatch: the dispatch's guard memoizes the
 // probe root only, so the hop-key SE rides the claim body on the non-null branch
@@ -88,8 +88,8 @@ export const seKeyClaimDispatch = null == (_ref7 = _globalThis.window) ? void 0 
 // the guard body (the locked alias/kept canon), the call-argument SE stays put; the SE-key
 // claimless `new`-callee renders the pony guard inside the callee parens
 export const bareProtoCall = null == (_ref9 = _globalThis.window) ? void 0 : _findMaybeArray(_ref9[(c++, 'self')].Array.prototype).call([5], v => v === (c++, 5));
-export const bareProtoUnpolyfilled = (null == _globalThis.window ? void 0 : (c++, _self))?.Array.prototype.indexOf.call([5], 5);
-export const bareSeKeyNewCallee = new ((null == _globalThis.window ? void 0 : (c++, _self))?.CustomThing)();
+export const bareProtoUnpolyfilled = null == _globalThis.window ? void 0 : (c++, _self).Array.prototype.indexOf.call([5], 5);
+export const bareSeKeyNewCallee = new (null == _globalThis.window ? void 0 : (c++, _self).CustomThing)();
 
 export async function awaited() {
   let aw;

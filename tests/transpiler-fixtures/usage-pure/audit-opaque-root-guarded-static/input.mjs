@@ -76,7 +76,8 @@ export const viaOptionalCallRoot = oc?.()?.window?.self?.Array.of(13).at(0);
 // a SECOND unresolvable hop past the ponyfillable one stays raw on the guarded ref (two
 // sources of undefined: the nested test covers the window prefix, the outer memo test the
 // chrome value). the static reads off the opaque chrome value, not a global - no collapse.
-// the vestigial `?.` spelling on the kept tail differs cosmetically between emitters
+// the unplanned `chrome` tail ATTACHES differently per emitter (on the guard result vs inside
+// the branch) - runtime-equal, sidecar-locked
 const upu = () => globalThis;
 export const viaUnresPonyUnres = upu()?.window?.self?.chrome?.Array.of(14).at(0);
 
@@ -106,7 +107,7 @@ export const viaChainAssignSeBody = (heldSe = cse())?.self?.window?.Array.of(18)
 
 // an SE-PREFIXED computed hop key still RESOLVES for the guard count (the effect stays live in
 // the kept test text, in source order after the window test) - the branch reads the ponyfill
-// leaf. the key parens spelling differs cosmetically between emitters
+// leaf
 let keyEff = 0;
 const sk = () => globalThis;
 export const viaSeComputedOwnKey = sk()?.window?.[(keyEff++, 'self')]?.Array.of(19).at(0);
@@ -135,7 +136,7 @@ export const viaDestructureOverSwap = pickedSwapAt;
 
 // an IDENTITY-IIFE root (`((x) => x)(globalThis)`) proves through the identity-param inline
 // canon: the buried global substitutes, the live window test guards the chain, the branch
-// reads the ponyfill leaf. the guard-shape spelling differs cosmetically between emitters
+// reads the ponyfill leaf (only the arrow reprint differs between emitters)
 export const viaIdentityRoot = ((x) => x)(globalThis)?.window?.self?.Array.of(24).at(0);
 
 // an SE-carrying ARG of the identity root rides the kept test, exactly once, in source order

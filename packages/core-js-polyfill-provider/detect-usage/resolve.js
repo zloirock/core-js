@@ -1259,7 +1259,8 @@ export function reachableAliasValues({ aliasNode, primary, resolve, scope, adapt
 // `seen` (caller-owned Set) tracks binding names already in the resolution chain for
 // cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
 // recursion isn't possible at the call site
-function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam = false, usageNode = null }) {
+function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam = false,
+  usageNode = null, rejectConditional = false }) {
   // SE-bail (unwrapTransparentSeq), NOT peel-to-tail: recognizing a SE-callee IIFE (`(eff(), () => Array)()`)
   // makes the resolver inline it, but the emit layer cannot compose a receiver-less static
   // substitution over the SE-wrapped callee (transform-queue "could not locate inner needle" crash).
@@ -1285,11 +1286,14 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, all
         // throw / short-circuit on the unassigned path), so the collapse must keep it - the
         // marker feeds `inlineCallHasObservableEffects`, which every dropping caller consults
         const write = binding.constantViolations?.length === 1
-          ? unwrapTransparentSeq(binding.constantViolations[0]?.node ?? binding.constantViolations[0]) : null;
+          ? unwrapTransparentSeq(violationAssignment(binding.constantViolations[0])) : null;
         const rhs = write?.type === 'AssignmentExpression' && write.operator === '='
           && write.left?.type === 'Identifier' && write.left.name === name
           ? unwrapTransparentSeq(write.right) : null;
         if (rhs?.type !== 'ArrowFunctionExpression' && rhs?.type !== 'FunctionExpression') return null;
+        // callers asking whether the call's VALUE is defined get no proof from a conditional
+        // one: the unassigned path is exactly the value they must keep guarding
+        if (rejectConditional) return null;
         conditionallyProvenCallees.add(rhs);
         callee = rhs;
         seen.add(name);
@@ -1323,6 +1327,16 @@ function finishInlineCallee({ callee, allowIdentityParam }) {
   return callee;
 }
 
+// the ASSIGNMENT a constant-violation records, across the parser duality: babel points the
+// violation at the AssignmentExpression itself, estree-toolkit at the written IDENTIFIER, so a
+// node-only read saw `Identifier` there and every write-proving walk bailed on that parser
+function violationAssignment(violation) {
+  const node = violation?.node ?? violation;
+  if (node?.type !== 'Identifier') return node;
+  const parent = violation?.parentPath?.node ?? violation?.parent;
+  return parent?.type === 'AssignmentExpression' && parent.left === node ? parent : node;
+}
+
 // function literals proven through a SINGLE conditional assignment (`let f; if (c) f = () =>
 // globalThis;`): the call site may run with `f` still undefined, so the CALL is an observable
 // effect the collapse must keep in the output (throw / short-circuit fidelity)
@@ -1343,8 +1357,10 @@ function identityParam({ callee, allowIdentityParam }) {
 // isn't inlineable or the body has multiple returns / local bindings (see
 // `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
 // are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`
-export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path, usageNode = null }) {
-  const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true, usageNode });
+export function inlineCallReturnExpression({ callNode, scope, adapter, seen, path, usageNode = null,
+  rejectConditional = false }) {
+  const callee = resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, allowIdentityParam: true,
+    usageNode, rejectConditional });
   if (!callee) return null;
   const body = singleReturnBodyExpression(callee.body);
   if (!callee.params?.length) return body;
@@ -1393,7 +1409,7 @@ export function bareProxyGlobalAliasName(node, aliasCtx) {
 //   - the raw PREFIX up to the LAST unresolvable hop (stays in the guard test - collapsing it
 //     would test an always-defined ponyfill and break the short-circuit),
 //   - the ponyfill LEAF at the last resolvable hop,
-//   - the TAIL hop names above it (kept spelling, live `?.`),
+//   - the TAIL hop names above it (`liveOptional` spelling - see the per-hop verdict below),
 //   - SE computed-key expressions of collapsed hops (replayed before the leaf, native order).
 // kinds: 'nested' (a prefix test survives), 'sequence' (no prefix, but the root or its arg
 // carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
@@ -1415,8 +1431,10 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   const aliasCtx = { scope, adapter, path };
   // an ALIAS root (`const g = globalThis; g.window?.self...`) resolves to the global it names -
   // the pristine gate below must ask about THAT name, not the local alias identifier (which is
-  // never a possible-global name and would bail the whole plan for a semantically identical nav)
-  const identRootName = !chainAssign && call?.type === 'Identifier' ? bareProxyGlobalAliasName(call, aliasCtx) : null;
+  // never a possible-global name and would bail the whole plan for a semantically identical nav).
+  // a CHAIN-ASSIGN wrapper is an emit concern, not a proof one: the write rides the rendered
+  // test / sequence prefix, so an identifier root proves through it exactly like a call root
+  const identRootName = call?.type === 'Identifier' ? bareProxyGlobalAliasName(call, aliasCtx) : null;
   const identRoot = identRootName ? call : null;
   if (!identRoot && call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression') return null;
   for (const hop of hops) {
@@ -1449,6 +1467,17 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   for (let i = 0; i < collapseIdx; i++) {
     if (!resolvePure({ kind: 'global', name: hops[i].name })) lastUnresolvableIdx = i;
   }
+  // per-hop `?.` verdict for the RENDERED shape, the spelling both emitters read: an optional
+  // is load-bearing only over a value that can short-circuit. BELOW the collapse that value is
+  // the source prefix (defined until the first unresolvable hop); ABOVE it the value is the
+  // always-defined ponyfill leaf, so the count restarts there (`_self.window?.global`)
+  for (const [from, to] of [[0, collapseIdx], [collapseIdx + 1, hops.length - 1]]) {
+    let shortCircuits = false;
+    for (let i = from; i <= to; i++) {
+      hops[i].liveOptional = hops[i].optional && shortCircuits;
+      shortCircuits ||= !resolvePure({ kind: 'global', name: hops[i].name });
+    }
+  }
   const keySeExprs = hops.flatMap(hop => hop.keySeExprs ?? []);
   const rootEffects = !!chainAssign
     || (!identRoot && inlineCallHasObservableEffects({ callNode: call, scope, adapter, path }));
@@ -1456,6 +1485,9 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
     topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
     leafName: hops[collapseIdx].name, rootValueNode: n, call: identRoot ? null : call,
+    // the resolve context travels with the plan: a render re-asks the shared vestigial-`?.`
+    // verdict about the kept prefix (a CLONE of it, so node identity cannot carry it)
+    ctx: aliasCtx, resolvePure,
     // an effect-bearing CALL root the render re-emits (nested: inside the prefix test;
     // sequence: as the kept prefix) - it runs exactly ONCE there, so every other SE channel
     // (a discard harvest, a claim side-effect replay) must not re-run it
@@ -1466,11 +1498,11 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
 // resolve a call ROOT to the proxy-global it provably yields, walking NESTED single-return
 // wrappers (`const f = () => g(); const g = () => globalThis`) - each layer inlines through the
 // same canon; one `seen` set guards cycles across the whole walk
-export function inlineCallProxyGlobalRoot({ callNode, scope, adapter, path }) {
+export function inlineCallProxyGlobalRoot({ callNode, scope, adapter, path, rejectConditional = false }) {
   const seen = new Set();
   let value = callNode;
   while (isCallShape(value)) {
-    value = inlineCallReturnExpression({ callNode: value, scope, adapter, path, seen });
+    value = inlineCallReturnExpression({ callNode: value, scope, adapter, path, seen, rejectConditional });
     if (!value) return null;
   }
   return findProxyGlobal(value, { scope, adapter, path });
@@ -2039,12 +2071,7 @@ export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null) {
     const raw = peelReceiverSequenceTail(cur.object);
     const object = peelSkippableWrappers(raw);
     if (cur.optional) {
-      // a live `?.` directly over a CALL value: an opaque call is a genuine guard (the
-      // opaque-root canon keeps these); an inline-PROVEN proxy-global call is always defined,
-      // so its `?.` is vestigial (the optional-count collapse canon)
-      if (object?.type === 'CallExpression' || object?.type === 'OptionalCallExpression') {
-        return !(aliasCtx && inlineCallProxyGlobalRoot({ callNode: object, ...aliasCtx }));
-      }
+      if (isCallShape(object)) return callValueCanBeUndefined(object, aliasCtx);
       if (navHasUnresolvableProxyHop(object, resolvePure)) return true;
     }
     // a PARENTHESIZED layer seals (source parens or a paren'd cast - `(nav).X`, `(nav as any)
@@ -2087,6 +2114,73 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   // `f = () => globalThis` - the opaque-root canon guards it)
   return (rootObj?.type === 'CallExpression' || rootObj?.type === 'OptionalCallExpression')
     && !!aliasCtx && !!inlineCallProxyGlobalRoot({ callNode: rootObj, ...aliasCtx });
+}
+
+// can the VALUE of a CALL be undefined? an opaque call is a genuine guard (the opaque-root
+// canon keeps those `?.`); an inline-PROVEN proxy-global call is always defined, so a `?.`
+// over it is vestigial (the optional-count collapse canon). a CONDITIONALLY proven callee
+// (`let f; if (c) f = () => globalThis;`) proves no value at all - the unassigned path yields
+// undefined through the call's own `?.()`, exactly what the outer `?.` guards
+function callValueCanBeUndefined(callNode, aliasCtx) {
+  // an OPTIONAL call is a chain LINK, not a plain value: dropping the `?.` above it re-groups
+  // the chain (the AST emitter has to parenthesize the link, `(oc?.()).window`, where the text
+  // emitter's `oc?.().window` reads as one chain). the source spelling is the only one both
+  // emitters can print, so the optional above such a link is never dead text
+  if (callNode.optional) return true;
+  return !(aliasCtx && inlineCallProxyGlobalRoot({ callNode, ...aliasCtx, rejectConditional: true }));
+}
+
+// how many TAIL steps above a guard render ride INSIDE its alternate, the one rule every guard
+// channel of both emitters counts with. steps run leaf-outwards, each `{ optional, isCall,
+// foreign }`; `definedAtLeaf` says whether the rendered value is provably defined (a ponyfill
+// leaf with no unresolvable hop of its own). a live `?.` over a value that CAN be absent guards
+// it and stays outside; a CALL only comes along behind a member (an optional call straight on
+// the render owns its own guard); a FOREIGN step is another channel's claim and ends the run.
+// past the first member the value is whatever that unponyfilled name holds - not provably
+// defined - so only plain steps keep pulling
+export function guardTailPullCount(steps, definedAtLeaf) {
+  let defined = definedAtLeaf;
+  // a pulled OPTIONAL CALL keeps its `?.(` inside the alternate, which re-opens the chain there:
+  // every step above it must stay in that chain, or the printer ends it and the source's
+  // short-circuit turns into a read off `undefined`
+  let inChain = false;
+  // while every step so far was PLAIN the folded value is a straight continuation of the LEAF,
+  // so the first live `?.` above it still rides inside the alternate; once a step carried its
+  // own `?.` - or the render already ended in a hop of its own - the value can be absent and
+  // the next guard belongs outside
+  let allPlain = definedAtLeaf;
+  let taken = 0;
+  for (const step of steps) {
+    if (step.foreign) break;
+    if (step.isCall) {
+      if (!taken) break;
+    } else if (step.optional && !defined && !inChain && !allPlain) break;
+    taken += 1;
+    inChain ||= step.isCall && step.optional;
+    if (!step.isCall) {
+      defined = false;
+      allPlain &&= !step.optional;
+    }
+  }
+  return taken;
+}
+
+// THE vestigial-`?.` verdict of a proxy nav, shared by every guard render of both emitters:
+// an optional whose RECEIVER cannot be undefined is dead text (a proven inline-call root, a
+// pristine global, a hop below the first unresolvable one) and the renders drop it; over a
+// value that genuinely short-circuits the optional is LOAD-BEARING and survives - stripping
+// it throws where the source yields undefined. returns the nav nodes whose own `?.` is dead
+export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
+  const dead = [];
+  for (let cur = navNode; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+    cur = peelSkippableWrappers(cur.object)) {
+    const object = peelSkippableWrappers(cur.object);
+    const undefinable = isCallShape(object)
+      ? callValueCanBeUndefined(object, aliasCtx)
+      : proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx);
+    if (cur.optional && !undefinable) dead.push(cur);
+  }
+  return dead;
 }
 
 export function navHasUnresolvableProxyHop(navNode, resolvePure) {

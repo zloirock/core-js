@@ -4147,7 +4147,7 @@ export function createDestructureEmitter({
 
   function substituteProxyGlobalRoot({
     node, src, baseStart, aliasCtx = null, ctx = null, isWriteTarget = false, throughChainAssign = false,
-    ownerlessReceiver = false,
+    ownerlessReceiver = false, hostPath = null, spanOut = null,
   }) {
     // a READ receiver delegates to the shared single-call resolver (the canonical proxy-global collapse, also
     // used by the instance-call path). a WRITE-target keeps the reconstruction below: the leaf is the assignment
@@ -4183,8 +4183,11 @@ export function createDestructureEmitter({
     // read the polyfillable hop raw off a defined receiver. a defined nav resolves null and
     // falls through to those reconstructions
     if (aliasRooted && !isWriteTarget) {
-      const aliasSealedSrc = sealedNavReceiverSrc?.(unwrapNode(node), metaPath);
-      if (aliasSealedSrc) return aliasSealedSrc;
+      const aliasSealed = sealedNavReceiverSrc?.(unwrapNode(node), metaPath, hostPath);
+      if (aliasSealed) {
+        if (spanOut) spanOut.end = aliasSealed.end;
+        return aliasSealed.src;
+      }
     }
     // an ASSIGN-buried root (`(a = globalThis).self.X`, visible only to the chain-assign-aware
     // walk) must not pre-claim either: the shared resolver renders by raw slices, which would
@@ -4192,9 +4195,10 @@ export function createDestructureEmitter({
     // assignment text in place so the natural identifier rewrite composes into it
     const assignRooted = !!earlyRoot && throughChainAssign && !findProxyGlobal(node, aliasCtx);
     if (!isWriteTarget && !aliasRooted && !assignRooted) {
-      const shared = resolveReceiverSource(node, metaPath);
+      const shared = resolveReceiverSource(node, metaPath, false, null, hostPath);
       if (shared?.substituted) {
         if (shared.skipNode) skippedNodes.add(shared.skipNode);
+        if (spanOut && shared.end !== undefined) spanOut.end = shared.end;
         return shared.src;
       }
     }
@@ -4478,11 +4482,11 @@ export function createDestructureEmitter({
         // AST emitter's render of the same residual. a defined nav resolves null and defers
         if (target.properties?.some(p => handledSideEffectKeyProps.has(p))
           && !transforms.hasRange(recv.start, recv.end)) {
-          const sealedSrc = sealedNavReceiverSrc?.(recv, aliasCtx?.path);
-          if (sealedSrc) {
+          const sealed = sealedNavReceiverSrc?.(recv, aliasCtx?.path, recPath);
+          if (sealed) {
             const sealedRoot = findProxyGlobal(recv, aliasCtx);
             if (sealedRoot) skippedNodes.add(sealedRoot);
-            transforms.add(recv.start, recv.end, sealedSrc);
+            transforms.add(recv.start, sealed.end, sealed.src);
             return true;
           }
         }
@@ -4540,9 +4544,10 @@ export function createDestructureEmitter({
     // follows the SAME positional rule as after a fresh claim (a hop meta must still stand
     // down, or its value-canon claim races the owned span)
     if (transforms.hasRange(recv.start, recv.end)) return anchorOnHop;
+    const collapsedSpan = { end: recv.end };
     const collapsed = substituteProxyGlobalRoot({
       node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget, throughChainAssign: true,
-      ownerlessReceiver: !dispatchOwned,
+      ownerlessReceiver: !dispatchOwned, hostPath: recPath, spanOut: collapsedSpan,
     });
     if (collapsed === null) return false;
     // deliberately chain-assign-BLIND: an assign-buried root (`(a = globalThis).self.X`) is kept
@@ -4552,7 +4557,7 @@ export function createDestructureEmitter({
     // root (bare / paren / sequence-tail) is marked skipped instead
     const root = findProxyGlobal(recv, aliasCtx);
     if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
-    transforms.add(recv.start, recv.end, collapsed);
+    transforms.add(recv.start, collapsedSpan.end, collapsed);
     // the collapse consumed the PROXY hops in the span - mark them so a swallowed hop's own
     // value-canon claim (`.self` -> `(a = ..., _self)`) stands down instead of racing this
     // span. ONLY proxy-keyed hops: a non-proxy member (`.Object` in a destructure source) may
@@ -4662,7 +4667,7 @@ export function createDestructureEmitter({
           : ctorPure ? injectPureImport(ctorPure.entry, ctorPure.hintName)
           // a receiver whose chain crosses the probe nav renders through the shared guarded
           // descend (pony hop, seal-aware tail) - a raw `.self` read misses the ponyfill class
-          : sealedNavReceiverSrc?.(readReceiver, path) ?? synthMemberReceiverSrc(readReceiver, ctx));
+          : sealedNavReceiverSrc?.(readReceiver, path)?.src ?? synthMemberReceiverSrc(readReceiver, ctx));
       }
       // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
       // only renders the entries as source text
