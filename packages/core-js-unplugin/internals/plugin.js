@@ -76,10 +76,9 @@ import { collapseStandownRoot, createPolyfillEmitter } from './polyfill-emitter.
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
   walkAstNodes,
-  canFuseWithOpenParen,
+  asiFusableStatementStarts,
   bindingNamesReducer,
   directivePrologueEnd,
-  enclosingExpressionStatementPath,
   hasCoreJSImport,
   isBodylessStatementBody,
   isChunkLoaderBundler,
@@ -87,7 +86,6 @@ import {
   KNOWN_BUNDLERS,
   lastUserImportEnd,
   liftSfcLangSuffix,
-  NEEDS_GUARD_PARENS,
   parenthesizeExprStmtHazard,
   statementOverwriteFusesLeft,
   stripLeadingBOMs,
@@ -957,7 +955,7 @@ export default function createPlugin(options) {
         const rebindTailMembers = new WeakSet();
         // no fileId arg: transform-queue throws are unbranded (`transform-queue: <msg>`); the outer
         // catch's `tagError(error, id)` owns the single `[core-js] [<id>] ` brand + file tag
-        const transforms = new TransformQueue(code, ms);
+        const transforms = new TransformQueue(code, ms, () => asiFusableStatementStarts(ast));
 
         // per-traversal scope state for `var _ref;`-style refs. setScope() runs before each
         // callback; genRef() reads the current scope. applyTransforms() drains accumulated
@@ -991,9 +989,7 @@ export default function createPlugin(options) {
         const emitter = createPolyfillEmitter({
           resolveNodeType: typeResolvers.resolveNodeType,
           toHint: typeResolvers.toHint,
-          canFuseWithOpenParen,
           code,
-          enclosingExpressionStatementPath,
           estreeAdapter,
           injectPureImport,
           isBodylessStatementBody,
@@ -1001,7 +997,6 @@ export default function createPlugin(options) {
           isInStaticContext,
           isShadowedByClassOwnMember,
           mutatedStatics,
-          NEEDS_GUARD_PARENS,
           resolveGlobalPolyfill,
           resolveStaticPolyfill,
           resolvePureOrGlobalFallback,
