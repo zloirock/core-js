@@ -2313,6 +2313,27 @@ runBothAndAgree('Symbol.iterator access on Array instance agrees across parsers'
     return resolver.resolveNodeType(call);
   });
 
+// --- conditionally proven callee root ---
+
+// a callee proven through a SINGLE conditional write (`let f; if (c) f = () => globalThis`)
+// resolves its return like an unconditionally proven one - the value is either that literal or
+// undefined, and the undefined path never reaches the receiver. the two parsers point a
+// constant-violation at DIFFERENT nodes (babel at the assignment, estree-toolkit at the written
+// identifier), which left the estree side unable to read the written function at all: a generic
+// dispatcher on a provably-Array receiver
+for (const [label, code] of [
+  ['plain call', 'let f; if (globalThis.setTimeout) f = () => globalThis; const r = f().Array.of(1);'],
+  ['optional call', 'let f; if (globalThis.setTimeout) f = () => globalThis; const r = f?.().Array.of(1);'],
+  ['nested wrapper', 'let f; if (globalThis.setTimeout) f = () => globalThis; const g = () => f(); const r = g().Array.of(1);'],
+]) {
+  runBothAndAgree(`conditionally proven callee root agrees across parsers: ${ label }`, code,
+    (adapter, prog) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => (p.node.id?.name ?? p.node.id?.value) === 'r');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      return type && { primitive: type.primitive, ctor: type.constructor?.name ?? null };
+    });
+}
+
 // --- top-level `this` global-proxy assumption ---
 
 // pragmatic assumption: top-level `this` IS the global proxy regardless of sourceType (an

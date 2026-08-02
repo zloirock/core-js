@@ -5,4 +5,4 @@ import _Map from "@core-js/pure/actual/map/constructor";
 // raw @babel/generator@7.29.7), which @7 re-parses as `(new q())?...` - so only THIS fixture sits
 // in the v7 skip-list and the sibling guarded-static forms keep their v7 coverage
 const q = () => _globalThis;
-export const viaGuardedCtor = new (null == q()?.window ? void 0 : _Map)([[1, 2]]);
+export const viaGuardedCtor = new (null == q().window ? void 0 : _Map)([[1, 2]]);
