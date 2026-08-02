@@ -5516,6 +5516,24 @@ export const CLASS_FIELD_TYPES = new Set([
   'AccessorProperty',
 ]);
 
+// parent types that parenthesize a guard ternary: an operator binding tighter than `?:`, or a
+// grammar slot that demands a LeftHandSideExpression. an AST printer adds those parens itself
+// while a text emitter spells them, so both need the SAME table - a type missing on one side
+// spelled the same fold two ways (the tail folded INSIDE the parens on one, `?.` outside on
+// the other). a ternary TEST parent belongs here too, but its branches do not - the emitters
+// recognise that one on their own terms (node identity / span end)
+export const GUARD_PAREN_CONSUMERS = new Set([
+  'AwaitExpression',
+  'BinaryExpression',
+  'ClassDeclaration',
+  'ClassExpression',
+  'LogicalExpression',
+  'SpreadElement',
+  'TaggedTemplateExpression',
+  'UnaryExpression',
+  'UpdateExpression',
+]);
+
 // one ancestor step: is `node` (entered via the `child` path) a DEFERRED evaluation context - a
 // function body (runs at call time) OR an INSTANCE class-field initializer VALUE (runs at
 // construction / `new`-time)? a static field, a StaticBlock, and any computed key run at class-eval
