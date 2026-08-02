@@ -264,6 +264,8 @@ export default function plugin(api, options) {
     isInTypeAnnotation,
     deoptionalizeNode,
     emitGuardedClaim,
+    isRenderedPlanTail,
+    navGuardTestNode,
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     sealedClaimThrowProbeNode,
@@ -880,7 +882,7 @@ export default function plugin(api, options) {
               break;
             }
             tip.replaceWith(t.conditionalExpression(
-              t.binaryExpression('==', t.nullLiteral(), guardTest),
+              t.binaryExpression('==', t.nullLiteral(), navGuardTestNode(guardTest, path)),
               t.unaryExpression('void', t.numericLiteral(0)),
               tip.node,
             ));
@@ -941,6 +943,9 @@ export default function plugin(api, options) {
           if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
             let rootPath = path;
             while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
+            // a hop a nav-collapse render already emitted keeps the shape the plan chose - re-run
+            // here it would collapse against a receiver the plan never picked
+            if (isRenderedPlanTail(rootPath.parentPath?.node)) return;
             // the hop collapse refuses a short-circuitable nav (the probe canon) - render the
             // kept-nav plan in place there, or a raw polyfillable hop key strands off a
             // defined receiver (`window['self']` - the web.self class miss)
@@ -966,6 +971,8 @@ export default function plugin(api, options) {
           while (drivePath.isMemberExpression() || drivePath.isOptionalMemberExpression()) drivePath = drivePath.get('object');
           if (!(drivePath.isIdentifier() && injector?.getMemoWrite?.(drivePath.node.name)
             && chainNavigatesIntoMutatedStatic({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }))) drivePath = path;
+          // a hop a nav-collapse render already emitted keeps the shape the plan chose
+          if (isRenderedPlanTail(drivePath.parentPath?.node)) return;
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null)) return;
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands

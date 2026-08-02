@@ -1071,12 +1071,107 @@ const BARE_PROBE_SHAPES = [
   // only the probe root, so the hop-key SE must ride the claim BODY (a receiver-count cut dropped
   // it - the memo never captured an effect past the guarded root)
   { id: 'se-key-claim-dispatch', tail: "?.[(log.push('k'), 'self')].Array.of(5).at(0)" },
+  // a SECOND unresolvable hop (the realm self-reference past the probe): the guard tests the
+  // DEEPER prefix, so the `?.` inside that test guards the probe and is load-bearing. spelling
+  // the test with a plain spine read `.window` off the absent probe - a throw where the source
+  // yields undefined (the unrigged rows are the oracle)
+  { id: 'second-unresolvable-hop', tail: '?.window?.self.Array.of(5).at(0)' },
+  { id: 'second-unresolvable-hop-optional', tail: '?.window?.self?.Array.of(6).at(0)' },
+  { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)" },
 ];
 function * generateBareProxyProbe() {
   for (const shape of BARE_PROBE_SHAPES) {
     const inner = `(() => { const v = globalThis.window${ shape.tail }; return typeof v; })()`;
     yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false };
     yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
+  // it must keep the probe hop - binding the bare write tested an always-defined global and ran
+  // the branch where the source short-circuits. the log carries the write (exactly once) beside
+  // the value, since one row cannot show both
+  for (const [id, expr] of [
+    ['assign-root-instance', '(t = globalThis)?.window?.self?.Array.of(5).at(0)'],
+    ['assign-root-instance-two-hops', '(t = globalThis)?.window?.window?.self?.Array.of(6).at(0)'],
+    ['assign-root-instance-plain-hop', '(t = globalThis).window?.window?.self?.Array.of(7).at(0)'],
+    ['assign-root-static', '(t = globalThis)?.window?.self?.Array.of(8)'],
+    ['assign-root-resolvable-hops', '(t = globalThis)?.self?.Array.of(9).at(0)'],
+  ]) {
+    const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis); return v; })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // an UNPLANNED tail (a non-proxy name past the ponyfill leaf) folds into the guarded alternate
+  // while the value is provably defined - including the continuation that sits PAST the receiver
+  // span each emitter starts from. dropping that continuation outside invokes the callee off the
+  // guard value and loses `this`, so the rig's method reports the receiver it actually saw
+  const tailHost = "globalThis.probeHost = { tag: 'host', read() { return this && this.tag; } };";
+  for (const [id, expr] of [
+    ['unplanned-call-tail', 'globalThis.window?.self.probeHost.read()'],
+    ['unplanned-call-then-member', 'globalThis.window?.self.probeHost.read().length'],
+    ['unplanned-optional-hop-call', 'globalThis.window?.self?.probeHost.read()'],
+    ['unplanned-live-optional-stays', 'globalThis.window?.self?.probeHost?.read()'],
+    ['unplanned-delete', 'delete globalThis.window?.self?.probeHost'],
+    ['unplanned-carrier', "globalThis.window?.self?.probeMissing ?? 'absent'"],
+    ['unplanned-typeof', 'typeof globalThis.window?.self?.probeHost'],
+    // the render carries a hop of its OWN (`self.window`): the tail still folds, and the hops
+    // the render emitted keep the shape the plan chose across the re-traversal
+    ['render-tail-plain', 'globalThis.window?.self.window.probeHost.read()'],
+    ['render-tail-live-optional', 'globalThis.window?.self?.window?.probeHost?.read()'],
+  ]) {
+    const inner = `(() => { ${ tailHost } try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // a CONDITIONALLY proven callee: the unassigned path yields undefined through the call's own
+  // `?.()`, exactly what the chain's `?.` guards, so neither optional is dead text. the FALSE
+  // branch row runs with the callee never assigned - eating either guard throws there
+  const condCallee = '(() => { let f; if (log.length > 99) f = () => globalThis;'
+    + ' try { return String(f?.()?.window?.self?.Array.of(5).at(0)); } catch (e) { return "throw"; } })()';
+  const assignedCallee = '(() => { let f; if (log.length < 99) f = () => globalThis;'
+    + ' try { return String(f?.()?.window?.self?.Array.of(6).at(0)); } catch (e) { return "throw"; } })()';
+  for (const [id, expr] of [['conditional-callee-unassigned', condCallee], ['conditional-callee-assigned', assignedCallee]]) {
+    yield { ...snippet(`bare-proxy-probe/${ id }`, expr), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, expr, { rig: true }), strip: false };
+  }
+  // a folded guard is a bare ternary, so an OPERAND slot swallows it. the operators here end in
+  // `=` / `>` - the same characters that open an arrow or an assignment - so a slot classified
+  // by one character spelled the fold bare and let the comparison re-parse around it
+  for (const [id, expr] of [
+    ['operand-eq-right', '1 === globalThis.window?.self.Array.of(1).at(0)'],
+    ['operand-neq-right', '1 !== globalThis.window?.self.Object.assign({}, { a: 1 }).a'],
+    ['operand-gt-right', '2 > globalThis.window?.self.Math.trunc(1.5)'],
+    ['operand-ge-right', "2 >= globalThis.window?.self.Number.parseFloat('1.5')"],
+    ['operand-le-right', '1 <= globalThis.window?.self.Reflect.ownKeys({ a: 1 }).length'],
+    ['operand-shift-right', '4 >> globalThis.window?.self.Array.from([1]).length'],
+    ['operand-eq-left', 'globalThis.window?.self.Promise.resolve(1).constructor.length === 1'],
+    ['operand-shift-left', "globalThis.window?.self.Number.parseInt('4', 10) >> 1"],
+    // the delimited slots that pin the same classification: these stay BARE
+    ['delimited-ternary-consequent', '(() => { const pick = log.length < 99; return pick ? globalThis.window?.self.Math.sign(-2) : 0; })()'],
+    ['delimited-ternary-alternate', '(() => { const pick = log.length > 99; return pick ? 9 : globalThis.window?.self.Math.expm1(0); })()'],
+    ['operand-nullish-right', '(() => { const seed = null; return seed ?? globalThis.window?.self.Number.EPSILON; })()'],
+    ['delimited-arrow-body', '(() => globalThis.window?.self.Object.entries({ a: 1 }).length)()'],
+    ['delimited-compound-assign', '(() => { let n = 10; n -= globalThis.window?.self.Math.cbrt(8); return n; })()'],
+    ['delimited-logical-assign', '(() => { let n = 0; n ||= globalThis.window?.self.Number.MAX_SAFE_INTEGER; return n; })()'],
+    ['delimited-case-arm', '(() => { switch (1) { case 1: return globalThis.window?.self.Math.hypot(3, 4); default: return 0; } })()'],
+  ]) {
+    const inner = `(() => { try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // a guard render leading with `(` at the head of an ExpressionStatement fuses with an
+  // unterminated previous statement and turns it into a call - the newline is what makes the
+  // separator the emitter's business, so these rows carry one
+  for (const [id, stmt] of [
+    ['asi-lifted-nav', 'globalThis.window?.self.probeHost.read()'],
+    ['asi-lifted-member', 'globalThis.window?.self.probeHost.tag'],
+    ['asi-lifted-optional-callee', 'globalThis.window?.self.probeHost?.read?.()'],
+    ['asi-claim-under-operator', "globalThis.window?.self.Number.parseInt('4', 10) >> 1"],
+    ['asi-folded-claim', 'globalThis.window?.self.Array.of(1).at(0)'],
+  ]) {
+    const inner = `(() => { ${ tailHost } let sink = 1\n${ stmt }\nreturn sink; })()`;
+    const guarded = `(() => { try { return String(${ inner }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, guarded), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, guarded, { rig: true }), strip: false };
   }
   // SEALED probe navs: parens end the inner chain, so the read above is PLAIN - an absent
   // `window` must THROW exactly as the source does (a guardless hop collapse returned a value),
