@@ -12,7 +12,7 @@ var _ref, _ref2, _ref3;
 // the guarded ponyfill; a PARENTHESIZED layer seals - the member above it parses PLAIN and
 // the render keeps the source's throw semantics. distinct methods per line
 let c = 0;
-export const bareNonNullHop = (null == _globalThis.window ? void 0 : (c++, _self))?.Number;
+export const bareNonNullHop = null == _globalThis.window ? void 0 : (c++, _self).Number;
 export const bareNonNullMidChain = null == (_ref = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref2 = _Array$of(2)).call(_ref2);
 export const castSealValueUse = (null == _globalThis.window ? void 0 : _self).Math;
 export const parenSealPlainRead = (null == _globalThis.window ? void 0 : _self).JSON;

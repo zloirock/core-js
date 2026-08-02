@@ -5,13 +5,16 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import {
   claimReceiverEvaluationMayThrow,
   classifyReceiverSE, descendToChainRoot, keySideEffectsOnly, maximalProxyGlobalPrefix,
+  guardTailPullCount,
+  navHasUnresolvableProxyHop,
   peelChainAssignment, peelReceiverSequenceTail, inlineCallProxyGlobalRoot, planProvenNavGuardCollapse,
   proxyReceiverValueCanBeUndefined, sealedChainBoundary,
-  resolveObjectName,
+  resolveObjectName, vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   createTypeAnnotationChecker,
+  GUARD_PAREN_CONSUMERS,
   isReusableReceiver,
   memberKeyName,
   memberProxyHopName,
@@ -23,6 +26,14 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+
+// a ternary TEST is parenthesized too; its branches are not (they already sit inside)
+function parenForcingConsumer(path) {
+  const parent = path.parentPath?.node;
+  if (!parent) return false;
+  return GUARD_PAREN_CONSUMERS.has(parent.type)
+    || (parent.type === 'ConditionalExpression' && parent.test === path.node);
+}
 
 // is `child` the operand slot (object/callee) of an optional expression,
 // possibly through TS wrappers OR explicit ParenthesizedExpression?
@@ -113,17 +124,23 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // wrapper legitimately consumes the branch value.
   // parenTerminated: chain barriers recorded at replace time (see markGuardedClaim's caller);
   // pendingKeptNavCollapses: kept nav-collapse renders awaiting their host-exit flush
-  const guardedClaims = new WeakSet(),
+  // pluginGuardTernaries: guard ternaries this factory built (`test == null ? void 0 : alt`) -
+  // the combined-chain emitter grafts its helper INTO such an alternate instead of wrapping the
+  // whole ternary. throwingExtractions: helper-GET calls minted for DESTRUCTURE extractions -
+  // native destructuring of undefined THROWS, so an erase-refusal guard must stay INSIDE the
+  // helper argument (the helper then throws on the short-circuited void 0 exactly like native)
+  // instead of climbing above it
+  // hops a nav-collapse render emitted above its ponyfill leaf (`_self.window`): the hop-drop
+  // canon must not re-run on them, or the same source yields a different chain per traversal
+  // chains whose tail feeds a TAGGED template: the source parens end the chain there, so the
+  // lift that re-creates a short-circuit would swallow the throw the source performs
+  const taggedTemplateTails = new WeakSet(),
+        renderedPlanTails = new WeakSet(),
+        guardedClaims = new WeakSet(),
         pluginSeqWraps = new WeakSet(),
         parenTerminated = new WeakSet(),
-        pendingKeptNavCollapses = [];
-  // guard ternaries this factory built (`test == null ? void 0 : alt`): the combined-chain
-  // emitter grafts its helper INTO such an alternate instead of wrapping the whole ternary.
-  // throwingExtractions: helper-GET calls minted for DESTRUCTURE extractions - native
-  // destructuring of undefined THROWS, so an erase-refusal guard must stay INSIDE the helper
-  // argument (the helper then throws on the short-circuited void 0 exactly like native)
-  // instead of climbing above it
-  const pluginGuardTernaries = new WeakSet(),
+        pendingKeptNavCollapses = [],
+        pluginGuardTernaries = new WeakSet(),
         throwingExtractions = new WeakSet();
   function markThrowingExtraction(node) {
     throwingExtractions.add(node);
@@ -286,11 +303,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // prefix or one BURIED in an inline-provable call arg): the member visitor's subtree-skip
     // means the identifier visitor never reaches it, and the claim freezes the kept text - a
     // raw `globalThis` would ReferenceError on ie:11. no tree walk: the canonical spine
-    // descent + inline proof land on the ONE identifier, substituted by name in place. the
-    // `?.` directly above a substituted bare root deoptionalizes (the deopt canon both
-    // emitters lock); optionals over genuinely undefinable hops stay live
+    // descent + inline proof land on the ONE identifier, substituted by name in place. its own
+    // `?.` spelling is the shared verdict below, applied once for every root shape
     if (substituteGlobal) {
-      const { root, firstHop } = descendToChainRoot(guardObject, true);
+      const { root } = descendToChainRoot(guardObject, true);
       const buried = root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression'
         ? inlineCallProxyGlobalRoot({ callNode: root, scope: path.scope, adapter: getAdapter?.(), path })
         : root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name) ? root : null;
@@ -298,16 +314,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // bound; only a REAL binding (param / var / destructured pattern) shadows
       if (buried && !path.scope.hasBinding(buried.name, true)) {
         const sub = substituteGlobal(buried.name);
-        if (sub) {
-          const bareRoot = buried === root;
-          buried.name = sub.name;
-          if (bareRoot && firstHop?.optional) {
-            firstHop.type = 'MemberExpression';
-            delete firstHop.optional;
-          }
-        }
+        if (sub) buried.name = sub.name;
       }
     }
+    rootNode = navGuardTestNode(rootNode, path);
     // a transparent wrapper on the ROOT gets explicit parens in the guard test: babel prints
     // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the text emitter keeps
     // the wrapped root grouped - `null == ((c = gw) as any) ? ...`
@@ -540,6 +550,29 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (name) getInjector().registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
   }
 
+  // THE guard-test spelling, shared by every channel that builds a `null == <test>` guard: the
+  // vestigial-`?.` verdict of the provider (a `?.` over the proven root is dead text the text
+  // emitter drops too; one over a genuine probe is load-bearing and stays). deopts a CLONE - the
+  // source node may still be read by another channel - and keeps node identity when nothing is
+  // dead, so channels relying on the live subtree are untouched
+  // channels holding a PATH pass it (the resolve context is rebuilt from it); the plan's own
+  // render passes the context the plan resolved with
+  function navGuardTestNode(node, anchorPath, plan = null) {
+    const adapter = getAdapter?.();
+    if (!node || !adapter || !resolvePureGlobalEntry) return node;
+    const resolvePure = plan ? plan.resolvePure : ({ name }) => resolvePureGlobalEntry(name, anchorPath);
+    const ctx = plan ? plan.ctx : { scope: anchorPath?.scope, adapter, path: anchorPath };
+    if (!ctx?.scope) return node;
+    const clone = t.cloneNode(node, true);
+    const dead = vestigialNavOptionals(clone, resolvePure, ctx);
+    if (!dead.length) return node;
+    for (const hop of dead) {
+      hop.type = 'MemberExpression';
+      delete hop.optional;
+    }
+    return clone;
+  }
+
   // the AST spelling of a nav-collapse plan (mirrors the text emitter's forms byte-for-byte)
   function renderNavCollapseAst(plan, pureId) {
     const keySeExprs = plan.keySeExprs.map(se => t.cloneNode(se));
@@ -550,21 +583,28 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     function withTail(base) {
       let out = base;
       for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
-        out = hop.optional
+        out = hop.liveOptional
           ? t.optionalMemberExpression(out, t.identifier(hop.name), false, true)
           : t.memberExpression(out, t.identifier(hop.name));
+        // the render already decided this hop's fate; re-entering the traversal it would look
+        // like a fresh redundant hop and collapse against a receiver the plan never chose
+        renderedPlanTails.add(out);
       }
       return out;
     }
+    function keptPrefix(node) {
+      return navGuardTestNode(node, null, plan);
+    }
     if (plan.kind === 'nested') {
       return t.conditionalExpression(
-        t.binaryExpression('==', t.nullLiteral(), plan.hops[plan.lastUnresolvableIdx].node),
+        t.binaryExpression('==', t.nullLiteral(), keptPrefix(plan.hops[plan.lastUnresolvableIdx].node)),
         t.unaryExpression('void', t.numericLiteral(0)), withTail(leaf),
       );
     }
     if (plan.kind === 'sequence') {
-      const parts = keySeExprs.length ? [plan.rootValueNode, ...keySeExprs, t.cloneNode(pureId)]
-        : [plan.rootValueNode, t.cloneNode(pureId)];
+      const rootValue = keptPrefix(plan.rootValueNode);
+      const parts = keySeExprs.length ? [rootValue, ...keySeExprs, t.cloneNode(pureId)]
+        : [rootValue, t.cloneNode(pureId)];
       return withTail(t.sequenceExpression(parts));
     }
     return withTail(leaf);
@@ -593,19 +633,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // SPINE. the flush lands at program exit, AFTER the optional-chain lowering pass visited
     // the tree, so (1) a LIVE node reference may have been moved into the lowering's own memo
     // (the render would strand a dangling `_refN`), and (2) an emitted `?.` would never be
-    // lowered for ES5 targets. the plan's proof makes every spine `?.` vestigial (the root
-    // and each pristine hop are always defined), so the plain spelling is exact. call
-    // ARGUMENTS stay untouched - user optionals inside them lower normally in place. null
-    // when the spine holds a `?.()` (it may be conditionally proven - a REAL short-circuit
-    // the plan may not flush-render; the raw memo fallback keeps the faithful spelling)
+    // lowered for ES5 targets (the render's own vestigial-`?.` drop keeps the printed spelling
+    // free of dead optionals). call ARGUMENTS stay untouched - user optionals inside them lower
+    // normally in place. null when the spine holds a `?.()` (it may be conditionally proven - a
+    // REAL short-circuit the plan may not flush-render; the raw memo fallback stays faithful)
     function snapshotNavRenderNode(node) {
       if (!node) return node;
-      const clone = t.cloneNode(node, true);
-      for (let spine = clone; spine;) {
+      for (let spine = node; spine;) {
         switch (spine.type) {
           case 'OptionalMemberExpression':
-            spine.type = 'MemberExpression';
-            delete spine.optional;
+          case 'MemberExpression':
             spine = spine.object;
             break;
           case 'OptionalCallExpression':
@@ -613,14 +650,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
           case 'CallExpression':
             spine = spine.callee;
             break;
-          case 'MemberExpression':
-            spine = spine.object;
-            break;
           default:
-            return clone;
+            spine = null;
         }
       }
-      return clone;
+      return t.cloneNode(node, true);
     }
     if (plan.kind === 'nested') {
       const hop = plan.hops[plan.lastUnresolvableIdx];
@@ -674,6 +708,104 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       });
       return plan && !plan.topAssign && plan.kind === 'nested' ? plan : null;
     }
+
+    // hops the plan does NOT cover (a non-proxy name - `...?.self?.chrome`) read off the value
+    // the render produces. while that value is provably defined they belong INSIDE the guarded
+    // alternate (`null == test ? void 0 : _self.chrome`, the text emitter's shape): hung off
+    // the ternary instead, each one needs a `?.` the ES5 lowering then has to memoize. the
+    // FIRST hop reads the always-defined ponyfill leaf, so it pulls in whatever its own
+    // spelling; past it the value can be absent, so only PLAIN hops keep pulling and the first
+    // live `?.` stays outside, where the ternary's own short-circuit already covers it.
+    // gated on a nested plan with no tail of its own (a planned tail can be absent - the hop
+    // above it genuinely guards) and on chain membership (a SEALED member keeps its throw)
+    function pullUnplannedTail(pullFrom, plan, rendered) {
+      if (plan.kind !== 'nested') return false;
+      // collect the chain steps leaf-outwards, then let the shared rule say how many ride inside
+      const paths = [];
+      for (let hop = pullFrom; hop?.node;) {
+        const isCall = hop.isOptionalCallExpression() || hop.isCallExpression();
+        if (!isCall && !hop.isOptionalMemberExpression()) break;
+        if (isCall && hop.node.callee !== paths.at(-1)?.node) break;
+        // PARENS between the callee and its call keep the chain's REFERENCE (`(w?.self.fn)()`
+        // still binds `this`), while ending the short-circuit: folding either the call or the
+        // member it reads leaves the callee with a bare value. hand the whole tail back to the
+        // lifted spelling, which preserves both
+        if (isCall && hop.node.callee.extra?.parenthesized) return false;
+        paths.push(hop);
+        const up = hop.parentPath;
+        hop = up?.node && (up.node.object === hop.node || up.node.callee === hop.node) ? up : null;
+      }
+      // no `foreign` step here: the AST emitter re-queues what it pulls, so a claim inside the
+      // tail still gets its own rewrite (the text emitter cannot, and gates on it instead)
+      const steps = paths.map(path => ({
+        optional: !!path.node.optional,
+        isCall: path.isOptionalCallExpression() || path.isCallExpression(),
+        // no key gate here: a computed key - opaque or effect-bearing - evaluates INSIDE the
+        // alternate exactly where the source evaluates it, and the shared `allPlain` rule
+        // already keeps an optional step over an absent-able value outside the fold
+      }));
+      const definedAtLeaf = plan.hops.length === plan.collapseIdx + 1;
+      let taken = guardTailPullCount(steps, definedAtLeaf);
+      // `delete` needs the MEMBER itself, not its value: pulled into the alternate the ternary
+      // evaluates and deletes nothing, and a tail left outside reads off the guard's `void 0`.
+      // hand the WHOLE chain back to the lifted spelling, where the `?.` re-creates the source
+      // short-circuit (`delete` on a short-circuited chain is a no-op `true`).
+      // (`new` reads only the VALUE, so it pulls freely)
+      for (let step = paths.at(-1)?.parentPath; step?.node; step = step.parentPath) {
+        if (TS_EXPR_WRAPPERS.has(step.node.type)) continue;
+        if (step.isUnaryExpression({ operator: 'delete' })) taken = 0;
+        if (!step.isOptionalMemberExpression() && !step.isMemberExpression()
+          && !step.isOptionalCallExpression() && !step.isCallExpression()) break;
+      }
+      // a consumer that PARENTHESIZES the ternary (`await`, `typeof`, an operator) leaves the
+      // LAST pulled step behind those parens, where the text emitter cannot follow - it keeps
+      // that step outside behind a `?.`. drop it here too, so both spellings match
+      // (a SINGLE pulled step needs no parens of its own - the printer wraps the whole ternary,
+      // and a CALL may never be left outside: invoked off the parens it loses its receiver)
+      // a TAGGED template reads its tag as a REFERENCE too (`(w?.self.tag)`x`` binds `this`),
+      // so a pulled member under one loses the receiver exactly like a parenthesized callee.
+      // the source parens also END the chain - keep them, or the lifted spelling swallows the
+      // throw the source performs on a nullish tag
+      // a TAGGED template reads its tag as a REFERENCE (`(w?.self.tag)`x`` binds `this`), so a
+      // folded tail hands it a bare value. leave the whole tail outside - and PLAIN, since the
+      // source parens ended the chain: the read off `void 0` throws exactly as the source does
+      if (paths.some(path => path.parentPath?.isTaggedTemplateExpression())) {
+        taggedTemplateTails.add(paths[0].node);
+        return false;
+      }
+      if (taken > 1 && !steps[taken - 1].isCall && parenForcingConsumer(paths[taken - 1])) taken -= 1;
+      if (!taken) return false;
+      // whatever stays outside reads off the guard value - lift it so the short-circuit holds
+      const outside = paths[taken];
+      if (outside?.isOptionalMemberExpression() && !outside.node.optional) outside.node.optional = true;
+      let value = rendered.alternate;
+      // once a step carries a live `?.` every step above it stays IN the chain: a plain member
+      // there ends the chain (the printer parenthesizes it), so the source's short-circuit
+      // would turn into a read off `undefined`
+      let inChain = false;
+      for (const [index, path] of paths.slice(0, taken).entries()) {
+        // the FIRST step reads the always-defined leaf, so its `?.` is the vestigial one the
+        // shared verdict drops; every later optional guards a value that can be absent
+        const optional = !!path.node.optional && !(index === 0 && definedAtLeaf);
+        if (steps[index].isCall) {
+          // an OPTIONAL call keeps its `?.(` inside the alternate: hung off the ternary the
+          // callee reads as a bare value and `this` binds to undefined where the source binds
+          // the member it was read from
+          const args = path.node.arguments.map(argument => t.cloneNode(argument));
+          value = optional || inChain ? t.optionalCallExpression(value, args, optional) : t.callExpression(value, args);
+        } else {
+          const property = path.node.computed ? t.cloneNode(path.node.property) : t.identifier(path.node.property.name);
+          value = optional || inChain
+            ? t.optionalMemberExpression(value, property, path.node.computed, optional)
+            : t.memberExpression(value, property, path.node.computed);
+        }
+        inChain ||= optional;
+      }
+      rendered.alternate = value;
+      paths[taken - 1].replaceWith(rendered);
+      return true;
+    }
+
     // the chain end may sit several NON-proxy hops above the collapsible nav prefix
     // (`window?.self.Array.prototype.customX`): descend member-by-member until the object
     // is the pure proxy-nav - the render lands there, and the plain hops above ride the
@@ -694,13 +826,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     }
     const pure = resolvePureGlobalEntry(plan.leafName, memberPath);
     if (!pure) return false;
-    target.get('object').replaceWith(renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)));
+    const rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
+    if (pullUnplannedTail(target, plan, rendered)) return true;
+    target.get('object').replaceWith(rendered);
     // a PLAIN hop above the render would strand outside the guard as an unconditional read -
     // a throw on the very branch the guard proved absent, where the source short-circuits.
     // the ponyfill leaf is always defined, so lifting the hop to `?.` only re-creates the
     // source short-circuit. a SEALED member (plain MemberExpression over the paren boundary)
     // keeps the source's own throw semantics and stays plain
-    if (target.isOptionalMemberExpression() && !target.node.optional) target.node.optional = true;
+    if (target.isOptionalMemberExpression() && !target.node.optional
+      && !taggedTemplateTails.has(target.node)) target.node.optional = true;
     return true;
   }
 
@@ -822,6 +957,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // path the prefix test misses the alias shape and the kept-swap plan drops the root guard
     if (maximalProxyGlobalPrefix(navNode, { scope, adapter, path: anchorPath },
       { allowSideEffectKeys: true, throughChainAssign: true }) !== navNode) return null;
+    // the hop fold holds only while the hops are ALWAYS DEFINED (a realm self-reference, a
+    // ponyfilled forwarder). an UNRESOLVABLE hop is the environment probe itself - the one
+    // value the guard exists for - so folding it out of the test leaves an always-defined
+    // root under the null-check and runs the branch where the source short-circuits. keep
+    // the whole nav in the memo there (the caller's plain memoize), like the text emitter
+    if (resolvePureGlobalEntry && navHasUnresolvableProxyHop(navNode,
+      ({ name }) => resolvePureGlobalEntry(name, anchorPath))) return null;
     // descend the object spine to the root (the maximal-prefix check proved pure-nav shape);
     // `holder` keeps the member whose object slot receives the ref - a transparent wrapper
     // between it and the root is dropped with the swap (the same tradeoff as the optional
@@ -1371,6 +1513,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     isInTypeAnnotation,
     deoptionalizeNode,
     emitGuardedClaim,
+    navGuardTestNode,
+    isRenderedPlanTail: node => renderedPlanTails.has(node),
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     sealedClaimThrowProbeNode,

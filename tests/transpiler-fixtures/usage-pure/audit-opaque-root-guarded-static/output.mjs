@@ -46,7 +46,7 @@ export const viaComputedTrailing = null == (_ref9 = m()?.window) ? void 0 : (_re
 // the tail inside the guarded branch, the text emitter parenthesizes the guard) - runtime-equal,
 // sidecar-locked
 const p = () => _globalThis;
-export const viaOptionalTrailing = null == p()?.window ? void 0 : _Promise$resolve(4)?.then?.(x => x);
+export const viaOptionalTrailing = null == p().window ? void 0 : _Promise$resolve(4)?.then?.(x => x);
 
 // a CHAIN-ASSIGN root: the assignment rides the guard memo, the static still collapses
 let held;
@@ -63,14 +63,14 @@ export const viaSeArgument = null == (_ref13 = sa()?.window) ? void 0 : _atMaybe
 // receives the GUARDED value and throws on the short-circuited void 0 exactly like native
 // destructuring of undefined (faithful-throw)
 const dg = () => _globalThis;
-const pickedAt = _atMaybeArray(null == dg()?.window ? void 0 : _Array$of(9));
+const pickedAt = _atMaybeArray(null == dg().window ? void 0 : _Array$of(9));
 export const viaDestructureOverGuarded = pickedAt;
 
 // DEEP pristine hops over the provably pure call root: BOTH emitters drop the call and read
 // the hops off the ponyfill leaf (`_self.window`) - a raw `.self` read would miss every engine
 // the web.self ponyfill serves (the polyfill invariant), so the guard itself is ponyfill-backed
 const dh = () => _globalThis;
-export const viaDeepHops = null == (_ref15 = _self?.window) ? void 0 : _atMaybeArray(_ref16 = _Array$of(3)).call(_ref16, 0);
+export const viaDeepHops = null == (_ref15 = _self.window) ? void 0 : _atMaybeArray(_ref16 = _Array$of(3)).call(_ref16, 0);
 
 // an SE-carrying inline BODY of the call root replays as a sequence prefix on the collapsed
 // guard test (`(db(), _self).window`) - the effect runs exactly once, the branch reads the
@@ -80,7 +80,7 @@ const db = () => {
   bodyCount++;
   return _globalThis;
 };
-export const viaSeBodyRoot = null == (_ref17 = (db(), _self)?.window) ? void 0 : _atMaybeArray(_ref18 = _Array$of(11)).call(_ref18, 0);
+export const viaSeBodyRoot = null == (_ref17 = (db(), _self).window) ? void 0 : _atMaybeArray(_ref18 = _Array$of(11)).call(_ref18, 0);
 
 // hops SWAPPED (the unresolvable window hop before the ponyfillable self hop): both optional
 // objects share the window hop as their only source of undefined, so ONE nested test on the
@@ -96,9 +96,10 @@ export const viaOptionalCallRoot = null == (_ref21 = null == oc?.()?.window ? vo
 // a SECOND unresolvable hop past the ponyfillable one stays raw on the guarded ref (two
 // sources of undefined: the nested test covers the window prefix, the outer memo test the
 // chrome value). the static reads off the opaque chrome value, not a global - no collapse.
-// the vestigial `?.` spelling on the kept tail differs cosmetically between emitters
+// the unplanned `chrome` tail ATTACHES differently per emitter (on the guard result vs inside
+// the branch) - runtime-equal, sidecar-locked
 const upu = () => _globalThis;
-export const viaUnresPonyUnres = null == (_ref23 = (null == upu()?.window ? void 0 : _self)?.chrome) ? void 0 : _at(_ref24 = _ref23.Array.of(14)).call(_ref24, 0);
+export const viaUnresPonyUnres = null == (_ref23 = null == upu().window ? void 0 : _self.chrome) ? void 0 : _at(_ref24 = _ref23.Array.of(14)).call(_ref24, 0);
 
 // a CHAIN-ASSIGN wrapper around the proven call root rides the nested test verbatim - the
 // write runs exactly once, the branch reads the ponyfill leaf
@@ -126,11 +127,11 @@ const cse = () => {
   seBodyCount++;
   return _globalThis;
 };
-export const viaChainAssignSeBody = null == (_ref31 = (heldSe = cse(), _self)?.window) ? void 0 : _at(_ref32 = _Array$of(18)).call(_ref32, 0);
+export const viaChainAssignSeBody = null == (_ref31 = (heldSe = cse(), _self).window) ? void 0 : _at(_ref32 = _Array$of(18)).call(_ref32, 0);
 
 // an SE-PREFIXED computed hop key still RESOLVES for the guard count (the effect stays live in
 // the kept test text, in source order after the window test) - the branch reads the ponyfill
-// leaf. the key parens spelling differs cosmetically between emitters
+// leaf
 let keyEff = 0;
 const sk = () => _globalThis;
 export const viaSeComputedOwnKey = null == (_ref33 = null == sk().window ? void 0 : (keyEff++, _self)) ? void 0 : _atMaybeArray(_ref34 = _Array$of(19)).call(_ref34, 0);
@@ -154,12 +155,12 @@ export const viaPlainTailStatic = null == (_ref39 = pt()?.window) ? void 0 : _at
 // unresolvable hop (the window prefix), never a raw ponyfillable hop read; the helper receives
 // the guarded value and keeps the native throw on the short-circuit path
 const dsw = () => _globalThis;
-const pickedSwapAt = _atMaybeArray(null == dsw()?.window ? void 0 : _Array$of(23));
+const pickedSwapAt = _atMaybeArray(null == dsw().window ? void 0 : _Array$of(23));
 export const viaDestructureOverSwap = pickedSwapAt;
 
 // an IDENTITY-IIFE root (`((x) => x)(globalThis)`) proves through the identity-param inline
 // canon: the buried global substitutes, the live window test guards the chain, the branch
-// reads the ponyfill leaf. the guard-shape spelling differs cosmetically between emitters
+// reads the ponyfill leaf (only the arrow reprint differs between emitters)
 export const viaIdentityRoot = null == (_ref41 = null == (x => x)(_globalThis).window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref42 = _Array$of(24)).call(_ref42, 0);
 
 // an SE-carrying ARG of the identity root rides the kept test, exactly once, in source order
@@ -189,18 +190,18 @@ export const viaShadowedGlobal = shadowWrap;
 // the carrier RESULT (the fallback object may own the key) - no collapse past the carrier; the
 // root SE runs once inside the kept test
 const nc = () => _globalThis;
-export const viaNullishCarrier = _at(_ref49 = ((null == nc()?.window ? void 0 : _self) ?? {
+export const viaNullishCarrier = _at(_ref49 = ((null == nc().window ? void 0 : _self) ?? {
   Array
 }).Array.of(29)).call(_ref49, 0);
 
 // a LOGICAL retest spells each leg through the same nested canon - the left leg keeps its own
 // guarded read, the right leg guards the dispatch
 const lg = () => _globalThis;
-export const viaLogicalRetest = (null == lg()?.window ? void 0 : _self) && (null == (_ref50 = null == lg().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref51 = _Array$of(30)).call(_ref51, 0));
+export const viaLogicalRetest = (null == lg().window ? void 0 : _self) && (null == (_ref50 = null == lg().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref51 = _Array$of(30)).call(_ref51, 0));
 
 // a CTOR read through the guarded identity chain: the guard tests the window prefix, both
 // legs construct the ponyfill (`new _Map`) - the arrow-paren reprint differs cosmetically
-export const viaIdentityCtorNew = (null == (x => x)(_globalThis)?.window ? void 0 : _Map) && new _Map([[1, 2]]).size;
+export const viaIdentityCtorNew = (null == (x => x)(_globalThis).window ? void 0 : _Map) && new _Map([[1, 2]]).size;
 
 // an ALIAS holding an undefinable nav keeps its `?.` LIVE (the runtime VALUE is the nav's,
 // not the always-defined global the prefix walk sees) - the claim composes PLAIN into the

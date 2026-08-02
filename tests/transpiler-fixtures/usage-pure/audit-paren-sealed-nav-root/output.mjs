@@ -197,7 +197,7 @@ let c9 = 0;
 export const viaProbeSeKeyResidual = _Object$getOwnPropertyNames;
 export const {
   [(c9++, 'getOwnPropertyNames')]: _unused2
-} = (null == _globalThis.window ? void 0 : _self)?.Object;
+} = null == _globalThis.window ? void 0 : _self.Object;
 export const viaSealedCtorLeafResidual = _Array$from;
 export const {
   [(c9++, 'from')]: _unused3
@@ -217,7 +217,7 @@ let viaSealedAssignSeKey;
 let viaProbeAssignSeKey;
 ({
   [(ca++, 'keys')]: viaProbeAssignSeKey = _Object$keys
-} = (null == _globalThis.window ? void 0 : _self)?.Object);
+} = null == _globalThis.window ? void 0 : _self.Object);
 export { viaSealedAssignSeKey, viaProbeAssignSeKey, ca };
 
 // ALIAS-rooted probe navs ride the same canon with the alias identifier kept verbatim in
@@ -225,7 +225,7 @@ export { viaSealedAssignSeKey, viaProbeAssignSeKey, ca };
 const gAlias = _globalThis;
 let cb = 0;
 export const viaAliasKeptSealed = (null == gAlias.window ? void 0 : _self).Object;
-export const viaAliasKeptLive = (null == gAlias.window ? void 0 : _self)?.Object;
+export const viaAliasKeptLive = null == gAlias.window ? void 0 : _self.Object;
 export const viaAliasSealedClaim = ((null == gAlias.window ? void 0 : _self).Array, _Array$of)(3);
 export const viaAliasSealedSeKey = _Object$values;
 export const {
