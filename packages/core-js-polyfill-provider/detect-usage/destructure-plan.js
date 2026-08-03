@@ -30,11 +30,11 @@ import {
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import {
-  discardRescueNodes, isStaticPlacement, proxyReceiverValueCanBeUndefined,
+  discardRescueNodes, isStaticPlacement, isUndefinedNode, proxyReceiverValueCanBeUndefined,
   resolveKey as sharedResolveKey, resolveObjectName,
 } from './resolve.js';
 import {
-  destructureRightIsReceiver, fallbackInitWhollyDiscardable, isUndefinedNode, resolveBranchProxyName, walkStaticReceiverChain,
+  destructureRightIsReceiver, fallbackInitWhollyDiscardable, resolveBranchProxyName, walkStaticReceiverChain,
 } from './destructure.js';
 
 // object-prop node across parsers: estree `Property`, babel `ObjectProperty`
@@ -566,9 +566,7 @@ export function buildNestedDestructurePlan({
       function planCtorKeyAnchor(hostPattern) {
         const prop = hostPattern.properties.length === 1 && isPropertyNode(hostPattern.properties[0])
           ? hostPattern.properties[0] : null;
-        const key = prop ? sharedResolveKey({
-          node: prop.key, computed: prop.computed, scope, adapter, path, bailOnSideEffectKey: true,
-        }) : null;
+        const key = prop ? propKeyNameScoped(prop) : null;
         const inner = key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && isStaticPlacement(key)
           ? peelInnerDefault(prop.value) : null;
         if (inner?.type !== 'ObjectPattern' || !inner.properties.length) return null;
@@ -605,7 +603,7 @@ export function buildNestedDestructurePlan({
         const outerProps = reanchored.every(p => p.kind === 'consumed' || p.kind === 'anchored')
           && reanchored.some(p => p.kind === 'anchored') && reanchored.some(p => p.kind === 'consumed')
           ? reanchored : planned;
-        if (outerProps.some(p => hasExtractions(p) || p.kind === 'anchored')) {
+        if (outerProps.some(hasExtractions)) {
           plan = { receiver, probedNav, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
         }
       }
@@ -626,9 +624,7 @@ export function buildNestedDestructurePlan({
             lastHop = null;
         while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
           const [prop] = effPattern.properties;
-          const key = sharedResolveKey({
-            node: prop.key, computed: prop.computed, scope, adapter, path, bailOnSideEffectKey: true,
-          });
+          const key = propKeyNameScoped(prop);
           if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key)) break;
           const inner = peelInnerDefault(prop.value);
           if (inner?.type !== 'ObjectPattern' || !inner.properties.length
@@ -639,7 +635,7 @@ export function buildNestedDestructurePlan({
         if (!lastHop) return null;
         return planCtorKeyAnchor(effPattern) ?? {
           receiver, anchor: lastHop, anchorPure: receiverPure, probedNav,
-          outerProps: effPattern.properties.map(p => planSymbolIteratorProp(p) ?? planOuterProp(p)),
+          outerProps: effPattern.properties.map(planOuterProp),
           pattern: effPattern, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
       }

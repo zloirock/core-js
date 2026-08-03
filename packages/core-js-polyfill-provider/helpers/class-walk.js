@@ -32,6 +32,8 @@ import {
   withoutValuelessDeclarationViolations,
   walkPatternIdentifiers,
   unwrapSafeSequenceTail,
+  isASTNode,
+  walkAstChildren,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
@@ -153,14 +155,16 @@ export function isProxyGlobalIdentifierNode(args) {
 // exactly ONE real write - so any assignment to the name inside an earlier-evaluated slot IS
 // that write (injected helper code never assigns user bindings)
 function containsWriteTo(root, name) {
-  if (!root || typeof root !== 'object') return false;
+  if (!isASTNode(root)) return false;
   if (root.type === 'AssignmentExpression' && root.operator === '='
     && root.left?.type === 'Identifier' && root.left.name === name) return true;
-  for (const [key, value] of Object.entries(root)) {
-    if (key === 'loc' || key === 'range') continue;
+  // `isASTNode` on BOTH sides: the array arm used to admit any object, so a non-node array member
+  // (`loc` / `range` shapes, a plugin's own stamp) was descended into while the object arm rejected
+  // it. the descent short-circuits on the first hit, so it stays a hand-written loop
+  for (const value of Object.values(root)) {
     if (Array.isArray(value)) {
-      for (const el of value) if (el && typeof el === 'object' && containsWriteTo(el, name)) return true;
-    } else if (value && typeof value === 'object' && typeof value.type === 'string' && containsWriteTo(value, name)) return true;
+      for (const el of value) if (isASTNode(el) && containsWriteTo(el, name)) return true;
+    } else if (isASTNode(value) && containsWriteTo(value, name)) return true;
   }
   return false;
 }
@@ -795,11 +799,10 @@ export function enclosingFunctionSpan(stmtPath) {
 // ReferenceError a narrow would mask)
 function enclosingLexicalSpan(stmtPath) {
   for (let cur = stmtPath?.parentPath; cur; cur = cur.parentPath) {
-    // a TS namespace body compiles to an IIFE: its consts are namespace-scoped, so it hosts
-    // like a block (the statement lattice lists it as an ADDITION, not a runtime block)
-    if (LET_SCOPE_HOST_TYPES.has(cur.node?.type) || cur.node?.type === 'TSModuleBlock') {
-      return { start: cur.node.start, end: cur.node.end };
-    }
+    // `LET_SCOPE_HOST_TYPES` already carries `TSModuleBlock`: a TS namespace body compiles to an
+    // IIFE whose consts are namespace-scoped, so it hosts like a block even though the statement
+    // lattice lists it as an ADDITION rather than a runtime block
+    if (LET_SCOPE_HOST_TYPES.has(cur.node?.type)) return { start: cur.node.start, end: cur.node.end };
   }
   return null;
 }
@@ -850,10 +853,7 @@ export function registerDeclAliasIfSound({
             if (binds) extraBindingNodes.push(d);
           }
         }
-        for (const value of Object.values(node)) {
-          if (Array.isArray(value)) for (const item of value) collect(item);
-          else collect(value);
-        }
+        walkAstChildren(node, collect);
       })(owner.node);
     }
   }
@@ -1260,11 +1260,18 @@ export function resolveSuperImportName(injector, superMeta) {
 // remap inherited-static meta while preserving the computed-key sideEffects channel
 // (`super[(fn(),'X')]` would otherwise lose `fn()` evaluation on static-dispatch retarget)
 // and the symbol-key provenance (`this[Symbol.iterator]` in a static block keeps routing
-// through the iterator-method helper after the static-dispatch retarget)
+// through the iterator-method helper after the static-dispatch retarget).
+// `receiverEffectCount` travels WITH `sideEffects` - it is the recorded receiver/key split of
+// that very list, and a remap that carries one without the other leaves the emit side splitting
+// the list at an unrecorded point. `chainAssignInsertAt` / `protoCtorReceiverSE` have no
+// counterpart here: the original receiver of an inherited static is `super` / `this`, which can
+// carry neither a chain-assignment nor a buried prototype-ctor sub-receiver
 export function remapInheritedStaticMeta(injector, originalMeta, inheritedMeta) {
   if (!inheritedMeta) return null;
   let remapped = resolveSuperImportName(injector, inheritedMeta);
-  if (remapped && originalMeta?.sideEffects?.length) remapped = { ...remapped, sideEffects: originalMeta.sideEffects };
+  if (remapped && originalMeta?.sideEffects?.length) {
+    remapped = { ...remapped, sideEffects: originalMeta.sideEffects, receiverEffectCount: originalMeta.receiverEffectCount ?? 0 };
+  }
   if (remapped && originalMeta?.symbolSourced) remapped = { ...remapped, symbolSourced: true };
   return remapped;
 }
@@ -1482,10 +1489,10 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
         || decl?.type === 'ImportNamespaceSpecifier') {
         // pass-through ONLY for injector-registered core-js imports - otherwise `import
-        // {fn as Promise} from './local'` would dispatch `super.X` as the global's polyfill
-        const injector = getInjector?.();
-        if (!injector) return name;
-        return injector.getPureImport?.(name) ? name : null;
+        // {fn as Promise} from './local'` would dispatch `super.X` as the global's polyfill.
+        // an ABSENT injector is not a licence to pass through: that arm declared every imported
+        // super-class a global, exactly what the rule above forbids. no producer reaches it
+        return getInjector?.()?.getPureImport?.(name) ? name : null;
       }
       if (decl?.type !== 'VariableDeclarator') return null;
       // usage-pure must not resolve a conditional / non-dominating var init (`if (c) { var A =
@@ -1694,9 +1701,11 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   }
 
   // `const { X } = this` in a static method reads the inherited static surface: the shared
-  // destructure funnel resolves it through this hook (same gate + shadow rules as the
-  // member remap). both emitters call this factory per file, so the hook re-attaches with
-  // helpers closing over per-file state
+  // destructure funnel resolves it through this hook (same gate + shadow rules as the member
+  // remap). the two emitters build this factory differently - unplugin per transform, babel ONCE
+  // per plugin instance with `reset()` doing the per-file isolation - so the hook MUTATES the
+  // shared per-instance adapter and the last build wins. that is outside unplugin's documented
+  // save/restore re-entrancy contract; it holds only because both emitters install the same shape
   adapter.resolveThisStaticHost = function (path, key) {
     if (!isInStaticContext(path) || isShadowedByClassOwnMember(path, key)) return null;
     return resolveStaticInheritedMember(path, key);

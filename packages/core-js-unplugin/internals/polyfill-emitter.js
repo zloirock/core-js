@@ -25,6 +25,7 @@ import {
   TS_EXPR_WRAPPERS,
   POSSIBLE_GLOBAL_OBJECTS,
   staticMemberKeyName,
+  isValidIdentifierName,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
@@ -742,11 +743,6 @@ function skipDroppedKeyPrefix(node, sideEffects, skippedNodes) {
   })) skippedNodes.add(skipNode);
 }
 
-// bare-Identifier shape (`globalThis`, `_Promise`, `$X`); excludes member chains, parens,
-// operators. used to gate guard emission - bare-Identifier roots use `X == null`, anything
-// else captures into a `_ref` first to avoid double-evaluating side effects
-const BARE_IDENTIFIER_REGEX = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
-
 // shadow guard for proxy-global substitution, through the detect adapter's position-aware
 // model (case-block / namespace over-hoists filtered, nested-block `var` hoisted). the raw
 // estree lookup diverged from the natural visitor's verdict: a case-body `let` falsely
@@ -776,8 +772,13 @@ export function createPolyfillEmitter({
   toHint,
   transforms,
 }) {
+  // bare-Identifier shape (`globalThis`, `_Promise`, `$X`); excludes member chains, parens,
+  // operators. used to gate guard emission - bare-Identifier roots use `X == null`, anything else
+  // captures into a `_ref` first to avoid double-evaluating side effects. the shape question is
+  // the provider's `isValidIdentifierName`; a local copy of the regex drifts on the next
+  // Unicode-property fix and this file already imports 30+ helpers from there
   function isBareIdentifier(src) {
-    return typeof src === 'string' && BARE_IDENTIFIER_REGEX.test(src);
+    return isValidIdentifierName(src);
   }
 
   function nodeSrc(n) {

@@ -88,10 +88,11 @@ export const SINGLE_ELEMENT_COLLECTIONS = new Set([
 // (Map / WeakMap / ReadonlyMap) are EXCLUDED - their param-0 is the KEY, not the element - so
 // stamping it as `.inner` would misrepresent the element type. the container-inner builders share
 // this gate so the direct-annotation lane and the higher-kinded-apply lane can't drift apart.
-// `name` must already be resolved (synonyms folded); the synonym-aware variant is
-// `isInferContainerName` for pre-resolution infer-pattern names
+// accepts the Promise SYNONYMS too, so a caller that has not folded them (the infer-pattern lane
+// reads source spellings) gets the same answer as one that has - a hardcoded `name === 'Promise'`
+// here is what forced a second, synonym-aware copy of this predicate to exist
 export function firstTypeParamIsInner(name) {
-  return SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise';
+  return SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise' || PROMISE_SYNONYMS.has(name);
 }
 
 export const PATTERN_WRAPPERS = new Set([

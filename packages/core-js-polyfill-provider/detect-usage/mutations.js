@@ -493,8 +493,7 @@ export function mutationShapesReducer(packages = null) {
   // scoped stage checks before attributing one. recorded per target while the frame is at hand
   const topLevelThisTargets = new WeakSet();
   function visit(node, frame) {
-    if (frame?.atThisTopLevel) markTopLevelThis = true;
-    else markTopLevelThis = false;
+    markTopLevelThis = !!frame?.atThisTopLevel;
     // ANY read of an in-place array mutator off an identifier makes that receiver's element list
     // untrustworthy: the inline call, the detached `.call` / `.apply` / `Reflect.apply` spellings and
     // a method stored for later (`const m = box.reverse; m.call(box)`) all pass through this ONE
@@ -539,21 +538,19 @@ export function mutationShapesReducer(packages = null) {
         else if (arg?.type === 'Identifier') pushTarget(arg);
         break;
       }
-      case 'UnaryExpression': {
-        // `delete container.key` empties the slot the literal spells - the read after it must not
-        // resolve the literal's member (native reads undefined / throws deeper). an unreadable key
-        // deletes an UNKNOWN slot - the wildcard admits the possibility
+      // `delete container.key` empties the slot the literal spells - the read after it must not
+      // resolve the literal's member (native reads undefined / throws deeper). an unreadable key
+      // deletes an UNKNOWN slot - the wildcard admits the possibility
+      case 'UnaryExpression':
         if (node.operator === 'delete') {
           const target = unwrapRuntimeExpr(node.argument);
           if (target?.type === 'MemberExpression' || target?.type === 'OptionalMemberExpression') {
             const owner = unwrapRuntimeExpr(target.object);
             if (owner?.type === 'Identifier') rawSlotWrites.push([owner.name, memberKeyName(target) ?? '*']);
+            pushTarget(gateMemberTarget(target));
           }
         }
-        const arg = node.operator === 'delete' ? unwrapRuntimeExpr(node.argument) : null;
-        if (arg?.type === 'MemberExpression' || arg?.type === 'OptionalMemberExpression') pushTarget(gateMemberTarget(arg));
         break;
-      }
       case 'ForOfStatement':
         // iterating hands each VALUE to the loop binding - writes through it never spell the
         // source's name, so the iterable escapes like a call argument. `for-in` yields KEYS only

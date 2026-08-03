@@ -74,7 +74,9 @@ import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
   registerBindinglessCtorAlias, registerCtorAliasExtractions, registerDeclAliasIfSound, symbolKeyToEntry,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-import { classifyVariableDeclarationHost, isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
+import {
+  classifyVariableDeclarationHost, isBodylessStatementSlot, isForInitDeclaration,
+} from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   planDestructureEmission,
   STRATEGIES,
@@ -974,9 +976,10 @@ export default function createDestructureEmitter({
       // host is removed (last visitor in declaration order does this).
       // `leftmost` matches against AssignmentExpression's LHS - if peel walked past wrappers
       // the LHS may be the outermost wrapper rather than the bare pattern. transparent
-      // statement wrappers (ParenthesizedExpression / ChainExpression / TS casts /
-      // SequenceExpression with the AE as tail) sitting between AssignmentExpression and
-      // ExpressionStatement are flattened in-place: SE prefix exprs land as side-effect
+      // statement wrappers (ParenthesizedExpression / TS casts / SequenceExpression with the AE as
+      // tail) sitting between AssignmentExpression and ExpressionStatement are flattened in-place -
+      // `ChainExpression` is NOT among them: an assignment is not part of an optional chain, so no
+      // parser produces one here and the peel's wrapper set omits it: SE prefix exprs land as side-effect
       // ExpressionStatement siblings before the cascade output, the ExpressionStatement's
       // expression slot is replaced with the bare AE so the cascade's bookkeeping (which
       // assumes `assignPath.parentPath === ExpressionStatement`) operates on a clean shape
@@ -1446,8 +1449,7 @@ export default function createDestructureEmitter({
     const plan = buildFlattenPlan({ declaratorNode: declarator.node, scope: declarator.scope, path: declarator });
     if (!plan) return false;
     flattenedDeclarators.add(declarator.node);
-    const isForInit = declaration.parentPath?.isForStatement()
-      && declaration.parentPath.node.init === declaration.node;
+    const isForInit = isForInitDeclaration(declaration.parentPath?.node, declaration.node);
     const forInitSE = forInitSESinkParts(t, declarator.node, isForInit);
     const declCount = declaration.node?.declarations?.length ?? 1;
     const extracted = buildExtractionDeclarators(plan, declarator);
@@ -1848,8 +1850,7 @@ export default function createDestructureEmitter({
       if (kind === 'instance') emitAssignmentInstanceOverwrite({ prop, entry, hintName });
       return kind === 'instance';
     }
-    const isForInit = declaration.parentPath?.isForStatement()
-      && declaration.parentPath.node.init === declaration.node;
+    const isForInit = isForInitDeclaration(declaration.parentPath?.node, declaration.node);
     // SOURCE-host sibling shape: a whole-init pre-memo INSERTS a sibling declarator, and an
     // earlier prop's emission on the SAME declaration may have planted a memo and/or a trailing
     // pair already - the pattern-value gate must not mistake those synthesized siblings for a

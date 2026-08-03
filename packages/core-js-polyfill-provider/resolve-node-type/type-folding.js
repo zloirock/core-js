@@ -92,7 +92,7 @@ export function createTypeFolding({
   function resolveParametersParams(typeRef, scope) {
     const name = typeRefName(typeRef);
     if (name !== 'Parameters' && name !== 'ConstructorParameters') return null;
-    const arg = getTypeArgs(typeRef)?.params[0];
+    const arg = getTypeArgs(typeRef)?.params?.[0];
     if (arg?.type !== 'TSTypeQuery') return null;
     // overloaded `typeof fn`: select the LAST ambient head's params (TS canonical signature),
     // matching ReturnType's selection. no-op for classes / non-overloaded subjects
@@ -116,7 +116,11 @@ export function createTypeFolding({
       const runtimeSuper = resolveRuntimeExpression(superClassPath);
       if (runtimeSuper && t.isClass(runtimeSuper.node)) current = runtimeSuper;
       else if (superNode?.type === 'Identifier') {
-        current = findClassPathForTypeReference({ type: 'TSTypeReference', typeName: superNode }, scope);
+        // anchor the TYPE lookup at the CLASS's own scope, like the runtime lookup one line above:
+        // the caller's `scope` is the `ConstructorParameters<>` reference site, where the super name
+        // may be shadowed by an unrelated declaration
+        current = findClassPathForTypeReference(
+          { type: 'TSTypeReference', typeName: superNode }, superClassPath.scope ?? scope);
       } else current = runtimeSuper;
     }
     return null;
@@ -128,7 +132,7 @@ export function createTypeFolding({
   // instead of dropping it, so the receiver type (`function f(this: number[])` -> `number[]`) resolves
   function resolveThisParamAnnotation(typeRef, scope) {
     if (typeRefName(typeRef) !== 'ThisParameterType') return null;
-    const arg = getTypeArgs(typeRef)?.params[0];
+    const arg = getTypeArgs(typeRef)?.params?.[0];
     if (arg?.type !== 'TSTypeQuery') return null;
     const current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
     const params = current?.node?.params;
@@ -143,7 +147,7 @@ export function createTypeFolding({
       if (index < 0 || depth > MAX_DEPTH) return null;
       // peel BEFORE alias chain catches direct `Readonly<[T, U]>` indexing. mirrors
       // `findTypeMember`'s peel-then-follow-then-peel pattern
-      const peeledBefore = peelStructurePreservingWrapper(objectType);
+      const peeledBefore = peelStructurePreservingWrapper(objectType, scope);
       if (peeledBefore) {
         objectType = peeledBefore;
         depth += 1;
@@ -176,7 +180,7 @@ export function createTypeFolding({
       // peel AFTER follow handles `type X = Readonly<[T, U]>; X[0]` (wrapper hidden one
       // level deeper through the alias). without the second peel numeric indexing falls
       // through to generic `_at`
-      const peeledAfter = peelStructurePreservingWrapper(target);
+      const peeledAfter = peelStructurePreservingWrapper(target, scope);
       if (peeledAfter) {
         objectType = applySubst(peeledAfter, subst);
         depth += 1;
