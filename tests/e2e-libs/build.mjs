@@ -2,7 +2,7 @@
 //   - method/phase enumeration and unplugin option construction
 //   - temp-entry generation (entries live UNDER this dir so bare `rxjs`/`core-js` imports resolve)
 //   - throughputBuilders: one per bundler, returns { bytes }, does NOT execute (measures processing)
-//   - runtimeBuild: rollup + Babel (syntax->ES5, both Babel 7 and 8) + unplugin (post for usage-*,
+//   - runtimeBuild: rollup + Babel (syntax->ES5, the suite's own Babel 7) + unplugin (post for usage-*,
 //     pre for entry-global) (stdlib), UMD
 //   - captureInjections: which core-js/@core-js/pure specifiers unplugin emits — via rollup ONLY,
 //     so a runner must not read it as what some other bundler emitted
@@ -260,11 +260,12 @@ export function assertNoExternals(chunk, label) {
 // needs no second build to compare against.
 // Smallest real payload measured across the suite is ~218 KB (codemirror/usage-pure).
 const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\])/;
-export function assertPayload(chunk, label, min = 10_000) {
+const MIN_CORE_JS_BYTES = 10_000;
+export function assertPayload(chunk, label) {
   const bytes = Object.entries(chunk.modules)
     .filter(([id]) => CORE_JS_MODULE.test(id))
     .reduce((n, [, m]) => n + m.renderedLength, 0);
-  if (bytes < min) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
+  if (bytes < MIN_CORE_JS_BYTES) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
 }
 
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel.

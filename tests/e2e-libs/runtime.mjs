@@ -182,6 +182,20 @@ function runKarma(karmaBin, conf, file) {
 // all-green page on disk while the manifest records the failure — and the operator is told to upload
 // whatever is in those directories. An unfiltered run therefore clears everything; a filtered one
 // clears only what it is about to rebuild, and merges into the existing manifest below.
+// A filtered run merges into the existing manifest, so read and validate it FIRST: discovering a
+// corrupt one after the wipe would destroy the artifacts it describes and every rebuilt cell with it.
+const rebuilt = new Set(libs.map(l => l.name));
+let previous = [];
+if (libFilter) {
+  try {
+    const parsed = JSON.parse(await readFile(join(ART, 'manifest.json'), 'utf8'));
+    if (!Array.isArray(parsed)) throw new Error('manifest.json is not an array');
+    previous = parsed.filter(e => !rebuilt.has(e.lib));
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err; // a corrupt manifest must not be silently discarded
+  }
+}
+
 if (libFilter) {
   for (const lib of libs) await rm(join(ART, lib.name), { recursive: true, force: true });
 } else {
@@ -208,10 +222,10 @@ async function version(pkg) {
     return '?'; // a missing version is diagnostic noise, never a reason to abort a run
   }
 }
-const [oxc, cjs, vRxjs, vThree, vCm] = await Promise.all(
+const [vOxc, vCoreJs, vRxjs, vThree, vCm] = await Promise.all(
   ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
 console.log(`environment: ${ process.platform }/${ process.arch } node ${ process.version }`
-  + ` | oxc-parser ${ oxc } | core-js ${ cjs } | rxjs ${ vRxjs } three ${ vThree } @codemirror/state ${ vCm }`);
+  + ` | oxc-parser ${ vOxc } | core-js ${ vCoreJs } | rxjs ${ vRxjs } three ${ vThree } @codemirror/state ${ vCm }`);
 
 const cells = [];
 for (const lib of libs) {
@@ -262,7 +276,7 @@ for (const { lib, method, phase } of cells) {
     // UMD exposes global `E2E`; each bundle gets its OWN Karma page (one file per run below), so the
     // shared global name cannot make one cell's test execute another cell's bundle.
     const karmaFile = join(KARMA_OUT, `e2e-libs-${ lib.name }-${ method }-${ phase ?? 'noph' }.js`);
-    await writeFile(karmaFile, `${ code }\n${ qunitHarness(label) }`);
+    await writeFile(karmaFile, `${ code }\n${ qunitHarness(label, checks.length) }`);
     karmaFiles.push({ file: karmaFile, label, gating: phase !== 'pre' });
 
     const ok = !bad.length;
@@ -285,16 +299,8 @@ for (const { lib, method, phase } of cells) {
 if (!manifest.length) throw new Error('no cells ran — the registry or METHODS is empty');
 
 await mkdir(ART, { recursive: true });
-// a filtered run keeps the entries of the libraries it did not touch — their pages are still on disk
-const rebuilt = new Set(libs.map(l => l.name));
-let previous = [];
-if (libFilter) {
-  try {
-    previous = JSON.parse(await readFile(join(ART, 'manifest.json'), 'utf8')).filter(e => !rebuilt.has(e.lib));
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err; // a corrupt manifest must not be silently discarded
-  }
-}
+// `previous` was read before the wipe above — a filtered run keeps the entries of the libraries it
+// did not touch, whose pages are still on disk
 await writeFile(join(ART, 'manifest.json'), `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
 console.log(`\nartifacts → ${ ART }\nmanifest → ${ join(ART, 'manifest.json') }`);
 console.log('Upload each <lib>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.');

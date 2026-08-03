@@ -65,6 +65,31 @@ function timeTransform(plugin, add) {
   return plugin;
 }
 
+// [A] and [B] depend on the LIBRARY only. Neither carries unplugin, and `withEntry` emits the same
+// entry body for every usage-* method, so building them per method rebuilt identical bytes twice and
+// printed the run-to-run spread between the two as if it were a usage-global vs usage-pure signal.
+// Measured once per library and shared, keyed by name.
+const stagesByLib = new Map();
+async function baseStages(lib) {
+  if (stagesByLib.has(lib.name)) return stagesByLib.get(lib.name);
+  const label = `${ lib.name }/usage-*`;
+  const stages = await withEntry(lib.exercise, 'usage-global', 'pipe-base', async entry => {
+    let src = 0;
+    const counter = {
+      name: 'src-count',
+      transform(code) {
+        src += Buffer.byteLength(code);
+        return null;
+      },
+    };
+    const a = await timedBuild(entry, [counter, nodeResolve(), commonjs()], `${ label } [A]`);
+    const b = await timedBuild(entry, [makeBabelPlugin(), nodeResolve(), commonjs()], `${ label } [B]`);
+    return { src, A: { bytes: a.bytes, ms: +a.ms.toFixed(0) }, B: { bytes: b.bytes, ms: +b.ms.toFixed(0) } };
+  });
+  stagesByLib.set(lib.name, stages);
+  return stages;
+}
+
 async function measure(lib, method) {
   const effPhase = method === 'entry-global' ? undefined : 'post';
   const cell0 = `${ lib.name }/${ method }`;
@@ -72,25 +97,16 @@ async function measure(lib, method) {
     const cell = { lib: lib.name, method };
 
     if (method !== 'entry-global') {
-      let src = 0;
-      const counter = {
-        name: 'src-count',
-        transform(code) {
-          src += Buffer.byteLength(code);
-          return null;
-        },
-      };
-      const a = await timedBuild(entry, [counter, nodeResolve(), commonjs()], `${ cell0 } [A]`);
-      const b = await timedBuild(entry, [makeBabelPlugin(), nodeResolve(), commonjs()], `${ cell0 } [B]`);
+      const { src, A, B } = await baseStages(lib);
       cell.src = src;
-      cell.A = { bytes: a.bytes, ms: +a.ms.toFixed(0) };
-      cell.B = { bytes: b.bytes, ms: +b.ms.toFixed(0) };
+      cell.A = A;
+      cell.B = B;
     }
 
     // [C]: Babel + unplugin, instrumented for the babel-vs-unplugin split. Injections are recorded
     // INSIDE this build: a separate captureInjections pass runs unplugin without Babel, and the post
-    // phase consumes Babel's helper output, so that pass undercounts by up to 18 specifiers here
-    // (three/usage-global: 154 captured vs 172 actually injected).
+    // phase consumes Babel's helper output, so that pass undercounts by up to 16 specifiers here
+    // (three/usage-global: 159 captured vs 175 actually injected).
     let babelMs = 0;
     let unpluginMs = 0;
     const sink = new Set();
@@ -106,7 +122,7 @@ async function measure(lib, method) {
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
     // [B] == [A] with babelMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
     // premise directly instead of inferring it from the numbers
-    assertES5(c.code, `${ lib.name }/${ method }`);
+    assertES5(c.code, `${ cell0 } [C]`);
     const { min, gz } = await wireSize(c.code, `${ cell0 } [C]`);
     cell.C = {
       bytes: c.bytes, ms: +c.ms.toFixed(0), babelMs: +babelMs.toFixed(0), unpluginMs: +unpluginMs.toFixed(0),
@@ -133,7 +149,9 @@ for (const lib of libs) {
     console.log('done');
   }
 }
-// a method filter that matches no library's declared `methods` must not write a green empty report
+// belt and braces: `libs` is non-empty (librariesIn throws otherwise) and `methodFilter` is validated
+// against METHODS above, so this cannot fire today. It stays so that a future per-library method
+// subset — the registry carried one until 58b4010291 — cannot write a green empty report.
 if (!rows.length) throw new Error(`no (library × method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
 // -------- report --------
