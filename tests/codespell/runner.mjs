@@ -19,7 +19,6 @@ const ignoreWords = [
   'aNumber',
   'forHead',
   'forIn',
-  'iif', // the rxjs conditional-observable operator, not a misspelt "if"
   'importEnd',
   'larg',
   'outLow',
