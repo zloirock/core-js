@@ -184,15 +184,24 @@ export function createTypeMembers({
     // handle dotted refs (`NS.Data`) by passing the segment path through
     const segments = typeRefSegments(objectType);
     if (!segments) return null;
+    // a USER declaration of the same name wins over the built-in utility branches below: those
+    // branches read the type ARGUMENTS the way the global utility defines them, so serving them for
+    // `interface Record<K, V> { stored: number[] }` answers with a synthetic index signature and the
+    // real member is never seen (a missed polyfill, not just lost precision). looked up only for the
+    // handful of names that actually collide, so the common path keeps its single declaration walk
+    const builtInName = segments.length === 1 && (STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])
+      || segments[0] === 'Record' || segments[0] === 'InstanceType' || segments[0] === 'ReturnType')
+      ? segments[0] : null;
+    const shadowedByUserType = builtInName !== null && !!findTypeDeclaration(segments, scope);
     // structure-preserving wrappers: `Readonly<{...}>.x` / `Pick<T, 'a'>.x` look up on T.
     // Pick / Omit narrow the member set when their second arg is statically-evaluable
     // (literal / literal-union); otherwise passthrough as over-emit (per spec section 6 accepted)
-    if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
+    if (!shadowedByUserType && segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
       return resolveStructureWrapperMembers({ wrapperName: segments[0], objectType, scope, depth, visited });
     }
     // `Record<K, V>` - every member access returns V. emit a synthetic index signature so
     // findTypeMember's TSIndexSignature fallback picks it up for any key
-    if (segments.length === 1 && segments[0] === 'Record') {
+    if (!shadowedByUserType && segments.length === 1 && segments[0] === 'Record') {
       const params = getTypeArgs(objectType)?.params;
       if (params?.[1]) return [{
         type: 'TSIndexSignature',
@@ -207,10 +216,11 @@ export function createTypeMembers({
       }];
     }
     // `InstanceType<typeof Cls>.x` / `ReturnType<typeof fn>.x` -> members of the pointed-to decl
-    if (segments.length === 1 && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
+    if (!shadowedByUserType && segments.length === 1
+      && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
       // peeled like the type-annotation-resolve twin: oxc keeps `ReturnType<(typeof f)>`
       // arg as TSParenthesizedType where babel strips it
-      const arg = peelTSParenthesized(getTypeArgs(objectType)?.params[0]);
+      const arg = peelTSParenthesized(getTypeArgs(objectType)?.params?.[0]);
       if (!arg) return null;
       // `ReturnType<Fn>.x` where `Fn = () => T` (alias to function type, no typeof) -
       // follow the alias chain, extract return annotation, fold accumulated subst.
@@ -293,8 +303,9 @@ export function createTypeMembers({
       seen.add(cur);
       // regular classes / interfaces carry members on `body.body`; a Flow `declare class`
       // parent (DeclareClass) carries them on `body.properties` (ObjectTypeAnnotation), so an
-      // inherited member from such a parent surfaces on the subclass too
-      const ownBody = (cur.body?.body ?? cur.body?.properties ?? []).filter(m => !m?.static);
+      // inherited member from such a parent surfaces on the subclass too - that dialect pair is
+      // `interfaceBodyMembers`, which this file already imports
+      const ownBody = interfaceBodyMembers(cur).filter(m => !m?.static);
       merged.push(...substMembers(ownBody, curSubst));
       const lookupSegments = cur === declaration ? segments : (cur.id?.name ? [cur.id.name] : null);
       appendMergedInterfaceMembers({ segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs });
@@ -578,19 +589,15 @@ export function createTypeMembers({
       function resolveBranch(member) {
         return findTypeMember({ objectType: withSubst(unwrapTypeAnnotation(member)), key, scope, depth: depth + 1 });
       }
-      if (isUnionType(aliased)) {
-        const found = aliased.types.map(resolveBranch).filter(Boolean);
-        if (!found.length) return null;
-        if (found.length === 1) return found[0];
-        return { type: aliased.type, types: found };
-      }
+      // union: `(A | B)['k']` is `A['k'] | B['k']`.
       // intersection: `(A & B)['k']` is `A['k'] & B['k']` - a key declared in several constituents
-      // contributes the INTERSECTION of its per-constituent member types, not the first hit. collect
-      // every constituent's member and fold into a synthetic intersection (mirrors the union branch
-      // and the additive `getTypeMembers` intersection semantics); the downstream
-      // `foldIntersectionTypes` prefers the array / string-like constituent over a bare object, so a
-      // non-array member listed before an array member no longer shadows the array polyfill
-      if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
+      // contributes the INTERSECTION of its per-constituent member types, not the first hit. both
+      // are the SAME resolution - map the constituents, drop the misses, rebuild the composite under
+      // the original node type - so they share one branch; the downstream `foldIntersectionTypes`
+      // prefers the array / string-like constituent over a bare object, so a non-array member listed
+      // before an array member no longer shadows the array polyfill
+      if (isUnionType(aliased) || aliased?.type === 'TSIntersectionType'
+        || aliased?.type === 'IntersectionTypeAnnotation') {
         const found = aliased.types.map(resolveBranch).filter(Boolean);
         if (!found.length) return null;
         if (found.length === 1) return found[0];
@@ -613,7 +620,14 @@ export function createTypeMembers({
           // plain method: expose the full signature (see returnMemberMethodNode)
           case 'TSMethodSignature':
             if (!keyMatchesName(member.key, key, scope, member.computed)) break;
-            if (member.kind === 'get') return withSubst(member.typeAnnotation ?? member.returnType);
+            if (member.kind === 'get') {
+              // an UNANNOTATED getter must `break`, not return: halting the walk here loses a
+              // typed sibling from declaration merging, which is exactly what the property arms
+              // above are careful to keep reachable
+              const got = member.typeAnnotation ?? member.returnType;
+              if (!got) break;
+              return withSubst(got);
+            }
             if (member.kind === 'set') break;
             return returnMemberMethodNode(member, subst);
           case 'ObjectTypeProperty':
@@ -622,7 +636,11 @@ export function createTypeMembers({
             // value: return its return type, not the function type itself (else `.at()` on the
             // result is dispatched against Function and the narrow is lost). setter: skip to a
             // paired getter. plain property / method value: return the value annotation
-            if (member.kind === 'get') return withSubst(functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value)));
+            if (member.kind === 'get') {
+              const got = functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value));
+              if (!got) break;
+              return withSubst(got);
+            }
             if (member.kind === 'set') break;
             return withOptional(withSubst(member.value), member);
           case 'ClassProperty':         // flow, and babel TS `abstract` / `declare` fields
@@ -650,7 +668,11 @@ export function createTypeMembers({
           case 'MethodDefinition':
           case 'TSAbstractMethodDefinition':
             if (member.computed || !keyMatchesName(member.key, key)) break;
-            if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
+            if (member.kind === 'get') {
+              const got = member.returnType ?? member.value?.returnType;
+              if (!got) break;
+              return withSubst(got);
+            }
             if (member.kind === 'set') break;
             return returnMemberMethodNode(member, subst);
         }

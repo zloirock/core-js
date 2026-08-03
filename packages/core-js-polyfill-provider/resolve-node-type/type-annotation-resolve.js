@@ -37,6 +37,7 @@ export function createTypeAnnotationResolve({
   typeRefSegmentsEqual,
   typeRefName,
   findTypeParameter,
+  findTypeDeclaration,
   collectQualifiedSegments,
   unwrapTypeAnnotation,
   safeInnerType,
@@ -170,7 +171,7 @@ export function createTypeAnnotationResolve({
       // peeled: oxc keeps a parenthesized utility-type arg (`ReturnType<(typeof f)>`)
       // as TSParenthesizedType where babel strips it - the `.type` dispatches on the
       // consumers below must see the inner shape on both parsers
-      return peelTSParenthesized(getTypeArgs(node)?.params[0]);
+      return peelTSParenthesized(getTypeArgs(node)?.params?.[0]);
     }
     function resolveArg(arg, fallback) {
       return arg
@@ -182,7 +183,10 @@ export function createTypeAnnotationResolve({
     // a wide-open keyword arg (`NoInfer<unknown>`, `Partial<any>`) stays NULL like the bare
     // keyword: the value can be anything (array / primitive / function), so the Object
     // fallback would suppress generic-instance emission instead of routing through it
-    if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) {
+    // a USER declaration of the same name outranks the built-in wrapper, exactly as a type PARAMETER
+    // does above: `interface Pick<T> { picked: number[] }` is not the global `Pick`, and resolving it
+    // as one hands back the type ARGUMENT (`string`) in place of the declared shape
+    if (STRUCTURE_PRESERVING_WRAPPERS.has(name) && !findTypeDeclaration([name], scope)) {
       const resolved = resolveArg(firstArg(), isOpenKeywordAnnotation(firstArg()) ? null : new $Object('Object'));
       // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
       // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
@@ -236,12 +240,14 @@ export function createTypeAnnotationResolve({
         return new $Primitive('string');
       // ThisParameterType<typeof fn> peels fn's `this` pseudo-param type, so a method on the
       // receiver resolves precisely (`function f(this: number[])` -> `number[]` -> array `.at`).
-      // no explicit `this` -> Object: TS yields `unknown` / the ambient global-this there, neither a
-      // polyfillable receiver. OmitThisParameter<F> -> callable Function (Function.prototype methods
-      // are stable across supported targets, so precision would add no polyfill path)
+      // NO explicit `this` -> Object: TS yields `unknown` / the ambient global-this there, neither a
+      // polyfillable receiver. an explicit `this` that does NOT resolve is a different answer - null,
+      // the generic dispatch - because an Object masquerade over an unknown receiver SUPPRESSES the
+      // generic polyfill instead of routing through it. OmitThisParameter<F> -> callable Function
+      // (Function.prototype methods are stable across supported targets, so precision adds no path)
       case 'ThisParameterType': {
         const thisAnn = resolveThisParamAnnotation(node, scope);
-        return (thisAnn && resolveArgInner(thisAnn)) || new $Object('Object');
+        return thisAnn ? resolveArgInner(thisAnn) : new $Object('Object');
       }
       case 'OmitThisParameter':
         return new $Object('Function');
@@ -530,12 +536,18 @@ export function createTypeAnnotationResolve({
       case 'NumberTypeAnnotation':
       case 'NumberLiteralTypeAnnotation':
         return new $Primitive('number');
-      // boolean keywords + TSTypePredicate (`x is string` -> boolean)
+      // boolean keywords
       case 'TSBooleanKeyword':
       case 'BooleanTypeAnnotation':
       case 'BooleanLiteralTypeAnnotation':
-      case 'TSTypePredicate':
         return new $Primitive('boolean');
+      // a type predicate is boolean-valued ONLY in the `x is T` form. the ASSERTION forms
+      // (`asserts x` / `asserts x is T`) return undefined - resolving them to boolean is an
+      // over-resolve into the wrong family, which hands a String/Boolean-specific helper to a
+      // call whose value is undefined. `node.asserts` is the discriminator the guard cluster
+      // already reads
+      case 'TSTypePredicate':
+        return new $Primitive(node.asserts ? 'undefined' : 'boolean');
       case 'TSBigIntKeyword':
       case 'BigIntTypeAnnotation':
         return new $Primitive('bigint');

@@ -16,6 +16,13 @@ export const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespace
 // this set a self-reference `var Iterator = Iterator` injects nothing
 const INJECTABLE_GLOBALS = new Set(Object.keys(builtInDefinitions.globals));
 
+// the `Symbol.<key>` statics core-js ships an entry for - the allowlist a `symbol/<kebab>` module
+// path is checked against before a binding to it counts as that static's VALUE. the catalogue
+// shape alone cannot decide it: `symbol/constructor` default-exports the Symbol constructor,
+// `symbol/description` exports nothing (side-effect module) and `symbol/index` is the whole
+// namespace, so a path-only match reads all three as well-known symbols
+export const SYMBOL_STATIC_KEYS = new Set(Object.keys(builtInDefinitions.statics.Symbol));
+
 // covers constructors / global methods / namespaces / proxy globals - any polyfillable name
 export function isKnownGlobalName(name) {
   return KNOWN_FUNCTION_GLOBALS.has(name) || KNOWN_NAMESPACE_GLOBALS.has(name)

@@ -1,3 +1,5 @@
+import { SINGLE_STATEMENT_SLOTS } from './helpers/ast-patterns.js';
+
 // shape classification for destructure hosts (VariableDeclaration / AssignmentExpression
 // inside ExpressionStatement). produces parser-agnostic booleans both plugins consume:
 // `isExport` / `isForInit` / `isBodyless` / `isMultiDecl`. classification operates on raw
@@ -7,25 +9,16 @@
 // unplugin uses batched text-rewrite emitting one transform per declaration) so the planners
 // stay plugin-local. the underlying facts are the same, hence this shared classifier
 
-// statement-body slots for unbraced control statements, `with`, and single-expression arrows
-const BODY_SLOT_TYPES = new Set([
-  'ArrowFunctionExpression',
-  'DoWhileStatement',
-  'ForInStatement',
-  'ForOfStatement',
-  'ForStatement',
-  'LabeledStatement',
-  'WhileStatement',
-  'WithStatement',
-]);
-
-// is `host` in the unbraced body slot of `parent`?
-// IfStatement has two slots (consequent/alternate); other body-hosts have a single `body`.
+// is `host` the single-statement slot of `parent`? composed on the canonical slot table, which
+// already carries the two-slot IfStatement (`consequent` / `alternate`); the concise-body arrow is
+// the one host outside it (its slot holds an EXPRESSION, so the statement table has no entry).
+// NOTE the answer is "this IS the slot", NOT "this slot needs braces": a BRACED body occupies the
+// same slot and answers true - callers that emit multiple statements must test the host's own type.
 // callers pass raw nodes - works uniformly across babel paths and estree-toolkit paths
 export function isBodylessStatementSlot(parent, host) {
   if (!parent) return false;
-  if (parent.type === 'IfStatement') return parent.consequent === host || parent.alternate === host;
-  return BODY_SLOT_TYPES.has(parent.type) && parent.body === host;
+  if (parent.type === 'ArrowFunctionExpression') return parent.body === host;
+  return (SINGLE_STATEMENT_SLOTS.get(parent.type) ?? []).some(slot => parent[slot] === host);
 }
 
 // iteration statements: `continue <label>` can target a label on one of these, and value flow has
@@ -54,6 +47,12 @@ export function peelLabeledStatements(node) {
   return cur;
 }
 
+// is `declaration` the init slot of a `for` head? single-sourced so the emitters cannot grow a
+// weaker spelling: testing only the parent TYPE would take a for-BODY declaration for a for-init one
+export function isForInitDeclaration(declarationParent, declaration) {
+  return declarationParent?.type === 'ForStatement' && declarationParent.init === declaration;
+}
+
 // classify a VariableDeclaration host's enclosing context. returns the parser-agnostic
 // booleans the plugin's strategy planner consumes:
 //   isExport     - declaration is wrapped in `export` (`ExportNamedDeclaration`)
@@ -61,18 +60,14 @@ export function peelLabeledStatements(node) {
 //   isBodyless   - declaration sits in an unbraced body slot (if/while/...) -
 //                  block-wrapping needed when emitting multiple statements
 //   isMultiDecl  - declaration has multiple declarators (`let a, b, c`)
-// gating: `isBodyless` requires `!isExport && !isForInit` because export wrappers
-// and for-init slots have different shape concerns (export wraps a single decl;
-// for-init's parent body slot doesn't apply to init position)
+// the three shapes are mutually exclusive by construction: an `ExportNamedDeclaration` parent is not
+// a statement-slot host at all, and a for-INIT slot is not the for's `body` slot - so `isBodyless`
+// needs no gate on the other two
 export function classifyVariableDeclarationHost({ declaration, declarationParent }) {
-  const isExport = declarationParent?.type === 'ExportNamedDeclaration';
-  const isForInit = declarationParent?.type === 'ForStatement' && declarationParent.init === declaration;
-  const isBodyless = !isExport && !isForInit
-    && isBodylessStatementSlot(declarationParent, declaration);
   return {
-    isExport,
-    isForInit,
-    isBodyless,
+    isExport: declarationParent?.type === 'ExportNamedDeclaration',
+    isForInit: isForInitDeclaration(declarationParent, declaration),
+    isBodyless: isBodylessStatementSlot(declarationParent, declaration),
     isMultiDecl: declaration.declarations.length > 1,
   };
 }
