@@ -9,7 +9,7 @@
 // call, and a native call only fails if something reaches it. So the blocks below are chosen to make
 // THREE'S OWN implementation reach for what IE11 lacks — not to use those features here. Measured
 // by wrapping the natives and attributing each call to its immediate stack frame: the blocks below
-// reach 43 distinct natives from frames inside `three/build/three.core.js` and `three/examples/jsm/`,
+// reach 36 distinct natives from frames inside `three/build/three.core.js` and `three/examples/jsm/`,
 // against 16 for the scene-graph-only version this replaces — most of which were module-load side
 // effects rather than API-driven paths.
 //
@@ -24,11 +24,31 @@
 // Not reachable headlessly, and deliberately not chased: `Array#includes`, `.keys()`/`.values()`,
 // `Math.log2` and `self` live only in `WebGLRenderer` / WebXR. unplugin still injects them; nothing
 // here can execute them.
+//
+// DELIBERATELY EXCLUDED — typed-array PROTOTYPE methods. `usage-pure` cannot serve them, structurally
+// and by design, so executing one here fails on real IE11 while every other gate stays green:
+//   - a prototype method cannot be delivered without patching the native prototype, which is the one
+//     thing `pure` exists to avoid. So every binary-data module is stubbed out of `@core-js/pure` —
+//     all 69 of them (`es.typed-array.*`, `es.array-buffer.*`, `es.data-view.*`, `es.uint8-array.*`),
+//     via committed `// empty` overrides in `packages/core-js-pure/override/modules/`, no exceptions.
+//   - the usage mapping agrees: in `packages/core-js-compat/src/built-in-definitions.mjs` every typed
+//     array entry is `{ global: ... }` with no `pure` variant, and the instance-method dispatch knows
+//     only the receivers `array`, `iterator`, `asynciterator`, `string`, `domcollection`.
+//   - so unplugin rewrites `floats.slice(a, b)` — it cannot know the receiver is not an Array — into
+//     `_sliceMaybeArray(floats).call(floats, a, b)`, whose helper falls through to `floats.slice`.
+//     On IE11 that is `undefined`, and the call throws `TypeError`.
+// This cost the paths through `KeyframeTrack#trim` / `#clone`, `AnimationUtils.subclip` and
+// `AnimationUtils.makeClipAdditive`, `BatchedMesh` (`#optimize` -> `copyWithin`,
+// `_initColorsTexture` -> `fill`), `InstancedMesh#setColorAt` (-> `fill`),
+// `BufferGeometryUtils.mergeVertices` (-> `slice`) and `SortUtils.radixSort` (-> `fill`). Do not add
+// them back looking for coverage: `usage-global` covers this ground (it injects the real
+// `es.typed-array.*`), and on `usage-pure` there is nothing to cover.
+// `Array#find` goes with them — `makeClipAdditive` is the ONLY `.find(` call site in three's core and
+// in the six addons, and it is also the one doing `referenceTrack.values.slice(...)` on a Float32Array.
 import * as THREE from 'three';
-import { deinterleaveAttribute, interleaveAttributes, mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { deinterleaveAttribute, interleaveAttributes, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { reduceVertices, traverseGenerator } from 'three/addons/utils/SceneUtils.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { radixSort } from 'three/addons/utils/SortUtils.js';
 import { EdgeSplitModifier } from 'three/addons/modifiers/EdgeSplitModifier.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -38,13 +58,6 @@ function round(n, d = 3) {
 function arr(v, d = 3) {
   const parts = v.toArray(); // Vector3/Quaternion#toArray — not an iterator helper
   return parts.map(n => round(n, d));
-}
-// A typed array compared as plain numbers. A hand-rolled loop rather than `Array.from`: the point of
-// this fixture is that THREE reaches for the polyfills, not that we do.
-function nums(typed, d = 3) {
-  const list = [];
-  for (let i = 0; i < typed.length; i++) list.push(round(typed[i], d));
-  return list;
 }
 
 // A 4x4 square with a 1x1 square hole. Drives Earcut: `Number.EPSILON`, `Math.sign`, `Array#forEach`,
@@ -290,38 +303,16 @@ export function run() {
   fade.userData = { note: 'hi' };
   const fadeBack = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(fade));
   check('anim_clip_roundtrip', [fadeBack.name, fadeBack.tracks.length, fadeBack.userData.note], ['fade', 1, 'hi']);
-  // AnimationClip#trim / KeyframeTrack#trim: the String#trim name collision, on a real code path
-  const trimmed = new THREE.NumberKeyframeTrack('.x', [0, 1, 2, 3], [0, 1, 1, 2]);
-  trimmed.trim(1, 2);
-  check('anim_track_trim', [nums(trimmed.times), nums(trimmed.values)], [[1, 2], [1, 1]]);
-  const additive = new THREE.AnimationClip('add', 1, [new THREE.VectorKeyframeTrack('.position', [0, 1], [0, 0, 0, 2, 0, 0])]);
-  THREE.AnimationUtils.makeClipAdditive(additive); // reaches Array#find over the reference clip's tracks
-  check('anim_make_additive', nums(additive.tracks[0].values), [0, 0, 0, 2, 0, 0]);
   const binding = THREE.PropertyBinding.parseTrackName('Cube.material[color].r');
   check('anim_parse_track_name', [binding.nodeName, binding.objectName, binding.objectIndex, binding.propertyName], ['Cube', 'material', 'color', 'r']);
-  const sub = THREE.AnimationUtils.subclip(new THREE.AnimationClip('c', 3, [new THREE.NumberKeyframeTrack('.x', [0, 1, 2, 3], [0, 1, 2, 3])]), 'sub', 1, 3, 1);
-  check('anim_subclip', [sub.name, nums(sub.tracks[0].times)], ['sub', [0, 1]]);
 
-  // --- BatchedMesh reclaims buffer space with TypedArray#copyWithin; setColorAt fills a Float32Array ---
-  const batched = new THREE.BatchedMesh(4, 512, 1024, new THREE.MeshBasicMaterial());
-  const boxId = batched.addGeometry(new THREE.BoxGeometry(1, 1, 1));
-  const sphereId = batched.addGeometry(new THREE.SphereGeometry(0.5, 6, 4));
-  const boxInstance = batched.addInstance(boxId);
-  const sphereInstance = batched.addInstance(sphereId);
-  batched.setMatrixAt(boxInstance, new THREE.Matrix4().makeTranslation(1, 0, 0));
-  batched.setColorAt(sphereInstance, new THREE.Color(0x00FF00));
-  batched.deleteGeometry(boxId);
-  batched.optimize();
-  const batchedColor = new THREE.Color();
-  batched.getColorAt(sphereInstance, batchedColor);
-  check('batch_instance_count', batched.instanceCount, 1);
-  check('batch_color_survives_optimize', batchedColor.getHexString(), '00ff00');
-
+  // --- instancing. `setColorAt` is deliberately NOT called: see the typed-array note in the header ---
   const instanced = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 3);
   for (let i = 0; i < 3; i++) instanced.setMatrixAt(i, new THREE.Matrix4().makeTranslation(i * 2, 0, 0));
-  instanced.setColorAt(1, new THREE.Color(0xFF0000));
+  instanced.computeBoundingBox();
   const instancedHits = new THREE.Raycaster(new THREE.Vector3(2, 0, 10), new THREE.Vector3(0, 0, -1)).intersectObject(instanced, true);
-  check('batch_instanced_hits', [instancedHits.length, instancedHits[0].instanceId], [2, 1]);
+  check('inst_raycast_hits', [instancedHits.length, instancedHits[0].instanceId], [2, 1]);
+  check('inst_bounds', [arr(instanced.boundingBox.min), arr(instanced.boundingBox.max)], [[-0.5, -0.5, -0.5], [4.5, 0.5, 0.5]]);
 
   // --- skinning ---
   const skinned = buildSkinned();
@@ -350,10 +341,6 @@ export function run() {
   check('warn_self_add', logged, ['error:THREE.Object3D.add: object can\'t be added as a child of itself.']);
 
   // --- addons (three/addons/*, same package) ---
-  const nonIndexed = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2).toNonIndexed();
-  const merged = mergeVertices(nonIndexed);
-  // 6 faces x a 3x3 vertex grid = 54 unique; the index still addresses all 144 corners
-  check('addon_merge_vertices', [merged.getAttribute('position').count, merged.getIndex().count], [54, 144]);
   check('addon_merge_geometries_groups', mergeGeometries([new THREE.BoxGeometry(1, 1, 1), new THREE.SphereGeometry(0.5, 6, 4)], true).groups.length, 2);
   const indexedBox = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
   const interleavedAttrs = interleaveAttributes([indexedBox.getAttribute('position'), indexedBox.getAttribute('normal')]);
@@ -362,9 +349,6 @@ export function run() {
   check('addon_traverse_generator', [...traverseGenerator(scene)].length, 3);
   check('addon_reduce_vertices', round(reduceVertices(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()), (max, v) => Math.max(max, v.x), 0)), 0.5);
   check('addon_skeleton_clone', cloneSkinned(buildSkinned()).skeleton.bones.length, 2);
-  const unsorted = [5, 3, 9, 1, 7, 2];
-  radixSort(unsorted, { get: el => el, aux: new Array(unsorted.length) });
-  check('addon_radix_sort', unsorted, [1, 2, 3, 5, 7, 9]);
   const split = new EdgeSplitModifier().modify(new THREE.BoxGeometry(1, 1, 1, 2, 2, 2), 1);
   // splitting at the cube's hard edges can only add vertices, never drop indices
   check('addon_edge_split', [split.getAttribute('position').count >= 54, split.getIndex().count], [true, 144]);
