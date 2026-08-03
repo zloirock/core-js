@@ -10,14 +10,18 @@ import {
   KNOWN_FUNCTION_GLOBALS,
   KNOWN_NAMESPACE_GLOBALS,
   staticReceiverHint,
+  SYMBOL_STATIC_KEYS,
 } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
+  bindingSymbolKey,
   bindsModuleDefault,
   descendToChainRoot,
   isStaticPlacement,
   isTransparentWrapper,
+  keySideEffectsOnly,
   ownChainOptionalCount,
   proxyGlobalMemberCtorPureSwap,
+  receiverSideEffectsOnly,
   resolveKey,
   returnedReceiverHasEffects,
   unwrapParensCollectingEffects,
@@ -49,13 +53,17 @@ import {
   BRACE_STATEMENT_HOST_TYPES,
   findFunctionScopeVarInPath,
   isForXWriteTarget,
+  LET_SCOPE_HOST_TYPES,
   noReassignmentReachesUsage,
   reassignmentDominatesUsage,
   RUNTIME_BLOCK_TYPES,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   STATEMENT_LIST_HOST_TYPES,
+  reachingReassignmentValueNode,
+  reassignmentValueEnumeration,
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { parse as babelParse } from '@babel/parser';
 import { createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
@@ -353,6 +361,103 @@ runBoth('resolveSymbolIteratorEntry/computed access', 'obj[Symbol.iterator];', (
   // call resolveSymbolIteratorEntry with the inner Symbol.iterator node + its parent
   checkTruthy(lbl, resolveSymbolIteratorEntry(inner, member.node) !== null);
 });
+
+// --- walkTypeAnnotationGlobals: the Flow member/param slots of the child-key table ---
+
+// Flow is a babel-only dialect (oxc parses TS-ESTree), so these run on the babel parser alone.
+// the walk must reach a global named ONLY inside a Flow object-type member or a function-type
+// rest slot: babel's natural traverse covers those positions end-to-end, so a gap here is latent
+// until a caller relies on the shared walk instead - which entry-global and unplugin both do
+for (const [label, code, pick, expected] of [
+  ['object type member', 'function f(x: { m: Map<number> }) {}',
+    ast => ast.program.body[0].params[0].typeAnnotation, ['Map']],
+  ['object type indexer', 'let o: { [k: string]: WeakMap<number> };',
+    ast => ast.program.body[0].declarations[0].id.typeAnnotation, ['WeakMap']],
+  ['object type call property', 'let o: { (a: Set<number>): void };',
+    ast => ast.program.body[0].declarations[0].id.typeAnnotation, ['Set']],
+  ['function type rest param', 'let h: (...args: Array<Set<number>>) => void;',
+    ast => ast.program.body[0].declarations[0].id.typeAnnotation, ['Array', 'Set']],
+  ['function type plain param', 'let h: (a: Set<number>) => void;',
+    ast => ast.program.body[0].declarations[0].id.typeAnnotation, ['Set']],
+  ['plain generic (control)', 'let h: Map<number>;',
+    ast => ast.program.body[0].declarations[0].id.typeAnnotation, ['Map']],
+]) {
+  const found = [];
+  walkTypeAnnotationGlobals(pick(babelParse(code, { sourceType: 'module', plugins: ['flow'] })),
+    name => found.push(name));
+  checkDeep(`walkTypeAnnotationGlobals/flow ${ label }`, found.sort(), [...expected].sort());
+}
+
+// --- reassignment enumeration: the bound name comes from the BINDING, not from the caller ---
+
+// pattern-LHS pairing (`[K] = ['of']`) needs the declarator's bound name. two sibling resolvers used
+// to spell that recovery by hand over DISJOINT binding shapes - the adapter wrap (`.node`) and the
+// raw parser binding (`.path` only) - so each was blind exactly where the other saw, and the
+// enumeration only worked because every production caller happened to pass `name`. omit it here: the
+// pattern value must still be enumerated, on both parsers
+runBoth('reachingReassignmentValueNode/pattern-LHS over a raw binding',
+  "let K = 'at'; [K] = ['of']; Array[K]([1]);", (adapter, prog, lbl) => {
+    const declarator = adapter.pickPath(prog, 'VariableDeclarator');
+    const usage = adapter.pickPath(prog, 'MemberExpression');
+    const binding = declarator.scope?.getBinding?.('K');
+    if (!binding) throw new Error('no binding for K');
+    check(lbl, reachingReassignmentValueNode({ binding, usagePath: usage })?.value, 'of');
+  });
+runBoth('reassignmentValueEnumeration/pattern-LHS without a caller-supplied name',
+  "let K = 'at'; [K] = ['of']; Array[K]([1]);", (adapter, prog, lbl) => {
+    const declarator = adapter.pickPath(prog, 'VariableDeclarator');
+    const usage = adapter.pickPath(prog, 'MemberExpression');
+    const binding = declarator.scope?.getBinding?.('K');
+    if (!binding) throw new Error('no binding for K');
+    const { nodes } = reassignmentValueEnumeration({ binding, usagePath: usage });
+    check(lbl, nodes.map(n => n?.value).join(','), 'of');
+  });
+
+// --- receiver/key side-effect split (the `meta.sideEffects` companion field) ---
+
+// the two accessors partition ONE list at `meta.receiverEffectCount`. the closed domain of the
+// split point is {recorded, absent}: an absent count means "the producer recorded no receiver-SE",
+// so the receiver half must be empty and the key half must be the whole list. a bare
+// `slice(0, undefined)` inverts the receiver half into the full list and double-runs every key-SE
+// at a receiver-only swap, where the surviving computed `[key]` re-evaluates them itself
+const seA = { type: 'CallExpression', tag: 'a' };
+const seB = { type: 'CallExpression', tag: 'b' };
+checkDeep('receiverSideEffectsOnly/recorded split', receiverSideEffectsOnly(1, [seA, seB]), [seA]);
+checkDeep('keySideEffectsOnly/recorded split', keySideEffectsOnly(1, [seA, seB]), [seB]);
+checkDeep('receiverSideEffectsOnly/zero split', receiverSideEffectsOnly(0, [seA, seB]), []);
+checkDeep('keySideEffectsOnly/zero split', keySideEffectsOnly(0, [seA, seB]), [seA, seB]);
+checkDeep('receiverSideEffectsOnly/absent split', receiverSideEffectsOnly(undefined, [seA, seB]), []);
+checkDeep('keySideEffectsOnly/absent split', keySideEffectsOnly(undefined, [seA, seB]), [seA, seB]);
+// an empty / absent list passes through untouched on both halves
+check('receiverSideEffectsOnly/no effects', receiverSideEffectsOnly(undefined, null), null);
+check('keySideEffectsOnly/no effects', keySideEffectsOnly(undefined, null), null);
+
+// --- bindingSymbolKey: only `symbol/` leaves naming a real `Symbol.<key>` static fold ---
+
+// the catalogue path shape alone does not decide it: `symbol/constructor` default-exports the
+// Symbol constructor, `symbol/description` is a side-effect-only module and `symbol/index` is the
+// whole namespace, so none of the three is a `Symbol.<key>` VALUE
+for (const [source, expected] of [
+  ['@core-js/pure/actual/symbol/iterator', 'Symbol.iterator'],
+  ['actual/symbol/async-iterator', 'Symbol.asyncIterator'],
+  ['core-js-pure/es/symbol/to-string-tag.js', 'Symbol.toStringTag'],
+  // statics that are methods, not well-known symbols, still hold the named static as their value
+  ['actual/symbol/for', 'Symbol.for'],
+  ['actual/symbol/key-for', 'Symbol.keyFor'],
+  ['actual/symbol/constructor', null],
+  ['actual/symbol/description', null],
+  ['actual/symbol/index', null],
+  // a coincidental third-party path is rejected by the package-prefix gate
+  ['my-lib/symbol/iterator', null],
+]) {
+  check(`bindingSymbolKey/${ source }`,
+    bindingSymbolKey({ node: { type: 'ImportDefaultSpecifier' }, importSource: source }), expected);
+}
+// every entry the statics table names is spelled kebab-case under `symbol/`; the allowlist is that
+// table, so a new Symbol static becomes recognized by data, not by editing the regex
+checkTruthy('SYMBOL_STATIC_KEYS covers iterator', SYMBOL_STATIC_KEYS.has('iterator'));
+check('SYMBOL_STATIC_KEYS excludes constructor', SYMBOL_STATIC_KEYS.has('constructor'), false);
+check('SYMBOL_STATIC_KEYS excludes description', SYMBOL_STATIC_KEYS.has('description'), false);
 
 // --- isTypeAnnotationNodeType ---
 
@@ -727,6 +832,13 @@ check('STATEMENT_LIST_HOST_TYPES = brace + Program',
 // source-order = runtime blocks + Program (the TS namespace body is excluded by intent)
 check('SOURCE_ORDER_STATEMENT_HOST_TYPES = runtime blocks + Program',
   [...SOURCE_ORDER_STATEMENT_HOST_TYPES].sort().join(','), 'BlockStatement,Program,StaticBlock');
+// lexical-scope hosts carry the TS namespace body too, so consumers compose the set instead of
+// re-adding `TSModuleBlock` by hand next to it
+checkTruthy('LET_SCOPE_HOST_TYPES carries TSModuleBlock', LET_SCOPE_HOST_TYPES.has('TSModuleBlock'));
+// the same subsumption on the type-walk side: both node types a hand-written walk clause used to
+// re-add are members of the type-only catalogue, so the catalogue answers first
+checkTruthy('isTypeAnnotationNodeType/TSInterfaceBody', isTypeAnnotationNodeType('TSInterfaceBody'));
+checkTruthy('isTypeAnnotationNodeType/TSTypeParameter', isTypeAnnotationNodeType('TSTypeParameter'));
 
 // resolveKey: a computed key whose prefix carries a side effect resolves to its tail by default
 // (member-access captures the effect separately), but a caller WITHOUT an effects channel passes

@@ -240,7 +240,7 @@ export function createPredicateGuards({
   // var-independent statement classification, cached per node: the sibling guard scans re-ask
   // the same statement for every (use, name) pair, and the optional-chain / unwrap shape walk
   // dominated on large flat scopes. the name-bound predicate tail below stays per-call
-  const assertionCallCache = new WeakMap();
+  let assertionCallCache = new WeakMap();
   function assertionCallOf(sibling) {
     const { node } = sibling;
     if (node?.type !== 'ExpressionStatement') return null;
@@ -267,5 +267,11 @@ export function createPredicateGuards({
     return entries;
   }
 
-  return { parseUserPredicateGuardEntries, parseAssertionGuardEntries };
+  // every per-file cache in the factory is rebuilt at the parser-level entry so the memory
+  // footprint stays deterministic; this cluster owned one without publishing the hook
+  function reset() {
+    assertionCallCache = new WeakMap();
+  }
+
+  return { parseUserPredicateGuardEntries, parseAssertionGuardEntries, reset };
 }

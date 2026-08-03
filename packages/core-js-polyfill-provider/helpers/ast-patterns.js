@@ -69,9 +69,11 @@ export function isInitlessVarDecl(stmt) {
     && stmt.declarations.every(d => !d.init);
 }
 
-// any ExpressionStatement whose expression peels to a StringLiteral - includes already-promoted
-// directives AND raw string-literal expressions that would BECOME directives if their position
-// in the body reached the prologue
+// an ExpressionStatement whose expression IS a StringLiteral - includes already-promoted directives
+// AND raw string-literal expressions that would BECOME directives if their position in the body
+// reached the prologue. deliberately does NOT peel: per spec only an unparenthesized string literal
+// is a directive, so `('use strict');` must stay a plain expression - peeling it here would promote
+// a non-directive and, on the removal path, leave a bare `0;` in the output
 function isStringLiteralExpressionStatement(node) {
   return node?.type === 'ExpressionStatement'
     && (node.expression?.type === 'StringLiteral'
@@ -779,10 +781,7 @@ function findNearestVarScopeOwner(path) {
 function walkVarScope(scopeNode, onNode) {
   function visit(node) {
     if (!isASTNode(node) || onNode(node)) return;
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) for (const v of value) visit(v);
-      else visit(value);
-    }
+    walkAstChildren(node, visit);
   }
   if (Array.isArray(scopeNode?.body)) for (const stmt of scopeNode.body) visit(stmt);
   else visit(scopeNode?.body);
@@ -946,9 +945,11 @@ export function synthVarHoistBinding(path, name) {
 
 // names of block-nested `function f(){}` declarations hoisted to `scopeNode`'s var scope under
 // sloppy-mode Annex-B semantics (a block-level function declaration is function-scoped, not
-// block-scoped, in non-strict code). reuses `walkVarScope` (descend non-boundary nodes, stop at
-// nested var-scope boundaries) but registers FunctionDeclaration ids. presence only: a function has
-// no `.init`, so the result must never feed the declarator-reading path
+// block-scoped, in non-strict code). same descent RULE as `walkVarScope` (descend non-boundary
+// nodes, stop at nested var-scope boundaries) but a separate walk, not a reuse: the B.3.2 blocking
+// set has to be threaded down per level, which `walkVarScope`'s `onNode(node)` signature cannot
+// carry. presence only: a function has no `.init`, so the result must never feed the
+// declarator-reading path
 const scopeBlockFunctionsCache = new WeakMap();
 // the lexical names (`let` / `const` / `class`) bound at the TOP of a block body - an Annex-B
 // block-function hoist is BLOCKED (B.3.2) when any block between the function and its var-scope
@@ -1017,10 +1018,7 @@ function collectScopeBlockFunctions(scopeNode) {
     // entering a lexical-introducing construct extends the blocked set with the names it binds
     const introduced = annexBBlockingNames(node);
     const next = introduced?.size ? new Set([...blocked, ...introduced]) : blocked;
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) for (const v of value) visit(v, next);
-      else visit(value, next);
-    }
+    walkAstChildren(node, child => visit(child, next));
   }
   // the owner scope's own body-block lexicals block the hoist too
   const body = Array.isArray(scopeNode?.body) ? scopeNode.body : scopeNode?.body?.body;
@@ -1232,10 +1230,7 @@ export function buildScopeReassignmentIndex(ownerNode) {
         if (d.init) for (const name of patternNames(d.id, [])) record(name, d);
       }
     }
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) for (const v of value) visit(v, false);
-      else visit(value, false);
-    }
+    walkAstChildren(node, child => visit(child, false));
     pop(shadowNames);
   }
   visit(ownerNode, true);
@@ -1493,19 +1488,10 @@ function ownerParentIndex(ownerNode) {
   if (parents) return parents;
   parents = new Map();
   (function visit(node) {
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) {
-        for (const v of value) {
-          if (isASTNode(v)) {
-            parents.set(v, node);
-            visit(v);
-          }
-        }
-      } else if (isASTNode(value)) {
-        parents.set(value, node);
-        visit(value);
-      }
-    }
+    walkAstChildren(node, child => {
+      parents.set(child, node);
+      visit(child);
+    });
   })(ownerNode);
   ownerParentIndexCache.set(ownerNode, parents);
   return parents;
@@ -1536,7 +1522,10 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
   return false;
 });
 
-export function isVarDeclaratorInLoopBody(path, name) {
+// does the `var` declarator binding `name` sit anywhere a loop RE-RUNS - the body, and equally a
+// for-x head's `left` slot (its pattern defaults / computed keys re-evaluate per iteration)? the
+// wider set is the conservative one and what every caller needs; "body" alone would under-report
+export function isVarDeclaratorInLoopRerun(path, name) {
   const owner = findNearestVarScopeOwner(path);
   const target = owner && cachedScopeVars(owner.node).get(name);
   if (!target) return false;
@@ -1883,6 +1872,20 @@ function patternBindsNameUnderDefault(node, name, underDefault) {
   }
 }
 
+// the binding's own VariableDeclarator, across BOTH binding shapes this file is handed: the usage
+// adapters wrap the declarator on `.node`, while a raw parser binding carries only `.path`
+function bindingDeclaratorNode(binding) {
+  return binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+}
+
+// the name a declarator binds, or null for a pattern / absent id. one accessor for every resolver
+// that keys pattern-LHS pairing on it: the two written by hand covered DISJOINT binding shapes, so
+// each was blind exactly where the other saw
+function bindingDeclaratorName(binding) {
+  const id = bindingDeclaratorNode(binding)?.id ?? binding.identifier;
+  return id?.type === 'Identifier' ? id.name : null;
+}
+
 export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, usageNode = null, requireSingleObservation = false }) {
   if (!usagePath) return null;
   const owner = findNearestVarScopeOwner(usagePath);
@@ -1892,7 +1895,7 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, 
   // the captured value, so it is excluded below and the live declarator-init resolves
   const readNode = usageNode ?? usagePath.node;
   if (nodeSitsInLoopRerunWithin(owner.node, readNode)) return null;
-  const bindingName = binding.node?.id?.type === 'Identifier' ? binding.node.id.name : null;
+  const bindingName = bindingDeclaratorName(binding);
   const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, readNode));
   if (!before.length) return null;
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
@@ -1964,9 +1967,9 @@ function flattenBranchingValueNodes(nodes) {
 }
 
 function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx, usageNode }) {
-  // adapter wrappers do not all surface the bound identifier - callers that know the alias
-  // name pass it explicitly (needed only for pattern-LHS pairing)
-  const bindingName = name ?? binding.identifier?.name ?? binding.path?.node?.id?.name ?? null;
+  // `name` is a pure OVERRIDE for callers that already know the alias; the accessor covers both
+  // binding shapes on its own, so pattern-LHS pairing no longer depends on the caller passing it
+  const bindingName = name ?? bindingDeclaratorName(binding);
   // `usageNode` is a multi-hop alias hop's read site: a transitive source's write AFTER that read
   // (`const a = src; src = X`) cannot reach the captured value, so it is not a reachable union value
   const readNode = usageNode ?? usagePath.node;
@@ -2109,9 +2112,6 @@ export function followConstLiteralAlias(node, ctx) {
   return node;
 }
 
-// `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
-// follows a const-identifier rhs to its literal init and resolves computed keys through the read-
-// side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
 // the canonical ARRAY-slot read: `container[key]` for a literal container, with the same guards
 // both destructure sides apply - a spread makes every position untrustworthy, a hole / OOB reads
 // nothing. `key` folds through the canonical index, so '0' and 0 name the same slot
@@ -2122,6 +2122,9 @@ export function arrayLiteralSlotValue(node, key) {
   return node.elements[index] ?? null;
 }
 
+// `ctx` (optional `{ scope, adapter, path, resolveKey }`) makes the pairing binding-aware: it
+// follows a const-identifier rhs to its literal init and resolves computed keys through the read-
+// side canon. ctx-less callers keep the node-only behaviour (literal rhs, static-name keys)
 export function patternSlotValues(pattern, rhs, name, ctx) {
   const out = [];
   function slotFor(target) {
@@ -2334,10 +2337,7 @@ function ownerValueFlowIndex(ownerNode) {
         walkPatternIdentifiers(n.left, id => index.forX.set(id, n));
       }
     }
-    for (const value of Object.values(n)) {
-      if (Array.isArray(value)) for (const v of value) visit(v);
-      else visit(value);
-    }
+    walkAstChildren(n, visit);
   })(ownerNode);
   return index;
 }
@@ -2434,11 +2434,19 @@ export function isCleanDestructureAliasBinding(binding) {
     ? collectFunctionScopeVarReassignments(binding.path, aliasName)
       .filter(node => node !== own && node !== own?.id).length
     : 0;
-  const writes = (withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [])
-    .filter(v => !isDeclaratorSelfViolation(v, own) && !isIdentitySelfAssignViolation(v, own))
-    .length;
-  const total = Math.max(writes, canonicalWrites);
+  const writes = cleanDestructureAliasWrites(binding);
+  const total = Math.max(writes.length, canonicalWrites);
   return total === 0 || (total === 1 && !binding.path?.node?.init);
+}
+
+// the violation set `isCleanDestructureAliasBinding` counts: valueless re-declarations, the
+// binding's own declarator and identity self-assigns are NOT writes. exported so a consumer that
+// reads a violation the gate admitted takes it from the SAME list - reading
+// `constantViolations[0]` raw hands back a phantom node this filter just excluded
+export function cleanDestructureAliasWrites(binding) {
+  const own = binding?.path?.node ?? binding?.node;
+  return (withoutValuelessDeclarationViolations(binding?.constantViolations) ?? [])
+    .filter(v => !isDeclaratorSelfViolation(v, own) && !isIdentitySelfAssignViolation(v, own));
 }
 
 // estree-toolkit records a loop head's per-iteration rebind as a violation of the head's OWN
@@ -2481,7 +2489,7 @@ function isIdentitySelfAssignViolation(v, own) {
 // and identity self-assigns). counting the self-rebind sent every `for (const k in ...)` body
 // read - and every for-init DESTRUCTURED alias - through the flow-sensitive walks as "reassigned"
 export function reassignmentNodesBeyondDeclarator(binding) {
-  const own = binding.node?.type === 'VariableDeclarator' ? binding.node : binding.path?.node;
+  const own = bindingDeclaratorNode(binding);
   return binding.constantViolations
     .filter(v => !isDeclaratorSelfViolation(v, own) && !isIdentitySelfAssignViolation(v, own))
     .map(violationNode);
@@ -2689,15 +2697,10 @@ export function peeledLabelNames(path) {
 // register the specifier identifier as a binding regardless, so polyfill shadow detection
 // must filter via this predicate. accepts the binding's `node` + `parent` (ImportDeclaration)
 export function isTypeOnlyImportBinding(node, parent) {
-  // accept both TS `type` and Flow legacy `typeof` import-kinds. Flow's `import typeof X
-  // from 'm'` is parsed with importKind='typeof' on the ImportDeclaration / ImportSpecifier
-  // and is a TYPE-ONLY runtime artifact (Flow strips at compile time), so polyfill shadow
-  // detection must filter it identically to TS `type`
-  if (parent?.type === 'ImportDeclaration'
-    && (parent.importKind === 'type' || parent.importKind === 'typeof')) return true;
-  if (node?.type === 'ImportSpecifier'
-    && (node.importKind === 'type' || node.importKind === 'typeof')) return true;
-  return false;
+  // the kind test is `isTypeOnlyImportKind`, which owns the TS `type` / Flow `typeof` pair -
+  // spelling it out here let this site and its siblings drift apart on the Flow spelling
+  if (parent?.type === 'ImportDeclaration' && isTypeOnlyImportKind(parent.importKind)) return true;
+  return node?.type === 'ImportSpecifier' && isTypeOnlyImportKind(node.importKind);
 }
 
 // shared "is this binding tsc-elided?" check used by both adapters' `hasBinding` paths.
@@ -2810,8 +2813,8 @@ export function destructureReceiverSlot(node) {
 }
 
 // walk a (possibly nested) ObjectPattern to find the keyPath leading to a leaf Identifier
-// named `name`. peels `AssignmentPattern` wrappers (`{key: id = default}`). literal-key
-// by default (Identifier / StringLiteral / Literal); an optional `ctx`
+// named `name`. peels `AssignmentPattern` wrappers (`{key: id = default}`). plain-key
+// by default (whatever `plainSynthKeyName` names); an optional `ctx`
 // ({ resolveKey, scope, adapter }) resolves COMPUTED keys through the read-side key canon
 // (a const-bound `[k]` folds like the literal form; an SE-bearing key bails) - ctx-less
 // callers keep the literal-only behaviour, matching `patternSlotValues`' ctx idiom. simpler
@@ -2828,8 +2831,9 @@ export function objectPatternLiteralKeyPath(pattern, name, ctx = null) {
         path: ctx.path ?? null, usageNode: ctx.usageNode ?? null, bailOnSideEffectKey: true,
       }) : null;
     } else {
-      keyName = prop.key?.type === 'Identifier' ? prop.key.name
-        : (prop.key?.type === 'StringLiteral' || prop.key?.type === 'Literal') ? prop.key.value : null;
+      // through the plain-key canon, which also names a NUMERIC key (`{ 0: X }` addresses a slot
+      // the descent reads like any other member) and both parsers' string spellings
+      keyName = plainSynthKeyName(prop.key);
     }
     if (typeof keyName !== 'string') continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
@@ -3027,15 +3031,6 @@ export function walkAstChildren(node, visit) {
   }
 }
 
-// every position where a MemberExpression's slot value changes at runtime. union of:
-//   - write-only via `=` LHS / destructure-LHS / pattern-target (via `isMemberWriteOnlyContext`)
-//   - compound assignment LHS (`Array.from += X` - reads then writes)
-//   - update operand (`Array.from++` - reads then writes)
-//   - delete target (`delete Array.from` - removes slot)
-// callers that need to know "would the value of `node` differ after this position" check
-// this predicate; the three non-write-only forms are not caught by `isMemberWriteOnlyContext`
-// because they also READ the slot (so polyfill substitution of the read is wrong-but-not-
-// crash-causing, separate from the mutation-bypass divergence this predicate guards)
 // does a chain-receiver carry a LIVE `?.` of its own? walks member / call links and the
 // transparent wrappers down to the root. a ParenthesizedExpression TERMINATES the walk: parens
 // end an optional chain, so a `?.` sealed inside them does not short-circuit what follows
@@ -3057,6 +3052,15 @@ export function receiverCarriesLiveOptional(node) {
   return false;
 }
 
+// every position where a MemberExpression's slot value changes at runtime. union of:
+//   - write-only via `=` LHS / destructure-LHS / pattern-target (via `isMemberWriteOnlyContext`)
+//   - compound assignment LHS (`Array.from += X` - reads then writes)
+//   - update operand (`Array.from++` - reads then writes)
+//   - delete target (`delete Array.from` - removes slot)
+// callers that need to know "would the value of `node` differ after this position" check
+// this predicate; the three non-write-only forms are not caught by `isMemberWriteOnlyContext`
+// because they also READ the slot (so polyfill substitution of the read is wrong-but-not-
+// crash-causing, separate from the mutation-bypass divergence this predicate guards)
 export function isMemberMutationContext(node, parent, grandparent) {
   if (isMemberWriteOnlyContext(node, parent, grandparent)) return true;
   if (!parent) return false;
@@ -3177,21 +3181,14 @@ export function prototypeValueMayDispatch(node, undefinedShadowed = false) {
   const { type } = node;
   if (type === 'TemplateLiteral' || type === 'NumericLiteral' || type === 'StringLiteral'
     || type === 'BooleanLiteral' || type === 'BigIntLiteral') return false;
+  if (isVoidExpression(node)) return false;
   // `undefined` is shadowable, and a shadowed one is an ordinary value that CAN be an object -
   // the caller reports whether anything binds the name here (the same gate the nullish canon uses)
-  if (isVoidExpression(node)) return false;
   if (type === 'Identifier') return node.name !== 'undefined' || undefinedShadowed;
   if (type !== 'Literal') return true;
   return !!node.regex || typeof node.value === 'object';
 }
 
-// does an object literal install a custom prototype through a `__proto__:` DATA property? such an
-// object INHERITS that prototype's methods (`{ __proto__: Array.prototype }` dispatches
-// `Array.prototype.at`), so it is neither a plain `Object` for typing nor instance-inert for the
-// union - both consumers read this one predicate. only the colon form with an Identifier / string
-// `__proto__` key sets the prototype: computed, shorthand, method and accessor spellings define an
-// ordinary own property, and a spread copies a VALUE (never the prototype). `__proto__: null` gives a
-// null-prototype object that dispatches nothing; any other value may carry a polyfilled method
 // is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
 // `__proto__` data property does - a method, an accessor or a computed key of the same name creates
 // an ordinary own property instead. one rule, read both per-literal and per-property
@@ -3202,6 +3199,13 @@ export function propertyInstallsPrototype(prop, undefinedShadowed = false) {
   return prototypeValueMayDispatch(prop.value, undefinedShadowed);
 }
 
+// does an object literal install a custom prototype through a `__proto__:` DATA property? such an
+// object INHERITS that prototype's methods (`{ __proto__: Array.prototype }` dispatches
+// `Array.prototype.at`), so it is neither a plain `Object` for typing nor instance-inert for the
+// union - both consumers read this one predicate. only the colon form with an Identifier / string
+// `__proto__` key sets the prototype: computed, shorthand, method and accessor spellings define an
+// ordinary own property, and a spread copies a VALUE (never the prototype). `__proto__: null` gives a
+// null-prototype object that dispatches nothing; any other value may carry a polyfilled method
 export function objectLiteralPrototypeValue(node, undefinedShadowed = false) {
   for (const prop of node?.properties ?? []) {
     if (propertyInstallsPrototype(prop, undefinedShadowed)) return prop.value;
@@ -3224,7 +3228,7 @@ export function prototypeWriteHostPath(ref) {
 // does this REFERENCE install a foreign prototype on the value it names? the two runtime channels
 // that change an object's dispatcher after creation: a `__proto__` member write and a
 // `setPrototypeOf` call in its TARGET slot (the PROTO slot argument is a source, not a target).
-// `__proto__ = null` installs no dispatcher. the literal-side twin is `objectLiteralInstallsPrototype`.
+// `__proto__ = null` installs no dispatcher. the literal-side twin is `objectLiteralPrototypeValue`.
 // the CALLEE's identity is not decidable from the raw AST (`Object` can be shadowed, and usage-pure
 // rewrites the call to its own injected binding), so the caller supplies `isProtoSetterCallee` and
 // gets the callee PATH to resolve
@@ -3253,9 +3257,6 @@ export function installedPrototypeValueAt(ref, isProtoSetterCallee, undefinedSha
 // reports the install while a value consumer declines
 export const NO_PROTOTYPE_VALUE = { type: 'NoPrototypeValue' };
 
-// key spelling shared by the own-this method-extraction gates: private members keep a `#name`
-// spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
-// the canonical property-key extractor. null = dynamic / unresolvable
 // the `#name` spelling of a private-name node under either parser (babel `PrivateName` nests the
 // identifier under `.id`, estree `PrivateIdentifier` carries `.name` directly); null when the node is
 // not a private name. single canon so the two spellings never drift apart across the private-key sites
@@ -3265,6 +3266,9 @@ export function privateNameSpelling(node) {
   return null;
 }
 
+// key spelling shared by the own-this method-extraction gates: private members keep a `#name`
+// spelling so a `c.#m` read matches the class-body declaration; everything else resolves via
+// the canonical property-key extractor. null = dynamic / unresolvable
 export function ownThisMemberKeyName(member) {
   return privateNameSpelling(member?.key) ?? propertyKeyName(member);
 }
@@ -3276,12 +3280,6 @@ export function memberReadKeyName(member) {
   return privateNameSpelling(member?.property) ?? memberKeyName(member);
 }
 
-// own-`this` FUNCTION members of an object literal: methods and function-expression-valued
-// properties run with `this` = the call-site receiver, so a HELD read of such a member hands
-// out a this-rebindable function and breaks the this-field narrow premise. arrows are excluded
-// (lexical `this` - extraction cannot rebind). getters / setters cannot be read out as
-// functions by a plain member read (the read INVOKES them), but value-exposing calls
-// (descriptor extraction) still reach them - they only raise the `accessors` flag.
 // can this object literal reach a `Symbol.iterator`, and so hand ITSELF to whatever iterates it
 // (`for (const x of o)`, `[...o]`)? the summary below is where that is decided - it already walks the
 // properties once for the method set, and the answer falls out of the same pass. this reader exists
@@ -3298,6 +3296,12 @@ export function classCarriesDecorators(classNode) {
   return !!classNode?.body?.body?.some(member => member?.decorators?.length);
 }
 
+// own-`this` FUNCTION members of an object literal: methods and function-expression-valued
+// properties run with `this` = the call-site receiver, so a HELD read of such a member hands
+// out a this-rebindable function and breaks the this-field narrow premise. arrows are excluded
+// (lexical `this` - extraction cannot rebind). getters / setters cannot be read out as
+// functions by a plain member read (the read INVOKES them), but value-exposing calls
+// (descriptor extraction) still reach them - they only raise the `accessors` flag.
 // `unknownKey` marks a method behind a dynamic / numeric key: any held or dynamic read could
 // extract it, so key-precise gates degrade to conservative. null when the literal has no
 // own-this function members at all - the common data-only case stays zero-cost
@@ -3909,8 +3913,8 @@ function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
     return grandparent?.type === 'ExportNamedDeclaration' && grandparent.exportKind === 'type';
   }
   if (parent.type === 'ImportSpecifier') {
-    if (parent.importKind === 'type') return true;
-    return grandparent?.type === 'ImportDeclaration' && grandparent.importKind === 'type';
+    if (isTypeOnlyImportKind(parent.importKind)) return true;
+    return grandparent?.type === 'ImportDeclaration' && isTypeOnlyImportKind(grandparent.importKind);
   }
   // TS type-member key positions name a member in a type, not a runtime reference to a
   // same-named global: `interface I { Promise: number }` (TSPropertySignature) / `{ Promise():
@@ -4648,17 +4652,6 @@ export function propBindingIdentifier(value) {
 
 export const isIdentifierPropValue = value => propBindingIdentifier(value) !== null;
 
-// synth-swap rewrite emits `{ key: value, ... }` reconstructed from ObjectPattern properties.
-// any property that can't be losslessly replayed as that literal must force a bail:
-// - a side-effecting / dynamic computed key (`{[fn()]: x}`, `{[a + b]: x}`) would fire at the wrong
-//   time or can't be reproduced; only a bare Identifier (`[k]`) computed key is replayable by default
-// - a non-computed key must be a plain Identifier (a numeric / string-literal own key is out of scope)
-// - RestElement / SpreadElement have no literal-prop equivalent
-// `allowLiteralComputedKeys` additionally accepts a static string / template literal computed key
-// (`['from']` / [`from`]). only the per-branch synth path sets it: it has no body-extract fallback, so
-// it must synth the polyfill; param-default leaves it off and bails to the safe body-extract instead.
-// callers bail to inline-default when this check fails. shared between babel-plugin and unplugin
-// accepts both Babel `ObjectProperty` and ESTree `Property` node types
 // a prop whose VALUE is a nested ObjectPattern (`{ Array: { from } }`, peeling an `= {}` default). such a
 // pattern is owned by the nested mirror (`buildNestedParamSynthPlan`), which replaces the WHOLE receiver
 // default - flat synth-swap / body-extract / inline-default fallbacks must DEFER to it, never race it
@@ -4669,10 +4662,21 @@ export function objectPatternHasNestedValue(objectPattern) {
   });
 }
 
-// a MIXED pattern the nested mirror owns WHOLLY: it has a nested-value key AND no top-level rest (a rest
-// makes the mirror BAIL structurally - the rest collects unsynthesizable receiver keys). both emitters'
-// flat-key fallbacks (body-extract / inline-default) DEFER to the mirror here rather than body-extract
-// (caller-lossy) a key the mirror's synth default provides, or race it when a leaf resolves transiently
+// synth-swap rewrite emits `{ key: value, ... }` reconstructed from ObjectPattern properties; a
+// property that cannot be losslessly replayed as that literal forces a bail:
+// - a NON-computed key must name a slot the literal can clone verbatim - `plainSynthKeyName`, which
+//   covers Identifier, string and NUMERIC spellings alike (`{ 0: x }` and `{ '0': x }` read one slot)
+// - a computed Identifier key (`[k]`) is replayable unless `k` is bound by THIS pattern: the literal
+//   evaluates the key before the pattern binds, so `{ of, [of]: x }` would read the wrong `of`
+// - any other computed key is replayable only once its name folds statically, and then only for the
+//   flavour the caller opted into: `allowLiteralComputedKeys` for an effect-FREE key
+//   (`['from']` / [`from`]), `allowSideEffectComputedKeys` for an effect-bearing one, whose prefix
+//   stays on the pattern and runs once. the per-branch synth path opts in because it has no
+//   body-extract fallback; param-default leaves both off and takes the safe body-extract instead
+// - RestElement / SpreadElement have no literal-prop equivalent
+// a NESTED-value prop is owned by the nested mirror and declines here, see above.
+// callers bail to inline-default when this check fails. shared between babel-plugin and unplugin;
+// accepts both Babel `ObjectProperty` and ESTree `Property` node types
 export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
   let bound = null;
   // a NESTED-value prop (`{ Array: { from } }`) belongs to the nested mirror (it replaces the WHOLE
@@ -5082,7 +5086,10 @@ export function unwrapExpressionChain(node) {
 // every sequence prefix it crosses into `prefixes` (source order) instead of eliding it - a
 // consumer that DISCARDS the peeled wrappers (the array-wrapper destructure flatten) must
 // re-emit those effects. the sequence peel runs first each round so a prefix buried under a
-// paren / TS wrapper is still collected once the wrapper comes off
+// paren / TS wrapper is still collected once the wrapper comes off. this is a FIXPOINT loop, not
+// a fixed schedule: the identity check is what ends it, and `MAX_DEPTH` only bounds a pathological
+// input. every shape reached so far settles after one productive round - the following round is a
+// confirming no-op - but a shape that needs a second one must not silently drop its prefix
 export function unwrapCollectingSePrefixes(node, prefixes) {
   for (let depth = 0; depth < MAX_DEPTH && node; depth++) {
     const before = node;
@@ -5265,8 +5272,8 @@ function statementShadowsRequireAtProgramScope(stmt) {
     case 'ImportDeclaration':
       // type-only forms (declaration-level `import type ...` and per-specifier `import { type X }`)
       // are tsc-elided - references resolve to the global, so no runtime shadow
-      if (node.importKind === 'type') return false;
-      return node.specifiers.some(s => s.importKind !== 'type' && s.local?.name === 'require');
+      if (isTypeOnlyImportKind(node.importKind)) return false;
+      return node.specifiers.some(s => !isTypeOnlyImportKind(s.importKind) && s.local?.name === 'require');
     // `import require = X.Y` creates a runtime binding (namespace refs / proper modules
     // both reach runtime). `import type require = ...` is tsc-elided
     case 'TSImportEqualsDeclaration':
@@ -5730,7 +5737,7 @@ export function forEachStatementPosition(rootNode, { onList, onUnbracedSlot } = 
         if (isASTNode(slot) && !STATEMENT_LIST_HOST_TYPES.has(slot.type)) onUnbracedSlot(node, key);
       }
     }
-    for (const value of Object.values(node)) visitPositions(value);
+    walkAstChildren(node, visitPositions);
   }
   visitPositions(rootNode);
 }
