@@ -1327,8 +1327,8 @@ export default function plugin(api, options) {
           const removed = new Set();
           scanExistingCoreJSImports(path.node, {
             packages, pkg, mode, adapter,
-            // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be
-            // removed, so the dedup filter must not suppress re-emit
+            // the user's global import is REMOVED here and re-emitted through
+            // `addGlobalImport`, so nothing may suppress it as already-present
             onGlobalImport: (mod, node) => {
               injector.addGlobalImport(mod);
               removed.add(node);

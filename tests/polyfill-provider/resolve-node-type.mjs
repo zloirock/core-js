@@ -20,7 +20,9 @@ import {
   isAmbientFunctionNode,
   isAmbientFunctionOrClassNode,
 } from '../../packages/core-js-polyfill-provider/resolve-node-type/name-resolution.js';
-import { guardFromHint, guardFromResolvedType, instanceofGuard, isTypeofVar, typeofGuard } from '../../packages/core-js-polyfill-provider/resolve-node-type/guard-shapes.js';
+import {
+  createPredicateGuards, guardFromHint, guardFromResolvedType, instanceofGuard, isTypeofVar, typeofGuard,
+} from '../../packages/core-js-polyfill-provider/resolve-node-type/guard-shapes.js';
 import {
   $Object,
   $Primitive,
@@ -100,7 +102,9 @@ import {
   isTypeAnnotationWrapper,
   isThisReceiver,
   isTransparentDestructureWrapper,
+  objectPatternLiteralKeyPath,
   isTypeOnlyImportBinding,
+  isTypeOnlyImportKind,
   isTypeOnlyImportEquals,
   isUpdateTarget,
   kebabToCamel,
@@ -147,7 +151,7 @@ import {
   symbolKeyToEntry,
 } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 
-const { check, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree } = createChecker('resolve-node-type');
+const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAgree } = createChecker('resolve-node-type');
 
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
@@ -342,6 +346,21 @@ runBoth('reset() flushes cache', 'const x = 1;', (adapter, prog, lbl) => {
   const second = resolver.resolveNodeType(initPath);
   check(`${ lbl } after reset: re-resolved fresh`, second?.type, first?.type);
 });
+
+// every cluster that owns a per-file cache has to publish a `reset` hook the factory calls, else
+// its entries survive across parses while the rest of the factory is rebuilt. the predicate-guard
+// cluster is the one that owned a cache without the hook - assert the surface, and that a reset
+// leaves the resolver working (a missing hook throws at the factory's reset())
+runBoth('reset() drives every cluster hook', 'function isS(x) { return typeof x === "string"; }', (adapter, prog, lbl) => {
+  const resolver = adapter.makeResolver();
+  const decl = adapter.pickPath(prog, 'FunctionDeclaration');
+  resolver.reset();
+  resolver.reset();
+  checkTruthy(`${ lbl } resolver still resolves after repeated reset`,
+    resolver.resolveNodeType(decl) !== undefined);
+});
+check('guard-shapes cluster publishes a reset hook',
+  typeof createPredicateGuards({}).reset, 'function');
 
 // --- Known built-in static-method return types ---
 
@@ -4216,6 +4235,33 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   const multi = patternSlotValues(arrayPattern(null, ident('C')), arrayExpr(spread, ident('G1'), ident('G2')), 'C');
   check('ast-patterns: every static past the spread is a candidate',
     multi.map(v => v.name).join(','), 'G1,G2');
+  // objectPatternLiteralKeyPath names a non-computed key through the plain-key canon, so every
+  // spelling a pattern key can take is covered by ONE enumeration. numeric is the spelling the
+  // hand-rolled copy in detect-usage resolved and this one dropped - the two have to agree, since
+  // both answer "which key path binds this name"
+  function objProp(key, value) {
+    return { type: 'ObjectProperty', computed: false, key, value };
+  }
+  function objPattern(...properties) {
+    return { type: 'ObjectPattern', properties };
+  }
+  checkDeep('ast-patterns: key path through an Identifier key',
+    objectPatternLiteralKeyPath(objPattern(objProp(ident('Array'), ident('A'))), 'A'), ['Array']);
+  checkDeep('ast-patterns: key path through a string key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'StringLiteral', value: 'Array' }, ident('A'))), 'A'), ['Array']);
+  checkDeep('ast-patterns: key path through an estree string key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 'Array' }, ident('A'))), 'A'), ['Array']);
+  checkDeep('ast-patterns: key path through a numeric key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'NumericLiteral', value: 0 }, ident('A'))), 'A'), ['0']);
+  checkDeep('ast-patterns: key path through an estree numeric key',
+    objectPatternLiteralKeyPath(objPattern(objProp({ type: 'Literal', value: 0 }, ident('A'))), 'A'), ['0']);
+  const nestedPattern = objPattern(objProp(ident('Map'), ident('M')));
+  checkDeep('ast-patterns: nested key path',
+    objectPatternLiteralKeyPath(objPattern(objProp(ident('ns'), nestedPattern)), 'M'), ['ns', 'Map']);
+  // a computed key needs the ctx resolver; without it the walk finds nothing rather than guessing
+  check('ast-patterns: computed key without ctx yields no path',
+    objectPatternLiteralKeyPath(objPattern({ type: 'ObjectProperty', computed: true, key: ident('k'), value: ident('A') }), 'A'), null);
+
   checkTruthy('ast-patterns: spread-shifted predicate fires past the spread',
     patternSlotSpreadShifted(arrayPattern(null, ident('A')), arrayExpr(spread, ident('G')), 'A'));
   check('ast-patterns: spread-shifted predicate quiet before the spread',
@@ -5813,6 +5859,20 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   check('ast-patterns: isTypeOnlyImportBinding value',
     isTypeOnlyImportBinding({ type: 'ImportSpecifier' },
       { type: 'ImportDeclaration' }), false);
+  // the import-KIND domain is {'type', 'typeof', absent}: Flow's `import typeof X` erases exactly
+  // like TS `import type X`, so both spellings gate at both levels. spelled out per element so a
+  // site that re-writes the kind test by hand cannot drop the Flow half again
+  for (const kind of ['type', 'typeof']) {
+    checkTruthy(`ast-patterns: isTypeOnlyImportKind ${ kind }`, isTypeOnlyImportKind(kind));
+    checkTruthy(`ast-patterns: isTypeOnlyImportBinding declaration-level ${ kind }`,
+      isTypeOnlyImportBinding({ type: 'ImportSpecifier' },
+        { type: 'ImportDeclaration', importKind: kind }));
+    checkTruthy(`ast-patterns: isTypeOnlyImportBinding specifier-level ${ kind }`,
+      isTypeOnlyImportBinding({ type: 'ImportSpecifier', importKind: kind },
+        { type: 'ImportDeclaration' }));
+  }
+  check('ast-patterns: isTypeOnlyImportKind value import', isTypeOnlyImportKind(undefined), false);
+  check('ast-patterns: isTypeOnlyImportKind value spelling', isTypeOnlyImportKind('value'), false);
 
   // isAmbientTypeDeclaration: TS ambient decl shapes
   checkTruthy('ast-patterns: isAmbientTypeDeclaration TSDeclareFunction',
@@ -6787,6 +6847,15 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     remappedWithSE?.object, 'Promise');
   check('class-walk: remapInheritedStaticMeta carries SE',
     remappedWithSE?.sideEffects?.[0], sideEffect);
+  // the receiver/key split point is the SE list's own metadata: carrying the list without it
+  // leaves the emit side splitting at an unrecorded point (an absent count reads as 0, so the
+  // whole carried list would be treated as key-SE by one consumer and receiver-SE by the other)
+  check('class-walk: remapInheritedStaticMeta carries the SE split point',
+    remappedWithSE?.receiverEffectCount, 0);
+  const recordedSplit = remapInheritedStaticMeta(mockInjector,
+    { ...original, sideEffects: [sideEffect, sideEffect], receiverEffectCount: 1 }, inherited);
+  check('class-walk: remapInheritedStaticMeta preserves a recorded split point',
+    recordedSplit?.receiverEffectCount, 1);
   // no inherited -> null
   check('class-walk: remapInheritedStaticMeta no inherited',
     remapInheritedStaticMeta(mockInjector, original, null), null);
@@ -6794,6 +6863,8 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
   const noSE = remapInheritedStaticMeta(mockInjector, { kind: 'property', object: 'X' }, inherited);
   check('class-walk: remapInheritedStaticMeta no SE no carry',
     noSE?.sideEffects, undefined);
+  check('class-walk: remapInheritedStaticMeta no SE no split point',
+    noSE?.receiverEffectCount, undefined);
 
   // buildSuperStaticMeta: ClassDeclaration with superClass resolved by resolveSuperType
   function fakeResolver(id) { return id?.type === 'Identifier' ? id.name : null; }

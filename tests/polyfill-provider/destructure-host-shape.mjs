@@ -6,6 +6,7 @@
 import {
   classifyVariableDeclarationHost,
   isBodylessStatementSlot,
+  isForInitDeclaration,
   isLoopStatement,
   peelLabeledStatements,
 } from '../../packages/core-js-polyfill-provider/destructure-host-shape.js';
@@ -209,5 +210,50 @@ runBoth('peelLabeledStatements/identity and single level', 'x: call();', (adapte
   check(lbl, peelLabeledStatements(label.node).type === 'ExpressionStatement', true);
   check(lbl, peelLabeledStatements(label.node.body) === label.node.body, true);
 });
+
+// --- classifyVariableDeclarationHost: the three shapes are mutually exclusive ---
+
+// the classifier used to gate `isBodyless` on `!isExport && !isForInit`. that gate is subsumed by
+// the slot test itself: an export wrapper hosts no statement slot, and a for-INIT declaration sits
+// in `init`, never in `body`. enumerate the three hosts plus a plain block so a future slot-table
+// widening cannot silently make two of them true at once
+for (const [label, code, pick, expected] of [
+  ['export wrapper', 'export const { from } = Array;',
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclaration'),
+    { isExport: true, isForInit: false, isBodyless: false }],
+  ['for-init slot', 'for (const { from } = Array; ; ) call();',
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclaration'),
+    { isExport: false, isForInit: true, isBodyless: false }],
+  ['unbraced if consequent', 'if (cond) var { from } = Array;',
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclaration'),
+    { isExport: false, isForInit: false, isBodyless: true }],
+  ['plain block statement', '{ var { from } = Array; }',
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclaration'),
+    { isExport: false, isForInit: false, isBodyless: false }],
+  ['unbraced for body', 'for (;;) var { from } = Array;',
+    (adapter, prog) => adapter.pickPath(prog, 'VariableDeclaration'),
+    { isExport: false, isForInit: false, isBodyless: true }],
+]) {
+  runBoth(`classifyVariableDeclarationHost/${ label }`, code, (adapter, prog, lbl) => {
+    const declPath = pick(adapter, prog);
+    const shape = classifyVariableDeclarationHost({
+      declaration: declPath.node, declarationParent: declPath.parentPath.node,
+    });
+    check(`${ lbl }/isExport`, shape.isExport, expected.isExport);
+    check(`${ lbl }/isForInit`, shape.isForInit, expected.isForInit);
+    check(`${ lbl }/isBodyless`, shape.isBodyless, expected.isBodyless);
+    check(`${ lbl }/at most one shape`,
+      [shape.isExport, shape.isForInit, shape.isBodyless].filter(Boolean).length <= 1, true);
+  });
+}
+
+// the standalone for-init canon answers the same question the classifier reports, so the emitters
+// can consult either without drifting - and the for-BODY slot is NOT the init slot
+runBoth('isForInitDeclaration/init vs body slot', 'for (var { from } = Array; ;) var { of } = Array;',
+  (adapter, prog, lbl) => {
+    const [head, body] = adapter.collectPaths(prog, 'VariableDeclaration', () => true);
+    check(`${ lbl }/init`, isForInitDeclaration(head.parentPath.node, head.node), true);
+    check(`${ lbl }/body`, isForInitDeclaration(body.parentPath.node, body.node), false);
+  });
 
 finish();

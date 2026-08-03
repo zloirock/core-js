@@ -58,6 +58,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
+import { isForInitDeclaration } from '@core-js/polyfill-provider/destructure-host-shape';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
@@ -706,12 +707,11 @@ export default function createPlugin(options) {
         scanExistingCoreJSImports(ast, {
           adapter: estreeAdapter,
           mode,
-          // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be removed,
-          // so the dedup filter must not suppress re-emit. the DEFER pass leaves user global
+          // the user's global import is REMOVED here and re-emitted through `addGlobalImport`,
+          // so nothing may suppress it as already-present. the DEFER pass leaves user global
           // imports COMPLETELY alone (no removal, no registration): its own emission is
           // deferred to post, so removing here would strand the file import-less if the post
-          // pass never lands (evicted snapshot / sibling bail / watch-mode re-run), and
-          // registering would poison the snapshot dedup against post's atomic remove+re-emit
+          // pass never lands (evicted snapshot / sibling bail / watch-mode re-run)
           onGlobalImport: (mod, node) => {
             if (deferImports) return;
             injector.addGlobalImport(mod);
@@ -992,7 +992,6 @@ export default function createPlugin(options) {
           code,
           estreeAdapter,
           injectPureImport,
-          isBodylessStatementBody,
           isEntryNeeded,
           isInStaticContext,
           isShadowedByClassOwnMember,
@@ -1466,16 +1465,11 @@ export default function createPlugin(options) {
           }
         }
 
-        function isForInitHost(path) {
-          const parent = path.parentPath?.node;
-          return parent?.type === 'ForStatement' && parent.init === path.node;
-        }
-
         const usageVisitors = mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           VariableDeclaration(path) {
-            const isForInit = isForInitHost(path);
+            const isForInit = isForInitDeclaration(path.parentPath?.node, path.node);
             for (const d of path.node.declarations) {
               if (d.init && canFullyConsumeProxyDeclarator(d, path.scope, path)) {
                 skipFullConsumeDeadInit(d.init, isForInit, path.scope, path);

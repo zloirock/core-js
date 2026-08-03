@@ -81,7 +81,6 @@ export default class ImportInjector extends ImportInjectorState {
     for (const [k, v] of snap.pure ?? EMPTY_MAP) this.pureImports.set(k, v);
     for (const n of snap.usedNames ?? EMPTY_ARR) this.usedNames.add(n);
     for (const n of snap.unusedNames ?? EMPTY_ARR) this.#unusedNames.add(n);
-    for (const g of snap.existingGlobals ?? EMPTY_ARR) this.existingGlobalImports.add(g);
     for (const [k, v] of snap.existingPure ?? EMPTY_MAP) this.existingPureImports.set(k, v);
     for (const r of snap.refs ?? EMPTY_ARR) this.#refs.add(r);
     // pre's `var X;` is already in post's input - don't re-emit. snapshot() always emits
@@ -109,7 +108,6 @@ export default class ImportInjector extends ImportInjectorState {
       unusedNames: new Set(this.#unusedNames),
       refs: [...this.#refs],
       flushedRefs: [...this.#flushedRefs],
-      existingGlobals: new Set(this.existingGlobalImports),
       existingPure: new Map(this.existingPureImports),
       suffixState: this.captureSuffixState(),
       importInfoByName: this.captureImportInfoByName(),
@@ -365,9 +363,9 @@ export default class ImportInjector extends ImportInjectorState {
   // when the caller tracks usage
   #collectImportLines() {
     const lines = [];
-    const newGlobals = sortByPolyfillOrder([...this.globalImports.difference(this.existingGlobalImports)]);
-    // drop sources already imported in the current text (keyed by source path). symmetric with
-    // the global `difference(existingGlobalImports)` above. needed when `pureImports` carries a
+    const newGlobals = sortByPolyfillOrder(this.globalImports);
+    // drop sources already imported in the current text (keyed by source path). needed when
+    // `pureImports` carries a
     // source that's ALSO present as an existing import - the pre+post inherit path: pre emits its
     // pure imports inline AND seeds `pureImports` via the snapshot, then post re-scans the inline
     // line into `existingPureImports`; without this filter post would re-emit a second identical

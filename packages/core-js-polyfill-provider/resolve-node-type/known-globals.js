@@ -98,7 +98,7 @@ export function createKnownGlobals({
 
   // single-step probe: if `node` is a Promise / PromiseLike / Thenable type-reference,
   // return its first type-argument annotation; null otherwise. shape-only, no recursion.
-  // shared between `getPromiseInnerAnnotation` (callers want one layer for distribute)
+  // shared between the AST-side Promise peel (callers want one layer for distribute)
   // and `unwrapPromiseAnnotation` (callers loop for full unwrap)
   function promiseRefInner(node) {
     if (node?.type !== 'TSTypeReference' && node?.type !== 'GenericTypeAnnotation') return null;
