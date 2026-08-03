@@ -632,11 +632,10 @@ export function createBindingAnalysis({
     if (pattern?.type !== 'ObjectPattern') return false;
     for (const p of pattern.properties ?? []) {
       if (p.type === 'RestElement' || p.type === 'SpreadElement') return true;
-      const key = propertyKeyName(p);
-      // an untrackable pattern key could name any method; a resolvable key only a known one
-      if (key === null || key === undefined) {
-        if (methodInfo.methodKeys.size || methodInfo.unknownKey) return true;
-      } else if (methodInfo.methodKeys.has(key)) return true;
+      // the key-vs-method-set question is `ownThisMethodKeyMatches`, which this file already
+      // consults ten lines above: an untrackable pattern key could name any method, a resolvable
+      // one only a known one
+      if (ownThisMethodKeyMatches(methodInfo, propertyKeyName(p))) return true;
     }
     return false;
   }

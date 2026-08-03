@@ -19,9 +19,10 @@ import {
 } from '../../packages/core-js-polyfill-provider/plugin-options/targets.js';
 import { createDebugOutputFactory } from '../../packages/core-js-polyfill-provider/plugin-options/debug-output.js';
 import { initPluginOptions } from '../../packages/core-js-polyfill-provider/plugin-options/init.js';
+import knownBuiltInReturnTypes from '../../packages/core-js-compat/known-built-in-return-types.json' with { type: 'json' };
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('plugin-options');
+const { check, checkDeep, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('plugin-options');
 
 // minimal happy-path skeleton for validateOptions; tests override specific keys
 const validBase = {
@@ -498,6 +499,15 @@ check('polyfillOrderComparator/unknown reflexive zero',
 // empty input passes through unchanged (no-op edge case)
 check('sortByPolyfillOrder/empty array', JSON.stringify(sortByPolyfillOrder([])), '[]');
 
+// the contract call sites rely on: any ITERABLE in, a fresh array out. without it they each
+// materialised their own copy first and every sort paid for two
+check('sortByPolyfillOrder/accepts a Set',
+  JSON.stringify(sortByPolyfillOrder(new Set(['web.url.constructor', 'es.array.at']))),
+  '["es.array.at","web.url.constructor"]');
+check('sortByPolyfillOrder/accepts Map keys',
+  JSON.stringify(sortByPolyfillOrder(new Map([['web.url.constructor', 1], ['es.array.at', 1]]).keys())),
+  '["es.array.at","web.url.constructor"]');
+
 // single element passes through (no comparator invocation at all)
 check('sortByPolyfillOrder/single element known', JSON.stringify(sortByPolyfillOrder(['es.array.at'])), '["es.array.at"]');
 check('sortByPolyfillOrder/single element unknown', JSON.stringify(sortByPolyfillOrder(['zzz.unknown'])), '["zzz.unknown"]');
@@ -709,6 +719,40 @@ throwsWith('buildShouldInjectPolyfill/userCallback primitive throw',
   },
   '[core-js] shouldInjectPolyfill("es.array.at") threw: primitive');
 
+// the wrapper preserves the original through `cause`, and `cause` must stay NON-ENUMERABLE:
+// a post-hoc `wrapped.cause = error` makes it an own enumerable property, so the original
+// payload leaks into `JSON.stringify(err)` / `{ ...err }` / a bundler's structured report
+{
+  const inner = new Error('inner-fail');
+  const should = buildShouldInjectPolyfill({ userCallback: () => { throw inner; } });
+  let thrown = null;
+  try {
+    should('es.array.at');
+  } catch (error) {
+    thrown = error;
+  }
+  check('buildShouldInjectPolyfill/wrap carries the original as cause', thrown?.cause, inner);
+  check('buildShouldInjectPolyfill/cause is not enumerable',
+    Object.keys(thrown ?? {}).includes('cause'), false);
+  check('buildShouldInjectPolyfill/cause does not leak through spread',
+    'cause' in { ...thrown }, false);
+}
+
+// a module name spelled like an `Object.prototype` key must not read the inherited member as its
+// compat row: `compatData` is a plain JSON object, so a bare bracket read answers with a FUNCTION
+// there, and the row lookup then reads that function's own properties as engine versions. an
+// engine whose name collides with one of them (`name` -> the function's own name string) turns
+// the version compare into a hard `Invalid version` TypeError. every real browserslist engine
+// spelling is indistinguishable either way, so this is the shape that discriminates
+{
+  for (const name of ['toString', 'constructor', 'hasOwnProperty', 'valueOf']) {
+    checkDeep(`getUnsupportedTargets/inherited key ${ name } carries no compat row`,
+      getUnsupportedTargets(name, new Map([['name', '11']])), { name: '11' });
+  }
+  const should = buildShouldInjectPolyfill({ parsedTargets: new Map([['name', '11']]) });
+  check('buildShouldInjectPolyfill/inherited key carries no compat row', should('toString'), true);
+}
+
 // --- getUnsupportedTargets ---
 
 // known module against too-old target reports that target as unsupported
@@ -874,5 +918,17 @@ throwsWith('initPluginOptions/multiple unknown keys pluralised',
 throwsWith('validateOptions/no args throws on method missing',
   () => validateOptions(),
   '`method` must be one of');
+
+// the element-narrow whitelist reads `mutatesElements` off the Array instance-method registry, and
+// only the OBJECT value form can carry that marker. lock the premise: every in-place Array mutator
+// is registry-marked, so the whitelist admits exactly the non-mutating names
+{
+  const arrayHints = knownBuiltInReturnTypes.instanceMethods?.Array ?? {};
+  for (const name of ['push', 'pop', 'shift', 'unshift', 'splice', 'fill', 'copyWithin', 'sort', 'reverse']) {
+    const hint = arrayHints[name];
+    checkTruthy(`known-built-in-return-types/Array#${ name } is marked as mutating`,
+      hint !== null && typeof hint === 'object' && hint.mutatesElements === true);
+  }
+}
 
 finish();

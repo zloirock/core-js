@@ -30,6 +30,7 @@ import {
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
   ownThisMemberKeyName,
+  walkAstChildren,
 } from '../helpers/ast-patterns.js';
 import { isPrivateMemberNode, moduleStatements, nodeRangeContains } from './ast-shapes.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
@@ -313,7 +314,7 @@ export function createClassFields({
         }
         if (found) return;
       }
-      for (const value of Object.values(node)) scan(value);
+      walkAstChildren(node, scan);
     })(programNode);
     return found;
   }
