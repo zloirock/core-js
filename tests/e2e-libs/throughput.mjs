@@ -2,8 +2,14 @@
 // baseline, across method x phase. Emits report/throughput.md + report/throughput.json.
 //
 // Metric per cell = one total-bundle-ms WITH the plugin, minus the per-bundler baseline
-// (plugin-less bundle of the usage entry). An internal parse-vs-inject split would need to
-// instrument unplugin's transform hook and is intentionally out of scope here.
+// (plugin-less bundle of the usage entry). READ IT AS THE COST OF PRODUCING A POLYFILLED BUILD, not
+// as unplugin's own processing time: most of the delta is the bundler resolving, parsing and
+// rendering the core-js modules unplugin injected, not the injection itself. Measured on
+// rollup/rxjs/usage-global, unplugin's transform hook accounted for roughly a quarter of the delta;
+// the rest was rollup handling ~180 extra modules (169 KB baseline chunk -> 508 KB with the plugin).
+// pipeline.mjs is where the isolated figure lives - it wraps the transform hook itself and reports
+// `unpluginMs` beside `babelMs`. Instrumenting the hook here is not possible for the webpack-family
+// adapters anyway, so this runner stays a whole-build comparison across bundlers.
 //
 // SINGLE RUN PER CELL. There is no repeat/median axis - the repeats cost more than they buy. What
 // they cannot buy back is the machine's own background load, which is the dominant source of spread
@@ -91,7 +97,9 @@ function assertBundled(bytes, baseBytes, method, rollupInjections) {
   if (method === 'entry-global' && !rollupInjections) {
     throw new Error(`rollup capture ${ rollupInjections === null ? 'failed' : 'found 0 injections' } for entry-global`);
   }
-  if (baseBytes === undefined) return;
+  // a missing baseline is not a pass: without it this gate cannot run at all, and every cell of that
+  // bundler would otherwise print ✓ while completely ungated
+  if (baseBytes === undefined) throw new Error('no plugin-less baseline for this bundler — the payload gate could not run');
   if (bytes - baseBytes < MIN_PAYLOAD_BYTES) {
     throw new Error(`no polyfills bundled: ${ bytes }b vs plugin-less baseline ${ baseBytes }b`);
   }
@@ -149,11 +157,13 @@ for (const lib of libs) {
           const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`.padEnd(LABEL_WIDTH, '_'),
             e => timed(() => throughputBuilders[name](e, u(name, method, phase))));
           const base = baseline[name];
-          const overhead = base === null ? null : +(ms - base).toFixed(1);
+          // rounded to 10 ms: a single un-repeated cell varies by tens of percent between runs (see
+          // the header), so tenths of a millisecond would be noise formatted as signal
+          const overhead = base === null ? null : Math.round((ms - base) / 10) * 10;
           assertBundled(out.bytes, baselineBytes[name], method, rollupInjections);
           rows.push({
             lib: lib.name, bundler: name, method, phase: phase ?? '',
-            ms: +ms.toFixed(1), baseline: base === null ? null : +base.toFixed(1),
+            ms: Math.round(ms / 10) * 10, baseline: base === null ? null : Math.round(base / 10) * 10,
             overhead, bytes: out.bytes, rollupInjections,
           });
           console.log(`✓ ${ label }: ${ ms.toFixed(0) }ms (overhead ${ overhead ?? '?' }ms, ${ out.bytes }b, ${ rollupInjections } inj via rollup)`);
@@ -184,14 +194,18 @@ function fmt(c) {
   // unmarked in a column captioned "overhead" — the only other signal is a log line long scrolled off
   return c.overhead === null ? `${ c.ms }*` : `${ c.overhead }`;
 }
-let md = '# Throughput (overhead ms over baseline, single run per cell)\n\n';
+let md = '# Throughput (polyfilled-build cost over a plugin-less baseline, ms, single run per cell)\n\n';
 md += `${ libFilter || bundlerFilter ? 'Filtered run' : 'Full matrix' }: ${ libs.length } lib(s) × ${ bundlers.length } bundler(s) × every method/phase.\n\n`;
 for (const lib of libs) {
   md += `## ${ lib.name }\n\n| ${ head.join(' | ') } |\n| ${ head.map(() => '---').join(' | ') } |\n`;
   for (const b of bundlers) {
     md += `| ${ b } | ${ cells.map(([m, p]) => fmt(find(lib.name, b, m, p))).join(' | ') } |\n`;
   }
-  md += '\n_Cells show unplugin overhead (bundle-with-plugin − plugin-less baseline), in ms. '
+  md += '\n_Cells show the POLYFILLED-BUILD COST: bundle-with-plugin − plugin-less baseline, in ms. '
+    + 'That delta is not unplugin\'s own processing time — most of it is the bundler resolving, parsing '
+    + 'and rendering the core-js modules unplugin injected (measured on rollup/rxjs/usage-global: '
+    + 'unplugin\'s own transform was ~25% of the delta). For unplugin\'s isolated cost see the '
+    + '`unpluginMs` column of report/pipeline.json, which instruments the transform hook directly. '
     + '`*` = that bundler\'s baseline failed, so the cell is an ABSOLUTE build time, not an overhead. '
     + 'The `entry` column shares the usage-entry baseline, so it also carries the cost of bundling the '
     + 'core-js graph that `import \'core-js\'` pulls in — an end-to-end figure, not comparable with the '

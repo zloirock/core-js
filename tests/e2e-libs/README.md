@@ -24,14 +24,15 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   by construction either way.
 - **three** — a real headless **three.js** scene *project* (scene-graph, transforms, an "animation"
   step, raycasting, geometry, math, curves, shapes, skinning, `toJSON`/`ObjectLoader` round-trips)
-  plus six official addons from the same package (`three/addons/*`). A large modern-ES codebase for
+  plus five official addons from the same package (`three/addons/*`). A large modern-ES codebase for
   the throughput tier, and — since it's verified by its numeric state, not pixels — a functional
   runtime check that the project **still computes correctly** after unplugin + Babel down-compile to
-  ES5. One ~1.4 MB monolithic module (plus ~74 KB of addon modules).
+  ES5. One ~1.4 MB monolithic module (plus ~69 KB of addon modules).
   Its blocks are picked so that **three's own implementation** reaches for what IE11 lacks, rather
   than the exercise doing it on three's behalf — `Array.from` and `constructor.name` in
   `BufferAttribute#toJSON`, `Number.isInteger` in `ObjectLoader`, `new Map` in `ShapePath#toShapes`,
-  `new Set` in `WireframeGeometry`, `Number.EPSILON` + `Math.sign` in Earcut, `Math.imul` in
+  `new Set` in `WireframeGeometry`, `Number.EPSILON` + `Math.sign` in `ExtrudeGeometry`'s bevel path,
+  `Math.imul` in
   `seededRandom`, `Math.trunc` in `roundToZero`, `new URL` in `Cache`, `Number#toFixed` in the
   non-sRGB branch of `Color#getStyle`, the `*[Symbol.iterator]` generators on the math classes, the
   addons' recursive `yield*`, and three's `async parseAsync`. Attributing each native call to its
@@ -49,12 +50,13 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   prototype, which is what `pure` exists to avoid, so all 69 binary-data modules are stubbed out of
   `@core-js/pure` (committed `// empty` overrides in `packages/core-js-pure/override/modules/`), every
   typed-array entry in `packages/core-js-compat/src/built-in-definitions.mjs` is `{ global: … }` with
-  no `pure` variant, and the instance-method dispatch knows only the receivers `array` / `iterator` /
-  `asynciterator` / `string` / `domcollection`. unplugin cannot know a receiver is not an `Array`, so
+  no `pure` variant, and the instance-method dispatch has no typed-array receiver at all (its receivers
+  are `array`, `string`, `number`, `regexp`, `date`, `function`, `promise`, `symbol`, `iterator`,
+  `asynciterator`, `domcollection`). unplugin cannot know a receiver is not an `Array`, so
   it rewrites `floats.slice(a, b)` into a helper that falls through to `floats.slice` — `undefined` on
   IE11. This is why the exercise avoids `KeyframeTrack#trim`/`#clone`, `AnimationUtils.subclip` and
   `makeClipAdditive`, `BatchedMesh`, `InstancedMesh#setColorAt`, `mergeVertices` and `radixSort` (and
-  loses `Array#find` with the last of them). Discovered the hard way: these reddened the gating
+  loses `Array#find` with `makeClipAdditive`, the only `.find(` call site in three). Discovered the hard way: these reddened the gating
   `usage-pure` IE11 cells while every other gate stayed green. See the header of `exercises/three.mjs`.
 - **codemirror** — the headless half of a real **CodeMirror 6** editor: `EditorState` transactions
   with position/selection mapping, a Lezer parse, an **incremental** reparse checked against a full
@@ -139,9 +141,9 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     `tests/transpiler-fixtures/entry-global`. Because the snapshot comes from the shipping build, Babel
     runs before unplugin, and *that* is what gives the phase axis meaning: with plain unplugin (no
     Babel) all three phases inject byte-identical sets, whereas here `post` also sees what Babel's own
-    helpers reach for — codemirror `usage-global` 121 (`pre`) → 133 (`post`), three 159 → 175, while
+    helpers reach for — codemirror `usage-global` 120 (`pre`) → 132 (`post`), three 159 → 175, while
     rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta used to
-    be unsnapshotted, so a post-phase ordering regression (the class of bug commit `20718df3b0` fixed)
+    be unsnapshotted, so a post-phase ordering regression (the class of bug commit `0328f910b0` fixed)
     could not redden this gate; now it can. `post` is a strict superset of `pre` on every fixture and
     `pre+post` currently equals `post` — the `pre+post` cells gate exactly that. Trade-off: these
     baselines are **Babel-dependent**; a `@babel/preset-env` update may legitimately move them — read
@@ -165,9 +167,12 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     Babel and so can miss the polyfills Babel's helpers pull in — is a **non-gating per-library
     diagnostic**, expected to fail for some libraries, which is exactly the signal we want. **three**
     is the fixture that carries it: its sources are modern, so Babel emits the helpers over the
-    *library*, and its `pre` cells redden. rxjs and codemirror ship ES5 builds, so their `pre` cells
-    are green — for rxjs that is a deliberate change (its old red came from spread / `for-of` in the
-    *exercise*, which said nothing about rxjs; see the header of `exercises/rxjs.mjs`). A green `pre`
+    *library*, and its `pre` cells redden. rxjs ships an ES5 build, so Babel emits almost nothing over
+    it and its `pre` cells are green — that its old red is gone is a deliberate change, since the red
+    came from spread / `for-of` in the *exercise* and said nothing about rxjs (see the header of
+    `exercises/rxjs.mjs`). codemirror's sources are modern too, and Babel does emit helpers over them
+    — that is exactly the 120 → 132 delta above — but nothing the exercise executes reaches one, so
+    its `pre` cells are green as well. A green `pre`
     therefore means "nothing here reached a Babel-helper polyfill", not "the phase gap is closed" —
     the unrewritten `Array.from` is still sitting in those `pre` bundles. Off a
     machine with IE11 (and outside CI) everything above still runs and only Karma is skipped; the CI job
@@ -241,6 +246,6 @@ in `report/pipeline.{md,json}`.
 
 Note this pathology only ever showed up on **down-compiled ES5** input (var hoisting, no block
 scopes, inlined helpers), which is why `tests/transpiler-perf` — which measures modern source — stayed
-green through all of it at bounds of 5 s.
+green through all of it at bounds of 4 s and under.
 
 Keep all three topologies represented — a regression in that resolution shows up on `three` first.
