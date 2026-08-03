@@ -11,7 +11,7 @@
 //     runtime.mjs). QUnit here is the qunit@2 / karma-qunit@4 stack the repo already drives in
 //     IE11 (tests/unit-karma), which has `assert.async()` and `assert.pushResult`.
 //
-// E2E.run() may return a Promise (rxjs) or a plain result (three), and must not assume a global
+// E2E.run() may return a Promise (rxjs, three) or a plain result (codemirror), and must not assume a global
 // Promise (usage-pure doesn't patch it) — so both targets branch on a thenable, never Promise.resolve.
 import { assertES5 } from './build.mjs';
 
@@ -57,7 +57,7 @@ export function bannerHarness(expected) {
 `;
 }
 
-// One QUnit test per bundle. `label` names the cell (e.g. `rxjs/usage-pure/babel7`). Each individual
+// One QUnit test per bundle. `label` names the cell (e.g. `rxjs/usage-pure/post`). Each individual
 // check becomes its own pushResult — so a red run names the exact check plus its actual/expected — and
 // an empty `checks` fails explicitly (an exercise that silently stopped reporting must not pass as a
 // green test with zero assertions). On a GREEN run Karma's summary is only "Executed N of N"; the
@@ -67,10 +67,11 @@ export function bannerHarness(expected) {
 // runtime.mjs gives each bundle its OWN IE11 page (one bundle per Karma run), so the UMD's `E2E`
 // global is unambiguously this cell's — no co-loaded sibling can overwrite it, or patch a global that
 // masks another cell's miss. The IIFE just keeps `LABEL` and the helpers out of the page's global scope.
-export function qunitHarness(label) {
+export function qunitHarness(label, expected) {
   return `
     (function () {
       var LABEL = ${ JSON.stringify(label) };
+      var EXPECTED = ${ expected };
       QUnit.test(LABEL, function (assert) {
         var done = assert.async();
         // fail loudly if this is NOT real IE11: on a modern engine (e.g. an iexplore -> Edge redirect
@@ -87,6 +88,9 @@ export function qunitHarness(label) {
             window.console.log('[e2e-libs] ' + LABEL + ': ' + passed + '/' + checks.length + ' checks passed in this IE11');
           }
           assert.ok(checks.length > 0, LABEL + ': exercise produced ' + checks.length + ' checks');
+          // the same guard the banner target carries: an exercise that reports FEWER checks in this
+          // engine than it did in node must not pass just because the ones it did report were green
+          assert.strictEqual(checks.length, EXPECTED, LABEL + ': check count differs from the node pre-flight');
           for (i = 0; i < checks.length; i++) {
             var c = checks[i];
             assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: LABEL + ' — ' + c.label });
@@ -110,4 +114,4 @@ export function qunitHarness(label) {
 // Parse both targets as ES5 at load — one representative instantiation each is enough, since the
 // only per-instance variation is a baked-in number / string literal, which this parse still covers.
 assertES5(bannerHarness(0), 'banner harness');
-assertES5(qunitHarness('x'), 'qunit harness');
+assertES5(qunitHarness('x', 0), 'qunit harness');
