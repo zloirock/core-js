@@ -5,6 +5,23 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
 **Fixtures** (in `exercises/`, registered in `libraries.mjs`). The three cover three different
 **module topologies**, which is what actually drives unplugin's cost — see the note at the end:
 - **rxjs** — headless reactive pipelines. Many small modules.
+  Its centrepiece is `innerFrom`, rxjs's interop hub: every branch of it is driven, so the
+  well-known-symbol lookups happen **inside rxjs** — `Symbol.iterator` (a `Set`, a `Map`, a
+  hand-rolled iterable), `Symbol.asyncIterator`, `Symbol.observable` — and the iteration that follows
+  runs through tslib's `__values` / `__asyncValues` / `__await` / `__awaiter` in the rxjs bundle.
+  Around it: `new Set` in `distinct`, `new Map` in `groupBy` and `TestScheduler`, `Array.from` in
+  `Subject#next` (worthless with a single observer, so the fixture uses two), `Object.entries` in
+  `pairs`, `Array#includes` in `Subscription#_hasParent` (needs a child with two parents),
+  `Promise.resolve` in the `asapScheduler`'s `Immediate`, `Number.isFinite` + `Array#sort` in
+  `VirtualTimeScheduler`, and `Object.create` in `createErrorClass` — whose hand-assembled prototype
+  chains are what the `instanceof` assertions in the error block actually test. 29 distinct natives
+  reached from `rxjs/dist/` frames against 21 before, plus the `Symbol.asyncIterator` /
+  `Symbol.observable` lookups that the attribution instrument cannot see.
+  The old `for (const v of new Set(…))` / `[...new Set(…)]` checks are gone on purpose: they drove the
+  iterator protocol through Babel's helpers in the *exercise*. `from(new Set(…))` puts it in rxjs.
+  Note `Symbol.observable` is not a core-js module at all, so on IE11 rxjs falls back to its
+  `'@@observable'` string key — the fixture feeds it rxjs's own `observable` export, so the two agree
+  by construction either way.
 - **three** — a real headless **three.js** scene *project* (scene-graph, transforms, an "animation"
   step, raycasting, geometry, math, curves, shapes, skinning, `toJSON`/`ObjectLoader` round-trips)
   plus six official addons from the same package (`three/addons/*`). A large modern-ES codebase for
