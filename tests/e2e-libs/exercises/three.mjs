@@ -32,8 +32,9 @@
 //     all 69 of them (`es.typed-array.*`, `es.array-buffer.*`, `es.data-view.*`, `es.uint8-array.*`),
 //     via committed `// empty` overrides in `packages/core-js-pure/override/modules/`, no exceptions.
 //   - the usage mapping agrees: in `packages/core-js-compat/src/built-in-definitions.mjs` every typed
-//     array entry is `{ global: ... }` with no `pure` variant, and the instance-method dispatch knows
-//     only the receivers `array`, `iterator`, `asynciterator`, `string`, `domcollection`.
+//     array entry is `{ global: ... }` with no `pure` variant, and the instance-method dispatch has no
+//     typed-array receiver at all — its receivers are `array`, `string`, `number`, `regexp`, `date`,
+//     `function`, `promise`, `symbol`, `iterator`, `asynciterator`, `domcollection`.
 //   - so unplugin rewrites `floats.slice(a, b)` — it cannot know the receiver is not an Array — into
 //     `_sliceMaybeArray(floats).call(floats, a, b)`, whose helper falls through to `floats.slice`.
 //     On IE11 that is `undefined`, and the call throws `TypeError`.
@@ -44,7 +45,7 @@
 // them back looking for coverage: `usage-global` covers this ground (it injects the real
 // `es.typed-array.*`), and on `usage-pure` there is nothing to cover.
 // `Array#find` goes with them — `makeClipAdditive` is the ONLY `.find(` call site in three's core and
-// in the six addons, and it is also the one doing `referenceTrack.values.slice(...)` on a Float32Array.
+// in the five addons, and it is also the one doing `referenceTrack.values.slice(...)` on a Float32Array.
 import * as THREE from 'three';
 import { deinterleaveAttribute, interleaveAttributes, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { reduceVertices, traverseGenerator } from 'three/addons/utils/SceneUtils.js';
@@ -52,6 +53,9 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { EdgeSplitModifier } from 'three/addons/modifiers/EdgeSplitModifier.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
+function eq(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 function round(n, d = 3) {
   return +n.toFixed(d);
 }
@@ -117,7 +121,7 @@ function buildSkinned() {
 export function run() {
   const checks = [];
   function check(label, actual, expected) {
-    checks.push({ label, actual, expected, pass: JSON.stringify(actual) === JSON.stringify(expected) });
+    checks.push({ label, actual, expected, pass: eq(actual, expected) });
   }
 
   // --- vector / quaternion math ---

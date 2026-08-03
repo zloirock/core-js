@@ -248,15 +248,19 @@ export function run() {
   Notification.createNext('n').observe({ next: v => notified.push(v), error() { /* unused */ }, complete() { /* unused */ } });
   check('notification_observe', notified, ['n']);
 
-  // full marble assertion: expectObservable drives TestScheduler's own Map/Array.from/trim path
-  let marbleFailures = null;
-  new TestScheduler((actual, expected) => { marbleFailures = eq(actual, expected); }).run(({ cold, expectObservable, expectSubscriptions }) => {
+  // full marble assertion: expectObservable drives TestScheduler's own Map/Array.from/trim path.
+  // Every verdict is COLLECTED, not assigned: `flush()` invokes the comparator once per registered
+  // expectation, so an assignment would let the second (subscription) verdict overwrite the first
+  // (value) one — and the value comparison is the whole point of the check. Pinning the ARRAY also
+  // reddens if an expectation silently stops running.
+  const marbleVerdicts = [];
+  new TestScheduler((actual, expected) => marbleVerdicts.push(eq(actual, expected))).run(({ cold, expectObservable, expectSubscriptions }) => {
     const source = cold(' -a--b--c|', { a: 1, b: 2, c: 3 });
     const subs = '       ^-------!';
     expectObservable(source.pipe(map(x => x * 10))).toBe('-a--b--c|', { a: 10, b: 20, c: 30 });
     expectSubscriptions(source.subscriptions).toBe(subs);
   });
-  check('marble_assertion', marbleFailures, true);
+  check('marble_assertion', marbleVerdicts, [true, true]);
 
   // via a var: the Set dedups at runtime, without tripping a literal-duplicate lint rule
   const setInput = [3, 1, 3, 2, 1];
@@ -321,7 +325,7 @@ export function run() {
     firstValueFrom(of(1, 2, 3).pipe(first(x => x > 1))),
 
     // --- notifications, errors, multicasting, lifecycle ---
-    collect(of(1, 2).pipe(materialize(), map(n => n.kind), dematerialize ? map(k => k) : map(k => k))),
+    collect(of(1, 2).pipe(materialize(), map(n => n.kind))),
     collect(of(1).pipe(materialize(), dematerialize())),
     collect(throwError(() => new Error('boom')).pipe(catchError(() => of('recovered')))),
     collect(defer(() => of('deferred'))),
