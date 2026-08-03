@@ -103,8 +103,10 @@ export function createNameResolution({ t }) {
           ? stmtPath.get('declaration') : stmtPath;
         const { node } = declPath;
         if (node?.type === 'TSModuleDeclaration' && isGlobalAugmentation(node)) {
-          const innerBody = declPath.get('body');
-          const innerPaths = innerBody?.node?.type === 'TSModuleDeclaration' ? [innerBody] : innerBody?.get?.('body');
+          // a `declare global` body is ALWAYS a TSModuleBlock: the nested-TSModuleDeclaration body
+          // shape exists only for a qualified namespace head (`namespace A.B {}`), which a global
+          // augmentation cannot have
+          const innerPaths = declPath.get('body')?.get?.('body');
           // relax the matcher for global-augmentation contents: an in-global `class` is ambient even
           // without a `declare` flag (no-op for the function matcher - a ClassDeclaration never satisfies it)
           if (Array.isArray(innerPaths)) {
@@ -159,7 +161,7 @@ export function createNameResolution({ t }) {
   // scope-chain walk is already O(scope-depth): it reads the per-scope ambient index built once by
   // the shared `walkAmbientDeclarationPath`, so an extra (scope, name) layer would buy nothing
   function findAmbientFunctionPaths(name, scope) {
-    return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }) ?? [];
+    return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false });
   }
 
   // `declare class X { ... }` - babel doesn't bind the name as a value (unlike runtime
@@ -363,12 +365,20 @@ export function createNameResolution({ t }) {
       : findNamespacedFunctionPaths(segments, scope);
   }
 
-  // per-scope cache. serialize multi-segment / array inputs to a dotted string so qualified
-  // references (`NS.Type`) and array-form callsites share the cache slot with their string form
+  // per-scope cache key: serialize multi-segment / array inputs to a dotted string so qualified
+  // references (`NS.Type`) and array-form callsites share the cache slot with their string form.
+  // ONE serializer for every cache in this cluster - the three hand-written ternaries fell back
+  // differently (`null` / `''` / an optional-chained join), so the same non-array, non-string name
+  // was cached under three different keys depending on which lookup asked
+  function nameCacheKey(name) {
+    if (typeof name === 'string') return name;
+    return Array.isArray(name) ? name.join('.') : null;
+  }
+
   let typeDeclCache = new WeakMap();
 
   function lookupTypeDeclInScope(name, scope) {
-    const key = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : null;
+    const key = nameCacheKey(name);
     if (key === null) return findFirstDecl({ name, scope, leafMatch: isTypeBearingDeclaration });
     const byName = getOrInitMap(typeDeclCache, scope);
     if (byName.has(key)) return byName.get(key);
@@ -415,7 +425,7 @@ export function createNameResolution({ t }) {
   function findTypeDeclInLookupPath(name) {
     const path = lookupPathStack.at(-1);
     if (!path) return null;
-    const cacheKey = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : '';
+    const cacheKey = nameCacheKey(name) ?? '';
     let perPath = lookupPathDeclCache.get(path);
     if (perPath?.has(cacheKey)) return perPath.get(cacheKey);
     const segments = typeof name === 'string' ? name.split('.') : name;
@@ -471,7 +481,7 @@ export function createNameResolution({ t }) {
   let allTypeDeclCache = new WeakMap();
   function findAllTypeDeclarations(name, scope) {
     if (!scope) return [];
-    const cacheKey = typeof name === 'string' ? name : name?.join('.') ?? '';
+    const cacheKey = nameCacheKey(name) ?? '';
     let perScope = allTypeDeclCache.get(scope);
     if (perScope?.has(cacheKey)) return perScope.get(cacheKey);
     const collected = findAllDecls({ name, scope, leafMatch: isTypeBearingDeclaration });

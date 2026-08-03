@@ -61,9 +61,9 @@ function reassignedStart(binding) {
 //             allocated via this.uniqueName('_ref'). babel returns t.identifier(name);
 //             unplugin returns the bare string. callers MUST treat the return value as
 //             plugin-specific (not interchangeable across subclasses).
-//   override-friendly: registerUserPureImport, registerUserGlobalImport, addPureImport,
-//             addGlobalImport - call super.X() then layer subclass bookkeeping (refs,
-//             post-rename, sibling-plugin tracking).
+//   override-friendly: registerUserPureImport, addPureImport, addGlobalImport - call
+//             super.X() then layer subclass bookkeeping (refs, post-rename, sibling-plugin
+//             tracking).
 //   private (DO NOT touch): #importInfoByName, #nextSuffixByPrefix - state owned by base;
 //             manipulated only via captureSuffixState / rehydrateSuffixState /
 //             captureImportInfoByName / rehydrateImportInfoByName for pre+post handoff.
@@ -73,8 +73,9 @@ function reassignedStart(binding) {
 //     plus subclass-supplied extraCheck (e.g. babel's program.references / scope.hasBinding,
 //     unplugin's collectAllBindingNames Set)
 //   - #refs (subclass field) tracks plugin-allocated refs for orphan adoption + rename
-//   - existingPureImports / existingGlobalImports populated via scanExistingCoreJSImports
-//     in pre-pass; readers don't write
+//   - existingPureImports populated via scanExistingCoreJSImports in pre-pass; readers
+//     don't write. there is no global-import counterpart: both emitters remove a user global
+//     import and re-emit it through `addGlobalImport`, so no dedup channel suppresses one
 export default class ImportInjectorState {
   absoluteImports;
   mode;
@@ -88,7 +89,6 @@ export default class ImportInjectorState {
 
   globalImports = new Set();
   pureImports = new Map(); // `${mode}/${entry}` -> binding name
-  existingGlobalImports = new Set();
   existingPureImports = new Map();
   usedNames = new Set();
   // post-pass dead-import filter - null when inactive
@@ -132,10 +132,6 @@ export default class ImportInjectorState {
     this.#importInfoByName.set(name, { source, hint, entry });
     this.trackReferencedName(name);
     return name;
-  }
-
-  registerUserGlobalImport(moduleName) {
-    this.existingGlobalImports.add(moduleName);
   }
 
   // shared `#importInfoByName` writer for entry-derived metadata. computes canonical

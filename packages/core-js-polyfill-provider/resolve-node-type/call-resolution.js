@@ -18,11 +18,8 @@
 //
 // Public surface:
 //   resolveCallReturnType(callee)                     - main call-return entry
-//   resolveCallReturnTypeFromAnnotation(callee)       - fallback for callees with no runtime
-//                                                       resolution (cast / ambient / typeof)
 //   functionTypeReturnAnnotation(node)                - cross-dialect return-slot extractor
 //   shadowedAliasReturnAnnotation(arg, scope)         - `ReturnType<Fn alias>` shadow resolver
-//   staticPairFromDestructure(scope, name)            - destructure-alias static resolver
 //   findExpressionAnnotation(path, depth?)            - { annotation, scope } | null
 //   resolveIndexSignatureValue(typeNode, scope, subst) - TSIndexSignature member resolution
 //   indexAccessKeyKind(memberPath)                    - computed-key kind classifier
@@ -36,7 +33,9 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
 import { collectQualifiedSegments, isUnionType, matchOverloadByArgs, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
-import { getTypeArgs, isCleanDestructureAliasBinding, isGuardedAliasingWrite } from '../helpers/ast-patterns.js';
+import {
+  cleanDestructureAliasWrites, getTypeArgs, isCleanDestructureAliasBinding, isGuardedAliasingWrite,
+} from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -195,7 +194,11 @@ export function createCallResolution({
       // itself, but estree-toolkit reports the LHS Identifier (walk up Property / ObjectPattern).
       // without this the assignment-destructure aliased-static return resolves on babel but null
       // on unplugin - asymmetric injection for identical source
-      const assignment = violationToAssignment(binding.constantViolations[0]);
+      // through the SAME filtered set the gate above counted: a raw `constantViolations[0]` can be
+      // a valueless re-declaration / self-violation the gate deliberately excluded, and pairing off
+      // that phantom resolves the alias against an assignment that never happened
+      const [write] = cleanDestructureAliasWrites(binding);
+      const assignment = write && violationToAssignment(write);
       return assignment ? pairFromAssignmentDestructure(assignment, name, binding.scope) : null;
     }
     return pairFromDeclaratorDestructure(binding, name);
@@ -740,14 +743,13 @@ export function createCallResolution({
 
   // cluster-private: `resolveMemberAnnotation` / `resolveMemberInTypeMembers` /
   // `inferCallSiteSubst` (consumed only by `findExpressionAnnotation` / `resolveCallReturnType`
-  // internally)
+  // internally), and likewise `resolveCallReturnTypeFromAnnotation` / `staticPairFromDestructure`,
+  // which the header used to advertise while no consumer outside this file called either
   return {
     resolveCallReturnType,
     violationToAssignment,
-    resolveCallReturnTypeFromAnnotation,
     functionTypeReturnAnnotation,
     shadowedAliasReturnAnnotation,
-    staticPairFromDestructure,
     findExpressionAnnotation,
     resolveIndexSignatureValue,
     indexAccessKeyKind,

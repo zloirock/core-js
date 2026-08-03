@@ -43,12 +43,8 @@ export default class ImportInjector extends ImportInjectorState {
   #injectedRefs = new WeakSet();
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted.
   // `#emittedGlobals`: modules WE wrote out (subtract from `globalImports` in `#buildNodes`
-  // to compute newGlobals; drives `hasFlushed` for postHook's late-CJS diagnostic).
-  // `#suppressedGlobals`: user's pre-existing imports (subtract from `globalImports` to
-  // avoid duplicate-emit; does NOT drive `hasFlushed` - user imports don't count as plugin
-  // activity). two sets keep the emitted-vs-suppressed semantics separate
+  // to compute newGlobals; drives `hasFlushed` for postHook's late-CJS diagnostic)
   #emittedGlobals = new Set();
-  #suppressedGlobals = new Set();
   #flushedPure = new Set();
   // emit history for canonical reorder at programExit. each `flush()` only sorts WITHIN
   // its own batch; with two flushes per file (pre / post-synth-swap) the cross-batch
@@ -683,21 +679,15 @@ export default class ImportInjector extends ImportInjectorState {
     return this.#injectedRefs.has(node);
   }
 
-  registerUserGlobalImport(moduleName) {
-    super.registerUserGlobalImport(moduleName);
-    this.#suppressedGlobals.add(moduleName);
-  }
-
   #resolvePath(subpath) {
     return resolveImportPath(this.pkg, subpath, this.absoluteImports);
   }
 
   #buildNodes() {
     const t = this.#t;
-    // subtract BOTH plugin-emitted (don't re-emit) AND user-suppressed (don't duplicate
-    // user's existing imports). union via spread - both sets are small (per-file scope)
-    const alreadyHandled = new Set([...this.#emittedGlobals, ...this.#suppressedGlobals]);
-    let newGlobals = [...this.globalImports.difference(alreadyHandled)];
+    // subtract plugin-emitted so a re-flush doesn't re-emit. a user's own global import is
+    // REMOVED and re-emitted through `addGlobalImport`, so it never needs suppressing here
+    let newGlobals = [...this.globalImports.difference(this.#emittedGlobals)];
     const newPure = [...this.pureImports].filter(([s]) => !this.#flushedPure.has(s));
     if (!newGlobals.length && !newPure.length) return null;
     newGlobals = sortByPolyfillOrder(newGlobals);

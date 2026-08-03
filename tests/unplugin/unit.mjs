@@ -1221,7 +1221,7 @@ function checkAdoptOrphanRespectsFlushed() {
   const ms = new MagicString('');
   const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms,
     inherit: { globals: new Set(), pure: new Map(), usedNames: new Set(),
-      unusedNames: new Set(), existingGlobals: new Set(), existingPure: new Map(),
+      unusedNames: new Set(), existingPure: new Map(),
       refs: ['_ref'], flushedRefs: ['_ref'] } });
   inj.adoptOrphanRefs(['_ref', '_ref2']);
   const snap = inj.snapshot();

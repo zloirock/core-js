@@ -29,6 +29,16 @@ const { check, checkTruthy, doesNotThrow, finish, throwsWith } = createChecker('
 check('resolve/global unknown returns undefined',
   resolve({ kind: 'global', name: 'NotARealGlobal_xyz' }), undefined);
 
+// a `kind: 'global'` meta answers `kind: 'global'` or nothing - never `'instance'`. the proxy-hop
+// planners resolve their leaf / root that way and act on the answer directly, so an instance verdict
+// there would be a shape they never test for. enumerated over the three catalogue families a global
+// name can also appear in (constructor / namespace / instance-method-named global)
+for (const name of ['Promise', 'Math', 'Iterator', 'globalThis']) {
+  const resolved = resolve({ kind: 'global', name });
+  if (!resolved) continue;
+  check(`resolve/global ${ name } answers kind 'global'`, resolved.kind, 'global');
+}
+
 // property/static: `Array.from`
 {
   const r = resolve({ kind: 'property', placement: 'static', object: 'Array', key: 'from' });
