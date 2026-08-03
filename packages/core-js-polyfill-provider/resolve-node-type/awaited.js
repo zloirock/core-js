@@ -7,10 +7,10 @@
 //     / `tupleAsArrayType` and lands in `resolveAnnotationInContext` at terminal. drives
 //     `resolveAwaitExpressionType` (await semantics) and the findTypeMember resolved path.
 //
-// kept in one cluster because the two walkers cross-reference each other: the AST walker
-// uses the Type walker's `pickAwaitedConditionalBranch` / `getPromiseInnerAnnotation`, and
-// the Type walker uses the AST walker's `peelAwaitedCommonSteps`. co-locating them avoids
-// the forward-decl thunks a split would need to break the cycle.
+// kept in one cluster because the two walkers cross-reference each other: the AST walker uses the
+// Type walker's `pickAwaitedConditionalBranch`, and the Type walker uses the AST walker's
+// `peelAwaitedCommonSteps`. co-locating them avoids the forward-decl thunks a split would need to
+// break the cycle.
 //
 // Public surface:
 //   peelStructurePreservingWrapper(node)
@@ -29,6 +29,7 @@ import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createAwaited({
   babelNodeType,
+  findTypeDeclaration,
   unwrapTypeAnnotation,
   peelTSParenthesized,
   rebuildTupleElements,
@@ -72,14 +73,19 @@ export function createAwaited({
     return getTypeArgs(node)?.params?.[0] ?? null;
   }
 
-  function peelStructurePreservingWrapper(objectType) {
+  // `scope`, when the caller has one, keeps a USER declaration of a wrapper-shaped name from being
+  // peeled: `interface Pick<T> { picked: number[] }` is not the global `Pick`, and peeling it hands
+  // back the type ARGUMENT in place of the declared shape, so the member lookup lands on the wrong
+  // receiver entirely. scope-less callers keep the name-only behaviour
+  function peelStructurePreservingWrapper(objectType, scope = null) {
     // `readonly [T, U]` / `readonly T[]` (TSTypeOperator) is a type-level no-op for runtime type
     // resolution - a readonly tuple / array is still a tuple / Array. peel it like the generic
     // `Readonly<...>` wrapper so tuple-index / element resolution treats both spellings identically
     if (objectType?.type === 'TSTypeOperator' && objectType.operator === 'readonly') {
       return unwrapTypeAnnotation(objectType.typeAnnotation);
     }
-    const arg = getSingleTypeRefArg(objectType, n => STRUCTURE_PRESERVING_WRAPPERS.has(n));
+    const arg = getSingleTypeRefArg(objectType, n => STRUCTURE_PRESERVING_WRAPPERS.has(n)
+      && !(scope && findTypeDeclaration([n], scope)));
     return arg ? unwrapTypeAnnotation(arg) : null;
   }
 
@@ -145,9 +151,9 @@ export function createAwaited({
   // steps fires. callers handle union/intersection/tuple distribution upfront and the
   // TSConditionalType case specially (different fold strategies per output format)
   function peelAwaitedCommonSteps(peeled, scope, depth) {
-    const passthrough = peelStructurePreservingWrapper(peeled);
+    const passthrough = peelStructurePreservingWrapper(peeled, scope);
     if (passthrough) return passthrough;
-    const promiseInner = getPromiseInnerAnnotation(peeled);
+    const promiseInner = promiseRefInner(peeled);
     if (promiseInner) return promiseInner;
     const indexedAST = resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth);
     if (indexedAST) return indexedAST;
@@ -226,20 +232,12 @@ export function createAwaited({
   // property-lookup purposes; callers recurse findTypeMember on the unwrapped inner with
   // accumulated subst applied
   function unwrapPassthroughWrapper(node, scope) {
-    return peelStructurePreservingWrapper(node)
+    return peelStructurePreservingWrapper(node, scope)
       ?? peelAwaitedWrapper(node, scope)
       ?? (node?.type === 'TSMappedType' ? unwrapMappedTypePassthrough(node) : null);
   }
 
   // --- Type walker (resolved-type fold) ---
-
-  // peel a Promise / PromiseLike / Thenable type-reference annotation, returning the
-  // inner type-argument annotation (`Promise<X>` -> X) or null when the node isn't a
-  // recognisable Promise reference. operates on the AST so callers can distribute over
-  // syntactic shape (unions, type aliases) before resolved-type fold loses information
-  function getPromiseInnerAnnotation(node) {
-    return promiseRefInner(node);
-  }
 
   // `Awaited<T>` semantics mirror TS's distributive recursive conditional:
   //   - `Awaited<Promise<U>>` -> `Awaited<U>` (peel one layer, recurse)
@@ -468,7 +466,7 @@ export function createAwaited({
 
   // public surface exposes only what factory / other clusters consume; AST<->Type
   // cross-references (peelAwaitedCommonSteps, pickAwaitedConditionalBranch,
-  // getPromiseInnerAnnotation, getSingleTypeRefArg, peelAwaitedArgument,
+  // getSingleTypeRefArg, peelAwaitedArgument,
   // peelAwaitedTupleElement, peelAwaitedWrapper, resolveAwaitedFromCallBody,
   // peelUserThenable, cbFirstArgAnnotation) live as private closures inside the cluster.
   // `resolveIndexedAccessMemberAnnotationAST` exposed so call-resolution can peel

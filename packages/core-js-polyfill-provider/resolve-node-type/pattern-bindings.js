@@ -1010,7 +1010,7 @@ export function createPatternBindings({
   // clusters): `resolveDestructuredType` /
   // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
   // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
-  // `findBindingPattern`
+  // `findBindingPattern` / `unwrapPromiseAnnotation`
   return {
     defaultParamNeverOverridden,
     reachableValuePaths,
@@ -1022,7 +1022,6 @@ export function createPatternBindings({
     findBindingAnnotation,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
-    unwrapPromiseAnnotation,
     resolveForOfResolvedElement,
     resolveObjectMemberPath,
     resolveDestructuredMember,

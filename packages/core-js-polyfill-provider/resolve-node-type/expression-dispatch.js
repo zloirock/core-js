@@ -160,7 +160,7 @@ export function createExpressionDispatch({
   // canonical static-member pair resolves counts - that resolution rejects a shadowed `Array` and
   // follows a proxy-global hop, so the hint is never read off a name alone
   function prototypeValueFamily(valuePath) {
-    if (!valuePath?.node || valuePath.node === NO_PROTOTYPE_VALUE) return null;
+    if (!valuePath?.node) return null;
     // the general resolver, not a `X.prototype` shape match: an object installed as a prototype
     // hands down its OWN chain, so an instance (`{ __proto__: /re/ }`) names its family exactly as
     // the prototype object does. it also rejects a shadowed constructor and follows a proxy hop

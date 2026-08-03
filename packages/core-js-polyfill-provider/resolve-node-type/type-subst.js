@@ -182,10 +182,14 @@ export function createTypeSubst({
   // unchanged for ESTree-parsed sources, and indexed-access / class-chain peels lose the
   // outer type-param substitution by the time downstream functionTypeReturnAnnotation reads
   // the slots
-  function substMethodDefinition(node, subst, depth, visited) {
-    if (!node.value) return node;
-    const newValue = applyAliasSubstDeep(node.value, subst, depth + 1, visited);
-    return newValue === node.value ? node : { ...node, value: newValue };
+  // ESTree MethodDefinition wraps its function shape in `.value` (FunctionExpression). the slot
+  // substitution is `substSlot`'s job - the FunctionExpression handler below then substitutes
+  // returnType and params with proper alpha-rename. without this, `findTypeMember` returns the
+  // method unchanged for ESTree-parsed sources, and indexed-access / class-chain peels lose the
+  // outer type-param substitution by the time downstream `functionTypeReturnAnnotation` reads the
+  // slots. an absent `.value` needs no guard of its own - `substSlot` returns the node unchanged
+  function substValueSlot(node, subst, depth, visited) {
+    return substSlot(node, 'value', subst, depth, visited);
   }
 
   function substIndexedAccess(node, subst, depth, visited) {
@@ -271,8 +275,8 @@ export function createTypeSubst({
     TSDeclareMethod: substFunctionType,
     FunctionExpression: substFunctionType,
     TSEmptyBodyFunctionExpression: substFunctionType,
-    MethodDefinition: substMethodDefinition,
-    TSAbstractMethodDefinition: substMethodDefinition,
+    MethodDefinition: substValueSlot,
+    TSAbstractMethodDefinition: substValueSlot,
     // a method SIGNATURE reached DIRECTLY (indexed-access into a type-ALIAS method, e.g.
     // `type Box<T> = { take(): T }` -> `Box<string>['take']`) lands here without the
     // TSTypeLiteral member-iteration that normally folds outer subst into each signature.

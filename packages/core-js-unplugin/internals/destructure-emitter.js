@@ -114,7 +114,9 @@ import {
   peelArrayWrapperPair,
   probedNavProbeKey,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
-import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
+import {
+  classifyVariableDeclarationHost, isForInitDeclaration,
+} from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,
   detectIifeArgReceiver,
@@ -736,7 +738,7 @@ export function createDestructureEmitter({
     const declaration = declPath.node;
     if (flattenedNestedDecls.has(declaration)) return true;
     const parentNode = declPath.parentPath?.node;
-    const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
+    const isForInit = isForInitDeclaration(parentNode, declaration);
     const perDecl = declaration.declarations.map(d => {
       const slot = rewriteDeclarator(d, scope, declPath);
       // the for-init SE-sink substitution resolves aliases through the declaration path
@@ -2847,7 +2849,7 @@ export function createDestructureEmitter({
     if ((hostNode?.type === 'ForOfStatement' || hostNode?.type === 'ForInStatement') && hostNode.left === declaration) return false;
     const pureResult = resolveDestructurePure(meta, metaPath);
     if (!pureResult) return false;
-    const isForInit = hostNode?.type === 'ForStatement' && hostNode.init === declaration;
+    const isForInit = isForInitDeclaration(hostNode, declaration);
     // the DECISION comes from the shared provider plan (one procedure for both emitters):
     // 'resolved' walks nested keys (single-read + SE-peel gates), 'raw'/'raw-ctor' reuse the
     // top-level slot, 'whole-init-memo' routes the WHOLE init through the memo channel - the
@@ -3906,7 +3908,7 @@ export function createDestructureEmitter({
   // identifier root), so the consumed residual leaks the raw `.self` off-engine. collapse it HERE, enter-time
   // (like the alias trigger), and SKIP the receiver subtree so the natural visitor does not pre-queue a
   // conflicting `(f()).self -> _self` transform that would nest inside this whole-receiver replacement (compose
-  // crash). bailOnPureLeaf=false: the residual consumes the receiver, so a pure-ctor leaf has no whole-swap elsewhere
+
   // a FULLY-DISCARDED destructure receiver whose COMPLETE harvest (sequence prefixes + chain-assign + buried
   // calls + hop-keys, via the canonical `harvestDiscardedReceiverSE`) captures every effect drops its whole
   // proxy navigation - the nav just names the global the extracted static already is, and would THROW off-
@@ -3957,8 +3959,7 @@ export function createDestructureEmitter({
     // a statement-LIFTED residual (non-for-init) stays with the natural canon (`_self.Array`) -
     // both emitters keep the live-read shape there
     const declParent = declaratorPath?.parentPath;
-    const forStmt = declParent?.parentPath?.node;
-    if (isAssignment || !(forStmt?.type === 'ForStatement' && forStmt.init === declParent?.node)) return;
+    if (isAssignment || !isForInitDeclaration(declParent?.parentPath?.node, declParent?.node)) return;
     const nav = ctx && resolveCallRootedProxyCollapse({ receiver: peeled, ...ctx });
     if (!nav) return;
     const collapsed = substituteCallRootedProxyHop({
@@ -4127,14 +4128,12 @@ export function createDestructureEmitter({
   // call) and replace the proxy-hop prefix `<call>.self` with `(callSrc, _root)` - or `_root` for a pure
   // call - so the undefined `.self` hop is dropped. the call source keeps its own inner rewrites
   // (`return globalThis` -> `return _globalThis`) which compose into the re-emitted text by needle
-  function substituteCallRootedProxyHop({ target, src, baseStart, ctx, bailOnPureLeaf = true }) {
+  function substituteCallRootedProxyHop({ target, src, baseStart, ctx }) {
     const plan = ctx && resolveCallRootedProxyCollapse({ receiver: target, ...ctx });
     if (!plan) return null;
-    // a pure-ctor leaf (`(() => globalThis)().self.Map`) is normally whole-swapped to the pure ctor elsewhere, so
-    // bail; but a CONSUMED-receiver residual (bailOnPureLeaf=false) has no elsewhere - collapse the call root,
-    // keeping a SE chain-root call in the harvested prefix (`(f(), _globalThis).Symbol`) so the buried call runs
+    // a pure-ctor leaf (`(() => globalThis)().self.Map`) is whole-swapped to the pure ctor elsewhere, so bail
     const leafName = memberKeyName(target);
-    if (bailOnPureLeaf && leafName && resolveGlobalPolyfill(leafName)) return null;
+    if (leafName && resolveGlobalPolyfill(leafName)) return null;
     const rootPure = resolveGlobalPolyfill(plan.rootName);
     if (!rootPure) return null;
     const rootBinding = injectPureImport(rootPure.entry, rootPure.hintName);

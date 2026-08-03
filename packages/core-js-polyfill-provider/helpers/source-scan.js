@@ -1,4 +1,4 @@
-import { BRACE_STATEMENT_HOST_TYPES, STATEMENT_LIST_HOST_TYPES, isASTNode } from './ast-patterns.js';
+import { isASTNode } from './ast-patterns.js';
 
 // ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
 function collectLineStarts(code) {
@@ -129,13 +129,11 @@ export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart,
   return lines.size ? lines : null;
 }
 
-// wrappers that share a start line with their first child when no code precedes - descend past
-// these to reach the statement the directive targets. the statement-list hosts plus babel's `File`
-// (which wraps Program on the babel parse tree). a directive before a brace block (the
-// BRACE_STATEMENT_HOST_TYPES subset, no File / Program) spans its whole body via the wrapper's own
-// end-line fallback below; File / Program descent always reaches the real first statement, so
-// falling back to their end would wrongly disable the rest of the file
-const STATEMENT_WRAPPERS = new Set([...STATEMENT_LIST_HOST_TYPES, 'File']);
+// the only wrappers a directive scan descends PAST: they share a start line with their first
+// child, and their end is the end of the file - falling back to it would disable the rest of the
+// file instead of the targeted statement. `File` is babel's wrapper around Program.
+// everything else that OPENS on the target line spans to its own end, brace hosts included
+const PROGRAM_WRAPPER_TYPES = new Set(['Program', 'File']);
 
 // depth cap mirrors `resolve-node-type.MAX_DEPTH=64`. directive scan walks AST nodes
 // only (filtered by isASTNode), but pathological deeply-nested input still risks stack
@@ -146,11 +144,10 @@ function findStatementEndLine({ node, targetLine, offsetToLine, depth = 0 }) {
   if (depth > FIND_STATEMENT_MAX_DEPTH || !isASTNode(node)) return null;
   const lines = nodeLineSpan(node, offsetToLine);
   if (!lines || lines.start > targetLine || lines.end < targetLine) return null;
-  // a brace host OPENING on the target line spans the directive across its WHOLE block - checked
-  // BEFORE descending: an inline first statement on the same line would otherwise return its own
-  // shorter end-line and the directive under-covers the block's trailing lines
-  if (lines.start === targetLine && BRACE_STATEMENT_HOST_TYPES.has(node.type)) return lines.end;
-  if (lines.start === targetLine && !STATEMENT_WRAPPERS.has(node.type)) return lines.end;
+  // a host OPENING on the target line spans the directive across its WHOLE body - decided BEFORE
+  // descending: an inline first statement on the same line would otherwise return its own shorter
+  // end-line and the directive would under-cover the block's trailing lines
+  if (lines.start === targetLine && !PROGRAM_WRAPPER_TYPES.has(node.type)) return lines.end;
   // `isASTNode` filters foreign stamps (babel `extra`, sibling-plugin caches) so iterating
   // every own key stays safe even when plugins decorate the tree with non-AST values. take the
   // FARTHEST matching end across children - siblings sharing the target line must not shorten it

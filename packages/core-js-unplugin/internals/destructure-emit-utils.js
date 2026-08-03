@@ -17,9 +17,11 @@ import {
 
 // intermediate slots permitted on the walk from an inner Property up to a destructure host.
 // AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
-// receivers are always defined so the default never fires; ArrayPattern allowed for
-// single-element wrappers (`[{...}] = [globalThis]`) - walker drops the whole declaration
-// and the wrapper / its array literal init together
+// receivers are always defined so the default never fires; ArrayPattern allowed for array
+// wrappers (`[{...}] = [globalThis]`) of ANY arity - this set only names the slots the walk
+// may cross, it does not decide the outcome. dropping the whole declaration is the
+// EVERY-LEAF-CONSUMED case; a wrapper with an unconsumed sibling keeps the declaration and
+// renames the consumed leaf to a `_unused` sentinel instead, so the sibling binding survives
 const NESTED_PATTERN_INTERMEDIATES = new Set([
   'ObjectPattern',
   'Property',
