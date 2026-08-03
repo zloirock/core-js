@@ -153,7 +153,6 @@ function isTypeWalkable(node) {
   const { type } = node;
   if (!type) return false;
   if (isTypeAnnotationNodeType(type)) return true;
-  if (type === 'TSInterfaceBody' || type === 'TSModuleBlock' || type === 'TSTypeParameter') return true;
   return TYPE_ANNOTATION_PARAM_HOSTS.has(type);
 }
 
@@ -187,6 +186,15 @@ const TYPE_CHILD_KEYS = [
   'typeParameter',
   'members',
   'body',
+  // Flow object-type members: babel spells them `properties` (+ the three dedicated member lists),
+  // never `members` - without these the walk returns EMPTY for `x: { m: Map<number> }`
+  'properties',
+  'indexers',
+  'callProperties',
+  'internalSlots',
+  // Flow function-type slots the `params` / `returnType` pair does not cover
+  'rest',
+  'this',
 ];
 
 // per-node-type: which property holds the bare Identifier that names a type / runtime binding.
@@ -485,8 +493,12 @@ export function isPolyfillableOptional({
 export function checkTypeAnnotations(node, onGlobal) {
   if (node.typeAnnotation) walkTypeAnnotationGlobals(node.typeAnnotation, onGlobal);
   if (node.returnType) walkTypeAnnotationGlobals(node.returnType, onGlobal);
-  if (node.params) {
-    for (const param of node.params) {
+  // babel spells a fn-TYPE signature's params `parameters` (`TSFunctionType` / `TSConstructorType` /
+  // `TSCall-` / `TSConstruct-` / `TSMethodSignature`), oxc spells them `params` - the same pair the
+  // child-key table below carries. unplugin dispatches this helper on those very node types
+  const params = node.params ?? node.parameters;
+  if (params) {
+    for (const param of params) {
       // `TSParameterProperty` wraps `constructor(public m: Map<...>)` shapes - the actual
       // annotation lives on `.parameter`, which may itself be an `AssignmentPattern` for
       // defaulted parameter properties (`constructor(public m: Map<...> = new Map())`)

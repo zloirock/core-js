@@ -133,7 +133,7 @@ export function createReturnType({
       if (patternParam?.type === 'Identifier' && patternParam.name === targetName) {
         return { index: i, param, keyPath: null };
       }
-      if (!targetName || !findPatternKeyPath) continue;
+      if (!targetName) continue;
       if (patternParam?.type !== 'ObjectPattern' && patternParam?.type !== 'ArrayPattern') continue;
       // findPatternKeyPath returns null when the target name isn't in this pattern (continue
       // scanning siblings); a non-null keyPath is definitive - resolution succeeds or fails AT
@@ -310,8 +310,8 @@ export function createReturnType({
     if (hasTypeParamReference(param.typeAnnotation, typeParamNames, depth)) return true;
     if (param.type === 'RestElement' && param.argument
       && hasTypeParamReference(param.argument.typeAnnotation, typeParamNames, depth)) return true;
-    if (param.type === 'AssignmentPattern' && param.left
-      && hasTypeParamReference(param.left.typeAnnotation, typeParamNames, depth)) return true;
+    // no `AssignmentPattern` arm: every caller pre-peels the default wrapper, and the remaining
+    // sites are type-position params, where an initializer is a syntax error
     return false;
   }
 
@@ -356,9 +356,10 @@ export function createReturnType({
           return false;
         case 'TSTupleType':
         case 'TupleTypeAnnotation':
+          // no `TSNamedTupleMember` peel here - the recursion re-enters this switch, whose own
+          // named-member case performs it
           for (const element of tupleElements(node) ?? []) {
-            const actual = element.type === 'TSNamedTupleMember' ? element.elementType : element;
-            if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
+            if (hasTypeParamReference(element, typeParamNames, depth + 1)) return true;
           }
           return false;
         case 'TSConditionalType':
@@ -452,11 +453,13 @@ export function createReturnType({
     // phase 0: explicit type arguments at call site: foo<string>(...)
     const callTypeArgs = getTypeArgs(callPath.node)?.params;
     if (callTypeArgs) {
-      const fnTypeParams = fnPath.node.typeParameters?.params;
-      if (!fnTypeParams) return typeParamMap;
+      // the sole caller already required `fnPath.node.typeParameters?.params?.length`, and this
+      // phase runs FIRST on a fresh map - so neither an absent param list nor an already-bound name
+      // can be seen here
+      const fnTypeParams = fnPath.node.typeParameters.params;
       for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
         const name = typeParamName(fnTypeParams[i]);
-        if (name && !typeParamMap.has(name)) {
+        if (name) {
           const resolved = resolveTypeAnnotation(callTypeArgs[i], callPath.scope);
           if (resolved) typeParamMap.set(name, resolved);
           // a PRESENT explicit type-arg that resolves to nothing is still SUPPLIED: record
