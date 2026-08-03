@@ -361,6 +361,15 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
+  // a getter / setter and a method shorthand both normalise to `ObjectMethod` via babelNodeType, but
+  // a getter contributes its RETURN type (not a Function value): resolve the getter function's
+  // declared / inferred return. babel models the getter as the ObjectMethod node, oxc as a Property
+  // whose `.value` is the FunctionExpression - that pick is `methodFnPath`, the same canon every
+  // other member-body consumer in the factory uses
+  function resolveObjectGetterReturn(prop) {
+    return resolveReturnType(methodFnPath(prop));
+  }
+
   // backward iteration so the LAST assignment wins (`{a: 1, a: 2}` returns 2) and any
   // SpreadElement encountered before the match could have injected `key` -> bail.
   // forward iteration with `return-on-first-match` would be double-wrong: it would return an
@@ -368,14 +377,6 @@ function createResolveNodeType(babelNodeType, t, {
   // (the LATER literal wins even after the spread). returns null when no key matches, when
   // a spread sits before the latest match, or when the matched value is a leaf method
   // shorthand (`onMethod` returns the leaf decision so callers split method/value semantics)
-  // a getter / setter and a method shorthand both normalise to `ObjectMethod` via babelNodeType,
-  // but a getter contributes its RETURN type (not a Function value): resolve the getter function's
-  // declared / inferred return. babel models the getter as the ObjectMethod node; oxc as a Property
-  // whose `.value` is the FunctionExpression
-  function resolveObjectGetterReturn(prop) {
-    return resolveReturnType(prop.node.value ? prop.get('value') : prop);
-  }
-
   function findObjectLiteralKey(propsPath, key, onMethod) {
     for (let i = propsPath.length - 1; i >= 0; i--) {
       const prop = propsPath[i];
@@ -404,6 +405,20 @@ function createResolveNodeType(babelNodeType, t, {
     return null;
   }
 
+  // the ARRAY half of a literal-container read, shared by the two entries below exactly as
+  // `findObjectLiteralKey` already shares the object half: `T[N]` where T is bound to a concrete
+  // tuple/array LITERAL at the call-site (`first<T extends [unknown, unknown]>(t: T): T[0]` called
+  // with `[['x'], 1]`). the three guards - non-canonical index, a spread at/before the slot, a
+  // sparse hole - are the reason it is one function: held by hand in two copies they drift, and
+  // without the branch the generic substitution falls back to T's constraint and yields `unknown`
+  function arrayLiteralElementPath(argPath, key) {
+    const index = canonicalArrayIndex(key);
+    if (index === null) return null;
+    const elements = argPath.get('elements');
+    if (spreadAtOrBefore(elements, index)) return null;
+    return elements[index]?.node ? elements[index] : null;
+  }
+
   // walk into an ObjectExpression / ArrayExpression argPath one key deep, returning the
   // INNER Path (suitable for chaining further hops). complementary to
   // `resolveObjectLiteralProperty` which returns a leaf Type Object - this returns the
@@ -411,15 +426,7 @@ function createResolveNodeType(babelNodeType, t, {
   // literal shapes. method shorthand and SpreadElement bail (no walkable path)
   function walkObjectLiteralPropertyPath(argPath, key) {
     if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
-    if (argPath?.node?.type === 'ArrayExpression') {
-      const index = canonicalArrayIndex(key);
-      if (index === null) return null;
-      const elements = argPath.get('elements');
-      if (spreadAtOrBefore(elements, index)) return null;
-      const elementPath = elements[index];
-      if (!elementPath?.node) return null;
-      return elementPath;
-    }
+    if (argPath?.node?.type === 'ArrayExpression') return arrayLiteralElementPath(argPath, key);
     if (argPath?.node?.type !== 'ObjectExpression') return null;
     // ObjectMethod is a leaf (Function value with no walkable inner shape)
     return findObjectLiteralKey(argPath.get('properties'), key, () => null);
@@ -433,19 +440,9 @@ function createResolveNodeType(babelNodeType, t, {
     // while babel strips them - without this peel, oxc-parsed sources fall to constraint
     // fallback and lose precision (parser-divergence asymmetry between plugins)
     if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
-    // `T[N]` where T is bound to a concrete tuple/array LITERAL at the call-site:
-    // `first<T extends [unknown, unknown]>(t: T): T[0]` called with `[['x'], 1]` as arg -
-    // element 0 is a known ArrayExpression, resolve it to that type. without this branch
-    // the generic substitution path falls back to T's constraint (`[unknown, unknown]`)
-    // and element 0 resolves to `unknown`
     if (argPath?.node?.type === 'ArrayExpression') {
-      const index = canonicalArrayIndex(key);
-      if (index === null) return null;
-      const elements = argPath.get('elements');
-      if (spreadAtOrBefore(elements, index)) return null;
-      const elementPath = elements[index];
-      if (!elementPath?.node) return null;
-      return resolveNodeType(elementPath);
+      const elementPath = arrayLiteralElementPath(argPath, key);
+      return elementPath ? resolveNodeType(elementPath) : null;
     }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
     // method shorthand (`{ foo() {...} }`) resolves to a Function value; an accessor `{ get k() {...} }`
@@ -974,9 +971,10 @@ function createResolveNodeType(babelNodeType, t, {
     isNullableOrNever,
     safeInnerType,
     commonType,
-    // pattern-bindings cluster instantiates later in this factory; thunk through so the
-    // closure picks up the populated reference at call time (TDZ otherwise)
-    findPatternKeyPath: (...args) => findPatternKeyPath(...args),
+    // `findPatternKeyPath` is a hoisted function DECLARATION of this factory - already bound here,
+    // so it passes by value. its two neighbours are pattern-bindings cluster exports assigned
+    // later, so those keep the thunk (a direct read would capture undefined)
+    findPatternKeyPath,
     resolveDestructuredMember: (...args) => resolveDestructuredMember(...args),
     resolveObjectMemberPath: (...args) => resolveObjectMemberPath(...args),
   });
@@ -984,12 +982,13 @@ function createResolveNodeType(babelNodeType, t, {
 
   // awaited cluster: AST-level + Type-object Awaited peel + `await` expression resolver.
   // the two walkers cross-reference (AST `peelAwaitedCommonSteps` <-> Type
-  // `pickAwaitedConditionalBranch` / `getPromiseInnerAnnotation`); consolidated into one
+  // `pickAwaitedConditionalBranch`); consolidated into one
   // closure so the cycle resolves internally - no forward-decl thunks needed at this layer.
   // `findTypeMember` / `getTypeMembers` are forward-decl `let`s thunked here because
   // type-members cluster is instantiated late
   const awaitedCluster = createAwaited({
     babelNodeType,
+    findTypeDeclaration,
     unwrapTypeAnnotation,
     peelTSParenthesized,
     rebuildTupleElements,
@@ -1055,6 +1054,10 @@ function createResolveNodeType(babelNodeType, t, {
   function followKeyPathInRhs(rhsPath, keyPath) {
     if (!keyPath?.length) return null;
     let cur = resolveRuntimeExpression(rhsPath);
+    // no numeric-string fold here, unlike the twin `resolveObjectMemberPath`: the sole producer of
+    // this key-path is `findPatternKeyPath`, whose object-pattern namer hands a numeric key over as
+    // a NUMBER, so a string step over an array host cannot arrive. the twin serves producers that
+    // do not normalise, which is why the fold lives there and not here
     for (const step of keyPath) {
       if (typeof step === 'number') {
         // -1 marks rest-element ("whole tail" slice) - no single Path to surface
@@ -1702,8 +1705,7 @@ function createResolveNodeType(babelNodeType, t, {
     return entryToGlobalHint(head);
   }
 
-  // `resolveCallReturnType` + `resolveCallReturnTypeFromAnnotation` +
-  // `functionTypeReturnAnnotation` + `staticPairFromDestructure` live in
+  // `resolveCallReturnType` + `functionTypeReturnAnnotation` live in
   // `resolve-node-type/call-resolution.js`
 
   // --- Destructuring resolver ---
@@ -1765,7 +1767,9 @@ function createResolveNodeType(babelNodeType, t, {
     findLastStraightLineAssignment,
     resolveStaleRedeclSliceType,
     withLookupPath,
-    functionTypeParams: (...args) => functionTypeParams(...args),
+    // the awaited cluster assigned this factory `let` above, and `reset()` re-runs the clusters'
+    // own reset hooks without re-binding them - so it passes by value here
+    functionTypeParams,
     collectBindingReferences,
     violationRunsDeferred: straightLineFlowCluster.violationRunsDeferred,
     usageRunsDeferred: straightLineFlowCluster.usageRunsDeferred,
@@ -1907,6 +1911,7 @@ function createResolveNodeType(babelNodeType, t, {
     typeRefSegmentsEqual,
     typeRefName,
     findTypeParameter,
+    findTypeDeclaration,
     collectQualifiedSegments,
     unwrapTypeAnnotation,
     safeInnerType,
@@ -2114,7 +2119,7 @@ function createResolveNodeType(babelNodeType, t, {
 
   // user-defined type-predicate cluster lives in `resolve-node-type/guard-shapes.js`;
   // wire it with the type-resolution helpers it consumes and bind the two public entries
-  const { parseUserPredicateGuardEntries, parseAssertionGuardEntries } = createPredicateGuards({
+  const predicateGuardsCluster = createPredicateGuards({
     getScopeBinding,
     resolveMemberCallChain,
     unwrapTypeAnnotation,
@@ -2123,6 +2128,7 @@ function createResolveNodeType(babelNodeType, t, {
     findAmbientFunctionPaths,
     resolveTypeAnnotation,
   });
+  const { parseUserPredicateGuardEntries, parseAssertionGuardEntries } = predicateGuardsCluster;
 
   // typeof / instanceof / switch / preceding-exit guard cluster lives in
   // `resolve-node-type/typeof-guards.js`. wired here so the predicate-guards entries
@@ -2186,6 +2192,15 @@ function createResolveNodeType(babelNodeType, t, {
   // --- Entry / public API ---
   let resolveCache = new WeakMap();
 
+  // {get,set} bundle around `resolvedTypeCache` - closure indirection so per-file `reset()`
+  // re-binding propagates to consumers (direct WeakMap export would leave stale refs). declared
+  // ahead of every closing use so the binding can never be read before its initializer runs
+  let resolvedTypeCache = new WeakMap();
+  const resolvedType = {
+    get: node => resolvedTypeCache.get(node),
+    set: (node, type) => resolvedTypeCache.set(node, type),
+  };
+
   // expression-dispatch cluster: the big switch mapping runtime AST node kind to a resolved
   // Type object. instantiated late so all dependent cluster outputs (callResolution /
   // patternBindings / classContext / awaited / known-globals / global-resolve / value-ops)
@@ -2199,7 +2214,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveStaticCalleePair: bindingAnalysisCluster.resolveStaticCalleePair,
     babelNodeType,
     KNOWN_GLOBAL_METHOD_RETURN_TYPES,
-    getCachedType: node => resolvedTypeCache.get(node),
+    getCachedType: resolvedType.get,
     resolvePath,
     resolveNodeType,
     resolveBindingType,
@@ -2240,8 +2255,6 @@ function createResolveNodeType(babelNodeType, t, {
   // resolveNodeTypeExpression hits this WeakMap first. WeakMap (vs node-attached property)
   // avoids polluting AST nodes - sibling plugins iterate `node` own-properties / clone via
   // `Object.assign`-style merges; an opaque side-channel won't leak into their pipelines
-  let resolvedTypeCache = new WeakMap();
-
   // rebuild per-file to bound memory and drop retained entries from previous parses
   // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic).
   //
@@ -2260,6 +2273,7 @@ function createResolveNodeType(babelNodeType, t, {
     classFieldsCluster.reset();
     closureAnalysisCluster.reset();
     straightLineFlowCluster.reset();
+    predicateGuardsCluster.reset();
     typeMembersCluster.reset();
     typeAnnotationResolveCluster.reset();
     callResolutionCluster.resetExpressionAnnotationCache();
@@ -2585,13 +2599,6 @@ function createResolveNodeType(babelNodeType, t, {
   function isObject(path) {
     return resolveNodeType(path)?.primitive === false;
   }
-
-  // {get,set} bundle around `resolvedTypeCache` - closure indirection so per-file `reset()`
-  // re-binding propagates to consumers (direct WeakMap export would leave stale refs)
-  const resolvedType = {
-    get: node => resolvedTypeCache.get(node),
-    set: (node, type) => resolvedTypeCache.set(node, type),
-  };
 
   return {
     isObject,

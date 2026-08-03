@@ -272,7 +272,7 @@ export default function createSynthSwapEmitter({
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
     // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
-    return registerBranchTreeForKey(peelTransparentPath(rhsPath), objectPattern, lookupKey, slotKey);
+    return registerBranchTreeForKey({ branchPath: peelTransparentPath(rhsPath), objectPattern, lookupKey, slotKey });
   }
 
   // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
@@ -280,14 +280,14 @@ export default function createSynthSwapEmitter({
   // so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds the
   // branches, and recursion registers each leaf. SE prefix stays in the AST around the
   // substitution target so side-effects run at runtime
-  function registerBranchTreeForKey(branchPath, objectPattern, lookupKey, slotKey) {
+  function registerBranchTreeForKey({ branchPath, objectPattern, lookupKey, slotKey }) {
     const peeled = unwrapSequenceTail(branchPath);
     if (!peeled?.node) return false;
     const slots = getFallbackBranchSlots(peeled.node);
     if (slots) {
       let any = false;
       for (const slot of slots) {
-        if (registerBranchTreeForKey(peeled.get(slot), objectPattern, lookupKey, slotKey)) any = true;
+        if (registerBranchTreeForKey({ branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey })) any = true;
       }
       return any;
     }
@@ -503,7 +503,7 @@ export default function createSynthSwapEmitter({
   // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
   // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
   // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
-  function buildSynthLiteral(receiver, { objectPatternNode, polyfills }, memoParam = null, aliasCtx = null) {
+  function buildSynthLiteral({ receiver, pending: { objectPatternNode, polyfills }, memoParam = null, aliasCtx = null }) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
     // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
@@ -592,7 +592,7 @@ export default function createSynthSwapEmitter({
         // fragmented the print-order canonicalization's universe
         const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
         const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
-        const literal = buildSynthLiteral(path.node, pending, memoParam, aliasCtx);
+        const literal = buildSynthLiteral({ receiver: path.node, pending, memoParam, aliasCtx });
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
         // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
         // into the memo argument (cloning the whole logical would re-substitute the right global on

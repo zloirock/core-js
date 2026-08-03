@@ -3,9 +3,7 @@
 // transforms (Vite parallel workers, etc.) get isolated state. the collector accumulates
 // added modules + warnings + entryFound flag and renders a human-readable report at file end
 import { sortByPolyfillOrder } from './inject.js';
-import { formatTargets, getUnsupportedTargets } from './targets.js';
-
-const { fromEntries } = Object;
+import { formatTargets, getUnsupportedTargets, targetsToObject } from './targets.js';
 
 // returns a factory: each call creates an isolated per-file debug collector
 // safe for concurrent transforms (e.g. Vite parallel file processing).
@@ -13,7 +11,7 @@ const { fromEntries } = Object;
 // derived once from the user's options and never mutates afterwards
 export function createDebugOutputFactory({ method, parsedTargets }) {
   const targetsStr = parsedTargets
-    ? JSON.stringify(fromEntries([...parsedTargets].map(([e, v]) => [e, String(v)])), null, 2)
+    ? JSON.stringify(targetsToObject(parsedTargets), null, 2)
     : '{}';
 
   return function createFileDebugOutput() {
@@ -35,7 +33,7 @@ export function createDebugOutputFactory({ method, parsedTargets }) {
         // sort to match the canonical polyfill emission order (es.* before web.*, etc.)
         // so debug output is reproducible across files / parser orders / detection cadence.
         // insertion order would surface visitor traversal noise that's not user-meaningful
-        const items = sortByPolyfillOrder([...modules]);
+        const items = sortByPolyfillOrder(modules);
         let result;
         if (method === 'entry-global' && !entryFound) {
           result = 'The entry point for the core-js@4 polyfill has not been found.';
