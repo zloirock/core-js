@@ -1,6 +1,7 @@
 @core-js/pure/full/array/from
 @core-js/pure/full/array/instance/concat
 @core-js/pure/full/array/instance/copy-within
+@core-js/pure/full/array/instance/fill
 @core-js/pure/full/array/instance/filter
 @core-js/pure/full/array/instance/find
 @core-js/pure/full/array/instance/join
@@ -17,6 +18,7 @@
 @core-js/pure/full/json/stringify
 @core-js/pure/full/map/constructor
 @core-js/pure/full/math/imul
+@core-js/pure/full/math/log10
 @core-js/pure/full/math/log2
 @core-js/pure/full/math/sign
 @core-js/pure/full/math/trunc
@@ -27,6 +29,7 @@
 @core-js/pure/full/object/assign
 @core-js/pure/full/object/define-properties
 @core-js/pure/full/object/keys
+@core-js/pure/full/object/values
 @core-js/pure/full/promise/constructor
 @core-js/pure/full/self
 @core-js/pure/full/set/constructor
