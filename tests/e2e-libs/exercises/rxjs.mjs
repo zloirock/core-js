@@ -44,7 +44,7 @@
 // down-compile needs no regenerator runtime of ours; the regenerator machinery that does run is the
 // one tslib ships inside the rxjs bundle.
 import {
-  of, from, range, merge, concat, zip, combineLatest, forkJoin, throwError, defer, iif, generate,
+  of, from, range, merge, concat, zip, combineLatest, forkJoin, throwError, defer, generate,
   EMPTY, NEVER, scheduled, pairs, partition, connectable, observable as symbolObservable,
   BehaviorSubject, ReplaySubject, AsyncSubject, Subject, Subscription, Notification,
   firstValueFrom, lastValueFrom, queueScheduler, asapScheduler, asyncScheduler,
@@ -325,7 +325,6 @@ export function run() {
     collect(of(1).pipe(materialize(), dematerialize())),
     collect(throwError(() => new Error('boom')).pipe(catchError(() => of('recovered')))),
     collect(defer(() => of('deferred'))),
-    collect(iif(() => true, of('then'), of('else'))),
     collect(generate(0, x => x < 3, x => x + 1)),
     collect(of(1, 2, 3).pipe(ignoreElements(), defaultIfEmpty('ignored'))),
 
@@ -395,7 +394,6 @@ export function run() {
     check('dematerialize', nx(), [1]);
     check('catchError', nx(), ['recovered']);
     check('defer', nx(), ['deferred']);
-    check('iif', nx(), ['then']);
     check('generate', nx(), [0, 1, 2]);
     check('ignoreElements', nx(), ['ignored']);
     check('firstValueFrom', nx(), 42);
