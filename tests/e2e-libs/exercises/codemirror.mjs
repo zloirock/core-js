@@ -99,6 +99,10 @@ const editCount = StateField.define({
   fromJSON: json => json,
 });
 
+function eq(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 // Serialize a tree to a comparable shape: every node as `name:from-to`, in document order.
 function shape(tree) {
   const out = [];
@@ -135,7 +139,7 @@ function survey(tree) {
 export function run() {
   const checks = [];
   function check(label, actual, expected) {
-    checks.push({ label, actual, expected, pass: JSON.stringify(actual) === JSON.stringify(expected) });
+    checks.push({ label, actual, expected, pass: eq(actual, expected) });
   }
 
   // --- document layer: state + transactions ---
@@ -165,24 +169,20 @@ export function run() {
   const doc = state.doc.toString();
   check('doc_roundtrip', doc, HEADER + SRC + TAIL);
 
-  // --- Text's own iterators: `for...of` drives `Text.prototype[Symbol.iterator]`, the explicit
-  // cursors drive `RawTextCursor` / `PartialTextCursor` / `LineCursor` ---
+  // --- Text's own iterators: the iterator method drives `Text.prototype[Symbol.iterator]`, the
+  // explicit cursors drive `RawTextCursor` / `PartialTextCursor` / `LineCursor` ---
   // The iterator is invoked directly rather than with `for...of`: `for...of` would make Babel emit
   // `_createForOfIteratorHelper` into THIS module, and at the `pre` phase unplugin never sees Babel's
   // helpers — so the cell's colour would end up reporting the exercise's syntax rather than anything
   // about codemirror. Calling `[Symbol.iterator]()` drives exactly the same library method
   // (`Text.prototype[Symbol.iterator]`, which returns `this.iter()`) with nothing of ours in between.
-  const chunks = Text.of(['one', 'two', 'three']);
-  const chunkIterator = chunks[Symbol.iterator]();
-  const iterated = [];
-  for (let step = chunkIterator.next(); !step.done; step = chunkIterator.next()) iterated.push(chunkIterator.value);
-  check('text_symbol_iterator', iterated, ['one', '\n', 'two', '\n', 'three']);
-
   function drain(textCursor) {
     const seen = [];
     while (!textCursor.next().done) seen.push(textCursor.value);
     return seen;
   }
+  const chunks = Text.of(['one', 'two', 'three']);
+  check('text_symbol_iterator', drain(chunks[Symbol.iterator]()), ['one', '\n', 'two', '\n', 'three']);
   check('text_iter', drain(Text.of(['abc', 'def']).iter()), ['abc', '\n', 'def']);
   check('text_iter_range', drain(Text.of(['hello', 'world']).iterRange(2, 8)), ['llo', '\n', 'wo']);
   check('text_iter_lines', drain(Text.of(['l1', 'l2', 'l3']).iterLines(2, 4)), ['l2', 'l3']);
@@ -393,9 +393,20 @@ export function run() {
     do n++; while (treeCursor.next());
     return n;
   }
-  // IncludeAnonymous surfaces the nodes the default mode skips, so it can only see more of them
-  check('tree_iter_modes', walkCount(tree.cursor(IterMode.IncludeAnonymous)) >= walkCount(tree.cursor()), true);
-  check('tree_resolve', [tree.resolveInner(6, 1).name.length > 0, NodeProp.closedBy !== undefined], [true, true]);
+  // Both walks run for their side effect — driving `TreeCursor` — but the assertion has to be able to
+  // fail, and `IncludeAnonymous >= default` cannot: it is a documented superset. This source has no
+  // anonymous nodes, so the two walks agree; that equality DOES have a failing side.
+  check('tree_iter_modes', walkCount(tree.cursor(IterMode.IncludeAnonymous)) === walkCount(tree.cursor()), true);
+  // offset 6 sits inside the leading `// header` line
+  check('tree_resolve', tree.resolveInner(6, 1).name, 'LineComment');
+  // a real NodeProp lookup on a node TYPE, not a truthiness test on the prop object: `closedBy`
+  // resolves on the opening bracket of the function's parameter list
+  let bracket = null;
+  tree.iterate({ enter(node) {
+    const closes = node.type.prop(NodeProp.closedBy);
+    if (closes && !bracket) bracket = [node.name, closes];
+  } });
+  check('tree_node_prop', bracket, ['(', [')']]);
   // `configure` clones the parser through Object.assign(Object.create(LRParser.prototype), …)
   const configured = jsParser.configure({ strict: false });
   check('tree_parser_configure', [configured !== jsParser, configured.parse('let y = 2;').length], [true, 10]);
