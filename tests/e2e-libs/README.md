@@ -63,6 +63,24 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   works fine headlessly (it touches the DOM only when an `EditorView` is constructed), but it drags
   in `@codemirror/view` — ~1.1 MB that no headless check ever executes. Parsing comes from Lezer
   directly instead, which is what CodeMirror delegates to anyway.
+  Beyond the document/parse/highlight layers it drives the parts of the state library that only
+  reach a polyfill under specific conditions: `Symbol.iterator` on `Text` and its cursors, `new Set`
+  in `RangeSet.compare` (the only one in the whole graph, and it takes two range sets plus a
+  `ChangeSet` to get there), three more `new Map` sites in the facet/compartment resolver,
+  `JSON.stringify` in `TreeBuffer#childString`, and mixed-language parsing where one HTML parse nests
+  the JS and CSS grammars through `parseMixed`. 27 distinct natives reached from `@codemirror` /
+  `@lezer` frames against 24 before, plus the `Text` iterator, which the attribution instrument
+  cannot see because it is the library's own method.
+  Two name **collisions** ride along, both the interesting kind: `SelectionRange#flags` against
+  `RegExp#flags`, and the `RangeSet` chunk's own `findIndex(pos, side, end, startAt)` against
+  `Array#findIndex`. `usage-pure` rewrites both, and the pure helper has to hand back codemirror's
+  member rather than the regexp/array one.
+  The unicode block is a *fallback* test, not a polyfill test: `@codemirror/state` implements
+  `codePointAt` / `fromCodePoint` by hand out of `charCodeAt` / `String.fromCharCode` and never
+  touches the ES6 natives, and it builds its word-character regexp from `\p{Alphabetic}` inside a
+  `try`/`catch` that IE11 cannot parse — so on the target the categorizer runs its manual path.
+  Unreachable and not chased: `String.fromCodePoint` in `@lezer/lr` sits behind a `verbose` flag read
+  off `process.env.LOG`, which no browser satisfies.
   Its checks favour version-robust invariants (zero parse errors, incremental === full, ordered
   highlight spans, semantic names) over magic node totals, so a grammar bump doesn't redden the suite.
 
