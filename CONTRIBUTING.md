@@ -174,15 +174,15 @@ You can run parts of the test case separately:
   npm run test-transpiler-integration   # real bundlers (esbuild, webpack, Rspack, Rolldown, Rsbuild, Farm, Bun) across methods and phases, runtime-verified
   npm run test-transpiler-perf          # performance gates (three.js bundles + synthetic reassignment-heavy stress); complexity-class discriminators
   ```
-- Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js and CodeMirror. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes.
+- Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js and CodeMirror. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes:
   ```sh
   npm run e2e-libs                      # the asserting runners: check-exercise -> runtime
   npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)
   npm run e2e-libs-runtime              # one build per (lib x method x phase) cell: gates, injection snapshot,
-                                         # node pre-flight, ES5 UMD + self-checking HTML, real IE11 via Karma
-                                         # (-- --update to rewrite the injection snapshot baselines)
+                                        # node pre-flight, ES5 UMD + self-checking HTML, real IE11 via Karma
+                                        # (-- --update to rewrite the injection snapshot baselines)
   npm run e2e-libs-pipeline             # size/time per build stage -> tests/e2e-libs/report/pipeline.md (report only)
-  npm run e2e-libs-throughput           # unplugin overhead across the bundlers -> report/throughput.md (report only)
+  npm run e2e-libs-throughput           # polyfilled-build cost across the bundlers -> report/throughput.md (report only)
   ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```sh
