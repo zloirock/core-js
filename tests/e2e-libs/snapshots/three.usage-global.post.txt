@@ -8,6 +8,7 @@ core-js/modules/es.array.at
 core-js/modules/es.array.concat
 core-js/modules/es.array.copy-within
 core-js/modules/es.array.entries
+core-js/modules/es.array.fill
 core-js/modules/es.array.filter
 core-js/modules/es.array.find
 core-js/modules/es.array.from
@@ -41,6 +42,7 @@ core-js/modules/es.map.get-or-insert
 core-js/modules/es.map.get-or-insert-computed
 core-js/modules/es.map.species
 core-js/modules/es.math.imul
+core-js/modules/es.math.log10
 core-js/modules/es.math.log2
 core-js/modules/es.math.sign
 core-js/modules/es.math.to-string-tag
@@ -56,6 +58,7 @@ core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
 core-js/modules/es.object.keys
 core-js/modules/es.object.to-string
+core-js/modules/es.object.values
 core-js/modules/es.promise.catch
 core-js/modules/es.promise.constructor
 core-js/modules/es.promise.finally

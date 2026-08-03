@@ -6,9 +6,26 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
 **module topologies**, which is what actually drives unplugin's cost — see the note at the end:
 - **rxjs** — headless reactive pipelines. Many small modules.
 - **three** — a real headless **three.js** scene *project* (scene-graph, transforms, an "animation"
-  step, raycasting, geometry, math). A large modern-ES codebase for the throughput tier, and — since
-  it's verified by its numeric state, not pixels — a functional runtime check that the project **still
-  computes correctly** after unplugin + Babel down-compile to ES5. One ~1.4 MB monolithic module.
+  step, raycasting, geometry, math, curves, shapes, skinning, `toJSON`/`ObjectLoader` round-trips)
+  plus six official addons from the same package (`three/addons/*`). A large modern-ES codebase for
+  the throughput tier, and — since it's verified by its numeric state, not pixels — a functional
+  runtime check that the project **still computes correctly** after unplugin + Babel down-compile to
+  ES5. One ~1.4 MB monolithic module (plus ~74 KB of addon modules).
+  Its blocks are picked so that **three's own implementation** reaches for what IE11 lacks, rather
+  than the exercise doing it on three's behalf — `Array.from` and `constructor.name` in
+  `BufferAttribute#toJSON`, `Number.isInteger` in `ObjectLoader`, `new Map` in `ShapePath#toShapes`,
+  `new Set` in `WireframeGeometry`, `Number.EPSILON` + `Math.sign` in Earcut, `Math.imul` in
+  `seededRandom`, `Math.trunc` in `roundToZero`, `new URL` in `Cache`, `TypedArray#copyWithin` in
+  `BatchedMesh#optimize`, the `*[Symbol.iterator]` generators on the math classes, the addons'
+  recursive `yield*`, and three's `async parseAsync`. Attributing each native call to its immediate
+  stack frame, the exercise reaches **43** distinct natives from frames inside three, against 16 for
+  the scene-graph-only version it replaces — which is what the IE11 leg below can actually gate on.
+  It also executes three's own members whose names **collide** with core-js instance methods —
+  `Ray#at`, `Vector3#clamp`, `KeyframeTrack#trim`, `Texture#repeat`. `usage-pure` rewrites those call
+  sites too, and the pure helper has to hand back three's own method; on IE11 a broken fallback is
+  fatal, and the modern-realm pre-flight cannot see it.
+  Not reachable headlessly, so deliberately not chased: `Array#includes`, `.keys()`/`.values()`,
+  `Math.log2`, `self` — all `WebGLRenderer`/WebXR only. unplugin still injects them.
 - **codemirror** — the headless half of a real **CodeMirror 6** editor: `EditorState` transactions
   with position/selection mapping, a Lezer parse, an **incremental** reparse checked against a full
   one, token highlighting, plus CSS and HTML grammars. A deep graph of mid-sized modules.
@@ -74,7 +91,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     `tests/transpiler-fixtures/entry-global`. Because the snapshot comes from the shipping build, Babel
     runs before unplugin, and *that* is what gives the phase axis meaning: with plain unplugin (no
     Babel) all three phases inject byte-identical sets, whereas here `post` also sees what Babel's own
-    helpers reach for — codemirror `usage-global` 121 (`pre`) → 133 (`post`), three 156 → 172, while
+    helpers reach for — codemirror `usage-global` 121 (`pre`) → 133 (`post`), three 159 → 175, while
     rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta used to
     be unsnapshotted, so a post-phase ordering regression (the class of bug commit `20718df3b0` fixed)
     could not redden this gate; now it can. `post` is a strict superset of `pre` on every fixture and
