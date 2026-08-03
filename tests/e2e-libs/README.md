@@ -145,7 +145,13 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     **really on IE11** (`document.documentMode`), so an `iexplore`→Edge substitution reddens rather than
     passing green. `post` / `pre+post` / `entry-global` **gate**; `pre` — which runs unplugin *before*
     Babel and so can miss the polyfills Babel's helpers pull in — is a **non-gating per-library
-    diagnostic**, expected to fail for some libraries, which is exactly the signal we want. Off a
+    diagnostic**, expected to fail for some libraries, which is exactly the signal we want. **three**
+    is the fixture that carries it: its sources are modern, so Babel emits the helpers over the
+    *library*, and its `pre` cells redden. rxjs and codemirror ship ES5 builds, so their `pre` cells
+    are green — for rxjs that is a deliberate change (its old red came from spread / `for-of` in the
+    *exercise*, which said nothing about rxjs; see the header of `exercises/rxjs.mjs`). A green `pre`
+    therefore means "nothing here reached a Babel-helper polyfill", not "the phase gap is closed" —
+    the unrewritten `Array.from` is still sitting in those `pre` bundles. Off a
     machine with IE11 (and outside CI) everything above still runs and only Karma is skipped; the CI job
     `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
 
