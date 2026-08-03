@@ -21,7 +21,7 @@ import {
   NUMERIC_KEY_SHAPE_RE,
   PLACEHOLDER_VALIDATORS,
   RENAME_SKIP,
-  SINGLE_ELEMENT_COLLECTIONS,
+  firstTypeParamIsInner,
   STRUCTURAL_WALK_SKIP_KEYS,
   literalNodeValue,
   primitiveTypeOf,
@@ -35,7 +35,7 @@ import { isPrivateMemberNode, readonlyCollectionBase, mutableCollectionName } fr
 // FALSE branch (`string extends Iterator<infer U>` is false - the `infer` means pickConditionalBranch
 // can't decide it structurally). distinct from a plain null (pattern not applicable, or check / inner
 // type unresolvable) which folds both branches
-export const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
+const INFER_PATTERN_FALSE = Symbol('infer-pattern-false');
 
 export function createTypeExpansion({
   literalKeyValue,
@@ -58,14 +58,13 @@ export function createTypeExpansion({
 }) {
   // --- Mapped types ---
 
-  // string-shaped numeric keys (`'0'`, `'42'`) are produced by `getKeyName` when iterating
-  // member lists of a `keyof T` source whose underlying T uses numeric indexers. detection
-  // matches numeric-literal SHAPE statically; it intentionally over-matches Infinity-shaped keys
-  // (`1e999`) rather than a runtime `Number.isFinite` guard (accepted over-emit direction).
-  // `constraint` on the mapped type itself. key name is a bare string in babel-parser
-  // ASTs and an Identifier in oxc/ESTree. returns null for non-`keyof T` shapes
+  // string-shaped numeric keys (`'0'`, `'42'`) are produced by `getKeyName` when iterating member
+  // lists of a `keyof T` source whose underlying T uses numeric indexers. the key reaching here is
+  // ALWAYS a string - both producers stringify (`String(...)` on the literal-union lane, `getKeyName`
+  // on the `keyof` lane, whose numeric arm converts) - so the shape test is the whole question.
+  // it intentionally over-matches Infinity-shaped keys (`1e999`) rather than running a runtime
+  // `Number.isFinite` guard (accepted over-emit direction)
   function isNumericKeyShape(keyValue) {
-    if (typeof keyValue === 'number') return true;
     return typeof keyValue === 'string' && NUMERIC_KEY_SHAPE_RE.test(keyValue);
   }
 
@@ -365,6 +364,47 @@ export function createTypeExpansion({
   // bails (returns null) for any non-statically-evaluable shape so the caller falls back
   // to the previous behaviour (no narrow). callers must apply outer T-subst BEFORE invoking
   // (the substituted source type's keys must be statically enumerable)
+  // append a synthesized member, MERGING a same-name collision into a union: two source keys can
+  // rename onto one target (`as 'k'`, `Uppercase<K>` over `a` / `A`), and TS gives that key the
+  // union of every colliding arm. appending both instead lets the member walk answer with whichever
+  // came first - an over-resolve on a key that really is present
+  function pushMappedMember(out, member) {
+    const existing = out.find(m => m.key.name === member.key.name);
+    if (!existing) {
+      out.push(member);
+      return;
+    }
+    const own = existing.typeAnnotation.typeAnnotation;
+    const next = member.typeAnnotation.typeAnnotation;
+    const types = own.type === 'TSUnionType' ? [...own.types, next] : [own, next];
+    existing.typeAnnotation = { type: 'TSTypeAnnotation', typeAnnotation: { type: 'TSUnionType', types } };
+  }
+
+  // a rename target that widens to bare `string` (`as string`, or a template that is nothing but a
+  // `${string}` placeholder) does NOT mint per-key members in TS - the result is an INDEX SIGNATURE
+  // whose value is `T[keyof T]`. minting concrete keys with per-key value types is narrower than the
+  // real type, so a read off one of them over-resolves; fold them into one signature over the union
+  function foldRenameToIndexSignature(members) {
+    const types = members.map(m => m.typeAnnotation.typeAnnotation);
+    if (!types.length) return [];
+    return [{
+      type: 'TSIndexSignature',
+      parameters: [{
+        type: 'Identifier',
+        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: { type: 'TSStringKeyword' } },
+      }],
+      typeAnnotation: {
+        type: 'TSTypeAnnotation',
+        typeAnnotation: types.length === 1 ? types[0] : { type: 'TSUnionType', types },
+      },
+    }];
+  }
+
+  // is the rename clause a bare `string` widening? peeled because oxc keeps the parens
+  function renameWidensToString(nameType) {
+    return peelTSParenthesized(nameType)?.type === 'TSStringKeyword';
+  }
+
   function expandMappedTypeMembers({ node, scope, depth, visited }) {
     if (!node.typeAnnotation) return null;
     const shape = parseMappedTypeShape(node);
@@ -383,9 +423,9 @@ export function createTypeExpansion({
       for (const lit of literals) {
         const keyName = String(literalKeyValue(lit.literal));
         const member = buildMappedMember({ node, paramName: shape.paramName, keyName, substValue: lit, body });
-        if (member) out.push(member);
+        if (member) pushMappedMember(out, member);
       }
-      return out;
+      return node.nameType && renameWidensToString(node.nameType) ? foldRenameToIndexSignature(out) : out;
     }
     // `keyof T` constraint: enumerate T's members, synth literal-type for each key name
     const sourceType = unwrapTypeAnnotation(shape.source);
@@ -409,9 +449,9 @@ export function createTypeExpansion({
       const member = buildMappedMember({
         node, paramName: shape.paramName, keyName, substValue: literalTypeFromKeyName(keyName), body,
       });
-      if (member) out.push(member);
+      if (member) pushMappedMember(out, member);
     }
-    return out;
+    return node.nameType && renameWidensToString(node.nameType) ? foldRenameToIndexSignature(out) : out;
   }
 
   // --- Conditional types ---
@@ -425,7 +465,8 @@ export function createTypeExpansion({
   function collectInferredNames(node, into = new Set(), depth = 0) {
     if (!node || typeof node !== 'object' || depth > MAX_DEPTH) return into;
     if (node.type === 'TSInferType') {
-      const name = node.typeParameter?.name?.name ?? node.typeParameter?.name;
+      // through the injected cross-parser extractor, which this factory already uses ten lines away
+      const name = typeParamName(node.typeParameter);
       if (typeof name === 'string') into.add(name);
       if (node.typeParameter?.constraint) collectInferredNames(node.typeParameter.constraint, into, depth + 1);
       return into;
@@ -832,13 +873,6 @@ export function createTypeExpansion({
     return substituteTypeParams(node.trueType, inferMap, scope, depth + 1, seen);
   }
 
-  // `Container<infer U>` is a recognised narrow pattern when the container's `.inner`
-  // slot semantically stores its type parameter - exactly the set of `SINGLE_ELEMENT_COLLECTIONS`
-  // plus Promise (and its structural synonyms, which alias to Promise via `resolveNamedType`)
-  function isInferContainerName(name) {
-    return SINGLE_ELEMENT_COLLECTIONS.has(name) || isPromiseRefName(name);
-  }
-
   // family tag consumed by `checkTypeMatchesContainerFamily`. the conditional tests `check extends
   // Name<infer U>` - is the check side assignable TO the container. a `string` satisfies only
   // `Iterable`, whose interface needs just `[Symbol.iterator]` (which `String.prototype` has).
@@ -890,7 +924,7 @@ export function createTypeExpansion({
     }
     if (node?.type === 'TSTypeReference') {
       const name = typeRefName(node);
-      if (isInferContainerName(name)) {
+      if (firstTypeParamIsInner(name)) {
         // peeled like the array-sugar entry above: oxc keeps `Array<(infer U)>` type-arg
         // as TSParenthesizedType where babel strips it
         return extractInferTarget(peelTSParenthesized(getTypeArgs(node)?.params?.[0]), containerInferFamily(name), name);

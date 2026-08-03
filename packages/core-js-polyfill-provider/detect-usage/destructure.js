@@ -24,13 +24,13 @@ import {
   getFallbackBranchSlots,
   reassignmentValueEnumeration,
   isChainAssignment,
-  isTransparentDestructureWrapper,
   unwrapCollectingSePrefixes,
   findObjectKeyBeforeSpread,
   arrayLiteralSlotValue,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isValidIdentifierName,
+  objectPatternLiteralKeyPath,
   mayHaveSideEffects,
   staticMemberKeyName,
   varInitDominatesUsage,
@@ -466,11 +466,12 @@ function flattenBranchKeys({ node, scope, adapter, path, depth = 0 }) {
 
 // TRUE only when the receiver alias's reaching values are exhaustively enumerable and none can
 // dispatch an instance method: every reachable write RHS (plus the declarator init) either
-// resolves to a STATIC-placement name or is an instance-inert value - null / undefined (member
-// access and `in` both THROW natively, no polyfill changes that) / plain object literal (the
-// result is decided by its own shape). primitive literals are NOT inert - member access
-// auto-boxes (`42..toFixed` dispatches es.number.to-fixed). any other value shape (unbound
-// name, call, array / string / regexp literal, undecomposable write) keeps the typeless
+// resolves to a STATIC-placement name or is an instance-inert value - null / undefined only
+// (member access and `in` both THROW natively, no polyfill changes that). primitive literals are
+// NOT inert - member access auto-boxes (`42..toFixed` dispatches es.number.to-fixed) - and neither
+// is a plain object literal: dropping its rows would UNDER-inject in usage-global, the unsafe
+// direction. any other value shape (unbound name, call, object / array / string / regexp literal,
+// undecomposable write) keeps the typeless
 // instance dispatch: inject-if-might stays, but grounded in reachability - `let O = null;
 // O ||= Object; 'entries' in O` must not fabricate es.array.entries / web.dom-collections.*
 function receiverProvablyInstanceFree({ objectNode, scope, adapter, path }) {
@@ -820,7 +821,7 @@ function nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure
 // - excluding it MISSED the polyfill on a live, statically-known receiver. an opaque (non-resolvable) call
 // yields nothing and keeps the default. shared by the meta layer + both emitters so detect/emit never disagree
 export function resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
-  if (!argNode || !resolvePure || argNode.type === 'Identifier') return false;
+  if (!argNode || argNode.type === 'Identifier') return false;
   const keys = destructureStaticKeys(objectPattern);
   if (!keys) return false;
   function yieldsAny(node) {
@@ -831,8 +832,7 @@ export function resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objec
 
 // the IIFE-param fallback receiver choice, single-sourced across the meta layer and both emitters: a
 // classifiable arg (or per-branch conditional / logical) wins; else a safe-access proxy-global arg wins
-// over a polyfill-DEAD-END default; else the default. `objectPattern` + `resolvePure` may be omitted by
-// callers that can't supply them - then only the classifiable-arg rule applies (legacy behaviour)
+// over a polyfill-DEAD-END default; else the default
 export function chooseFallbackReceiverNode({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
   if (isUsableFallbackReceiverArg(argNode, scope, adapter)) return argNode;
   if (resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure })) return argNode;
@@ -1024,9 +1024,11 @@ export function refineParamDefaultInstancePure({ pureResult, key, receiverPath, 
 // re-referenced (a getter / Proxy trap would re-fire on the copy), so they bail. a CONSTANT
 // (no-interpolation) template is a string constant, so it parallels a StringLiteral - but an interpolated
 // `` `${x}` `` bails (re-evaluating would re-run x's string coercion, a possible effect)
-const REFERENCEABLE_LITERAL_TYPES = new Set([
-  'ArrayExpression',
-  'ObjectExpression',
+// the primitive-literal leaf types across BOTH parser spellings (babel's per-kind nodes and
+// estree's single `Literal`). enumerated once: the re-reference gate and the constant-literal
+// predicate below both need exactly this list, and two hand-synced copies drift on the next
+// parser-shape addition
+const PRIMITIVE_LITERAL_TYPES = new Set([
   'StringLiteral',
   'NumericLiteral',
   'BooleanLiteral',
@@ -1034,6 +1036,12 @@ const REFERENCEABLE_LITERAL_TYPES = new Set([
   'BigIntLiteral',
   'RegExpLiteral',
   'Literal',
+]);
+
+const REFERENCEABLE_LITERAL_TYPES = new Set([
+  ...PRIMITIVE_LITERAL_TYPES,
+  'ArrayExpression',
+  'ObjectExpression',
 ]);
 
 export function isReReferenceableReceiver(node) {
@@ -1100,15 +1108,8 @@ function isSeFreeRereadLiteral(node) {
 // / methods all bail (a hole has no node; the rest carry identifiers or effects)
 function isConstantLiteralNode(node) {
   if (!node) return false;
+  if (PRIMITIVE_LITERAL_TYPES.has(node.type)) return true;
   switch (node.type) {
-    case 'NumericLiteral':
-    case 'StringLiteral':
-    case 'BooleanLiteral':
-    case 'NullLiteral':
-    case 'BigIntLiteral':
-    case 'RegExpLiteral':
-    case 'Literal':
-      return true;
     case 'TemplateLiteral': return node.expressions.length === 0;
     case 'UnaryExpression':
       return (node.operator === '-' || node.operator === '+') && isConstantLiteralNode(node.argument);
@@ -1299,21 +1300,6 @@ export function canTransformDestructuring({ parentType, parentInit }) {
 
 const STATIC_WALK_DEPTH = 64;
 
-// an array literal is a static container indexed by CANONICAL index: `[Array][0]` names its slot
-// exactly as `{ a: Array }.a` names a property. a spread anywhere shifts every static index and a
-// hole / out-of-bounds slot has no node - both bail, so every element read shares one set of guards
-// resolve a destructure receiver chain through static const-bound ObjectExpression hops:
-// `{ a: { from } } = wrapper` where `wrapper = { a: Array }` walks `wrapper.a` to
-// `Array`. complements the proxy-global path (`{ Array: { from } } = globalThis` reads
-// the constructor name directly from the destructure chain) - here the constructor is
-// HIDDEN inside a const-bound static object literal, walk its ObjectExpression structure.
-// returns the leaf Identifier name or null when any hop bails:
-//   - non-const binding (reassignable) - shape may not hold at destructure site
-//   - non-VariableDeclarator pattern (param, catch, loop) - no literal init to walk
-//   - non-ObjectExpression intermediate
-//   - missing / computed / shorthand-mismatched property
-//   - non-Identifier leaf - need a constructor name to dispatch polyfill
-// depth-bounded against pathological alias chains (`a -> b -> c -> ...`)
 // the usage-global continuation for a binding hop whose flat resolve is blocked by a DOMINATING
 // reassignment: the enumerable reaching value (the bare binding-alias canon, lifted to container
 // hops) keeps the walk alive; null keeps the flat bail (pure, or an indeterminable value).
@@ -1346,7 +1332,10 @@ function pluginRewrittenHopName({ current, binding, adapter, scope, readNode }) 
     && assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) ? ctorHint : null;
 }
 
-// combines the dominance gate with the reaching continuation for a variable hop of the walk:
+// combines the dominance gate with the reaching continuation for a variable hop of the walk.
+// reassignment is read off `constantViolations`, not `binding.constant`: the latter is adapter-
+// dependent (babel computes it lazily, estree-toolkit does not expose it) while both adapters
+// surface the violation list, where empty / missing means the shape holds at the use site.
 // CLEAR_HOP when no dominating reassignment blocks the flat resolve (usage-global mirrors the
 // bare binding-alias canon on a reassigned CONTAINER binding - a dominating reassignment kills
 // the declared init, but the enumerable value that reaches the read still walks the remaining
@@ -1420,6 +1409,18 @@ function collectReassignedHopUnion({
   }
 }
 
+// resolve a destructure receiver chain through static const-bound ObjectExpression hops:
+// `{ a: { from } } = wrapper` where `wrapper = { a: Array }` walks `wrapper.a` to
+// `Array`. complements the proxy-global path (`{ Array: { from } } = globalThis` reads
+// the constructor name directly from the destructure chain) - here the constructor is
+// HIDDEN inside a const-bound static object literal, walk its ObjectExpression structure.
+// returns the leaf Identifier name or null when any hop bails:
+//   - non-const binding (reassignable) - shape may not hold at destructure site
+//   - non-VariableDeclarator pattern (param, catch, loop) - no literal init to walk
+//   - non-ObjectExpression intermediate
+//   - missing / computed / shorthand-mismatched property
+//   - non-Identifier leaf - need a constructor name to dispatch polyfill
+// depth-bounded against pathological alias chains (`a -> b -> c -> ...`)
 export function walkStaticReceiverChain({
   receiverNode, walkPath, scope, adapter, path = null, usageNode = null, ignoreWrittenSlots = false, unionSink = null,
 }) {
@@ -1520,11 +1521,6 @@ function walkStaticReceiverStep({
       break;
     }
     if (bindingType !== 'VariableDeclarator') return null;
-    // `binding.constant` may be undefined depending on adapter (babel computes it lazily,
-    // estree-toolkit doesn't expose it). use the underlying `constantViolations` list which
-    // both adapters surface; empty / missing means no reassignment - shape holds at use site.
-    // method-aware: usage-global keeps resolving the static receiver when the reassignment
-    // does not dominate the use; usage-pure / narrowing keep the flat bail
     if (!binding) return null;
     const blocked = blockedContainerHop({
       binding, name: current.name, walkPath, scope: currentScope, adapter, depth, path, visited,
@@ -1669,19 +1665,9 @@ function walkStaticReceiverTerminal({
 // resolve via `sharedResolveKey`'s static-binding inspection. returns null when the binding
 // isn't reachable or any key on the path is unresolvable
 function findShorthandKey(objectPattern, bindingName, scope, adapter) {
-  for (const prop of objectPattern.properties) {
-    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    const keyName = sharedResolveKey({ node: prop.key, computed: prop.computed, scope, adapter, bailOnSideEffectKey: true });
-    if (!keyName) continue;
-    const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-    if (value?.type === 'Identifier') {
-      if (value.name === bindingName) return [keyName];
-    } else if (value?.type === 'ObjectPattern') {
-      const nested = findShorthandKey(value, bindingName, scope, adapter);
-      if (nested) return [keyName, ...nested];
-    }
-  }
-  return null;
+  return objectPatternLiteralKeyPath(objectPattern, bindingName, {
+    resolveKey: sharedResolveKey, scope, adapter,
+  });
 }
 
 // walks the outer-prop chain (Property / ObjectProperty -> ObjectPattern -> ...) up to
@@ -1699,8 +1685,9 @@ function findShorthandKey(objectPattern, bindingName, scope, adapter) {
 // outer-prop type names. AssignmentPattern host (function param default) is intentionally
 // excluded - inline-default would pick native first when present, contradicting
 // usage-pure's "polyfill always wins" contract
-// peel transparent destructure wrappers via shared `isTransparentDestructureWrapper`
-// predicate. tracks `arrayDepth` so multi-level ArrayPattern wrappers
+// peel transparent destructure wrappers. the two transparent shapes - single-element ArrayPattern
+// and an inner AssignmentPattern default - each get their own arm above, so nothing else is
+// crossable and the tail is a plain break. tracks `arrayDepth` so multi-level ArrayPattern wrappers
 // (`[[{a}]] = [[receiver]]`) can step through nested ArrayExpression init
 // element-by-element. each ArrayPattern wrapper has exactly one inner element
 // (otherwise destructuring would re-bind to a different slot per pattern position),
@@ -1728,7 +1715,7 @@ function peelDestructureWrappers(pattern, throughReceiverBearingDefaults = false
       // the usage-global injection)
       if (!isInnerDestructureDefault(parent)
         && !(throughReceiverBearingDefaults && isNestedDestructureDefault(parent))) break;
-    } else if (!isTransparentDestructureWrapper(parent.node, prev)) break;
+    } else break;
     prev = parent.node;
     parent = parent.parentPath;
   }
@@ -1797,7 +1784,7 @@ export function outerDestructureReceiver(leafPattern, scope = null, adapter = nu
   const slot = destructureReceiverSlot(host?.node);
   if (!slot || !host.node[slot]) return null;
   const descended = indices.length
-    ? descendArrayWrapperInit(host.node[slot], indices, scope, adapter, host)
+    ? descendArrayWrapperInit({ receiverNode: host.node[slot], indices, scope, adapter, path: host })
     : host.node[slot];
   return descended ? unwrapExpressionChain(peelNestedSequenceExpressions(descended).tail) : null;
 }
@@ -1873,7 +1860,7 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
 // unwrap to the assumed slot and static resolution would lie.
 // when scope/adapter are passed, dereferences const-bound Identifier wrappers via
 // `followConstIdentifierInit` so `const wrapper = [Array]; [v] = wrapper` reaches Array
-function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = null, path = null, captureRef = null, maybe = false) {
+function descendArrayWrapperInit({ receiverNode, indices, scope = null, adapter = null, path = null, captureRef = null, maybe = false }) {
   for (const index of indices) {
     let cur = unwrapExpressionChain(receiverNode);
     if (scope && adapter) {
@@ -1898,13 +1885,6 @@ function descendArrayWrapperInit(receiverNode, indices, scope = null, adapter = 
   return receiverNode;
 }
 
-// a statically-`undefined` value node - the array slot value that fires a paired inner default (a
-// defined slot wins, keeping the default transparent). covers the bare `undefined` literal and a pure
-// `void <expr>` (`void 0`); a side-effecting `void f()` keeps its effect, so it stays a real value (the
-// receiver swap must not drop it). a shadowed local `undefined` is not tracked (detection-layer trust).
-// SHARED by the identification (here) and the flatten-plan emit gate, so both fire on the same slots
-export { isUndefinedNode };
-
 // a RECEIVER-SHAPED inner default in an array wrapper (`[{ from } = Array] = [undefined]`): peeling
 // stops at the default because it IS a host, so the outer walk yields no array index. its right is the
 // receiver ONLY when the paired array slot is statically `undefined` (then the default provably fires);
@@ -1916,7 +1896,7 @@ function resolveArrayInnerDefaultReceiver(innerDefaultHost, adapter) {
   if (indices.length === 0) return null;
   const slot = destructureReceiverSlot(host?.node);
   if (!slot || !host.node[slot]) return null;
-  const slotNode = descendArrayWrapperInit(host.node[slot], indices, host.scope, adapter, host);
+  const slotNode = descendArrayWrapperInit({ receiverNode: host.node[slot], indices, scope: host.scope, adapter, path: host });
   if (!isUndefinedNode(slotNode)) return null;
   const resolved = resolveObjectName({
     objectNode: unwrapExpressionChain(innerDefaultHost.node.right), scope: host.scope, adapter, path: host,
@@ -1960,8 +1940,10 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
   // classification feeds usage-global injection AND the pure flatten extraction: only the former
   // may lean on a spread-shifted MAYBE pair (pure substituting a value the runtime may not hold
   // is the unsafe direction), so the maybe walk is flavor-gated
-  const descended = descendArrayWrapperInit(slotNode, indices, host.scope, adapter, host, captureRef,
-    adapter?.method === 'usage-global');
+  const descended = descendArrayWrapperInit({
+    receiverNode: slotNode, indices, scope: host.scope, adapter, path: host, captureRef,
+    maybe: adapter?.method === 'usage-global',
+  });
   if (!descended) return null;
   const leaf = unwrapExpressionChain(descended);
   // any leaf that resolves to a static-placement constructor, through ONE branch: a bare global
@@ -2090,7 +2072,9 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // array element exactly like a direct receiver - not only the bare `{ Array: { from } } = R` shape
   const walked = destructureHostThroughWrappers(leafPatternPath);
   if (!walked) return null;
-  const slotNode = descendArrayWrapperInit(host.node[slot], walked.indices, host.scope, adapter, host);
+  const slotNode = descendArrayWrapperInit({
+    receiverNode: host.node[slot], indices: walked.indices, scope: host.scope, adapter, path: host,
+  });
   if (!slotNode) return null;
   // a slot the wrapper descent dereferenced OUT of the host's own init (a const-alias element -
   // `[w, eff()]` where `const w = [globalThis]`) is a FOREIGN declaration: mirroring there would
@@ -2375,7 +2359,7 @@ function treeHasPassthrough(tree) {
   return false;
 }
 
-export function treeHasPolyfill(tree) {
+function treeHasPolyfill(tree) {
   const m = treeInjectionMetrics(tree, { real: false, injecting: false, bailed: false });
   // a BAILED nested subtree (rest / unresolvable key) leaves its polyfillable leaves to the leaf
   // fallback, which needs the mirror NOT to fire - so only a REAL nested polyfill keeps the mirror there
@@ -2578,8 +2562,10 @@ function computeNestedDestructureReceiver(outerProp, adapter, unionSink = null) 
       // thread the usage-global "inject-if-might" flag like the ArrayPattern-rooted sibling
       // (arrayWrapReceiverFromHost): a spread-shifted slot with one static candidate keeps the walk
       // going (over-inject, the safe direction) so this ObjectProperty-rooted nested path matches it
-      ? descendArrayWrapperInit(slotNode, allIndices, parent.scope, adapter, parent, captureRef,
-        adapter?.method === 'usage-global')
+      ? descendArrayWrapperInit({
+        receiverNode: slotNode, indices: allIndices, scope: parent.scope, adapter, path: parent, captureRef,
+        maybe: adapter?.method === 'usage-global',
+      })
       : slotNode;
     if (receiverNode !== null) {
       // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`

@@ -17,3 +17,12 @@ export function tagError(error, tag) {
     error.message = `[core-js] [${ tag }] ${ msg }`;
   } catch { /* swallow */ }
 }
+
+// re-throw an outside failure under a `[core-js]` diagnostic without losing the original: a fresh
+// Error so a readonly `.message`, a frozen Error or a primitive throw (`throw 'str'` / `42` / null)
+// cannot swallow the diagnostic via a TypeError on reassignment. `cause` goes through the Error
+// OPTION, not a post-hoc assignment: assigning it makes `cause` an OWN ENUMERABLE property, so the
+// original payload leaks into `JSON.stringify(err)` / `{ ...err }` / a bundler's structured report
+export function wrapWithCause(message, error) {
+  return new Error(message, { cause: error });
+}
