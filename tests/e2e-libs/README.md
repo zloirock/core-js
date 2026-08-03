@@ -15,17 +15,30 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   than the exercise doing it on three's behalf — `Array.from` and `constructor.name` in
   `BufferAttribute#toJSON`, `Number.isInteger` in `ObjectLoader`, `new Map` in `ShapePath#toShapes`,
   `new Set` in `WireframeGeometry`, `Number.EPSILON` + `Math.sign` in Earcut, `Math.imul` in
-  `seededRandom`, `Math.trunc` in `roundToZero`, `new URL` in `Cache`, `TypedArray#copyWithin` in
-  `BatchedMesh#optimize`, the `*[Symbol.iterator]` generators on the math classes, the addons'
-  recursive `yield*`, and three's `async parseAsync`. Attributing each native call to its immediate
-  stack frame, the exercise reaches **43** distinct natives from frames inside three, against 16 for
-  the scene-graph-only version it replaces — which is what the IE11 leg below can actually gate on.
+  `seededRandom`, `Math.trunc` in `roundToZero`, `new URL` in `Cache`, `Number#toFixed` in the
+  non-sRGB branch of `Color#getStyle`, the `*[Symbol.iterator]` generators on the math classes, the
+  addons' recursive `yield*`, and three's `async parseAsync`. Attributing each native call to its
+  immediate stack frame, the exercise reaches **36** distinct natives from frames inside three,
+  against 16 for the scene-graph-only version it replaces — which is what the IE11 leg below can
+  actually gate on.
   It also executes three's own members whose names **collide** with core-js instance methods —
-  `Ray#at`, `Vector3#clamp`, `KeyframeTrack#trim`, `Texture#repeat`. `usage-pure` rewrites those call
-  sites too, and the pure helper has to hand back three's own method; on IE11 a broken fallback is
-  fatal, and the modern-realm pre-flight cannot see it.
+  `Ray#at`, `Vector3#clamp`, `Texture#repeat`. `usage-pure` rewrites those call sites too, and the
+  pure helper has to hand back three's own method; on IE11 a broken fallback is fatal, and the
+  modern-realm pre-flight cannot see it.
   Not reachable headlessly, so deliberately not chased: `Array#includes`, `.keys()`/`.values()`,
   `Math.log2`, `self` — all `WebGLRenderer`/WebXR only. unplugin still injects them.
+  Reachable but deliberately **excluded**: every typed-array *prototype* method. `usage-pure` cannot
+  serve those, structurally — a prototype method cannot be delivered without patching the native
+  prototype, which is what `pure` exists to avoid, so all 69 binary-data modules are stubbed out of
+  `@core-js/pure` (committed `// empty` overrides in `packages/core-js-pure/override/modules/`), every
+  typed-array entry in `packages/core-js-compat/src/built-in-definitions.mjs` is `{ global: … }` with
+  no `pure` variant, and the instance-method dispatch knows only the receivers `array` / `iterator` /
+  `asynciterator` / `string` / `domcollection`. unplugin cannot know a receiver is not an `Array`, so
+  it rewrites `floats.slice(a, b)` into a helper that falls through to `floats.slice` — `undefined` on
+  IE11. This is why the exercise avoids `KeyframeTrack#trim`/`#clone`, `AnimationUtils.subclip` and
+  `makeClipAdditive`, `BatchedMesh`, `InstancedMesh#setColorAt`, `mergeVertices` and `radixSort` (and
+  loses `Array#find` with the last of them). Discovered the hard way: these reddened the gating
+  `usage-pure` IE11 cells while every other gate stayed green. See the header of `exercises/three.mjs`.
 - **codemirror** — the headless half of a real **CodeMirror 6** editor: `EditorState` transactions
   with position/selection mapping, a Lezer parse, an **incremental** reparse checked against a full
   one, token highlighting, plus CSS and HTML grammars. A deep graph of mid-sized modules.
