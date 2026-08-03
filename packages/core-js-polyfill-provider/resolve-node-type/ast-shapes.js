@@ -287,7 +287,7 @@ export function violationInCapturedFunction(t, violations, stopPath) {
 // keywords (string / number / boolean / bigint / symbol - PRIMITIVE_HINTS), null for a literal / complex /
 // generic / null / undefined param (indeterminate for arg-match). shared by the member-overload and
 // ambient-function-overload arg-match below
-export function paramPrimitiveKind(param) {
+function paramPrimitiveKind(param) {
   switch (param?.typeAnnotation?.typeAnnotation?.type) {
     case 'TSStringKeyword': return 'string';
     case 'TSNumberKeyword': return 'number';
@@ -302,7 +302,7 @@ export function paramPrimitiveKind(param) {
 // the canonical PRIMITIVE_HINTS set (the same 5 typeof-primitives), else null. an arg whose resolved type
 // isn't one of these (object / null / undefined / unresolvable) yields null, so the overload matcher
 // bails to the fold instead of guessing
-export function primitiveTypeKind(type) {
+function primitiveTypeKind(type) {
   return PRIMITIVE_HINTS.has(type) ? type : null;
 }
 
@@ -317,7 +317,7 @@ function overloadLiteralValue(node) {
 }
 
 // the literal value of a literal-typed param (`k: 'a'` / `k: 1` / `k: true` / `k: 1n`), or undefined
-export function paramLiteralValue(param) {
+function paramLiteralValue(param) {
   const lit = param?.typeAnnotation?.typeAnnotation;
   return lit?.type === 'TSLiteralType' ? overloadLiteralValue(lit.literal) : undefined;
 }

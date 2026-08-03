@@ -1,5 +1,7 @@
-// shared injection helpers + canonical compat-data sort. exported by both plugins'
-// import-injectors and the debug-output formatter so concatenated bundles stay byte-stable
+// shared injection helpers + canonical compat-data sort. the sort exports go to both plugins'
+// import-injectors and the debug-output formatter so concatenated bundles stay byte-stable; the
+// bigger half of the file - `createModuleInjectors` - is consumed by the two plugin ENTRY points,
+// which is where an entry / usage hit turns into the modules actually injected
 import compatData from '@core-js/compat/data' with { type: 'json' };
 
 const { keys } = Object;
@@ -19,6 +21,10 @@ export function polyfillOrderComparator(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+// accepts ANY iterable (Set / Map keys / array) and returns a FRESH array - the internal spread is
+// load-bearing, not defensive: `sort` mutates in place, so sorting a caller's array would reorder
+// the live registry. stating it here removes the reason call sites materialised a copy of their own
+// and paid for two copies per sort
 export function sortByPolyfillOrder(modules) {
   return [...modules].sort(polyfillOrderComparator);
 }
