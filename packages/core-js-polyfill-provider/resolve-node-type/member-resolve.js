@@ -692,10 +692,14 @@ export function createMemberResolve({
   // (`const [x] = a`) copy the value at execution and stay exempt.
   // which methods mutate is registry data (`mutatesElements` markers), not local knowledge;
   // the safe direction is a WHITELIST of known non-mutating methods - a method the registry
-  // does not know may be any mutator at runtime, so it bails like a dynamic key
+  // does not know may be any mutator at runtime, so it bails like a dynamic key. a registry value
+  // is `string | { type, ... }` and only the OBJECT form can carry the marker, so a bare-string
+  // entry is "not known non-mutating" and stays out: reading the marker off a shape that cannot
+  // hold one admitted such an entry unconditionally, which is the whitelist inverted
   const ARRAY_METHOD_HINTS = KNOWN_INSTANCE_METHOD_RETURN_TYPES.Array ?? {};
   const ELEMENT_SAFE_METHODS = new Set(Object.entries(ARRAY_METHOD_HINTS)
-    .filter(([, hint]) => !hint.mutatesElements).map(([key]) => key));
+    .filter(([, hint]) => hint !== null && typeof hint === 'object' && !hint.mutatesElements)
+    .map(([key]) => key));
 
   // does `parent` still physically hold `node` in one of its slots? an in-place rewrite
   // (a folded call, an optional-chain lowering) reuses parent nodes and swaps their slots,
