@@ -483,11 +483,14 @@ export function createNameResolution({ t }) {
     if (!scope) return [];
     const cacheKey = nameCacheKey(name) ?? '';
     let perScope = allTypeDeclCache.get(scope);
-    if (perScope?.has(cacheKey)) return perScope.get(cacheKey);
+    // hand out a COPY: the cache exists to skip the scope WALK, not the (1-3 element) allocation,
+    // and a caller that sorted or pushed onto the shared instance would poison every later lookup
+    // of the same (scope, name). copying removes that invariant instead of documenting it
+    if (perScope?.has(cacheKey)) return perScope.get(cacheKey).slice();
     const collected = findAllDecls({ name, scope, leafMatch: isTypeBearingDeclaration });
     if (!perScope) allTypeDeclCache.set(scope, perScope = new Map());
     perScope.set(cacheKey, collected);
-    return collected;
+    return collected.slice();
   }
 
   // TSTypeParameter.name: Identifier node on babel@8 and oxc-parser, a bare string on babel@7

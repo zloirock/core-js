@@ -28,7 +28,9 @@ import {
   quasiText,
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
-import { isPrivateMemberNode, readonlyCollectionBase, mutableCollectionName } from './ast-shapes.js';
+import {
+  isPrivateMemberNode, isTypeReferenceNode, mutableCollectionName, readonlyCollectionBase,
+} from './ast-shapes.js';
 
 // `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
 // pattern AND the check side is a disjoint primitive, so the conditional definitively takes the
@@ -690,7 +692,7 @@ export function createTypeExpansion({
   function isUnconstrainedTypeReference(node, typeParamMap = null) {
     if (!node) return false;
     const target = peelTSParenthesized(node);
-    if (target?.type !== 'TSTypeReference' && target?.type !== 'GenericTypeAnnotation') return false;
+    if (!isTypeReferenceNode(target)) return false;
     if (getTypeArgs(target)?.params?.length) return false;
     if (!typeParamMap) return true;
     const name = typeRefName(target);

@@ -10,3 +10,4 @@ import './mutation-gate-superset.mjs';
 import './transform-idempotence.mjs';
 import './transform-idempotence-pure.mjs';
 import './post-sweep-introduced-global.mjs';
+import './per-file-teardown.mjs';
