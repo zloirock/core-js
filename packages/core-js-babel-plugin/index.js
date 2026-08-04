@@ -27,6 +27,8 @@ import {
   staticFallbackSwapRedundant,
   resolveBatchDirectivePromotionPolicy,
   sequenceHeadDirectiveHazard,
+  keptNavChainEndPath,
+  memberChainEndPath,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
@@ -65,6 +67,7 @@ import {
   createSyntaxVisitors,
   createUsageVisitors,
   restoreInstantiationParens,
+  restoreOptionalTagParens,
   rebuildLaggedScopeBinding,
   USAGE_VISITORS_IS_HANDLED,
   USAGE_VISITORS_RESET,
@@ -976,17 +979,11 @@ export default function plugin(api, options) {
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands
           // off a defined receiver (`window['self']` - the web.self class miss)
-          let chainEnd = path;
-          for (;;) {
-            let up = chainEnd.parentPath;
-            // step through TS wrappers between hops. a BARE wrapper (`nav!.X`) erases and the
-            // chain's short-circuit survives; a PARENTHESIZED layer seals - the member above
-            // parses PLAIN, so the render keeps the source's throw semantics by node type
-            while (up && TS_EXPR_WRAPPERS.has(up.node?.type)
-              && up.node.expression === chainEnd.node) up = up.parentPath;
-            if (up?.isMemberExpression() || up?.isOptionalMemberExpression()) chainEnd = up;
-            else break;
-          }
+          // the same chain walk the kept-nav verdict uses; `unwrap` steps the TS wrappers between
+          // hops (a BARE wrapper `nav!.X` erases and the short-circuit survives, a PARENTHESIZED
+          // layer seals - the member above parses PLAIN, so the render keeps the source's throw
+          // semantics by node type)
+          const chainEnd = memberChainEndPath({ path, unwrap: peelSkippableWrappers });
           if (chainEnd !== path && collapseShortCircuitNavInPlace(chainEnd)) return;
         }
 
@@ -1199,8 +1196,31 @@ export default function plugin(api, options) {
         resolvedType,
         resolvePure,
       };
+      // hops the detector suppressed while the meta KEEPS its receiver path: they survive into the
+      // output, so this emitter still renders them (the marking only guards the text emitter)
+      const keptProxyHops = new WeakSet();
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
+        keptProxyHops: isPure ? keptProxyHops : undefined,
+        onSuppressedProxyHop: isPure ? path => {
+          if (isRenderedPlanTail(path.parentPath?.node)) return;
+          // the chain walk and the two verdicts it carries - the nav must be CONSUMED by a step
+          // above it, and a POLYFILLED dispatch there owns the receiver itself (it memoized and
+          // rebuilt the call, so a render over its callee would strip the invocation's receiver) -
+          // are the SAME questions the text emitter asks, so the walk is shared. only the key
+          // reader and the polyfill lookup stay dialect-local
+          const chainEnd = keptNavChainEndPath({
+            path,
+            keyOf: node => node.computed ? null : node.property?.name,
+            resolvesProperty: (key, endPath) => !!resolvePure({ kind: 'property', key }, endPath),
+          });
+          if (!chainEnd) return;
+          // same precedence the meta-driven arm keeps: the hop COLLAPSE owns every chain it can
+          // take, and only the navs it refuses - the short-circuiting probe - earn the render
+          const hopCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+          if (synthSwap?.collapseProxyHopRoot(path, hopCtx)) return;
+          collapseShortCircuitNavInPlace(chainEnd);
+        } : undefined,
         suppressProxyGlobals: isPure,
         walkAnnotations: !isPure,
         // gates proxy-global receiver suppression on the member resolving to a real pure
@@ -1660,6 +1680,12 @@ export default function plugin(api, options) {
         if (!injector) return;
         // kept nav-collapse mutations land after every claim resolver has seen the source chain
         flushKeptNavCollapses();
+        // printing repair, after every rewrite: the generator drops the source parens that ended
+        // an optional chain used as a tagged template's TAG, and the reprint no longer parses.
+        // it runs LAST because the guard renders read the chain's own shape - a paren node added
+        // ahead of them would read as a seal and fold the tail the tag needs left outside.
+        // fresh visitor literal per call: traverse explodes the object in place
+        path.traverse({ TaggedTemplateExpression: restoreOptionalTagParens });
         // probed-anchor destructure inits retype into their guard spelling at the same point
         destructureEmit?.flushProbedAnchorSwaps();
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
@@ -1794,7 +1820,10 @@ export default function plugin(api, options) {
               // entry-global reprints the file like every babel mode but runs no usage
               // traversal, so the instantiation paren restoration needs its own pass here.
               // fresh visitor literal per call: traverse explodes the object in place
-              this.file.path.traverse({ TSInstantiationExpression: restoreInstantiationParens });
+              this.file.path.traverse({
+                TSInstantiationExpression: restoreInstantiationParens,
+                TaggedTemplateExpression: restoreOptionalTagParens,
+              });
             }
             injector.flush();
           }),

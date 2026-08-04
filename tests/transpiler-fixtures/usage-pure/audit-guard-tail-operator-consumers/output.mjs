@@ -41,12 +41,11 @@ export const leRight = 1 <= (null == _globalThis.window ? void 0 : _Reflect$ownK
 }).length);
 export const shiftRight = 4 >> (null == _globalThis.window ? void 0 : _Array$from([1]).length);
 
-// the same slots over a CALL root, whose guard test carries the root effect. a claim with a
-// MEMBER tail splits that tail differently in the two emitters - the AST one folds every step
-// but the last, the text one lifts the whole tail behind the `?.` it already owns. both read
-// the same value off the same guard, so the sidecar records the split rather than a defect
+// the same slots over a CALL root, whose guard test carries the root effect. a claim's MEMBER
+// tail grows through the same shared walk an invoked one does - spelling it by a rule of its own
+// folded a different number of steps than the AST emitter for the same source
 const cr = () => _globalThis;
-export const eqRightCall = 1 === (null == cr().window ? void 0 : _Set.prototype.constructor)?.length;
+export const eqRightCall = 1 === (null == cr().window ? void 0 : _Set.prototype.constructor.length);
 export const gtRightCall = 2 > (null == cr().window ? void 0 : _Math$fround(1.5));
 
 // the guard on the LEFT of an operator is an operand too: the folded tail may not end the
@@ -74,12 +73,12 @@ export const arrowValue = arrowBody();
 export const returnedValue = returned().next().value;
 
 // an `extends` clause parenthesizes the fold too - it takes a LeftHandSideExpression - so the
-// last tail step rides outside behind `?.` exactly as under an operator. listing that consumer
-// on one emitter only spelled the same fold two ways
+// tail rides inside those parens exactly as under an operator. listing that consumer on one
+// emitter only spelled the same fold two ways
 const host = null == _globalThis.window ? void 0 : _self;
-class Extended extends (null == _globalThis.window ? void 0 : _self.hostBox)?.Base {}
+class Extended extends (null == _globalThis.window ? void 0 : _self.hostBox.Base) {}
 export const extendedName = _nameMaybeFunction(Extended);
-export const negated = -(null == _globalThis.window ? void 0 : _self.hostBox)?.count;
+export const negated = -(null == _globalThis.window ? void 0 : _self.hostBox.count);
 export const spreadTail = [...(null == (_ref5 = _globalThis.window) ? void 0 : _valuesMaybeArray(_ref6 = _Array$of(1, 2)).call(_ref6))];
 export { host };
 
