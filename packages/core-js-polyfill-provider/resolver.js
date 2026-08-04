@@ -232,13 +232,11 @@ export function createPolyfillResolver(options, {
         return name === 'arg-is-string' ? isString(arg) : isObject(arg);
       }
       // unknown filter name = data-shape drift from `built-in-definitions.mjs`. fail loudly
-      // instead of silent over-injection via default-false fall-through: caller treats
-      // "filter didn't reject" as accept, so unknown filter name would bypass its intended
-      // narrowing gate
+      // instead of silent over-injection via default-false fall-through: the caller reads
+      // "filter didn't reject" as accept, so an unknown name would bypass its narrowing gate.
+      // a path-anchored codeframe (when the caller exposes one) points at the offending call
+      // site, so the bad filter entry is findable without grep
       default: {
-        // data-shape drift from `built-in-definitions.mjs`. fail loudly with a path-anchored
-        // codeframe when the caller exposes one - babel's `buildCodeFrameError` highlights the
-        // offending call site, helping authors locate the bad filter entry without grep
         const msg = `[core-js] unknown filter name: ${ name }`;
         throw typeof path?.buildCodeFrameError === 'function' ? path.buildCodeFrameError(msg) : new Error(msg);
       }
@@ -300,7 +298,7 @@ export function createPolyfillResolver(options, {
   // shared pure-resolve protocol: resolve meta -> require `pure` desc -> extract (kind, desc)
   // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
   // the caller supplies step 3 (effectiveMeta construction); every other step is fixed
-  function resolvePureWith(meta, path, buildEffectiveMeta) {
+  function resolvePure(meta, path) {
     const resolved = resolve(meta);
     if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
     const { kind, desc: { pure: desc } } = resolved;
@@ -313,7 +311,9 @@ export function createPolyfillResolver(options, {
     // in each emitter still runs (fallback fires only for `!inheritedStatic`), so no global-fallback
     // rewrite leaks in once the result is null
     if (kind === 'instance' && meta.inheritedStatic) return null;
-    const effectiveMeta = buildEffectiveMeta(kind, desc, meta, path);
+    // non-instance kinds use bare meta; instance kinds run through enhanceMeta which
+    // narrows by receiver type-hint (e.g. `arr.at()` -> Array-specific entry vs common)
+    const effectiveMeta = kind === 'instance' ? enhanceMeta(meta, path, desc) : meta;
     if (!effectiveMeta) return null;
     const entry = resolvePureEntry({ kind, desc, meta: effectiveMeta, path });
     if (!entry) return null;
@@ -322,15 +322,6 @@ export function createPolyfillResolver(options, {
       kind,
       hintName: pureImportName(kind, resolved.name, entry),
     };
-  }
-
-  function resolvePure(meta, path) {
-    return resolvePureWith(meta, path, (kind, desc) => {
-      // non-instance kinds use bare meta; instance kinds run through enhanceMeta which
-      // narrows by receiver type-hint (e.g. `arr.at()` -> Array-specific entry vs common)
-      if (kind !== 'instance') return meta;
-      return enhanceMeta(meta, path, desc) ?? null;
-    });
   }
 
   // two distinct lookups, not a duplicate: first resolves the property meta against

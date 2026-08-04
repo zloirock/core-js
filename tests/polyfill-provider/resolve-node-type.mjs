@@ -57,9 +57,13 @@ import {
 import {
   collectQualifiedSegments,
   extendsId,
+  isFunctionTypeNode,
   isInterfaceDeclaration,
+  isObjectTypeLiteral,
   isQualifiedNameNode,
   isTypeAlias,
+  isTypeReferenceNode,
+  literalTypeValueNode,
   loopReExecRegionHasViolation,
   qualifiedNameLeft,
   qualifiedNameRight,
@@ -3597,6 +3601,40 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     isInterfaceDeclaration({ type: 'InterfaceDeclaration' }));
   check('ast-shapes: isInterfaceDeclaration false for class',
     isInterfaceDeclaration({ type: 'ClassDeclaration' }), false);
+  // the AMBIENT Flow spellings describe the same shapes and must not fall out of the predicates
+  checkTruthy('ast-shapes: isTypeAlias Flow declare type',
+    isTypeAlias({ type: 'DeclareTypeAlias' }));
+  checkTruthy('ast-shapes: isTypeAlias Flow declare opaque type',
+    isTypeAlias({ type: 'DeclareOpaqueType' }));
+  checkTruthy('ast-shapes: isInterfaceDeclaration Flow declare interface',
+    isInterfaceDeclaration({ type: 'DeclareInterface' }));
+  // an ambient opaque type publishes only its SUPERTYPE bound - values are assignable to it, so
+  // it is the most precise shape available and `typeAliasBody` must reach it
+  check('ast-shapes: typeAliasBody ambient opaque falls back to the supertype',
+    typeAliasBody({ type: 'DeclareOpaqueType', supertype: { type: 'MARKER' } })?.type, 'MARKER');
+  check('ast-shapes: typeAliasBody opaque prefers impltype',
+    typeAliasBody({ type: 'OpaqueType', impltype: { type: 'IMPL' }, supertype: { type: 'SUPER' } })?.type, 'IMPL');
+
+  // dialect PAIRS: each predicate answers one question about two spellings. spelled per call site
+  // these drifted apart, so the pair itself is the contract
+  checkTruthy('ast-shapes: isTypeReferenceNode TS', isTypeReferenceNode({ type: 'TSTypeReference' }));
+  checkTruthy('ast-shapes: isTypeReferenceNode Flow', isTypeReferenceNode({ type: 'GenericTypeAnnotation' }));
+  check('ast-shapes: isTypeReferenceNode other', isTypeReferenceNode({ type: 'TSTypeLiteral' }), false);
+  checkTruthy('ast-shapes: isObjectTypeLiteral TS', isObjectTypeLiteral({ type: 'TSTypeLiteral' }));
+  checkTruthy('ast-shapes: isObjectTypeLiteral Flow', isObjectTypeLiteral({ type: 'ObjectTypeAnnotation' }));
+  check('ast-shapes: isObjectTypeLiteral other', isObjectTypeLiteral({ type: 'TSTypeReference' }), false);
+  checkTruthy('ast-shapes: isFunctionTypeNode TS', isFunctionTypeNode({ type: 'TSFunctionType' }));
+  checkTruthy('ast-shapes: isFunctionTypeNode Flow', isFunctionTypeNode({ type: 'FunctionTypeAnnotation' }));
+  check('ast-shapes: isFunctionTypeNode other', isFunctionTypeNode({ type: 'TSMethodSignature' }), false);
+  // TS wraps the literal of a literal TYPE; Flow's literal type IS the value node, so the canon
+  // rebuilds the value-space shape every downstream literal reader already understands
+  check('ast-shapes: literalTypeValueNode TS unwraps the wrapper',
+    literalTypeValueNode({ type: 'TSLiteralType', literal: { type: 'StringLiteral', value: 'k' } })?.value, 'k');
+  check('ast-shapes: literalTypeValueNode Flow string rebuilds a StringLiteral',
+    literalTypeValueNode({ type: 'StringLiteralTypeAnnotation', value: 'k' })?.type, 'StringLiteral');
+  check('ast-shapes: literalTypeValueNode Flow bigint keeps the digits',
+    literalTypeValueNode({ type: 'BigIntLiteralTypeAnnotation', value: '1' })?.value, '1');
+  check('ast-shapes: literalTypeValueNode non-literal type', literalTypeValueNode({ type: 'TSTypeReference' }), null);
 
   // typeAliasBody: TS uses `typeAnnotation`, Flow uses `right`
   const tsAlias = { type: 'TSTypeAliasDeclaration', typeAnnotation: { type: 'TSStringKeyword' } };

@@ -117,7 +117,8 @@ export default function createSynthSwapEmitter({
   // later positional) is the canonical `resolveCallArgumentCoords` semantics - delegate it and only
   // LOCATE the resolved coordinate as a path here, so babel and unplugin can't drift on the rules
   function detectIifeArgPath(wrapper, objectPattern) {
-    if (!wrapper?.isArrowFunctionExpression() && !wrapper?.isFunctionExpression()) return null;
+    // no local shape gate: `findIifeCallSite` owns the function-node set (a second copy here is a
+    // second place to keep it in sync) and rejects a null path through `fnParentPath?.node`
     const site = findIifeCallSite(wrapper, objectPattern.node);
     if (!site) return null;
     const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
@@ -166,9 +167,9 @@ export default function createSynthSwapEmitter({
       // a fallback-shaped default (`Array || Iterator`, `Array ?? Iterator`) resolves its meta
       // through the LEFT branch (detection peels fallback wrappers deterministically), so the
       // synth replaces the WHOLE expression with the literal - the same left-collapse the
-      // declarator flatten applies. `&&` selects its RIGHT side at runtime and stays out;
-      // unresolved keys re-read through the original expression, whose left bias short-circuits
-      // before the (possibly absent) right global evaluates
+      // declarator flatten applies. `&&` selects its RIGHT side at runtime and stays out.
+      // unresolved keys re-read through the peeled LEFT alone - the right operand is skip-marked
+      // at registration and never reaches emission
       const fallbackCollapse = rightPath.isLogicalExpression() && rightPath.node.operator !== '&&'
         && isReceiverShapedNode(unwrapSequenceTail(rightPath.get('left')).node);
       // accept OptionalMemberExpression too (`{from} = globalThis?.Array`) - symmetric with
@@ -591,7 +592,7 @@ export default function createSynthSwapEmitter({
         // generated slot space - babel's own scope UID generator numbered independently and
         // fragmented the print-order canonicalization's universe
         const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
-        const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+        const aliasCtx = { scope: path.scope, adapter, path };
         const literal = buildSynthLiteral({ receiver: path.node, pending, memoParam, aliasCtx });
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
         // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
@@ -628,15 +629,11 @@ export default function createSynthSwapEmitter({
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
             // the memo argument takes the same canonical re-read target as the direct path
             [buildMemoArg(memoReceiver, aliasCtx)])
+          // a throw probe already CARRIES every rescue node the discard would re-emit (the probe is
+          // built from the same key-SE list), so no discard prefix rides ahead of it - matching the
+          // text emitter, which emits the probe alone here
           : throwProbe
-            ? t.sequenceExpression([
-              ...dropRescueReceiver
-                ? discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
-                  .filter(n => !probeSe.has(n)).map(n => t.cloneNode(n, true))
-                : [],
-              throwProbe.node,
-              literal,
-            ])
+            ? t.sequenceExpression([throwProbe.node, literal])
           : dropRescueReceiver
             ? t.sequenceExpression([
               ...discardRescueNodes({ node: path.node, scope: path.scope, adapter, path })
@@ -657,7 +654,9 @@ export default function createSynthSwapEmitter({
         // memoizing - the memo argument is the whole receiver, so the left's SE already runs once there
         if (!needMemo && path.node.type === 'LogicalExpression') {
           // the probe carries the left's read (and its key SE) - the rescue re-emits only the
-          // effects the probe does not already run
+          // effects the probe does not already run. harvested HERE, not reused from registration:
+          // the tree changes between the two phases (sibling visitors polyfill inside the receiver),
+          // so the registration-time answer is a different, wrong list
           const leftSe = discardRescueNodes({ node: path.node.left, scope: path.scope, adapter, path })
             .filter(n => !probeSe?.has(n));
           if (leftSe.length) replacement = t.sequenceExpression([...leftSe.map(n => t.cloneNode(n, true)), replacement]);
