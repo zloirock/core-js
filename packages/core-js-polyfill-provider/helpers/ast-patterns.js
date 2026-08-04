@@ -5849,6 +5849,42 @@ export function positionDisposition(parent, node, parentNodePath) {
 // a trusted object while the default's holder may still have mutated it the value stays reachable through that one name, so both
 // walks keep tracking it there. a coercing compound operator is excluded by the shared value-flow op
 // set - it stores a converted value, not the reference
+// the chain END a kept probe nav feeds, or null when nothing is owed there. both emitters ask the
+// same two questions - how far the member chain runs above the nav, and whether its end is the
+// CALLEE of a polyfilled dispatch (that receiver belongs to the instance channel, which renders it
+// itself) - so the walk lives here rather than being spelled once per dialect. node TYPE strings
+// are shared between the dialects; `unwrap` peels whatever wrappers the caller's tree carries,
+// `keyOf` is its own member-key reader (the dialects differ on computed keys) and `resolvesProperty`
+// its own polyfill lookup
+// how far the member chain above this node runs, following only the OBJECT side: a node reached as
+// the computed PROPERTY of the member above it is a sibling expression, not a continuation
+export function memberChainEndPath({ path, unwrap = node => node }) {
+  let end = path;
+  for (;;) {
+    // a transparent wrapper between hops (`nav!.X`, `(nav).X`) is not the chain's end - step past
+    // it the same way the node-level peels do, so the walk sees the member above
+    let up = end.parentPath;
+    while (up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === end.node) up = up.parentPath;
+    const above = up?.node;
+    if (above?.type !== 'MemberExpression' && above?.type !== 'OptionalMemberExpression') break;
+    if (unwrap(above.object) !== unwrap(end.node)) break;
+    end = up;
+  }
+  return end;
+}
+
+export function keptNavChainEndPath({ path, unwrap = node => node, keyOf, resolvesProperty }) {
+  const end = memberChainEndPath({ path, unwrap });
+  if (end === path) return null;
+  const chainEnd = unwrap(end.node);
+  const above = end.parentPath?.node;
+  const endKey = keyOf(chainEnd);
+  if ((above?.type === 'CallExpression' || above?.type === 'OptionalCallExpression')
+    && unwrap(above.callee) === chainEnd
+    && endKey && resolvesProperty(endKey, end)) return null;
+  return end;
+}
+
 export function aliasTargetName(parent) {
   if (parent?.type === 'VariableDeclarator') return parent.id?.type === 'Identifier' ? parent.id.name : null;
   return parent?.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(parent.operator)
