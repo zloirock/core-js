@@ -44,6 +44,7 @@ const req = createRequire(import.meta.url);
 const which = req('which');
 
 const ART = join(HERE, 'artifacts');
+const MANIFEST = join(ART, 'manifest.json');
 const SNAP = join(HERE, 'snapshots');
 const TMP = join(HERE, '.tmp');
 const KARMA_OUT = join(TMP, 'karma');
@@ -133,8 +134,10 @@ async function preflight(code) {
   }
 }
 
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const HTML_ESCAPE_RE = /["&'<>]/g;
 function esc(s) {
-  return String(s).replaceAll(/["&'<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return String(s).replaceAll(HTML_ESCAPE_RE, c => HTML_ESCAPES[c]);
 }
 
 // The in-page harness (banner target) lives in harness.mjs, shared with the Karma driver and parsed
@@ -184,7 +187,7 @@ const rebuilt = new Set(libs.map(l => l.name));
 let previous = [];
 if (libFilter) {
   try {
-    const parsed = JSON.parse(await readFile(join(ART, 'manifest.json'), 'utf8'));
+    const parsed = JSON.parse(await readFile(MANIFEST, 'utf8'));
     if (!Array.isArray(parsed)) throw new Error('manifest.json is not an array');
     previous = parsed.filter(e => !rebuilt.has(e.lib));
   } catch (err) {
@@ -225,7 +228,7 @@ async function version(pkg) {
 const [vOxc, vCoreJs, vRxjs, vThree, vCm] = await Promise.all(
   ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
 console.log(`environment: ${ process.platform }/${ process.arch } node ${ process.version }`
-  + ` | oxc-parser ${ vOxc } | core-js ${ vCoreJs } | rxjs ${ vRxjs } three ${ vThree } @codemirror/state ${ vCm }`);
+  + ` | oxc-parser ${ vOxc } | core-js ${ vCoreJs } | rxjs ${ vRxjs } | three ${ vThree } | @codemirror/state ${ vCm }`);
 
 const cells = [];
 for (const lib of libs) {
@@ -301,8 +304,8 @@ if (!manifest.length) throw new Error('no cells ran — the registry or METHODS 
 await mkdir(ART, { recursive: true });
 // `previous` was read before the wipe above — a filtered run keeps the entries of the libraries it
 // did not touch, whose pages are still on disk
-await writeFile(join(ART, 'manifest.json'), `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
-console.log(`\nartifacts → ${ ART }\nmanifest → ${ join(ART, 'manifest.json') }`);
+await writeFile(MANIFEST, `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
+console.log(`\nartifacts → ${ ART }\nmanifest → ${ MANIFEST }`);
 console.log('Upload each <lib>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.');
 
 // -------- real IE11, where one exists --------
