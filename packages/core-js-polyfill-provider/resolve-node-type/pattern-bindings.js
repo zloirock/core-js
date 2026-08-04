@@ -1,10 +1,13 @@
 // Destructuring + for-of binding resolution. given an Identifier inside an ArrayPattern /
 // ObjectPattern (potentially nested), walks up to find what type-shape the binding receives.
-// supports four sources, tried in order:
-//   1. annotation on the pattern itself (`const { x }: { x: T }`)
-//   2. annotation on the init expression (`const { x } = (init as { x: T })`)
-//   3. for-of iterable element type (`for (const { x } of items)`)
-//   4. destructuring default fallback (`const { x = T() } = ...`)
+// sources, tried in order:
+//   1. a rest element at any depth (`[...rest]` is Array whatever the source is)
+//   2. annotation on the pattern itself (`const { x }: { x: T }`)
+//   3. annotation on the init expression (`const { x } = (init as { x: T })`)
+//   4. runtime init value (`const [a] = ['x']`)
+//   5. for-of iterable element type, annotated then runtime (`for (const { x } of items)`)
+// a destructuring default (`const { x = T() } = ...`) is not a source of its own - it folds
+// into whichever of the above answered, in `foldWithPatternDefault`
 //
 // For-of helpers double-duty for both annotated (`Iterable<T>` -> T) and runtime
 // (`for (const x of 'hello')` -> string) cases. Promise unwrapping for `for await of`.
@@ -15,7 +18,7 @@
 import {
   $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
-import { collectQualifiedSegments, isBareUndefinedIdentifier } from './ast-shapes.js';
+import { collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import { isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
 
@@ -56,13 +59,6 @@ export function createPatternBindings({
   violationRunsDeferred,
   usageRunsDeferred,
 }) {
-  // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
-  // sentinel conventions:
-  //   - null         not found
-  //   - [-1]         found in rest (-1 signals "whole tail" slice, not an index)
-  //   - [i, ...sub]  found at index i (possibly nested)
-  // `findPatternIndex` below uses `-1` with a DIFFERENT meaning ("not found" scalar); the
-  // return shape (array vs scalar) disambiguates at call sites
   // dispatch by pattern kind so callers (and the recursive child walks below) don't repeat
   // the type-test pair. unknown kinds return null - caller signals "binding not found here"
   function findPatternKeyPath(pattern, name, scope) {
@@ -71,6 +67,13 @@ export function createPatternBindings({
     return null;
   }
 
+  // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
+  // sentinel conventions:
+  //   - null              not found
+  //   - [-(i + 1)]        found in the rest element at position i (a slice, not an index)
+  //   - [i, ...sub]       found at index i (possibly nested)
+  // `findPatternIndex` below uses `-1` with a DIFFERENT meaning ("not found" scalar); the
+  // return shape (array vs scalar) disambiguates at call sites
   function findArrayPatternKeyPath(arrayPattern, name, scope) {
     for (let i = 0; i < (arrayPattern.elements?.length ?? 0); i++) {
       const el = arrayPattern.elements[i];
@@ -90,9 +93,10 @@ export function createPatternBindings({
           }
         }
         // nested ObjectPattern in rest (`const [...{ length }] = arr`) reads a key off the
-        // rest Array. signal `[-1, ...inner]`; the resolver bails on a non-empty inner path
-        // rather than mis-narrow the key as the Array itself (resolving it precisely - e.g.
-        // `length` -> number, numeric -> element - needs the source element type)
+        // rest Array. signal `[-(i + 1), ...inner]` - the same slice encoding as above, and the
+        // resolver bails on ANY negative head with a non-empty inner path rather than mis-narrow
+        // the key as the Array itself (resolving it precisely - e.g. `length` -> number, numeric
+        // -> element - needs the source element type)
         if (el.argument?.type === 'ObjectPattern') {
           const inner = findDestructuredKeyPath(el.argument, name, scope);
           if (inner) return [-(i + 1), ...inner];
@@ -673,7 +677,7 @@ export function createPatternBindings({
     if (method?.type !== 'TSMethodSignature') return null;
     const cbParam = dropLeadingThisParam(functionTypeParams(method))?.[argIndex];
     const cbFnType = unwrapTypeAnnotation(cbParam?.typeAnnotation);
-    if (cbFnType?.type !== 'TSFunctionType' && cbFnType?.type !== 'FunctionTypeAnnotation') return null;
+    if (!isFunctionTypeNode(cbFnType)) return null;
     const target = dropLeadingThisParam(functionTypeParams(cbFnType))?.[paramIndex];
     const annotation = unwrapTypeAnnotation(target?.typeAnnotation);
     if (!annotation) return null;
