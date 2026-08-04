@@ -630,7 +630,10 @@ export default function plugin(api, options) {
 
       // `X in Y` rewrite. The branch decision and side-effect harvest live in the shared
       // planInExpression; here we only render the chosen shape into babel AST
+      const foldedInTests = new WeakSet();
       function handleInExpression(meta, path) {
+        // the wrap below re-queues the test it keeps; without this it would wrap its own wrap
+        if (foldedInTests.has(path.node)) return;
         const plan = planInExpression({
           meta,
           left: path.node.left,
@@ -641,6 +644,7 @@ export default function plugin(api, options) {
           // unknown / static-receiver / symbol shapes - the plan gates on it)
           receiverHint: !meta.object && meta.key && !meta.symbolSourced
             ? toHint(resolveNodeType(path.get('right'))) : null,
+          parent: path.parentPath?.node ?? null,
         });
         if (plan.kind === 'noop') return;
         // cloneNode keeps the harvested SE / arg subtrees independent of the replaced tree -
@@ -648,6 +652,14 @@ export default function plugin(api, options) {
         const lhsSe = plan.leadingSe.map(e => t.cloneNode(e));
         function withLhsSe(core) {
           return lhsSe.length ? t.sequenceExpression([...lhsSe, core]) : core;
+        }
+        // keep the membership test live (it carries the throw) and answer `true` after it. the clone
+        // is re-queued by `replaceWith`, so the receiver inside still gets its own rewrite
+        if (plan.kind === 'fold-after-test') {
+          const test = t.cloneNode(path.node);
+          foldedInTests.add(test);
+          path.replaceWith(t.sequenceExpression([test, t.booleanLiteral(true)]));
+          return;
         }
         if (plan.kind === 'symbol') {
           const id = injectPureImport(plan.entry, plan.hint);
