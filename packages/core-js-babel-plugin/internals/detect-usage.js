@@ -1016,7 +1016,7 @@ export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesF
       if (path.isForOfStatement()) rules.onForOfStatement(path.node);
       else rules.onArrayPattern(path.node);
     },
-    SpreadElement(path) { rules.onSpreadElement(path.node, path.parentPath.node.type); },
+    SpreadElement(path) { rules.onSpreadElement(path.node, path.parent?.type); },
     YieldExpression(path) { rules.onYieldExpression(path.node); },
     VariableDeclaration(path) { rules.onVariableDeclaration(path.node); },
     Class(path) { rules.onClass(path.node); },

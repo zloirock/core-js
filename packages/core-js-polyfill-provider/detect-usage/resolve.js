@@ -1462,8 +1462,12 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
     ?? (rootId && (POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name : bareProxyGlobalAliasName(rootId, aliasCtx)));
   if (!rootName || !isPristineProxyGlobal(adapter, rootName)) return null;
   let collapseIdx = -1;
+  // the winning entry travels with the plan: every renderer needs exactly this resolution, and
+  // re-asking it there also carried a `!pure` bail that the plan's own existence rules out
+  let leafPure = null;
   for (let i = hops.length - 1; i >= 0; i--) {
-    if (resolvePure({ kind: 'global', name: hops[i].name })) {
+    leafPure = resolvePure({ kind: 'global', name: hops[i].name });
+    if (leafPure) {
       collapseIdx = i;
       break;
     }
@@ -1474,16 +1478,15 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   for (let i = 0; i < collapseIdx; i++) {
     if (!resolvePure({ kind: 'global', name: hops[i].name })) lastUnresolvableIdx = i;
   }
-  // per-hop `?.` verdict for the RENDERED shape, the spelling both emitters read: an optional
-  // is load-bearing only over a value that can short-circuit. BELOW the collapse that value is
-  // the source prefix (defined until the first unresolvable hop); ABOVE it the value is the
-  // always-defined ponyfill leaf, so the count restarts there (`_self.window?.global`)
-  for (const [from, to] of [[0, collapseIdx], [collapseIdx + 1, hops.length - 1]]) {
-    let shortCircuits = false;
-    for (let i = from; i <= to; i++) {
-      hops[i].liveOptional = hops[i].optional && shortCircuits;
-      shortCircuits ||= !resolvePure({ kind: 'global', name: hops[i].name });
-    }
+  // per-hop `?.` verdict for the TAIL, the spelling both emitters read off the plan: an optional
+  // is load-bearing only over a value that can short-circuit, and above the collapse that value
+  // starts as the always-defined ponyfill leaf (`_self.window?.global`). the KEPT prefix's own
+  // `?.` spelling is not decided here - it belongs to `vestigialNavOptionals`, which both
+  // emitters consult for exactly those hops
+  let tailShortCircuits = false;
+  for (let i = collapseIdx + 1; i < hops.length; i++) {
+    hops[i].liveOptional = hops[i].optional && tailShortCircuits;
+    tailShortCircuits ||= !resolvePure({ kind: 'global', name: hops[i].name });
   }
   const keySeExprs = hops.flatMap(hop => hop.keySeExprs ?? []);
   const rootEffects = !!chainAssign
@@ -1491,7 +1494,7 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   return {
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
     topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
-    leafName: hops[collapseIdx].name, rootValueNode: n, call: identRoot ? null : call,
+    leafName: hops[collapseIdx].name, leafPure, rootValueNode: n, call: identRoot ? null : call,
     // the resolve context travels with the plan: a render re-asks the shared vestigial-`?.`
     // verdict about the kept prefix (a CLONE of it, so node identity cannot carry it)
     ctx: aliasCtx, resolvePure,
