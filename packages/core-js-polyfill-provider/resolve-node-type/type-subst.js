@@ -31,7 +31,7 @@
 // Pure predicates (`isTypeAlias`, `typeAliasBody`, `typeRefName`) come from `ast-shapes`;
 // imported directly because they're closure-free
 import { MAX_DEPTH, MEMBER_ANNOTATION_SLOTS } from './base.js';
-import { isTypeAlias, typeAliasBody, typeRefName } from './ast-shapes.js';
+import { isTypeAlias, isTypeReferenceNode, typeAliasBody, typeRefName } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeSubst({
@@ -131,7 +131,7 @@ export function createTypeSubst({
       seen.add(name);
       try {
         const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1, seen);
-        if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
+        if (!isTypeReferenceNode(replaced)) return replaced;
         if (getTypeArgs(replaced)?.params?.length) return replaced;
         return withSubstitutedTypeArgs(node, replaced, subst, depth, seen);
       } finally {
@@ -409,7 +409,7 @@ export function createTypeSubst({
     // chain unproductive (this resolver has no conditional types to break a self-application)
     const splicedRefs = new Set();
     node = unwrapTypeAnnotation(node);
-    while (depth-- && (node?.type === 'TSTypeReference' || node?.type === 'GenericTypeAnnotation')) {
+    while (depth-- && isTypeReferenceNode(node)) {
       const refName = typeRefName(node);
       if (!refName) break;
       const decl = findTypeDeclaration(refName, scope);
@@ -424,8 +424,7 @@ export function createTypeSubst({
           const spliced = applyAliasSubstDeep(node, subst);
           // identity check guards against subst that resolves F to itself (cycle);
           // depth++ reclaims the iteration consumed by the unproductive lookup
-          if (spliced && spliced !== node
-            && (spliced.type === 'TSTypeReference' || spliced.type === 'GenericTypeAnnotation')) {
+          if (spliced && spliced !== node && isTypeReferenceNode(spliced)) {
             depth++;
             node = unwrapTypeAnnotation(spliced);
             continue;

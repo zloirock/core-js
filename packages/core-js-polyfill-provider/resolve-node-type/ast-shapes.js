@@ -84,7 +84,7 @@ export function readonlyCollectionBase(node) {
   // collection base (a tuple is array-family, matching the `readonly` operator form above)
   if (name === 'Readonly') {
     const arg = peelTSParenthesized(getTypeArgs(n)?.params?.[0]);
-    if (arg?.type === 'TSTupleType' || arg?.type === 'TupleTypeAnnotation') return 'Array';
+    if (arg?.type === 'TSTupleType') return 'Array';
     return mutableCollectionName(arg) ?? readonlyCollectionBase(arg);
   }
   return null;
@@ -98,7 +98,10 @@ export function isReadonlyArrayType(node) {
 // the MUTABLE collection name a type node denotes: `T[]` / `Array<T>` -> 'Array', `Set<T>` -> 'Set',
 // `Map<K, V>` -> 'Map'. else null (readonly forms return null - they are not the mutable collection).
 // paired with `readonlyCollectionBase`: a readonly check is not assignable to the mutable form of the
-// SAME base, so a conditional `<readonly X> extends <mutable X>` takes the FALSE branch
+// SAME base, so a conditional `<readonly X> extends <mutable X>` takes the FALSE branch. the pair is
+// symmetric for the three collection REFERENCES and the `readonly` operator; a tuple has no mutable
+// arm here because `readonly [A, B]` vs `[A, B]` is decided a layer down, where both sides carry a
+// resolved Array Type-Object and only the readonly marker differs
 export function mutableCollectionName(node) {
   const n = peelTSParenthesized(isTypeAnnotationWrapper(node) ? node.typeAnnotation : node);
   if (n?.type === 'TSArrayType') return 'Array';
@@ -107,12 +110,18 @@ export function mutableCollectionName(node) {
   return name === 'Array' || name === 'Set' || name === 'Map' ? name : null;
 }
 
+// Flow spells every type declaration twice - a plain form and an ambient `declare` form with
+// its own node type. the ambient forms describe exactly the same shapes, so a predicate that
+// lists only the plain spellings makes `declare type` / `declare interface` / `declare opaque
+// type` invisible to every type lookup while `declare class` (listed elsewhere) resolves
 export function isTypeAlias(decl) {
-  return decl?.type === 'TSTypeAliasDeclaration' || decl?.type === 'TypeAlias' || decl?.type === 'OpaqueType';
+  return decl?.type === 'TSTypeAliasDeclaration' || decl?.type === 'TypeAlias'
+    || decl?.type === 'DeclareTypeAlias' || decl?.type === 'OpaqueType' || decl?.type === 'DeclareOpaqueType';
 }
 
 export function isInterfaceDeclaration(decl) {
-  return decl?.type === 'TSInterfaceDeclaration' || decl?.type === 'InterfaceDeclaration';
+  return decl?.type === 'TSInterfaceDeclaration' || decl?.type === 'InterfaceDeclaration'
+    || decl?.type === 'DeclareInterface';
 }
 
 // shared accessor for TS/Flow interface body shape: `TSInterfaceBody.body` (TS) vs
@@ -127,6 +136,40 @@ export function interfaceBodyMembers(iface) {
 // must stay in sync, so it lives here as the single source
 export function isUnionType(node) {
   return node?.type === 'TSUnionType' || node?.type === 'UnionTypeAnnotation';
+}
+
+// TS + Flow function-TYPE predicate (the annotation form `(a: A) => B`, not a function node).
+// every callback-parameter peeler gates on this pair; restating it per site is how the Flow
+// arm went missing on one of them, so the list lives here
+export function isFunctionTypeNode(node) {
+  return node?.type === 'TSFunctionType' || node?.type === 'FunctionTypeAnnotation';
+}
+
+// TS + Flow named type reference (`Foo<T>` / `NS.Foo`). `typeRefSegments` already decomposes
+// both spellings, so a gate that admits only the TS one silently drops every Flow file
+export function isTypeReferenceNode(node) {
+  return node?.type === 'TSTypeReference' || node?.type === 'GenericTypeAnnotation';
+}
+
+// TS + Flow inline object type (`{ a: T }`). the members live on different slots
+// (`members` / `properties`) - `getTypeMembers` owns that split; this is only the shape gate
+export function isObjectTypeLiteral(node) {
+  return node?.type === 'TSTypeLiteral' || node?.type === 'ObjectTypeAnnotation';
+}
+
+// value-space literal node of a literal TYPE. TS wraps the ordinary literal in TSLiteralType;
+// Flow has no wrapper - its literal type IS a dedicated node carrying the value. rebuilding the
+// value-space shape for the Flow spelling lets every downstream literal reader stay one dialect
+const FLOW_LITERAL_TYPE_KINDS = new Map([
+  ['StringLiteralTypeAnnotation', 'StringLiteral'],
+  ['NumberLiteralTypeAnnotation', 'NumericLiteral'],
+  ['BooleanLiteralTypeAnnotation', 'BooleanLiteral'],
+  ['BigIntLiteralTypeAnnotation', 'BigIntLiteral'],
+]);
+export function literalTypeValueNode(node) {
+  if (node?.type === 'TSLiteralType') return node.literal;
+  const kind = FLOW_LITERAL_TYPE_KINDS.get(node?.type);
+  return kind ? { type: kind, value: node.value } : null;
 }
 
 // node-type set for "structurally a method signature on a member slot": interface methods
@@ -147,7 +190,10 @@ export function isMethodShapeMember(memberType) {
 
 export function typeAliasBody(decl) {
   if (decl.type === 'TSTypeAliasDeclaration') return decl.typeAnnotation;
-  if (decl.type === 'OpaqueType') return decl.impltype;
+  // an ambient opaque type publishes only its SUPERTYPE bound - values of the opaque type are
+  // assignable to it, so its members are present on every such value and the bound is the most
+  // precise shape available outside the defining module
+  if (decl.type === 'OpaqueType' || decl.type === 'DeclareOpaqueType') return decl.impltype ?? decl.supertype;
   return decl.right;
 }
 

@@ -3756,6 +3756,14 @@ export function isMutatedGlobalSlot(adapter, key) {
   return !!key && !!adapter?.isMutatedStatic?.('globalThis', key);
 }
 
+// does a usage meta name a global slot the file itself writes? such a read is DEOPTED - it stays
+// verbatim on the live binding so the runtime serves what the user's writes left there. the
+// question is about the NAME, so it is asked here once: spelled per emitter it drifted, one of
+// them additionally gating on the node shape, which narrows a BAIL-safe verdict
+export function isDeoptedGlobalSlotRead(meta, adapter) {
+  return meta?.kind === 'global' && isMutatedGlobalSlot(adapter, meta.name);
+}
+
 // the one question every proxy-root recogniser asks: does this NAME still stand for the pristine
 // global surface? the two halves must travel together - a name that is a known proxy but whose slot
 // the user overwrote (`window = fake`) holds the replacement, not the surface, so recognising it
@@ -3996,6 +4004,10 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
 // `RestElement` and `SpreadElement` are equivalent for `{a, ...rest}` patterns - estree
 // uses the latter, babel uses the former. helper centralises the check so destructure-
 // emitter rest-detection paths stay parser-agnostic
+// rest binding in either spelling. an object PATTERN uses `RestElement` on every parser and the
+// `SpreadElement` arm is unreached from the pattern walks (instrumented over the fixture corpora),
+// but the predicate is published and unit-locked as parser-agnostic - so the arm stays and the
+// narrow single-type tests on the same decision path route through here instead
 export function isRestProperty(prop) {
   return prop?.type === 'RestElement' || prop?.type === 'SpreadElement';
 }
@@ -5171,6 +5183,13 @@ export function staticFallbackSwapRedundant(receiverNode, sideEffects) {
 // `superTypeArguments` under the same split
 export const getTypeArgs = node => node?.typeParameters ?? node?.typeArguments;
 export const getSuperTypeArgs = node => node?.superTypeArguments ?? node?.superTypeParameters;
+
+// Flow's ambient class (`declare class Sub extends Base<T>`) has no `superClass` and no
+// superType* slots at all - both the parent reference and its type arguments live on the
+// heritage clause. every chain walker needs the same disjunction, so it lives here instead of
+// being restated per walker (which is how one walker ended up stopping at the first Flow hop)
+export const heritageClause = node => node?.extends?.[0];
+export const getHeritageTypeArgs = node => getSuperTypeArgs(node) ?? heritageClause(node)?.typeParameters;
 
 // `export const X = ...` / `export default function X() {}` bind `X` in the module scope
 // exactly like their un-exported form; callers that inspect top-level declarations get the
