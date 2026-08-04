@@ -9,17 +9,25 @@
 //   resolveReturnType(fnPath, callPath, classSubst)  - main entry
 //   resolveBodyReturnType(fnPath, callPath)          - body-return fold (used by awaited
 //                                                       cluster's `resolveAwaitedFromCallBody`)
+//   collectReturnPaths(blockPath)                    - the `return` statements a body-fold walks
+//                                                       (also drives the class-member cluster's
+//                                                       method / getter return resolution)
 //   getTypeParamArgPath(typeParamMap, paramName)     - look up the call arg's NodePath for a
-//                                                       bound type param (used by
-//                                                       `resolveIndexAccessHit` to peek into
-//                                                       the actual ObjectExpression literal
-//                                                       past the declared T[K] constraint)
+//                                                       bound type param (peeks into the actual
+//                                                       ObjectExpression literal past the
+//                                                       declared T[K] constraint, for both the
+//                                                       index-access hit and the arg-literal
+//                                                       index in the factory)
+//   hasParamTypeRef(param, typeParamNames, depth)    - does this param's annotation mention one
+//                                                       of the type params? (the call-resolution
+//                                                       cluster's inference gate)
 //   reset()                                          - reset the sidecar arg-path WeakMap
 //
 // Private closures (not in the service object's return): `hasTypeParamReference`,
 // `innerTypeParamName`, `bindTypeParam`, `buildTypeParamMap`, `resolveCallArgType`,
 // `resolveDirectParam`, `resolvePatternParam`, `resolveParamType`, `resolveBodyExpr`,
-// `wrapAsyncPromise`, `applyCallSiteSubst`.
+// `wrapAsyncPromise`, `applyCallSiteSubst`, `findBindingParam`, `paramHasOverridingArg`,
+// `hasAnyParamTypeRef`, `isStructuralAnnotation`.
 import {
   MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
   argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,

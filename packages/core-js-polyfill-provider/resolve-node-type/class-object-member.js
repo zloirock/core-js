@@ -9,21 +9,15 @@
 //   - object literal properties (regular / shorthand / getter / setter / method shorthand /
 //     spread bailout)
 //
-// Public surface:
+// Public surface (exactly what the factory returns; everything else in this file is
+// cluster-private and listed at the return statement):
 //   findClassMember({ classPath, name, isStatic, classSubst, depth, visited })
 //   resolveClassMember({ classPath, name, isStatic, callPath, receiverArgs })
-//   resolveClassMemberNode(member, callPath, classSubst)
-//   resolveMethodOrGetterCallReturn({ methodFn, kind, callPath, classSubst })
-//   resolveBodyReturnValue(fnPath)
 //   methodFnPath(memberPath)
 //   classSubstInner(annotation, subst)
 //   findObjectMember(objectPath, name)
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
-//   resolveMemberFromMembers({ members, name, scope, callPath })
-//   isMethodMember(node)
-//   isPropertyMember(node)
-//   isDataFieldMember(node)
 import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
 import { isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
@@ -573,9 +567,12 @@ export function createClassObjectMember({
     return null;
   }
 
-  // cluster-private (consumed only by other cluster functions, never reach the factory
-  // surface): `resolveClassMemberNode` / `resolveMethodOrGetterCallReturn` /
-  // `resolveBodyReturnValue` / `resolveMemberFromMembers`
+  // cluster-private (consumed only by other cluster functions, never reach the factory surface):
+  // `resolveClassMemberNode` / `resolveMethodOrGetterCallReturn` / `resolveBodyReturnValue` /
+  // `resolveMemberFromMembers` / `isDataFieldMember` / `isMethodMember` / `isPropertyMember` /
+  // `memberKeyMatches` / `hasOwnAccessor` / `viaThisShadowBail` / `resolveMergedNamespaceStatic` /
+  // `bodylessReturnPath` / `isBodylessMethodShape` / `declaredCallableReturn` /
+  // `resolveBodylessMethodOverloads`
   return {
     findClassMember,
     resolveClassMember,
@@ -584,7 +581,5 @@ export function createClassObjectMember({
     findObjectMember,
     resolveObjectMember,
     applySubstToTypeRefArgs,
-    isMethodMember,
-    isPropertyMember,
   };
 }
