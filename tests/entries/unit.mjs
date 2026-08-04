@@ -1,8 +1,10 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
-import { ok } from 'node:assert/strict';
+import { ok, throws } from 'node:assert/strict';
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
+// captured before `load` starts draining `expected`
+const nullishRejectingEntries = [...expected].filter(it => it.includes('/instance/'));
 const tested = new Set();
 let PATH;
 
@@ -1361,6 +1363,20 @@ for (const NS of ['full']) {
   }
 }
 
+// an instance entry REJECTS a nullish receiver. the transpilers lean on this: a short-circuited
+// chain can reach a helper as `_flat(_ref = x == null ? void 0 : ...)`, and that spelling only
+// matches the source while the helper throws there - a tolerant one would answer a value where
+// native throws, silently changing transpiled output with nothing to catch it
+for (const flavor of ['@core-js/pure', 'core-js']) {
+  for (const entry of nullishRejectingEntries) {
+    const helper = require(`${ flavor }/${ entry }`);
+    for (const nullish of [null, undefined]) {
+      throws(() => helper(nullish).call(nullish), TypeError, `${ flavor }/${ entry } accepted a nullish receiver`);
+    }
+  }
+}
+
+echo(chalk.green(`tested ${ chalk.cyan(nullishRejectingEntries.length * 2) } instance entries reject a nullish receiver`));
 echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
 
 if (expected.size) {
