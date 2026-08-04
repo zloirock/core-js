@@ -27,6 +27,20 @@ const CASES = [
   ['sealed proto swap probe', 'export const r = (globalThis.window?.self).Map.prototype.has.call(new Map(), 1);'],
   ['delete through probe', 'export const r = delete globalThis.window?.self.customProp;'],
   ['kept assign with seal', 'let d;\nexport const r = (d = globalThis.window?.self).Array;'],
+  // the layer / sequence / chaining families: their renders are built from spans on the text side
+  // and folded in place here, so both emitters owe the same fixed point
+  ['paren layer over nav', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'
+    + 'export const r = (globalThis.window?.self.iBox).arr?.flat();'],
+  ['sequence receiver', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'
+    + "export const r = ('x', globalThis.window?.self.iBox.arr)?.flat();"],
+  ['sequence member dispatch', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'
+    + "export const r = ('x', globalThis.window?.self.iBox).arr?.flat();"],
+  ['repeated nav chained consumer', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'
+    + 'export const r = (globalThis.window?.self.iBox.arr, globalThis.window?.self.iBox.arr)?.flat().concat([]);'],
+  ['chained consumer over paren layer', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'
+    + 'export const r = (globalThis.window?.self.iBox).arr?.flat().concat([]);'],
+  ['write target through the guard', 'globalThis.iBox = { n: 1 };\n'
+    + 'export function w() { (globalThis.window?.self.iBox).n = 2; return globalThis.window?.self.iBox.n; }'],
   ['mutated-self standdown', 'globalThis.self = globalThis.self;\n'
     + 'export const r = (globalThis.window?.self).Object.entries;\n'
     + 'export const { keys: k } = (globalThis.window?.self).Object;'],
