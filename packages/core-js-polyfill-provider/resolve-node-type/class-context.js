@@ -22,7 +22,7 @@
 // `getSuperTypeArgs` comes from `helpers/ast-patterns.js` directly
 import { isAmbientClassNode } from './name-resolution.js';
 import { collectQualifiedSegments } from './ast-shapes.js';
-import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
+import { getHeritageTypeArgs } from '../helpers/ast-patterns.js';
 
 // ESTree Property / babel ObjectProperty - both shapes wrap an object/class method's
 // function-value via the `.value` slot. unified set covers both parser dialects
@@ -191,11 +191,10 @@ export function createClassContext({
   // node-based primitive shared by `findClassMember` (path-based) and `collectClassLikeMembers`
   // (raw-node walk-up); the path-based wrapper just unwraps `.node` slots
   function buildParentClassSubstFromNodes(childNode, parentNode, childSubst, scope) {
-    // Flow `declare class Sub extends Base<...>` (DeclareClass) carries super-type-args on the
-    // heritage clause (`extends[0].typeParameters`), not on the superType* slots getSuperTypeArgs
-    // probes; without the fallback the parent decl-param subst is empty and inherited generic
-    // members resolve to the unbound type-param (lost narrow)
-    const superTypeArgs = (getSuperTypeArgs(childNode) ?? childNode.extends?.[0]?.typeParameters)?.params;
+    // the heritage accessor covers the Flow ambient spelling too: without it the parent
+    // decl-param subst is empty and inherited generic members resolve to the unbound
+    // type-param (lost narrow)
+    const superTypeArgs = getHeritageTypeArgs(childNode)?.params;
     const parentDeclParams = parentNode.typeParameters?.params;
     if (!superTypeArgs?.length || !parentDeclParams?.length) return null;
     const args = childSubst ? superTypeArgs.map(a => applyAliasSubstDeep(a, childSubst)) : superTypeArgs;

@@ -295,7 +295,8 @@ export function createDestructureEmitter({
     // the gate (branch enumeration + resolution) is a debug-only concern - skip it entirely when
     // debug output is off, so the common build path pays nothing for the diagnostic
     const debug = getDebugOutput?.();
-    if (!debug || !fallbackDestructureHasPolyfillableBranch(meta, metaPath, estreeAdapter, resolvePure)) return;
+    if (!debug
+      || !fallbackDestructureHasPolyfillableBranch({ meta, path: metaPath, adapter: estreeAdapter, resolvePure })) return;
     debug.warn?.(conditionalDestructureLeftUntouchedWarning(meta.key));
   }
 
@@ -4534,7 +4535,6 @@ export function createDestructureEmitter({
     for (let p = recPath; p?.node; p = p.parentPath) {
       if (pendingSynthSwaps.has(p.node)) return false;
       if (!(p.node.type === 'MemberExpression' || p.node.type === 'OptionalMemberExpression'
-        || p.node.type === 'LogicalExpression' || p.node.type === 'ConditionalExpression'
         || PROXY_HOP_VALUE_CARRIERS.has(p.node.type))) break;
     }
     // an EARLIER channel already owns this exact span (a get-iterator instance dispatch or a
