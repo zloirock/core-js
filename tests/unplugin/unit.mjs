@@ -5126,6 +5126,153 @@ function checkFileStrictness() {
 }
 checkFileStrictness();
 
+// --- source shape that moves offsets: CRLF, BOM, astral characters ---
+
+// every span the render computes is a PARSER offset into the source, so a byte-order mark, CRLF
+// line endings and astral characters each have to leave the emitted guard identical to the plain
+// ASCII baseline - a slice taken in the wrong unit would corrupt it silently rather than throw
+function checkOffsetShapes() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const BODY = ['globalThis.oBox = { list: [\'ab\'] };',
+    'export const plain = globalThis.window?.self.oBox.list?.at(0);',
+    'export const layered = (globalThis.window?.self.oBox).list?.at(0);'].join('\n');
+  function guardLines(code) {
+    const out = createPlugin(OPTIONS).transform(code, '/p.mjs')?.code ?? code;
+    return out.split(/\r?\n/u).filter(line => line.startsWith('export const')).join(' | ').replace(/^\u{FEFF}/u, '');
+  }
+  const baseline = guardLines(BODY);
+  check('offsets/baseline renders both guards', baseline.includes('_self.oBox.list') && baseline.includes('void 0'), true);
+  for (const [label, code] of [
+    ['crlf', BODY.replaceAll('\n', '\r\n')],
+    ['bom', `\uFEFF${ BODY }`],
+    ['astral before', `const e = '\u{1F600}\u{1F680}';\n${ BODY }\nexport { e };`],
+    ['astral in comment', `// \u{1F600}\n${ BODY }`],
+    ['astral identifier', `const \u{1D49C} = 1;\n${ BODY }\nexport { \u{1D49C} as script };`],
+  ]) {
+    check(`offsets/${ label } matches the ascii baseline`, guardLines(code), baseline);
+  }
+}
+checkOffsetShapes();
+
+// --- source map: every mapping the guard render emits stays inside the original ---
+
+// the render replaces spans wholesale, so a mapping that pointed past the source would break every
+// consumer downstream. assert the decoded positions land on real source lines, including the line
+// the nav sits on
+function checkGuardSourceMap() {
+  const code = ['globalThis.mBox = { list: [\'ab\'] };',
+    'export const r = (globalThis.window?.self.mBox).list?.at(0);', ''].join('\n');
+  const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(code, '/p.mjs');
+  check('sourcemap/emitted', !!out?.map?.mappings, true);
+  const tracer = new TraceMap({ ...out.map, sources: ['/p.mjs'], sourcesContent: [code] });
+  const lines = code.split('\n');
+  const emitted = out.code.split('\n');
+  let outside = 0;
+  let navLineHits = 0;
+  for (const [row, text] of emitted.entries()) {
+    for (let col = 0; col < text.length; col += 1) {
+      const pos = originalPositionFor(tracer, { line: row + 1, column: col });
+      if (pos.line === null || pos.line === undefined) continue;
+      if (pos.line > lines.length || pos.column > (lines[pos.line - 1]?.length ?? 0)) outside += 1;
+      if (pos.line === 2) navLineHits += 1;
+    }
+  }
+  check('sourcemap/no mapping points outside the source', outside, 0);
+  check('sourcemap/the nav line is mapped', navLineHits > 0, true);
+}
+checkGuardSourceMap();
+
+// --- per-file isolation of the binding registry the composition consults ---
+
+// composition asks the file's injector which names it minted. a bundler reuses ONE plugin instance
+// across every module, so a registry that outlived a file would answer for names the next file
+// never had - and the next file's own bindings are deliberately different whenever it owns the
+// preferred name itself, which is exactly what makes a leak observable
+function checkPerFileBindingIsolation() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const NAV = 'globalThis.window?.self.mBox';
+  const FILES = [
+    ['/a.mjs', `globalThis.mBox = { arr: [3, [1, 2]] };\nexport const r = ('x', ${ NAV }.arr)?.flat();\n`],
+    ['/b.mjs', 'globalThis.mBox = { arr: [3, [1, 2]] };\nconst _globalThis = 1, _self = 2;\n'
+      + `export const r = (${ NAV }).arr?.flat();\nexport { _globalThis, _self };\n`],
+  ];
+  const shared = createPlugin(OPTIONS);
+  function bindingsOf(out) {
+    return out.matchAll(/^import (?<local>\w+) from ["']@core-js/gmu).map(m => m.groups.local).toArray().join(',');
+  }
+  for (const [id, code] of FILES) {
+    const viaShared = shared.transform(code, id)?.code ?? code;
+    const viaFresh = createPlugin(OPTIONS).transform(code, id)?.code ?? code;
+    check(`per-file isolation/${ id } shared instance matches a fresh one`, viaShared, viaFresh);
+  }
+  // the two files mint DIFFERENT names (the second owns the preferred ones), so a leaked registry
+  // would show up as the wrong set here rather than passing unnoticed
+  const first = shared.transform(FILES[0][1], FILES[0][0])?.code ?? '';
+  const second = shared.transform(FILES[1][1], FILES[1][0])?.code ?? '';
+  check('per-file isolation/first file keeps the preferred names',
+    bindingsOf(first), '_flatMaybeArray,_globalThis,_self');
+  check('per-file isolation/second file dedupes around the user names',
+    bindingsOf(second), '_flatMaybeArray,_globalThis2,_self2');
+}
+checkPerFileBindingIsolation();
+
+// --- renamed-slot recovery: only names the injector minted count as a resolved head ---
+
+// an outer builds its text with the chain root already resolved, so an inner's raw source needle is
+// absent while its own slot sits right there under the minted name. the recovery must key on the
+// injector's registry, not on the name's shape: a user identifier of the same shape is DATA, and
+// treating it as the slot rewrote the user's expression and left the real one unrewritten
+function checkRenamedSlotRecovery() {
+  const code = 'F(_own.window.self.box, g.window.self.box);';
+  const inner = code.indexOf('g.window.self.box');
+  const outerContent = 'OUT(_own.window.self.box, _g.window.self.box)';
+  function compose(hint) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    if (hint) q.useBindingHints(name => name === '_g' ? 'g' : null);
+    q.add(0, code.length, outerContent);
+    q.add(inner, inner + 'g.window.self.box'.length, 'RENDER');
+    q.apply();
+    return ms.toString();
+  }
+  // with the registry the recovery lands on the minted slot and leaves the user's own alone
+  check('renamed slot/minted head is the slot', compose(true), 'OUT(_own.window.self.box, RENDER)');
+  // without it nothing is minted, so no token qualifies and the inner stays a phantom - never the
+  // user's expression
+  check('renamed slot/no registry leaves the user expression', compose(false), outerContent);
+}
+checkRenamedSlotRecovery();
+
+// --- re-transform stability of the guard renders (text emitter) ---
+
+// the text emitter builds its renders from source SPANS, so a second pass over its own output sees
+// a shape it never parsed before. every family this canon emits must be a fixed point in content -
+// a re-render would double the guard or re-memoize, and a composition that no longer locates its
+// needle would throw outright
+function checkRetransformStability() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const PRELUDE = 'globalThis.iBox = { n: 4, arr: [3, [1, 2]] };\nlet h;\n';
+  const NAV = 'globalThis.window?.self.iBox';
+  const ASSIGN_ROOT = '(h = globalThis)?.window?.self.iBox';
+  for (const [label, expr] of [
+    ['plain dispatch', `${ NAV }.arr?.flat()`],
+    ['paren layer over nav', `(${ NAV }).arr?.flat()`],
+    ['sequence receiver', `('x', ${ NAV }.arr)?.flat()`],
+    ['sequence member dispatch', `('x', ${ NAV }).arr?.flat()`],
+    ['repeated nav chained consumer', `(${ NAV }.arr, ${ NAV }.arr)?.flat().concat([])`],
+    ['chained consumer over paren layer', `(${ NAV }).arr?.flat().concat([])`],
+    ['assign root in a sequence', `('x', ${ ASSIGN_ROOT }.arr)?.flat()`],
+    ['plain value read', `${ NAV }.n`],
+  ]) {
+    const source = `${ PRELUDE }export const r = ${ expr };\nexport { h };\n`;
+    const plugin = createPlugin(OPTIONS);
+    const first = plugin.transform(source, '/p.mjs')?.code ?? source;
+    const second = createPlugin(OPTIONS).transform(first, '/p.mjs')?.code ?? first;
+    check(`retransform/${ label }`, second, first);
+  }
+}
+checkRetransformStability();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
