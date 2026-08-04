@@ -3052,6 +3052,53 @@ export function receiverCarriesLiveOptional(node) {
   return false;
 }
 
+// node types whose value is always a freshly-made object - the only left operands of `&&` that
+// cannot hand `in` something it throws on
+const ALWAYS_TRUTHY_OBJECT_NODES = new Set([
+  'ObjectExpression',
+  'ArrayExpression',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ClassExpression',
+  'NewExpression',
+]);
+
+// can this expression's VALUE come out nullish? the sibling question to
+// `receiverCarriesLiveOptional`, and the parens do NOT stop this walk: sealing an optional chain
+// keeps its value undefined, it only stops the short-circuit from propagating to what follows.
+// a short-circuit wears TWO spellings - the source's `?.` and the LOWERED ternary a sibling
+// transform leaves behind (`a == null ? void 0 : a.slice()`), which is what the post-babel pass
+// sees - so both count, as does a branch that is a nullish literal outright. callers that ERASE the
+// expression need this: `'flat' in x` folds to a constant only while `x` cannot be the nullish that
+// `in` throws on, and the resolved type hint says nothing about it - a union drops the void branch
+export function valueMayBeNullish(node) {
+  for (let next = node; next && typeof next === 'object';) {
+    const cur = peelSkippableWrappers(next);
+    if (!cur || typeof cur !== 'object') return false;
+    if (cur.optional === true || isNullLiteralNode(cur) || isBareUndefinedIdentifier(cur)) return true;
+    if (cur.type === 'UnaryExpression' && cur.operator === 'void') return true;
+    // the branching shapes are the only ones that need both sides answered
+    if (cur.type === 'ConditionalExpression') {
+      return valueMayBeNullish(cur.consequent) || valueMayBeNullish(cur.alternate);
+    }
+    // the logical operators are NOT symmetric here. `&&` yields its LEFT whenever that is falsy, and
+    // every falsy value is one `in` throws on (nullish outright, or a primitive that is not an
+    // object), so only an always-truthy object literal on the left keeps the answer decidable
+    if (cur.type === 'LogicalExpression' && cur.operator === '&&'
+      && !ALWAYS_TRUTHY_OBJECT_NODES.has(cur.left?.type)) return true;
+    switch (cur.type) {
+      // `||` and `??` yield the left only when it is truthy / non-nullish, so the right operand is
+      // the only one that can carry a nullish through
+      case 'LogicalExpression': next = cur.right; break;
+      case 'SequenceExpression': next = cur.expressions.at(-1); break;
+      case 'MemberExpression': case 'OptionalMemberExpression': next = cur.object; break;
+      case 'CallExpression': case 'OptionalCallExpression': next = cur.callee; break;
+      default: return false;
+    }
+  }
+  return false;
+}
+
 // every position where a MemberExpression's slot value changes at runtime. union of:
 //   - write-only via `=` LHS / destructure-LHS / pattern-target (via `isMemberWriteOnlyContext`)
 //   - compound assignment LHS (`Array.from += X` - reads then writes)
