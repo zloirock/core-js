@@ -127,9 +127,13 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
 **Runners.** Four entry points, each exposed as a root npm script:
 
 - **pipeline** — the full picture: **size AND time at each stage** of the real IE11 build, per
-  (lib × method). Stages: `[A]` library bundled, no transforms → `[B]` + Babel (ES5, no polyfills) →
+  (lib × method). Stages: `[A]` library bundled, no down-compile → `[B]` + Babel (ES5, no polyfills) →
   `[C]` + unplugin (polyfills = IE11). Also reports injection count, the Babel-vs-unplugin time split
-  of `[C]`, and the minified + gzip **wire size** of `[C]`.
+  of `[C]`, and the minified + gzip **wire size** of `[C]`. `[A]` is "no transforms" only for a
+  JS-source library; a TypeScript one has its types erased there and nothing else, because rollup
+  cannot parse `.ts` at all. Erasure is not a down-compile, so the ES5 lowering is still wholly in the
+  `[A]` → `[B]` delta — but the `source loaded` figure above it counts TypeScript, annotations
+  included, and the report labels that row so the two are not read as one measurement.
   `[A]` and `[B]` depend on the library only — neither carries unplugin, and the entry is identical
   for both usage-* methods — so they are measured **once per library** and both usage-* rows show
   that one build. Identical `[A]`/`[B]` figures in those two rows are one measurement printed twice,
