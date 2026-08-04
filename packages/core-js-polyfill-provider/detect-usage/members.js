@@ -702,7 +702,7 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
 
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-  resolvePure = null,
+  resolvePure = null, keptProxyHops = null,
 }) {
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
@@ -863,7 +863,12 @@ export function handleMemberExpressionNode({
     const subsumesReceiver = (!POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
         && !!resolveMeta?.({ kind: 'global', name: meta.object }, path))
       || !resolveMeta || !!resolveMeta(meta, path);
-    markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver });
+    // a hop suppressed under a meta whose own OBJECT is an ordinary name (`bx.arr`) belongs to the
+    // receiver PATH, not to the claim - it survives into the output and an emitter that can rewrite
+    // it without colliding with the outer span records it. a meta rooted at a proxy global
+    // (`self.Array`) IS the chain's claim, and its render owns the hop
+    markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver,
+      keptProxyHops: !subsumesReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(meta.object) ? keptProxyHops : null });
     // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
     // `_Symbol$iterator`, `Promise.resolve` -> `_Promise$resolve`), so the receiver chain is SUBSUMED -
     // unlike a prototype-method receiver (`_Map.prototype.has`) whose constructor member stays the
@@ -1246,7 +1251,8 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
 // key resolved). even when `meta.object === null` (receiver Identifier didn't match
 // `isStaticPlacement` - bound local variable), marking the receiver is correct: a local binding
 // shouldn't produce a polyfill import via the identifier visitor, so suppression is the right behaviour
-function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver = true }) {
+function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver = true,
+  keptProxyHops = null }) {
   let obj = unwrapTransparentSeq(node.object);
   // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
   // prefix expressions survive in the output (their own polyfills must still fire), so descend to
@@ -1271,6 +1277,9 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
     && (findProxyGlobal(current) || chainRootResolvesToProxyGlobal({ node: current, scope, adapter, path }))) {
     handledObjects.add(current);
+    // the marking itself always stays - a text emitter must never queue a second rewrite over the
+    // span that swallowed this hop; the set only tells an AST emitter the hop is still live
+    if (keptProxyHops && POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(current))) keptProxyHops.add(current);
     // descend into an SE-BEARING sequence buried below a static hop (`(eff(), globalThis.self).Array`,
     // where the top-level receiver is NOT itself a sequence): `unwrapTransparentSeq` stops at such a
     // sequence, leaving its inner proxy leaf unmarked -> the member visitor queued a parallel rewrite the

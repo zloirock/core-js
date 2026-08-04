@@ -135,14 +135,14 @@ _globalThis.deleteNest = { key: 1 };
 export const deleteBareRootDeepTail = delete (null == _globalThis.window ? void 0 : _self)?.deleteNest.key;
 export const deleteBareRootDirect = delete (null == _globalThis.window ? void 0 : _self)?.deleteNest;
 
-// a consumer that PARENTHESIZES the guard (`await`, an operator) leaves a pulled tail behind
-// those parens: the last step stays outside behind a `?.` so the short-circuit survives, while
-// a SINGLE pulled step needs nothing (the printer wraps the whole ternary)
+// a consumer that PARENTHESIZES the guard (`await`, an operator) wraps the WHOLE folded value,
+// so the tail rides inside it entire - no step is stranded outside, and no `?.` the source never
+// had is introduced over an intermediate the source reads plainly
 const aw = () => _globalThis;
-export const awaitedDeepTail = async () => await (null == aw().window ? void 0 : _self.host)?.probe;
+export const awaitedDeepTail = async () => await (null == aw().window ? void 0 : _self.host.probe);
 export const awaitedSingleTail = async () => await (null == aw().window ? void 0 : _self.host);
-export const carrierDeepTail = (null == aw().window ? void 0 : _self.host)?.probe ?? 'absent';
-export const operandTail = ((null == aw().window ? void 0 : _self.host)?.count ?? 0) + 1;
+export const carrierDeepTail = (null == aw().window ? void 0 : _self.host.probe) ?? 'absent';
+export const operandTail = ((null == aw().window ? void 0 : _self.host.count) ?? 0) + 1;
 
 // assignment / update / destructure targets need the member itself, and a SEALED read keeps
 // the source's own throw - the tail never folds there
@@ -151,12 +151,12 @@ export function assignThroughGuard() { (null == aw().window ? void 0 : _self).sl
 export function updateThroughGuard() { (null == aw().window ? void 0 : _self).slotHost.n++; }
 export function destructureThroughGuard() { [(null == aw().window ? void 0 : _self).slotHost.n] = [7]; }
 
-// consumer contexts around the guard: a ternary TEST and an operator parenthesize it (the last
-// step stays outside behind `?.`), while a class field / sequence / for-of element do not
+// consumer contexts around the guard: a ternary TEST and an operator parenthesize it, while a
+// class field / sequence / for-of element do not - either way the tail rides inside
 _globalThis.consumerHost = { n: 1, list: [1] };
 const cs = () => _globalThis;
-export const ternaryTestConsumer = (null == cs().window ? void 0 : _self.consumerHost)?.n ? 'y' : 'n';
-export const whileConsumer = () => { while ((null == cs().window ? void 0 : _self.consumerHost)?.n > 100) break; };
+export const ternaryTestConsumer = (null == cs().window ? void 0 : _self.consumerHost.n) ? 'y' : 'n';
+export const whileConsumer = () => { while ((null == cs().window ? void 0 : _self.consumerHost.n) > 100) break; };
 export const sequenceConsumer = (0, null == cs().window ? void 0 : _self.consumerHost.n);
 class ConsumerHost {
   static field = null == cs().window ? void 0 : _self.consumerHost.n;
@@ -174,8 +174,9 @@ export const parenCalleeSealed = ((null == pc().window ? void 0 : _self).parenHo
 export function newOverPulledTail() { return new (null == pc().window ? void 0 : _self.parenHost.Ctor)(); }
 
 // a TAGGED template reads its tag as a REFERENCE (`(w?.self.tag)`x`` binds `this`), so the tail
-// stays outside; the source parens ended the chain, so the read off the guarded value throws
-// exactly where the source does
+// stays outside - but behind a `?.`, and inside the source's own parens. read PLAIN it throws on
+// the very branch the guard proved absent, before the template's substitutions ever run, while
+// the source short-circuits the whole tag and throws only at the call
 _globalThis.tagHost = { tag(strings) { return strings[0]; } };
 const tg = () => _globalThis;
 export const taggedTemplateTail = ((null == tg().window ? void 0 : _self)?.tagHost.tag)`x`;
@@ -198,10 +199,10 @@ export const opaqueComputedKeyTail = (null == ckr().window ? void 0 : (ck2++, _s
 export const opaqueComputedKeyPlain = null == ckr().window ? void 0 : _self[(ck2++, 'ckHost')].a;
 export { ck2 };
 
-// a PLAIN step followed by a live `?.`: the emitters place the guard on different sides of the
-// span boundary they own (both keep the value and the short-circuit; the sidecar locks the pair)
+// a PLAIN step followed by a live `?.`: while every step so far was plain the folded value is a
+// straight continuation of the leaf, so that first `?.` still rides INSIDE the alternate
 const pf = () => _globalThis;
-export const plainThenLiveOptional = (null == pf().window ? void 0 : _self.chrome)?.foo.bar;
+export const plainThenLiveOptional = null == pf().window ? void 0 : _self.chrome?.foo.bar;
 
 // an opaque computed key with no EFFECTS folds like any other step - only a key carrying its
 // own effects keeps its migration canon (and its own span) outside the fold
@@ -215,5 +216,5 @@ export const opaqueKeyRuntimeValue = null == mt().window ? void 0 : _self.metaHo
 // value and the short-circuit; the sidecar locks the pair
 _globalThis.bareHost = { a: 1 };
 export const bareRootOptionalTail = (null == _globalThis.window ? void 0 : _self.bareHost)?.a;
-export const bareRootCarrierTail = (null == _globalThis.window ? void 0 : _self.bareHost)?.a ?? 0;
+export const bareRootCarrierTail = (null == _globalThis.window ? void 0 : _self.bareHost.a) ?? 0;
 export const callRootOptionalTail = (null == (() => _globalThis)().window ? void 0 : _self.bareHost)?.a;

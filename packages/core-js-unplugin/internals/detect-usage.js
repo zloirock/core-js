@@ -1026,13 +1026,17 @@ function isJsxMemberRoot(path) {
 
 export function createUsageVisitors({
   adapter, onUsage, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
-  resolveMeta, resolvePure = null,
+  resolveMeta, resolvePure = null, onSuppressedProxyHop = null,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
   const skipUpdateTargets = method === 'usage-pure';
   const handledObjects = new WeakSet();
+  // hops the detector suppressed while the meta keeps its receiver PATH: the marking exists so no
+  // second rewrite lands inside the span that swallowed them, but the nav itself still owes a
+  // render - one that replaces the WHOLE chain span, which composes rather than collides
+  const keptProxyHops = new WeakSet();
   // read `kind` off the parent VariableDeclaration via the binding path - works across
   // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
   // another). babel's `binding.kind` is read directly via the babel adapter's own getter
@@ -1229,7 +1233,10 @@ export function createUsageVisitors({
 
   function memberExpressionVisitor(path) {
     const { node } = path;
-    if (handledObjects.has(node)) return;
+    if (handledObjects.has(node)) {
+      if (keptProxyHops.has(node)) onSuppressedProxyHop?.(path);
+      return;
+    }
     if (!isReferenced({ path, skipUpdateTargets })) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
       // intent); a deliberate override's receiver follows the SAME identifier routing the
@@ -1240,7 +1247,7 @@ export function createUsageVisitors({
     }
     const meta = handleMemberExpressionNode({
       node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure,
+      resolvePure, keptProxyHops,
     });
     if (meta) {
       onUsage(meta, path);

@@ -959,6 +959,9 @@ export default function createPlugin(options) {
         // no fileId arg: transform-queue throws are unbranded (`transform-queue: <msg>`); the outer
         // catch's `tagError(error, id)` owns the single `[core-js] [<id>] ` brand + file tag
         const transforms = new TransformQueue(code, ms, () => asiFusableStatementStarts(ast));
+        // composition locates an inner rewrite whose head the outer already resolved; only names
+        // the injector minted count as that resolution, never a user identifier of the same shape
+        transforms.useBindingHints(name => injector.getPureImport(name)?.hint ?? null);
 
         // per-traversal scope state for `var _ref;`-style refs. setScope() runs before each
         // callback; genRef() reads the current scope. applyTransforms() drains accumulated
@@ -1014,6 +1017,7 @@ export default function createPlugin(options) {
           nodeSrc,
           replaceGlobalOrStatic,
           replaceInstance,
+          renderKeptNavValue,
           replaceStaticFallback,
           resolveReceiverSource,
           sealedNavReceiverSrc,
@@ -1506,6 +1510,11 @@ export default function createPlugin(options) {
           isEntryAvailable: isEntryNeeded,
           resolveMeta: resolvePure,
           resolvePure,
+          // the hop collapse owns every chain it can take; the navs it refuses - the
+          // short-circuiting probe - fall to the kept-nav render, exactly as in the AST emitter
+          onSuppressedProxyHop: metaPath => {
+            if (!collapseProxyHopRoot(metaPath)) renderKeptNavValue(metaPath);
+          },
         }));
         traverse(ast, trackReferences ? mergeVisitors(usageVisitors, {
           // a NON-REFERENCE occurrence (object-literal key, member key, label, import/export name)
