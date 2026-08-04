@@ -31,13 +31,13 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   Its blocks are picked so that **three's own implementation** reaches for what IE11 lacks, rather
   than the exercise doing it on three's behalf — `Array.from` and `constructor.name` in
   `BufferAttribute#toJSON`, `Number.isInteger` in `ObjectLoader`, `new Map` in `ShapePath#toShapes`,
-  `new Set` in `WireframeGeometry`, `Number.EPSILON` + `Math.sign` in `ExtrudeGeometry`'s bevel
-  path, `Math.imul` in `seededRandom`, `Math.trunc` in `roundToZero`, `new URL` in `Cache`,
-  `Number#toFixed` in the non-sRGB branch of `Color#getStyle`, the `*[Symbol.iterator]` generators
-  on the math classes, the addons' recursive `yield*`, and three's `async parseAsync`. Attributing
-  each native call to its immediate stack frame, the exercise reaches **36** distinct natives from
-  frames inside three, against 16 for the scene-graph-only version it replaces — which is what the
-  IE11 leg below can actually gate on.
+  `new Set` in `WireframeGeometry`, `Number.EPSILON` in `ExtrudeGeometry`'s bevel path, `Math.sign`
+  in `AnimationMixer#update`, `Math.imul` in `seededRandom`, `Math.trunc` in `roundToZero`, `new
+  URL` in `Cache`, `Number#toFixed` in the non-sRGB branch of `Color#getStyle`, the
+  `*[Symbol.iterator]` generators on the math classes, the addons' recursive `yield*`, and three's
+  `async parseAsync`. Attributing each native call to its immediate stack frame, the exercise
+  reaches **36** distinct natives from frames inside three, against 16 for the scene-graph-only
+  version it replaces — which is what the IE11 leg below can actually gate on.
   It also executes three's own members whose names **collide** with core-js instance methods —
   `Ray#at`, `Vector3#clamp`, `Texture#repeat`. `usage-pure` rewrites those call sites too, and the
   pure helper has to hand back three's own method; on IE11 a broken fallback is fatal, and the
@@ -102,15 +102,15 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   not two that agree; only `[C]` is per cell.
   `npm run e2e-libs-pipeline [-- libFilter methodFilter]` → `report/pipeline.md` + `.json`
   (This is the report to read for "how big / how slow is each stage". `entry-global` shows only `[C]`.)
-- **throughput** — the cost of producing a **polyfilled build** across the bundlers (unplugin only,
-  **no Babel**; cell = build-with-plugin − plugin-less baseline). Read it as build cost, **not** as
-  unplugin's own processing time: most of the delta is the bundler resolving, parsing and rendering
-  the core-js modules unplugin injected (485 extra modules on rollup/rxjs/usage-global, where
-  unplugin's own transform was ~25% of the delta). For unplugin's isolated cost read `unpluginMs` in
-  `report/pipeline.json`, which instruments the transform hook directly (it shows as `unplugin <n>`
-  in `pipeline.md`'s `[C]` cell). Also **not** the IE11
-  build cost (that's `[C]` in `pipeline`, which is Babel + unplugin and slower).
-  `npm run e2e-libs-throughput [-- libFilter bundlerFilter]` → `report/throughput.md` + `.json`
+  - **throughput** — the cost of producing a **polyfilled build** across the bundlers (unplugin
+  only, **no Babel**; cell = build-with-plugin − plugin-less baseline). Read it as build cost,
+  **not** as unplugin's own processing time: most of the delta is the bundler resolving, parsing and
+  rendering the core-js modules unplugin injected (485 extra modules on rollup/rxjs/usage-global,
+  where unplugin's own transform was ~25% of the delta). For unplugin's isolated cost read
+  `unpluginMs` in `report/pipeline.json`, which instruments the transform hook directly (it shows as
+  `unplugin <n>` in `pipeline.md`'s `[C]` cell). Also **not** the IE11 build cost (that's `[C]` in
+  `pipeline`, which is Babel + unplugin and slower). `npm run e2e-libs-throughput [-- libFilter
+  bundlerFilter]` → `report/throughput.md` + `.json`
   Every cell is a **single** build — no repeat/median axis. Repeats cost more than they buy, and
   they cannot buy back the dominant source of spread: whatever else the machine is doing. A cell
   measured on a busy box reads high. **Read a cell as an order of magnitude**, and trust a ratio
@@ -183,9 +183,9 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     — that is exactly the 120 → 132 delta above — but nothing the exercise executes reaches one, so
     its `pre` cells are green as well. A green `pre` therefore means "nothing here reached a
     Babel-helper polyfill", not "the phase gap is closed" — the unrewritten `Array.from` is still
-    sitting in those `pre` bundles. Off a
-    machine with IE11 (and outside CI) everything above still runs and only Karma is skipped; the CI job
-    `e2e-libs-ie11` (windows-2022) is where the browser run happens on every push.
+    sitting in those `pre` bundles. Off a machine with IE11 (and outside CI) everything above still
+    runs and only Karma is skipped; the CI job `e2e-libs-ie11` (windows-2022) is where the browser
+    run happens on every push.
 
   One build per cell is the point. These consumers used to be three runners that each rebuilt the same
   configurations — 48 builds for 21 distinct cells — and each gated on a build of its own, so the set
