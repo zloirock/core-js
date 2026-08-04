@@ -2,8 +2,9 @@
 
 Runs real libraries through `@core-js/unplugin` in two tiers.
 
-**Fixtures** (in `exercises/`, registered in `libraries.mjs`). The three cover three different
-**module topologies**, which is what actually drives unplugin's cost — see the note at the end:
+**Fixtures** (in `exercises/`, registered in `libraries.mjs`). Three of them cover three different
+**module topologies**, which is what actually drives unplugin's cost — see the note at the end; the
+fourth is the **TypeScript** fixture, which exists for the `phase` axis rather than for topology:
 - **rxjs** — headless reactive pipelines. Many small modules.
   Its centrepiece is `innerFrom`, rxjs's interop hub: every branch of it is driven, so the
   well-known-symbol lookups happen **inside rxjs** — `Symbol.iterator` (a `Set`, a `Map`, a
@@ -89,6 +90,39 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   This fixture is what surfaced the `usage-pure` `new`-expression bug in `@core-js/unplugin`
   (`new Foo(bar.name)` had its injected getter wrapper re-wrapped as a constructor call). Fixed on
   `v4`; all three methods pass.
+- **htmlparser2** — the **TypeScript** fixture: a headless HTML/XML pipeline over the whole
+  htmlparser2 stack (htmlparser2 → domhandler → domutils → dom-serializer → entities → css-select →
+  css-what → nth-check). Unlike the three above, the runtime tier builds these libraries **from their
+  own `src/**/*.ts`** rather than from their published JS — the redirect is `TS_SOURCE_PACKAGES` in
+  `build.mjs`, and `@babel/preset-typescript` strips the types for `.ts` ids only. 42 of the 48
+  modules in the graph are `.ts`; domhandler, domelementtype and boolbase ship no sources and stay
+  JS, so the graph is deliberately **mixed**.
+  That is the whole point. `pre` runs unplugin before Babel and its documented advantage is "original
+  source with full semantic context" — over a graph of published JS that claim cannot be tested at
+  all, and on the other three fixtures `post` is a strict superset of `pre`. Here the phases separate
+  in **both** directions, and the six snapshots pin both halves:
+  `usage-global` 123 (`pre`) → 133 (`post`) → **134** (`pre+post`), because `pre` injects
+  `es.error.cause` off the *type annotations* `onerror(error: Error)` / `(error: Error | null)`,
+  which have no runtime existence for `post` to find; `usage-pure` 26 → 39 → **40**, where the
+  pre-only `@core-js/pure/full/array/instance/includes` comes not from the annotation walk
+  (`usage-pure` disables it) but from type-driven *receiver resolution* — two `Node[]`-annotated
+  receivers get the array-specific pure helper at `pre` and the receiver-agnostic one at `post`.
+  This is the only fixture where `pre+post` is strictly larger than `post`, and its `pre+post` cells
+  gate exactly that union. Killing the TS redirect drifts 4 of the 6 snapshots, so the fixture cannot
+  silently degrade into "just another JS library" (verified by mutation).
+  Its blocks otherwise follow the same rule as the others — make the libraries' own code reach for
+  what IE11 lacks: `new Map` / `new Set` behind htmlparser2's implied-end-tag, void-element and
+  foreign-content tables, `new WeakMap` in both of css-select's result caches, `Object.hasOwn` in
+  five modules across four packages, `String.fromCodePoint` and the CP1252 remap in the entity path,
+  `Number.parseInt` in three packages, `String#replaceAll` in dom-serializer's raw-attribute branch.
+  49 distinct natives from library frames across 32 library modules, against 29 for the obvious
+  "parse, query, read the text" version.
+  Typed arrays are present but only ever **indexed** (htmlparser2's `Sequences`, entities' decode
+  tries), so the structural `usage-pure` typed-array hole that forced three to prune paths is never
+  reached — which is why these `usage-pure` cells pass where three's would not. Deliberately excluded:
+  `htmlparser2/WritableStream` and `/WebWritableStream` (node streams / WHATWG streams).
+  **Not in the `throughput` tier**: only rollup has been taught to resolve `.ts` here, and that tier
+  drives seven bundlers with no TS resolution and no Babel at all.
 
 **Runners.** Four entry points, each exposed as a root npm script:
 
@@ -134,7 +168,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
   `js` (`es.json.*`, `web.url.to-json`) — which node and the other bundlers resolve fine — not the
   native crash once assumed; see `build.mjs` for the real cause and the one-plugin shim that fixes it.)
 - **runtime (one pass, the whole tier)** — `npm run e2e-libs-runtime [-- libFilter] [-- --update]` —
-  the real IE11 build for every (library × method × unplugin phase) = **21 cells**: rollup + Babel
+  the real IE11 build for every (library × method × unplugin phase) = **28 cells**: rollup + Babel
   (syntax → ES5) + unplugin (stdlib polyfills). Each cell is built **once**, and that single build then
   feeds every consumer:
   - **gates** — a real acorn parse at `ecmaVersion: 5` (*not* an esbuild `target: 'es5'` transform,
@@ -143,7 +177,7 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     specifier *text* was seen, and that survives even when rollup tree-shakes the polyfills away;
     nothing may be left **external**, since a `require(...)` in the UMD header is fine in node and fatal
     in a browser; and the injected set must be non-empty.
-  - **injection snapshot** → `snapshots/<lib>.<method>.<phase>.txt`, 18 cells (the **usage-\*** methods ×
+  - **injection snapshot** → `snapshots/<lib>.<method>.<phase>.txt`, 24 cells (the **usage-\*** methods ×
     all three phases). `entry-global` is not snapshotted: it never reads the library, it expands
     `import 'core-js'` into whatever `targets` selects, so its per-library baselines came out
     byte-identical — a fiction of a per-library gate. That set is pinned exactly (full-text compare) in
@@ -153,10 +187,12 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     helpers reach for — codemirror `usage-global` 120 (`pre`) → 132 (`post`), three 159 → 175, while
     rxjs stays flat at 96 because its source already pulls the iterator machinery in. That delta used to
     be unsnapshotted, so a post-phase ordering regression (the class of bug commit `0328f910b0` fixed)
-    could not redden this gate; now it can. `post` is a strict superset of `pre` on every fixture and
-    `pre+post` currently equals `post` — the `pre+post` cells gate exactly that. Trade-off: these
-    baselines are **Babel-dependent**; a `@babel/preset-env` update may legitimately move them — read
-    the diff, then rerun with `--update`.
+    could not redden this gate; now it can. On the three JS fixtures `post` is a strict superset of
+    `pre` and `pre+post` equals `post`; on **htmlparser2**, whose sources are TypeScript, it is not —
+    `pre` reads type annotations that no later phase can see, so `pre+post` is the strictly larger
+    union (123/133/**134** and 26/39/**40**). Either way the `pre+post` cells gate exactly that union.
+    Trade-off: these baselines are **Babel-dependent**; a `@babel/preset-env` update may legitimately
+    move them — read the diff, then rerun with `--update`.
   - **node pre-flight** — the bundle executed in a **fresh child process** (isolation is required, not
     tidiness: `mode: full` permanently patches globals, so two methods in one process would let one
     method's injection mask another's miss), with every self-check passing.
@@ -181,9 +217,12 @@ Runs real libraries through `@core-js/unplugin` in two tiers.
     came from spread / `for-of` in the *exercise* and said nothing about rxjs (see the header of
     `exercises/rxjs.mjs`). codemirror's sources are modern too, and Babel does emit helpers over them
     — that is exactly the 120 → 132 delta above — but nothing the exercise executes reaches one, so
-    its `pre` cells are green as well. A green `pre` therefore means "nothing here reached a
-    Babel-helper polyfill", not "the phase gap is closed" — the unrewritten `Array.from` is still
-    sitting in those `pre` bundles. Off a machine with IE11 (and outside CI) everything above still
+    its `pre` cells are green as well; htmlparser2 is the same shape for the same reason. A green
+    `pre` therefore means "nothing here reached a Babel-helper polyfill", not "the phase gap is
+    closed" — the unrewritten `Array.from` is still sitting in those `pre` bundles. What htmlparser2
+    adds is the other direction, and it is a **build-time** gate rather than a browser one: its `pre`
+    snapshots pin injections that exist *only* at `pre`, so that half of the phase gap is guarded by
+    the snapshot, not by IE11. Off a machine with IE11 (and outside CI) everything above still
     runs and only Karma is skipped; the CI job `e2e-libs-ie11` (windows-2022) is where the browser
     run happens on every push.
 
@@ -212,7 +251,7 @@ transform output directly. Sibling to the snapshot gap above.
 that assert (`check-exercise` → `runtime`); `pipeline` and `throughput` only report, so they stay out
 of it. `runtime` needs no special environment — off a machine with IE11 it runs every gate and skips
 only the browser leg. The suite is deliberately NOT part of `test-raw` /
-`test-transpiling` — it pulls rxjs, three, codemirror and seven bundlers, and a full pass takes
+`test-transpiling` — it pulls rxjs, three, codemirror, the htmlparser2 stack and seven bundlers, and a full pass takes
 minutes; the IE11 leg runs as its own `e2e-libs-ie11` CI job on windows-2022.
 
 Arguments go after `--`, e.g. `npm run e2e-libs-throughput -- three rollup`. The scripts run through
@@ -222,6 +261,12 @@ arguments via `args.mjs` instead of `process.argv.slice(2)`. Calling `node throu
 still works and is equivalent.
 
 Node `^22.18.0 || >=24.11.0` (the repo-wide tooling range) required. Add libraries in `libraries.mjs`.
+A library that should be built from its **TypeScript sources** goes in `TS_SOURCE_PACKAGES`
+(`build.mjs`) as well, and only if the package actually ships `src/**/*.ts` in its npm tarball and
+those sources are `isolatedModules`-clean — Babel strips types one file at a time and cannot tell a
+type-only re-export (`export { SomeInterface }`) from a value one, which rollup then rejects. Such a
+library must also stay out of `tiers: ['throughput']` until the other six bundlers learn to resolve
+`.ts` too.
 
 `core-js` is pinned to the workspace **v4** (`file:../../packages/core-js`) so injected polyfills
 resolve to this monorepo's code, not a transitively-hoisted published v3. (`@core-js/pure`, used by
@@ -242,6 +287,10 @@ actually sees at `[C]` is the Babel-lowered form of these:
 | rxjs | many small modules | small |
 | codemirror | deep graph of mid-sized modules | 142 KB |
 | three | one ~1.4 MB monolith | 1409 KB |
+
+`htmlparser2` is not on that axis — it is a wide graph of small modules (48 modules across ten
+packages, largest 41 KB), which is roughly where rxjs already sits. It is in the suite for the
+`phase` axis, not for topology, and it is out of the throughput tier entirely.
 
 unplugin time orders rxjs < codemirror < three, tracking that last column rather than total bytes.
 Sizes and times per run are in `report/pipeline.{md,json}`; they are deliberately not restated here,
