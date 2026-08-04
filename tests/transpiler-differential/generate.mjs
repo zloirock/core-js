@@ -1253,6 +1253,70 @@ function * generateBareProxyProbe() {
       yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
     }
   }
+  // a nested nav in an ARGUMENT of an outer nav's call. the inner test may ride the enclosing guard
+  // only while nothing between the two reads of the root could have replaced it, so the axis walks
+  // what sits in between: nothing, an effectful call, an assignment, a computed key. the effects log
+  // is the oracle for the order, and an absent probe has to skip every one of them
+  const NAV_ARG_FORMS = [
+    ['inert', root => `${ root }.Array.of(${ root }.Math.trunc(1.5))`],
+    ['call-between', root => `${ root }.Array.of(ne(), ${ root }.Math.trunc(1.5))`],
+    ['assign-between', root => `${ root }.Array.of((nt = globalThis, 0), ${ root }.Math.trunc(1.5))`],
+    ['read-between', root => `${ root }.Array.of(probeGen.n, ${ root }.Math.trunc(1.5))`],
+    ['spine-call-key', root => `${ root }.Array.from(probeGen.arr)[${ root }.Math.trunc(0.5)]`],
+    ['spine-call-arg', root => `${ root }.Object.keys(probeGen)[${ root }.Math.trunc(0.5)]`],
+    ['spread-arg', root => `${ root }.Array.of(...[${ root }.Math.trunc(1.5)])`],
+    ['nested-tail-arg', root => `${ root }.Object.keys(probeGen).at(${ root }.Math.trunc(0.5))`],
+    ['key-between', root => `${ root }.Array.of(${ root }.probeGen[(nk++, 'n')], ${ root }.Math.trunc(1.5))`],
+    ['nested-receiver', root => `${ root }.Array.of(${ root }.probeGen.arr?.flat()).length`],
+    ['double-nested', root => `${ root }.Array.of(${ root }.Array.of(${ root }.Math.trunc(1.5)))`],
+  ];
+  for (const [rootId, root] of NAV_ROOTS) {
+    for (const [formId, form] of NAV_ARG_FORMS) {
+      const id = `nav-arg-nested/${ rootId }-${ formId }`;
+      const inner = '(() => { globalThis.probeGen = { n: 4, inner: { n: 5 }, arr: [3, [1, 2]], make: function () { return this.arr; } };'
+        + ' let nt; let nk = 0; const nr = () => globalThis; const ne = () => { log.push("a"); return 0; };'
+        + ` try { return JSON.stringify(${ form(root) }); } catch (e) { return 'throw'; } })()`;
+      yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+      yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+    }
+  }
+  // `in` over a STATIC host reached through a proxy hop: unrigged the hop short-circuits and native
+  // throws, rigged it resolves and the answer is the constant. the fold has to keep the test either
+  // way, so the unrigged leg is the discriminator
+  const IN_STATIC_HOSTS = [
+    ['static-proxy-hop', "'from' in globalThis.window?.Array"],
+    ['static-proxy-hop-deep', "'of' in globalThis.window?.self.Array"],
+    ['static-plain-hop', "'fromAsync' in globalThis.Array"],
+  ];
+  for (const [hostId, expr] of IN_STATIC_HOSTS) {
+    const id = `in-static-host/${ hostId }`;
+    const inner = `(() => { try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // a nav claim inside a call the SOURCE wrote, with NO nav on the callee: the guard belongs to the
+  // argument, and a spelling that lifts it over the call answers `undefined` where native calls with
+  // an undefined argument. the unrigged leg is the discriminator - `[null]` against `undefined` in
+  // the stringified value - which is why the callee axis walks static, instance, ctor and literal
+  const ARG_GUARD_HOSTS = [
+    ['static-sole', nav => `Array.of(${ nav })`],
+    ['static-sibling', nav => `Array.of(0, ${ nav })`],
+    ['static-nested-literal', nav => `Array.from([${ nav }])`],
+    ['object-value', nav => `Object.keys({ a: ${ nav } }).length`],
+    ['instance-dispatch', nav => `[3, [1, 2]].concat(${ nav }).length`],
+    ['ctor-argument', nav => `new Set([${ nav }]).size`],
+    ['nested-static', nav => `Array.of(Array.of(${ nav }))`],
+  ];
+  for (const [rootId, root] of NAV_ROOTS) {
+    for (const [hostId, host] of ARG_GUARD_HOSTS) {
+      const id = `arg-guard-host/${ rootId }-${ hostId }`;
+      const inner = '(() => { globalThis.probeGen = { n: 4, inner: { n: 5 }, arr: [3, [1, 2]], make: function () { return this.arr; } };'
+        + ' let nt; let nk = 0; const nr = () => globalThis;'
+        + ` try { return JSON.stringify(${ host(`${ root }.Math.trunc(1.5)`) }); } catch (e) { return 'throw'; } })()`;
+      yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+      yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+    }
+  }
   // the same grid at MODULE level: an IIFE body routes a claimless nav through a different channel
   // than a top-level one, so the wrapped rows above cannot guard the top-level render. the tails
   // here name a global no one WRITES and no polyfill claims - a setup statement would have to write
@@ -3086,6 +3150,29 @@ function * generateChainTrailingContinuations() {
     // a guarded dispatch inside the combined chain's ARGUMENTS keeps its guard local -
     // hoisting it into the chain test would short-circuit the whole chain on an unrelated
     // nullish and strip the callback's own guard
+    // `in` over a receiver whose value can be NULLISH: native throws there, so folding the test to a
+    // constant is a swallowed throw. the receiver must be statically TYPED for the fold to be
+    // reachable at all - `cond ? nul : arr` unions to array while running null - and the axis walks
+    // both spellings of the short-circuit, the source `?.` and the LOWERED ternary a sibling
+    // transform leaves behind. the effect row also pins that the receiver's own argument stays unrun
+    { id: 'in-short-circuit-nullish',
+      code: '(() => { const r = cond ? nul : arr; try { return String(\'flat\' in (r?.slice())); } catch (e) { return "throw"; } })()' },
+    { id: 'in-short-circuit-full',
+      code: '(() => { const r = cond ? arr : nul; try { return String(\'flat\' in (r?.slice())); } catch (e) { return "throw"; } })()' },
+    { id: 'in-short-circuit-lowered',
+      code: '(() => { const r = cond ? nul : arr; try { return String(\'at\' in (r == null ? void 0 : r.slice())); } catch (e) { return "throw"; } })()' },
+    { id: 'in-nested-test-throws',
+      code: '(() => { const r = cond ? nul : arr; try { return String(\'flat\' in ((\'at\' in (r?.slice())) ? arr.slice() : arr)); } catch (e) { return "throw"; } })()' },
+    { id: 'in-nested-test-full',
+      code: '(() => { const r = cond ? arr : nul; try { return String(\'flat\' in ((\'at\' in (r?.slice())) ? arr.slice() : arr)); } catch (e) { return "throw"; } })()' },
+    { id: 'in-logical-and',
+      code: '(() => { const r = cond ? nul : arr; try { return String(\'flat\' in (r && arr.slice())); } catch (e) { return "throw"; } })()' },
+    { id: 'in-logical-or',
+      code: '(() => { const r = cond ? nul : arr; try { return String(\'at\' in (r || arr.slice())); } catch (e) { return "throw"; } })()' },
+    { id: 'in-logical-and-literal-left',
+      code: '(() => { try { return String(\'flat\' in ([1] && arr.slice())); } catch (e) { return "throw"; } })()' },
+    { id: 'in-short-circuit-effect',
+      code: '(() => { const r = cond ? nul : arr; try { return String(\'flat\' in (r?.slice(log.push("k")))) + log.length; } catch (e) { return "throw" + log.length; } })()' },
     { id: 'arg-guard-inner-nullish',
       code: '(o => o.arr.flat?.().map(x => o.inner?.at(0)).length)(JSON.parse(\'{"arr":[[1]],"inner":null}\'))' },
     { id: 'arg-guard-inner-full',

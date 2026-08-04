@@ -381,7 +381,7 @@ function upperBound(ranges, target) {
 // containing the needle multiple times would silently ignore later occurrences here -
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
-function mergeEqualRange({ a, b, originalNeedle, range = null }) {
+function mergeEqualRange({ a, b, originalNeedle, range = null, aInner = false, bInner = false }) {
   // locate the needle through the boundary-aware `collectOccurrencePositions`, not raw indexOf /
   // includes: a raw substring scan can match the needle MID-IDENTIFIER (`Array` inside `ArrayBuffer`,
   // `at` inside `flat`), which would splice at a wrong offset or false-throw the single-occurrence
@@ -391,9 +391,17 @@ function mergeEqualRange({ a, b, originalNeedle, range = null }) {
   const bPositions = collectOccurrencePositions(b, originalNeedle);
   // contract: exactly one side (the "wrapper") contains the original source slice as a standalone
   // occurrence; the other (the "inner" polyfill) does not
-  const [wrapper, inner, wrapperPositions, innerPositions] = aPositions.length
-    ? [a, b, aPositions, bPositions]
-    : [b, a, bPositions, aPositions];
+  // TWO wrappers can legitimately claim one range - a statement-level wrap (an arrow body gaining
+  // `{ var _ref; return ... }`) and an expression wrap around the same node. text alone cannot say
+  // which nests inside which, so the caller DECLARES it: a transform marked `innerWrapper` always
+  // goes in the outer's needle slot. without the marker the old rule stands - the side holding the
+  // source slice wraps the side that does not
+  const declared = aInner !== bInner && aPositions.length && bPositions.length;
+  const [wrapper, inner, wrapperPositions, innerPositions] = declared
+    ? (aInner ? [b, a, bPositions, aPositions] : [a, b, aPositions, bPositions])
+    : aPositions.length
+      ? [a, b, aPositions, bPositions]
+      : [b, a, bPositions, aPositions];
   // `transform-queue: ` subsystem prefix matches the rest of the queue's diagnostics so users can
   // grep failures consistently. the `[core-js] [<fileId>] ` brand + file tag are owned by the
   // outer `tagError` (runTransform's catch), not self-prefixed here - matching the parse-error
@@ -411,11 +419,12 @@ function mergeEqualRange({ a, b, originalNeedle, range = null }) {
   //     first slot would be swapped in silently; flag the regression loudly
   //   - inner-side: contract is "exactly one side wraps the original source". if inner
   //     also contains the needle, both sides are wrappers - picking `a` as wrapper is
-  //     arbitrary and produces asymmetric output. fail loudly
+  //     arbitrary and produces asymmetric output. fail loudly, UNLESS the caller declared
+  //     which one nests inside (`innerWrapper`), which is exactly that ambiguity resolved
   if (wrapperPositions.length > 1) {
     throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
   }
-  if (innerPositions.length) {
+  if (innerPositions.length && !declared) {
     throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: both sides contain needle - ambiguous wrapper (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
@@ -1383,6 +1392,7 @@ export default class TransformQueue {
         content = mergeEqualRange({
           a: content, b: dupContent, originalNeedle: originalSlice,
           range: { start, end: logicalEnd },
+          aInner: !!t.rewriteHint?.innerWrapper, bInner: !!dup.rewriteHint?.innerWrapper,
         });
       }
     }
