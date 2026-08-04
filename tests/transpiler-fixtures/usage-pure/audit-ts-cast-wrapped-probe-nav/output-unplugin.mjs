@@ -1,4 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
@@ -30,3 +31,10 @@ export const stackedNonNullThenCast = null == (_ref6 = ((null == _globalThis.win
 export const stackedCastThenNonNull = null == (_ref7 = (((null == _globalThis.window ? void 0 : _self.tsBox as any))!).arr) ? void 0 : _at(_ref7).call(_ref7, 0);
 export const bareNonNullLayer = null == (_ref8 = (null == _globalThis.window ? void 0 : _self.tsBox!).arr) ? void 0 : _at(_ref8).call(_ref8, 0);
 export const doubleParenLayer = null == (_ref9 = ((null == _globalThis.window ? void 0 : _self.tsBox)).arr) ? void 0 : _at(_ref9).call(_ref9, 0);
+
+// a TS layer on the claim sitting in a call ARGUMENT: the guard belongs in the argument, never over
+// the call the source wrote. the erased operator's side of that guard is where the emitters part -
+// `!` and a cast both vanish at emit, so the two spellings compile to the same JS
+export const nonNullArgument = _Array$of(null == _globalThis.window ? void 0 : _self.tsBox.n!);
+export const castArgument = _Array$of((null == _globalThis.window ? void 0 : _self.tsBox.list as any[]));
+export const nonNullArgumentNested = _Array$of(_Array$of(null == _globalThis.window ? void 0 : _self.tsBox.inner.n!));

@@ -1322,3 +1322,96 @@ QUnit.test('optional chaining: the receiver runs before a harvested computed key
   delete globalThis.e2eOrderBox;
 });
 /* eslint-enable no-sequences -- the form under test ends here */
+
+// a nested nav in an ARGUMENT rides the enclosing guard only while nothing between the two reads of
+// the root could have replaced it; where something can, the inner test is owed. both spellings have
+// to answer what native answers, and an absent probe must skip the argument's effect outright
+QUnit.test('optional chaining: a nested nav in an argument keeps its own test past a call', assert => {
+  let hops = 0;
+  function bump() {
+    hops += 1;
+    return 0;
+  }
+  assert.deepEqual(globalThis.window?.self.Array.of(globalThis.window?.self.Math.trunc(1.5)),
+    WINDOW_PRESENT ? [1] : undefined);
+  assert.deepEqual(globalThis.window?.self.Array.of(bump(), globalThis.window?.self.Math.trunc(1.5)),
+    WINDOW_PRESENT ? [0, 1] : undefined);
+  assert.deepEqual(globalThis.window?.self.Array.of(hops += 1, globalThis.window?.self.Math.trunc(2.5)),
+    WINDOW_PRESENT ? [2, 2] : undefined);
+  // the guard short-circuits BEFORE the arguments, so an absent probe leaves both effects unrun
+  assert.same(hops, WINDOW_PRESENT ? 2 : 0);
+});
+
+// PARENTHESIZED optional call feeding an instance dispatch: the parens end the chain, so the
+// dispatch reads off the guard's value. the two emitters put the guard on different sides of the
+// receiver memo, which is only acceptable while both answer what native answers - the value on the
+// present branch and the TypeError off void 0 on the absent one
+/* eslint-disable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- reading off a
+   short-circuited chain is exactly the form under test: the parens end the chain, so the throw is
+   the expected answer, and they stay even where they change no value - they are what forces the
+   receiver memo the two emitters spell differently */
+QUnit.test('optional chaining: a parenthesized optional call feeds an instance dispatch', assert => {
+  const src = [3, [1, 2]];
+  function run(absent) {
+    const recv = absent ? null : src;
+    try {
+      return (recv?.slice()).flat().join(',');
+    } catch (error) {
+      return error instanceof TypeError ? 'TypeError' : 'other';
+    }
+  }
+  assert.same(run(false), '3,1,2');
+  assert.same(run(true), 'TypeError');
+  // a MEMBER receiver under the same parens needs no memo at all
+  assert.same((src?.at(0)).toString(), '3');
+  // a LIVE `?.` on the dispatch short-circuits instead of throwing - the branch that proves the
+  // spelling above is safe because native throws there, not because a nullish is harmless
+  function runOptional(absent) {
+    const recv = absent ? null : src;
+    return (recv?.slice())?.flat() ?? 'none';
+  }
+  assert.deepEqual(runOptional(false), [3, 1, 2]);
+  assert.same(runOptional(true), 'none');
+});
+/* eslint-enable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the form under test ends here */
+
+// `in` THROWS on a nullish right operand, so a receiver that can short-circuit must keep the test.
+// the fold reads the call's return type, which says nothing about the optional link above it -
+// folding there would answer `true` on the very branch native throws on, and would erase the
+// receiver's evaluation with it
+/* eslint-disable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- an `in` over a
+   short-circuiting operand IS the form under test, and the parens are what the source wrote */
+QUnit.test('optional chaining: `in` keeps its test over a short-circuiting receiver', assert => {
+  const src = [3, [1, 2]];
+  let reads = 0;
+  function run(absent) {
+    const arr = absent ? null : src;
+    try {
+      return 'flat' in (arr?.slice(reads += 1, undefined));
+    } catch (error) {
+      return error instanceof TypeError ? 'TypeError' : 'other';
+    }
+  }
+  // the fold answers the polyfilled world's constant on the present branch, and the kept test
+  // carries the throw on the absent one - both properties at once
+  assert.same(run(false), true);
+  assert.same(reads, 1);
+  assert.same(run(true), 'TypeError');
+  // the receiver short-circuits before its own argument runs, exactly as native does
+  assert.same(reads, 1);
+  // a receiver that cannot short-circuit still folds - the control that keeps the fold reachable
+  assert.same('at' in src.slice(), true);
+  // the STATIC host behind a proxy hop asks the same question: where the probe is absent the hop
+  // short-circuits and `in` throws, where it resolves the answer is the polyfilled constant
+  function runStatic() {
+    try {
+      return 'from' in globalThis.window?.Array;
+    } catch (error) {
+      return error instanceof TypeError ? 'TypeError' : 'other';
+    }
+  }
+  assert.same(runStatic(), WINDOW_PRESENT ? true : 'TypeError');
+  // a plain hop cannot short-circuit, so it keeps folding
+  assert.same('of' in globalThis.Array, true);
+});
+/* eslint-enable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the form under test ends here */
