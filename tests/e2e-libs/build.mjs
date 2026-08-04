@@ -14,8 +14,9 @@ import unplugin from '@core-js/unplugin';
 import { build as esbuildBuild, transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
 import { createRequire } from 'node:module';
+import { existsSync, statSync } from 'node:fs';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 
@@ -192,9 +193,84 @@ export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method
 const localRequire = createRequire(join(HERE, 'package.json'));
 let cachedToolchain;
 function babelToolchain() {
-  if (!cachedToolchain) cachedToolchain = { core: localRequire('@babel/core'), preset: localRequire.resolve('@babel/preset-env') };
+  if (!cachedToolchain) {
+    cachedToolchain = {
+      core: localRequire('@babel/core'),
+      preset: localRequire.resolve('@babel/preset-env'),
+      ts: localRequire.resolve('@babel/preset-typescript'),
+    };
+  }
   return cachedToolchain;
 }
+
+// -------- TypeScript sources --------
+// Packages consumed as their TypeScript SOURCE instead of their published JS. This is what gives the
+// `pre` phase something to be about: unplugin's own docs say `pre` "sees original source with full
+// semantic context" while `post` loses the type info a sibling stripped - and on a graph of published
+// JS that difference cannot exist, because there is no TS anywhere in it. Feed `.ts` in and the two
+// phases stop being nested: `pre` reads type annotations (`onerror(error: Error)` -> `es.error.cause`)
+// and resolves receivers from them, `post` reads Babel's helper output. Neither set contains the other.
+//
+// Only the packages that actually SHIP `src/**/*.ts` in their npm tarball are listed - domhandler,
+// domelementtype and boolbase do not, so they stay JS and the graph is deliberately mixed, which is
+// what a real TS project's node_modules looks like anyway.
+//
+// The redirect lives here rather than in libraries.mjs because it is a property of the toolchain (the
+// rollup chain must resolve `.ts` and Babel must strip it), not of a fixture: any exercise importing
+// `htmlparser2` gets the source build, and that is the point.
+//
+// NOTE for a future tier change: this only teaches ROLLUP about `.ts`. The throughput tier runs seven
+// bundlers with no TS resolution and no Babel at all, so a library listed here must stay out of
+// `tiers: ['throughput']` until each of those learns the same trick.
+export const TS_SOURCE_PACKAGES = new Set([
+  'htmlparser2', 'domutils', 'dom-serializer', 'entities', 'css-select', 'css-what', 'nth-check',
+]);
+const NODE_MODULES = join(HERE, 'node_modules');
+const TS_SOURCE_ROOTS = [...TS_SOURCE_PACKAGES].map(name => join(NODE_MODULES, name, 'src'));
+
+// A directory has to be rejected explicitly, not just skipped: an extensionless specifier such as
+// `./vocabularies/discriminator` makes the first candidate the path itself, and a bare `existsSync`
+// answers `true` for the directory - which rollup then tries to read as a module.
+//
+// Sync on purpose. `resolveId` runs once per specifier, rollup resolves them concurrently, and an
+// async hook here would buy nothing while making the hook's ordering against `nodeResolve` harder to
+// reason about - which is the one property this plugin depends on.
+function firstExistingFile(candidates) {
+  for (const candidate of candidates) {
+    // eslint-disable-next-line node/no-sync -- see above
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+  return null;
+}
+
+// Resolve into the TS sources of the packages above. MUST sit before `nodeResolve()` in every chain:
+// node resolution answers `htmlparser2` with the published `dist/**.js` (that is what the package's
+// `exports` map says), and whichever hook answers first wins.
+//
+// Two shapes to cover, both taken from the real graph:
+//   bare      `htmlparser2` / `entities/decode`  ->  <pkg>/src/index.ts / <pkg>/src/decode.ts
+//   relative  `./Parser.js` from inside one of those `src` dirs  ->  ./Parser.ts
+// The relative case is the TS-ESM idiom (the specifier names the file the compiler WILL emit, not the
+// one on disk); node's resolver never does this mapping, so without it every intra-package import
+// falls through to `nodeResolve` and resolves to nothing.
+export function tsSources() {
+  return {
+    name: 'e2e-ts-sources',
+    resolveId(source, importer) {
+      if (source.startsWith('.')) {
+        if (!importer || TS_SOURCE_ROOTS.every(root => !importer.startsWith(root))) return null;
+        const abs = resolvePath(dirname(importer), source);
+        return firstExistingFile([abs.replace(/\.[cm]?js$/, '.ts'), `${ abs }.ts`, join(abs, 'index.ts')]);
+      }
+      const [name, ...rest] = source.split('/');
+      if (!TS_SOURCE_PACKAGES.has(name)) return null;
+      const sub = rest.length ? rest.join('/') : 'index';
+      return firstExistingFile([join(NODE_MODULES, name, 'src', `${ sub }.ts`), join(NODE_MODULES, name, 'src', sub, 'index.ts')]);
+    },
+  };
+}
+
+const TS_EXTENSION = /\.[cm]?ts$/;
 
 // A rollup transform that down-compiles syntax to ES5 with a specific Babel core + preset-env.
 // core-js internals are already ES5, so skip them (unplugin still injects them, unbabeled).
@@ -206,25 +282,45 @@ function babelToolchain() {
 // pre-flight (a modern node realm) still passed. Every cell printed green with exit 0. This checkout
 // happens to be named `core-js-v4`, which is the only reason it was not visible here.
 const BABEL_EXCLUDE = [/[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\][^/\\]+)[/\\]/];
-function babelSyntaxPlugin(core, preset) {
+function babelSyntaxPlugin(core, preset, ts, { downCompile }) {
   return {
-    name: 'e2e-babel-syntax',
+    name: downCompile ? 'e2e-babel-syntax' : 'e2e-ts-strip',
     async transform(code, id) {
       if (BABEL_EXCLUDE.some(re => re.test(id))) return null;
+      const typescript = TS_EXTENSION.test(id);
+      // With `downCompile: false` there is nothing to do to a `.js` module - returning null leaves it
+      // byte-identical instead of round-tripping it through Babel's printer, which is what "no
+      // transforms" has to mean for the stage that measures it.
+      if (!downCompile && !typescript) return null;
+      // preset-typescript ONLY for `.ts` (see tsSources above). Presets apply in REVERSE order, so
+      // listing it last is what makes it run FIRST - types have to be gone before preset-env starts
+      // lowering. Adding it unconditionally would also be wrong in principle: it switches the parser
+      // to TS for every file, and TS resolves `<T>x` and `a < b > (c)` differently from JS.
+      const presets = downCompile ? [[preset, { targets: { ie: '11' }, useBuiltIns: false, modules: false }]] : [];
+      if (typescript) presets.push([ts, {}]);
       const out = await core.transformAsync(code, {
-        filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false,
-        presets: [[preset, { targets: { ie: '11' }, useBuiltIns: false, modules: false }]],
+        filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false, presets,
       });
       return out && typeof out.code === 'string' ? { code: out.code, map: null } : null;
     },
   };
 }
 
-// Public: the rollup Babel(syntax->ES5) transform. Used by runtimeBuild and by pipeline.mjs so both
-// share the exact same Babel config.
+// Public: the rollup Babel(syntax->ES5, + TS strip for `.ts`) transform. Used by runtimeBuild and by
+// pipeline.mjs so both share the exact same Babel config.
 export function makeBabelPlugin() {
-  const { core, preset } = babelToolchain();
-  return babelSyntaxPlugin(core, preset);
+  const { core, preset, ts } = babelToolchain();
+  return babelSyntaxPlugin(core, preset, ts, { downCompile: true });
+}
+
+// Public: TYPE ERASURE ONLY, for pipeline's stage [A] ("the library alone, no down-compile"). A
+// TS-source library has no buildable "no transforms" state - rollup's own parser rejects `.ts` - so
+// [A] strips types and stops there. Erasure is not a down-compile: what [A] exists to measure, the
+// cost Babel's ES5 lowering adds on top of it, is still entirely in the [A] -> [B] delta. On a graph
+// with no `.ts` in it this plugin is a no-op on every module.
+export function makeTsStripPlugin() {
+  const { core, preset, ts } = babelToolchain();
+  return babelSyntaxPlugin(core, preset, ts, { downCompile: false });
 }
 
 // A rollup `onwarn` used by `runtimeBuild`, `captureInjections` and every build pipeline.mjs makes
@@ -294,7 +390,7 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
     const origins = new Map();
     const build = await rollup({
       input: entry,
-      plugins: [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink, origins)],
+      plugins: [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink, origins)],
       onwarn: strictWarn,
     });
     try {
@@ -351,7 +447,7 @@ export function recorder(sink, origins) {
 export async function captureInjections(exerciseAbs, method, phase) {
   return withEntry(exerciseAbs, method, `snap-${ method }-${ phase ?? 'x' }`, async entry => {
     const sink = new Set();
-    const build = await rollup({ input: entry, plugins: [u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn: strictWarn });
+    const build = await rollup({ input: entry, plugins: [tsSources(), u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn: strictWarn });
     try {
       await build.generate({ format: 'es' });
       return [...sink].sort();
