@@ -369,10 +369,6 @@ function withSeSrcs(seSrcs, leaf) {
   return seSrcs.length ? `(${ [...seSrcs, leaf].join(', ') })` : leaf;
 }
 
-// is the climbed member tail consumed by a `delete` (through chain / paren / TS wrappers)?
-// a delete consumer needs a REFERENCE, so the guarded-claim renders re-hang the last member
-// OUTSIDE the guard behind `?.` instead of folding it into the ternary alternate
-
 // is a `delete` the consumer anywhere above this claim's chain? the operand must stay a member
 // read behind `?.`, whatever number of tail steps sit between it and the operator
 function deleteAboveChain(metaPath, node) {
@@ -409,6 +405,9 @@ function parenCalleeAbove(metaPath, node) {
   return false;
 }
 
+// is the climbed member tail consumed by a `delete` (through chain / paren / TS wrappers)?
+// a delete consumer needs a REFERENCE, so the guarded-claim renders re-hang the last member
+// OUTSIDE the guard behind `?.` instead of folding it into the ternary alternate
 function deleteAboveTail(metaPath, node) {
   const host = metaPath?.node === node ? metaPath.parentPath : null;
   let walk = host?.parentPath;
@@ -582,8 +581,8 @@ export function inlineCallNavGuardRootSrc({ rootNode, metaPath, code, adapter, i
     resolvePure: ({ name }) => resolveGlobalPolyfill(name), unwrap: unwrapNode,
   });
   if (!plan) return null;
-  const { topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs, rootValueNode } = plan;
-  const pure = resolveGlobalPolyfill(plan.leafName);
+  const { topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs, rootValueNode,
+    leafPure: pure } = plan;
   const leafBinding = injectPureImport(pure.entry, pure.hintName);
   const keySeSrcs = keySeExprs.map(se => code.slice(se.start, se.end));
   function withKeySe(leaf) {
@@ -867,11 +866,14 @@ export function createPolyfillEmitter({
         if (cur === optionalNode) break;
         cur = chainChild(cur);
       }
+      // the nested-guard collapse is decided (and its pure import requested) ONCE, here; the
+      // emit ladder reuses this value instead of re-asking the same question of the same node
       const collapsedRoot = inlineCallNavGuardRootSrc({
         rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
       })?.src;
       return {
         root: collapsedRoot ?? nodeSrc(peelGuardRootParens(rootNode)),
+        collapsedRoot,
         rootRaw: nodeSrc(rootNode), deoptPositions, rootNode, optionalNode,
         descendedThroughRefusal,
       };
@@ -1178,8 +1180,8 @@ export function createPolyfillEmitter({
     let leadingMemo = null;
     let bodyIsNonIdent = isNonIdent;
     let wrapSE = sideEffects;
-    if (!optionalRoot && seMode !== 'peel' && sideEffects?.length && bodyIsNonIdent && receiverHasSE
-      && (receiverEffectCount > 0 || !BARE_IDENT_TEXT.test(bodyObj))) {
+    if (!optionalRoot && seMode !== 'peel' && sideEffects?.length && bodyIsNonIdent
+      && (receiverEffectCount > 0 || !BARE_IDENT_TEXT.test(bodyObj)) && receiverHasSE()) {
       const recvRef = scopeTracker.genRef();
       // the memo `_ref = bodyObj` re-evaluates the receiver, so the receiver-SE must be sourced ONCE through
       // it - matching babel `_ref = (SE, _Map)`. when the SE already survives INSIDE bodyObj (a preserved
@@ -1319,13 +1321,14 @@ export function createPolyfillEmitter({
 
   // resolve optional root + skip redundant guard when nested inside an outer transform
   function resolveOptionalRoot({ node, parent, isCall, scope, metaPath }) {
-    let { root, rootRaw, deoptPositions, rootNode, optionalNode, descendedThroughRefusal } = findChainRoot(node, scope, metaPath);
+    let { root, collapsedRoot, rootRaw, deoptPositions, rootNode, optionalNode,
+      descendedThroughRefusal } = findChainRoot(node, scope, metaPath);
     if (root) {
       const start = isCall ? parent.start : node.start;
       const end = isCall ? parent.end : node.end;
-      if (transforms.hasGuardFor(start, end, rootNode)) root = null;
+      if (transforms.hasGuardFor(start, end, rootNode)) root = collapsedRoot = null;
     }
-    return { optionalRoot: root, rootRaw, deoptPositions, rootNode, optionalNode, descendedThroughRefusal };
+    return { optionalRoot: root, collapsedRoot, rootRaw, deoptPositions, rootNode, optionalNode, descendedThroughRefusal };
   }
 
   // slice the original source between a call expression's parentheses, preserving every byte
@@ -1504,10 +1507,10 @@ export function createPolyfillEmitter({
     return resolveStaticPolyfill(ctorHop.property.name, field.property.name);
   }
 
-  function reuseOuterGuardObjectSrc(rootNode, node, rootIsReceiver, deoptPositions, metaPath) {
-    if (!rootNode) return null;
-    const outerRef = transforms.findOuterGuardRef(rootNode);
-    if (!outerRef) return null;
+  // `outerRef` is resolved by the caller (which needs the same lookup for its reuse-candidate
+  // verdict) and handed in, so the guarded-root bucket is scanned once per dispatch
+  function reuseOuterGuardObjectSrc({ rootNode, outerRef, node, rootIsReceiver, deoptPositions, metaPath }) {
+    if (!rootNode || !outerRef) return null;
     if (rootIsReceiver) return { outerRef, objectSrc: outerRef, isNonIdent: false };
     // drop redundant proxy hops right above the reused root (`_ref.self.Array.prototype` -> `_ref.Array
     // .prototype`), exactly like the optional-rebind stitch - a raw `.self` reads undefined off-engine
@@ -1544,7 +1547,7 @@ export function createPolyfillEmitter({
     // (keySE, body)`), so the memoized receiver-SE isn't emitted twice
     const receiverObj = seMode === 'peel' ? peelReceiverSequenceTail(node.object) : node.object;
     if (seMode === 'suppress') sideEffects = keySideEffectsOnly(receiverEffectCount, sideEffects);
-    const { optionalRoot: resolvedRoot, rootRaw, deoptPositions, rootNode, optionalNode,
+    const { optionalRoot: resolvedRoot, collapsedRoot, rootRaw, deoptPositions, rootNode, optionalNode,
       descendedThroughRefusal: rootDescended } = resolveOptionalRoot({
       node, parent, isCall, scope: metaPath?.scope, metaPath,
     });
@@ -1611,9 +1614,7 @@ export function createPolyfillEmitter({
       // the nested-guard collapse (unresolvable prefix in the test, ponyfill branch) OWNS its
       // shapes - a plain chain resolver below would flatten the test onto an always-defined
       // root or keep a raw ponyfillable hop read in the kept value
-      optionalRoot = inlineCallNavGuardRootSrc({
-        rootNode, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
-      })?.src
+      optionalRoot = collapsedRoot
         // a nav root whose VALUE can be undefined (the environment probe, plain or
         // sequence-wrapped) may not flatten: the chain resolver below collapses it onto the
         // always-defined root and the guard never fires - render root-substituted, hops kept
@@ -1651,7 +1652,7 @@ export function createPolyfillEmitter({
     // a receiver-INDEPENDENT collapse owns the body outright (`_Set`) - reuse would re-read the raw
     // `_ref.Set` tail off the memo, diverging from the ponyfill canon
     const reused = optionalRoot || recv.receiverIndependent
-      ? null : reuseOuterGuardObjectSrc(rootNode, node, rootIsReceiver, deoptPositions, metaPath);
+      ? null : reuseOuterGuardObjectSrc({ rootNode, outerRef: reuseCandidateRef, node, rootIsReceiver, deoptPositions, metaPath });
     const reusedOuterRef = reused?.outerRef ?? null;
     // skip decided AFTER the reuse lookup: a reused override DISCARDS the substituted receiver
     // src below, so the receiver leaf's own substitution is the only channel left carrying the
@@ -1684,7 +1685,11 @@ export function createPolyfillEmitter({
       // throw (its member get reads off a nullish-able probe value) needs the same memo hoist: the
       // plain SE prepend would run the key effect on the branch where native throws before it
       seMode,
-      receiverHasSE: mayHaveSideEffects(node.object)
+      // a THUNK: both halves walk the receiver subtree (the second also resolves aliases through
+      // the provider canon), while the consumer sits behind three cheap gates that are false for
+      // the overwhelming majority of dispatches - `sideEffects` is empty unless a computed key or
+      // a collapsed hop produced one
+      receiverHasSE: () => mayHaveSideEffects(node.object)
         || claimReceiverEvaluationMayThrow(node.object, ({ name }) => resolveGlobalPolyfill(name),
           { scope: metaPath?.scope, adapter: estreeAdapter, path: metaPath }),
       substituted: recv.substituted,
@@ -1712,11 +1717,6 @@ export function createPolyfillEmitter({
       const { needsParens, tipEnd } = resolveGuardWrap({ metaPath, isCall, start, end });
       if (needsParens) ({ replacement, end } = wrapGuardOverTail(replacement, start, end, tipEnd));
     }
-    // ASI guard runs UNCONDITIONALLY for any `(`-leading replacement -- covers both the
-    // optionalRoot-wrap above and the bare SE-wrap path (`(sideEffect, _at(obj).call(obj,
-    // 0))` produced when computed-key carries SE, e.g. `arr[(bar(), 'at')](0)`). without
-    // this, a replacement at statement-leading slot after an unterminated predecessor
-    // would fuse into a call (`prev\n(SE,_at(obj).call(obj,0))` -> `prev(SE,...)`).
     // a receiver-independent collapse under a guard-reuse candidate DISCARDS the root span
     // (`(() => globalThis)().self.Set` -> `_Set`): its nested rewrites (the IIFE's own `globalThis`)
     // have no slot in this content, but the OUTER's guard re-emits that span substituted - declare
@@ -2587,7 +2587,7 @@ export function createPolyfillEmitter({
     // entirely, so a bail here would strand the trailing polys the same way
     const inheritedStaticHost = (isSuper || isThisReceiver(callee.object))
       && isInStaticContext(currentPath)
-      && (isSuper || !isShadowedByClassOwnMember?.(currentPath.get('callee'), innerMethodName));
+      && (isSuper || !isShadowedByClassOwnMember(currentPath.get('callee'), innerMethodName));
     if (inheritedStaticHost && inheritedStaticFallback(
       currentPath.get('callee'), innerMethodName, resolveStaticInheritedMember, resolvePureOrGlobalFallback, mutatedStatics,
     )) return null;
@@ -2956,9 +2956,10 @@ export function createPolyfillEmitter({
   // .at(0)`) OR a 'guard' root (an undefinable window hop the outer dispatch already null-checks - `(v =
   // globalThis.window)?.Array.of(5).at(0)`) both collapse to the pure static. re-folding the root into the
   // body (`(seq, _Array$of)` / `(w = g, _Array$from)`) would double-run it. a COMPUTED-KEY effect the outer
-  // guard does NOT own (`?.Array[(c++, 'from')]`) rides ahead of the pure static (`(c++, _Array$from)`,
-  // `receiverEffectCount` splits receiver from key). returns true when an outer guard owns the root (emitted)
-  function emitOuterGuardedStatic({ binding, node, parent, sideEffects, start, end }) {
+  // guard does NOT own (`?.Array[(c++, 'from')]`) rides ahead of the pure static (`(c++, _Array$from)`);
+  // the split point is the guarded root's END, not a caller-supplied receiver-effect count - the guard
+  // owns exactly what lies inside it. returns true when an outer guard owns the root (emitted)
+  function emitOuterGuardedStatic({ binding, node, parent, calleeParentKind, sideEffects, start, end }) {
     // the guard may memoize a MID-chain root (`call()?.hop` - the nullable value, not the bare
     // call), so probe ownership at every hop on the way down, not just the chain's terminal
     let outerOwnedRoot = node.object;
@@ -2973,7 +2974,7 @@ export function createPolyfillEmitter({
     // SE the memo never captured
     const keyEffects = (sideEffects ?? []).filter(se => se.start >= outerOwnedRoot.end);
     const keyed = wrapSideEffects(binding, keyEffects);
-    const bareInvoke = calleeKind(node, parent) === 'call' && !parent.optional;
+    const bareInvoke = calleeParentKind === 'call' && !parent.optional;
     skipBuriedProxyRoot(node);
     transforms.add(start, bareInvoke ? parent.end : end,
       bareInvoke ? `${ keyed }(${ sliceBetweenParens(parent) ?? '' })` : keyed);
@@ -2993,9 +2994,12 @@ export function createPolyfillEmitter({
     staticEraseGuard = null,
   }) {
     skipDroppedKeyPrefix(node, sideEffects, skippedNodes);
-    // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
-    // same source range for shorthand `{ Promise }` and bare `export { Promise }`
-    const directParent = metaPath.parent;
+    // `calleeParentKind` is pure and parent-anchored: unplugin queues text transforms and never
+    // mutates the AST, so every branch below (and the outer-guard emit it delegates to) asks the
+    // same question once. oxc emits two Identifier nodes (key + value, or local + exported)
+    // sharing the same source range for shorthand `{ Promise }` and bare `export { Promise }`
+    const calleeParentKind = calleeKind(node, parent),
+          directParent = metaPath.parent;
     if (node.type === 'Identifier' && directParent?.type === 'Property' && directParent.shorthand
         && directParent.value === node && metaPath.parentPath?.parent?.type === 'ObjectExpression') {
       return transforms.add(node.start, node.end, `${ node.name }: ${ binding }`);
@@ -3010,7 +3014,7 @@ export function createPolyfillEmitter({
     // inherited-static dispatch -> binding.call(this, args) to preserve the this-binding:
     // super.method(args) AND this.method(args) in static ctx (this = subclass ctor); a dropped
     // receiver downgrades the pure static result to the base class
-    if ((node.object?.type === 'Super' || inheritedStatic) && calleeKind(node, parent) === 'call') {
+    if ((node.object?.type === 'Super' || inheritedStatic) && calleeParentKind === 'call') {
       emitInheritedStaticCallSplit({ binding, parent, sideEffects });
       return;
     }
@@ -3023,7 +3027,7 @@ export function createPolyfillEmitter({
       wrapperPath = wrapperPath.parentPath;
     }
     // deoptionalize `?.` - polyfill import is always defined
-    if (parent?.optional && calleeKind(node, parent) === 'call') {
+    if (parent?.optional && calleeParentKind === 'call') {
       start = parent.callee.start;
       end = afterOptional(parent.callee.end, false);
     } else if (parent?.type === 'MemberExpression' && parent.optional && unwrapNode(parent.object) === node) {
@@ -3060,8 +3064,8 @@ export function createPolyfillEmitter({
       // dispatch already null-checks the root, so the verdict is moot - the static folds its computed-key SE
       // and emits bare into the guard body (`(v = globalThis.window)?.Array[(c++, 'of')](5).at(0)` ->
       // `(c++, _Array$of)(5)`). optional-callee / member-tail shapes keep the standalone-guard handling below
-      if (calleeKind(node, parent) === 'call' && !parent.optional
-        && emitOuterGuardedStatic({ binding, node, parent, sideEffects, receiverEffectCount, start, end })) return;
+      if (calleeParentKind === 'call' && !parent.optional
+        && emitOuterGuardedStatic({ binding, node, parent, calleeParentKind, sideEffects, start, end })) return;
       // the guard tests the OBJECT of the `?.` hop that guards the undefinable value, not the
       // descended root - a mid-chain `?.` guards a hop the always-defined root does not
       const rootNode = eraseGuard.object;
@@ -3096,7 +3100,7 @@ export function createPolyfillEmitter({
       // (the AST emitter's visible-deopt canon: `(guard ? void 0 : _Array$from)?.(x)`) - the
       // earlier optional-callee widen consumed the `?.` token into [start, end], so the sealed
       // claim re-emits it. only a PLAIN call folds its arguments into the alternate
-      const claimCalleeKind = calleeKind(node, parent);
+      const claimCalleeKind = calleeParentKind;
       const invoke = claimCalleeKind === 'call' && !parent.optional;
       const optionalCallee = claimCalleeKind === 'call' && parent.optional;
       // a surviving member TAIL over the claim (`delete <claim>?.someUserKey`) rides INSIDE the
@@ -3112,9 +3116,7 @@ export function createPolyfillEmitter({
       // a `delete` above the surviving member tail needs a REFERENCE: folded inside the
       // alternate, the ternary evaluates and deletes nothing. the tail rides OUTSIDE behind
       // `?.` instead - the binding is always defined, so the `?.` only re-creates the source
-      // short-circuit on the guarded branch
-      // `delete` needs the member, and the tail it reads must keep the source short-circuit:
-      // folded into the alternate a plain read throws where the chain yields undefined
+      // short-circuit on the guarded branch, where a plain read would throw
       const deleteTail = (memberTail || deleteAboveTail(metaPath, node)) && deleteAboveChain(metaPath, node);
       // a MEMBER continuation above the invoked claim reads off the call's own value, which the
       // guarded branch already produced - take it INTO the alternate (the AST emitter's shape).
@@ -3171,7 +3173,7 @@ export function createPolyfillEmitter({
       return;
     }
     // an erased-guard static reached through an outer guard emits bare into its body
-    if (emitOuterGuardedStatic({ binding, node, parent, sideEffects, receiverEffectCount, start, end })) return;
+    if (emitOuterGuardedStatic({ binding, node, parent, calleeParentKind, sideEffects, start, end })) return;
     // a SEALED probe receiver: the erase drops the read the source performs on the sealed
     // VALUE (`(globalThis.window?.self.window).Array.of(6)` - an absent `window` throws at
     // `.Array` where the erased claim just runs). re-emit that read as a THROW probe ahead of
@@ -3209,10 +3211,6 @@ export function createPolyfillEmitter({
   // source's own throw semantics. the tail slices from the WRAPPER'S end so a seal's
   // close-paren never leaks into it. shared by the claimless receiver arm and the synth
   // param-default channel
-  // a PULLED tail ends in the guard ternary, the loosest expression there is: any operator on
-  // either side would swallow it (`typeof <ternary>` tests `typeof null`, `<ternary> ?? x` never
-  // reaches the fallback). only a slot that already delimits a whole expression is safe bare -
-  // anything else gets the parens the AST emitter's precedence pass would print
   // does `outer` enclose `node`'s whole range? the descent below picks its next step with it
   function nodeEncloses(outer, node) {
     return !!outer && typeof outer === 'object' && typeof outer.type === 'string'
@@ -3248,6 +3246,10 @@ export function createPolyfillEmitter({
   // the slot off the source text instead misread every consumer that shares a character with
   // something else (`===` vs `=`, `??` vs `?:`) and every statement whose neighbour carried no
   // `;`. no path (a synthesized node) keeps the parenthesized spelling, which is always sound
+  // a PULLED tail ends in the guard ternary, the loosest expression there is: any operator on
+  // either side would swallow it (`typeof <ternary>` tests `typeof null`, `<ternary> ?? x` never
+  // reaches the fallback). only a slot that already delimits a whole expression is safe bare -
+  // anything else gets the parens the AST emitter's precedence pass would print
   function pulledNeedsParens(spanPath, start, end) {
     return spanPath ? resolveGuardWrap({ metaPath: spanPath, isCall: false, start, end }).needsParens : true;
   }
@@ -3287,10 +3289,9 @@ export function createPolyfillEmitter({
     // (the AST emitter's shape - no `?.` for the ES5 lowering to memoize). the FIRST hop pulls
     // whatever its own spelling (its `?.` is dead over the leaf) and PLAIN hops keep pulling;
     // the first live `?.` guards a value past the leaf, so it and everything above stay behind
-    // the ternary. a `delete` consumer needs the member itself and keeps the whole tail outside
-    // `delete` anywhere above the chain keeps the whole tail outside: folded into the alternate
-    // the ternary deletes nothing at all (the browser leg catches this - in Node the guarded
-    // branch never runs)
+    // the ternary. a `delete` anywhere above the chain needs the member itself, so it keeps the
+    // whole tail outside: folded into the alternate the ternary deletes nothing at all (the
+    // browser leg catches this - in Node the guarded branch never runs)
     if (navGuard.pullable && !sealedEnd && !deleteAboveChain(metaPath, unwrapped)
       && !parenCalleeAbove(metaPath, unwrapped)) {
       // the paren verdict is asked of the AST, so it needs the path OF the span the fold covers -

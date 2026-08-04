@@ -6,6 +6,8 @@
 // ternary result would throw on the void 0 path where native yields undefined
 const arr = [1, 2];
 arr.flat?.().map(x => x * 2).filter?.().some(x => x > 3);
-// a CALL link inside an optional-root receiver keeps the fold: the call is its own dispatch
-// whose guard-hoist already covers the nullish root - the single-root hoist is member-walk only
+// an optional link BEHIND a call link: each optional gets its own memo and its own test, so the
+// nullish root is tested before the maybe-helper reads it and again after the call link returns.
+// the receiver is never folded into a single hoisted guard - a call link is its own dispatch and
+// the value it produces can be nullish independently of the root
 arr?.slice().flat?.().at(0);

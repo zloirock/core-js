@@ -776,7 +776,7 @@ export function collectDestructureUnionCandidates({
 // SAME `resolvePure`-static viability the per-branch synth applies (`isViableBranchForKey`: a pure,
 // non-instance resolution) so the gate and the registration cannot disagree on what "candidate" means.
 // single-sourced so both emitters share the gate (each calls it from its own synth-failure site)
-export function fallbackDestructureHasPolyfillableBranch(meta, path, adapter, resolvePure) {
+export function fallbackDestructureHasPolyfillableBranch({ meta, path, adapter, resolvePure }) {
   return !!enumerateFallbackDestructureBranches(meta, path, adapter, { resolvePure })?.some(branchMeta => {
     const pure = resolvePure(branchMeta);
     return pure && pure.kind !== 'instance';
@@ -1984,7 +1984,14 @@ function arrayWrapReceiverFromHost({ parent: host, indices }, adapter) {
 //     receiver tail itself must be effect-free since the literal replaces it
 //   - rest bails anywhere: it collects the receiver's REMAINING enumerable keys (an
 //     app-extended `Array.myHelper = x` legitimately feeds it) - unknown keys cannot be mirrored
-const nestedParamSynthPlanned = new WeakSet();
+// host node -> the plan verdict, INCLUDING the un-mirrorable outcomes: `buildMirrorTargets` has
+// already run `collectValueLeaves` plus a `mirrorPattern` per reachable value leaf (one resolver
+// lookup per pattern key) by the time it declines, and every sibling prop of the same pattern asks
+// the same question - memoizing only the success made a mixed pattern pay that walk per prop.
+// re-asking a DECLINE is real (the emitter prunes consumed props between dispatches), and both
+// decline verdicts point the bail-safe way - `null` keeps the sound inline default, `{ bail }`
+// leaves the read native - so a verdict that went stale can only under-rewrite, never over-rewrite
+const nestedParamSynthPlan = new WeakMap();
 
 // may the host walk stop at `cur`'s direct parent (a param default / declarator / cascade)? always when
 // `cur` is ABOVE the trigger leaf's own pattern; at the leaf pattern itself ONLY when it is MIXED (a
@@ -2065,7 +2072,7 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // value AND the leaf polyfill. a statement-context assignment (`({...} = R);`) discards the value, so
   // it keeps synth-swapping; a param default (AssignmentPattern host) is caller-correct, not captured
   if (host.node.type === 'AssignmentExpression' && !nestedAssignmentStatementOf(leafPatternPath)) return null;
-  if (nestedParamSynthPlanned.has(host.node)) return { done: true };
+  if (nestedParamSynthPlan.has(host.node)) return nestedParamSynthPlan.get(host.node);
   // descend ArrayPattern wrappers: an outer destructure may wrap the consumed object-pattern in
   // arrays (`const [, { Array: { from } }] = [0, R]`). resolve the element's object-pattern and the
   // init slot descended to the matching element, so the mirror swaps the proxy branch INSIDE the
@@ -2272,9 +2279,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     // branch is a non-proxy - its legitimate `undefined` must not become the polyfill. a proxy-only
     // receiver keeps the sound inline default (it fires only when the global's static is genuinely
     // absent on the selected proxy, never replacing a user value)
-    return destructureValueBranchesAllProxy(host.node[slot]) ? null : { bail: true };
+    const declined = destructureValueBranchesAllProxy(host.node[slot]) ? null : { bail: true };
+    nestedParamSynthPlan.set(host.node, declined);
+    return declined;
   }
-  nestedParamSynthPlanned.add(host.node);
+  nestedParamSynthPlan.set(host.node, { done: true });
   return { host, slot, targets };
 }
 
