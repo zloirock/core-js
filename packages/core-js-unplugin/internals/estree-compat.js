@@ -34,10 +34,10 @@ export function nodeType(node) {
 
 // ESTree adapter for Babel node type predicates
 export const types = {
-  isIdentifier: (n, opts) => n?.type === 'Identifier' && (!opts?.name || n.name === opts.name),
+  isIdentifier: n => n?.type === 'Identifier',
   isMemberExpression: n => n?.type === 'MemberExpression' && !n.optional,
   isOptionalMemberExpression: n => n?.type === 'MemberExpression' && n.optional === true,
-  isCallExpression: (n, opts) => n?.type === 'CallExpression' && !n.optional && (!opts?.callee || n.callee === opts.callee),
+  isCallExpression: n => n?.type === 'CallExpression' && !n.optional,
   isOptionalCallExpression: n => n?.type === 'CallExpression' && n.optional === true,
   isObjectProperty: n => n?.type === 'Property' && !n.method && n.kind === 'init',
   isObjectMethod: n => n?.type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'),
@@ -67,10 +67,6 @@ export const types = {
   isClassPrivateProperty: n => n?.type === 'PropertyDefinition' && n.key?.type === 'PrivateIdentifier',
   isStaticBlock: n => n?.type === 'StaticBlock',
   isAwaitExpression: n => n?.type === 'AwaitExpression',
-  // oxc's raw `type` on string literals is `'Literal'`; `nodeType()` above translates that
-  // to `'StringLiteral'` for babel parity. callers use either this predicate OR
-  // `nodeType(n) === 'StringLiteral'` - NOT `n.type === 'StringLiteral'` directly
-  isStringLiteral: n => n?.type === 'Literal' && typeof n.value === 'string',
   // only nodes that DIRECTLY expose `params`/`body`/`returnType` etc. - wrappers like
   // `MethodDefinition` (function lives on `.value`) are excluded so resolve-node-type
   // doesn't read undefined fields and silently abort

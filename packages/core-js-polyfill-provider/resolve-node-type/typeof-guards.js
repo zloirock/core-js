@@ -12,8 +12,11 @@
 //     walks the AST upward collecting all applicable guards
 //   - `flattenCondition` / `resolveExitCondition` / `getStatementSiblings` - re-exposed
 //     for `discriminant-narrow` which receives them via service-object
-//   - `reset()` - clears the per-file `earlyExitGuardsCache` WeakMap; called from the
-//     factory's per-file reset path
+//   - `reset()` - called from the factory's per-file reset path. clears the two caches keyed
+//     on a container that OUTLIVES a node rewrite (`earlyExitGuardsCache` on the enclosing
+//     block, `exitGuardIndexCache` on the sibling array, which an in-place edit mutates rather
+//     than replaces). `siblingExitConditionCache` is deliberately not cleared: it is keyed on
+//     the statement node itself, so a rewritten statement is a new key and cannot go stale
 //
 // Service-object captures cross-cluster deps: `t` for AST predicates, the closure-bound
 // `peelNegation` / `isLiteralOf` / `getMemberProperty` / `constantBindingPath` /
