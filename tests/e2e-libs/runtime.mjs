@@ -178,10 +178,6 @@ function runKarma(karmaBin, conf, file) {
 
 // -------- the single pass --------
 
-// Cells are only written on the success path, so without a wipe a failed cell leaves yesterday's
-// all-green page on disk while the manifest records the failure — and the operator is told to upload
-// whatever is in those directories. An unfiltered run therefore clears everything; a filtered one
-// clears only what it is about to rebuild, and merges into the existing manifest below.
 // A filtered run merges into the existing manifest, so read and validate it FIRST: discovering a
 // corrupt one after the wipe would destroy the artifacts it describes and every rebuilt cell with it.
 const rebuilt = new Set(libs.map(l => l.name));
@@ -196,6 +192,10 @@ if (libFilter) {
   }
 }
 
+// Cells are only written on the success path, so without a wipe a failed cell leaves yesterday's
+// all-green page on disk while the manifest records the failure — and the operator is told to upload
+// whatever is in those directories. An unfiltered run therefore clears everything; a filtered one
+// clears only what it is about to rebuild, and keeps the rest through `previous` above.
 if (libFilter) {
   for (const lib of libs) await rm(join(ART, lib.name), { recursive: true, force: true });
 } else {
