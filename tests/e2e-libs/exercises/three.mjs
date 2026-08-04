@@ -332,10 +332,14 @@ export function run() {
 
   // --- Cache keys go through `new URL()` inside three's isBlobURL ---
   THREE.Cache.enabled = true;
-  THREE.Cache.add('json:https://example.com/a.json', { v: 1 });
-  const cached = THREE.Cache.get('json:https://example.com/a.json');
-  THREE.Cache.add('blob:blob:https://example.com/deadbeef', { v: 2 });
-  const blobCached = THREE.Cache.get('blob:blob:https://example.com/deadbeef');
+  const cacheKey = 'json:https://example.com/a.json';
+  // bound once on purpose: `cache_blob_not_stored` passes BECAUSE this lookup misses, so two
+  // literals that drifted apart would make it green for the wrong reason
+  const blobKey = 'blob:blob:https://example.com/deadbeef';
+  THREE.Cache.add(cacheKey, { v: 1 });
+  const cached = THREE.Cache.get(cacheKey);
+  THREE.Cache.add(blobKey, { v: 2 });
+  const blobCached = THREE.Cache.get(blobKey);
   THREE.Cache.clear();
   THREE.Cache.enabled = false;
   check('cache_url_hit', cached.v, 1);

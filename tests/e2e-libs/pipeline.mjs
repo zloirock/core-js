@@ -95,6 +95,7 @@ async function measure(lib, method) {
   const cell0 = `${ lib.name }/${ method }`;
   return withEntry(lib.exercise, method, `pipe-${ method }`, async entry => {
     const cell = { lib: lib.name, method };
+    const cellC = `${ cell0 } [C]`;
 
     if (method !== 'entry-global') {
       const { src, A, B } = await baseStages(lib);
@@ -112,18 +113,18 @@ async function measure(lib, method) {
     const sink = new Set();
     const babel = timeTransform(makeBabelPlugin(), ms => { babelMs += ms; });
     const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginMs += ms; });
-    const c = await timedBuild(entry, [babel, nodeResolve(), commonjs(), up, recorder(sink)], `${ cell0 } [C]`);
+    const c = await timedBuild(entry, [babel, nodeResolve(), commonjs(), up, recorder(sink)], cellC);
     cell.injections = sink.size;
     // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
-    assertPayload(c.chunk, `${ cell0 } [C]`);
+    assertPayload(c.chunk, cellC);
     // runtime.mjs refuses this shape for EVERY method, so this must too - an
     // entry-global carve-out would be both weaker than they are and pointless, since entry-global
     // records 318 injections here.
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
     // [B] == [A] with babelMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
     // premise directly instead of inferring it from the numbers
-    assertES5(c.code, `${ cell0 } [C]`);
-    const { min, gz } = await wireSize(c.code, `${ cell0 } [C]`);
+    assertES5(c.code, cellC);
+    const { min, gz } = await wireSize(c.code, cellC);
     cell.C = {
       bytes: c.bytes, ms: +c.ms.toFixed(0), babelMs: +babelMs.toFixed(0), unpluginMs: +unpluginMs.toFixed(0),
       min, gz,
