@@ -169,7 +169,11 @@ let md = '# Pipeline: size and time per stage\n\n'
   + 'Rollup + Babel (syntax down-compile) + unplugin, single run. '
   + 'Stages: **[A]** library with no transforms '
   + '(modern, tree-shaken) → **[B]** + Babel (ES5, no polyfills) → **[C]** + unplugin '
-  + '(polyfills = the real IE11 bundle). For `entry-global`, only [C].\n\n';
+  + '(polyfills = the real IE11 bundle). For `entry-global`, only [C]. '
+  + '**[A] and [B] depend on the library only** — neither carries unplugin, and the entry is identical '
+  + 'for both usage-* methods — so they are measured ONCE per library and the two usage-* rows show '
+  + 'the same build. Identical [A]/[B] figures across those two rows are one measurement printed '
+  + 'twice, not two that agree. Only [C] is per cell.\n\n';
 for (const lib of libs) {
   const cells = rows.filter(r => r.lib === lib.name);
   if (!cells.length) continue;
