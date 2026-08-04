@@ -41,6 +41,13 @@ const CASES = [
     + 'export const r = (globalThis.window?.self.iBox).arr?.flat().concat([]);'],
   ['write target through the guard', 'globalThis.iBox = { n: 1 };\n'
     + 'export function w() { (globalThis.window?.self.iBox).n = 2; return globalThis.window?.self.iBox.n; }'],
+  // the `in` probe whose test is KEPT: its output still reads as a foldable probe on a second
+  // pass, so without recognising our own shape the wrap would wrap itself
+  ['in kept test over short-circuiting receiver', 'const src = [3, [1, 2]];\n'
+    + "export const r = (a => 'flat' in (a?.slice()))(src);"],
+  ['in kept test over static proxy hop', "export const r = 'from' in globalThis.window?.Array;"],
+  ['in fold stays folded', 'const src = [3, [1, 2]];\n'
+    + "export const r = 'flat' in src.slice();"],
   ['mutated-self standdown', 'globalThis.self = globalThis.self;\n'
     + 'export const r = (globalThis.window?.self).Object.entries;\n'
     + 'export const { keys: k } = (globalThis.window?.self).Object;'],

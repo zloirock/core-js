@@ -132,9 +132,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // wrapper legitimately consumes the branch value.
   // parenTerminated: chain barriers recorded at replace time (see markGuardedClaim's caller);
   // pendingKeptNavCollapses: kept nav-collapse renders awaiting their host-exit flush
-  // pluginGuardTernaries: guard ternaries this factory built (`test == null ? void 0 : alt`) -
-  // the combined-chain emitter grafts its helper INTO such an alternate instead of wrapping the
-  // whole ternary. throwingExtractions: helper-GET calls minted for DESTRUCTURE extractions -
+  // throwingExtractions: helper-GET calls minted for DESTRUCTURE extractions -
   // native destructuring of undefined THROWS, so an erase-refusal guard must stay INSIDE the
   // helper argument (the helper then throws on the short-circuited void 0 exactly like native)
   // instead of climbing above it
@@ -148,8 +146,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         pluginSeqWraps = new WeakSet(),
         parenTerminated = new WeakSet(),
         pendingKeptNavCollapses = [],
-        pluginGuardTernaries = new WeakSet(),
-        throwingExtractions = new WeakSet();
+        throwingExtractions = new WeakSet(),
+        rebuiltSourceCalls = new WeakSet();
   function markThrowingExtraction(node) {
     throwingExtractions.add(node);
     return node;
@@ -178,7 +176,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // consumer of the member legitimately receives `void 0`, and user parens / TS casts
   // terminate the chain (native throws past them, so the guard must stay inside)
   function isHelperCall(callNode, argNode) {
-    return callNode.arguments.length === 1
+    // SYNTHESIZED only: a plugin-built wrapper carries no source range. a call the SOURCE wrote
+    // around the claim (`Array.of(<nav>)`) wears an injected callee too once its own static
+    // resolves, but it is a polyfill in its own right - lifting a guard over it turns the
+    // argument's short-circuit into the whole call's
+    // a plugin HELPER wraps the claim and stays undefined-tolerant, so a guard may lift over it -
+    // the text emitter hangs it outside too. a call the SOURCE wrote around the claim is a
+    // polyfill in its own right, whether it still carries its source range or an outer claim has
+    // already rebuilt it: lifting past it turns the argument's short-circuit into the whole call's
+    return typeof callNode.start !== 'number' && !rebuiltSourceCalls.has(callNode)
+      && callNode.arguments.length === 1
       && callNode.arguments[0] === argNode && callNode.callee.type === 'Identifier'
       && getInjector().getBindingInfo(callNode.callee.name)?.source;
   }
@@ -337,6 +344,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     let claimBody = isInvoke
       ? t.callExpression(t.cloneNode(id), invokeParent.node.arguments.map(a => t.cloneNode(a)))
       : t.cloneNode(id);
+    // the rebuild loses the source range, but the call is still the one the SOURCE wrote
+    if (isInvoke) rebuiltSourceCalls.add(claimBody);
     if (migratedSe.length) {
       claimBody = t.sequenceExpression([...migratedSe.map(se => t.cloneNode(se)), claimBody]);
     }
@@ -388,26 +397,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     target.replaceWith(claimResult);
   }
 
-  // a guard ternary REPLACING the memoized receiver inside a combined helper wrap
-  // (`_map(_ref2 = <ternary>)` in an outer guard slot) hoists its test OVER the helper: the
-  // helper belongs INSIDE the alternate (the double-hop / text-emitter canon), and the maybe-
-  // helper's undefined-tolerance keeps the value equivalent on the short-circuit path. the
-  // guard memo often turns write-only under later claims - the programExit unwrap prunes it
-  function graftGuardIntoHelperSlot(tPath) {
-    const ternary = tPath.node;
-    if (!pluginGuardTernaries.has(ternary)) return;
-    const assignPath = tPath.parentPath;
-    if (!assignPath?.isAssignmentExpression() || assignPath.node.right !== ternary
-      || assignPath.node.left.type !== 'Identifier') return;
-    const callPath = assignPath.parentPath;
-    if (!callPath?.isCallExpression() || !isHelperCall(callPath.node, assignPath.node)) return;
-    assignPath.node.right = ternary.alternate;
-    const lifted = t.conditionalExpression(
-      ternary.test, t.unaryExpression('void', t.numericLiteral(0)), callPath.node);
-    pluginGuardTernaries.add(lifted);
-    callPath.replaceWith(lifted);
-  }
-
   function wrapConditional(check, result) {
     // place `null` first when `check` doesn't start with an identifier-like token (typically
     // an AssignmentExpression `(_ref = X)`). This guarantees ASI safety when the replacement
@@ -417,9 +406,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const test = isLeadingIdentLike(check)
       ? t.binaryExpression('==', check, NULL)
       : t.binaryExpression('==', NULL, check);
-    const conditional = t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
-    pluginGuardTernaries.add(conditional);
-    return conditional;
+    return t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
   }
 
   function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode }) {
@@ -733,6 +720,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // collect the chain steps leaf-outwards, then let the shared rule say how many ride inside
       const paths = [];
       for (let hop = pullFrom; hop?.node;) {
+        // a hop the guard channel already lifted into a ternary alternate answers from its OLD
+        // slot: the node moved without a path replace, so the cached path has no container left.
+        // the chain ends there - the lifted spelling owns everything above it
+        if (!hop.container) break;
         const isCall = hop.isOptionalCallExpression() || hop.isCallExpression();
         if (!isCall && !hop.isOptionalMemberExpression()) break;
         if (isCall && hop.node.callee !== paths.at(-1)?.node) break;
@@ -1115,7 +1106,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (embedGuard) {
       replacePath.replaceWith(check ? wrapConditional(check, result) : result);
       normalizeOptionalChain(replacePath);
-      if (check) graftGuardIntoHelperSlot(replacePath);
     } else {
       replacePath.replaceWith(result);
       // a replacement that introduced its OWN optional (`_X(recv)?.call(recv)` from an `arr.flat?.()`
@@ -1144,7 +1134,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
             break;
           }
           tip.replaceWith(wrapConditional(check, tip.node));
-          graftGuardIntoHelperSlot(tip);
           return;
         }
         // an OptionalCallExpression standing in NewExpression.callee (`new (arr.flat?.())(z)`)
@@ -1160,7 +1149,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
       if (check) {
         wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
-        graftGuardIntoHelperSlot(wrapPath);
       }
     }
   }
