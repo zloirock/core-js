@@ -24,7 +24,7 @@ import {
   typeRefName,
   typeRefSegments,
 } from './ast-shapes.js';
-import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
+import { getHeritageTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeMembers({
   memoize,
@@ -128,6 +128,26 @@ export function createTypeMembers({
     return memoize(perObject, scope, () => computeGetTypeMembers(args));
   }
 
+  // Flow keeps INDEXERS in their own slot, so returning `properties` alone loses them and every
+  // consumer that asks the index-signature question comes back empty. mirror each one into the
+  // TSIndexSignature shape the consumers already understand - the same synthetic trick the
+  // `Record<K, V>` expansion uses
+  function flowObjectTypeMembers(objectType) {
+    const indexers = objectType.indexers ?? [];
+    // the no-indexer path keeps handing back the raw slot: an ABSENT `properties` means "unknown"
+    // to callers, while `[]` means "no members", and collapsing the two would turn a bail into a
+    // narrow. the spread below is the only place that must not trip over the absent slot
+    if (!indexers.length) return objectType.properties;
+    return [...objectType.properties ?? [], ...indexers.map(indexer => ({
+      type: 'TSIndexSignature',
+      parameters: [{
+        type: 'Identifier',
+        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: indexer.key },
+      }],
+      typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: indexer.value },
+    }))];
+  }
+
   function computeGetTypeMembers({ objectType, scope, depth = 0, visited = undefined }) {
     if (depth > MAX_DEPTH) return null;
     // leading TSParenthesizedType (`({ ... })['k']`) - passthrough to the inner type's members
@@ -142,7 +162,7 @@ export function createTypeMembers({
       return getTypeMembers({ objectType: objectType.typeAnnotation, scope, depth: depth + 1, visited });
     }
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
-    if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
+    if (objectType.type === 'ObjectTypeAnnotation') return flowObjectTypeMembers(objectType);
     // both TS `T[K]` and Flow `T[K]` (IndexedAccessType) route through the same resolver
     if (objectType.type === 'TSIndexedAccessType' || objectType.type === 'IndexedAccessType') {
       return resolveIndexedAccessMembers(objectType, scope, depth);
@@ -317,11 +337,10 @@ export function createTypeMembers({
       // - iteration cur=Mid sets up parent=Base. Without subst, [T] propagates to Base's iface
       // lookup where ifaceSubst {U->T} resolves items to T[]. With subst applied, [string[]]
       // propagates -> {U->string[]} -> items resolves to string[][]
-      // Flow `declare class Sub extends Base<...>` (DeclareClass) carries super-type-args on
-      // the heritage clause (`extends[0].typeParameters`), not on the declaration's superType*
-      // slots that `getSuperTypeArgs` probes; without the fallback the generic subst into
-      // inherited members silently drops and the member resolves to null (over-injection)
-      const rawSuperArgs = (getSuperTypeArgs(cur) ?? cur.extends?.[0]?.typeParameters)?.params;
+      // the heritage accessor covers the Flow ambient spelling too: without it the generic
+      // subst into inherited members silently drops and the member resolves to null
+      // (over-injection)
+      const rawSuperArgs = getHeritageTypeArgs(cur)?.params;
       curReceiverArgs = rawSuperArgs ? rawSuperArgs.map(a => applyAliasSubstDeep(a, curSubst)) : null;
       curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst, scope);
       cur = parent;

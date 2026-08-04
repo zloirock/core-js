@@ -16,7 +16,13 @@
 // path - factory destructure binds the cluster output by the time those run.
 import { $Object, $Primitive, literalNodeValue, firstTypeParamIsInner } from './base.js';
 import {
-  isMethodShapeMember, isOpenKeywordAnnotation, isUnionType, peelTSParenthesized, readonlyCollectionBase, typeRefSegments,
+  isMethodShapeMember,
+  isOpenKeywordAnnotation,
+  isUnionType,
+  literalTypeValueNode,
+  peelTSParenthesized,
+  readonlyCollectionBase,
+  typeRefSegments,
 } from './ast-shapes.js';
 import { getTypeArgs, propertyKeyName, singleQuasiString } from '../helpers/ast-patterns.js';
 
@@ -452,14 +458,18 @@ export function createTypeAnnotationResolve({
     // the index operand needs the same peel: oxc keeps a `T[('a')]` index as TSParenthesizedType,
     // so every `.type ===` dispatch below would miss the inner literal and bail on that parser only
     const indexType = peelTSParenthesized(node.indexType);
-    // T[number] - element type of array/tuple
-    if (indexType?.type === 'TSNumberKeyword') return resolveElementType(objectType, scope, depth + 1);
+    // T[number] - element type of array/tuple. both dialect spellings of the keyword: a name-only
+    // test here left every Flow file taking the generic path on a shape TS resolves precisely
+    if (indexType?.type === 'TSNumberKeyword' || indexType?.type === 'NumberTypeAnnotation') {
+      return resolveElementType(objectType, scope, depth + 1);
+    }
     // T[string] - string index signature type
-    if (indexType?.type === 'TSStringKeyword') {
+    if (indexType?.type === 'TSStringKeyword' || indexType?.type === 'StringTypeAnnotation') {
       const members = getTypeMembers({ objectType, scope });
       if (members) for (const member of members) {
+        const keyType = member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type;
         if (member.type === 'TSIndexSignature' && member.typeAnnotation
-          && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
+          && (keyType === 'TSStringKeyword' || keyType === 'StringTypeAnnotation')) {
           return resolveTypeAnnotation(member.typeAnnotation, scope, depth + 1);
         }
       }
@@ -485,14 +495,14 @@ export function createTypeAnnotationResolve({
     // interpolations (`T[\`_${K}\`]`) would require compile-time type-string computation
     // (mapped-type renamers like `as \`_${K & string}\``); conservative bail for now.
     // TS wraps template literals in TSLiteralType { literal: TemplateLiteral }; unwrap first
-    const literalIndex = indexType?.type === 'TSLiteralType' ? indexType.literal : indexType;
+    const literalIndex = literalTypeValueNode(indexType) ?? indexType;
     const quasi = singleQuasiString(literalIndex);
     if (quasi !== null) {
       const member = findTypeMember({ objectType, key: quasi, scope });
       return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
     }
-    if (indexType?.type !== 'TSLiteralType') return null;
-    const { literal } = indexType;
+    const literal = literalTypeValueNode(indexType);
+    if (!literal) return null;
     let member;
     if (isLiteralOf(literal, 'String')) member = findTypeMember({ objectType, key: literal.value, scope });
     else if (isLiteralOf(literal, 'Numeric')) {
@@ -663,7 +673,14 @@ export function createTypeAnnotationResolve({
       case 'TSLiteralType':
         return resolveLiteralType(node);
       case 'TSIndexedAccessType':
+      case 'IndexedAccessType':
         return resolveIndexedAccessType(node, scope, depth);
+      // Flow's optional indexed access (`Obj?.['key']`) yields the member type OR undefined,
+      // so it carries the same nullish marker as `?T` above
+      case 'OptionalIndexedAccessType': {
+        const inner = resolveIndexedAccessType(node, scope, depth);
+        return inner && !isNullableOrNever(inner) ? inner.mark('mayBeNullish') : inner;
+      }
     }
     return null;
   }

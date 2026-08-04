@@ -31,7 +31,15 @@
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
-import { collectQualifiedSegments, isUnionType, matchOverloadByArgs, peelTSParenthesized, typeRefName } from './ast-shapes.js';
+import {
+  collectQualifiedSegments,
+  isObjectTypeLiteral,
+  isTypeReferenceNode,
+  isUnionType,
+  matchOverloadByArgs,
+  peelTSParenthesized,
+  typeRefName,
+} from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   cleanDestructureAliasWrites, getTypeArgs, isCleanDestructureAliasBinding, isGuardedAliasingWrite,
@@ -149,10 +157,23 @@ export function createCallResolution({
   // return resolves through the shared `foldOverloadReturns`: arg-match one overload, else WIDEN the divergent
   // set to generic rather than hand back one arm's type-specific Maybe (ie:11 throw on a foreign return).
   // `undefined` -> not an ambient function (caller falls through); `null` -> ambient but generic
+  // TS keeps an ambient function's params and return ON the declaration; Flow keeps the whole
+  // signature on the declared id's annotation instead. one accessor so the param reader and the
+  // return reader below cannot end up asking about different nodes
+  function ambientSignatureNode(node) {
+    if (node?.type !== 'DeclareFunction') return node;
+    return unwrapTypeAnnotation(node.id?.typeAnnotation) ?? node;
+  }
+
   function resolveAmbientFunctionReturn(name, scope, callPath) {
     const paths = findAmbientFunctionPaths(name, scope);
     if (!paths.length) return undefined;
-    return foldOverloadReturns(paths, p => p.node.params, p => resolveReturnType(p, callPath), p => p.node.returnType, callPath);
+    // `resolveReturnType` reads the declaration's own `returnType`, which the Flow spelling does not
+    // have - fall back to resolving the signature's return annotation directly for that shape
+    return foldOverloadReturns(paths, p => ambientSignatureNode(p.node).params,
+      p => resolveReturnType(p, callPath)
+        ?? resolveTypeAnnotation(unwrapTypeAnnotation(ambientSignatureNode(p.node).returnType), p.scope),
+      p => ambientSignatureNode(p.node).returnType, callPath);
   }
 
   // resolve aliased static-method call return type. tries each alias shape's extractor
@@ -249,10 +270,11 @@ export function createCallResolution({
     return { constructor, method: keyPath.at(-1) };
   }
 
-  // both babel and oxc store the return type on `.returnType` for TSFunctionType /
-  // TSConstructorType / TSMethodSignature / TSDeclareMethod / ClassMethod / ClassPrivateMethod
-  // (Flow FunctionTypeAnnotation too); the `node.typeAnnotation ??` arm below is defensive and
-  // currently never populated for these kinds on either parser.
+  // BOTH slots below are load-bearing, do not prune either. babel@8 and oxc put the return type on
+  // `.returnType` for every kind here; babel@7 - still a supported leg - puts it on `.typeAnnotation`
+  // for the SIGNATURE kinds (function / constructor type, method / call / construct signature) and on
+  // `.returnType` only for the declaration kinds (declare method, class method). the order between
+  // them does not matter: no parser populates both.
   // ESTree MethodDefinition and its abstract sibling TSAbstractMethodDefinition wrap the function
   // in `.value` so the return type lives one level deeper (oxc emits `abstract m(): T` as the
   // latter). consumers (e.g. ReturnType<typeof X.method>) call into this when `findTypeMember`
@@ -332,7 +354,7 @@ export function createCallResolution({
     // peels through `findTypeMember` first; a non-function alias yields null (generic), as before
     const aliased = followTypeAliasChain(annotation, info.scope);
     let target = aliased.subst ? applyAliasSubstDeep(aliased.node, aliased.subst) : aliased.node;
-    if (target?.type === 'TSIndexedAccessType') {
+    if (target?.type === 'TSIndexedAccessType' || target?.type === 'IndexedAccessType') {
       const peeled = resolveIndexedAccessMemberAnnotationAST(target, info.scope, 0);
       if (peeled) target = peeled;
     }
@@ -408,10 +430,10 @@ export function createCallResolution({
     }
     const runtime = resolveTypeAnnotation(node, scope);
     if (runtime) return `@${ runtime.constructor ?? runtime.primitive ?? runtime.type }`;
-    if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
+    if (isTypeReferenceNode(node)) {
       return typeRefName(node) ?? null;
     }
-    if (node.type === 'TSTypeLiteral' || node.type === 'ObjectTypeAnnotation') {
+    if (isObjectTypeLiteral(node)) {
       const members = node.members ?? node.properties;
       if (!Array.isArray(members)) return null;
       const parts = [];

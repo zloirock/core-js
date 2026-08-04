@@ -51,6 +51,9 @@ function isOptionalOperand(child, parent) {
   return cur === child.node;
 }
 
+// the resolver-facing options (`getAdapter` / `resolvePureGlobalEntry` / `injectPureGlobal`) are
+// genuinely optional: the unit harness constructs the helpers with the injector alone to isolate
+// AST-shape behaviour from resolver wiring, so every consumer of them must gate as a family
 export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry, injectPureGlobal } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
 
@@ -621,22 +624,24 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // so the deferred mutation lands in whatever emit captured it
   function collapseKeptNavValueNode(rootNode, anchorPath) {
     const adapter = getAdapter?.();
-    if (!adapter || !anchorPath?.scope || !resolvePureGlobalEntry) return;
+    // the whole resolver-option family or nothing: this one omitted `injectPureGlobal` while
+    // calling it at the tail, so a harness wired with only some of them would TypeError there
+    if (!adapter || !anchorPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return;
     const plan = planProvenNavGuardCollapse({
       rootNode, scope: anchorPath.scope, adapter, path: anchorPath,
       resolvePure: ({ name }) => resolvePureGlobalEntry(name, anchorPath),
     });
     if (!plan?.topAssign) return;
-    const pure = resolvePureGlobalEntry(plan.leafName, anchorPath);
-    if (!pure) return;
-    // snapshot a render source NOW (pre-lowering): deep-clone and deoptionalize its chain
-    // SPINE. the flush lands at program exit, AFTER the optional-chain lowering pass visited
-    // the tree, so (1) a LIVE node reference may have been moved into the lowering's own memo
-    // (the render would strand a dangling `_refN`), and (2) an emitted `?.` would never be
-    // lowered for ES5 targets (the render's own vestigial-`?.` drop keeps the printed spelling
-    // free of dead optionals). call ARGUMENTS stay untouched - user optionals inside them lower
-    // normally in place. null when the spine holds a `?.()` (it may be conditionally proven - a
-    // REAL short-circuit the plan may not flush-render; the raw memo fallback stays faithful)
+    const { leafPure: pure } = plan;
+    // snapshot a render source NOW (pre-lowering) by deep-cloning it: the flush lands at program
+    // exit, AFTER the optional-chain lowering pass visited the tree, so a LIVE node reference may
+    // by then have been moved into the lowering's own memo and the render would strand a dangling
+    // `_refN`. the snapshot does NOT drop optionals - only the VESTIGIAL ones die, at render time,
+    // in the kept-prefix / guard-test spelling; a load-bearing `?.` survives into the emitted node
+    // and relies on the flush re-queueing it (`replaceWith`) so the ES5 lowering still sees it.
+    // call ARGUMENTS stay untouched - user optionals inside them lower normally in place. null
+    // when the spine holds a `?.()` (it may be conditionally proven - a REAL short-circuit the
+    // plan may not flush-render; the raw memo fallback stays faithful)
     function snapshotNavRenderNode(node) {
       if (!node) return node;
       for (let spine = node; spine;) {
@@ -762,13 +767,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // that step outside behind a `?.`. drop it here too, so both spellings match
       // (a SINGLE pulled step needs no parens of its own - the printer wraps the whole ternary,
       // and a CALL may never be left outside: invoked off the parens it loses its receiver)
-      // a TAGGED template reads its tag as a REFERENCE too (`(w?.self.tag)`x`` binds `this`),
-      // so a pulled member under one loses the receiver exactly like a parenthesized callee.
-      // the source parens also END the chain - keep them, or the lifted spelling swallows the
-      // throw the source performs on a nullish tag
       // a TAGGED template reads its tag as a REFERENCE (`(w?.self.tag)`x`` binds `this`), so a
-      // folded tail hands it a bare value. leave the whole tail outside - and PLAIN, since the
-      // source parens ended the chain: the read off `void 0` throws exactly as the source does
+      // folded tail hands it a bare value - the receiver is lost exactly as under a
+      // parenthesized callee. leave the whole tail outside and PLAIN: the source parens ended
+      // the chain, so the read off `void 0` throws exactly where the source does
       if (paths.some(path => path.parentPath?.isTaggedTemplateExpression())) {
         taggedTemplateTails.add(paths[0].node);
         return false;
@@ -824,8 +826,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       if (memberProxyHopName(target.node)) return false;
       plan = planFor(target.node.object);
     }
-    const pure = resolvePureGlobalEntry(plan.leafName, memberPath);
-    if (!pure) return false;
+    const { leafPure: pure } = plan;
     const rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
     if (pullUnplannedTail(target, plan, rendered)) return true;
     target.get('object').replaceWith(rendered);
@@ -853,8 +854,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       resolvePure: ({ name }) => resolvePureGlobalEntry(name, anchorPath),
     });
     if (!plan || plan.topAssign || plan.kind !== 'nested' || plan.keySeExprs.length) return null;
-    const pure = resolvePureGlobalEntry(plan.leafName, anchorPath);
-    if (!pure) return null;
+    const { leafPure: pure } = plan;
     // CLONE the guard-test prefix and PRE-substitute its proxy root: the caller discards
     // (skip-seeds) the original init subtree and may insert this render only at program
     // exit, so neither the live node nor the clone ever meets the natural identifier
@@ -900,8 +900,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath),
     });
     if (!plan || plan.topAssign || plan.kind !== 'nested') return null;
-    const pure = resolvePureGlobalEntry(plan.leafName, memberPath);
-    if (!pure) return null;
+    const { leafPure: pure } = plan;
     const rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
     // the probe CARRIES the nav's key SE (native order: test, key effect, read) - hand the
     // plan's SE nodes back so the claim's own SE channel does not re-run them
@@ -1220,14 +1219,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (check && receiverEffectCount > 0) {
       return [object, seMode === 'suppress' ? sideEffects : keySideEffectsOnly(receiverEffectCount, sideEffects)];
     }
+    if (seMode === 'peel' || !sideEffects?.length) return [object, sideEffects];
     // a receiver whose EVALUATION may throw (its member get reads off a nullish-able probe
     // value) hoists like a side-effecting one: the plain SE prepend would run the key effect
-    // on the branch where native throws before it (ECMA receiver-before-key)
-    const adapter = getAdapter?.();
-    const mayThrow = !!adapter && !!scope && !!resolvePureGlobalEntry && !!anchorHostPath
-      && claimReceiverEvaluationMayThrow(object,
-        ({ name }) => resolvePureGlobalEntry(name, anchorHostPath), { scope, adapter, path: anchorHostPath });
-    if (seMode === 'peel' || !sideEffects?.length || (!mayHaveSideEffects(object) && !mayThrow)) return [object, sideEffects];
+    // on the branch where native throws before it (ECMA receiver-before-key). probed only once
+    // the cheap bails are past - it resolves aliases through the provider canon
+    function receiverMayThrow() {
+      const adapter = getAdapter?.();
+      return !!adapter && !!scope && !!resolvePureGlobalEntry && !!anchorHostPath
+        && claimReceiverEvaluationMayThrow(object,
+          ({ name }) => resolvePureGlobalEntry(name, anchorHostPath), { scope, adapter, path: anchorHostPath });
+    }
+    if (!mayHaveSideEffects(object) && !receiverMayThrow()) return [object, sideEffects];
     const [memoAssign, ref] = memoize(object, scope);
     // the memo `_ref = object` already evaluates the receiver's OWN side effects (a buried chain-root call
     // or hop-key SE the resolver also listed lives inside `object`), so re-emitting the receiver-SE prefix
@@ -1503,7 +1506,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const conditional = t.conditionalExpression(testOr,
       t.unaryExpression('void', t.numericLiteral(0)), alternate);
     // chained outer calls read the hint off the result node; relocate the pre-combine
-    // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve
+    // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve.
+    // the stamp is placed by the visitor's own `annotateCallReturnType` on the CALL node - the
+    // fixture corpus happens not to reach a combined chain whose result is read again, which is
+    // why the unit suite carries the case instead
     const outerCallType = resolvedType?.get(outerCall);
     if (outerCallType) resolvedType.set(conditional, outerCallType);
     tipPath.replaceWith(conditional);
