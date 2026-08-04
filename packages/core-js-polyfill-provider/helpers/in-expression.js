@@ -6,12 +6,39 @@
 import {
   collectFoldedReceiverSideEffects,
   unwrapRuntimeExpr,
+  valueMayBeNullish,
+  walkAstChildren,
 } from './ast-patterns.js';
 import { resolveSymbolInEntry } from '../detect-usage/members.js';
+
+// does the operand the fold would DISCARD carry an `in` of its own? that one THROWS on a bad right
+// operand, and the harvest replays calls and structural effects - not a nested throw. erasing it
+// would swallow the very error the inner test exists to raise, so the outer keeps its test instead
+function discardedOperandOwnsInTest(node) {
+  const stack = [node];
+  for (let cur = stack.pop(); cur; cur = stack.pop()) {
+    if (cur !== node && cur.type === 'BinaryExpression' && cur.operator === 'in') return true;
+    walkAstChildren(cur, child => stack.push(child));
+  }
+  return false;
+}
+
+// `true` under either parser spelling (babel `BooleanLiteral`, ESTree `Literal` with a true value)
+function isTrueLiteralNode(node) {
+  return node?.type === 'BooleanLiteral' ? node.value === true : node?.type === 'Literal' && node.value === true;
+}
 
 // the fold discards BOTH operands whole (each replayed only through the structural SE harvest),
 // shared by the static-receiver and typed-instance-receiver branches below
 function foldPlan({ meta, left, right }) {
+  // BOTH receiver branches ask this before folding, so it lives with the fold itself: the operand
+  // the constant would DISCARD must not be able to hand `in` something it throws on (a value that
+  // short-circuits, whatever the resolved type hint claims) and must not carry an `in` of its own
+  // (its throw is not among the effects the harvest replays). either way the test stays live and
+  // the constant answers after it
+  if (valueMayBeNullish(right) || discardedOperandOwnsInTest(right)) {
+    return { kind: 'fold-after-test', leadingSe: [], skip: null };
+  }
   const rescue = new Set(meta.sideEffects);
   const leadingSe = [
     ...collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left)),
@@ -23,7 +50,16 @@ function foldPlan({ meta, left, right }) {
   return { kind: 'fold', leadingSe, skip: [left, right] };
 }
 
-export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null }) {
+export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null, parent = null }) {
+  // the kept-test spelling re-enters on a SECOND pass - the text emitter runs before AND after babel
+  // in the sandwich, and the test it keeps still reads as a foldable probe. recognising our own
+  // output by shape is what stops the wrap from wrapping itself. a hand-written `(k in o, true)`
+  // matches too: it folds to itself, so declining is the same answer
+  if (parent?.type === 'SequenceExpression' && parent.expressions?.length === 2
+    && parent.expressions[0]?.type === 'BinaryExpression' && parent.expressions[0].operator === 'in'
+    && isTrueLiteralNode(parent.expressions[1])) {
+    return { kind: 'noop' };
+  }
   // symbol-sourced LHS (`Symbol.X in obj` / alias binding): polyfill the symbol entry.
   // Symbol.iterator rewrites to a get-iterator call (`call` shape); any other symbol keeps the
   // membership test with the binding swapped in. LHS may carry SE (computed-key sequence /
