@@ -24,3 +24,10 @@ export const stackedNonNullThenCast = ((globalThis.window?.self.tsBox!) as any).
 export const stackedCastThenNonNull = (((globalThis.window?.self.tsBox as any))!).arr?.at(0);
 export const bareNonNullLayer = (globalThis.window?.self.tsBox!).arr?.at(0);
 export const doubleParenLayer = ((globalThis.window?.self.tsBox)).arr?.at(0);
+
+// a TS layer on the claim sitting in a call ARGUMENT: the guard belongs in the argument, never over
+// the call the source wrote. the erased operator's side of that guard is where the emitters part -
+// `!` and a cast both vanish at emit, so the two spellings compile to the same JS
+export const nonNullArgument = Array.of(globalThis.window?.self.tsBox.n!);
+export const castArgument = Array.of((globalThis.window?.self.tsBox.list as any[]));
+export const nonNullArgumentNested = Array.of(Array.of(globalThis.window?.self.tsBox.inner.n!));
