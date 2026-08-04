@@ -6,7 +6,7 @@
 // as unplugin's own processing time: most of the delta is the bundler resolving, parsing and
 // rendering the core-js modules unplugin injected, not the injection itself. Measured on
 // rollup/rxjs/usage-global, unplugin's transform hook accounted for roughly a quarter of the delta;
-// the rest was rollup handling ~180 extra modules (169 KB baseline chunk -> 508 KB with the plugin).
+// the rest was rollup handling 485 extra modules (161 -> 646; 169 KB baseline chunk -> 508 KB).
 // pipeline.mjs is where the isolated figure lives - it wraps the transform hook itself and reports
 // `unpluginMs` beside `babelMs`. Instrumenting the hook here is not possible for the webpack-family
 // adapters anyway, so this runner stays a whole-build comparison across bundlers.
@@ -92,17 +92,23 @@ const MIN_PAYLOAD_BYTES = 10_000;
 function cellKey(method, phase) {
   return `${ method }|${ phase ?? '' }`;
 }
+// Reported timings are rounded to this, the resolution a single un-repeated cell actually supports.
+function round10(n) {
+  return Math.round(n / 10) * 10;
+}
 function assertBundled(bytes, baseBytes, method, rollupInjections) {
   // null means the capture itself threw; 0 means it ran and found nothing - different diagnoses
   if (method === 'entry-global' && !rollupInjections) {
     throw new Error(`rollup capture ${ rollupInjections === null ? 'failed' : 'found 0 injections' } for entry-global`);
   }
-  // a missing baseline is not a pass: without it this gate cannot run at all, and every cell of that
-  // bundler would otherwise print ✓ while completely ungated
-  if (baseBytes === undefined) throw new Error('no plugin-less baseline for this bundler — the payload gate could not run');
+  // A missing baseline is not a pass — this gate cannot run without one — but it is not this cell's
+  // failure either: the with-plugin build succeeded and its absolute time is worth reporting. Return
+  // false so the caller marks the row UNGATED; erroring the cell would throw that measurement away.
+  if (baseBytes === undefined) return false;
   if (bytes - baseBytes < MIN_PAYLOAD_BYTES) {
     throw new Error(`no polyfills bundled: ${ bytes }b vs plugin-less baseline ${ baseBytes }b`);
   }
+  return true;
 }
 
 async function timed(fn) {
@@ -157,14 +163,16 @@ for (const lib of libs) {
           const { ms, out } = await withEntry(lib.exercise, method, `${ name }-${ method }-${ phase ?? 'x' }`.padEnd(LABEL_WIDTH, '_'),
             e => timed(() => throughputBuilders[name](e, u(name, method, phase))));
           const base = baseline[name];
-          // rounded to 10 ms: a single un-repeated cell varies by tens of percent between runs (see
-          // the header), so tenths of a millisecond would be noise formatted as signal
-          const overhead = base === null ? null : Math.round((ms - base) / 10) * 10;
-          assertBundled(out.bytes, baselineBytes[name], method, rollupInjections);
+          // rounded ONCE and then subtracted, so a consumer's `ms - baseline` equals the reported
+          // `overhead` (see round10 for why the resolution is 10 ms)
+          const roundedMs = round10(ms);
+          const roundedBase = base === null ? null : round10(base);
+          const overhead = roundedBase === null ? null : roundedMs - roundedBase;
+          const gated = assertBundled(out.bytes, baselineBytes[name], method, rollupInjections);
           rows.push({
             lib: lib.name, bundler: name, method, phase: phase ?? '',
-            ms: Math.round(ms / 10) * 10, baseline: base === null ? null : Math.round(base / 10) * 10,
-            overhead, bytes: out.bytes, rollupInjections,
+            ms: roundedMs, baseline: roundedBase,
+            overhead, gated, bytes: out.bytes, rollupInjections,
           });
           console.log(`✓ ${ label }: ${ ms.toFixed(0) }ms (overhead ${ overhead ?? '?' }ms, ${ out.bytes }b, ${ rollupInjections } inj via rollup)`);
         } catch (err) {
@@ -205,8 +213,11 @@ for (const lib of libs) {
     + 'That delta is not unplugin\'s own processing time — most of it is the bundler resolving, parsing '
     + 'and rendering the core-js modules unplugin injected (measured on rollup/rxjs/usage-global: '
     + 'unplugin\'s own transform was ~25% of the delta). For unplugin\'s isolated cost see the '
-    + '`unpluginMs` column of report/pipeline.json, which instruments the transform hook directly. '
-    + '`*` = that bundler\'s baseline failed, so the cell is an ABSOLUTE build time, not an overhead. '
+    + '`unpluginMs` field of each row\'s `C` stage in report/pipeline.json, which instruments the '
+    + 'transform hook directly. '
+    + '`*` = that bundler\'s baseline failed, so the cell is an ABSOLUTE build time, not an overhead — '
+    + 'and, since the size gate is a comparison against that same baseline, such a cell is also UNGATED '
+    + '(`gated: false` in the JSON): nothing verified that its bundle actually contains the polyfills. '
     + 'The `entry` column shares the usage-entry baseline, so it also carries the cost of bundling the '
     + 'core-js graph that `import \'core-js\'` pulls in — an end-to-end figure, not comparable with the '
     + 'usage columns. See throughput.json for absolute ms, bytes, and `rollupInjections` — captured '

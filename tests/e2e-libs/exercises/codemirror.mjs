@@ -53,6 +53,10 @@ import { parser as cssParser } from '@lezer/css';
 import { configureNesting, parser as htmlParser } from '@lezer/html';
 import { parser as jsParser } from '@lezer/javascript';
 
+function eq(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 const SRC = `export function greet(name) {
   const parts = [name, 'world'];
   return parts.join(', ');
@@ -98,10 +102,6 @@ const editCount = StateField.define({
   toJSON: value => value,
   fromJSON: json => json,
 });
-
-function eq(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
 
 // Serialize a tree to a comparable shape: every node as `name:from-to`, in document order.
 function shape(tree) {
@@ -393,19 +393,30 @@ export function run() {
     do n++; while (treeCursor.next());
     return n;
   }
-  // Both walks run for their side effect — driving `TreeCursor` — but the assertion has to be able to
-  // fail, and `IncludeAnonymous >= default` cannot: it is a documented superset. This source has no
-  // anonymous nodes, so the two walks agree; that equality DOES have a failing side.
-  check('tree_iter_modes', walkCount(tree.cursor(IterMode.IncludeAnonymous)) === walkCount(tree.cursor()), true);
+  // `bigTree`, not `tree`, and deliberately so. `doc` is ~280 chars — under lezer's
+  // `DefaultBufferLength` (1024) — so it parses into a single `TreeBuffer` with no anonymous nodes at
+  // all, and BOTH modes walk the identical set no matter how broken `TreeCursor` is: measured 107 vs
+  // 107. Any assertion over those two numbers is true by construction, which is what `>=` and then
+  // `===` both were. `bigDoc` is ~6.4k, well past the threshold, so anonymous nodes genuinely exist
+  // and `IncludeAnonymous` really does surface more of them (2488 vs 2483) — a strict inequality with
+  // a real failing side. The second half then pins the walk against the same tree counted through a
+  // different API (`survey` uses `tree.iterate`), so a cursor that stops early reddens instead of
+  // agreeing with itself.
+  check('tree_iter_modes', [
+    walkCount(bigTree.cursor(IterMode.IncludeAnonymous)) > walkCount(bigTree.cursor()),
+    walkCount(tree.cursor()) === survey(tree).nodes,
+  ], [true, true]);
   // offset 6 sits inside the leading `// header` line
   check('tree_resolve', tree.resolveInner(6, 1).name, 'LineComment');
   // a real NodeProp lookup on a node TYPE, not a truthiness test on the prop object: `closedBy`
   // resolves on the opening bracket of the function's parameter list
   let bracket = null;
-  tree.iterate({ enter(node) {
-    const closes = node.type.prop(NodeProp.closedBy);
-    if (closes && !bracket) bracket = [node.name, closes];
-  } });
+  tree.iterate({
+    enter(node) {
+      const closes = node.type.prop(NodeProp.closedBy);
+      if (closes && !bracket) bracket = [node.name, closes];
+    },
+  });
   check('tree_node_prop', bracket, ['(', [')']]);
   // `configure` clones the parser through Object.assign(Object.create(LRParser.prototype), …)
   const configured = jsParser.configure({ strict: false });
