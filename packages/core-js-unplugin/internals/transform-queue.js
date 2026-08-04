@@ -97,6 +97,58 @@ function isIdentifierEdge(needle, edge) {
     : IDENT_PART_RE.test(needle.at(-1));
 }
 
+// the slot of a needle whose identifiers the outer already substituted: the outer builds its text
+// with the chain root resolved (`globalThis` -> `_globalThis`, deduped as `_globalThis2`), so the
+// raw source needle no longer occurs verbatim - at the head (`globalThis.window...`) or buried in a
+// root effect (`(nt = globalThis)?.window...`). match token-wise instead: identifier tokens accept
+// the emitter's binding SHAPE for the same name, everything else must be literal. requiring that
+// shape keeps a genuine phantom (`Map` inside `_MapPrime`) and a coincidental longer identifier out.
+// a `?.` the outer proved redundant is matched by the plain `.` it left behind
+function matchRenamedFrom(content, needle, at, bindingHintOf, lenient) {
+  let ci = at;
+  for (let ni = 0; ni < needle.length;) {
+    if (!IDENT_PART_RE.test(needle[ni])) {
+      // the outer also DEOPTIONALIZES what it proved defined (`(nt = g)?.window` -> `.window`),
+      // so a `?.` the needle still carries may be a plain `.` there
+      if (lenient && needle[ni] === '?' && needle[ni + 1] === '.' && content[ci] === '.') {
+        ni += 1;
+        continue;
+      }
+      if (content[ci] !== needle[ni]) return -1;
+      ni += 1;
+      ci += 1;
+      continue;
+    }
+    let ne = ni;
+    while (ne < needle.length && IDENT_PART_RE.test(needle[ne])) ne += 1;
+    let ce = ci;
+    while (ce < content.length && IDENT_PART_RE.test(content[ce])) ce += 1;
+    const want = needle.slice(ni, ne);
+    const got = content.slice(ci, ce);
+    if (got !== want && bindingHintOf?.(got) !== want) return -1;
+    ni = ne;
+    ci = ce;
+  }
+  return ci;
+}
+
+// scan for a renamed slot on token boundaries; returns its range, or null when none qualifies
+function findRenamedSlot(content, needle, bindingHintOf) {
+  // a slot that still spells every `?.` the needle carries is the inner's OWN; only when no such
+  // slot exists may a deoptionalized one answer. searching leniently from the start put an optional
+  // nav's render on a PLAIN sibling that differed by exactly that token
+  for (const lenient of [false, true]) {
+    for (let at = 0; at < content.length; at++) {
+      if (at > 0 && IDENT_PART_RE.test(content[at - 1]) && IDENT_PART_RE.test(content[at])) continue;
+      const end = matchRenamedFrom(content, needle, at, bindingHintOf, lenient);
+      if (end !== -1 && !(end < content.length && IDENT_PART_RE.test(content[end]) && IDENT_PART_RE.test(content[end - 1]))) {
+        return { start: at, end };
+      }
+    }
+  }
+  return null;
+}
+
 export function hasIdentifierBoundary(str, idx, needle) {
   // adjacent chars may be astral (surrogate-pair) identifier chars - test the WHOLE code point.
   // `codePointEndingAt` handles the char BEFORE the needle (trailing low surrogate); the built-in
@@ -225,7 +277,10 @@ function buildNeedleCandidates({ needle, needleStart, outerHint }) {
   // per-position strip first: a NESTED chain in an argument keeps its own live `?.` (the
   // outer deoptionalized only the hops it folded), and the blanket full-deopt below would
   // over-strip it and miss
-  if (needleRootedInGuard(needle, outerHint)) {
+  // ...but only while a TAIL survives past the root: with the needle spanning the whole root the
+  // shape degenerates to the bare ref, which matches the memo's own LHS - an assignment TO the
+  // inner's emit. that case is recovered by the memo-value fallback instead
+  if (needleRootedInGuard(needle, outerHint) && needle.length > outerHint.rootRaw.length) {
     if (needleStart !== undefined && outerHint.deoptPositions?.length) {
       candidates.push(outerHint.guardRef + deoptionalizeNeedleAtPositions(
         needle.slice(outerHint.rootRaw.length), needleStart + outerHint.rootRaw.length, outerHint.deoptPositions));
@@ -233,6 +288,23 @@ function buildNeedleCandidates({ needle, needleStart, outerHint }) {
     candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
   }
   return candidates;
+}
+
+// the outer memoized the WHOLE inner as its root (`_ref = <inner source>`), so the guardRef
+// candidate below degenerates to the bare ref - which matches the memo's own LHS and spells an
+// assignment TO the inner's emit. target the memo's VALUE slot instead, whatever nested rewrites
+// have already made of it (they are why the raw needle no longer matches)
+function replaceMemoValue(content, guardRef, replacement) {
+  const anchor = `${ guardRef } = `;
+  const at = content.indexOf(anchor);
+  if (at === -1 || content[at - 1] !== '(') return null;
+  let depth = 1;
+  let i = at + anchor.length;
+  for (; i < content.length; i += 1) {
+    if (content[i] === '(') depth += 1;
+    else if (content[i] === ')' && --depth === 0) break;
+  }
+  return depth === 0 ? `${ content.slice(0, at + anchor.length) }${ replacement }${ content.slice(i) }` : null;
 }
 
 function substituteInner({ content, needle, needleStart, replacement, nth, outerHint, innerPrefix }) {
@@ -263,6 +335,12 @@ function substituteInner({ content, needle, needleStart, replacement, nth, outer
     // guardRef shapes) rewrote the text, so a nested range may survive and still need its
     // own substitution - `verbatim` stays false for them so compose keeps scanning
     if (result !== content) return { content: result, found: true, verbatim: i === 0 };
+  }
+  // the outer memoized the WHOLE inner as its root and a nested rewrite already reshaped that
+  // slot, so no source-derived needle survives there - substitute the memo's VALUE directly
+  if (needleRootedInGuard(needle, outerHint) && needle.length === outerHint.rootRaw.length) {
+    const memoValue = replaceMemoValue(content, outerHint.guardRef, replacement);
+    if (memoValue) return { content: memoValue, found: true, verbatim: false };
   }
   return { content, found: false, verbatim: false };
 }
@@ -538,6 +616,14 @@ export default class TransformQueue {
   // `x.x` inside `x.x.x` counts once from 0 and not at all from 2), so one scanner per entry,
   // rebuilt if the entry's logical end moves under it
   #containerScanners = new WeakMap();
+
+  // resolves an identifier to the source name the injector minted it FOR (`_globalThis` ->
+  // `globalThis`), or null. left unset the renamed-slot recovery only accepts literal matches
+  #bindingHintOf = null;
+
+  useBindingHints(resolve) {
+    this.#bindingHintOf = resolve;
+  }
 
   constructor(code, ms, asiFusableStarts = null) {
     this.#code = code;
@@ -1352,18 +1438,6 @@ export default class TransformQueue {
     for (const inner of inners) {
       const { end: innerEndLogical, content: innerContent, composed: innerComposed } = innerSubstitution(inner, composedContent);
       const innerRange = { start: inner.start, end: innerEndLogical };
-      // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`).
-      // inner's value is already threaded via the outer guard's memoize assignment; direct
-      // substitution here would either leave stale `_ref` occurrences or re-inline the
-      // inner (double-evaluate). any inner contained within the root span (derived from
-      // `objectStart` + `rootRaw.length`) is skipped, including sub-transforms of the root
-      // call (e.g. `Array.from` static MemberExpression inside `Array.from(x)`)
-      if (rewriteHint?.absorbsRoot
-        && rewriteHint.objectStart <= inner.start
-        && innerEndLogical <= rewriteHint.objectStart + rewriteHint.rootRaw.length) {
-        processedRanges.push(innerRange);
-        continue;
-      }
       // phantom fast-path: a wider inner already substituted via its raw source slice, and
       // this inner's source range nests inside it - its needle was replaced wholesale and is
       // gone from `content`. skip before the per-candidate scans below, which would each scan
@@ -1411,14 +1485,7 @@ export default class TransformQueue {
       // the raw fallback - absorbing then would drop those nested substitutions. captured
       // before the recovery loop below reassigns `result`
       const cleanRawMatch = result.found && result.verbatim && innerComposed;
-      // inner already swallowed by an enclosing inner processed earlier: its slot is gone from
-      // content. skip the phantom HERE, before the recovery loop below - otherwise that loop
-      // decrements nth and re-targets a still-pending sibling's identical needle (sibling
-      // conditional / logical branches sharing the same polyfilled sub-expression), corrupting
-      // that sibling's slot and crashing a later locate. only the first substituteInner failing
-      // reaches this - a legit re-substitution finds its own slot, so chained-polyfill /
-      // equal-range-dup / split-pair are unaffected. recovery now only handles the strip case
-      if (!result.found && rangesEnclose(processedRanges, inner.start, innerEndLogical)) continue;
+
       // rebuild-outer recovery: source-position nth assumes outer's content preserves every
       // source needle match. multi-decl flatten REWRITES earlier declarators (`{X:{m}}=globalThis`
       // -> `const m = _polyfill`), stripping some source-level needle matches from content
@@ -1434,6 +1501,27 @@ export default class TransformQueue {
         }
       }
       if (!result.found) {
+        // LOCATE first, in both spellings, before any absorption verdict below: the outer builds
+        // its text with the chain root resolved (`globalThis` -> `_globalThis`) and may drop a `?.`
+        // it proved redundant, so the raw source needle can be absent while the inner's own slot is
+        // right there. concluding absorption from enclosure alone left those reads native
+        const renamed = findRenamedSlot(content, needle, this.#bindingHintOf);
+        if (renamed) {
+          content = `${ content.slice(0, renamed.start) }${ innerContent }${ content.slice(renamed.end) }`;
+          processedRanges.push(innerRange);
+          continue;
+        }
+        // swallowed by an enclosing inner processed earlier: its slot is gone from content
+        if (rangesEnclose(processedRanges, inner.start, innerEndLogical)) continue;
+        // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`): the
+        // inner's value is threaded through that memo, so substituting would leave a stale `_ref`
+        // or re-inline it (double-evaluate)
+        if (rewriteHint?.absorbsRoot
+          && rewriteHint.objectStart <= inner.start
+          && innerEndLogical <= rewriteHint.objectStart + rewriteHint.rootRaw.length) {
+          processedRanges.push(innerRange);
+          continue;
+        }
         // identifier-boundary rejection: scan ALL occurrences of needle in content. if a
         // STANDALONE one exists (identifier boundary on both sides), the inner SHOULD have
         // matched it - nth count is off, this is a real bug. if all occurrences sit inside
