@@ -14,6 +14,11 @@ const PRELUDE = [
   'const cond = true;',
   'const nul = null;',
   'const arr = [3, [1, 2]];',
+  // the module-level nav grid needs its carrier and its call root as real bindings: a nav written
+  // at MODULE level routes through a different channel than one inside an IIFE body, and a setup
+  // statement cannot ride inside the snippet expression
+  'let ntm;',
+  'const nrm = () => globalThis;',
 ];
 
 // absolute URL: the harness materializes snippets in a tmp dir, so a relative specifier
@@ -1155,6 +1160,209 @@ function * generateBareProxyProbe() {
     ['delimited-case-arm', '(() => { switch (1) { case 1: return globalThis.window?.self.Math.hypot(3, 4); default: return 0; } })()'],
   ]) {
     const inner = `(() => { try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // GENERATIVE cross-product over the guard-nav space the hand-written rows above sample: every
+  // root kind x every tail shape x every consumer position. hand rows pin the shapes a fix was
+  // built for; this product keeps the SPACE covered when a later fix moves a boundary
+  const NAV_ROOTS = [
+    ['bare', 'globalThis.window?.self'],
+    ['call', 'nr().window?.self'],
+    ['assign', '(nt = globalThis)?.window?.self'],
+  ];
+  const NAV_TAILS = [
+    ['plain', '.probeGen.n'],
+    ['deep', '.probeGen.inner.n'],
+    ['optional', '.probeGen?.inner.n'],
+    ['dispatch', '.probeGen.arr?.flat()'],
+  ];
+  const NAV_CONSUMERS = [
+    ['value', x => x],
+    ['operand', x => `-${ x }`],
+    ['carrier', x => `${ x } ?? 'absent'`],
+    ['typeof', x => `typeof ${ x }`],
+    ['ternary-test', x => `${ x } ? 'y' : 'n'`],
+  ];
+  for (const [rootId, root] of NAV_ROOTS) {
+    for (const [tailId, tail] of NAV_TAILS) {
+      for (const [consumerId, wrap] of NAV_CONSUMERS) {
+        const id = `nav-grid/${ rootId }-${ tailId }-${ consumerId }`;
+        const inner = '(() => { globalThis.probeGen = { n: 4, inner: { n: 5 }, arr: [3, [1, 2]], make: function () { return this.arr; } };'
+          + ' let nt; let nk = 0; const nr = () => globalThis;'
+          + ` try { return JSON.stringify(${ wrap(root + tail) }); } catch (e) { return 'throw'; } })()`;
+        yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+        yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+      }
+    }
+  }
+  // a PAREN layer between the nav and its tail: the guard's own parens become that layer's once the
+  // render absorbs it, so the span math around it decides whether the output even parses. the axis
+  // walks where the layer sits - over the tail, over the leaf, around the whole chain, nested, and
+  // over an optional call - because each lands the layer's closing token in a different slice
+  const NAV_PAREN_LAYERS = [
+    ['over-tail', root => `(${ root }.probeGen).arr?.flat()`],
+    ['over-leaf', root => `(${ root }).probeGen.arr.flat()`],
+    ['over-chain', root => `(${ root }.probeGen.arr)?.flat()`],
+    ['nested', root => `((${ root }.probeGen).arr).flat()`],
+    ['over-optional-call', root => `(${ root }.probeGen).arr.flat?.()`],
+    // a CHAINED consumer moves the nav's render to the hop-collapse channel, which spells the same
+    // guard differently - the runtime legs are what prove the two spellings agree
+    ['chained-consumer', root => `(${ root }.probeGen).arr?.flat().concat([])`],
+    // TWO polyfilled dispatches in one guarded chain under a consumer that parenthesizes the guard:
+    // the wrap must not reach over the outer dispatch's own step, or both spans end at the chain tip
+    ['two-dispatch-nullish', root => `(${ root }.probeGen.arr?.at(0)?.concat('x').length ?? 0)`],
+    ['two-dispatch-operand', root => `1 + (${ root }.probeGen.arr?.at(0)?.concat('x').length ?? 0)`],
+    // a CALL receiver under a key that RESOLVES while carrying an effect: the dispatch spells the
+    // whole span itself, so the claim over the nav it consumed must not emit its own
+    ['call-recv-resolved-key', root => `(${ root }.probeGen.make()[(nk++, 'at')](0))`],
+  ];
+  for (const [rootId, root] of NAV_ROOTS) {
+    for (const [layerId, layer] of NAV_PAREN_LAYERS) {
+      const id = `nav-paren-layer/${ rootId }-${ layerId }`;
+      const inner = '(() => { globalThis.probeGen = { n: 4, inner: { n: 5 }, arr: [3, [1, 2]], make: function () { return this.arr; } };'
+        + ' let nt; let nk = 0; const nr = () => globalThis;'
+        + ` try { return JSON.stringify(${ layer(root) }); } catch (e) { return 'throw'; } })()`;
+      yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+      yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+    }
+  }
+  // a SEQUENCE receiver: the nav sits in the last element, and the emitter builds the receiver text
+  // around it with the chain ROOT already substituted. the axis walks where the dispatch attaches -
+  // on the sequence itself, on a member above it, on the leaf - because each decides whether the
+  // nav's own rewrite still has a slot to land in
+  const NAV_SEQUENCE_FORMS = [
+    ['value', root => `('x', ${ root }.probeGen.n)`],
+    ['leading', root => `(${ root }.probeGen.n, 'x')`],
+    ['optional-dispatch', root => `('x', ${ root }.probeGen.arr)?.flat()`],
+    ['member-dispatch', root => `('x', ${ root }.probeGen).arr?.flat()`],
+    ['leaf-dispatch', root => `('x', ${ root }).probeGen.arr?.flat()`],
+    ['plain-dispatch', root => `('x', ${ root }.probeGen.arr).flat()`],
+    // a CHAINED consumer moves the receiver text into the outer emission, so the repeated navs
+    // inside it are rewritten from there rather than by the inner transform
+    ['repeated-chained', root => `(${ root }.probeGen.arr, ${ root }.probeGen.arr)?.flat()`
+      + `.concat((${ root }.probeGen.arr, ${ root }.probeGen.arr)?.flat() ?? [])`],
+  ];
+  for (const [rootId, root] of NAV_ROOTS) {
+    for (const [formId, form] of NAV_SEQUENCE_FORMS) {
+      const id = `nav-sequence-receiver/${ rootId }-${ formId }`;
+      const inner = '(() => { globalThis.probeGen = { n: 4, inner: { n: 5 }, arr: [3, [1, 2]], make: function () { return this.arr; } };'
+        + ' let nt; let nk = 0; const nr = () => globalThis;'
+        + ` try { return JSON.stringify(${ form(root) }); } catch (e) { return 'throw'; } })()`;
+      yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+      yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+    }
+  }
+  // the same grid at MODULE level: an IIFE body routes a claimless nav through a different channel
+  // than a top-level one, so the wrapped rows above cannot guard the top-level render. the tails
+  // here name a global no one WRITES and no polyfill claims - a setup statement would have to write
+  // a globalThis slot, and that write deopts the whole family, leaving the row vacuous. the name is
+  // ABSENT at runtime on purpose: native and output agree on the throw, and the row's oracle is the
+  // shape and the import set, which is exactly what a missed render moves
+  for (const [rootId, root] of NAV_ROOTS) {
+    for (const [tailId, tail] of [['plain', '.probeAbsent.n'], ['deep', '.probeAbsent.inner.n'], ['optional', '?.probeAbsent.n']]) {
+      const id = `nav-grid-module/${ rootId }-${ tailId }`;
+      const row = `${ root.replace('nr()', 'nrm()').replace('nt =', 'ntm =') }${ tail }`;
+      // NOT wrapped in an IIFE: the wrapper would put the nav back inside a function body, which is
+      // the very context these rows exist to distinguish. native and output throw alike on the
+      // absent name, so the runtime keys match and the import set carries the verdict
+      yield { ...snippet(`bare-proxy-probe/${ id }`, `String(${ row })`), strip: false };
+      yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, `String(${ row })`, { rig: true }), strip: false };
+    }
+  }
+  // a claimless probe nav in a VALUE position: the hop collapse refuses a short-circuitable nav
+  // by canon, so the kept-nav render is what must serve it - in both emitters
+  for (const [id, expr] of [
+    ['kept-value-assign-root', '(t = globalThis)?.window?.self.probeValue.n'],
+    ['kept-value-assign-deep', '(t = globalThis)?.window?.self.probeValue.inner.n'],
+    ['kept-value-bare-root', 'globalThis.window?.self.probeValue.n'],
+  ]) {
+    const inner = '(() => { globalThis.probeValue = { n: 4, inner: { n: 5 } }; let t;'
+      + ` try { const v = ${ expr }; log.push(t === globalThis || t === undefined); return String(v); }`
+      + " catch (e) { return 'throw'; } })()";
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // a probe nav rooted at a chain ASSIGNMENT: the hop the detector suppresses still owes its
+  // render, and the write must run exactly once. the log carries the write beside the value
+  for (const [id, expr] of [
+    ['assign-root-unknown-tail', '(t = globalThis)?.window?.self.probeAssign.arr?.flat()'],
+    ['assign-root-plain-tail', '(t = globalThis)?.window?.self.probeAssign.n'],
+    ['assign-root-non-optional', '(t = globalThis).window?.self.probeAssign.arr?.flat()'],
+  ]) {
+    const inner = '(() => { globalThis.probeAssign = { arr: [3, [1, 2]], n: 4 }; let t;'
+      + ` try { const v = ${ expr }; log.push(t === globalThis); return JSON.stringify(v); }`
+      + " catch (e) { return 'throw'; } })()";
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // two OPTIONAL polyfilled dispatches in a row: the outer memoizes the whole inner call, so the
+  // inner's emit must land in that memo's VALUE slot - matched at the bare guard ref instead it
+  // spelled an assignment TO the emit, output that does not parse
+  for (const [id, expr] of [
+    ['chained-optional-flat-at', 'globalThis.probeChain.arr?.flat()?.at(0)'],
+    ['chained-optional-replace-at', "globalThis.probeChain.str?.replaceAll('a', 'z')?.at(0)"],
+    ['chained-optional-over-nav', 'globalThis.window?.self.probeChain.arr?.flat()?.at(0)'],
+    ['chained-optional-member-tail', 'globalThis.probeChain.arr?.flat()?.length'],
+  ]) {
+    const inner = "(() => { globalThis.probeChain = { arr: [3, [1, 2]], str: 'a-a' };"
+      + ` try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // an OPTIONAL instance dispatch memoizes its receiver: when that receiver IS the guarded nav
+  // the memo must hold the RENDERED text, or the whole nav stays raw - the stripped realm is the
+  // oracle, since a native `self` read passes in a full environment
+  for (const [id, expr] of [
+    ['optional-instance-over-nav', 'globalThis.window?.self.probeNav.arr?.flat()'],
+    ['optional-instance-at', 'globalThis.window?.self.probeNav.arr?.at(0)'],
+    ['optional-instance-hop', 'globalThis.window?.self.probeNav?.arr?.flat()'],
+    ['plain-instance-over-nav', 'globalThis.window?.self.probeNav.arr.flat()'],
+  ]) {
+    const inner = '(() => { globalThis.probeNav = { arr: [3, [1, 2]] };'
+      + ` try { return JSON.stringify(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // slots that hold the fold without parenthesizing it, each reached by its own grammar: a
+  // generator's yield operand, a parameter default, a computed key, a getter body
+  for (const [id, expr] of [
+    ['ctx-yield-operand', '(() => { function * g() { yield -globalThis.window?.self.probeCtx.n; } return g().next().value; })()'],
+    ['ctx-param-default', '(() => { function f(x = -globalThis.window?.self.probeCtx.n) { return x; } return f(); })()'],
+    ['ctx-computed-key', '(() => JSON.stringify({ [-globalThis.window?.self.probeCtx.n]: 1 }))()'],
+    ['ctx-getter-body', '(() => ({ get v() { return -globalThis.window?.self.probeCtx.n; } }).v)()'],
+  ]) {
+    const inner = `(() => { globalThis.probeCtx = { n: 2 }; try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
+    yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
+  }
+  // a TAGGED template reads its tag as a reference, so the tail stays outside the guard - read
+  // PLAIN there it throws before the template's own substitutions run, while the source
+  // short-circuits the whole tag and throws only at the call. the log length is the oracle
+  const tick = '(log.push(1), 1)';
+  const tagHostSrc = 'globalThis.probeTag = { tag(parts) { return parts[0] + parts.length; } };';
+  const taggedTag = `(() => { ${ tagHostSrc } try {`
+    + ` return String((globalThis.window?.self.probeTag.tag)\`x\${ ${ tick } }\`); }`
+    + " catch (e) { return 'throw:' + log.length; } })()";
+  yield { ...snippet('bare-proxy-probe/tagged-tag-order', taggedTag), strip: false };
+  yield { ...snippet('bare-proxy-probe/tagged-tag-order-rigged', taggedTag, { rig: true }), strip: false };
+  // while every step so far was PLAIN the folded value is a straight continuation of the leaf, so
+  // the first live `?.` above it still rides INSIDE the alternate
+  const midOptional = '(() => { globalThis.probeMid = { inner: { count: 3 } };'
+    + " try { return String(-globalThis.window?.self.probeMid?.inner.count); } catch (e) { return 'throw'; } })()";
+  yield { ...snippet('bare-proxy-probe/plain-then-live-optional-tail', midOptional), strip: false };
+  yield { ...snippet('bare-proxy-probe/plain-then-live-optional-tail-rigged', midOptional, { rig: true }), strip: false };
+  // a consumer that parenthesizes the guard wraps the WHOLE folded value, so no tail step is
+  // stranded outside it. stranding one introduced a `?.` the source never had: where the
+  // intermediate is absent the source throws and the guard swallowed it into `undefined`
+  const gapHost = 'globalThis.probeGap = { present: 1 };';
+  for (const [id, expr] of [
+    ['tail-throw-unary', '-globalThis.window?.self.probeGap.missing.n'],
+    ['tail-throw-equality', '1 === globalThis.window?.self.probeGap.missing.n'],
+    ['tail-throw-await', 'globalThis.window?.self.probeGap.missing.n ?? 0'],
+    ['tail-present-unary', '-globalThis.window?.self.probeGap.present'],
+  ]) {
+    const inner = `(() => { ${ gapHost } try { return String(${ expr }); } catch (e) { return 'throw'; } })()`;
     yield { ...snippet(`bare-proxy-probe/${ id }`, inner), strip: false };
     yield { ...snippet(`bare-proxy-probe/${ id }-rigged`, inner, { rig: true }), strip: false };
   }

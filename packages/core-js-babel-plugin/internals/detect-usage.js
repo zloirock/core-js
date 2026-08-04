@@ -609,10 +609,27 @@ export function restoreInstantiationParens(path) {
   }
 }
 
+// the same @babel/generator drop for a TAGGED template's tag: `(a?.b.tag)`x`` reprints as
+// `a?.b.tag`x``, which is not parseable at all - a tagged template may not sit on an optional
+// chain, and the source parens are what ended that chain. reproduces on a plain parse/print
+// round-trip with no plugin, so restore the paren node wherever this plugin forces the reprint.
+// a tag that IS an optional chain can only have come from parenthesized source (the bare form
+// does not parse), so the restoration is unconditional on the shape
+export function restoreOptionalTagParens(path) {
+  const { tag } = path.node;
+  if (tag.type === 'OptionalMemberExpression' || tag.type === 'OptionalCallExpression'
+    || tag.type === 'ChainExpression') {
+    path.get('tag').replaceWith({ type: 'ParenthesizedExpression', expression: tag });
+  }
+}
+
 export function createUsageVisitors({
   adapter,
   isEntryAvailable,
   method,
+
+  keptProxyHops = null,
+  onSuppressedProxyHop = null,
   onUsage,
   resolveMeta,
   resolvePure = null,
@@ -705,7 +722,13 @@ export function createUsageVisitors({
 
   function handleMemberExpression(path) {
     const { node, parent } = path;
-    if (handledObjects.has(node)) return;
+    // a hop marked handled emits no meta - the marking keeps the TEXT emitter from queueing a
+    // rewrite overlapping the outer span. this emitter mutates the AST and has no such collision,
+    // so a hop the detector recorded as still-live gets its render driven here
+    if (handledObjects.has(node)) {
+      if (keptProxyHops?.has(node)) onSuppressedProxyHop?.(path);
+      return;
+    }
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
       // intent); a deliberate override's receiver follows the SAME identifier routing the
@@ -716,7 +739,7 @@ export function createUsageVisitors({
     }
     const meta = handleMemberExpressionNode({
       node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure,
+      resolvePure, keptProxyHops,
     });
     if (meta) {
       onUsage(meta, path);
