@@ -64,8 +64,9 @@ function arr(v, d = 3) {
   return parts.map(n => round(n, d));
 }
 
-// A 4x4 square with a 1x1 square hole. Drives Earcut: `Number.EPSILON`, `Math.sign`, `Array#forEach`,
-// `Array#concat`, `Array#splice` — all inside three's ShapeUtils/ExtrudeGeometry.
+// A 4x4 square with a 1x1 square hole. Drives Earcut (`Array#forEach`, `Array#concat`,
+// `Array#splice` in `ShapeUtils`) and, because the extrude below sets `bevelEnabled`,
+// `ExtrudeGeometry`'s `getBevelVec` / `scalePt2` (`Number.EPSILON`, `Math.sign`).
 function squareWithHole() {
   const shape = new THREE.Shape();
   shape.moveTo(-2, -2);

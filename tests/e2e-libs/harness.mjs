@@ -87,9 +87,11 @@ export function qunitHarness(label, expected) {
           if (window.console && window.console.log) {
             window.console.log('[e2e-libs] ' + LABEL + ': ' + passed + '/' + checks.length + ' checks passed in this IE11');
           }
-          assert.ok(checks.length > 0, LABEL + ': exercise produced ' + checks.length + ' checks');
           // the same guard the banner target carries: an exercise that reports FEWER checks in this
-          // engine than it did in node must not pass just because the ones it did report were green
+          // engine than it did in node must not pass just because the ones it did report were green.
+          // This subsumes a "checks.length > 0" assertion: runtime.mjs refuses a zero-length
+          // pre-flight result before this file is written, so EXPECTED is always >= 1.
+          // (No backticks in this block - it lives inside a template literal.)
           assert.strictEqual(checks.length, EXPECTED, LABEL + ': check count differs from the node pre-flight');
           for (i = 0; i < checks.length; i++) {
             var c = checks[i];
