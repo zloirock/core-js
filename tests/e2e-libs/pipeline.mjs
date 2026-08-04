@@ -1,6 +1,8 @@
 // Pipeline stats: size AND time at every stage of the real IE11 build, per (lib x method).
 // Rollup + Babel (syntax down-compile) + unplugin (polyfills). Stages:
-//   [A] library bundled, NO transforms      — modern syntax, tree-shaken (the library alone)
+//   [A] library bundled, NO transforms      — modern syntax, tree-shaken (the library alone; for a
+//                                             TS-source library, types erased and nothing else — see
+//                                             makeTsStripPlugin in build.mjs)
 //   [B] + Babel -> ES5                       — syntax down-compiled, NO polyfills
 //   [C] + unplugin                           — + core-js polyfills = the real IE11 bundle
 // For usage-* all three stages are measured; for entry-global only [C] (`import 'core-js'` without
@@ -11,7 +13,10 @@
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import { makeBabelPlugin, u, withEntry, recorder, assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, HERE } from './build.mjs';
+import {
+  makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder,
+  assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, HERE,
+} from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -82,8 +87,8 @@ async function baseStages(lib) {
         return null;
       },
     };
-    const a = await timedBuild(entry, [counter, nodeResolve(), commonjs()], `${ label } [A]`);
-    const b = await timedBuild(entry, [makeBabelPlugin(), nodeResolve(), commonjs()], `${ label } [B]`);
+    const a = await timedBuild(entry, [tsSources(), counter, makeTsStripPlugin(), nodeResolve(), commonjs()], `${ label } [A]`);
+    const b = await timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs()], `${ label } [B]`);
     return { src, A: { bytes: a.bytes, ms: +a.ms.toFixed(0) }, B: { bytes: b.bytes, ms: +b.ms.toFixed(0) } };
   });
   stagesByLib.set(lib.name, stages);
@@ -113,7 +118,7 @@ async function measure(lib, method) {
     const sink = new Set();
     const babel = timeTransform(makeBabelPlugin(), ms => { babelMs += ms; });
     const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginMs += ms; });
-    const c = await timedBuild(entry, [babel, nodeResolve(), commonjs(), up, recorder(sink)], cellC);
+    const c = await timedBuild(entry, [tsSources(), babel, nodeResolve(), commonjs(), up, recorder(sink)], cellC);
     cell.injections = sink.size;
     // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
     assertPayload(c.chunk, cellC);
@@ -138,7 +143,7 @@ async function measure(lib, method) {
 // happened to run first, making the cross-lib [C] column incomparable.
 process.stdout.write('warming the toolchain … ');
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
-  entry => timedBuild(entry, [makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
+  entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
 console.log('done');
 
 const rows = [];
