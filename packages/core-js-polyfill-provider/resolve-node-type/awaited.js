@@ -24,10 +24,19 @@
 // it; the factory only forward-declares the name and rebinds it to this cluster's export, so
 // this is the sole declaration.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
-import { isMethodShapeMember, isUnionType, typeRefSegments } from './ast-shapes.js';
+import {
+  isFunctionTypeNode,
+  isMethodShapeMember,
+  isObjectTypeLiteral,
+  isTypeReferenceNode,
+  isUnionType,
+  typeRefSegments,
+} from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { createClassMemberShape } from './class-member-shapes.js';
 
 export function createAwaited({
+  t,
   babelNodeType,
   findTypeDeclaration,
   unwrapTypeAnnotation,
@@ -51,14 +60,16 @@ export function createAwaited({
   findClassPathForTypeReference,
   buildSubstMap,
   findClassMember,
-  isMethodMember,
-  isPropertyMember,
   getTypeMembers,
   keyMatchesName,
   findExpressionAnnotation,
   pickConditionalBranchVia,
   isUnconstrainedTypeReference,
 }) {
+  // same source as every other consumer of these two shape predicates - built from `t` here
+  // rather than threaded in, so the cluster does not need a factory thunk for a pure predicate
+  const { isMethodMember, isPropertyMember } = createClassMemberShape({ t });
+
   // --- AST walker (structure-preserving) ---
 
   // extract the single typeArg of a type-reference whose head is one of the wrapper names
@@ -67,7 +78,7 @@ export function createAwaited({
   // TypeReference to its first generic arg, differ only in name predicate and post-extract
   // transform of the arg
   function getSingleTypeRefArg(node, namePredicate) {
-    if (node?.type !== 'TSTypeReference' && node?.type !== 'GenericTypeAnnotation') return null;
+    if (!isTypeReferenceNode(node)) return null;
     const segments = typeRefSegments(node);
     if (segments?.length !== 1 || !namePredicate(segments[0])) return null;
     return getTypeArgs(node)?.params?.[0] ?? null;
@@ -171,12 +182,16 @@ export function createAwaited({
   // babel (member.typeAnnotation = return) and oxc (member.value path) diverge and both
   // misroute - babel emits V as the indexed-access type, oxc emits the method node
   function resolveIndexedAccessMemberAnnotationAST(peeled, scope, depth) {
-    if (peeled?.type !== 'TSIndexedAccessType') return null;
+    if (peeled?.type !== 'TSIndexedAccessType' && peeled?.type !== 'IndexedAccessType') return null;
     const key = indexedAccessKey(peeled.indexType);
     if (key === null) return null;
     const member = findTypeMember({ objectType: peeled.objectType, key, scope, depth: depth + 1 });
     if (!member) return null;
-    if (isMethodShapeMember(member.type)) return member;
+    // a member that IS a function type (Flow keeps the signature on the property's `value`, so the
+    // lookup hands back the FunctionTypeAnnotation itself) surfaces whole for the same reason a
+    // method signature does - peeling it to `.returnType` below would hand the caller the RESULT
+    // where TS hands it the signature, and the caller's own return read then finds nothing
+    if (isMethodShapeMember(member.type) || isFunctionTypeNode(member)) return member;
     const annotation = unwrapTypeAnnotation(member.typeAnnotation ?? member.returnType ?? member);
     return annotation && annotation !== peeled ? annotation : null;
   }
@@ -356,33 +371,40 @@ export function createAwaited({
   // `params`; `functionTypeParams` covers both. returns null when shape isn't a function-type
   function cbFirstArgAnnotation(cbNode) {
     const cbType = unwrapTypeAnnotation(cbNode?.typeAnnotation);
-    if (cbType?.type !== 'TSFunctionType' && cbType?.type !== 'FunctionTypeAnnotation') return null;
+    if (!isFunctionTypeNode(cbType)) return null;
     return unwrapTypeAnnotation(dropLeadingThisParam(functionTypeParams(cbType))?.[0]?.typeAnnotation);
   }
 
   // peel a function-type annotation slot into its first parameter node. used for property-
-  // form `then` whose typeAnnotation IS the TSFunctionType (`then: (cb) => ...`) - the cb
-  // sits at the TSFunctionType's first parameter slot, one extra unwrap layer beyond
-  // method-form's direct `parameters[0]` access
+  // form `then` whose typeAnnotation IS the function type (`then: (cb) => ...`) - the cb
+  // sits at that type's first parameter slot, one extra unwrap layer beyond method-form's
+  // direct `parameters[0]` access. same dialect pair as the callback peeler below it: the
+  // method form is parser-agnostic already, so a narrower list here would resolve a Flow
+  // `then` method but bail on the Flow property spelling of the same interface
   function firstParamOfFnTypeAnnotation(typeAnnotation) {
     const fnType = unwrapTypeAnnotation(typeAnnotation);
-    if (fnType?.type !== 'TSFunctionType') return null;
+    if (!isFunctionTypeNode(fnType)) return null;
     return dropLeadingThisParam(functionTypeParams(fnType))?.[0];
   }
 
   // extract the `cb` parameter from a `then` member. covers all shapes returned by both
   // direct class-body walks and `getTypeMembers`:
   //   - TSMethodSignature  (`then(cb: ...)` in iface)   -> functionTypeParams[0]
-  //   - TSPropertySignature (`then: (cb: ...) => ...`)  -> peel TSFunctionType, [0]
+  //   - TSPropertySignature (`then: (cb: ...) => ...`)  -> peel the fn type, [0]
+  //   - ObjectTypeProperty (Flow iface / object type, method AND property spelling alike)
+  //                                                     -> same peel off the `value` slot
   //   - ClassMethod / MethodDefinition (`then(cb)`)     -> ESTree node.value.params[0]
   //                                                        babel node.params[0]
-  //   - ClassProperty / PropertyDefinition (`then!: (cb) => ...`) -> peel TSFunctionType
+  //   - ClassProperty / PropertyDefinition (`then!: (cb) => ...`) -> peel the fn type
   // class shapes appear in the fall-through path when a type alias resolves to a user
   // Thenable class - `getTypeMembers` walks the class body and returns native shapes
   function memberThenCbParam(member) {
     if (!member) return null;
     if (member.type === 'TSMethodSignature') return dropLeadingThisParam(functionTypeParams(member))?.[0];
     if (member.type === 'TSPropertySignature') return firstParamOfFnTypeAnnotation(member.typeAnnotation);
+    // Flow keeps the member's type on `value` for both spellings - a `then(cb)` method in a Flow
+    // interface is an ObjectTypeProperty carrying a FunctionTypeAnnotation, not a method node
+    if (member.type === 'ObjectTypeProperty') return firstParamOfFnTypeAnnotation(member.value);
     if (isMethodMember(member)) return dropLeadingThisParam((member.value ?? member).params)?.[0];
     if (isPropertyMember(member)) return firstParamOfFnTypeAnnotation(member.typeAnnotation);
     return null;
@@ -410,7 +432,7 @@ export function createAwaited({
     // thenable (`{ then(cb: (v: T) => any): void }` or an alias resolving to one): getTypeMembers
     // handles TSTypeLiteral directly, so the structural peel below works for it. only the class-path
     // lookup is TSTypeReference-specific (findClassPathForTypeReference resolves typeRefSegments)
-    if (annotation?.type === 'TSTypeReference') {
+    if (isTypeReferenceNode(annotation)) {
       const classPath = findClassPathForTypeReference(annotation, scope);
       if (classPath) {
         const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params, scope);
@@ -426,7 +448,7 @@ export function createAwaited({
         // `getTypeMembers` (collectClassLikeMembers) includes merged-iface members
         // alongside class body, so the structural peel catches the merged-only shape
       }
-    } else if (annotation?.type !== 'TSTypeLiteral') return null;
+    } else if (!isObjectTypeLiteral(annotation)) return null;
     const members = getTypeMembers({ objectType: annotation, scope });
     const thenMember = members?.find(m => keyMatchesName(m.key, 'then', scope, m.computed));
     const valueAnn = cbFirstArgAnnotation(memberThenCbParam(thenMember));

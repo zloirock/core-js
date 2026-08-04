@@ -10,7 +10,7 @@ import {
   isMemberWriteHost,
   isThisReceiver,
   getMinifierSequenceDestructureExpressions,
-  isMutatedGlobalSlot,
+  isDeoptedGlobalSlotRead,
   isMutatedStaticMeta,
   isMutatedStaticPair,
   isTSTypeOnlyIdentifierPath,
@@ -309,13 +309,9 @@ export default function plugin(api, options) {
     getPackages: () => packages,
   });
 
-  // third arg `path` (when supplied by `extractCheck`) anchors `adapter.hasBinding` at
-  // the reference site so TS-runtime shadows (`enum`, `namespace`, `import X = require()`)
-  // mask polyfill replacement correctly. without it, the lookup defaults to the path's
-  // outer scope and misses nested TS-runtime bindings
-  // forward reference: `resolveStaticInheritedMember` is built per-file in `createClassHelpers`
-  // below, after this top-level helper. captured by closure so `super.from?.()` resolves its
-  // inherited static for the optional-chain deopt check (set in initFile before traversal)
+  // forward references into `createClassHelpers` below: assigned once, right after that call and
+  // before any traversal, so the optional-chain deopt check can resolve `super.from?.()` to its
+  // inherited static and reject an own-member shadow of `this.X`
   let resolveSuperStaticFn = null;
   let isShadowedByClassOwnMemberFn = null;
   // dead Optional*-typed links (optional: false) around a swapped receiver print with a
@@ -704,10 +700,7 @@ export default function plugin(api, options) {
           t.cloneNode(staticBinding),
           rawBranch,
         );
-        t.traverseFast(rawBranch, n => {
-          skippedNodes.add(n);
-          if (n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression') guardedNarrowRendered.add(n);
-        });
+        t.traverseFast(rawBranch, n => skippedNodes.add(n));
         // the generator prints the `expr<T>` instantiation slot without the parens its precedence
         // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
         // uninvoked; `tern as any<T>(x)` re-parses the type-argument list into a type) - walk the
@@ -810,7 +803,7 @@ export default function plugin(api, options) {
         // a SLOT-mutated global name is DEOPTED (see the slot-deopt model in the provider's
         // mutation pre-pass): the file writes the name itself, so its reads stay verbatim on
         // the live binding and the runtime serves what the user's writes left there
-        if (meta.kind === 'global' && path.isIdentifier() && isMutatedGlobalSlot(adapter, meta.name)) {
+        if (isDeoptedGlobalSlotRead(meta, adapter)) {
           noteDeoptedGlobal(meta.name);
           return;
         }
@@ -967,12 +960,18 @@ export default function plugin(api, options) {
         // the hops onto the guarded ref. non-mutated ref-rooted navs keep their natural handling
         // (receiver-independent ctor substitution and the leaf ponyfill swap)
         if (kind === 'global' && !path.isObjectProperty()) {
-          let drivePath = path;
-          while (drivePath.isMemberExpression() || drivePath.isOptionalMemberExpression()) drivePath = drivePath.get('object');
-          if (!(drivePath.isIdentifier() && injector?.getMemoWrite?.(drivePath.node.name)
-            && chainNavigatesIntoMutatedStatic({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics }))) drivePath = path;
-          // a hop a nav-collapse render already emitted keeps the shape the plan chose
-          if (isRenderedPlanTail(drivePath.parentPath?.node)) return;
+          let chainRootPath = path;
+          while (chainRootPath.isMemberExpression() || chainRootPath.isOptionalMemberExpression()) {
+            chainRootPath = chainRootPath.get('object');
+          }
+          // a hop a nav-collapse render already emitted keeps the shape the plan chose. asked at
+          // the CHAIN ROOT, the node whose object is the render - the same anchor the sibling arm
+          // above uses. asking it at `path` instead would miss a single-hop render, whose object
+          // already IS the emitted leaf
+          if (isRenderedPlanTail(chainRootPath.parentPath?.node)) return;
+          const drivePath = chainRootPath.isIdentifier() && injector?.getMemoWrite?.(chainRootPath.node.name)
+            && chainNavigatesIntoMutatedStatic({ path, scope: path.scope, adapter, mutatedSet: mutatedStatics })
+            ? chainRootPath : path;
           if (synthSwap?.collapseProxyHopRoot(drivePath, path.scope ? { scope: path.scope, adapter, path } : null)) return;
           // the hop collapse refused a short-circuitable nav (the probe canon): render the
           // kept-nav plan in place at the chain END, or a raw polyfillable hop key strands
@@ -1076,20 +1075,18 @@ export default function plugin(api, options) {
             // alternate is receiver-independent), short-circuit intact. the refusal fires only on
             // proxy-TIER unponyfilled hops (window-class forwarders), so the claim is sound there.
             // SE channels keep the raw stand-down - no re-emit slot in this shape.
-            // reuse the pre-import decision (standdown already returned above, so this is 'erase' | 'guard')
-            const eraseGuard = staticEraseGuard;
-            if (eraseGuard.kind !== 'erase') {
-              // 'guard': exactly one undefinable `?.` - re-hang the claim inside its guard test
-              if (eraseGuard.kind === 'guard') {
-                emitGuardedClaim({
-                  path, replacePath, id, guardObject: eraseGuard.object,
-                  sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-                  substituteGlobal(name) {
-                    const resolved = resolvePure({ kind: 'global', name }, path);
-                    return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
-                  },
-                });
-              }
+            // reuse the pre-import decision. `standdown` already returned above and the verdict is
+            // non-null on this branch, so the only non-erase kind left is 'guard': exactly one
+            // undefinable `?.` - re-hang the claim inside its guard test
+            if (staticEraseGuard.kind === 'guard') {
+              emitGuardedClaim({
+                path, replacePath, id, guardObject: staticEraseGuard.object,
+                sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+                substituteGlobal(name) {
+                  const resolved = resolvePure({ kind: 'global', name }, path);
+                  return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
+                },
+              });
               return;
             }
             const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
@@ -1361,7 +1358,7 @@ export default function plugin(api, options) {
           // minifier-collapsed shapes register like their split forms. BOTH usage modes: pure
           // folds through the hints, usage-global resolves its injections through them - without
           // the table a split-anchor / hoisted-var alias drops the injection (the unsafe direction)
-          if ((method === 'usage-pure' || method === 'usage-global') && fileCensus.hasCtorAliasShapes) {
+          if (fileCensus.hasCtorAliasShapes) {
             path.traverse({
               AssignmentExpression(p) {
                 const { node } = p;
@@ -1516,15 +1513,21 @@ export default function plugin(api, options) {
 
       // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
 
-      function preTraverse(path, visitors) {
-        // defensive - sibling plugin may have destroyed Program before our pre fires.
-        // primitive-state reset BEFORE any early-return so a missing initFile leaves the
-        // plugin in a known-clean shape rather than carrying state across files (see
-        // `resetPerFilePrimitives` docstring for the full rationale)
+      // every pre-phase entry point shares this preamble. defensive - a sibling plugin may have
+      // destroyed Program before our pre fires. primitive-state reset BEFORE the early-return so a
+      // missing initFile leaves the plugin in a known-clean shape rather than carrying state across
+      // files (see `resetPerFilePrimitives` docstring for the full rationale). returns whether the
+      // file was INITIALIZED - callers read `skipFile` themselves, because a skipped file still has
+      // its own fresh injector while an uninitialized one would leave the PREVIOUS file's in place
+      function beginFile(path) {
         resetPerFilePrimitives();
-        if (!path?.node) return;
+        if (!path?.node) return false;
         initFile(path);
-        if (skipFile) return;
+        return true;
+      }
+
+      function preTraverse(path, visitors) {
+        if (!beginFile(path) || skipFile) return;
         path.traverse(visitors);
         processDeferredSideEffects(path);
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
@@ -1649,7 +1652,6 @@ export default function plugin(api, options) {
       }
 
       function programExit(path) {
-        if (!helperVisitors) return;
         // postHook nulls `injector` after a clean pre/programExit/post cycle; a SECOND
         // Program.exit firing on the same file (sibling plugin re-walking, or a multi-file
         // batch where this file's pre() bailed early but Program.exit still fires)
@@ -1711,6 +1713,13 @@ export default function plugin(api, options) {
         // everything; explicit nulling makes the GC bound deterministic
         outputDebug();
         injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
+        // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
+        // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
+        // emitters do. its two derived slots go with it - they are read only during traversal
+        fileCensus = mutatedStatics = mutationRoots = null;
+        // the census is AST-bearing too: `writtenContainerSlots` maps each written slot to the
+        // VALUE nodes assigned to it, so keeping it would pin the file's tree just as the
+        // emitters do. its two derived slots go with it - they are read only during traversal
       }
 
       // per-file primitive-state reset: skipFile / disabledLines / importStyle /
@@ -1773,11 +1782,9 @@ export default function plugin(api, options) {
       if (method === 'entry-global') {
         return {
           pre: withFileTag(function entryGlobalPre() {
-            // mirror `preTraverse`'s defensive primitive reset before initFile (see
-            // `resetPerFilePrimitives` docstring). guarantees known-clean shape
-            // regardless of whether `initFile` sets these when path.node is non-null
-            resetPerFilePrimitives();
-            initFile(this.file.path);
+            // an uninitialized file must not reach the flush below: the injector would still be the
+            // PREVIOUS file's, and flushing it emits into a program it does not belong to
+            if (!beginFile(this.file.path)) return;
             if (!skipFile) {
               // `runEntryDetection` unifies the dual dispatch (ExpressionStatement body
               // scan + ImportDeclaration traversal) so the caller doesn't thread a visitor
@@ -1789,7 +1796,7 @@ export default function plugin(api, options) {
               // fresh visitor literal per call: traverse explodes the object in place
               this.file.path.traverse({ TSInstantiationExpression: restoreInstantiationParens });
             }
-            injector?.flush();
+            injector.flush();
           }),
           visitor: {},
           post: withFileTag(function entryGlobalPost() {

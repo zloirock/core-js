@@ -9,7 +9,6 @@ import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
 import { nodeAlwaysHardExits } from './exit-analysis.js';
 import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
 import {
-  IIFE_CALL_PATH_WRAPPERS,
   IIFE_CALL_CALLEE_WRAPPERS,
   NESTED_BINDING_INTRODUCERS,
   TS_EXPR_WRAPPERS,
@@ -18,11 +17,18 @@ import {
   readRunsDeferredWithin,
 } from '../helpers/ast-patterns.js';
 
-// always-evaluated wrappers between assignment and its enclosing statement.
-// conditional-evaluation forms (Logical / Conditional / OptionalCall / short-circuit
-// AssignmentExpression) excluded by omission - their non-default branches do not
+// always-evaluated wrappers between assignment and its enclosing statement. spelled out from
+// THAT question rather than borrowed from the IIFE call-path table: the two sets look alike but
+// answer different things, and `ChainExpression` - a member of that table - short-circuits, so it
+// does not belong here. conditional-evaluation forms (Logical / Conditional / OptionalCall /
+// short-circuit AssignmentExpression) excluded by omission - their non-default branches do not
 // unconditionally run the inner assignment
-const STRAIGHT_LINE_WRAPPER_TYPES = new Set([...IIFE_CALL_PATH_WRAPPERS, ...TS_EXPR_WRAPPERS]);
+const STRAIGHT_LINE_WRAPPER_TYPES = new Set([
+  'UnaryExpression',
+  'SequenceExpression',
+  'ParenthesizedExpression',
+  ...TS_EXPR_WRAPPERS,
+]);
 
 // statement wrappers `reachesStraightLine` treats as forward-transparent.
 // LabeledStatement included - targeted break / continue caught by sibling scan

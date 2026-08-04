@@ -845,9 +845,6 @@ export function createClosureAnalysis({
     }
     return closure;
   }
-  // `new C().<X>` member receiver: does the read hand out an own-this method? mirrors the
-  // binding-side gate - a resolvable non-method key stays local, a method key (or a dynamic read
-  // over a method-bearing class) is sound only as the callee of a direct call
   // cached wrapper of `collectClassInstanceClosure`. mirrors `objectAliasClosureCache`:
   // a class with N fields would otherwise re-walk the program N times during candidate
   // collection. cache by class node identity. distinguish `null` (cached as "leaked") from

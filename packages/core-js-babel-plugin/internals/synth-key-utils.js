@@ -20,7 +20,10 @@ import { computedKeysAllBound } from '@core-js/polyfill-provider/helpers/ast-pat
 export function patternComputedKeysSynthSafe(t, objectPatternNode, scope, isInjectedReference) {
   for (const p of objectPatternNode.properties) {
     if (!p.computed || !t.isIdentifier(p.key)) continue;
-    // a polyfill-rewritten member key (`[Symbol.iterator]` -> `[_Symbol$iterator]`) - bail to match unplugin
+    // a polyfill-rewritten member key (`[Symbol.iterator]` -> `[_Symbol$iterator]`) - bail to match
+    // unplugin. load-bearing only when the rewrite DEDUPED onto a user's own pre-existing pure
+    // import: a plugin-minted UID is unbound at this point (imports flush at Program exit), so
+    // `computedKeysAllBound` below already declines it
     if (isInjectedReference(p.key)) return false;
   }
   return computedKeysAllBound(objectPatternNode, scope);

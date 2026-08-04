@@ -416,10 +416,11 @@ export function createBindingAnalysis({
 
   // the `Identifier`-by-binding map (used by `collectBindingReferences` for the
   // estree-toolkit fallback and by `closure-analysis` temporal bound classification),
-  // derived LAZILY from the census: the per-identifier scope resolution is the expensive
-  // half, and babel-side consumers rarely reach it (native `referencePaths` short-circuits
-  // the fallback), so only files that genuinely query it pay for the lookups - and the
-  // program walk itself is already amortized into the census
+  // derived LAZILY from the census: the per-identifier scope resolution is the expensive half,
+  // so only files that genuinely query it pay for the lookups - and the program walk itself is
+  // already amortized into the census. lazy, NOT parser-conditional: the reference fallback
+  // short-circuits on babel, but the closure temporal bound reads the index outright on both
+  // emitters, so both pay it once per program that resolves a closure-narrowed field
   let programIndexCache = new WeakMap();
   function buildProgramIndex(programPath) {
     return memoize(programIndexCache, programPath.node, () => {
@@ -443,15 +444,6 @@ export function createBindingAnalysis({
     return buildProgramIndex(program).identifierByBinding.get(binding) ?? [];
   }
 
-  // ref classifier used during alias-closure construction. categories:
-  //   'trivial' - reference is a member-access receiver (`<name>.X` / `<name>?.X` / `<name>[expr]`)
-  //               or any other shape that doesn't escape the binding's value
-  //   'alias'   - `const <newName> = <ref>` declarator; closure absorbs `newName` and recurses
-  //   'leak'    - everything else; opens an unmonitored mutation channel
-  // default classifier is used by object-literal and class-instance closures (binding holds an
-  // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
-  // accepts `new ClassName()`, `class Sub extends ClassName`, `x instanceof ClassName` -
-  // those uses don't escape the binding's value (the class) for static-state mutation purposes
   // computed member key that's a compile-time constant - a write through it touches a KNOWN
   // field, so field-flow can fold or ignore it. dynamic keys (`o[i]`, `o[f()]`) are unknowable
   function isStaticComputedKey(property) {
@@ -491,6 +483,15 @@ export function createBindingAnalysis({
     return heldIdentityReturningResult(callNode, argNode, argPath);
   }
 
+  // ref classifier used during alias-closure construction. categories:
+  //   'trivial' - reference is a member-access receiver (`<name>.X` / `<name>?.X` / `<name>[expr]`)
+  //               or any other shape that doesn't escape the binding's value
+  //   'alias'   - `const <newName> = <ref>` declarator; closure absorbs `newName` and recurses
+  //   'leak'    - everything else; opens an unmonitored mutation channel
+  // default classifier is used by object-literal and class-instance closures (binding holds an
+  // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
+  // accepts `new ClassName()`, `class Sub extends ClassName`, `x instanceof ClassName` -
+  // those uses don't escape the binding's value (the class) for static-state mutation purposes
   function defaultAliasRefClassifier(parent, refNode, refPath) {
     // a dynamic computed-key write is an unenumerable mutation channel - leak before the
     // member-receiver shortcut would otherwise treat it as trivial
@@ -588,13 +589,6 @@ export function createBindingAnalysis({
     return 'leak';
   }
 
-  // stricter classifier for the ARRAY-ELEMENT narrow (`const a = [{...}]`, the tracked object is an
-  // ELEMENT). the default treats `a[i]` as a trivial member-receiver - true for the array binding, but the
-  // READ RESULT `a[i]` IS the tracked element: if it is HELD (`sink(a[i])` / `return a[i]` / `b = a[i]`)
-  // the element escapes, even though reading the array doesn't leak the array binding. `a[i].m()` keeps it
-  // local (the element is dereferenced, not held). computed-only - `a.length` / `a.map` are not elements.
-  // NOT usable as the default: an OBJECT-field read `foo(obj[k])` must stay trivial (the field VALUE
-  // escapes, not `obj`) - only an array's element-read aliases the tracked object out
   // is a member access the callee of a DIRECT call (`o.read(...)` / `o.read?.()` / `(o.read as any)()`)?
   // that is the only use of an own-this method read that keeps `this` bound to the receiver: a held
   // read, `.call/.apply/.bind` chains and a sequence-detached callee (`(0, o.read)()`) all rebind.
@@ -679,17 +673,14 @@ export function createBindingAnalysis({
     return true;
   }
 
-  // wrap a base classifier with the own-this method-extraction gate: any channel that can HOLD one
-  // of the object's methods rebinds `this` at a later invocation, so the this-field narrow premise
-  // breaks and the closure must die. gated channels: a held method read (dotted / static-computed /
-  // dynamic), a top-level destructure of a method key or rest, an object-spread copy (`{ ...o }`
-  // shares the method bodies with a foreign receiver - array / call spread only ITERATES, which
-  // cannot reach named methods), and call / new argument positions outside the method-safe table.
-  // `prototypeInfo` (class flavor) gates the `C.prototype` hop the same way: a held
-  // `C.prototype.<instanceMethod>` read - or `C.prototype` itself held - hands instance methods out
   function invokesOwnIterator(parent, refNode, refPath) {
     if (parent?.type === 'SpreadElement') return refPath?.parentPath?.parent?.type !== 'ObjectExpression';
     return parent?.type === 'ForOfStatement' && parent.right === refNode;
+  }
+
+  function isProtoSetterCallee(calleePath) {
+    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope);
+    return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
   }
 
   // does this REFERENCE to the holder INSTALL a body nobody read? two shapes reach that, and the
@@ -699,11 +690,6 @@ export function createBindingAnalysis({
   // feed the field fold the narrow already reads; a prototype has no such fold and passes nothing.
   // a value that cannot BE an object cannot be called either, so storing one installs nothing.
   // READING a member is the other question, and what the holder's own SHAPE says is the third
-  function isProtoSetterCallee(calleePath) {
-    const pair = resolveStaticCalleePair(calleePath.node, calleePath.scope);
-    return pair?.method === 'setPrototypeOf' && (pair.constructor === 'Object' || pair.constructor === 'Reflect');
-  }
-
   function referenceInstallsUnreadBody(parent, refNode, refPath, declaredKeys) {
     if (isMemberRefReceiver(parent, refNode)) {
       const host = refPath?.parentPath?.parentPath;
@@ -723,6 +709,14 @@ export function createBindingAnalysis({
       && prototypeValueMayDispatch(unwrapRuntimeExpr(installed), undefinedShadowed);
   }
 
+  // wrap a base classifier with the own-this method-extraction gate: any channel that can HOLD one
+  // of the object's methods rebinds `this` at a later invocation, so the this-field narrow premise
+  // breaks and the closure must die. gated channels: a held method read (dotted / static-computed /
+  // dynamic), a top-level destructure of a method key or rest, an object-spread copy (`{ ...o }`
+  // shares the method bodies with a foreign receiver - array / call spread only ITERATES, which
+  // cannot reach named methods), and call / new argument positions outside the method-safe table.
+  // `prototypeInfo` (class flavor) gates the `C.prototype` hop the same way: a held
+  // `C.prototype.<instanceMethod>` read - or `C.prototype` itself held - hands instance methods out
   function makeMethodAwareRefClassifier(base, { methodInfo, prototypeInfo }) {
     return function (parent, refNode, refPath) {
       if (isMemberRefReceiver(parent, refNode)) {

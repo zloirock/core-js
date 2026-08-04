@@ -18,6 +18,7 @@
 // extractions at the OUTER level only and use child lists for residual rendering
 import {
   isChainAssignment,
+  isRestProperty,
   mayHaveSideEffects,
   peelZeroArgIifeReturn,
   propBindingIdentifier,
@@ -164,12 +165,12 @@ function peelInnerDefault(value) {
 // must defer anchoring at every nesting level, not just the top - a nested default (`nested: { x = d }`)
 // re-anchored to the pure ctor renders verbatim, so a polyfillable `d` is never injected
 function patternHasAnyDefault(node) {
-  while (node?.type === 'RestElement' || node?.type === 'SpreadElement') node = node.argument;
+  while (isRestProperty(node)) node = node.argument;
   switch (node?.type) {
     case 'AssignmentPattern': return true;
     case 'ArrayPattern': return node.elements.some(patternHasAnyDefault);
     case 'ObjectPattern': return node.properties.some(prop => patternHasAnyDefault(
-      prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value));
+      isRestProperty(prop) ? prop.argument : prop.value));
     default: return false;
   }
 }
@@ -414,7 +415,7 @@ export function buildNestedDestructurePlan({
     if (planned.kind !== 'verbatim' && planned.kind !== 'rebuilt') return planned;
     // a `core-js-disable`d prop opts out of polyfilling: keep it on the native residual
     if (leafDisabled(planned.prop)) return planned;
-    if (outerPattern.properties.some(p => p.type === 'RestElement')) return planned;
+    if (outerPattern.properties.some(isRestProperty)) return planned;
     const name = propKeyNameScoped(planned.prop);
     if (name === null || POSSIBLE_GLOBAL_OBJECTS.has(name)) return planned;
     // a MUTATED ctor (`globalThis.Map = Shim` in-file) must read off the PATCHED native binding, not the
@@ -423,7 +424,7 @@ export function buildNestedDestructurePlan({
     const anchorPure = resolveGlobalPolyfill(name);
     if (!anchorPure) return planned;
     const inner = peelInnerDefault(planned.prop.value);
-    if (inner?.type !== 'ObjectPattern' || inner.properties.some(p => p.type === 'RestElement')) return planned;
+    if (inner?.type !== 'ObjectPattern' || inner.properties.some(isRestProperty)) return planned;
     const residualProps = planned.kind === 'verbatim'
       ? inner.properties
       : planned.children.filter(c => c.kind !== 'consumed').map(c => c.prop);
@@ -628,7 +629,7 @@ export function buildNestedDestructurePlan({
           if (!key || !POSSIBLE_GLOBAL_OBJECTS.has(key) || adapter.isMutatedStatic?.(receiver, key)) break;
           const inner = peelInnerDefault(prop.value);
           if (inner?.type !== 'ObjectPattern' || !inner.properties.length
-            || inner.properties.some(p => p.type === 'RestElement')) break;
+            || inner.properties.some(isRestProperty)) break;
           effPattern = inner;
           lastHop = key;
         }

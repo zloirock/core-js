@@ -279,9 +279,11 @@ export function createMemberResolve({
   }
 
   // union/intersection method calls - for `x: A | B` or `x: A & B` calling `x.foo()`,
-  // resolve in each branch. union folds per-branch return types; intersection picks the
-  // first branch that resolves (intersection members are additive, so any match is valid).
-  // mirrors findTypeMember's handling for properties
+  // resolve in each branch. union folds per-branch return types; intersection takes the FIRST
+  // branch that resolves. DELIBERATELY unlike the property side (`findTypeMember`), which folds
+  // every constituent into a composite: the call signatures of an intersection form an ordered
+  // overload list, so the first arm that accepts the call is the TS-faithful selection. do not
+  // "unify" the two - folding here would resolve a call against a signature TS never selects
   function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0, callPath }) {
     if (depth > MAX_DEPTH) return null;
     // peel a leading TSParenthesizedType (`(A | B).m()`) so followTypeAliasChain sees the raw
