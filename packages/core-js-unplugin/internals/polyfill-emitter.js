@@ -3741,6 +3741,7 @@ export function createPolyfillEmitter({
       // unknown / static-receiver / symbol shapes - the plan gates on it)
       receiverHint: !meta.object && meta.key && !meta.symbolSourced
         ? toHint(resolveNodeType(metaPath.get('right'))) : null,
+      parent: metaPath.parentPath?.node ?? null,
     });
     if (plan.kind === 'noop') return;
     // queue a whole-node text replacement, re-prepending the harvested SE via comma so it still
@@ -3749,6 +3750,19 @@ export function createPolyfillEmitter({
       const parts = plan.leadingSe.map(e => nodeSrc(e));
       const replacement = parts.length ? `(${ parts.join(', ') }, ${ core })` : core;
       transforms.add(node.start, node.end, replacement);
+    }
+    // keep the membership test live (it carries the throw) and answer `true` after it. the two edits
+    // are SUB-ranges of the node, never the node itself: a statement-level wrapper (an arrow body
+    // gaining `{ var _ref; return ... }`) claims the node's own range, and a second transform there
+    // leaves the composer with two wrappers holding the same source slice. strict containment also
+    // lets the operands' own rewrites splice in as usual
+    // keep the membership test live (it carries the throw) and answer `true` after it. ONE transform
+    // over the node's own range so the operands' rewrites splice in as usual, marked `innerWrapper`
+    // because a statement-level wrap (an arrow body gaining `{ var _ref; return ... }`) can claim
+    // the same range and must stay OUTSIDE this one
+    if (plan.kind === 'fold-after-test') {
+      transforms.add(node.start, node.end, `(${ nodeSrc(node) }, true)`, null, { innerWrapper: true });
+      return;
     }
     if (plan.kind === 'symbol') {
       const binding = injectPureImport(plan.entry, plan.hint);
