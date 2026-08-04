@@ -30,6 +30,16 @@ export const libraries = [
     tiers: ['throughput', 'runtime'],
     exercise: join(HERE, 'exercises', 'three.mjs'),
   },
+  {
+    // The TypeScript fixture: built from the libraries' own `src/**/*.ts`, not their published JS
+    // (see `TS_SOURCE_PACKAGES` in build.mjs). Deliberately NOT in `throughput`: that tier drives
+    // seven bundlers with no TS resolution and no Babel, and only rollup has been taught to resolve
+    // `.ts` here. `runtime` (and `pipeline`, which reads the same list) is rollup-only, which is also
+    // where the phase axis this fixture exists for actually lives.
+    name: 'htmlparser2',
+    tiers: ['runtime'],
+    exercise: join(HERE, 'exercises', 'htmlparser2.mjs'),
+  },
 ];
 
 // Select a tier's libraries, optionally narrowed to one by name. A typo'd filter that matches
