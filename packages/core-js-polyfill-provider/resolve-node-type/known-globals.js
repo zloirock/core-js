@@ -25,7 +25,7 @@
 //   resolveKnownGlobalReference(path)
 //   inferPromiseResolveReturnType(callPath)   - `Promise.resolve(x)` arg-based inner peel
 import { PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, $Object, $Primitive } from './base.js';
-import { typeRefName } from './ast-shapes.js';
+import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import { getTypeArgs, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -101,7 +101,7 @@ export function createKnownGlobals({
   // shared between the AST-side Promise peel (callers want one layer for distribute)
   // and `unwrapPromiseAnnotation` (callers loop for full unwrap)
   function promiseRefInner(node) {
-    if (node?.type !== 'TSTypeReference' && node?.type !== 'GenericTypeAnnotation') return null;
+    if (!isTypeReferenceNode(node)) return null;
     if (!isPromiseRefName(typeRefName(node))) return null;
     return getTypeArgs(node)?.params?.[0] ?? null;
   }
