@@ -15,7 +15,7 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import {
   makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder,
-  assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, HERE,
+  assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, HERE,
 } from './build.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -80,16 +80,22 @@ async function baseStages(lib) {
   const label = `${ lib.name }/usage-*`;
   const stages = await withEntry(lib.exercise, 'usage-global', 'pipe-base', async entry => {
     let src = 0;
+    // `ts` rides along because it changes what `src` MEANS: this counter sits before the type-erasure
+    // pass, so for a TS-source library the figure is TypeScript with its annotations still in it and
+    // is not comparable with the JS fixtures' rows. The report labels the row accordingly rather than
+    // printing two different measurements under one heading.
+    let ts = false;
     const counter = {
       name: 'src-count',
-      transform(code) {
+      transform(code, id) {
         src += Buffer.byteLength(code);
+        if (TS_EXTENSION.test(id)) ts = true;
         return null;
       },
     };
     const a = await timedBuild(entry, [tsSources(), counter, makeTsStripPlugin(), nodeResolve(), commonjs()], `${ label } [A]`);
     const b = await timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs()], `${ label } [B]`);
-    return { src, A: { bytes: a.bytes, ms: +a.ms.toFixed(0) }, B: { bytes: b.bytes, ms: +b.ms.toFixed(0) } };
+    return { src, ts, A: { bytes: a.bytes, ms: +a.ms.toFixed(0) }, B: { bytes: b.bytes, ms: +b.ms.toFixed(0) } };
   });
   stagesByLib.set(lib.name, stages);
   return stages;
@@ -103,8 +109,9 @@ async function measure(lib, method) {
     const cellC = `${ cell0 } [C]`;
 
     if (method !== 'entry-global') {
-      const { src, A, B } = await baseStages(lib);
+      const { src, ts, A, B } = await baseStages(lib);
       cell.src = src;
+      cell.ts = ts;
       cell.A = A;
       cell.B = B;
     }
@@ -173,9 +180,11 @@ const scope = libFilter || methodFilter
 let md = '# Pipeline: size and time per stage\n\n'
   + `${ scope }. `
   + 'Rollup + Babel (syntax down-compile) + unplugin, single run. '
-  + 'Stages: **[A]** library with no transforms '
-  + '(modern, tree-shaken) → **[B]** + Babel (ES5, no polyfills) → **[C]** + unplugin '
-  + '(polyfills = the real IE11 bundle). For `entry-global`, only [C]. '
+  + 'Stages: **[A]** library with no down-compile '
+  + '(modern, tree-shaken; a TypeScript-source library has its types erased here and nothing else, '
+  + 'since rollup cannot parse `.ts` at all — erasure is not a down-compile, so the whole cost of the '
+  + 'ES5 lowering is still in the [A] → [B] delta) → **[B]** + Babel (ES5, no polyfills) → '
+  + '**[C]** + unplugin (polyfills = the real IE11 bundle). For `entry-global`, only [C]. '
   + '**[A] and [B] depend on the library only** — neither carries unplugin, and the entry is identical '
   + 'for both usage-* methods — so they are measured ONCE per library and the two usage-* rows show '
   + 'the same build. Identical [A]/[B] figures across those two rows are one measurement printed '
@@ -188,8 +197,8 @@ for (const lib of libs) {
     md += `### ${ c.method } — injections: ${ c.injections }\n\n`;
     md += '| stage | size (raw) | time |\n| --- | --- | --- |\n';
     if (c.A) {
-      md += `| source loaded (pre-tree-shaking) | ${ kb(c.src) } | — |\n`;
-      md += `| [A] no transforms (modern) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
+      md += `| source loaded (pre-tree-shaking${ c.ts ? ', TypeScript' : '' }) | ${ kb(c.src) } | — |\n`;
+      md += `| [A] ${ c.ts ? 'types erased' : 'no transforms' } (modern) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
       md += `| [B] + Babel (ES5, no polyfills) | ${ kb(c.B.bytes) } | ${ c.B.ms } ms |\n`;
     }
     md += `| [C] + unplugin (IE11) | ${ kb(c.C.bytes) } | ${ c.C.ms } ms (Babel ${ c.C.babelMs } / unplugin ${ c.C.unpluginMs }) |\n\n`;
