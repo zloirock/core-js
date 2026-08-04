@@ -28,7 +28,7 @@
 // not. Its build-time gates still apply; only its IE11 verdict is advisory.
 //
 // Usage:  node runtime.mjs [libFilter] [--update]    --update rewrites the snapshot baselines
-import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, phasesFor, HERE } from './build.mjs';
+import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -229,6 +229,13 @@ const [vOxc, vCoreJs, vRxjs, vThree, vCm] = await Promise.all(
   ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
 console.log(`environment: ${ process.platform }/${ process.arch } node ${ process.version }`
   + ` | oxc-parser ${ vOxc } | core-js ${ vCoreJs } | rxjs ${ vRxjs } | three ${ vThree } | @codemirror/state ${ vCm }`);
+// The TS-source stack gets its own line: seven packages feed the htmlparser2 cells and any of them
+// can move those snapshots, so naming only the one the fixture is called after would answer "was this
+// the same input?" with a third of the answer. domhandler / domelementtype / boolbase ship no sources
+// and are therefore not listed - they are ordinary JS dependencies like every other fixture's.
+const tsPackages = [...TS_SOURCE_PACKAGES];
+const tsVersions = await Promise.all(tsPackages.map(p => version(p)));
+console.log(`TS sources: ${ tsPackages.map((p, i) => `${ p } ${ tsVersions[i] }`).join(' | ') }`);
 
 const cells = [];
 for (const lib of libs) {
