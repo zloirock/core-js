@@ -10,10 +10,9 @@ export const geRight = 2 >= globalThis.window?.self.Number.parseFloat('1.5');
 export const leRight = 1 <= globalThis.window?.self.Reflect.ownKeys({ a: 1 }).length;
 export const shiftRight = 4 >> globalThis.window?.self.Array.from([1]).length;
 
-// the same slots over a CALL root, whose guard test carries the root effect. a claim with a
-// MEMBER tail splits that tail differently in the two emitters - the AST one folds every step
-// but the last, the text one lifts the whole tail behind the `?.` it already owns. both read
-// the same value off the same guard, so the sidecar records the split rather than a defect
+// the same slots over a CALL root, whose guard test carries the root effect. a claim's MEMBER
+// tail grows through the same shared walk an invoked one does - spelling it by a rule of its own
+// folded a different number of steps than the AST emitter for the same source
 const cr = () => globalThis;
 export const eqRightCall = 1 === cr().window?.self.Set.prototype.constructor.length;
 export const gtRightCall = 2 > cr().window?.self.Math.fround(1.5);
@@ -40,8 +39,8 @@ export const arrowValue = arrowBody();
 export const returnedValue = returned().next().value;
 
 // an `extends` clause parenthesizes the fold too - it takes a LeftHandSideExpression - so the
-// last tail step rides outside behind `?.` exactly as under an operator. listing that consumer
-// on one emitter only spelled the same fold two ways
+// tail rides inside those parens exactly as under an operator. listing that consumer on one
+// emitter only spelled the same fold two ways
 const host = globalThis.window?.self;
 class Extended extends globalThis.window?.self.hostBox.Base {}
 export const extendedName = Extended.name;

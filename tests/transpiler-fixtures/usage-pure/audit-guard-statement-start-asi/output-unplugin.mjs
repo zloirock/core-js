@@ -16,7 +16,7 @@ null == _globalThis.window ? void 0 : _self.hostBox.field
 export let liftedOptionalCallee = 3
 null == _globalThis.window ? void 0 : _self.hostBox?.run?.()
 export let liftedOperand = 4
-;(null == _globalThis.window ? void 0 : _self.hostBox)?.field + 1
+;(null == _globalThis.window ? void 0 : _self.hostBox.field) + 1
 export let claimUnderOperator = 5
 ;(null == _globalThis.window ? void 0 : _Number$parseInt('4', 10)) >> 1
 
