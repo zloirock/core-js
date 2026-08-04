@@ -226,7 +226,42 @@ export const TS_SOURCE_PACKAGES = new Set([
   'htmlparser2', 'domutils', 'dom-serializer', 'entities', 'css-select', 'css-what', 'nth-check',
 ]);
 const NODE_MODULES = join(HERE, 'node_modules');
-const TS_SOURCE_ROOTS = [...TS_SOURCE_PACKAGES].map(name => join(NODE_MODULES, name, 'src'));
+// Compared against module ids, which come from several plugins and from rollup itself. Ours are built
+// with `join`/`resolve` and so carry the platform separator, but the IE11 leg of this suite runs on
+// windows-2022, where a single normalized id from any of those sources would make a `startsWith` test
+// silently answer `false` - and then every intra-package import resolves to nothing. Compare in one
+// form instead; `recorder` and `runKarma` normalize for the same reason.
+function toPosix(p) {
+  return p.replaceAll('\\', '/');
+}
+const TS_SOURCE_ROOTS = [...TS_SOURCE_PACKAGES].map(name => toPosix(join(NODE_MODULES, name, 'src')));
+function tsEntry(name) {
+  return join(NODE_MODULES, name, 'src', 'index.ts');
+}
+
+// The snapshots do NOT guard this set, and it is worth knowing by how little. Measured by removing one
+// package at a time: only `htmlparser2` moves a baseline (3 cells). The other six move none — of the
+// two type-derived injections the fixture exists for, one comes from htmlparser2 and the other from
+// TWO origins (`css-select` and `domutils`), so either of those alone is masked by the other. A
+// package that stops shipping `src/` - pruned from a tarball, moved by a major - therefore falls back
+// to its published JS with every gate still green, and the fixture goes on calling itself a
+// TypeScript build while being half a JavaScript one.
+//
+// So assert the premise directly instead of hoping a baseline notices. This covers the case that can
+// happen silently, an install that no longer has the sources; it deliberately says nothing about
+// editing the set above, which is a visible code change with a diff to read.
+// Once per process: `tsSources()` is constructed by every rollup chain in the suite.
+let tsSourcesVerified = false;
+function assertTsSources() {
+  if (tsSourcesVerified) return;
+  const missing = [...TS_SOURCE_PACKAGES].filter(name => !firstExistingFile([tsEntry(name)]));
+  if (missing.length) {
+    throw new Error(`TS_SOURCE_PACKAGES: no src/index.ts in ${ missing.join(', ') } — these packages are `
+      + 'built from their TypeScript sources (see build.mjs); without them the htmlparser2 fixture '
+      + 'silently degrades to a published-JS build. Reinstall, or drop them from the set deliberately.');
+  }
+  tsSourcesVerified = true;
+}
 
 // A directory has to be rejected explicitly, not just skipped: an extensionless specifier such as
 // `./vocabularies/discriminator` makes the first candidate the path itself, and a bare `existsSync`
@@ -254,11 +289,12 @@ function firstExistingFile(candidates) {
 // one on disk); node's resolver never does this mapping, so without it every intra-package import
 // falls through to `nodeResolve` and resolves to nothing.
 export function tsSources() {
+  assertTsSources();
   return {
     name: 'e2e-ts-sources',
     resolveId(source, importer) {
       if (source.startsWith('.')) {
-        if (!importer || TS_SOURCE_ROOTS.every(root => !importer.startsWith(root))) return null;
+        if (!importer || TS_SOURCE_ROOTS.every(root => !toPosix(importer).startsWith(root))) return null;
         const abs = resolvePath(dirname(importer), source);
         return firstExistingFile([abs.replace(/\.[cm]?js$/, '.ts'), `${ abs }.ts`, join(abs, 'index.ts')]);
       }
@@ -270,7 +306,12 @@ export function tsSources() {
   };
 }
 
-const TS_EXTENSION = /\.[cm]?ts$/;
+// `.d.ts` is deliberately NOT TypeScript here. Stripping one would erase it to an empty module and
+// hand rollup a silently empty dependency; leaving it alone makes rollup's own parser reject it, which
+// is the answer a declaration file in a runtime graph deserves. Nothing resolves one today - the
+// candidates below are all built as `<name>.ts` - so this is the regex saying what it means rather
+// than a live path.
+export const TS_EXTENSION = /(?<!\.d)\.[cm]?ts$/;
 
 // A rollup transform that down-compiles syntax to ES5 with a specific Babel core + preset-env.
 // core-js internals are already ES5, so skip them (unplugin still injects them, unbabeled).
