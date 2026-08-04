@@ -1061,3 +1061,264 @@ QUnit.test('optional chaining: a paren-leading guard at statement start keeps it
   /* eslint-enable @stylistic/semi -- back to the default */
   delete globalThis.e2eGuardAsi;
 });
+
+// a consumer that parenthesizes the guard wraps the WHOLE folded value, so every tail step rides
+// inside it. stranding the last one behind a `?.` would introduce a short-circuit the source
+// never had: where an intermediate is absent the source throws, and the guard must throw too
+QUnit.test('optional chaining: a folded tail keeps the throw its source performs', assert => {
+  globalThis.e2eGuardGap = { present: 1 };
+  /* eslint-disable yoda -- the guard on the RIGHT of the operator IS the case */
+  if (WINDOW_PRESENT) {
+    assert.throws(() => -globalThis.window?.self.e2eGuardGap.missing.n, TypeError);
+    assert.throws(() => 1 === globalThis.window?.self.e2eGuardGap.missing.n, TypeError);
+  } else {
+    assert.same(-globalThis.window?.self.e2eGuardGap.missing.n, NaN);
+    assert.same(1 === globalThis.window?.self.e2eGuardGap.missing.n, false);
+  }
+  /* eslint-enable yoda -- back to the default */
+  // the present path still reads through, so the row is not vacuous on either branch
+  assert.same(-globalThis.window?.self.e2eGuardGap.present, WINDOW_PRESENT ? -1 : NaN);
+  delete globalThis.e2eGuardGap;
+});
+
+// a TAGGED template reads its tag as a reference, so the tail stays outside the guard - but a
+// PLAIN read there throws on the branch the guard proved absent, before the template's own
+// substitutions run. the source short-circuits the whole tag and throws only at the call, so the
+// substitution effect must still happen
+QUnit.test('optional chaining: a guarded tagged tag keeps the source evaluation order', assert => {
+  globalThis.e2eGuardTag = { tag(strings) { return `${ strings[0] }!`; } };
+  let effects = 0;
+  function eff() {
+    effects += 1;
+    return 'e';
+  }
+  /* eslint-disable no-unsafe-optional-chaining -- the paren-ended tag IS the case */
+  if (WINDOW_PRESENT) {
+    assert.same((globalThis.window?.self.e2eGuardTag.tag)`x${ eff() }`, 'x!');
+  } else {
+    assert.throws(() => (globalThis.window?.self.e2eGuardTag.tag)`x${ eff() }`, TypeError);
+  }
+  /* eslint-enable no-unsafe-optional-chaining -- back to the default */
+  assert.same(effects, 1);
+  delete globalThis.e2eGuardTag;
+});
+
+// an OPTIONAL instance dispatch memoizes its receiver: when that receiver IS the guarded nav the
+// memo has to hold the rendered text, or the nav stays raw - a bare global on the oldest target
+// and a native read where the ponyfill belongs. the value is the same either way, so the
+// stripped-realm leg is what makes this row bite
+QUnit.test('optional chaining: an optional dispatch memoizes the rendered nav', assert => {
+  globalThis.e2eNavBox = { arr: [3, [1, 2]], str: 'a-a' };
+  assert.deepEqual(globalThis.window?.self.e2eNavBox.arr?.flat(), WINDOW_PRESENT ? [3, 1, 2] : undefined);
+  assert.same(globalThis.window?.self.e2eNavBox.arr?.at(0), WINDOW_PRESENT ? 3 : undefined);
+  assert.same(globalThis.window?.self.e2eNavBox.str?.replaceAll('a', 'z'), WINDOW_PRESENT ? 'z-z' : undefined);
+  assert.deepEqual(globalThis.window?.self.e2eNavBox?.arr?.flat(), WINDOW_PRESENT ? [3, 1, 2] : undefined);
+  delete globalThis.e2eNavBox;
+});
+
+// two OPTIONAL polyfilled dispatches in a row: the outer memoizes the whole inner call, so the
+// inner's rewrite has to land in that memo's value slot. landing at the bare guard ref instead
+// spelled an assignment TO the inner call - output that does not parse at all
+QUnit.test('optional chaining: chained optional dispatches memoize the inner emit', assert => {
+  globalThis.e2eChainBox = { arr: [3, [1, 2]], str: 'a-a' };
+  assert.same(globalThis.e2eChainBox.arr?.flat()?.at(0), 3);
+  assert.same(globalThis.e2eChainBox.str?.replaceAll('a', 'z')?.at(0), 'z');
+  assert.same(globalThis.e2eChainBox.arr?.flat()?.slice(0, 2)?.at(0), 3);
+  assert.same(globalThis.e2eChainBox.arr?.flat()?.length, 3);
+  assert.same(globalThis.window?.self.e2eChainBox.arr?.flat()?.at(0), WINDOW_PRESENT ? 3 : undefined);
+  delete globalThis.e2eChainBox;
+});
+
+// a probe nav whose ROOT is a chain assignment: the hop the detector suppresses still has to be
+// rendered, or the guard vanishes and `self` is read natively off the probe. the write must run
+// exactly once either way, and the value follows the source on both branches
+QUnit.test('optional chaining: a chain-assign root still renders its probe guard', assert => {
+  globalThis.e2eAssignBox = { arr: [3, [1, 2]], n: 4 };
+  let held;
+  assert.deepEqual((held = globalThis)?.window?.self.e2eAssignBox.arr?.flat(), WINDOW_PRESENT ? [3, 1, 2] : undefined);
+  assert.same(held, globalThis);
+  let writes = 0;
+  function counted() {
+    writes += 1;
+    return globalThis;
+  }
+  let heldCounted;
+  assert.same((heldCounted = counted())?.window?.self.e2eAssignBox.n, WINDOW_PRESENT ? 4 : undefined);
+  assert.same(writes, 1);
+  assert.same(heldCounted, globalThis);
+  delete globalThis.e2eAssignBox;
+});
+
+// a claimless probe nav in a VALUE position: no polyfill claim owns the chain, so the kept-nav
+// render is the only thing that keeps the ponyfillable hop off a native read. the value follows
+// the source on both branches and the assignment root still runs exactly once
+QUnit.test('optional chaining: a claimless probe nav renders in value position', assert => {
+  globalThis.e2eValueBox = { n: 4, inner: { n: 5 } };
+  assert.same(globalThis.window?.self.e2eValueBox.n, WINDOW_PRESENT ? 4 : undefined);
+  let held;
+  assert.same((held = globalThis)?.window?.self.e2eValueBox.n, WINDOW_PRESENT ? 4 : undefined);
+  assert.same(held, globalThis);
+  let heldDeep;
+  assert.same((heldDeep = globalThis)?.window?.self.e2eValueBox.inner.n, WINDOW_PRESENT ? 5 : undefined);
+  assert.same(heldDeep, globalThis);
+  delete globalThis.e2eValueBox;
+});
+
+// a paren layer BETWEEN the probe nav and its tail: the source dereferences the nav's value
+// PLAINLY through those parens, so where the probe is absent it throws instead of answering
+// undefined. the guard's own parens are that layer's once the render absorbs it, and nothing
+// above may be folded inside them - a fold there would answer undefined and swallow the throw
+/* eslint-disable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the paren layer over
+   the nav and the plain dereference through it ARE the form under test */
+QUnit.test('optional chaining: a paren layer over the probe nav keeps the plain dereference', assert => {
+  globalThis.e2eParenBox = { arr: [3, [1, 2]], n: 7 };
+  if (WINDOW_PRESENT) {
+    assert.deepEqual((globalThis.window?.self.e2eParenBox).arr?.flat(), [3, 1, 2]);
+    assert.deepEqual((globalThis.window?.self.e2eParenBox).arr, [3, [1, 2]]);
+    assert.same((globalThis.window?.self.e2eParenBox.arr).length, 2);
+  } else {
+    assert.throws(() => (globalThis.window?.self.e2eParenBox).arr?.flat(), TypeError);
+    assert.throws(() => (globalThis.window?.self.e2eParenBox).arr, TypeError);
+    assert.throws(() => (globalThis.window?.self.e2eParenBox.arr).length, TypeError);
+  }
+  // the layer over the LEAF itself dereferences the guarded ponyfill the same plain way
+  if (WINDOW_PRESENT) assert.same((globalThis.window?.self).e2eParenBox.n, 7);
+  else assert.throws(() => (globalThis.window?.self).e2eParenBox.n, TypeError);
+  // an OPTIONAL tail over the same layer short-circuits instead of throwing
+  assert.deepEqual((globalThis.window?.self.e2eParenBox)?.arr, WINDOW_PRESENT ? [3, [1, 2]] : undefined);
+  // parens around the WHOLE chain leave nothing between the nav and its tail, so the fold applies
+  assert.deepEqual((globalThis.window?.self.e2eParenBox.arr?.flat()), WINDOW_PRESENT ? [3, 1, 2] : undefined);
+  delete globalThis.e2eParenBox;
+});
+/* eslint-enable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the form under test ends here */
+
+// a SEQUENCE evaluates to its last element, so a probe nav there IS the receiver's value. the
+// prefixes must still run exactly once, and the guard must reach the nav even though the receiver
+// text around it was built with the chain root already substituted
+/* eslint-disable no-unsafe-optional-chaining -- dereferencing the guarded value through the
+   sequence IS the form under test */
+QUnit.test('optional chaining: a sequence receiver carries the probe nav through the guard', assert => {
+  globalThis.e2eSeqBox = { arr: [3, [1, 2]], n: 7 };
+  let effects = 0;
+  function seen() {
+    effects += 1;
+    return 'x';
+  }
+  assert.same((seen(), globalThis.window?.self.e2eSeqBox.n), WINDOW_PRESENT ? 7 : undefined);
+  assert.deepEqual((seen(), globalThis.window?.self.e2eSeqBox.arr)?.flat(), WINDOW_PRESENT ? [3, 1, 2] : undefined);
+  assert.same(effects, 2);
+  // the nav LEADS the sequence: its value is discarded, the last element decides
+  assert.same((globalThis.window?.self.e2eSeqBox.n, 'tail'), 'tail');
+  if (WINDOW_PRESENT) {
+    assert.deepEqual((seen(), globalThis.window?.self.e2eSeqBox).arr?.flat(), [3, 1, 2]);
+    assert.deepEqual((seen(), globalThis.window?.self.e2eSeqBox.arr).flat(), [3, 1, 2]);
+  } else {
+    assert.throws(() => (seen(), globalThis.window?.self.e2eSeqBox).arr?.flat(), TypeError);
+    assert.throws(() => (seen(), globalThis.window?.self.e2eSeqBox.arr).flat(), TypeError);
+  }
+  assert.same(effects, 4);
+  delete globalThis.e2eSeqBox;
+});
+/* eslint-enable no-unsafe-optional-chaining -- the form under test ends here */
+
+// the probe nav as a WRITE target: the write must land on the object the guard yields, not on the
+// short-circuit value. where the probe is absent the source throws on the reference itself, so the
+// whole statement throws before any assignment happens
+/* eslint-disable no-unsafe-optional-chaining -- writing through the guarded value IS the form under test */
+QUnit.test('optional chaining: the probe nav as a write target', assert => {
+  globalThis.e2eWriteBox = { n: 1, arr: [3, [1, 2]] };
+  let held;
+  let effects = 0;
+  function seen() {
+    effects += 1;
+    return 'x';
+  }
+  if (WINDOW_PRESENT) {
+    (globalThis.window?.self.e2eWriteBox).n = 2;
+    assert.same(globalThis.e2eWriteBox.n, 2);
+    (globalThis.window?.self.e2eWriteBox).n += 3;
+    assert.same(globalThis.e2eWriteBox.n, 5);
+    (globalThis.window?.self.e2eWriteBox).n++;
+    assert.same(globalThis.e2eWriteBox.n, 6);
+    ({ k: (globalThis.window?.self.e2eWriteBox).n } = { k: 7 });
+    assert.same(globalThis.e2eWriteBox.n, 7);
+    (seen(), globalThis.window?.self.e2eWriteBox).n = 8;
+    assert.same(globalThis.e2eWriteBox.n, 8);
+    ('y', (held = globalThis)?.window?.self.e2eWriteBox).n = 9;
+    assert.same(globalThis.e2eWriteBox.n, 9);
+    assert.same(held, globalThis);
+    delete (globalThis.window?.self.e2eWriteBox).n;
+    assert.same('n' in globalThis.e2eWriteBox, false);
+  } else {
+    assert.throws(() => { (globalThis.window?.self.e2eWriteBox).n = 2; }, TypeError);
+    assert.throws(() => { (seen(), globalThis.window?.self.e2eWriteBox).n = 8; }, TypeError);
+    assert.same(globalThis.e2eWriteBox.n, 1);
+  }
+  assert.same(effects, 1);
+  delete globalThis.e2eWriteBox;
+});
+/* eslint-enable no-unsafe-optional-chaining -- the form under test ends here */
+
+// SIDE-EFFECT ORDER across the shapes this canon collapses: the guard test, a computed key and the
+// call arguments each run once and in source order, and everything BEHIND a short-circuit does not
+// run at all. the two branches disagree on which effects happen, so both are asserted
+QUnit.test('optional chaining: effect order through the collapsed guard', assert => {
+  globalThis.e2eSeBox = { arr: [3, [1, 2]] };
+  const log = [];
+  function k(n) {
+    log.push(n);
+    return 0;
+  }
+  function key(name) {
+    log.push(name);
+    return name;
+  }
+  // a sequence prefix runs before the guard; the call argument only on the taken branch
+  assert.deepEqual((k(1), globalThis.window?.self.e2eSeBox.arr)?.flat(k(2)),
+    WINDOW_PRESENT ? [3, [1, 2]] : undefined);
+  assert.deepEqual(log, WINDOW_PRESENT ? [1, 2] : [1]);
+  log.length = 0;
+  // a computed key sits BEHIND the probe's `?.`, so an absent probe skips it entirely
+  assert.deepEqual(globalThis.window?.self.e2eSeBox[key('arr')]?.flat(),
+    WINDOW_PRESENT ? [3, 1, 2] : undefined);
+  assert.deepEqual(log, WINDOW_PRESENT ? ['arr'] : []);
+  log.length = 0;
+  // repeated navs under a chained consumer: each key runs on its own, in order
+  assert.deepEqual(globalThis.window?.self.e2eSeBox[key('arr')]?.flat()
+    .concat(globalThis.window?.self.e2eSeBox[key('arr')]?.flat() ?? []),
+  WINDOW_PRESENT ? [3, 1, 2, 3, 1, 2] : undefined);
+  assert.deepEqual(log, WINDOW_PRESENT ? ['arr', 'arr'] : []);
+  log.length = 0;
+  // an effectful ROOT rides the guard test and runs exactly once on both branches
+  let held;
+  assert.deepEqual((held = (k(9), globalThis))?.window?.self.e2eSeBox.arr?.flat(k(3)),
+    WINDOW_PRESENT ? [3, [1, 2]] : undefined);
+  assert.deepEqual(log, WINDOW_PRESENT ? [9, 3] : [9]);
+  assert.same(held, globalThis);
+  delete globalThis.e2eSeBox;
+});
+
+// ECMA evaluates a member call's RECEIVER before its computed KEY. no accessor is needed to see the
+// order: let the key effect REPLACE the property the receiver was read from - the call then runs on
+// whichever array the order picked, so the returned value is the discriminator
+/* eslint-disable no-sequences -- a computed key that RESOLVES to a method name while carrying an
+   effect is exactly the form under test; a fully dynamic key resolves to no polyfill at all */
+QUnit.test('optional chaining: the receiver runs before a harvested computed key', assert => {
+  globalThis.e2eOrderBox = { list: ['first'] };
+  function swap() {
+    globalThis.e2eOrderBox.list = ['second'];
+    return 0;
+  }
+  // the key must RESOLVE to a method name while carrying the effect - a fully dynamic key resolves
+  // to no polyfill at all and would leave the source untouched, testing nothing
+  // receiver read BEFORE the swap -> the call sees the original array
+  assert.same(globalThis.e2eOrderBox.list[swap(), 'at'](0), 'first');
+  globalThis.e2eOrderBox.list = ['first'];
+  // the same through the collapsed guard; where the probe is absent the whole chain short-circuits
+  // and the key effect never runs, so the property keeps its value
+  assert.same(globalThis.window?.self.e2eOrderBox.list[swap(), 'at'](0),
+    WINDOW_PRESENT ? 'first' : undefined);
+  assert.deepEqual(globalThis.e2eOrderBox.list, WINDOW_PRESENT ? ['second'] : ['first']);
+  delete globalThis.e2eOrderBox;
+});
+/* eslint-enable no-sequences -- the form under test ends here */
