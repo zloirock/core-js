@@ -3,10 +3,12 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
+import _JSON$stringify from "@core-js/pure/actual/json/stringify";
 import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _Number$EPSILON from "@core-js/pure/actual/number/epsilon";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11;
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15;
 // a CALL receiver under a computed key that RESOLVES to a method name while carrying an effect: the
 // dispatch spells the whole span itself - receiver memoized behind the guard, key effect migrated
 // out - so the global channel's claim over the nav inside it has nothing left to compose into. a
@@ -38,3 +40,36 @@ export const claimInsideArgument = null == _globalThis.window ? void 0 : _Array$
 export const parenthesizedClaim = _Array$of(1);
 export const claimThenInstance = null == (_ref10 = _globalThis.window) ? void 0 : _atMaybeArray(_ref11 = _Array$from('ab')).call(_ref11, 0);
 export const claimsAcrossOperator = (null == _globalThis.window ? void 0 : _Math$trunc(1.5)) + (null == _globalThis.window ? void 0 : _Number$EPSILON);
+
+// a nav nested in an ARGUMENT keeps its OWN test, and the rows below walk what sits between the two
+// reads of the root: nothing, a call, an assignment. no spelling may lift the inner test over the
+// call the source wrote - that turns the argument's short-circuit into the whole call's, and where
+// the probe is absent the source still evaluates the call with an undefined argument
+let hops = 0;
+function bump() {
+  hops += 1;
+  return 0;
+}
+export const callBetweenRootReads = null == _globalThis.window ? void 0 : _Array$of(bump(), null == _globalThis.window ? void 0 : _Math$trunc(1.5));
+export const assignBetweenRootReads = null == _globalThis.window ? void 0 : _Array$of((hops = 1), null == _globalThis.window ? void 0 : _Math$trunc(2.5));
+export { hops };
+
+// a plain property read in the same slot: its getter is user code, so it can reach the root between
+// the two reads exactly as a call can
+const hopBox = { n: 4 };
+export const readBetweenRootReads = null == _globalThis.window ? void 0 : _Array$of(hopBox.n, null == _globalThis.window ? void 0 : _Math$trunc(3.5));
+
+// the outer chain's own CALL runs in full between the two reads, and its argument can reach the root
+// through an iterator or an accessor - another shape whose inner test has to stay put
+const seed = [7, 8];
+export const spineCallBeforeKey = null == _globalThis.window ? void 0 : _Array$from(seed)[null == _globalThis.window ? void 0 : _Math$trunc(0.5)];
+export const spineCallBeforeArg = null == (_ref12 = _globalThis.window) ? void 0 : _atMaybeArray(_ref13 = _ref12.Object.keys({ a: 1 })).call(_ref13, null == _globalThis.window ? void 0 : _self.Math.round(0.4));
+// a SPREAD argument is evaluated where the spread sits and the expansion follows it
+export const spreadArgument = null == _globalThis.window ? void 0 : _Array$of(...[null == _globalThis.window ? void 0 : _Math$trunc(1.5)]);
+
+// the guard channel lifts a nested nav's node into a ternary alternate WITHOUT a path replace, so
+// the chain walk above it answers from an emptied slot. it has to end there instead of replacing
+// through it - the second row keeps nothing polyfilled on the outer tail, which is a different
+// resolver route to the same nesting
+export const nestedNavPlainTail = null == _globalThis.window ? void 0 : _self.Object.keys({ b: 2 }).pop(null == _globalThis.window ? void 0 : _self.Math.round(0.4));
+export const nestedNavOpaqueStatic = null == (_ref14 = _globalThis.window) ? void 0 : _atMaybeString(_ref15 = _JSON$stringify({ c: 3 })).call(_ref15, null == _globalThis.window ? void 0 : _self.Math.round(0.4));
