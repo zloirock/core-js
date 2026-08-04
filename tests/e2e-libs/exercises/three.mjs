@@ -64,9 +64,13 @@ function arr(v, d = 3) {
   return parts.map(n => round(n, d));
 }
 
-// A 4x4 square with a 1x1 square hole. Drives Earcut (`Array#forEach`, `Array#concat`,
-// `Array#splice` in `ShapeUtils`) and, because the extrude below sets `bevelEnabled`,
-// `ExtrudeGeometry`'s `getBevelVec` / `scalePt2` (`Number.EPSILON`, `Math.sign`).
+// A 4x4 square with a 1x1 square hole, for the Earcut / ExtrudeGeometry path. Attributing each call
+// to its immediate frame while this file runs: `Array#forEach` from `ShapeUtils.triangulateShape`
+// and from `ExtrudeGeometry`'s contour prep, `Array#splice` and `Array#concat` from that same prep,
+// and `Number.EPSILON` from `getBevelVec` — which runs because the extrude below sets `bevelEnabled`.
+// `Math.sign` is NOT reached from here: `getBevelVec`'s only `Math.sign` sits in its collinear-edges
+// branch, and a right-angled contour never enters it. It comes from `AnimationMixer#update` and from
+// the `RoundedBoxGeometry` addon instead.
 function squareWithHole() {
   const shape = new THREE.Shape();
   shape.moveTo(-2, -2);
