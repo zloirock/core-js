@@ -14,26 +14,17 @@ import {
 import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   createTypeAnnotationChecker,
-  GUARD_PAREN_CONSUMERS,
   isReusableReceiver,
   memberKeyName,
   memberProxyHopName,
   POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
-  mayHaveSideEffects,
+  reEvaluationObservable,
   migratableClaimSe,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-
-// a ternary TEST is parenthesized too; its branches are not (they already sit inside)
-function parenForcingConsumer(path) {
-  const parent = path.parentPath?.node;
-  if (!parent) return false;
-  return GUARD_PAREN_CONSUMERS.has(parent.type)
-    || (parent.type === 'ConditionalExpression' && parent.test === path.node);
-}
 
 // is `child` the operand slot (object/callee) of an optional expression,
 // possibly through TS wrappers OR explicit ParenthesizedExpression?
@@ -54,6 +45,20 @@ function isOptionalOperand(child, parent) {
 // the resolver-facing options (`getAdapter` / `resolvePureGlobalEntry` / `injectPureGlobal`) are
 // genuinely optional: the unit harness constructs the helpers with the injector alone to isolate
 // AST-shape behaviour from resolver wiring, so every consumer of them must gate as a family
+// restore the source parens around a tagged template's TAG once the tail above the render carries
+// a `?.`: the chain must end at the parens, both to stay legal (a bare optional chain is not a
+// valid tag) and to keep the tag a REFERENCE, so the call still binds `this` to the last read
+function reparenthesizeTaggedTag(t, fromPath) {
+  for (let step = fromPath; step?.node; step = step.parentPath) {
+    const parent = step.parentPath;
+    if (parent?.isTaggedTemplateExpression() && parent.node.tag === step.node) {
+      step.replaceWith(t.parenthesizedExpression(step.node));
+      return;
+    }
+    if (!parent?.isMemberExpression() && !parent?.isOptionalMemberExpression()) return;
+  }
+}
+
 export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry, injectPureGlobal } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {};
 
@@ -762,11 +767,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         if (!step.isOptionalMemberExpression() && !step.isMemberExpression()
           && !step.isOptionalCallExpression() && !step.isCallExpression()) break;
       }
-      // a consumer that PARENTHESIZES the ternary (`await`, `typeof`, an operator) leaves the
-      // LAST pulled step behind those parens, where the text emitter cannot follow - it keeps
-      // that step outside behind a `?.`. drop it here too, so both spellings match
-      // (a SINGLE pulled step needs no parens of its own - the printer wraps the whole ternary,
-      // and a CALL may never be left outside: invoked off the parens it loses its receiver)
       // a TAGGED template reads its tag as a REFERENCE (`(w?.self.tag)`x`` binds `this`), so a
       // folded tail hands it a bare value - the receiver is lost exactly as under a
       // parenthesized callee. leave the whole tail outside and PLAIN: the source parens ended
@@ -775,7 +775,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         taggedTemplateTails.add(paths[0].node);
         return false;
       }
-      if (taken > 1 && !steps[taken - 1].isCall && parenForcingConsumer(paths[taken - 1])) taken -= 1;
       if (!taken) return false;
       // whatever stays outside reads off the guard value - lift it so the short-circuit holds
       const outside = paths[taken];
@@ -829,6 +828,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const { leafPure: pure } = plan;
     const rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
     if (pullUnplannedTail(target, plan, rendered)) return true;
+    // parens directly around the RENDERED nav end the chain there, so the read above them is the
+    // source's own throw. parens further out (around a tagged template's whole tag) do not - the
+    // short-circuit still reaches them, and a plain read would throw before the template's own
+    // substitutions ever run
+    const sealedObject = !!peelWrappers(target.get('object'))?.node?.extra?.parenthesized;
     target.get('object').replaceWith(rendered);
     // a PLAIN hop above the render would strand outside the guard as an unconditional read -
     // a throw on the very branch the guard proved absent, where the source short-circuits.
@@ -836,7 +840,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // source short-circuit. a SEALED member (plain MemberExpression over the paren boundary)
     // keeps the source's own throw semantics and stays plain
     if (target.isOptionalMemberExpression() && !target.node.optional
-      && !taggedTemplateTails.has(target.node)) target.node.optional = true;
+      && !(taggedTemplateTails.has(target.node) && sealedObject)) {
+      target.node.optional = true;
+      // a TAG that is an optional chain is a SyntaxError bare - the source's own parens are what
+      // make it legal, and they must survive the lift (the printer re-derives parens from
+      // precedence and drops the ones `extra.parenthesized` recorded)
+      if (taggedTemplateTails.has(target.node)) reparenthesizeTaggedTag(t, target);
+    }
     return true;
   }
 
@@ -1230,7 +1240,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         && claimReceiverEvaluationMayThrow(object,
           ({ name }) => resolvePureGlobalEntry(name, anchorHostPath), { scope, adapter, path: anchorHostPath });
     }
-    if (!mayHaveSideEffects(object) && !receiverMayThrow()) return [object, sideEffects];
+    // ECMA evaluates the receiver BEFORE the key, and a member GET runs user code whenever the
+    // property is an accessor - so the plain side-effect answer is not enough to leave the receiver
+    // in place. that is exactly the superset `reEvaluationObservable` already computes
+    if (!reEvaluationObservable(object) && !receiverMayThrow()) return [object, sideEffects];
     const [memoAssign, ref] = memoize(object, scope);
     // the memo `_ref = object` already evaluates the receiver's OWN side effects (a buried chain-root call
     // or hop-key SE the resolver also listed lives inside `object`), so re-emitting the receiver-SE prefix
