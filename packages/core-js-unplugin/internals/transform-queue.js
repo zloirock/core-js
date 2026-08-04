@@ -533,6 +533,11 @@ export default class TransformQueue {
   // pure point-inserts (zero-length, no composition). drained after overwrites in apply().
   // entry shape: { pos, content }. preserves insertion order via Set
   #inserts = new Set();
+  // per-container needle scanner for the nested-survival gate. the haystack must START at the
+  // container (a scan of the whole file aligns its greedy non-overlapping walk differently -
+  // `x.x` inside `x.x.x` counts once from 0 and not at all from 2), so one scanner per entry,
+  // rebuilt if the entry's logical end moves under it
+  #containerScanners = new WeakMap();
 
   constructor(code, ms, asiFusableStarts = null) {
     this.#code = code;
@@ -777,8 +782,20 @@ export default class TransformQueue {
     const entry = this.#properContainerOf(start, end);
     if (!entry) return false;
     const content = entry.splitInfo ? splitInnerContent(entry, new Map()) : entry.content;
-    const ordinal = collectOccurrencePositions(this.#code.slice(entry.start, start), needle).length;
+    // occurrences fully inside the container's PREFIX - the same count the prefix slice yields,
+    // read off one memoized scan of the container instead of re-slicing and re-scanning per call
+    const ordinal = this.#containerScanner(entry).countInRange(needle, 0, start - entry.start);
     return collectOccurrencePositions(content, needle).length > ordinal;
+  }
+
+  #containerScanner(entry) {
+    const end = entryLogicalEnd(entry);
+    let cached = this.#containerScanners.get(entry);
+    if (cached?.end !== end) {
+      cached = { end, scanner: createNeedleScanner(this.#code.slice(entry.start, end)) };
+      this.#containerScanners.set(entry, cached);
+    }
+    return cached.scanner;
   }
 
   // true when any already-queued transform sits fully within [start, end]. used before
@@ -1356,7 +1373,6 @@ export default class TransformQueue {
       // puts the enclosing range first, so the common nested-chain hit resolves in O(1)
       if (rangesEnclose(verbatimAbsorbing, inner.start, innerEndLogical)) continue;
       const needle = this.#code.slice(inner.start, innerEndLogical);
-
       // split inners expose their prefix-half text (the polyfill-helper invocation
       // `_polyfill(receiver)` emitted by addInstanceTransform). compose hands this to
       // substituteInner so the rootRaw-alone substitution path can swap in just the

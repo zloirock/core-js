@@ -11,13 +11,17 @@
 //
 // Public surface:
 //   resolveClassFieldType(member)              - cached folded type for `class.field`
+//   classCallableSlotReassigned(member)        - is the callable slot rewritten anywhere?
 //   resolveObjectFieldFlow(objPath, name, ...) - cached folded type for `obj.field`
-//   collectClassDescendantPaths(class, prog)   - {names, paths} of class + transitive subs
+//   staticFieldShadowable(...)                 - can a static field shadow the looked-up member?
+//   instanceMemberShadowable(...)              - same question on the instance side
+//   thisAnchorIsProvable(...)                  - is the `this` receiver pinned to one class?
+//   ownerMethodFns(...) / staticOwnerMethodFns(...) - own-method function nodes of a class
 //   reset()                                    - per-file cache invalidation
 //
-// Service object passes ~22 factory helpers + cluster outputs. The biggest dep is
-// `resolveNodeType` (factory's main entry) - threaded through a thunk because it's defined
-// later in the factory body and recursive. Module-internal state (all module caches) reset together.
+// The biggest factory dep is `resolveNodeType` (factory's main entry) - threaded through a thunk
+// because it's defined later in the factory body and recursive. Module-internal state (all module
+// caches) reset together.
 import {
   createClassMemberShape,
   createMemberWriteShape,

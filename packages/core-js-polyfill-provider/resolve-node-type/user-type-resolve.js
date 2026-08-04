@@ -23,7 +23,7 @@ import {
   typeAliasBody,
   typeRefName,
 } from './ast-shapes.js';
-import { getSuperTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
+import { getHeritageTypeArgs, getTypeArgs, heritageClause } from '../helpers/ast-patterns.js';
 
 // side-channel cycle flag: Set instances that hit a declaration-cycle during a walk.
 // per-walk, keyed on the decl-set's identity so parent frames can detect cycles without
@@ -259,7 +259,7 @@ export function createUserTypeResolve({
         // as a concrete type and suppresses the generic polyfill plugin emits for unknowable
         // receivers. mirrors the interface-branch cycle handling above
         if (isClassLikeDeclaration(declaration)) {
-          const flowExtend = declaration.extends?.[0];
+          const flowExtend = heritageClause(declaration);
           const superClass = declaration.superClass ?? flowExtend?.id;
           let superName = extendsClauseName(superClass, scope);
           // `class Sub extends NS.Base` - `extendsClauseName` walks `walkStaticReceiverChain`
@@ -280,14 +280,12 @@ export function createUserTypeResolve({
           // masquerading as `$Object('Object')` would suppress the generic polyfill -> bail to null (same
           // rule as cyclic extends); keep Object only for the genuinely base-less class
           if (!superName) return superClass ? null : new $Object('Object');
-          // Flow `DeclareClass extends Base<T>` carries typeArgs on the heritage clause
-          // (`extends[0].typeParameters`), not on the declaration itself - `getSuperTypeArgs`
-          // probes both class-side slots and would otherwise return undefined here, dropping
-          // T from the parent ref and losing element-precision through Base<T>
+          // the heritage accessor is what keeps `T` on the parent ref for the Flow ambient
+          // spelling - dropping it would lose element-precision through `Base<T>`
           const parentRef = {
             type: 'TSTypeReference',
             typeName: typeNameFromName(superName),
-            typeParameters: flowExtend?.typeParameters ?? getSuperTypeArgs(declaration),
+            typeParameters: getHeritageTypeArgs(declaration),
           };
           const ctor = resolveKnownConstructor(superName);
           if (ctor) return resolveKnownContainerType({ name: superName, base: ctor, node: parentRef, innerResolver: resolve }) || ctor;

@@ -16,7 +16,7 @@ import {
   isForXWriteTarget,
   climbTransparentWrapperPath,
   isMemberWriteOnlyContext,
-  isMutatedGlobalSlot,
+  isDeoptedGlobalSlotRead,
   isMutatedStaticMeta,
   isMutatedStaticPair,
   isNonReferencePosition,
@@ -647,16 +647,19 @@ export default function createPlugin(options) {
     });
     // typeResolvers' `getPolyfillBindingEntry` AND estreeAdapter's `polyfillHint` close over the
     // plugin instance's `currentInjector` slot; `resolvePure` + the adapter close over the
-    // `currentMutatedStatics` slot. save/restore BOTH per-transform slots together via try/finally
+    // `currentMutatedStatics` slot. save/restore ALL per-transform slots together via try/finally
     // (closing at runTransformInner's tail) so a re-entrant inner transform leaves the outer's slots
     // intact - the early-return guards above (typeof/isCoreJSFile/disable-file/parse-fail) run BEFORE
-    // the save and never touch them. cross-transform AST node identity won't carry through (ASTs differ
-    // per transform), so resolver's WeakMap caches don't observe the swap. `import _Promise from
-    // '.../constructor'; _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the Promise
-    // constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
+    // the save and never touch them. every slot the adapter exposes belongs to the set, including
+    // the written-container map: a slot left behind by an inner transform outlives the file it
+    // describes. cross-transform AST node identity won't carry through (ASTs differ per transform),
+    // so resolver's WeakMap caches don't observe the swap. `import _Promise from
+    // '.../constructor'; _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the
+    // Promise constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
     const previousInjector = currentInjector;
     const previousMutatedStatics = currentMutatedStatics;
     const previousMutationRoots = currentMutationRoots;
+    const previousWrittenContainerSlots = currentWrittenContainerSlots;
     currentInjector = injector;
     currentMutatedStatics = mutatedStatics;
     currentMutationRoots = fileCensus.mutationRoots ?? null;
@@ -1168,7 +1171,7 @@ export default function createPlugin(options) {
         // the live binding and the runtime serves what the user's writes left there
         const deoptNotedNames = new Set();
         function deoptMutatedSlotRead(meta) {
-          if (meta.kind !== 'global' || !isMutatedGlobalSlot(estreeAdapter, meta.name)) return false;
+          if (!isDeoptedGlobalSlotRead(meta, estreeAdapter)) return false;
           if (!deoptNotedNames.has(meta.name)) {
             deoptNotedNames.add(meta.name);
             debugOutput?.warn(`\`${ meta.name }\` is written in this file (slot mutation) - the name is left native`);
@@ -1526,6 +1529,7 @@ export default function createPlugin(options) {
       currentInjector = previousInjector;
       currentMutatedStatics = previousMutatedStatics;
       currentMutationRoots = previousMutationRoots;
+      currentWrittenContainerSlots = previousWrittenContainerSlots;
     }
   }
 

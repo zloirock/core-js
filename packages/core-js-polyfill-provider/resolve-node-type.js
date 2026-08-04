@@ -40,6 +40,7 @@ import {
   collectQualifiedSegments,
   isBareUndefinedIdentifier,
   isUnionType,
+  literalTypeValueNode,
   peelTSParenthesized,
   typeRefName,
   typeRefSegments,
@@ -247,7 +248,10 @@ function createResolveNodeType(babelNodeType, t, {
     // oxc keeps a `("len")` index / annotation as TSParenthesizedType where babel strips it at parse;
     // peel so both parsers reach the inner literal (else the const-typed key folds on babel only)
     const peeled = peelTSParenthesized(indexType);
-    const literal = peeled?.type === 'TSLiteralType' ? peeled.literal : peeled;
+    // the literal-TYPE peel is the shared canon: TS wraps the literal, Flow's literal type IS the
+    // value node. spelled locally, this read stayed TS-only, so every consumer of the key - the
+    // member resolver among them - silently bailed on a Flow index
+    const literal = literalTypeValueNode(peeled) ?? peeled;
     return literalValue(literal) ?? singleQuasiString(literal);
   }
 
@@ -643,7 +647,7 @@ function createResolveNodeType(babelNodeType, t, {
   /* eslint-disable prefer-const -- destructuring assignment below rebinds these */
   let buildCallSiteSubst, substituteTypeParams, functionTypeParams;
   let findExpressionAnnotation, findTypeMember, getTypeMembers, classSubstInner, methodFnPath;
-  let findClassPathForTypeReference, findClassMember, findObjectMember, isMethodMember, isPropertyMember;
+  let findClassPathForTypeReference, findClassMember, findObjectMember;
   let resolveObjectMember, resolveTypeAnnotation, resolveKnownContainerType, extendsClauseName;
   /* eslint-enable prefer-const -- destructuring assignment below rebinds these */
 
@@ -987,6 +991,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `findTypeMember` / `getTypeMembers` are forward-decl `let`s thunked here because
   // type-members cluster is instantiated late
   const awaitedCluster = createAwaited({
+    t,
     babelNodeType,
     findTypeDeclaration,
     unwrapTypeAnnotation,
@@ -1010,8 +1015,6 @@ function createResolveNodeType(babelNodeType, t, {
     findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
     buildSubstMap,
     findClassMember: (...args) => findClassMember(...args),
-    isMethodMember: (...args) => isMethodMember(...args),
-    isPropertyMember: (...args) => isPropertyMember(...args),
     getTypeMembers: (...args) => getTypeMembers(...args),
     keyMatchesName,
     findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
@@ -1591,8 +1594,6 @@ function createResolveNodeType(babelNodeType, t, {
   ({
     classSubstInner,
     methodFnPath,
-    isMethodMember,
-    isPropertyMember,
     findClassMember,
     findObjectMember,
     resolveObjectMember,
