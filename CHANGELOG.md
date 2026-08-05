@@ -1,5 +1,9 @@
 # Changelog
 ### Unreleased
+- Nothing
+
+### [3.50.0 - 2026.08.05](https://github.com/zloirock/core-js/releases/tag/v3.50.0)
+- Changes [v3.49.0...v3.50.0](https://github.com/zloirock/core-js/compare/v3.49.0...v3.50.0) (138 commits)
 - [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration):
   - Built-ins:
     - `Iterator.zip`
