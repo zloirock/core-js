@@ -183,6 +183,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Iterator.range`](#iteratorrange)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Number.prototype.clamp`](#numberprototypeclamp)
+      - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
@@ -193,7 +194,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
-      - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`Number.fromString`](#numberfromstring)
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
@@ -3121,6 +3121,7 @@ console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 
 ##### [`Number.prototype.clamp`](https://github.com/tc39/proposal-math-clamp)[⬆](#index)
 Module [`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.clamp.js)
+
 ```ts
 class Number {
   clamp(min: number, max: number): number;
@@ -3137,6 +3138,27 @@ core-js(-pure)/full/number/clamp
 -5.0.clamp(0, 10); // => 0
 15.0.clamp(0, 10); // => 10
 ````
+
+##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
+Modules [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
+```ts
+class DataView {
+  getUint8Clamped(offset: any): uint8
+  setUint8Clamped(offset: any, value: any): void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/data-view-get-set-uint8-clamped
+core-js/full/dataview/get-uint8-clamped
+core-js/full/dataview/set-uint8-clamped
+```
+[Examples](https://tinyurl.com/2h4zv8sw):
+```js
+const view = new DataView(new ArrayBuffer(1));
+view.setUint8Clamped(0, 100500);
+console.log(view.getUint8Clamped(0)); // => 255
+```
 
 ##### [`String.dedent`](https://github.com/tc39/proposal-string-dedent)[⬆](#index)
 Module [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
@@ -3419,27 +3441,6 @@ core-js/full/typed-array/unique-by
   { id: 2, uid: 10000 },
   { id: 3, uid: 10001 },
 ].uniqueBy(it => it.uid);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
-```
-
-##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
-Modules [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
-```ts
-class DataView {
-  getUint8Clamped(offset: any): uint8
-  setUint8Clamped(offset: any, value: any): void;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/data-view-get-set-uint8-clamped
-core-js/full/dataview/get-uint8-clamped
-core-js/full/dataview/set-uint8-clamped
-```
-[Examples](https://tinyurl.com/2h4zv8sw):
-```js
-const view = new DataView(new ArrayBuffer(1));
-view.setUint8Clamped(0, 100500);
-console.log(view.getUint8Clamped(0)); // => 255
 ```
 
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
