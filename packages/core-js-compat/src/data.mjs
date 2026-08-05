@@ -2640,6 +2640,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.iterator.from': null,
   'esnext.iterator.includes': {
+    bun: '1.4.0',
     firefox: '154',
   },
   'esnext.iterator.indexed': {

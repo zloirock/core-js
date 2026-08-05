@@ -45,15 +45,16 @@
   - Following [tc39/ecma262/#3776](https://github.com/tc39/ecma262/pull/3776), `Iterator.prototype.{ drop, take }` properly supported from:
     - [V8 ~ Chrome 150](https://github.com/v8/v8/commit/ce52c1d84268311648c9362e8d3bbb08fc58bd3c)
     - Safari 27.0
-    - Next Bun (1.4.0?) release
+    - Bun 1.4.0
   - Following [tc39/ecma262/#3883](https://github.com/tc39/ecma262/pull/3883), `Promise.try` marked as not properly supported in all engines
   - [`Iterator.prototype.{ chunks, windows }`](https://github.com/tc39/proposal-iterator-chunking) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2047997)
   - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2034104)
+  - [`Iterator.prototype.includes`](https://github.com/tc39/proposal-iterator-includes) marked as shipped in Bun 1.4.0
   - [`Iterator.prototype.join`](https://github.com/tc39/proposal-iterator-join) marked as [shipped in FF154](https://bugzilla.mozilla.org/show_bug.cgi?id=2047995)
   - [`Array.prototype.includes` WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=309342) marked as fixed in:
     - Safari 27.0
     - Bun 1.3.12
-  - [`queueMicrotask` Bun bug](https://github.com/oven-sh/bun/issues/9249) marked as fixed in the next Bun (1.4.0?) release
+  - [`queueMicrotask` Bun bug](https://github.com/oven-sh/bun/issues/9249) marked as fixed in Bun 1.4.0
   - Added [Node 26.0](https://github.com/nodejs/node/pull/62526) compat data mapping
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8), [Deno 2.8.0](https://github.com/denoland/deno/releases/tag/v2.8.0), and [Deno 2.9.4](https://github.com/denoland/deno/releases/tag/v2.9.4) compat data mapping
   - Updated [Electron 42 and added 43, 44, and 45](https://releases.electronjs.org/) compat data mapping
