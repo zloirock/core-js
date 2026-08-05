@@ -19,7 +19,7 @@
     "eslint-plugin-n": "^18.2.2",
     "eslint-plugin-name": "^0.0.1",
     "eslint-plugin-node-dependencies": "^2.2.0",
-    "eslint-plugin-package-json": "^1.6.2",
+    "eslint-plugin-package-json": "^1.6.3",
     "eslint-plugin-playwright": "^2.11.0",
     "eslint-plugin-promise": "^7.3.0",
     "eslint-plugin-qunit": "^8.2.6",
