@@ -29,7 +29,7 @@ for (const target of targets) {
   if (typeof mod.run !== 'function') throw new Error(`${ name } does not export run()`);
   const res = await mod.run();
   // name the exercise in every failure mode: destructuring a malformed result would otherwise throw
-  // a bare "Cannot read properties of undefined", and with no argument all three exercises run
+  // a bare "Cannot read properties of undefined", and with no argument every registered exercise runs
   if (!Array.isArray(res?.checks)) {
     throw new Error(`${ name } returned a malformed result: expected { checks: [...] }, got ${ JSON.stringify(res)?.slice(0, 120) }`);
   }
