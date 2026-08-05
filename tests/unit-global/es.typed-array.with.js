@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-confusing-array-with -- testing */
 import { createConversionChecker } from '../helpers/helpers.js';
 import { TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants.js';
 
