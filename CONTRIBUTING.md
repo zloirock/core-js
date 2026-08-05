@@ -189,7 +189,7 @@ You can run parts of the test case separately:
   ```sh
   npm run test-transpiler-perf
   ```
-- Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js and CodeMirror. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes:
+- Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes:
   ```sh
   npm run e2e-libs                      # the asserting runners: check-exercise -> runtime
   npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)
