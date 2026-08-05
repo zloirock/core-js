@@ -222,6 +222,13 @@ function babelToolchain() {
 // NOTE for a future tier change: this only teaches ROLLUP about `.ts`. The throughput tier runs seven
 // bundlers with no TS resolution and no Babel at all, so a library listed here must stay out of
 // `tiers: ['throughput']` until each of those learns the same trick.
+//
+// All seven are DECLARED in this suite's package.json, and three of them (`css-what`,
+// `dom-serializer`, `nth-check`) only ever arrive through another package's dependency graph - so a
+// dependency cleanup reading "nothing imports these" would be wrong to drop them. The declaration is
+// what keeps npm hoisting them to this directory's own `node_modules` root, which is the single place
+// the path below looks; nested under a parent they would be invisible here and the fixture would fall
+// back to published JS (loudly, via `assertTsSources`, but for no good reason).
 export const TS_SOURCE_PACKAGES = new Set([
   'htmlparser2', 'domutils', 'dom-serializer', 'entities', 'css-select', 'css-what', 'nth-check',
 ]);
@@ -254,6 +261,18 @@ function tsEntry(name) {
 let tsSourcesVerified = false;
 function assertTsSources() {
   if (tsSourcesVerified) return;
+  // A SCOPED name would pass every check below and still do nothing: `resolveId` splits a bare
+  // specifier at the first `/`, so `@scope/pkg` arrives as `@scope`, never matches the set, and the
+  // package resolves to its published JS with the whole matrix green - the same silent degradation
+  // the missing-`src` check exists to stop, and one no baseline would notice either. Refuse it here
+  // rather than teach `resolveId` a two-segment form no entry uses: an untested resolution path
+  // would be its own way to be quietly wrong. Whoever adds the first scoped package writes both.
+  const scoped = [...TS_SOURCE_PACKAGES].filter(name => name.startsWith('@'));
+  if (scoped.length) {
+    throw new Error(`TS_SOURCE_PACKAGES: ${ scoped.join(', ') } is scoped, which \`tsSources\` cannot `
+      + 'resolve — it splits a bare specifier at the first `/`, so the name never matches and the '
+      + 'package would silently build from its published JS. Teach `resolveId` the `@scope/name` form first.');
+  }
   const missing = [...TS_SOURCE_PACKAGES].filter(name => !firstExistingFile([tsEntry(name)]));
   if (missing.length) {
     throw new Error(`TS_SOURCE_PACKAGES: no src/index.ts in ${ missing.join(', ') } — these packages are `
@@ -395,7 +414,8 @@ export function assertNoExternals(chunk, label) {
 // and a count-based gate still reads a healthy 318. throughput.mjs catches that shape by comparing
 // against a plugin-less baseline; measuring the chunk's own module table works for every method and
 // needs no second build to compare against.
-// Smallest real payload measured across the suite is ~218 KB (codemirror/usage-pure).
+// Smallest real payload measured across the suite is ~191 KB (codemirror/usage-pure at `pre`; the
+// `post` cells of the same fixture carry ~212 KB, htmlparser2's ~204 / ~246 KB).
 const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\])/;
 const MIN_CORE_JS_BYTES = 10_000;
 export function assertPayload(chunk, label) {
