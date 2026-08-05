@@ -52,7 +52,9 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
   typed-array entry in `packages/core-js-compat/src/built-in-definitions.mjs` is `{ global: … }` with
   no `pure` variant, and the instance-method dispatch has no typed-array receiver at all (its receivers
   are `array`, `string`, `number`, `regexp`, `date`, `function`, `promise`, `symbol`, `iterator`,
-  `asynciterator`, `domcollection`). unplugin cannot know a receiver is not an `Array`, so
+  `asynciterator`, `domcollection`, plus two receiver-agnostic fallbacks: `common`, which is what a
+  `pure` rewrite lands on when no annotation narrows the receiver — see the htmlparser2 entry above —
+  and a single `rest` catch-all on `toString`). unplugin cannot know a receiver is not an `Array`, so
   it rewrites `floats.slice(a, b)` into a helper that falls through to `floats.slice` — `undefined` on
   IE11. This is why the exercise avoids `KeyframeTrack#trim`/`#clone`, `AnimationUtils.subclip` and
   `makeClipAdditive`, `BatchedMesh`, `InstancedMesh#setColorAt`, `mergeVertices` and `radixSort` (and
@@ -293,7 +295,7 @@ actually sees at `[C]` is the Babel-lowered form of these:
 | three | one ~1.4 MB monolith | 1409 KB |
 
 `htmlparser2` is not on that axis — it is a wide graph of small modules (48 modules across ten
-packages, largest 41 KB), which is roughly where rxjs already sits. It is in the suite for the
+packages, largest 40 KB), which is roughly where rxjs already sits. It is in the suite for the
 `phase` axis, not for topology, and it is out of the throughput tier entirely.
 
 unplugin time orders rxjs < codemirror < three, tracking that last column rather than total bytes.
