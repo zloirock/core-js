@@ -71,9 +71,9 @@
     "@babel/plugin-transform-arrow-functions": "^7.29.7",
     "@babel/plugin-transform-block-scoped-functions": "^7.29.7",
     "@babel/plugin-transform-block-scoping": "^7.29.7",
-    "@babel/plugin-transform-classes": "^7.29.7",
     "@babel/plugin-transform-class-properties": "^7.29.7",
     "@babel/plugin-transform-class-static-block": "^7.29.7",
+    "@babel/plugin-transform-classes": "^7.29.7",
     "@babel/plugin-transform-computed-properties": "^7.29.7",
     "@babel/plugin-transform-destructuring": "^7.29.7",
     "@babel/plugin-transform-duplicate-named-capturing-groups-regex": "^7.29.7",
@@ -106,5 +106,8 @@
     "npm-run-all2": "^9.0.3",
     "semver": "^7.8.5",
     "zx": "^8.8.5"
+  },
+  "overrides": {
+    "braces": "3.0.3"
   }
 }
