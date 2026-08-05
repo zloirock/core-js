@@ -9,14 +9,14 @@
     - `Iterator.zip`
     - `Iterator.zipKeyed`
   - Moved to stable ES, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7e2d9a45e71525984d4c35313a3daeb4260773ef)
-  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespace entries
 - [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
   - Built-ins:
     - `Iterator.prototype.chunks`
     - `Iterator.prototype.windows`
-  - Throw a `TypeError` instead of `RangeError` on non integer number `chunkSize` / `windowSize`, following [tc39/proposal-iterator-chunking/#30](https://github.com/tc39/proposal-iterator-chunking/pull/30)
+  - Throw a `TypeError` instead of `RangeError` on non-integer number `chunkSize` / `windowSize`, following [tc39/proposal-iterator-chunking/#30](https://github.com/tc39/proposal-iterator-chunking/pull/30)
   - Moved to stage 3, [May 2026 TC39 meeting](https://github.com/tc39/proposals/commit/7226f0af93443025010efcad219115cec7dc8b2a)
-  - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Added [`Iterator` includes stage 3 proposal](https://github.com/tc39/proposal-iterator-includes):
   - Added built-in:
     - `Iterator.prototype.includes`
