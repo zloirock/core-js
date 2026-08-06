@@ -324,6 +324,14 @@ export default {
     'es.weak-map.get-or-insert-computed',
   ],
   '3.50': [
+    'es.iterator.zip',
+    'es.iterator.zip-keyed',
+    'esnext.iterator.includes',
+    'esnext.iterator.join',
+    'esnext.promise.all-keyed',
+    'esnext.promise.all-settled-keyed',
+  ],
+  '3.51': [
     'web.element.remove',
   ],
 };

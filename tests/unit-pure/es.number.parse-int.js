@@ -1,4 +1,3 @@
-/* eslint-disable prefer-numeric-literals -- required for testing */
 import { WHITESPACES } from '../helpers/constants.js';
 
 import parseInt from 'core-js-pure/es/number/parse-int';

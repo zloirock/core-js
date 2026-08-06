@@ -20,6 +20,10 @@ QUnit.test('JSON.rawJSON', assert => {
   assert.same(stringify(rawJSON('9007199254740993')), '9007199254740993');
   assert.same(stringify({ key: rawJSON('9007199254740993') }), '{"key":9007199254740993}');
   assert.same(stringify([rawJSON('9007199254740993')]), '[9007199254740993]');
+  assert.same(stringify({
+    key: rawJSON('9007199254740993'),
+    0: 'skipped',
+  }, ['key']), '{"key":9007199254740993}');
 
   assert.throws(() => rawJSON('"qwe'), SyntaxError, 'invalid 1');
   assert.throws(() => rawJSON({}), SyntaxError, 'invalid 2');

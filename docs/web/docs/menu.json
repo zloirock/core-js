@@ -150,6 +150,10 @@
                 "url": "{docs-version}/docs/features/proposals/iterator-sequencing"
               },
               {
+                "title": "Joint iteration",
+                "url": "{docs-version}/docs/features/proposals/joint-iteration"
+              },
+              {
                 "title": "Object.values / Object.entries",
                 "url": "{docs-version}/docs/features/proposals/object-values-entries"
               },
@@ -251,12 +255,20 @@
             "title": "Stage 3 proposals",
             "children": [
               {
-                "title": "Joint iteration",
-                "url": "{docs-version}/docs/features/proposals/joint-iteration"
+                "title": "Await dictionary",
+                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               },
               {
-                "title": "Symbol.metadata for decorators metadata proposal",
-                "url": "{docs-version}/docs/features/proposals/symbol-metadata"
+                "title": "Iterator chunking",
+                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
+              },
+              {
+                "title": "Iterator includes",
+                "url": "{docs-version}/docs/features/proposals/iterator-includes"
+              },
+              {
+                "title": "Iterator join",
+                "url": "{docs-version}/docs/features/proposals/iterator-join"
               }
             ]
           },
@@ -264,8 +276,8 @@
             "title": "Stage 2.7 proposals",
             "children": [
               {
-                "title": "Iterator chunking",
-                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
+                "title": "Symbol.metadata for decorators metadata proposal",
+                "url": "{docs-version}/docs/features/proposals/symbol-metadata"
               }
             ]
           },

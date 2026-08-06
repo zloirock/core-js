@@ -31,6 +31,8 @@ QUnit.test('Iterator#flatMap', assert => {
     iter.return();
   }, 'iterator without `return` method');
 
+  assert.same([1].values().flatMap(() => [1]).find(() => true), 1, 'iterator without `return` method #2');
+
   if (STRICT) {
     assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
     assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);

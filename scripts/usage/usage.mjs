@@ -78,7 +78,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => 
         : `version ${ cyan(versions[0]) }` }`)
       : gray('`core-js` is not detected') }`;
   } catch {
-    const attempting = (attempts.get(site) | 0) + 1;
+    const attempting = (attempts.get(site) ?? 0) + 1;
     attempts.set(site, attempting);
     if (attempting < 3) sites.push(site);
     else echo(red(`${ cyan(`${ site }:`) } problems with access`));

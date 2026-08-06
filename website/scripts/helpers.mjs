@@ -55,13 +55,9 @@ export async function copyBlogPosts(srcDir) {
   const fromDir = join(srcDir, 'docs/');
   const toDir = join(srcDir, 'docs/web/blog/');
   const entries = await readdir(fromDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isFile()) {
-      const srcFile = join(fromDir, entry.name);
-      const destFile = join(toDir, entry.name);
-      await cp(srcFile, destFile);
-    }
-  }
+  await Promise.all(entries
+    .filter(entry => entry.isFile())
+    .map(entry => cp(join(fromDir, entry.name), join(toDir, entry.name))));
   console.timeEnd('Copied blog posts');
 }
 
@@ -69,9 +65,11 @@ export async function copyCommonFiles(srcDir) {
   console.log('Copying common files...');
   console.time('Copied common files');
   const toDir = join(srcDir, 'docs/web/');
-  await cp(`${ srcDir }CHANGELOG.md`, `${ toDir }changelog.md`);
-  await cp(`${ srcDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
-  await cp(`${ srcDir }SECURITY.md`, `${ toDir }security.md`);
+  await Promise.all([
+    cp(`${ srcDir }CHANGELOG.md`, `${ toDir }changelog.md`),
+    cp(`${ srcDir }CONTRIBUTING.md`, `${ toDir }contributing.md`),
+    cp(`${ srcDir }SECURITY.md`, `${ toDir }security.md`),
+  ]);
   console.timeEnd('Copied common files');
 }
 

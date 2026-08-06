@@ -1,6 +1,6 @@
 {
   "name": "core-js-compat",
-  "version": "3.49.0",
+  "version": "3.50.0",
   "type": "commonjs",
   "description": "core-js compat",
   "repository": {
@@ -26,6 +26,9 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "browserslist": "^4.28.2"
+    "browserslist": "^4.28.7"
+  },
+  "engines": {
+    "node": ">=6.4.0"
   }
 }

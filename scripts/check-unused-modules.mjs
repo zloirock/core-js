@@ -25,11 +25,13 @@ globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
 
 log(globalModules, 'modules');
 
-const internalModules = await jsModulesFrom('packages/core-js/internals');
-const allModules = await glob('packages/core-js?(-pure)/**/*.js');
+const [internalModules, allModules] = await Promise.all([
+  jsModulesFrom('packages/core-js/internals'),
+  glob('packages/core-js?(-pure)/**/*.js'),
+]);
 
 await Promise.all(allModules.map(async path => {
-  for (const dependency of konan(String(await fs.readFile(path, 'utf8'))).strings) {
+  for (const dependency of konan(await fs.readFile(path, 'utf8')).strings) {
     internalModules.delete(dependency.match(/\/internals\/(?<module>[^/]+)$/)?.groups.module);
   }
 }));
