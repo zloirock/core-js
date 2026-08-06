@@ -3236,6 +3236,13 @@ export const data = {
     node: '19.8',
     safari: '17.0',
   },
+  'web.element.remove': {
+    chrome: '24',
+    edge: '12',
+    firefox: '23',
+    opera: '15',
+    safari: '7',
+  },
 };
 
 export const renamed = new Map([

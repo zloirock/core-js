@@ -1,6 +1,6 @@
 # Changelog
 ### Unreleased
-- Nothing
+- Add polyfill for ``Element.remove``
 
 ### [3.50.0 - 2026.08.05](https://github.com/zloirock/core-js/releases/tag/v3.50.0)
 - Changes [v3.49.0...v3.50.0](https://github.com/zloirock/core-js/compare/v3.49.0...v3.50.0) (138 commits)
