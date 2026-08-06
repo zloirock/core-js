@@ -331,4 +331,7 @@ export default {
     'esnext.promise.all-keyed',
     'esnext.promise.all-settled-keyed',
   ],
+  3.51: [
+    'web.request-idle-callback',
+  ],
 };
