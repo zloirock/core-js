@@ -1,10 +1,23 @@
 import Promise from 'core-js-pure/es/promise';
+import create from 'core-js-pure/es/object/create';
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 
 export function is(a, b) {
   // eslint-disable-next-line no-self-compare -- NaN check
   return a === b ? a !== 0 || 1 / a === 1 / b : a !== a && b !== b;
+}
+
+// null-proto copy of the expected object: `deepEqual` of a null-proto result against
+// a plain literal is sensitive to prototype identity in some QUnit versions / realms
+export function nullProto(source) {
+  // plain copy loop: helpers run inside the unit-pure bundles too, where the modern
+  // standard library must not be touched
+  const result = create(null);
+  for (const key in source) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) result[key] = source[key];
+  }
+  return result;
 }
 
 export function createIterator(elements, methods) {

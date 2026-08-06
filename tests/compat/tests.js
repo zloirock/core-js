@@ -806,7 +806,16 @@ GLOBAL.tests = {
   },
   'es.iterator.drop': [
     iteratorHelperThrowsErrorOnInvalidIterator('drop', 0),
-    checkIteratorClosingOnEarlyError('drop', RangeError)
+    checkIteratorClosingOnEarlyError('drop', RangeError),
+    function () {
+      try {
+        Iterator.prototype.drop.call({
+          next: function () { return { done: true }; }
+        }, 0x20000000000000);
+      } catch (error) {
+        return error instanceof RangeError;
+      }
+    }
   ],
   'es.iterator.every': checkIteratorClosingOnEarlyError('every', TypeError),
   'es.iterator.filter': [
@@ -820,12 +829,9 @@ GLOBAL.tests = {
     // Should not throw an error for an iterator without `return` method. Fixed in Safari 26.2
     // https://bugs.webkit.org/show_bug.cgi?id=297532
     function () {
-      try {
-        var it = new Map([[4, 5]]).entries().flatMap(function (v) { return v; });
-        it.next();
-        it['return']();
-        return true;
-      } catch (error) { /* empty */ }
+      return [1].values()
+        .flatMap(function () { return [1]; })
+        .find(function () { return true; }) === 1;
     }
   ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
@@ -846,10 +852,25 @@ GLOBAL.tests = {
   'es.iterator.some': checkIteratorClosingOnEarlyError('some', TypeError),
   'es.iterator.take': [
     iteratorHelperThrowsErrorOnInvalidIterator('take', 1),
-    checkIteratorClosingOnEarlyError('take', RangeError)
+    checkIteratorClosingOnEarlyError('take', RangeError),
+    function () {
+      try {
+        Iterator.prototype.take.call({
+          next: function () { return { done: true }; }
+        }, 0x20000000000000);
+      } catch (error) {
+        return error instanceof RangeError;
+      }
+    }
   ],
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
+  },
+  'es.iterator.zip': function () {
+    return Iterator.zip;
+  },
+  'es.iterator.zip-keyed': function () {
+    return Iterator.zipKeyed;
   },
   'es.json.is-raw-json': NATIVE_RAW_JSON,
   'es.json.parse': function () {
@@ -1130,7 +1151,9 @@ GLOBAL.tests = {
     return Object.preventExtensions(true);
   },
   'es.object.proto': function () {
-    return '__proto__' in Object.prototype;
+    // Deno 2.9+ patch this accessor, so we can't use `in` for feature detection
+    // eslint-disable-next-line no-proto -- detection
+    return {}.__proto__ === Object.prototype;
   },
   'es.object.seal': function () {
     return Object.seal(true);
@@ -1185,10 +1208,15 @@ GLOBAL.tests = {
   'es.promise.resolve': PROMISES_SUPPORT,
   'es.promise.try': [PROMISES_SUPPORT, function () {
     var ACCEPT_ARGUMENTS = false;
+    var p = Promise.resolve();
     Promise['try'](function (argument) {
+      // avoiding the use of polyfills of the previous iteration of this proposal
+      // that does not accept arguments of the callback
       ACCEPT_ARGUMENTS = argument === 8;
-    }, 8);
-    return ACCEPT_ARGUMENTS;
+      return p;
+      // it should use `PromiseResolve`
+      // https://github.com/tc39/ecma262/pull/3883
+    }, 8) === p && ACCEPT_ARGUMENTS;
   }],
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
@@ -1949,6 +1977,12 @@ GLOBAL.tests = {
   'esnext.iterator.chunks': function () {
     return Iterator.prototype.chunks;
   },
+  'esnext.iterator.includes': function () {
+    return Iterator.prototype.includes;
+  },
+  'esnext.iterator.join': function () {
+    return Iterator.prototype.join;
+  },
   'esnext.iterator.range': function () {
     return Iterator.range;
   },
@@ -1957,12 +1991,6 @@ GLOBAL.tests = {
   },
   'esnext.iterator.windows': function () {
     return Iterator.prototype.windows;
-  },
-  'esnext.iterator.zip': function () {
-    return Iterator.zip;
-  },
-  'esnext.iterator.zip-keyed': function () {
-    return Iterator.zipKeyed;
   },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
@@ -2041,6 +2069,12 @@ GLOBAL.tests = {
   },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
+  },
+  'esnext.promise.all-keyed': function () {
+    return Promise.allKeyed;
+  },
+  'esnext.promise.all-settled-keyed': function () {
+    return Promise.allSettledKeyed;
   },
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;

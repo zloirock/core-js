@@ -1,6 +1,6 @@
 {
   "name": "core-js",
-  "version": "3.49.0",
+  "version": "3.50.0",
   "type": "commonjs",
   "description": "Standard library",
   "keywords": [
@@ -78,5 +78,8 @@
   "main": "index.js",
   "scripts": {
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
+  },
+  "engines": {
+    "node": "*"
   }
 }

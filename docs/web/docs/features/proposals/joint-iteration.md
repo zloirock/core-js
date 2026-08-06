@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-joint-iteration)
 
 ## Modules
-[`esnext.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [`esnext.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
+[`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
 
 ## Built-ins signatures
 ```ts
@@ -28,8 +28,8 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js/proposals/joint-iteration
-core-js(-pure)/actual|full/iterator/zip
-core-js(-pure)/actual|full/iterator/zip-keyed
+core-js(-pure)/es|stable|actual|full/iterator/zip
+core-js(-pure)/es|stable|actual|full/iterator/zip-keyed
 ```
 
 ## Example
