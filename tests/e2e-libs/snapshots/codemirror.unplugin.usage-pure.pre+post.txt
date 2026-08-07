@@ -1,0 +1,3 @@
+-@core-js/pure/full/global-this
+-@core-js/pure/full/self
++@core-js/pure/full/instance/at
