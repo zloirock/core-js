@@ -14,12 +14,20 @@
 // the set that is snapshotted, the bytes that are measured and the bundle that runs in IE11 all come
 // out of the same rollup call, by construction rather than by convention.
 //
-// What is deliberately NOT here: TIMINGS. Measuring build time in this pass would be dishonest -
-// minification, node pre-flight child processes and file writes land between consecutive builds and
-// move the CPU state each one starts from, so the cross-cell comparison the numbers exist for is the
-// first thing to rot. pipeline.mjs measures instead, in its own quiet process with a warm-up, and
-// rebuilds its [C] stage on purpose. Sizes (raw / min / gzip) and injection counts ARE reported here:
-// they are deterministic and unaffected by whatever ran before them.
+// Sizes (raw / min / gzip) and injection counts are deterministic: they do not depend on what ran
+// before them, and two machines that disagree about them disagree about the build.
+//
+// `buildMs` is not of that kind, and is reported anyway - as a DIAGNOSTIC, never as a comparison.
+// It wraps the `runtimeBuild` call alone (the gates, the pre-flight child and the file writes are
+// outside it), but the cell it lands in still starts from whatever CPU and page-cache state the
+// previous cell's minification, child process and three file writes left behind, and in CI from a
+// shared-tenancy runner whose other tenant is invisible from in here. So: read one number as an
+// order of magnitude, and do NOT read the spread across cells - the cheap cell is not the fast one,
+// it is the one that happened to start warm. Nothing gates on it and nothing may.
+//
+// The comparison these numbers look like they offer is pipeline.mjs's job. It measures in its own
+// process, warms up first, rebuilds its [C] stage on purpose, and separates Babel's share from
+// unplugin's (`babelMs` / `unpluginMs`) - which is what "how slow is unplugin here" actually needs.
 //
 // `entry-global` carries no phase and is not snapshotted (it expands `import 'core-js'` into whatever
 // `targets` selects, so its set is a function of the options alone - see snapshots' note in README).
@@ -255,7 +263,10 @@ for (const { lib, method, phase } of cells) {
   try {
     // ONE build. Everything below reads from it — the set that gets snapshotted is the set inside the
     // bundle that gets pre-flighted, measured and shipped to IE11.
+    const t0 = process.hrtime.bigint();
     const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase);
+    // the build alone — everything below this line is deliberately outside the measurement
+    const buildMs = Number(process.hrtime.bigint() - t0) / 1e6;
     // runtimeBuild asserts payload / no-externals. The ES5 down-compile is the caller's to assert and
     // is the whole premise of an IE11 bundle: the pre-flight runs in a modern node realm and the
     // browser page in a modern browser, so nothing else here would notice a skipped down-compile.
@@ -292,10 +303,13 @@ for (const { lib, method, phase } of cells) {
     const ok = !bad.length;
     if (!ok) failed++;
     console.log(`${ ok ? '✓' : '✗' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, `
-      + `${ injected.length } inj${ phase ? `, snapshot ${ snap }` : '' } (${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz)`);
+      + `${ injected.length } inj${ phase ? `, snapshot ${ snap }` : '' } `
+      + `(${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz, built in ${ buildMs.toFixed(0) }ms)`);
     for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
     manifest.push({
       lib: lib.name, method, phase: phase ?? null, dir: rel, bytes, min, gz,
+      // diagnostic, not comparable across cells — see the header
+      buildMs: +buildMs.toFixed(0),
       injections: injected.length, checks: checks.length, preflightFailing: bad.length,
     });
   } catch (err) {
