@@ -8,7 +8,7 @@
     "@typescript-eslint/eslint-plugin": "^8.66.0",
     "@typescript-eslint/parser": "^8.66.0",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^10.8.0",
+    "eslint": "^10.8.1",
     "eslint-plugin-array-func": "^5.1.1",
     "eslint-plugin-ascii": "^2.0.0",
     "eslint-plugin-depend": "^1.5.0",
