@@ -1,11 +1,11 @@
-// Generated output only. CI never sees these — they do not exist on a fresh checkout — but they do
-// exist for anyone who ran `e2e-libs` before `lint`, and they are full of third-party identifiers
-// this dictionary reads as typos. All three are gitignored (.gitignore:64-66).
 const skip = [
   '*.map',
   'package**.json',
   '**/node_modules/**',
   './tests/**bundles',
+  // e2e-libs build output. Gitignored, so CI never sees it — it does not exist on a fresh checkout —
+  // but it does for anyone who ran `e2e-libs` before `lint`, and it is full of third-party
+  // identifiers this dictionary reads as typos.
   './tests/e2e-libs/.tmp/**',
   './tests/e2e-libs/artifacts/**',
   './tests/e2e-libs/report/**',
