@@ -1,11 +1,30 @@
-// The runtime tier, in ONE pass. For every (library × method × phase) cell this builds the real IE11
-// bundle exactly once and then hands that single build to every consumer that wants it:
+// The runtime tier, in ONE pass. For every (library × method × provider × phase) cell this builds the
+// real IE11 bundle exactly once and then hands that single build to every consumer that wants it:
 //
 //   gates      - ES5 parse, core-js payload present, nothing external, non-empty injection set
-//   snapshot   - the injected specifier SET vs snapshots/<lib>.<method>.<phase>.txt (usage-* only)
+//   snapshot   - see "The two providers" below (usage-* only)
 //   pre-flight - the bundle executed in a fresh node process, all self-checks passing
 //   artifact   - bundle.js + a self-checking index.html + a manifest row (raw / min / gzip sizes)
 //   karma      - the same bundle + a QUnit driver, run in REAL IE11 where one is present
+//
+// -------- The two providers --------
+// Both of this repo's polyfill providers run here, on the same libraries, through the same Babel
+// down-compile. They are not symmetrical, and the snapshots reflect that rather than pretending
+// otherwise:
+//
+//   @core-js/babel-plugin  runs INSIDE the Babel pass, so it has no phase - one traversal, one
+//                          answer. Its set is the REFERENCE, stored whole in
+//                          snapshots/<lib>.babel-plugin.<method>.txt
+//   @core-js/unplugin      is a bundler plugin beside Babel, so `pre` / `post` / `pre+post` decide
+//                          whether it reads the source or Babel's output. Each phase is stored as a
+//                          DELTA against that reference, in
+//                          snapshots/<lib>.unplugin.<method>.<phase>.txt — `-spec` for what the
+//                          reference has and the phase does not, `+spec` for the reverse.
+//
+// The delta is the point of running both. Two full sets would differ by a handful of specifiers
+// buried in ~130 identical lines, and a phase regression would have to be spotted by eye across two
+// files; as a delta it is three or four lines that change when — and only when — the two providers
+// stop agreeing about this library.
 //
 // One build per cell is the point. These consumers used to be three runners (snapshot.mjs,
 // artifacts.mjs, karma-bundles.mjs) that each rebuilt the same configurations - 48 builds for 21
@@ -29,14 +48,20 @@
 // process, warms up first, rebuilds its [C] stage on purpose, and separates Babel's share from
 // unplugin's (`babelMs` / `unpluginMs`) - which is what "how slow is unplugin here" actually needs.
 //
-// `entry-global` carries no phase and is not snapshotted (it expands `import 'core-js'` into whatever
-// `targets` selects, so its set is a function of the options alone - see snapshots' note in README).
+// `entry-global` carries no phase for either provider and is not snapshotted at all: it expands
+// `import 'core-js'` into whatever `targets` selects, so its set is a function of the options alone
+// and a per-library baseline would pin the same text once per library (that set is pinned exactly,
+// once, in tests/transpiler-fixtures/entry-global). What its two cells DO assert is that the
+// providers agree on that expansion — same targets, same compat data, so a non-empty delta there is
+// a bug in one of them rather than a baseline to bless. It fails the cell.
+//
 // The `pre` phase is a NON-GATING per-library diagnostic in IE11: it runs unplugin before Babel and
 // so can miss the polyfills Babel's own helpers pull in, which some libraries survive and others do
-// not. Its build-time gates still apply; only its IE11 verdict is advisory.
+// not. Its build-time gates still apply; only its IE11 verdict is advisory. Every babel-plugin cell
+// gates — with no phase axis it has no expected-to-fail configuration.
 //
 // Usage:  node runtime.mjs [libFilter] [--update]    --update rewrites the snapshot baselines
-import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -76,18 +101,45 @@ async function baseline(file) {
   }
 }
 
-// Compare (or author) the injected set. Returns 'ok' | 'updated' | 'drift' | 'missing'.
+function snapPath(lib, provider, method, phase) {
+  return join(SNAP, `${ lib.name }.${ provider }.${ method }${ phase ? `.${ phase }` : '' }.txt`);
+}
+
+// What a cell contributes to version control depends on which provider produced it.
 //
-// A drift prints WHERE, not just what. The set alone ("`es.iterator.filter` is new") cannot be acted
-// on: the interesting question is always which module unplugin decided to inject it into, because
-// that is what identifies the detection site that changed its mind. `origins` comes free out of the
-// same build (see build.mjs::recorder), so this costs nothing on the passing path.
-async function snapshot(lib, method, phase, injected, origins) {
-  const file = join(SNAP, `${ lib.name }.${ method }.${ phase }.txt`);
+// babel-plugin is the REFERENCE: it has no phase, so its file is simply the set it injected.
+// unplugin is a DELTA against the reference for the same (library, method): `-spec` for what
+// babel-plugin injected and this phase did not, `+spec` for the other direction. Storing the delta
+// rather than a second full set is the point of the pairing - the three unplugin phases of a library
+// differ from the reference by a handful of specifiers each, and it is exactly those handfuls that
+// carry the information. A full-set snapshot buries them in ~130 identical lines, and a phase
+// regression then has to be found by eye across two files.
+//
+// Missing first, extra second, each group sorted: stable output, and the two directions read
+// differently enough that they should not interleave.
+function deltaLines(reference, injected) {
+  const ref = new Set(reference);
+  const now = new Set(injected);
+  return [
+    ...reference.filter(s => !now.has(s)).sort().map(s => `-${ s }`),
+    ...injected.filter(s => !ref.has(s)).sort().map(s => `+${ s }`),
+  ];
+}
+
+// Compare (or author) a cell's snapshot lines. Returns 'ok' | 'updated' | 'drift' | 'missing'.
+//
+// A drift prints WHERE, not just what. The lines alone ("`es.iterator.filter` is new") cannot be
+// acted on: the interesting question is always which module the provider decided to inject it into,
+// because that is what identifies the detection site that changed its mind. `origins` comes free out
+// of the same build (see build.mjs::recorder), so this costs nothing on the passing path.
+async function snapshot(file, lines, origins) {
   const base = await baseline(file);
   if (UPDATE) {
-    await writeFile(file, `${ injected.join('\n') }\n`);
-    console.log(`    snapshot ${ base ? 'updated' : 'created' } (${ injected.length })`);
+    // a delta can legitimately be EMPTY (the phase agrees with the reference exactly). The file is
+    // still written, so "agrees" is a recorded state rather than an absent one - otherwise a
+    // vanished baseline and a perfect match would look identical on the next run.
+    await writeFile(file, lines.length ? `${ lines.join('\n') }\n` : '');
+    console.log(`    snapshot ${ base ? 'updated' : 'created' } (${ lines.length })`);
     return 'updated';
   }
   // only an explicit --update may author a baseline. Auto-creating one here would make a new library
@@ -96,18 +148,21 @@ async function snapshot(lib, method, phase, injected, origins) {
     console.log(`    ✗ no baseline at ${ file } — rerun with --update to author it`);
     return 'missing';
   }
-  const now = new Set(injected);
+  const now = new Set(lines);
   const old = new Set(base);
-  const added = injected.filter(s => !old.has(s));
+  const added = lines.filter(s => !old.has(s));
   const removed = base.filter(s => !now.has(s));
   if (!added.length && !removed.length) return 'ok';
+  // quoted because a delta line carries its own leading `-`/`+`, which would otherwise read as part
+  // of the drift marker: `+ -core-js/modules/web.self` is two signs meaning different things
   for (const s of added) {
-    console.log(`    + ${ s }  (new)`);
-    // a specifier can land in several modules; all of them are candidates for the changed decision
-    for (const where of origins.get(s) ?? []) console.log(`        injected into ${ where }`);
+    console.log(`    + "${ s }"  (new)`);
+    // a specifier can land in several modules; all of them are candidates for the changed decision.
+    // strip a delta sign before the lookup — `origins` is keyed by the bare specifier
+    for (const where of origins.get(s.replace(/^[+-]/, '')) ?? []) console.log(`        injected into ${ where }`);
   }
   // no origins for a removed one — by definition this build never injected it
-  for (const s of removed) console.log(`    - ${ s }  (gone)`);
+  for (const s of removed) console.log(`    - "${ s }"  (gone)`);
   return 'drift';
 }
 
@@ -245,38 +300,73 @@ const tsPackages = [...TS_SOURCE_PACKAGES];
 const tsVersions = await Promise.all(tsPackages.map(p => version(p)));
 console.log(`TS sources: ${ tsPackages.map((p, i) => `${ p } ${ tsVersions[i] }`).join(' | ') }`);
 
+// PROVIDERS is ordered babel-plugin first, and the loop nests provider INSIDE method, so every
+// unplugin cell runs after the reference it is diffed against — no second pass, no cross-library
+// bookkeeping. Changing either the order of PROVIDERS or this nesting breaks that guarantee, which
+// `reference()` below turns into a thrown error rather than a silently empty diff.
 const cells = [];
 for (const lib of libs) {
   for (const method of METHODS) {
-    for (const phase of phasesFor(method)) cells.push({ lib, method, phase });
+    for (const provider of PROVIDERS) {
+      for (const phase of phasesFor(method, provider)) cells.push({ lib, method, provider, phase });
+    }
   }
 }
 
 const manifest = [];
 const karmaFiles = [];
+const references = new Map();
+function refKey(lib, method) {
+  return `${ lib.name }/${ method }`;
+}
+function referenceFor(lib, method) {
+  const set = references.get(refKey(lib, method));
+  if (!set) throw new Error(`no babel-plugin reference for ${ refKey(lib, method) } — cell ordering is wrong`);
+  return set;
+}
 let failed = 0;
 let drift = 0;
 let missing = 0;
 
-for (const { lib, method, phase } of cells) {
-  const label = `${ lib.name }/${ method }${ phase ? `/${ phase }` : '' }`;
+for (const { lib, method, provider, phase } of cells) {
+  const label = `${ lib.name }/${ provider }/${ method }${ phase ? `/${ phase }` : '' }`;
   try {
     // ONE build. Everything below reads from it — the set that gets snapshotted is the set inside the
     // bundle that gets pre-flighted, measured and shipped to IE11.
     const t0 = process.hrtime.bigint();
-    const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase);
+    const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase, provider);
     // the build alone — everything below this line is deliberately outside the measurement
     const buildMs = Number(process.hrtime.bigint() - t0) / 1e6;
     // runtimeBuild asserts payload / no-externals. The ES5 down-compile is the caller's to assert and
     // is the whole premise of an IE11 bundle: the pre-flight runs in a modern node realm and the
     // browser page in a modern browser, so nothing else here would notice a skipped down-compile.
     assertES5(code, label);
-    if (!injected.length) throw new Error('unplugin injected 0 polyfills');
+    if (!injected.length) throw new Error(`${ provider } injected 0 polyfills`);
 
-    // entry-global is not snapshotted — see the header
+    const isReference = provider === 'babel-plugin';
+    if (isReference) references.set(refKey(lib, method), injected);
+    // the delta this cell diverges from the reference by. Computed for every unplugin cell — the
+    // entry-global one is not snapshotted but IS asserted below, so it may not be skipped here.
+    const delta = isReference ? null : deltaLines(referenceFor(lib, method), injected);
+
+    // `entry-global` expands `import 'core-js'` into a function of `targets`/`version`/`mode` alone —
+    // it never reads the library, so a per-library baseline would pin the same text four times over
+    // (that set is pinned exactly, once, in tests/transpiler-fixtures/entry-global). What IS
+    // library-independent and worth asserting is that the two providers agree on that expansion:
+    // same inputs, same compat data, so any divergence is a bug in one of them rather than a
+    // baseline to bless.
+    // NB the discriminator is the METHOD, not the absence of a phase — babel-plugin's `usage-*` cells
+    // carry no phase either, and those very much are snapshotted.
     let snap = 'skipped';
-    if (phase) {
-      snap = await snapshot(lib, method, phase, injected, origins);
+    if (method === 'entry-global') {
+      if (!isReference) {
+        if (delta.length) {
+          throw new Error(`entry-global disagrees between providers (${ delta.length }): ${ delta.slice(0, 6).join(' ') }`);
+        }
+        snap = 'providers agree';
+      }
+    } else {
+      snap = await snapshot(snapPath(lib, provider, method, phase), isReference ? injected : delta, origins);
       if (snap === 'drift') drift++;
       else if (snap === 'missing') missing++;
     }
@@ -288,35 +378,41 @@ for (const { lib, method, phase } of cells) {
     const bytes = Buffer.byteLength(code);
     const { min, gz } = await wireSize(code, label);
 
-    const rel = phase ? join(lib.name, method, phase) : join(lib.name, method);
+    const rel = phase ? join(lib.name, provider, method, phase) : join(lib.name, provider, method);
     const dir = join(ART, rel);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'bundle.js'), code);
-    await writeFile(join(dir, 'index.html'), html(lib.name, phase ? `${ method } / ${ phase }` : method, checks));
+    await writeFile(join(dir, 'index.html'), html(lib.name, `${ provider } / ${ method }${ phase ? ` / ${ phase }` : '' }`, checks));
 
     // UMD exposes global `E2E`; each bundle gets its OWN Karma page (one file per run below), so the
     // shared global name cannot make one cell's test execute another cell's bundle.
-    const karmaFile = join(KARMA_OUT, `e2e-libs-${ lib.name }-${ method }-${ phase ?? 'noph' }.js`);
+    const karmaFile = join(KARMA_OUT, `e2e-libs-${ lib.name }-${ provider }-${ method }-${ phase ?? 'noph' }.js`);
     await writeFile(karmaFile, `${ code }\n${ qunitHarness(label, checks.length) }`);
+    // `pre` is unplugin's known-incomplete phase and stays advisory (see the header). Every
+    // babel-plugin cell gates: it has no phase axis, so it has no expected-to-fail configuration.
     karmaFiles.push({ file: karmaFile, label, gating: phase !== 'pre' });
 
     const ok = !bad.length;
     if (!ok) failed++;
     console.log(`${ ok ? '✓' : '✗' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, `
-      + `${ injected.length } inj${ phase ? `, snapshot ${ snap }` : '' } `
+      + `${ injected.length } inj${ delta ? ` (Δref ${ delta.length })` : '' }`
+      + `${ snap === 'skipped' ? '' : `, ${ snap }` } `
       + `(${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz, built in ${ buildMs.toFixed(0) }ms)`);
     for (const c of bad) console.log(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
     manifest.push({
-      lib: lib.name, method, phase: phase ?? null, dir: rel, bytes, min, gz,
+      lib: lib.name, provider, method, phase: phase ?? null, dir: rel, bytes, min, gz,
       // diagnostic, not comparable across cells — see the header
       buildMs: +buildMs.toFixed(0),
-      injections: injected.length, checks: checks.length, preflightFailing: bad.length,
+      injections: injected.length,
+      // null for the reference itself; otherwise how far this phase sits from it
+      deltaFromReference: delta ? delta.length : null,
+      checks: checks.length, preflightFailing: bad.length,
     });
   } catch (err) {
     failed++;
     const reason = errorReason(err);
     console.log(`✗ ${ label }: ${ reason }`);
-    manifest.push({ lib: lib.name, method, phase: phase ?? null, error: reason });
+    manifest.push({ lib: lib.name, provider, method, phase: phase ?? null, error: reason });
   }
 }
 
@@ -327,7 +423,7 @@ await mkdir(ART, { recursive: true });
 // did not touch, whose pages are still on disk
 await writeFile(MANIFEST, `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
 console.log(`\nartifacts → ${ ART }\nmanifest → ${ MANIFEST }`);
-console.log('Upload each <lib>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.');
+console.log('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.');
 
 // -------- real IE11, where one exists --------
 
