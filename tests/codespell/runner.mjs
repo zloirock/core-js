@@ -8,6 +8,7 @@ const skip = [
   './deno/corejs/index.js',
   './tests/bundles/**',
   './tests/**/bundles/**',
+  // Generated e2e-libs output contains third-party identifiers.
   './tests/e2e-libs/.tmp/**',
   './tests/e2e-libs/artifacts/**',
   './tests/e2e-libs/report/**',
