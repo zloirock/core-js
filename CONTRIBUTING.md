@@ -174,7 +174,7 @@ You can run parts of the test case separately:
   npm run test-transpiler-integration   # real bundlers (esbuild, webpack, Rspack, Rolldown, Rsbuild, Farm, Bun) across methods and phases, runtime-verified
   npm run test-transpiler-perf          # performance gates (three.js bundles + synthetic reassignment-heavy stress); complexity-class discriminators
   ```
-- Real-library end-to-end suite — `@core-js/unplugin` + Babel down-compile to IE11 across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes:
+- Real-library end-to-end suite — both polyfill providers (`@core-js/babel-plugin` and `@core-js/unplugin`) + Babel down-compile to IE11 across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). babel-plugin has no phase axis, so its injected set is the reference and each unplugin phase is snapshotted as a delta against it. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes:
   ```sh
   npm run e2e-libs                      # the asserting runners: check-exercise -> runtime
   npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)

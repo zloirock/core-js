@@ -1,0 +1,3 @@
+-core-js/modules/es.global-this
+-core-js/modules/es.reflect.construct
+-core-js/modules/web.self
