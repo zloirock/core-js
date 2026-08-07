@@ -1,0 +1,15 @@
+-core-js/modules/es.date.to-primitive
+-core-js/modules/es.global-this
+-core-js/modules/es.json.to-string-tag
+-core-js/modules/es.math.to-string-tag
+-core-js/modules/es.object.get-own-property-descriptor
+-core-js/modules/es.object.get-own-property-descriptors
+-core-js/modules/es.object.get-own-property-symbols
+-core-js/modules/es.object.get-prototype-of
+-core-js/modules/es.reflect.construct
+-core-js/modules/es.reflect.get
+-core-js/modules/es.reflect.namespace
+-core-js/modules/es.symbol.constructor
+-core-js/modules/es.symbol.description
+-core-js/modules/es.symbol.to-primitive
+-core-js/modules/es.symbol.to-string-tag

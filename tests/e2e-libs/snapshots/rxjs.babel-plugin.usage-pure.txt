@@ -13,6 +13,7 @@
 @core-js/pure/full/function/instance/name
 @core-js/pure/full/get-iterator
 @core-js/pure/full/get-iterator-method
+@core-js/pure/full/global-this
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/instance/keys
 @core-js/pure/full/instance/values
@@ -33,7 +34,9 @@
 @core-js/pure/full/promise/constructor
 @core-js/pure/full/promise/reject
 @core-js/pure/full/promise/resolve
+@core-js/pure/full/reflect/construct
 @core-js/pure/full/reflect/namespace
+@core-js/pure/full/self
 @core-js/pure/full/set/constructor
 @core-js/pure/full/string/instance/trim
 @core-js/pure/full/suppressed-error/constructor
