@@ -203,8 +203,12 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
     tidiness: `mode: full` permanently patches globals, so two methods in one process would let one
     method's injection mask another's miss), with every self-check passing.
   - **artifact** → `artifacts/<lib>/<method>[/<phase>]/{bundle.js,index.html}` + `manifest.json`
-    (raw / minified / gzip sizes + injections). The minified form is parsed as ES5 too, that being the
-    byte count the manifest publishes as shippable. An unfiltered run wipes `artifacts/` first and a
+    (raw / minified / gzip sizes + injections + `buildMs`). The minified form is parsed as ES5 too,
+    that being the byte count the manifest publishes as shippable. `buildMs` wraps the rollup call
+    alone and is a **diagnostic**: nothing gates on it, and the spread across cells says more about
+    which cell started warm than about which build is cheap — every cell here runs after the previous
+    one's minification, pre-flight child process and file writes, and in CI on a shared runner. For a
+    number meant to be compared, and for unplugin's share separated from Babel's, read `pipeline`. An unfiltered run wipes `artifacts/` first and a
     filtered one wipes just the libraries it rebuilds (merging into the existing manifest), so a failed
     cell cannot leave a stale green page behind while the manifest claims otherwise. The HTML pages are
     for a manual BrowserStack/SauceLabs pass.
@@ -235,10 +239,12 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
   One build per cell is the point. These consumers used to be three runners that each rebuilt the same
   configurations — 48 builds for 21 distinct cells — and each gated on a build of its own, so the set
   being snapshotted was not provably the set inside the bundle that shipped. Now it is, by construction.
-  **Timings are deliberately not measured here** — minification, pre-flight child processes and file
-  writes land between consecutive builds and move the CPU state each one starts from; `pipeline` does
-  the measuring, in its own quiet process. Sizes and injection counts *are* reported here: they are
-  deterministic.
+  Sizes and injection counts are **deterministic** — they do not depend on what ran before them.
+  `buildMs` is not, and is printed anyway as a diagnostic: minification, pre-flight child processes
+  and file writes land between consecutive builds and move the CPU state each one starts from, so a
+  cell that reads cheap is the one that started warm. **Nothing gates on it.** `pipeline` is where
+  timings are meant to be compared — its own quiet process, with a warm-up, and Babel's share split
+  from unplugin's.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
 
