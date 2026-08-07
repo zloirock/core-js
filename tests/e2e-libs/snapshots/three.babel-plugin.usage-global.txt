@@ -4,7 +4,6 @@ core-js/modules/es.array-buffer.species
 core-js/modules/es.array-buffer.to-string-tag
 core-js/modules/es.array-buffer.transfer
 core-js/modules/es.array-buffer.transfer-to-fixed-length
-core-js/modules/es.array.at
 core-js/modules/es.array.concat
 core-js/modules/es.array.copy-within
 core-js/modules/es.array.entries
@@ -29,6 +28,7 @@ core-js/modules/es.data-view.to-string-tag
 core-js/modules/es.date.to-primitive
 core-js/modules/es.error.cause
 core-js/modules/es.function.name
+core-js/modules/es.global-this
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
@@ -82,7 +82,6 @@ core-js/modules/es.set.is-superset-of
 core-js/modules/es.set.species
 core-js/modules/es.set.symmetric-difference
 core-js/modules/es.set.union
-core-js/modules/es.string.at
 core-js/modules/es.string.from-code-point
 core-js/modules/es.string.includes
 core-js/modules/es.string.iterator

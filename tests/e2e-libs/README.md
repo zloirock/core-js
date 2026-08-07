@@ -174,20 +174,40 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
   `js` (`es.json.*`, `web.url.to-json`) — which node and the other bundlers resolve fine — not the
   native crash once assumed; see `build.mjs` for the real cause and the one-plugin shim that fixes it.)
 - **runtime (one pass, the whole tier)** — `npm run e2e-libs-runtime [-- libFilter] [-- --update]` —
-  the real IE11 build for every (library × method × unplugin phase) = **28 cells**: rollup + Babel
-  (syntax → ES5) + unplugin (stdlib polyfills). Each cell is built **once**, and that single build then
-  feeds every consumer:
+  the real IE11 build for every (library × method × provider × phase) = **40 cells**: rollup + Babel
+  (syntax → ES5) + one of the two stdlib providers. Each cell is built **once**, and that single build
+  then feeds every consumer.
+
+  **Both providers run here**, on the same libraries and the same down-compile, because they are the
+  two ways this repo lets you polyfill and only one of them was ever exercised on real code:
+
+  | provider | where it runs | phase axis | per library × method |
+  | --- | --- | --- | --- |
+  | `@core-js/babel-plugin` | inside the Babel pass | none — one traversal, one answer | 1 cell |
+  | `@core-js/unplugin` | a rollup plugin beside Babel | `pre` / `post` / `pre+post` | 3 cells (1 for `entry-global`) |
+
   - **gates** — a real acorn parse at `ecmaVersion: 5` (*not* an esbuild `target: 'es5'` transform,
     which silently **lowers** arrows, `?.`, `??` and template literals instead of rejecting them); the
     chunk must actually **contain core-js bytes** (`assertPayload`) — an injection count only proves the
     specifier *text* was seen, and that survives even when rollup tree-shakes the polyfills away;
     nothing may be left **external**, since a `require(...)` in the UMD header is fine in node and fatal
     in a browser; and the injected set must be non-empty.
-  - **injection snapshot** → `snapshots/<lib>.<method>.<phase>.txt`, 24 cells (the **usage-\*** methods ×
-    all three phases). `entry-global` is not snapshotted: it never reads the library, it expands
+  - **injection snapshot** — 32 files over the **usage-\*** methods, in two shapes that mirror the
+    asymmetry above:
+    - `snapshots/<lib>.babel-plugin.<method>.txt` — the **reference**: the full injected set, 8 files.
+    - `snapshots/<lib>.unplugin.<method>.<phase>.txt` — the **delta** from that reference, 24 files:
+      `-spec` for what babel-plugin injected and this phase did not, `+spec` for the reverse. Storing
+      the divergence instead of a second full set is the whole point of pairing them — the phases
+      differ from the reference by three to fifteen specifiers, and as full sets those would be
+      buried in ~130 identical lines. An **empty** delta file means the phase agrees with the
+      reference exactly, and is written rather than omitted so "agrees" is a recorded state.
+
+    `entry-global` is not snapshotted for either provider: it never reads the library, it expands
     `import 'core-js'` into whatever `targets` selects, so its per-library baselines came out
     byte-identical — a fiction of a per-library gate. That set is pinned exactly (full-text compare) in
-    `tests/transpiler-fixtures/entry-global`. Because the snapshot comes from the shipping build, Babel
+    `tests/transpiler-fixtures/entry-global`. Its two cells instead **assert that the providers agree**
+    on the expansion: same targets, same compat data, so a non-empty delta is a bug in one of them
+    rather than a baseline to bless, and it fails the cell. Because the snapshot comes from the shipping build, Babel
     runs before unplugin, and *that* is what gives the phase axis meaning: with plain unplugin (no
     Babel) all three phases inject byte-identical sets, whereas here `post` also sees what Babel's own
     helpers reach for — codemirror `usage-global` 120 (`pre`) → 132 (`post`), three 159 → 175, while
@@ -198,12 +218,14 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
     `pre` reads type annotations that no later phase can see, so `pre+post` is the strictly larger
     union (123/133/**134** and 26/39/**40**). Either way the `pre+post` cells gate exactly that union.
     Trade-off: these baselines are **Babel-dependent**; a `@babel/preset-env` update may legitimately
-    move them — read the diff, then rerun with `--update`.
+    move them — read the diff, then rerun with `--update`. A change to the babel-plugin reference
+    moves every delta of that library and method with it, which is the intended coupling: the files
+    say "how far each unplugin phase sits from babel-plugin", so if the reference moves, they all did.
   - **node pre-flight** — the bundle executed in a **fresh child process** (isolation is required, not
     tidiness: `mode: full` permanently patches globals, so two methods in one process would let one
     method's injection mask another's miss), with every self-check passing.
-  - **artifact** → `artifacts/<lib>/<method>[/<phase>]/{bundle.js,index.html}` + `manifest.json`
-    (raw / minified / gzip sizes + injections + `buildMs`). The minified form is parsed as ES5 too,
+  - **artifact** → `artifacts/<lib>/<provider>/<method>[/<phase>]/{bundle.js,index.html}` +
+    `manifest.json` (raw / minified / gzip sizes + injections + `deltaFromReference` + `buildMs`). The minified form is parsed as ES5 too,
     that being the byte count the manifest publishes as shippable. `buildMs` wraps the rollup call
     alone and is a **diagnostic**: nothing gates on it, and the spread across cells says more about
     which cell started warm than about which build is cheap — every cell here runs after the previous
@@ -244,7 +266,7 @@ fourth is the **TypeScript** fixture, which exists for the `phase` axis rather t
   and file writes land between consecutive builds and move the CPU state each one starts from, so a
   cell that reads cheap is the one that started warm. **Nothing gates on it.** `pipeline` is where
   timings are meant to be compared — its own quiet process, with a warm-up, and Babel's share split
-  from unplugin's.
+  from the provider's.
 - **exercise self-check** — `npm run e2e-libs-check-exercise [-- lib]` — runs every exercise raw
   (no bundler, no polyfills) when given no argument.
 

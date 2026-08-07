@@ -26,7 +26,19 @@ export const HERE = import.meta.dirname;
 const TMP = join(HERE, '.tmp');
 
 export const METHODS = ['entry-global', 'usage-global', 'usage-pure'];
-export const phasesFor = m => m === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
+
+// The two polyfill providers this repo ships. They are not interchangeable in shape: unplugin is a
+// BUNDLER plugin, so it runs beside Babel and a `phase` decides whether it reads the source or
+// Babel's output; `@core-js/babel-plugin` runs INSIDE the same Babel pass and therefore has no phase
+// at all - one traversal, one result. That asymmetry is why the runtime tier treats babel-plugin as
+// the REFERENCE and every unplugin phase as a delta against it (see runtime.mjs).
+export const PROVIDERS = ['babel-plugin', 'unplugin'];
+
+// `entry-global` carries no phase for either provider (it expands `import 'core-js'`, so its set is a
+// function of `targets` alone), and babel-plugin carries none for any method.
+export function phasesFor(m, provider = 'unplugin') {
+  return provider === 'babel-plugin' || m === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
+}
 
 function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full', targets: { ie: 11 } };
@@ -187,7 +199,7 @@ export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name =
 // The unplugin adapter instance for a bundler + (method, phase).
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
 
-// -------- runtime builder: ES5 UMD via Babel(syntax) + unplugin(post, stdlib) --------
+// -------- runtime builder: ES5 UMD via Babel(syntax) + a stdlib provider --------
 // Babel runs through a small custom transform plugin (below) rather than @rollup/plugin-babel, so the
 // suite's own @babel/core / @babel/preset-env drive the down-compile directly.
 const localRequire = createRequire(join(HERE, 'package.json'));
@@ -198,6 +210,12 @@ function babelToolchain() {
       core: localRequire('@babel/core'),
       preset: localRequire.resolve('@babel/preset-env'),
       ts: localRequire.resolve('@babel/preset-typescript'),
+      // resolved to an absolute path rather than passed as the bare `'@core-js'` the fixture suites
+      // use: Babel's own scoped-name resolution would look for it from the file being compiled, which
+      // here is a library module deep in node_modules. Neither this package nor @core-js/unplugin is
+      // declared in this suite's package.json - both arrive through the monorepo's workspace links at
+      // the repo root, which is what `localRequire` walks up to.
+      corejs: localRequire.resolve('@core-js/babel-plugin'),
     };
   }
   return cachedToolchain;
@@ -342,15 +360,16 @@ export const TS_EXTENSION = /(?<!\.d)\.[cm]?ts$/;
 // pre-flight (a modern node realm) still passed. Every cell printed green with exit 0. This checkout
 // happens to be named `core-js-v4`, which is the only reason it was not visible here.
 const BABEL_EXCLUDE = [/[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\][^/\\]+)[/\\]/];
-function babelSyntaxPlugin(core, preset, ts, { downCompile }) {
+function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs = null }) {
   return {
-    name: downCompile ? 'e2e-babel-syntax' : 'e2e-ts-strip',
+    name: coreJs ? 'e2e-babel-syntax+core-js' : downCompile ? 'e2e-babel-syntax' : 'e2e-ts-strip',
     async transform(code, id) {
       if (BABEL_EXCLUDE.some(re => re.test(id))) return null;
       const typescript = TS_EXTENSION.test(id);
       // With `downCompile: false` there is nothing to do to a `.js` module - returning null leaves it
       // byte-identical instead of round-tripping it through Babel's printer, which is what "no
-      // transforms" has to mean for the stage that measures it.
+      // transforms" has to mean for the stage that measures it. `coreJs` never pairs with it: the
+      // provider has to see every module, not just the `.ts` ones.
       if (!downCompile && !typescript) return null;
       // preset-typescript ONLY for `.ts` (see tsSources above). Presets apply in REVERSE order, so
       // listing it last is what makes it run FIRST - types have to be gone before preset-env starts
@@ -358,8 +377,12 @@ function babelSyntaxPlugin(core, preset, ts, { downCompile }) {
       // to TS for every file, and TS resolves `<T>x` and `a < b > (c)` differently from JS.
       const presets = downCompile ? [[preset, { targets: { ie: '11' }, useBuiltIns: false, modules: false }]] : [];
       if (typescript) presets.push([ts, {}]);
+      // `useBuiltIns: false` above is what leaves the stdlib to a provider. When `coreJs` is set that
+      // provider is @core-js/babel-plugin, running as a PLUGIN in this same pass rather than as a
+      // second tool downstream — which is the whole difference being measured against unplugin.
       const out = await core.transformAsync(code, {
         filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false, presets,
+        ...coreJs ? { plugins: [[corejs, coreJs]] } : {},
       });
       return out && typeof out.code === 'string' ? { code: out.code, map: null } : null;
     },
@@ -368,9 +391,12 @@ function babelSyntaxPlugin(core, preset, ts, { downCompile }) {
 
 // Public: the rollup Babel(syntax->ES5, + TS strip for `.ts`) transform. Used by runtimeBuild and by
 // pipeline.mjs so both share the exact same Babel config.
-export function makeBabelPlugin() {
-  const { core, preset, ts } = babelToolchain();
-  return babelSyntaxPlugin(core, preset, ts, { downCompile: true });
+//
+// `coreJs` (optional) turns the same pass into the babel-plugin PROVIDER build: pass the plugin
+// options and @core-js/babel-plugin injects the stdlib from inside this traversal. Left out, the pass
+// only lowers syntax and the stdlib is somebody else's job (unplugin, downstream).
+export function makeBabelPlugin(coreJs = null) {
+  return babelSyntaxPlugin(babelToolchain(), { downCompile: true, coreJs });
 }
 
 // Public: TYPE ERASURE ONLY, for pipeline's stage [A] ("the library alone, no down-compile"). A
@@ -379,8 +405,7 @@ export function makeBabelPlugin() {
 // cost Babel's ES5 lowering adds on top of it, is still entirely in the [A] -> [B] delta. On a graph
 // with no `.ts` in it this plugin is a no-op on every module.
 export function makeTsStripPlugin() {
-  const { core, preset, ts } = babelToolchain();
-  return babelSyntaxPlugin(core, preset, ts, { downCompile: false });
+  return babelSyntaxPlugin(babelToolchain(), { downCompile: false });
 }
 
 // A rollup `onwarn` used by `runtimeBuild`, `captureInjections` and every build pipeline.mjs makes
@@ -425,39 +450,57 @@ export function assertPayload(chunk, label) {
   if (bytes < MIN_CORE_JS_BYTES) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
 }
 
-// Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel.
-// usage-* build at phase 'post', entry-global at no phase. Ordering
-// matters: raw Rollup ignores the plugin-level `enforce:'post'` field (that is a Vite/webpack-family
-// concept), but it DOES honour the hook-level `order` that unplugin sets on its transform. For
-// `usage-*` that order is 'post', so unplugin runs AFTER babel and its injection sees babel's helper
-// output; listing babel FIRST just keeps array order agreeing with that. `entry-global` is the
-// exception - unplugin pins it to order 'pre' regardless (see @core-js/unplugin), so there it runs
-// BEFORE babel. That is fine: entry-global only expands `import 'core-js'` and needs no helper output.
+// Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel and
+// polyfilled by ONE of the two providers.
+//
+// `provider: 'unplugin'` — usage-* build at phase 'post' by default, entry-global at no phase.
+// Ordering matters: raw Rollup ignores the plugin-level `enforce:'post'` field (that is a
+// Vite/webpack-family concept), but it DOES honour the hook-level `order` that unplugin sets on its
+// transform. For `usage-*` that order is 'post', so unplugin runs AFTER babel and its injection sees
+// babel's helper output; listing babel FIRST just keeps array order agreeing with that.
+// `entry-global` is the exception - unplugin pins it to order 'pre' regardless (see
+// @core-js/unplugin), so there it runs BEFORE babel. That is fine: entry-global only expands
+// `import 'core-js'` and needs no helper output.
+//
+// `provider: 'babel-plugin'` — no unplugin in the chain at all; @core-js/babel-plugin rides inside
+// the Babel transform. There is nothing to order and no phase to pick, which is exactly why
+// runtime.mjs uses this build as the reference the unplugin phases are diffed against.
 //
 // Returns `{ code, chunk, injected }`, all observed inside THIS build: capturing the injected set
-// with a separate pass would describe a different unplugin configuration (different phase, no
-// Babel), so a build whose own injection had gone no-op would still report a healthy set. That is
-// why `injected` is the SET, not a count - runtime.mjs snapshots it, gates on it and ships the very
-// bundle it came from, all from this one build. What proves the ES5 down-compile ran is
+// with a separate pass would describe a different configuration (different provider, different
+// phase, no Babel), so a build whose own injection had gone no-op would still report a healthy set.
+// That is why `injected` is the SET, not a count - runtime.mjs snapshots it, gates on it and ships
+// the very bundle it came from, all from this one build. What proves the ES5 down-compile ran is
 // `assertES5(code)`, which every caller runs.
-export async function runtimeBuild(exerciseAbs, method, phase = 'post') {
+export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider = 'unplugin') {
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel — see above),
-  // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`.
-  const effPhase = method === 'entry-global' ? undefined : phase;
-  return withEntry(exerciseAbs, method, `rt-${ method }-${ effPhase ?? 'x' }`, async entry => {
+  // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`. babel-plugin has no
+  // phase for any method: it IS the Babel pass, so there is no before/after to choose between.
+  const babel = provider === 'babel-plugin';
+  const effPhase = babel ? undefined : phasesFor(method, provider).includes(phase) ? phase : undefined;
+  return withEntry(exerciseAbs, method, `rt-${ provider }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
     // recorded alongside the set so a snapshot drift can name the module the extra injection came
     // from, without a second build in a different configuration to go looking for it
     const origins = new Map();
     const build = await rollup({
       input: entry,
-      plugins: [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', method, effPhase), recorder(sink, origins)],
+      // Exactly ONE provider per build. Both at once would inject the union and the cell would stop
+      // describing either of them.
+      plugins: [
+        tsSources(),
+        makeBabelPlugin(babel ? pluginOpts(method) : null),
+        nodeResolve(),
+        commonjs(),
+        ...babel ? [] : [u('rollup', method, effPhase)],
+        recorder(sink, origins),
+      ],
       onwarn: strictWarn,
     });
     try {
       const { output } = await build.generate({ format: 'umd', name: 'E2E', esModule: false });
       const [chunk] = output;
-      const label = `${ method }/${ effPhase ?? 'entry' }`;
+      const label = `${ provider }/${ method }/${ effPhase ?? 'entry' }`;
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
       return { code: chunk.code, chunk, injected: [...sink].sort(), origins };
