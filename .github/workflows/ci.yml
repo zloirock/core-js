@@ -66,6 +66,23 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-usage-pure-karma
 
+  # real IE11 for tests/e2e-libs: one pass over the full runtime matrix, covering BOTH polyfill
+  # providers (@core-js/babel-plugin and @core-js/unplugin) on the same libraries. Each cell is built
+  # once and then gated, snapshotted, pre-flighted in node, emitted as an artifact, and finally run
+  # through Karma/QUnit in actual IE11. Separate from `karma` so the heavy e2e-libs install (real libs
+  # + bundlers) does not slow the core browser job. The matrix itself is defined in tests/e2e-libs and
+  # documented there — see its README rather than a copy of the shape here.
+  e2e-libs-ie11:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.0.0
+          cache: npm
+      - run: npm run prepare-monorepo
+      - run: npm run e2e-libs-runtime
+
   bun:
     runs-on: ubuntu-latest
     steps:
