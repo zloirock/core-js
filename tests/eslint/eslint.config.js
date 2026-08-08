@@ -2576,7 +2576,6 @@ export default [
   {
     ignores: [
       '.work/**',
-      'deno/corejs/**',
       'docs/**',
       'packages/core-js-builder/__tmp__/**',
       'packages/core-js-bundle/*.js',
