@@ -10,7 +10,7 @@
 //   2) per-fixture override: when BABEL_VARIANT is set (e.g. `babel-v7`) the runner
 //      prefers a `<stem>.<variant>.<ext>` sibling for each expected file and falls back
 //      to the baseline otherwise.
-const { strictEqual } = require('node:assert');
+const { equal } = require('node:assert/strict');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
 
@@ -260,7 +260,7 @@ async function runFixture(directory) {
       return echo(red(`${ cyan(label(directory)) } failed: ${ cyan(file) } is missing`));
     }
     try {
-      strictEqual(content, normalizeExpected(await readFile(file, UTF8)));
+      equal(content, normalizeExpected(await readFile(file, UTF8)));
     } catch (equalError) {
       failed++;
       echo(red(`${ cyan(label(directory)) } failed:`));
