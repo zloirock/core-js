@@ -8,7 +8,7 @@ Body shape is deliberately not compared: an AST codegen and a text rewrite diffe
 
 Node `^22.18.0 || >=24.11.0`, on the root dependencies - unlike most suites this directory has no `package.json` of its own. It runs both emitters in-process, and forks workers for the stripped legs.
 
-Run it with `npm run test-transpiler-differential`. It is slow - the corpus is large and every snippet is executed three times - so it is split across processes sized from the core count, and `DIFF_SHARDS` overrides that when the default choice does not suit the machine.
+Run it with `npm run test-transpiler-differential`. It is slow - the corpus is large and every snippet is executed three times - so it is split across processes, as many of them running at once as half the core count.
 
 ## Layout
 
