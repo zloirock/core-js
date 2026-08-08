@@ -2561,7 +2561,6 @@ const globalsZX = {
 export default [
   {
     ignores: [
-      'deno/corejs/**',
       'docs/**',
       'packages/core-js-builder/__tmp__/**',
       'packages/core-js-bundle/!(package.json)',
@@ -2725,7 +2724,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises|unit-@(karma|node))/**',
+      'tests/@(compat-@(data|tools)|eslint|entries|promises|unit-@(karma|node))/**',
       'website/scripts/runner.mjs',
       'website/scripts/helpers.mjs',
     ],

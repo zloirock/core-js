@@ -9,7 +9,7 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 ## How to add a new polyfill
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
-- The polyfill should properly work in ES3 and all possible engines. If in some engines it cannot be implemented (for example, it strictly requires more modern ES or unavailable platform features), it should not break any other `core-js` features or application in any way.
+- The polyfill should properly work on all [supported engines](./docs/web/docs/engines.md) - the baseline is engines with at least IE11-level JavaScript features, approximately ES5 with some additions. If in some engines it cannot be implemented (for example, it strictly requires more modern ES or unavailable platform features), it should not break any other `core-js` features or application in any way.
 - Avoid possible observing / breakage polyfills via patching built-ins at runtime: cache all global built-ins in the polyfills code and don't call prototype methods from instances.
 - Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
 - Avoid direct import from `/modules/` path in `/internals|modules/` since it will break optimizations via Babel / `swc`. Specify such dependencies with comments like `// @dependency: es.string.iterator` directly in your module, they will be automatically added to entries, and use something like [`internals/get-built-in`](./packages/core-js/internals/get-built-in.js) helpers.
@@ -95,7 +95,7 @@ If you have no access to all required browsers / versions of browsers, use [Sauc
 ## Style and standards
 
 The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
-- Polyfill implementations should use only ES3 syntax and standard library, they should not use other polyfills from the global scope.
+- Polyfill implementations should use only ES5 syntax, they should not use other polyfills from the global scope. Beyond ES5, they may rely on the additions of the baseline - basic `WeakMap`, basic `Map` and `Set`, the `%TypedArray%` / `ArrayBuffer` / `DataView` constructors, and a way of setting a prototype - for internal use only.
 - Unit tests should use the modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the pure version should not use any modern standard library features.
 - Tools, scripts and tests, performed in NodeJS, should use only the syntax and the standard library available in NodeJS ^22.18.0 || >=24.11.0.
 
@@ -116,7 +116,7 @@ You can run parts of the test case separately:
   ```sh
   npm run lint
   ```
-- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), ancient WebKit (PhantomJS), IE11 (if available)); the test bundles are built by the script itself, `bundle-package` provides the `core-js-bundle` legs:
+- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), IE11 (if available)); the test bundles are built by the script itself, `bundle-package` provides the `core-js-bundle` legs:
   ```sh
   npx run-s prepare bundle-package test-unit-karma
   ```

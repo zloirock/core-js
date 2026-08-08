@@ -5,7 +5,9 @@
       {
         "method": "usage-global",
         "version": "4.0",
-        "additionalPackages": [42]
+        "additionalPackages": [
+          42
+        ]
       }
     ]
   ]
