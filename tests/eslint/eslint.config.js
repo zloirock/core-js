@@ -545,6 +545,10 @@ const base = {
   'node/prefer-global/timers': [ERROR, ALWAYS],
   'node/prefer-global/url-search-params': [ERROR, ALWAYS],
   'node/prefer-global/url': [ERROR, ALWAYS],
+  // prefer-import
+  'node/prefer-import/assert-strict': ERROR,
+  // enforce using `process.getBuiltinModule()` to load Node built-in modules
+  'node/prefer-process-get-builtin-module': ERROR,
   // prefer promises
   'node/prefer-promises/dns': ERROR,
   'node/prefer-promises/fs': ERROR,
