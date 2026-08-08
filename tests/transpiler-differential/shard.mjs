@@ -15,7 +15,7 @@ const [shard, total] = (process.env.DIFF_SHARD ?? '0/1').split('/').map(Number);
 // materialized once: the exact subset size feeds the live progress stream (stderr, so the
 // coordinator's stdout JSON channel stays clean)
 const subset = [...generate()].filter((snippet, index) => index % total === shard);
-const PROGRESS_EVERY = 250;
+const PROGRESS_EVERY = 100;
 let processed = 0;
 let passed = 0;
 let globalChecked = 0;
