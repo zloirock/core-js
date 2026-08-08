@@ -32,7 +32,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `wpt-url-resources/` | - | Web Platform Tests data used by `unit-global/web.url.constructor.js` and its pure twin |
 | `debug-get-dependencies/` | `npm run debug-get-dependencies` | prints the resolved dependency metadata of every module |
 
-`bundles/` directories are generated and gitignored. The suites listed above build what they need themselves; the inner scripts they delegate to - `test-unit-node-run`, `test-e2e-usage-pure-node` and the like - reuse prebuilt bundles instead. One gap: the karma unit legs also load `packages/core-js-bundle/index.js` and `minified.js`, which `bundle-tests` only copies - they come from `npm run bundle-package`. After changing runtime polyfill code run `npm run bundle`, or karma silently tests the previous build.
+`bundles/` directories are generated and gitignored. The suites build the bundles they need; the inner scripts they delegate to - `test-unit-node-run`, `test-e2e-usage-pure-node` and the like - reuse prebuilt ones. Two silent gaps. The karma unit legs also load `packages/core-js-bundle/index.js` and `minified.js`, which come from `npm run bundle-package`, so run `npm run bundle` after changing runtime code. And nothing here regenerates the pipeline's output, which `entries/`, the transpiler suites and the type tests all read - so `npm run prepare`, plus `npm run build-types` for the types, comes first.
 
 `npm run test-transpiling` is the composite that runs every plugin and provider suite - use it to verify a change to a shared contract, since a single plugin's fixtures cannot see a regression that shifts both emitters the same way.
 
