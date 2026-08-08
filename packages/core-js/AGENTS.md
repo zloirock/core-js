@@ -37,7 +37,9 @@ Entry layers widen in this order: `es/` (stable ECMAScript) -> `stable/` (+ web 
 - A polyfill must not break unrelated features, or the application itself, in engines where it cannot be fully implemented. Degrading is acceptable, poisoning the environment is not
 - Loading the library must not invalidate a V8 protector: that would deoptimize the whole application, not just the polyfilled path. `npm run check-v8-protectors` loads the package under `--trace-protector-invalidation` and prints nothing when this holds
 
-## Adding a polyfill
+## What a polyfill touches
+
+Every place a new module has to appear, in the order it makes sense to fill them; changing an existing polyfill means walking the same list.
 
 1. Implementation in `modules/`, helpers in `internals/`
 2. Where the pure flavor differs, a branch on `internals/is-pure` in the same module; a file in `packages/core-js-pure/override/` only when the two implementations genuinely diverge
