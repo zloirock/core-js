@@ -1,4 +1,4 @@
-import { deepStrictEqual } from 'node:assert';
+import { deepEqual } from 'node:assert/strict';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
@@ -50,10 +50,10 @@ async function verifyInNode(code, label, ext = '.mjs') {
     await writeFile(file, code);
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepStrictEqual([...results.filterReject], expected.filterReject, `${ label }: filterReject`);
-    deepStrictEqual([...results.uniqueBy], expected.uniqueBy, `${ label }: uniqueBy`);
-    deepStrictEqual(results.setFrom, expected.setFrom, `${ label }: setFrom`);
-    deepStrictEqual(results.cooked, expected.cooked, `${ label }: cooked`);
+    deepEqual([...results.filterReject], expected.filterReject, `${ label }: filterReject`);
+    deepEqual([...results.uniqueBy], expected.uniqueBy, `${ label }: uniqueBy`);
+    deepEqual(results.setFrom, expected.setFrom, `${ label }: setFrom`);
+    deepEqual(results.cooked, expected.cooked, `${ label }: cooked`);
   });
 }
 
@@ -81,9 +81,9 @@ async function verifyPhases(code, label, ext = '.mjs') {
     await writeFile(file, code);
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepStrictEqual(results.patched, 'patched', `${ label }: patched static observed`);
-    deepStrictEqual([...results.control], expected.filterReject, `${ label }: control`);
-    deepStrictEqual(mod.injected ?? results.injected, 'sib', `${ label }: sibling-injected call ran`);
+    deepEqual(results.patched, 'patched', `${ label }: patched static observed`);
+    deepEqual([...results.control], expected.filterReject, `${ label }: control`);
+    deepEqual(mod.injected ?? results.injected, 'sib', `${ label }: sibling-injected call ran`);
     // the injected call is sibling-authored code the POST pass alone can see: it must be
     // substituted there, or this leg silently degrades to testing the native method
     // bundlers spell the injected helper binding every which way (farm prefixes it, CJS interop
@@ -104,8 +104,8 @@ async function verifyDynamic(code, label, ext = '.mjs') {
     await writeFile(file, code);
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepStrictEqual(await results.lazy, 2, `${ label }: lazy chunk value`);
-    deepStrictEqual([...results.control], expected.filterReject, `${ label }: control`);
+    deepEqual(await results.lazy, 2, `${ label }: lazy chunk value`);
+    deepEqual([...results.control], expected.filterReject, `${ label }: control`);
   });
 }
 
@@ -120,19 +120,19 @@ async function verifyInBun(code, label, method) {
     const exp = JSON.stringify(expected);
     const body = method === 'usage-pure' ? `
       const mod = await import(${ url });
-      deepStrictEqual([...mod.filterReject], exp.filterReject);
-      deepStrictEqual([...mod.uniqueBy], exp.uniqueBy);
-      strictEqual(mod.setFrom, exp.setFrom);
-      strictEqual(mod.cooked, exp.cooked);
+      deepEqual([...mod.filterReject], exp.filterReject);
+      deepEqual([...mod.uniqueBy], exp.uniqueBy);
+      equal(mod.setFrom, exp.setFrom);
+      equal(mod.cooked, exp.cooked);
     ` : `
       await import(${ url });
-      deepStrictEqual([1,2,3,4].filterReject(x => x % 2), exp.filterReject);
-      deepStrictEqual([1,2,3,2,1].uniqueBy(), exp.uniqueBy);
-      strictEqual(Set.from([1,2,3]).size, exp.setFrom);
-      strictEqual(String.cooked\`hello\`, exp.cooked);
+      deepEqual([1,2,3,4].filterReject(x => x % 2), exp.filterReject);
+      deepEqual([1,2,3,2,1].uniqueBy(), exp.uniqueBy);
+      equal(Set.from([1,2,3]).size, exp.setFrom);
+      equal(String.cooked\`hello\`, exp.cooked);
     `;
     await writeFile(script, `
-      import { deepStrictEqual, strictEqual } from 'node:assert';
+      import { deepEqual, equal } from 'node:assert/strict';
       const exp = ${ exp };${ body }
     `);
     try {
