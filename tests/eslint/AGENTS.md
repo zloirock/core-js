@@ -10,10 +10,11 @@ Node `^22.18.0 || >=24.11.0`. The directory has its own `package.json`, so the `
 
 Rule sets are declared as plain objects at the top - `base` and `baseStyle` first, then the layers that restrict or relax it: `forbidModernBuiltIns`, `forbidES5BuiltIns`, `forbidNonStandardBuiltIns`, `forbidESAnnexBBuiltIns`, `useES5Syntax`, `nodeDev`, `tests`, `qunit`, `ts`, `markdown` and the rest. The exported array at the bottom is what binds them to globs.
 
-That bottom part decides what actually applies to a file, and it is dozens of bindings with deliberately overlapping globs - no summary here can replace reading the ones that match. Two examples, picked because they carry product consequences rather than style:
+That bottom part decides what actually applies to a file, and it is dozens of bindings with deliberately overlapping globs - no summary here can replace reading the ones that match. Three examples, picked because they carry product consequences rather than style:
 
-- the runtime tier - ES5 syntax plus the forbidden modern and ES5 built-ins - is bound to `packages/core-js?(-pure)/**` and to `tests/compat/*.js`, and to nothing else
-- the shared `tests/helpers/` is held to the pure restrictions as well, because pure tests import it
+- ES5 *syntax* is bound to `packages/core-js?(-pure)/**` and to `tests/compat/*.js`, and to nothing else
+- the forbidden built-ins are a separate set, and it reaches further: the same runtime packages, plus `tests/helpers/` and `tests/unit-pure/` - the pure tests import those helpers - plus the compat runners, but not `tests/compat/tests.js`, where touching a modern built-in is the whole point of the file
+- fenced `js` blocks in markdown are linted like any other source, so an example added to a README or to `CONTRIBUTING.md` has to pass the style rules; `docs/**` is ignored, and its snippets are checked by nothing
 
 Files that are not bound anywhere are usually not mis-globbed but listed in the single `ignores` block, which covers the generated and vendored trees.
 

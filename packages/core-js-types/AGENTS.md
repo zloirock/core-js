@@ -18,8 +18,8 @@ A feature counts as typed only when both flavors have their declaration; either 
 
 - A hand-written declaration is bound to a polyfill by a `// @types: <path>` comment in `packages/core-js/modules/*.js`. That directive is what points an entry at a file under `src/base/`, and `// @no-types` is the explicit opt-out. There is no name-based convention doing this behind your back
 - Each entry point in `entries-definitions.mjs` is rendered through a template from `templates.mjs` and appended to the file of its subset - `es`, `stable`, `actual`, `full`, `pure`, `index`, `configurator` - so one definition reaches several outputs, filtered by what that subset contains
-- The pure side is not a separate source tree: `build-types-pure.mjs` derives it from the same entries, which is why a global-only declaration silently leaves the pure flavor untyped
-- The output directory is named after the TypeScript breakpoint it serves. `src/base/` is copied in first, then an optional `src/ts<version>/` overlay for that breakpoint on top - an overlay whose name matches no current breakpoint is dead weight and never reaches the output
+- The pure side is not a separate source tree: `build-types-pure.mjs` derives it from the same entries, which is why a global-only declaration silently leaves the pure flavor untyped. What that derivation does to a single declaration is steered by a `// @type-options:` comment closing the line that opens it - `no-extends`, `no-prefix`, `no-constructor`, `no-redefine`, `no-export`, `export-base-constructor`, `prefix-return-type`, comma-separated - and the list has to end the line, or the parser does not see it
+- The output directory is named after the TypeScript breakpoint it serves. `src/base/` is copied in first, then an optional `src/ts<version>/` overlay for that breakpoint on top - an overlay named after no current breakpoint never reaches the output, which does not make it garbage: one may be kept as groundwork for a breakpoint that is not built yet
 - The same run writes `typesVersions` and `exports` into the package's `package.json`
 
 ## Tests
