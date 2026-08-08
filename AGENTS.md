@@ -15,7 +15,7 @@ Each package and test area declares its own tier in its own `AGENTS.md`; the fil
 
 ## Monorepo structure
 
-Five areas, each with its own `AGENTS.md` next to the code:
+Five areas. Each carries an `AGENTS.md` next to the code, at the top of the area - except `packages/`, where every package has one of its own instead:
 
 - `packages/` - the published packages, below
 - `scripts/` - the build and maintenance scripts, and the generation pipeline behind `npm run prepare`
@@ -48,7 +48,9 @@ npm workspaces; the packages:
   ```
 
   `npm run lint` is a full-build gate, not an edit-loop check, and so is `npm test`
-- Verify a change with the runner for the area you touched; they are listed in `tests/AGENTS.md`, and each builds what it needs
+- Verify a change with the runner for the area you touched; they are listed in `tests/AGENTS.md`. A runner builds its bundles, never the generated data, entries or types - rebuild those with `npm run prepare` and `npm run build-types`, or it passes against the previous build
 - Never edit generated files - the entry-point layers, the copies inside `packages/core-js-pure`, the `.json` built from `.mjs` sources, the bundles. `npm run prepare` is what produces them
 - Every code change requires a related test, and the whole suite must pass
+- A test that exposes a bug is never deleted or retargeted to make a run green - the fix belongs in the code; `tests/AGENTS.md` and the suites carry the rest
 - Code and test comments are in English, and in ASCII where possible
+- A new package or test area brings its own `AGENTS.md` and the one-line `CLAUDE.md` next to it, a row in the map above or in `tests/AGENTS.md`, and, for a package, both of those file names in its `.npmignore`
