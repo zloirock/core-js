@@ -15,6 +15,9 @@ const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 const BUNDLES_TIMEOUT = 5 * 60e3;
 const BUNDLES_POLL = 5e3;
 
+// agent instruction files live next to the blog posts, but are not content
+const NOT_BLOG_POSTS = new Set(['AGENTS.md', 'CLAUDE.md']);
+
 export async function isExists(target) {
   try {
     await access(target, constants.F_OK);
@@ -61,7 +64,7 @@ export async function copyBlogPosts(srcDir) {
   const toDir = join(srcDir, 'docs/web/blog/');
   const entries = await readdir(fromDir, { withFileTypes: true });
   await Promise.all(entries
-    .filter(entry => entry.isFile())
+    .filter(entry => entry.isFile() && !NOT_BLOG_POSTS.has(entry.name))
     .map(entry => cp(join(fromDir, entry.name), join(toDir, entry.name))));
   console.timeEnd('Copied blog posts');
 }
