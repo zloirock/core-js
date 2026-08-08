@@ -8,12 +8,13 @@
 // (`Array.of = patched`, `globalThis.Map = shim`), so a shared realm would let concurrent runs
 // interleave (a promise-pool produced false fails). The corpus splits into CHUNKS - each one a
 // fresh shard.mjs process running its subset sequentially in its own realm - and a bounded pool
-// runs at most CONCURRENCY of them at once (default ~cores/2: each chunk also forks ONE stripped
-// worker, so cores/2 keeps total processes near core count; override with DIFF_SHARDS). The
-// chunk count is driven by the per-process snippet cap below, never by the core count alone,
-// so a low-core runner still gets bounded process lifetimes. A chunk that dies without a result
-// is retried once in a fresh process (see the pool) - the Windows worker-teardown race is
-// probabilistic, a deterministic crash still fails on its second death.
+// runs at most CONCURRENCY of them at once (~cores/2: each chunk also forks ONE stripped worker,
+// so half the cores keeps the total process count near the core count). The chunk count is a whole
+// number of pool passes - one chunk per slot, doubled and tripled as the per-process snippet cap
+// below demands - so a growing corpus never leaves a half-empty tail pass with idle slots, whatever
+// its size. A chunk that dies without a result is retried once in a fresh process (see the pool) -
+// the Windows worker-teardown race is probabilistic, a deterministic crash still fails on its
+// second death.
 import { fork } from 'node:child_process';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -28,14 +29,15 @@ const TMP_ROOT = join(HERE, 'tmp');
 // clear raced a concurrent run's live writers (rm walks the dir, a writer adds a file, the
 // final rmdir hits ENOTEMPTY) and swept its modules mid-import
 const TMP = join(TMP_ROOT, `run-${ process.pid }`);
-const CONCURRENCY = Number(process.env.DIFF_SHARDS) || Math.max(1, Math.floor(os.cpus().length / 2));
+const CONCURRENCY = Math.max(1, Math.floor(os.cpus().length / 2));
 // hard cap on snippets per chunk PROCESS, independent of the concurrency above: every full-env
 // evaluation dynamic-imports fresh temp modules into the shard (and its stripped worker), and an
 // ESM module cache only dies with its process - a low-core runner packing the whole corpus into
 // one long-lived shard grows past the CI memory limit and is OOM-killed mid-run ("produced no
-// result", no stack). chunking bounds the cache to a size proven fine on every machine; chunks
-// beyond the concurrency just queue behind the pool
-const SHARD_CAP = Number(process.env.DIFF_SHARD_CAP) || 900;
+// result", no stack). a shard measures ~0.1MB per snippet over a ~500MB floor, so this size holds
+// one around 650MB - the whole corpus in a single process is around a gigabyte. this is the only
+// input to how many passes the pool makes, never a tuning knob for the chunk count itself
+const SHARD_CAP = 1500;
 
 // each eval writes a fresh temp module (dynamic-import never reuses a URL), so trees grow
 // unbounded across runs. reap ONLY dead runs' trees (a killed run never cleans after itself)
@@ -56,9 +58,12 @@ for (const entry of await readdir(TMP_ROOT)) {
 }
 await mkdir(TMP, { recursive: true });
 
-// corpus size drives the chunk count; generation is cheap string building (no transforms)
+// generation is cheap string building (no transforms), so the corpus is materialized just to size
+// the pool. the count is a MULTIPLE of the slot count: the corpus splits evenly over the slots, and
+// each slot's share splits again only when it would breach the memory cap. sizing the count from
+// the cap alone leaves a partly idle tail pass whenever the corpus is not a neat multiple of it
 const corpusTotal = [...generate()].length;
-const CHUNKS = Math.max(CONCURRENCY, Math.ceil(corpusTotal / SHARD_CAP));
+const CHUNKS = CONCURRENCY * Math.max(1, Math.ceil(corpusTotal / SHARD_CAP / CONCURRENCY));
 
 echo(green(`Transpiler differential: ${ cyan(corpusTotal) } snippets in ${ cyan(CHUNKS) } chunks (${ cyan(CONCURRENCY) } concurrent), three oracles per snippet (full-env three-way + pure stripped worker + usage-global stripped realm); progress streams below every 250 snippets`));
 
