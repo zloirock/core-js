@@ -2461,8 +2461,6 @@ export const data = {
   },
   'esnext.array.filter-reject': {
   },
-  'esnext.array.unique-by': {
-  },
   'esnext.async-iterator.constructor': {
   },
   'esnext.async-iterator.drop': {
@@ -2534,8 +2532,6 @@ export const data = {
     deno: '1.40.4',
   },
   'esnext.typed-array.filter-reject': {
-  },
-  'esnext.typed-array.unique-by': {
   },
   'esnext.weak-map.from': {
   },

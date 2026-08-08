@@ -143,7 +143,6 @@ const TypedArrayPrototypeMethods = [
   'es.typed-array.values',
   'es.typed-array.with',
   'esnext.typed-array.filter-reject',
-  'esnext.typed-array.unique-by',
 ];
 
 const Uint8ArrayPrototypeMethods = [
@@ -200,7 +199,6 @@ const TypedArrayInstanceMethodEntries = [
   ['to-reversed', 'es.typed-array.to-reversed'],
   ['to-sorted', 'es.typed-array.to-sorted'],
   ['to-string', 'es.typed-array.to-string'],
-  ['unique-by', 'esnext.typed-array.unique-by'],
   ['values', 'es.typed-array.values'],
   ['with', 'es.typed-array.with'],
 ];
@@ -849,23 +847,6 @@ export const features = {
     modules: ['es.array.unshift'],
     template: $instanceArray,
     name: 'unshift',
-  },
-  'array/unique-by': {
-    modules: ['esnext.array.unique-by'],
-    template: $uncurried,
-    namespace: 'Array',
-    name: 'uniqueBy',
-  },
-  'array/prototype/unique-by': {
-    modules: ['esnext.array.unique-by'],
-    template: $prototype,
-    namespace: 'Array',
-    name: 'uniqueBy',
-  },
-  'array/instance/unique-by': {
-    modules: ['esnext.array.unique-by'],
-    template: $instanceArray,
-    name: 'uniqueBy',
   },
   'array/values': {
     modules: ['es.array.values'],
@@ -1547,11 +1528,6 @@ export const features = {
     modules: ['es.string.trim-start'],
     template: $instanceString,
     name: 'trimStart',
-  },
-  'instance/unique-by': {
-    modules: ['esnext.array.unique-by'],
-    template: $instanceArray,
-    name: 'uniqueBy',
   },
   'instance/unshift': {
     modules: ['es.array.unshift'],
@@ -3787,14 +3763,6 @@ export const proposals = {
     modules: [
       'es.array.includes',
       'es.typed-array.includes',
-    ],
-  },
-  'array-unique': {
-    link: 'https://github.com/tc39/proposal-array-unique',
-    stage: 1,
-    modules: [
-      'esnext.array.unique-by',
-      'esnext.typed-array.unique-by',
     ],
   },
   'async-iteration': {
