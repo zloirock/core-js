@@ -8,7 +8,9 @@
         "targets": {
           "chrome": 135
         },
-        "additionalPackages": ["@x/y"]
+        "additionalPackages": [
+          "@x/y"
+        ]
       }
     ]
   ]
