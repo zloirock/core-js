@@ -8,7 +8,9 @@
         "targets": {
           "ie": 11
         },
-        "additionalPackages": ["my-core-js"]
+        "additionalPackages": [
+          "my-core-js"
+        ]
       }
     ]
   ]
