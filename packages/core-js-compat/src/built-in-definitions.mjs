@@ -485,7 +485,6 @@ export const instance = {
   trimLeft: { string: 'string/instance/trim-left' },
   trimRight: { string: 'string/instance/trim-right' },
   trimStart: { string: 'string/instance/trim-start' },
-  uniqueBy: { array: 'array/instance/unique-by' },
   unshift: { array: 'array/instance/unshift' },
   values: {
     common: 'instance/values',
