@@ -1953,9 +1953,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.array.filter-reject': function () {
     return [].filterReject;
   },
-  'esnext.array.unique-by': function () {
-    return [].uniqueBy;
-  },
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
   },
@@ -2057,9 +2054,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'esnext.typed-array.filter-reject': function () {
     return Int8Array.prototype.filterReject;
-  },
-  'esnext.typed-array.unique-by': function () {
-    return Int8Array.prototype.uniqueBy;
   },
   'esnext.weak-map.from': function () {
     return WeakMap.from;
