@@ -24,7 +24,7 @@ const {
   ignoreBrowserslistConfig: false, // set to `true` to ignore browserslist config
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
     'actual',                 // - an entry point
-    'esnext.array.unique-by', // - a module name
+    'esnext.string.dedent',   // - a module name
     /^web\./,                 // - regex that a module name must satisfy
   ],
   exclude: [                  // optional list / filter of modules to exclude, the signature is similar to `modules` option
@@ -60,8 +60,8 @@ console.log(targets);
   'esnext.array.to-reversed': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
   'esnext.array.to-sorted': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
   'esnext.array.to-spliced': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
-  'esnext.array.unique-by': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
   'esnext.array.with': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
+  'esnext.string.dedent': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
   'esnext.typed-array.to-reversed': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
   'esnext.typed-array.to-sorted': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
   'esnext.typed-array.to-spliced': { chrome: '100', edge: '101', firefox: '100', ios: '14.5-14.8', safari: '15.4' },
