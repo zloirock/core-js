@@ -1,7 +1,6 @@
 'use strict';
-/* eslint-disable es/no-object-getownpropertynames -- safe */
 var classof = require('../internals/classof-raw');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var $getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var arraySlice = require('../internals/array-slice');
 
@@ -20,5 +19,5 @@ var getWindowNames = function (it) {
 module.exports.f = function getOwnPropertyNames(it) {
   return windowNames && classof(it) === 'Window'
     ? getWindowNames(it)
-    : $getOwnPropertyNames(toIndexedObject(it));
+    : $getOwnPropertyNames(toObject(it));
 };

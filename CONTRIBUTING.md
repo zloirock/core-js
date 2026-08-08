@@ -9,24 +9,28 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 ## How to add a new polyfill
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
-- The polyfill should properly work in ES3 and all possible engines. If in some engines it cannot be implemented (for example, it strictly requires more modern ES or unavailable platform features), it should not break any other `core-js` features or application in any way.
+- The polyfill should properly work on all [supported engines](./docs/web/docs/engines.md) - the baseline is engines with at least IE11-level JavaScript features, approximately ES5 with some additions. If in some engines it cannot be implemented (for example, it strictly requires more modern ES or unavailable platform features), it should not break any other `core-js` features or application in any way.
 - Avoid possible observing / breakage polyfills via patching built-ins at runtime: cache all global built-ins in the polyfills code and don't call prototype methods from instances.
 - Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
-- Avoid direct import from `/modules/` path in `/internals|modules/` since it will break optimizations via Babel / `swc`. Specify such dependencies in `/es|stable|actual/full/` entries and use something like [`internals/get-built-in`](./packages/core-js/internals/get-built-in.js) helpers.
-- For export the polyfill, in all common cases use [`internals/export`](./packages/core-js/modules/export.js) helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.
-- If the code of the pure version implementation should significantly differ from the global version (*that's not a frequent situation, in most cases [`internals/is-pure`](./packages/core-js/modules/is-pure.js) constant is enough*), you can add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `core-js-pure` will be copied from `core-js` package.
-- Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs), how to do it [see below](#how-to-update-core-js-compat-data), and the name of the polyfill module to [`packages/core-js-compat/src/modules-by-versions.mjs`](./packages/core-js-compat/src/modules-by-versions.mjs) (this data is also used for getting the default list of polyfills at bundling and generation indexes).
-- Add it to entry points where it's required: directories [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/stable`](./packages/core-js/stable), [`packages/core-js/actual`](./packages/core-js/actual), [`packages/core-js/full`](./packages/core-js/full), [`packages/core-js/proposals`](./packages/core-js/proposals), [`packages/core-js/stage`](./packages/core-js/stage) and [`packages/core-js/web`](./packages/core-js/web).
+- Avoid direct import from `/modules/` path in `/internals|modules/` since it will break optimizations via Babel / `swc`. Specify such dependencies with comments like `// @dependency: es.string.iterator` directly in your module, they will be automatically added to entries, and use something like [`internals/get-built-in`](./packages/core-js/internals/get-built-in.js) helpers.
+- For export the polyfill, in all common cases use [`internals/export`](./packages/core-js/internals/export.js) helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.
+- If the code of the pure version implementation should significantly differ from the global version (*that's not a frequent situation, in most cases [`internals/is-pure`](./packages/core-js/internals/is-pure.js) constant is enough*), you can add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `@core-js/pure` will be copied from `core-js` package.
+- Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs), how to do it [see below](#how-to-update-core-js-compat-data).
+- Add it to entries definitions, see [`scripts/build-entries-and-types/entries-definitions.mjs`](scripts/build-entries-and-types/entries-definitions.mjs).
+- Add the built-in to [`packages/core-js-compat/src/built-in-definitions.mjs`](./packages/core-js-compat/src/built-in-definitions.mjs), otherwise the injection plugins will never inject it, and, if the feature has a return type worth inferring, to [`packages/core-js-compat/src/known-built-in-return-types.mjs`](./packages/core-js-compat/src/known-built-in-return-types.mjs).
+- Register the new built-in in [`tests/eslint/eslint.config.js`](./tests/eslint/eslint.config.js), so that the rules about unpolyfilled built-ins know it exists.
+- Add TypeScript definitions for both versions, [see below](#typescript-type-definitions), and bind them to the module with a `// @types:` comment - `npm run types-coverage` requires it or the explicit `// @no-types` opt-out.
 - Add unit tests to [`tests/unit-global`](./tests/unit-global) and [`tests/unit-pure`](./tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
+- Regenerate the shared transpiler fixtures where the new entry changes their output, babel first: `OVERWRITE=1 npm run test-babel-plugin`, then `OVERWRITE=1 npm run test-unplugin`.
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) are passed.
-- Document it in [site documentation](./docs/web/docs/) and [CHANGELOG.md](./CHANGELOG.md).
+- Document it in [site documentation](./docs/web/docs/), list the new page in [`docs/web/docs/menu.json`](./docs/web/docs/menu.json) - a page missing from it is reachable only by its URL - add the feature to the list in [README.md](./README.md), and describe the change in [CHANGELOG.md](./CHANGELOG.md).
 
 [A simple example of adding a new polyfill.](https://github.com/zloirock/core-js/pull/1294/files)
 
-## How to update `core-js-compat` data
+## How to update `@core-js/compat` data
 
-For updating `core-js-compat` data:
+For updating `@core-js/compat` data:
 
 - If you want to add a new data for a browser, run in this browser `tests/compat/index.html` (tests and results for the actual release are available at [`http://zloirock.github.io/core-js/master/compat`](http://zloirock.github.io/core-js/master/compat)) and you will see what `core-js` modules are required for this browser.
 
@@ -57,7 +61,6 @@ engine            | how to run tests | base data inherits from    | mandatory ch
 `node`            | node runner      | `chrome` (only ES)         | non-ES features  | required
 `opera`           | browser runner   | `chrome`                   |                  | if inconsistent (!= `chrome` - 16)
 `opera-android`   | browser runner   | `opera`, `chrome-android`  |                  | required
-`phantom`         | browser runner   | `safari`                   |                  |
 `quest`           | browser runner   | `chrome-android`           |                  | required
 `react-native`    | hermes runner    | `hermes`                   | required         |
 `rhino`           | rhino runner     |                            | required         |
@@ -66,14 +69,41 @@ engine            | how to run tests | base data inherits from    | mandatory ch
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
 
+## TypeScript type definitions
+
+- TypeScript definitions should be added to the [`packages/core-js-types/src/base`](./packages/core-js-types/src/base) directory.
+- Our type definitions are built on top of ES6. If any related type is missing in ES6, it must be added to the [`packages/core-js-types/src/base/core-js-types`](./packages/core-js-types/src/base/core-js-types) directory and imported via triple-slash directives in your type definition file.
+- Place your type definition into the folder that matches its kind ([`packages/core-js-types/src/base/proposals`](./packages/core-js-types/src/base/proposals), [`packages/core-js-types/src/base/web`](./packages/core-js-types/src/base/web)).
+- Type definitions for the pure version are either generated from the global version types or created manually in the [`packages/core-js-types/src/base/pure`](./packages/core-js-types/src/base/pure) folder. Type build rules for the pure version can be modified using the `@type-options` directive:
+  - `no-extends` – do not extend the base type when adding a prefix to the type/interface
+  - `no-prefix` – do not add a prefix to the type/interface name
+  - `no-constructor` – use it when the type has no constructor (for example, `Math`)
+  - `export-base-constructor` – export the base type’s constructor instead of the prefixed one
+  - `no-export` – do not export this type
+  - `no-redefine` – do not redefine the type’s constructor
+  - `prefix-return-type` – add a prefix to the return type
+- All type definitions must be covered by TSC tests. Add them to the [`tests/type-definitions`](./tests/type-definitions) directory.
+- To build the types, run the command:
+  ```sh
+  npm run build-types
+  ```
+- To test the types, run the command:
+  ```sh
+  npm run test-type-definitions-all
+  ```
+- To run the fast subset of the types test, run the command:
+  ```sh
+  npm run test-type-definitions-smoke
+  ```
+
 ## Style and standards
 
 The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
-- Polyfill implementations should use only ES3 syntax and standard library, they should not use other polyfills from the global scope.
+- Polyfill implementations should use only ES5 syntax, they should not use other polyfills from the global scope. Beyond ES5, they may rely on the additions of the baseline - basic `WeakMap`, basic `Map` and `Set`, the `%TypedArray%` / `ArrayBuffer` / `DataView` constructors, and a way of setting a prototype - for internal use only.
 - Unit tests should use the modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the pure version should not use any modern standard library features.
-- Tools, scripts and tests, performed in NodeJS, should use only the syntax and the standard library available in NodeJS 8.
+- Tools, scripts and tests, performed in NodeJS, should use only the syntax and the standard library available in NodeJS ^22.18.0 || >=24.11.0.
 
-File names should be in the kebab-case. Name of polyfill modules should follow the naming convention `namespace.subnamespace-where-required.feature-name`, for example, `esnext.set.intersection`. The top-level namespace should be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals and `web` for other web standards.
+File names should be in the kebab-case. Name of polyfill modules should follow the naming convention `namespace.subnamespace-where-required.feature-name`, for example, `es.set.intersection`. The top-level namespace should be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals and `web` for other web standards.
 
 ## Testing
 
@@ -90,17 +120,25 @@ You can run parts of the test case separately:
   ```sh
   npm run lint
   ```
-- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), ancient WebKit (PhantomJS), IE11 (if available)):
+- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), IE11 (if available)); the test bundles are built by the script itself, `bundle-package` provides the `core-js-bundle` legs:
   ```sh
-  npx run-s prepare bundle test-unit-karma
+  npx run-s prepare bundle-package test-unit-karma
   ```
 - Unit test case in NodeJS:
   ```sh
-  npx run-s prepare bundle test-unit-node
+  npx run-s prepare bundle-package test-unit-node
   ```
 - Unit test case in Bun:
   ```sh
-  npx run-s prepare bundle test-unit-bun
+  npx run-s prepare bundle-package test-unit-bun
+  ```
+- End-to-end `usage-pure` transpiler tests (polyfilled code at runtime after the babel-plugin / unplugin transformations; the script builds its own bundles). In NodeJS (also part of `test-transpiling`):
+  ```sh
+  npx run-s prepare test-e2e-usage-pure
+  ```
+  In Karma (real browsers):
+  ```sh
+  npx run-s prepare test-e2e-usage-pure-karma
   ```
 - [Test262](https://github.com/tc39/test262) test case (it's not included to the default tests):
   ```sh
@@ -110,21 +148,35 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare test-promises
   ```
-- [ECMAScript `Observable` test case](https://github.com/tc39/proposal-observable):
-  ```sh
-  npx run-s prepare test-observables
-  ```
 - CommonJS entry points tests:
   ```sh
   npx run-s prepare test-entries
   ```
-- `core-js-compat` tools tests:
+- `@core-js/compat` tools tests:
   ```sh
   npx run-s prepare test-compat-tools
   ```
-- `core-js-builder` tests:
+- `@core-js/builder` tests:
   ```sh
   npx run-s prepare test-builder
+  ```
+- Transpiler plugins (`@core-js/babel-plugin`, `@core-js/unplugin`, `@core-js/polyfill-provider`) — shared fixture tests, cross-parser resolver, differential oracle, real-bundler integration and performance gates:
+  ```sh
+  npm run test-transpiling
+  ```
+  This is a composite of the individual runners below (run them separately to narrow down a failure):
+  ```sh
+  npm run test-polyfill-provider        # cross-parser type-resolver and detection tests
+  npm run test-babel-plugin             # babel-plugin shared transpiler fixtures (@babel/core@8, default)
+  npm run test-babel-plugin-unit        # babel-plugin internals (unit)
+  npm run test-babel-plugin-v7          # babel-plugin fixtures against @babel/core@7 (skip list in tests/babel-plugin-v7/skip.mjs)
+  npm run test-babel-plugin-unit-v7     # babel-plugin internals unit against @babel/core@7
+  npm run test-unplugin                 # unplugin shared transpiler fixtures
+  npm run test-unplugin-unit            # unplugin internals (unit)
+  npm run test-e2e-usage-pure           # end-to-end usage-pure bundles in NodeJS (builds them first; Karma leg is separate)
+  npm run test-transpiler-differential  # generated corpus: 3-way native == babel == unplugin + import-set parity + stripped-realm oracle
+  npm run test-transpiler-integration   # every supported bundler across methods and phases, runtime-verified
+  npm run test-transpiler-perf          # complexity-class gates over real packages and synthetic worst-case shapes
   ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```sh

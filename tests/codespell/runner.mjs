@@ -4,13 +4,24 @@ const skip = [
   '**/node_modules/**',
   './tests/**bundles',
   './packages/core-js-bundle/*.js',
+  './website/dist/**',
+  './website/templates/**',
+  './website/src/public/**',
 ];
 
 const ignoreWords = [
+  'ND',
   'aNumber',
+  'customE',
+  'disjointness',
+  'forHead',
+  'forIn',
+  'importEnd',
   'larg',
   'outLow',
+  'prevEnd',
   'statics',
+  'throughTS',
 ];
 
 await $`codespell \

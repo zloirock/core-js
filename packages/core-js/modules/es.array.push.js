@@ -14,7 +14,6 @@ var INCORRECT_TO_LENGTH = fails(function () {
 // https://bugs.chromium.org/p/v8/issues/detail?id=12681
 var properErrorOnNonWritableLength = function () {
   try {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).push();
   } catch (error) {
     return error instanceof TypeError;
@@ -38,5 +37,5 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
     }
     setArrayLength(O, len);
     return len;
-  }
+  },
 });

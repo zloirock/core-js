@@ -1,6 +1,4 @@
-import { STRICT } from '../helpers/constants.js';
-
-import sort from 'core-js-pure/es/array/sort';
+import sort from '@core-js/pure/es/array/sort';
 
 QUnit.test('Array#sort', assert => {
   assert.isFunction(sort);
@@ -124,8 +122,6 @@ QUnit.test('Array#sort', assert => {
     assert.throws(() => sort([Symbol(1), Symbol(2)]), 'w/o cmp throws on symbols');
   }
 
-  if (STRICT) {
-    assert.throws(() => sort(null), TypeError, 'ToObject(this)');
-    assert.throws(() => sort(undefined), TypeError, 'ToObject(this)');
-  }
+  assert.throws(() => sort(null), TypeError, 'ToObject(this)');
+  assert.throws(() => sort(undefined), TypeError, 'ToObject(this)');
 });

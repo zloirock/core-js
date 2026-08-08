@@ -1,7 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
-
-import Symbol from 'core-js-pure/es/symbol';
-import toSorted from 'core-js-pure/es/array/to-sorted';
+import Symbol from '@core-js/pure/es/symbol';
+import toSorted from '@core-js/pure/es/array/to-sorted';
 
 QUnit.test('Array#toSorted', assert => {
   assert.isFunction(toSorted);
@@ -127,8 +125,6 @@ QUnit.test('Array#toSorted', assert => {
   } };
   assert.true(toSorted(array) instanceof Array, 'non-generic');
 
-  if (STRICT) {
-    assert.throws(() => toSorted(null), TypeError, 'ToObject(this)');
-    assert.throws(() => toSorted(undefined), TypeError, 'ToObject(this)');
-  }
+  assert.throws(() => toSorted(null), TypeError, 'ToObject(this)');
+  assert.throws(() => toSorted(undefined), TypeError, 'ToObject(this)');
 });

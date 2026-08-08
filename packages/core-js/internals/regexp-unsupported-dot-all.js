@@ -1,11 +1,9 @@
 'use strict';
-var fails = require('../internals/fails');
 var globalThis = require('../internals/global-this');
-
-// babel-minify and Closure Compiler transpiles RegExp('.', 's') -> /./s and it causes SyntaxError
-var $RegExp = globalThis.RegExp;
+var fails = require('../internals/fails');
 
 module.exports = fails(function () {
-  var re = $RegExp('.', 's');
+  // babel-minify and Closure Compiler transpiles RegExp('.', 's') -> /./s and it causes SyntaxError
+  var re = globalThis.RegExp('.', 's');
   return !(re.dotAll && re.test('\n') && re.flags === 's');
 });

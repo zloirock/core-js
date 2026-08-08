@@ -1,0 +1,1 @@
+"str".with(0, value);

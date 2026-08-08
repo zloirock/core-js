@@ -1,0 +1,18 @@
+{
+  "name": "tests/transpiler-integration",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@farmfe/core": "^1.7.11",
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rsbuild/core": "^2.1.10",
+    "@rspack/core": "^2.1.8",
+    "core-js": "file:../../packages/core-js",
+    "esbuild": "^0.28.1",
+    "rolldown": "^1.2.3",
+    "rollup": "^4.62.4",
+    "vite": "^8.2.1",
+    "webpack": "^5.109.2"
+  }
+}

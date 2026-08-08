@@ -2,6 +2,6 @@
   "name": "tests/type-definitions",
   "type": "module",
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "@types/node": "^26.2.0"
   }
 }

@@ -17,5 +17,8 @@ class Set {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/set-methods-v2
+core-js/proposals/set-methods
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/set-methods`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/set-methods.d.ts)

@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#at', assert => {
   const { at } = Array.prototype;
   assert.isFunction(at);
@@ -7,6 +5,7 @@ QUnit.test('Array#at', assert => {
   assert.name(at, 'at');
   assert.looksNative(at);
   assert.nonEnumerable(Array.prototype, 'at');
+
   assert.same([1, 2, 3].at(0), 1);
   assert.same([1, 2, 3].at(1), 2);
   assert.same([1, 2, 3].at(2), 3);
@@ -24,8 +23,7 @@ QUnit.test('Array#at', assert => {
   assert.same(Array(1).at(0), undefined);
   assert.same(at.call({ 0: 1, length: 1 }, 0), 1);
   assert.true('at' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
-  if (STRICT) {
-    assert.throws(() => at.call(null, 0), TypeError);
-    assert.throws(() => at.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => at.call(null, 0), TypeError);
+  assert.throws(() => at.call(undefined, 0), TypeError);
 });

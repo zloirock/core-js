@@ -33,6 +33,7 @@ var SPLIT_WORKS_WITH_OVERWRITTEN_EXEC = !fails(function () {
   return result.length !== 2 || result[0] !== 'a' || result[1] !== 'b';
 });
 
+// eslint-disable-next-line unicorn/prefer-split-limit -- probing native split bug; a limit would change the result shape
 var BUGGY = 'abbc'.split(/(b)*/)[1] === 'c' ||
   // eslint-disable-next-line regexp/no-empty-group -- required for testing
   'test'.split(/(?:)/, -1).length !== 4 ||
@@ -72,6 +73,7 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
         if (res.done) return res.value;
       }
 
+      // @dependency: es.regexp.species
       var C = speciesConstructor(rx, RegExp);
       var flags = toString(getRegExpFlags(rx));
       var unicodeMatching = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
@@ -108,6 +110,6 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
       }
       push(A, stringSlice(S, p));
       return A;
-    }
+    },
   ];
 }, BUGGY || !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC, UNSUPPORTED_Y);

@@ -1,11 +1,11 @@
 // TODO: fix escaping in regexps
 /* eslint-disable prefer-regex-literals, regexp/prefer-regexp-exec -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
-const run = assert => {
+function run(assert) {
   assert.isFunction(''.match);
   assert.arity(''.match, 1);
   assert.name(''.match, 'match');
@@ -173,7 +173,7 @@ const run = assert => {
   assert.same(''.match.call(number, regexp).input, String(number), 'S15.5.4.10_A2_T18 #4');
 
   assert.throws(() => ''.match.call(Symbol('match test'), /./), 'throws on symbol context');
-};
+}
 
 QUnit.test('String#match regression', run);
 
@@ -196,9 +196,10 @@ QUnit.test('RegExp#@@match basic behavior', assert => {
 });
 
 QUnit.test('String#match delegates to @@match', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
+  /* eslint-disable es/no-nonstandard-array-prototype-properties -- @@match */
   object[Symbol.match] = function (it) {
     return { value: it };
   };
@@ -210,13 +211,14 @@ QUnit.test('String#match delegates to @@match', assert => {
   };
   assert.same(string.match(regexp).value, string);
   assert.same(''.match.call(number, regexp).value, number);
+  /* eslint-enable es/no-nonstandard-array-prototype-properties -- @@match */
 });
 
 QUnit.test('RegExp#@@match delegates to exec', assert => {
-  const exec = function (...args) {
+  function exec(...args) {
     execCalled = true;
     return /./.exec.apply(this, args);
-  };
+  }
 
   let execCalled = false;
   let re = /[ac]/;

@@ -1,7 +1,7 @@
+// @types: proposals/array-grouping
 'use strict';
 var $ = require('../internals/export');
 var createProperty = require('../internals/create-property');
-var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -12,7 +12,7 @@ var fails = require('../internals/fails');
 
 // eslint-disable-next-line es/no-object-groupby -- testing
 var nativeGroupBy = Object.groupBy;
-var create = getBuiltIn('Object', 'create');
+var create = Object.create;
 var push = uncurryThis([].push);
 
 // https://bugs.webkit.org/show_bug.cgi?id=271524
@@ -30,6 +30,9 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
     aCallable(callbackfn);
     var obj = create(null);
     var k = 0;
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     iterate(items, function (value) {
       doesNotExceedSafeInteger(k);
       var key = toPropertyKey(callbackfn(value, k++));
@@ -39,5 +42,5 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
       else createProperty(obj, key, [value]);
     });
     return obj;
-  }
+  },
 });
