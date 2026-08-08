@@ -2,7 +2,5 @@ node_modules/
 *.log
 .*
 
-/override/
-/package.tpl.json
 /AGENTS.md
 /CLAUDE.md
