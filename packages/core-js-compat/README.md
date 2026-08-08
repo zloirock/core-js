@@ -24,7 +24,7 @@ const {
   ignoreBrowserslistConfig: false, // set to `true` to ignore browserslist config
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
     'actual',                 // - an entry point
-    'esnext.array.unique-by', // - a module name
+    'esnext.string.dedent',   // - a module name
     /^web\./,                 // - regex that a module name must satisfy
   ],
   exclude: [                  // optional list / filter of modules to exclude, the signature is similar to `modules` option

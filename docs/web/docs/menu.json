@@ -334,10 +334,6 @@
                 "url": "{docs-version}/docs/features/proposals/array-filtering"
               },
               {
-                "title": "Array deduplication",
-                "url": "{docs-version}/docs/features/proposals/array-unique"
-              },
-              {
                 "title": "DataView get/set Uint8Clamped methods",
                 "url": "{docs-version}/docs/features/proposals/data-view-get-set-uint8-clamped"
               },
