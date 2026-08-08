@@ -3,3 +3,6 @@ package.tpl.json
 /src/
 *.log
 .*
+
+/AGENTS.md
+/CLAUDE.md
