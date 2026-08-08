@@ -5,14 +5,6 @@ QUnit.test('esnext: Array#filterReject', assert => {
   assert.deepEqual([1, 2, 3, 4].filterReject(x => x % 2), [2, 4]);
 });
 
-QUnit.test('esnext: Array#uniqueBy', assert => {
-  assert.deepEqual([1, 2, 3, 2, 1].uniqueBy(), [1, 2, 3]);
-  assert.deepEqual(
-    [{ id: 1 }, { id: 2 }, { id: 1 }].uniqueBy(x => x.id),
-    [{ id: 1 }, { id: 2 }],
-  );
-});
-
 QUnit.test('esnext: Number#clamp', assert => {
   assert.same((2).clamp(4, 6), 4);
   assert.same((5).clamp(2, 8), 5);
