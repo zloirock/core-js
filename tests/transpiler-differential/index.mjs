@@ -65,7 +65,7 @@ await mkdir(TMP, { recursive: true });
 const corpusTotal = [...generate()].length;
 const CHUNKS = CONCURRENCY * Math.max(1, Math.ceil(corpusTotal / SHARD_CAP / CONCURRENCY));
 
-echo(green(`Transpiler differential: ${ cyan(corpusTotal) } snippets in ${ cyan(CHUNKS) } chunks (${ cyan(CONCURRENCY) } concurrent), three oracles per snippet (full-env three-way + pure stripped worker + usage-global stripped realm); progress streams below every 250 snippets`));
+echo(green(`Transpiler differential: ${ cyan(corpusTotal) } snippets in ${ cyan(CHUNKS) } chunks (${ cyan(CONCURRENCY) } concurrent), three oracles per snippet (full-env three-way + pure stripped worker + usage-global stripped realm); progress streams below every ${ cyan(100) } snippets`));
 
 const MARKER = /@@SHARD@@(?<json>.*)@@/u;
 const children = [];
