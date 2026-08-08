@@ -187,7 +187,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 1 proposals](#stage-1-proposals)
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`Array` filtering](#array-filtering)
-      - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`String.cooked`](#stringcooked)
       - [`Symbol.customMatcher` for pattern matching](#symbolcustommatcher-for-pattern-matching)
@@ -3174,34 +3173,6 @@ core-js/full/typed-array/filter-reject
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ```
-##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
-Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
-```ts
-class Array {
-  uniqueBy(resolver?: (item: any) => any): Array<mixed>;
-}
-
-class %TypedArray% {
-  uniqueBy(resolver?: (item: any) => any): %TypedArray%;;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-unique
-core-js(-pure)/full/array(/prototype)/unique-by
-core-js/full/typed-array/unique-by
-```
-[*Examples*](https://is.gd/lilNPu):
-```js
-[1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
-
-[
-  { id: 1, uid: 10000 },
-  { id: 2, uid: 10000 },
-  { id: 3, uid: 10001 },
-].uniqueBy(it => it.uid);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
-```
-
 ##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
 Modules [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
 ```ts
