@@ -12,16 +12,16 @@ npm install --save @core-js/bundle@4.0.0-alpha.1
 You can import only-required-for-you polyfills, like in the examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```ts
-// polyfill all `core-js` features, including early-stage proposals:
-import 'core-js';
-// or:
-import 'core-js/full';
 // polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
-import 'core-js/actual';
-// polyfill only stable features - ES and web standards:
-import 'core-js/stable';
+import "core-js";
+// or:
+import "core-js/actual";
 // polyfill only stable ES features:
-import 'core-js/es';
+import "core-js/es";
+// polyfill only stable features - ES and web standards:
+import "core-js/stable";
+// polyfill all `core-js` features, including early-stage proposals:
+import "core-js/full";
 
 // if you want to polyfill `Set`:
 // all `Set`-related features, with early-stage ES proposals:
@@ -366,12 +366,13 @@ import 'core-js/modules/es.array.unscopables.flat';
 import 'core-js/modules/es.array.unscopables.flat-map';
 import 'core-js/modules/es.object.from-entries';
 import 'core-js/modules/web.immediate';
+// ...and the rest of the modules not yet supported by Chrome 71
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
 ```ts
 import 'core-js/es';
 import 'core-js/proposals/set-methods';
-import 'core-js/full/set/map';
+import 'core-js/full/string/dedent';
 ```
 with `chrome 71` target you will have as the result:
 ```ts
@@ -385,7 +386,8 @@ import 'core-js/modules/es.set.is-subset-of';
 import 'core-js/modules/es.set.is-superset-of';
 import 'core-js/modules/es.set.symmetric-difference';
 import 'core-js/modules/es.set.union';
-import 'core-js/modules/esnext.set.map';
+import 'core-js/modules/esnext.string.dedent';
+// ...and the rest of the modules not yet supported by Chrome 71
 ```
 
 - `useBuiltIns: 'usage'` adds to the top of each file import of polyfills for features used in this file and not supported by target environments, so for:
