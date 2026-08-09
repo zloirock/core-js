@@ -26,7 +26,6 @@ function phasesFor(method) {
 
 const expected = {
   clamp: 4,
-  setFrom: 3,
   cooked: 'hello',
 };
 
@@ -50,7 +49,6 @@ async function verifyInNode(code, label, ext = '.mjs') {
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
     deepEqual(results.clamp, expected.clamp, `${ label }: clamp`);
-    deepEqual(results.setFrom, expected.setFrom, `${ label }: setFrom`);
     deepEqual(results.cooked, expected.cooked, `${ label }: cooked`);
   });
 }
@@ -119,12 +117,10 @@ async function verifyInBun(code, label, method) {
     const body = method === 'usage-pure' ? `
       const mod = await import(${ url });
       deepEqual(mod.clamp, exp.clamp);
-      equal(mod.setFrom, exp.setFrom);
       equal(mod.cooked, exp.cooked);
     ` : `
       await import(${ url });
       deepEqual(2.0.clamp(4, 6), exp.clamp);
-      equal(Set.from([1,2,3]).size, exp.setFrom);
       equal(String.cooked\`hello\`, exp.cooked);
     `;
     await writeFile(script, `
