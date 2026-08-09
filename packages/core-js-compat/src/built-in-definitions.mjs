@@ -104,9 +104,7 @@ export const statics = {
     stringify: 'json/stringify',
   },
   Map: {
-    from: 'map/from',
     groupBy: 'map/group-by',
-    of: 'map/of',
   },
   Math: {
     acosh: 'math/acosh',
@@ -210,10 +208,6 @@ export const statics = {
   RegExp: {
     escape: 'regexp/escape',
   },
-  Set: {
-    from: 'set/from',
-    of: 'set/of',
-  },
   String: {
     cooked: 'string/cooked',
     dedent: 'string/dedent',
@@ -259,14 +253,6 @@ export const statics = {
   URL: {
     canParse: 'url/can-parse',
     parse: 'url/parse',
-  },
-  WeakMap: {
-    from: 'weak-map/from',
-    of: 'weak-map/of',
-  },
-  WeakSet: {
-    from: 'weak-set/from',
-    of: 'weak-set/of',
   },
   WebAssembly: {
     CompileError: ErrorConstructor,

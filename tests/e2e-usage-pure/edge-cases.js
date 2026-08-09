@@ -260,7 +260,7 @@ QUnit.test('AggregateError: constructor and errors', assert => {
 // disable directive - WeakMap.of is not native anywhere, so without polyfill it throws
 QUnit.test('disable: core-js-disable-next-line prevents polyfill', assert => {
   // core-js-disable-next-line
-  assert.same(typeof WeakMap.of, 'undefined');
+  assert.same(typeof String.dedent, 'undefined');
 });
 
 // new on polyfilled constructor result

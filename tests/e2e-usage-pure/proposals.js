@@ -18,24 +18,6 @@ QUnit.test('esnext: String.cooked', assert => {
   assert.same(String.cooked(['Hi\\n', '!'], 'Bob'), 'Hi\\nBob!');
 });
 
-QUnit.test('esnext: Set.from', assert => {
-  assert.deepEqual(Array.from(Set.from([1, 2, 3, 2, 1])), [1, 2, 3]);
-});
-
-QUnit.test('esnext: Map.from', assert => {
-  const m = Map.from([[1, 'a'], [2, 'b']]);
-  assert.same(m.get(1), 'a');
-  assert.same(m.get(2), 'b');
-});
-
-QUnit.test('esnext: WeakMap.from', assert => {
-  const k1 = {},
-        k2 = {};
-  const wm = WeakMap.from([[k1, 1], [k2, 2]]);
-  assert.same(wm.get(k1), 1);
-  assert.same(wm.get(k2), 2);
-});
-
 QUnit.test('esnext: Iterator.zip', assert => {
   assert.deepEqual(Array.from(Iterator.zip([[1, 2, 3], [4, 5, 6]])), [[1, 4], [2, 5], [3, 6]]);
 });
@@ -46,39 +28,6 @@ QUnit.test('esnext: Iterator#chunks', assert => {
 
 QUnit.test('esnext: Iterator#windows', assert => {
   assert.deepEqual(Array.from(Iterator.from([1, 2, 3, 4]).windows(2)), [[1, 2], [2, 3], [3, 4]]);
-});
-
-QUnit.test('esnext: Set.of', assert => {
-  const set = Set.of(1, 2, 3);
-  assert.same(set.size, 3);
-  assert.true(set.has(2));
-});
-
-QUnit.test('esnext: Map.of', assert => {
-  const map = Map.of(['a', 1], ['b', 2]);
-  assert.same(map.size, 2);
-  assert.same(map.get('a'), 1);
-});
-
-QUnit.test('esnext: WeakSet.from', assert => {
-  const obj1 = {};
-  const obj2 = {};
-  const ws = WeakSet.from([obj1, obj2]);
-  assert.true(ws.has(obj1));
-  assert.true(ws.has(obj2));
-});
-
-QUnit.test('esnext: WeakSet.of', assert => {
-  const obj1 = {};
-  const obj2 = {};
-  const ws = WeakSet.of(obj1, obj2);
-  assert.true(ws.has(obj1));
-});
-
-QUnit.test('esnext: WeakMap.of', assert => {
-  const k1 = {};
-  const wm = WeakMap.of([k1, 42]);
-  assert.same(wm.get(k1), 42);
 });
 
 QUnit.test('esnext: Error.isError', assert => {

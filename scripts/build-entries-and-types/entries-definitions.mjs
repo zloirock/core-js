@@ -1824,23 +1824,11 @@ export const features = {
     namespace: 'Map',
     name: 'getOrInsertComputed',
   },
-  'map/from': {
-    modules: ['esnext.map.from', ...MapWithPrototype],
-    template: $static,
-    namespace: 'Map',
-    name: 'from',
-  },
   'map/group-by': {
     modules: ['es.map.group-by', ...MapWithPrototype],
     template: $static,
     namespace: 'Map',
     name: 'groupBy',
-  },
-  'map/of': {
-    modules: ['esnext.map.of', ...MapWithPrototype],
-    template: $static,
-    namespace: 'Map',
-    name: 'of',
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
@@ -2602,12 +2590,6 @@ export const features = {
     namespace: 'Set',
     name: 'difference',
   },
-  'set/from': {
-    modules: ['esnext.set.from', ...SetWithPrototype],
-    template: $static,
-    namespace: 'Set',
-    name: 'from',
-  },
   'set/intersection': {
     modules: ['es.set.intersection'],
     template: $uncurried,
@@ -2655,12 +2637,6 @@ export const features = {
     template: $prototype,
     namespace: 'Set',
     name: 'isSupersetOf',
-  },
-  'set/of': {
-    modules: ['esnext.set.of', ...SetWithPrototype],
-    template: $static,
-    namespace: 'Set',
-    name: 'of',
   },
   'set/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
@@ -3536,18 +3512,6 @@ export const features = {
     template: $namespace,
     name: 'WeakMap',
   },
-  'weak-map/from': {
-    modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
-    template: $static,
-    namespace: 'WeakMap',
-    name: 'from',
-  },
-  'weak-map/of': {
-    modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
-    template: $static,
-    namespace: 'WeakMap',
-    name: 'of',
-  },
   'weak-map/get-or-insert': {
     modules: ['es.weak-map.get-or-insert'],
     template: $uncurried,
@@ -3581,18 +3545,6 @@ export const features = {
     modules: [...WeakSetWithPrototype],
     template: $namespace,
     name: 'WeakSet',
-  },
-  'weak-set/from': {
-    modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
-    template: $static,
-    namespace: 'WeakSet',
-    name: 'from',
-  },
-  'weak-set/of': {
-    modules: ['esnext.weak-set.of', ...WeakSetWithPrototype],
-    template: $static,
-    namespace: 'WeakSet',
-    name: 'of',
   },
   atob: {
     modules: ['web.atob'],
@@ -3779,20 +3731,6 @@ export const proposals = {
       'es.typed-array.to-reversed',
       'es.typed-array.to-sorted',
       'es.typed-array.with',
-    ],
-  },
-  'collection-of-from': {
-    link: 'https://github.com/tc39/proposal-setmap-offrom',
-    stage: 1,
-    modules: [
-      'esnext.map.from',
-      'esnext.map.of',
-      'esnext.set.from',
-      'esnext.set.of',
-      'esnext.weak-map.from',
-      'esnext.weak-map.of',
-      'esnext.weak-set.from',
-      'esnext.weak-set.of',
     ],
   },
   'data-view-get-set-uint8-clamped': {
