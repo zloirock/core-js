@@ -324,7 +324,6 @@ export const instance = {
       iterator: 'iterator/filter',
     },
   },
-  filterReject: { array: 'array/instance/filter-reject' },
   finally: { global: { promise: 'promise/finally' } },
   find: {
     pure: {
