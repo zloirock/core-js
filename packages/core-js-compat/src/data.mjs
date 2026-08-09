@@ -2433,8 +2433,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  'esnext.array.filter-reject': {
-  },
   'esnext.async-iterator.constructor': {
   },
   'esnext.async-iterator.drop': {
@@ -2515,8 +2513,6 @@ export const data = {
   },
   'esnext.symbol.metadata': {
     deno: '1.40.4',
-  },
-  'esnext.typed-array.filter-reject': {
   },
   'esnext.weak-map.from': {
   },

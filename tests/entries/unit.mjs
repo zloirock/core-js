@@ -1093,8 +1093,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
     ok(load(NS, 'symbol/metadata'));
-    ok(typeof load(NS, 'array/filter-reject') == 'function');
-    ok(typeof load(NS, 'array/prototype/filter-reject') == 'function');
     ok(typeof load(NS, 'async-iterator/constructor') == 'function');
     ok(typeof load(NS, 'async-iterator/from') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
@@ -1159,24 +1157,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof instanceDemethodize([].slice) == 'function');
     ok(instanceDemethodize([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
 
-    const instanceFilterReject = load(NS, 'instance/filter-reject');
-    ok(typeof instanceFilterReject == 'function');
-    ok(instanceFilterReject({}) === undefined);
-    ok(typeof instanceFilterReject([]) == 'function');
-    ok(instanceFilterReject([]).call([1, 2, 3], it => it % 2).length === 1);
-
     const numberInstanceClamp = load(NS, 'number/instance/clamp');
     ok(typeof numberInstanceClamp == 'function');
     ok(typeof numberInstanceClamp(1) == 'function');
-
-    const arrayInstanceFilterReject = load(NS, 'array/instance/filter-reject');
-    ok(typeof arrayInstanceFilterReject == 'function');
-    ok(typeof arrayInstanceFilterReject([]) == 'function');
-    ok(arrayInstanceFilterReject([]).call([1, 2, 3], it => it > 1).length === 1);
   }
 
   load('proposals/accessible-object-hasownproperty');
-  load('proposals/array-filtering');
   load('proposals/array-find-from-last');
   load('proposals/array-flat-map');
   load('proposals/array-from-async');
@@ -1335,16 +1321,6 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
     load(NS, `${ TA }/set-from-hex`);
     load(NS, `${ TA }/to-base64`);
     load(NS, `${ TA }/to-hex`);
-  }
-}
-
-for (const NS of ['full']) {
-  load(NS, 'typed-array/filter-reject');
-
-  // individual typed array esnext methods
-  for (const TA of ['float32-array', 'float64-array', 'int8-array', 'int16-array', 'int32-array',
-    'uint8-array', 'uint8-clamped-array', 'uint16-array', 'uint32-array']) {
-    load(NS, `${ TA }/filter-reject`);
   }
 }
 
