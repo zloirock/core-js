@@ -142,7 +142,6 @@ const TypedArrayPrototypeMethods = [
   'es.typed-array.to-string-tag',
   'es.typed-array.values',
   'es.typed-array.with',
-  'esnext.typed-array.filter-reject',
 ];
 
 const Uint8ArrayPrototypeMethods = [
@@ -174,7 +173,6 @@ const TypedArrayInstanceMethodEntries = [
   ['every', 'es.typed-array.every'],
   ['fill', 'es.typed-array.fill'],
   ['filter', 'es.typed-array.filter'],
-  ['filter-reject', 'esnext.typed-array.filter-reject'],
   ['find', 'es.typed-array.find'],
   ['find-index', 'es.typed-array.find-index'],
   ['find-last', 'es.typed-array.find-last'],
@@ -402,23 +400,6 @@ export const features = {
     modules: ['es.array.filter'],
     template: $instanceArray,
     name: 'filter',
-  },
-  'array/filter-reject': {
-    modules: ['esnext.array.filter-reject'],
-    template: $uncurried,
-    namespace: 'Array',
-    name: 'filterReject',
-  },
-  'array/prototype/filter-reject': {
-    modules: ['esnext.array.filter-reject'],
-    template: $prototype,
-    namespace: 'Array',
-    name: 'filterReject',
-  },
-  'array/instance/filter-reject': {
-    modules: ['esnext.array.filter-reject'],
-    template: $instanceArray,
-    name: 'filterReject',
   },
   'array/find': {
     modules: ['es.array.find'],
@@ -1322,11 +1303,6 @@ export const features = {
     modules: ['es.array.filter'],
     template: $instanceArray,
     name: 'filter',
-  },
-  'instance/filter-reject': {
-    modules: ['esnext.array.filter-reject'],
-    template: $instanceArray,
-    name: 'filterReject',
   },
   'instance/find': {
     modules: ['es.array.find'],
@@ -3712,14 +3688,6 @@ export const proposals = {
       'es.array-buffer.detached',
       'es.array-buffer.transfer',
       'es.array-buffer.transfer-to-fixed-length',
-    ],
-  },
-  'array-filtering': {
-    link: 'https://github.com/tc39/proposal-array-filtering',
-    stage: 1,
-    modules: [
-      'esnext.array.filter-reject',
-      'esnext.typed-array.filter-reject',
     ],
   },
   'array-find-from-last': {
