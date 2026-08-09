@@ -14,7 +14,7 @@ That bottom part decides what actually applies to a file, and it is dozens of bi
 
 - ES5 *syntax* is bound to `packages/core-js?(-pure)/**` and to `tests/compat/*.js`, and to nothing else
 - the forbidden built-ins are a separate set, and it reaches further: the same runtime packages, plus `tests/helpers/` and `tests/unit-pure/` - the pure tests import those helpers - plus the compat runners, but not `tests/compat/tests.js`, where touching a modern built-in is the whole point of the file
-- fenced `js` blocks in markdown are linted like any other source, so an example added to a README or to `CONTRIBUTING.md` has to pass the style rules; `docs/**` is ignored, and its snippets are checked by nothing
+- fenced `js` blocks in markdown are linted like any other source, but `docs/**` is ignored, so the snippets on the site are checked by nothing
 
 Files that are not bound anywhere are usually not mis-globbed but listed in the single `ignores` block, which covers the generated and vendored trees.
 
