@@ -1,5 +1,10 @@
-import { ok, strictEqual } from 'node:assert/strict';
+import { doesNotReject, ok, rejects, strictEqual, throws } from 'node:assert/strict';
+import { access, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
+import { createContext, runInContext } from 'node:vm';
 import builder from '@core-js/builder';
+import { getRolldownOptions } from '@core-js/builder/config.js';
 
 const { script } = await builder({
   modules: 'actual',
@@ -17,43 +22,61 @@ ok(!script.includes("import 'core-js/modules/es.typed-array.with.js';"), 'actual
 ok(!script.includes("import 'core-js/modules/es.object.group-by.js';"), 'actual node 16 #7');
 ok(!script.includes("import 'core-js/modules/esnext.string.dedent.js';"), 'actual node 16 #8');
 
-strictEqual(
-  await builder({ targets: 'Android >= 5', format: 'esm' }),
-  await builder({ targets: { android: '37' }, format: 'esm' }),
-  'mobile browserslist range includes all required polyfills',
-);
+// the entry template of a `bundle` build is generated outside of the package, where the usual walk up to
+// `node_modules` does not find `core-js` - and an unresolved specifier is not a build error, it turns the
+// module into an external import and silently leaves it out of the output
+const options = getRolldownOptions('input.js', 'output.js');
+const [coreJSLookup] = options.resolve.modules;
 
-const modulesPolyfills = await builder({
-  modules: 'es.array.at',
-  targets: 'supports es6-module',
-  format: 'esm',
-});
+ok(isAbsolute(coreJSLookup), 'rolldown options #1');
+await doesNotReject(access(join(coreJSLookup, 'core-js/package.json')), 'rolldown options #2');
+ok(options.resolve.modules.includes('node_modules'), 'rolldown options #3');
+throws(() => options.onLog('warn', { code: 'UNRESOLVED_IMPORT', message: 'dropped module' }, () => {
+  throw new Error('delegated instead of failing');
+}), /dropped module/, 'rolldown options #4');
 
-ok(modulesPolyfills.includes("import 'core-js/modules/es.array.at.js';"), 'supports query including Safari TP preserves older targets');
+let delegated = null;
+options.onLog('warn', { code: 'CIRCULAR_DEPENDENCY' }, (level, log) => delegated = log.code);
+strictEqual(delegated, 'CIRCULAR_DEPENDENCY', 'rolldown options #5');
 
-const allPolyfills = await builder({ format: 'esm' });
+// point the OS temporary directory at one the test owns, so both the location of the scratch files and their
+// removal are observable - an unreachable one has to break the build, a writable one has to come back empty
+const sandbox = await mkdtemp(join(tmpdir(), 'core-js-builder-test-'));
+const restore = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+const bundleOptions = { modules: ['es.object.group-by', 'es.array.at'], targets: { ie: 11 }, format: 'bundle' };
 
-strictEqual(await builder({ exclude: null, format: 'esm' }), allPolyfills, 'exclude: null means no exclusions');
-
-for (const targets of [{}, { esmodules: false }, 'kaios 2.5']) {
-  strictEqual(await builder({ targets, format: 'esm' }), allPolyfills, `empty targets: ${ JSON.stringify(targets) }`);
+function redirectTempDirectory(directory) {
+  Object.assign(process.env, { TMPDIR: directory, TEMP: directory, TMP: directory });
 }
 
-const excludedPolyfills = await builder({
-  modules: ['core-js/actual', /^esnext\.reflect\./],
-  exclude: [/^es\.math\./, 'es.number.constructor'],
-  targets: '> 0.5%, not dead, ie 9-11',
-  format: 'cjs',
-});
+redirectTempDirectory(join(sandbox, 'missing'));
 
-ok(!excludedPolyfills.includes("require('core-js/modules/esnext.math.f16round');"), 'README example excludes Math.f16round alias');
-ok(!excludedPolyfills.includes("require('core-js/modules/esnext.math.sum-precise');"), 'README example excludes Math.sumPrecise alias');
-ok(excludedPolyfills.includes("require('core-js/modules/es.array.at');"), 'README example preserves unrelated polyfills');
+await rejects(builder(bundleOptions), { code: 'ENOENT' }, 'bundle ie 11 #1');
 
-strictEqual(
-  await builder({ modules: ['es.array.at', 'esnext.array.at', 'es.array.includes'], exclude: 'esnext.array.at', targets: 'ie 11', format: 'cjs' }),
-  await builder({ modules: 'es.array.includes', targets: 'ie 11', format: 'cjs' }),
-  'excluding an alias also excludes its stable module and preserves unrelated polyfills',
-);
+redirectTempDirectory(sandbox);
+
+strictEqual(tmpdir(), sandbox, 'bundle ie 11 #2');
+
+const { script: bundle } = await builder(bundleOptions);
+const leftovers = await readdir(sandbox);
+
+for (const [key, value] of Object.entries(restore)) {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
+
+await rm(sandbox, { force: true, recursive: true });
+
+const context = createContext({});
+
+runInContext('delete Object.groupBy; delete Array.prototype.at;', context);
+runInContext(bundle, context);
+
+strictEqual(runInContext('typeof Object.groupBy', context), 'function', 'bundle ie 11 #3');
+strictEqual(runInContext('typeof Array.prototype.at', context), 'function', 'bundle ie 11 #4');
+strictEqual(runInContext('JSON.stringify(Object.groupBy([1, 2, 3], it => it % 2))', context), '{"0":[2],"1":[1,3]}', 'bundle ie 11 #5');
+strictEqual(runInContext('[1, 2, 3].at(-1)', context), 3, 'bundle ie 11 #6');
+strictEqual(runInContext('typeof structuredClone', context), 'undefined', 'bundle ie 11 #7');
+strictEqual(leftovers.length, 0, 'bundle ie 11 #8');
 
 echo(chalk.green('builder tested'));
