@@ -22,6 +22,8 @@ Mutates the AST in place during traversal, inside Babel's own parse. The other a
 
 Anything that has to be fixed in this package *and* in unplugin belongs in the provider instead.
 
+Before writing a helper or a branch, check the canon: `npm run canon -- find "<behavior words>"` searches the plugin packages and the `@core-js/compat` sources by names, contracts and comment text - what you are about to write may already exist in the provider or in unplugin under a name you would not guess; `npm run canon -- show <file:line>` reads a candidate whole. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit.
+
 ## Tests
 
 - `npm run test-babel-plugin` - shared fixtures from `tests/transpiler-fixtures/`, against `@babel/core@8` (the default)
