@@ -1921,9 +1921,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && set.add({}) === set
       && set[Symbol.toStringTag];
   }],
-  'esnext.array.filter-reject': function () {
-    return [].filterReject;
-  },
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
   },
@@ -2022,9 +2019,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'esnext.symbol.metadata': function () {
     return Symbol.metadata;
-  },
-  'esnext.typed-array.filter-reject': function () {
-    return Int8Array.prototype.filterReject;
   },
   'esnext.weak-map.from': function () {
     return WeakMap.from;
