@@ -2493,10 +2493,6 @@ export const data = {
     bun: '1.4.0',
     firefox: '154',
   },
-  'esnext.map.from': {
-  },
-  'esnext.map.of': {
-  },
   'esnext.number.clamp': {
   },
   'esnext.object.keys-length': {
@@ -2506,10 +2502,6 @@ export const data = {
   },
   'esnext.promise.all-settled-keyed': {
     firefox: '155',
-  },
-  'esnext.set.from': {
-  },
-  'esnext.set.of': {
   },
   'esnext.string.cooked': {
   },
@@ -2524,14 +2516,6 @@ export const data = {
   },
   'esnext.symbol.metadata': {
     deno: '1.40.4',
-  },
-  'esnext.weak-map.from': {
-  },
-  'esnext.weak-map.of': {
-  },
-  'esnext.weak-set.from': {
-  },
-  'esnext.weak-set.of': {
   },
   'web.dom-exception.constructor': {
     bun: '0.1.1',
