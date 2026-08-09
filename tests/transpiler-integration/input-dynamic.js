@@ -2,5 +2,5 @@
 // and polyfills must reach the lazily-imported module too
 export const results = {
   lazy: import('./lazy-chunk.js').then(mod => mod.value),
-  control: [1, 2, 3, 4].filterReject(x => x % 2),
+  control: 2.0.clamp(4, 6),
 };
