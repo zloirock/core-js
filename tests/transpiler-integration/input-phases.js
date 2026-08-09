@@ -14,7 +14,7 @@ globalThis.Map = class PatchedMap extends OriginalMap {
 export const injected = 'SIBLING_INJECTS_HERE';
 export const results = {
   patched: Map.groupBy([1], x => x),
-  control: [1, 2, 3, 4].filterReject(x => x % 2),
+  control: 2.0.clamp(4, 6),
 };
 let restoreKey = 'Ma';
 restoreKey += 'p';
