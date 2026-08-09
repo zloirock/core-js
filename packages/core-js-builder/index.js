@@ -1,5 +1,6 @@
 /* eslint-disable no-console -- output */
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { styleText } from 'node:util';
 import { build } from 'rolldown';
@@ -55,30 +56,24 @@ export default async function ({
 
   if (list.length) {
     if (format === 'bundle') {
-      const tempDir = join(import.meta.dirname, '__tmp__');
-      const tempFile = join(tempDir, `core-js-${ Math.random().toString(36).slice(2) }.js`);
-      const templateFile = `${ tempFile }-template.js`;
+      const tempDir = await mkdtemp(join(tmpdir(), 'core-js-builder-'));
+      const templateFile = join(tempDir, 'template.js');
+      const bundleFile = join(tempDir, 'bundle.js');
 
       try {
-        await mkdir(tempDir, { recursive: true });
         await writeFile(templateFile, importModules(list));
 
-        await build(getRolldownOptions(templateFile, tempFile));
+        await build(getRolldownOptions(templateFile, bundleFile));
 
-        code = await readFile(tempFile, 'utf8');
+        code = await readFile(bundleFile, 'utf8');
       } finally {
-        await Promise.all([
-          rm(templateFile, { force: true }),
-          rm(tempFile, { force: true }),
-        ]);
+        await rm(tempDir, { force: true, recursive: true });
       }
 
       const SWCOptions = {};
 
       // rolldown helpers / wrappers contain es2015 syntax
-      let syntax = ModernSyntax;
-
-      syntax = compat({ targets, configPath, ignoreBrowserslistConfig, modules: syntax, __external: true }).list;
+      const syntax = compat({ targets, configPath, ignoreBrowserslistConfig, modules: ModernSyntax, __external: true }).list;
 
       if (syntax.length) Object.assign(SWCOptions, {
         env: {
