@@ -1522,8 +1522,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'setUint8Clamped',
   ] }],
   'es/no-nonstandard-function-properties': [ERROR, { allow: [
-    'isCallable',
-    'isConstructor',
+    // empty
   ] }],
   'es/no-nonstandard-iterator-properties': [ERROR, { allow: [
     'range',
@@ -1536,8 +1535,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'windows',
   ] }],
   'es/no-nonstandard-map-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
     // empty
@@ -1562,8 +1560,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     // empty
   ] }],
   'es/no-nonstandard-set-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-set-prototype-properties': [ERROR, { allow: [
     // empty
@@ -1589,15 +1586,13 @@ const forbidCompletelyNonExistentBuiltIns = {
     // empty
   ] }],
   'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
     // empty
   ] }],
   'es/no-nonstandard-weakset-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-weakset-prototype-properties': [ERROR, { allow: [
     // empty

@@ -322,10 +322,6 @@
             "title": "Stage 1 proposals",
             "children": [
               {
-                "title": ".of and .from methods on collection constructors",
-                "url": "{docs-version}/docs/features/proposals/of-and-from-methods-on-collections"
-              },
-              {
                 "title": "DataView get / set Uint8Clamped methods",
                 "url": "{docs-version}/docs/features/proposals/dataview-get-set-uint8clamped"
               },
