@@ -187,7 +187,6 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
       - [`Object.keysLength`](#objectkeyslength)
     - [Stage 1 proposals](#stage-1-proposals)
-      - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get--set-uint8clamped-methods)
       - [`String.cooked`](#stringcooked)
       - [`Symbol.customMatcher` for pattern matching](#symbolcustommatcher-for-pattern-matching)
@@ -928,7 +927,9 @@ Iterator.zipKeyed({
 ];
  */
 
-const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+function digits() {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+}
 
 Array.from(digits().chunks(2));  // => [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
 
@@ -2603,7 +2604,9 @@ core-js(-pure)/es|stable|actual|full/iterator/windows
 ```
 [*Examples*](https://core-js.io/playground#code=const+digits+%3D+%28%29+%3D%3E+%5B0%2C+1%2C+2%2C+3%2C+4%2C+5%2C+6%2C+7%2C+8%2C+9%5D.values%28%29%3B%0A%0Alet+chunks+%3D+Array.from%28digits%28%29.chunks%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B2%2C+3%5D%2C+%5B4%2C+5%5D%2C+%5B6%2C+7%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windows+%3D+Array.from%28digits%28%29.windows%282%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%2C+%5B1%2C+2%5D%2C+%5B2%2C+3%5D%2C+%5B3%2C+4%5D%2C+%5B4%2C+5%5D%2C+%5B5%2C+6%5D%2C+%5B6%2C+7%5D%2C+%5B7%2C+8%5D%2C+%5B8%2C+9%5D%5D%0A%0Alet+windowsPartial+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%2C+%27allow-partial%27%29%29%3B++%2F%2F+%3D%3E+%5B%5B0%2C+1%5D%5D%0A%0Alet+windowsFull+%3D+Array.from%28%5B0%2C+1%5D.values%28%29.windows%283%29%29%3B++%2F%2F+%3D%3E+%5B%5D):
 ```js
-const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+function digits() {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+}
 
 let chunks = Array.from(digits().chunks(2));  // => [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
 
@@ -3261,48 +3264,6 @@ Object.keysLength({ a: 1, b: 2 }); // => 2
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/1
-```
-
-##### [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)[⬆](#index)
-Modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js).
-```ts
-class Set {
-  static of(...args: Array<mixed>): Set;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => any, thisArg?: any): Set;
-}
-
-class Map {
-  static of(...args: Array<[key, value]>): Map;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: any, value: any], thisArg?: any): Map;
-}
-
-class WeakSet {
-  static of(...args: Array<mixed>): WeakSet;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => Object, thisArg?: any): WeakSet;
-}
-
-class WeakMap {
-  static of(...args: Array<[key, value]>): WeakMap;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: Object, value: any], thisArg?: any): WeakMap;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/collection-of-from
-core-js(-pure)/full/set/from
-core-js(-pure)/full/set/of
-core-js(-pure)/full/map/from
-core-js(-pure)/full/map/of
-core-js(-pure)/full/weak-set/of
-core-js(-pure)/full/weak-set/from
-core-js(-pure)/full/weak-map/of
-core-js(-pure)/full/weak-map/from
-```
-`.of` / `.from` [*examples*](https://core-js.io/playground#code=Set.of%281%2C+2%2C+3%2C+2%2C+1%29%3B+%2F%2F+%3D%3E+Set+%7B+1%2C+2%2C+3+%7D%0A%0AMap.from%28%5B%5B1%2C+2%5D%2C+%5B3%2C+4%5D%5D%2C+%28%5Bkey%2C+value%5D%29+%3D%3E+%5Bkey+%2A%2A+2%2C+value+%2A%2A+2%5D%29%3B+%2F%2F+%3D%3E+Map+%7B+1+%3D%3E+4%2C+9+%3D%3E+16+%7D):
-```js
-Set.of(1, 2, 3, 2, 1); // => Set { 1, 2, 3 }
-
-Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map { 1 => 4, 9 => 16 }
 ```
 
 ##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
