@@ -144,7 +144,7 @@ async function getExcludedBuilds() {
   if (await isExists('./latest')) links.push('./latest');
   // a target set by hand may be relative or end with a slash; the build is its first step under `builds/`
   return Promise.all(links.map(async link => {
-    return relative(BUILDS_ROOT_DIR, resolve(dirname(link), await readlink(link))).split('/')[0];
+    return relative(BUILDS_ROOT_DIR, resolve(dirname(link), await readlink(link))).split('/', 1)[0];
   }));
 }
 
