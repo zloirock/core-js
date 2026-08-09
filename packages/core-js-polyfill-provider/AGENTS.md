@@ -24,6 +24,18 @@ The injection bias differs by method, deliberately: `usage-global` injects when 
 
 The symmetry stops at globals. Declining to resolve a receiver *type* is safe, but declining to rewrite a polyfillable *global* is not: what stays behind is a raw `globalThis` or `Symbol`, which is exactly what the target engine may not have.
 
+Navigation through the global proxies collapses on purpose - `globalThis`, `self` and `window` are one object here, `self` a realm-local self-reference erasable anywhere - so a plain hop through `window` answers `undefined` where an engine throws. The divergence is accepted, not a defect, and `navHasUnresolvableProxyHop` owns the question; do not grow a second predicate.
+
+## Caller-correct emission
+
+The polyfill for a destructured parameter belongs in the parameter's own default slot, mirrored to the pattern:
+
+```js
+function f({ Array: { from } } = { Array: { from: _Array$from } }) { /* ... */ }
+```
+
+Only that slot fires exactly when no argument is passed, leaving a caller's own object to destructure natively. A leaf default (`{ from = _Array$from }`) cannot tell "no argument" from "an argument without that key" - `f({ Array: {} })` would get the polyfill where the source gives `undefined` - and a body extract ignores the caller outright. Those two are allowed only for a local function whose every call provably passes nothing, as decided by the resolver's existing call scan. Otherwise: replace the whole receiver, then extract, then the leaf default; an ambiguous receiver bails.
+
 ## Layout
 
 - `index.js` - the package entry: the polyfill context and the `resolve` that turns a usage site into a meta from the built-in definitions
