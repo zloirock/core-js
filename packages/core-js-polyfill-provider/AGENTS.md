@@ -14,6 +14,8 @@ That is the rule, not a description of the current state. Plenty of decisions ar
 
 The target shape is: one parse, one normalized plan built here, emitters that only render it. Move toward that shape by collapsing existing paths, not by adding new ones. A new code path needs a written justification; the default fix deletes code.
 
+The mechanical half of that rule: before writing a function or a branch, search for the existing canonical - `npm run canon -- find "<behavior words>"` plus a grep by the data or node type the logic touches, then `npm run canon -- show <file:line>` to read a candidate whole. The helper usually exists under a name you would not guess, so search by behavior, not by the name you would pick. Extend or export the near-match - lift it out if it is nested - never fork a copy; implementing new means naming the checked candidates and why each does not fit. `npm run canon -- dupes` lists the names already defined in several files.
+
 ## Injection methods
 
 - `entry-global` - replaces a core-js entry import with the individual `core-js/modules/*` imports its targets need. All the shapes count, not just the bare `import`: `require`, dynamic `import()`, TypeScript's `import x = require(...)`, and any entry subpath
