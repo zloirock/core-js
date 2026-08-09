@@ -1088,10 +1088,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   }
 
   for (const NS of ['full']) {
-    const Map = load(NS, 'map');
-    const Set = load(NS, 'set');
-    const WeakMap = load(NS, 'weak-map');
-    const WeakSet = load(NS, 'weak-set');
     ok(load(NS, 'symbol/metadata'));
     ok(typeof load(NS, 'async-iterator/constructor') == 'function');
     ok(typeof load(NS, 'async-iterator/from') == 'function');
@@ -1125,13 +1121,9 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/to-async') == 'function');
-    ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
-    ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/prototype/clamp').call(6, 2, 4) === 4);
     ok(typeof load(NS, 'object/keys-length') == 'function');
-    ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
-    ok(load(NS, 'set/of')(1, 2, 3, 2, 1) instanceof Set);
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok(load(NS, 'string/dedent')`
       a${ 1 }b
@@ -1140,10 +1132,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'symbol/metadata'));
-    ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
-    ok(load(NS, 'weak-map/of')([{}, 1], [[], 2]) instanceof WeakMap);
-    ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
-    ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
 
     const instanceClamp = load(NS, 'instance/clamp');
     ok(typeof instanceClamp == 'function');
@@ -1174,7 +1162,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/async-iterator-helpers');
   load('proposals/await-dictionary');
   load('proposals/change-array-by-copy');
-  load('proposals/collection-of-from');
   load('proposals/data-view-get-set-uint8-clamped');
   load('proposals/decorator-metadata');
   load('proposals/error-cause');
