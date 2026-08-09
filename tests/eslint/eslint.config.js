@@ -2574,7 +2574,6 @@ export default [
     ignores: [
       '.work/**',
       'docs/**',
-      'packages/core-js-builder/__tmp__/**',
       'packages/core-js-bundle/!(package.json)',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
