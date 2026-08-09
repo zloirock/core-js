@@ -6,7 +6,7 @@ Body shape is deliberately not compared: an AST codegen and a text rewrite diffe
 
 ## Target environment
 
-Node `^22.18.0 || >=24.11.0`, on the root dependencies - unlike most suites this directory has no `package.json` of its own. It runs both emitters in-process, and forks workers for the stripped legs.
+Node `^22.18.0 || >=24.11.0`, on the root dependencies - unlike most suites this directory has no `package.json` of its own. It runs both emitters in-process, and forks a worker per stripped evaluation: realms are never reclaimed, so a realm per snippet exhausts the shard's memory, and reusing one would be vacuous anyway - the first correct install masks every later miss.
 
 Run it with `npm run test-transpiler-differential`. It is slow - the corpus is large and every snippet is executed three times - so it is split across processes, as many of them running at once as half the core count.
 
