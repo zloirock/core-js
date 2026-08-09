@@ -747,9 +747,7 @@ export const staticMethods = {
     stringify: 'string',
   },
   Map: {
-    from: 'Map',
     groupBy: 'Map',
-    of: 'Map',
   },
   Math: {
     abs: 'number',
@@ -867,10 +865,6 @@ export const staticMethods = {
   RegExp: {
     escape: 'string',
   },
-  Set: {
-    from: 'Set',
-    of: 'Set',
-  },
   String: {
     cooked: 'string',
     dedent: 'string',
@@ -918,14 +912,6 @@ export const staticMethods = {
   Uint8ClampedArray: {
     from: { type: 'TypedArray', element: 'number' },
     of: { type: 'TypedArray', element: 'number' },
-  },
-  WeakMap: {
-    from: 'WeakMap',
-    of: 'WeakMap',
-  },
-  WeakSet: {
-    from: 'WeakSet',
-    of: 'WeakSet',
   },
 };
 

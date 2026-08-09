@@ -17,7 +17,7 @@ Promise.allKeyed({
 });
 
 // @ts-expect-error
-Set.of(1, 2, 3);
+String.dedent`123`;
 
 // web
 const ex = new DOMException('message', 'SyntaxError');
