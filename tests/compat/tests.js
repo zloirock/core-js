@@ -1930,12 +1930,6 @@ GLOBAL.tests = {
   'esnext.iterator.windows': function () {
     return Iterator.prototype.windows;
   },
-  'esnext.map.from': function () {
-    return Map.from;
-  },
-  'esnext.map.of': function () {
-    return Map.of;
-  },
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;
   },
@@ -1947,12 +1941,6 @@ GLOBAL.tests = {
   },
   'esnext.promise.all-settled-keyed': function () {
     return Promise.allSettledKeyed;
-  },
-  'esnext.set.from': function () {
-    return Set.from;
-  },
-  'esnext.set.of': function () {
-    return Set.of;
   },
   'esnext.string.cooked': function () {
     return String.cooked;
@@ -1971,18 +1959,6 @@ GLOBAL.tests = {
   },
   'esnext.symbol.metadata': function () {
     return Symbol.metadata;
-  },
-  'esnext.weak-map.from': function () {
-    return WeakMap.from;
-  },
-  'esnext.weak-map.of': function () {
-    return WeakMap.of;
-  },
-  'esnext.weak-set.from': function () {
-    return WeakSet.from;
-  },
-  'esnext.weak-set.of': function () {
-    return WeakSet.of;
   },
   'web.dom-exception.constructor': function () {
     return new DOMException() instanceof Error
