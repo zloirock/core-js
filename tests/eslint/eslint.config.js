@@ -1474,8 +1474,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     // empty
   ] }],
   'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
-    'filterReject',
-    'uniqueBy',
+    // empty
   ] }],
   'es/no-nonstandard-bigint-properties': [ERROR, { allow: [
     // empty
@@ -1549,8 +1548,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     // empty
   ] }],
   'es/no-nonstandard-typed-array-prototype-properties': [ERROR, { allow: [
-    'filterReject',
-    'uniqueBy',
+    // empty
   ] }],
   'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
     'from',

@@ -25,7 +25,7 @@ function phasesFor(method) {
 }
 
 const expected = {
-  filterReject: [2, 4],
+  clamp: 4,
   setFrom: 3,
   cooked: 'hello',
 };
@@ -49,7 +49,7 @@ async function verifyInNode(code, label, ext = '.mjs') {
     await writeFile(file, code);
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
-    deepEqual([...results.filterReject], expected.filterReject, `${ label }: filterReject`);
+    deepEqual(results.clamp, expected.clamp, `${ label }: clamp`);
     deepEqual(results.setFrom, expected.setFrom, `${ label }: setFrom`);
     deepEqual(results.cooked, expected.cooked, `${ label }: cooked`);
   });
@@ -80,7 +80,7 @@ async function verifyPhases(code, label, ext = '.mjs') {
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
     deepEqual(results.patched, 'patched', `${ label }: patched static observed`);
-    deepEqual([...results.control], expected.filterReject, `${ label }: control`);
+    deepEqual(results.control, expected.clamp, `${ label }: control`);
     deepEqual(mod.injected ?? results.injected, 'sib', `${ label }: sibling-injected call ran`);
     // the injected call is sibling-authored code the POST pass alone can see: it must be
     // substituted there, or this leg silently degrades to testing the native method
@@ -103,7 +103,7 @@ async function verifyDynamic(code, label, ext = '.mjs') {
     const mod = await import(pathToFileURL(file).href);
     const results = mod.results ?? mod.default?.results ?? mod.default ?? mod;
     deepEqual(await results.lazy, 2, `${ label }: lazy chunk value`);
-    deepEqual([...results.control], expected.filterReject, `${ label }: control`);
+    deepEqual(results.control, expected.clamp, `${ label }: control`);
   });
 }
 
@@ -118,12 +118,12 @@ async function verifyInBun(code, label, method) {
     const exp = JSON.stringify(expected);
     const body = method === 'usage-pure' ? `
       const mod = await import(${ url });
-      deepEqual([...mod.filterReject], exp.filterReject);
+      deepEqual(mod.clamp, exp.clamp);
       equal(mod.setFrom, exp.setFrom);
       equal(mod.cooked, exp.cooked);
     ` : `
       await import(${ url });
-      deepEqual([1,2,3,4].filterReject(x => x % 2), exp.filterReject);
+      deepEqual(2.0.clamp(4, 6), exp.clamp);
       equal(Set.from([1,2,3]).size, exp.setFrom);
       equal(String.cooked\`hello\`, exp.cooked);
     `;
