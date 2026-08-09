@@ -16,4 +16,5 @@ Beyond the per-area suites there are the `holder-*` ones, around the escape anal
 
 - A new decision in the provider needs its suite here, not only a fixture: a fixture locks one printed result, while these lock the decision for every shape and both parsers
 - Add a scenario through the harness rather than against one parser, or it silently stops being cross-parser
+- Assert a resolved type through `type.primitive` and `type.constructor`. A field the type does not carry reads `undefined`, the comparison passes, and the case proves nothing - a batch of escape-analysis tests once hid a real bug that way
 - When adding to the escape analysis, extend the domain suite of the axis you touched too - otherwise the new case is tested only where someone remembered it
