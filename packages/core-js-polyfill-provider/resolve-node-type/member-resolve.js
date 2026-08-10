@@ -284,12 +284,15 @@ export function createMemberResolve({
   // every constituent into a composite: the call signatures of an intersection form an ordered
   // overload list, so the first arm that accepts the call is the TS-faithful selection. do not
   // "unify" the two - folding here would resolve a call against a signature TS never selects
-  function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0, callPath }) {
+  // `chain` is the caller's already-walked result for the TOP annotation, when it has one - the
+  // walk is pure in (annotation, scope) and unmemoized, so re-running it here can only reproduce
+  // it. only depth 0 can be handed one; every recursion peels a different branch and walks its own
+  function resolveMemberCallReturn({ annotation, name, scope, resolve, depth = 0, callPath, chain = null }) {
     if (depth > MAX_DEPTH) return null;
     // peel a leading TSParenthesizedType (`(A | B).m()`) so followTypeAliasChain sees the raw
     // union / intersection instead of bailing on the wrapper (branch-level peel is peelBranch)
     annotation = peelTSParenthesized(annotation);
-    const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
+    const { node: aliased, subst } = chain?.() ?? followTypeAliasChain(annotation, scope);
     // peel TSParenthesizedType so a method call on a parenthesized union / intersection branch
     // (`(A | B).m()`, `A & (B)`) resolves through the branch instead of bailing on the wrapper
     function peelBranch(branch) {
@@ -427,10 +430,16 @@ export function createMemberResolve({
     // (`{A:string}`). keying the top alias lets Outer's `A` binding capture an inner default that
     // lexically references an unrelated outer `type A` - the chain builder is capture-avoiding and
     // gates defaults, so the member type's own default resolves in its decl scope instead
-    let defaultMap;
+    // ONE walk for both readers: the call lane's first act is this same walk on this same
+    // (annotation, scope). still a thunk, because the property lane below resolves nothing when
+    // the member lookup misses, and the walk rebuilds a subst map per generic hop
+    let chain;
+    function aliasChain() {
+      return chain ??= followTypeAliasChain(peelTSParenthesized(annotation), scope);
+    }
     function resolve(p) {
-      if (defaultMap === undefined) defaultMap = followTypeAliasChain(annotation, scope).subst;
-      return defaultMap ? substituteTypeParams(p, defaultMap, scope, 0) : resolveTypeAnnotation(p, scope);
+      const { subst } = aliasChain();
+      return subst ? substituteTypeParams(p, subst, scope, 0) : resolveTypeAnnotation(p, scope);
     }
     // property access (not a call): delegate to findTypeMember
     if (!callPath) {
@@ -438,7 +447,7 @@ export function createMemberResolve({
       return memberType ? resolve(memberType) : null;
     }
     // method call: merge return types across overloads, recursing into union branches
-    return resolveMemberCallReturn({ annotation, name, scope, resolve, callPath });
+    return resolveMemberCallReturn({ annotation, name, scope, resolve, callPath, chain: aliasChain });
   }
 
   // recover a class NodePath from a type-declaration scan: locates the decl by name (bare) or

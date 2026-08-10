@@ -230,12 +230,6 @@ export function createPatternBindings({
     return null;
   }
 
-  function resolveDestructuredType(objectPattern, name, scope) {
-    const keyPath = findDestructuredKeyPath(objectPattern, name, scope);
-    if (!keyPath) return null;
-    return resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, scope);
-  }
-
   // resolve the type of a variable destructured from an ArrayPattern against an annotation.
   // covers two shapes uniformly:
   //   - top-level Identifier element: `[a]` -> findPatternIndex + tuple/array element type
@@ -244,8 +238,10 @@ export function createPatternBindings({
   //     branch, `for (const [{ x }] of items)` falls through to generic .at fallback while
   //     the symmetric object-outer / array-inner case (`for (const { arr: [x] } of items)`)
   //     resolves through resolveObjectBinding's collectPatternKeyPath
-  function resolveArrayPatternBinding({ arrayPattern, varName, annotation, scope }) {
-    const index = findPatternIndex(arrayPattern, varName);
+  // `index` is the caller's positional scan: it is pure in (pattern, name) while the key-path walk
+  // below is not (a computed nested key reads `scope`), so only this half is shared across the
+  // annotation sources the caller tries in turn
+  function resolveArrayPatternBinding({ arrayPattern, varName, annotation, scope, index }) {
     if (index >= 0) {
       const unwrapped = unwrapTypeAnnotation(annotation);
       if (!unwrapped) return null;
@@ -385,10 +381,13 @@ export function createPatternBindings({
     // resolve before the init / for-of fallbacks which would mis-type it as the element type
     const restType = nestedRestType(arrayPattern, varName);
     if (restType) return restType;
+    // ONE positional scan for every lane below - each annotation source re-derived it inside
+    // `resolveArrayPatternBinding`, and the two runtime lanes scanned again on their own
+    const index = findPatternIndex(arrayPattern, varName);
     // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
     if (arrayPattern.typeAnnotation) {
       const result = resolveArrayPatternBinding({
-        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: bindingPath.scope,
+        arrayPattern, varName, annotation: arrayPattern.typeAnnotation, scope: bindingPath.scope, index,
       });
       if (result) return result;
     }
@@ -397,13 +396,12 @@ export function createPatternBindings({
       const initInfo = findExpressionAnnotation(bindingPath.get('init'));
       if (initInfo) {
         const initResult = resolveArrayPatternBinding({
-          arrayPattern, varName, annotation: initInfo.annotation, scope: initInfo.scope,
+          arrayPattern, varName, annotation: initInfo.annotation, scope: initInfo.scope, index,
         });
         if (initResult) return initResult;
       }
       // runtime init: resolve through variables to the actual value
       const initPath = resolveRuntimeExpression(bindingPath.get('init'));
-      const index = findPatternIndex(arrayPattern, varName);
       if (index >= 0) {
         // direct element: const [a] = typedArr -> resolve inner type or literal element
         const initType = resolveNodeType(initPath);
@@ -426,7 +424,7 @@ export function createPatternBindings({
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
     if (elemInfo) {
       const elemResult = resolveArrayPatternBinding({
-        arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope,
+        arrayPattern, varName, annotation: elemInfo.annotation, scope: elemInfo.scope, index,
       });
       if (elemResult) return elemResult;
     }
@@ -434,7 +432,7 @@ export function createPatternBindings({
     // element's inner type is the binding type only for a DIRECT positional element - a nested
     // or rest binding (rest handled above) must not pick up the iterable element type here
     const forOfPath = findForLoopParent(bindingPath);
-    if (t.isForOfStatement(forOfPath?.node) && findPatternIndex(arrayPattern, varName) >= 0) {
+    if (t.isForOfStatement(forOfPath?.node) && index >= 0) {
       // resolve for-of element, then unwrap one more level for array destructuring
       const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
       if (inner) return inner;
@@ -609,13 +607,15 @@ export function createPatternBindings({
     // subsume the polyfill when the user passes a provably non-primitive rest binding
     const restType = nestedRestType(objectPattern, varName);
     if (restType) return restType;
-    // annotation on the pattern: const { items }: { items: number[] } = ...
-    if (objectPattern.typeAnnotation) {
-      const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
-      if (result) return result;
-    }
+    // ONE key-path walk feeds the annotation lane and every runtime lane below it - the wrapper
+    // this replaces re-asked the same (pattern, name, scope) question one line earlier
     const keyPath = findDestructuredKeyPath(objectPattern, varName, bindingPath.scope);
     if (!keyPath) return null;
+    // annotation on the pattern: const { items }: { items: number[] } = ...
+    if (objectPattern.typeAnnotation) {
+      const result = resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, bindingPath.scope);
+      if (result) return result;
+    }
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
       // findDestructuredKeyPath already walks INTO nested ObjectPattern / ArrayPattern
       // children so the path is complete from the outer (declarator-id) pattern down to
@@ -1011,7 +1011,7 @@ export function createPatternBindings({
   }
 
   // cluster-private (consumed only by other cluster functions, not by factory or other
-  // clusters): `resolveDestructuredType` /
+  // clusters):
   // `resolveArrayPatternBinding` / `findPatternIndex` / `resolveRuntimeIterableElement` /
   // `resolveArrayBinding` / `resolveForOfElementAnnotation` / `resolveObjectBinding` /
   // `findBindingPattern` / `unwrapPromiseAnnotation`
