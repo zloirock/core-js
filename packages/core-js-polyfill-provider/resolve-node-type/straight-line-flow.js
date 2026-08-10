@@ -375,15 +375,21 @@ export function createStraightLineFlow({ t, babelNodeType }) {
 
   // last straight-line assignment before usagePath: `x = v`, `x += v`, `({x} = v)`, or a
   // `var x = v` redecl in the same var-scope (possibly through plain blocks / sync IIFEs).
-  // O(V) build per binding (cached), O(log V) per query
-  function findLastStraightLineAssignment(binding, usagePath) {
+  // O(V) build per binding (cached), O(log V) per query.
+  // `extraViolations` are write paths the parser did NOT record on the binding (the stale-redecl
+  // race feeds its gap declarators in this way). they arrive as a SEPARATE list rather than
+  // spliced into a synthesized `{ ...binding }`: the cache keys on binding IDENTITY, so a fresh
+  // object per query missed it every time and rebuilt the whole sorted list per query
+  function findLastStraightLineAssignment(binding, usagePath, extraViolations = null) {
     const beforePos = usagePath.node.start;
     if (beforePos === undefined || beforePos === null) return null;
-    if (!binding.constantViolations?.length) return null;
+    const violations = extraViolations?.length
+      ? [...binding.constantViolations ?? [], ...extraViolations] : binding.constantViolations;
+    if (!violations?.length) return null;
     // a reassignment in a deferred (non-IIFE) function runs at an unknown time - possibly before the
     // use even when textually later - so the positional narrow below cannot be trusted
     // a recovered extra has no parent chain to prove it is NOT deferred - bail like one
-    if (binding.constantViolations.some(v => v.canonicalRecovered || violationRunsDeferred(v, binding.scope))) return null;
+    if (violations.some(v => v.canonicalRecovered || violationRunsDeferred(v, binding.scope))) return null;
     if (!isInBindingVarScope(usagePath, binding.scope)) return null;
     // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
     // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
@@ -393,6 +399,11 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     if (!sortedAssigns) {
       sortedAssigns = buildSortedAssignments(binding);
       sortedAssignmentCache.set(binding, sortedAssigns);
+    }
+    // the extras are per-query, so they build fresh and merge into the cached base by position
+    if (extraViolations?.length) {
+      sortedAssigns = [...sortedAssigns, ...buildSortedAssignments({ ...binding, constantViolations: extraViolations })]
+        .sort((a, b) => a.pos - b.pos);
     }
     if (!sortedAssigns.length) return null;
 
@@ -413,7 +424,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
     // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
     // the chosen assignment and the use can overwrite it at runtime - degrade to the generic / union
     // path rather than committing to the chosen value's single type
-    for (const v of binding.constantViolations) {
+    for (const v of violations) {
       const vStart = v.node?.start;
       if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos) return null;
     }
