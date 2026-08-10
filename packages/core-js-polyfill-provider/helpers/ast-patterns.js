@@ -948,6 +948,10 @@ export function synthVarHoistBinding(path, name) {
     ownerScope: found.owner.scope,
     resolveDeclarationScope: () => search().declaratorPath?.scope ?? found.owner.scope ?? null,
     kind: 'var',
+    // every declarator of the name in the owner, in source order. a consumer deciding whether a
+    // NATIVE binding it also holds is a shadow or just another declarator of this same var needs
+    // the whole list - `node` alone answers only for the first one
+    declarators: found.declarators,
     constantViolations: violationNodes,
     importSource: null,
     polyfillHint: null,
@@ -1339,9 +1343,20 @@ export function withCanonicalViolations(binding, name) {
 // memo would hand it a twin still holding the dead one. the declarator search therefore runs before
 // the memo can answer (it produces the key), which is why it stays bounded to the var owner.
 // `null` (no such var / no use path) falls through to the caller's own miss handling
-function hoistedVarTwin(synthCache, path, name) {
-  if (!path) return null;
+// `native` is the binding the caller's own lookup answered, or null. a `var` RE-declaration is not
+// a shadow - every same-name declarator in the owner IS the one hoisted binding - but one tracker
+// block-scopes the later declarator and answers a read inside that block with IT, an init-less view
+// carrying none of the var's writes, where the tracker that hoists reports the whole flow. so the
+// twin displaces a native view anchored on a declarator of this same var that is not the one the
+// hoist reports; anchored on that one it IS the hoisted binding (richer channel, keep it), and
+// anything else is a genuine shadow the twin must not shoulder aside
+function hoistedVarTwin(synthCache, path, name, native = null) {
+  // the whole "does the twin displace the native view" decision lives here. the KIND test comes
+  // first because it is the free half: only a `var` view can be anchored on a re-declaration, so
+  // every other kind keeps the native answer without paying the owner climb below
+  if (!path || (native && native.kind !== 'var')) return null;
   const synth = synthVarHoistBinding(path, name);
+  if (native && (!synth || synth.node === native.path?.node || !synth.declarators.includes(native.path?.node))) return null;
   const declaratorPath = synth?.resolveDeclaratorPath();
   if (!declaratorPath) return null;
   // an incomplete write map cannot be handed to the flow gates - decline the twin entirely and let
@@ -1360,7 +1375,7 @@ function hoistedVarTwin(synthCache, path, name) {
   // would answer a DIFFERENT scope than `.scope` on this same object, and one binding must not hold
   // two contradictory answers for a future reader to pick the wrong one from
   if (!twin) {
-    const { resolveDeclaratorPath, resolveViolationPaths, resolveDeclarationScope, ownerScope, ...nativeShaped } = synth;
+    const { resolveDeclaratorPath, resolveViolationPaths, resolveDeclarationScope, ownerScope, declarators, ...nativeShaped } = synth;
     byName.set(name, twin = {
       ...nativeShaped,
       path: declaratorPath,
@@ -1381,15 +1396,29 @@ function hoistedVarTwin(synthCache, path, name) {
 // carries the `.path` consumers read (annotation lookup, init descent, scope anchoring). a parser
 // that DOES hoist never reaches the synthesis (its own lookup already answered), so this stays the
 // no-op for it that the synthetic shape is documented to be
+// the other half of the SET normalization, and the reason it belongs on the funnel: a bare
+// same-name redeclaration (`var x = [1]; var x;`) writes NO value, yet both native trackers record
+// it as a constantViolation. the detect layer strips it per consumer; the type layer, which reads
+// the list at twenty-odd places (arm enumeration, positional init test, the plain bail gates),
+// stripped it nowhere - so a phantom degraded every one of them to the generic answer. `.constant`
+// is re-derived for the same reason `withCanonicalViolations` clears it when it ADDS: one binding
+// must not answer the two questions differently
+function withoutPhantomWrites(binding) {
+  const violations = binding?.constantViolations;
+  const filtered = withoutValuelessDeclarationViolations(violations);
+  return filtered === violations ? binding : { ...binding, constant: !filtered.length, constantViolations: filtered };
+}
+
 export function wrapScopeBindingLookup(lookup) {
   const cache = new WeakMap();
   const synthCache = new WeakMap();
   return (scope, name, path = null) => {
-    const binding = lookup(scope, name, path) ?? hoistedVarTwin(synthCache, path, name);
+    const native = lookup(scope, name, path);
+    const binding = hoistedVarTwin(synthCache, path, name, native) ?? native;
     if (!binding) return binding;
     let wrapped = cache.get(binding);
     if (!wrapped) {
-      wrapped = withCanonicalViolations(binding, name) ?? binding;
+      wrapped = withCanonicalViolations(withoutPhantomWrites(binding), name) ?? binding;
       cache.set(binding, wrapped);
     }
     return wrapped;
@@ -3611,6 +3640,16 @@ export function isThisRebinding(node) {
 // shape gates) into a single pass. frames carry the structural parent type (transparent
 // wrappers forwarded) and the module-top-level flag - the contexts the orphan-ref
 // classifier distinguishes emit positions by
+// does this injection method read the census the usage lanes build? `entry-global` replaces an
+// entry import and mints no name of its own, so it consumes neither the name reservation the
+// census feeds nor the mutation / ctor-alias tables - only the resolvers and emitters it never
+// reaches read those. one question, asked by both emitters, so it lives here rather than as a
+// method-literal compare in each; the reducer LIST stays with the emitter, because only babel's
+// census carries the minifier-shape gate and entry-global does need that one
+export function methodReadsUsageCensus(method) {
+  return method !== 'entry-global';
+}
+
 export function collectFileCensus(programNode, reducers) {
   // `parentNode` is the IMMEDIATE structural parent (unlike `parentType`, which skips transparent
   // wrappers): a reducer that must tell a source-name position from a reference (an identifier that

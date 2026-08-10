@@ -41,6 +41,7 @@ import {
   forEachStatementPosition,
   SINGLE_STATEMENT_SLOTS,
   spreadAtOrBefore,
+  methodReadsUsageCensus,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { createChecker } from './harness.mjs';
@@ -1199,5 +1200,13 @@ check('forEachStatementPosition/non-slot host ignored',
   check('resolveImportPath/relative unaffected',
     resolveImportPath('@core-js/pure', 'actual/array/from', false), '@core-js/pure/actual/array/from');
 }
+
+// --- methodReadsUsageCensus: the census gate both emitters read ---
+// enumerated over the WHOLE method domain, not a range: the predicate decides whether a file pays
+// the per-file census walk and the name reservation it feeds, so a method silently falling on the
+// wrong side either costs every file a dead walk or drops a reservation a minted name needs
+check('methodReadsUsageCensus/usage-global reads it', methodReadsUsageCensus('usage-global'), true);
+check('methodReadsUsageCensus/usage-pure reads it', methodReadsUsageCensus('usage-pure'), true);
+check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('entry-global'), false);
 
 finish();

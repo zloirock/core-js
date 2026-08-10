@@ -43,8 +43,7 @@ export function createExpressionDispatch({
   resolveCallReturnType,
   typeFromHint,
   resolveArrayLiteralCommonType,
-  resolveThisClass,
-  resolveThisObject,
+  resolveThisAnchor,
   computeObjectAliasClosure,
   thisAnchorIsProvable,
   resolveExpressionToClassPath,
@@ -122,8 +121,8 @@ export function createExpressionDispatch({
     // prototype the resolver does not follow, so the call stays unmodelled and keeps typeless dispatch
     // the inert verdict below models the NATIVE `Object.create`; a user-replaced static may return
     // anything, so a mutated slot keeps the call unmodelled (the mutated-static invariant)
-    const calleePair = resolveStaticCalleePair(callee.node, callee.scope);
-    if (calleePair?.constructor === 'Object' && calleePair.method === 'create'
+    const calleePair = resolveStaticCalleePair(callee.node, callee.scope, 'create');
+    if (calleePair?.constructor === 'Object'
       && !isMutatedStatic('Object', 'create')
       && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding(path.scope, 'undefined', path))) {
       return new $Object('Object');
@@ -315,28 +314,30 @@ export function createExpressionDispatch({
       case 'ClassDeclaration':
         return new $Object('Function');
       case 'ThisExpression': {
-        const context = resolveThisClass(path);
+        // the anchor answers BOTH arms, and the two thin wrappers over it each re-climb the whole
+        // ancestor chain - by construction at most one of them can return non-null
+        const anchor = resolveThisAnchor(path);
         // `this` inside an object-literal method IS that literal - the same assumption the field
         // read through `this` already makes, taken under the same gate: an enumerable closure means
         // no method of the object can be handed out and re-bound to a foreign receiver. re-entering
         // the dispatcher on the literal keeps the foreign-prototype guard. without it the receiver
         // stays untyped and a member whose name matches a built-in instance method (`this.entries`
         // reading an own data property) injects a polyfill a plain object can never need
-        if (!context) {
-          const objAnchor = resolveThisObject(path);
+        if (anchor?.kind !== 'class') {
+          const objAnchor = anchor?.kind === 'object' ? anchor.objectPath : null;
           return objAnchor && computeObjectAliasClosure(objAnchor) ? resolveNodeType(objAnchor) : null;
         }
         // static-context `this` IS the constructor value, not an instance: instance-flavored
         // narrowing rewrote static aliases of `class C extends Array` to instance helpers
         // (native TypeError became a silent undefined)
-        if (context.isStatic) return new $Object('Function');
+        if (anchor.isStatic) return new $Object('Function');
         // an instance method extracted off the prototype and re-invoked (`C.prototype.m.call(arr)`)
         // runs the same body with a foreign `this`, so the lexical class answers for the receiver
         // only while no own-this method of the hierarchy can be handed out - the gate the field read
         // through `this` already applies. same question, same answer as the object-literal flavor
-        if (!thisAnchorIsProvable(context.classPath)) return null;
+        if (!thisAnchorIsProvable(anchor.classPath)) return null;
         // base-less `this` -> Object; unknowable super -> null (generic), not a re-suppressing Object floor
-        return resolveClassInheritance(context.classPath);
+        return resolveClassInheritance(anchor.classPath);
       }
       case 'NewExpression':
         return resolveNewExpressionType(path);

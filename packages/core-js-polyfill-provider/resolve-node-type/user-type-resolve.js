@@ -74,7 +74,6 @@ export function createUserTypeResolve({
   findAllEnumDeclarations,
   substituteTypeParams,
   resolveTypeAnnotation,
-  dropMapKeys,
   applyAliasSubstDeep,
 }) {
   function resolveTypeArgs({ decl, node, typeParamMap, scope, depth, seen }) {
@@ -92,7 +91,10 @@ export function createUserTypeResolve({
     // colliding instantiation binding from `base` whose name is not a param here (that name is a
     // sibling/prior-hop generic's param, lexically out of scope - it must resolve to the outer decl).
     // seeding the local map from `base` re-captured such a default to the foreign binding
-    const trimmedBase = dropMapKeys(base, declParamNames);
+    // whether an incoming binding is shadowed by one of THIS decl's param names. it used to be
+    // answered by trimming a clone of `base` and comparing identities, but the trimmed map had no
+    // reader - the whole local map is what gets returned once anything collides
+    const baseCollides = base.size > 0 && declParamNames.values().some(pname => base.has(pname));
     const localMap = new Map();
     let didSubst = false;
     declParams.forEach((p, i) => {
@@ -113,7 +115,7 @@ export function createUserTypeResolve({
     });
     // neither subst happened nor a collision exists: return typeParamMap as-is so the caller's
     // identity preserves for downstream memoize keys
-    if (!didSubst && trimmedBase === base) return typeParamMap;
+    if (!didSubst && !baseCollides) return typeParamMap;
     return localMap;
   }
 
@@ -313,7 +315,11 @@ export function createUserTypeResolve({
           // Object is correct, the receiver is a known object) from an UNKNOWABLE base (no class decl -
           // opaque import / value-position name) which could be Array / a typed-array, where masquerading
           // as Object would suppress the polyfill -> bail to null (same as `!superName`)
-          const baseDeclPath = findDeclPathBySegments(superName.split('.'), scope, isClassLikeDeclaration);
+          // for a QUALIFIED super the branch above already asked this exact question - the lookup is
+          // pure in (segments, scope, matchType) and uncached, so a second walk, hit or miss, can only
+          // reproduce it. only a bare super (where `parentPath` is null by design) has to ask
+          const baseDeclPath = parentSegments.length > 1 ? parentPath
+            : findDeclPathBySegments(parentSegments, scope, isClassLikeDeclaration);
           if (!baseDeclPath) return null;
           // the base resolves to a LOCAL class decl, but its own extends-walk above returned null: a
           // base-LESS class is a genuine plain Object; a class WITH heritage is TRANSITIVELY unknowable

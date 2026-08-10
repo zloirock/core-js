@@ -193,7 +193,8 @@ export function createTypeAnnotationResolve({
     // does above: `interface Pick<T> { picked: number[] }` is not the global `Pick`, and resolving it
     // as one hands back the type ARGUMENT (`string`) in place of the declared shape
     if (STRUCTURE_PRESERVING_WRAPPERS.has(name) && !findTypeDeclaration([name], scope)) {
-      const resolved = resolveArg(firstArg(), isOpenKeywordAnnotation(firstArg()) ? null : new $Object('Object'));
+      const arg = firstArg();
+      const resolved = resolveArg(arg, isOpenKeywordAnnotation(arg) ? null : new $Object('Object'));
       // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
       // infer check picks the FALSE branch. `readonlyCollectionBase` can't see this at the AST level when
       // the collection is behind a type-param (`Readonly<T>`), so key off the resolved constructor here.
@@ -409,9 +410,11 @@ export function createTypeAnnotationResolve({
   // `T[keyof T]` shape: fold each property's value annotation into a union (mirrors TS
   // evaluation). returns resolved Type / null on hit, undefined when shape doesn't match.
   // `objectType` is the caller's already-paren-peeled operand: the `isKeyofTargeting` self-match
-  // compares the keyof operand against it, so an unpeeled `(T)` wrapper would fail the match
-  function resolveKeyofSelfValueUnion(node, objectType, scope, depth) {
-    if (!isKeyofTargeting(node.indexType, objectType, scope)) return undefined;
+  // compares the keyof operand against it, so an unpeeled `(T)` wrapper would fail the match.
+  // takes the peeled INDEX rather than the access node it came off: the node's own `objectType`
+  // is the unpeeled twin of the operand passed alongside, and nothing here ever read it
+  function resolveKeyofSelfValueUnion(indexType, objectType, scope, depth) {
+    if (!isKeyofTargeting(indexType, objectType, scope)) return undefined;
     const members = getTypeMembers({ objectType, scope });
     if (!members) return null;
     const valueAnnotations = [];
@@ -478,7 +481,7 @@ export function createTypeAnnotationResolve({
     // `T[keyof T]` self-indexed access folds to value-union of T's properties.
     // delegated to helper to keep dispatcher under max-statements lint
     // pass the PEELED index so `T[(keyof T)]` reaches the keyof-self fold on oxc too
-    const keyofSelf = resolveKeyofSelfValueUnion({ ...node, indexType }, objectType, scope, depth);
+    const keyofSelf = resolveKeyofSelfValueUnion(indexType, objectType, scope, depth);
     if (keyofSelf !== undefined) return keyofSelf;
     // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
     // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to the

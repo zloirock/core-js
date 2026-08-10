@@ -715,8 +715,12 @@ export function createTypeExpansion({
     // alpha-rename guard: extendsType's `infer X` declarations scope to trueType ONLY (per
     // TS spec). drop colliding outer entries from a clone passed to trueType subst so the
     // inferred binding isn't captured by the outer same-named param. mirrors applyAliasSubstDeep
-    // TSConditionalType handling. falseType doesn't see infer bindings - keeps outer map
-    const trueMap = trueBranchSubst(node.extendsType, typeParamMap);
+    // TSConditionalType handling. falseType doesn't see infer bindings - keeps outer map.
+    // built where it is USED: a picked FALSE branch never reads it, and building it walks the
+    // whole extends clause for the infer names
+    function trueMap() {
+      return trueBranchSubst(node.extendsType, typeParamMap);
+    }
     function recurse(branchNode, map) {
       return substituteTypeParams(branchNode, map, scope, depth + 1, seen);
     }
@@ -729,9 +733,9 @@ export function createTypeExpansion({
       resolveOne: ast => recurse(ast, typeParamMap),
       isUnconstrained: isUnconstrainedTypeReference(node.extendsType, typeParamMap),
     });
-    if (branch !== null) return recurse(branch ? node.trueType : node.falseType, branch ? trueMap : typeParamMap);
+    if (branch !== null) return branch ? recurse(node.trueType, trueMap()) : recurse(node.falseType, typeParamMap);
     return resolveConditionalBranches(
-      recurse(node.trueType, trueMap),
+      recurse(node.trueType, trueMap()),
       recurse(node.falseType, typeParamMap));
   }
 
@@ -757,6 +761,9 @@ export function createTypeExpansion({
   // scope to trueType per TS spec, so colliding outer entries must not propagate. value-
   // type-agnostic - caller passes either AST-subst or Type-bindings depending on path
   function trueBranchSubst(extendsType, substOrBindings) {
+    // `dropMapKeys` short-circuits on an empty map, but only AFTER this argument is evaluated -
+    // and the argument is a full structural walk of the extends clause. ask its guard first
+    if (!substOrBindings?.size) return substOrBindings;
     return dropMapKeys(substOrBindings, collectInferredNames(extendsType));
   }
 
