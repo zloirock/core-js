@@ -33,13 +33,16 @@ function nextSuffixFromName(name, prefix) {
   return null;
 }
 
-// pick the suffix `findUniqueName` should start probing from. bare-slot reclaim: when the
-// cache was seeded past 2 by snapshot inherit / orphan adoption but bare itself is still
-// free (e.g. HMR re-parse of user-edited source dropped `_ref` declaration leaving `_ref2+`),
-// prefer bare so output stays canonical (`_ref, _ref2, ...`). otherwise resume from cache
-function chooseStartSuffix(cached, prefix, isTaken) {
-  if (cached >= 2 && !isTaken(prefix)) return null;
-  return cached ?? null;
+// where `uniqueName` should begin. bare-slot reclaim: when the cache was seeded past 2 by
+// snapshot inherit / orphan adoption but bare itself is still free (e.g. HMR re-parse of
+// user-edited source dropped `_ref` declaration leaving `_ref2+`), prefer bare so output stays
+// canonical (`_ref, _ref2, ...`). otherwise resume from cache.
+// returns the bare NAME rather than a null start suffix in the reclaim case: handing `null` to
+// `findUniqueName` made it probe the very name this just proved free, and in the AST emitter
+// that probe is a full scope-chain lookup
+function chooseStart(cached, prefix, isTaken) {
+  if (cached >= 2 && !isTaken(prefix)) return { name: prefix };
+  return { startSuffix: cached ?? null };
 }
 
 // declaration source position of a binding's defining identifier. stable across the
@@ -481,8 +484,8 @@ export default class ImportInjectorState {
     function isTaken(n) {
       return isNameTaken(n) || (extraCheck ? extraCheck(n) : false);
     }
-    const startSuffix = chooseStartSuffix(cached, prefix, isTaken);
-    const name = findUniqueName(prefix, startSuffix, isTaken);
+    const start = chooseStart(cached, prefix, isTaken);
+    const name = start.name ?? findUniqueName(prefix, start.startSuffix, isTaken);
     this.usedNames.add(name);
     // bare reserves slot 1 so next call skips `_hint1` (babel skip-1); numbered advances.
     // non-numeric tails (e.g. a subclass overrode `findUniqueName` to return `_ref_foo`)

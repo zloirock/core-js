@@ -29,6 +29,7 @@ import {
   directiveValue,
   extractIndirectRequireSEPrefix,
   findFunctionScopeVarInPath,
+  findVarOwnerDeclaring,
   findObjectKeyBeforeSpread,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
@@ -1147,5 +1148,56 @@ check('forEachStatementPosition/nested slot reached',
 // a node type outside the table never reports, whatever it holds at `body`
 check('forEachStatementPosition/non-slot host ignored',
   slotsOf({ type: 'SwitchCase', consequent: [stmt('a')], body: stmt('b') }), '');
+
+// --- findVarOwnerDeclaring: the var-scope declarator list ---
+// the alias registry keys its entry under EVERY same-name `var` declarator of the owner, because a
+// redeclaration merges into one runtime binding while the two scope trackers disagree about which
+// declarator a read resolves to. so the canon must report all of them, in source order, INCLUDING
+// the value-less `var M;` (it binds the same slot) and EXCLUDING both a tsc-elided `declare var`
+// (no runtime slot at all) and a nested function's own `var` (a different scope)
+{
+  function varDeclaration(name, { init = null, declare = false } = {}) {
+    return {
+      type: 'VariableDeclaration', kind: 'var', declare: declare || undefined,
+      declarations: [{ type: 'VariableDeclarator', id: { type: 'Identifier', name }, init }],
+    };
+  }
+  const first = varDeclaration('M', { init: { type: 'Identifier', name: 'globalThis' } });
+  const bare = varDeclaration('M');
+  const ambient = varDeclaration('A', { declare: true });
+  const nested = varDeclaration('M');
+  const innerFn = {
+    type: 'FunctionDeclaration', id: { type: 'Identifier', name: 'inner' }, params: [],
+    body: { type: 'BlockStatement', body: [nested] },
+  };
+  const usageStmt = { type: 'ExpressionStatement', expression: { type: 'Identifier', name: 'M' } };
+  const program = { type: 'Program', sourceType: 'module', body: [first, bare, ambient, innerFn, usageStmt] };
+  const programPath = { node: program, parentPath: null };
+  const usagePath = { node: usageStmt, parentPath: programPath };
+
+  const found = findVarOwnerDeclaring(usagePath, 'M');
+  checkTruthy('findVarOwnerDeclaring/owner is the program', found?.owner.node === program);
+  check('findVarOwnerDeclaring/declarator is the FIRST declaration',
+    found?.declarator === first.declarations[0], true);
+  check('findVarOwnerDeclaring/every same-name declarator, source order',
+    found?.declarators.length, 2);
+  check('findVarOwnerDeclaring/value-less redeclaration kept',
+    found?.declarators[1] === bare.declarations[0], true);
+  check('findVarOwnerDeclaring/nested function var excluded',
+    found?.declarators.includes(nested.declarations[0]), false);
+  // ambient: tsc erases it, so the reference resolves to the global and the name is not declared here
+  check('findVarOwnerDeclaring/ambient declare var is not a declaration', findVarOwnerDeclaring(usagePath, 'A'), null);
+}
+
+// --- resolveImportPath: repeated resolution is stable ---
+// the absolute form is served from a per-specifier memo, so a second ask must return the same
+// string as the first (and the relative form must stay untouched by the memo entirely)
+{
+  const first = resolveImportPath('@core-js/pure', 'actual/array/from', true);
+  check('resolveImportPath/absolute is stable across calls',
+    resolveImportPath('@core-js/pure', 'actual/array/from', true), first);
+  check('resolveImportPath/relative unaffected',
+    resolveImportPath('@core-js/pure', 'actual/array/from', false), '@core-js/pure/actual/array/from');
+}
 
 finish();

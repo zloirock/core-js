@@ -22,9 +22,12 @@ function lineIndexFor(lineStarts, offset) {
   return lo;
 }
 
+// the line table is built on the FIRST query, not on construction: the directive scan asks for a
+// line only when the file actually carries a core-js directive comment, which almost none do -
+// eager construction spent a full source scan plus an O(lines) array per file, then threw it away
 export function buildOffsetToLine(code) {
-  const lineStarts = collectLineStarts(code);
-  return offset => lineIndexFor(lineStarts, offset) + 1;
+  let lineStarts = null;
+  return offset => lineIndexFor(lineStarts ??= collectLineStarts(code), offset) + 1;
 }
 
 // 1-based line + column; returns null when offset is not an in-range non-negative integer.

@@ -273,6 +273,40 @@ export function createClassFields({
   // provider, a same-named export there IS the resolution source (the no-shadow narrow) -
   // valid TS forbids it from redeclaring a class-body member. the whole program is scanned
   // because the merge pairs by NAME, not by lexical adjacency
+  // program -> namespace name -> its `export` statements. the namespace layout is a property of
+  // the parse, but the scan below used to run WHOLE-program per `this.<static>` resolution, so a
+  // class with M static reads over a program of N nodes paid O(M * N). indexed once instead
+  const namespaceExportsByProgram = new WeakMap();
+
+  function namespaceExportsIndex(programNode) {
+    let index = namespaceExportsByProgram.get(programNode);
+    if (index) return index;
+    index = new Map();
+    (function scan(node) {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const item of node) scan(item);
+        return;
+      }
+      if (typeof node.type !== 'string') return;
+      if (node.type === 'TSModuleDeclaration' && node.id?.type === 'Identifier') {
+        let statements = index.get(node.id.name);
+        if (!statements) index.set(node.id.name, statements = []);
+        // `moduleStatements` guards the babel@7 dotted-namespace shape (`namespace X.Y {}` ->
+        // body is a NESTED TSModuleDeclaration, not a TSModuleBlock): a bare `body.body` there
+        // is the inner block OBJECT, and a for-of over it throws and aborts the file transform.
+        // the dotted form's exports live on `X.Y`, not `X`, so treating it as no direct member
+        // (the nested decl is not an ExportNamedDeclaration) is also semantically correct
+        for (const stmt of moduleStatements(node) ?? []) {
+          if (stmt.type === 'ExportNamedDeclaration') statements.push(stmt);
+        }
+      }
+      walkAstChildren(node, scan);
+    })(programNode);
+    namespaceExportsByProgram.set(programNode, index);
+    return index;
+  }
+
   function namespaceMergeDeclaresStatic({ programNode, descendant, fieldName, classPath, anchorNamespaceOverrides }) {
     const classNames = new Set();
     for (const sub of descendant.paths) {
@@ -281,46 +315,28 @@ export function createClassFields({
       if (name) classNames.add(name);
     }
     if (!classNames.size) return false;
-    let found = false;
-    (function scan(node) {
-      if (found || !node || typeof node !== 'object') return;
-      if (Array.isArray(node)) {
-        for (const item of node) scan(item);
-        return;
-      }
-      if (typeof node.type !== 'string') return;
-      if (node.type === 'TSModuleDeclaration' && node.id?.type === 'Identifier' && classNames.has(node.id.name)) {
-        // `moduleStatements` guards the babel@7 dotted-namespace shape (`namespace X.Y {}` ->
-        // body is a NESTED TSModuleDeclaration, not a TSModuleBlock): a bare `body.body` there
-        // is the inner block OBJECT, and a for-of over it throws and aborts the file transform.
-        // the dotted form's exports live on `X.Y`, not `X`, so treating it as no direct member
-        // (the nested decl is not an ExportNamedDeclaration) is also semantically correct
-        for (const stmt of moduleStatements(node) ?? []) {
-          if (stmt?.type !== 'ExportNamedDeclaration') continue;
-          // specifier form (`function f() {}; export { f };` / `export { f as g }`): the
-          // EXPORTED name becomes the runtime static slot
-          for (const spec of stmt.specifiers ?? []) {
-            const exported = spec.exported?.name ?? spec.exported?.value;
-            if (exported === fieldName) found = true;
-          }
-          const decl = stmt.declaration;
-          if (!decl) continue;
-          if (decl.type === 'VariableDeclaration') {
-            for (const d of decl.declarations ?? []) {
-              // a destructuring export (`export const { list } = src()` / `[list]` / renamed /
-              // rest / nested / defaulted) binds the runtime static slot exactly like the
-              // identifier form - the shadow census must count every pattern-bound name
-              if (d.id?.type === 'Identifier' ? d.id.name === fieldName : patternBindsName(d.id, fieldName)) found = true;
-            }
-          } else if (decl.id?.type === 'Identifier' && decl.id.name === fieldName) {
-            found = true;
-          }
+    const index = namespaceExportsIndex(programNode);
+    for (const className of classNames) {
+      for (const stmt of index.get(className) ?? []) {
+        // specifier form (`function f() {}; export { f };` / `export { f as g }`): the
+        // EXPORTED name becomes the runtime static slot
+        for (const spec of stmt.specifiers ?? []) {
+          const exported = spec.exported?.name ?? spec.exported?.value;
+          if (exported === fieldName) return true;
         }
-        if (found) return;
+        const decl = stmt.declaration;
+        if (!decl) continue;
+        if (decl.type === 'VariableDeclaration') {
+          for (const d of decl.declarations ?? []) {
+            // a destructuring export (`export const { list } = src()` / `[list]` / renamed /
+            // rest / nested / defaulted) binds the runtime static slot exactly like the
+            // identifier form - the shadow census must count every pattern-bound name
+            if (d.id?.type === 'Identifier' ? d.id.name === fieldName : patternBindsName(d.id, fieldName)) return true;
+          }
+        } else if (decl.id?.type === 'Identifier' && decl.id.name === fieldName) return true;
       }
-      walkAstChildren(node, scan);
-    })(programNode);
-    return found;
+    }
+    return false;
   }
 
   // does a class-body member shadow `fieldName`? a computed key only names a fixed slot when it
