@@ -62,11 +62,14 @@
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { librariesIn } from './libraries.mjs';
+import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 const { mkdir, readFile, rm, writeFile } = fs;
-const { join } = path;
+const { join, relative } = path;
 const { OVERWRITE } = process.env;
+const execFileP = promisify(execFile);
 
 const ART = join(HERE, 'artifacts');
 const MANIFEST = join(ART, 'manifest.json');
@@ -172,7 +175,10 @@ async function preflight(code) {
     // A bundle whose `run()` never settles (a plausible symptom of a broken Promise polyfill) lets
     // the child's event loop drain and exit 0 with EMPTY stdout, so without these guards the failure
     // surfaces as a bare `Unexpected end of JSON input` that names neither the child nor the bundle.
-    const { stdout } = await $({ quiet: true, timeout: '120s' })`${ process.execPath } -e ${ PREFLIGHT } ${ f }`;
+    // not `$`: the child is this very node binary, and on windows its path is not something a shell
+    // can execute - a backslashed `C:\...` reaches bash as an unquotable word
+    const { stdout } = await execFileP(process.execPath, ['-e', PREFLIGHT, f],
+      { timeout: 120_000, maxBuffer: 16 * 1024 * 1024 });
     if (!stdout.trim()) throw new Error('preflight child produced no output - run() likely never settled');
     try {
       return JSON.parse(stdout);
@@ -410,7 +416,6 @@ echo('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js be
 if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
   echo(`\n${ karmaFiles.length } bundle(s) also written to ${ KARMA_OUT }. IE11 not present and not CI - skipping Karma.`);
 } else {
-  const conf = join(HERE, 'karma.conf.cjs');
   echo(`\nrunning Karma in real IE11 - ONE bundle per page (${ karmaFiles.length } pages), so no sibling shares a`);
   echo('realm: a global-patching method can never mask the usage-pure or pre gap of another cell, and each');
   echo('page holds a single library copy. post + pre+post (and entry-global) GATE the job; the `pre` phase is');
@@ -419,10 +424,12 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
   echo('Per-cell counts print as "[e2e-libs] <lib>/<method>/<phase>: N/N checks passed".');
   for (const { file, label, gating } of karmaFiles) {
     echo(`\n-- IE11: ${ label }${ gating ? '' : ' [pre diagnostic, non-gating]' } --`);
-    // forward slashes: this leg runs on windows, and Karma matches `files` through glob, where a
-    // backslash is an escape - a native Windows path would silently match nothing
+    // both paths stay relative to the suite directory and forward-slashed: this leg runs on windows,
+    // where `$` goes through bash - a native `D:\...` reaches it as an unquotable word - and Karma
+    // matches `files` through glob, where a backslash is an escape and would match nothing
     // one IE11 page at a time, on purpose (see header) - sequential await is intended here
-    const { exitCode } = await $({ cwd: HERE, nothrow: true })`karma start ${ conf } -f=${ file.replaceAll('\\', '/') }`;
+    const bundle = relative(HERE, file).replaceAll('\\', '/');
+    const { exitCode } = await $({ cwd: HERE, nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
     if (exitCode === 0) continue;
     if (gating) failed++;
     else echo(`  pre diagnostic ${ label }: Karma exit ${ exitCode } - an expected-possible pre failure; not gating`);
