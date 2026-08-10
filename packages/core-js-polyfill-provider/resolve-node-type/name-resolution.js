@@ -404,6 +404,14 @@ export function createNameResolution({ t }) {
   // touch dozens of call sites, but resolution is strictly synchronous and reentrant
   // calls compose naturally on the stack, so an instance-level stack avoids the churn
   const lookupPathStack = [];
+  // the anchor a namespace-fallback lookup currently resolves against. exposed so a caller that
+  // MEMOIZES a result computed under it can key on the anchor too - the same declaration resolves
+  // differently under two anchors, and `parentPath.scope` alone does not distinguish them (a
+  // recovered namespace decl path chains to the OUTER scope, so the scope can be identical)
+  function currentLookupPath() {
+    return lookupPathStack.at(-1) ?? null;
+  }
+
   function withLookupPath(path, fn) {
     if (!path) return fn();
     lookupPathStack.push(path);
@@ -604,6 +612,7 @@ export function createNameResolution({ t }) {
   // `walkStatementsForDecl` / `walkScopesForDecl`)
   return {
     withLookupPath,
+    currentLookupPath,
     isFunctionLike,
     isFunctionOrClassDeclaration,
     isClassLikeDeclaration,

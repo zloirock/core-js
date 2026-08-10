@@ -356,6 +356,28 @@ export function createDestructureEmitter({
   // transforms.add registration until applyDestructuringTransforms - by then scope-tracker
   // has full state for `consumeRefBindingsInRange`
   const pendingFlatten = [];
+  // declaration -> its `pendingFlatten` entry. the four consumers below all ask the same question
+  // ("which flatten slot owns this declarator / prop"), and a linear scan per drained entry is
+  // quadratic in flatten-claimed declarations x drained props
+  const pendingFlattenByDecl = new Map();
+  // which declarator of `declarations` hosts `propNode`. the text emitter has no structural climb
+  // from a prop back to its declarator the way the AST twin does (it answers by walking paths), so
+  // the span containment IS the answer here - written once instead of once per asking site
+  function declaratorContaining(declarations, propNode) {
+    return declarations.find(d => d.start <= propNode.start && propNode.end <= d.end) ?? null;
+  }
+
+  // the ONE flatten-slot resolver, keyed by declarator IDENTITY. the span-based spelling this
+  // replaces lived at four call sites and rested on an unstated invariant (a claimed prop always
+  // sits inside its own declarator); every caller now already holds the declarator, so the
+  // invariant is discharged by construction rather than re-asserted per site
+  function flattenSlotFor({ declaration, declaratorNode }) {
+    if (!declaration || !declaratorNode || !flattenedNestedDecls.has(declaration)) return null;
+    const entry = pendingFlattenByDecl.get(declaration);
+    if (!entry) return null;
+    const index = entry.declaration.declarations.indexOf(declaratorNode);
+    return index === -1 ? null : { entry, index, slot: entry.perDecl[index] };
+  }
   // mirror queue for AssignmentExpression cascade. same rationale: cascade fires DURING
   // traverse on the first polyfilled prop (must skip-mark before sibling visit), but a
   // sibling visit on the RHS may later register `var _ref;` inserts inside the SE-prefix
@@ -458,11 +480,14 @@ export function createDestructureEmitter({
   // callbacks queued inside that read the patched method after return). try/finally
   // guarantees restoration even on throw; nested calls compose correctly because each
   // restores the previous binding (not the original-original). violation symptom: a later
-  // unrelated `generateUnusedName()` call leaks into `target` array
+  // unrelated `generateUnusedName()` call leaks into `target` array.
+  // the captured method is UNBOUND (`.call(injector)` at use): a bound copy would restore an
+  // own-property wrapper instead of the prototype method, so every invocation would install one
+  // more bind hop on top of the previous one and the depth would grow monotonically per file
   function withTrackedUnusedNames(target, fn) {
-    const orig = injector.generateUnusedName.bind(injector);
+    const orig = injector.generateUnusedName;
     injector.generateUnusedName = () => {
-      const name = orig();
+      const name = orig.call(injector);
       target.push(name);
       return name;
     };
@@ -763,7 +788,9 @@ export function createDestructureEmitter({
     // defer rendering + transforms.add to applyDestructuringTransforms - sibling subtree
     // visits AFTER this point may register `var _ref;` scope-tracker bindings for inner
     // instance-method polyfills. baking those into preservedSrc requires post-traverse state
-    pendingFlatten.push({ declaration, declPath, perDecl, isForInit });
+    const entry = { declaration, declPath, perDecl, isForInit };
+    pendingFlatten.push(entry);
+    pendingFlattenByDecl.set(declaration, entry);
     return true;
   }
 
@@ -787,7 +814,11 @@ export function createDestructureEmitter({
       flattenDeclarationPath(path, path.scope);
       return;
     }
-    if (node.operator !== '=' || isDisabled(node)) return;
+    // cheap shape prefilter FIRST, as the doc block above promises and the babel twin does: both
+    // arms below require an ObjectPattern LHS (the peeled arm through `isProxyHopHostShape`), so
+    // every non-destructuring `=` in the file - the overwhelming majority - would otherwise pay
+    // the `isDisabled` line lookup plus the parent climb and two allocations of the peel
+    if (node.operator !== '=' || node.left?.type !== 'ObjectPattern' || isDisabled(node)) return;
     const peeled = peelToExpressionStatement(path);
     if (!peeled) {
       // no ExpressionStatement hosts the cascade, but a host buried in a consumed init's
@@ -795,7 +826,6 @@ export function createDestructureEmitter({
       // expression-shaped rebuild composes into it by needle. any ObjectPattern LHS may
       // qualify (the twin's plan gates decide - a ctor-alias / pure-static host folds via
       // the anchor-less full-consume path, not just the nested-hop shape)
-      if (node.left?.type !== 'ObjectPattern') return;
       const operand = liftedSePrefixOperandFor(node);
       if (operand) tryFlattenLiftedProxyHopHost(node, operand, path.scope, path);
       return;
@@ -1123,6 +1153,10 @@ export function createDestructureEmitter({
   // reassembled init source, or null when no operand referenced a polyfillable global
   function polyfillLogicalInitOperands(node, src, baseStart, info) {
     let any = false;
+    // depends only on `info`, so it is resolved once per invocation rather than per operand -
+    // `aliasCtxFor` returns a fresh literal, so a per-operand call also defeats any future memo
+    // keyed on the ctx object
+    const aliasCtx = aliasCtxFor(info);
     function renderOperand(operand) {
       const peeled = unwrapParens(operand);
       const rawSrc = src.slice(operand.start - baseStart, operand.end - baseStart);
@@ -1153,18 +1187,17 @@ export function createDestructureEmitter({
         if (peeled.type === 'Identifier') {
           const pure = resolvePure({ kind: 'global', name: peeled.name }, null);
           if (pure) out = injectPureImport(pure.entry, pure.hintName);
-        } else if (findProxyGlobal(peeled, aliasCtxFor(info))) {
+        } else if (findProxyGlobal(peeled, aliasCtx)) {
           // per-operand parity with the main receiver (polyfillInitGlobals): a PURE-CTOR leaf
           // whole-swaps to the pure binding (`globalThis.self.Map` -> `_Map`), a non-pure leaf
           // collapses its proxy hops (`globalThis.self.Array` -> `_globalThis.Array`, alias-aware
           // `g.self.Array` -> `g.Array`)
-          const ctx = aliasCtxFor(info);
           // peel SE prefix + chain to the member for the leaf lookup so a pure ctor is recognised
           // under an SE prefix / optional chain too; else globalProxyMemberName sees the wrapper and
           // falls through to the root-only swap (crashes the queue against the visitor for an SE pure
           // ctor). `prefix` (the SE expressions) gates SE-detection - a ChainExpression is NOT an SE
           const { prefix, tail } = peelNestedSequenceExpressions(peeled);
-          const leafName = globalProxyMemberName({ node: tail ?? peeled, ...ctx });
+          const leafName = globalProxyMemberName({ node: tail ?? peeled, ...aliasCtx });
           const leafPolyfill = leafName && resolvePure({ kind: 'global', name: leafName }, null);
           if (leafPolyfill) {
             // pure-ctor: whole-swap a DIRECT, NON-SE operand here (markInitGlobals skip-marks it, so
@@ -1173,7 +1206,7 @@ export function createDestructureEmitter({
             // swapping here would drop the SE prefix or crash the queue against the visitor
             if (!prefix.length && findProxyGlobal(peeled)) out = injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
           } else {
-            out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start, aliasCtx: ctx });
+            out = substituteProxyGlobalRoot({ node: peeled, src: rawSrc, baseStart: operand.start, aliasCtx });
           }
         // `walkInit` (init-globals) also skip-marks the globals inside a conditional's consequent /
         // alternate and inside every sequence expression, suppressing the natural visitor - so
@@ -1384,8 +1417,14 @@ export function createDestructureEmitter({
     // suppress the single-hop default for that set, else the two queue overlapping transforms on the residual (a
     // stale `.self` needle nested inside the collapse -> compose crash). a pure-ctor leaf IS owned now (the shared
     // resolver harvests its hop SE), so it is NOT excluded
-    const collapseProxyHopRootOwns = buriesEffectInProxyHopMember(info.initNode, aliasCtxFor(info));
-    if (willLiftSE && !liftTailDead && !collapseProxyHopRootOwns) collapseRetainedProxyDefault(info.initNode, aliasCtxFor(info));
+    // the ownership probe is only ever read under the lift gate, so it rides behind it - and the
+    // alias ctx is resolved once for both calls instead of once per call
+    if (willLiftSE && !liftTailDead) {
+      const initAliasCtx = aliasCtxFor(info);
+      if (!buriesEffectInProxyHopMember(info.initNode, initAliasCtx)) {
+        collapseRetainedProxyDefault(info.initNode, initAliasCtx);
+      }
+    }
     const procSrc = initSrc;
     // ONE extract-or-bake algorithm for both shapes: the no-drop init is a single part
     // spanning the whole range; a tail-dropped prefix is one part per kept expression
@@ -1549,6 +1588,7 @@ export function createDestructureEmitter({
       transforms.add(start, end, guardOverwriteLeftFusion(start, replacement, declPath), null, { rewrittenRanges: slotRanges });
     }
     pendingFlatten.length = 0;
+    pendingFlattenByDecl.clear();
   }
 
   // for-init: SE prefix re-embeds into preservedSrc receiver slot via `injectForInitSESinks`
@@ -1765,7 +1805,7 @@ export function createDestructureEmitter({
   function flattenPlanConsumesProp(metaPath, propNode) {
     const declPath = walkUpNestedDestructureToDeclaration(metaPath.parentPath);
     if (declPath?.node?.type !== 'VariableDeclaration') return false;
-    const declarator = declPath.node.declarations.find(d => d.start <= propNode.start && propNode.end <= d.end);
+    const declarator = declaratorContaining(declPath.node.declarations, propNode);
     if (!declarator) return false;
     const plan = planDeclarator(declarator, metaPath.scope, metaPath);
     const idx = plan ? plan.pattern.properties.indexOf(propNode) : -1;
@@ -2787,7 +2827,10 @@ export function createDestructureEmitter({
     // on ie11) is owned WHOLE by the constructor substitution - any hop edit here would
     // overlap that full-span overwrite
     if (resolveGlobalPolyfill(memberKeyName(member) ?? '')) return;
-    let start = proxyGlobalWrappedRoot(receiver, aliasCtx).end;
+    // one root resolution for both spans below - `proxyGlobalWrappedRoot` re-runs `findProxyGlobal`
+    // and re-descends the members on every call, and both ends come from the SAME node
+    const wrappedRoot = proxyGlobalWrappedRoot(receiver, aliasCtx);
+    let start = wrappedRoot.end;
     // an OPTIONAL root connector belongs to the ROOT substitution (`globalThis?.` rewrites to
     // `_globalThis.` - connector included): start past it or the transforms overlap on those
     // bytes. the replacement then re-establishes exactly one connector for the leaf: none when
@@ -2804,7 +2847,7 @@ export function createDestructureEmitter({
       const bracket = /^\s*(?:\?\.\s*)?\[/.exec(nodeSrc({ start: prefix.end, end: member.property.start }));
       if (!bracket) return;
       skippedNodes.add(rootIdent);
-      transforms.add(proxyGlobalWrappedRoot(receiver, aliasCtx).start, prefix.end + bracket[0].length - 1,
+      transforms.add(wrappedRoot.start, prefix.end + bracket[0].length - 1,
         injectPureImport(pure.entry, pure.hintName));
       return;
     }
@@ -2862,7 +2905,7 @@ export function createDestructureEmitter({
     let receiverNode = receiverPlan.node;
     // the declarator hosting this leaf, plus whether it is the WHOLE declaration's only binding and whether
     // its init carries no side effect - the planner needs these to drop a dead residual / memoize the receiver
-    const declarator = declaration.declarations.find(d => d.start <= propNode.start && propNode.end <= d.end);
+    const declarator = declaratorContaining(declaration.declarations, propNode);
     // instance-only: a static never re-references the receiver, so the memo channel stays off
     let receiverIsWholeInit = receiverPlan.channel === 'whole-init-memo' && pureResult.kind === 'instance';
     // an instance receiver that resolves to NOTHING (a call inside a nested fragment, an interpolated
@@ -2881,11 +2924,16 @@ export function createDestructureEmitter({
     // ternary / `||` collapses to one proxy and extracts on both sides (mirroring would have to swap
     // BOTH branches, which the text composer can't compose). `outerDestructureReceiver` descends array
     // wrappers (`[{ Array: { [se]: f } }] = [c ? gt : u]`); AST intact here, so the proxy check holds
-    const recv = outerDestructureReceiver(metaPath.parentPath, metaPath.scope, estreeAdapter);
+    // gated on kind like both twins (babel emitter, provider `planArrayWrappedStaticExtract`): the
+    // walk is a parent climb plus an array-wrapper descent per dispatched prop, and an instance
+    // kind - the majority of dispatches on this route - discards the answer unread
+    const recv = pureResult.kind === 'instance'
+      ? null : outerDestructureReceiver(metaPath.parentPath, metaPath.scope, estreeAdapter);
     const recvType = recv?.type;
-    const mirrorReceiver = (recvType === 'ConditionalExpression' || recvType === 'LogicalExpression')
-      && (!destructureValueBranchesAllProxy(recv) || (recvType === 'LogicalExpression' && recv.operator === '&&'));
-    if (pureResult.kind !== 'instance' && mirrorReceiver) return false;
+    if ((recvType === 'ConditionalExpression' || recvType === 'LogicalExpression')
+      && (!destructureValueBranchesAllProxy(recv) || (recvType === 'LogicalExpression' && recv.operator === '&&'))) {
+      return false;
+    }
     let bindingCount = 0;
     if (declarator) walkPatternIdentifiers(declarator.id, () => bindingCount++);
     function makePlan() {
@@ -2992,24 +3040,19 @@ export function createDestructureEmitter({
     // whole handler). `emit(copyExpr, hoist)` then routes `localId = copyExpr` to that sink, shared by
     // the eager paths (static binding / memoized `_ref`) and the deferred duplicated-instance copy
     const isFlattenClaimed = !plan.siblingDeclarator && flattenedNestedDecls.has(declaration);
-    let flattenEntry = null;
-    let flattenIdx = -1;
+    // a flatten already claimed this declaration (a sibling branch dispatched first): a standalone
+    // start-anchored insert would land ABOVE the flatten's whole-range render, reordering the
+    // extractions against source order. the claimed slot's extraction list emits in plan order
+    const flatten = isFlattenClaimed ? flattenSlotFor({ declaration, declaratorNode: declarator }) : null;
     if (isFlattenClaimed) {
-      // a flatten already claimed this declaration (a sibling branch dispatched first): a standalone
-      // start-anchored insert would land ABOVE the flatten's whole-range render, reordering the
-      // extractions against source order. the claimed slot's extraction list emits in plan order
-      flattenEntry = pendingFlatten.find(f => f.declaration === declaration);
-      flattenIdx = flattenEntry ? declaration.declarations.findIndex(
-        d => d.start <= propNode.start && propNode.end <= d.end) : -1;
-      if (!flattenEntry || flattenIdx === -1) return false;
+      if (!flatten) return false;
       // the flatten renders this declarator's residual from a verbatim source slice, so the
       // value->sentinel rename above must bake INTO that slice as a residual target - otherwise it
       // floats as a standalone overwrite that mis-composes against the flatten's whole-declaration
       // render, landing the sentinel on the extracted binding (`_unused = _poly`) and leaving the
       // real binding native in the residual (`{ [se]: g } = R`). the target drains the queued rename
-      const slot = flattenEntry.perDecl[flattenIdx];
-      const declStart = declaration.declarations[flattenIdx].start;
-      (slot.residualTargets ??= []).push({
+      const declStart = declaration.declarations[flatten.index].start;
+      (flatten.slot.residualTargets ??= []).push({
         srcStart: propNode.value.start, srcEnd: propNode.value.end, dstStart: propNode.value.start - declStart,
       });
     }
@@ -3067,7 +3110,7 @@ export function createDestructureEmitter({
           srcStart: propNode.value.start, srcEnd: propNode.value.end,
         });
       } else if (isFlattenClaimed) {
-        flattenEntry.perDecl[flattenIdx].extractions.push({ decl: `${ lhs } = ${ copyExpr }` });
+        flatten.slot.extractions.push({ decl: `${ lhs } = ${ copyExpr }` });
       } else if (instanceDefaultNode || splitSeKeyPatterns.has(metaPath.parent)) {
         // the guarded extraction must evaluate AFTER the kept key's side effect (native reads
         // the key first, then fires the default) - append it as a trailing sibling declarator
@@ -3964,7 +4007,7 @@ export function createDestructureEmitter({
     const nav = ctx && resolveCallRootedProxyCollapse({ receiver: peeled, ...ctx });
     if (!nav) return;
     const collapsed = substituteCallRootedProxyHop({
-      target: peeled, src: nodeSrc(peeled), baseStart: peeled.start, ctx,
+      target: peeled, src: nodeSrc(peeled), baseStart: peeled.start, ctx, plan: nav,
     });
     if (collapsed === null) return;
     collapsedCallRootReceivers.add(peeled);
@@ -4129,8 +4172,10 @@ export function createDestructureEmitter({
   // call) and replace the proxy-hop prefix `<call>.self` with `(callSrc, _root)` - or `_root` for a pure
   // call - so the undefined `.self` hop is dropped. the call source keeps its own inner rewrites
   // (`return globalThis` -> `return _globalThis`) which compose into the re-emitted text by needle
-  function substituteCallRootedProxyHop({ target, src, baseStart, ctx }) {
-    const plan = ctx && resolveCallRootedProxyCollapse({ receiver: target, ...ctx });
+  // `plan` is the already-resolved collapse for `target` - both delegating call sites hold one
+  // (their own gate needed it), and re-deriving it here walks the receiver chain a second time
+  function substituteCallRootedProxyHop({ target, src, baseStart, ctx, plan = null }) {
+    plan ??= ctx && resolveCallRootedProxyCollapse({ receiver: target, ...ctx });
     if (!plan) return null;
     // a pure-ctor leaf (`(() => globalThis)().self.Map`) is whole-swapped to the pure ctor elsewhere, so bail
     const leafName = memberKeyName(target);
@@ -4206,7 +4251,9 @@ export function createDestructureEmitter({
     // the proxy-global receiver to collapse is the tail. non-SE nodes peel to themselves, so the
     // member / identifier callers (`synthMemberReceiverSrc`, logical operands) are unaffected
     const target = peelNestedSequenceExpressions(node).tail ?? node;
-    const proxyRoot = findProxyGlobal(target, aliasCtx, throughChainAssign);
+    // a non-SE node peels to itself, and then this is the SAME binding-aware resolution `earlyRoot`
+    // already made above - `findProxyGlobal` is uncached and re-runs the whole hop walk
+    const proxyRoot = target === node ? earlyRoot : findProxyGlobal(target, aliasCtx, throughChainAssign);
     if (!proxyRoot) return substituteCallRootedProxyHop({ target, src, baseStart, ctx });
     // root resolution via the shared synth-swap collapse plan (the SAME decision as babel's
     // collapseProxyGlobalReceiver). a direct root -> rootBinding.pure; an ALIAS root (`const g = globalThis;
@@ -4237,7 +4284,7 @@ export function createDestructureEmitter({
     if (collapseCtx && !collapse.rootBinding.alias) {
       const callPlan = resolveCallRootedProxyCollapse({ receiver: target, ...collapseCtx });
       if (callPlan?.droppedSe.length) {
-        const delegated = substituteCallRootedProxyHop({ target, src, baseStart, ctx: collapseCtx });
+        const delegated = substituteCallRootedProxyHop({ target, src, baseStart, ctx: collapseCtx, plan: callPlan });
         if (delegated !== null) return delegated;
       }
     }
@@ -4263,21 +4310,21 @@ export function createDestructureEmitter({
     // there is no proxy-immediate sub-chain for the natural visitor to nest, so the SE-hop must collapse HERE -
     // else it stays raw (`_globalThis[(e++,'window')].Set`, undefined off-engine -> crash)
     const rootIsSeWrapped = unwrapParens(wrappedRoot)?.type === 'SequenceExpression';
-    // a plan that MIGRATES the dropped keys' effects into the surviving leaf key owns the SE-hop shape
-    // outright - the natural-visitor deferral below exists only for shapes with no SE channel
-    if (!isWriteTarget && !rootIsSeWrapped && !collapse.keyPrefixSE?.length
-      && maximalProxyGlobalPrefix(target, aliasCtx, { throughChainAssign }).end
-        !== maximalProxyGlobalPrefix(target, aliasCtx, { allowSideEffectKeys: true, throughChainAssign }).end) {
-      return null;
-    }
     // the maximal proxy navigation prefix (root + every redundant hop, computed-key hops admitted via `true`)
     // is the span to replace with the pure root + its buried side effects; the surviving tail stays. ONE
     // recursive harvest captures every buried prefix in source order regardless of shape - a SE root-wrapper
     // (`(eff(), globalThis).self`), nested sequences, a computed-key hop (`[(c++, 'self')]`) - so the
     // reconstruction needs no per-shape boundary arithmetic. a sequence-BURIED root + trailing hop
     // (`(c++, (d++, globalThis.self)).window.X`) reconstructs cleanly here; the prior bare-identifier start
-    // sat INSIDE the parens and the slice cut across the `))`, yielding unbalanced parens (a build-break)
+    // sat INSIDE the parens and the slice cut across the `))`, yielding unbalanced parens (a build-break).
+    // resolved BEFORE the SE-parity bail below, which compares against exactly this span
     const maxPrefix = maximalProxyGlobalPrefix(target, aliasCtx, { allowSideEffectKeys: true, throughChainAssign });
+    // a plan that MIGRATES the dropped keys' effects into the surviving leaf key owns the SE-hop shape
+    // outright - the natural-visitor deferral below exists only for shapes with no SE channel
+    if (!isWriteTarget && !rootIsSeWrapped && !collapse.keyPrefixSE?.length
+      && maximalProxyGlobalPrefix(target, aliasCtx, { throughChainAssign }).end !== maxPrefix.end) {
+      return null;
+    }
     // span the WHOLE proxy nav incl. a wrapper directly around the bare root: WITH a hop, maxPrefix's object
     // IS the wrapper so maxPrefix is the outer node; with NO hop the wrapper is maxPrefix's PARENT, so fall
     // back to proxyGlobalWrappedRoot (`(globalThis)` -> the `(`). the outer (min-start) of the two spans both
@@ -4755,20 +4802,17 @@ export function createDestructureEmitter({
       // a flatten-claimed declaration renders whole-range from slots: the memo joins its
       // declarator's slot as the FIRST extraction (before the residual reads `_ref`); the
       // receiver->`_ref` overwrite queued above bakes into the preserved slice
-      const memoFlatten = memo.declaration && flattenedNestedDecls.has(memo.declaration)
-        ? pendingFlatten.find(f => f.declaration === memo.declaration) : null;
-      const memoSlotIdx = memoFlatten
-        ? memoFlatten.declaration.declarations.indexOf(memo.declaratorNode) : -1;
-      if (memoFlatten && memoSlotIdx !== -1) {
-        memoFlatten.perDecl[memoSlotIdx].extractions.unshift({ decl: `${ memo.refName } = ${ text }` });
+      const memoFlatten = flattenSlotFor({ declaration: memo.declaration, declaratorNode: memo.declaratorNode });
+      if (memoFlatten) {
+        memoFlatten.slot.extractions.unshift({ decl: `${ memo.refName } = ${ text }` });
         // the memo REFERENCES the init (it does not consume it): the slot keeps its verbatim
         // residual slice, so the SE-prefix lift and the full-preserve splice bake must still
         // treat it as non-extracted - the memo text already carries any init prefix
-        memoFlatten.perDecl[memoSlotIdx].memoRouted = true;
+        memoFlatten.slot.memoRouted = true;
         // the queued receiver->`_ref` overwrite must bake into THIS slot's residual slice (drained
         // by the render), not stay on the queue - there it would needle-compose into the memo
         // extraction text (the first occurrence of the receiver source in the replacement)
-        (memoFlatten.perDecl[memoSlotIdx].residualTargets ??= []).push({
+        (memoFlatten.slot.residualTargets ??= []).push({
           srcStart: memo.receiverNode.start, srcEnd: memo.receiverNode.end,
           dstStart: memo.receiverNode.start - memo.declaratorNode.start,
         });
@@ -4839,15 +4883,13 @@ export function createDestructureEmitter({
       transforms.add(split.cutFrom, split.cutTo, '');
     }
     for (const { declaration, declaratorNode, decl, split } of pendingSeKeyTrailing) {
-      const flattenEntry = flattenedNestedDecls.has(declaration)
-        ? pendingFlatten.find(f => f.declaration === declaration) : null;
-      const flattenIdx = flattenEntry ? flattenEntry.declaration.declarations.indexOf(declaratorNode) : -1;
-      if (flattenEntry && flattenIdx !== -1) {
+      const flatten = flattenSlotFor({ declaration, declaratorNode });
+      if (flatten) {
         // flatten-claimed: the whole declaration re-renders from slots - the pair trails its OWN
         // slot (right after the residual whose key effect it complements), so a later declarator
         // of the same declaration reading the extracted name sees the polyfill, not the pre-init
         // value (undefined on var, TDZ throw on let/const)
-        (flattenEntry.perDecl[flattenIdx].trailingExtractions ??= []).push({ decl });
+        (flatten.slot.trailingExtractions ??= []).push({ decl });
       } else if (byStatement.has(declaration)) {
         if (!trailingByDecl.has(declaration)) trailingByDecl.set(declaration, new Map());
         const byDeclarator = trailingByDecl.get(declaration);
@@ -4865,11 +4907,9 @@ export function createDestructureEmitter({
     // sibling-host SE-key renames: under a flatten claim the queued value->sentinel overwrite must
     // bake into the claimed slot's residual slice, else it floats against the whole-range render
     for (const rename of pendingSeKeyRenames) {
-      if (!flattenedNestedDecls.has(rename.declaration)) continue;
-      const flattenEntry = pendingFlatten.find(f => f.declaration === rename.declaration);
-      const idx = flattenEntry ? flattenEntry.declaration.declarations.indexOf(rename.declaratorNode) : -1;
-      if (!flattenEntry || idx === -1) continue;
-      (flattenEntry.perDecl[idx].residualTargets ??= []).push({
+      const flatten = flattenSlotFor({ declaration: rename.declaration, declaratorNode: rename.declaratorNode });
+      if (!flatten) continue;
+      (flatten.slot.residualTargets ??= []).push({
         srcStart: rename.srcStart, srcEnd: rename.srcEnd,
         dstStart: rename.srcStart - rename.declaratorNode.start,
       });

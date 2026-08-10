@@ -10,6 +10,7 @@ import {
   isPristineProxyGlobal,
   POSSIBLE_GLOBAL_OBJECTS,
   arrayWrapSlotBindsName,
+  findVarOwnerDeclaring,
   isVarScopeBoundary,
   memberKeyName,
   objectPatternLiteralKeyPath,
@@ -30,10 +31,8 @@ import {
   varInitDominatesUsage,
   isDeclaratorSelfViolation,
   withoutValuelessDeclarationViolations,
-  walkPatternIdentifiers,
   unwrapSafeSequenceTail,
   isASTNode,
-  walkAstChildren,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
@@ -839,24 +838,11 @@ export function registerDeclAliasIfSound({
   // the inner `var` (registration sees it) while the read resolves the outer - and babel the
   // reverse. key the entry under EVERY same-name `var` declarator of the enclosing var scope
   const extraBindingNodes = [binding?.path?.node ?? binding?.node ?? null];
-  if (kind === 'var') {
-    let owner = stmtPath;
-    while (owner && !isVarScopeBoundary(owner.node?.type)) owner = owner.parentPath;
-    if (owner?.node) {
-      (function collect(node) {
-        if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
-        if (node !== owner.node && isVarScopeBoundary(node.type)) return;
-        if (node.type === 'VariableDeclaration' && node.kind === 'var') {
-          for (const d of node.declarations) {
-            let binds = false;
-            walkPatternIdentifiers(d.id, id => { if (id.name === localName) binds = true; });
-            if (binds) extraBindingNodes.push(d);
-          }
-        }
-        walkAstChildren(node, collect);
-      })(owner.node);
-    }
-  }
+  // through the CACHED canonical var-scope index (one walk per owner, all names at once) rather
+  // than a private full-subtree walk per registration: the private walk was O(owner nodes) on
+  // EVERY `{ Global: local }` pair, i.e. O(pairs * scope size) for a file that destructures the
+  // global repeatedly - and it also admitted ambient `declare var M`, which tsc elides
+  if (kind === 'var') extraBindingNodes.push(...findVarOwnerDeclaring(stmtPath, localName)?.declarators ?? []);
   if (kind === 'var' && !unconditionalStatementPlacement(stmtPath)) {
     // refused flow-trust (conditional hoisted `var`): the member reads get the runtime ctor
     // guard. `srcPos` keys the multi-write merge positionally, same as the assignment form -
@@ -1641,9 +1627,19 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
     // Array = Object; super.from() }`) must not be seen - using the method scope follows the wrong
     // binding and drops the inherited-static polyfill (ie:11). classAnchor is the class node path
     const classScope = classAnchor?.scope ?? path.scope;
-    return buildSuperStaticMeta(info.classNode, key,
-      superClass => resolveBindingToGlobalName(superClass, classScope, new Set(), classAnchor ?? path, classAnchor));
+    // the superclass resolution is independent of `key`, so it is answered once per class instead
+    // of once per `super.X` / `this.X` site - it is a binding chase plus a global classification,
+    // and a static-heavy class asks it for every member it reads. same per-file WeakMap lifetime
+    // (and `reset()` entry) as the own-name cache below
+    return buildSuperStaticMeta(info.classNode, key, superClass => {
+      if (superTypeCache.has(info.classNode)) return superTypeCache.get(info.classNode);
+      const resolved = resolveBindingToGlobalName(superClass, classScope, new Set(), classAnchor ?? path, classAnchor);
+      superTypeCache.set(info.classNode, resolved);
+      return resolved;
+    });
   }
+
+  let superTypeCache = new WeakMap();
 
   let ownNamesCache = new WeakMap();
   function getOwnNames(classBodyNode, kind, scope) {
@@ -1682,6 +1678,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
   function reset() {
     enclosingCache = new WeakMap();
     ownNamesCache = new WeakMap();
+    superTypeCache = new WeakMap();
   }
 
   // true when `path` lives inside a static method or static block - `this` there is the
