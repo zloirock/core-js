@@ -22,6 +22,7 @@ import {
   isNonReferencePosition,
   isTaggedTemplateTag,
   collectFileCensus,
+  methodReadsUsageCensus,
   memberKeyNamesReducer,
   mutatedGlobalSlotNames,
   isThisReceiver,
@@ -603,12 +604,16 @@ export default function createPlugin(options) {
     // reservation + the mutation / ctor-alias shape gates) - the scans it replaces each
     // re-walked the whole file. computed here, after the minifier split re-parse, so every
     // consumer reads the same tree it scanned before
-    const fileCensus = collectFileCensus(ast, [
+    // gated by the shared predicate. here NOTHING survives the gate - unlike babel, this census
+    // carries no minifier-shape reducer (the split ran before it) - and an empty reducer list
+    // would still walk, so the whole census is skipped rather than narrowed
+    const readsCensus = methodReadsUsageCensus(method);
+    const fileCensus = readsCensus ? collectFileCensus(ast, [
       bindingNamesReducer(),
       memberKeyNamesReducer(),
       mutationShapesReducer(packages),
       ctorAliasShapesReducer(),
-    ]);
+    ]) : {};
     let mutationInfo = null;
     // INJECTION policy only, so usage-pure only: a global-flavor bail here would drop an import
     // instead of adding one. the typing side asks the same data separately and lazily (below)
@@ -669,12 +674,12 @@ export default function createPlugin(options) {
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
       const { names: bindingNames, declaredNames, orphanRefs } = fileCensus;
-      injector.seedReservedNames(bindingNames);
+      if (readsCensus) injector.seedReservedNames(bindingNames);
       // user-owned global-object slot names the raw identifier scan above misses: computed
       // STRING-key member spellings (`globalThis['_ref']`) and string-key mutator writes
       // (`Object.defineProperty(self, '_ref', ...)`) - a script-scope `var _ref` temp would
       // alias and clobber the slot
-      injector.seedReservedNames(fileCensus.memberKeyNames);
+      if (readsCensus) injector.seedReservedNames(fileCensus.memberKeyNames);
       injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
       // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
       // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline.
@@ -688,7 +693,12 @@ export default function createPlugin(options) {
       // `isRefSlotForeign` keeps their slots out of the assignment, exactly like the AST
       // emitter's taken-aware renumber - skipping here instead desynced the two numberings
       let refCanonEligible = pass !== 'pre' && !inherit;
-      if (pass === 'post' && !inherit && hasCoreJSImport(ast, packages)) {
+      // `readsCensus` is the LOCAL statement of this block's dependency: it reads census-only
+      // collections, and the method that skips the census hands back a shape without them. today
+      // that method also forces `pass: 'single'`, so the phase test alone would keep this
+      // unreachable - but resting on a distant, unrelated guard turns a future phase change into a
+      // TypeError here instead of the degrade the empty shape is meant to give
+      if (readsCensus && pass === 'post' && !inherit && hasCoreJSImport(ast, packages)) {
         const adoptable = new Set();
         for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
         if (adoptable.size) refCanonEligible = false;
