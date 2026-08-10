@@ -1,6 +1,6 @@
 // Deterministic, headless RxJS exercise for the e2e-libs suite.
 //
-// `run()` returns a Promise of { checks } — a list of { label, actual, expected, pass } where each
+// `run()` returns a Promise of { checks } - a list of { label, actual, expected, pass } where each
 // entry computed its own `pass` via a JSON deep-equal, so consumers (HTML harness, node pre-flight)
 // only render `pass` and never need their own comparator.
 //
@@ -9,7 +9,7 @@
 // call, and a native call only fails if something reaches it. So the blocks below are chosen to make
 // RXJS'S OWN implementation reach for what IE11 lacks, rather than doing it here on rxjs's behalf.
 //
-// The centrepiece is `innerFrom`, rxjs's interop hub: every branch of it is driven — `Symbol.iterator`
+// The centrepiece is `innerFrom`, rxjs's interop hub: every branch of it is driven - `Symbol.iterator`
 // (a `Set`, a `Map`, a hand-rolled iterable), `Symbol.asyncIterator`, `Symbol.observable`, a promise,
 // and an array-like. Those three well-known-symbol lookups happen in `isIterable` /`isAsyncIterable` /
 // `isInteropObservable` and in `innerFrom` itself, and the iteration that follows runs through tslib's
@@ -18,24 +18,24 @@
 // needs more than one observer to be worth anything) and in `TestScheduler`, `Object.entries` in
 // `pairs`, `Array#includes` in `Subscription#_hasParent` (which needs a child with two parents),
 // `Promise.resolve` in the `asapScheduler`'s `Immediate`, `Number.isFinite` and `Array#sort` in
-// `VirtualTimeScheduler`, and `Object.create` in `createErrorClass` — whose hand-assembled prototype
+// `VirtualTimeScheduler`, and `Object.create` in `createErrorClass` - whose hand-assembled prototype
 // chains are what the `instanceof` assertions in the error block actually test.
 //
-// Measured by wrapping the natives and attributing each call to its immediate stack frame, the blocks
-// below reach 29 distinct natives from frames inside `rxjs/dist/`, against 21 for the version they
-// replace — plus the `Symbol.asyncIterator` and `Symbol.observable` lookups, which that instrument
-// cannot see (they land on objects this module owns) but which were confirmed the same way.
+// Coverage here is counted by wrapping the natives and attributing each call to its immediate stack
+// frame, so only the calls made from inside `rxjs/dist/` count. The `Symbol.asyncIterator` and
+// `Symbol.observable` lookups do not show up in that instrument (they land on objects this module
+// owns) and are confirmed separately.
 //
-// This is also why the old `for (const v of new Set(…))` / `[...new Set(…)]` checks are gone: they
-// exercised the iterator protocol through Babel's helpers in THIS module. `from(new Set(…))` puts the
-// same protocol where it belongs — inside rxjs.
+// This is also why the old `for (const v of new Set(...))` / `[...new Set(...)]` checks are gone: they
+// exercised the iterator protocol through Babel's helpers in THIS module. `from(new Set(...))` puts the
+// same protocol where it belongs - inside rxjs.
 //
 // A KNOWN consequence of that removal, accepted deliberately: the `usage-pure/pre` cell for rxjs is
 // now green on IE11, where it used to fail in `_createForOfIteratorHelper` / `_unsupportedIterableToArray`
-// for want of `Array.from`. Nothing was fixed — `pre` runs unplugin BEFORE Babel, so it still never
+// for want of `Array.from`. Nothing was fixed - `pre` runs unplugin BEFORE Babel, so it still never
 // sees the helpers Babel emits afterwards, and that unrewritten `Array.from` is still in the shipped
 // `pre` bundle. The exercise simply no longer walks into it: the only destructuring left here is over
-// a real array, which takes the `_arrayWithHoles` fast path. That signal was never about rxjs anyway —
+// a real array, which takes the `_arrayWithHoles` fast path. That signal was never about rxjs anyway -
 // rxjs ships an ES5 build, so the helpers came from this file's syntax, not from the library. `three`
 // is where the phase diagnostic is now carried, and there it is genuine: three's sources are modern,
 // so Babel emits the helpers over the LIBRARY. Do not re-add spread/for-of here to bring the red back.
@@ -180,7 +180,7 @@ export function run() {
   const exhaustInner = new Subject();
   exhaustSrc.pipe(exhaustMap(x => x === 1 ? exhaustInner : of(x * 100))).subscribe(v => exhaustOut.push(v));
   exhaustSrc.next(1); // opens the inner
-  exhaustSrc.next(2); // dropped — the inner is still active
+  exhaustSrc.next(2); // dropped - the inner is still active
   exhaustInner.next('inner');
   exhaustInner.complete();
   exhaustSrc.next(3); // accepted again
@@ -251,7 +251,7 @@ export function run() {
   // full marble assertion: expectObservable drives TestScheduler's own Map/Array.from/trim path.
   // Every verdict is COLLECTED, not assigned: `flush()` invokes the comparator once per registered
   // expectation, so an assignment would let the second (subscription) verdict overwrite the first
-  // (value) one — and the value comparison is the whole point of the check. Pinning the ARRAY also
+  // (value) one - and the value comparison is the whole point of the check. Pinning the ARRAY also
   // reddens if an expectation silently stops running.
   const marbleVerdicts = [];
   new TestScheduler((actual, expected) => marbleVerdicts.push(eq(actual, expected))).run(({ cold, expectObservable, expectSubscriptions }) => {

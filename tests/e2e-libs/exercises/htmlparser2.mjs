@@ -1,35 +1,34 @@
 // A headless HTML/XML processing pipeline built out of the htmlparser2 stack: the tokenizer and
 // parser (htmlparser2) feeding a DOM (domhandler), traversed and serialised (domutils,
 // dom-serializer), queried with CSS selectors (css-select, css-what, nth-check) and with entities
-// decoded and re-encoded (entities). 48 modules across ten packages, all pure computation — no DOM,
-// no streams, no node built-ins — so it runs in node AND down-compiles to ES5.
+// decoded and re-encoded (entities): a wide graph of small modules across ten packages, all pure
+// computation - no DOM, no streams, no node built-ins - so it runs in node AND down-compiles to ES5.
 //
 // THIS IS THE SUITE'S TYPESCRIPT FIXTURE, and that is its reason to exist. The runtime tier builds
 // these libraries from their own `src/**/*.ts` rather than from their published JS (the redirect is
-// `TS_SOURCE_PACKAGES` in build.mjs); 42 of the 48 modules in the graph are `.ts`. The remaining six
-// are the two entry modules plus domhandler, domelementtype and boolbase, none of which ship sources
-// — so the graph is deliberately MIXED, which is what a real TypeScript project's node_modules looks
-// like anyway.
+// `TS_SOURCE_PACKAGES` in build.mjs), so most of the graph is `.ts`. What is left is the two entry
+// modules plus domhandler, domelementtype and boolbase, none of which ship sources - so the graph is
+// deliberately MIXED, which is what a real TypeScript project's node_modules looks like anyway.
 //
 // The point of feeding unplugin TypeScript is the `phase` axis. `pre` runs before Babel and its
 // documented advantage is "original source with full semantic context"; over a graph of published JS
 // that claim cannot be tested at all, because there is no TS anywhere in it, and on the other three
 // fixtures `post` is a strict superset of `pre`. Here the two phases separate in BOTH directions, and
 // the six snapshots pin both halves:
-//   usage-global  pre 123 / post 133 / pre+post 134. `post` gains 11 from Babel's class helpers
-//     (`es.reflect.construct`, `es.symbol.*`, `es.object.get-prototype-of` …). `pre` keeps one that
-//     `post` structurally cannot see: `es.error.cause`, injected off the TYPE annotations
-//     `onerror(error: Error)` in `Parser.ts` and `(error: Error | null) => void` in `index.ts` —
-//     positions with no runtime existence, so once types are stripped there is nothing left to detect.
-//     (Confirmed by injection origin, not inferred: both are htmlparser2 modules.)
-//   usage-pure    pre 26 / post 39 / pre+post 40. The pre-only one is
+//   usage-global  `post` gains what Babel's class helpers reach for (`es.reflect.construct`,
+//     `es.symbol.*`, `es.object.get-prototype-of` ...). `pre` keeps one that `post` structurally
+//     cannot see: `es.error.cause`, injected off the TYPE annotations `onerror(error: Error)` in
+//     `Parser.ts` and `(error: Error | null) => void` in `index.ts` - positions with no runtime
+//     existence, so once types are stripped there is nothing left to detect. (Confirmed by injection
+//     origin, not inferred: both are htmlparser2 modules.)
+//   usage-pure    the pre-only one is
 //     `@core-js/pure/full/array/instance/includes`. `usage-pure` does NOT walk annotations
-//     (`walkAnnotations: false`), so this is not the annotation walk above — it is type-driven
+//     (`walkAnnotations: false`), so this is not the annotation walk above - it is type-driven
 //     RECEIVER RESOLUTION: `context.includes(element)` in css-select's `:scope` filter and
 //     `array.includes(node, index + 1)` in domutils' `uniqueSort` both declare `Node[]`, so `pre`
 //     emits the array-specific `_includesMaybeArray`; at `post` the annotation is gone and all three
 //     call sites fall back to the receiver-agnostic `@core-js/pure/full/instance/includes`.
-// So `pre+post` is strictly LARGER than `post` here — the first fixture where that is true — and its
+// So `pre+post` is strictly LARGER than `post` here - the first fixture where that is true - and its
 // two cells gate exactly that union.
 //
 // The exercise imports the BARE specifiers, so `check-exercise` (raw node, no bundler) runs against
@@ -42,7 +41,7 @@
 // (reached by `<li>`/`<tr>`/`<td>`/`<dt>`/`<option>`/`<p>` left unclosed, by `<br>`/`<img>`/`<hr>`,
 // and by the `<svg>` block whose `clipPath` and `foreignObject` only keep their camel case if
 // `svgTagNameAdjustments` ran); `Map#get` in the tokenizer's entity trie; `new WeakMap` in BOTH of
-// css-select's result caches — `helpers/cache.ts` and the `cachedDescendant` in `general.ts`, which
+// css-select's result caches - `helpers/cache.ts` and the `cachedDescendant` in `general.ts`, which
 // is only compiled when the selector carries an expensive subselector, hence `body :has(li.sel) li`;
 // `Object.hasOwn` in five modules across four packages; `String.fromCodePoint` in htmlparser2's
 // entity callback and `String#codePointAt` in entities' escaper; `Number.parseInt` in entities'
@@ -50,28 +49,27 @@
 // `Number.isNaN` in css-what's `funescape`; `String#replaceAll` in dom-serializer's raw-attribute
 // path, which needs `decodeEntities: false`; `String#startsWith`/`#endsWith`/`#includes` behind the
 // `[a^=]` / `[a$=]` / `[a*=]` operators; and `Array#includes` in the parser's nested-`<form>` and SVG
-// stack checks. Attributing each native call to its immediate stack frame, this reaches 49 distinct
-// natives from library frames across 32 library modules, in eight of the ten packages — the two it
-// misses, domelementtype and boolbase, are a constants table and two stub functions with no logic to
-// reach. Against 29 for the obvious "parse, query, read the text" version.
+// stack checks. Coverage is counted by attributing each native call to its immediate stack frame, so
+// only the calls made from library modules count; the blocks reach every package but domelementtype
+// and boolbase, a constants table and two stub functions with no logic to reach.
 //
 // NAME COLLISIONS: domutils exports module-level functions called `find` and `filter`, whose names
 // collide with `Array#find` / `Array#filter`. Called bare they are ordinary identifiers, so the
-// collision block below reaches them through the `DomUtils` namespace instead — `DomUtils.find(…)`
+// collision block below reaches them through the `DomUtils` namespace instead - `DomUtils.find(...)`
 // is a member expression that `usage-pure` rewrites, and the pure helper has to hand back domutils'
 // function rather than the array method. On IE11 a wrong fallback there is fatal and the
 // modern-realm pre-flight cannot see it.
 //
 // TYPED ARRAYS are present but only ever INDEXED: htmlparser2's `Sequences` (`Uint8Array` literals)
 // and entities' decode tries (`Uint16Array` built by `decodeBase64`). No prototype method is called
-// on either, so the structural `usage-pure` typed-array hole — the one that forced three.js to prune
-// `KeyframeTrack#trim`, `radixSort` and friends — is never reached, and these `usage-pure` cells pass
+// on either, so the structural `usage-pure` typed-array hole - the one that forced three.js to prune
+// `KeyframeTrack#trim`, `radixSort` and friends - is never reached, and these `usage-pure` cells pass
 // on real IE11. That contrast is deliberate: it is what makes the two fixtures say different things.
 //
 // ABSENT from the whole graph, so not chased and not chaseable: `Array.from`, `Array#find`,
 // `Array#flat`, `Object.assign` / `.entries` / `.values`, `Number.isInteger`, `String#matchAll` and
 // `Promise`. unplugin still injects several of them at `post`, out of Babel's helpers.
-// DELIBERATELY EXCLUDED: `htmlparser2/WritableStream` and `/WebWritableStream` — node streams and
+// DELIBERATELY EXCLUDED: `htmlparser2/WritableStream` and `/WebWritableStream` - node streams and
 // WHATWG streams respectively, neither of which is stdlib core-js can polyfill.
 //
 // Checks assert structural invariants (element counts, tag names, decoded text, selector ASTs) rather
@@ -105,7 +103,7 @@ function firstChild(node) {
 // foreign-content Set plus the `svgTagNameAdjustments` Map (which is the only reason `clipPath` and
 // `foreignObject` keep their camel case), the repeated `data-dup` through `Object.hasOwn`, `<script>`
 // through the RAWTEXT tokenizer state and its `Uint8Array` end-sequence, and the final paragraph
-// through four different entity forms — named, decimal, the CP1252 remap that `&#128;` triggers, an
+// through five different entity forms - named, decimal, the CP1252 remap that `&#128;` triggers, an
 // astral hex escape, and a trailing `&amp` with no semicolon for the legacy path.
 const PAGE = '<!doctype html>\n'
   + '<html lang="en"><head><title>T &amp; t</title><style>.a{color:red}</style></head>\n'
@@ -124,7 +122,7 @@ const PAGE = '<!doctype html>\n'
   + '</body></html>';
 
 // An RSS item carrying a `media:content` element, which is what reaches `Number.parseInt` in
-// domutils' feed reader — the numeric media attributes are the only place in that module that parses
+// domutils' feed reader - the numeric media attributes are the only place in that module that parses
 // one. Without the media element the feed block would exercise nothing the DOM blocks do not.
 const FEED = '<?xml version="1.0"?><rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">'
   + '<channel><title>Feed</title><link>http://example.com/</link>'
@@ -150,7 +148,7 @@ export function run() {
   check('svg_adjusted', selectAll('svg *', doc).map(el => getName(el)), ['clipPath', 'path', 'foreignObject', 'div']);
   check('foreign_integration', textContent(selectOne('svg div', doc)), 'inner');
   check('script_rawtext', textContent(selectOne('script', doc)).indexOf('</scr') > 0, true);
-  // the parser drops the SECOND `data-dup` — that decision is an `Object.hasOwn` call in Parser.ts
+  // the parser drops the SECOND `data-dup` - that decision is an `Object.hasOwn` call in Parser.ts
   check('dup_attribute', getAttributeValue(selectOne('div[title]', doc), 'data-dup'), '1');
   check('comment_kept', filter(n => n.type === 'comment', doc.children, true).length, 1);
 
@@ -215,7 +213,7 @@ export function run() {
   check('lang_match', is(selectOne('#list', doc), ':lang(en)'), true);
   check('lang_reject', is(selectOne('#list', doc), ':lang(fr)'), false);
   // `:has()` marks the selector as carrying an expensive subselector, which is the only thing that
-  // compiles `general.ts`'s `cachedDescendant` — the second of css-select's two `new WeakMap` sites
+  // compiles `general.ts`'s `cachedDescendant` - the second of css-select's two `new WeakMap` sites
   check('expensive_descendant', selectAll('body :has(li.sel) li', doc).length, 3);
 
   check('selector_ast', parseSelector('a.b > c')[0].length, 4);

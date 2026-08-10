@@ -14,14 +14,24 @@ const DIR = dirname(FILE);
 
 $.verbose = true;
 
-if (await pathExists(`${ DIR }/package.json`)) {
-  await $({ cwd: DIR })`npm install \
+async function install(dir) {
+  await $({ cwd: dir })`npm install \
     --no-audit \
     --no-fund \
     --lockfile-version=3 \
     --loglevel=error \
     --force \
   `;
+}
+
+if (await pathExists(`${ DIR }/package.json`)) {
+  await install(DIR);
+
+  // a suite that imports a module from another one runs it from THAT directory, so its dependencies
+  // resolve there and not here - `"zxi": { "install": ["../sibling"] }` is how such a suite declares
+  // what else has to be installed before its runner is imported
+  const { zxi } = JSON.parse(await fs.readFile(`${ DIR }/package.json`));
+  for (const sibling of zxi?.install ?? []) await install(resolve(DIR, sibling));
 
   $.preferLocal = [resolve(DIR), cwd()];
 }
