@@ -80,13 +80,13 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-usage-pure-karma
 
-  # real IE11 for tests/e2e-libs: one pass over the full runtime matrix, covering BOTH polyfill
-  # providers (@core-js/babel-plugin and @core-js/unplugin) on the same libraries. Each cell is built
-  # once and then gated, snapshotted, pre-flighted in node, emitted as an artifact, and finally run
-  # through Karma/QUnit in actual IE11. Separate from `karma` so the heavy e2e-libs install (real libs
-  # + bundlers) does not slow the core browser job. The matrix itself is defined in tests/e2e-libs and
-  # documented there — see its README rather than a copy of the shape here.
-  e2e-libs-ie11:
+  # the whole tests/e2e-libs suite, covering BOTH polyfill providers (@core-js/babel-plugin and
+  # @core-js/unplugin) on the same libraries: the exercises run raw, then each cell of the runtime
+  # matrix is built once and gated, snapshotted, pre-flighted in node and emitted as an artifact.
+  # windows-2022 is the runner because its last leg needs real IE11, and the same build feeds it - a
+  # separate job would repeat every build to reach it. Separate from `karma` so the heavy e2e-libs
+  # install does not slow the core browser job. Documented in tests/e2e-libs/AGENTS.md.
+  e2e-libs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v7
@@ -95,7 +95,7 @@ jobs:
           node-version: 26.0.0
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npm run e2e-libs-runtime
+      - run: npm run e2e-libs
 
   bun:
     runs-on: ubuntu-latest
