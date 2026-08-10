@@ -331,3 +331,55 @@ QUnit.test('binding: re-invoked function sees a nested later write on the next c
   f();
   assert.deepEqual(seen, ['function', 'undefined']);
 });
+
+/* eslint-disable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment
+   -- the subject of this section IS the `var` re-declaration: a bare same-name `var` binds the one
+   hoisted slot and writes no value. every rule listed here forbids the exact shape under test */
+
+// --- A valueless `var` re-declaration writes nothing, and the value must survive it ---
+// These assert the VALUE the read produces, in every host the form has: the phantom beside the
+// use, inside a block around it, next to a real write, and against a for-x head that does rebind.
+// What they deliberately do NOT claim is family-level discrimination: probed by seeding an
+// over-strip that swallows the for-x head, the wrong-family `at` helper still returns the right
+// element in both the full and the stripped realm, so no runtime oracle separates the families
+// here. That separation lives in the import-set comparison - the differential's `valueless-redecl`
+// family - which is also what caught the emitter desync this form exposed.
+
+QUnit.test('binding: bare `var` re-declaration leaves the array value in place', assert => {
+  var arr = [10, 20, 30];
+  var arr;
+  assert.same(arr.at(-1), 30);
+  assert.same(arr.at(0), 10);
+});
+
+QUnit.test('binding: bare `var` re-declaration leaves the string value in place', assert => {
+  var str = 'abc';
+  var str;
+  assert.same(str.at(-1), 'c');
+  assert.same(str.at(0), 'a');
+});
+
+QUnit.test('binding: a nested-block re-declaration is the same binding, not a shadow', assert => {
+  var val = [1, 2, 3];
+  {
+    var val;
+    assert.same(val.at(-1), 3);
+  }
+  assert.same(val.at(0), 1);
+});
+
+QUnit.test('binding: a real write next to the phantom still decides the value', assert => {
+  var mixed = [1, 2, 3];
+  var mixed;
+  mixed = 'xyz';
+  assert.same(mixed.at(-1), 'z');
+});
+
+QUnit.test('binding: a for-of head re-declaration rebinds and the last value is read', assert => {
+  var looped = [1, 2, 3];
+  for (var looped of [['p'], 'qr']) { /* rebinds per iteration */ }
+  assert.same(looped.at(-1), 'r');
+});
+
+/* eslint-enable no-var, no-redeclare, block-scoped-var, no-lone-blocks, no-useless-assignment
+   -- back to the suite's modern-syntax default; the `var` shapes above are the tested form */

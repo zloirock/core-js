@@ -15,6 +15,7 @@ import {
   isMutatedStaticPair,
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
+  methodReadsUsageCensus,
   memberKeyNamesReducer,
   minifierShapesReducer,
   mutatedGlobalSlotNames,
@@ -1257,7 +1258,9 @@ export default function plugin(api, options) {
         // PRISTINE tree: every consumer either reads it at this same point, or (ctor-alias
         // gate, after the minifier split) is invariant to the split - the split only
         // re-parents existing expression nodes into their own statements
-        fileCensus = collectFileCensus(path.node, [
+        // the census the usage lanes read is gated by the shared predicate; what stays for
+        // entry-global is the minifier-shape gate alone, because the split runs for it too
+        fileCensus = collectFileCensus(path.node, !methodReadsUsageCensus(method) ? [minifierShapesReducer()] : [
           memberKeyNamesReducer(),
           minifierShapesReducer(),
           ctorAliasShapesReducer(),
@@ -1286,8 +1289,10 @@ export default function plugin(api, options) {
         // over-approximation only shifts temp numbering) plus the mutated slot names (covers
         // `Object.defineProperty(self, 'X', ...)`-style writes with no member-key spelling).
         // mirrors unplugin, whose raw-AST name scan reserves every identifier-shaped name
-        injector.seedReservedNames(fileCensus.memberKeyNames);
-        injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
+        if (methodReadsUsageCensus(method)) {
+          injector.seedReservedNames(fileCensus.memberKeyNames);
+          injector.seedReservedNames(mutatedGlobalSlotNames(mutatedStatics));
+        }
         skippedNodes = new WeakSet();
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)

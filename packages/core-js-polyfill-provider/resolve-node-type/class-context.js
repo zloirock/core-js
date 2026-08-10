@@ -5,7 +5,6 @@
 //
 // Public surface:
 //   resolveThisAnchor(path)          - { kind: 'class', classPath, isStatic } | { kind: 'object', objectPath } | null
-//   resolveThisClass(path)           - { classPath, isStatic } | null (only class anchors)
 //   resolveThisObject(path)          - object-literal path | null (only object anchors)
 //   resolveSuperClassPath(classPath) - parent ClassDeclaration / DeclareClass path | null
 //   resolveClassContext(objectPath)  - resolves `Foo` / `new Foo()` / `this` / `super` / `Reflect.construct(C)` to { classPath, isStatic }
@@ -205,9 +204,10 @@ export function createClassContext({
     return buildParentClassSubstFromNodes(childClassPath.node, parentClassPath.node, childSubst, scope);
   }
 
+  // `resolveThisClass` stays cluster-private: it is the class arm of `resolveThisAnchor`, and a
+  // consumer that wants both arms has to read the anchor once instead of climbing twice
   return {
     resolveThisAnchor,
-    resolveThisClass,
     resolveThisObject,
     resolveExpressionToClassPath,
     resolveSuperClassPath,

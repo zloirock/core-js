@@ -507,7 +507,23 @@ export function createNameResolution({ t }) {
     return typeof param.name === 'string' ? param.name : param.name?.name;
   }
 
+  // the one uncached scope-chain lookup left in a cluster that caches every other one, and the
+  // most-asked of them all: a type-reference that binds to no map and names no known container is
+  // re-asked on the flat lane and again on each substitution lane, so the same (scope, name) walks
+  // to the program root several times per reference. same key shape and same lifetime as
+  // `typeDeclCache` next door - no parser adds a type parameter mid-file
+  let typeParamCache = new WeakMap();
+
   function findTypeParameter(name, scope) {
+    if (typeof name !== 'string' || !scope) return findTypeParameterUncached(name, scope);
+    const byName = getOrInitMap(typeParamCache, scope);
+    if (byName.has(name)) return byName.get(name);
+    const found = findTypeParameterUncached(name, scope);
+    byName.set(name, found);
+    return found;
+  }
+
+  function findTypeParameterUncached(name, scope) {
     let currentScope = scope;
     while (currentScope) {
       const params = (currentScope.block ?? currentScope.path?.node)?.typeParameters?.params;
@@ -527,6 +543,7 @@ export function createNameResolution({ t }) {
     ambientDeclCache = new WeakMap();
     ambientScanCache = new WeakMap();
     typeDeclCache = new WeakMap();
+    typeParamCache = new WeakMap();
     allTypeDeclCache = new WeakMap();
     lookupPathDeclCache = new WeakMap();
     stmtDeclIndexCache = new WeakMap();

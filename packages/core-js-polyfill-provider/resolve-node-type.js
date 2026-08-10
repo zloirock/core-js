@@ -928,7 +928,6 @@ function createResolveNodeType(babelNodeType, t, {
     findAllEnumDeclarations,
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
-    dropMapKeys,
     applyAliasSubstDeep,
   });
 
@@ -1421,7 +1420,7 @@ function createResolveNodeType(babelNodeType, t, {
     methodReadLeaks,
   } = bindingAnalysisCluster;
 
-  // `resolveThisAnchor` / `resolveThisClass` / `resolveThisObject` / `resolveSuperClassPath`
+  // `resolveThisAnchor` / `resolveThisObject` / `resolveSuperClassPath`
   // / `resolveClassContext` / `buildParentClassSubstFromNodes` / `buildParentClassSubst`
   // live in `resolve-node-type/class-context.js`. service captures `isReflectConstructCallee`
   // from `binding-analysis` (destructured just above) and the `type-subst` `applyAliasSubstDeep`
@@ -1437,7 +1436,7 @@ function createResolveNodeType(babelNodeType, t, {
     applyAliasSubstDeep,
   });
   const {
-    resolveThisClass,
+    resolveThisAnchor,
     resolveThisObject,
     resolveExpressionToClassPath,
     resolveSuperClassPath,
@@ -2235,8 +2234,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveCallReturnType,
     typeFromHint,
     resolveArrayLiteralCommonType,
-    resolveThisClass,
-    resolveThisObject,
+    resolveThisAnchor,
     computeObjectAliasClosure,
     thisAnchorIsProvable,
     resolveExpressionToClassPath,
