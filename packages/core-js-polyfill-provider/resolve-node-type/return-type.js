@@ -152,11 +152,11 @@ export function createReturnType({
     return null;
   }
 
-  // resolve parameter type from call-site argument, default value, or rest-element shape
-  function resolveParamType(binding, fnPath, callPath) {
-    const found = findBindingParam(binding, fnPath);
-    if (!found) return null;
-    const { index, param, keyPath } = found;
+  // resolve parameter type from call-site argument, default value, or rest-element shape.
+  // takes the binding-to-param record rather than the binding: the caller has to run the scan
+  // anyway to decide whether the override lane applies, and the scan walks every ObjectPattern /
+  // ArrayPattern param through `findPatternKeyPath` once per collected return of the body
+  function resolveParamType({ index, param, keyPath }, fnPath, callPath) {
     if (param.type === 'RestElement') return new $Object('Array');
     const args = callPath.get('arguments');
     return keyPath
@@ -167,9 +167,8 @@ export function createReturnType({
   // a positional call arg overrides the binding's param DEFAULT (`f(x = D) { return x } f(arg)`):
   // only an AssignmentPattern param with an arg at its position qualifies; a bare annotation
   // (`x: T`) carries no default, so its declared type stays the authoritative narrow
-  function paramHasOverridingArg(binding, fnPath, callPath) {
-    const found = findBindingParam(binding, fnPath);
-    if (!found || found.param.type !== 'AssignmentPattern') return false;
+  function paramHasOverridingArg(found, fnPath, callPath) {
+    if (found.param.type !== 'AssignmentPattern') return false;
     const args = callPath.node.arguments;
     // align the call arg past a leading `this` pseudo-param (raw `found.index` indexes the AST params)
     const argIndex = argIndexForParam(fnPath.node.params, found.index);
@@ -193,17 +192,19 @@ export function createReturnType({
     const refBinding = resolved && t.isIdentifier(resolved.node)
       ? getScopeBinding(resolved.scope, resolved.node.name, resolved) : null;
     const validBinding = refBinding && !refBinding.constantViolations?.length ? refBinding : null;
+    // one scan for all three readers below
+    const found = validBinding ? findBindingParam(validBinding, fnPath) : null;
     // a positional arg overrides a param's default - prefer the arg over the body-local type,
     // which would surface the default and mask the argument. `validBinding` is null for a param
     // reassigned in the body (its constantViolations), so the body-local `resolveNodeType` below
     // still wins there. when the override's type can't be determined (e.g. a spread arg of unknown
     // length supplies this slot) we BAIL rather than fall through to the default, which is unsound
-    if (validBinding && paramHasOverridingArg(validBinding, fnPath, callPath)) {
-      return resolveParamType(validBinding, fnPath, callPath);
+    if (found && paramHasOverridingArg(found, fnPath, callPath)) {
+      return resolveParamType(found, fnPath, callPath);
     }
     const type = resolveNodeType(path);
     if (type) return type;
-    return validBinding ? resolveParamType(validBinding, fnPath, callPath) : null;
+    return found ? resolveParamType(found, fnPath, callPath) : null;
   }
 
   // collect return statement paths from a block body, skipping nested functions
