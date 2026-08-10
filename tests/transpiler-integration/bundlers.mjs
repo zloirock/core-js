@@ -4,8 +4,8 @@
 // plugin-less baseline - and gets the bundle back as text.
 //
 // They live here because this is the directory that pins the bundlers. A suite that consumes them
-// names it in the `zxi.install` field of its own `package.json`, which is what makes the bootstrap
-// install this directory too.
+// names it in the `zxi.installExternalDirs` field of its own `package.json`, which is what makes the
+// bootstrap install this directory too.
 //
 // `makeBundlers` takes only what the callers genuinely disagree on. Everything else is deliberately
 // identical: a bundler configured two ways in two suites is a bundler whose behavior neither of them
