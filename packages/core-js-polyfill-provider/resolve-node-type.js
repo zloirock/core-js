@@ -5,6 +5,7 @@ import {
   isNullLiteralNode,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
+  findVarOwnerDeclaring,
   getTypeArgs,
   isTypeAnnotationWrapper,
   kebabToCamel,
@@ -555,6 +556,7 @@ function createResolveNodeType(babelNodeType, t, {
   const nameResolutionCluster = createNameResolution({ t });
   const {
     withLookupPath,
+    currentLookupPath,
     isFunctionLike,
     isFunctionOrClassDeclaration,
     isClassLikeDeclaration,
@@ -916,6 +918,7 @@ function createResolveNodeType(babelNodeType, t, {
     findTypeDeclaration,
     findDeclPathBySegments,
     withLookupPath,
+    currentLookupPath,
     findTypeParameter,
     isClassLikeDeclaration,
     extendsClauseName: (...args) => extendsClauseName(...args),
@@ -1099,8 +1102,12 @@ function createResolveNodeType(babelNodeType, t, {
     const gapNodes = new Set(staleVarRedeclNodes(binding, usagePath, name)
       .filter(node => node.type === 'VariableDeclarator'));
     if (!gapNodes.size) return null;
-    let owner = usagePath;
-    while (owner && !t.isProgram(owner.node) && !t.isFunction(owner.node) && !t.isStaticBlock?.(owner.node)) owner = owner.parentPath;
+    // the SAME owner the node scan used (`staleVarRedeclNodes` -> `collectFunctionScopeVarWrites`
+    // -> `findVarOwnerDeclaring`): a `var` hoists to the owner that DECLARES it, which is not
+    // necessarily the nearest function / program above the use, so a private nearest-owner climb
+    // could index a different subtree than the one the gap nodes came from and silently resolve
+    // none of them
+    const owner = findVarOwnerDeclaring(usagePath, name)?.owner ?? null;
     if (!owner) return null;
     // resolve the redecl paths through the shared per-owner write index - a dedicated
     // owner-wide traverse per query re-walked the whole owner each time
@@ -1111,8 +1118,9 @@ function createResolveNodeType(babelNodeType, t, {
       if (redeclPath) redeclPaths.push(redeclPath);
     }
     if (!redeclPaths.length) return null;
-    const combined = [...binding.constantViolations ?? [], ...redeclPaths];
-    const reaching = findLastStraightLineAssignment({ ...binding, constantViolations: combined }, usagePath);
+    // handed over as EXTRA violations, not spliced into a synthesized binding: the sorted-assignment
+    // cache keys on binding identity, and a fresh object per query defeated it outright
+    const reaching = findLastStraightLineAssignment(binding, usagePath, redeclPaths);
     return reaching?.node?.type === 'VariableDeclarator' && reaching.node.init ? reaching : null;
   }
 

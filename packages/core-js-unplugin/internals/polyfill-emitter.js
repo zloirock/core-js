@@ -1566,7 +1566,11 @@ export function createPolyfillEmitter({
   }
 
   // `outerRef` is resolved by the caller (which needs the same lookup for its reuse-candidate
-  // verdict) and handed in, so the guarded-root bucket is scanned once per dispatch
+  // verdict) and handed in, so the guarded-root bucket is scanned once per dispatch.
+  // the rebind-tail marking is NOT repeated here: a reuse candidate turns the resolver's
+  // suppress mode on (`suppressCollapseInject` includes `!!reuseCandidateRef`), so
+  // `resolveReceiverSource` already marked the same hops against the same boundary - and it is
+  // the site that decides suppress mode, so the decision lives in one place
   function reuseOuterGuardObjectSrc({ rootNode, outerRef, node, rootIsReceiver, deoptPositions, metaPath }) {
     if (!rootNode || !outerRef) return null;
     if (rootIsReceiver) return { outerRef, objectSrc: outerRef, isNonIdent: false };
@@ -1579,7 +1583,6 @@ export function createPolyfillEmitter({
     const objectSrc = tailBoundary !== null
       ? stitchTailFromBoundary(code, outerRef, tailBoundary, node.object.end, deoptPositions)
       : outerRef + stripOptionalDots(code.slice(rootNode.end, node.object.end), rootNode.end, deoptPositions);
-    skipReceiverTailMembers(node.object, rebindTailMembers, rootNode, resolveGlobalPolyfill);
     // the advanced hop boundary travels into the rewrite hint: an inner transform nested in the
     // stitched tail rebuilds its needle as `ref + needle-slice-from-boundary`, the only spelling
     // the hop-dropped content still contains
