@@ -212,6 +212,17 @@ export function hasIdentifierBoundary(str, idx, needle) {
     || !IDENT_PART_RE.test(String.fromCodePoint(str.codePointAt(tail)));
 }
 
+// does `haystack` carry `needle` as a token of its own, rather than only inside a wider identifier?
+// the composition layer's phantom test, exported because the PRODUCERS need the same answer before
+// they queue: a rewrite left standing inside a region its emit re-spelled has no slot to compose
+// into, and the queue can only abort the build once it gets there
+export function hasStandaloneOccurrence(haystack, needle) {
+  for (let idx = haystack.indexOf(needle); idx !== -1; idx = haystack.indexOf(needle, idx + 1)) {
+    if (hasIdentifierBoundary(haystack, idx, needle)) return true;
+  }
+  return false;
+}
+
 // the nth-occurrence index MUST come from the same enumeration the counter uses
 // (`collectOccurrencePositions`: non-overlapping advance + boundary filter) - a private
 // overlapping scan here would disagree with the counted `nth` on a self-bordered needle
@@ -257,6 +268,21 @@ export function deoptionalizeNeedleAtPositions(needle, baseOffset, positions) {
     prev = needle[afterQ] === '[' || needle[afterQ] === '(' ? rel + 2 : rel + 1;
   }
   return result + needle.slice(prev);
+}
+
+const WHITESPACE_RE = /\s/;
+
+// the needle without the optional token an erase claim swallowed off the hop above it, or the needle
+// unchanged when it carries none. a dotted survivor keeps its `.` (`x?` leaves `.y`), a computed one
+// takes both characters (`x?.` leaves `[k]`); the gap the source spelled before the token goes with
+// it. `??` is the nullish operator, never an optional token
+export function trimTrailingOptional(needle) {
+  let end = needle.length;
+  if (needle[end - 1] === '.') end -= 1;
+  if (needle[end - 1] !== '?' || needle[end - 2] === '?') return needle;
+  end -= 1;
+  while (end > 0 && WHITESPACE_RE.test(needle[end - 1])) end -= 1;
+  return needle.slice(0, end);
 }
 
 // try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
@@ -338,6 +364,13 @@ function buildNeedleCandidates({ needle, needleStart, outerHint }) {
     }
     candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
   }
+  // an erase claim swallows the optional token of the hop ABOVE it so the survivor reads plainly
+  // (`x?.y` - the claim owns `x?`, leaving `.y`), which ends its needle in a lone `?`. an enclosing
+  // render that deoptionalized the same hop dropped that token, so the source only occurs there
+  // without it - retry every shape above on the trimmed spelling. the recursion terminates because
+  // a trim that changes anything strictly shortens the needle
+  const trimmed = trimTrailingOptional(needle);
+  if (trimmed !== needle && trimmed) candidates.push(...buildNeedleCandidates({ needle: trimmed, needleStart, outerHint }));
   return candidates;
 }
 
@@ -1633,16 +1666,8 @@ export default class TransformQueue {
         // larger identifier tokens (e.g. needle `Map` finds only `_MapPrime`-style substring),
         // outer already substituted at every reachable position and inner's transform is a
         // phantom (its effect is already encoded by outer). skip phantoms silently
-        let hasStandaloneMatch = false;
-        let hasAnyMatch = false;
-        for (let idx = content.indexOf(needle); idx !== -1; idx = content.indexOf(needle, idx + 1)) {
-          hasAnyMatch = true;
-          if (hasIdentifierBoundary(content, idx, needle)) {
-            hasStandaloneMatch = true;
-            break;
-          }
-        }
-        if (hasAnyMatch && !hasStandaloneMatch) {
+        const hasStandaloneMatch = hasStandaloneOccurrence(content, needle);
+        if (!hasStandaloneMatch && content.includes(needle)) {
           processedRanges.push(innerRange);
           continue;
         }
