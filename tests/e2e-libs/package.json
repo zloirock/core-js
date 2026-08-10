@@ -3,7 +3,7 @@
   "type": "module",
   "private": true,
   "zxi": {
-    "install": [
+    "installExternalDirs": [
       "../transpiler-integration"
     ]
   },
