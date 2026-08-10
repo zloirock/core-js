@@ -65,6 +65,20 @@ function syntheticLaggedAliases(names) {
   return parts.join('\n');
 }
 
+// `var { Global: local } = globalThis` registers an alias entry that has to be keyed under every
+// same-name declarator of the var scope. resolving those per registration by walking the scope
+// subtree is quadratic in (pairs x scope size); no other case here destructures the global at
+// density, and real bundles never do, so the class stays invisible everywhere else
+function syntheticVarDestructuredGlobals(pairs) {
+  const pad = Array.from({ length: 100 }, (unused, k) => k).join(', ');
+  const parts = [];
+  for (let i = 0; i < pairs; i++) {
+    parts.push(`var { Map: M${ i } } = globalThis;`, `M${ i }.groupBy([${ i }], x => x);`,
+      `function pad${ i }(a) { return [${ pad }].length + a; }`);
+  }
+  return parts.join('\n');
+}
+
 function threeBuild(file) {
   return readFile(join(HERE, `node_modules/three/build/${ file }`), 'utf8');
 }
@@ -124,6 +138,10 @@ const CASES = [
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+  } },
+  // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
+  { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
