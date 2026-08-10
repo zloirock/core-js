@@ -13,8 +13,9 @@
 //   isNewOfClass / isReceiverNewOfClass      - `new <Name>()` recognizers
 //   objectBindingName(objectPath)            - declarator name (only stable form) | null
 //   isMemberRefReceiver(parent, refNode)     - `<name>.X` / `<name>?.X` receiver predicate
-//   resolveStaticCalleePair(callee, scope)   - `(constructor, method)` pair from various
-//                                              member-access shapes
+//   resolveStaticCalleePair(callee, scope, method?) - `(constructor, method)` pair from various
+//                                              member-access shapes; `method` restricts it to that
+//                                              one name, decided off the node where the shape allows
 //   resolveKnownStaticEntry(callee, refPath) - registry lookup via the resolved pair
 //   isReflectConstructCallee(callee, scope)  - non-shadowed Reflect.construct recognizer
 //   isKnownNonMutatingCallSite               - SpreadElement-aware non-mutating arg check
@@ -242,11 +243,18 @@ export function createBindingAnalysis({
   // returns `{ constructor, method }` or null. computed callees and non-Identifier slots
   // bail uniformly. callers add their own table lookup (`KNOWN_STATIC_METHOD_RETURN_TYPES`)
   // or pair match (Reflect.construct) on top of the resolved pair
-  function resolveStaticCalleePair(callee, scope) {
+  // `method`, when given, is the only method name the caller can accept. a member-spelled callee
+  // carries that name ON THE NODE, so the mismatch is decided there instead of after the two
+  // scope-chain lookups the shape otherwise pays - and the two consumers that match against a
+  // FIXED pair (`Object.create`, `Reflect.construct`) are the hot ones. the identifier spelling
+  // (a post-rewrite alias like `_Object$create`) carries no readable name, so it still resolves
+  // in full and the caller compares as before
+  function resolveStaticCalleePair(callee, scope, method = null) {
     if (!callee) return null;
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       if (callee.computed) return null;
       if (callee.property?.type !== 'Identifier') return null;
+      if (method !== null && callee.property.name !== method) return null;
       if (callee.object?.type === 'Identifier') {
         // post-rewrite namespace / constructor VALUE alias first (`_Math.max(...)` after the
         // value swap): the polyfill-import registry names the global the binding carries. it
@@ -271,8 +279,12 @@ export function createBindingAnalysis({
       }
       return null;
     }
-    if (callee.type === 'Identifier' && scope) return staticPairFromPolyfillEntry(scope, callee.name);
-    return null;
+    if (callee.type !== 'Identifier' || !scope) return null;
+    // the alias spelling carries no readable method name, so the filter applies to the RESOLVED
+    // pair here. it is the whole contract either way: with `method` given, a returned pair always
+    // names it, and a caller matching a fixed pair only has to compare the constructor
+    const pair = staticPairFromPolyfillEntry(scope, callee.name);
+    return method !== null && pair?.method !== method ? null : pair;
   }
 
   // resolve callee to the entry from `KNOWN_STATIC_METHOD_RETURN_TYPES` (mutation profile,
@@ -287,8 +299,7 @@ export function createBindingAnalysis({
   // `resolveKnownStaticEntry` (member / proxy-global / post-rewrite alias) - the pair just
   // gates on a fixed `(Reflect, construct)` match instead of a registry lookup
   function isReflectConstructCallee(callee, scope) {
-    const pair = resolveStaticCalleePair(callee, scope);
-    return pair?.constructor === 'Reflect' && pair?.method === 'construct';
+    return resolveStaticCalleePair(callee, scope, 'construct')?.constructor === 'Reflect';
   }
 
   // is `refNode` at a non-mutating slot of a known call? SpreadElement is unwrapped first:
