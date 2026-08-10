@@ -21,6 +21,7 @@ import {
   isChainAssignment,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
+  isIifeCallNode,
   isMemberWriteHost,
   isNonReferencePosition,
   isReceiverShapedNode,
@@ -125,7 +126,7 @@ import {
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
 import { unwrapNode } from './emit-utils.js';
-import { inlineCallNavGuardRootSrc, skipCollapsedChainExceptRootCall } from './polyfill-emitter.js';
+import { inlineCallNavGuardRootSrc, skipCollapsedChainExceptRootCall, subsumeDiscardedRegion } from './polyfill-emitter.js';
 import {
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
@@ -413,6 +414,9 @@ export function createDestructureEmitter({
   // the natural visitor's rewrites bake into the memo init at flush; the residual and every extract
   // then read the shared `_ref` (a getter fires exactly once, like the native single read)
   const pendingReceiverMemos = [];
+  // declarations already rebuilt by `renderDestructureStatement`, so the ordered flush loop skips
+  // them. a RELOCATING phase renders the statements nested in the range it moves out, up front
+  const renderedStatements = new Set();
   // bodyless-control statement node -> the polyfill statements that must share its `{ }` block. a bodyless
   // control body (`if (c) STMT;`) holds ONE statement, so anything emitted beside the residual must join it in
   // a block - else a preceding extract's residual escapes the guard (its key SE runs unconditionally), a
@@ -1352,7 +1356,7 @@ export function createDestructureEmitter({
             injectPureImport, resolveGlobalPolyfill,
           });
           if (navGuard && !navGuard.keySeExprs.length) {
-            skipCollapsedChainExceptRootCall(navNode, skippedNodes, []);
+            skipCollapsedChainExceptRootCall(navNode, skippedNodes);
             // an effect-bearing CALL root runs once in the guard test - register it with the
             // probe-carried SE so the lift harvest's identity filter does not replay it
             if (navGuard.rootEffectCall) info.probeSeNodes = [...info.probeSeNodes ?? [], navGuard.rootEffectCall];
@@ -1372,7 +1376,13 @@ export function createDestructureEmitter({
     if (initStart !== undefined && info.initNode) {
       const { prefix: liftPrefix, tail: liftTail } = peelNestedSequenceExpressions(info.initNode);
       const peeledLiftTail = liftTail !== info.initNode ? unwrapParens(liftTail) : null;
-      liftTailDead = !!peeledLiftTail && (skippedNodes.has(peeledLiftTail)
+      // BOTH disjuncts answer "is this tail dead", so both need the same precondition: the init is
+      // no longer READ. `willLiftSE` carries it for the second one; the skip-mark alone says only
+      // that some channel consumed the NODE, which is true of a receiver a residual still reads off
+      // (`const { of, name } = (0, Array)` - `name` reads the tail, and dropping it bound `name` off
+      // the bare `0` instead). the full-consume test is the same one `willLiftSE` is built on
+      const initUnread = !hasInstance && !hasRest && remaining.length === 0;
+      liftTailDead = !!peeledLiftTail && initUnread && (skippedNodes.has(peeledLiftTail)
         || (willLiftSE && !isForInit && !mayHaveSideEffects(peeledLiftTail)));
       // a full-consume whose discarded receiver navigates a proxy chain keeps only its COMPLETE
       // harvested SE (sequence prefixes + chain-assign + buried calls + hop-keys); the navigation
@@ -1517,16 +1527,25 @@ export function createDestructureEmitter({
     // (`var _unused;`) or strict mode throws ReferenceError; a declaration host binds them
     // via the destructure pattern itself
     const sentinelNames = [];
+    // a residual prop is re-emitted from RAW source, so a point-insert anchored inside it has to be
+    // baked into that slice - left queued it lands inside the statement overwrite below and the
+    // build aborts. an inline polyfill default (`o = _Array$of`) on a prop this statement rebuilds
+    // is exactly such an insert. scope-tracker ref bindings are NOT drained here: they compose as
+    // their own body-wrap overwrite, which keeps the `var _ref;` inside the body it belongs to
+    function residualPropSrc(p) {
+      const splices = transforms.drainInsertsInRange(p.start, p.end);
+      return splices.length ? spliceInRange(nodeSrc(p), p.start, splices) : nodeSrc(p);
+    }
     const rebuiltProps = hasRest
         ? allProps.map(p => {
           const e = entryByProp.get(p);
-          if (!e) return nodeSrc(p);
+          if (!e) return residualPropSrc(p);
           const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : propKeySource(p);
           const sentinel = injector.generateUnusedName();
           sentinelNames.push(sentinel);
           return `${ keySrc }: ${ sentinel }`;
         })
-        : remaining.map(p => nodeSrc(p));
+        : remaining.map(residualPropSrc);
     if (rebuiltProps.length > 0) {
       if (isAssignment && sentinelNames.length) parts.splice(slotStart, 0, `var ${ sentinelNames.join(', ') }`);
       parts.push(isAssignment
@@ -1551,7 +1570,10 @@ export function createDestructureEmitter({
       // destructure the byStatement emit skipped; render its rewrite here (as synthetic
       // extractions) so the polyfill survives instead of emitting the pattern verbatim
       for (let i = 0; i < perDecl.length; i++) {
-        if (perDecl[i].extractions.length || perDecl[i].anchored) continue;
+        // a slot whose only extraction is the ROUTED RECEIVER MEMO has not been rendered - the memo
+        // declares the ref its siblings read. reading `extractions.length` alone let a post-hoc slot
+        // mutation stand in for "already rendered" and dropped this declarator's own polyfill
+        if ((perDecl[i].extractions.length && !perDecl[i].memoRouted) || perDecl[i].anchored) continue;
         const sibInfo = flattenSiblingInfos.get(declaration.declarations[i]);
         if (!sibInfo) continue;
         let decls;
@@ -1571,7 +1593,19 @@ export function createDestructureEmitter({
         }
         // drainedRefs already baked into the rendered extraction text -> clear so the
         // post-render bake doesn't try to re-apply them against the null preservedSrc
-        if (decls) perDecl[i] = { extractions: decls.map(decl => ({ decl })), preservedSrc: null, receiver: null, drainedRefs: [] };
+        // MERGE, never replace: the slot may already carry a routed memo extraction ahead of these
+        // decls, plus the flags and trailing / residual payloads other channels routed into it -
+        // rebuilding the record from scratch dropped all of that (a re-lifted SE prefix, an
+        // undeclared binding)
+        if (decls) {
+          perDecl[i] = {
+            ...perDecl[i],
+            extractions: [...perDecl[i].extractions, ...decls.map(decl => ({ decl }))],
+            // the render emitted this declarator WHOLE, its init included - the SE-prefix lift and
+            // the for-init sink must not re-emit that init's effects on top of it
+            preservedSrc: null, receiver: null, drainedRefs: [], memoRouted: true,
+          };
+        }
       }
       const { replacement, slotRanges } = isForInit
         ? renderForInitFlatten(declaration, perDecl)
@@ -2055,7 +2089,7 @@ export function createDestructureEmitter({
         rootNode: navNode, metaPath: usePath, code: source, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
       });
       if (!navGuard || navGuard.keySeExprs.length) return null;
-      skipCollapsedChainExceptRootCall(navNode, skippedNodes, []);
+      skipCollapsedChainExceptRootCall(navNode, skippedNodes);
       // the guard test runs an effect-bearing CALL root exactly once - the discard harvest
       // must not replay it (identity plus span symmetry, a harvest node may wrap the call)
       const embedded = navGuard.rootEffectCall;
@@ -2467,15 +2501,65 @@ export function createDestructureEmitter({
       // truly dynamic key, since that breaks the contiguous chain anchored at the receiver
       let child = identifierNode;
       for (let depth = ancestors.length - 1; depth >= 0; depth--) {
-        const member = ancestors[depth];
-        if (member?.type !== 'MemberExpression' || member.object !== child) break;
+        const ancestor = ancestors[depth];
+        // a TS cast or paren BETWEEN the identifier and its member is transparent to this climb -
+        // the chain is still the one rooted at this receiver. stopping at the wrapper left the
+        // identifier unclaimed while the member's own visitor replaced the whole span, and the
+        // rewrite this walk had queued on the receiver had nowhere left to compose
+        if (ancestor && ancestor.type !== 'MemberExpression' && unwrapNode(ancestor) === child) continue;
+        const member = ancestor;
+        if (member?.type !== 'MemberExpression' || unwrapNode(member.object) !== child) break;
         const key = foldMemberKey(member);
-        if (key === null) break;
+        // an unresolved COMPUTED key is not a decision: this fold runs in the DECLARATION's scope,
+        // while the natural visitor resolves the key in the member's own (`() => { const NAME =
+        // 'Promise'; return globalThis[NAME]; }`), so it may well claim the hop. stand down - the
+        // safe direction of this predicate is over-skip, which just leaves the identifier to that
+        // visitor; matching it queues a rival transform inside the visitor's own overwrite
+        if (key === null) return member.computed;
         if (resolveGlobalPolyfill(key)) return true;
         if (readsStaticOffConstructor(key, ancestors[depth - 1], member)) return true;
         child = member;
       }
+      // a claim does not have to be ROOTED at this identifier to erase it: a receiver that merely
+      // CONTAINS it (`id(globalThis).Promise` - the argument of a call the claim discards) goes away
+      // with the rest of the span. the climb above stops at the call, so ask the rest of the stack
+      // the same question about its own receiver, and stand down for any hop that answers yes
+      for (let depth = ancestors.length - 1; depth >= 0; depth--) {
+        const member = ancestors[depth];
+        if (member?.type !== 'MemberExpression'
+          || member.object?.start > identifierNode.start || member.object?.end < identifierNode.end) continue;
+        const key = foldMemberKey(member);
+        if (key === null) continue;
+        if (resolveGlobalPolyfill(key)) return true;
+        if (readsStaticOffConstructor(key, ancestors[depth - 1], member)) return true;
+      }
       return false;
+    }
+
+    function isDestructurePattern(node) {
+      return node?.type === 'ObjectPattern' || node?.type === 'ArrayPattern';
+    }
+
+    // a slot whose whole subtree ANOTHER channel replaces, so nothing queued here has a place to
+    // land: its transform would sit on (or inside) that channel's overwrite, and the equal-range
+    // fold has no slot left to nest them in - a hard compose crash. standing down is free, since an
+    // unmatched identifier simply stays with the natural visitor, which owns it outside a flatten
+    // anyway. the receiver slots are all THREE a pending synth swap can own - a destructure host's
+    // `init` (`const { Array: { from } } = R`) or `right` (`({ from } = R)`, `function ({ from } = R)`,
+    // wrapped receivers included) and an IIFE ARGUMENT the callee destructures in its own param
+    // pattern (`(function ({ Promise }) { ... })(R)`, in every shape that invokes it) - plus the
+    // operands of a `key in obj` fold,
+    // which the in-expression channel collapses to a literal
+    function ownedByOtherChannel(node, key, index) {
+      if (key === 'init' && node.type === 'VariableDeclarator') return isDestructurePattern(node.id);
+      if (key === 'right' && (node.type === 'AssignmentExpression' || node.type === 'AssignmentPattern')) {
+        return isDestructurePattern(node.left);
+      }
+      if (node.type === 'BinaryExpression' && node.operator === 'in') return key === 'left' || key === 'right';
+      if (key !== 'arguments' || !isIifeCallNode(node)) return false;
+      const callee = unwrapNode(node.callee);
+      const param = FUNCTION_LIKE_NODE_TYPES.has(callee?.type) ? callee.params?.[index] : null;
+      return isDestructurePattern(param?.type === 'AssignmentPattern' ? param.left : param);
     }
 
     // `ancestors` accumulates the enclosing-node stack (root-first) so the member-chain
@@ -2507,31 +2591,9 @@ export function createDestructureEmitter({
       }
       ancestors.push(node);
       for (const [key, value] of Object.entries(node)) {
-        // skip the `init` slot of a nested VariableDeclarator with ObjectPattern id
-        // (potentially flatten-eligible inner destructure). its own inner flatten consumes
-        // the receiver via the inner-flatten's overwrite, OR the natural visitor handles
-        // the inner Identifier substitution normally. queueing a transform from THIS
-        // outer walk for an Identifier consumed by inner-flatten would survive past the
-        // inner-flatten's overwrite and trigger transform-queue compose's "needle missing"
-        // invariant (inner flatten's rebuilt text drops the receiver entirely)
-        // an ArrayPattern-WRAPPED nested destructure (`[{ Array: { of } }] = [globalThis]`) is just
-        // as flatten-eligible as the bare ObjectPattern form - its inner flatten overwrites the
-        // receiver too, so a transform queued from this outer walk survives the overwrite and trips
-        // compose's "needle missing". mirror the `right`-slot skip below, which already covers both
-        if (key === 'init' && node.type === 'VariableDeclarator'
-          && (node.id?.type === 'ObjectPattern' || node.id?.type === 'ArrayPattern')) continue;
-        // SAME reason for the RIGHT of a destructure whose receiver a sibling synth-swap will own: a
-        // destructure-ASSIGNMENT (`z = ({ Array: { from } } = globalThis)`) OR a destructure param DEFAULT
-        // in a nested function (`z = function ({ Array: { from } } = globalThis) {}` - an AssignmentPATTERN).
-        // its synth-swap fires LATER in the traversal (this sibling-walk runs on the enclosing declaration
-        // first), so a receiver substitution queued here lands a SECOND transform on the synth-swap's mirror
-        // range - compose's mergeEqualRange (both sides already replaced) HARD-CRASHES the file. the synth-
-        // swap (or the natural visitor, if it does not fire) owns the one rewrite. covers a wrapped receiver
-        // (`[globalThis]`) too since the whole right subtree is skipped
-        if (key === 'right' && (node.type === 'AssignmentExpression' || node.type === 'AssignmentPattern')
-          && (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern')) continue;
-        if (Array.isArray(value)) for (const item of value) walk(item, node);
-        else walk(value, node);
+        if (Array.isArray(value)) {
+          for (const [index, item] of value.entries()) if (!ownedByOtherChannel(node, key, index)) walk(item, node);
+        } else if (!ownedByOtherChannel(node, key, null)) walk(value, node);
       }
       ancestors.pop();
       if (opens) scopeStack.pop();
@@ -3111,6 +3173,10 @@ export function createDestructureEmitter({
         });
       } else if (isFlattenClaimed) {
         flatten.slot.extractions.push({ decl: `${ lhs } = ${ copyExpr }` });
+        // the slot keeps rendering its own init in place (the residual still reads the key), so the
+        // lift / for-init sink channels must not ALSO re-emit that init's sequence prefix - the same
+        // contract the routed memo declares, and the effect would otherwise run twice
+        flatten.slot.memoRouted = true;
       } else if (instanceDefaultNode || splitSeKeyPatterns.has(metaPath.parent)) {
         // the guarded extraction must evaluate AFTER the kept key's side effect (native reads
         // the key first, then fires the default) - append it as a trailing sibling declarator
@@ -3204,7 +3270,7 @@ export function createDestructureEmitter({
         // guard ref minted at visit (after the memo ref) - numbering parity with babel
         if (instanceDefaultNode) getInstanceDefaultRef();
         pendingReceiverMemos.push({
-          receiverNode, refName,
+          receiverNode, refName, declaration, declaratorNode: declarator,
           emitExtract: firstUse
             ? text => emit(extract, `${ declaration.kind } ${ refName } = ${ text };\n`)
             : () => emit(extract),
@@ -3333,8 +3399,12 @@ export function createDestructureEmitter({
       if (!keyHasSideEffect && tryBodyExtractFromParamDestructurePure({
         propPath: metaPath, propNode, binding, objectPattern, entry: pureResult.entry,
       })) return;
-      if (isAssign) transforms.add(value.right.start, value.right.end, binding);
-      else transforms.insert(value.end, ` = ${ binding }`);
+      // the inline default REPLACES the user-written one (polyfill always wins), so nothing of
+      // it survives - a polyfillable read buried in it loses its slot along with the text
+      if (isAssign) {
+        transforms.add(value.right.start, value.right.end, binding);
+        subsumeDiscardedRegion({ region: value.right, skippedNodes, rescue: [], regionRewrittenHere: true });
+      } else transforms.insert(value.end, ` = ${ binding }`);
       // the inline default keeps the WHOLE pattern and its source in place (the key runs once
       // in the residual read) - mark the prop so the proxy-hop drive knows the surviving
       // source is unowned and renders an undefinable probe/sealed nav there (the assignment
@@ -3364,7 +3434,7 @@ export function createDestructureEmitter({
       // call-rooted left's internals (`IIFE().Array` -> the IIFE body) still rewrite in place and compose
       // into the rescued leftSe text (babel-twin contract). the rescue plan is computed once in the shared
       // provider, rendered as text at apply time
-      walkAstNodes({ root: receiver.right, visit: n => skippedNodes.add(n) });
+      subsumeDiscardedRegion({ region: receiver.right, skippedNodes, rescue: [] });
       leftSe = discardRescueNodes({
         node: receiver.left, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath,
       });
@@ -3477,7 +3547,7 @@ export function createDestructureEmitter({
         transforms.add(targetNode.start, targetNode.end, needsParens ? `(${ rendered })` : rendered);
         return true;
       },
-      skipSubtree: targetNode => walkAstNodes({ root: targetNode, visit: n => skippedNodes.add(n) }),
+      skipSubtree: targetNode => subsumeDiscardedRegion({ region: targetNode, skippedNodes, rescue: [] }),
     });
   }
 
@@ -3500,7 +3570,8 @@ export function createDestructureEmitter({
     // directive past position 0 and silently flip the function to sloppy mode
     const bodyOpenAfter = skipDirectivePrologue(fnPath.node.body.body, fnPath.node.body.start + 1);
     const props = objectPattern.properties;
-    if (hasRestSiblingExcept(props, propNode)) {
+    const restSibling = hasRestSiblingExcept(props, propNode);
+    if (restSibling) {
       // canonical key render: a computed consumed key keeps its bracket form and a literal
       // key its quotes, so the `...rest` exclusion set still excludes the RESOLVED property
       // (`propNode.key.name` is undefined for string / numeric literal keys and would emit
@@ -3515,8 +3586,11 @@ export function createDestructureEmitter({
     // having to re-derive (Constructor, method) from the destructure pattern shape. matches
     // babel-plugin's body-extract paths which register the same alias post-AST-mutation
     injector.registerBodyExtractAlias(localId.name, entry, propPath.scope.getBinding(localId.name));
-    skippedNodes.add(propNode);
-    if (propNode.value) skippedNodes.add(propNode.value);
+    // the prop's own text is gone - removed outright, or cut back to its key plus a fresh
+    // `_unused` binding. only that key comes back verbatim, so every rewrite queued inside the
+    // value (a polyfillable read in the user default this extract drops) stands down with it.
+    // the prop node stays marked either way - the re-entry guard above reads that mark
+    subsumeDiscardedRegion({ region: propNode, skippedNodes, rescue: restSibling ? [propNode.key] : [] });
     return true;
   }
 
@@ -4049,6 +4123,10 @@ export function createDestructureEmitter({
   // visitor) uniformly
   function emitCatchClause(infos, catchNode) {
     const [{ initSrc: ref, allProps }] = infos;
+    // the whole pattern is about to be relocated into the prelude, so a destructure statement
+    // nested in it (inside a default's function body) has to be rebuilt before the compose below
+    // takes its text away
+    renderNestedDestructureStatements(catchNode.param.start, catchNode.param.end);
     const entryByProp = new Map(infos.flatMap(i => i.entries.map(e => [e.propNode, e])));
     // the catch param is overwritten to bare `_ref`, so EVERY polyfill transform inside the
     // pattern (a computed-key sub-expression like `[[1].at(0)]`, a default value like
@@ -4776,11 +4854,42 @@ export function createDestructureEmitter({
   //   3. `emitCatchClause` - catch-pattern rewrite (param overwrite + body-prelude insert)
   // share `pendingDestructuring` / `pendingSynthSwaps` accumulators; differ only in the
   // shape of the AST anchor being emitted into. final flush via the host's queue.apply()
+  // a phase that RELOCATES a source range composes its text now, so a destructure statement nested
+  // inside that range has to be rebuilt first - rebuilt afterwards it emits into text the relocation
+  // already carried away (the polyfill is lost and the inner needle aborts the build). the flush loop
+  // orders innermost-first for exactly this reason; these phases run ahead of it, so they render the
+  // statements they cover here. only self-contained ones: a nested statement that is itself claimed
+  // by a flatten / cascade, or that has a routed pair of its own, is rendered by the channel that
+  // owns it, and its routing is not decided yet at this point in the flush
+  function renderNestedDestructureStatements(start, end) {
+    const nested = new Map();
+    for (const [, info] of pendingDestructuring) {
+      const declaration = info.declPath?.node;
+      if (!declaration || !info.declaratorPath?.node || info.isCatchClause) continue;
+      if (declaration.start <= start || declaration.end >= end) continue;
+      if (renderedStatements.has(declaration)) continue;
+      if (flattenedNestedDecls.has(declaration) || flattenedAssignments.has(info.declaratorPath.node)) continue;
+      if (!nested.has(declaration)) nested.set(declaration, []);
+      nested.get(declaration).push(info);
+    }
+    if (!nested.size) return;
+    const claimed = new Set([
+      ...pendingSeKeyTrailing.map(t => t.declaration),
+      ...pendingReceiverMemos.map(m => m.declaration),
+    ]);
+    // innermost-first among themselves, the same total order the flush loop uses
+    for (const [declaration, infos] of [...nested].sort(([a], [b]) => a.end - b.end)) {
+      if (claimed.has(declaration)) continue;
+      renderDestructureStatement(infos, { trailingByDecl: new Map(), leadingByDecl: new Map() });
+    }
+  }
+
   function applyDestructuringTransforms() {
     // deferred consumed instance-receiver extractions: the natural visitor has now polyfilled each
     // receiver in place (full substitution, scope-aware), so `composedRangeSrc` bakes those into the
     // copy and drains them from the queue before the dropped-declaration overwrite replaces the range
     for (const { start, end, prefix, binding, receiverNode, lhsNode, defaultSrc, testRef } of pendingReceiverExtracts) {
+      renderNestedDestructureStatements(receiverNode.start, receiverNode.end);
       const lhsSrc = lhsNode ? `${ composedRangeSrc(lhsNode) } = ` : '';
       const call = `${ binding }(${ composedRangeSrc(receiverNode) })`;
       const rhs = defaultSrc ? `(${ testRef } = ${ call }) === void 0 ? ${ defaultSrc } : ${ testRef }` : call;
@@ -4791,10 +4900,12 @@ export function createDestructureEmitter({
     // overwrite the surviving residual's receiver with the shared `_ref`, and route the memo to its host
     // slot - a preceding-statement hoist (standalone) or a preceding comma declarator (sibling host)
     const composedReceiverMemoText = new Map();
+    const routedMemos = [];
     for (const memo of pendingReceiverMemos) {
       const key = `${ memo.receiverNode.start }:${ memo.receiverNode.end }`;
       let text = composedReceiverMemoText.get(key);
       if (text === undefined) {
+        renderNestedDestructureStatements(memo.receiverNode.start, memo.receiverNode.end);
         text = composedRangeSrc(memo.receiverNode);
         composedReceiverMemoText.set(key, text);
         transforms.add(memo.receiverNode.start, memo.receiverNode.end, memo.refName);
@@ -4803,7 +4914,11 @@ export function createDestructureEmitter({
       // declarator's slot as the FIRST extraction (before the residual reads `_ref`); the
       // receiver->`_ref` overwrite queued above bakes into the preserved slice
       const memoFlatten = flattenSlotFor({ declaration: memo.declaration, declaratorNode: memo.declaratorNode });
-      if (memoFlatten) {
+      // an EXTRACT-routed memo emits the ref as its own statement off the init, so its slot keeps
+      // today's shape - it only has to stop the slot from lifting that init's sequence prefix a
+      // second time (the effect ran once already, inside the extract)
+      if (memoFlatten && memo.emitExtract) memoFlatten.slot.memoRouted = true;
+      if (memoFlatten && !memo.emitExtract) {
         memoFlatten.slot.extractions.unshift({ decl: `${ memo.refName } = ${ text }` });
         // the memo REFERENCES the init (it does not consume it): the slot keeps its verbatim
         // residual slice, so the SE-prefix lift and the full-preserve splice bake must still
@@ -4817,7 +4932,10 @@ export function createDestructureEmitter({
           dstStart: memo.receiverNode.start - memo.declaratorNode.start,
         });
       } else if (memo.commaSlotStart !== undefined) {
-        transforms.insert(memo.commaSlotStart, `${ memo.refName } = ${ text }, `);
+        // the comma-slot insert sits at the declarator START, which a whole-declaration rebuild
+        // overwrites - route it there instead once that claim is known (below), since MagicString
+        // silently drops an insert anchored inside an overwritten chunk
+        routedMemos.push({ memo, text });
       } else memo.emitExtract(text);
     }
     pendingReceiverMemos.length = 0;
@@ -4832,6 +4950,7 @@ export function createDestructureEmitter({
       const key = `${ receiverNode.start }:${ receiverNode.end }`;
       let text = composedReceiverCopyText.get(key);
       if (text === undefined) {
+        renderNestedDestructureStatements(receiverNode.start, receiverNode.end);
         text = composedRangeSrc(receiverNode);
         composedReceiverCopyText.set(key, text);
         if (text !== nodeSrc(receiverNode)) transforms.add(receiverNode.start, receiverNode.end, text);
@@ -4855,6 +4974,7 @@ export function createDestructureEmitter({
       // before the flatten sibling); this post-traverse skip is order-independent. hand the info
       // to `flushPendingFlatten`, which renders its instance/static-method rewrite inline so the
       // polyfill survives (simple shapes; complex ones still render verbatim)
+      if (renderedStatements.has(info.declPath.node)) continue;
       if (flattenedNestedDecls.has(info.declPath.node)) {
         flattenSiblingInfos.set(info.declaratorPath.node, info);
         continue;
@@ -4870,6 +4990,20 @@ export function createDestructureEmitter({
       byStatement.get(key).push(info);
     }
 
+    // receiver memos whose comma slot the byStatement rebuild would swallow: a claimed declaration
+    // takes the memo as a LEADING declarator of its own slot (the shape babel emits), an unclaimed
+    // one keeps the raw comma-slot insert
+    const leadingByDecl = new Map();
+    for (const { memo, text } of routedMemos) {
+      if (!byStatement.has(memo.declaration)) {
+        transforms.insert(memo.commaSlotStart, `${ memo.refName } = ${ text }, `);
+        continue;
+      }
+      if (!leadingByDecl.has(memo.declaration)) leadingByDecl.set(memo.declaration, new Map());
+      const byDeclarator = leadingByDecl.get(memo.declaration);
+      if (!byDeclarator.has(memo.declaratorNode)) byDeclarator.set(memo.declaratorNode, []);
+      byDeclarator.get(memo.declaratorNode).push(`${ memo.refName } = ${ text }`);
+    }
     // SE-key trailing declarators: a claimed declaration takes its pair into the rendered
     // statement (appended to the final part below - babel's trailing-sibling canon); an
     // unclaimed one keeps the raw end-anchored insert (the source text stays in place)
@@ -4944,58 +5078,8 @@ export function createDestructureEmitter({
     // this loop emits, so ordering siblings by anything else numbers them against source order
     // and against the babel twin
     const orderedStatements = [...byStatement].sort(([a], [b]) => a.end - b.end);
-    for (const [, infos] of orderedStatements) {
-      const [{ declPath, isAssignment, isCatchClause }] = infos;
-
-      if (isCatchClause) continue;
-
-      // shared classifier returns booleans both plugins consume from the same source.
-      // assignment hosts skip classification (the booleans are VariableDeclaration-only
-      // concerns - export/for-init slots can't host an AssignmentExpression directly)
-      const hostShape = isAssignment ? null : classifyVariableDeclarationHost({
-        declaration: declPath.node,
-        declarationParent: declPath.parentPath?.node,
-      });
-      const isExport = hostShape?.isExport ?? false;
-      const isForInit = hostShape?.isForInit ?? false;
-      const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
-      const prefix = isExport ? 'export ' : '';
-      const keyword = isAssignment ? '' : `${ declPath.node.kind } `;
-      const stmtPrefix = isForInit ? '' : `${ prefix }${ keyword }`;
-      const memoPrefix = isForInit ? '' : 'const ';
-
-      const emitCtx = { stmtPrefix, memoPrefix, isForInit, isAssignment };
-
-      const parts = [];
-      if (isAssignment) {
-        for (const info of infos) emitPolyfilled(info, parts, emitCtx);
-      } else {
-        const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
-        const trailingByDeclarator = trailingByDecl.get(declPath.node);
-        for (const dec of declPath.node.declarations) {
-          const info = polyfilledByDecl.get(dec);
-          if (info) emitPolyfilled(info, parts, emitCtx);
-          // composed, not raw: a sibling may carry baked-in transforms of its own - an SE-key
-          // trailing declarator insert anchored at its end, a polyfill rewrite in its init - and
-          // a leftover point-insert inside the whole-declaration overwrite below would throw
-          else parts.push(`${ stmtPrefix }${ composedRangeSrc(dec) }`);
-          // the pair lands right after its OWN declarator (a later sibling may read the extracted
-          // name); a comma-append onto a statement-shaped part keeps it a sibling declarator
-          const trailing = trailingByDeclarator?.get(dec);
-          if (trailing?.length) parts[parts.length - 1] += `, ${ trailing.join(', ') }`;
-        }
-      }
-
-      if (isForInit) {
-        // for-init lives inside the for-head parens (one comma-list), never at a statement boundary, and
-        // its lifted SE is a `_ref = SE` comma member, not a standalone - so no left-boundary fusion here
-        transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
-      } else {
-        // a lifted-SE first product (`+eff()` / `/re/...`) re-roots the line on a hazard char the original
-        // node's leading `(` / `let` did not expose - guard the left boundary like the minifier split does
-        const text = wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath);
-        transforms.add(replaceNode.start, replaceNode.end, guardOverwriteLeftFusion(replaceNode.start, text, declPath));
-      }
+    for (const [key, infos] of orderedStatements) {
+      if (!renderedStatements.has(key)) renderDestructureStatement(infos, { trailingByDecl, leadingByDecl });
     }
 
     // block-wrap each bodyless-control statement that gained polyfill statements: overwrite the body with
@@ -5015,6 +5099,68 @@ export function createDestructureEmitter({
         `{ ${ beforeText }${ composedRangeSrc(node) }${ after.length ? `\n${ after.join('\n') }` : '' } }`);
     }
     pendingBodylessBlockWraps.clear();
+  }
+
+  // one destructure statement's whole-range rebuild. extracted from the ordered flush loop so a
+  // RELOCATING phase can render a statement nested inside the range it is about to move out (see
+  // `renderNestedDestructureStatements`) - rendered after that move it would emit into text the
+  // relocation already took away
+  function renderDestructureStatement(infos, { trailingByDecl, leadingByDecl }) {
+    const [{ declPath, isAssignment, isCatchClause }] = infos;
+    renderedStatements.add(declPath.node);
+
+    if (isCatchClause) return;
+
+    // shared classifier returns booleans both plugins consume from the same source.
+    // assignment hosts skip classification (the booleans are VariableDeclaration-only
+    // concerns - export/for-init slots can't host an AssignmentExpression directly)
+    const hostShape = isAssignment ? null : classifyVariableDeclarationHost({
+      declaration: declPath.node,
+      declarationParent: declPath.parentPath?.node,
+    });
+    const isExport = hostShape?.isExport ?? false;
+    const isForInit = hostShape?.isForInit ?? false;
+    const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
+    const prefix = isExport ? 'export ' : '';
+    const keyword = isAssignment ? '' : `${ declPath.node.kind } `;
+    const stmtPrefix = isForInit ? '' : `${ prefix }${ keyword }`;
+    const memoPrefix = isForInit ? '' : 'const ';
+
+    const emitCtx = { stmtPrefix, memoPrefix, isForInit, isAssignment };
+
+    const parts = [];
+    if (isAssignment) {
+      for (const info of infos) emitPolyfilled(info, parts, emitCtx);
+    } else {
+      const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
+      const trailingByDeclarator = trailingByDecl.get(declPath.node);
+      const leadingByDeclarator = leadingByDecl.get(declPath.node);
+      for (const dec of declPath.node.declarations) {
+        const info = polyfilledByDecl.get(dec);
+        // the receiver memo declares the ref every part of this slot then reads
+        for (const decl of leadingByDeclarator?.get(dec) ?? []) parts.push(`${ stmtPrefix }${ decl }`);
+        if (info) emitPolyfilled(info, parts, emitCtx);
+        // composed, not raw: a sibling may carry baked-in transforms of its own - an SE-key
+        // trailing declarator insert anchored at its end, a polyfill rewrite in its init - and
+        // a leftover point-insert inside the whole-declaration overwrite below would throw
+        else parts.push(`${ stmtPrefix }${ composedRangeSrc(dec) }`);
+        // the pair lands right after its OWN declarator (a later sibling may read the extracted
+        // name); a comma-append onto a statement-shaped part keeps it a sibling declarator
+        const trailing = trailingByDeclarator?.get(dec);
+        if (trailing?.length) parts[parts.length - 1] += `, ${ trailing.join(', ') }`;
+      }
+    }
+
+    if (isForInit) {
+      // for-init lives inside the for-head parens (one comma-list), never at a statement boundary, and
+      // its lifted SE is a `_ref = SE` comma member, not a standalone - so no left-boundary fusion here
+      transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
+    } else {
+      // a lifted-SE first product (`+eff()` / `/re/...`) re-roots the line on a hazard char the original
+      // node's leading `(` / `let` did not expose - guard the left boundary like the minifier split does
+      const text = wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath);
+      transforms.add(replaceNode.start, replaceNode.end, guardOverwriteLeftFusion(replaceNode.start, text, declPath));
+    }
   }
 
   return {

@@ -571,3 +571,114 @@ QUnit.test('literal receiver with member read: sole binding extracts, getter fir
   assert.deepEqual(m.call([1, [2]]), [1, 2]);
   assert.same(fires, 1);
 });
+
+// SE10: a collapse that discards the hops BELOW its leaf discards their computed keys with them, so
+// the effects buried in those keys have to be re-emitted alongside the leaf's own. harvesting only
+// the leaf's key dropped the increment outright.
+QUnit.test('side effect: a hop key below a collapsed ctor-static leaf still runs', assert => {
+  let keyEval = 0;
+  let root;
+  const digits = (root = globalThis)?.[(keyEval++, 'Number')].MAX_SAFE_INTEGER.toFixed(2);
+  assert.strictEqual(digits, Number.MAX_SAFE_INTEGER.toFixed(2));
+  assert.strictEqual(keyEval, 1);
+  assert.strictEqual(root, globalThis);
+});
+
+// SE11: the same collapse through a SEQUENCE-tail receiver, where the prefix effect and the dropped
+// hop key both have to survive, in source order.
+QUnit.test('side effect: a sequence prefix and a dropped hop key both run once, in order', assert => {
+  const order = [];
+  const map = (order.push('prefix'), globalThis)[(order.push('key'), 'self')].Map;
+  assert.same(typeof map, 'function');
+  assert.deepEqual(order, ['prefix', 'key']);
+});
+
+// SE12: a flatten slot that already renders its declarator's init - through a routed receiver memo or
+// a rendered sibling - must not have that init's sequence prefix lifted a second time.
+QUnit.test('side effect: a flatten sibling init runs once, not once per channel', assert => {
+  let evaluated = 0;
+  const source = [1, 2, 3];
+  const { Array: { from } } = globalThis,
+        { at, concat } = (evaluated++, source);
+  assert.strictEqual(evaluated, 1);
+  assert.deepEqual(from([4]), [4]);
+  assert.same(at.call(source, 0), 1);
+  assert.deepEqual(concat.call(source, 4), [1, 2, 3, 4]);
+});
+
+QUnit.test('side effect: a flatten sibling with an SE key keeps the plain sibling polyfilled', assert => {
+  let keyEval = 0;
+  const source = [[1], [2]];
+  const { Array: { of } } = globalThis,
+        { indexOf, [(keyEval++, 'flat')]: flat } = source;
+  assert.strictEqual(keyEval, 1);
+  assert.deepEqual(of(9), [9]);
+  assert.same(indexOf.call(source, source[1]), 1);
+  assert.deepEqual(flat.call(source), [1, 2]);
+});
+
+QUnit.test('side effect: an SE-key pair routed into a flatten slot leaves the init one evaluation', assert => {
+  let evaluated = 0;
+  let keyEval = 0;
+  const { Array: { isArray } } = globalThis,
+        { [(keyEval++, 'of')]: of, ...rest } = (evaluated++, Array);
+  assert.strictEqual(evaluated, 1);
+  assert.strictEqual(keyEval, 1);
+  assert.true(isArray([]));
+  assert.deepEqual(of(1), [1]);
+  assert.same(typeof rest, 'object');
+});
+
+// the hop-free forms of the chain-assign collapse: `self` / `window` do not exist in Node, so the
+// navigating shapes stay fixture-only and these assert the two properties that survive here - the
+// value's prefix keeps its polyfill and runs once, and a parenthesized value stays parseable
+QUnit.test('side effect: a chain-assign value copied into a collapse keeps its own polyfills', assert => {
+  let q;
+  const source = [3, 1, 2];
+  let calls = 0;
+  function counted() {
+    calls += 1;
+    return source;
+  }
+  const viaPrefix = (q = (counted().at(0), globalThis)).Map.name;
+  assert.strictEqual(calls, 1);
+  assert.same(viaPrefix, 'Map');
+  assert.same(q, globalThis);
+  let p;
+  const viaParenValue = (p = (globalThis)).Map.name;
+  assert.same(viaParenValue, 'Map');
+  assert.same(p, globalThis);
+});
+
+// a static claimed off a chain-assign VALUE needs proof that the value is the global, not just that
+// the chain is rooted at one: a step onto anything else leaves a value the source dereferences and
+// throws on, and answering the ponyfill there would turn that throw into a working read
+QUnit.test('side effect: a chain-assign value that is not the global keeps the native throw', assert => {
+  let q;
+  assert.throws(() => (q = globalThis.noSuchSlot).Map, TypeError);
+  assert.same(q, undefined);
+  let p;
+  assert.throws(() => (p = globalThis.Math).Map.name.length, TypeError);
+  assert.same(p, Math);
+  // the value that IS the global still collapses
+  let g;
+  assert.same(typeof new ((g = globalThis).Map)([[1, 1]]).size, 'number');
+  assert.same(g, globalThis);
+});
+
+// a slot the SE-key flatten claims still renders its own init in place, so the lift and the for-init
+// sink must not re-emit that init's sequence prefix on top of it - the prefix effect would run twice
+QUnit.test('side effect: an SE-key flatten slot leaves its init one evaluation', assert => {
+  let evaluated = 0;
+  let keyEval = 0;
+  function source() {
+    evaluated += 1;
+    return Array;
+  }
+  const { [(keyEval++, 'of')]: of } = (source(), Array),
+        { Array: { from } } = globalThis;
+  assert.strictEqual(evaluated, 1);
+  assert.strictEqual(keyEval, 1);
+  assert.deepEqual(of(5), [5]);
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
