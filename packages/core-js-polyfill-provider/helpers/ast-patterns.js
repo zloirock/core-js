@@ -788,8 +788,12 @@ function walkVarScope(scopeNode, onNode) {
 }
 
 // collect `var` bindings inside `scopeNode`, stopping at nested var-scope boundaries so inner-
-// function vars don't leak. returns a Map of var-name -> its VariableDeclarator (first declaration
-// wins on redeclaration): membership callers use `.has(name)`, alias-resolution callers read `.init`
+// function vars don't leak. returns a Map of var-name -> EVERY VariableDeclarator declaring it, in
+// source order: membership callers use `.has(name)`, alias-resolution callers read `[0].init`
+// (first declaration wins on redeclaration), and the alias registry keys its entry under all of
+// them - a redeclaration merges into ONE runtime binding while the two scope trackers disagree
+// about which declarator a read resolves to. init-less redeclarations (`var M;`) are kept: they
+// bind the same slot, which is what the registry keys on, even though they write no value
 function collectScopeVars(scopeNode) {
   const locals = new Map();
   walkVarScope(scopeNode, node => {
@@ -797,7 +801,12 @@ function collectScopeVars(scopeNode) {
       // `declare var X` is tsc-elided - the reference resolves to the global, so the ambient
       // declaration must not register as a hoisted-var shadow that suppresses polyfill emission
       if (node.declare !== true) {
-        for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => { if (!locals.has(id.name)) locals.set(id.name, d); });
+        for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => {
+          const declarators = locals.get(id.name);
+          if (declarators) {
+            if (declarators.at(-1) !== d) declarators.push(d);
+          } else locals.set(id.name, [d]);
+        });
       }
       return true; // a var declaration opens no nested var-scope to descend
     }
@@ -836,8 +845,10 @@ function cachedScopeVars(node) {
 // function binds the name on the visible scope chain
 export function findVarOwnerDeclaring(path, name) {
   return climbVarScopeOwners(path, owner => {
-    const declarator = cachedScopeVars(owner.node).get(name);
-    return declarator ? { owner, declarator } : undefined;
+    const declarators = cachedScopeVars(owner.node).get(name);
+    // `declarators[0]` is the first declaration of the name in the owner - the one whose init the
+    // alias resolvers read; the full list rides along for the registry's slot keying
+    return declarators ? { owner, declarator: declarators[0], declarators } : undefined;
   }) ?? null;
 }
 
@@ -1041,7 +1052,10 @@ function cachedScopeBlockFunctions(node) {
 // return undefined to continue), and the outer `?? false` normalises "no owner matched" to a boolean
 function hasSloppyBlockFunctionInPath(path, name) {
   return climbVarScopeOwners(path, owner => {
-    return (cachedScopeBlockFunctions(owner.node).has(name) && isSloppyAtPath(owner)) || undefined;
+    // sloppiness FIRST: it is a short climb, while the block-function set is a full subtree walk
+    // on its first query per owner - and in an ES module (every file of a modern bundle) the
+    // answer is always false, so that walk would be built only to be thrown away
+    return (isSloppyAtPath(owner) && cachedScopeBlockFunctions(owner.node).has(name)) || undefined;
   }) ?? false;
 }
 
@@ -1438,11 +1452,13 @@ const LOOP_RERUN_FIELDS = Object.fromEntries(Object.entries(loopFieldsWithTrait(
 // write) pair without this, going cubic (O(uses * writes * subtree)) on a heavily-reassigned alias (X11)
 function memoizeByNodePair(compute) {
   const cache = new WeakMap();
-  return function (a, b) {
+  // trailing arguments ride through to `compute` WITHOUT joining the key - for the path a
+  // node-keyed walk needs, where the node already determines it
+  return function (a, b, ...rest) {
     let inner = cache.get(a);
     if (!inner) cache.set(a, inner = new Map());
     if (inner.has(b)) return inner.get(b);
-    const result = compute(a, b);
+    const result = compute(a, b, ...rest);
     inner.set(b, result);
     return result;
   };
@@ -1490,16 +1506,23 @@ function ownerParentIndex(ownerNode) {
   (function visit(node) {
     walkAstChildren(node, child => {
       parents.set(child, node);
-      visit(child);
+      // both consumers abandon the climb at a nested var-scope boundary, so nothing under one is
+      // ever reachable through this index - descending into it indexed every node once per
+      // ENCLOSING owner instead of once. the boundary node itself stays mapped, so a spine that
+      // ends at it still resolves
+      if (!isVarScopeBoundary(child.type)) visit(child);
     });
   })(ownerNode);
   ownerParentIndexCache.set(ownerNode, parents);
   return parents;
 }
 
-// the field of `parent` holding `child` (direct or as an array element), or null
-function parentFieldOf(parent, child) {
-  for (const [key, value] of Object.entries(parent)) {
+// the first of `fields` on `parent` holding `child` (direct or as an array element), or null.
+// the candidate list comes from the caller's own per-type table - scanning `Object.entries(parent)`
+// allocated an entries array per spine step to find a key that could only ever be one of those few
+function parentFieldOf(parent, child, fields) {
+  for (const key of fields) {
+    const value = parent[key];
     if (value === child || (Array.isArray(value) && value.includes(child))) return key;
   }
   return null;
@@ -1516,7 +1539,8 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
     const parent = parents.get(child);
     if (!parent) return false;
     if (parent !== ownerNode && isVarScopeBoundary(parent.type)) return false;
-    if (LOOP_RERUN_FIELDS[parent.type]?.has(parentFieldOf(parent, child))) return true;
+    const rerunFields = LOOP_RERUN_FIELDS[parent.type];
+    if (rerunFields && parentFieldOf(parent, child, rerunFields)) return true;
     child = parent;
   }
   return false;
@@ -1527,7 +1551,7 @@ const nodeSitsInLoopRerunWithin = memoizeByNodePair((ownerNode, target) => {
 // wider set is the conservative one and what every caller needs; "body" alone would under-report
 export function isVarDeclaratorInLoopRerun(path, name) {
   const owner = findNearestVarScopeOwner(path);
-  const target = owner && cachedScopeVars(owner.node).get(name);
+  const target = owner && cachedScopeVars(owner.node).get(name)?.[0];
   if (!target) return false;
   return nodeSitsInLoopRerunWithin(owner.node, target);
 }
@@ -1584,8 +1608,8 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
     if (parent !== ownerNode && isVarScopeBoundary(parent.type)) return null;
     const branchFields = CONDITIONAL_BRANCH_FIELDS[parent.type];
     if (branchFields) {
-      const field = parentFieldOf(parent, child);
-      if (branchFields.includes(field)) guards.push(Array.isArray(parent[field]) ? parent : child);
+      const field = parentFieldOf(parent, child, branchFields);
+      if (field) guards.push(Array.isArray(parent[field]) ? parent : child);
     }
     child = parent;
   }
@@ -1602,14 +1626,22 @@ const collectVarGuardsToDeclarator = memoizeByNodePair((ownerNode, target) => {
   return guards;
 });
 
-// the use must sit inside every conditional branch the declarator does, else the assignment can be
-// skipped on a path that still reaches the use. an unconditional declarator (no branches) passes
-function usageSitsUnderAllBranches(usagePath, ownerNode, guards) {
-  if (!guards.length) return true;
+// the use's ancestor nodes up to (excluding) the owner. depends only on the pair, while the caller
+// below asks once per (use, write) pair - rebuilding the whole spine set per write was the same
+// quadratic the parent index above exists to remove
+const usageAncestorNodes = memoizeByNodePair((ownerNode, usageNode, usagePath) => {
   const ancestors = new Set();
   for (let cur = usagePath.parentPath; cur && cur.node !== ownerNode; cur = cur.parentPath) {
     ancestors.add(cur.node);
   }
+  return ancestors;
+});
+
+// the use must sit inside every conditional branch the declarator does, else the assignment can be
+// skipped on a path that still reaches the use. an unconditional declarator (no branches) passes
+function usageSitsUnderAllBranches(usagePath, ownerNode, guards) {
+  if (!guards.length) return true;
+  const ancestors = usageAncestorNodes(ownerNode, usagePath.node, usagePath);
   return guards.every(branch => ancestors.has(branch));
 }
 
@@ -3914,10 +3946,12 @@ function getDirectStatementBody(node) {
 // anchor node. covers Program, BlockStatement, TSModuleBlock, StaticBlock, function/method
 // bodies - i.e. anywhere a `enum X {}` / `namespace X {}` could shadow a global
 function getTSRuntimeBindings(scopeNode) {
-  const body = getDirectStatementBody(scopeNode);
-  if (!body) return null;
+  // cache FIRST: `getDirectStatementBody` flattens a SwitchStatement's cases into a fresh array,
+  // and this runs on every ancestor of every `hasBinding` query of both adapters
   let cached = tsRuntimeBindingsCache.get(scopeNode);
   if (cached) return cached;
+  const body = getDirectStatementBody(scopeNode);
+  if (!body) return null;
   cached = new Set();
   for (const stmt of body) {
     // peel `export enum / export const enum / export namespace / export import X = require()`

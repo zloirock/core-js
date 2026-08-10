@@ -251,7 +251,12 @@ export function planProxyReceiver(receiver, {
   // off-engine. a DIRECT literal root (`(c++, globalThis.self).X`) keeps the natural rewrite / shared resolver;
   // peeling would overlap it. a write target peels for the same ownerless reason (leaf is the assignment slot)
   const throughRoot = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
-  const directLiteralRoot = findProxyGlobal(receiver, aliasCtx, false);
+  // the direct-literal probe is read ONLY by the ownerless peel, and `findProxyGlobal` is a full
+  // chain descent plus a binding-resolving root classification - so it rides behind that gate
+  // instead of running on every level of every dispatch (no caller sets `ownerlessReceiver` on the
+  // babel side at all). with `throughChainAssign` false it is also the same call as `throughRoot`
+  const directLiteralRoot = ownerlessReceiver && throughRoot
+    ? (throughChainAssign ? findProxyGlobal(receiver, aliasCtx, false) : throughRoot) : null;
   const peelReadTail = ownerlessReceiver && !!throughRoot
     && !(directLiteralRoot && POSSIBLE_GLOBAL_OBJECTS.has(directLiteralRoot.name));
   if (isWriteTarget || peelReadTail) objectCore = peelReceiverSequenceTail(objectCore);
