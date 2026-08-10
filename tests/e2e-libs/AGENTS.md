@@ -8,7 +8,7 @@ Node `^22.18.0 || >=24.11.0` under `zx`, started through `npm run zxi` - see `sc
 
 `npm run e2e-libs` chains the two runners that assert - `e2e-libs-check-exercise`, then `e2e-libs-runtime` - and is part of `npm test`; `OVERWRITE=1` in front of the latter rewrites the snapshot baselines. `e2e-libs-pipeline` and `e2e-libs-throughput` only report and stay out of the composite. Every runner narrows on positional filters, as in `npm run e2e-libs-throughput three rollup`.
 
-This directory's `package.json` pins the libraries, and `core-js` to the workspace; the bundlers come from `tests/transpiler-integration`, which its `zxi.install` field names so the bootstrap installs that directory too. Off a machine with IE11 every gate still runs and only Karma is skipped, so the browser leg happens in the `e2e-libs` CI job, on windows, and nowhere else - a green `npm test` is not a green CI here.
+This directory's `package.json` pins the libraries, and `core-js` to the workspace; the bundlers come from `tests/transpiler-integration`, which its `zxi.installExternalDirs` field names so the bootstrap installs that directory too. Off a machine with IE11 every gate still runs and only Karma is skipped, so the browser leg happens in the `e2e-libs` CI job, on windows, and nowhere else - a green `npm test` is not a green CI here.
 
 ## Layout
 

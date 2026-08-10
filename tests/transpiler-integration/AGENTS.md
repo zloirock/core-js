@@ -8,7 +8,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 
 ## Layout
 
-- `bundlers.mjs` - the bundler adapters themselves, one per tool, shared with `tests/e2e-libs`: this is the directory that pins the bundlers, and a suite that consumes them names it in the `zxi.install` field of its own `package.json`. `makeBundlers` takes only what its two callers genuinely disagree on
+- `bundlers.mjs` - the bundler adapters themselves, one per tool, shared with `tests/e2e-libs`: this is the directory that pins the bundlers, and a suite that consumes them names it in the `zxi.installExternalDirs` field of its own `package.json`. `makeBundlers` takes only what its two callers genuinely disagree on
 - `runner.mjs` - the matrix: those adapters crossed with the three methods and the phases each one supports, plus the two builders that are not plain bundler runs - babel-plugin, which has no phase of its own, and bun, which builds and verifies inside bun
 - `input-<method>.js` - the source for each injection method, plus `input-phases.js` for the pre/post interaction and `input-dynamic.js` for dynamic import
 - `lazy-chunk.js` - the body of a lazily imported module, written so its value can only be right if the polyfill reached the chunk, not just the loader
