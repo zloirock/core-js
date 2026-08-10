@@ -19,13 +19,15 @@
 //                  sequence / conditional branches
 export function subsume(region, options) {
   const {
-    form, rescueRoots = [], rescueRanges = null,
+    form, rescueRoots, rescueRanges = null,
     walkNode, isProxyGlobal, outerPrefix, skippableTypes, tsWrappers,
   } = options;
-  const rescued = new Set();
-  for (const root of rescueRoots || []) if (root) walkNode(root, node => rescued.add(node));
   const skip = new Set();
   if (!region) return skip;
+  const rescued = new Set();
+  // an absent rescue list reads as "this emit re-emits nothing", which is what `[]` already means -
+  // so absorb it here rather than making every caller spell its own `?? []`
+  for (const root of rescueRoots ?? []) if (root) walkNode(root, node => rescued.add(node));
 
   function inRescueRange(node) {
     return rescueRanges ? rescueRanges.some(range => node.start >= range.start && node.end <= range.end) : false;
@@ -103,7 +105,10 @@ export function subsume(region, options) {
     case 'init-globals':
       walkInit(region);
       break;
-    // no default
+    // an unknown form used to return the empty set, which reads as "this emit consumed nothing" -
+    // the exact answer that lets a stranded rewrite through and aborts the build far from here
+    default:
+      throw new TypeError(`subsume: unknown form ${ JSON.stringify(form) }`);
   }
   return skip;
 }
