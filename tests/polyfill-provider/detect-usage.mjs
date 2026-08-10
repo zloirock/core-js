@@ -21,6 +21,7 @@ import {
   keySideEffectsOnly,
   ownChainOptionalCount,
   proxyGlobalMemberCtorPureSwap,
+  PROXY_HOP_VALUE_CARRIERS,
   receiverSideEffectsOnly,
   resolveKey,
   returnedReceiverHasEffects,
@@ -59,6 +60,7 @@ import {
   RUNTIME_BLOCK_TYPES,
   SOURCE_ORDER_STATEMENT_HOST_TYPES,
   STATEMENT_LIST_HOST_TYPES,
+  TS_EXPR_WRAPPERS,
   reachingReassignmentValueNode,
   reassignmentValueEnumeration,
   varInitDominatesUsage,
@@ -336,6 +338,27 @@ runBoth('isTransparentWrapper/Identifier (not wrapper)', 'x;', (adapter, prog, l
   const path = adapter.pickPath(prog, 'Identifier');
   check(lbl, isTransparentWrapper(path.node), false);
 });
+
+// --- PROXY_HOP_VALUE_CARRIERS ---
+
+// both emitters' proxy-hop collapse gates spell no carrier type of their own any more - they ask
+// this set and nothing else. a type dropped here turns a value-OBSERVING carrier into a collapse
+// boundary, and `{ x } = globalThis.self.Array || Set` stops throwing on a realm without `self`
+// exactly where the source does. enumerate the domain member by member: a size check would pass
+// any substitution
+check('PROXY_HOP_VALUE_CARRIERS/SequenceExpression', PROXY_HOP_VALUE_CARRIERS.has('SequenceExpression'), true);
+check('PROXY_HOP_VALUE_CARRIERS/LogicalExpression', PROXY_HOP_VALUE_CARRIERS.has('LogicalExpression'), true);
+check('PROXY_HOP_VALUE_CARRIERS/ConditionalExpression', PROXY_HOP_VALUE_CARRIERS.has('ConditionalExpression'), true);
+check('PROXY_HOP_VALUE_CARRIERS/ParenthesizedExpression', PROXY_HOP_VALUE_CARRIERS.has('ParenthesizedExpression'), true);
+check('PROXY_HOP_VALUE_CARRIERS/ChainExpression', PROXY_HOP_VALUE_CARRIERS.has('ChainExpression'), true);
+// the TS / Flow wrappers ride in through the spread, so a cast source stays gated by one list
+for (const type of TS_EXPR_WRAPPERS) {
+  check(`PROXY_HOP_VALUE_CARRIERS/${ type }`, PROXY_HOP_VALUE_CARRIERS.has(type), true);
+}
+// a member read is NOT a carrier: the gates test it on its own edge (the read must hang off the
+// collapsing chain), and folding it in here would make any enclosing member look transparent
+check('PROXY_HOP_VALUE_CARRIERS/MemberExpression', PROXY_HOP_VALUE_CARRIERS.has('MemberExpression'), false);
+check('PROXY_HOP_VALUE_CARRIERS/CallExpression', PROXY_HOP_VALUE_CARRIERS.has('CallExpression'), false);
 
 // --- isStaticPlacement ---
 
