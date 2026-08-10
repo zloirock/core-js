@@ -44,9 +44,10 @@ import {
   methodReadsUsageCensus,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
+import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
 import { createChecker } from './harness.mjs';
 
-const { check, checkTruthy, finish, throwsWith } = createChecker('helpers');
+const { check, checkDeep, checkTruthy, finish, throwsWith } = createChecker('helpers');
 
 // --- toStatelessRegExp ---
 
@@ -1208,5 +1209,58 @@ check('forEachStatementPosition/non-slot host ignored',
 check('methodReadsUsageCensus/usage-global reads it', methodReadsUsageCensus('usage-global'), true);
 check('methodReadsUsageCensus/usage-pure reads it', methodReadsUsageCensus('usage-pure'), true);
 check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('entry-global'), false);
+
+// --- subsume: the rescue-list contract and the closed form domain ---
+// the rescue list is what an emit re-emits verbatim; "nothing to re-emit" reaches this canon spelled
+// three ways (omitted / undefined / null), and all three must mean the same empty set rather than a
+// crash inside the shared helper. the form domain is enumerated MEMBER BY MEMBER: an unrecognised
+// form used to answer "consumed nothing", which is precisely the answer that strands a rewrite
+{
+  function walkNode(root, visit) {
+    visit(root);
+    for (const key of ['object', 'property', 'left', 'right']) if (root[key]) walkNode(root[key], visit);
+  }
+  function region() {
+    return {
+      type: 'MemberExpression', start: 0, end: 10, computed: false,
+      object: { type: 'Identifier', start: 0, end: 5, name: 'globalThis' },
+      property: { type: 'Identifier', start: 6, end: 10, name: 'Map' },
+    };
+  }
+  const base = { form: 'replace', walkNode, isProxyGlobal: node => node, outerPrefix: () => [] };
+
+  const omitted = subsume(region(), { ...base });
+  checkTruthy('subsume/omitted rescue list skips the region', omitted.size > 0);
+  checkDeep('subsume/undefined rescue list matches omitted',
+    [...subsume(region(), { ...base, rescueRoots: undefined })].length, [...omitted].length);
+  checkDeep('subsume/null rescue list matches omitted',
+    [...subsume(region(), { ...base, rescueRoots: null })].length, [...omitted].length);
+  check('subsume/an empty region is the empty set regardless of the list',
+    subsume(null, { ...base, rescueRoots: null }).size, 0);
+
+  // every form named in the contract is accepted; nothing else is
+  for (const form of ['replace', 'dropped-key', 'kept-spine', 'init-globals']) {
+    let threw = false;
+    try {
+      subsume(region(), { ...base, form, skippableTypes: new Set(), tsWrappers: new Set() });
+    } catch { threw = true; }
+    check(`subsume/known form ${ form } is accepted`, threw, false);
+  }
+  throwsWith('subsume/unknown form throws instead of answering "consumed nothing"',
+    () => subsume(region(), { ...base, form: 'replace-all' }), 'unknown form');
+  throwsWith('subsume/a missing form throws too',
+    () => subsume(region(), { ...base, form: undefined }), 'unknown form');
+  // the message carries the SUBSYSTEM prefix and no brand of its own: this throw happens during a
+  // transform, where each plugin's outer catch stamps `[core-js] [<file>] ` exactly once. a
+  // self-applied brand here would double-stamp, the same reason the queue's invariants stay bare
+  {
+    let message = '';
+    try {
+      subsume(region(), { ...base, form: 'nope' });
+    } catch (error) { message = error.message; }
+    check('subsume/throw is not self-branded', message.startsWith('[core-js]'), false);
+    check('subsume/throw names its subsystem', message.startsWith('subsume: '), true);
+  }
+}
 
 finish();

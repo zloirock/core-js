@@ -3301,3 +3301,19 @@ QUnit.test('destructure: identity self-assign keeps the container resolving', as
   const { c: { groupBy: crossRead } } = crossA;
   assert.same(crossRead, Map.groupBy);
 });
+
+// a residual binding still READS the receiver off the init's sequence tail, so the tail is not dead
+// just because some channel marked its node consumed - dropping it bound the residual off the bare
+// prefix instead (`name` came out undefined off `0`).
+QUnit.test('destructuring: a sequence tail a residual reads survives the lift', assert => {
+  const { of, name } = (0, Array);
+  assert.deepEqual(of(1, 2), [1, 2]);
+  assert.same(name, 'Array');
+});
+
+QUnit.test('destructuring: a sequence tail an instance binding reads survives the lift', assert => {
+  const source = [1, 2, 3];
+  const { at } = (0, source);
+  assert.same(at.call(source, -1), 3);
+});
+
