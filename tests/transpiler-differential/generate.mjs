@@ -564,6 +564,15 @@ function * generateFieldShadowsAccessor() {
     ['static', 'class C { static a = ["p", "q"]; static get a() { return "s"; } } const recv = C;'],
     ['inherited', 'class A { a = ["p", "q"]; } class B extends A { get a() { return "s"; } } const recv = new B();'],
     ['field-last', 'class C { get a() { return "s"; } a = ["p", "q"]; } const recv = new C();'],
+    // duplicate keys: the slot is defined twice, so the SOURCE-LAST definition is the one standing
+    // when the read happens. a member lookup that answers with the first one narrows to the other
+    // family, and only the stripped realm shows it
+    ['duplicate-last-array', 'class C { a = "sq"; a = ["p", "q"]; } const recv = new C();'],
+    ['duplicate-last-string', 'class C { a = ["p", "q"]; a = "sq"; } const recv = new C();'],
+    // a computed key that is a static literal names the same slot as the bare spelling, so it has to
+    // take part in that ordering exactly like one
+    ['computed-literal-key', 'class C { ["a"] = ["p", "q"]; } const recv = new C();'],
+    ['computed-literal-key-duplicate', 'class C { a = "sq"; ["a"] = ["p", "q"]; } const recv = new C();'],
   ];
   for (const [id, decl] of rows) {
     yield { ...snippet(`field-shadows-accessor/${ id }`,

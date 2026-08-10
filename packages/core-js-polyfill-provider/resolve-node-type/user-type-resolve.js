@@ -22,6 +22,7 @@ import {
   isTypeAlias,
   typeAliasBody,
   typeRefName,
+  TS_UNKNOWN_TYPE,
 } from './ast-shapes.js';
 import { getHeritageTypeArgs, getTypeArgs, heritageClause } from '../helpers/ast-patterns.js';
 
@@ -63,6 +64,7 @@ export function createUserTypeResolve({
   findTypeDeclaration,
   findDeclPathBySegments,
   withLookupPath,
+  currentLookupPath,
   findTypeParameter,
   isClassLikeDeclaration,
   extendsClauseName,
@@ -213,13 +215,19 @@ export function createUserTypeResolve({
     // alias resolves differently per type-arg set, so it is simply not memoized
     const memoizable = !declaration.typeParameters?.params?.length && !typeParamMap;
     let memo = walkResultMemo.get(visited);
+    // every input the memoized body reads, beside the declaration itself:
+    // - SCOPE: an alias body resolves in the CALLER's scope, and an anchored parent walk swaps that
+    //   scope mid-walk while carrying this very set;
+    // - the lookup ANCHOR: the namespace fallback resolves bare names against it, and a recovered
+    //   namespace decl path chains to the OUTER scope, so the anchor can differ while the scope does not;
+    // - NAME: the enum branch folds the merge set for THIS name.
+    // a result poisoned by a grey ancestor is additionally not stored at all (below) - it is null
+    // because of what was OPEN above the call, not because of the declaration
+    const anchor = currentLookupPath();
     if (memoizable) {
       if (!memo) walkResultMemo.set(visited, memo = new Map());
-      // the SCOPE belongs to the key: an alias body resolves in the CALLER's scope, and an anchored
-      // parent walk swaps that scope mid-walk while carrying this very set - so the same declaration
-      // can owe two different answers on one walk, and a decl-only key would hand over the wrong one
       const hit = memo.get(declaration);
-      if (hit && hit.scope === scope) return hit.result;
+      if (hit && hit.scope === scope && hit.anchor === anchor && hit.name === name) return hit.result;
     }
     // grey mark: the decl is now OPEN above the compute below, so a self-recursive body re-entry
     // hits the top-of-function cycle check. paired with the `finally` that ungreys it
@@ -316,7 +324,7 @@ export function createUserTypeResolve({
         }
         return null;
       })();
-      if (memoizable) memo.set(declaration, { scope, result: walked });
+      if (memoizable && !cycleSeenSets.has(visited)) memo.set(declaration, { scope, anchor, name, result: walked });
       return walked;
     } finally {
       visited.delete(declaration);
@@ -351,7 +359,7 @@ export function createUserTypeResolve({
       const members = interfaceBodyMembers(decl);
       if (members.length) return { type: 'TSTypeLiteral', members };
     }
-    return { type: 'TSUnknownKeyword' };
+    return TS_UNKNOWN_TYPE;
   }
 
   // capture-avoidance for an EXPLICIT usage-arg: a bare type-arg whose name collides with a sibling
