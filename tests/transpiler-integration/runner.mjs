@@ -1,10 +1,10 @@
 import { runInWorker } from '../transpiler-differential/realm-runner.mjs';
 import { deepEqual } from 'node:assert/strict';
 import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import './runtime-tests.mjs';
-import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic, verifySplitDynamic } from './runtime.mjs';
+import { makeBundlers } from './bundlers.mjs';
+import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
 import { viteHandoff } from './vite-handoff.mjs';
 import { hostBoundaries } from './host-boundaries.mjs';
 import { assetExternals } from './asset-externals.mjs';
@@ -75,47 +75,10 @@ async function verifyInBun(code, label, method) {
   }, "transpiler bun's test-");
 }
 
-async function esbuildBundle(stdinOrEntry) {
-  const { build } = await import('esbuild');
-  const result = await build({
-    ...stdinOrEntry,
-    bundle: true,
-    write: false,
-    format: 'cjs',
-    platform: 'node',
-  });
-  return { code: result.outputFiles[0].text, ext: '.cjs' };
-}
-
-async function webpackLikeBundle(compiler, input, plugin, extra = {}) {
-  return withTmpDir(async dir => {
-    const filename = 'out.mjs';
-    const plugins = [...extra.siblings ?? [], plugin];
-    const instance = compiler({
-      mode: 'production',
-      devtool: false,
-      entry: input,
-      output: { path: dir, filename, module: true, library: { type: 'module' }, ...extra.splitDynamic && { chunkLoading: 'import' } },
-      experiments: { outputModule: true },
-      optimization: { minimize: false },
-      plugins,
-    });
-    try {
-      const stats = await promisify(instance.run.bind(instance))();
-      if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
-    } finally {
-      await promisify(instance.close.bind(instance))();
-    }
-    if (extra.splitDynamic) await verifySplitDynamic(dir, filename, 'module');
-    return { code: await readFile(join(dir, filename), 'utf8') };
-  });
-}
-
 // --- builders ---
 // each returns { code, ext?, verifier? }. verifier defaults to verifyInNode.
 
 const unplugin = await import('@core-js/unplugin');
-function pluginFor(name) { return (...args) => unplugin[name](...args); }
 
 // sibling plugin for the pre+post contract legs: registered WITHOUT enforce (the "normal"
 // slot our pre/post stages must straddle), it mangles the phases-input's mutation spelling
@@ -160,6 +123,17 @@ const globalSibling = createUnplugin(() => ({
   },
 }));
 
+// the shared adapters, configured for this suite: its output is loaded back as CommonJS, and the
+// rollup and vite legs assert the shape of the sourcemap they produce
+const bundlers = makeBundlers({ root: testDir, esbuildFormat: 'cjs', sourcemap: true });
+
+// every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
+// sibling the leg registers beside it - so the matrix is derived rather than spelled out
+const throughUnplugin = Object.fromEntries(Object.keys(bundlers).map(name => [name, (input, method, phase, extra = {}) => {
+  const plugins = [...extra.siblings ?? [], unplugin[name](pluginOpts(method, phase))];
+  return bundlers[name](input, plugins, extra);
+}]));
+
 const builders = {
   // babel-plugin has no `phase` option - receives base opts regardless
   async babel(input, method) {
@@ -171,144 +145,10 @@ const builders = {
       configFile: false,
       babelrc: false,
     });
-    return esbuildBundle({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
+    return bundlers.esbuild({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
   },
 
-  async esbuild(input, method, phase, extra = {}) {
-    return esbuildBundle({
-      entryPoints: [input],
-      plugins: [...extra.siblings ?? [], pluginFor('esbuild')(pluginOpts(method, phase))],
-    });
-  },
-
-  async rollup(input, method, phase, extra = {}) {
-    const { rollup } = await import('rollup');
-    const nodeResolve = (await import('@rollup/plugin-node-resolve')).default;
-    const commonjs = (await import('@rollup/plugin-commonjs')).default;
-    const bundle = await rollup({
-      input,
-      plugins: [...extra.siblings ?? [], pluginFor('rollup')(pluginOpts(method, phase)), nodeResolve(), commonjs()],
-    });
-    const { output } = await bundle.generate({
-      format: 'es', sourcemap: true, inlineDynamicImports: !!extra.inlineDynamic,
-    });
-    return { code: output[0].code, map: output[0].map };
-  },
-
-  async vite(input, method, phase, extra = {}) {
-    const { build } = await import('vite');
-    const result = await build({
-      root: testDir,
-      logLevel: 'silent',
-      build: {
-        write: false,
-        sourcemap: true,
-        lib: { entry: input, formats: ['es'] },
-        minify: false,
-        commonjsOptions: { include: [/core-js/] },
-        // vite bundles with rolldown, so the output option follows rolldown's spelling
-        rollupOptions: extra.inlineDynamic ? { output: { codeSplitting: false } } : {},
-      },
-      resolve: { dedupe: ['core-js'] },
-      plugins: [...extra.siblings ?? [], pluginFor('vite')(pluginOpts(method, phase))],
-    });
-    const [{ output }] = Array.isArray(result) ? result : [result];
-    return { code: output[0].code, map: output[0].map };
-  },
-
-  async webpack(input, method, phase, extra = {}) {
-    const wp = (await import('webpack')).default;
-    return webpackLikeBundle(wp, input, pluginFor('webpack')(pluginOpts(method, phase)), extra);
-  },
-
-  async rspack(input, method, phase, extra = {}) {
-    const { rspack } = await import('@rspack/core');
-    return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method, phase)), extra);
-  },
-
-  // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's
-  // rsbuild adapter. environments-based config keeps the output a single node-loadable file
-  async rsbuild(input, method, phase, extra = {}) {
-    const { createRsbuild } = await import('@rsbuild/core');
-    return withTmpDir(async dir => {
-      const rsbuild = await createRsbuild({
-        cwd: testDir,
-        rsbuildConfig: {
-          mode: 'production',
-          logLevel: 'error',
-          source: { entry: { index: input } },
-          plugins: [...extra.siblings ?? [], pluginFor('rsbuild')(pluginOpts(method, phase))],
-          output: {
-            target: 'node',
-            distPath: { root: dir },
-            filenameHash: false,
-            minify: false,
-            sourceMap: false,
-          },
-          ...!extra.splitDynamic && { performance: { chunkSplit: { strategy: 'all-in-one' } } },
-          tools: {
-            rspack: async config => {
-              config.output = { ...config.output, module: true, library: { type: 'module' } };
-              config.experiments = { ...config.experiments, outputModule: true };
-              if (extra.splitDynamic) config.output.chunkLoading = 'import';
-              return config;
-            },
-          },
-        },
-      });
-      await rsbuild.build();
-      if (extra.splitDynamic) await verifySplitDynamic(dir, 'index.js', 'module');
-      return { code: await readFile(join(dir, 'index.js'), 'utf8') };
-    });
-  },
-
-  async rolldown(input, method, phase, extra = {}) {
-    const { build } = await import('rolldown');
-    return withTmpDir(async dir => {
-      const file = join(dir, 'out.mjs');
-      await build({
-        input,
-        platform: 'node',
-        treeshake: false,
-        plugins: [...extra.siblings ?? [], pluginFor('rolldown')(pluginOpts(method, phase))],
-        output: {
-          format: 'esm', file, externalLiveBindings: false, keepNames: true,
-          // rolldown spells single-chunk output as `codeSplitting: false` and deprecated
-          // `inlineDynamicImports`, which warns whenever the key is PRESENT - even set to `false`
-          ...extra.inlineDynamic ? { codeSplitting: false } : {},
-        },
-      });
-      return { code: await readFile(file, 'utf8') };
-    });
-  },
-
-  async farm(input, method, phase, extra = {}) {
-    const { build, NoopLogger } = await import('@farmfe/core');
-    // farm's own logger for tests: silences the progress chatter like a hand-nulled `Logger`,
-    // but THROWS a build error where the real one prints it and calls `process.exit`
-    const silent = new NoopLogger();
-    return withTmpDir(async dir => {
-      await build({
-        root: testDir,
-        logger: silent,
-        plugins: [...extra.siblings ?? [], pluginFor('farm')(pluginOpts(method, phase))],
-        compilation: {
-          input: { index: input },
-          output: { path: dir, targetEnv: 'node', format: 'cjs' },
-          minify: false,
-          sourcemap: false,
-          lazyCompilation: false,
-          persistentCache: false,
-          // force single-file output - otherwise farm splits into __farm_runtime.js + chunks
-          ...!extra.splitDynamic && { partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] } },
-        },
-        server: { hmr: false },
-      });
-      if (extra.splitDynamic) await verifySplitDynamic(dir, 'index.js', 'commonjs');
-      // farm emits .js but test dir has `"type": "module"` - force CJS via .cjs extension
-      return { code: await readFile(join(dir, 'index.js'), 'utf8'), ext: '.cjs' };
-    });
-  },
+  ...throughUnplugin,
 
   // build in bun (Bun.build API only available in bun runtime, so spawn bun),
   // then verify in bun (output mixes CJS/ESM and can't be loaded by node)
@@ -466,10 +306,9 @@ for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack'
   const label = `${ name }/usage-global/dynamic-import`;
   try {
     await runLeg(name, async () => {
-      const splitDynamic = ['webpack', 'rspack', 'rsbuild', 'farm'].includes(name);
       const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
-        { splitDynamic, inlineDynamic: !splitDynamic });
-      if (!splitDynamic) await verifyDynamic(code, label, ext);
+        { inlineDynamic: true });
+      await verifyDynamic(code, label, ext);
     });
     echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {
