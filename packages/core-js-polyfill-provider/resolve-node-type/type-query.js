@@ -72,14 +72,15 @@ export function createTypeQuery({
     // TSEnumDeclaration has no typeAnnotation slot, so treat it as $Object('Object') for
     // downstream member inference - but only when a nearer value binding doesn't shadow it. the
     // shadow test needs the binding SCOPE only, so use the const-agnostic lookup (a reassigned
-    // `let Enum` shadows too); `bindingPath` below stays const-only for the DECLARED-type reads
-    if (enumIsNearestValue(name, scope, bindingDeclaratorPath(name, scope))) return new $Object('Object');
+    // `let Enum` shadows too); `bindingPath` below stays const-only for the DECLARED-type reads.
+    // hoisted for both readers, as the qualified twin below already does with its own
+    const declPath = bindingDeclaratorPath(name, scope);
+    if (enumIsNearestValue(name, scope, declPath)) return new $Object('Object');
     if (!bindingPath) {
       // a reassigned (non-const) annotated declarator still has a stable DECLARED type for `typeof`
       // (TS reads the annotation, not the narrowed value) - constantBindingPath bails on the
       // reassignment, so look the declarator up regardless of const-ness and resolve its EXPLICIT
       // annotation only (the init is not the type once the binding is reassigned)
-      const declPath = bindingDeclaratorPath(name, scope);
       const reassignedAnnotation = t.isVariableDeclarator(declPath?.node) ? declPath.node.id?.typeAnnotation : null;
       return reassignedAnnotation ? resolveTypeAnnotation(reassignedAnnotation, scope) : null;
     }
