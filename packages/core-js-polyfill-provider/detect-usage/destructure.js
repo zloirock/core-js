@@ -2104,6 +2104,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // its left leaf, and its right only when the left can be falsy (a guarded left like
   // `m && globalThis` - both sides must then unfold, the runtime picks per call). returns
   // whether the subtree can yield a falsy value
+  // every value leaf is classified twice - once by `collectValueLeaves` for the reachability
+  // verdict, once by `buildMirrorTargets` for the mirror context - and the answer costs a member
+  // spine walk plus a `resolveObjectName` binding chase plus an `adapter.getBinding` probe.
+  // declared HERE, above `collectValueLeaves`: `rootContext` hoists, a `const` beside it does not
+  const rootContextByNode = new Map();
   const targetLeaves = [];
   // arrows whose WHOLE expression body becomes a target: a text replacement with an object
   // literal there needs wrapping parens (block ambiguity); AST printers add them automatically
@@ -2164,6 +2169,13 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   }
 
   function rootContext(node) {
+    if (rootContextByNode.has(node)) return rootContextByNode.get(node);
+    const ctx = resolveRootContext(node);
+    rootContextByNode.set(node, ctx);
+    return ctx;
+  }
+
+  function resolveRootContext(node) {
     let n = node;
     while ((n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') && !n.computed
       && n.property?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(n.property.name)) n = n.object;
@@ -2261,13 +2273,14 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
       while (ctxNode?.type === 'LogicalExpression') ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;
       const tree = mirrorPattern(patternNode, rootContext(ctxNode));
       // an ALL-passthrough tree (no polyfillable leaf) has nothing to inject - leave it native
-      if (!tree || !treeHasPolyfill(tree)) continue;
+      const metrics = tree && treeInjectionMetrics(tree);
+      if (!metrics?.hasPolyfill) continue;
       const descriptor = mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter);
       // a passthrough leaf reads its key's live value off the receiver, so the render needs a NAMEABLE
       // receiver (`receiverName.key`). a static-object receiver (`{ g: globalThis }`) has no single name,
       // so a tree mixing a passthrough with polyfills there is un-renderable - bail to native instead of
       // emitting `t.identifier(null)`. an all-polyfill static-object tree needs no receiver and still fires
-      if (!descriptor.receiverName && treeHasPassthrough(tree)) continue;
+      if (!descriptor.receiverName && metrics.hasPassthrough) continue;
       out.push({ node: leaf, tree, needsParens: expressionBodyLeaves.has(leaf), ...descriptor });
     }
     return out;
@@ -2346,35 +2359,31 @@ export function renderSynthTree(tree, constructors, keyPath = []) {
 }
 
 // a synth tree worth emitting carries at least one polyfill leaf; an all-passthrough tree would just
-// re-read the receiver verbatim, so the caller leaves the destructure native instead of mirroring it
-function treeInjectionMetrics(tree, m) {
+// re-read the receiver verbatim, so the caller leaves the destructure native instead of mirroring it.
+// a passthrough leaf (`Set` -> `_Set`, `Math.floor` native) additionally reads its key off the
+// receiver, so it can only render against a NAMEABLE receiver - a static-object receiver can't supply
+// one. ONE walk answers both: the caller needs both flags for the same tree
+function collectTreeInjectionFlags(tree, m) {
   switch (tree.kind) {
     case 'polyfill': m.real = true; break;
     case 'passthrough':
+      m.passthrough = true;
       if (tree.injects) m.injecting = true;
       if (tree.bailed) m.bailed = true;
       break;
-    case 'object': for (const { child } of tree.entries) treeInjectionMetrics(child, m); break;
+    case 'object': for (const { child } of tree.entries) collectTreeInjectionFlags(child, m); break;
     // no default
   }
   return m;
 }
 
-// a passthrough leaf (`Set` -> `_Set`, `Math.floor` native) reads its key off the receiver, so it can
-// only render against a NAMEABLE receiver - a static-object receiver can't supply one
-function treeHasPassthrough(tree) {
-  if (tree.kind === 'passthrough') return true;
-  if (tree.kind === 'object') return tree.entries.some(({ child }) => treeHasPassthrough(child));
-  return false;
-}
-
-function treeHasPolyfill(tree) {
-  const m = treeInjectionMetrics(tree, { real: false, injecting: false, bailed: false });
+function treeInjectionMetrics(tree) {
+  const m = collectTreeInjectionFlags(tree, { real: false, injecting: false, bailed: false, passthrough: false });
   // a BAILED nested subtree (rest / unresolvable key) leaves its polyfillable leaves to the leaf
   // fallback, which needs the mirror NOT to fire - so only a REAL nested polyfill keeps the mirror there
   // (an injecting ctor passthrough alone would strand those leaves). otherwise the injecting ctor
   // passthrough (`Set` -> `_Set`) is itself enough to keep the mirror and own the flat ctor
-  return m.bailed ? m.real : m.real || m.injecting;
+  return { hasPolyfill: m.bailed ? m.real : m.real || m.injecting, hasPassthrough: m.passthrough };
 }
 
 // the receiver name + proxy flag back the passthrough rendering: a proxy reads through the injected
