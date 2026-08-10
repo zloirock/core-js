@@ -15,6 +15,7 @@
 import { canonicalArrayIndex, KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
 import {
   interfaceBodyMembers,
+  internedTypeRef,
   isInterfaceDeclaration,
   isReadonlyArrayType,
   isTypeAlias,
@@ -23,6 +24,7 @@ import {
   typeAliasBody,
   typeRefName,
   typeRefSegments,
+  TS_NUMBER_TYPE,
 } from './ast-shapes.js';
 import { getHeritageTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -256,7 +258,7 @@ export function createTypeMembers({
       const resolved = resolveTypeQueryBinding(arg, scope);
       if (!resolved?.node) return null;
       const target = unwrapTypeAnnotation(segments[0] === 'InstanceType'
-        ? resolved.node.id && { type: 'TSTypeReference', typeName: resolved.node.id }
+        ? internedTypeRef(resolved.node.id)
         : resolved.node.returnType ?? resolved.node.typeAnnotation);
       if (!target) return null;
       // `typeof fn<Args>` instantiation expression: type-args ride on the inner TSTypeQuery.
@@ -543,7 +545,7 @@ export function createTypeMembers({
   // keys return null so the caller can continue through the generic member walk
   function tryIndexedElementMember({ aliased, key, scope, subst }) {
     if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
-      if (key === 'length') return { type: 'TSNumberKeyword' };
+      if (key === 'length') return TS_NUMBER_TYPE;
       const index = canonicalArrayIndex(key);
       if (index === null) return null;
       const element = findTupleElement(aliased, index, scope);

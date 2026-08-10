@@ -39,6 +39,8 @@ import {
   matchOverloadByArgs,
   peelTSParenthesized,
   typeRefName,
+  TS_NUMBER_TYPE,
+  TS_UNKNOWN_TYPE,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
@@ -692,7 +694,7 @@ export function createCallResolution({
   // inert unresolvable annotation node bound for a supplied-but-opaque type-param: it
   // substitutes into downstream slots as unknown (generic) and REPLACES the type-param
   // reference before the type-param-declaration default fallback can re-derive it
-  const OPAQUE_TYPE_ARG = Object.freeze({ type: 'TSUnknownKeyword' });
+  const OPAQUE_TYPE_ARG = TS_UNKNOWN_TYPE;
 
   // synthetic keyword annotations for LITERAL args: this inference domain is annotation
   // nodes (`findExpressionAnnotation` reads declared types), so an un-annotated literal
@@ -704,10 +706,10 @@ export function createCallResolution({
   const LITERAL_ARG_ANNOTATIONS = {
     StringLiteral: Object.freeze({ type: 'TSStringKeyword' }),
     TemplateLiteral: Object.freeze({ type: 'TSStringKeyword' }),
-    NumericLiteral: Object.freeze({ type: 'TSNumberKeyword' }),
+    NumericLiteral: TS_NUMBER_TYPE,
     BigIntLiteral: Object.freeze({ type: 'TSBigIntKeyword' }),
     BooleanLiteral: Object.freeze({ type: 'TSBooleanKeyword' }),
-    ArrayExpression: Object.freeze({ type: 'TSArrayType', elementType: Object.freeze({ type: 'TSUnknownKeyword' }) }),
+    ArrayExpression: Object.freeze({ type: 'TSArrayType', elementType: TS_UNKNOWN_TYPE }),
   };
   function literalArgAnnotation(node) {
     return node ? LITERAL_ARG_ANNOTATIONS[babelNodeType(node)] ?? null : null;

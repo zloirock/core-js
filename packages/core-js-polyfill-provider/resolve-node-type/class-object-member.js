@@ -19,7 +19,7 @@
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
 import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
-import { isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
+import { internedTypeRef, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
 const NAMESPACE_FN_PATH_TYPES = ['FunctionDeclaration', 'TSDeclareFunction'];
@@ -59,6 +59,28 @@ export function createClassObjectMember({
       ? (literalKeyValue(key) ?? singleQuasiString(key)) === name
       : keyMatchesName(key, name);
   }
+  // class BODY node -> (name -> the positions of the members whose key matches it). one member
+  // resolution asks `memberKeyMatches` against the same body array three times over - the read
+  // walk, the own-accessor probe and the bodyless-overload filter - so the array is scanned once
+  // per (body, name) instead. POSITIONS, not paths: the path array is re-materialized per query,
+  // and a stored path could outlive the traversal that produced it
+  const classBodyNameIndex = new WeakMap();
+
+  function memberPositionsFor(bodyNode, members, name) {
+    let byName = classBodyNameIndex.get(bodyNode);
+    if (!byName) classBodyNameIndex.set(bodyNode, byName = new Map());
+    let positions = byName.get(name);
+    if (!positions) {
+      positions = [];
+      for (let i = 0; i < members.length; i++) {
+        const node = members[i]?.node;
+        if (node && memberKeyMatches(node.key, node.computed, name)) positions.push(i);
+      }
+      byName.set(name, positions);
+    }
+    return positions;
+  }
+
   // babel splits public/private/accessor into distinct types; ESTree uses MethodDefinition /
   // PropertyDefinition with a PrivateIdentifier key. shared `./class-member-shapes.js`
   // collapses both shapes so `resolveClassMemberNode` doesn't miss private members
@@ -70,11 +92,11 @@ export function createClassObjectMember({
   // setter-only slot reads `undefined`, so the merged-namespace fn that would resolve there
   // throws at runtime regardless of which type-specific helper is emitted - bias-safe to ignore
   function hasOwnAccessor({ classPath, name, isStatic }) {
-    for (const member of classPath.get('body').get('body')) {
-      const { node } = member;
-      if (!node || !!node.static !== isStatic) continue;
-      if (node.kind !== 'get' && node.kind !== 'set') continue;
-      if (memberKeyMatches(node.key, node.computed, name)) return true;
+    const members = classPath.get('body').get('body');
+    for (const position of memberPositionsFor(classPath.node.body, members, name)) {
+      const { node } = members[position];
+      if (!!node.static !== isStatic) continue;
+      if (node.kind === 'get' || node.kind === 'set') return true;
     }
     return false;
   }
@@ -96,10 +118,10 @@ export function createClassObjectMember({
       // NOTE this legitimately diverges from `findObjectMember`: an object literal defines its keys
       // in source order on ONE object, so there a later setter really does shadow an earlier value
       const members = classPath.get('body').get('body');
+      const positions = memberPositionsFor(classPath.node.body, members, name);
       let onPrototype = null;
-      for (let i = members.length - 1; i >= 0; i--) {
-        const member = members[i];
-        if (!memberKeyMatches(member.node.key, member.node.computed, name)) continue;
+      for (let p = positions.length - 1; p >= 0; p--) {
+        const member = members[positions[p]];
         if (!!member.node.static !== isStatic) continue;
         // reverse order, so the first field reached is the source-LAST one - the define that stands.
         // a prototype-routed read (instance `super.x`) never sees one: the field is an own property
@@ -201,12 +223,15 @@ export function createClassObjectMember({
     // body chain exhausted - delegate annotation-only fallback to `getTypeMembers`, which
     // walks the super chain merging interface members at each hop with proper per-hop
     // type-arg propagation. real class-body methods always win on collision (handled above)
-    const synthRef = {
-      type: 'TSTypeReference',
-      typeName: { type: 'Identifier', name: classPath.node.id.name },
-      typeParameters: receiverArgs ? { type: 'TSTypeParameterInstantiation', params: receiverArgs } : undefined,
-    };
-    const members = getTypeMembers({ objectType: synthRef, scope: classPath.scope });
+    // through the shared intern table: the memo `getTypeMembers` keys on node identity, so the
+    // reference must be one node per (class, type-args) rather than a fresh literal per ask. this is
+    // the fall-through for a member the body chain did NOT answer (a merged-interface member), so it
+    // is reached about once per class, not per member read - the point is the KEY, since an
+    // identity-keyed memo handed an unstable key is a broken contract whatever its traffic.
+    // the class's own `id` is the parse node, so it is both the spelling and the intern key
+    const members = getTypeMembers({
+      objectType: internedTypeRef(classPath.node.id, receiverArgs ?? null), scope: classPath.scope,
+    });
     return resolveMemberFromMembers({ members, name, scope: classPath.scope, callPath });
   }
 
@@ -360,9 +385,10 @@ export function createClassObjectMember({
       : (key?.type === 'Identifier' ? key.name : literalKeyValue(key));
     if (name === undefined || name === null) return undefined;
     const isStatic = !!member.node.static;
-    const overloads = siblings.filter(m => !!m.node.static === isStatic
-      && m.node.kind !== 'get' && m.node.kind !== 'set'
-      && isBodylessMethodShape(m) && memberKeyMatches(m.node.key, m.node.computed, name));
+    const overloads = memberPositionsFor(member.parentPath.node, siblings, name)
+      .map(position => siblings[position])
+      .filter(m => !!m.node.static === isStatic
+        && m.node.kind !== 'get' && m.node.kind !== 'set' && isBodylessMethodShape(m));
     if (overloads.length < 2) return undefined;
     return foldOverloadReturns(overloads, m => m.node.params ?? m.node.value?.params, m => {
       const declared = bodylessReturnPath(m);
