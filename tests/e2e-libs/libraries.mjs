@@ -3,13 +3,9 @@
 // to its deterministic exercise module (must export `run()` -> Promise or plain { checks }).
 //
 // Every library runs every method, so the method list is NOT per-library: it is `METHODS` in
-// build.mjs, and the runners iterate that. A per-library copy used to live here, identical in all
-// three entries; it was removed because the code around it never honoured the variation it implied
-// (pipeline validated `methodFilter` against METHODS while iterating the per-library list, and
-// throughput built its report columns from METHODS while filling them from the per-library list —
-// so a library declaring a subset would have produced a silently empty report or a hole-ridden
-// table). If a library ever needs a subset, reintroduce it deliberately and teach those two
-// runners to respect it.
+// build.mjs, and the runners iterate that. A per-library subset would have to be taught to the
+// runners as well - pipeline validates `methodFilter` against METHODS, and throughput builds its
+// report columns from it - or it produces a silently empty report and a hole-ridden table.
 import { join } from 'node:path';
 
 const HERE = import.meta.dirname;

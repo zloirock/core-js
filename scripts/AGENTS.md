@@ -16,7 +16,7 @@ That means, inside such a script:
 - `globalsZX` in `tests/eslint/eslint.config.js` is the list of them, and the lint config enforces it: an undeclared global is reported as undefined. The list is curated, not everything `zx` injects, so a feature a script needs is declared there first
 - `fs` is fs-extra rather than `node:fs`, so `pathExists`, `outputFile` and the rest of it are available, and `glob` is globby
 - `$.verbose` is on
-- if the script's own directory contains a `package.json`, `zxi` installs its dependencies first and prefers its local binaries
+- if the script's own directory contains a `package.json`, `zxi` installs its dependencies first and prefers its local binaries. A `"zxi": { "install": [...] }` field there names further directories to install, for a suite that imports a module from another one - such a module resolves its dependencies where it lives, not where it is imported from. One level only: a listed directory's own field is not followed
 - `time` prints the duration, `cd` runs the script with its own directory as the working directory
 
 The path is resolved against the repository root, not the current directory, so `zxi` is run from the root and given a root-relative path.
