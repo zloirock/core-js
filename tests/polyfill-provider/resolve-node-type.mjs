@@ -9657,4 +9657,88 @@ runBoth('class property: opaque arg resolves null',
     check(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), null);
   });
 
+// --- class-body member resolution order ---
+// the read walk, the own-accessor probe and the bodyless-overload filter all ask the same
+// question of the same class body ("which members carry this name"), so the answer is indexed per
+// (body, name). these lock the ordering rules that index has to preserve: a FIELD is defined after
+// the body's methods, so it wins wherever it sits; among methods the source-LAST definition wins;
+// a setter never answers a read; a computed key names a slot only when it is a static literal;
+// and static and instance slots stay separate
+
+// field-wins: the field is declared BEFORE the same-named method, and still answers the read
+runBoth('class field wins over an earlier-declared method of the same name',
+  `
+    class C { m: string[] = []; m(): Map<string, number> { return new Map(); } }
+    const r = new C().m;
+  `,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Array' });
+  });
+
+// duplicate method keys: the source-LAST definition is the one installed on the prototype
+runBoth('duplicate class method keys resolve to the LAST definition',
+  `
+    class C { m(): string[] { return []; } m(): Map<string, number> { return new Map(); } }
+    const r = new C().m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// a trailing SETTER does not answer a read: the getter above it stays the resolved slot
+runBoth('a trailing setter does not shadow the getter it follows',
+  `
+    class C { get m(): Map<string, number> { return new Map(); } set m(v: Map<string, number>) {} }
+    const r = new C().m;
+  `,
+  (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), { primitive: false, ctor: 'Map' });
+  });
+
+// a computed key that is a static literal names the slot exactly like the bare spelling
+runBoth('computed literal key names the slot it spells',
+  `
+    class C { ['m'](): Map<string, number> { return new Map(); } }
+    const r = new C().m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// static and instance slots of one name are separate: the instance read must not take the static
+runBoth('a static member of the same name does not answer an instance read',
+  `
+    class C { static m(): string[] { return []; } m(): Map<string, number> { return new Map(); } }
+    const r = new C().m();
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
+// bodyless overload signatures of one name fold to their common return; the implementation
+// signature (with a body) is not one of them, so its own annotation does not join the fold
+runBoth('bodyless overloads of one name fold to their common return',
+  `
+    declare class C { m(a: string): Map<string, number>; m(a: number): Map<string, number>; }
+    declare const c: C;
+    const r = c.m('x');
+  `,
+  (adapter, prog, lbl) => {
+    const calls = adapter.collectPaths(prog, 'CallExpression');
+    const call = calls.find(p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'm');
+    if (!call) return fail(lbl, 'no c.m() found');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
+  });
+
 finish();

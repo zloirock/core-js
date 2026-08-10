@@ -504,7 +504,10 @@ export default function createSynthSwapEmitter({
   // explicit binding) and for usage-pure mode the typical pattern is all-polyfilled keys,
   // single re-evaluation. accepting OptionalMemberExpression mirrors `isViableBranchForKey`
   // (in destructure.js) so per-branch synth-swap doesn't bail on `cond ? A : opt?.A` shapes
-  function buildSynthLiteral({ receiver, pending: { objectPatternNode, polyfills }, memoParam = null, aliasCtx = null }) {
+  // `entries` is the shared flat classification the caller resolved for its own memo verdict and
+  // hands over - recomputing it here classified every property of the pattern a second time per
+  // applied swap (the unplugin twin has always threaded its `planEntries` the same way)
+  function buildSynthLiteral({ receiver, entries, memoParam = null, aliasCtx = null }) {
     // `isExpandedClassifiableReceiver` accepts both bare Identifier (`Array`) and proxy-global
     // MemberExpression (`globalThis.Array`). only the Identifier shape has a `.name` slot worth
     // probing `resolvePure` against; MemberExpression receivers fall through to the as-is
@@ -539,7 +542,7 @@ export default function createSynthSwapEmitter({
     // synth literal, so it only evaluates when the default fires (caller-correct); the shared
     // registration gate bounds member receivers to a single entry so that read stays single
     const properties = [];
-    for (const { keyNode, computed, seName, polyfill } of buildFlatSynthEntries(objectPatternNode, polyfills)) {
+    for (const { keyNode, computed, seName, polyfill } of entries) {
       const value = polyfill
         ? polyfill.instance
           ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(getReceiverRef())])
@@ -583,8 +586,8 @@ export default function createSynthSwapEmitter({
         // a call branch with a key left unresolved memoizes the call result through a
         // function-IIFE param: the call runs exactly once (as the argument) and unresolved
         // keys read the memo instead of re-running the call per read
-        const needMemo = pending.callBranch
-          && buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills).some(entry => !entry.polyfill);
+        const entries = buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills);
+        const needMemo = pending.callBranch && entries.some(entry => !entry.polyfill);
         // the memo param is minted via the injector's raw name generator: it must NOT enter
         // the DECLARED ref-set (the arrow-param normalize post-pass strips trailing ref-set
         // params from every function expression - it would relocate this INTENTIONAL IIFE
@@ -593,7 +596,7 @@ export default function createSynthSwapEmitter({
         // fragmented the print-order canonicalization's universe
         const memoParam = needMemo ? t.identifier(injector.generateRefName(n => path.scope.hasBinding(n))) : null;
         const aliasCtx = { scope: path.scope, adapter, path };
-        const literal = buildSynthLiteral({ receiver: path.node, pending, memoParam, aliasCtx });
+        const literal = buildSynthLiteral({ receiver: path.node, entries, memoParam, aliasCtx });
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
         // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
         // into the memo argument (cloning the whole logical would re-substitute the right global on
