@@ -159,8 +159,6 @@ core-js/modules/esnext.data-view.get-uint8-clamped
 core-js/modules/esnext.data-view.set-uint8-clamped
 core-js/modules/esnext.iterator.includes
 core-js/modules/esnext.number.clamp
-core-js/modules/esnext.typed-array.filter-reject
-core-js/modules/esnext.typed-array.unique-by
 core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
 core-js/modules/web.dom-collections.keys

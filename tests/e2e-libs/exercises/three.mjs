@@ -1,22 +1,21 @@
 // A headless three.js "project": scene graph, transforms, geometry, curves, raycasting, an
-// "animation" step, serialization round-trips and a handful of official addons — self-checked by its
+// "animation" step, serialization round-trips and a handful of official addons - self-checked by its
 // numeric state. three's math / scene-graph / geometry / animation / loader surface is pure
-// computation (no WebGL/DOM), so this runs in node AND down-compiles to ES5 — which is how the
+// computation (no WebGL/DOM), so this runs in node AND down-compiles to ES5 - which is how the
 // runtime tier verifies the project stays FUNCTIONAL after unplugin + Babel, not just that it builds.
 //
 // WHAT THIS EXERCISE IS FOR, beyond "three still runs". The IE11 leg only proves per-site polyfill
 // detection for the code it actually EXECUTES: under `usage-pure` a missed rewrite stays a native
 // call, and a native call only fails if something reaches it. So the blocks below are chosen to make
-// THREE'S OWN implementation reach for what IE11 lacks — not to use those features here. Measured
-// by wrapping the natives and attributing each call to its immediate stack frame: the blocks below
-// reach 36 distinct natives from frames inside `three/build/three.core.js` and `three/examples/jsm/`,
-// against 16 for the scene-graph-only version this replaces — most of which were module-load side
-// effects rather than API-driven paths.
+// THREE'S OWN implementation reach for what IE11 lacks - not to use those features here. Coverage is
+// counted by wrapping the natives and attributing each call to its immediate stack frame, so only
+// the calls made from inside `three/build/three.core.js` and `three/examples/jsm/` count - a
+// module-load side effect of the library is not an API-driven path and is not what this exercises.
 //
 // Deliberately kept OUT of this module's own code: `async`/`await` (the async tail below is a plain
 // `.then`, so the regenerator machinery that runs is three's `async parseAsync`, not ours), and any
-// stdlib call we could make on three's behalf. What this module still needs — the spread of a three
-// iterable — is the point: the generator being driven is three's `*[Symbol.iterator]`.
+// stdlib call we could make on three's behalf. What this module still needs - the spread of a three
+// iterable - is the point: the generator being driven is three's `*[Symbol.iterator]`.
 //
 // Checks favour derivable values and version-robust invariants over magic vertex totals, so a three
 // bump does not redden the suite spuriously. Labels are flat and prefixed by block.
@@ -25,17 +24,17 @@
 // `Math.log2` and `self` live only in `WebGLRenderer` / WebXR. unplugin still injects them; nothing
 // here can execute them.
 //
-// DELIBERATELY EXCLUDED — typed-array PROTOTYPE methods. `usage-pure` cannot serve them, structurally
+// DELIBERATELY EXCLUDED - typed-array PROTOTYPE methods. `usage-pure` cannot serve them, structurally
 // and by design, so executing one here fails on real IE11 while every other gate stays green:
 //   - a prototype method cannot be delivered without patching the native prototype, which is the one
-//     thing `pure` exists to avoid. So every binary-data module is stubbed out of `@core-js/pure` —
+//     thing `pure` exists to avoid. So every binary-data module is stubbed out of `@core-js/pure` -
 //     all 69 of them (`es.typed-array.*`, `es.array-buffer.*`, `es.data-view.*`, `es.uint8-array.*`),
 //     via committed `// empty` overrides in `packages/core-js-pure/override/modules/`, no exceptions.
 //   - the usage mapping agrees: in `packages/core-js-compat/src/built-in-definitions.mjs` every typed
 //     array entry is `{ global: ... }` with no `pure` variant, and the instance-method dispatch has no
-//     typed-array receiver at all — its receivers are `array`, `string`, `number`, `regexp`, `date`,
+//     typed-array receiver at all - its receivers are `array`, `string`, `number`, `regexp`, `date`,
 //     `function`, `promise`, `symbol`, `iterator`, `asynciterator`, `domcollection`.
-//   - so unplugin rewrites `floats.slice(a, b)` — it cannot know the receiver is not an Array — into
+//   - so unplugin rewrites `floats.slice(a, b)` - it cannot know the receiver is not an Array - into
 //     `_sliceMaybeArray(floats).call(floats, a, b)`, whose helper falls through to `floats.slice`.
 //     On IE11 that is `undefined`, and the call throws `TypeError`.
 // This cost the paths through `KeyframeTrack#trim` / `#clone`, `AnimationUtils.subclip` and
@@ -44,7 +43,7 @@
 // `BufferGeometryUtils.mergeVertices` (-> `slice`) and `SortUtils.radixSort` (-> `fill`). Do not add
 // them back looking for coverage: `usage-global` covers this ground (it injects the real
 // `es.typed-array.*`), and on `usage-pure` there is nothing to cover.
-// `Array#find` goes with them — `makeClipAdditive` is the ONLY `.find(` call site in three's core and
+// `Array#find` goes with them - `makeClipAdditive` is the ONLY `.find(` call site in three's core and
 // in the five addons, and it is also the one doing `referenceTrack.values.slice(...)` on a Float32Array.
 import * as THREE from 'three';
 import { deinterleaveAttribute, interleaveAttributes, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -60,14 +59,14 @@ function round(n, d = 3) {
   return +n.toFixed(d);
 }
 function arr(v, d = 3) {
-  const parts = v.toArray(); // Vector3/Quaternion#toArray — not an iterator helper
+  const parts = v.toArray(); // Vector3/Quaternion#toArray - not an iterator helper
   return parts.map(n => round(n, d));
 }
 
 // A 4x4 square with a 1x1 square hole, for the Earcut / ExtrudeGeometry path. Attributing each call
 // to its immediate frame while this file runs: `Array#forEach` from `ShapeUtils.triangulateShape`
 // and from `ExtrudeGeometry`'s contour prep, `Array#splice` and `Array#concat` from that same prep,
-// and `Number.EPSILON` from `getBevelVec` — which runs because the extrude below sets `bevelEnabled`.
+// and `Number.EPSILON` from `getBevelVec` - which runs because the extrude below sets `bevelEnabled`.
 // `Math.sign` is NOT reached from here: `getBevelVec`'s only `Math.sign` sits in its collinear-edges
 // branch, and a right-angled contour never enters it. It comes from `AnimationMixer#update` and from
 // the `RoundedBoxGeometry` addon instead.
@@ -101,12 +100,12 @@ function buildScene() {
   mesh.name = 'boxy';
   mesh.position.set(1, 2, 3);
   scene.add(mesh);
-  // toJSON serializes `matrix`, not `position` — without this the transform round-trips as identity
+  // toJSON serializes `matrix`, not `position` - without this the transform round-trips as identity
   scene.updateMatrixWorld(true);
   return scene;
 }
 
-// A skinned mesh whose bones form a chain — enough for Skeleton + SkeletonUtils.clone.
+// A skinned mesh whose bones form a chain - enough for Skeleton + SkeletonUtils.clone.
 function buildSkinned() {
   const bones = [new THREE.Bone(), new THREE.Bone()];
   bones[0].add(bones[1]);
@@ -256,7 +255,7 @@ export function run() {
   const interleaved = new THREE.BufferGeometry();
   interleaved.setAttribute('position', new THREE.InterleavedBufferAttribute(new THREE.InterleavedBuffer(new Float32Array([0, 0, 0, 1, 1, 1, 1, 1]), 4), 3, 0));
   const interleavedJson = interleaved.toJSON({ geometries: {}, materials: {}, textures: {}, images: {}, shapes: {}, skeletons: {}, animations: {}, nodes: {} });
-  // uuid-keyed, and the uuids are random — read the single entry rather than asserting the key
+  // uuid-keyed, and the uuids are random - read the single entry rather than asserting the key
   const interleavedBuffer = interleavedJson.data.interleavedBuffers[Object.keys(interleavedJson.data.interleavedBuffers)[0]];
   check('json_interleaved_type', [interleavedBuffer.type, interleavedBuffer.stride], ['Float32Array', 4]);
   // InterleavedBuffer#toJSON reinterprets the buffer as a Uint32Array through Array.from, so a
@@ -358,7 +357,7 @@ export function run() {
   const indexedBox = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
   const interleavedAttrs = interleaveAttributes([indexedBox.getAttribute('position'), indexedBox.getAttribute('normal')]);
   check('addon_interleave_roundtrip', [interleavedAttrs.length, deinterleaveAttribute(interleavedAttrs[0]).count], [2, 54]);
-  // traverseGenerator is a recursive `yield*` — the delegation machinery that runs is the addon's
+  // traverseGenerator is a recursive `yield*` - the delegation machinery that runs is the addon's
   check('addon_traverse_generator', [...traverseGenerator(scene)].length, 3);
   check('addon_reduce_vertices', round(reduceVertices(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()), (max, v) => Math.max(max, v.x), 0)), 0.5);
   check('addon_skeleton_clone', cloneSkinned(buildSkinned()).skeleton.bones.length, 2);
