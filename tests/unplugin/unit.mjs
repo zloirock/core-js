@@ -14,6 +14,7 @@ import TransformQueue, {
   deoptionalizeNeedleAtPositions,
   hasIdentifierBoundary,
   replaceNthOccurrence,
+  trimTrailingOptional,
 } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector, { shebangFallbackAnchor } from '../../packages/core-js-unplugin/internals/import-injector.js';
 import { canonicalizeRefNumbering } from '../../packages/core-js-unplugin/internals/ref-canon.js';
@@ -3411,6 +3412,23 @@ checkNameTakenTS('interface inside declare global',
 checkNameTakenTS('as-cast type literal', 'export const b = (mk() as { _ref(): void });', true);
 checkNameTakenTS('call type argument', 'export const b = mk<{ _ref(): void }>();', true);
 checkNameTakenTS('type-parameter constraint', 'export function f<T extends { _ref(): void }>(x: T) { return x; }', true);
+
+// --- trimTrailingOptional ---
+// an erase claim swallows the optional token of the hop above it, so the survivor's needle ends in a
+// lone `?`. enumerated over every way a needle can end rather than the two shapes that motivated it:
+// a wrong trim here does not crash, it matches a DIFFERENT occurrence and rewrites the wrong text
+check('trimOptional/dotted survivor drops the token', trimTrailingOptional('x?'), 'x');
+check('trimOptional/computed survivor drops token and dot', trimTrailingOptional('x?.'), 'x');
+check('trimOptional/member root', trimTrailingOptional('a.b?.'), 'a.b');
+check('trimOptional/the gap before the token goes with it', trimTrailingOptional('x ?.'), 'x');
+check('trimOptional/nullish operator is not an optional token', trimTrailingOptional('x??'), 'x??');
+check('trimOptional/nullish before a dot is not one either', trimTrailingOptional('x??.'), 'x??.');
+check('trimOptional/no token, unchanged', trimTrailingOptional('x'), 'x');
+check('trimOptional/a plain dot end is not a token', trimTrailingOptional('x.'), 'x.');
+// degenerate needles trim to empty rather than to a stray character - the caller drops those
+check('trimOptional/bare token', trimTrailingOptional('?'), '');
+check('trimOptional/bare token with dot', trimTrailingOptional('?.'), '');
+check('trimOptional/empty stays empty', trimTrailingOptional(''), '');
 
 // --- deoptionalizeNeedle ---
 // `?.(`/`?.[` drop both chars regardless of intervening whitespace - ECMAScript parsers
