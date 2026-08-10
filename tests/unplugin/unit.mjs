@@ -663,7 +663,7 @@ checkNonConsecutivePartialOverlapThrows();
 function checkInsertInsideEnclosingOuterThrows() {
   const code = '0123456789';
   const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms, 'fixture-file');
+  const q = new TransformQueue(code, ms);
   q.add(0, 10, 'PRE23456POST'); // outer with valid needle for compose
   q.add(2, 7, 'YY'); // inner with smaller-end than insert pos
   q.insert(8, 'X'); // pos=8 is inside outer [0,10) but past inner [2,7)
@@ -686,7 +686,7 @@ checkInsertInsideEnclosingOuterThrows();
 function checkInsertInsideSplitSuffixReportsLogicalRange() {
   const code = '0123456789ABCDEF';
   const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms, 'fixture-file');
+  const q = new TransformQueue(code, ms);
   q.addSplit(0, 5, 10, 'PRE', 'SUF');
   q.insert(8, 'X'); // pos=8 sits in the suffix half [5,10) of the logical rewrite [0,10)
   try {
@@ -876,32 +876,32 @@ function checkNestedChainDepthSweep() {
 }
 checkNestedChainDepthSweep();
 
-// `mergeEqualRange` invariant errors carry the bare `transform-queue: ` subsystem prefix - NOT a
+// compose invariant errors carry the bare `transform-queue: ` subsystem prefix - NOT a
 // self-applied `[core-js] [<fileId>] ` brand. the brand + file tag are owned by the outer `tagError`
 // (runTransform's catch), matching the parse-error throw-path convention; self-prefixing here would
 // make tagError double-stamp the brand and id (X10-1). the message head must be `transform-queue: `
 // with no leading `[core-js]`
-function checkMergeEqualRangePrefix() {
+function checkComposeInvariantPrefix() {
   const code = 'abcdef';
   const ms = new MagicString(code);
   const q = new TransformQueue(code, ms);
-  // construct two equal-range transforms where neither contains the original needle
-  // (`abcdef`). mergeEqualRange should throw with the unbranded subsystem prefix
+  // two equal-range transforms where neither contains the original needle (`abcdef`) - compose
+  // should throw with the unbranded subsystem prefix
   q.add(0, 6, 'XX');
   q.add(0, 6, 'YY');
   try {
     q.apply();
     counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/mergeEqualRange prefix') } :: expected throw`;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/compose invariant prefix') } :: expected throw`;
   } catch (error) {
-    if (error.message.startsWith('transform-queue: mergeEqualRange invariant')) counts.passed++;
+    if (error.message.startsWith('transform-queue: equal-range conflict')) counts.passed++;
     else {
       counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/mergeEqualRange prefix') } :: got ${ error.message }`;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/compose invariant prefix') } :: got ${ error.message }`;
     }
   }
 }
-checkMergeEqualRangePrefix();
+checkComposeInvariantPrefix();
 
 // `mergeEqualRange` locates the needle through the boundary-aware occurrence scan, not a raw
 // indexOf: the needle (`at`) appears MID-IDENTIFIER inside the wrapper (`flat`) before its standalone
@@ -1015,7 +1015,7 @@ function checkSingleBrandAfterTagError() {
   let message = '';
   try {
     q.add(0, 6, 'X');
-    q.add(3, 9, 'Y'); // partial overlap -> #invariant throw
+    q.add(3, 9, 'Y'); // partial overlap -> composition invariant throw
     q.apply();
   } catch (error) {
     tagError(error, id); // exactly what runTransform's catch does
@@ -1027,6 +1027,611 @@ function checkSingleBrandAfterTagError() {
     /^\[core-js\] \[\/src\/app\.js\] transform-queue: /.test(message), true);
 }
 checkSingleBrandAfterTagError();
+
+// --- queue diagnostics ---
+
+// helper for the diagnostics locks: run `fn`, return the thrown error (or null)
+function caught(fn) {
+  try {
+    fn();
+    return null;
+  } catch (error) {
+    return error;
+  }
+}
+
+function checkThrow(label, fn, { Ctor, includes = [], excludes = [] }) {
+  const error = caught(fn);
+  if (!error) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: expected throw`;
+    return;
+  }
+  check(`${ label }: error class`, error.constructor, Ctor);
+  check(`${ label }: single subsystem prefix`, error.message.split('transform-queue: ').length - 1, 1);
+  check(`${ label }: prefix leads`, error.message.startsWith('transform-queue: '), true);
+  for (const part of includes) check(`${ label }: names ${ JSON.stringify(part) }`, error.message.includes(part), true);
+  for (const part of excludes) check(`${ label }: omits ${ JSON.stringify(part) }`, error.message.includes(part), false);
+}
+
+// EVERY throw this module raises goes through the one `queueError` factory, so all of them
+// carry exactly one `transform-queue: ` prefix AND keep the error class their misuse deserves
+// (`TypeError` for a wrong-typed argument, `RangeError` for a bad offset, `Error` for a
+// composition invariant). every throw reachable through the public API is driven here, not a
+// sample: a new one that spells its own prefix, or an existing one that loses its class to a
+// factory refactor, must fail. two are deliberately absent because nothing can drive them -
+// `locateFailureError`'s standalone-occurrence branch (the renamed-slot recovery accepts every
+// standalone occurrence first) and `mergeEqualRange`'s needle-missing-from-both precondition
+// (compose settles the claim multiset first and reports that shape as an equal-range conflict)
+function checkQueueErrorCanon() {
+  const code = '0123456789';
+  function freshMagicString() {
+    return new MagicString(code);
+  }
+  function fresh() {
+    return new TransformQueue(code, freshMagicString());
+  }
+  const sites = [
+    ['constructor/asiFusableStarts type', () => new TransformQueue(code, freshMagicString(), 'fixture-file'), TypeError, 'asiFusableStarts must be a function or null'],
+    ['add/non-integer offsets', () => fresh().add('0', 5, 'X'), TypeError, 'start/end must be integers'],
+    ['add/zero-length range', () => fresh().add(5, 5, 'X'), RangeError, 'zero-length range'],
+    ['add/inverted range', () => fresh().add(5, 2, 'X'), RangeError, 'inverted range'],
+    ['add/out of bounds', () => fresh().add(0, 99, 'X'), RangeError, 'range [0,99) out of bounds'],
+    ['add/non-string content', () => fresh().add(0, 5, null), TypeError, 'content must be a string'],
+    ['insert/non-integer pos', () => fresh().insert(1.5, 'X'), TypeError, 'insert pos must be an integer'],
+    ['insert/out of bounds', () => fresh().insert(99, 'X'), RangeError, 'insert pos 99 out of bounds'],
+    ['insert/non-string content', () => fresh().insert(1, null), TypeError, 'insert content must be a string'],
+    ['addSplit/non-integer offsets', () => fresh().addSplit(0, '2', 5, 'A', 'B'), TypeError, 'addSplit offsets must be integers'],
+    ['addSplit/ordering', () => fresh().addSplit(0, 5, 2, 'A', 'B'), RangeError, 'addSplit invariant violated'],
+    ['addSplit/out of bounds', () => fresh().addSplit(0, 5, 99, 'A', 'B'), RangeError, 'addSplit range [0,99) out of bounds'],
+    ['addSplit/empty content half', () => fresh().addSplit(0, 2, 5, 'A', ''), TypeError, 'addSplit content args must be non-empty strings'],
+    ['createRewriteHint/guardRef without rootRaw', () => createRewriteHint({ guardRef: '_r' }), Error, 'createRewriteHint: guardRef requires rootRaw'],
+    ['apply/insert inside overwrite', () => {
+      const q = fresh();
+      q.add(0, 10, 'PRE23456POST');
+      q.insert(8, 'X');
+      q.apply();
+    }, RangeError, 'insert at 8 lands inside overwrite'],
+    ['apply/partial overlap', () => {
+      const q = fresh();
+      q.add(0, 6, 'X');
+      q.add(3, 9, 'Y');
+      q.apply();
+    }, Error, 'partial overlap between transforms'],
+    ['apply/locate failure', () => {
+      const q = fresh();
+      q.add(0, 10, 'REPLACED');
+      q.add(2, 5, 'INNER');
+      q.apply();
+    }, Error, 'could not locate inner needle in outer content'],
+    ['compose/equal-range conflict', () => {
+      const q = fresh();
+      q.add(0, 10, 'W(0123456789)');
+      q.add(0, 10, 'AAA');
+      q.add(0, 10, 'BBB');
+      q.apply();
+    }, Error, 'equal-range conflict'],
+    ['compose/mergeEqualRange doubled needle', () => {
+      const q = fresh();
+      q.add(0, 10, 'W(0123456789)(0123456789)');
+      q.add(0, 10, 'P');
+      q.apply();
+    }, Error, 'wrapper contains needle >1 times'],
+    ['compose/mergeEqualRange ambiguous wrapper', () => {
+      const q = fresh();
+      q.add(0, 10, 'O(0123456789)');
+      q.add(0, 10, 'I(0123456789)');
+      q.apply();
+    }, Error, 'both sides contain needle - ambiguous wrapper'],
+    ['apply/hoisted guard found no anchor', () => {
+      const q = fresh();
+      q.add(0, 10, 'SLOT(234)', null, createRewriteHint({ guardSlot: '_absentAnchor' }));
+      q.add(2, 5, 'GRD:BODY', null, createRewriteHint({ guardOwn: { prefixEnd: 4 } }));
+      q.apply();
+    }, Error, 'hoisted guard rewrite(s) found no anchor'],
+    ['asiFusableStarts result type', () => {
+      new TransformQueue(code, freshMagicString(), () => ['nope']).add(2, 5, '(x)');
+    }, TypeError, 'asiFusableStarts must return a Set of offsets'],
+  ];
+  // each row pins the throw it drives, not just its class: without that a future change could
+  // collapse two entries onto one throw and the enumeration would silently stop being complete
+  for (const [label, fn, Ctor, includes] of sites) {
+    checkThrow(`TransformQueue/${ label }`, fn, { Ctor, includes: [includes] });
+  }
+  check('TransformQueue/queueError canon drives distinct throws', new Set(sites.map(site => site[3])).size, sites.length);
+}
+checkQueueErrorCanon();
+
+// the locate-failure throw computes the discriminator that tells its two possible causes apart
+// (no occurrence at all = the container dropped the range, a CALLER contract violation; a
+// standalone occurrence the ordinal walk missed = the queue's own bug) one line before throwing.
+// it must spend it: blaming the queue for a dropped range sent every past report chasing the
+// wrong layer. the container's CONTENT is the datum that names the culprit channel
+function checkLocateFailureAttribution() {
+  const code = '0123456789';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, 10, 'REPLACED');
+  q.add(2, 5, 'INNER');
+  checkThrow('TransformQueue/locate failure attributes the caller', () => q.apply(), {
+    Ctor: Error,
+    includes: [
+      'could not locate inner needle in outer content.',
+      'outer=[0,10)',
+      'outerContent="REPLACED"',
+      'inner=[2,5)',
+      'needle="234"',
+      'must skip-mark it or stand down',
+    ],
+    // the wording reserved for a genuine queue bug must NOT appear on the caller-side cause
+    excludes: ['please report with a reproducer'],
+  });
+}
+checkLocateFailureAttribution();
+
+// the same needle scan drives a third state that must stay SILENT: every occurrence buried
+// inside a longer identifier means the outer already substituted at every reachable position
+// and the inner is a phantom. locking it keeps the attribution split from turning a phantom
+// into a crash - the direction that costs a working build
+function checkLocateFailurePhantomStaysSilent() {
+  const code = 'Map()';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.add(0, 5, '_MapPrime()');   // outer spells the needle only inside a longer identifier
+  q.add(0, 3, '_polyfillMap');  // inner whose effect the outer already encoded
+  const error = caught(() => q.apply());
+  check('TransformQueue/phantom inner does not throw', error, null);
+  check('TransformQueue/phantom inner keeps outer content', ms.toString(), '_MapPrime()');
+}
+checkLocateFailurePhantomStaysSilent();
+
+// a hoisted guard prefix / root rewrite that finds no anchor loses a null-check or a whole
+// claim. the pending entries name the ref their slot promised to publish, so the throw must
+// print them - a bare count says only that something was lost
+function checkNoAnchorNamesPendingEntries() {
+  const code = '0123456789';
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  // slot publishes an anchor its content never spells, so the migrated prefix never lands
+  q.add(0, 10, 'SLOT(234)', null, createRewriteHint({ guardSlot: '_absentAnchor' }));
+  q.add(2, 5, 'GRD:BODY', null, createRewriteHint({ guardOwn: { prefixEnd: 4 } }));
+  checkThrow('TransformQueue/no-anchor names the stranded rewrite', () => q.apply(), {
+    Ctor: Error,
+    includes: ['1 hoisted guard rewrite(s) found no anchor', 'guard-prefix anchor="_absentAnchor"', 'text="GRD:"'],
+  });
+}
+checkNoAnchorNamesPendingEntries();
+
+// every range in the queue came from a channel's `add` / `addSplit`; the queue never widens one,
+// so a crossing pair is two channels disagreeing about who owns the text - a caller contract
+// violation, not a queue bug. the contents are what say WHICH channels
+function checkPartialOverlapAttribution() {
+  const code = '0123456789';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, 6, 'FIRST');
+  q.add(3, 9, 'SECOND');
+  checkThrow('TransformQueue/partial overlap attributes the channels', () => q.apply(), {
+    Ctor: Error,
+    includes: ['partial overlap between transforms', '[0,6) content="FIRST"', '[3,9) content="SECOND"', 'must nest or stay disjoint'],
+    excludes: ['this is a composition bug'],
+  });
+}
+checkPartialOverlapAttribution();
+
+// the insert-inside-overwrite assertion named the offsets but not the two texts, so the report
+// could say WHERE the anchor was swallowed and never WHICH channels did it
+function checkInsertInsideOverwriteNamesContents() {
+  const code = '0123456789';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, 10, 'PRE23456POST');
+  q.insert(8, 'var _ref;');
+  checkThrow('TransformQueue/insert inside overwrite names both texts', () => q.apply(), {
+    Ctor: RangeError,
+    includes: ['insert at 8 lands inside overwrite [0,10)', 'insert="var _ref;"', 'overwrite="PRE23456POST"'],
+  });
+}
+checkInsertInsideOverwriteNamesContents();
+
+// `mergeEqualRange` is binary and each fold spends the accumulator's needle slot, so a SECOND
+// needle-less claimant on one range can never fold - in any order. reporting that as the binary
+// "needle missing from both transforms" describes a broken single caller, which is the one thing
+// it is not: it is two channels collapsing one range two different ways
+function checkEqualRangeConflictDiagnostic() {
+  const code = '0123456789';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, 10, 'W(0123456789)'); // wrapper: keeps the source slice
+  q.add(0, 10, 'AAA');           // first collapse
+  q.add(0, 10, 'BBB');           // second collapse - no slot left
+  checkThrow('TransformQueue/equal-range conflict names the claimants', () => q.apply(), {
+    Ctor: Error,
+    includes: ['equal-range conflict at [0,10)', 'more than one transform replaces the source slice "0123456789"',
+      'claims="W(0123456789)", "AAA", "BBB"'],
+    excludes: ['needle missing from both transforms'],
+  });
+}
+checkEqualRangeConflictDiagnostic();
+
+// every text a queue diagnostic quotes is bounded - the head names the culprit channel and an
+// unbounded dump buries the ranges printed beside it. the SOURCE SLICE is the same kind of text
+// as the replacement, and just as long: quoting one raw next to the other truncated defeats the
+// bound. checked on both, on the same throw
+function checkDiagnosticTextIsBounded() {
+  const long = `L${ 'x'.repeat(400) }R`;
+  const code = `${ long }.at(0)`;
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, code.length, 'REPLACED');
+  q.add(0, long.length, 'INNER');
+  const error = caught(() => q.apply());
+  check('TransformQueue/diagnostic quotes the slice truncated',
+    /needle="Lx{190,199}\.\.\."/.test(error?.message ?? ''), true);
+  check('TransformQueue/diagnostic drops the slice tail',
+    (error?.message ?? '').includes('R"'), false);
+
+  // and the claim texts, on the throw that quotes several of them at once
+  const wide = new TransformQueue(code, new MagicString(code));
+  wide.add(0, code.length, `W(${ code })${ 'y'.repeat(400) }`);
+  wide.add(0, code.length, `A${ 'z'.repeat(400) }`);
+  wide.add(0, code.length, 'B');
+  const conflict = caught(() => wide.apply());
+  check('TransformQueue/conflict quotes every claim truncated',
+    /"Az{190,199}\.\.\.", "B"/.test(conflict?.message ?? ''), true);
+
+  // `addSplit` rejects when EITHER half is empty, so the other half can be arbitrarily long and
+  // still be echoed. both halves go through the same bound, and a non-string still reports its type
+  const halves = new TransformQueue(code, new MagicString(code));
+  checkThrow('TransformQueue/addSplit echoes a long half bounded', () => halves.addSplit(0, 2, 5, long, ''), {
+    Ctor: TypeError,
+    includes: ['content args must be non-empty strings', 'suffix=""'],
+    excludes: [`prefix="${ long }"`],
+  });
+  checkThrow('TransformQueue/addSplit echoes a non-string half by type', () => halves.addSplit(0, 2, 5, 'A', 7), {
+    Ctor: TypeError,
+    includes: ['prefix="A"', 'suffix=number'],
+  });
+
+  // a short text is quoted whole - the bound must not clip what already fits
+  const short = new TransformQueue('abcdef', new MagicString('abcdef'));
+  short.add(0, 6, 'W(abcdef)(abcdef)');
+  short.add(0, 6, 'P');
+  checkThrow('TransformQueue/short texts are quoted whole', () => short.apply(), {
+    Ctor: Error,
+    includes: ['needle="abcdef"', 'transforms="W(abcdef)(abcdef)", "P"'],
+  });
+}
+checkDiagnosticTextIsBounded();
+
+// a split pair owns its LOGICAL range through two physical halves, so a diagnostic that prints
+// an entry's raw `.content` next to that range describes half of what it points at. every site
+// that pairs text with a logical range must assemble the pair - the halves are a symmetric pair,
+// and only one of them carries the range's head
+function checkDiagnosticsAssembleSplitHalves() {
+  const code = '0123456789ABCDEF';
+  const insideSplit = new TransformQueue(code, new MagicString(code));
+  insideSplit.addSplit(0, 5, 10, 'PRE', 'SUF');
+  insideSplit.insert(8, 'X');
+  checkThrow('TransformQueue/insert inside split names the assembled text', () => insideSplit.apply(), {
+    Ctor: RangeError,
+    includes: ['insert at 8 lands inside overwrite [0,10)', 'overwrite="PRESUF"'],
+  });
+
+  // partial overlap where the earlier claimant is the split: its logical [0,10) is printed, so
+  // its text must span [0,10) too
+  const overlapSplitFirst = new TransformQueue(code, new MagicString(code));
+  overlapSplitFirst.addSplit(0, 5, 10, 'PRE', 'SUF');
+  overlapSplitFirst.add(7, 14, 'LATER');
+  checkThrow('TransformQueue/partial overlap names the split as conflict', () => overlapSplitFirst.apply(), {
+    Ctor: Error,
+    includes: ['[0,10) content="PRESUF"', '[7,14) content="LATER"'],
+  });
+
+  // and the other side of the pair: the split as the LATER claimant
+  const overlapSplitSecond = new TransformQueue(code, new MagicString(code));
+  overlapSplitSecond.add(0, 8, 'EARLIER');
+  overlapSplitSecond.addSplit(5, 10, 14, 'P2', 'S2');
+  checkThrow('TransformQueue/partial overlap names the split as later claim', () => overlapSplitSecond.apply(), {
+    Ctor: Error,
+    includes: ['[0,8) content="EARLIER"', '[5,14) content="P2S2"'],
+  });
+}
+checkDiagnosticsAssembleSplitHalves();
+
+// `mergeEqualRange`'s invariants named the needle and the range but never the two texts, so the
+// reader's next question - WHICH channels collapsed the range - had no answer in the message.
+// each carries both sides now. the third (needle missing from BOTH sides) is unreachable through
+// compose, which settles the claim multiset first and reports that shape as an equal-range
+// conflict - it stays as the helper's own precondition guard
+function checkMergeEqualRangeNamesBothSides() {
+  const code = 'ab';
+  function queue() {
+    return new TransformQueue(code, new MagicString(code));
+  }
+  const doubledNeedle = queue();
+  doubledNeedle.add(0, 2, 'W(ab)(ab)');
+  doubledNeedle.add(0, 2, 'P');
+  checkThrow('TransformQueue/mergeEqualRange doubled needle names both sides', () => doubledNeedle.apply(), {
+    Ctor: Error,
+    includes: ['wrapper contains needle >1 times', 'transforms="W(ab)(ab)", "P"'],
+  });
+
+  const ambiguous = queue();
+  ambiguous.add(0, 2, 'O(ab)');
+  ambiguous.add(0, 2, 'I(ab)'); // no `innerWrapper` marker - the queue cannot pick a nesting
+  checkThrow('TransformQueue/mergeEqualRange ambiguous wrapper names both sides', () => ambiguous.apply(), {
+    Ctor: Error,
+    includes: ['both sides contain needle - ambiguous wrapper', 'transforms="O(ab)", "I(ab)"'],
+  });
+}
+checkMergeEqualRangeNamesBothSides();
+
+// negatives for the conflict gate - the shapes the fold DOES support must keep folding.
+// a wrapper nests around a needle slot, so any number of wrappers is fine; only needle-less
+// claimants compete for the single slot
+function checkEqualRangeFoldNegatives() {
+  const code = 'abcdefghij';
+  const oneWrapperOneInner = new MagicString(code);
+  const q1 = new TransformQueue(code, oneWrapperOneInner);
+  q1.add(0, 10, '(abcdefghij, 1)');
+  q1.add(0, 10, 'P');
+  check('TransformQueue/1 wrapper + 1 inner folds', caught(() => q1.apply()), null);
+  check('TransformQueue/1 wrapper + 1 inner output', oneWrapperOneInner.toString(), '(P, 1)');
+
+  // two wrappers + one inner: the `innerWrapper` marker resolves which nests inside, the
+  // merged wrapper still carries a needle slot, and the inner drops into it
+  const twoWrappers = new MagicString(code);
+  const q2 = new TransformQueue(code, twoWrappers);
+  q2.add(0, 10, 'OUT(abcdefghij)');
+  q2.add(0, 10, 'IN(abcdefghij)', null, { innerWrapper: true });
+  q2.add(0, 10, 'P');
+  check('TransformQueue/2 wrappers + 1 inner folds', caught(() => q2.apply()), null);
+  check('TransformQueue/2 wrappers + 1 inner output', twoWrappers.toString(), 'OUT(IN(P))');
+
+  // a repeat of a claim already taken is idempotent and dropped before the fold - the
+  // redundant-collapse shape (one range collapsed once per firing meta) never reaches the merge
+  const identical = new MagicString(code);
+  const q3 = new TransformQueue(code, identical);
+  q3.add(0, 10, 'P');
+  q3.add(0, 10, 'P');
+  q3.add(0, 10, 'P');
+  check('TransformQueue/identical collapses fold to one', caught(() => q3.apply()), null);
+  check('TransformQueue/identical collapses output', identical.toString(), 'P');
+}
+checkEqualRangeFoldNegatives();
+
+// the idempotent-repeat drop compares against the CLAIMS already taken, not the accumulator:
+// after one fold the accumulator is a merge product no raw claim can equal, so a repeat sitting
+// behind a wrapper stopped being recognized and became a spurious build failure. it is one
+// range, one text, however many channels re-queued it and in whatever order
+function checkIdempotentRepeatBehindWrapper() {
+  const code = 'abcdefghij';
+  const shapes = [
+    ['wrapper first', ['W(abcdefghij)', 'P', 'P']],
+    ['repeat straddling the wrapper', ['P', 'W(abcdefghij)', 'P']],
+    ['repeats first', ['P', 'P', 'W(abcdefghij)']],
+    ['three repeats', ['W(abcdefghij)', 'P', 'P', 'P']],
+  ];
+  for (const [label, contents] of shapes) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    for (const content of contents) q.add(0, 10, content);
+    check(`TransformQueue/idempotent repeat ${ label } folds`, caught(() => q.apply()), null);
+    check(`TransformQueue/idempotent repeat ${ label } output`, ms.toString(), 'W(P)');
+  }
+
+  // the drop is by TEXT identity, so two DIFFERENT collapses behind a wrapper stay a conflict -
+  // the queue still cannot pick which one wins, and that is the shape the diagnostic is for
+  const distinct = new TransformQueue(code, new MagicString(code));
+  distinct.add(0, 10, 'W(abcdefghij)');
+  distinct.add(0, 10, 'P');
+  distinct.add(0, 10, 'Q');
+  checkThrow('TransformQueue/distinct collapses behind a wrapper still conflict', () => distinct.apply(), {
+    Ctor: Error,
+    includes: ['equal-range conflict at [0,10)', 'claims="W(abcdefghij)", "P", "Q"'],
+  });
+}
+checkIdempotentRepeatBehindWrapper();
+
+// exhaustive sweep of the equal-range fold instead of hand-picked shapes: every arrangement of
+// up to four claims over one range, checked against the contract rather than against the
+// implementation. the fold nests WRAPPERS (they carry the source slice, so each keeps a slot for
+// the next) and places at most one needle-less COLLAPSE, since the first one spends that slot;
+// repeats of a claim already taken are idempotent and drop out. two consequences, both swept:
+// it fails exactly when two DISTINCT collapses compete, and the result never depends on the
+// order the channels queued their claims in
+function checkEqualRangeFoldSweep() {
+  const code = 'abcdefghij';
+  const CLAIMS = {
+    W: { content: `W(${ code })` },                            // wrapper: keeps the source slice
+    V: { content: `V(${ code })`, hint: { innerWrapper: true } }, // wrapper declaring it nests inside
+    P: { content: 'P' },                                       // collapse: replaces the slice
+    Q: { content: 'Q' },                                       // a different collapse
+  };
+  function run(names) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    for (const name of names) q.add(0, 10, CLAIMS[name].content, null, CLAIMS[name].hint);
+    const error = caught(() => q.apply());
+    return error ? { threw: true, message: error.message } : { threw: false, out: ms.toString() };
+  }
+  function permutations(names) {
+    if (names.length <= 1) return [names];
+    const out = [];
+    for (let i = 0; i < names.length; i++) {
+      for (const rest of permutations([...names.slice(0, i), ...names.slice(i + 1)])) out.push([names[i], ...rest]);
+    }
+    return out;
+  }
+  // every multiset of size 2..4 over the four claim kinds
+  const multisets = [];
+  const kinds = Object.keys(CLAIMS);
+  for (const a of kinds) {
+    for (const b of kinds) {
+      multisets.push([a, b]);
+      for (const c of kinds) {
+        multisets.push([a, b, c]);
+        for (const d of kinds) multisets.push([a, b, c, d]);
+      }
+    }
+  }
+  let orderDependent = 0;
+  let contractBreaks = 0;
+  let wrongDiagnosis = 0;
+  let swept = 0;
+  for (const multiset of multisets) {
+    // sorted so each multiset is visited once regardless of which permutation generated it
+    const key = [...multiset].sort().join('');
+    if (key !== multiset.join('')) continue;
+    const distinctCollapses = new Set(multiset.filter(name => name === 'P' || name === 'Q')).size;
+    const mustThrow = distinctCollapses > 1;
+    const results = permutations(multiset).map(run);
+    swept += results.length;
+    for (const result of results) {
+      if (result.threw !== mustThrow) contractBreaks++;
+      // the failure is diagnosed at the compose level, never by `mergeEqualRange`'s binary
+      // precondition guard - compose settles the claim multiset before folding, so the guard
+      // is unreachable from here and a sighting of it means that ordering broke
+      if (result.threw && !result.message.includes('equal-range conflict')) wrongDiagnosis++;
+    }
+    const [first] = results;
+    if (results.some(r => r.threw !== first.threw || r.out !== first.out)) orderDependent++;
+  }
+  check('TransformQueue/fold sweep covers every arrangement', swept >= 400, true);
+  check('TransformQueue/fold fails exactly on two distinct collapses', contractBreaks, 0);
+  check('TransformQueue/fold failure is always the compose-level diagnosis', wrongDiagnosis, 0);
+  check('TransformQueue/fold result is order-independent', orderDependent, 0);
+}
+checkEqualRangeFoldSweep();
+
+// `#outermostComposed` hands its composed text to the per-half sourcemap partition, so a split
+// sharing its logical range with an equal-range claim runs the fold and the partition against the
+// same string. neither the emitted text nor the mapping may shift when the claim joins
+function checkSplitMapSurvivesEqualRangeClaim() {
+  const code = '0123456789ABCDEF';
+  function build(withClaim) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    q.addSplit(0, 5, 10, '_poly(R)', '.call(R)');
+    if (withClaim) q.add(0, 10, `W(${ code.slice(0, 10) })`);
+    q.apply();
+    const [firstRow] = ms.generateMap({ hires: true }).mappings.split(';', 1);
+    return { text: ms.toString(), rowSegments: firstRow.split(',').length };
+  }
+  const plain = build(false);
+  check('TransformQueue/split alone emits both halves', plain.text, '_poly(R).call(R)ABCDEF');
+  check('TransformQueue/split alone maps per half', plain.rowSegments, 8);
+  const wrapped = build(true);
+  check('TransformQueue/split under an equal-range claim nests', wrapped.text, 'W(_poly(R).call(R))ABCDEF');
+  check('TransformQueue/split under an equal-range claim still maps', wrapped.rowSegments, 7);
+}
+checkSplitMapSurvivesEqualRangeClaim();
+
+// the fold has two consumers - `apply()` splicing onto the magic-string and
+// `composeAndDrainRange` baking into relocated text - and they share `#composeEntries`. the drain
+// path's own tests never queue equal-range claims, so a fold change could land correct on one
+// consumer and not the other. same multisets, both consumers, same verdict
+function checkFoldSameThroughDrain() {
+  const code = 'abcdefghij';
+  function build(contents) {
+    const ms = new MagicString(code);
+    const q = new TransformQueue(code, ms);
+    for (const content of contents) {
+      q.add(0, 10, content, null, content.startsWith('V(') ? { innerWrapper: true } : undefined);
+    }
+    return { ms, q };
+  }
+  const sets = [
+    [`W(${ code })`, 'P'],
+    [`W(${ code })`, 'P', 'P'],
+    ['P', `W(${ code })`, 'P'],
+    [`W(${ code })`, `V(${ code })`, 'P'],
+    ['P', 'P', 'P'],
+    [`W(${ code })`, 'P', 'Q'],
+  ];
+  for (const contents of sets) {
+    const applied = build(contents);
+    const viaApply = caught(() => applied.q.apply());
+    const drained = build(contents);
+    let viaDrain = null;
+    const drainError = caught(() => {
+      viaDrain = drained.q.composeAndDrainRange(0, 10).map(splice => splice.content).join('');
+    });
+    const label = contents.join('+');
+    check(`TransformQueue/drain matches apply on ${ label } (throws)`, !!drainError, !!viaApply);
+    if (!viaApply && !drainError) check(`TransformQueue/drain matches apply on ${ label }`, viaDrain, applied.ms.toString());
+    else check(`TransformQueue/drain matches apply on ${ label } (message)`, drainError?.message, viaApply?.message);
+  }
+}
+checkFoldSameThroughDrain();
+
+// the constructor's third slot has held two different meanings (a `fileId` string, now the
+// lazy ASI-offset provider). `add`/`insert`/`addSplit` validate at the gate precisely so a slot
+// mismatch is attributed to the caller; without the same check here a wrong-typed value stays
+// inert until some replacement happens to lead with `(`, then dies as `not a function` inside
+// `#asiGuarded` at an unrelated later call
+function checkConstructorAsiSlotContract() {
+  const code = 'a\nb.flat()';
+  const accepted = [null, undefined, () => new Set()];
+  for (const value of accepted) {
+    check(`TransformQueue/ctor accepts ${ typeof value } asiFusableStarts`,
+      caught(() => new TransformQueue(code, new MagicString(code), value)), null);
+  }
+  const rejected = [['string', 'fixture-file'], ['number', 0], ['plain object', {}], ['Set', new Set()]];
+  for (const [name, value] of rejected) {
+    checkThrow(`TransformQueue/ctor rejects ${ name } asiFusableStarts`,
+      () => new TransformQueue(code, new MagicString(code), value),
+      { Ctor: TypeError, includes: ['asiFusableStarts must be a function or null'] });
+  }
+  // the slot stays LIVE after the check: a `(`-leading replacement at a fusable statement
+  // start still gets its `;`, so the guard did not cost the channel it protects
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms, () => new Set([2]));
+  q.add(2, 10, '(x)');
+  q.apply();
+  check('TransformQueue/ctor keeps the ASI channel live', ms.toString(), 'a\n;(x)');
+}
+checkConstructorAsiSlotContract();
+
+// the ASI slot has TWO typed surfaces and the constructor can only reach the first: the callable
+// is checked there, its RESULT only exists inside the guard. an offset Set is what the guard
+// reads, and a wrong one used to surface as `.has is not a function` at whichever `(`-leading
+// add happened to be first - the same late, unattributed shape the argument check exists to stop
+function checkAsiProviderResultContract() {
+  const code = 'a\nb.flat()';
+  for (const [name, result] of [['array', ['not a set']], ['plain object', {}], ['null', null], ['undefined', undefined]]) {
+    checkThrow(`TransformQueue/asi provider returning ${ name } is rejected`,
+      () => new TransformQueue(code, new MagicString(code), () => result).add(2, 10, '(x)'),
+      { Ctor: TypeError, includes: ['asiFusableStarts must return a Set of offsets'] });
+  }
+
+  // a Map has `.has` too, so a `.has`-shaped duck check would let it through and then silently
+  // never match an offset key - the contract is a Set of offsets, not "something with .has"
+  checkThrow('TransformQueue/asi provider returning a Map is rejected',
+    () => new TransformQueue(code, new MagicString(code), () => new Map([[2, true]])).add(2, 10, '(x)'),
+    { Ctor: TypeError, includes: ['asiFusableStarts must return a Set of offsets'] });
+
+  // the provider's own throw belongs to the provider: the queue must not wrap it, or the real
+  // stack is buried under a queue frame that did nothing wrong
+  const raised = caught(() => new TransformQueue(code, new MagicString(code), () => {
+    throw new RangeError('provider blew up');
+  }).add(2, 10, '(x)'));
+  check('TransformQueue/asi provider throw propagates unwrapped class', raised?.constructor, RangeError);
+  check('TransformQueue/asi provider throw propagates unwrapped message', raised?.message, 'provider blew up');
+
+  // the guard runs BEFORE `add` validates its own arguments, so it must stay out of the way:
+  // a bad offset with `(`-leading content still gets the offset diagnostic, not an ASI failure
+  function badOffset(fn) {
+    return caught(() => fn(new TransformQueue(code, new MagicString(code), () => new Set([2]))));
+  }
+  const offsetCases = [
+    ['non-integer start', q => q.add('0', 5, '(x)'), 'start/end must be integers'],
+    ['NaN start', q => q.add(NaN, 5, '(x)'), 'start/end must be integers'],
+    ['out of bounds', q => q.add(9999, 10000, '(x)'), 'out of bounds'],
+    ['negative start', q => q.add(-5, 5, '(x)'), 'out of bounds'],
+  ];
+  for (const [label, fn, expected] of offsetCases) {
+    check(`TransformQueue/asi guard does not mask ${ label }`,
+      (badOffset(fn)?.message ?? '').includes(expected), true);
+  }
+}
+checkAsiProviderResultContract();
 
 // `extractContent` operates on LOGICAL ranges. a split pair is keyed in #byRange by its two
 // PHYSICAL halves, never its logical [start, end], so only the logical range resolves the
