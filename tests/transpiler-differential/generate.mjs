@@ -930,6 +930,117 @@ const PGS_HOSTS = [
   { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = (log.push("r"), globalThis)); return ${ p.observe }; })()` },
 ];
 
+// --- Chain-assign VALUE re-emitted around a rebuilt collapse ---
+// a collapse that keeps a chain assignment re-spells the assignment around a REBUILT value, and what
+// the value's own render copied from the source rides along. two properties fall out and this cross
+// checks both at once: a polyfillable read left in that copied text still owns its rewrite (a lost
+// one shows up as a missing import and as a native call in the stripped realm), and the source past
+// the value - where a PARENTHESIZED value keeps its closing token - comes back too, or the snippet
+// does not parse at all. hop-free on purpose: `self` / `window` would put the asserted VALUE in the
+// accepted-collapse zone, which says nothing about either property.
+// a CONSTRUCTOR read off the assigned value is deliberately not among the claims: whether an
+// effectful prefix may keep that claim is a separate open question, and both emitters answer it the
+// same way today, so crossing it here would assert a decision instead of this contract
+const CA_VALUES = [
+  ['bare', 'globalThis'],
+  ['paren', '(globalThis)'],
+  ['paren-nested', '((globalThis))'],
+  ['seq-effect', '(log.push("v"), globalThis)'],
+  ['seq-instance', '(arr.at(0), globalThis)'],
+  ['seq-static', '(Promise.resolve(1), globalThis)'],
+  ['seq-paren', '((log.push("v"), globalThis))'],
+  ['seq-two', '(log.push("a"), log.push("b"), globalThis)'],
+  // the value is NOT the global: rooted at one, but a step onto anything else leaves something the
+  // source dereferences and throws on. a claim there answers a ponyfill instead of throwing, which
+  // the three-way against native catches and parity alone cannot
+  ['non-global-slot', 'globalThis.noSuchSlot'],
+  ['non-global-object', 'globalThis.Math'],
+  ['non-global-under-hop', '(log.push("v"), globalThis).noSuchSlot'],
+];
+const CA_CLAIMS = [
+  ['static-read', recv => `${ recv }.Number.MAX_SAFE_INTEGER`],
+  ['static-call', recv => `${ recv }.Array.of(7)`],
+  ['instance-proto', recv => `${ recv }.Array.prototype.includes.call([1], 1)`],
+  ['static-fallback', recv => `${ recv }.Promise.noSuchStatic`],
+  ['in-fold', recv => `"of" in ${ recv }.Array`],
+];
+
+function * generateChainAssignValue() {
+  for (const [valueId, value] of CA_VALUES) {
+    for (const [claimId, build] of CA_CLAIMS) {
+      const id = `chain-assign-value/${ valueId }-${ claimId }`;
+      // `ntm` is the assignment target the prelude declares; the pair (result, effect count) is the
+      // oracle, and the assigned value is read back so a re-rooted assignment cannot hide
+      const expr = `(() => { try { return [String(${ build(`(ntm = ${ value })`) }), log.length, ntm === globalThis]; }`
+        + ' catch (e) { return ["throw", log.length, false]; } })()';
+      yield { ...snippet(id, expr), strip: false };
+      yield { ...snippet(`${ id }-rigged`, expr, { rig: true }), strip: false };
+    }
+  }
+}
+
+// --- A destructured IIFE parameter owns its argument slot ---
+// a flatten sibling walks the declarators it re-emits and substitutes proxy-global reads in them, but
+// an argument the callee destructures in its own param pattern belongs to the synth swap instead:
+// two transforms over one span have no slot to nest in. every shape that INVOKES the callee reaches
+// that swap, so the axis is the call form, crossed with the pattern position the callee destructures
+const IIFE_CALL_FORMS = [
+  ['call', (fn, arg) => `(${ fn })(${ arg })`],
+  ['optional-call', (fn, arg) => `(${ fn })?.(${ arg })`],
+  ['new', (fn, arg) => `new (${ fn })(${ arg })`],
+];
+// a wrapper between a matched receiver identifier and its member is transparent to the sibling walk's
+// chain climb, so every one the language allows there has to answer the same way. TS-only shapes ride
+// the typescript leg of the corpus; the plain paren covers the JS side
+const WRAPPED_RECEIVERS = [
+  ['none', "globalThis['Promise']"],
+  ['paren', "(globalThis)['Promise']"],
+  ['paren-nested', "((globalThis))['Promise']"],
+  ['dot-after-paren', '(globalThis).Promise'],
+  // the claim CONTAINS the receiver instead of being rooted at it: the argument of a call whose
+  // result is claimed goes away with the call
+  ['call-arg', 'nrm(globalThis).Promise'],
+  ['call-arg-computed', "nrm(globalThis)['Set']"],
+  ['call-arg-static', 'typeof nrm(globalThis).Object.fromEntries'],
+];
+
+function * generateWrappedSiblingReceiver() {
+  for (const [wrapId, receiver] of WRAPPED_RECEIVERS) {
+    const id = `wrapped-sibling-receiver/${ wrapId }`;
+    // the flatten sibling shares the declaration, which is what puts the two channels on one span
+    const expr = `(() => { try { const { Array: { of } } = globalThis, w = ${ receiver };`
+      + ' return [typeof of, typeof w, log.length]; }'
+      + ' catch (e) { return ["throw", "throw", log.length]; } })()';
+    yield { ...snippet(id, expr), strip: false };
+    yield { ...snippet(`${ id }-rigged`, expr, { rig: true }), strip: false };
+  }
+}
+
+const IIFE_CALLEES = [
+  ['fn-first', 'function ({ Promise: P }) { return typeof P; }'],
+  ['fn-second', 'function (a, { Set: S }) { return typeof S; }'],
+  ['arrow', '({ Map: M }) => typeof M'],
+  ['fn-default', 'function ({ Promise: P } = globalThis) { return typeof P; }'],
+];
+
+function * generateIifeArgOwnership() {
+  for (const [formId, invoke] of IIFE_CALL_FORMS) {
+    for (const [calleeId, callee] of IIFE_CALLEES) {
+      // `new` on an arrow throws by construction - the emitters must not be asked to render it
+      if (formId === 'new' && calleeId === 'arrow') continue;
+      const args = calleeId === 'fn-second' ? '1, globalThis' : 'globalThis';
+      const id = `iife-arg-ownership/${ formId }-${ calleeId }`;
+      // the flatten sibling shares the declaration, which is what puts the two channels on one span
+      const expr = '(() => { try { const { Array: { of } } = globalThis, v = '
+        + `${ invoke(callee, args) };`
+        + ' return [typeof of, String(typeof v), log.length]; }'
+        + ' catch (e) { return ["throw", "throw", log.length]; } })()';
+      yield { ...snippet(id, expr), strip: false };
+      yield { ...snippet(`${ id }-rigged`, expr, { rig: true }), strip: false };
+    }
+  }
+}
+
 function * generateProxyGlobalSEReceiver() {
   for (const host of PGS_HOSTS) {
     for (const pat of PGS_PATTERNS) {
@@ -1470,6 +1581,41 @@ function * generateBareProxyProbe() {
     + ' catch (e) { return ["throw", log.length]; } })()';
   yield { ...snippet('bare-proxy-probe/sealed-se-key-claim', sealedSeKey), strip: false };
   yield { ...snippet('bare-proxy-probe/sealed-se-key-claim-rigged', sealedSeKey, { rig: true }), strip: false };
+  // DISCARDED-REGION payloads: every collapsing emit replaces source it does not reproduce, and a
+  // polyfillable read buried in the part it drops has to disappear with it - kept, it composes
+  // against text that is gone. the cross is the shape of the discarded region against the claim
+  // channel that discards it; `log.length` is the oracle for the shapes whose payload has an effect,
+  // and the import set for the effect-free ones (a rescued payload keeps its own import)
+  // the receivers stay on the always-present root: a proxy HOP through `self` / `window` would put
+  // every row in the accepted-collapse zone (native throws off-browser where the collapse answers),
+  // which says nothing about the payload
+  const DISCARD_REGIONS = [
+    ['seq-prefix', '(Promise, globalThis)'],
+    ['seq-prefix-effect', '(log.push("p"), globalThis)'],
+    ['seq-prefix-object', '({ p: Promise }, globalThis)'],
+    ['seq-prefix-arrow', '(() => Promise.resolve(1), globalThis)'],
+    ['seq-prefix-instance', '(arr.at(0), globalThis)'],
+    ['call-root-arg', 'nrm(Promise)'],
+  ];
+  const DISCARD_CLAIMS = [
+    ['static-call', recv => `${ recv }.Array.of(5)`],
+    ['static-read', recv => `${ recv }.Number.MAX_SAFE_INTEGER`],
+    ['static-fallback', recv => `${ recv }.Promise.noSuchStatic`],
+    ['instance-proto', recv => `${ recv }.Array.prototype.includes.call([1], 1)`],
+    ['symbol-key', recv => `typeof [1, 2][${ recv }.Symbol.iterator]`],
+    ['in-fold', recv => `"of" in ${ recv }.Array`],
+    ['destructure', recv => `(() => { const { of } = ${ recv }.Array; return typeof of; })()`],
+    ['computed-ctor-key', recv => `${ recv }[(Promise, "Array")].of(6)`],
+  ];
+  for (const [regionId, recv] of DISCARD_REGIONS) {
+    for (const [claimId, build] of DISCARD_CLAIMS) {
+      const id = `discarded-region/${ regionId }-${ claimId }`;
+      const expr = `(() => { try { return [String(${ build(recv) }), log.length]; }`
+        + ' catch (e) { return ["throw", log.length]; } })()';
+      yield { ...snippet(id, expr), strip: false };
+      yield { ...snippet(`${ id }-rigged`, expr, { rig: true }), strip: false };
+    }
+  }
   // the probe rides the prototype-placement swap and the static-FALLBACK swap channels too
   const sealedProto = '(() => { try { return (globalThis.window?.self).Map.prototype.has.call(new Map([[1, 1]]), 1); }'
     + ' catch (e) { return "throw"; } })()';
@@ -5273,6 +5419,9 @@ export function * generate() {
   yield * generateSuperClassAliasReceiverShadow();
   yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
+  yield * generateChainAssignValue();
+  yield * generateIifeArgOwnership();
+  yield * generateWrappedSiblingReceiver();
   yield * generateProxyHopCtor();
   yield * generateKeptProxyRoot();
   yield * generateBareProxyProbe();
