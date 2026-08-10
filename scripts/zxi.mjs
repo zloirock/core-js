@@ -27,11 +27,11 @@ async function install(dir) {
 if (await pathExists(`${ DIR }/package.json`)) {
   await install(DIR);
 
-  // a suite that imports a module from another one runs it from THAT directory, so its dependencies
-  // resolve there and not here - `"zxi": { "install": ["../sibling"] }` is how such a suite declares
-  // what else has to be installed before its runner is imported
+  // a suite that imports a module from another directory runs it from THERE, so its dependencies
+  // resolve there and not here - `"zxi": { "installExternalDirs": ["../other"] }` is how such a
+  // suite declares what else has to be installed before its runner is imported
   const { zxi } = JSON.parse(await fs.readFile(`${ DIR }/package.json`));
-  for (const sibling of zxi?.install ?? []) await install(resolve(DIR, sibling));
+  for (const dir of zxi?.installExternalDirs ?? []) await install(resolve(DIR, dir));
 
   $.preferLocal = [resolve(DIR), cwd()];
 }
