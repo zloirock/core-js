@@ -1,6 +1,57 @@
 import { canFuseWithOpenParen } from './plugin-helpers.js';
 import { codePointEndingAt, IDENT_PART_RE, skipGap } from './text-scan.js';
 
+// single source of the `transform-queue: ` subsystem prefix, for EVERY throw this module raises.
+// module-level and constructor-parameterized on purpose: the validation sites throw `TypeError` /
+// `RangeError` and `mergeEqualRange` sits outside the class, so a private `Error`-only method
+// cannot reach them and the prefix drifts into hand-written copies that no longer share a source.
+// the `[core-js] [<fileId>] ` brand + file tag are added once by the outer `tagError`
+// (runTransform's catch), NOT self-prefixed here - matching the parse-error throw-path convention
+// (`formatParseErrorForThrow`) and avoiding the doubled brand/id `tagError` would otherwise stamp
+function queueError(message, Ctor = Error) {
+  return new Ctor(`transform-queue: ${ message }`);
+}
+
+// how much of any text a diagnostic quotes - replacement content, source slice, needle alike.
+// the point of quoting is to name the culprit channel and its head carries that; a claim or a
+// slice can be the size of a statement, and an unbounded dump buries the ranges printed alongside
+const DIAGNOSTIC_TEXT_LIMIT = 200;
+
+function describeText(text) {
+  return JSON.stringify(text.length > DIAGNOSTIC_TEXT_LIMIT
+    ? `${ text.slice(0, DIAGNOSTIC_TEXT_LIMIT) }...`
+    : text);
+}
+
+// a rejected argument echoed back: its text when it is one (bounded like every other quoted
+// text here), its type otherwise - `typeof` is the only useful thing to say about a non-string
+function describeArgument(value) {
+  return typeof value === 'string' ? describeText(value) : typeof value;
+}
+
+// compose reaches its locate failure with the discriminator between the two possible causes
+// already computed, so spend it on the message instead of blaming the queue for both. the
+// container's CONTENT is the datum that names the culprit channel - the ranges alone never did
+function locateFailureError({ hasStandaloneMatch, content, needle, start, logicalEnd, inner }) {
+  const where = `outer=[${ start },${ logicalEnd }) outerContent=${ describeText(content) } `
+    + `inner=[${ inner.start },${ inner.end }) needle=${ describeText(needle) }.`;
+  // a standalone occurrence is sitting right there and the ordinal walk still missed it.
+  // `findRenamedSlot` runs first and accepts every standalone occurrence (its literal token
+  // match is a superset of the boundary scan), so this branch is defensive: reaching it means
+  // the two enumerations disagree, which is the queue's own bug
+  if (hasStandaloneMatch) {
+    return queueError(`could not locate inner needle in outer content. ${ where } `
+      + 'a standalone occurrence exists but the ordinal walk missed it - '
+      + 'this is a composition bug, please report with a reproducer.');
+  }
+  // no occurrence at all: the container replaced this range with text that does not carry the
+  // source slice, so the inner's slot never made it into the output. that is a CALLER contract
+  // violation - the queue cannot invent a slot - and the only cause this branch can have
+  return queueError(`could not locate inner needle in outer content. ${ where } `
+    + 'the transform owning the outer range replaced it with content that does not carry '
+    + 'the source text; the channel that queued the inner range must skip-mark it or stand down.');
+}
+
 // is [start, end] strictly contained within any range in the start-sorted array?
 // (equal ranges are not considered contained - both transforms must be applied).
 // binary search + prefix maxEnd resolves in O(log n); falls through to a linear scan only
@@ -402,17 +453,22 @@ function mergeEqualRange({ a, b, originalNeedle, range = null, aInner = false, b
     : aPositions.length
       ? [a, b, aPositions, bPositions]
       : [b, a, bPositions, aPositions];
-  // `transform-queue: ` subsystem prefix matches the rest of the queue's diagnostics so users can
-  // grep failures consistently. the `[core-js] [<fileId>] ` brand + file tag are owned by the
-  // outer `tagError` (runTransform's catch), not self-prefixed here - matching the parse-error
-  // throw-path convention and avoiding the double brand/id `tagError` would otherwise stamp
   const rangeStr = range ? ` at [${ range.start },${ range.end })` : '';
+  // both claiming texts, not just the needle: the reader's next question on any of these is
+  // WHICH two channels collapsed the range, and the needle alone cannot say. built on demand -
+  // merges that succeed are the common case and must not pay to stringify both sides
+  function invariant(reason) {
+    return queueError(`mergeEqualRange invariant${ rangeStr }: ${ reason } `
+      + `(needle=${ describeText(originalNeedle) }) transforms=${ describeText(a) }, ${ describeText(b) }`);
+  }
   // contract: at least one side wraps the original source. a regression that breaks this
   // invariant would silently drop the wrapper text and emit only the inner replacement.
   // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
-  // one slot - the throw makes a future callsite that drops both copies fail loudly
+  // one slot - the throw makes a future callsite that drops both copies fail loudly.
+  // compose settles the whole claim multiset before folding and reports two needle-less
+  // claimants itself, so this one guards the helper's precondition for any other caller
   if (!wrapperPositions.length) {
-    throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
+    throw invariant('needle missing from both transforms');
   }
   // assert single-occurrence invariant on BOTH sides:
   //   - wrapper-side: if a new outer-transform shape emits the needle twice, only the
@@ -422,10 +478,10 @@ function mergeEqualRange({ a, b, originalNeedle, range = null, aInner = false, b
   //     arbitrary and produces asymmetric output. fail loudly, UNLESS the caller declared
   //     which one nests inside (`innerWrapper`), which is exactly that ambiguity resolved
   if (wrapperPositions.length > 1) {
-    throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
+    throw invariant('wrapper contains needle >1 times');
   }
   if (innerPositions.length && !declared) {
-    throw new Error(`transform-queue: mergeEqualRange invariant${ rangeStr }: both sides contain needle - ambiguous wrapper (needle=${ JSON.stringify(originalNeedle) })`);
+    throw invariant('both sides contain needle - ambiguous wrapper');
   }
   // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
   // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
@@ -450,15 +506,11 @@ function entryLogicalEnd(entry) {
 // start. selection/containment by logical range must use this so a suffix is never admitted
 // without its prefix (which would orphan the pair when the prefix sits outside the range)
 function entryLogicalStart(entry) {
-  return entry.splitInfo?.role === 'suffix' ? entry.splitInfo.peer.start : entry.start;
+  return composeKeyOf(entry).start;
 }
 
 function entryLogicalSpan(entry) {
   return entryLogicalEnd(entry) - entry.start;
-}
-
-function isSplit(entry) {
-  return !!entry.splitInfo;
 }
 
 // is the entry's FULL logical range within [start, end]? split-aware on BOTH ends, so a
@@ -469,29 +521,40 @@ function entryLogicalWithin(entry, start, end) {
   return entryLogicalStart(entry) >= start && entryLogicalEnd(entry) <= end;
 }
 
-// for a split-pair entry, return the logical inner content (full prefix+suffix range).
-// after the prefix's own outer iteration, composedContent.get(prefix) already holds the
-// combined `prefix.content + suffix.content` (with any nested-inner substitutions baked
-// in). suffix lookup proxies to peer's compose view. raw fallback only when neither half
-// has been processed yet (rare - innermost-first iteration order processes leaves first)
-function splitInnerContent(entry, composedContent) {
-  const prefix = entry.splitInfo.role === 'prefix' ? entry : entry.splitInfo.peer;
-  const suffix = entry.splitInfo.role === 'suffix' ? entry : entry.splitInfo.peer;
-  return composedContent.get(prefix) ?? prefix.content + suffix.content;
+// sort key putting `innerWrapper`-declared claims first: they nest INSIDE the unmarked ones
+function innerWrapperRank(entry) {
+  return entry.rewriteHint?.innerWrapper ? 0 : 1;
+}
+
+// the entry whose compose view speaks for the logical pair - the prefix half of a split, the
+// entry itself otherwise. `composedContent` is keyed on it, never on a suffix
+function composeKeyOf(entry) {
+  return entry.splitInfo?.role === 'suffix' ? entry.splitInfo.peer : entry;
+}
+
+// the entry's LOGICAL replacement text: a split pair's two halves assembled, everything else
+// as-is; the composed view when the caller has one, the raw text otherwise. after the prefix's
+// own outer iteration `composedContent` already holds the combined halves with nested-inner
+// substitutions baked in - the raw fallback is for entries no pass has reached yet.
+// every consumer that pairs an entry's text with its LOGICAL range needs this: a bare
+// `.content` on a split prefix describes half of the range printed next to it
+function entryLogicalContent(entry, composedContent = null) {
+  const key = composeKeyOf(entry);
+  return composedContent?.get(key)
+    ?? (entry.splitInfo ? key.content + key.splitInfo.peer.content : entry.content);
 }
 
 // inner content + logical end + whether that content is already-composed (the inner's own
-// nested inners folded in) rather than the raw fallback - hides the splitInfo branching from
-// callers and derives all three in one place. `composed` gates the verbatim phantom-skip:
-// only composed content safely absorbs the inners nested in it - a not-yet-composed equal-range
-// split sibling (sorted after the current outer) still carries its un-substituted inners in
-// the raw fallback. split-pair lookup keys on the prefix, matching `splitInnerContent`
+// nested inners folded in) rather than the raw fallback - derives all three in one place.
+// `composed` gates the verbatim phantom-skip: only composed content safely absorbs the inners
+// nested in it - a not-yet-composed equal-range split sibling (sorted after the current outer)
+// still carries its un-substituted inners in the raw fallback
 function innerSubstitution(inner, composedContent) {
-  if (inner.splitInfo) {
-    const prefix = inner.splitInfo.role === 'prefix' ? inner : inner.splitInfo.peer;
-    return { end: inner.splitInfo.logicalEnd, content: splitInnerContent(inner, composedContent), composed: composedContent.has(prefix) };
-  }
-  return { end: inner.end, content: composedContent.get(inner) ?? inner.content, composed: composedContent.has(inner) };
+  return {
+    end: entryLogicalEnd(inner),
+    content: entryLogicalContent(inner, composedContent),
+    composed: composedContent.has(composeKeyOf(inner)),
+  };
 }
 
 // does any range in `ranges` enclose [start, end] inclusively? the lists are short per-outer
@@ -591,7 +654,7 @@ export function createRewriteHint({
   // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
   // needle.startsWith checks. fail fast rather than silently produce a hint that
   // misroutes downstream composition
-  if (!rootRaw) throw new Error('createRewriteHint: guardRef requires rootRaw');
+  if (!rootRaw) throw queueError('createRewriteHint: guardRef requires rootRaw');
   return {
     rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot,
     guardTailStart: guardTailStart ?? null, guardSlot, guardOwn, ...sub,
@@ -635,6 +698,14 @@ export default class TransformQueue {
   }
 
   constructor(code, ms, asiFusableStarts = null) {
+    // `add`/`insert`/`addSplit` validate every argument at the gate so a slot mismatch is
+    // attributed to the caller; the constructor is the one entry that did not, and it is also
+    // the one whose third slot changed MEANING (a `fileId` string once lived here). an unchecked
+    // wrong-typed value stays inert until a replacement happens to lead with `(`, then surfaces
+    // as a `not a function` deep inside `#asiGuarded` at an unrelated later `add()`
+    if (asiFusableStarts !== null && typeof asiFusableStarts !== 'function') {
+      throw queueError(`asiFusableStarts must be a function or null (received ${ typeof asiFusableStarts })`, TypeError);
+    }
     this.#code = code;
     this.#ms = ms;
     this.#asiFusableStarts = asiFusableStarts;
@@ -649,17 +720,18 @@ export default class TransformQueue {
   #asiGuarded(start, content) {
     if (typeof content !== 'string' || content[0] !== '(' || !this.#asiFusableStarts) return content;
     if (!canFuseWithOpenParen(this.#code, start)) return content;
-    this.#asiStarts ??= this.#asiFusableStarts();
+    // the slot has two typed surfaces and the constructor can only check the first: the callable
+    // is validated there, its RESULT only exists here. an offset Set is what the guard reads, and
+    // a wrong one surfaces as `.has is not a function` at whichever `(`-leading add happens to be
+    // first - arbitrarily far from the provider that returned it
+    if (this.#asiStarts === null) {
+      const starts = this.#asiFusableStarts();
+      if (!(starts instanceof Set)) {
+        throw queueError(`asiFusableStarts must return a Set of offsets (received ${ describeArgument(starts) })`, TypeError);
+      }
+      this.#asiStarts = starts;
+    }
     return this.#asiStarts.has(start) ? `;${ content }` : content;
-  }
-
-  // single-source-of-truth for invariant error messages - prepends the `transform-queue: `
-  // subsystem prefix so call sites express only the bug-specific tail. the `[core-js] [<fileId>] `
-  // brand + file tag are added once by the outer `tagError` (runTransform's catch), NOT self-
-  // prefixed here - matching the parse-error throw-path convention (`formatParseErrorForThrow`)
-  // and avoiding the doubled brand/id `tagError` would otherwise stamp onto a self-branded message
-  #invariant(message) {
-    return new Error(`transform-queue: ${ message }`);
   }
 
   add(start, end, content, guardedRoot, rewriteHint, splitInfo = null) {
@@ -672,24 +744,24 @@ export default class TransformQueue {
     // non-integer offsets (NaN / undefined / string) silently pass the inequality checks because
     // numeric coercion + NaN comparisons are always false - reject them upfront
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
-      throw new TypeError(`transform-queue: start/end must be integers (received ${ String(start) }, ${ String(end) })`);
+      throw queueError(`start/end must be integers (received ${ String(start) }, ${ String(end) })`, TypeError);
     }
     // split diagnostics so the caller sees which class of misuse fired:
     //   start === end -> caller meant insert (use `insert(pos, content)`);
     //   start > end   -> inverted range (caller's offset arithmetic is reversed)
     if (start === end) {
-      throw new RangeError(`transform-queue: zero-length range [${ start },${ end }) - use insert() for insertions`);
+      throw queueError(`zero-length range [${ start },${ end }) - use insert() for insertions`, RangeError);
     }
     if (start > end) {
-      throw new RangeError(`transform-queue: inverted range [${ start },${ end }) - start must be < end`);
+      throw queueError(`inverted range [${ start },${ end }) - start must be < end`, RangeError);
     }
     if (start < 0 || end > this.#code.length) {
-      throw new RangeError(`transform-queue: range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
+      throw queueError(`range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`, RangeError);
     }
     // content must be a string: undefined/null/object would silently corrupt via
     // MagicString.overwrite stringification. surface mismatch at caller, not mid-render
     if (typeof content !== 'string') {
-      throw new TypeError(`transform-queue: content must be a string (received ${ typeof content })`);
+      throw queueError(`content must be a string (received ${ typeof content })`, TypeError);
     }
     const entry = { start, end, content, guardedRoot, rewriteHint, splitInfo };
     this.#transforms.add(entry);
@@ -715,13 +787,13 @@ export default class TransformQueue {
   // replaced output unpredictably (caller bug; not asserted here)
   insert(pos, content) {
     if (!Number.isInteger(pos)) {
-      throw new TypeError(`transform-queue: insert pos must be an integer (received ${ String(pos) })`);
+      throw queueError(`insert pos must be an integer (received ${ String(pos) })`, TypeError);
     }
     if (pos < 0 || pos > this.#code.length) {
-      throw new RangeError(`transform-queue: insert pos ${ pos } out of bounds (source length ${ this.#code.length })`);
+      throw queueError(`insert pos ${ pos } out of bounds (source length ${ this.#code.length })`, RangeError);
     }
     if (typeof content !== 'string') {
-      throw new TypeError(`transform-queue: insert content must be a string (received ${ typeof content })`);
+      throw queueError(`insert content must be a string (received ${ typeof content })`, TypeError);
     }
     this.#inserts.add({ pos, content });
   }
@@ -740,18 +812,18 @@ export default class TransformQueue {
     // integer check first so NaN / non-integer offsets surface a clear cause (a non-integer mid also
     // slips the `start < mid < end` ordering check below via numeric coercion)
     if (!Number.isInteger(start) || !Number.isInteger(mid) || !Number.isInteger(end)) {
-      throw new TypeError(`transform-queue: addSplit offsets must be integers (received [${ String(start) },${ String(mid) },${ String(end) }))`);
+      throw queueError(`addSplit offsets must be integers (received [${ String(start) },${ String(mid) },${ String(end) }))`, TypeError);
     }
     // up-front invariant: zero-length halves throw with cryptic [X,X) error inside
     // the second `add` call without indicating which side is bad. callers (polyfill-emitter
     // split-eligible branch) already gate on this; diagnostic exists for future call sites
     if (!(start < mid && mid < end)) {
-      throw new RangeError(`transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
+      throw queueError(`addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`, RangeError);
     }
     // bounds: start < mid < end already orders the offsets, so checking the outer pair covers both
     // halves ([start, mid) and [mid, end) sit within [start, end))
     if (start < 0 || end > this.#code.length) {
-      throw new RangeError(`transform-queue: addSplit range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
+      throw queueError(`addSplit range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`, RangeError);
     }
     // validate BOTH content args upfront - throwing inside the second `add` call after
     // the first succeeded would leave an orphan prefix entry in the queue. typeof check
@@ -761,7 +833,8 @@ export default class TransformQueue {
     // (would emit zero-length chunk at sourcemap-distinct position)
     if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string'
         || prefixContent.length === 0 || suffixContent.length === 0) {
-      throw new TypeError(`transform-queue: addSplit content args must be non-empty strings; received prefix=${ typeof prefixContent === 'string' ? `'${ prefixContent }'` : typeof prefixContent }, suffix=${ typeof suffixContent === 'string' ? `'${ suffixContent }'` : typeof suffixContent }`);
+      throw queueError('addSplit content args must be non-empty strings; '
+        + `received prefix=${ describeArgument(prefixContent) }, suffix=${ describeArgument(suffixContent) }`, TypeError);
     }
     const groupId = Symbol('split');
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
@@ -876,7 +949,7 @@ export default class TransformQueue {
     if (!needle.length) return false;
     const entry = this.#properContainerOf(start, end);
     if (!entry) return false;
-    const content = entry.splitInfo ? splitInnerContent(entry, new Map()) : entry.content;
+    const content = entryLogicalContent(entry);
     // occurrences fully inside the container's PREFIX - the same count the prefix slice yields,
     // read off one memoized scan of the container instead of re-slicing and re-scanning per call
     const ordinal = this.#containerScanner(entry).countInRange(needle, 0, start - entry.start);
@@ -1027,7 +1100,7 @@ export default class TransformQueue {
   // range, or null for a half-range so the caller bakes the raw slice instead)
   extractContent(start, end) {
     const rList = this.#byRange.get(rangeKey(start, end));
-    const whole = rList?.find(entry => !isSplit(entry));
+    const whole = rList?.find(entry => !entry.splitInfo);
     if (whole) {
       this.#dropEntryAndPeer(whole);
       return whole.content;
@@ -1036,7 +1109,7 @@ export default class TransformQueue {
     // [start, end] (extracting either half alone would orphan the peer), and drop both
     const prefix = this.#splitPrefixByLogicalRange(start, end);
     if (!prefix) return null;
-    const content = prefix.content + prefix.splitInfo.peer.content;
+    const content = entryLogicalContent(prefix);
     this.#dropEntryAndPeer(prefix);
     return content;
   }
@@ -1168,9 +1241,15 @@ export default class TransformQueue {
     // the root null-check or the claim itself - fail loudly instead (the claim was already
     // emitted PLAIN or suppressed on the slot's promise)
     if (this.#pendingGuardPrefixes.length || this.#pendingRootRewrites.length) {
-      const count = this.#pendingGuardPrefixes.length + this.#pendingRootRewrites.length;
-      throw new Error(`transform-queue: ${ count } hoisted guard rewrite(s) found no anchor in the final content. `
-        + 'this is a composition bug - please report with a reproducer.');
+      // the unplaced anchors ARE the diagnostic: each names the ref the owning slot promised to
+      // publish, so an absent one points straight at the renderer that dropped or renamed it.
+      // a bare count says only that something was lost
+      const stranded = [
+        ...this.#pendingGuardPrefixes.map(({ anchor, prefix }) => `guard-prefix anchor=${ JSON.stringify(anchor) } text=${ describeText(prefix) }`),
+        ...this.#pendingRootRewrites.map(({ anchor, text }) => `root-rewrite anchor=${ JSON.stringify(anchor) } text=${ describeText(text) }`),
+      ];
+      throw queueError(`${ stranded.length } hoisted guard rewrite(s) found no anchor in the final content: `
+        + `${ stranded.join('; ') }. this is a composition bug - please report with a reproducer.`);
     }
   }
 
@@ -1208,10 +1287,13 @@ export default class TransformQueue {
   }
 
   #assertNoInsertInsideOverwrite() {
-    for (const { pos } of this.#inserts) {
+    for (const { pos, content } of this.#inserts) {
       const entry = this.#enclosingOverwrite(pos);
       if (entry) {
-        throw new RangeError(`transform-queue: insert at ${ pos } lands inside overwrite [${ entryLogicalStart(entry) },${ entryLogicalEnd(entry) })`);
+        // both texts, not just the offsets: the insert's own content is what identifies the
+        // channel that queued it, and the overwrite's content the one that swallowed the anchor
+        throw queueError(`insert at ${ pos } lands inside overwrite [${ entryLogicalStart(entry) },${ entryLogicalEnd(entry) })`
+          + `. insert=${ describeText(content) } overwrite=${ describeText(entryLogicalContent(entry)) }`, RangeError);
       }
     }
   }
@@ -1303,7 +1385,7 @@ export default class TransformQueue {
     for (const t of composed) {
       const tEnd = entryLogicalEnd(t);
       if (tEnd > maxEnd) {
-        const content = composedContent.get(t) ?? t.content;
+        const content = entryLogicalContent(t, composedContent);
         const splice = { start: t.start, end: tEnd, content };
         // per-half sourcemap precision: EVERY split whose logical range sits within [t.start, tEnd) -
         // the outermost split AND any folded inner ones (double-nested optional chains) - has a verbatim
@@ -1366,29 +1448,42 @@ export default class TransformQueue {
   // compose a single transform `t` with its inners + dups. returns the composed content
   // string, or null when a sibling dup already owns the merge (caller skips this iteration).
   #composeOne(t, byStart, composedContent) {
-    const { start, splitInfo } = t;
+    const { start } = t;
     const logicalEnd = entryLogicalEnd(t);
-    // initial content for prefix-half = prefix.content + suffix.content (suffix's text
-    // gets baked into composed content; suffix entry is excluded from `composed` array
-    // via the role==='suffix' continue at the compose loop's top)
-    let content = composedContent.get(t)
-      ?? (splitInfo?.role === 'prefix' ? t.content + splitInfo.peer.content : t.content);
+    let content = entryLogicalContent(t, composedContent);
     const { inners, dups } = this.#scanInners(t, byStart, logicalEnd);
     const originalSlice = this.#code.slice(start, logicalEnd);
     if (dups.length) {
       if (dups.some(d => composedContent.has(d))) return null;  // sibling owns merge
-      // fold all dups - `mergeEqualRange` nests wrappers and drops polyfills into the
-      // innermost slot regardless of fold order
+      // the claimants of this range, as TEXT and deduplicated: byte-identical rewrites are
+      // idempotent, so a repeat is dropped rather than folded (a redundant collapse drive queues
+      // the same replacement twice - `(SE, globalThis).self.Ctor` collapsed once per firing meta,
+      // the proxy-hop global read AND the bailed static both dropping the same `.self`). the
+      // whole multiset is settled BEFORE folding: everything below is a property of the claims,
+      // not of the order the channels queued them in
+      const byText = new Map();
       for (const dup of dups) {
-        const dupContent = isSplit(dup)
-          ? splitInnerContent(dup, composedContent)
-          : composedContent.get(dup) ?? dup.content;
-        // two byte-identical rewrites of the same range are idempotent - drop the dup instead
-        // of folding it as a wrapper. a redundant collapse drive queues the same replacement
-        // twice (`(SE, globalThis).self.Ctor` collapsed once per firing meta - the proxy-hop
-        // global read AND the bailed static both drop the same `.self`), and mergeEqualRange
-        // would fail the needle invariant since neither copy carries the original source text
-        if (dupContent === content) continue;
+        const text = entryLogicalContent(dup, composedContent);
+        if (text !== content && !byText.has(text)) byText.set(text, dup);
+      }
+      // a WRAPPER keeps the source slice, so it nests around the next claim and any number of
+      // them folds; a needle-less COLLAPSE spends the slot, so a second distinct one has nowhere
+      // to go. `mergeEqualRange`'s own message is written for a binary call ("needle missing from
+      // both transforms") and blames one broken caller, which two competing channels are not
+      const collapses = [content, ...byText.keys()].filter(text => !collectOccurrencePositions(text, originalSlice).length);
+      if (collapses.length > 1) {
+        throw queueError(`equal-range conflict at [${ start },${ logicalEnd }): `
+          + `more than one transform replaces the source slice ${ describeText(originalSlice) } outright, `
+          + 'so there is no slot left to nest them in. '
+          + `claims=${ [content, ...byText.keys()].map(describeText).join(', ') }`);
+      }
+      // `innerWrapper` declares a partial order - the marked claim nests INSIDE an unmarked one.
+      // `mergeEqualRange` can only honour it while BOTH sides still carry the needle, and a fold
+      // against a collapse leaves the accumulator without one, so a marked claim arriving after
+      // that lost its declaration and ended up outermost. folding the marked ones first is what
+      // makes the nesting a property of the declarations rather than of the queueing order
+      const ordered = [...byText].sort(([, a], [, b]) => innerWrapperRank(a) - innerWrapperRank(b));
+      for (const [dupContent, dup] of ordered) {
         content = mergeEqualRange({
           a: content, b: dupContent, originalNeedle: originalSlice,
           range: { start, end: logicalEnd },
@@ -1551,10 +1646,9 @@ export default class TransformQueue {
           processedRanges.push(innerRange);
           continue;
         }
-        throw this.#invariant('could not locate inner needle in outer content. '
-          + `outer=[${ start },${ logicalEnd }] inner=[${ inner.start },${ innerEndLogical }] `
-          + `needle=${ JSON.stringify(needle) }. `
-          + 'this is a composition bug - please report with a reproducer.');
+        throw locateFailureError({
+          hasStandaloneMatch, content, needle, start, logicalEnd, inner: innerRange,
+        });
       }
       content = result.content;
       // record verbatim raw matches so deeper nested inners short-circuit at the fast-path
@@ -1615,9 +1709,14 @@ export default class TransformQueue {
       open = open.filter(o => entryLogicalEnd(o) > curr.start);
       const conflict = open.find(o => curr.start > o.start && currEnd > entryLogicalEnd(o));
       if (conflict) {
-        throw this.#invariant('partial overlap between transforms '
-          + `[${ conflict.start },${ entryLogicalEnd(conflict) }) and [${ curr.start },${ currEnd }). this is a `
-          + 'composition bug - please report with a reproducer.');
+        // every range in the queue was handed to `add` / `addSplit` by a channel; the queue never
+        // widens one, so a crossing pair is always two channels disagreeing about who owns the
+        // text - naming it a queue bug sent past reports at the wrong layer. the contents say
+        // WHICH channels, which the ranges alone never did
+        throw queueError('partial overlap between transforms '
+          + `[${ conflict.start },${ entryLogicalEnd(conflict) }) content=${ describeText(entryLogicalContent(conflict)) } and `
+          + `[${ curr.start },${ currEnd }) content=${ describeText(entryLogicalContent(curr)) }. ranges queued by different `
+          + 'channels must nest or stay disjoint - one of the two must claim the whole span or stand down.');
       }
       open.push(curr);
     }
