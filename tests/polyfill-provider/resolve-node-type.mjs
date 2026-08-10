@@ -3726,6 +3726,152 @@ runBoth('capture-avoidance: colliding generic param resolves destructured elemen
     isCleanDestructureAliasBinding(cleanWithPhantom));
 }
 
+// --- valueless `var` redeclaration reaches the RESOLVER, not just the filter ---
+
+// the shapes above assert the filter on hand-built violations; these assert the answer the type
+// layer gives, which is where the phantom was actually costing a narrow - the binding lookup is
+// the ONE funnel every type-layer consumer reads its violation list through, so a per-consumer
+// strip would leave whichever consumer nobody enumerated still reading the phantom
+
+runBoth('bare `var` redeclaration writes nothing - the init still types the receiver',
+  'var arr = [1, 2, 3];\nvar arr;\narr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// the redeclaration in a NESTED block is the shape the two trackers model differently: one hoists
+// the name and records the phantom, the other block-scopes the later declarator and reports IT as
+// the binding - an init-less view carrying none of the var's flow
+runBoth('nested-block `var` redeclaration is the same binding, not a shadow',
+  'var arr = [1, 2, 3];\n{\n  var arr;\n  arr.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// a nested-block redeclaration WITH an init is a real write, and the last one before the use wins
+runBoth('nested-block redeclaration with an init still decides the receiver',
+  'var arr = [1, 2, 3];\n{\n  var arr = "abc";\n  arr.at(0);\n}',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+runBoth('a real write alongside the phantom still decides the receiver',
+  'var arr = [1, 2, 3];\nvar arr;\narr = "abc";\narr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
+// the negative the filter's for-x carve-out exists for: a head declarator has no init either, but
+// it rebinds per iteration over values this cannot see, so the init is dead and the answer opens
+runBoth('for-of head redeclaration is a real write - declines',
+  'var arr = [1, 2, 3];\nfor (var arr of [["a"], "b"]) { }\narr.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
+  });
+
+// --- the static-callee pair's method filter, read through the call-return answer ---
+
+// the filter exists so the consumers matching a FIXED pair stop paying the shape's scope-chain
+// lookups for every call that cannot be theirs. it is a contract, not a shortcut: a pair returned
+// under a filter always names that method, whichever spelling the callee has - and the observable
+// difference is the `Object.create` arm, which types its call as a plain Object
+
+runBoth('the `Object.create` arm still claims its own call',
+  'Object.create(null);', (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Object' });
+  });
+
+// the argument is a primitive on purpose: a dispatching one would make the `create` arm decline on
+// its OWN guard, and the case would prove nothing about the method filter
+runBoth('a sibling static of the same constructor keeps its own return type',
+  'Object.keys("ab");', (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// the post-rewrite alias carries no method name ON the node, so the filter has to apply to the
+// RESOLVED pair - covering only the member spelling would let `_Object$keys(...)` answer the
+// `create` arm, whose caller compares the constructor alone
+runBoth('the alias spelling of a sibling static keeps its own return type',
+  '_Object$keys("ab");', (adapter, prog, lbl) => {
+    const resolver = adapter.makeResolver({
+      getPolyfillBindingEntry: (scope, name) => name === '_Object$keys' ? 'object/keys' : null,
+    });
+    const call = adapter.pickPath(prog, 'CallExpression');
+    checkType(lbl, resolver.resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+// the other fixed-pair consumer: the class-context anchor reads `Reflect.construct`'s ctor argument
+// as the receiver's class. a sibling `Reflect` static must not be taken for it, or an unrelated
+// call's first argument decides the receiver type
+runBoth('`Reflect.construct` still anchors the receiver class',
+  'class C { m(): string[] { return ["a"]; } }\nReflect.construct(C, []).m();',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('a sibling `Reflect` static is not taken for `construct`',
+  'class C { m(): string[] { return ["a"]; } }\nReflect.ownKeys(C).m();',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
+    check(lbl, adapter.makeResolver().resolveNodeType(call), null);
+  });
+
+// --- the merged-namespace static's declaration filter, over its whole domain ---
+
+// the filter decides which declaration kinds a `C.<name>()` merged-namespace static may resolve
+// through. it is spelled as a type test because the path is already in hand; the domain is the two
+// function shapes it accepts and the class leaf it rejects, plus the chain the whole thing sits in
+
+runBoth('merged-namespace static resolves through a function declaration',
+  'class C { }\nnamespace C { export function make(): string[] { return ["a"]; } }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('merged-namespace static resolves through an ambient function declaration',
+  'class C { }\nnamespace C { export function make(): string[]; }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+// the class leaf's OUTCOME, which is what a consumer sees. it is not a lock on the kind filter:
+// probed both ways, removing the filter changes no answer here, because the return-type resolver
+// declines a class leaf on its own - so this guards the outcome against whichever of the two
+// stops declining, not the filter in particular
+runBoth('merged-namespace class leaf resolves to nothing',
+  'class C { }\nnamespace C { export class Inner { } }\nC.Inner.at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    check(lbl, adapter.makeResolver().resolveNodeType(recv), null);
+  });
+
+// the filter sits inside the super-chain walk, so both directions of that walk are its domain too:
+// an inherited export reaches the child, and the child's own export outranks the parent's
+runBoth('an inherited merged-namespace static reaches the subclass',
+  'class B { }\nnamespace B { export function make(): string[] { return ["a"]; } }\nclass C extends B { }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('the subclass own namespace export outranks the parent one',
+  'class B { }\nnamespace B { export function make(): string[] { return ["a"]; } }\n'
+  + 'class C extends B { }\nnamespace C { export function make(): string { return "a"; } }\nC.make().at(0);',
+  (adapter, prog, lbl) => {
+    const recv = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'at').get('object');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(recv), { primitive: true, kind: 'string' });
+  });
+
 {
   // singleQuasiString: TemplateLiteral with no interpolations -> the cooked string
   const tpl = {

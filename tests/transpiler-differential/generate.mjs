@@ -3640,6 +3640,44 @@ function * generateVarShadowedStatic() {
   }
 }
 
+// --- A valueless `var` REDECLARATION is not a write ---
+// `var x = [1, 2, 3]; var x;` redeclares the SAME hoisted binding and writes nothing, yet both
+// scope trackers record the init-less declarator as a constantViolation - counting it costs the
+// receiver its family and collapses the call to the generic dispatch. stripping it by SHAPE alone
+// is equally wrong: a for-x head declarator has no init either and rebinds every iteration.
+// three axes - where the phantom sits relative to the use, what else writes the binding, and which
+// receiver family the init gives - so the resolved family shows up in the runtime value as well as
+// in the import set. the two trackers model a NESTED-block redeclaration differently (one hoists
+// the name and records the phantom, the other block-scopes the later declarator), which is why the
+// placement axis carries both a block beside the use and a block AROUND it
+const REDECL_HOSTS = [
+  { id: 'array', init: '[1, 2, 3]' },
+  { id: 'string', init: '"abc"' },
+];
+const REDECL_PHANTOMS = [
+  { id: 'none', build: (decl, write, obs) => `${ decl } ${ write } ${ obs }` },
+  { id: 'same-scope', build: (decl, write, obs) => `${ decl } var x; ${ write } ${ obs }` },
+  { id: 'nested-block', build: (decl, write, obs) => `${ decl } { var x; } ${ write } ${ obs }` },
+  { id: 'use-in-block', build: (decl, write, obs) => `${ decl } ${ write } { var x; ${ obs } }` },
+  { id: 'trailing', build: (decl, write, obs) => `${ decl } ${ write } ${ obs } var x;` },
+];
+const REDECL_WRITERS = [
+  { id: 'no-write', stmt: '' },
+  { id: 'plain-write', stmt: 'x = "zz";' },
+  { id: 'for-of-head', stmt: 'for (var x of [["p"], "q"]) { }' },
+];
+function * generateValuelessRedecl() {
+  for (const host of REDECL_HOSTS) {
+    for (const phantom of REDECL_PHANTOMS) {
+      for (const writer of REDECL_WRITERS) {
+        const body = phantom.build(`var x = ${ host.init };`, writer.stmt, 'out = x.at(-1);');
+        yield { ...snippet(`valueless-redecl/${ phantom.id }/${ writer.id }/${ host.id }`,
+          `(() => { let out; ${ body } return out; })()`), strip: true };
+      }
+    }
+  }
+}
+
 // --- Side-effect ORDER through nested-instance body-extract ---
 // distinct side-effecting siblings (`log.push("x")` / `"z"`) flank the body-extracted binding; the
 // receiver is constant (memoize), an identifier (re-reference), or itself side-effecting (bail). every
@@ -5295,6 +5333,7 @@ export function * generate() {
   yield * generateMutatedWrapperAssign();
   yield * generateMutatedLiteralKey();
   yield * generateVarShadowedStatic();
+  yield * generateValuelessRedecl();
   yield * generateSeOrder();
   yield * generateOptionalArgSe();
   yield * generateAsyncStatic();
