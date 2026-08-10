@@ -794,6 +794,36 @@ check('formatTargets/multi', formatTargets({ ie: '11', chrome: '60' }),
   checkTruthy('debugOutput/per-file isolation', !file2.format().includes('es.array.at'));
 }
 
+// each listed module carries ITS OWN unsupported-target suffix. the two halves are unit-tested
+// above in isolation; this locks their COMPOSITION on the report line. the target set is chosen so
+// the two modules RENDER DIFFERENTLY - one unsupported by it, one supported - because under a set
+// that leaves both unsupported every module renders the same string and feeding the wrong one to
+// the lookup would be invisible
+{
+  const parsed = resolveTargets({ targets: { chrome: 60 } });
+  const collector = createDebugOutputFactory({ method: 'usage-global', parsedTargets: parsed })();
+  collector.add('es.array.at');
+  collector.add('es.array.from');
+  const lines = collector.format().split('\n');
+  function lineFor(mod) {
+    return lines.find(line => line.trimStart().startsWith(`${ mod } `) || line.trimStart() === mod);
+  }
+  checkTruthy('debugOutput/the two modules render different suffixes',
+    formatTargets(getUnsupportedTargets('es.array.at', parsed))
+      !== formatTargets(getUnsupportedTargets('es.array.from', parsed)));
+  check('debugOutput/suffix of the unsupported module',
+    lineFor('es.array.at')?.trimStart(),
+    `es.array.at ${ formatTargets(getUnsupportedTargets('es.array.at', parsed)) }`);
+  check('debugOutput/suffix of the supported module',
+    lineFor('es.array.from')?.trimStart(),
+    `es.array.from ${ formatTargets(getUnsupportedTargets('es.array.from', parsed)) }`);
+  // usage-pure prints no suffix at all - the same line, the other arm
+  const pureCollector = createDebugOutputFactory({ method: 'usage-pure', parsedTargets: parsed })();
+  pureCollector.add('es.array.at');
+  check('debugOutput/usage-pure prints the bare module',
+    pureCollector.format().split('\n').find(line => line.trimStart().startsWith('es.array.at'))?.trimStart(), 'es.array.at');
+}
+
 // empty modules + usage-global -> "did not add any polyfill"
 {
   const factory = createDebugOutputFactory({ method: 'usage-global', parsedTargets: null });

@@ -5273,6 +5273,85 @@ function checkRetransformStability() {
 }
 checkRetransformStability();
 
+// the bare-slot reclaim proves the bare prefix free before handing the allocation on. it must not
+// be probed AGAIN by the allocator it hands to - in the AST emitter that probe is a whole
+// scope-chain lookup, so a duplicate is a real per-allocation cost. counted through
+// `isNameTaken`, the single funnel every probe passes through
+function checkSingleBareProbePerAllocation() {
+  function countingInjector() {
+    const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+    const probes = [];
+    const original = inj.isNameTaken.bind(inj);
+    inj.isNameTaken = name => {
+      probes.push(name);
+      return original(name);
+    };
+    return { inj, probes };
+  }
+  // reclaim path: cache seeded past bare by an orphan, bare itself free -> exactly one bare probe
+  const reclaim = countingInjector();
+  reclaim.inj.adoptOrphanRefs(['_ref2']);
+  check('probe/reclaim returns bare', reclaim.inj.generateLocalRef(), '_ref');
+  check('probe/reclaim probes bare once', reclaim.probes.filter(name => name === '_ref').length, 1);
+  // bare taken as well: the reclaim probe fails and the allocator resumes from the cache, so bare
+  // is still asked exactly once and the answer skips past the orphan
+  const taken = countingInjector();
+  taken.inj.adoptOrphanRefs(['_ref', '_ref2']);
+  check('probe/bare-taken skips reclaim', taken.inj.generateLocalRef(), '_ref3');
+  check('probe/bare-taken probes bare once', taken.probes.filter(name => name === '_ref').length, 1);
+  // cold cache: no reclaim decision to make, the allocator's own try-bare-first is the only probe
+  const cold = countingInjector();
+  check('probe/cold cache returns bare', cold.inj.generateLocalRef(), '_ref');
+  check('probe/cold cache probes bare once', cold.probes.filter(name => name === '_ref').length, 1);
+}
+checkSingleBareProbePerAllocation();
+
+// `generateUnusedName` is a PROTOTYPE method; the cascade path patches it for the duration of one
+// plan walk and restores it in `finally`. the restored value has to be the method itself, not a
+// bound copy of it - a bound copy is an own property, so each walk would wrap the previous wrapper
+// and the chain would grow monotonically for the life of the file
+function checkUnusedNameRestoreIdentity() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  const prototypeMethod = Object.getPrototypeOf(inj).generateUnusedName
+    ?? Object.getPrototypeOf(Object.getPrototypeOf(inj)).generateUnusedName;
+  // the emitter's wrapper, spelled exactly as `withTrackedUnusedNames` does
+  function withTracked(target, fn) {
+    const orig = inj.generateUnusedName;
+    inj.generateUnusedName = () => {
+      const name = orig.call(inj);
+      target.push(name);
+      return name;
+    };
+    try {
+      return fn();
+    } finally {
+      inj.generateUnusedName = orig;
+    }
+  }
+  check('tracked-unused/prototype method exists', typeof prototypeMethod, 'function');
+  const names = [];
+  withTracked(names, () => inj.generateUnusedName());
+  check('tracked-unused/restores the prototype method', inj.generateUnusedName === prototypeMethod, true);
+  // a second walk must restore to the SAME function object - reference equality is what rules the
+  // chain out; a bound copy would differ here even though the names still come out right
+  const restoredAfterFirst = inj.generateUnusedName;
+  withTracked(names, () => inj.generateUnusedName());
+  check('tracked-unused/restore is idempotent across walks', inj.generateUnusedName === restoredAfterFirst, true);
+  // nesting still composes: the inner walk restores the OUTER wrapper, so the outer keeps tracking
+  const outer = [];
+  const inner = [];
+  withTracked(outer, () => {
+    withTracked(inner, () => inj.generateUnusedName());
+    inj.generateUnusedName();
+  });
+  check('tracked-unused/inner walk collects its own name', inner.length, 1);
+  check('tracked-unused/outer walk sees both names', outer.length, 2);
+  check('tracked-unused/prototype method restored after nesting', inj.generateUnusedName === prototypeMethod, true);
+  // and the names themselves stay unique and well-formed through all of it
+  check('tracked-unused/names are distinct', new Set([...names, ...outer]).size, names.length + outer.length);
+}
+checkUnusedNameRestoreIdentity();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');

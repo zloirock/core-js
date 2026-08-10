@@ -216,6 +216,38 @@ export function synthInterfaceExtendsRef(parent) {
   return { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
 }
 
+// content-free type nodes: every instance is interchangeable, so they are shared frozen singletons
+// rather than allocated per call. two reasons beyond the allocation - a fresh node is a fresh KEY for
+// the identity-keyed member memo (the same instability `internedTypeRef` below exists for), and the
+// substitution builder used to mint one per inner type-param name. frozen so a consumer that tried to
+// mutate one fails loudly at the write instead of poisoning every other holder
+export const TS_UNKNOWN_TYPE = Object.freeze({ type: 'TSUnknownKeyword' });
+export const TS_NUMBER_TYPE = Object.freeze({ type: 'TSNumberKeyword' });
+
+// a synthesized TSTypeReference handed to an identity-keyed memo (`getTypeMembers`, whose cache is
+// `WeakMap<objectType, WeakMap<scope, members>>`) must be ONE node per (typeName, type-args): the
+// factory invariant keys those caches on node identity, which silently assumes the key node came
+// from the PARSE. a literal rebuilt per call can never hit the memo, so every ask re-walks the super
+// chain, re-merges every interface and re-clones every member. interned on the typeName node - which
+// IS a parse node - so the table lives and dies with the AST
+const internedTypeRefs = new WeakMap();
+
+export function internedTypeRef(typeName, params = null) {
+  if (!typeName) return null;
+  let refs = internedTypeRefs.get(typeName);
+  if (!refs) internedTypeRefs.set(typeName, refs = []);
+  // type-args are matched by identity too: a caller that rebuilds the array simply misses the
+  // intern table instead of answering for the wrong instantiation
+  for (const entry of refs) if (entry.params === params) return entry.ref;
+  const ref = {
+    type: 'TSTypeReference',
+    typeName,
+    typeParameters: params ? { type: 'TSTypeParameterInstantiation', params } : undefined,
+  };
+  refs.push({ params, ref });
+  return ref;
+}
+
 // peel transparent paren wrappers from a TYPE annotation. oxc preserves `(T)` shape as
 // `TSParenthesizedType` AST node (babel parser drops it during parsing). callers that
 // pattern-match on the inner type's discriminator (`TSUnionType`, `TSIntersectionType`,

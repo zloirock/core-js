@@ -58,15 +58,29 @@ export function lookupEntryModules(pattern) {
   return null;
 }
 
+// `import.meta.resolve` is a pure function of the specifier for the whole process life (the
+// resolver reads the on-disk package layout, which a build does not mutate), yet it was hit once
+// per emitted import per file. cached by specifier - the key space is the polyfill entry set.
+// module-level rather than per-plugin-instance, unlike the adapters: the resolution is anchored at
+// THIS module's own URL, so it is identical for every instance in the process, and `pkg` is part of
+// the key so a monorepo alias cannot collide with the main package. bundler workers get their own
+// module instance, so there is no shared-state race to speak of either
+const absoluteImportCache = new Map();
+
 export function resolveImportPath(pkg, subpath, absoluteImports) {
   const source = `${ pkg }/${ subpath }`;
   if (!absoluteImports) return source;
+  const cached = absoluteImportCache.get(source);
+  if (cached !== undefined) return cached;
+  let result;
   try {
     const resolved = import.meta.resolve(source);
-    return resolved.startsWith('file:') ? fileURLToPath(resolved).replaceAll('\\', '/') : resolved;
+    result = resolved.startsWith('file:') ? fileURLToPath(resolved).replaceAll('\\', '/') : resolved;
   } catch {
-    return source;
+    result = source;
   }
+  absoluteImportCache.set(source, result);
+  return result;
 }
 
 // skip core-js internals, root entry re-exports, and bundles - polyfilling them creates

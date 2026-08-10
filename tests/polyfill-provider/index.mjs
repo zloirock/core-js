@@ -9,6 +9,9 @@ import './helpers.mjs';
 import './plugin-options.mjs';
 import './resolver.mjs';
 import './cross-parser-equivalence.mjs';
+// the resolver's per-parse caches, checked by key COMPLETENESS: two hosts per file whose correct
+// answers differ, so a key that lost a dimension collapses both reads onto one helper
+import './resolver-cache-keys.mjs';
 // the escape-analysis suites: they lock PROVIDER semantics - which positions reach a value, which
 // bodies can run with a receiver - and read the verdict through both emitters, since the emitted
 // helper family is where that answer becomes observable
