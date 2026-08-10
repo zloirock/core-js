@@ -31,7 +31,7 @@
 // Pure predicates (`isTypeAlias`, `typeAliasBody`, `typeRefName`) come from `ast-shapes`;
 // imported directly because they're closure-free
 import { MAX_DEPTH, MEMBER_ANNOTATION_SLOTS } from './base.js';
-import { isTypeAlias, isTypeReferenceNode, typeAliasBody, typeRefName } from './ast-shapes.js';
+import { isTypeAlias, isTypeReferenceNode, typeAliasBody, typeRefName, TS_UNKNOWN_TYPE } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeSubst({
@@ -384,7 +384,7 @@ export function createTypeSubst({
     if (!innerNames?.length) return subst;
     // `new Map(null)` yields an empty map, so this handles both a null outer subst and a Map
     const out = new Map(subst);
-    for (const name of innerNames) out.set(name, { type: 'TSUnknownKeyword' });
+    for (const name of innerNames) out.set(name, TS_UNKNOWN_TYPE);
     return out;
   }
 
