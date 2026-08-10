@@ -18,11 +18,11 @@
 //   findObjectMember(objectPath, name)
 //   resolveObjectMember(objectPath, name, callPath)
 //   applySubstToTypeRefArgs(typeRef, subst)
-import { $Object, MAX_DEPTH, nodePathInScope } from './base.js';
+import { $Object, MAX_DEPTH } from './base.js';
 import { internedTypeRef, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
 
-const NAMESPACE_FN_PATH_TYPES = ['FunctionDeclaration', 'TSDeclareFunction'];
+const NAMESPACE_FN_PATH_TYPES = new Set(['FunctionDeclaration', 'TSDeclareFunction']);
 
 export function createClassObjectMember({
   t,
@@ -267,8 +267,14 @@ export function createClassObjectMember({
         // parent walk: parent's same-name export has a different return type, and
         // returning its annotation would emit the wrong polyfill family for the runtime
         // value of the child override
-        const fnPath = nodePathInScope(found.node, found.scope, NAMESPACE_FN_PATH_TYPES);
-        return fnPath ? resolveReturnType(fnPath, callPath, null) : null;
+        // a TYPE filter, spelled as one: `found` is already the NodePath, so asking
+        // `nodePathInScope` to recover it hid a whole-program traversal behind that helper's
+        // hits-only cache - and this sits inside the super-chain loop.
+        // the filter is this lane's stated contract, not a behaviour gate: probed over the
+        // namespace-class forms (called / `new` / read / interface call-signature) it changes no
+        // answer, because `resolveReturnType` declines a class leaf on its own today. it stays so
+        // the accepted kinds are named here rather than resting on that coincidence
+        return NAMESPACE_FN_PATH_TYPES.has(found.node.type) ? resolveReturnType(found, callPath, null) : null;
       }
       const seen = visited ?? new Set();
       if (seen.has(classPath.node)) return null;

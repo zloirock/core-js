@@ -50,6 +50,7 @@ import {
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
+// eslint-disable-next-line max-statements -- factory of the escape / closure analysis
 export function createClosureAnalysis({
   callArgumentEscapes,
   ownerMethodFns,
@@ -861,18 +862,26 @@ export function createClosureAnalysis({
   // the node. reading every hop against the subclass's fixed scope would let an inner shadow of an
   // ancestor's name answer for the real ancestor, and whatever is collected off the wrong class is
   // silently missing. the walk stops at the first hop it cannot resolve or at a cycle
+  // the only class-level derivation in this file that had no cache, while sitting on the per-entry
+  // hot path of the holder-shape scan: each hop pays an alias-chain walk plus two binding lookups,
+  // and the same class is asked once per owner and again per hierarchy query. keyed on the class
+  // node in the same row as its neighbours, and dropped by the same `reset()` - the `extends`
+  // clause of a USER class is not rewritten by either emitter, so it is stable for the file
+  let classAncestorPathsCache = new WeakMap();
   function classAncestorPaths(classPath) {
-    const out = [];
-    const seen = new Set([classPath.node]);
-    for (let cur = { node: classPath.node, scope: classPath.scope }; cur.node?.superClass;) {
-      const superCanon = extendsClauseCanonical(cur.node.superClass, cur.scope);
-      const superDecl = superCanon ? classDeclFromBindingName(superCanon.name, superCanon.scope) : null;
-      if (!superDecl || seen.has(superDecl.node)) break;
-      seen.add(superDecl.node);
-      out.push(superDecl);
-      cur = superDecl;
-    }
-    return out;
+    return memoize(classAncestorPathsCache, classPath.node, () => {
+      const out = [];
+      const seen = new Set([classPath.node]);
+      for (let cur = { node: classPath.node, scope: classPath.scope }; cur.node?.superClass;) {
+        const superCanon = extendsClauseCanonical(cur.node.superClass, cur.scope);
+        const superDecl = superCanon ? classDeclFromBindingName(superCanon.name, superCanon.scope) : null;
+        if (!superDecl || seen.has(superDecl.node)) break;
+        seen.add(superDecl.node);
+        out.push(superDecl);
+        cur = superDecl;
+      }
+      return out;
+    });
   }
 
   // class binding closure: the class identifier itself (`C`) and all `const A = C` aliases.
@@ -898,8 +907,10 @@ export function createClosureAnalysis({
       // a HELD `super.<staticMethod>` read in an own STATIC member extracts an ancestor's static with
       // a rebindable `this` and no ancestor-binding reference to classify - scan directly. the set it
       // matches against is the ANCESTORS' alone, so it asks the shape of the chain WITHOUT this class
+      // the ancestors are the hierarchy minus this class - `hierarchy` is built as
+      // `[classPath, ...ancestors]` one line above, so slicing it re-asks nothing
       const ancestorStatics = holderShapeInfo({
-        paths: classAncestorPaths(classPath), statics: true, anchorPath: classPath,
+        paths: hierarchy.slice(1), statics: true, anchorPath: classPath,
       }).info;
       if (ancestorStatics && classBodyHoldsSuperMethod(classPath.node, { staticInfo: ancestorStatics })) {
         return null;
@@ -1134,6 +1145,7 @@ export function createClosureAnalysis({
     classBindingClosureCache = new WeakMap();
     classConstructorNamesCache = new WeakMap();
     classDescendantPathsCache = new WeakMap();
+    classAncestorPathsCache = new WeakMap();
     programClosureIndexCache = new WeakMap();
   }
 
