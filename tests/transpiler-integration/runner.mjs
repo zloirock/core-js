@@ -1,8 +1,8 @@
 import { deepEqual } from 'node:assert/strict';
-import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
+import { makeBundlers, withTmpDir } from './bundlers.mjs';
 
-const { mkdtemp, readFile, rm, writeFile } = fs;
+const { readFile, writeFile } = fs;
 const { dirname, join, resolve } = path;
 
 const testDir = import.meta.dirname;
@@ -40,15 +40,6 @@ const expected = {
 };
 
 // --- helpers ---
-
-async function withTmpDir(fn) {
-  const dir = await mkdtemp(join(os.tmpdir(), 'transpiler-test-'));
-  try {
-    return await fn(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
 
 // node verifier: import bundle, extract results, compare against expected
 async function verifyInNode(code, label, ext = '.mjs') {
@@ -145,48 +136,10 @@ async function verifyInBun(code, label, method) {
   });
 }
 
-async function esbuildBundle(stdinOrEntry) {
-  const { build } = await import('esbuild');
-  const result = await build({
-    ...stdinOrEntry,
-    bundle: true,
-    write: false,
-    format: 'cjs',
-    platform: 'node',
-  });
-  return { code: result.outputFiles[0].text, ext: '.cjs' };
-}
-
-async function webpackLikeBundle(compiler, input, plugin, extra = {}) {
-  return withTmpDir(async dir => {
-    const filename = 'out.mjs';
-    const plugins = [...extra.siblings ?? [], plugin];
-    // the dynamic-import leg must stay a single node-loadable file - fold async chunks back in
-    if (extra.inlineDynamic) plugins.push(new compiler.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
-    const instance = compiler({
-      mode: 'production',
-      devtool: false,
-      entry: input,
-      output: { path: dir, filename, module: true, library: { type: 'module' } },
-      experiments: { outputModule: true },
-      optimization: { minimize: false },
-      plugins,
-    });
-    try {
-      const stats = await promisify(instance.run.bind(instance))();
-      if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
-    } finally {
-      await promisify(instance.close.bind(instance))();
-    }
-    return { code: await readFile(join(dir, filename), 'utf8') };
-  });
-}
-
 // --- builders ---
 // each returns { code, ext?, verifier? }. verifier defaults to verifyInNode.
 
 const unplugin = await import('@core-js/unplugin');
-function pluginFor(name) { return (...args) => unplugin[name](...args); }
 
 // sibling plugin for the pre+post contract legs: registered WITHOUT enforce (the "normal"
 // slot our pre/post stages must straddle), it mangles the phases-input's mutation spelling
@@ -220,8 +173,19 @@ const siblingMangler = createUnplugin(() => ({
   },
 }));
 
+// the shared adapters, configured for this suite: its output is loaded back as CommonJS, and the
+// rollup and vite legs assert the shape of the sourcemap they produce
+const bundlers = makeBundlers({ root: testDir, esbuildFormat: 'cjs', sourcemap: true });
+
+// every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
+// sibling the leg registers beside it - so the matrix is derived rather than spelled out
+const throughUnplugin = Object.fromEntries(Object.keys(bundlers).map(name => [name, (input, method, phase, extra = {}) => {
+  const plugins = [...extra.siblings ?? [], unplugin[name](pluginOpts(method, phase))];
+  return bundlers[name](input, plugins, extra);
+}]));
+
 const builders = {
-  // babel-plugin has no `phase` option — receives base opts regardless
+  // babel-plugin has no `phase` option - receives base opts regardless
   async babel(input, method) {
     const { transformAsync } = await import('@babel/core');
     const source = await readFile(input, 'utf8');
@@ -229,148 +193,10 @@ const builders = {
       filename: input,
       plugins: [['@core-js', pluginOpts(method)]],
     });
-    return esbuildBundle({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
+    return bundlers.esbuild({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
   },
 
-  async esbuild(input, method, phase, extra = {}) {
-    return esbuildBundle({
-      entryPoints: [input],
-      plugins: [...extra.siblings ?? [], pluginFor('esbuild')(pluginOpts(method, phase))],
-    });
-  },
-
-  async rollup(input, method, phase, extra = {}) {
-    const { rollup } = await import('rollup');
-    const nodeResolve = (await import('@rollup/plugin-node-resolve')).default;
-    const commonjs = (await import('@rollup/plugin-commonjs')).default;
-    const bundle = await rollup({
-      input,
-      plugins: [...extra.siblings ?? [], pluginFor('rollup')(pluginOpts(method, phase)), nodeResolve(), commonjs()],
-    });
-    const { output } = await bundle.generate({
-      format: 'es', sourcemap: true, inlineDynamicImports: !!extra.inlineDynamic,
-    });
-    return { code: output[0].code, map: output[0].map };
-  },
-
-  async vite(input, method, phase, extra = {}) {
-    const { build } = await import('vite');
-    const result = await build({
-      root: testDir,
-      logLevel: 'silent',
-      build: {
-        write: false,
-        sourcemap: true,
-        lib: { entry: input, formats: ['es'] },
-        minify: false,
-        commonjsOptions: { include: [/core-js/] },
-        // vite bundles with rolldown, so the output option follows rolldown's spelling
-        rollupOptions: extra.inlineDynamic ? { output: { codeSplitting: false } } : {},
-      },
-      resolve: { dedupe: ['core-js'] },
-      plugins: [...extra.siblings ?? [], pluginFor('vite')(pluginOpts(method, phase))],
-    });
-    const [{ output }] = Array.isArray(result) ? result : [result];
-    return { code: output[0].code, map: output[0].map };
-  },
-
-  async webpack(input, method, phase, extra = {}) {
-    const wp = (await import('webpack')).default;
-    return webpackLikeBundle(wp, input, pluginFor('webpack')(pluginOpts(method, phase)), extra);
-  },
-
-  async rspack(input, method, phase, extra = {}) {
-    const { rspack } = await import('@rspack/core');
-    return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method, phase)), extra);
-  },
-
-  // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's
-  // rsbuild adapter. environments-based config keeps the output a single node-loadable file
-  async rsbuild(input, method, phase, extra = {}) {
-    const { createRsbuild } = await import('@rsbuild/core');
-    return withTmpDir(async dir => {
-      const rsbuild = await createRsbuild({
-        cwd: testDir,
-        rsbuildConfig: {
-          mode: 'production',
-          logLevel: 'error',
-          source: { entry: { index: input } },
-          plugins: [...extra.siblings ?? [], pluginFor('rsbuild')(pluginOpts(method, phase))],
-          output: {
-            target: 'node',
-            distPath: { root: dir },
-            filenameHash: false,
-            minify: false,
-            sourceMap: false,
-          },
-          performance: { chunkSplit: { strategy: 'all-in-one' } },
-          tools: {
-            rspack: async config => {
-              config.output = { ...config.output, module: true, library: { type: 'module' } };
-              config.experiments = { ...config.experiments, outputModule: true };
-              // the dynamic-import leg must stay a single node-loadable file
-              if (extra.inlineDynamic) {
-                const { rspack } = await import('@rspack/core');
-                config.plugins.push(new rspack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }));
-              }
-              return config;
-            },
-          },
-        },
-      });
-      await rsbuild.build();
-      return { code: await readFile(join(dir, 'index.js'), 'utf8') };
-    });
-  },
-
-  async rolldown(input, method, phase, extra = {}) {
-    const { build } = await import('rolldown');
-    return withTmpDir(async dir => {
-      const file = join(dir, 'out.mjs');
-      await build({
-        input,
-        platform: 'node',
-        treeshake: false,
-        plugins: [...extra.siblings ?? [], pluginFor('rolldown')(pluginOpts(method, phase))],
-        output: {
-          format: 'esm', file, externalLiveBindings: false, keepNames: true,
-          // rolldown spells single-chunk output as `codeSplitting: false` and deprecated
-          // `inlineDynamicImports`, which warns whenever the key is PRESENT - even set to `false`
-          ...extra.inlineDynamic ? { codeSplitting: false } : {},
-        },
-      });
-      return { code: await readFile(file, 'utf8') };
-    });
-  },
-
-  async farm(input, method, phase, extra = {}) {
-    const { build, Logger } = await import('@farmfe/core');
-    // Logger level: 'error' doesn't silence "Build completed" — override info methods directly
-    function noop() { /* empty */ }
-    const silent = Object.assign(new Logger({ level: 'error' }), {
-      info: noop, warn: noop, debug: noop, trace: noop, infoOnce: noop, warnOnce: noop, logMessage: noop,
-    });
-    return withTmpDir(async dir => {
-      await build({
-        root: testDir,
-        logger: silent,
-        plugins: [...extra.siblings ?? [], pluginFor('farm')(pluginOpts(method, phase))],
-        compilation: {
-          input: { index: input },
-          output: { path: dir, targetEnv: 'node', format: 'cjs' },
-          minify: false,
-          sourcemap: false,
-          lazyCompilation: false,
-          persistentCache: false,
-          // force single-file output — otherwise farm splits into __farm_runtime.js + chunks
-          partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] },
-        },
-        server: { hmr: false },
-      });
-      // farm emits .js but test dir has `"type": "module"` — force CJS via .cjs extension
-      return { code: await readFile(join(dir, 'index.js'), 'utf8'), ext: '.cjs' };
-    });
-  },
+  ...throughUnplugin,
 
   // build in bun (Bun.build API only available in bun runtime, so spawn bun),
   // then verify in bun (output mixes CJS/ESM and can't be loaded by node)

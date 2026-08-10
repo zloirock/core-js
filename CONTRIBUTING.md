@@ -186,13 +186,13 @@ You can run parts of the test case separately:
   npm run test-transpiler-integration   # every supported bundler across methods and phases, runtime-verified
   npm run test-transpiler-perf          # complexity-class gates over real packages and synthetic worst-case shapes
   ```
-- Real-library end-to-end suite — both polyfill providers (`@core-js/babel-plugin` and `@core-js/unplugin`) + Babel down-compile to IE11 across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). babel-plugin has no phase axis, so its injected set is the reference and each unplugin phase is snapshotted as a delta against it. It's not included to the default tests: it pulls those libraries and seven bundlers, and a full pass takes minutes:
+- Real-library end-to-end suite — both polyfill providers (`@core-js/babel-plugin` and `@core-js/unplugin`) + Babel down-compile to IE11 across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). babel-plugin has no phase axis, so its injected set is the reference and each unplugin phase is snapshotted as a delta against it. The asserting part runs in the default tests; the real-IE11 leg needs IE11 and so happens in CI:
   ```sh
   npm run e2e-libs                      # the asserting runners: check-exercise -> runtime
   npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)
   npm run e2e-libs-runtime              # one build per (lib x method x phase) cell: gates, injection snapshot,
                                         # node pre-flight, ES5 UMD + self-checking HTML, real IE11 via Karma
-                                        # (-- --update to rewrite the injection snapshot baselines)
+                                        # (OVERWRITE=1 rewrites the injection snapshot baselines)
   npm run e2e-libs-pipeline             # size/time per build stage -> tests/e2e-libs/report/pipeline.md (report only)
   npm run e2e-libs-throughput           # polyfilled-build cost across the bundlers -> report/throughput.md (report only)
   ```
