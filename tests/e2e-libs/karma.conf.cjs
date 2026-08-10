@@ -7,10 +7,11 @@
 // co-loaded) - see AGENTS.md.
 //
 // QUnit is the same karma-qunit@4 / qunit@2 stack the unit-karma job already runs green in IE11.
-// The bundles come in via `-f=` (absolute paths, comma-separated): each is a self-contained UMD from
-// runtimeBuild with a QUnit driver appended (see runtime.mjs / harness.mjs).
-const { sync: which } = require('which');
-
+// The bundles come in via `-f=` (paths relative to this directory, comma-separated): each is a
+// self-contained UMD from runtimeBuild with a QUnit driver appended (see runtime.mjs / harness.mjs).
+//
+// IE is the only launcher, and it is unconditional: runtime.mjs starts Karma only where IE11 exists,
+// so a second check here would run in a process with none of its state and could only disagree.
 const customLaunchers = {
   IE_NFM: {
     base: 'IE',
@@ -19,18 +20,13 @@ const customLaunchers = {
   },
 };
 
-// IE only, and only where it exists: on the windows CI runner (CI set) or a dev box with iexplore.
-// runtime.mjs makes the same check before starting Karma, so this list is never empty here.
-const browsers = [];
-if (process.env.CI || which('iexplore.exe', { nothrow: true })) browsers.push('IE_NFM');
-
 module.exports = config => config.set({
   plugins: ['karma-*'],
   files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
   frameworks: ['qunit'],
   basePath: '.',
   customLaunchers,
-  browsers,
+  browsers: ['IE_NFM'],
   // a green QUnit run is otherwise near-silent (just "Executed N of N"). Forward each bundle's
   // console.log - the "[e2e-libs] <lib>/<method>/<phase>: N/N checks passed in this IE11" line the
   // driver prints - to the CI terminal, so the log states what actually ran, not just bundle counts.
