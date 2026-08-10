@@ -52,7 +52,7 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   descendToChainRoot, isAliasProxyHopChain, navHasUnresolvableProxyHop, peelChainAssignment,
-  resolveKey as sharedResolveKey, undefinableOptionalGuard,
+  peelReceiverSequenceTail, resolveKey as sharedResolveKey, resolveObjectName, undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   harvestDiscardedReceiverSE, isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, shouldDropRescueReceiver,
@@ -1113,6 +1113,21 @@ export default function createPlugin(options) {
           }
         }
 
+        // does any member of this chain read a ponyfillable ctor static (`Number.MAX_SAFE_INTEGER`)?
+        // such a member is claimed as a whole-span replacement, so no receiver text survives under it.
+        // the pair is read through the two resolvers the claim itself uses rather than a private
+        // spelling, so the gate and the claim cannot answer differently as either side grows
+        function chainCarriesCtorStatic(node, ctx) {
+          for (let cur = node; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression'; cur = cur.object) {
+            const key = cur.computed
+              ? sharedResolveKey({ node: peelReceiverSequenceTail(cur.property), computed: true, ...ctx })
+              : cur.property?.type === 'Identifier' ? cur.property.name : null;
+            const objectName = key && resolveObjectName({ objectNode: cur.object, ...ctx });
+            if (objectName && resolveStaticPolyfill(objectName, key)) return true;
+          }
+          return false;
+        }
+
         // collapse the proxy hop of an ALIAS-rooted chain whose leaf is NON-polyfilled (`const g =
         // globalThis; new g.self.Array(3)` / `g['self'].Array.isArray(...)`): no leaf usage and no
         // `kind:'global'` trigger reaches the alias root, so the redundant `.self` / `.window` hop survives
@@ -1134,6 +1149,11 @@ export default function createPlugin(options) {
           // re-emitted verbatim and still needs this drive
           if (navHasUnresolvableProxyHop(peelChainAssignment(descendToChainRoot(node).root).value,
             resolvePureUnfiltered)) return;
+          // the same precondition, violated a second way: a ctor STATIC further down the chain
+          // (`g.self.Number.MAX_SAFE_INTEGER`) carries its own claim, and that claim ERASES the
+          // receiver instead of re-emitting it. the collapse queued below would then compose
+          // against text the claim deleted, and the build aborts
+          if (chainCarriesCtorStatic(node, aliasCtx)) return;
           let rootPath = metaPath;
           while (rootPath.node.type === 'MemberExpression' || rootPath.node.type === 'OptionalMemberExpression') {
             rootPath = rootPath.get('object');
@@ -1468,6 +1488,15 @@ export default function createPlugin(options) {
             for (const se of navSe) walkAstNodes({ root: se, visit: n => keep.add(n) });
             walkAstNodes({ root: init, visit: n => { if (!keep.has(n)) skippedNodes.add(n); } });
             return;
+          }
+          // the same rule one level down: a sequence prefix can sit UNDER the member spine
+          // (`({ p: Promise }, globalThis).self.Array`), where the top-level peel never reaches it.
+          // the collapse drops an effect-free operand there exactly like a top-level one, and its
+          // dead payload otherwise keeps a rewrite with no slot left to compose into
+          for (let hop = tail; hop?.object; hop = unwrapRuntimeExpr(hop.object)) {
+            for (const buried of peelNestedSequenceExpressions(unwrapRuntimeExpr(hop.object)).prefix) {
+              if (!mayHaveSideEffects(buried)) walkAstNodes({ root: buried, visit: n => skippedNodes.add(n) });
+            }
           }
           for (const operand of prefix) {
             if (!mayHaveSideEffects(operand)) walkAstNodes({ root: operand, visit: n => skippedNodes.add(n) });
