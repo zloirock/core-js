@@ -1,15 +1,15 @@
 // Pipeline stats: size AND time at every stage of the real IE11 build, per (lib x method).
 // Rollup + Babel (syntax down-compile) + unplugin (polyfills). Stages:
-//   [A] library bundled, NO transforms      — modern syntax, tree-shaken (the library alone; for a
-//                                             TS-source library, types erased and nothing else — see
+//   [A] library bundled, NO transforms      - modern syntax, tree-shaken (the library alone; for a
+//                                             TS-source library, types erased and nothing else - see
 //                                             makeTsStripPlugin in build.mjs)
-//   [B] + Babel -> ES5                       — syntax down-compiled, NO polyfills
-//   [C] + unplugin                           — + core-js polyfills = the real IE11 bundle
+//   [B] + Babel -> ES5                       - syntax down-compiled, NO polyfills
+//   [C] + unplugin                           - + core-js polyfills = the real IE11 bundle
 // For usage-* all three stages are measured; for entry-global only [C] (`import 'core-js'` without
 // the plugin is pathological). Also captured: injection count, the Babel-vs-unplugin time split of
 // [C], and the minified + gzip "wire size" of [C] (what you'd actually ship).
 //
-// Usage:  node pipeline.mjs [libFilter] [methodFilter]   ->  report/pipeline.md + report/pipeline.json
+// Usage:  npm run e2e-libs-pipeline [-- libFilter methodFilter]  ->  report/pipeline.{md,json}
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
@@ -17,13 +17,13 @@ import {
   makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder,
   assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, HERE,
 } from './build.mjs';
-import { runnerArgs } from './args.mjs';
 import { librariesIn } from './libraries.mjs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
-const [libFilter, methodFilter, ...surplus] = runnerArgs(import.meta.url);
-if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } — pipeline.mjs takes [libFilter] [methodFilter]`);
+const { mkdir, writeFile } = fs;
+const { join } = path;
+
+const [libFilter, methodFilter, ...surplus] = argv._;
+if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - pipeline.mjs takes [libFilter] [methodFilter]`);
 const libs = librariesIn('runtime', libFilter);
 if (methodFilter && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
 
@@ -118,8 +118,8 @@ async function measure(lib, method) {
 
     // [C]: Babel + unplugin, instrumented for the babel-vs-unplugin split. Injections are recorded
     // INSIDE this build: a separate captureInjections pass runs unplugin without Babel, and the post
-    // phase consumes Babel's helper output, so that pass undercounts by up to 16 specifiers here
-    // (three/usage-global: 159 captured vs 175 actually injected).
+    // phase consumes Babel's helper output, so that pass undercounts whatever Babel's own helpers
+    // reach for.
     let babelMs = 0;
     let unpluginMs = 0;
     const sink = new Set();
@@ -129,9 +129,8 @@ async function measure(lib, method) {
     cell.injections = sink.size;
     // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
     assertPayload(c.chunk, cellC);
-    // runtime.mjs refuses this shape for EVERY method, so this must too - an
-    // entry-global carve-out would be both weaker than they are and pointless, since entry-global
-    // records 318 injections here.
+    // runtime.mjs refuses this shape for EVERY method, so this must too - an entry-global carve-out
+    // would be both weaker than it is there and pointless, since entry-global injects the most of all.
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
     // [B] == [A] with babelMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
     // premise directly instead of inferring it from the numbers
@@ -148,24 +147,24 @@ async function measure(lib, method) {
 // Warm the toolchain before anything is measured: the first build in the process pays the one-off
 // cost of rollup + @babel/core + preset-env + unplugin, and that landed entirely on whichever cell
 // happened to run first, making the cross-lib [C] column incomparable.
-process.stdout.write('warming the toolchain … ');
+process.stdout.write('warming the toolchain ... ');
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
   entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
-console.log('done');
+echo('done');
 
 const rows = [];
 for (const lib of libs) {
   for (const method of METHODS) {
     if (methodFilter && method !== methodFilter) continue;
-    process.stdout.write(`measuring ${ lib.name }/${ method } … `);
+    process.stdout.write(`measuring ${ lib.name }/${ method } ... `);
     rows.push(await measure(lib, method));
-    console.log('done');
+    echo('done');
   }
 }
 // belt and braces: `libs` is non-empty (librariesIn throws otherwise) and `methodFilter` is validated
 // against METHODS above, so this cannot fire today. It stays so that a future per-library method
-// subset — the registry carried one until 58b4010291 — cannot write a green empty report.
-if (!rows.length) throw new Error(`no (library × method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
+// subset cannot write a green empty report.
+if (!rows.length) throw new Error(`no (library x method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
 // -------- report --------
 function kb(b) {
@@ -175,18 +174,18 @@ function kb(b) {
 // method filter in particular just makes sections vanish. throughput.mjs marks its sibling report the
 // same way.
 const scope = libFilter || methodFilter
-  ? `Filtered run (${ libFilter ?? '*' } × ${ methodFilter ?? '*' }): ${ rows.length } cell(s)`
+  ? `Filtered run (${ libFilter ?? '*' } x ${ methodFilter ?? '*' }): ${ rows.length } cell(s)`
   : `Full matrix: ${ rows.length } cell(s)`;
 let md = '# Pipeline: size and time per stage\n\n'
   + `${ scope }. `
   + 'Rollup + Babel (syntax down-compile) + unplugin, single run. '
   + 'Stages: **[A]** library with no down-compile '
   + '(modern, tree-shaken; a TypeScript-source library has its types erased here and nothing else, '
-  + 'since rollup cannot parse `.ts` at all — erasure is not a down-compile, so the whole cost of the '
-  + 'ES5 lowering is still in the [A] → [B] delta) → **[B]** + Babel (ES5, no polyfills) → '
+  + 'since rollup cannot parse `.ts` at all - erasure is not a down-compile, so the whole cost of the '
+  + 'ES5 lowering is still in the [A] -> [B] delta) -> **[B]** + Babel (ES5, no polyfills) -> '
   + '**[C]** + unplugin (polyfills = the real IE11 bundle). For `entry-global`, only [C]. '
-  + '**[A] and [B] depend on the library only** — neither carries unplugin, and the entry is identical '
-  + 'for both usage-* methods — so they are measured ONCE per library and the two usage-* rows show '
+  + '**[A] and [B] depend on the library only** - neither carries unplugin, and the entry is identical '
+  + 'for both usage-* methods - so they are measured ONCE per library and the two usage-* rows show '
   + 'the same build. Identical [A]/[B] figures across those two rows are one measurement printed '
   + 'twice, not two that agree. Only [C] is per cell.\n\n';
 for (const lib of libs) {
@@ -194,16 +193,16 @@ for (const lib of libs) {
   if (!cells.length) continue;
   md += `## ${ lib.name }\n\n`;
   for (const c of cells) {
-    md += `### ${ c.method } — injections: ${ c.injections }\n\n`;
+    md += `### ${ c.method } - injections: ${ c.injections }\n\n`;
     md += '| stage | size (raw) | time |\n| --- | --- | --- |\n';
     if (c.A) {
-      md += `| source loaded (pre-tree-shaking${ c.ts ? ', TypeScript' : '' }) | ${ kb(c.src) } | — |\n`;
+      md += `| source loaded (pre-tree-shaking${ c.ts ? ', TypeScript' : '' }) | ${ kb(c.src) } | - |\n`;
       md += `| [A] ${ c.ts ? 'types erased' : 'no transforms' } (modern) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
       md += `| [B] + Babel (ES5, no polyfills) | ${ kb(c.B.bytes) } | ${ c.B.ms } ms |\n`;
     }
     md += `| [C] + unplugin (IE11) | ${ kb(c.C.bytes) } | ${ c.C.ms } ms (Babel ${ c.C.babelMs } / unplugin ${ c.C.unpluginMs }) |\n\n`;
-    md += `**Wire size of [C]:** minified ${ kb(c.C.min) } · gzip **${ kb(c.C.gz) }**`;
-    if (c.A) md += ` — Δ size: Babel ${ (c.B.bytes >= c.A.bytes ? '+' : '') + kb(c.B.bytes - c.A.bytes) } / polyfills +${ kb(c.C.bytes - c.B.bytes) }`;
+    md += `**Wire size of [C]:** minified ${ kb(c.C.min) } / gzip **${ kb(c.C.gz) }**`;
+    if (c.A) md += ` - size delta: Babel ${ (c.B.bytes >= c.A.bytes ? '+' : '') + kb(c.B.bytes - c.A.bytes) } / polyfills +${ kb(c.C.bytes - c.B.bytes) }`;
     md += '\n\n';
   }
 }
@@ -211,4 +210,4 @@ const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
 await writeFile(join(REPORT, 'pipeline.md'), md);
 await writeFile(join(REPORT, 'pipeline.json'), `${ JSON.stringify({ scope, rows }, null, 2) }\n`);
-console.log(`\nreport → ${ join(REPORT, 'pipeline.md') }`);
+echo(`\nreport -> ${ join(REPORT, 'pipeline.md') }`);

@@ -4,18 +4,19 @@
 //   - throughputBuilders: one per bundler, returns { bytes }, does NOT execute (measures processing)
 //   - runtimeBuild: rollup + Babel (syntax->ES5, the suite's own Babel 7) + unplugin (post for usage-*,
 //     pre for entry-global) (stdlib), UMD
-//   - captureInjections: which core-js/@core-js/pure specifiers unplugin emits — via rollup ONLY,
+//   - captureInjections: which core-js/@core-js/pure specifiers unplugin emits - via rollup ONLY,
 //     so a runner must not read it as what some other bundler emitted
 //   - reporting helpers shared by the runners: wireSize (minify+gzip), errorReason (one-line)
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import unplugin from '@core-js/unplugin';
-import { build as esbuildBuild, transform as esbuildTransform } from 'esbuild';
+import { transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
+import { makeBundlers } from '../transpiler-integration/bundlers.mjs';
 import { createRequire } from 'node:module';
 import { existsSync, statSync } from 'node:fs';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
@@ -65,135 +66,26 @@ export async function withEntry(exerciseAbs, method, label, fn) {
   }
 }
 
-async function withTmpOut(fn) {
-  await mkdir(TMP, { recursive: true });
-  const dir = join(TMP, `out-${ process.pid }-${ process.hrtime.bigint() }`);
-  await mkdir(dir, { recursive: true });
-  try {
-    return await fn(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
+// -------- throughput builders --------
+// The adapters themselves are shared with `tests/transpiler-integration`, which is where the
+// bundlers are pinned; an empty plugin list is the baseline, the plain library bundle with no
+// injection. A corpus of real packages needs the whole of node_modules through vite's CommonJS
+// interop, and rollup's warnings about third-party code are not ours to fix.
+export const throughputBuilders = makeBundlers({
+  root: HERE,
+  commonjsInclude: [/core-js/, /node_modules/],
+  quiet: true,
+});
 
-// -------- throughput builders: (entry, plugin|null) -> { bytes } --------
-// plugin === null is the baseline (pure library bundle, no injection).
-export const throughputBuilders = {
-  async rollup(entry, plugin) {
-    const build = await rollup({ input: entry, plugins: [plugin, nodeResolve(), commonjs()].filter(Boolean), onwarn() { /* ignore bundler warnings */ } });
-    try {
-      const { output } = await build.generate({ format: 'es' });
-      return { bytes: Buffer.byteLength(output[0].code) };
-    } finally {
-      await build.close();
-    }
-  },
-  async rolldown(entry, plugin) {
-    const { build } = await import('rolldown');
-    return withTmpOut(async dir => {
-      const file = join(dir, 'out.mjs');
-      await build({
-        input: entry, platform: 'node', treeshake: false, plugins: [plugin].filter(Boolean),
-        output: { format: 'esm', file, externalLiveBindings: false, keepNames: true },
-      });
-      return { bytes: (await stat(file)).size };
-    });
-  },
-  async esbuild(entry, plugin) {
-    // no lazy import here: this module already loads esbuild statically for `wireSize`
-    const result = await esbuildBuild({ entryPoints: [entry], plugins: [plugin].filter(Boolean), bundle: true, write: false, format: 'esm', platform: 'node' });
-    return { bytes: Buffer.byteLength(result.outputFiles[0].text) };
-  },
-  async vite(entry, plugin) {
-    const { build } = await import('vite');
-    const result = await build({
-      root: HERE, logLevel: 'silent',
-      build: { write: false, minify: false, lib: { entry, formats: ['es'], fileName: 'bundle' }, commonjsOptions: { include: [/core-js/, /node_modules/] } },
-      resolve: { dedupe: ['core-js'] },
-      plugins: [plugin].filter(Boolean),
-    });
-    const [{ output }] = Array.isArray(result) ? result : [result];
-    return { bytes: Buffer.byteLength(output[0].code) };
-  },
-  async webpack(entry, plugin) {
-    const wp = (await import('webpack')).default;
-    return webpackLike(wp, entry, plugin);
-  },
-  async rspack(entry, plugin) {
-    const { rspack } = await import('@rspack/core');
-    return webpackLike(rspack, entry, plugin);
-  },
-  async rsbuild(entry, plugin) {
-    const { createRsbuild } = await import('@rsbuild/core');
-    return withTmpOut(async dir => {
-      const rsbuild = await createRsbuild({
-        cwd: HERE,
-        rsbuildConfig: {
-          mode: 'production', logLevel: 'error',
-          source: { entry: { index: entry } },
-          plugins: [plugin].filter(Boolean),
-          output: { target: 'node', distPath: { root: dir }, filenameHash: false, minify: false, sourceMap: false },
-          performance: { chunkSplit: { strategy: 'all-in-one' } },
-          tools: { rspack: { output: { module: true, library: { type: 'module' } }, experiments: { outputModule: true } } },
-        },
-      });
-      await rsbuild.build();
-      return { bytes: (await stat(join(dir, 'index.js'))).size };
-    });
-  },
-  async farm(entry, plugin) {
-    const { build, Logger } = await import('@farmfe/core');
-    function noop() { /* swallow farm logger output */ }
-    const silent = Object.assign(new Logger({ level: 'error' }), { info: noop, warn: noop, debug: noop, trace: noop, infoOnce: noop, warnOnce: noop, logMessage: noop });
-    return withTmpOut(async dir => {
-      await build({
-        root: HERE, logger: silent, plugins: [plugin].filter(Boolean),
-        compilation: {
-          input: { index: entry },
-          output: { path: dir, targetEnv: 'node', format: 'cjs' },
-          minify: false, sourcemap: false, lazyCompilation: false, persistentCache: false,
-          partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] },
-        },
-        server: { hmr: false },
-      });
-      return { bytes: (await stat(join(dir, 'index.js'))).size };
-    });
-  },
-};
-
-async function webpackLike(compiler, entry, plugin) {
-  return withTmpOut(async dir => {
-    const instance = compiler({
-      mode: 'production', devtool: false, entry,
-      output: { path: dir, filename: 'out.mjs', module: true, library: { type: 'module' } },
-      experiments: { outputModule: true }, optimization: { minimize: false }, plugins: [plugin].filter(Boolean),
-    });
-    try {
-      const stats = await new Promise((resolve, reject) => instance.run((e, s) => e ? reject(e) : resolve(s)));
-      if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
-    } finally {
-      await new Promise(resolve => instance.close(resolve));
-    }
-    return { bytes: (await stat(join(dir, 'out.mjs'))).size };
-  });
-}
-
-// farm is excluded from the active set. NOT the native crash the previous note here claimed: its
-// Rust resolver fails on the extensionless `core-js/modules/*` specifiers unplugin injects in the
-// GLOBAL methods whose NAME contains the substring `js`, reporting "Can not resolve …" and exiting 1
-// — the silent logger the farm builder installs is what turned that into a mute exit that looked like
-// a hard crash. node and the other seven bundlers resolve them via core-js's
-// `exports: { "./modules/*": "./modules/*.js" }`. The trigger is the two-char substring `js` anywhere
-// in the name — `es.json.parse`, `es.json.stringify`, `web.url.to-json` all fail (the `js` is in
-// `json`); a name without it (`es.promise`, `es.array.flat`) always resolves. The one exception is a
-// specifier that ENDS in `.js`: farm appears to decide "the extension is already present" by matching
-// `js` as a substring, so it skips applying the exports `* -> *.js` target and looks for a file with
-// no real `.js`; when the specifier genuinely ends in `.js` that file exists, which is why importing
-// with an explicit `.js` is the workaround. Deterministic, not graph-dependent. usage-pure
-// (`core-js-pure/*`) and the plugin-less baseline are unaffected. A resolve-hook plugin delegating
-// `core-js/*` to node's own resolver fixes it (verified across the whole matrix); we keep farm
-// excluded rather than carry that shim, until it is fixed upstream. throughput-only regardless (the
-// runtime tier uses rollup). The builder stays defined above for easy re-enable.
+// farm is excluded from the active set: its resolver fails on the extensionless `core-js/modules/*`
+// specifiers the GLOBAL methods inject whose name contains the substring `js` - `es.json.parse`,
+// `web.url.to-json` - which node and every other bundler resolve through core-js's
+// `exports: { "./modules/*": "./modules/*.js" }`. A name without that substring always resolves, and
+// so does a specifier that genuinely ends in `.js`: farm reads the substring as "the extension is
+// already there" and skips applying the exports target. Deterministic rather than graph-dependent,
+// and `usage-pure` and the plugin-less baseline never reach it. A resolve hook delegating `core-js/*`
+// to node's own resolver fixes it; we keep farm out rather than carry that shim until it is fixed
+// upstream. Throughput-only either way - the runtime tier is rollup.
 export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name => name !== 'farm');
 
 // The unplugin adapter instance for a bundler + (method, phase).
@@ -264,10 +156,9 @@ function tsEntry(name) {
   return join(NODE_MODULES, name, 'src', 'index.ts');
 }
 
-// The snapshots do NOT guard this set, and it is worth knowing by how little. Measured by removing one
-// package at a time: only `htmlparser2` moves a baseline (3 cells). The other six move none — of the
-// two type-derived injections the fixture exists for, one comes from htmlparser2 and the other from
-// TWO origins (`css-select` and `domutils`), so either of those alone is masked by the other. A
+// The snapshots do NOT guard this set, and it is worth knowing by how little. Dropping one package
+// at a time from it, almost none of them move a baseline: the type-derived injections the fixture
+// exists for come from a couple of origins each, so one origin alone is masked by the other. A
 // package that stops shipping `src/` - pruned from a tarball, moved by a major - therefore falls back
 // to its published JS with every gate still green, and the fixture goes on calling itself a
 // TypeScript build while being half a JavaScript one.
@@ -288,12 +179,12 @@ function assertTsSources() {
   const scoped = [...TS_SOURCE_PACKAGES].filter(name => name.startsWith('@'));
   if (scoped.length) {
     throw new Error(`TS_SOURCE_PACKAGES: ${ scoped.join(', ') } is scoped, which \`tsSources\` cannot `
-      + 'resolve — it splits a bare specifier at the first `/`, so the name never matches and the '
+      + 'resolve - it splits a bare specifier at the first `/`, so the name never matches and the '
       + 'package would silently build from its published JS. Teach `resolveId` the `@scope/name` form first.');
   }
   const missing = [...TS_SOURCE_PACKAGES].filter(name => !firstExistingFile([tsEntry(name)]));
   if (missing.length) {
-    throw new Error(`TS_SOURCE_PACKAGES: no src/index.ts in ${ missing.join(', ') } — these packages are `
+    throw new Error(`TS_SOURCE_PACKAGES: no src/index.ts in ${ missing.join(', ') } - these packages are `
       + 'built from their TypeScript sources (see build.mjs); without them the htmlparser2 fixture '
       + 'silently degrades to a published-JS build. Reinstall, or drop them from the set deliberately.');
   }
@@ -379,7 +270,7 @@ function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs =
       if (typescript) presets.push([ts, {}]);
       // `useBuiltIns: false` above is what leaves the stdlib to a provider. When `coreJs` is set that
       // provider is @core-js/babel-plugin, running as a PLUGIN in this same pass rather than as a
-      // second tool downstream — which is the whole difference being measured against unplugin.
+      // second tool downstream - which is the whole difference being measured against unplugin.
       const out = await core.transformAsync(code, {
         filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false, presets,
         ...coreJs ? { plugins: [[corejs, coreJs]] } : {},
@@ -453,7 +344,7 @@ export function assertPayload(chunk, label) {
 // Returns the ES5 UMD bundle code (global name `E2E`, exposing `run`), down-compiled with Babel and
 // polyfilled by ONE of the two providers.
 //
-// `provider: 'unplugin'` — usage-* build at phase 'post' by default, entry-global at no phase.
+// `provider: 'unplugin'` - usage-* build at phase 'post' by default, entry-global at no phase.
 // Ordering matters: raw Rollup ignores the plugin-level `enforce:'post'` field (that is a
 // Vite/webpack-family concept), but it DOES honour the hook-level `order` that unplugin sets on its
 // transform. For `usage-*` that order is 'post', so unplugin runs AFTER babel and its injection sees
@@ -462,7 +353,7 @@ export function assertPayload(chunk, label) {
 // @core-js/unplugin), so there it runs BEFORE babel. That is fine: entry-global only expands
 // `import 'core-js'` and needs no helper output.
 //
-// `provider: 'babel-plugin'` — no unplugin in the chain at all; @core-js/babel-plugin rides inside
+// `provider: 'babel-plugin'` - no unplugin in the chain at all; @core-js/babel-plugin rides inside
 // the Babel transform. There is nothing to order and no phase to pick, which is exactly why
 // runtime.mjs uses this build as the reference the unplugin phases are diffed against.
 //
@@ -473,7 +364,7 @@ export function assertPayload(chunk, label) {
 // the very bundle it came from, all from this one build. What proves the ES5 down-compile ran is
 // `assertES5(code)`, which every caller runs.
 export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider = 'unplugin') {
-  // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel — see above),
+  // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel - see above),
   // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`. babel-plugin has no
   // phase for any method: it IS the Babel pass, so there is no before/after to choose between.
   const babel = provider === 'babel-plugin';
@@ -567,19 +458,19 @@ export async function captureInjections(exerciseAbs, method, phase) {
 // modern browser, so a bundle that skipped the down-compile passes everything else.
 //
 // It must PARSE, not transform. esbuild's `target: 'es5'` LOWERS what it can and only throws for
-// what it cannot, so it happily accepts arrows, template literals, `?.`, `??` and `**` — all of
-// which are SyntaxErrors in IE11. An earlier version of this gate used it and looked like it worked
-// only because the sample happened to contain `const`. acorn at `ecmaVersion: 5` answers the actual
-// question: does an ES5 parser accept this text.
+// what it cannot, so it happily accepts arrows, template literals, `?.`, `??` and `**` - all of
+// which are SyntaxErrors in IE11 - a gate built on it reports success for a bundle that never got
+// down-compiled. acorn at `ecmaVersion: 5` answers the actual question: does an ES5 parser accept
+// this text.
 export function assertES5(code, label) {
   try {
     acornParse(code, { ecmaVersion: 5 });
   } catch (err) {
-    throw new Error(`${ label }: bundle is not ES5 — ${ err.message }`);
+    throw new Error(`${ label }: bundle is not ES5 - ${ err.message }`);
   }
 }
 
-// "wire size" of a bundle: minify (esbuild, keeps ES5) + gzip — what you'd actually ship. Shared so
+// "wire size" of a bundle: minify (esbuild, keeps ES5) + gzip - what you'd actually ship. Shared so
 // pipeline.md and artifacts/manifest.json cannot drift apart if the minify settings ever change.
 export async function wireSize(code, label = 'wire size') {
   // `target: 'es5'` is load-bearing, not cosmetic: without it esbuild minifies to esnext and emits
@@ -595,7 +486,7 @@ export async function wireSize(code, label = 'wire size') {
 
 // Turn an unknown throwable into one console-width line. Child-process failures carry the real
 // reason on stderr, not on `message` (which is just "Command failed: ..."), and node prints the
-// offending `file:line` BEFORE the actual `TypeError: ...` — so prefer the first line that names an
+// offending `file:line` BEFORE the actual `TypeError: ...` - so prefer the first line that names an
 // error and fall back to the first line at all.
 const REASON_MAX = 200; // one terminal row; long enough for a stack's first frame
 export function errorReason(err) {

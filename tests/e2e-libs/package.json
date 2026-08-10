@@ -2,12 +2,16 @@
   "name": "tests/e2e-libs",
   "type": "module",
   "private": true,
+  "zxi": {
+    "install": [
+      "../transpiler-integration"
+    ]
+  },
   "devDependencies": {
     "@babel/core": "^7.24.0",
     "@babel/preset-env": "^7.24.0",
     "@babel/preset-typescript": "^7.24.1",
     "@codemirror/state": "^6.7.1",
-    "@farmfe/core": "^1.7.11",
     "@lezer/common": "^1.5.2",
     "@lezer/css": "^1.3.4",
     "@lezer/highlight": "^1.2.3",
@@ -15,8 +19,6 @@
     "@lezer/javascript": "^1.5.4",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rsbuild/core": "^2.1.5",
-    "@rspack/core": "^2.1.3",
     "acorn": "^8.17.0",
     "core-js": "file:../../packages/core-js",
     "css-select": "^7.0.0",
@@ -31,12 +33,8 @@
     "karma-qunit": "^4.2.1",
     "nth-check": "^3.0.1",
     "qunit": "^2.26.0",
-    "rolldown": "^1.1.5",
     "rollup": "^4.62.2",
     "rxjs": "^7.8.2",
-    "three": "^0.185.1",
-    "vite": "^8.1.4",
-    "webpack": "^5.108.4",
-    "which": "^7.0.0"
+    "three": "^0.185.1"
   }
 }
