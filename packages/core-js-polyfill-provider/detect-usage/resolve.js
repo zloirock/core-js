@@ -31,7 +31,7 @@ import {
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
-  peelSkippableWrappers,
+  unwrapRuntimeExpr,
   peelZeroArgIifeReturn,
   pureCtorNameFromImportSource,
   reachingReassignmentValueNode,
@@ -47,6 +47,7 @@ import {
   synthSwapPropKey,
   SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
+  identifierReferencedInSubtree,
   varInitDominatesUsage,
   zeroArgIifeSideEffectFree,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -78,7 +79,9 @@ export function unwrapTransparentSeq(node) {
 }
 
 // SequenceExpression collect mode: push side-effect preceding elements into `effects` for
-// the caller to re-attach via a SequenceExpression wrap around the polyfill replacement
+// the caller to re-attach via a SequenceExpression wrap around the polyfill replacement.
+// the deliberate counterpart of the plain `unwrapParens` (helpers/ast-patterns.js), which peels
+// parens only: merging the two would hand peeled effects to callers with nowhere to re-attach them
 export function unwrapParensCollectingEffects(node, effects) {
   while (node) {
     if (isTransparentWrapper(node)) {
@@ -147,6 +150,15 @@ export function keySideEffectsOnly(receiverEffectCount, sideEffects) {
 export function receiverSideEffectsOnly(receiverEffectCount, sideEffects) {
   if (!sideEffects?.length) return sideEffects;
   return sideEffects.slice(0, receiverEffectCount ?? 0);
+}
+
+// the effects a memo does NOT own: those starting at or after `offset`, the end of the span the
+// guard already ran once. the two consumers ask it of different lists - one of the receiver slice,
+// one of the whole meta list - so the slicing stays with them and only the boundary question is
+// shared. written out at both sites, it was the one SE decision with no name and no single place
+export function sideEffectsPastOffset(offset, sideEffects) {
+  if (!sideEffects?.length || typeof offset !== 'number') return [];
+  return sideEffects.filter(effect => effect.start >= offset);
 }
 
 // peel chain-assignment `=` chain, returning the rhs-most non-assignment node + the
@@ -293,7 +305,7 @@ function walkGuardSourceHops(value, aliasCtx) {
       : root.property?.name ?? null;
     hopsInfo.push({ node: root, name });
     const rawNext = root.object;
-    const next = peelSkippableWrappers(rawNext);
+    const next = unwrapRuntimeExpr(rawNext);
     if (next !== rawNext && sealedLayerBetween(rawNext, next)) {
       root = rawNext;
       break;
@@ -441,10 +453,10 @@ export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null)
 // conditional VALUE evaluates without a get (native runs the key SE before ITS get throws),
 // and an optional base short-circuits instead of throwing - both keep the plain SE prepend
 export function claimReceiverEvaluationMayThrow(receiverObj, resolvePure, aliasCtx = null) {
-  const core = peelSkippableWrappers(peelReceiverSequenceTail(receiverObj));
+  const core = unwrapRuntimeExpr(peelReceiverSequenceTail(receiverObj));
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return false;
   if (core.optional) return false;
-  return proxyReceiverValueCanBeUndefined(peelSkippableWrappers(core.object), resolvePure, aliasCtx);
+  return proxyReceiverValueCanBeUndefined(unwrapRuntimeExpr(core.object), resolvePure, aliasCtx);
 }
 
 // a literal `undefined` reference or an effect-free `void X` - the statically-undefined value shape
@@ -641,7 +653,7 @@ export function extractStaticString(node, adapter) {
   // resolves a side-effect-free SE tail (`require((0, 'core-js/...'))`) to its literal on BOTH
   // parsers via the shared paren-unwrap, and a side-effecting prefix bails on both - detection
   // stays parser-symmetric without peeling SE at this layer
-  const inner = peelSkippableWrappers(node);
+  const inner = unwrapRuntimeExpr(node);
   if (inner?.type === 'TemplateLiteral') return singleQuasiString(inner);
   // adapter-less callers (the node-level census gates, which have no scope machinery) still get the
   // plain-literal answer - the adapter only adds const-folding on top
@@ -1375,7 +1387,13 @@ export function inlineCallReturnExpression({ callNode, scope, adapter, seen, pat
   // the ARG - recovers a call/IIFE-rooted receiver (`((x)=>x)(globalThis).Symbol`, and the nested
   // `g(f()).Symbol` since the arg `f()` is itself resolved by the caller). an SE-bearing arg is
   // preserved by `inlineCallHasObservableEffects` (checks callNode.arguments), so return it as-is
-  return body?.type === 'Identifier' && body.name === callee.params[0].name ? callNode.arguments?.[0] ?? null : null;
+  if (body?.type === 'Identifier' && body.name === callee.params[0].name) return callNode.arguments?.[0] ?? null;
+  // a body that never READS the param yields the same value for every argument (`(x) => globalThis`),
+  // so the call resolves to the body itself. bailing here on the param's mere PRESENCE left the shape
+  // unproven: the guard test substituted the root while the static behind it kept reading native off
+  // the memo. the param may still carry an effect in a prefix statement - that is the SE channel's
+  // business, not the value's
+  return identifierReferencedInSubtree(body, callee.params[0].name) ? null : body;
 }
 
 export function isCallShape(node) {
@@ -1427,11 +1445,17 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   if (topAssign) core = unwrap(topValue);
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return null;
   const hops = [];
+  // one hop of the descent: record it and hand back the object below, or null when the key is not
+  // a pristine proxy-global. both descents below take their steps through here
+  function takeHop(node) {
+    if (!node.computed && !isPristineProxyGlobal(adapter, node.property?.name)) return null;
+    hops.unshift({ name: node.computed ? null : node.property.name, node, optional: !!node.optional, keySeExprs: null });
+    return unwrap(node.object);
+  }
   let n = core;
   while (n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression') {
-    if (!n.computed && !isPristineProxyGlobal(adapter, n.property?.name)) return null;
-    hops.unshift({ name: n.computed ? null : n.property.name, node: n, optional: !!n.optional, keySeExprs: null });
-    n = unwrap(n.object);
+    n = takeHop(n);
+    if (n === null) return null;
   }
   const { outer: chainAssign, value: chainAssignValue } = peelChainAssignment(n);
   const call = chainAssign ? unwrap(chainAssignValue) : n;
@@ -2030,7 +2054,7 @@ export function sealedLayerBetween(rawObj, object) {
 export function sealedChainBoundary(node) {
   let cur = peelReceiverSequenceTail(node);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    const object = peelSkippableWrappers(peelReceiverSequenceTail(cur.object));
+    const object = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
     if (sealedLayerBetween(cur.object, object)) return { member: cur, inner: object };
     cur = object;
   }
@@ -2045,7 +2069,7 @@ export function chainSealedObjects(node) {
   const sealed = [];
   let cur = peelReceiverSequenceTail(node);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
-    const object = peelSkippableWrappers(peelReceiverSequenceTail(cur.object));
+    const object = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
     if (sealedLayerBetween(cur.object, object)) {
       sealed.push(object);
       break;
@@ -2065,10 +2089,10 @@ export function chainSealedObjects(node) {
 // semantics, never skips), so the walk stops at a seal after testing the link's own `?.`.
 // entry parens are value-transparent - the value asked about IS the sealed one
 export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null) {
-  let cur = peelSkippableWrappers(peelReceiverSequenceTail(navNode));
+  let cur = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const raw = peelReceiverSequenceTail(cur.object);
-    const object = peelSkippableWrappers(raw);
+    const object = unwrapRuntimeExpr(raw);
     if (cur.optional) {
       if (isCallShape(object)) return callValueCanBeUndefined(object, aliasCtx);
       if (navHasUnresolvableProxyHop(object, resolvePure)) return true;
@@ -2099,15 +2123,15 @@ export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null) {
 // HOLDING a probe/nav is as undefinable as the nav); other shapes (opaque calls, ...) stay
 // with each caller's own arm - pass only nav/Identifier cores here
 export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = null) {
-  const core = peelSkippableWrappers(peelReceiverSequenceTail(node));
+  const core = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') {
     return undefinableProxyRootValue(core, resolvePure, aliasCtx);
   }
   if (navValueCanShortCircuit(core, resolvePure, aliasCtx)) return true;
   const hop = staticMemberKeyName(core);
   if (!hop || !POSSIBLE_GLOBAL_OBJECTS.has(hop) || resolvePure({ kind: 'global', name: hop })) return false;
-  const rootRaw = peelSkippableWrappers(peelReceiverSequenceTail(core.object));
-  const rootObj = peelSkippableWrappers(peelChainAssignment(rootRaw).value ?? rootRaw);
+  const rootRaw = unwrapRuntimeExpr(peelReceiverSequenceTail(core.object));
+  const rootObj = unwrapRuntimeExpr(peelChainAssignment(rootRaw).value ?? rootRaw);
   if (rootObj?.type === 'Identifier') return !!isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx });
   // the probe read off a PROVEN inline call is the same environment probe (`f()?.window`,
   // `f = () => globalThis` - the opaque-root canon guards it)
@@ -2172,8 +2196,8 @@ export function guardTailPullCount(steps, definedAtLeaf) {
 export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
   const dead = [];
   for (let cur = navNode; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
-    cur = peelSkippableWrappers(cur.object)) {
-    const object = peelSkippableWrappers(cur.object);
+    cur = unwrapRuntimeExpr(cur.object)) {
+    const object = unwrapRuntimeExpr(cur.object);
     const undefinable = isCallShape(object)
       ? callValueCanBeUndefined(object, aliasCtx)
       : proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx);
