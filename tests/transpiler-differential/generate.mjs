@@ -3027,6 +3027,30 @@ function * generateTypeParamBindingTs() {
   for (const c of CASES) yield { ...snippet(`type-param-binding-ts/${ c.id }`, c.code), ts: true, strip: true };
 }
 
+// --- Callable intersections: an intersection of call signatures is not a first-match narrow ---
+// the members disagree about the result's family, so whatever the implementation returns
+// contradicts one of them - the only verdict that cannot dispatch a foreign family's helper is the
+// widened one. natively invisible (the real value's own method exists), fatal once that method is
+// stripped. the arms come in reversed pairs over the SAME runtime value: an order-sensitive
+// resolver changes its verdict with the spelling while the value does not
+function * generateCallableIntersectionTs() {
+  const CASES = [
+    { id: 'array-first-string-value',
+      code: '(() => { const f = (() => "text") as ((() => string[]) & (() => string)); return f().at(0); })()' },
+    { id: 'string-first-string-value',
+      code: '(() => { const f = (() => "text") as ((() => string) & (() => string[])); return f().at(0); })()' },
+    { id: 'array-first-array-value',
+      code: '(() => { const f = (() => ["a", "b"]) as ((() => string[]) & (() => string)); return f().at(0); })()' },
+    { id: 'string-first-array-value',
+      code: '(() => { const f = (() => ["a", "b"]) as ((() => string) & (() => string[])); return f().at(0); })()' },
+    // an intersection whose members AGREE is a legitimate narrow - the control that keeps the
+    // widening from being asserted as unconditional
+    { id: 'agreeing-members',
+      code: '(() => { const f = (() => "text") as ((() => string) & (() => string)); return f().at(0); })()' },
+  ];
+  for (const c of CASES) yield { ...snippet(`callable-intersection-ts/${ c.id }`, c.code), ts: true, strip: true };
+}
+
 // --- Deferred write before the read: the binding's value is not what its initializer said ---
 // a write that runs through a CALL (hoisted function, IIFE, method, static block) lands before the
 // read even though its source position sits after it. narrowing off the initializer then dispatches
@@ -5456,6 +5480,7 @@ export function * generate() {
   yield * generateUnionHopFoldTs();
   yield * generateSpreadShiftedSlot();
   yield * generateTypeParamBindingTs();
+  yield * generateCallableIntersectionTs();
   yield * generateDeferredWriteNarrow();
   yield * generateUnpluginDestructureTextEmit();
   yield * generateSynthSwapPureCtorReRead();
