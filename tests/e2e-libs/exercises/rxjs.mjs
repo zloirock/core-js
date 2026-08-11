@@ -26,19 +26,18 @@
 // `Symbol.observable` lookups do not show up in that instrument (they land on objects this module
 // owns) and are confirmed separately.
 //
-// This is also why the old `for (const v of new Set(...))` / `[...new Set(...)]` checks are gone: they
-// exercised the iterator protocol through Babel's helpers in THIS module. `from(new Set(...))` puts the
+// This is also why no `for (const v of new Set(...))` / `[...new Set(...)]` check lives here: those
+// exercise the iterator protocol through Babel's helpers in THIS module. `from(new Set(...))` puts the
 // same protocol where it belongs - inside rxjs.
 //
-// A KNOWN consequence of that removal, accepted deliberately: the `usage-pure/pre` cell for rxjs is
-// now green on IE11, where it used to fail in `_createForOfIteratorHelper` / `_unsupportedIterableToArray`
-// for want of `Array.from`. Nothing was fixed - `pre` runs unplugin BEFORE Babel, so it still never
-// sees the helpers Babel emits afterwards, and that unrewritten `Array.from` is still in the shipped
-// `pre` bundle. The exercise simply no longer walks into it: the only destructuring left here is over
-// a real array, which takes the `_arrayWithHoles` fast path. That signal was never about rxjs anyway -
-// rxjs ships an ES5 build, so the helpers came from this file's syntax, not from the library. `three`
-// is where the phase diagnostic is now carried, and there it is genuine: three's sources are modern,
-// so Babel emits the helpers over the LIBRARY. Do not re-add spread/for-of here to bring the red back.
+// A KNOWN consequence, accepted deliberately: the `usage-pure/pre` cell for rxjs is green on IE11
+// while the phase gap it stands for is still open. `pre` runs unplugin BEFORE Babel, so it never sees
+// the helpers Babel emits afterwards, and an unrewritten `Array.from` sits in the shipped `pre` bundle
+// either way - nothing here walks into it, because the only destructuring left is over a real array,
+// which takes the `_arrayWithHoles` fast path. The signal would not be about rxjs anyway: it ships an
+// ES5 build, so a helper here comes from this file's syntax rather than from the library. `three`
+// carries the phase diagnostic instead, and there it is genuine - three's sources are modern, so Babel
+// emits the helpers over the LIBRARY. Do not add spread/for-of here to make this cell red.
 //
 // No `async`/generator syntax here (only `.then` chains and hand-rolled iterators) so the ES5
 // down-compile needs no regenerator runtime of ours; the regenerator machinery that does run is the

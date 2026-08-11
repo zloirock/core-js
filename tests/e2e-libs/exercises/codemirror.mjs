@@ -7,7 +7,8 @@
 // Only the view-independent layer is used: `@codemirror/state` plus the Lezer runtime and grammars.
 // `@codemirror/language` is deliberately NOT imported - not because it breaks headlessly (it doesn't;
 // it only reaches for the DOM once an `EditorView` is constructed) but because it drags in
-// `@codemirror/view`, ~1.1 MB that no check here ever executes. Parsing goes straight to Lezer, which
+// `@codemirror/view`, a large graph that no check here ever executes. Parsing goes straight to Lezer,
+// which
 // is what CodeMirror delegates to anyway. Everything here is pure computation, so it runs in node AND
 // down-compiles to ES5 - which is how the runtime tier verifies the project stays FUNCTIONAL after
 // unplugin + Babel, not merely that it builds.
@@ -318,10 +319,11 @@ export function run() {
   // The document MUST exceed FOUR times Lezer's `bufferLength` - @lezer/lr only builds a
   // FragmentCursor when `stream.end - from > parser.bufferLength * 4`, i.e. above 4096 chars, not
   // above 1024. Below that it reuses nothing, the "incremental" parse silently degrades to a full
-  // one, and every check below passes just as happily with `fragments = []`. `doc` is only ~280
-  // chars; `SRC.repeat(24)` takes it to ~6.4k, comfortably clear (repeat(16) cleared 4096 by only
-  // ~280 chars, and repeat(12) does not clear it at all). The doc-layer checks above stay on the
-  // small `doc`, whose line count and depth they are calibrated to.
+  // one, and every check below passes just as happily with `fragments = []`. `doc` sits well under
+  // that bar, so the block below repeats it enough times to clear the threshold with room to spare -
+  // a repeat count that only just clears it would put the whole leg one edit away from silently
+  // degrading. The doc-layer checks above stay on the small `doc`, whose line count and depth they
+  // are calibrated to.
   // built with a loop rather than `SRC.repeat(24)`: `String#repeat` appears nowhere in the
   // codemirror/lezer graph, so calling it here would inject a polyfill that only THIS file needs -
   // the opposite of what the fixture is for.
@@ -393,13 +395,12 @@ export function run() {
     do n++; while (treeCursor.next());
     return n;
   }
-  // `bigTree`, not `tree`, and deliberately so. `doc` is ~280 chars - under lezer's
-  // `DefaultBufferLength` (1024) - so it parses into a single `TreeBuffer` with no anonymous nodes at
-  // all, and BOTH modes walk the identical set no matter how broken `TreeCursor` is: measured 107 vs
-  // 107. Any assertion over those two numbers is true by construction, which is what `>=` and then
-  // `===` both were. `bigDoc` is ~6.4k, well past the threshold, so anonymous nodes genuinely exist
-  // and `IncludeAnonymous` really does surface more of them (2488 vs 2483) - a strict inequality with
-  // a real failing side. The second half then pins the walk against the same tree counted through a
+  // `bigTree`, not `tree`, and deliberately so. `doc` stays under lezer's `DefaultBufferLength`, so
+  // it parses into a single `TreeBuffer` with no anonymous nodes at all, and BOTH modes walk the
+  // identical set no matter how broken `TreeCursor` is. Any assertion over those two counts is true
+  // by construction, which is what `>=` and then `===` both were. `bigDoc` is past the threshold, so
+  // anonymous nodes genuinely exist and `IncludeAnonymous` really does surface more of them - a
+  // strict inequality with a real failing side. The second half then pins the walk against the same tree counted through a
   // different API (`survey` uses `tree.iterate`), so a cursor that stops early reddens instead of
   // agreeing with itself.
   check('tree_iter_modes', [
