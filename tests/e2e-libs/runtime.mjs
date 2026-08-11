@@ -58,7 +58,7 @@
 // not. Its build-time gates still apply; only its IE11 verdict is advisory. Every babel-plugin cell
 // gates - with no phase axis it has no expected-to-fail configuration.
 //
-// Usage:  npm run e2e-libs-runtime [-- libFilter]    OVERWRITE=1 rewrites the snapshot baselines
+// Usage:  npm run e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { librariesIn } from './libraries.mjs';
@@ -276,9 +276,9 @@ const [vOxc, vCoreJs, vRxjs, vThree, vCm] = await Promise.all(
   ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
 echo(`environment: ${ process.platform }/${ process.arch } node ${ process.version }`
   + ` | oxc-parser ${ vOxc } | core-js ${ vCoreJs } | rxjs ${ vRxjs } | three ${ vThree } | @codemirror/state ${ vCm }`);
-// The TS-source stack gets its own line: seven packages feed the htmlparser2 cells and any of them
-// can move those snapshots, so naming only the one the fixture is called after would answer "was this
-// the same input?" with a third of the answer. domhandler / domelementtype / boolbase ship no sources
+// The TS-source stack gets its own line: every package in it feeds the htmlparser2 cells and any of
+// them can move those snapshots, so naming only the one the fixture is called after would answer "was
+// this the same input?" with a fraction of the answer. domhandler / domelementtype / boolbase ship no sources
 // and are therefore not listed - they are ordinary JS dependencies like every other fixture's.
 const tsPackages = [...TS_SOURCE_PACKAGES];
 const tsVersions = await Promise.all(tsPackages.map(p => version(p)));
@@ -431,8 +431,12 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
     const bundle = relative(HERE, file).replaceAll('\\', '/');
     const { exitCode } = await $({ cwd: HERE, nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
     if (exitCode === 0) continue;
-    if (gating) failed++;
-    else echo(`  pre diagnostic ${ label }: Karma exit ${ exitCode } - an expected-possible pre failure; not gating`);
+    // named on both branches: Karma prints its own failure above, but the tally at the end of a
+    // forty-cell log has to be traceable to the cells that produced it
+    if (gating) {
+      failed++;
+      echo(`  FAIL ${ label }: Karma exit ${ exitCode } in real IE11`);
+    } else echo(`  pre diagnostic ${ label }: Karma exit ${ exitCode } - an expected-possible pre failure; not gating`);
   }
 }
 
