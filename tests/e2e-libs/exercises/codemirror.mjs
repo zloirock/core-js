@@ -1,48 +1,17 @@
-// A headless CodeMirror 6 / Lezer "project": the non-DOM half of a real code editor. It builds an
-// EditorState over a source document, applies a sequence of transactions (mapping positions and a
-// selection through them), parses the result with the Lezer JS grammar, reparses INCREMENTALLY from
-// the previous tree after a further edit, classifies tokens with highlightTree, and parses CSS + HTML
-// with their own grammars - then self-checks the outcome.
+// A headless CodeMirror 6 / Lezer project: an EditorState carried through transactions with position
+// and selection mapping, a Lezer parse, an incremental reparse checked against a full one, token
+// highlighting, and mixed HTML/CSS/JS parsing - verified by the structure that comes out.
 //
-// Only the view-independent layer is used: `@codemirror/state` plus the Lezer runtime and grammars.
-// `@codemirror/language` is deliberately NOT imported - not because it breaks headlessly (it doesn't;
-// it only reaches for the DOM once an `EditorView` is constructed) but because it drags in
-// `@codemirror/view`, a large graph that no check here ever executes. Parsing goes straight to Lezer,
-// which
-// is what CodeMirror delegates to anyway. Everything here is pure computation, so it runs in node AND
-// down-compiles to ES5 - which is how the runtime tier verifies the project stays FUNCTIONAL after
-// unplugin + Babel, not merely that it builds.
+// Only the view-independent layer is used. `@codemirror/language` is deliberately NOT imported: it
+// works headlessly, but it drags in `@codemirror/view`, a large graph no check here executes, and
+// parsing goes to Lezer directly anyway - which is what CodeMirror delegates to.
 //
-// WHAT THIS EXERCISE IS FOR, beyond "codemirror still runs". The IE11 leg only proves per-site
-// polyfill detection for the code it actually EXECUTES: under `usage-pure` a missed rewrite stays a
-// native call, and a native call only fails if something reaches it. So the blocks below are chosen
-// to make CODEMIRROR'S AND LEZER'S OWN implementations reach for what IE11 lacks, rather than doing
-// it here on their behalf: `Symbol.iterator` on `Text` (and on its three cursor classes),
-// `new Set` in `RangeSet.compare` - the only one in the whole graph, and reaching it needs two sets
-// and a `ChangeSet` - three more `new Map` sites in the facet/compartment resolver, `JSON.stringify`
-// in `TreeBuffer#childString` (via `Tree#toString`), `Array#join`/`#concat`/`#every` in lezer's tree
-// and tag machinery, and `Array#filter` in `RangeSet.compare`. Coverage is counted by wrapping the
-// natives and attributing each call to its immediate stack frame, so only the calls made from
-// `@codemirror` / `@lezer` frames count. The `Text` iterator does not show up in that instrument
-// because it is the library's own method, and is confirmed separately by wrapping it.
+// Two name collisions ride along, both the interesting kind: `SelectionRange#flags` against
+// `RegExp#flags`, and the `RangeSet` chunk's own `findIndex` against `Array#findIndex`.
 //
-// Two NAME COLLISIONS ride along, and both are the interesting kind. `SelectionRange#flags` collides
-// with `RegExp#flags`, and the `RangeSet` chunk's own `findIndex(pos, side, end, startAt)` collides
-// with `Array#findIndex`; `usage-pure` rewrites both call sites, and the pure helper has to hand back
-// codemirror's own member rather than the array/regexp one. On IE11 a broken fallback there is fatal
-// and the modern-realm pre-flight cannot see it.
-//
-// The unicode block is a fallback test rather than a polyfill test. `@codemirror/state` implements
-// `codePointAt` / `fromCodePoint` by hand out of `charCodeAt` / `String.fromCharCode` - it never
-// touches the ES6 natives - and it builds its word-character regexp from `\p{Alphabetic}` inside a
-// `try`/`catch` that IE11 cannot parse, so on the target the categorizer runs its manual
-// per-character path. `char_categories` proves that path still answers correctly.
-//
-// Not reachable, and deliberately not chased: `String.fromCodePoint` in `@lezer/lr` sits behind a
-// `verbose` flag read off `process.env.LOG`, which no browser satisfies. unplugin still injects it.
-//
-// Checks favour version-robust invariants (zero parse errors, incremental === full, ordered spans,
-// semantic names) over magic node totals, so a grammar bump does not redden the suite spuriously.
+// The unicode block is a FALLBACK test rather than a polyfill test: `@codemirror/state` implements
+// `codePointAt` / `fromCodePoint` by hand and builds its word-character regexp from `\p{Alphabetic}`
+// inside a `try`/`catch` that IE11 cannot parse, so on the target the categorizer runs its manual path.
 import {
   Annotation, ChangeSet, CharCategory, Compartment, EditorSelection, EditorState, Facet, MapMode,
   Prec, RangeSet, RangeSetBuilder, RangeValue, StateEffect, StateField, Text,

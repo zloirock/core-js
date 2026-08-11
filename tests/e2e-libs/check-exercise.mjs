@@ -1,15 +1,7 @@
-// Run the exercises raw - no bundler, no polyfills, full node realm - and report which self-checks
-// pass. This validates an exercise's own logic and its expected literals before any bundling is
-// involved, so a red artifact can be blamed on the toolchain rather than on the fixture. With no
-// argument EVERY registered exercise runs; pass a library name or a path to narrow it to one.
-//
-// Running them all in one process is safe precisely because they are raw: nothing here imports
-// core-js, so there is no global patching for one exercise to leak into the next (that isolation
-// concern is real for `runtime.mjs`, which is why its pre-flight forks a child per bundle).
-//
-// One broken exercise must not hide the state of the others, so every failure mode - a missing
-// `run()`, a malformed result, an exercise that throws - is recorded against that exercise and the
-// run continues. The exit code is decided once, at the end.
+// The exercises run raw - no bundler, no polyfills, full node realm - so a red artifact can be blamed
+// on the toolchain rather than on the fixture. One process is safe precisely because they are raw:
+// nothing here imports core-js, so no global patching leaks from one exercise into the next (that
+// concern is real for runtime.mjs, which is why its pre-flight forks a child per bundle).
 //
 // Usage:  npm run e2e-libs-check-exercise [exercisePathOrLibName]
 import { libraries } from './libraries.mjs';
@@ -24,8 +16,8 @@ const targets = arg
   ? [isAbsolute(arg) ? arg : join(HERE, arg.includes('/') ? arg : `exercises/${ arg }.mjs`)]
   : libraries.map(l => l.exercise);
 
-// name the exercise in every failure mode: destructuring a malformed result would otherwise throw a
-// bare "Cannot read properties of undefined", and with no argument every registered exercise runs
+// every failure mode names the exercise: destructuring a malformed result would otherwise throw a bare
+// "Cannot read properties of undefined" with nothing to say whose it was
 async function checksOf(target, name) {
   const mod = await import(pathToFileURL(target).href);
   if (typeof mod.run !== 'function') throw new Error(`${ name } does not export run()`);
