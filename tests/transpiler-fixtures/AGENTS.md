@@ -14,6 +14,8 @@ Those files are the baseline of the default leg, babel-plugin on `@babel/core` 8
 
 Two details bite. The v7 variant is all-or-nothing per fixture: once one sibling exists it owns every slot, so a fixture erroring under v7 while succeeding under v8 must have `error.babel-v7.txt` and no `output.babel-v7.mjs`. And an unplugin sidecar under `usage-global` is never cosmetic - only the import set is compared there, so it means the emitters inject differently. Under the other methods the comparison is full text, where splicing differs from reprinting an AST.
 
+Which sibling set the runner reads comes from `BABEL_VARIANT` - `npm run test-babel-plugin-v7` sets it to `babel-v7`, and without it every slot is the baseline.
+
 `tests/babel-plugin-v7/skip.mjs` is the last resort, for a fixture whose v7 behavior cannot be expressed as a sibling at all. It is empty by design - reach for a sibling first, and if you add an entry, put it in a named bucket so the divergence stays inspectable.
 
 ## Regenerating
@@ -42,5 +44,7 @@ It rewrites only the fixtures that actually changed and prints each one, so the 
 - Lock every fix in both `usage-global` and `usage-pure`. `usage-global` is the primary product, and the pure fixture is usually the regression guard
 - An expected output with no injection on a typed receiver means the resolver bailed - investigate before locking it in
 - Multi-line fixtures use a different method per line, and a method that should demonstrate inference needs receivers from several families
+- Probe with a method the default targets inject. An `esnext.*` module is stage-gated below `actual` and adds nothing of its own while its receiver still pulls the family, so `Iterator.range` looks alive and proves nothing - check `core-js-compat/src/data.mjs`, not a remembered list of names
+- Only a method that exists on several receiver types - `at`, `includes` - separates a widened inference from a narrowed one; an Array-only shape resolves to its own generic fallback either way
 - The leading comment block of `input.mjs` is the fixture's specification, and the rewrite mirrors it into every expected output. Four lines are usually enough for the input pattern, the injection decision and the non-obvious part; longer than that means it is narrating the transform step by step instead of saying why
 - Comments never mention helper function names, line numbers or issue identifiers - all of them go stale
