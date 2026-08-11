@@ -1,10 +1,10 @@
 # e2e-libs
 
-Real third-party libraries taken to the polyfill floor and executed there: each is bundled, down-compiled to ES5 by Babel, polyfilled by one of the two providers this repo ships, then run - in a node pre-flight and in actual IE11. `tests/transpiler-integration` proves the plugins survive a real bundler and `tests/e2e-usage-pure` proves a syntactic form is served; this is the only suite where the stack meets code nobody wrote for it, and the only one whose verdict comes from the engine the polyfills exist for.
+Real third-party libraries taken to the polyfill floor and executed there: each is bundled, down-compiled to ES5 by Babel, polyfilled by one of the two providers this repo ships, then run - in a node pre-flight and in actual IE11. `tests/transpiler-integration` proves the plugins survive a real bundler and `tests/e2e-usage-pure` proves a syntactic form is served; the unit suites reach IE11 too, but on core-js's own tests. What only this suite does is put all three together - third-party code, the providers, and the engine the polyfills exist for.
 
 ## Target environment
 
-Node `^22.18.0 || >=24.11.0` under `zx`, started through `npm run zxi` - see `scripts/AGENTS.md`. The exception is what lands in a page verbatim: `harness.mjs` and the HTML it renders are never transformed, so they are hand-written ES5, and both harness targets are parsed by `assertES5` at load.
+Node under `zx`, started through `npm run zxi` - the repo-wide tooling tier, stated in `scripts/AGENTS.md`. The suite declares no floor of its own, and CI exercises it on one version only, the node 26 its job pins. The exception is what lands in a page verbatim: `harness.mjs` and the HTML it renders are never transformed, so they are hand-written ES5, and both harness targets are parsed by `assertES5` at load.
 
 `npm run e2e-libs` chains the two runners that assert - `e2e-libs-check-exercise`, then `e2e-libs-runtime` - and is part of `npm test`; `OVERWRITE=1` in front of the latter rewrites the snapshot baselines. `e2e-libs-pipeline` and `e2e-libs-throughput` only report and stay out of the composite. Every runner narrows on positional filters, as in `npm run e2e-libs-throughput three rollup`.
 
@@ -31,11 +31,11 @@ A green cell proves the exercise executes, not that every site was detected: a g
 
 ## Rules
 
-- The library's own implementation has to reach for what the target lacks; an exercise reaching for it on the library's behalf tests Babel's helpers instead. Coverage is attributed by the immediate stack frame, which is why `from(new Set(...))` counts and `[...new Set(...)]` does not
+- The library's own implementation has to reach for what the target lacks; an exercise reaching for it on the library's behalf tests Babel's helpers instead. Judge a check by which frame makes the call, not by which names appear in the file - `from(new Set(...))` counts, `[...new Set(...)]` does not
 - Checks assert version-robust invariants, never magic totals, or a dependency bump reddens the suite for no reason
 - A collision between a library member and a core-js instance method is deliberate coverage: `usage-pure` rewrites those call sites and the helper has to hand back the library's member, which only real IE11 catches
 - `usage-pure` cannot serve typed-array prototype methods at all, so an exercise must not route a typed array through one. Indexing is fine
-- A new library needs a reason on an axis. Topology is one, because unplugin's scope resolution is superlinear within a module: keep the small-modules, mid-sized-graph and monolith profiles represented. The phase axis is the other, and it needs TypeScript sources - `isolatedModules`-clean, listed in `TS_SOURCE_PACKAGES`, out of the throughput tier. Only headless computational libraries qualify at all; core-js cannot make DOM or stream code run on IE11
+- A new library needs a reason on an axis. Topology is one, because the cost concentrates in the size of the individual module rather than in total volume: keep the small-modules, mid-sized-graph and monolith profiles represented (the complexity class itself is `tests/transpiler-perf`'s to gate). The phase axis is the other, and it needs TypeScript sources - `isolatedModules`-clean, listed in `TS_SOURCE_PACKAGES`, out of the throughput tier. Only headless computational libraries qualify at all; core-js cannot make DOM or stream code run on IE11
 - Isolation is a requirement: `mode: 'full'` patches globals permanently, so the pre-flight forks a child per bundle and Karma loads one bundle per page. Co-loading lets one cell's injection mask another cell's miss
-- Never regenerate a snapshot blindly - read the diff, then rerun with `OVERWRITE=1`. A change to a reference moves every delta of that library and method with it, which is the point of pairing them
+- Never regenerate a snapshot blindly - read the diff, then rerun with `OVERWRITE=1`. Deltas are measured FROM the reference, so a movement both providers share lands in the reference alone and leaves the delta files untouched; a delta that does change is the two of them disagreeing
 - Timings are reported, never asserted, and never quoted in prose or in a comment - they move with the machine and go stale where nothing checks them
