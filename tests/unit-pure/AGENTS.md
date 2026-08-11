@@ -13,3 +13,5 @@ Same as the global tests, with one restriction on top: pure tests must not touch
 - Nothing is installed anywhere, so the descriptor assertions of the global side apply only where the pure entry really is a member of something
 - Not every global test has a twin here: a feature that pure does not implement, the TypedArray family above all, has no pure counterpart to test
 - The reverse also happens: the `helpers.*` files cover the iteration helper entries, which both flavors ship but only this suite tests
+- `.name` has no blanket guarantee in this flavor: a factory-produced function - a wrapped constructor, a bound helper, a generated dispatcher - does not preserve it, nor does a wrapped constructor keep its `.length`. `assert.name` belongs only on methods known to keep the name; a mismatch on the factory family is a known limitation, not a bug to fix
+- `assert.looksNative` is meaningless here and must not be used: a pure entry is a plain function that neither is nor pretends to be native - that assertion belongs to the global flavor, whose installed polyfills do look native
