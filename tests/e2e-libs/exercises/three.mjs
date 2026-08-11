@@ -1,50 +1,23 @@
-// A headless three.js "project": scene graph, transforms, geometry, curves, raycasting, an
-// "animation" step, serialization round-trips and a handful of official addons - self-checked by its
-// numeric state. three's math / scene-graph / geometry / animation / loader surface is pure
-// computation (no WebGL/DOM), so this runs in node AND down-compiles to ES5 - which is how the
-// runtime tier verifies the project stays FUNCTIONAL after unplugin + Babel, not just that it builds.
+// A headless three.js project: scene graph, transforms, geometry, curves, raycasting, an animation
+// step, serialization round-trips and five official addons, verified by its numeric state - so a green
+// run means the project still COMPUTES after unplugin and Babel, not merely that it builds.
 //
-// WHAT THIS EXERCISE IS FOR, beyond "three still runs". The IE11 leg only proves per-site polyfill
-// detection for the code it actually EXECUTES: under `usage-pure` a missed rewrite stays a native
-// call, and a native call only fails if something reaches it. So the blocks below are chosen to make
-// THREE'S OWN implementation reach for what IE11 lacks - not to use those features here. Coverage is
-// counted by wrapping the natives and attributing each call to its immediate stack frame, so only
-// the calls made from inside `three/build/three.core.js` and `three/examples/jsm/` count - a
-// module-load side effect of the library is not an API-driven path and is not what this exercises.
+// Nothing here may call the stdlib on three's behalf, and `async`/`await` stays out: the async tail is
+// a plain `.then`, so the regenerator machinery that runs is three's own `parseAsync`. The one
+// exception is deliberate - spreading a three iterable drives three's `*[Symbol.iterator]`.
 //
-// Deliberately kept OUT of this module's own code: `async`/`await` (the async tail below is a plain
-// `.then`, so the regenerator machinery that runs is three's `async parseAsync`, not ours), and any
-// stdlib call we could make on three's behalf. What this module still needs - the spread of a three
-// iterable - is the point: the generator being driven is three's `*[Symbol.iterator]`.
+// TYPED-ARRAY PROTOTYPE METHODS ARE EXCLUDED, and that is not a gap waiting to be filled. `usage-pure`
+// cannot serve them structurally: a prototype method needs the prototype patched, which is the one
+// thing `pure` exists to avoid, so the binary-data modules are stubbed out of `@core-js/pure` and no
+// typed-array receiver exists in the instance-method dispatch. unplugin cannot know a receiver is not
+// an Array, so `floats.slice(a, b)` becomes a helper that falls through to `floats.slice` - `undefined`
+// on IE11. That is what keeps `KeyframeTrack#trim`/`#clone`, `AnimationUtils.subclip`/`makeClipAdditive`,
+// `BatchedMesh`, `InstancedMesh#setColorAt`, `mergeVertices` and `radixSort` out of this file, and
+// `Array#find` with them - `makeClipAdditive` is its only call site in three. `usage-global` covers
+// that ground; on `usage-pure` there is nothing to cover.
 //
-// Checks favour derivable values and version-robust invariants over magic vertex totals, so a three
-// bump does not redden the suite spuriously. Labels are flat and prefixed by block.
-//
-// Not reachable headlessly, and deliberately not chased: `Array#includes`, `.keys()`/`.values()`,
-// `Math.log2` and `self` live only in `WebGLRenderer` / WebXR. unplugin still injects them; nothing
-// here can execute them.
-//
-// DELIBERATELY EXCLUDED - typed-array PROTOTYPE methods. `usage-pure` cannot serve them, structurally
-// and by design, so executing one here fails on real IE11 while every other gate stays green:
-//   - a prototype method cannot be delivered without patching the native prototype, which is the one
-//     thing `pure` exists to avoid. So every binary-data module is stubbed out of `@core-js/pure` -
-//     all 69 of them (`es.typed-array.*`, `es.array-buffer.*`, `es.data-view.*`, `es.uint8-array.*`),
-//     via committed `// empty` overrides in `packages/core-js-pure/override/modules/`, no exceptions.
-//   - the usage mapping agrees: in `packages/core-js-compat/src/built-in-definitions.mjs` every typed
-//     array entry is `{ global: ... }` with no `pure` variant, and the instance-method dispatch has no
-//     typed-array receiver at all - its receivers are `array`, `string`, `number`, `regexp`, `date`,
-//     `function`, `promise`, `symbol`, `iterator`, `asynciterator`, `domcollection`.
-//   - so unplugin rewrites `floats.slice(a, b)` - it cannot know the receiver is not an Array - into
-//     `_sliceMaybeArray(floats).call(floats, a, b)`, whose helper falls through to `floats.slice`.
-//     On IE11 that is `undefined`, and the call throws `TypeError`.
-// This cost the paths through `KeyframeTrack#trim` / `#clone`, `AnimationUtils.subclip` and
-// `AnimationUtils.makeClipAdditive`, `BatchedMesh` (`#optimize` -> `copyWithin`,
-// `_initColorsTexture` -> `fill`), `InstancedMesh#setColorAt` (-> `fill`),
-// `BufferGeometryUtils.mergeVertices` (-> `slice`) and `SortUtils.radixSort` (-> `fill`). Do not add
-// them back looking for coverage: `usage-global` covers this ground (it injects the real
-// `es.typed-array.*`), and on `usage-pure` there is nothing to cover.
-// `Array#find` goes with them - `makeClipAdditive` is the ONLY `.find(` call site in three's core and
-// in the five addons, and it is also the one doing `referenceTrack.values.slice(...)` on a Float32Array.
+// `Array#includes`, `.keys()`/`.values()`, `Math.log2` and `self` live only in WebGLRenderer and WebXR,
+// so nothing headless can execute them however the bundle is built.
 import * as THREE from 'three';
 import { deinterleaveAttribute, interleaveAttributes, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { reduceVertices, traverseGenerator } from 'three/addons/utils/SceneUtils.js';

@@ -1,80 +1,31 @@
-// A headless HTML/XML processing pipeline built out of the htmlparser2 stack: the tokenizer and
-// parser (htmlparser2) feeding a DOM (domhandler), traversed and serialised (domutils,
-// dom-serializer), queried with CSS selectors (css-select, css-what, nth-check) and with entities
-// decoded and re-encoded (entities): a wide graph of small modules across ten packages, all pure
-// computation - no DOM, no streams, no node built-ins - so it runs in node AND down-compiles to ES5.
+// A headless HTML/XML pipeline over the htmlparser2 stack - parser, DOM, traversal, serialisation,
+// CSS selectors, entity decoding - a wide graph of small modules across ten packages, all pure
+// computation, so it runs in node AND down-compiles to ES5.
 //
-// THIS IS THE SUITE'S TYPESCRIPT FIXTURE, and that is its reason to exist. The runtime tier builds
-// these libraries from their own `src/**/*.ts` rather than from their published JS (the redirect is
-// `TS_SOURCE_PACKAGES` in build.mjs), so most of the graph is `.ts`. What is left is the two entry
-// modules plus domhandler, domelementtype and boolbase, none of which ship sources - so the graph is
-// deliberately MIXED, which is what a real TypeScript project's node_modules looks like anyway.
+// THIS IS THE SUITE'S TYPESCRIPT FIXTURE, and that is its reason to exist: the runtime tier builds
+// these libraries from their own `src/**/*.ts` (`TS_SOURCE_PACKAGES` in build.mjs), while the packages
+// that ship no sources stay JS - so the graph is deliberately mixed, the way a real project's
+// node_modules is.
 //
-// The point of feeding unplugin TypeScript is the `phase` axis. `pre` runs before Babel and its
-// documented advantage is "original source with full semantic context"; over a graph of published JS
-// that claim cannot be tested at all, because there is no TS anywhere in it, and on the other three
-// fixtures `post` is a strict superset of `pre`. Here the two phases separate in BOTH directions, and
-// the six snapshots pin both halves:
-//   usage-global  `post` gains what Babel's class helpers reach for (`es.reflect.construct`,
-//     `es.symbol.*`, `es.object.get-prototype-of` ...). `pre` keeps one that `post` structurally
-//     cannot see: `es.error.cause`, injected off the TYPE annotations `onerror(error: Error)` in
-//     `Parser.ts` and `(error: Error | null) => void` in `index.ts` - positions with no runtime
-//     existence, so once types are stripped there is nothing left to detect. (Confirmed by injection
-//     origin, not inferred: both are htmlparser2 modules.)
-//   usage-pure    the pre-only one is
-//     `@core-js/pure/full/array/instance/includes`. `usage-pure` does NOT walk annotations
-//     (`walkAnnotations: false`), so this is not the annotation walk above - it is type-driven
-//     RECEIVER RESOLUTION: `context.includes(element)` in css-select's `:scope` filter and
-//     `array.includes(node, index + 1)` in domutils' `uniqueSort` both declare `Node[]`, so `pre`
-//     emits the array-specific `_includesMaybeArray`; at `post` the annotation is gone and all three
-//     call sites fall back to the receiver-agnostic `@core-js/pure/full/instance/includes`.
-// So `pre+post` is strictly LARGER than `post` here - the first fixture where that is true - and its
-// two cells gate exactly that union.
+// Feeding unplugin TypeScript is what gives the `phase` axis something to be about. On the JS fixtures
+// `post` is a strict superset of `pre`; here the phases separate in BOTH directions, so `pre+post` is
+// strictly larger than `post` and its cells gate exactly that union. `pre` reads type annotations no
+// later phase can see - `es.error.cause` off `onerror(error: Error)` - and resolves receivers from
+// them, a `Node[]` picking the array-specific pure helper where `post` falls back to the
+// receiver-agnostic one.
 //
-// The exercise imports the BARE specifiers, so `check-exercise` (raw node, no bundler) runs against
-// the published JS while the runtime tier builds the sources. Same implementation either way; the
-// redirect belongs to the bundler, and keeping it there is what lets the self-check stay bundler-free.
+// The exercise imports BARE specifiers, so `check-exercise` runs against the published JS while the
+// runtime tier builds the sources: the redirect belongs to the bundler, and keeping it there is what
+// lets the self-check stay bundler-free.
 //
-// WHAT THE BLOCKS ARE FOR. As with the other fixtures, they are chosen so the LIBRARIES' own
-// implementations reach for what IE11 lacks rather than this file doing it on their behalf:
-// `new Map` / `new Set` behind htmlparser2's implied-end-tag, void-element and foreign-content tables
-// (reached by `<li>`/`<tr>`/`<td>`/`<dt>`/`<option>`/`<p>` left unclosed, by `<br>`/`<img>`/`<hr>`,
-// and by the `<svg>` block whose `clipPath` and `foreignObject` only keep their camel case if
-// `svgTagNameAdjustments` ran); `Map#get` in the tokenizer's entity trie; `new WeakMap` in BOTH of
-// css-select's result caches - `helpers/cache.ts` and the `cachedDescendant` in `general.ts`, which
-// is only compiled when the selector carries an expensive subselector, hence `body :has(li.sel) li`;
-// `Object.hasOwn` in five modules across four packages; `String.fromCodePoint` in htmlparser2's
-// entity callback and `String#codePointAt` in entities' escaper; `Number.parseInt` in entities'
-// base-36 trie decoder, in css-what's unicode escapes and in domutils' feed media attributes;
-// `Number.isNaN` in css-what's `funescape`; `String#replaceAll` in dom-serializer's raw-attribute
-// path, which needs `decodeEntities: false`; `String#startsWith`/`#endsWith`/`#includes` behind the
-// `[a^=]` / `[a$=]` / `[a*=]` operators; and `Array#includes` in the parser's nested-`<form>` and SVG
-// stack checks. Coverage is counted by attributing each native call to its immediate stack frame, so
-// only the calls made from library modules count; the blocks reach every package but domelementtype
-// and boolbase, a constants table and two stub functions with no logic to reach.
+// Name collisions: domutils exports module-level `find` and `filter`. Called bare they are ordinary
+// identifiers, so the block below reaches them as `DomUtils.find(...)` - a member expression that
+// `usage-pure` rewrites and whose helper has to hand back domutils' function.
 //
-// NAME COLLISIONS: domutils exports module-level functions called `find` and `filter`, whose names
-// collide with `Array#find` / `Array#filter`. Called bare they are ordinary identifiers, so the
-// collision block below reaches them through the `DomUtils` namespace instead - `DomUtils.find(...)`
-// is a member expression that `usage-pure` rewrites, and the pure helper has to hand back domutils'
-// function rather than the array method. On IE11 a wrong fallback there is fatal and the
-// modern-realm pre-flight cannot see it.
-//
-// TYPED ARRAYS are present but only ever INDEXED: htmlparser2's `Sequences` (`Uint8Array` literals)
-// and entities' decode tries (`Uint16Array` built by `decodeBase64`). No prototype method is called
-// on either, so the structural `usage-pure` typed-array hole - the one that forced three.js to prune
-// `KeyframeTrack#trim`, `radixSort` and friends - is never reached, and these `usage-pure` cells pass
-// on real IE11. That contrast is deliberate: it is what makes the two fixtures say different things.
-//
-// ABSENT from the whole graph, so not chased and not chaseable: `Array.from`, `Array#find`,
-// `Array#flat`, `Object.assign` / `.entries` / `.values`, `Number.isInteger`, `String#matchAll` and
-// `Promise`. unplugin still injects several of them at `post`, out of Babel's helpers.
-// DELIBERATELY EXCLUDED: `htmlparser2/WritableStream` and `/WebWritableStream` - node streams and
-// WHATWG streams respectively, neither of which is stdlib core-js can polyfill.
-//
-// Checks assert structural invariants (element counts, tag names, decoded text, selector ASTs) rather
-// than serialisation byte-for-byte, so a patch release that shifts whitespace handling does not
-// redden the suite spuriously.
+// Typed arrays are present but only ever INDEXED, so the structural `usage-pure` hole that pruned
+// three's paths is never reached and these cells pass on IE11 - the contrast is the point.
+// `htmlparser2/WritableStream` and `/WebWritableStream` are excluded: node and WHATWG streams are not
+// stdlib that core-js can polyfill.
 import { DomUtils, Parser, parseDocument, parseFeed } from 'htmlparser2';
 import { compile, is, selectAll, selectOne } from 'css-select';
 import {

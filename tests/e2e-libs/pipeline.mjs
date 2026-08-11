@@ -45,14 +45,13 @@ async function timedBuild(entry, plugins, label = 'stage') {
   }
 }
 
-// Wrap a plugin's transform hook to accumulate the time spent inside it (handles sync + async).
-// Rollup accepts the hook either as a plain function or in object form `{ order, handler }`
-// (unplugin emits the object form), so unwrap it and re-wrap in the shape it came in.
-// Rollup transforms sibling modules CONCURRENTLY and both wrapped hooks are async, so summing each
-// call's wall-clock would double-count overlapping invocations and charge one plugin for time the
-// process spent inside the other. Accumulate the union of busy intervals instead: the clock starts
-// when the hook goes idle -> in-flight and stops when the last in-flight call settles. That is a
-// "window in which this hook was active", not a strict partition of the build.
+// Rollup takes the hook as a plain function or as `{ order, handler }` (unplugin emits the latter),
+// so it is unwrapped and re-wrapped in the shape it came in.
+//
+// Sibling modules transform CONCURRENTLY and both hooks are async, so summing each call's wall-clock
+// would charge one plugin for time spent inside the other. This accumulates the union of busy
+// intervals - the clock runs from idle -> in-flight until the last in-flight call settles - which is a
+// window in which the hook was active, not a partition of the build.
 function timeTransform(plugin, add) {
   const hook = plugin.transform;
   const orig = typeof hook === 'function' ? hook : hook.handler;
@@ -70,20 +69,17 @@ function timeTransform(plugin, add) {
   return plugin;
 }
 
-// [A] and [B] depend on the LIBRARY only. Neither carries unplugin, and `withEntry` emits the same
-// entry body for every usage-* method, so building them per method rebuilt identical bytes twice and
-// printed the run-to-run spread between the two as if it were a usage-global vs usage-pure signal.
-// Measured once per library and shared, keyed by name.
+// [A] and [B] depend on the LIBRARY only: neither carries unplugin, and `withEntry` emits the same
+// entry body for every usage-* method. Measured once per library and shared, or the run-to-run spread
+// between two identical builds reads as a usage-global vs usage-pure difference.
 const stagesByLib = new Map();
 async function baseStages(lib) {
   if (stagesByLib.has(lib.name)) return stagesByLib.get(lib.name);
   const label = `${ lib.name }/usage-*`;
   const stages = await withEntry(lib.exercise, 'usage-global', 'pipe-base', async entry => {
     let src = 0;
-    // `ts` rides along because it changes what `src` MEANS: this counter sits before the type-erasure
-    // pass, so for a TS-source library the figure is TypeScript with its annotations still in it and
-    // is not comparable with the JS fixtures' rows. The report labels the row accordingly rather than
-    // printing two different measurements under one heading.
+    // `ts` changes what `src` MEANS: this counter sits before type erasure, so a TS-source library is
+    // counted with its annotations and does not compare with the JS rows. The report labels it.
     let ts = false;
     const counter = {
       name: 'src-count',
@@ -116,10 +112,8 @@ async function measure(lib, method) {
       cell.B = B;
     }
 
-    // [C]: Babel + unplugin, instrumented for the babel-vs-unplugin split. Injections are recorded
-    // INSIDE this build: a separate captureInjections pass runs unplugin without Babel, and the post
-    // phase consumes Babel's helper output, so that pass undercounts whatever Babel's own helpers
-    // reach for.
+    // injections are recorded INSIDE this build: a separate captureInjections pass runs unplugin
+    // without Babel, and the post phase consumes Babel's helper output, so it would undercount
     let babelMs = 0;
     let unpluginMs = 0;
     const sink = new Set();
@@ -144,9 +138,8 @@ async function measure(lib, method) {
   });
 }
 
-// Warm the toolchain before anything is measured: the first build in the process pays the one-off
-// cost of rollup + @babel/core + preset-env + unplugin, and that landed entirely on whichever cell
-// happened to run first, making the cross-lib [C] column incomparable.
+// Warm the toolchain first: the one-off cost of loading rollup, Babel and unplugin would otherwise
+// land entirely on whichever cell ran first and make the cross-library [C] column incomparable.
 process.stdout.write('warming the toolchain ... ');
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
   entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
@@ -161,9 +154,8 @@ for (const lib of libs) {
     echo('done');
   }
 }
-// belt and braces: `libs` is non-empty (librariesIn throws otherwise) and `methodFilter` is validated
-// against METHODS above, so this cannot fire today. It stays so that a future per-library method
-// subset cannot write a green empty report.
+// cannot fire today - `librariesIn` throws on an empty match and `methodFilter` is validated above -
+// but it stays so that a future per-library method subset cannot write a green empty report.
 if (!rows.length) throw new Error(`no (library x method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
 // -------- report --------
