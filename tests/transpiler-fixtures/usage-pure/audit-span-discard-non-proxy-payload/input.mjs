@@ -4,6 +4,7 @@
 // prefix, computed-key prefix, sealed probe receiver, dropped IIFE argument) crosses a claim
 // channel: static call, symbol key, prototype-navigated instance, destructure, `in`.
 function dh(x) { return globalThis; }
+function pick(x) { return x; }
 function eff() { return 0; }
 export const staticCall = (Promise, globalThis).self.Array.of(1);
 export const staticRead = globalThis[(Promise, "self")].window.Number.MAX_SAFE_INTEGER;
@@ -22,9 +23,13 @@ export const provenCallArg = (() => globalThis)(Promise).self.Array.of(5);
 // binding, so the read inside it still resolves
 export const effectPrefix = (eff(), globalThis).self.Array.of(4);
 export const foldedIn = "of" in (Promise, globalThis).self.Array;
+// a callee that IGNORES its parameter returns the same value for every argument, so the root IS
+// proven and the static claims - the argument's own read rides the discarded span, exactly like the
+// arrow spelling above. the genuinely opaque row is the one below, whose callee READS its parameter
+export const paramIgnoringRoot = dh(Promise).self.Array.of(6);
 // negative: an OPAQUE call root proves nothing about its return value, so the static is not claimed
 // and the navigation stays exactly as written - only the argument, which survives, is rewritten
-export const opaqueRoot = dh(Promise).self.Array.of(6);
+export const opaqueRoot = pick(Promise).self.Array.of(7);
 
 // the sequence prefix ahead of a claimed static is re-emitted VERBATIM, so what it reads keeps its
 // own rewrite: a bare proxy global there must still come back polyfilled, not raw. every operand

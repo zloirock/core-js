@@ -919,7 +919,7 @@ function checkMergeEqualRangeBoundaryNeedle() {
 }
 checkMergeEqualRangeBoundaryNeedle();
 
-// U05-1: addSplit must validate the FULL range up front (before the first add) so ANY bad offset
+// addSplit must validate the FULL range up front (before the first add) so ANY bad offset
 // fails ATOMICALLY with an addSplit-specific diagnostic. a bad `end` is the orphan-critical case
 // (it would pass the prefix add() and throw only in the suffix add(), orphaning the prefix half and
 // corrupting the next apply()); a bad start/mid is caught by the first add() but the upfront check
@@ -965,7 +965,217 @@ function checkSameStartSplitTiebreak() {
 }
 checkSameStartSplitTiebreak();
 
-// U05-2: composeAndDrainRange drains entries and returns splices the caller bakes into relocated
+// compose drops an inner when an ANCESTOR's copy already carries its emit - the guard rendered the
+// receiver before the inner reached composition, so the source needle is gone and the replacement
+// stands in its place. the drop must stay tied to an ancestor that really encloses the inner: a
+// coincidence elsewhere in an unrelated entry may not silently swallow a live rewrite
+function checkAncestorReplacementDrop() {
+  const code = 'pre(aaa.bbb) + zzz';
+  function compose(outerContent, innerContent) {
+    const q = new TransformQueue(code, new MagicString(code));
+    q.add(0, 12, outerContent);
+    q.add(4, 7, innerContent);
+    return q.composeAndDrainRange(0, code.length).map(s => s.content).join('|');
+  }
+  // the outer carries the inner's SOURCE: ordinary composition
+  check('compose/outer carrying the source composes the inner', compose('pre(aaa.bbb)', 'XXX'), 'pre(XXX.bbb)');
+  // the outer already carries the inner's EMIT: the inner is a phantom and is dropped, not thrown on
+  let threw = null;
+  try {
+    check('compose/outer carrying the emit drops the inner', compose('pre(XXX.bbb)', 'XXX'), 'pre(XXX.bbb)');
+  } catch (error) {
+    threw = error.message;
+  }
+  check('compose/carrying the emit does not abort the build', threw, null);
+}
+checkAncestorReplacementDrop();
+
+// the deferred insert is RECORDED at the call and spliced once the owner's inners are composed, so
+// two of them in nested blocks no longer make each other's search space unrecognisable. one that
+// finds no slot after composition must not vanish quietly - the declaration would go with it
+function checkDeferredOwnerInserts() {
+  const code = 'a(() => { b(() => { c; }); }, 0)';
+  const outer = { start: code.indexOf('{'), end: code.lastIndexOf('}') + 1 };
+  const inner = { start: code.indexOf('{', outer.start + 1), end: code.indexOf('}') + 1 };
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, code.length, code);
+  check('deferred insert/outer block accepted',
+    q.insertIntoOwnerContent({ start: outer.start, end: outer.end, offset: 1, text: ' var _o;' }), true);
+  check('deferred insert/nested block accepted',
+    q.insertIntoOwnerContent({ start: inner.start, end: inner.end, offset: 1, text: ' var _i;' }), true);
+  const [splice] = q.composeAndDrainRange(0, code.length);
+  check('deferred insert/both land in the composed content',
+    splice.content.includes('{ var _o;') && splice.content.includes('{ var _i;'), true);
+  // an insert whose owner never carries it must be REFUSED at the call, not lost later
+  const q2 = new TransformQueue(code, new MagicString(code));
+  q2.add(0, code.length, 'REPLACED()');
+  check('deferred insert/an owner that carries nothing is refused',
+    q2.insertIntoOwnerContent({ start: outer.start, end: outer.end, offset: 1, text: ' var _x;' }), false);
+}
+checkDeferredOwnerInserts();
+
+// a range whose two ends come from DIFFERENT nodes can straddle a wrapper paren: the emitter takes
+// its spans from PEELED nodes, so an inner start sits past an opener whose closer lies inside the
+// outer end. queuing that range verbatim drops the closer, strands the opener and the emitted
+// module stops parsing - the queue extends such a range left over the opener instead
+function checkWrapperStraddlingRanges() {
+  const code = 'const v = (a.b.c)(1);';
+  const inner = code.indexOf('a.b.c');
+  const outerEnd = code.indexOf(';');
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(inner, outerEnd, 'X');
+  const [entry] = q.composeAndDrainRange(0, code.length);
+  check('straddling range/extends left over the stranded opener', entry.start, inner - 1);
+  check('straddling range/the swapped span is balanced', code.slice(entry.start, entry.end), '(a.b.c)(1)');
+
+  // a BALANCED range is the common case and must come back exactly as the caller spelled it
+  const q2 = new TransformQueue(code, new MagicString(code));
+  q2.add(inner, code.indexOf(')'), 'Y');
+  check('straddling range/a balanced range is untouched', q2.composeAndDrainRange(0, code.length)[0].start, inner);
+
+  // the closer may belong to a construct the replacement was never meant to swallow: only a paren
+  // standing DIRECTLY before the range is the wrapper this range broke
+  const other = 'const v = f(a.b) + 1;';
+  const q3 = new TransformQueue(other, new MagicString(other));
+  const from = other.indexOf('a.b');
+  q3.add(from, other.indexOf('+') - 1, 'Z');
+  check('straddling range/refuses when the opener is not adjacent',
+    q3.composeAndDrainRange(0, other.length)[0].start, from);
+
+  // `claim` probes ownership at the range `add` will actually take, not the one the caller spelled
+  const q4 = new TransformQueue(code, new MagicString(code));
+  q4.add(inner - 1, outerEnd, 'OWNED');
+  check('straddling range/claim probes the balanced range', q4.claim(inner, outerEnd, 'W'), false);
+}
+checkWrapperStraddlingRanges();
+
+// an outer entry renders its spans off PEELED nodes, so a grouping paren the source wrote around
+// part of an inner's needle has no place in the outer's content. the inner still has a slot there -
+// the same text without that pair - and the queue must find it rather than abort the build. dropped
+// as a PAIR and only on a UNIQUE standalone hit: a lone-token tolerance was measured and it matched
+// slots differing by a real token, turning locate failures into unparsable output
+function checkWrapperSpelledSlots() {
+  const code = 'const v = (a.b)(1);';
+  const at = code.indexOf('(a.b)');
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(at, code.indexOf(';'), 'W(a.b, 1)');
+  q.add(at, at + 5, 'INNER');
+  check('wrapper spelling/inner composes into the peeled slot',
+    q.composeAndDrainRange(0, code.length)[0].content, 'W(INNER, 1)');
+
+  // two candidate slots mean the queue cannot tell which one is the inner's own - it must abort
+  const q2 = new TransformQueue(code, new MagicString(code));
+  q2.add(at, code.indexOf(';'), 'W(a.b, a.b)');
+  q2.add(at, at + 5, 'INNER');
+  let threw = false;
+  try {
+    q2.composeAndDrainRange(0, code.length);
+  } catch {
+    threw = true;
+  }
+  check('wrapper spelling/an ambiguous peeled slot is refused', threw, true);
+}
+checkWrapperSpelledSlots();
+
+// the ASI guard is decided by POSITION when an entry is queued. composing that entry into another
+// entry's content moves it off statement position, where its `;` is no longer a separator but a
+// token in the middle of an expression
+function checkComposedAsiGuard() {
+  const code = 'x\na.b.c;';
+  const inner = 2;
+  function starts() {
+    return new Set([inner]);
+  }
+  const q = new TransformQueue(code, new MagicString(code), starts);
+  q.add(inner, code.indexOf(';'), '(OUT(a.b))');
+  q.add(inner, inner + 3, '(X)');
+  check('asi guard/a composed inner drops its statement-position separator',
+    q.composeAndDrainRange(0, code.length)[0].content, ';(OUT((X)))');
+
+  // standing alone at that position it still needs the separator
+  const q2 = new TransformQueue(code, new MagicString(code), starts);
+  q2.add(inner, inner + 3, '(X)');
+  check('asi guard/a standalone entry keeps it',
+    q2.composeAndDrainRange(0, code.length)[0].content, ';(X)');
+}
+checkComposedAsiGuard();
+
+// a deferred insert (a scoped `var` after a block's `{`) has to land in the OWNER's rendered copy of
+// that block. three ways to find the slot, and the last one is the only address a fully re-rendered
+// block still has: the ordinal of its opening brace. the ordinal is trustworthy only while the
+// render kept the brace COUNT - an owner that DISCARDED the block has fewer, and its brace 0 belongs
+// to something else entirely
+function checkInsertIntoOwnerContentSlots() {
+  const code = 'a(() => { b; }, 0)';
+  const block = { start: code.indexOf('{'), end: code.indexOf('}') + 1 };
+  function insertWith(ownerContent) {
+    const q = new TransformQueue(code, new MagicString(code));
+    q.add(0, code.length, ownerContent);
+    const ok = q.insertIntoOwnerContent({ start: block.start, end: block.end, offset: 1, text: ' var _r;' });
+    return { ok, content: q.composeAndDrainRange(0, code.length)[0].content };
+  }
+  // the raw block text survives in the owner's copy: plain positional hit
+  const verbatim = insertWith('X(() => { b; }, 0)');
+  check('insertIntoOwnerContent/verbatim owner takes the insert', verbatim.ok, true);
+  check('insertIntoOwnerContent/verbatim insert lands after the brace',
+    verbatim.content.includes('{ var _r; b; }'), true);
+  // an owner that REWROTE the block end to end has no address for it: a brace-ordinal fallback was
+  // implemented for exactly this and removed by measurement (it never fired on either corpus), so
+  // the caller re-emits the block instead
+  check('insertIntoOwnerContent/a fully rewritten owner is refused',
+    insertWith('X(() => { _b; }, 0)').ok, false);
+  // the owner DISCARDED the block: its remaining brace belongs to an object literal, and taking it
+  // would splice the declaration into somebody else's group
+  const discarded = insertWith('X({ q: 1 })');
+  check('insertIntoOwnerContent/discarding owner is refused', discarded.ok, false);
+  check('insertIntoOwnerContent/discarding owner is left untouched',
+    discarded.content, 'X({ q: 1 })');
+  // the NEAREST owner decides, even when a wider one still carries the block. walking outward was
+  // implemented and REVERTED by measurement: the insert then lands in a copy that still-queued
+  // transforms search by raw source needle, and cutting one of those needles aborts the build on
+  // real input. the caller's own fallback - re-emitting the block - is the answer here
+  const wide = 'z; a(() => { b; }, 0)';
+  const wideBlock = { start: wide.indexOf('{'), end: wide.indexOf('}') + 1 };
+  const q = new TransformQueue(wide, new MagicString(wide));
+  q.add(3, wide.length, 'X({ q: 1 })');
+  q.add(0, wide.length, 'Z; X(() => { _b; }, 0)');
+  check('insertIntoOwnerContent/a discarding nearest owner refuses, wider one is not consulted',
+    q.insertIntoOwnerContent({ start: wideBlock.start, end: wideBlock.end, offset: 1, text: ' var _r;' }), false);
+}
+checkInsertIntoOwnerContentSlots();
+
+// `claim` is check-and-add as one call, so a channel cannot probe one range and queue another. the
+// range it refuses is the LOGICAL one, which is what a split pair owns - a physical-only refusal
+// let a late whole-span claimant queue a rival entry over the pair and abort the merge
+function checkClaimIsCheckAndAdd() {
+  const code = '0123456789abcdef';
+  const q = new TransformQueue(code, new MagicString(code));
+  check('TransformQueue/claim takes a free range', q.claim(0, 4, 'A'), true);
+  check('TransformQueue/claim refuses an owned range', q.claim(0, 4, 'B'), false);
+  check('TransformQueue/claim leaves the owner untouched', q.composeAndDrainRange(0, 4)[0].content, 'A');
+  const split = new TransformQueue(code, new MagicString(code));
+  split.addSplit(2, 5, 9, '[', ']');
+  check('TransformQueue/claim refuses a split pair by its logical range', split.claim(2, 9, 'X'), false);
+  check('TransformQueue/claim takes a range no pair owns', split.claim(10, 14, 'Y'), true);
+}
+checkClaimIsCheckAndAdd();
+
+// `containsRange` is the ownership verdict every channel asks before claiming a span outright, so
+// which boundaries it treats as strict is a contract, not an implementation detail: PROPER
+// containment, i.e. a container anchored at the same start (or ending at the same end) still owns
+// the span, and only the exact range does not - that one is the asking transform itself
+function checkContainsRangeIsProperNotStrict() {
+  const code = 'aaa.bbb.ccc.ddd';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, 11, 'OWNER'); // aaa.bbb.ccc: same start as the queried span, wider end
+  check('TransformQueue/containsRange sees a same-start wider owner', q.containsRange(0, 7), true);
+  check('TransformQueue/containsRange sees a same-end wider owner', q.containsRange(4, 11), true);
+  check('TransformQueue/containsRange excludes the exact range', q.containsRange(0, 11), false);
+  check('TransformQueue/containsRange leaves an unowned span free', q.containsRange(12, 15), false);
+}
+checkContainsRangeIsProperNotStrict();
+
+// composeAndDrainRange drains entries and returns splices the caller bakes into relocated
 // text via spliceInRange, which cannot detect a partial overlap. it must run the same partial-overlap
 // guard apply() does, surfacing the composition bug instead of silently corrupting the relocated text
 function checkComposeAndDrainRangeOverlapThrows() {
@@ -2215,6 +2425,28 @@ function checkReplaceNthEnumeration() {
   check('replaceNth/self-bordered n=1 out of range', replaceNthOccurrence({ str: 'a.a.a', needle: 'a.a', replacement: 'X', n: 1 }), 'a.a.a');
   check('replaceNth/plain n=1', replaceNthOccurrence({ str: 'b(c), b(c)', needle: 'b(c)', replacement: 'X', n: 1 }), 'b(c), X');
   check('replaceNth/boundary reject', replaceNthOccurrence({ str: '_ab + ab', needle: 'ab', replacement: 'X', n: 0 }), '_ab + X');
+  // a REJECTED match consumed the text it covered, so a real occurrence STARTING inside it was
+  // skipped and every later ordinal pointed one slot short. `a.a` at index 1 is rejected (the `x`
+  // before it), and the valid one at index 3 begins inside that rejected width
+  check('replaceNth/rejected match does not consume the next', replaceNthOccurrence({
+    str: 'xa.a.a.b', needle: 'a.a', replacement: 'X', n: 0,
+  }), 'xa.X.b');
+  // the needle's own edges are read as CODE POINTS: an astral identifier char is a surrogate PAIR,
+  // and reading one unit reports no identifier edge, which skips the boundary check entirely and
+  // accepts a match buried in a wider identifier
+  check('replaceNth/astral needle edge keeps its boundary', replaceNthOccurrence({
+    str: 'a\u{1D465}.at + \u{1D465}.at', needle: '\u{1D465}.at', replacement: 'X', n: 0,
+  }), 'a\u{1D465}.at + X');
+  check('replaceNth/astral needle tail edge', replaceNthOccurrence({
+    str: 'at.\u{1D465}b + at.\u{1D465}', needle: 'at.\u{1D465}', replacement: 'X', n: 0,
+  }), 'at.\u{1D465}b + X');
+  // "replaced with identical text" is a HIT, not a miss: the public wrapper cannot say so (its
+  // answer is the string either way), which is why compose asks the splice itself. pinned here so
+  // a future caller reading `result !== input` as "found" fails against this row instead of
+  // dropping into ordinal recovery and landing the emit on another slot
+  check('replaceNth/identity replacement is a hit', replaceNthOccurrence({
+    str: 'b(c), b(c)', needle: 'b(c)', replacement: 'b(c)', n: 1,
+  }), 'b(c), b(c)');
 }
 checkReplaceNthEnumeration();
 
@@ -4165,6 +4397,29 @@ function checkDeoptWhitespaceSkip() {
 }
 checkDeoptWhitespaceSkip();
 
+// the memo-value fallback rewrites the slot behind a `(<ref> = ` anchor, and the walk that finds
+// that slot's end counts parens in EMITTED text. a paren inside a string is text: counted, it ends
+// the range at the wrong token and the rewrite swallows whatever follows. the value's own balanced
+// groups must not end it either - only the `)` closing the group the anchor stands in
+function checkMemoValueRewriteIsLexerAware() {
+  const code = 'srcsrcsrc';
+  function composed(memoValue) {
+    const content = `null == (_g = ${ memoValue }) ? void 0 : _g.x`;
+    const tq = new TransformQueue(code, new MagicString(code));
+    const root = { id: 'memo-root' };
+    tq.add(0, 9, content, root, { rootRaw: 'src', guardRef: '_g', deoptPositions: [], objectStart: 0, absorbsRoot: false });
+    tq.add(0, 3, 'INNER');
+    return tq.composeAndDrainRange(0, 9)[0].content;
+  }
+  check('memo-value rewrite keeps the tail past a string-borne paren',
+    composed('f(")")').endsWith(') ? void 0 : _g.x'), true);
+  check('memo-value rewrite keeps the tail past a balanced inner group',
+    composed('f(a)').endsWith(') ? void 0 : _g.x'), true);
+  check('memo-value rewrite lands the inner emit in the slot',
+    composed('f(a)').includes('INNER'), true);
+}
+checkMemoValueRewriteIsLexerAware();
+
 // `findOuterGuardRef` tie-break: when two transforms share the SAME guardedRoot AND the
 // SAME range size, the strict-`>` comparator keeps the earliest registered. Production
 // shape is parent-first visit (outer always wider), so ties are rare; the lock catches
@@ -5865,6 +6120,27 @@ function checkRenamedSlotRecovery() {
   check('renamed slot/no registry leaves the user expression', compose(false), outerContent);
 }
 checkRenamedSlotRecovery();
+
+// --- split pairs are members by their LOGICAL range, on both ends ---
+
+// a split owns [start, end) as one logical rewrite while sitting in the queue as two physical
+// halves. every membership question must see the pair: asking for the logical range reported it
+// FREE (the index carries only the halves), so a later whole-span claimant never stood down, and
+// the inner scan admitted a suffix whose prefix lay outside the range - half a needle against the
+// whole pair's content
+function checkSplitLogicalMembership() {
+  const code = 'F(arr.flat(), 1);';
+  const inner = code.indexOf('arr.flat()');
+  const ms = new MagicString(code);
+  const q = new TransformQueue(code, ms);
+  q.addSplit(inner, inner + 'arr'.length, inner + 'arr.flat()'.length, '_flat(arr)', '.call(arr)', null, null);
+  check('split membership/logical range is owned', q.hasRange(inner, inner + 'arr.flat()'.length), true);
+  check('split membership/physical prefix half is owned', q.hasRange(inner, inner + 'arr'.length), true);
+  check('split membership/unclaimed range is free', q.hasRange(0, code.length), false);
+  q.apply();
+  check('split membership/pair still applies', ms.toString(), 'F(_flat(arr).call(arr), 1);');
+}
+checkSplitLogicalMembership();
 
 // --- re-transform stability of the guard renders (text emitter) ---
 

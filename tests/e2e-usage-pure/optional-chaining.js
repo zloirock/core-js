@@ -1415,3 +1415,37 @@ QUnit.test('optional chaining: `in` keeps its test over a short-circuiting recei
   assert.same('of' in globalThis.Array, true);
 });
 /* eslint-enable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the form under test ends here */
+
+// a guarded receiver whose source text REPEATS in the guarded branch: the memo slot belongs to the
+// ROOT, and the twin occurrence keeps its own dispatch. picking the slot by text alone memoized the
+// twin's result, so the guard held an INDEX and `at` ran on a number
+QUnit.test('optional chain: a look-alike twin does not take the guard memo slot', assert => {
+  const o = { items: ['ax', 'bx', 'cx'], itemsExtra: ['xx', 'yx'] };
+  assert.same(o.items?.at(o.items.findLastIndex(v => v.startsWith('b'))), 'bx');
+  assert.same(o.items?.at(o.items.findLastIndex(v => v.startsWith('a')) + o.items.findIndex(v => v.startsWith('b'))), 'bx');
+  // the twin runs its own nested dispatch, which composes inside the argument
+  assert.same(o.items?.at(o.items.findLastIndex(v => v.startsWith('c')) - o.items.flat().findIndex(v => v.startsWith('c'))), 'ax');
+  // a sibling key sharing only a PREFIX of the root text is a different receiver
+  assert.same(o.items?.at(o.itemsExtra.findLastIndex(v => v.startsWith('y'))), 'bx');
+  // the receiver still short-circuits, and the argument never runs
+  let reads = 0;
+  const absent = null;
+  assert.same(absent?.at(o.items.findLastIndex(() => {
+    reads += 1;
+    return true;
+  })), undefined);
+  assert.same(reads, 0);
+});
+
+QUnit.test('optional chain: twin slot in a class receiver', assert => {
+  class Box {
+    constructor(items) {
+      this.items = items;
+    }
+    pick(fn) {
+      return this.items?.at(this.items.findLastIndex(fn));
+    }
+  }
+  assert.same(new Box(['ax', 'bx', 'cx']).pick(v => v.startsWith('b')), 'bx');
+  assert.same(new Box(null).pick(() => true), undefined);
+});

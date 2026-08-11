@@ -8,6 +8,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // the HOST positions a kept proxy root can sit in. the rule is the same everywhere - the assignment stays
@@ -112,3 +113,13 @@ function opaqueRoot() {
 }
 export const delOpaque = delete opaqueRoot()?.window?.customW;
 export const delNested = [delete (null == _globalThis.window ? void 0 : _self)?.customV];
+
+// the `?.` over the HOST of the navigation is not load-bearing - the host is assumed present, and
+// the navigation only NAMES the global - so a collapse that replaces the whole thing may drop the
+// guard with it. that is position-dependent by construction and accepted: extracting a SINGLE
+// property drops the guard, while a member read, an object read and an array pattern keep it.
+// where the host really is absent, the extraction throws natively and this output does not
+export const trunc = _Math$trunc;
+export const truncRead = null == _globalThis.window ? void 0 : _Math$trunc;
+export const mathRead = null == _globalThis.window ? void 0 : _self.Math;
+export const [firstOf] = null == _globalThis.window ? void 0 : _Array$of(1);
