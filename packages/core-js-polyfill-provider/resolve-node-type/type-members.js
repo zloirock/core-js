@@ -116,7 +116,10 @@ export function createTypeMembers({
   // objectType (a class with N inherited ifaces re-collects all N per member lookup).
   // visited-walks (cycle-guard interface-merging recursion) bypass: results depend on the
   // caller's seen set, so a no-cycle cached entry could leak through to subsequent walks
-  // that need cycle protection
+  // that need cycle protection.
+  // a depth-capped null is cached and served even when the same (objectType, scope) pair is
+  // later reached at a shallower depth: pathological by construction (takes wrapper nesting
+  // near the depth cap), and the miss direction is a safe under-resolve
   let getTypeMembersCache = new WeakMap();
   function getTypeMembers(args) {
     if (args.visited) return computeGetTypeMembers(args);
