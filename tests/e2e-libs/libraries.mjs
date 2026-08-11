@@ -1,11 +1,6 @@
-// Registry of libraries exercised by the suite. Each entry declares which tiers it participates
-// in (`throughput` = measured; `runtime` = emitted as an ES5 artifact and verified) and the path
-// to its deterministic exercise module (must export `run()` -> Promise or plain { checks }).
-//
-// Every library runs every method, so the method list is NOT per-library: it is `METHODS` in
-// build.mjs, and the runners iterate that. A per-library subset would have to be taught to the
-// runners as well - pipeline validates `methodFilter` against METHODS, and throughput builds its
-// report columns from it - or it produces a silently empty report and a hole-ridden table.
+// The registry: which tiers a library takes part in, and where its exercise lives. Methods are not
+// per-library - the runners iterate `METHODS` from build.mjs, and a subset here would have to be
+// taught to them as well or it yields a hole-ridden report.
 import { join } from 'node:path';
 
 const HERE = import.meta.dirname;
