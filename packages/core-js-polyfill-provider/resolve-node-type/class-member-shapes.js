@@ -6,7 +6,7 @@
 // `.get(...)`); the two factories carry adapter (`t`) and key/type resolvers required by
 // shape-aware variants.
 import { $Primitive } from './base.js';
-import { peelSkippableWrapperPath, peelSkippableWrappers, singleQuasiString } from '../helpers/ast-patterns.js';
+import { peelSkippableWrapperPath, unwrapRuntimeExpr, singleQuasiString } from '../helpers/ast-patterns.js';
 
 // shape unification of `<expr>.<field> = ...` / `<expr>.<field>++` writes: AssignmentExpression
 // target on `.left`, UpdateExpression target on `.argument`. callers ask "is this a member-
@@ -56,7 +56,7 @@ export function createMemberWriteShape({ t, getKeyName, resolveNodeType }) {
     // (`this.field! = s`, `(this.field) = s`) is still recognized as a member write - without the
     // peel the field name is lost, the write is dropped from the field's type index, and the field
     // keeps a stale narrow that emits a type-specific Maybe helper throwing on the new value (ie:11)
-    const target = peelSkippableWrappers(targetNode);
+    const target = unwrapRuntimeExpr(targetNode);
     if (!t.isMemberExpression(target)) return null;
     // a computed key names a field only by its STATIC value: a string / number literal (`this['f']` /
     // `this[0]`, via getKeyName) or a single-quasi template (`this[`f`]`, via singleQuasiString). a
