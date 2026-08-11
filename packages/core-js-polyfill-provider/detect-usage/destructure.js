@@ -161,9 +161,11 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
 // `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
 // that resolves to a known global (for `??`/`||` the primary is left side; for `&&` it's
 // the right side - the branch taken when the left/right gate is truthy).
-// `fromFallback` disables the destructure replacement when the runtime value may come
-// from either branch - `&&` is always conditional (primary only when left truthy, else
-// falsy left), so always flag; `??`/`||` flag only when the fallback is the resolved side
+// `fromFallback` marks that the runtime value may come from EITHER branch, which routes the
+// emit to per-branch enumeration (see `resolveAndDestructureMeta` below) rather than a single
+// whole-init replacement - it does not disable the rewrite. `&&` is always conditional (primary
+// only when left truthy, else falsy left), so always flag; `??`/`||` flag only when the fallback
+// is the resolved side
 function resolveLogicalDestructureMeta({ node, key, scope, adapter, path }) {
   return node.operator === '&&'
     ? resolveAndDestructureMeta({ node, key, scope, adapter, path })
