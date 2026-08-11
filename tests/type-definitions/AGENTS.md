@@ -22,4 +22,5 @@ The matrix is a cross-product of five axes: the flavor, the ES target of the com
 
 - Compiling the file *is* the check, so the assertions have to be written into it: annotate the binding, which makes assignability do the work, and mark what must not compile with `// @ts-expect-error`. A bare call with no annotation passes even when the type resolved to `any`
 - Both flavors need the case. The global one checks the member on the built-in, the pure one checks the module export
+- The file name is part of the matrix: `*es2018*test.ts` is left out of the `es6` target leg, `*dom*test.ts` is compiled only in the leg that adds the DOM lib. Both are substring matches over the path, so the name is a claim about what the case needs in order to compile
 - Adding a TypeScript version to the matrix is a decision about what the package supports - `typesVersions` in the built `package.json` has to agree with it
