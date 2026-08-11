@@ -326,12 +326,12 @@ export function assertNoExternals(chunk, label) {
 // How many bytes of core-js actually reached the chunk. The injection COUNT cannot answer this: the
 // recorder matches specifier text, which survives in the module source even when rollup then drops
 // the module entirely. Flipping `sideEffects` to false in the pinned core-js is enough to do that -
-// every side-effect-only polyfill import is tree-shaken away, the bundle loses ~87% of its bytes,
-// and a count-based gate still reads a healthy 318. throughput.mjs catches that shape by comparing
-// against a plugin-less baseline; measuring the chunk's own module table works for every method and
-// needs no second build to compare against.
-// Smallest real payload measured across the suite is ~191 KB (codemirror/usage-pure at `pre`; the
-// `post` cells of the same fixture carry ~212 KB, htmlparser2's ~204 / ~246 KB).
+// every side-effect-only polyfill import is tree-shaken away, most of the bundle goes with them, and
+// a count-based gate still reads its full healthy number. throughput.mjs catches that shape by
+// comparing against a plugin-less baseline; measuring the chunk's own module table works for every
+// method and needs no second build to compare against.
+// The floor below is an order of magnitude under the smallest payload any cell of this suite
+// produces, so it discriminates "nothing arrived" from "a small one" without tracking either.
 const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\])/;
 const MIN_CORE_JS_BYTES = 10_000;
 export function assertPayload(chunk, label) {
@@ -475,7 +475,7 @@ export function assertES5(code, label) {
 export async function wireSize(code, label = 'wire size') {
   // `target: 'es5'` is load-bearing, not cosmetic: without it esbuild minifies to esnext and emits
   // e.g. optional catch bindings, so the published "wire size" would describe a bundle that cannot
-  // load in the very engine the artifact targets (and would understate it by ~400 bytes). Parse what
+  // load in the very engine the artifact targets, and would understate it besides. Parse what
   // is actually measured rather than trusting the option: this number is published to manifest.json
   // and pipeline.md as shippable, so it carries the same ES5 premise the bundle itself does.
   const minText = (await esbuildTransform(code, { minify: true, legalComments: 'none', target: 'es5' })).code;
