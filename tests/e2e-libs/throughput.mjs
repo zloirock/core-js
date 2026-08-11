@@ -1,23 +1,12 @@
-// Tier-1 runner: measure how fast each bundler processes a library WITH unplugin vs a plugin-less
-// baseline, across method x phase. Emits report/throughput.md + report/throughput.json.
+// Measures the cost of producing a polyfilled build across the bundlers: one build with unplugin
+// minus the plugin-less baseline, per method x phase. READ IT AS BUILD COST, not as unplugin's own
+// processing time - most of the delta is the bundler resolving and rendering the modules unplugin
+// injected. pipeline.mjs is where the isolated figure lives; instrumenting the transform hook is not
+// possible for the webpack-family adapters anyway.
 //
-// Metric per cell = one total-bundle-ms WITH the plugin, minus the per-bundler baseline
-// (plugin-less bundle of the usage entry). READ IT AS THE COST OF PRODUCING A POLYFILLED BUILD, not
-// as unplugin's own processing time: most of the delta is the bundler resolving, parsing and
-// rendering the core-js modules unplugin injected, not the injection itself. pipeline.mjs is where
-// the isolated figure lives - it wraps the transform hook itself and reports `unpluginMs` beside
-// `babelMs`. Instrumenting the hook here is not possible for the webpack-family adapters anyway, so
-// this runner stays a whole-build comparison across bundlers.
-//
-// SINGLE RUN PER CELL. There is no repeat/median axis - the repeats cost more than they buy. What
-// they cannot buy back is the machine's own background load, which is the dominant source of spread
-// here: a cell measured while the box is busy reads high, and no amount of in-process repetition
-// fixes that. So read a cell as an order of magnitude, and take a RATIO between cells seriously only
-// when it is large. Ratios quoted in prose go stale for exactly this reason; the live numbers are in
-// report/throughput.{md,json}.
-//
-// ONE PROFILE - the whole matrix, every bundler x every phase. Overhead is not bundler-invariant and
-// pre+post is not a fixed multiple of a single phase, so no dimension here is derivable from another.
+// One run per cell, no repeat axis: the dominant source of spread is the machine's own load, which
+// repetition cannot buy back. Read a cell as an order of magnitude and a ratio only when it is large.
+// The whole matrix runs - overhead is not bundler-invariant, so no dimension is derivable from another.
 //
 // Usage:  npm run e2e-libs-throughput [libFilter [bundlerFilter]]
 import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, errorReason, HERE } from './build.mjs';

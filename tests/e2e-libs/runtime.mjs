@@ -1,62 +1,8 @@
-// The runtime tier, in ONE pass. For every (library x method x provider x phase) cell this builds the
-// real IE11 bundle exactly once and then hands that single build to every consumer that wants it:
-//
-//   gates      - ES5 parse, core-js payload present, nothing external, non-empty injection set
-//   snapshot   - see "The two providers" below (usage-* only)
-//   pre-flight - the bundle executed in a fresh node process, all self-checks passing
-//   artifact   - bundle.js + a self-checking index.html + a manifest row (raw / min / gzip sizes)
-//   karma      - the same bundle + a QUnit driver, run in REAL IE11 where one is present
-//
-// -------- The two providers --------
-// Both of this repo's polyfill providers run here, on the same libraries, through the same Babel
-// down-compile. They are not symmetrical, and the snapshots reflect that rather than pretending
-// otherwise:
-//
-//   @core-js/babel-plugin  runs INSIDE the Babel pass, so it has no phase - one traversal, one
-//                          answer. Its set is the REFERENCE, stored whole in
-//                          snapshots/<lib>.babel-plugin.<method>.txt
-//   @core-js/unplugin      is a bundler plugin beside Babel, so `pre` / `post` / `pre+post` decide
-//                          whether it reads the source or Babel's output. Each phase is stored as a
-//                          DELTA against that reference, in
-//                          snapshots/<lib>.unplugin.<method>.<phase>.txt - `-spec` for what the
-//                          reference has and the phase does not, `+spec` for the reverse.
-//
-// The delta is the point of running both. Two full sets would differ by a handful of specifiers
-// buried in a wall of identical lines, and a phase regression would have to be spotted by eye across
-// two files; as a delta it is the few lines that change when - and only when - the two providers stop
-// agreeing about this library.
-//
-// One build per cell is the point: the set that is snapshotted, the bytes that are measured and the
-// bundle that runs in IE11 all come out of the same rollup call, by construction rather than by
-// convention. A snapshot pinning the set of one build while a different build ships is a gate
-// describing something other than what it guards.
-//
-// Sizes (raw / min / gzip) and injection counts are deterministic: they do not depend on what ran
-// before them, and two machines that disagree about them disagree about the build.
-//
-// `buildMs` is not of that kind, and is reported anyway - as a DIAGNOSTIC, never as a comparison.
-// It wraps the `runtimeBuild` call alone (the gates, the pre-flight child and the file writes are
-// outside it), but the cell it lands in still starts from whatever CPU and page-cache state the
-// previous cell's minification, child process and file writes left behind, and in CI from a
-// shared-tenancy runner whose other tenant is invisible from in here. So: read one number as an
-// order of magnitude, and do NOT read the spread across cells - the cheap cell is not the fast one,
-// it is the one that happened to start warm. Nothing gates on it and nothing may.
-//
-// The comparison these numbers look like they offer is pipeline.mjs's job. It measures in its own
-// process, warms up first, rebuilds its [C] stage on purpose, and separates Babel's share from
-// unplugin's (`babelMs` / `unpluginMs`) - which is what "how slow is unplugin here" actually needs.
-//
-// `entry-global` carries no phase for either provider and is not snapshotted at all: it expands
-// `import 'core-js'` into whatever `targets` selects, so its set is a function of the options alone
-// and a per-library baseline would pin the same text once per library (that set is pinned exactly,
-// once, in tests/transpiler-fixtures/entry-global). What its two cells DO assert is that the
-// providers agree on that expansion - same targets, same compat data, so a non-empty delta there is
-// a bug in one of them rather than a baseline to bless. It fails the cell.
-//
-// The `pre` phase is a NON-GATING per-library diagnostic in IE11: it runs unplugin before Babel and
-// so can miss the polyfills Babel's own helpers pull in, which some libraries survive and others do
-// not. Its build-time gates still apply; only its IE11 verdict is advisory. Every babel-plugin cell
-// gates - with no phase axis it has no expected-to-fail configuration.
+// The runtime tier, in ONE pass: for every (library x method x provider x phase) cell it builds the
+// real IE11 bundle exactly once and hands that single build to every consumer - the gates, the
+// injection snapshot, the node pre-flight, the artifact page and Karma. Keeping it that way is the
+// whole design, and the rest of the reasoning - why the providers are paired as reference and delta,
+// what gates and what only informs - is in AGENTS.md rather than repeated here.
 //
 // Usage:  npm run e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
