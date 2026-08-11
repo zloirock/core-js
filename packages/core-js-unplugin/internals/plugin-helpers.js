@@ -452,8 +452,9 @@ export function literalRegionsOf(src) {
 }
 
 // binary search for the region containing `pos` (start <= pos < end). null when no region
-// matches - pos is in JS context
-function findRegionContaining(regions, pos) {
+// matches - pos is in JS context. exported so every lexer-aware walk over emitted text asks the
+// SAME question of the SAME map instead of re-scanning the region list linearly
+export function findRegionContaining(regions, pos) {
   let lo = 0;
   let hi = regions.length;
   while (lo < hi) {
@@ -491,6 +492,40 @@ export function prevSignificantPos(src, pos) {
     return i;
   }
   return -1;
+}
+
+// ONE paren pass over a slice, answering everything its consumers ask: how many
+// closers it borrows from the surrounding source (`unmatched`), whether anything is left open at
+// the end (`open`), and whether the FIRST group closes before the last character (`closesEarly`).
+// LEXER-AWARE, like every other paren walk in the pipeline: a paren inside a string, a template or
+// a comment is text, and counting it answers about a group the source never opened. the slices here
+// carry source text - a call argument, a type assertion's own literal type - so they can hold one.
+// `collectPairs` additionally returns the balanced pairs it closed, innermost first - the same walk
+// a caller reconstructing a peeled spelling needs, rather than a second one of its own
+export function scanParens(src, collectPairs = false) {
+  const regions = literalRegionsOf(src);
+  const open = [];
+  const pairs = collectPairs ? [] : null;
+  let depth = 0;
+  let unmatched = 0;
+  let closesEarly = false;
+  for (let i = 0; i < src.length;) {
+    const region = findRegionContaining(regions, i);
+    if (region) {
+      i = region.end;
+      continue;
+    }
+    if (src[i] === '(') {
+      depth += 1;
+      if (collectPairs) open.push(i);
+    } else if (src[i] === ')') {
+      if (collectPairs && open.length) pairs.push([open.pop(), i]);
+      if (depth === 0) unmatched += 1;
+      else if ((depth -= 1) === 0 && i !== src.length - 1) closesEarly = true;
+    }
+    i += 1;
+  }
+  return { unmatched, open: depth, closesEarly, pairs };
 }
 
 // the previous significant position may land on the trailing low surrogate of an astral

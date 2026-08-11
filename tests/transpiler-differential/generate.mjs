@@ -1788,7 +1788,156 @@ const OCRG_SHAPES = [
     rootExpr: '(globalThis.window?.self.window)', def: 'void self; ' },
   { id: 'paren-sealed-nav-field-bare', hops: '', tail: '?.Number.MAX_SAFE_INTEGER.toFixed(2)', bare: true,
     rootExpr: '(globalThis.window?.self.window)', def: 'void self; ' },
+  // the callee written INLINE at the root instead of bound above: the proxy-global is then buried
+  // inside the span the guard test keeps, where it has no rewrite of its own. crossing it with a
+  // hop set that holds NO ponyfillable member is what makes the row discriminating - with a `self`
+  // hop the nested collapse owns the render and the buried root never reaches the raw fallback.
+  // import parity is the tripwire (a missed root substitution emits no global entry at all)
+  { id: 'guarded-buried-iife-root', rootExpr: '(() => globalThis)()', tail: '?.Array.of(5).at(0)', def: '' },
+  { id: 'guarded-buried-identity-arg-root', rootExpr: '((x) => x)(globalThis)', tail: '?.Array.of(6).at(0)', def: '' },
+  { id: 'guarded-buried-fn-expr-root', rootExpr: '(function () { return globalThis; })()',
+    tail: '?.Array.of(7).at(0)', def: '' },
+  { id: 'guarded-buried-se-body-root', rootExpr: '(() => { log.push("body"); return globalThis; })()',
+    tail: '?.Array.of(8).at(0)', def: '' },
+  // a POLYFILLABLE call inside the buried body / argument: its rewrite has no slot in the claim that
+  // replaces the chain, and one in the guard's re-emitted root - the compose has to reach the outer
+  { id: 'guarded-buried-polyfill-in-body', rootExpr: '(() => (Array.from([1]), globalThis))()',
+    tail: '?.Array.of(9).at(0)', def: '' },
+  { id: 'guarded-buried-polyfill-in-arg', rootExpr: '((x) => globalThis)(Array.from([1]))',
+    tail: '?.Array.of(10).at(0)', def: '' },
+  { id: 'guarded-buried-root-computed-key', rootExpr: '(() => globalThis)()',
+    tail: '?.Array[(log.push("k"), "of")](9).at(0)', def: '' },
+  { id: 'guarded-buried-root-ctor-field', rootExpr: '((x) => x)(globalThis)',
+    tail: '?.Number.MAX_SAFE_INTEGER.toFixed(2)', def: '' },
+  // the buried value is a proxy NAVIGATION, so the render owes it the hop collapse as well as the
+  // root rename - import parity is the tripwire (the ponyfilled leaf entry against the root's), and
+  // the unponyfillable hop is the negative that must keep the root spelling
+  { id: 'guarded-buried-nav-root', rootExpr: '(() => globalThis.self)()', tail: '?.Array.of(5).at(0)', def: '' },
+  { id: 'guarded-buried-nav-identity-arg', rootExpr: '((x) => x)(globalThis.self)',
+    tail: '?.Array.of(6).at(0)', def: '' },
+  { id: 'guarded-buried-nav-deep', rootExpr: '(() => globalThis.self.self)()', tail: '?.Array.of(7).at(0)', def: '' },
+  { id: 'guarded-buried-nav-unponyfillable', rootExpr: '(() => globalThis.window)()',
+    tail: '?.Array.of(8).at(0)', def: '' },
+  { id: 'guarded-buried-nav-under-claim', rootExpr: '(() => globalThis.self)()',
+    tail: '?.Array.from([3])', def: '' },
+  // BARE twins of the same roots, armed for the stripped realm: with the rig off, `window` is
+  // absent and the chain short-circuits, so the whole row is the guard TEST - and a root left raw
+  // there is a reference to a binding that realm does not have
+  { id: 'guarded-buried-iife-root-bare', rootExpr: '(() => globalThis)()', tail: '?.Array.of(5).at(0)',
+    def: '', bare: true, strip: true },
+  { id: 'guarded-buried-identity-arg-root-bare', rootExpr: '((x) => x)(globalThis)',
+    tail: '?.Array.of(6).at(0)', def: '', bare: true, strip: true },
+  { id: 'guarded-buried-fn-expr-root-bare', rootExpr: '(function () { return globalThis; })()',
+    tail: '?.Array.of(7).at(0)', def: '', bare: true, strip: true },
+  { id: 'guarded-buried-root-computed-key-bare', rootExpr: '(() => globalThis)()',
+    tail: '?.Array[(log.push("k"), "of")](9).at(0)', def: '', bare: true, strip: true },
 ];
+// --- computed-key and receiver side effects, per consumer ---
+// the SE pipeline decides "who re-emits this effect" in a dozen places, and the emitters can diverge
+// on the ORDER as easily as on the effect itself. the axis crosses the effect's POSITION (receiver,
+// computed key, both, call argument) with the consumer that folds it (instance dispatch, memoized
+// guard, chain-assign root, destructure, for-init, catch, paren-lookup), and the log records order,
+// so an inverted pair or a dropped replay reads off the effects list rather than the text
+const SE_SHAPES = [
+  { id: 'receiver-effect-instance', expr: '(log.push("a"), arr).flat()' },
+  { id: 'key-effect-instance', expr: 'arr[(log.push("b"), "flat")]()' },
+  { id: 'receiver-and-key', expr: '(log.push("c"), o).list[(log.push("d"), "flat")]()' },
+  { id: 'key-effect-memoized-consumer', expr: 'globalThis[(log.push("e"), "Map")].name' },
+  { id: 'key-effect-chain-assign-root', expr: '(held = globalThis)[(log.push("f"), "Map")].name' },
+  { id: 'key-effect-two-hops', expr: 'globalThis[(log.push("g"), "Array")][(log.push("h"), "of")](8).length' },
+  { id: 'nested-sequence-key', expr: 'arr[((log.push("i"), log.push("j")), "flat")]()' },
+  { id: 'two-keyed-siblings', expr: 'arr[(log.push("k"), "flat")]().concat(arr[(log.push("l"), "at")](0))' },
+  { id: 'effect-in-optional-call-arg', expr: 'arr.at?.((log.push("m"), 0))' },
+  { id: 'receiver-effect-optional-tail', expr: '(log.push("n"), o).list?.flat?.()' },
+  { id: 'paren-lookup-key-effect', expr: '(arr?.[(log.push("p"), "flat")])()' },
+  { id: 'array-wrapper-lift', expr: '[(log.push("q"), arr)][0].flat()' },
+  { id: 'default-guard-effect', expr: 'o.missing?.flat?.() ?? (log.push("r"), "x")' },
+];
+function * generateSideEffectConsumers() {
+  for (const shape of SE_SHAPES) {
+    const inner = `(() => { const o = { list: [3, [4]], text: "ab" }; let held; const v = ${ shape.expr }; `
+      + 'log.push(String(v)); return String(v); })()';
+    yield { ...snippet(`se-consumers/${ shape.id }`, inner), strip: false };
+  }
+}
+
+// --- parenthesized chain seals ---
+// user parens END an optional chain: whatever reads past them runs on the value the chain produced,
+// so an ABSENT root throws there while the unsealed spelling short-circuits that consumer away
+// entirely. the axis crosses the seal (single, doubled, over a deeper nav, in `new` position) with
+// the consumer past it (plain call, optional call, member read, construction) and with the root's
+// presence, and each row records the outcome, so a boundary an emitter folds reads off the log
+const CHAIN_SEAL_SHAPES = [
+  { id: 'sealed-static-call', expr: '(globalThis.window?.Array.of)(5)' },
+  { id: 'sealed-deep-nav-call', expr: '(globalThis.window?.self.Math.trunc)(1.5)' },
+  { id: 'sealed-double-paren-call', expr: '((globalThis.window?.Array.of))(5)' },
+  { id: 'sealed-optional-call', expr: '(globalThis.window?.Array.of)?.(5)' },
+  { id: 'sealed-member-read', expr: '(globalThis.window?.self).Math.trunc(1.5)' },
+  { id: 'sealed-new-target', expr: 'new (globalThis.window?.Map)()' },
+  { id: 'sealed-present-root-call', expr: '(globalThis.globalThis?.Array.of)(5)' },
+  { id: 'sealed-instance-lookup-absent', expr: '(o.missing?.flat)()' },
+  { id: 'sealed-instance-lookup-present', expr: '(arr?.flat)()' },
+  { id: 'sealed-then-member-call', expr: '(globalThis.window?.Array.of)(5).at(0)' },
+  { id: 'sealed-computed-read', expr: '(globalThis.window?.self)["Math"].trunc(1.5)' },
+  { id: 'sealed-tagged-template', expr: '(globalThis.window?.String.raw)`x`' },
+  { id: 'sealed-delete-target', expr: 'delete (globalThis.window?.self).Math' },
+  { id: 'unsealed-control-call', expr: 'globalThis.window?.Array.of(5)' },
+  { id: 'unsealed-control-instance', expr: 'arr?.flat()' },
+];
+// --- wrapper-spelled composition ---
+// an outer rewrite renders its spans off PEELED nodes while a nested rewrite's range still carries
+// the grouping parens the source wrote, so the two disagree on spelling where they must compose.
+// the axis crosses WHERE the wrapper sits (chain root, plain root, callee of an optional call) with
+// what encloses the statement (a fusable token before a `(`-leading statement, plain assignment)
+const WRAPPED_COMPOSE_SHAPES = [
+  { id: 'wrapped-chain-root', expr: '(globalThis.window)?.self.Array.of(2).at(0)' },
+  { id: 'wrapped-plain-root', expr: '(globalThis).Array.of(3, 4).at(-1)' },
+  { id: 'wrapped-callee-statement-start', expr: '(getArr().flat?.()?.flatMap)(x => x)?.at(0)' },
+  // the SHORT-CIRCUIT path of that same shape: the parens end the chain, so the call runs on what
+  // the chain produced and must throw. with the method present the two spellings agree, which is
+  // why a corpus that never nullifies it kept the divergence invisible
+  { id: 'wrapped-callee-short-circuit', expr: '(nulled.flat?.()?.flatMap)(x => x)?.at(0)' },
+  { id: 'unwrapped-control-short-circuit', expr: 'nulled.flat?.()?.flatMap(x => x)?.at(0)' },
+  // the INSTANCE side of the same terminator, one row per consumer that can read past the seal
+  { id: 'sealed-instance-optional-call', expr: '(nulled.flat)?.()' },
+  { id: 'sealed-instance-plain-call', expr: '(nulled.flat)()' },
+  { id: 'seal-around-optional-call-then-member', expr: '(nulled.flat?.()).at(0)' },
+  { id: 'seal-around-optional-call-then-optional', expr: '(nulled.flat?.())?.at(0)' },
+  { id: 'sealed-symbol-iterator-lookup', expr: '(({})[Symbol.iterator])()' },
+  // POSITIVE control: parens around the INNERMOST receiver sit below the optional node, so they
+  // seal nothing and the chain must still combine
+  { id: 'wrapped-innermost-receiver-still-combines', expr: '(arr).flat?.().at(0)' },
+  // the seal must not drop the receiver binding a parenthesized callee still carries
+  { id: 'sealed-callee-keeps-this', expr: '(arr.at)(0)' },
+  // REPEATED identical sub-expressions: the peeled-spelling slot search may only answer when exactly
+  // one standalone slot matches, so a second identical one must leave the composition alone
+  { id: 'repeated-identical-subexpressions', expr: '[(arr).flat?.().at(0), (arr).flat?.().at(0)].join(",")' },
+  // deliberately ABSENT: a seal over a nav whose root CARRIES AN EFFECT (`((log.push("x"),
+  // globalThis.window)?.self).Array.of(1)`, and the same with a chain-assign root). the throw probe
+  // that reproduces the read past the seal fires only for a plain root; an effect-bearing one falls
+  // through to the erase and the throw is lost by BOTH emitters. an open defect, not a gate - the
+  // queue entry carries the diagnosis and the repro
+  { id: 'wrapped-inner-receiver', expr: '(arr).flat?.().at(0)' },
+  { id: 'call-past-seal-after-erased-hop', expr: '((s2 = globalThis.window)?.self)(1)' },
+  { id: 'erased-hop-dotted-continuation', expr: '(s3 = globalThis.window)?.self.Array.of(1).at(0)' },
+  { id: 'erased-hop-computed-continuation', expr: '(s4 = globalThis.window)?.self["Array"].of(2).at(0)' },
+  { id: 'unwrapped-control-chain-root', expr: 'globalThis.window?.self.Array.of(2).at(0)' },
+  { id: 'unwrapped-control-callee', expr: 'getArr().flat?.()?.flatMap(x => x)?.at(0)' },
+];
+// both wrapper axes record an OUTCOME rather than a value - a seal turns a short-circuit into a
+// throw, so the row has to survive it and log which one happened. one builder, one prelude: every
+// binding either axis names is declared here, so a row moves between them without carrying setup
+const WRAPPER_PRELUDE = 'const arr = [1, [2]]; const o = {}; function getArr() { return [[1]]; } '
+  + 'const nulled = Object.assign([[1]], { flat: null }); let s1, s2, s3, s4, v; ';
+function * wrapperOutcomeRows(axis, shapes) {
+  for (const shape of shapes) {
+    const inner = `(() => { ${ WRAPPER_PRELUDE }`
+      + `try { v = ${ shape.expr }; } catch (e) { v = e.constructor.name; } `
+      + 'log.push(String(v)); return String(v); })()';
+    yield { ...snippet(`${ axis }/${ shape.id }`, inner), strip: false };
+  }
+}
+
 function * generateOpaqueCallRootGuard() {
   for (const shape of OCRG_SHAPES) {
     const root = shape.root ? 'let held; ' : '';
@@ -1796,7 +1945,11 @@ function * generateOpaqueCallRootGuard() {
     const def = shape.def ?? 'const f = () => globalThis;';
     const inner = `(() => { ${ root }${ def } const v = ${ rootExpr }${ shape.hops ?? '?.window' }${ shape.tail }; `
       + `log.push(String(v)); ${ shape.post ?? '' }return String(v); })()`;
-    yield { ...snippet(`opaque-call-root-guard/${ shape.id }`, inner, { rig: !shape.bare }), strip: false };
+    // the rig itself reads the `globalThis` binding the stripped realm deletes, so a RIGGED row
+    // cannot arm the strip leg; a bare row can, and there it is the only oracle left - the shared
+    // prelude already imports the global entry, so import parity cannot see a missed root
+    yield { ...snippet(`opaque-call-root-guard/${ shape.id }`, inner, { rig: !shape.bare }),
+      strip: shape.strip === true };
   }
 }
 
@@ -5449,6 +5602,8 @@ export function * generate() {
   yield * generateProxyHopCtor();
   yield * generateKeptProxyRoot();
   yield * generateBareProxyProbe();
+  yield * wrapperOutcomeRows('wrapped-composition', WRAPPED_COMPOSE_SHAPES);
+  yield * wrapperOutcomeRows('chain-seals', CHAIN_SEAL_SHAPES);
   yield * generateOpaqueCallRootGuard();
   yield * generateSymbolReceiverContextFold();
   yield * generateLoweredOptionalAlias();
@@ -5509,6 +5664,7 @@ export function * generate() {
   yield * generateVarShadowedStatic();
   yield * generateValuelessRedecl();
   yield * generateSeOrder();
+  yield * generateSideEffectConsumers();
   yield * generateOptionalArgSe();
   yield * generateAsyncStatic();
   yield * generateCollectionReceivers();
