@@ -140,6 +140,43 @@ QUnit.test('IIFE-proxy with intermediate hop: side effect runs once', assert => 
   assert.same(it, Symbol.iterator);
 });
 
+// the same IIFE root under an UNPOLYFILLED hop (`window`): nothing collapses, so the guard test
+// KEEPS the call and the buried global has to carry its polyfill inside it - a raw one is a
+// reference to a binding the stripped realm does not have. the hop decides the value, so assert
+// against the environment's own `window` (absent in Node, present in a browser)
+QUnit.test('global-proxy: buried IIFE root polyfills inside the kept guard test', assert => {
+  const windowValue = globalThis.window;
+  assert.same((() => globalThis)()?.window?.Array.of(5).at(0), windowValue === undefined ? undefined : 5);
+  assert.same((x => x)(globalThis)?.window?.Array.of(6).at(0), windowValue === undefined ? undefined : 6);
+  assert.same((function () {
+    return globalThis;
+  })()?.window?.Array.of(7).at(0), windowValue === undefined ? undefined : 7);
+});
+
+// the buried root under an effect-bearing body: the guard test runs the call exactly once, so the
+// substituted global rides the same single evaluation
+QUnit.test('global-proxy: buried root under an effectful body runs its call once', assert => {
+  const windowValue = globalThis.window;
+  let calls = 0;
+  const out = (() => {
+    calls++;
+    return globalThis;
+  })()?.window?.Array.of(8).at(0);
+  assert.same(calls, 1);
+  assert.same(out, windowValue === undefined ? undefined : 8);
+});
+
+// a computed key with its own effect past the guarded root: the key effect belongs to the branch,
+// the buried global to the test, and both survive
+QUnit.test('global-proxy: buried root keeps a trailing computed-key effect', assert => {
+  const windowValue = globalThis.window;
+  let keys = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its effect rides the guarded branch
+  const out = (() => globalThis)()?.window?.Array[(keys++, 'of')](9).at(0);
+  assert.same(out, windowValue === undefined ? undefined : 9);
+  assert.same(keys, windowValue === undefined ? 0 : 1);
+});
+
 // a chain-assign root navigating a redundant hop into a KEYLESS computed leaf: the hop-root
 // collapse owns the whole span - before the fix a swallowed hop fired its own value-canon
 // claim and the build CRASHED on the compose (this file would not even bundle). `.globalThis.`
@@ -468,6 +505,68 @@ QUnit.test('global-proxy: chain-assign optional value over an unpolyfilled hop k
   const flat = (f = globalThis.window)?.self.Array.prototype.flat;
   assert.same(typeof flat, hasWindow ? 'function' : 'undefined');
   assert.same(f, globalThis.window);
+});
+
+// the receiver-guard channel (a STATIC claim with a tail member above it) builds its own guard and
+// used to freeze the kept value with its pristine hops RAW - `_globalThis.self.window` reads `.window`
+// off an undefined `.self` and the guard TEST itself throws in Node, where the sibling shapes one line
+// apart (instance claim, or the same static with no tail) collapse the hop and yield undefined
+// the fold is what is under test, so the standalone-post leg (detection on already-lowered text,
+// where the chain-assign + `?.` shape no longer exists) stays out, like its siblings above
+testUnlessDetectLowered('global-proxy: static claim under a tail collapses the kept value hops', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let k;
+  const size = (k = globalThis.self.window)?.Map.length;
+  assert.same(size, hasWindow ? globalThis.Map.length : undefined);
+  assert.same(k, globalThis.window);
+  // the sibling with no tail above the static, and the instance-claim sibling: same receiver,
+  // and the three must agree on what the guard stored
+  let m;
+  const ctor = (m = globalThis.self.window)?.Map;
+  assert.same(ctor, hasWindow ? globalThis.Map : undefined);
+  assert.same(m, globalThis.window);
+  let n;
+  const fixed = (n = globalThis.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(1);
+  assert.same(fixed, hasWindow ? Number.MAX_SAFE_INTEGER.toFixed(1) : undefined);
+  assert.same(n, globalThis.window);
+  // the hop order reversed: `.window` is the UNRESOLVABLE hop, so the collapse keeps its own
+  // guard around it instead of reading the ponyfill unconditionally
+  let r;
+  const reversed = (r = globalThis.window.self)?.Map.length;
+  assert.same(reversed, hasWindow ? globalThis.Map.length : undefined);
+  assert.same(r, hasWindow ? globalThis : undefined);
+});
+
+// the effect pipeline decides WHO re-emits an effect the fold discards, and only running the output
+// says whether the order survived. these are the four consumer shapes the decision has: an effect in
+// a computed key under a guard, effects on both sides of a claimed call, a receiver effect paired
+// with a key effect, and two keyed hops in one chain
+QUnit.test('global-proxy: discarded effects keep their source order', assert => {
+  const log = [];
+  const o = { list: [1, [2]] };
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the sequence receiver IS the form under test
+  const folded = (log.push('r'), o).list[(log.push('k'), 'flat')]();
+  assert.deepEqual(folded, [1, 2]);
+  assert.deepEqual(log, ['r', 'k']);
+
+  log.length = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the sequence keys ARE the form under test
+  const two = globalThis[(log.push('g'), 'Array')][(log.push('o'), 'of')](7).at(0);
+  assert.same(two, 7);
+  assert.deepEqual(log, ['g', 'o']);
+
+  log.length = 0;
+  const both = globalThis.self.Array.of(log.push('a')).at(log.push('b') - 2);
+  assert.same(both, 1);
+  assert.deepEqual(log, ['a', 'b']);
+
+  log.length = 0;
+  let held;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the chain-assign receiver IS the form under test
+  const keyed = (held = globalThis.self)[(log.push('key'), 'Array')].from([1, 2]).at(-1);
+  assert.same(keyed, 2);
+  assert.deepEqual(log, ['key']);
+  assert.same(held, globalThis);
 });
 
 // nested instance dispatch on a polyfillable-global chain: the inner `.name` GET sits inside the
@@ -859,4 +958,50 @@ QUnit.test('lagged alias binding: sibling redeclarations and for-of head write',
   for (F of [[[3]]]) laps++;
   assert.same(laps, 1);
   assert.deepEqual(F.flat(), [3]);
+});
+
+testUnlessDetectLowered('global-proxy: parens seal the chain and the call throws on the absent root', assert => {
+  // the parens end the chain, so the call runs on whatever it produced. this suite runs in Node AND
+  // in browsers, and the host decides which half is observable: absent, the sealed value is
+  // undefined and the call throws where the unsealed spelling short-circuits it away; present,
+  // nothing short-circuits and every spelling runs
+  /* eslint-disable no-unsafe-optional-chaining, sonarjs/no-redundant-parentheses,
+     @stylistic/no-extra-parens -- the parens around the chain ARE the form under test: they seal
+     it, so what the call does on the short-circuited value is the asserted behavior */
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  if (WINDOW_PRESENT) {
+    assert.deepEqual((globalThis.window?.Array.of)(5), [5], 'sealed static call runs on a present host');
+    assert.same((globalThis.window?.self.Math.trunc)(1.5), 1, 'sealed deep nav call runs');
+    assert.deepEqual(((globalThis.window?.Array.of))(5), [5], 'a doubled wrapper seals the same');
+    assert.deepEqual((globalThis.window?.Array.of)?.(5), [5], 'sealed optional call runs');
+    assert.deepEqual(globalThis.window?.Array.of(5), [5], 'in-chain call runs');
+  } else {
+    assert.throws(() => (globalThis.window?.Array.of)(5), TypeError, 'sealed static call throws');
+    assert.throws(() => (globalThis.window?.self.Math.trunc)(1.5), TypeError, 'sealed deep nav call throws');
+    assert.throws(() => ((globalThis.window?.Array.of))(5), TypeError, 'a doubled wrapper seals the same');
+    // the user's own optional call short-circuits on the guarded undefined instead of throwing
+    assert.same((globalThis.window?.Array.of)?.(5), undefined, 'sealed optional call short-circuits');
+    // unsealed control: the call is inside the chain and never happens
+    assert.same(globalThis.window?.Array.of(5), undefined, 'in-chain call short-circuits');
+  }
+  // a defined root runs the sealed call for real
+  assert.deepEqual((globalThis.globalThis?.Array.of)(5), [5], 'sealed call on a present root runs');
+  /* eslint-enable no-unsafe-optional-chaining, sonarjs/no-redundant-parentheses,
+     @stylistic/no-extra-parens -- end of the sealed-chain forms */
+});
+
+testUnlessDetectLowered('global-proxy: a wrapper between the rewrites still composes', assert => {
+  // the outer rewrite renders its spans off peeled nodes while the nested one's range carries the
+  // grouping parens the source wrote - the value has to come out the same as without them
+  function getArr() {
+    return [[1]];
+  }
+  /* eslint-disable @stylistic/no-extra-parens, no-unsafe-optional-chaining -- the wrapper between
+     the two rewrites IS the form under test, and so is the call it terminates */
+  assert.same((getArr().flat?.()?.flatMap)(x => x)?.at(0), 1, 'wrapped callee at statement start');
+  assert.same((globalThis).Array.of(3, 4).at(-1), 4, 'wrapped plain root');
+  assert.same((globalThis.window)?.self.Array.of(2).at(0), typeof window == 'undefined' ? undefined : 2,
+    'wrapped chain root follows its host');
+  assert.same((globalThis.globalThis)?.Array.of(2).at(0), 2, 'wrapped chain root on a present hop');
+  /* eslint-enable @stylistic/no-extra-parens, no-unsafe-optional-chaining -- end of the wrapped forms */
 });

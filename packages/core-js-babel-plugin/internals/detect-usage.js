@@ -110,7 +110,11 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
 }
 
 // the babel half of the adapter mirror: `createEstreeAdapter` (unplugin's internals/detect-usage.js)
-// exposes the same surface, and a contract change to either must land in both. per-transform state
+// exposes the same surface, and a contract change to either must land in both. one member is
+// asymmetric by construction and stays so: `getTSImportEqualsNode` exists only on the estree
+// side, because estree-toolkit registers no binding for `import x = require(...)` while babel
+// does - the two answer the SAME question, one through a dedicated lookup, one through its
+// native binding (the provider's consumer branches on the member's presence) per-transform state
 // lives in the instance closure - concurrent transforms each build their own; the argless
 // `babelAdapter` below is the stateless view the entry-detection path shares
 export function createBabelAdapter({
