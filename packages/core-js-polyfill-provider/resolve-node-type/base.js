@@ -74,7 +74,8 @@ export const GENERATOR_LIKE_NAMES = new Set([
   'AsyncIterable',
 ]);
 
-// collection types whose first type parameter is the element type
+// collection types whose first type parameter is the element type. kept in sync with the TS
+// stdlib BY HAND - a stdlib addition is silently missing here until someone notices, nothing checks
 export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'Array',
   'ReadonlyArray',
