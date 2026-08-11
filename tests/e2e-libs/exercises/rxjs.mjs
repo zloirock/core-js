@@ -1,47 +1,18 @@
-// Deterministic, headless RxJS exercise for the e2e-libs suite.
+// A headless RxJS pipeline: interop, operators, schedulers, subjects and error classes, self-checked
+// by the values and the side-effect order they produce.
 //
-// `run()` returns a Promise of { checks } - a list of { label, actual, expected, pass } where each
-// entry computed its own `pass` via a JSON deep-equal, so consumers (HTML harness, node pre-flight)
-// only render `pass` and never need their own comparator.
+// The centrepiece is `innerFrom`, rxjs's interop hub - every branch of it is driven, so the
+// well-known-symbol lookups and the iteration that follows happen inside rxjs rather than here.
 //
-// WHAT THIS EXERCISE IS FOR, beyond "rxjs still runs". The IE11 leg only proves per-site polyfill
-// detection for the code it actually EXECUTES: under `usage-pure` a missed rewrite stays a native
-// call, and a native call only fails if something reaches it. So the blocks below are chosen to make
-// RXJS'S OWN implementation reach for what IE11 lacks, rather than doing it here on rxjs's behalf.
+// Nothing in this file may use spread, `for-of`, `async` or a generator: those compile to Babel
+// helpers that reach for the stdlib from THIS module, which proves nothing about rxjs. `from(new
+// Set(...))` puts the same protocol where it belongs, and the regenerator machinery that does run is
+// the one tslib ships inside the rxjs bundle.
 //
-// The centrepiece is `innerFrom`, rxjs's interop hub: every branch of it is driven - `Symbol.iterator`
-// (a `Set`, a `Map`, a hand-rolled iterable), `Symbol.asyncIterator`, `Symbol.observable`, a promise,
-// and an array-like. Those three well-known-symbol lookups happen in `isIterable` /`isAsyncIterable` /
-// `isInteropObservable` and in `innerFrom` itself, and the iteration that follows runs through tslib's
-// `__values` / `__asyncValues` / `__await` / `__awaiter` inside the rxjs bundle. Around it: `new Set`
-// in `distinct`, `new Map` in `groupBy` and `TestScheduler`, `Array.from` in `Subject#next` (which
-// needs more than one observer to be worth anything) and in `TestScheduler`, `Object.entries` in
-// `pairs`, `Array#includes` in `Subscription#_hasParent` (which needs a child with two parents),
-// `Promise.resolve` in the `asapScheduler`'s `Immediate`, `Number.isFinite` and `Array#sort` in
-// `VirtualTimeScheduler`, and `Object.create` in `createErrorClass` - whose hand-assembled prototype
-// chains are what the `instanceof` assertions in the error block actually test.
-//
-// Coverage here is counted by wrapping the natives and attributing each call to its immediate stack
-// frame, so only the calls made from inside `rxjs/dist/` count. The `Symbol.asyncIterator` and
-// `Symbol.observable` lookups do not show up in that instrument (they land on objects this module
-// owns) and are confirmed separately.
-//
-// This is also why no `for (const v of new Set(...))` / `[...new Set(...)]` check lives here: those
-// exercise the iterator protocol through Babel's helpers in THIS module. `from(new Set(...))` puts the
-// same protocol where it belongs - inside rxjs.
-//
-// A KNOWN consequence, accepted deliberately: the `usage-pure/pre` cell for rxjs is green on IE11
-// while the phase gap it stands for is still open. `pre` runs unplugin BEFORE Babel, so it never sees
-// the helpers Babel emits afterwards, and an unrewritten `Array.from` sits in the shipped `pre` bundle
-// either way - nothing here walks into it, because the only destructuring left is over a real array,
-// which takes the `_arrayWithHoles` fast path. The signal would not be about rxjs anyway: it ships an
-// ES5 build, so a helper here comes from this file's syntax rather than from the library. `three`
-// carries the phase diagnostic instead, and there it is genuine - three's sources are modern, so Babel
-// emits the helpers over the LIBRARY. Do not add spread/for-of here to make this cell red.
-//
-// No `async`/generator syntax here (only `.then` chains and hand-rolled iterators) so the ES5
-// down-compile needs no regenerator runtime of ours; the regenerator machinery that does run is the
-// one tslib ships inside the rxjs bundle.
+// Accepted deliberately: the `usage-pure/pre` cell is green on IE11 while the phase gap it stands for
+// is still open - nothing here walks into the unrewritten `Array.from` that sits in that bundle. rxjs
+// ships an ES5 build, so the signal would be about this file's syntax rather than about the library;
+// `three` carries the phase diagnostic instead. Do not add spread or `for-of` to make this cell red.
 import {
   of, from, range, merge, concat, zip, combineLatest, forkJoin, throwError, defer, generate,
   EMPTY, NEVER, scheduled, pairs, partition, connectable, observable as symbolObservable,
