@@ -3,9 +3,9 @@
 // collapsed, an alias chain a ctor-static claim erases - owns that substitution, and a rewrite
 // left queued on the deleted spelling has nowhere to compose. the last two rows are the negative:
 // there the guard memo re-emits the root verbatim, so its own rewrite must stay live.
-// `collapsedStatic` also records an OPEN divergence, not an intended shape: under a guarded STATIC
-// claim the baseline substitutes the root but leaves the pristine hop above it raw, so the guard
-// TEST itself reads through it. the sibling row one line up, same receiver, collapses on both
+// `collapsedStatic` pins the receiver-guard channel against its sibling one line up: the SAME
+// receiver under an instance claim and under a static one collapses its pristine hops the same
+// way, or the guard TEST reads a raw hop off a root that does not carry it
 const alias = globalThis;
 let assigned, kept, mid;
 export const sealedRoot = (globalThis)?.window?.Array.prototype.includes.call([1], 1);

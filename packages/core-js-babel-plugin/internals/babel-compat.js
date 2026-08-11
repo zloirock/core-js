@@ -338,8 +338,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the wrapped root grouped - `null == ((c = gw) as any) ? ...`
     if (SKIPPABLE_WRAPPER_TYPES.has(rootNode.type)) rootNode = t.parenthesizedExpression(rootNode);
     const invokeParent = replacePath.parentPath;
+    // user parens around the claim TERMINATE the chain, exactly as they do for the climb in
+    // `liftThroughWrapper`: the call applies to the guard's VALUE, so folding its arguments into
+    // the alternate would short-circuit the call away where the source throws on the undefined
     const isInvoke = (invokeParent?.isCallExpression() || invokeParent?.isOptionalCallExpression())
-      && invokeParent.node.callee === replacePath.node && !invokeParent.node.optional;
+      && invokeParent.node.callee === replacePath.node && !invokeParent.node.optional
+      && !isWrappedInParens(replacePath);
     let target = isInvoke ? invokeParent : replacePath;
     let claimBody = isInvoke
       ? t.callExpression(t.cloneNode(id), invokeParent.node.arguments.map(a => t.cloneNode(a)))
@@ -1521,6 +1525,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     deoptionalizeNode,
     emitGuardedClaim,
     navGuardTestNode,
+    collapseKeptNavValueNode,
     isRenderedPlanTail: node => renderedPlanTails.has(node),
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
@@ -1531,6 +1536,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     generateRef,
     generateLocalRef,
     generateUnusedId,
+    isWrappedInParens,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceInstanceChainCombined,
