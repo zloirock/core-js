@@ -1,12 +1,13 @@
-// pure AST/path helpers used by the polyfill emission pipeline (and the main visitor
-// for outermost-optional-chain detection). no file-scope deps - callers pass node /
-// path arguments directly
-import { peelSkippableWrappers, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
+// helpers shared by the polyfill emission pipeline (and the main visitor, for outermost-
+// optional-chain detection): the pure AST/path questions, plus the emit-string idioms both
+// emitters spell the same way. no file-scope deps - callers pass their nodes, paths or
+// rendered fragments directly
+import { unwrapRuntimeExpr, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // peel parens, chain expressions, AND TS wrappers - for AST identity checks (e.g. matching
 // `node` against `parent.callee` through `arr.includes!(1)`). delegates to shared
-// `peelSkippableWrappers` (`SKIPPABLE_WRAPPER_TYPES` covers all three categories)
-export const unwrapNode = peelSkippableWrappers;
+// `unwrapRuntimeExpr` (`SKIPPABLE_WRAPPER_TYPES` covers all three categories)
+export const unwrapNode = unwrapRuntimeExpr;
 
 // classifies `node`'s role under `parent`: 'call' / 'new' when node is the (wrapper-peeled)
 // callee of that invocation, null otherwise. the single source of the invocation-kind answer -
@@ -41,3 +42,9 @@ export function isCalleeWrappedInParens(parent, node) {
   return false;
 }
 
+// prefix an emitted leaf with source-text side effects as a sequence (`(se1, se2, leaf)`), and with
+// nothing at all when there are none. every render that replays effects ahead of its binding spells
+// this the same way, so the paren-and-comma form lives here rather than once per render
+export function withSeSrcs(seSrcs, leaf) {
+  return seSrcs.length ? `(${ [...seSrcs, leaf].join(', ') })` : leaf;
+}
