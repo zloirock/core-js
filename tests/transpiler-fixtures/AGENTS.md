@@ -36,15 +36,15 @@ It rewrites only the fixtures that actually changed and prints each one, so the 
 
 ## Rules
 
-- A fixture diff shows what the emitter prints, not that the result works. The primary evidence for a fix is a runtime fail-before / pass-after in `tests/e2e-usage-pure/`; the fixture locks it afterwards
+- A fixture diff shows what the emitter prints, not that the result works. The primary evidence for a fix is a runtime fail-before / pass-after in `tests/e2e-usage-pure/`; the fixture locks it afterwards. The exception is an observable that is runtime-dead - text copied into a body nothing ever invokes - which only a fixture can lock: an e2e or differential leg for it passes vacuously
 - Never regenerate blindly. Read every diff: if the new output is correct, update the fixture together with its comment; if it is not, the fix is wrong
 - Never delete a fixture that exposes a bug, and never retarget an existing one onto a different shape - that consolidates the bug instead of showing it. Restore the original input and add a new fixture next to it
 - A fixture locks the current behavior *and* the assumptions behind it, and those assumptions may themselves be wrong. When a fix changes an existing output, analyze it, do not revert reflexively
 - A sidecar is a proof obligation: show what the divergence actually is before accepting it
 - Lock every fix in both `usage-global` and `usage-pure`. `usage-global` is the primary product, and the pure fixture is usually the regression guard
 - An expected output with no injection on a typed receiver means the resolver bailed - investigate before locking it in
-- Multi-line fixtures use a different method per line, and a method that should demonstrate inference needs receivers from several families
-- Probe with a method the default targets inject. An `esnext.*` module is stage-gated below `actual` and adds nothing of its own while its receiver still pulls the family, so `Iterator.range` looks alive and proves nothing - check `core-js-compat/src/data.mjs`, not a remembered list of names
-- Only a method that exists on several receiver types - `at`, `includes` - separates a widened inference from a narrowed one; an Array-only shape resolves to its own generic fallback either way
+- Multi-line fixtures use a different method per line, and a method that should demonstrate inference needs receivers from several families. In `usage-global` the per-line distinctness is load-bearing, not style: injection is observable only through the import set - the source is not rewritten - so two sites sharing a method produce one import and mask each other's regression
+- Probe with a method the default targets inject. An `esnext.*` module is stage-gated below `actual` and adds nothing of its own while its receiver still pulls the family, so `Iterator.range` looks alive and proves nothing - check `packages/core-js-compat/src/data.mjs`, not a remembered list of names
+- Only a method that exists on several receiver types separates a widened inference from a narrowed one - `at` / `includes` across array and string, `forEach` / `map` across array and iterator; an Array-only shape resolves to its own generic fallback either way
 - The leading comment block of `input.mjs` is the fixture's specification, and the rewrite mirrors it into every expected output. Four lines are usually enough for the input pattern, the injection decision and the non-obvious part; longer than that means it is narrating the transform step by step instead of saying why
 - Comments never mention helper function names, line numbers or issue identifiers - all of them go stale
