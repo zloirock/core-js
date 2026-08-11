@@ -375,6 +375,8 @@ export function createNameResolution({ t }) {
     return Array.isArray(name) ? name.join('.') : null;
   }
 
+  // a sibling plugin mutating the AST mid-file could in principle strand a stale null here;
+  // never observed, accepted as theoretical - the caches reset per file
   let typeDeclCache = new WeakMap();
 
   function lookupTypeDeclInScope(name, scope) {

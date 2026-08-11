@@ -23,7 +23,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 - `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
 - `sfc-shapes.js` - module ids of SFC virtual modules (Vue, Svelte, Astro), whose metadata lives in query params
 - `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`
-- `plugin-helpers.js` - directive prologues, ASI hazards, injection anchors
+- `plugin-helpers.js` - directive prologues, ASI hazards, injection anchors, and the memoized literal / comment region map every lexer-aware walk over emitted text shares
 
 ## Emitter model
 
@@ -31,10 +31,11 @@ Queues text transforms during traversal and applies them with MagicString afterw
 
 - A region that is being dropped is skipped at the visitor entry, before it is descended into, rather than drained at emit time. The tail of a `for` initializer is the exception that proves it: there the effect-free receiver tail is deliberately *not* skipped, because its proxy-global root still has to be seen and polyfilled - a raw `globalThis` left behind would throw
 - Output may differ from babel-plugin in formatting only; a semantic divergence means one of the two renderers is wrong
+- Siblings never share the tree - each phase parses its own - so sibling interaction moves between the phases instead: `pre+post` hands its state across through the snapshot, and post re-scans the imports siblings inserted in between rather than trusting what pre saw
 
 Anything that has to be fixed in this package *and* in babel-plugin belongs in the provider instead.
 
-Before writing a helper or a branch, check the canon: `npm run canon -- find "<behavior words>"` searches the plugin packages and the `@core-js/compat` sources by names, contracts and comment text - what you are about to write may already exist in the provider or in babel-plugin under a name you would not guess, solved by a different mechanism - so query by the entities the code must touch plus the operation on them, and try more than one phrasing; `npm run canon -- show <file:line>` reads a candidate whole. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit.
+Before writing a helper or a branch, check the canon - `npm run canon -- find "<behavior words>"` (its own `AGENTS.md` in `scripts/canon/` carries the reference): what you need may already exist in the provider or in babel-plugin under an unguessable name. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit.
 
 ## Tests
 

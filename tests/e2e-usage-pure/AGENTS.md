@@ -18,6 +18,8 @@ Mutation tests live in their own modules, one per channel rather than one per ki
 
 TypedArrays are not polyfilled in pure at all and need no coverage here.
 
+`.name` carries no blanket guarantee in pure. A factory-produced function - a wrapped constructor (`"Wrapper"`), a bound helper, a generated dispatcher (`""`) - does not preserve it, and neither is a wrapped constructor's `.length` preserved; a mismatch with native on these is a known limitation, not a finding. Plain statics written as named functions do preserve `.name`, and those are the only place a `.name` assertion belongs - the way the unit-pure suite does it, through the environment-gated `assert.name`. Everywhere else build the oracle on behavior: return values, short-circuits, side-effect counters.
+
 ## Stripped realms
 
 The babel bundle and unplugin's `pre+post` are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. The remaining legs stay full-environment on purpose.
