@@ -27,7 +27,8 @@ function importExpressionSource(node, adapter) {
 
 // extract entry source from an AST node (ImportDeclaration / require() / await import())
 // returns source string or null if not an entry pattern. when `scope` is provided, calls to a
-// shadowed `require` (locally bound) are ignored
+// shadowed `require` (locally bound) are ignored. `export * from 'core-js/...'` is deliberately
+// NOT an entry: a re-export is a bundle pattern, not an entry point
 export function getEntrySource(node, adapter, scope) {
   // import 'core-js/...' - but `import type {} from 'core-js/...'` (and Flow's `import typeof`)
   // erases before runtime, so it is NOT a runtime side-effect entry and must not expand

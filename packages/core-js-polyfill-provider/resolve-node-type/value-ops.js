@@ -179,7 +179,10 @@ export function createValueOps({
 
   // a resolved type whose runtime value can never be falsy: any non-primitive (object / array /
   // function) or a symbol. `unknown` stays a primitive-kind resolution, so imprecise resolutions
-  // never fold; `document.all` (HTMLAllCollection) is the one falsy object - never fold it
+  // never fold; `document.all` (HTMLAllCollection) is the one falsy object - never fold it. the
+  // spelling tested here comes from the `all: 'HTMLAllCollection'` entry in
+  // `known-built-in-return-types` - that entry is load-bearing, and "correcting" it to
+  // HTMLCollection would silently restore the truthy fold
   function isAlwaysTruthyType(resolved) {
     if (resolved.primitive) return resolved.type === 'symbol';
     return !/^htmlallcollection$/i.test(resolved.constructor ?? '');
