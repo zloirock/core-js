@@ -17,5 +17,5 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 
 - The assertion is the runtime result of the built bundle, not its text - plus a check that every generated reference it contains is actually declared, which is how a mangled or half-applied injection is caught
 - No targets are passed: the cases run with `mode: 'full'` and a pinned `core-js` version, so what gets injected depends on the features the inputs use, not on a browser list
-- Adding a bundler means adding an adapter to `bundlers.mjs`, and checking whether it belongs to the sets in `@core-js/unplugin` that name bundlers by hand. It joins `tests/e2e-libs` at the same time, so configure it there the way this suite does - a bundler set up two ways in two suites is a bundler whose behavior neither of them really pins
+- Adding a bundler means adding an adapter to `bundlers.mjs`, and checking whether it belongs to the sets in `@core-js/unplugin` that name bundlers by hand. `tests/e2e-libs` derives its own list from that same map, so the adapter is the single place the tool is configured and the two suites differ only in the options `makeBundlers` takes
 - Keep the inputs exercising features that really are polyfilled, or the run passes without any injection having happened
