@@ -190,7 +190,7 @@ You can run parts of the test case separately:
   ```sh
   npm run e2e-libs                      # the asserting runners: check-exercise -> runtime
   npm run e2e-libs-check-exercise       # run every exercise raw (no bundler, no polyfills)
-  npm run e2e-libs-runtime              # one build per (lib x method x phase) cell: gates, injection snapshot,
+  npm run e2e-libs-runtime              # one build per (lib x method x provider x phase) cell: gates, snapshot,
                                         # node pre-flight, ES5 UMD + self-checking HTML, real IE11 via Karma
                                         # (OVERWRITE=1 rewrites the injection snapshot baselines)
   npm run e2e-libs-pipeline             # size/time per build stage -> tests/e2e-libs/report/pipeline.md (report only)
