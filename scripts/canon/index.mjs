@@ -32,6 +32,17 @@ const SCRIPT_HASH = createHash('sha256')
 const INDEX_PATH = path.join(CACHE_DIR, `helpers-index-${ SCRIPT_HASH }.json`);
 
 const FUNCTION_EXPRESSION_TYPES = new Set(['FunctionExpression', 'ArrowFunctionExpression']);
+// every scope-opening function form - the NAME chain is not a scope proxy: private methods and
+// anonymous callbacks carry no name, and their locals would leak into "module scope"
+const SCOPE_NODE_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+  'ClassPrivateMethod',
+  'StaticBlock',
+]);
 
 const [command, ...rest] = argv._;
 const asJSON = !!argv.json;
@@ -149,6 +160,11 @@ function namedFunctionOf(node) {
     && FUNCTION_EXPRESSION_TYPES.has(node.value.type)) {
     return { name: node.key.name };
   }
+  // module-scope data canon (`PRIMITIVE_HINTS`-style Sets / tables): the name and the comment
+  // above it are searchable; the module-scope gate lives in `visit` - locals are noise
+  if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier' && node.init) {
+    return { name: node.id.name, data: true };
+  }
   // standalone named function expression - argument position, named recursive IIFE
   if (node.type === 'FunctionExpression' && node.id) return { name: node.id.name };
   // `adapter.helper = function (...) {}` - the member key names the function
@@ -170,35 +186,37 @@ function indexSource({ source, file, entries }) {
   }
   const exported = collectExportedNames(ast.program.body);
   // `inherited` forwards leading comments from export / variable-declaration wrappers one level down
-  function visit(node, chain, inherited) {
+  function visit(node, chain, inherited, fnDepth = 0) {
     if (Array.isArray(node)) {
-      for (const item of node) visit(item, chain, inherited);
+      for (const item of node) visit(item, chain, inherited, fnDepth);
       return;
     }
     if (!node || typeof node.type !== 'string') return;
     const named = namedFunctionOf(node);
-    if (named) {
+    if (named && (!named.data || fnDepth === 0)) {
       entries.push({
         name: named.name,
         file,
         line: node.loc.start.line,
         endLine: node.loc.end.line,
         parent: chain.join(' > ') || null,
-        exported: chain.length === 0 && exported.has(named.name),
+        exported: fnDepth === 0 && exported.has(named.name),
         contract: contractOf(node.leadingComments ?? inherited, node.loc.start.line),
         tokens: tokenize(named.name),
+        ...named.data ? { data: true } : {},
       });
     }
     const forwards = node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration'
       || node.type === 'VariableDeclaration' || node.type === 'ExpressionStatement';
-    const nextChain = named ? [...chain, named.name] : chain;
+    const nextChain = named && !named.data ? [...chain, named.name] : chain;
+    const nextDepth = fnDepth + (SCOPE_NODE_TYPES.has(node.type) ? 1 : 0);
     for (const key of Object.keys(node)) {
       if (key === 'leadingComments' || key === 'trailingComments' || key === 'loc') continue;
       const value = node[key];
-      if (value && typeof value === 'object') visit(value, nextChain, forwards ? node.leadingComments ?? inherited : undefined);
+      if (value && typeof value === 'object') visit(value, nextChain, forwards ? node.leadingComments ?? inherited : undefined, nextDepth);
     }
   }
-  visit(ast.program.body, [], undefined);
+  visit(ast.program.body, [], undefined, 0);
 }
 
 // hash-keyed caches of dead branches / edited scripts accumulate - sweep the old ones in passing
@@ -370,6 +388,9 @@ async function commandFind(query) {
     printed += 1;
   }
   if (!printed) echo('no matches');
+  // a silent NAME block is the vocabulary-mismatch signal, whatever the text legs matched -
+  // and this output is the one guaranteed documentation channel for a run-only consumer
+  if (!nameHits.length) echo('hint: rephrase - name the entities involved and the operation on them; the canon may word it differently');
 }
 
 // `canon show file:line` - the follow-up read for a compact `find` row: prints the whole
@@ -414,7 +435,8 @@ async function commandDupes() {
 }
 
 async function commandContracts() {
-  const missing = (await loadIndex()).entries.filter(entry => entry.exported && !entry.contract);
+  // data tables are not doc-debt - the backfill queue stays functions-only
+  const missing = (await loadIndex()).entries.filter(entry => entry.exported && !entry.contract && !entry.data);
   if (asJSON) {
     echo(JSON.stringify(missing));
     return;
