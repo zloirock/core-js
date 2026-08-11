@@ -125,9 +125,11 @@ import {
   walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
-import { unwrapNode } from './emit-utils.js';
+import { unwrapNode, withSeSrcs } from './emit-utils.js';
 import { inlineCallNavGuardRootSrc, skipCollapsedChainExceptRootCall, subsumeDiscardedRegion } from './polyfill-emitter.js';
 import {
+  findRegionContaining,
+  literalRegionsOf,
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
   skipGap,
@@ -189,15 +191,25 @@ function getPropRemovalRange(props, propNode, precededByRemoved) {
 
 // pure helper: index of an extraction decl's TOP-LEVEL ` = ` operator (the one separating its
 // binding LHS from its RHS), tracking bracket depth so an inner default's ` = ` inside a pattern
-// LHS (`{ x = 1 } = rhs`) is skipped. these are emitter-GENERATED decls (no string/comment noise),
-// so a bracket-depth scan is exact. falls back to the first ` = ` when none sits at depth 0
+// LHS (`{ x = 1 } = rhs`) is skipped. the decl is emitter-generated, but a pattern default is
+// re-emitted from the SOURCE, so it can carry a string - and a bracket or a ` = ` inside one is
+// text, not structure. counted, they split the decl mid-literal (`{ a = ')' } = rhs` fell back to
+// the inner default's operator). same literal-aware walk the queue's memo-slot scan uses.
+// falls back to the first ` = ` when none sits at depth 0
 function topLevelAssignIndex(decl) {
   let depth = 0;
-  for (let i = 0; i < decl.length; i += 1) {
+  const regions = literalRegionsOf(decl);
+  for (let i = 0; i < decl.length;) {
+    const region = findRegionContaining(regions, i);
+    if (region) {
+      i = region.end;
+      continue;
+    }
     const c = decl[i];
     if (c === '{' || c === '[' || c === '(') depth += 1;
     else if (c === '}' || c === ']' || c === ')') depth -= 1;
     else if (depth === 0 && decl.startsWith(' = ', i)) return i;
+    i += 1;
   }
   return decl.indexOf(' = ');
 }
@@ -694,7 +706,7 @@ export function createDestructureEmitter({
       const sePrefixSrcs = seExprs.map(seExpr => bakeRefSplicesInRange(seExpr, refSplices));
       if (perDecl[i].preservedSrc === null) {
         const tailSrc = resolveSinkTailSrc(perDecl[i], receiverTail, refSplices);
-        perDecl[i].preservedSrc = `${ injector.generateUnusedName() } = (${ [...sePrefixSrcs, tailSrc].join(', ') })`;
+        perDecl[i].preservedSrc = `${ injector.generateUnusedName() } = ${ withSeSrcs(sePrefixSrcs, tailSrc) }`;
       } else {
         const initLen = perDecl[i].preservedInitSrc.length;
         // element-swapped residual: keep the rebuilt init as the sequence VALUE (`(se(), [_G])`)
@@ -702,7 +714,7 @@ export function createDestructureEmitter({
         // the array destructure a non-iterable
         const tailSrc = perDecl[i].initElementSwapped
           ? perDecl[i].preservedInitSrc : resolveSinkTailSrc(perDecl[i], receiverTail, refSplices);
-        perDecl[i].preservedSrc = `${ perDecl[i].preservedSrc.slice(0, -initLen) }(${ [...sePrefixSrcs, tailSrc].join(', ') })`;
+        perDecl[i].preservedSrc = `${ perDecl[i].preservedSrc.slice(0, -initLen) }${ withSeSrcs(sePrefixSrcs, tailSrc) }`;
       }
     }
   }
@@ -2297,7 +2309,7 @@ export function createDestructureEmitter({
       const se = extractions.length ? [] : (plan.anchorSe ?? []).map(node => nodeSrc(node));
       const harvested = takeDiscardSe();
       if (harvested) se.push(harvested);
-      return se.length ? `(${ [...se, anchoredBareInitSrc].join(', ') })` : anchoredBareInitSrc;
+      return withSeSrcs(se, anchoredBareInitSrc);
     }
     const initSrc = plan.anchor ? anchoredResidualInitSrc() : receiverEmitSrc();
     const preservedSrc = `${ lhsPrefix }{ ${ preservedOuter.join(', ') } }${ lhsSuffix } = ${ initSrc }`;
@@ -4237,12 +4249,22 @@ export function createDestructureEmitter({
   // FIRST SIGNIFICANT token - trivia (comments / line breaks) may sit between the dropped hop and the
   // leaf. a computed leaf takes the full `?.` (a bare `?[` does not parse); a dotted leaf fuses `?`
   // with its own `.`, and when trivia precedes that dot, the dot moves onto the connector instead
-  // (`?. /*c*/ x`) - `? .` split by trivia does not parse either
+  // (`?. /*c*/ x`) - `? .` split by trivia does not parse either. a CALL leaf takes the full `?.`
+  // for the same reason `[` does.
+  // only those three tokens continue a chain. anything else means the chain does not go on in this
+  // text at all - a wrapper closes right after the erased hop (`((a = g.window)?.self).Array`), or
+  // the value simply ends. there is nothing for the connector to hang on then, and emitting it
+  // anyway left a dangling `?` that stopped the module parsing, so it is dropped. that is NOT the
+  // whole answer: the read past the wrapper observes the sealed value and throws on a nullish root
+  // where the erased text just runs, and the fuzzer row `seal-right-after-erased-hop` pins exactly
+  // that - both emitters lose the throw. declining the collapse here instead was measured and it
+  // only moves the erase to another route (and costs a corpus row), so the gate belongs where the
+  // seal is decided, not in this text helper
   function rehangOptionalGuard(tail) {
     const sig = skipGap(tail, 0);
-    if (tail[sig] === '[') return `?.${ tail }`;
-    if (tail[sig] !== '.' || sig === 0) return `?${ tail }`;
-    return `?.${ tail.slice(0, sig) }${ tail.slice(sig + 1) }`;
+    if (tail[sig] === '[' || tail[sig] === '(') return `?.${ tail }`;
+    if (tail[sig] !== '.') return tail;
+    return sig === 0 ? `?${ tail }` : `?.${ tail.slice(0, sig) }${ tail.slice(sig + 1) }`;
   }
 
   // a call/IIFE-rooted proxy navigation (`(() => globalThis)().self.Array`): findProxyGlobal validates
@@ -4427,9 +4449,7 @@ export function createDestructureEmitter({
     // stored survives byte-for-byte while the raw root it was written against still gets polyfilled
     const keepText = keepRoot && `(${ src.slice(keepRoot.start - baseStart, proxyRoot.start - baseStart) }${
       rootBinding }${ src.slice(proxyRoot.end - baseStart, keepRoot.end - baseStart) })`;
-    const rootText = keepRoot
-      ? (prefixSrcs.length ? `(${ [...prefixSrcs, keepText].join(', ') })` : keepText)
-      : prefixSrcs.length ? `(${ [...prefixSrcs, rootBinding].join(', ') })` : rootBinding;
+    const rootText = withSeSrcs(prefixSrcs, keepRoot ? keepText : rootBinding);
     // drop the leaf's redundant optional connector ONLY where babel does, for parity: a pure-import
     // root (babel's normalizeOptionalChain on the injected `_globalThis`) or a collapsed proxy hop
     // (babel rebuilds the member non-optional). a bare ALIAS root with NO hop keeps `?.` - babel
@@ -4545,8 +4565,7 @@ export function createDestructureEmitter({
     // throw where the standalone form collapses. INCLUSIVE-proper containment: the static
     // claim anchors at the same chain start as this collapse would, so a both-strict test
     // never saw the owner and the redundant collapse crashed the compose
-    if (transforms.containsRangeProper(recv.start, recv.end)
-      && !transforms.containingContentIncludes(recv.start, recv.end)) return false;
+    if (transforms.ownedWithoutSlot(recv.start, recv.end)) return false;
     // only a REAL intermediate hop collapses; a bare root has nothing to drop (no over-collapse)
     if (!maximalProxyGlobalHop(recv, aliasCtx, { allowSideEffectKeys: true, throughChainAssign: true })) return false;
     // the destructure path OWNS the chain when it is an OBJECT-pattern destructure SOURCE (named props feed
@@ -4611,8 +4630,10 @@ export function createDestructureEmitter({
           if (sealed) {
             const sealedRoot = findProxyGlobal(recv, aliasCtx);
             if (sealedRoot) skippedNodes.add(sealedRoot);
-            transforms.add(recv.start, sealed.end, sealed.src);
-            return true;
+            // the anti-collision probe above measured the RECEIVER span, but the render may end
+            // past it - `claim` asks about the range actually being queued, so an owner of the
+            // grown range cannot meet a second equal-range entry and abort the merge
+            return transforms.claim(recv.start, sealed.end, sealed.src);
           }
         }
         // ...unless the chain hangs off a KEPT root (a chain-assign whose value navigates a hop with
@@ -4639,10 +4660,9 @@ export function createDestructureEmitter({
       for (let n = recv; n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression'; n = unwrapNode(n.object)) {
         if (n.computed) return false;
       }
-      if (transforms.hasRange(recv.start, recv.end)) return false;
+      if (!transforms.claim(recv.start, recv.end, injectPureImport(rootPure.entry, rootPure.hintName))) return false;
       const root = findProxyGlobal(recv, aliasCtx);
       if (root) skippedNodes.add(root);
-      transforms.add(recv.start, recv.end, injectPureImport(rootPure.entry, rootPure.hintName));
       return true;
     }
     // a mutation TARGET (the canonical `isMemberWriteHost` covers `=` / update / `delete` / destructuring /
@@ -4679,9 +4699,12 @@ export function createDestructureEmitter({
     // stay LIVE to compose into the re-emitted text by needle (`(a = globalThis, ...)` ->
     // `(a = _globalThis, ...)`) - the ROOT node stays unmarked there; a directly-substituted
     // root (bare / paren / sequence-tail) is marked skipped instead
+    // the anti-collision probe above measured the RECEIVER span, but the collapse routinely ends
+    // PAST it (`spanOut`) - `claim` asks about the range actually being queued, so an owner of the
+    // grown range cannot meet a second equal-range entry and abort the merge
+    if (!transforms.claim(recv.start, collapsedSpan.end, collapsed)) return anchorOnHop;
     const root = findProxyGlobal(recv, aliasCtx);
     if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
-    transforms.add(recv.start, collapsedSpan.end, collapsed);
     // the collapse consumed the PROXY hops in the span - mark them so a swallowed hop's own
     // value-canon claim (`.self` -> `(a = ..., _self)`) stands down instead of racing this
     // span. ONLY proxy-keyed hops: a non-proxy member (`.Object` in a destructure source) may
@@ -4733,8 +4756,7 @@ export function createDestructureEmitter({
     const parts = [...prefix.map(node => composedRangeSrc(node)), ...ctorSwap.se.map(node => composedRangeSrc(node))];
     transforms.composeAndDrainRange(memoNode.start, memoNode.end);
     const binding = injectPureImport(ctorSwap.pure.entry, ctorSwap.pure.hintName);
-    parts.push(binding);
-    return parts.length > 1 ? `(${ parts.join(', ') })` : binding;
+    return withSeSrcs(parts, binding);
   }
 
   // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
@@ -4953,7 +4975,11 @@ export function createDestructureEmitter({
         renderNestedDestructureStatements(receiverNode.start, receiverNode.end);
         text = composedRangeSrc(receiverNode);
         composedReceiverCopyText.set(key, text);
-        if (text !== nodeSrc(receiverNode)) transforms.add(receiverNode.start, receiverNode.end, text);
+        // no identity gate: an unpolyfilled copy queues a byte-identical entry, and that entry is
+        // invisible to every ownership probe (measured across the fixture and differential corpora -
+        // not one probe ever saw one containing its query). the gate existed to keep such an entry
+        // out while the locator could not tell "replaced with the same text" from "not found"
+        transforms.add(receiverNode.start, receiverNode.end, text);
       }
       emit(text);
     }

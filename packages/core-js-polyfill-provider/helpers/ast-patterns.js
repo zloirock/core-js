@@ -37,11 +37,11 @@ export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
 // not classified as part of the leading import region and `var _ref;` lands AHEAD of it (import/first).
 // shared by both plugins (and entry detection)
 export function isRequireCall(expr) {
-  let cur = peelSkippableWrappers(expr);
-  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = peelSkippableWrappers(cur.object);
+  let cur = unwrapRuntimeExpr(expr);
+  if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = unwrapRuntimeExpr(cur.object);
   if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
-  let callee = peelSkippableWrappers(cur.callee);
-  if (callee?.type === 'SequenceExpression') callee = peelSkippableWrappers(callee.expressions?.at(-1));
+  let callee = unwrapRuntimeExpr(cur.callee);
+  if (callee?.type === 'SequenceExpression') callee = unwrapRuntimeExpr(callee.expressions?.at(-1));
   return callee?.type === 'Identifier' && callee.name === 'require';
 }
 
@@ -158,19 +158,19 @@ export function extractIndirectRequireSEPrefix(stmtNode) {
   // sequence (`unwrapParens` peels the tail of `0, (spy(), require)('core-js/...')` to the call).
   // descend that outer sequence the same way, collecting SE-ful prefix elements so `spy()` survives
   const prefix = [];
-  let expression = peelSkippableWrappers(stmtNode?.expression);
+  let expression = unwrapRuntimeExpr(stmtNode?.expression);
   while (expression?.type === 'SequenceExpression') {
     for (const e of expression.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
-    expression = peelSkippableWrappers(expression.expressions.at(-1));
+    expression = unwrapRuntimeExpr(expression.expressions.at(-1));
   }
   // babel models `(spy(), require)?.('core-js/...')` as an OptionalCallExpression; oxc wraps a
-  // plain CallExpression in a ChainExpression that peelSkippableWrappers already strips. accept both
+  // plain CallExpression in a ChainExpression that unwrapRuntimeExpr already strips. accept both
   // so the optional indirect-require recovers its prefix on either parser
   if (expression?.type !== 'CallExpression' && expression?.type !== 'OptionalCallExpression') return prefix;
   // the indirect-require callee is itself a `(spy(), require)` SequenceExpression - a TS-wrapped
   // `((spy(), require) as any)('core-js/...')` lands the SE behind a TSAsExpression, so peel the
   // same wrappers, then surface its SE-ful prefix elements (everything but the trailing `require`)
-  const callee = peelSkippableWrappers(expression.callee);
+  const callee = unwrapRuntimeExpr(expression.callee);
   if (callee?.type === 'SequenceExpression' && callee.expressions.length >= 2) {
     for (const e of callee.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
   }
@@ -479,7 +479,7 @@ export function isMemberWriteHost(memberPath) {
 // doesn't care which wrappers were skipped. babel-plugin's `isCallee`, unplugin's `isCallee`,
 // and unplugin's `unwrapNode` share this one wrapper-set, so adding a future transparent
 // wrapper updates the single SKIPPABLE_WRAPPER_TYPES constant
-export function peelSkippableWrappers(node) {
+export function unwrapRuntimeExpr(node) {
   while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) node = node.expression;
   return node;
 }
@@ -487,7 +487,7 @@ export function peelSkippableWrappers(node) {
 // memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
 // in the checked node keeps babel's `_ref` emission aligned with unplugin's source-text handling,
 // so both pipelines make the same reuse decision around optional chains. narrower than
-// peelSkippableWrappers (which also strips TS)
+// unwrapRuntimeExpr (which also strips TS)
 export function peelMemoizeWrappers(node) {
   while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression') node = node.expression;
   return node;
@@ -654,7 +654,7 @@ function namedFunctionSelfReferences(fnPath) {
     || identifierReferencedInSubtree(node.body, name);
 }
 
-function identifierReferencedInSubtree(node, name) {
+export function identifierReferencedInSubtree(node, name) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
   if (node.type === 'Identifier') return node.name === name;
   // a JSX tag name can be a runtime reference to the binding, and then it is the same KIND of extra
@@ -3134,7 +3134,7 @@ const ALWAYS_TRUTHY_OBJECT_NODES = new Set([
 // `in` throws on, and the resolved type hint says nothing about it - a union drops the void branch
 export function valueMayBeNullish(node) {
   for (let next = node; next && typeof next === 'object';) {
-    const cur = peelSkippableWrappers(next);
+    const cur = unwrapRuntimeExpr(next);
     if (!cur || typeof cur !== 'object') return false;
     if (cur.optional === true || isNullLiteralNode(cur) || isBareUndefinedIdentifier(cur)) return true;
     if (cur.type === 'UnaryExpression' && cur.operator === 'void') return true;
@@ -5135,7 +5135,10 @@ function isNamedIdent(node, name) {
 }
 
 // oxc-parser preserves `ParenthesizedExpression`; babel strips it by default. strip here
-// so downstream matchers treat `(x)` and `x` identically without probing the parser
+// so downstream matchers treat `(x)` and `x` identically without probing the parser.
+// sequences stay unpeeled on purpose - the effect-collecting twin is
+// `unwrapParensCollectingEffects` (detect-usage/resolve.js), whose callers re-attach what it
+// peels; the two must not merge
 export function unwrapParens(node) {
   while (node?.type === 'ParenthesizedExpression') node = node.expression;
   return node;
@@ -5162,16 +5165,6 @@ export function proxyNavRootIsSequence(node) {
 const VALID_IDENTIFIER_NAME = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
 export function isValidIdentifierName(name) {
   return typeof name === 'string' && VALID_IDENTIFIER_NAME.test(name);
-}
-
-// broader unwrap: strips parens, optional chains, AND TS expression wrappers
-// (`as`, `satisfies`, `!`) so callers see the runtime-effective expression
-export function unwrapRuntimeExpr(node) {
-  while (node && (node.type === 'ParenthesizedExpression'
-    || node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
-    node = node.expression;
-  }
-  return node;
 }
 
 // `this`-receiver check for member-shadow detection. peels parens / TS wrappers /
@@ -5246,6 +5239,15 @@ export function unwrapCollectingSePrefixes(node, prefixes) {
 // / ThrowStatement / WhileStatement / DoWhileStatement / etc.) carries branches the scan
 // can't statically pick. without the strict gate, a body like `if (cond) return X; return Y;`
 // would resolve to Y, ignoring the conditional branch - silent semantic mismatch
+// resolve a callee body to its single returned expression. a BLOCK body is accepted only when its
+// statements cannot change what the return yields - today that means expression statements only.
+// DECLARATIONS were accepted for a while (the value proof is really about whether the return READS
+// what the block binds, and rejecting them lost the chain's static claim for the commonest block
+// body there is) and the relaxation was REVERTED by measurement: it lets the buried-root claim erase
+// a receiver whose block still needs a scoped `var`, and the queue has no slot for that var - the
+// insert's nearest owner is the erasing claim, the caller's raw re-emit then collides with it, and
+// the build aborts. reaching it again needs the span-ownership decision recorded in the queue, not
+// a wider gate here
 export function singleReturnBodyExpression(body) {
   if (!body) return null;
   if (body.type !== 'BlockStatement') return body;
