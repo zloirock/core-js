@@ -92,3 +92,13 @@ export const delDoubleHop = delete globalThis.window?.frames?.customZ;
 function opaqueRoot() { return globalThis; }
 export const delOpaque = delete opaqueRoot()?.window?.customW;
 export const delNested = [delete globalThis.window?.self.customV];
+
+// the `?.` over the HOST of the navigation is not load-bearing - the host is assumed present, and
+// the navigation only NAMES the global - so a collapse that replaces the whole thing may drop the
+// guard with it. that is position-dependent by construction and accepted: extracting a SINGLE
+// property drops the guard, while a member read, an object read and an array pattern keep it.
+// where the host really is absent, the extraction throws natively and this output does not
+export const { trunc } = globalThis.window?.self.Math;
+export const truncRead = globalThis.window?.self.Math.trunc;
+export const mathRead = globalThis.window?.self.Math;
+export const [firstOf] = globalThis.window?.self.Array.of(1);

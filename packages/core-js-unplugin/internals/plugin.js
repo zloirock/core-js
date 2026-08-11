@@ -1220,9 +1220,7 @@ export default function createPlugin(options) {
         // injecting - a late compose drop strands a dead import. a verbatim container keeps the
         // needle alive, and the rewrite composes into it exactly like the standalone form
         function nonInstanceSpanOwned(node) {
-          return node.type === 'MemberExpression'
-            && transforms.containsRangeProper(node.start, node.end)
-            && !transforms.containingContentIncludes(node.start, node.end);
+          return node.type === 'MemberExpression' && transforms.ownedWithoutSlot(node.start, node.end);
         }
 
         function usagePureCallback(meta, metaPath) {

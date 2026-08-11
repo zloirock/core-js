@@ -21,7 +21,7 @@ import {
   mutatedGlobalSlotNames,
   isTaggedTemplateTag,
   peelNestedSequenceExpressions,
-  peelSkippableWrappers,
+  unwrapRuntimeExpr,
   BRACE_STATEMENT_HOST_TYPES,
   forEachStatementPosition,
   TS_EXPR_WRAPPERS,
@@ -214,7 +214,7 @@ export default function plugin(api, options) {
       // peel through shared `SKIPPABLE_WRAPPER_TYPES`
       isCallee: (node, parent) => {
         if (!t.isCallExpression(parent) && !t.isOptionalCallExpression(parent) && !t.isNewExpression(parent)) return false;
-        return peelSkippableWrappers(parent.callee) === node;
+        return unwrapRuntimeExpr(parent.callee) === node;
       },
       isSpreadElement: node => t.isSpreadElement(node),
     },
@@ -270,6 +270,7 @@ export default function plugin(api, options) {
     emitGuardedClaim,
     isRenderedPlanTail,
     navGuardTestNode,
+    collapseKeptNavValueNode,
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     sealedClaimThrowProbeNode,
@@ -279,6 +280,7 @@ export default function plugin(api, options) {
     generateRef,
     generateLocalRef,
     generateUnusedId,
+    isWrappedInParens,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceInstanceChainCombined,
@@ -560,6 +562,12 @@ export default function plugin(api, options) {
         const outerCall = outerCaller.parent;
         if (!t.isCallExpression(outerCall) && !t.isOptionalCallExpression(outerCall)) return null;
         if (outerCall.callee !== outerCaller.node) return null;
+        // user parens on the callee END the chain: the outer call runs on whatever the chain
+        // produced, so a short-circuited chain must make it THROW. combining folds that call's
+        // arguments into the guard's alternate and returns void 0 instead - stand down and let the
+        // paren-lookup emit, which keeps the call outside the ternary, take the shape. the text
+        // emitter refuses on the same token, one descent step further in
+        if (isWrappedInParens(outerCaller)) return null;
         // rare but possible wrappers: ParenthesizedExpression (babel's
         // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
         // peel both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
@@ -890,6 +898,11 @@ export default function plugin(api, options) {
               }
               break;
             }
+            // the kept chain-assign VALUE spells through the shared plan before the test freezes
+            // it (`k = _globalThis.self.window` -> `k = _self.window`), exactly like the claim
+            // funnel: this channel builds its own guard, and skipping the collapse left the
+            // intermediate pony hops raw off a root that does not carry them
+            collapseKeptNavValueNode(guardTest, path);
             tip.replaceWith(t.conditionalExpression(
               t.binaryExpression('==', t.nullLiteral(), navGuardTestNode(guardTest, path)),
               t.unaryExpression('void', t.numericLiteral(0)),
@@ -996,7 +1009,7 @@ export default function plugin(api, options) {
           // hops (a BARE wrapper `nav!.X` erases and the short-circuit survives, a PARENTHESIZED
           // layer seals - the member above parses PLAIN, so the render keeps the source's throw
           // semantics by node type)
-          const chainEnd = memberChainEndPath({ path, unwrap: peelSkippableWrappers });
+          const chainEnd = memberChainEndPath({ path, unwrap: unwrapRuntimeExpr });
           if (chainEnd !== path && collapseShortCircuitNavInPlace(chainEnd)) return;
         }
 

@@ -331,9 +331,17 @@ export default class ScopeTracker {
     for (const [insertPos, names] of this.#scopedVars) {
       const block = this.#scopedVarBlocks.get(insertPos);
       if (block && queue.insertLandsInsideOverwrite(insertPos)) {
-        const head = this.#code.slice(block.start, insertPos);
-        const tail = this.#code.slice(insertPos, block.end);
-        queue.add(block.start, block.end, `${ head } var ${ names.join(', ') };${ tail }`);
+        // splice into the owner's own content first: re-emitting the block from SOURCE puts back the
+        // raw spelling of everything the owner's render had already substituted (a guard test whose
+        // chain root resolved), and the renamed-slot fold then prefers the raw copy - the root leaked
+        // back out as a bare global. the re-emit stays as the fallback for a slot that cannot be found
+        if (!queue.insertIntoOwnerContent({
+          start: block.start, end: block.end, offset: insertPos - block.start, text: ` var ${ names.join(', ') };`,
+        })) {
+          const head = this.#code.slice(block.start, insertPos);
+          const tail = this.#code.slice(insertPos, block.end);
+          queue.add(block.start, block.end, `${ head } var ${ names.join(', ') };${ tail }`);
+        }
       } else {
         queue.insert(insertPos, this.#scopedVarText(insertPos, names));
       }
