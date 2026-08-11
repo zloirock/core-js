@@ -9,7 +9,7 @@
 // the plugin is pathological). Also captured: injection count, the Babel-vs-unplugin time split of
 // [C], and the minified + gzip "wire size" of [C] (what you'd actually ship).
 //
-// Usage:  npm run e2e-libs-pipeline [-- libFilter methodFilter]  ->  report/pipeline.{md,json}
+// Usage:  npm run e2e-libs-pipeline [libFilter [methodFilter]]  ->  report/pipeline.{md,json}
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';

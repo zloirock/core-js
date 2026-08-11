@@ -38,6 +38,10 @@ export function makeBundlers({
   // produces plenty that are not ours to fix, so a consumer of such a corpus turns them off
   quiet = false,
 } = {}) {
+  // vite, rsbuild and farm all resolve from `root`, and each of them silently falls back to the
+  // process working directory - which under `zxi cd` is whichever suite happens to be running
+  if (!root) throw new Error('makeBundlers: `root` is required');
+
   async function webpackLike(compiler, input, plugins, { inlineDynamic } = {}) {
     return withTmpDir(async dir => {
       const filename = 'out.mjs';
