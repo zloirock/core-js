@@ -109,6 +109,10 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
   return { mutated };
 }
 
+// the babel half of the adapter mirror: `createEstreeAdapter` (unplugin's internals/detect-usage.js)
+// exposes the same surface, and a contract change to either must land in both. per-transform state
+// lives in the instance closure - concurrent transforms each build their own; the argless
+// `babelAdapter` below is the stateless view the entry-detection path shares
 export function createBabelAdapter({
   getInjector = () => null, method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null, getPackages = () => null,
   isTypingMutatedSlot = null,
