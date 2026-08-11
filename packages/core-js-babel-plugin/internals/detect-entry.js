@@ -4,7 +4,7 @@ import { babelAdapter } from './detect-usage.js';
 // detect every entry-import shape in a program. recognised shapes:
 //   - ESM `import 'core-js/...'` ImportDeclaration at top level
 //   - top-level `require('core-js/...')` ExpressionStatement
-//   - top-level `import('core-js/...')` ExpressionStatement
+//   - top-level `await import('core-js/...')` ExpressionStatement - bare `import()` is not one
 // scanning `programPath.get('body')` directly (instead of a traverse with visitors)
 // has two effects: (1) deeper-nested call sites are skipped, since they're NOT entry
 // imports by design, and (2) type-only ImportDeclarations nested inside
