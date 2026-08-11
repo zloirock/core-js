@@ -28,6 +28,15 @@ The symmetry stops at globals. Declining to resolve a receiver *type* is safe, b
 
 Navigation through the global proxies collapses on purpose - `globalThis`, `self` and `window` are one object here, `self` a realm-local self-reference erasable anywhere - so a plain hop through `window` answers `undefined` where an engine throws. The divergence is accepted, not a defect, and `navHasUnresolvableProxyHop` owns the question; do not grow a second predicate.
 
+## Accepted semantic boundaries
+
+Beyond the proxy collapse above, these divergences are design decisions with an accepted price:
+
+- **Plugin output is not typechecked.** The transformed source does not have to pass `tsc`, and does not, for several independent reasons - for one, a synth-swap builds an object literal while the TS assertion stays outside it: `function g({ at } = x as string)` becomes `function g({ at } = { at: _atMaybeString(x) } as string)`, a `TS2352`. Runtime is identical, the `as` erases. Typecheck the source before the plugin, not after it.
+- **`with` and direct `eval` are not modelled.** An identifier inside either resolves as a global - in `usage-pure` that swaps the user's value for the polyfill. Deliberate, with no bail planned: both constructs are unavailable in modules and strict mode, so the responsibility stays with the caller.
+- **`Symbol.iterator in x` is a value test.** `usage-pure` rewrites it to an is-iterable check (`helpers/in-expression.js`). The price: a primitive RHS loses the native `TypeError`, and a present-but-`undefined` `Symbol.iterator` answers `false`.
+- **Partial assignment state on throw.** The pure destructure collapse reorders assignments, so a throwing pattern may leave different siblings assigned than native - observable only via `try/catch`. Source-order fidelity is not promised.
+
 ## Caller-correct emission
 
 The polyfill for a destructured parameter belongs in the parameter's own default slot, mirrored to the pattern:
@@ -44,7 +53,7 @@ Only that slot fires exactly when no argument is passed, leaving a caller's own 
 - `detect-usage/`, `detect-syntax.js` - what the source uses
 - `resolve-node-type/`, `resolve-node-type.js` - receiver type resolution. It gates the pure path most visibly, but the global path narrows through it too, so a change here moves both import sets
 - `resolver.js`, `injector-base.js` - the shared injection machinery; `destructure-host-shape.js` classifies destructure hosts into the parser-agnostic booleans both emitters consume
-- `plugin-options/` - more than its name suggests: alongside option parsing and validation it holds the `usage-global` dispatcher and the module injectors both plugin entry points call. Plugin options are trusted build configuration, not attacker-controlled input
+- `plugin-options/` - more than its name suggests: alongside option parsing and validation it holds the `usage-global` dispatcher and the module injectors both plugin entry points call. Plugin options are trusted build configuration, not attacker-controlled input, and generated identifiers all flow through `findUniqueName` under plugin-owned prefixes - the source being transformed cannot steer an emitted name
 - `helpers/` - the cross-emitter canon that must not be forked: AST patterns, class walking, the skip-set subsumption rules, `key in obj` handling, path normalization
 
 The feature definitions themselves are not here - they come from `@core-js/compat` (`built-in-definitions`, `known-built-in-return-types`).

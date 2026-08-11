@@ -485,6 +485,9 @@ function resolveClosestBinding(scope, name, path) {
   return { native: null, synth };
 }
 
+// the estree half of the adapter mirror: `createBabelAdapter` (babel-plugin's internals/detect-usage.js)
+// exposes the same surface, and a contract change to either must land in both. per-transform state
+// lives in the instance closure - concurrent transforms each build their own
 export function createEstreeAdapter({
   getInjector = () => null, method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null, getPackages = () => null,
   isTypingMutatedSlot = null,
