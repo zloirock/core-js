@@ -38,6 +38,9 @@ import {
   privateNameSpelling,
   paramListReadsName,
   peelMemoizeWrappers,
+  SKIPPABLE_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+  unwrapRuntimeExpr,
   forEachStatementPosition,
   SINGLE_STATEMENT_SLOTS,
   spreadAtOrBefore,
@@ -1044,6 +1047,28 @@ check('extractIndirectRequireSEPrefix/optional call no SE prefix',
   const tsWrap = { type: 'TSAsExpression', expression: inner };
   check('peelMemoizeWrappers/TSAsExpression NOT peeled', peelMemoizeWrappers(tsWrap), tsWrap);
   check('peelMemoizeWrappers/null safe', peelMemoizeWrappers(null), null);
+}
+
+// --- unwrapRuntimeExpr: peels the WHOLE skippable set, and the memo peel is its TS-less subset ---
+// enumerated over the set itself rather than over sampled types: a member added to
+// SKIPPABLE_WRAPPER_TYPES without a matching peel would otherwise pass unnoticed, and the pair of
+// loops is what keeps the two peels from silently converging onto one behavior
+{
+  const inner = { type: 'Identifier', name: 'z' };
+  for (const type of SKIPPABLE_WRAPPER_TYPES) {
+    check(`unwrapRuntimeExpr/${ type } peeled`, unwrapRuntimeExpr({ type, expression: inner }), inner);
+    // the memo peel keeps exactly the TS members and drops the rest
+    const wrapped = { type, expression: inner };
+    check(`peelMemoizeWrappers/${ type } ${ TS_EXPR_WRAPPERS.has(type) ? 'kept' : 'peeled' }`,
+      peelMemoizeWrappers(wrapped), TS_EXPR_WRAPPERS.has(type) ? wrapped : inner);
+  }
+  check('unwrapRuntimeExpr/nested mixed wrappers peeled', unwrapRuntimeExpr({
+    type: 'ChainExpression',
+    expression: { type: 'TSAsExpression', expression: { type: 'ParenthesizedExpression', expression: inner } },
+  }), inner);
+  const bare = { type: 'CallExpression' };
+  check('unwrapRuntimeExpr/non-wrapper returned as is', unwrapRuntimeExpr(bare), bare);
+  check('unwrapRuntimeExpr/null safe', unwrapRuntimeExpr(null), null);
 }
 
 // --- isReusableReceiver: peeled node is a bare Identifier or `this` (no memo `_ref` needed) ---
