@@ -34,7 +34,7 @@ Queues text transforms during traversal and applies them with MagicString afterw
 
 Anything that has to be fixed in this package *and* in babel-plugin belongs in the provider instead.
 
-Before writing a helper or a branch, check the canon: `npm run canon -- find "<behavior words>"` searches the plugin packages and the `@core-js/compat` sources by names, contracts and comment text - what you are about to write may already exist in the provider or in babel-plugin under a name you would not guess; `npm run canon -- show <file:line>` reads a candidate whole. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit.
+Before writing a helper or a branch, check the canon: `npm run canon -- find "<behavior words>"` searches the plugin packages and the `@core-js/compat` sources by names, contracts and comment text - what you are about to write may already exist in the provider or in babel-plugin under a name you would not guess, solved by a different mechanism - so query by the entities the code must touch plus the operation on them, and try more than one phrasing; `npm run canon -- show <file:line>` reads a candidate whole. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit.
 
 ## Tests
 
