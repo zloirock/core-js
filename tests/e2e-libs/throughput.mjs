@@ -19,7 +19,7 @@
 // ONE PROFILE - the whole matrix, every bundler x every phase. Overhead is not bundler-invariant and
 // pre+post is not a fixed multiple of a single phase, so no dimension here is derivable from another.
 //
-// Usage:  npm run e2e-libs-throughput [-- libFilter bundlerFilter]
+// Usage:  npm run e2e-libs-throughput [libFilter [bundlerFilter]]
 import { throughputBuilders, THROUGHPUT_BUNDLERS, METHODS, phasesFor, withEntry, u, captureInjections, errorReason, HERE } from './build.mjs';
 import { librariesIn } from './libraries.mjs';
 
