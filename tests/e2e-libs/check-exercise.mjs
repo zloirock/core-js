@@ -11,7 +11,7 @@
 // `run()`, a malformed result, an exercise that throws - is recorded against that exercise and the
 // run continues. The exit code is decided once, at the end.
 //
-// Usage:  npm run e2e-libs-check-exercise [-- exercisePathOrLibName]
+// Usage:  npm run e2e-libs-check-exercise [exercisePathOrLibName]
 import { libraries } from './libraries.mjs';
 import { pathToFileURL } from 'node:url';
 
