@@ -30,6 +30,7 @@ import {
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import {
   isPrivateMemberNode, isTypeReferenceNode, mutableCollectionName, readonlyCollectionBase,
+  unionAnnotationOf,
 } from './ast-shapes.js';
 
 // `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
@@ -378,8 +379,7 @@ export function createTypeExpansion({
     }
     const own = existing.typeAnnotation.typeAnnotation;
     const next = member.typeAnnotation.typeAnnotation;
-    const types = own.type === 'TSUnionType' ? [...own.types, next] : [own, next];
-    existing.typeAnnotation = { type: 'TSTypeAnnotation', typeAnnotation: { type: 'TSUnionType', types } };
+    existing.typeAnnotation = { type: 'TSTypeAnnotation', typeAnnotation: unionAnnotationOf([own, next]) };
   }
 
   // a rename target that widens to bare `string` (`as string`, or a template that is nothing but a
@@ -397,7 +397,7 @@ export function createTypeExpansion({
       }],
       typeAnnotation: {
         type: 'TSTypeAnnotation',
-        typeAnnotation: types.length === 1 ? types[0] : { type: 'TSUnionType', types },
+        typeAnnotation: unionAnnotationOf(types),
       },
     }];
   }
@@ -418,6 +418,9 @@ export function createTypeExpansion({
     // substitution value is the literal node itself (already in the right shape)
     if (shape.kind === 'literal-union') {
       const sourceType = unwrapTypeAnnotation(shape.source);
+      // a wrapper chain bottoming out on an absent annotation unwraps to nothing - the same
+      // bail the `keyof` lane below takes, rather than dereferencing it and aborting the file
+      if (!sourceType) return null;
       // members re-peeled to mirror the shape gate above (paren members otherwise leak
       // into `literalKeyValue` / the substitution value)
       const literals = (sourceType.type === 'TSLiteralType' ? [sourceType] : sourceType.types)

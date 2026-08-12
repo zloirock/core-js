@@ -36,7 +36,6 @@ export function createTypeFolding({
   resolveRuntimeExpression,
   effectiveParam,
   resolveInnerType,
-  resolveTypeAnnotation,
   substituteTypeParams,
   applySubst,
   applyAliasSubstDeep,
@@ -212,11 +211,11 @@ export function createTypeFolding({
 
   // resolve a type-arg annotation honoring the caller's generic-substitution map when present,
   // so utility-type params (`Awaited<T>`, `Extract<T,U>`, etc.) and deep union members bind
-  // against the caller's T/U instead of collapsing to null on raw parameter refs
+  // against the caller's T/U instead of collapsing to null on raw parameter refs. the absent-map
+  // degrade belongs to the substitution lane itself, which hands the decl-cycle guard on rather
+  // than restarting it empty - a second copy of that fork here dropped the guard at every hop
   function resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen }) {
-    return typeParamMap
-      ? substituteTypeParams(node, typeParamMap, scope, depth + 1, seen)
-      : resolveTypeAnnotation(node, scope, depth + 1);
+    return substituteTypeParams(node, typeParamMap, scope, depth + 1, seen);
   }
 
   function typesEqual(a, b) {

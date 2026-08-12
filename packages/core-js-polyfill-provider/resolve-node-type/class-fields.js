@@ -30,7 +30,7 @@ import {
 import {
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
-  patternBindsName,
+  declaratorBindsName,
   peelSkippableWrapperPath,
   unwrapRuntimeExpr,
   ownThisMemberKeyName,
@@ -331,7 +331,7 @@ export function createClassFields({
             // a destructuring export (`export const { list } = src()` / `[list]` / renamed /
             // rest / nested / defaulted) binds the runtime static slot exactly like the
             // identifier form - the shadow census must count every pattern-bound name
-            if (d.id?.type === 'Identifier' ? d.id.name === fieldName : patternBindsName(d.id, fieldName)) return true;
+            if (declaratorBindsName(d, fieldName)) return true;
           }
         } else if (decl.id?.type === 'Identifier' && decl.id.name === fieldName) return true;
       }
