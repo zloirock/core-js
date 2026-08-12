@@ -9,6 +9,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 ## Layout
 
 - `bundlers.mjs` - the bundler adapters themselves, one per tool: everything each one needs to emit a single node-loadable file, so `runner.mjs` is left with the matrix. `root` is the only thing the caller supplies, because it is the only thing that varies per case
+- `matrix.mjs` - the methods, the phases each one supports, and the plugin options that select them, shared with `tests/e2e-libs`. It pulls in nothing, so that suite imports it without installing this directory; keep it that way
 - `runner.mjs` - the matrix: those adapters crossed with the three methods and the phases each one supports, plus the two builders that are not plain bundler runs - babel-plugin, which has no phase of its own, and bun, which builds and verifies inside bun
 - `input-<method>.js` - the source for each injection method, plus `input-phases.js` for the pre/post interaction and `input-dynamic.js` for dynamic import
 - `lazy-chunk.js` - the body of a lazily imported module, written so its value can only be right if the polyfill reached the chunk, not just the loader

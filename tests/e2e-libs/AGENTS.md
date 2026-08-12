@@ -14,7 +14,7 @@ This directory's `package.json` pins the libraries, `core-js` to the workspace, 
 
 - `libraries.mjs` - the registry: one entry per library and its exercise. `librariesMatching` throws on a filter matching nothing, so a typo cannot produce a green empty report
 - `exercises/<lib>.mjs` - one deterministic exercise per library, exporting `run()` -> `{ checks }`; its header states what it drives and what it deliberately avoids
-- `build.mjs` - the bundling core: methods and phases, the temp-entry scaffold, `runtimeBuild`, `TS_SOURCE_PACKAGES`, and the assertions the gates are made of
+- `build.mjs` - the bundling core: the temp-entry scaffold, `runtimeBuild`, `TS_SOURCE_PACKAGES`, and the assertions the gates are made of. The methods and phases come from `tests/transpiler-integration/matrix.mjs`, which both bundler suites drive; this one adds `targets: { ie: 11 }` to them
 - `runtime.mjs` - the gating tier; `pipeline.mjs` - the reporting one; `check-exercise.mjs` - the exercises run raw, which separates a broken fixture from a broken toolchain
 - `harness.mjs`, `karma.conf.cjs` - the in-page harness, banner and QUnit over one scaffold, and the IE11 launcher
 - `snapshots/` is committed; `artifacts/`, `report/` and `.tmp/` are generated and gitignored
