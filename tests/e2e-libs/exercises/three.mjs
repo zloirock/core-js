@@ -157,10 +157,16 @@ export function run() {
 
   // --- raycasting (Ray#at is one of the name collisions: unplugin rewrites `.at(` and the pure
   // helper must hand back three's own method rather than Array.prototype.at) ---
-  const ray = new THREE.Raycaster(new THREE.Vector3(11, 2, 20), new THREE.Vector3(0, 0, -1));
+  // The ray is off the face centre and the material is double-sided on purpose. A quad is two
+  // triangles sharing a diagonal through its centre, so a ray down the centre intersects both and
+  // reports the SAME point twice; and the default material culls the back face, so a ray that does
+  // pass through cannot come out. Off the diagonal with both sides kept, the two hits are the entry
+  // and the exit of a 2-deep box - which the differing distances is what proves.
+  mesh.material.side = THREE.DoubleSide;
+  const ray = new THREE.Raycaster(new THREE.Vector3(11.3, 2, 20), new THREE.Vector3(0, 0, -1));
   const hits = ray.intersectObject(mesh, true);
   check('raycast_hits', hits.length, 2);
-  check('raycast_dist', round(hits[0].distance), 16);
+  check('raycast_dist', [round(hits[0].distance), round(hits[1].distance)], [16, 18]);
 
   // --- matrix4: translate(5,0,0) * scale(2) applied to (1,1,1) -> (7,2,2) ---
   const m = new THREE.Matrix4().makeTranslation(5, 0, 0).multiply(new THREE.Matrix4().makeScale(2, 2, 2));
@@ -288,11 +294,14 @@ export function run() {
   check('anim_parse_track_name', [binding.nodeName, binding.objectName, binding.objectIndex, binding.propertyName], ['Cube', 'material', 'color', 'r']);
 
   // --- instancing. `setColorAt` is deliberately NOT called: see the typed-array note in the header ---
-  const instanced = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 3);
+  const instanced = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), 3);
   for (let i = 0; i < 3; i++) instanced.setMatrixAt(i, new THREE.Matrix4().makeTranslation(i * 2, 0, 0));
   instanced.computeBoundingBox();
-  const instancedHits = new THREE.Raycaster(new THREE.Vector3(2, 0, 10), new THREE.Vector3(0, 0, -1)).intersectObject(instanced, true);
+  // off the centre and double-sided for the reason the mesh raycast above states: entry and exit of
+  // the middle instance, which is also what pins the hits to that instance rather than a neighbour
+  const instancedHits = new THREE.Raycaster(new THREE.Vector3(2.2, 0, 10), new THREE.Vector3(0, 0, -1)).intersectObject(instanced, true);
   check('inst_raycast_hits', [instancedHits.length, instancedHits[0].instanceId], [2, 1]);
+  check('inst_raycast_dist', [round(instancedHits[0].distance), round(instancedHits[1].distance)], [9.5, 10.5]);
   check('inst_bounds', [arr(instanced.boundingBox.min), arr(instanced.boundingBox.max)], [[-0.5, -0.5, -0.5], [4.5, 0.5, 0.5]]);
 
   // --- skinning ---
