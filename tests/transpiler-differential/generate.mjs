@@ -5123,10 +5123,47 @@ const EXPR_FAMILIES = {
   ],
 };
 
+// a binding pattern in the params of a signature that owns no scope. Both axes branch in the
+// walker the ESTree side runs before its scope crawl: the HOST decides whether the params are
+// walked as a pattern at all, and the PATTERN decides which container has to be emptied. The
+// signature is erased before runtime, so the snippet's value comes from the polyfill call beside
+// it - the oracle is that the signature changes NOTHING while the walk still has to survive it
+const SIGNATURE_PATTERN_HOSTS = [
+  pattern => `type F = (${ pattern }) => void;`,
+  pattern => `type C = new (${ pattern }) => object;`,
+  pattern => `interface I { (${ pattern }): void }`,
+  pattern => `interface J { new (${ pattern }): object }`,
+  pattern => `interface K { m(${ pattern }): void }`,
+  pattern => `declare function amb(${ pattern }): void;`,
+  pattern => `declare class A { m(${ pattern }): void }`,
+];
+// a BARE object pattern is deliberately absent: it reaches the same arm the two hostile interiors
+// below already drive, and re-seeding the walker regression leaves its rows green, so it would
+// multiply cases without adding a path
+const SIGNATURE_PATTERNS = ['...a: any[]', '[a, b]: any', '{ a, ...r }: any', '{ a = 1 }: any'];
+
+// a parameter property whose name IS a global, read from three positions: inside the constructor
+// the name is the caller's argument, inside a closure over it still is, and outside it is the
+// global again. The marker constructor makes a wrong substitution visible - core-js's own carries
+// no `tag`. Only the DEFAULTED spelling is here: re-seeding leaves the bare ones green, because
+// there the pre-fix defect renames the parameter to the import and calls it, which is
+// runtime-neutral and identical on both legs - a shape only the fixture pair can hold
+const PARAM_PROPERTY_READS = [
+  'class C { constructor(public Map: any = function () { return { tag: "d" }; }) { this.v = new Map(); } } '
+    + 'return new C(function () { this.tag = "own"; }).v.tag;',
+  'class C { constructor(public Map: any = function () { return { tag: "d" }; }) { this.v = (() => new Map())(); } } '
+    + 'return new C(function () { this.tag = "own"; }).v.tag;',
+  'class C { constructor(public Map: any = function () { return { tag: "d" }; }) {} '
+    + 'out() { return new Map([[1, 2]]).get(1); } } return new C(function () {}).out();',
+];
+
 // TypeScript inputs - exercise TS-wrapper handling (cast / non-null / satisfies / type-args), where
 // babel (path-based) and oxc (node-based) diverge most. yielded with `ts: true`; the runner
 // transforms them as `.ts` and strips TS before the runtime comparison
 const TS_FAMILIES = {
+  'ts-signature-pattern': SIGNATURE_PATTERN_HOSTS.flatMap(host => SIGNATURE_PATTERNS
+    .map(pattern => `(() => { ${ host(pattern) } return [1, [2]].flat(); })()`)),
+  'ts-param-property-shadow': PARAM_PROPERTY_READS.map(read => `(() => { ${ read } })()`),
   'ts-wrapper': [
     '(arr as number[]).flat()',
     'arr!.flat()',
@@ -5262,7 +5299,10 @@ const TS_FAMILIES = {
     '(() => { function dec(t, k, d) { return d; } class C { @dec get v() { return [3, 1].at(0); } } return new C().v; })()',
   ],
   // polyfill in distinct decorator positions: a decorator-factory argument, a parameter decorator
-  // combined with a parameter-property default (re-tests the param-default ref scope under decoration)
+  // combined with a parameter-property default (re-tests the param-default ref scope under decoration).
+  // A decorator argument naming the parameter property it hangs off belongs to the fixture pair, not
+  // here: re-seeding leaves every leg green, because the decorator's value is discarded and the
+  // stripped realm never reaches it
   'ts-decorator-position': [
     '(() => { function validate(v) { return function(c) { c.tag = v; return c; }; } @validate([1, 2].at(1)) class C {} return C.tag; })()',
     '(() => { function inject() { return function(t, k, i) {}; } class C { constructor(@inject() public x = [1, [2]].flat()) {} } return new C().x; })()',
