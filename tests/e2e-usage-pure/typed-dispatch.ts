@@ -147,3 +147,47 @@ QUnit.test('typed dispatch: defaulted parameter property shadows a global for th
   const control = new Set([1, 2]);
   assert.same(control.size, 2);
 });
+
+QUnit.test('typed dispatch: a tagged template supplies its tag real arguments', assert => {
+  // a tag is called with the strings array and then the interpolations, so a generic parameter
+  // binds from the real interpolation rather than its declared default, and a body that reads the
+  // strings parameter is reading an ARRAY however the quasi is spelled
+  function bindFromInterpolation<T = number[]>(strings: TemplateStringsArray, value: T): T {
+    return value;
+  }
+  assert.same(bindFromInterpolation`x${'abc'}`.at(-1), 'c');
+  function readStrings(strings: readonly string[]) {
+    return strings.at(0);
+  }
+  assert.same(readStrings`only`, 'only');
+});
+
+QUnit.test('typed dispatch: an overloaded tag is discriminated by the arguments it really gets', assert => {
+  // the one-parameter arm cannot accept two interpolations, so only the arm that can survives
+  function pick(strings: TemplateStringsArray): string;
+  function pick(strings: TemplateStringsArray, a: number, b: number): number[];
+  function pick(strings: TemplateStringsArray, a?: number, b?: number) {
+    return a === undefined ? strings[0] : [a, b];
+  }
+  assert.same(pick`x${1}${2}`.at(-1), 2);
+  assert.same(pick`solo`.at(-1), 'o');
+});
+
+QUnit.test('typed dispatch: a self-referential annotation stays generic and still runs', assert => {
+  // the annotation names the very binding it annotates, so nothing about the value is knowable -
+  // the read has to stay on the generic dispatch and serve whatever the value really is
+  let selfRef: typeof selfRef = 'abc' as any;
+  assert.same(selfRef.at(-1), 'c');
+  type SelfIndexed = SelfIndexed['k'];
+  const selfIndexed = ['x', 'y'] as any as SelfIndexed;
+  assert.same(selfIndexed.at(-1), 'y');
+});
+
+QUnit.test('typed dispatch: ReturnType over a function alias binds the supplied argument', assert => {
+  // the extracted return is a bare parameter ref: resolved outside the caller's instantiation it
+  // re-binds by name to the declared default, which is a foreign family
+  type Fn<T> = () => T;
+  type ThroughAlias<T = number[]> = ReturnType<Fn<T>>;
+  const viaAlias = 'abc' as any as ThroughAlias<string>;
+  assert.same(viaAlias.at(-1), 'c');
+});

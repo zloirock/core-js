@@ -25,6 +25,7 @@ import {
   typeRefName,
   typeRefSegments,
   TS_NUMBER_TYPE,
+  unionAnnotationOf,
 } from './ast-shapes.js';
 import { getHeritageTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -55,6 +56,7 @@ export function createTypeMembers({
   isUnconstrainedTypeReference,
   pickConditionalBranchVia,
   resolveTypeQueryBinding,
+  resolveIndexedAccessMemberAnnotationAST,
   buildCallSiteSubst,
   resolveTypeAnnotation,
   functionTypeReturnAnnotation,
@@ -76,22 +78,22 @@ export function createTypeMembers({
   // `Cfg['items']` / chained `Cfg['items']['data']` - resolve the indexed access to its
   // annotation, then get members of that. without this, `findTypeMember` on a binding
   // annotated `Cfg['items']` returns null and downstream dispatches to generic polyfill
-  function resolveIndexedAccessMembers(node, scope, depth) {
-    const key = indexedAccessKey(node.indexType);
-    if (key === null) return null;
-    const member = findTypeMember({ objectType: node.objectType, key, scope });
-    if (member) {
-      const annotation = unwrapTypeAnnotation(member.typeAnnotation ?? member);
-      return annotation ? getTypeMembers({ objectType: annotation, scope, depth: depth + 1 }) : null;
-    }
+  function resolveIndexedAccessMembers(node, scope, depth, visited) {
+    // the annotation half is the canonical indexed-access peel: it grows the budget on the way
+    // into the member lookup - so a self-referential `type R = R['k']` runs out instead of
+    // recursing forever - and carries the method-shape probe and the cross-parser return slot
+    // that a second spelling here had drifted away from
+    const annotation = resolveIndexedAccessMemberAnnotationAST(node, scope, depth);
+    if (annotation) return getTypeMembers({ objectType: annotation, scope, depth: depth + 1, visited });
     // numeric-key tuple fallback: `Parameters<typeof fn>[0].x` - findTypeMember can't see
     // the tuple shape (Parameters is not in STRUCTURE_PRESERVING_WRAPPERS and getTypeMembers
     // returns null for the special built-in), but findTupleElement resolves it via
     // resolveParametersParams. parity with `resolveIndexedAccessType`'s numeric branch
-    const numIndex = canonicalArrayIndex(key);
+    const key = indexedAccessKey(node.indexType);
+    const numIndex = key === null ? null : canonicalArrayIndex(key);
     if (numIndex === null) return null;
     const element = findTupleElement(node.objectType, numIndex, scope);
-    return element ? getTypeMembers({ objectType: unwrapTypeAnnotation(element), scope, depth: depth + 1 }) : null;
+    return element ? getTypeMembers({ objectType: unwrapTypeAnnotation(element), scope, depth: depth + 1, visited }) : null;
   }
 
   // TS allows merged-iface decls with renamed type-params, so each sibling builds its
@@ -170,7 +172,7 @@ export function createTypeMembers({
     if (objectType.type === 'ObjectTypeAnnotation') return flowObjectTypeMembers(objectType);
     // both TS `T[K]` and Flow `T[K]` (IndexedAccessType) route through the same resolver
     if (objectType.type === 'TSIndexedAccessType' || objectType.type === 'IndexedAccessType') {
-      return resolveIndexedAccessMembers(objectType, scope, depth);
+      return resolveIndexedAccessMembers(objectType, scope, depth, visited);
     }
     // mapped type: trivial passthrough delegates to the source's members; `as`-rename
     // expands per-key with statically-evaluated rename templates so `r._a` on
@@ -283,7 +285,7 @@ export function createTypeMembers({
       return collectInterfaceMembers({ segments, scope, depth, visited, receiverArgs });
     }
     if (isClassLikeDeclaration(declaration)) {
-      return collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs });
+      return collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs, visited });
     }
     if (isTypeAlias(declaration)) {
       // substitute the alias's type params into member annotations so
@@ -313,7 +315,7 @@ export function createTypeMembers({
     }
   }
 
-  function collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs }) {
+  function collectClassLikeMembers({ declaration, segments, scope, depth, receiverArgs, visited }) {
     // walk superClass chain with per-class subst derivation. on every hop also pull merged
     // sibling interfaces for the current class - inherited iface members must surface on
     // subclasses (TS declaration merging). receiver's iface lookup uses the user-passed
@@ -333,7 +335,9 @@ export function createTypeMembers({
       const ownBody = interfaceBodyMembers(cur).filter(m => !m?.static);
       merged.push(...substMembers(ownBody, curSubst));
       const lookupSegments = cur === declaration ? segments : (cur.id?.name ? [cur.id.name] : null);
-      appendMergedInterfaceMembers({ segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs });
+      appendMergedInterfaceMembers({
+        segments: lookupSegments, scope, depth, out: merged, receiverArgs: curReceiverArgs, visited,
+      });
       const parent = findParentClassDecl(cur, scope);
       if (!parent) break;
       // raw super-args (`extends Mid<T>`) reference cur's type params; apply curSubst FIRST
@@ -529,7 +533,7 @@ export function createTypeMembers({
     const falseViable = falseResult && !isNullableOrNeverAnnotation(falseResult) ? falseResult : null;
     if (!trueViable) return falseViable;
     if (!falseViable) return trueViable;
-    return { type: 'TSUnionType', types: [trueViable, falseViable] };
+    return unionAnnotationOf([trueViable, falseViable]);
   }
 
   // method-member lookups (TSMethodSignature, ClassMethod, TSDeclareMethod, MethodDefinition,
@@ -581,7 +585,7 @@ export function createTypeMembers({
       // SUBSTITUTE before unwrapping: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the
       // SUBSTITUTED promise layer (peel-then-subst yielded the raw Promise and dropped the
       // member); order-equivalent for the structure-preserving wrappers (`Readonly<T>` etc.)
-      const passthrough = unwrapPassthroughWrapper(applySubst(aliased ?? objectType, subst), scope);
+      const passthrough = unwrapPassthroughWrapper(applySubst(aliased ?? objectType, subst), scope, depth);
       if (passthrough) {
         objectType = passthrough;
         depth += 1;

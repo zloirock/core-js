@@ -1917,32 +1917,34 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
 // (default-or-runtime), so the reaching-definition recovery must bail rather than fold the default's
 // value - folding it silently mis-narrows `name` when the runtime slot is present (a WRONG result)
 export function patternSlotHasDefault(pattern, name) {
-  return patternBindsNameUnderDefault(pattern, name, false);
-}
-// does the pattern bind `name` in ANY slot (identifier leaf, renamed value, rest, nested,
-// with or without a default)? the `underDefault=true` seed makes every reached Identifier
-// leaf count; the default-only variant above seeds false and counts only default-guarded slots
-export function patternBindsName(pattern, name) {
-  return patternBindsNameUnderDefault(pattern, name, true);
-}
-function patternBindsNameUnderDefault(node, name, underDefault) {
-  while (true) {
-    switch (node?.type) {
-      case 'Identifier': return underDefault && node.name === name;
-      case 'AssignmentPattern':
-        node = node.left;
-        underDefault = true;
-        continue;
-      case 'RestElement':
-      case 'SpreadElement':
-        node = node.argument;
-        continue;
-      case 'ArrayPattern': return node.elements.some(el => patternBindsNameUnderDefault(el, name, underDefault));
-      case 'ObjectPattern': return node.properties.some(prop => patternBindsNameUnderDefault(
-        prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value, name, underDefault));
-      default: return false;
+  // the default-context flag is the WALK's accumulator, not part of the question - it stays inside so
+  // the exported contract cannot be handed a `true` that silently turns this into "binds it at all"
+  return (function reached(node, underDefault) {
+    while (true) {
+      switch (node?.type) {
+        case 'Identifier': return underDefault && node.name === name;
+        case 'AssignmentPattern':
+          node = node.left;
+          underDefault = true;
+          continue;
+        case 'RestElement':
+        case 'SpreadElement':
+          node = node.argument;
+          continue;
+        case 'ArrayPattern': return node.elements.some(el => reached(el, underDefault));
+        case 'ObjectPattern': return node.properties.some(prop => reached(
+          prop.type === 'RestElement' || prop.type === 'SpreadElement' ? prop.argument : prop.value, underDefault));
+        default: return false;
+      }
     }
-  }
+  })(pattern, false);
+}
+// does the pattern bind `name` in ANY slot (identifier leaf, renamed value, rest, nested, with or
+// without a default)? one spelling of that question, over the canonical binding-leaf walk - the
+// default-guarded ask above keeps its own walk because it TRACKS default context, which the leaf
+// walk deliberately does not carry
+export function patternBindsName(pattern, name) {
+  return patternBindsIdentifier(pattern, id => id.name === name);
 }
 
 // the binding's own VariableDeclarator, across BOTH binding shapes this file is handed: the usage
@@ -2285,7 +2287,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   if (pattern?.type === 'ObjectPattern') {
     for (const prop of pattern.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-      if (!patternBindsIdentifier(prop.value, id => id.name === name)) continue;
+      if (!patternBindsName(prop.value, name)) continue;
       const slot = prop.value.type === 'AssignmentPattern' ? prop.value.left : prop.value;
       // the SAME key canon the value pairing uses - reading the key any less precisely here would
       // let a computed key (`{ [k]: [, A] }`) pair a value the completeness check never inspects
@@ -2302,7 +2304,7 @@ export function patternSlotSpreadShifted(pattern, rhs, name, ctx = null) {
   if (pattern?.type !== 'ArrayPattern') return false;
   for (let i = 0; i < pattern.elements.length; i++) {
     const element = pattern.elements[i];
-    if (!element || !patternBindsIdentifier(element, id => id.name === name)) continue;
+    if (!element || !patternBindsName(element, name)) continue;
     if (rhs?.type === 'ArrayExpression' && spreadAtOrBefore(rhs.elements, i)) return true;
     const slot = element.type === 'AssignmentPattern' ? element.left : element;
     const paired = rhs?.type === 'ArrayExpression' ? rhs.elements[i] : null;
@@ -4609,7 +4611,7 @@ export function paramReboundInBody(node, paramNames) {
   // non-shadowed subset instead of dropping the whole subtree
   if (isPlainFunctionNode(node)) {
     const visible = new Set([...paramNames].filter(paramName => (node.params ?? [])
-      .every(param => !patternBindsIdentifier(param, id => id.name === paramName))));
+      .every(param => !patternBindsName(param, paramName))));
     if (visible.size !== paramNames.size) return visible.size !== 0 && paramReboundInBody(node, visible);
   }
   for (const value of Object.values(node)) {
@@ -5005,6 +5007,12 @@ export const isTaggedTemplateTag = (parent, node, placement) => placement === 'p
 // sequences are NOT peeled - a `(0, M.groupBy)\`x\`` tag detaches `this` natively
 export const isTaggedTemplateTagPosition = (parent, node) => parent?.type === 'TaggedTemplateExpression'
   && unwrapRuntimeExpr(parent.tag) === node;
+
+// the other half of the same shape: the template in the QUASI slot is not a string value but the
+// strings ARRAY the tag receives as its first argument, so a value resolver that reads it as the
+// template literal it is spelled like answers a foreign family
+export const isTaggedTemplateQuasiPosition = (parent, node) => parent?.type === 'TaggedTemplateExpression'
+  && parent.quasi === node;
 
 // structural match for MemberExpression chains rooted at Identifier / ThisExpression -
 // recognises the same receiver path written at different source positions. literal property
@@ -5474,8 +5482,24 @@ function statementShadowsRequireAtProgramScope(stmt) {
   return false;
 }
 
+// how many bindings does this pattern introduce? one spelling of the count both emitters need - for
+// the declaration-wide total and for the slice a single extraction consumes
+export function patternBindingCount(node) {
+  let count = 0;
+  walkPatternIdentifiers(node, () => count++);
+  return count;
+}
+
+// does THIS declarator bind `name`? the whole-pattern canon answers both spellings its id can take.
+// the declarator's own node type is deliberately NOT tested - callers hand this duck-typed
+// declarator shapes, and "is the host a declarator at all" is the caller's own question
+export function declaratorBindsName(declarator, name) {
+  const id = declarator?.id;
+  return !!id && (id.type === 'Identifier' ? id.name === name : patternBindsName(id, name));
+}
+
 function declaratorsBindName(decls, name) {
-  return (decls ?? []).some(d => patternBindsIdentifier(d.id, id => id.name === name));
+  return (decls ?? []).some(d => declaratorBindsName(d, name));
 }
 
 // `Object.defineProperty(exports, 'x', ...)` is tsc/esbuild's CJS emit shape for
