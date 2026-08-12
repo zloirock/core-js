@@ -1,15 +1,7 @@
-// The bundler adapters, shared by this suite and `tests/e2e-libs`: one entry per supported tool,
-// `(input, plugins, extra) -> { code, ext?, map? }`. The caller supplies the plugins it wants
-// registered - unplugin's adapter for a bundler, a sibling beside it, or nothing at all for a
-// plugin-less baseline - and gets the bundle back as text.
-//
-// They live here because this is the directory that pins the bundlers. A suite that consumes them
-// names it in the `zxi.installExternalDirs` field of its own `package.json`, which is what makes the
-// bootstrap install this directory too.
-//
-// `makeBundlers` takes only what the callers genuinely disagree on. Everything else is deliberately
-// identical: a bundler configured two ways in two suites is a bundler whose behavior neither of them
-// really pins.
+// The bundler adapters, one entry per supported tool: `(input, plugins, extra) -> { code, ext?, map? }`.
+// The caller supplies the plugins it wants registered - unplugin's adapter for a bundler, or a sibling
+// beside it - and gets the bundle back as text. Everything a tool needs to produce one node-loadable
+// file is set here, so the matrix in `runner.mjs` stays about methods and phases.
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,16 +19,6 @@ export async function withTmpDir(fn) {
 export function makeBundlers({
   // the directory vite, rsbuild and farm root their configuration at
   root,
-  // esbuild is the one tool here asked for both formats: this suite loads its output as CommonJS,
-  // e2e-libs only measures it
-  esbuildFormat = 'esm',
-  sourcemap = false,
-  // ids vite hands to its CommonJS interop. A corpus of real packages needs the whole of
-  // node_modules; the inputs of this suite need core-js alone
-  commonjsInclude = [/core-js/],
-  // rollup is the only tool whose warnings are not silenced by a log level. Real third-party code
-  // produces plenty that are not ours to fix, so a consumer of such a corpus turns them off
-  quiet = false,
 } = {}) {
   // vite, rsbuild and farm all resolve from `root`, and each of them silently falls back to the
   // process working directory - which under `zxi cd` is whichever suite happens to be running
@@ -77,10 +59,12 @@ export function makeBundlers({
         plugins,
         bundle: true,
         write: false,
-        format: esbuildFormat,
+        // the runner loads what it built, and esbuild is the one tool here whose output this suite
+        // takes as CommonJS - hence the extension that goes with it
+        format: 'cjs',
         platform: 'node',
       });
-      return { code: result.outputFiles[0].text, ...esbuildFormat === 'cjs' && { ext: '.cjs' } };
+      return { code: result.outputFiles[0].text, ext: '.cjs' };
     },
 
     async rollup(input, plugins = [], { inlineDynamic } = {}) {
@@ -90,10 +74,9 @@ export function makeBundlers({
       const bundle = await rollup({
         input,
         plugins: [...plugins, nodeResolve(), commonjs()],
-        ...quiet && { onwarn() { /* third-party warnings, not ours to fix */ } },
       });
       try {
-        const { output } = await bundle.generate({ format: 'es', sourcemap, inlineDynamicImports: !!inlineDynamic });
+        const { output } = await bundle.generate({ format: 'es', sourcemap: true, inlineDynamicImports: !!inlineDynamic });
         return { code: output[0].code, map: output[0].map };
       } finally {
         await bundle.close();
@@ -107,10 +90,11 @@ export function makeBundlers({
         logLevel: 'silent',
         build: {
           write: false,
-          sourcemap,
+          sourcemap: true,
           minify: false,
           lib: { entry: input, formats: ['es'] },
-          commonjsOptions: { include: commonjsInclude },
+          // the ids vite hands to its CommonJS interop: the inputs here need core-js alone
+          commonjsOptions: { include: [/core-js/] },
           // vite bundles with rolldown, so the output option follows rolldown's spelling
           rollupOptions: inlineDynamic ? { output: { codeSplitting: false } } : {},
         },

@@ -17,14 +17,14 @@ import {
   makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder,
   assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, HERE,
 } from './build.mjs';
-import { librariesIn } from './libraries.mjs';
+import { librariesMatching } from './libraries.mjs';
 
 const { mkdir, writeFile } = fs;
 const { join } = path;
 
 const [libFilter, methodFilter, ...surplus] = argv._;
 if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - pipeline.mjs takes [libFilter] [methodFilter]`);
-const libs = librariesIn('runtime', libFilter);
+const libs = librariesMatching(libFilter);
 if (methodFilter && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
 
 const UMD = { format: 'umd', name: 'E2E', esModule: false };
@@ -112,8 +112,8 @@ async function measure(lib, method) {
       cell.B = B;
     }
 
-    // injections are recorded INSIDE this build: a separate captureInjections pass runs unplugin
-    // without Babel, and the post phase consumes Babel's helper output, so it would undercount
+    // injections are recorded INSIDE this build: a separate pass without Babel in front of unplugin
+    // would undercount, since the post phase consumes what Babel's helpers emit
     let babelMs = 0;
     let unpluginMs = 0;
     const sink = new Set();
@@ -154,7 +154,7 @@ for (const lib of libs) {
     echo('done');
   }
 }
-// cannot fire today - `librariesIn` throws on an empty match and `methodFilter` is validated above -
+// cannot fire today - `librariesMatching` throws on an empty match and `methodFilter` is validated above -
 // but it stays so that a future per-library method subset cannot write a green empty report.
 if (!rows.length) throw new Error(`no (library x method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
@@ -163,8 +163,7 @@ function kb(b) {
   return `${ (b / 1024).toFixed(0) } KB`;
 }
 // A filtered run must not be mistakable for a full one: it overwrites the same report file, and the
-// method filter in particular just makes sections vanish. throughput.mjs marks its sibling report the
-// same way.
+// method filter in particular just makes sections vanish.
 const scope = libFilter || methodFilter
   ? `Filtered run (${ libFilter ?? '*' } x ${ methodFilter ?? '*' }): ${ rows.length } cell(s)`
   : `Full matrix: ${ rows.length } cell(s)`;
