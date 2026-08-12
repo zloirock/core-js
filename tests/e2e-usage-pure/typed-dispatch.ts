@@ -109,3 +109,41 @@ QUnit.test('typed dispatch: for-of write alias survives a cast on the head objec
     assert.same(p.includes(1), 'head');
   }
 });
+
+// a parameter property declares its name in the constructor scope. When the name happens to be a
+// global, a body read of it is the CALLER'S ARGUMENT, and substituting the ponyfill there silently
+// swaps the user's value for core-js's. Both wrapper spellings run, since only the defaulted one
+// carries a pattern the scope walk refuses; `Set` is the control that must still be substituted
+QUnit.test('typed dispatch: parameter property shadows a global for the constructor body', assert => {
+  class WithoutDefault {
+    constructor(private Map: any) {}
+    make() {
+      return new (this as any).Map('own');
+    }
+    read() {
+      const Local = this.Map;
+      return new Local('own');
+    }
+  }
+  function Marker(this: any, tag: string) {
+    this.tag = tag;
+  }
+  assert.same(new WithoutDefault(Marker).make().tag, 'own');
+  assert.same(new WithoutDefault(Marker).read().tag, 'own');
+});
+
+QUnit.test('typed dispatch: defaulted parameter property shadows a global for the body', assert => {
+  function Fallback(this: any, tag: string) {
+    this.tag = tag;
+  }
+  class WithDefault {
+    constructor(public WeakMap: any = Fallback) {}
+    make() {
+      const Local = this.WeakMap;
+      return new Local('defaulted');
+    }
+  }
+  assert.same(new WithDefault().make().tag, 'defaulted');
+  const control = new Set([1, 2]);
+  assert.same(control.size, 2);
+});
