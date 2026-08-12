@@ -3,7 +3,7 @@
 // nothing here imports core-js, so no global patching leaks from one exercise into the next (that
 // concern is real for runtime.mjs, which is why its pre-flight forks a child per bundle).
 //
-// Usage:  npm run e2e-libs-check-exercise [exercisePathOrLibName]
+// Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
 import { libraries } from './libraries.mjs';
 import { pathToFileURL } from 'node:url';
 
