@@ -30,6 +30,13 @@ Before writing a helper or a branch, check the canon - `npm run canon -- find "<
 - `npm run test-babel-plugin-unit` - internals
 - `npm run test-babel-plugin-v7` and `npm run test-babel-plugin-unit-v7` - the same against `@babel/core@7`, whose cosmetic divergences live in `<stem>.babel-v7.<ext>` fixture siblings; `tests/babel-plugin-v7/skip.mjs` is the last resort for what a sibling cannot express
 
-Those runners only compare text. Correctness is decided by the suites `npm run test-transpiling` composes - `test-e2e-usage-pure` executes the output, `test-transpiler-differential` compares it against native and the other emitter, `test-transpiler-integration` drives the real bundlers, `test-transpiler-perf` guards the complexity class - so a change in behavior rather than formatting is verified with the composite. Of them, this plugin owns one of the four e2e bundles, and one of the two that also run in a stripped realm; in the integration matrix it takes part with no phase of its own.
+Those runners only compare text, which settles cosmetic work; a change in BEHAVIOR is verified while you work by the correctness suite nearest to it, scoped to what changed:
+
+- `npm run test-transpiler-differential babel` - this emitter against native at runtime, on the generated corpus; add `pure` while the usage-global path is untouched (the usual loop shape for work here). The argument-less run is the gate form - both emitters, every leg
+- `npm run test-e2e-usage-pure` - executes the transformed code; this plugin owns one of the four bundles, and one of the two that also run in a stripped realm
+- `npm run test-transpiler-integration` - only when the change faces a real build pipeline; the matrix runs this plugin with no phase of its own
+- `npm run test-transpiler-perf` - guards the complexity class
+
+One full `npm run test-transpiling` is the finish line - a VERY heavy run that composes every suite named here including this package's own runners: run it once, right before the work is handed off, never mid-loop, and never with a member on the same invocation line.
 
 When comparing this emitter against unplugin by hand, normalize whitespace and run each emitter in a separate process - they share provider module state, and a shared-state leak looks exactly like a desync. The differential harness deliberately does the opposite, running both in one process; do not "fix" it to match this advice.
