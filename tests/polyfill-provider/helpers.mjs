@@ -29,6 +29,7 @@ import {
   directiveValue,
   extractIndirectRequireSEPrefix,
   findFunctionScopeVarInPath,
+  findTSRuntimeBindingInPath,
   findVarOwnerDeclaring,
   findObjectKeyBeforeSpread,
   isDirectiveStatement,
@@ -965,6 +966,58 @@ check('directiveValue/empty stmt marker', directiveValue({ directive: '' }), '')
 // a non-directive node yields null so `=== 'use strict'` is cleanly false
 check('directiveValue/non-directive', directiveValue({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), null);
 check('directiveValue/nullish', directiveValue(null), null);
+
+// --- findTSRuntimeBindingInPath: a parameter property binds the body, never the decorators ---
+// The two arms of this climb have DIFFERENT reach and the difference is the whole point: a TS
+// runtime declaration (enum / namespace / import-equals) shadows the statement's entire subtree,
+// including a decorator inside it, while a parameter property only reaches the parameter list and
+// the body - a decorator hanging off that same list is evaluated where the class is defined, so
+// the name there is still the global. Synthetic node-only paths, so one chain covers both dialects
+{
+  function buildConstructorPath({ probeIn, statement = null }) {
+    const decoratorArg = { type: 'NewExpression', callee: { type: 'Identifier', name: 'Map' }, arguments: [] };
+    const decorator = { type: 'Decorator', expression: decoratorArg };
+    const parameter = {
+      type: 'TSParameterProperty',
+      decorators: [decorator],
+      parameter: { type: 'Identifier', name: 'Map' },
+    };
+    const bodyRead = { type: 'NewExpression', callee: { type: 'Identifier', name: 'Map' }, arguments: [] };
+    const bodyStmt = { type: 'ExpressionStatement', expression: bodyRead };
+    const ctor = {
+      type: 'FunctionExpression',
+      params: [parameter],
+      body: { type: 'BlockStatement', body: [bodyStmt] },
+    };
+    const program = { type: 'Program', sourceType: 'module', body: statement ? [statement, ctor] : [ctor] };
+    const programPath = { node: program, parentPath: null };
+    const ctorPath = { node: ctor, key: statement ? 1 : 0, listKey: 'body', parentPath: programPath };
+    if (probeIn === 'body') {
+      const stmtPath = { node: bodyStmt, key: 0, listKey: 'body', parentPath: { node: ctor.body, key: 'body', listKey: null, parentPath: ctorPath } };
+      return { node: bodyRead, key: 'expression', listKey: null, parentPath: stmtPath };
+    }
+    const paramPath = { node: parameter, key: 0, listKey: 'params', parentPath: ctorPath };
+    const decoratorPath = { node: decorator, key: 0, listKey: 'decorators', parentPath: paramPath };
+    return { node: decoratorArg, key: 'expression', listKey: null, parentPath: decoratorPath };
+  }
+  const enumStatement = {
+    type: 'TSEnumDeclaration',
+    id: { type: 'Identifier', name: 'Map' },
+    members: [],
+  };
+  checkTruthy('findTSRuntimeBindingInPath/parameter property reaches the constructor body',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'body' }), 'Map'));
+  check('findTSRuntimeBindingInPath/parameter property does not reach its own decorator',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator' }), 'Map'), false);
+  // the other arm keeps its wider reach - the decorator really does sit inside the enum's scope
+  checkTruthy('findTSRuntimeBindingInPath/enum declaration reaches the decorator',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator', statement: enumStatement }), 'Map'));
+  // an unrelated name is unaffected from either position
+  check('findTSRuntimeBindingInPath/unshadowed name from the body',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'body' }), 'Set'), false);
+  check('findTSRuntimeBindingInPath/unshadowed name from the decorator',
+    findTSRuntimeBindingInPath(buildConstructorPath({ probeIn: 'decorator' }), 'Set'), false);
+}
 
 // --- nodeHasUseStrict directive-shape coverage (end-to-end via findFunctionScopeVarInPath) ---
 // a sloppy-mode block-nested `function Foo(){}` Annex-B-hoists to the function scope and shadows the

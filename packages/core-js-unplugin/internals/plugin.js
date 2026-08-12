@@ -94,57 +94,84 @@ import {
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
 
-// estree-toolkit's scope crawler walks `RestElement` params via the reference path on three
-// type-only shapes (`TSDeclareFunction`, `TSEmptyBodyFunctionExpression`, `TSMethodSignature`)
-// where it throws `This should be handled by findVisiblePathsInPattern`.
-// `TSDeclareFunction` retypes to a body-bearing `FunctionDeclaration` so the standard pattern
-// walker handles params; the other two have no body slot, so rest params get rewritten to a
-// bare Identifier carrying the original `typeAnnotation` (`Parameters<typeof X>` still resolves
-// the original `T[]` element type). Touching only rest-bearing params leaves `es.function.name`
-// injection on regular declares unaffected
-const REST_CRASHING_SHAPES = new Set([
-  'TSDeclareFunction',
-  'TSEmptyBodyFunctionExpression',
-  'TSMethodSignature',
+// estree-toolkit consumes a binding pattern in exactly ONE place - `findVisiblePathsInPattern`,
+// which its scope crawler reaches only from the slots it models: the `params` of the three node
+// types that own a scope, plus a catch param, a declarator id, a for-x left and an assignment
+// left. A pattern anywhere else reaches the generic identifier crawler instead, where an
+// `Identifier` under `RestElement`, `ArrayPattern` or `AssignmentPattern` throws and aborts the
+// whole file's transform. So the property to compensate is "this node's params are NOT walked as
+// a pattern", never a list of type names: every type-level function shape TS has qualifies, from
+// `TSFunctionType` in a plain `type F = (...a: any[]) => void` to an overload head
+const PARAM_PATTERN_SCOPE_OWNERS = new Set([
+  'ArrowFunctionExpression',
+  'FunctionDeclaration',
+  'FunctionExpression',
 ]);
 
-function neutralizeTSDeclareFunctions(node) {
+// a params list is emptied by CONTAINER, keeping the param node itself: what the type layer reads
+// off such a param is its own `type` and `typeAnnotation` - `Parameters<typeof fn>[N]` on a rest
+// param yields the element type only while the param is still spelled `RestElement` - while
+// everything the crawler could reach lives strictly inside those containers, so blanking them is
+// both closed over the nesting and lossless - the walker reads a fixed key list for every node
+// type it defines and only falls back to every own key for the ones it does not, so a TS
+// annotation hanging off a defined node is never descended into at all. That is why an annotation
+// under a declarator id or a real function param cannot abort the crawl however deep its own
+// signatures nest, and why the blanked container's own annotation stays out of reach as well.
+// What must NOT be touched is a param that is not a
+// pattern at all: a type-argument list (`ReturnType<typeof f>`) and a type-parameter list
+// (`<T = (...a: any[]) => void>`) also spell their members `params` in this dialect
+function blankPatternInterior(node) {
+  let param = node;
+  // an initializer is a syntax error in every type-level param list, and the accessibility
+  // wrapper carries nothing a type reader wants, so both peel to what they wrap
+  while (param?.type === 'AssignmentPattern' || param?.type === 'TSParameterProperty') {
+    param = param.type === 'AssignmentPattern' ? param.left : param.parameter;
+  }
+  switch (param?.type) {
+    case 'RestElement': return { ...param, argument: null };
+    case 'ArrayPattern': return { ...param, elements: [] };
+    case 'ObjectPattern': return { ...param, properties: [] };
+    default: return param;
+  }
+}
+
+// the node TYPE stays as parsed: retyping an ambient head to a body-bearing `FunctionDeclaration`
+// makes an overload head indistinguishable from its implementation, which widens `f()` over the
+// heads babel resolves through the impl
+function neutralizeUnwalkedParamPatterns(node) {
   if (!node || typeof node !== 'object') return;
-  if (REST_CRASHING_SHAPES.has(node.type) && node.params?.some(p => p?.type === 'RestElement')) {
-    if (node.type === 'TSDeclareFunction') {
-      node.type = 'FunctionDeclaration';
-      node.body = { type: 'BlockStatement', body: [], start: node.end, end: node.end };
-    } else for (let i = 0; i < node.params.length; i++) {
-      const p = node.params[i];
-      if (p?.type !== 'RestElement') continue;
-      node.params[i] = {
-        type: 'Identifier',
-        name: p.argument?.name ?? '_rest',
-        typeAnnotation: p.typeAnnotation,
-        start: p.start,
-        end: p.end,
-      };
+  if (Array.isArray(node.params) && !PARAM_PATTERN_SCOPE_OWNERS.has(node.type)) {
+    for (let i = 0; i < node.params.length; i++) {
+      node.params[i] = blankPatternInterior(node.params[i]);
     }
-    return;
+    // fall through: `returnType` and `typeParameters` of the same node carry their own
+    // type-level signatures, and a defaulted type parameter is reached by the crawler too
   }
   // a constructor parameter-property with a default (`constructor(public m = 1)`) parses as
-  // `TSParameterProperty { parameter: AssignmentPattern }`; estree-toolkit's scope crawler has no
-  // AssignmentPattern handler in that position and throws during crawl, aborting the whole file. a
-  // plain AssignmentPattern param (no accessibility wrapper) crawls fine, so unwrap to the inner
-  // pattern in place - the default expression survives (so usage inside it like `= new WeakMap()`
-  // is still detected), and accessibility / readonly modifiers are irrelevant to polyfill detection
+  // `TSParameterProperty { parameter: AssignmentPattern }`; `findVisiblePathsInPattern` has no
+  // `TSParameterProperty` case, so the pattern inside it is left to the generic crawler and throws
+  // even though the constructor itself owns a scope. a plain AssignmentPattern param (no
+  // accessibility wrapper) walks fine, so unwrap to the inner pattern in place - the default
+  // expression survives (so usage inside it like `= new WeakMap()` is still detected), and
+  // accessibility / readonly modifiers are irrelevant to polyfill detection.
+  // The wrapper's own decorators (TS legacy `@inject() public m = 1`) move with it: they were
+  // reachable only because the wrapper is a node type the walker does not define, so it walked
+  // every slot; the shape they land on IS defined, which is exactly the case the decorator
+  // compensation covers by hand
   if (node.type === 'TSParameterProperty' && node.parameter?.type === 'AssignmentPattern') {
+    const { decorators } = node;
     const inner = node.parameter;
     for (const key of Object.keys(node)) delete node[key];
     Object.assign(node, inner);
-    neutralizeTSDeclareFunctions(node);
+    if (decorators?.length) node.decorators = decorators;
+    neutralizeUnwalkedParamPatterns(node);
     return;
   }
   if (Array.isArray(node)) {
-    for (const child of node) neutralizeTSDeclareFunctions(child);
+    for (const child of node) neutralizeUnwalkedParamPatterns(child);
     return;
   }
-  for (const value of Object.values(node)) neutralizeTSDeclareFunctions(value);
+  for (const value of Object.values(node)) neutralizeUnwalkedParamPatterns(value);
 }
 
 // 1-based `line:col` from oxc's first label via shared offset->line+column helper.
@@ -556,12 +583,9 @@ export default function createPlugin(options) {
       typeResolvers.reset();
     }
 
-    // estree-toolkit's scope crawler doesn't recognize `TSDeclareFunction` as a scope owner,
-    // so it falls through to the reference-walker which throws on `RestElement` in params
-    // (`This should be handled by findVisiblePathsInPattern`). retype to `FunctionDeclaration`
-    // with an empty body - same shape (id / params / async / generator), scope walker handles
-    // it as a regular fn, `resolveParametersParams` still reads params for `Parameters<typeof fn>[N]`
-    neutralizeTSDeclareFunctions(ast);
+    // a binding pattern in a params list estree-toolkit never walks as a pattern - every
+    // type-level signature TS has - aborts the crawl, so neutralize them before it runs
+    neutralizeUnwalkedParamPatterns(ast);
 
     // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
     // must emit `import`, or bundlers reject the mixed output
