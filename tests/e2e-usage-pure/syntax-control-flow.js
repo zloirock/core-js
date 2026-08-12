@@ -358,3 +358,31 @@ QUnit.test('control-flow: one early exit narrows several bindings', assert => {
   assert.deepEqual(loose('q', [1, 2]), ['q', true]);
   assert.deepEqual(loose(['a', 'b'], 'z'), ['a', false]);
 });
+
+QUnit.test('control-flow: a deferred read folds the writes past an undescribable one', assert => {
+  // a compound operator's result and a destructuring slot are not written from a single value
+  // node, but they do not end the enumeration - the plain write after them still reaches the
+  // deferred read, and a set spanning families has to keep the generic dispatch
+  function mixedFamilies(flag) {
+    let box = 'a';
+    function read() {
+      return box.at(-1);
+    }
+    if (flag) box += 'b';
+    if (flag) box = ['c', 'd'];
+    return read();
+  }
+  assert.same(mixedFamilies(false), 'a');
+  assert.same(mixedFamilies(true), 'd');
+  function throughSlot(flag) {
+    let items = ['a'];
+    function read() {
+      return items.at(-1);
+    }
+    if (flag) [items] = [['b']];
+    if (flag) items = ['c'];
+    return read();
+  }
+  assert.same(throughSlot(false), 'a');
+  assert.same(throughSlot(true), 'c');
+});

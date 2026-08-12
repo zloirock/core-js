@@ -30,14 +30,15 @@
 // binding-analysis cluster instantiated upstream (factory function declaration is hoisted;
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { MAX_DEPTH, dropLeadingThisParam } from './base.js';
+import { MAX_DEPTH, $Object, callArgumentPaths, dropLeadingThisParam } from './base.js';
 import {
   collectQualifiedSegments,
+  discriminateOverloads,
   isObjectTypeLiteral,
   isTypeReferenceNode,
   isUnionType,
-  matchOverloadByArgs,
   peelTSParenthesized,
+  unionAnnotationOf,
   typeRefName,
   TS_NUMBER_TYPE,
   TS_UNKNOWN_TYPE,
@@ -102,7 +103,27 @@ export function createCallResolution({
       || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
   }
 
+  // ES construct semantics: a constructor's PRIMITIVE return is DISCARDED and the fresh object
+  // stands in its place. every RUNTIME lane below answers "what does the call return", so under
+  // `new` each of them has to be read that way - reading it off the resolved callee's node SHAPE
+  // instead let an ambient declaration and a member call-signature past the rule
+  function discardPrimitiveConstruct(type, signatureKind) {
+    return signatureKind === 'construct' && type?.primitive ? new $Object('Object') : type;
+  }
+
   function resolveCallReturnType(callee, signatureKind = 'call') {
+    const runtime = resolveRuntimeCallReturnType(callee);
+    // the annotation lane is exempt on purpose: `new () => T` DECLARES the instance type, so its
+    // answer is the declaration's and not a return value to discard. `undefined` is this file's
+    // own "no answer here, keep looking" - no runtime lane produces it
+    return runtime === undefined
+      ? resolveCallReturnTypeFromAnnotation(callee, signatureKind)
+      : discardPrimitiveConstruct(runtime, signatureKind);
+  }
+
+  // no lane here reads the signature kind - each answers what the CALL returns, and reading that
+  // answer under construct semantics is the caller's single step above
+  function resolveRuntimeCallReturnType(callee) {
     // method call: obj.method() or obj?.method()
     if (isMemberLike(callee)) {
       // receiver is statically undefined/null/never -> chain is broken at runtime; propagate
@@ -152,7 +173,7 @@ export function createCallResolution({
       const ambient = resolveAmbientFunctionReturn(resolved.node.name, resolved.scope, callee.parentPath);
       if (ambient !== undefined) return ambient;
     }
-    return resolveCallReturnTypeFromAnnotation(callee, signatureKind);
+    return undefined;
   }
 
   // ambient `declare function` overloads are arg-discriminated like interface method overloads, so the call
@@ -509,7 +530,8 @@ export function createCallResolution({
       && m.kind !== 'get' && m.kind !== 'set' && m.type === 'TSMethodSignature');
     if (named.length >= 2) {
       const selected = callPath
-        && matchOverloadByArgs(named, m => m.parameters ?? m.params, callPath.get('arguments'), resolveNodeType);
+        && discriminateOverloads(named, m => m.parameters ?? m.params,
+          callArgumentPaths(callPath), resolveNodeType).selected;
       if (!selected) return null;
       return { annotation: applySubst(selected, subst), scope };
     }
@@ -542,18 +564,27 @@ export function createCallResolution({
   // `obj[k]` where `obj: { [key: K]: V }` - resolve to V via TSIndexSignature member, selecting
   // the signature whose key type matches the access-key kind: a symbol key picks only a symbol
   // signature, a number key prefers number then string (numeric keys coerce to string), a string
-  // key never picks number/symbol. an unresolvable key falls back to the first signature; null on
-  // miss. mirrors the static-key `pickIndexSignature` (type-members) which the dynamic path bypassed
+  // key never picks number/symbol, and an UNRESOLVABLE one answers only when the type declares a
+  // single signature - which one applies is then not a question; null on miss. mirrors the
+  // static-key `pickIndexSignature` (type-members) for the kinds it knows - the dynamic path
+  // bypassed it - but NOT for the unknown key, which is a different question: that mirror picks
+  // per known kind, while an unknown key may be any kind at runtime
+  // the applicable index-signature values as ONE annotation: a single signature answers as itself,
+  // several fold through the standard union machinery downstream. synthesised rather than resolved
+  // here because the caller's contract is an annotation node, not a Type
+  function unionOfSignatures(sigs) {
+    const present = [...new Set(sigs.filter(Boolean))].map(sig => unwrapTypeAnnotation(sig) ?? sig);
+    return present.length ? unionAnnotationOf(present) : null;
+  }
+
   function resolveIndexSignatureValue(typeNode, scope, subst, keyKind) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
     let numberSig = null;
     let stringSig = null;
     let symbolSig = null;
-    let firstSig = null;
     for (const m of members) {
       if (m.type !== 'TSIndexSignature' || !m.typeAnnotation) continue;
-      firstSig ??= m.typeAnnotation;
       // peeled like the static-key mirror `pickIndexSignature`: oxc keeps `[k: (number)]`
       // as TSParenthesizedType where babel strips it - a raw read misfiled the signature
       // as string-keyed, over-resolving a string access to the number-sig value
@@ -567,7 +598,14 @@ export function createCallResolution({
       case 'symbol': picked = symbolSig; break;
       case 'number': picked = numberSig ?? stringSig; break;
       case 'string': picked = stringSig; break;
-      default: picked = firstSig;
+      // an unresolvable key may be ANY kind at runtime, so the value is the UNION of every
+      // signature that could receive it - picking one narrows to a family the access may never
+      // produce, and picking whichever was DECLARED FIRST made the answer depend on source order.
+      // TS requires the numeric value to be assignable to the string one, so on conforming input
+      // the union collapses back to the string signature and loses nothing; on input that does not
+      // conform - which parses and reaches here regardless - it diverges and the fold degrades to
+      // the generic dispatch instead of handing over a foreign family
+      default: picked = unionOfSignatures([stringSig, numberSig, symbolSig]);
     }
     return picked ? { annotation: applySubst(picked, subst), scope } : null;
   }
@@ -581,9 +619,12 @@ export function createCallResolution({
     if (depth > MAX_DEPTH) return null;
     if (!path?.node) return null;
     const cached = expressionAnnotationCache.get(path.node);
-    if (cached !== undefined) return cached;
+    // a stored result may itself be a budget artifact - a nested hop ran out and answered null -
+    // so it only serves a call with no more budget left than the one that produced it. a shallower
+    // reach has more to spend and recomputes. same rule the conditional-type memo carries
+    if (cached !== undefined && depth >= cached.depth) return cached.result;
     const result = computeExpressionAnnotation(path, depth);
-    expressionAnnotationCache.set(path.node, result);
+    expressionAnnotationCache.set(path.node, { result, depth });
     return result;
   }
 
@@ -645,7 +686,8 @@ export function createCallResolution({
         // arg-match ONE overload or bail to generic - the first head's return narrowed a
         // call TS routes to a later overload (`pick(0).m` off a divergent pair)
         if (ambients.length >= 2) {
-          const selected = matchOverloadByArgs(ambients, a => a.node.params, path.get('arguments'), resolveNodeType);
+          const { selected } = discriminateOverloads(ambients, a => a.node.params,
+            callArgumentPaths(path), resolveNodeType);
           if (!selected) return null;
           fnPath = selected;
         } else if (ambients.length === 1) {
@@ -723,7 +765,7 @@ export function createCallResolution({
     const fnTypeParams = fnNode.typeParameters?.params;
     if (!fnTypeParams?.length) return null;
     const paramNames = new Set(fnTypeParams.map(typeParamName).filter(Boolean));
-    const args = callPath.get('arguments');
+    const args = callArgumentPaths(callPath);
     // a spread breaks the positional arg->param mapping, so positional inference is
     // skipped - but the fill below must still run OPAQUE-guarded: TS infers the param
     // from the spread element, so bailing to the unguarded default fill (the caller's
