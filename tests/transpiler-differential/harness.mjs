@@ -18,9 +18,23 @@ import decoratorsPlugin from '@babel/plugin-proposal-decorators';
 import classPropsPlugin from '@babel/plugin-transform-class-properties';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
-import { runtimeKey, serialize } from './serialize.mjs';
+import { runtimeKey } from './serialize.mjs';
 
-export { serialize };
+// wall-time per phase, summed over this shard's sequential snippets - the coordinator aggregates
+// the per-shard buckets into the run's phase table, which is what optimization decisions read.
+// `ts strip` runs INSIDE the eval phases (writeModule) - it is reported as their subset, not a peer
+export const phaseNs = {};
+function mark(phase, t0) {
+  phaseNs[phase] = (phaseNs[phase] ?? 0n) + (process.hrtime.bigint() - t0);
+}
+
+// single-emitter edit-loop mode (DIFF_EMITTER, set by the coordinator): the skipped emitter is
+// neither transformed nor evaluated, and the import-parity oracle is OFF - the coordinator
+// labels such a run as not a full verification. exported so the usage-global leg follows the
+// same gating instead of re-parsing the env
+export const EMITTER = process.env.DIFF_EMITTER ?? 'both';
+export const WANT_BABEL = EMITTER !== 'unplugin';
+export const WANT_UNPLUGIN = EMITTER !== 'babel';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // the coordinator scopes each run to its own tmp subdirectory (DIFF_TMP) so concurrent runs
@@ -48,6 +62,35 @@ export function transformUnplugin(src, options, ts = false) {
   return createPlugin(options).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
 }
 
+// run the active emitters over one source, capturing a transform crash as a message instead of
+// propagating - a throwing transform is itself a verdict, not a harness failure. `timed` feeds
+// the per-emitter phase buckets; the usage-global leg omits it, staying inside its own aggregate
+export async function transformBoth({ src, options, ts = false, timed = false }) {
+  let babelOut;
+  let unpluginOut;
+  let babelError = null;
+  let unpluginError = null;
+  let t0 = process.hrtime.bigint();
+  if (WANT_BABEL) {
+    try {
+      babelOut = await transformBabel(src, options, ts);
+    } catch (error) {
+      babelError = error?.message ?? String(error);
+    }
+  }
+  if (timed) mark('transform babel', t0);
+  t0 = process.hrtime.bigint();
+  if (WANT_UNPLUGIN) {
+    try {
+      unpluginOut = transformUnplugin(src, options, ts);
+    } catch (error) {
+      unpluginError = error?.message ?? String(error);
+    }
+  }
+  if (timed) mark('transform unplugin', t0);
+  return { babelOut, unpluginOut, babelError, unpluginError };
+}
+
 // injected core-js import paths, normalized so @core-js/pure and core-js compare equal
 const IMPORT_RE = /["'](?<path>@?core-js(?:\/pure)?\/[^"']+)["']/u;
 export function importSet(code) {
@@ -64,7 +107,9 @@ export function importSet(code) {
 // strip TS syntax so a TS plugin-output becomes runnable; only TS nodes are removed, the injected
 // polyfill imports / rewrites are untouched
 async function stripTypeScript(code) {
+  const t0 = process.hrtime.bigint();
   const out = await transformAsync(code, { plugins: STRIP_PLUGINS, parserOpts: TS_PARSER, filename: 'x.ts', configFile: false, babelrc: false });
+  mark('ts strip (inside evals)', t0);
   return out.code;
 }
 
@@ -161,31 +206,18 @@ export function closeStrippedWorker() {
   workerReady = null;
 }
 
-function setEqual(a, b) {
+export function setEqual(a, b) {
   return a.size === b.size && [...a].every(x => b.has(x));
 }
 
 // run both oracles on one snippet; returns the verdict + raw materials for reporting. a transform
 // that THROWS (e.g. an unplugin composition invariant) is itself a bug - captured, not propagated
 export async function checkSnippet(src, options, ts = false, stripCheck = false) {
-  let babelOut;
-  let unpluginOut;
-  let babelError = null;
-  let unpluginError = null;
-  try {
-    babelOut = await transformBabel(src, options, ts);
-  } catch (error) {
-    babelError = error?.message ?? String(error);
-  }
-  try {
-    unpluginOut = transformUnplugin(src, options, ts);
-  } catch (error) {
-    unpluginError = error?.message ?? String(error);
-  }
+  const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src, options, ts, timed: true });
   if (babelError || unpluginError) return { transformCrash: true, babelError, unpluginError };
 
-  const babelImports = importSet(babelOut);
-  const unpluginImports = importSet(unpluginOut);
+  const babelImports = WANT_BABEL ? importSet(babelOut) : new Set();
+  const unpluginImports = WANT_UNPLUGIN ? importSet(unpluginOut) : new Set();
 
   // the corpus uses `self` ONLY as a proxy-global alias in NATIVE (untranspiled) snippets
   // (`globalThis || self`); Node has no `self`, and core-js polyfills it (unlike `window`, which is not a
@@ -197,13 +229,17 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   // realm, evals are sequential, so the window between define and delete covers only the native import.
   // NON-enumerable so a globalThis rest/spread/Object.keys probe counts the same as the outputs (a bare
   // `self` still resolves - identifier [[Get]] ignores the enumerable flag)
+  let t0 = process.hrtime.bigint();
   Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
   const native = runtimeKey((await evalModule(src, ts)).result);
   delete globalThis.self;
-  const babelEval = await evalModule(babelOut, ts);
-  const unpluginEval = await evalModule(unpluginOut, ts);
-  const babelRun = runtimeKey(babelEval.result);
-  const unpluginRun = runtimeKey(unpluginEval.result);
+  mark('eval native', t0);
+  t0 = process.hrtime.bigint();
+  const babelEval = WANT_BABEL ? await evalModule(babelOut, ts) : null;
+  const unpluginEval = WANT_UNPLUGIN ? await evalModule(unpluginOut, ts) : null;
+  const babelRun = babelEval && runtimeKey(babelEval.result);
+  const unpluginRun = unpluginEval && runtimeKey(unpluginEval.result);
+  mark('eval transformed x2', t0);
 
   // stripped-realm oracle: gated on the snippet's `strip` flag - the generator's assertion that this
   // shape MUST inject (strip:false shapes that may legitimately not inject - param-default / assignment
@@ -221,15 +257,17 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   // errorName, so ERR == ERR regardless of whether the polyfill ran. only a value-producing native gives
   // the stripped realm a reference that a leftover (now-throwing) native call would visibly diverge from
   if (stripCheck && !native.startsWith('ERR')) {
-    babelStripped = await evalStripped(babelEval.file);
-    unpluginStripped = await evalStripped(unpluginEval.file);
-    strippedMismatch = babelStripped !== native || unpluginStripped !== native;
+    t0 = process.hrtime.bigint();
+    babelStripped = WANT_BABEL ? await evalStripped(babelEval.file) : null;
+    unpluginStripped = WANT_UNPLUGIN ? await evalStripped(unpluginEval.file) : null;
+    strippedMismatch = (WANT_BABEL && babelStripped !== native) || (WANT_UNPLUGIN && unpluginStripped !== native);
+    mark('stripped worker x2', t0);
   }
 
   return {
-    importMismatch: !setEqual(babelImports, unpluginImports),
-    runtimeMismatch: !(native === babelRun && babelRun === unpluginRun),
-    pluginRuntimeDiverge: babelRun !== unpluginRun,
+    importMismatch: EMITTER === 'both' && !setEqual(babelImports, unpluginImports),
+    runtimeMismatch: (WANT_BABEL && native !== babelRun) || (WANT_UNPLUGIN && native !== unpluginRun),
+    pluginRuntimeDiverge: EMITTER === 'both' && babelRun !== unpluginRun,
     strippedMismatch,
     babelImports,
     unpluginImports,
