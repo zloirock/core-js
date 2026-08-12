@@ -8,9 +8,8 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@babel/preset-env": "^7.24.0",
-    "@babel/preset-typescript": "^7.24.1",
+    "@babel/core": "^8.0.1",
+    "@babel/preset-env": "^8.0.1",
     "@codemirror/state": "^6.7.1",
     "@lezer/common": "^1.5.2",
     "@lezer/css": "^1.3.4",
