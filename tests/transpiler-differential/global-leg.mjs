@@ -16,10 +16,12 @@
 // from the input, never from the output under test (a missed injection cannot un-arm itself), and
 // it arms the `strip:false` hosts (param-default / assignment) the pure leg must skip: under
 // usage-global's inject-if-might contract those have no "legitimately did not inject" escape.
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { importSet, transformBabel, transformUnplugin, writeModule } from './harness.mjs';
+import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, writeModule } from './harness.mjs';
 
 const WORKER = join(dirname(fileURLToPath(import.meta.url)), 'global-leg-worker.mjs');
 
@@ -66,6 +68,62 @@ async function runOutput(code, ts) {
   return runStripped(file);
 }
 
+// --- arming cache ---
+// arming is a property of the INPUT - the raw source's stripped-realm key - independent of the
+// plugins under test and deterministic over the deterministic corpus, so it is cached across
+// runs. the coordinator validates the cache against the strip-machinery hash and passes its
+// path; a hit skips the worker spawn, while the comparison against this run's native reference
+// stays live. new keys are reported through the shard marker and merged by the coordinator
+const newArmings = {};
+let armingCache = null;
+// caches the load PROMISE, not the object: a value-cached variant hands the pre-read empty
+// object to any caller arriving while the first read is still in flight
+function loadedArmingCache() {
+  return armingCache ??= (async () => {
+    const file = process.env.DIFF_ARMING_CACHE;
+    if (!file) return {};
+    try {
+      return JSON.parse(await readFile(file, 'utf8')).entries ?? {};
+    } catch {
+      // absent or torn cache - every arming just evaluates
+      return {};
+    }
+  })();
+}
+export function collectNewArmings() {
+  return newArmings;
+}
+function snippetHash(code, ts) {
+  // the fixed-width flag goes FIRST, so the variable-length code needs no delimiter after it
+  return createHash('sha256').update(ts ? '1' : '0').update(code).digest('hex').slice(0, 16);
+}
+// never rejects: the promise floats unhandled while the transforms run, so a rejection here
+// (a temp-file write failure, say) would bypass the shard's per-snippet catch and kill the shard
+async function armingEval(code, ts) {
+  const cache = await loadedArmingCache();
+  const hash = snippetHash(code, ts);
+  if (hash in cache) return cache[hash];
+  const t0 = process.hrtime.bigint();
+  let key;
+  try {
+    key = await runOutput(code, ts);
+  } catch (error) {
+    key = `WORKER-CRASH|arming: ${ error?.message ?? error }`;
+  }
+  phaseNs['arming eval (inside global leg)'] = (phaseNs['arming eval (inside global leg)'] ?? 0n) + (process.hrtime.bigint() - t0);
+  // a crash sentinel is a transient, not the snippet's key - cached, it would pin the snippet
+  // armed forever instead of being re-probed on the next run
+  if (!key.startsWith('WORKER-CRASH|')) newArmings[hash] = key;
+  return key;
+}
+
+// the output minus the injected core-js import lines - equal to the source iff the emitter
+// only prepended imports and left the body bytes alone
+const INJECTED_IMPORT_LINE = /^\s*(?:import\s+["']@?core-js|(?:const|var)\s+\w+\s*=\s*require\(["']@?core-js)/u;
+function residualBody(code) {
+  return code.split('\n').filter(line => !INJECTED_IMPORT_LINE.test(line)).join('\n').trim();
+}
+
 // the usage-global verdict for one snippet. `native` is the full-env reference key the pure leg
 // already computed; a throwing native is vacuous-by-throw (ERR == ERR regardless of injection),
 // same gate as the pure stripped leg. returns { armed, failed, detail }
@@ -79,43 +137,44 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
   // test is sound and a prefilter would silently blind such snippets.
   // the arming evaluation only needs the ORIGINAL source - start it and run both transforms
   // while the worker spins, hiding its latency behind CPU work the shard must do anyway
-  const armingKey = provenArmed ? null : runOutput(code, ts);
+  const armingKey = provenArmed ? null : armingEval(code, ts);
 
-  let babelOut;
-  let unpluginOut;
-  let babelError = null;
-  let unpluginError = null;
-  try {
-    babelOut = await transformBabel(code, options, ts);
-  } catch (error) {
-    babelError = error?.message ?? String(error);
-  }
-  try {
-    unpluginOut = transformUnplugin(code, options, ts);
-  } catch (error) {
-    unpluginError = error?.message ?? String(error);
-  }
-  if (armingKey && await armingKey === native) return { armed: false, failed: false, detail: '' };
+  const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src: code, options, ts });
+  // a throwing transform fails BEFORE the arming gate: a crash is a plugin bug on any input,
+  // and an unarmed verdict here would swallow it for exactly the snippets nothing else runs
   if (babelError || unpluginError) {
     const details = [];
     if (babelError) details.push(`babel threw: ${ babelError }`);
     if (unpluginError) details.push(`unplugin threw: ${ unpluginError }`);
     return { armed: true, failed: true, detail: details.join('; ') };
   }
+  if (armingKey && await armingKey === native) return { armed: false, failed: false, detail: '' };
 
-  // both emitters usually agree byte-for-byte on usage-global output (imports + untouched
-  // body) - identical text is ONE evaluation, not two: same file, same key by construction
+  // collapse two evaluations into ONE when the outputs are semantically the same module: equal
+  // injected import sets AND an untouched unplugin body. byte-equality almost never fires here
+  // (babel is an AST reprint, unplugin a text insertion), while the semantic pair holds on
+  // nearly the whole corpus. the residual guard keeps a corrupted unplugin insertion - its
+  // usage-global output runs nowhere else - out of the collapse: any body change forces both
+  // evaluations. the collapsed run evaluates the UNPLUGIN output (its body is the literal source
+  // bytes); babel's reprint fidelity is @babel/generator's contract, not this leg's
   let babelKey;
   let unpluginKey;
-  if (babelOut === unpluginOut) {
-    babelKey = unpluginKey = await runOutput(babelOut, ts);
+  const sameImports = EMITTER === 'both' && setEqual(importSet(babelOut), importSet(unpluginOut));
+  if (sameImports && (babelOut === unpluginOut || residualBody(unpluginOut) === code.trim())) {
+    babelKey = unpluginKey = await runOutput(unpluginOut, ts);
   } else {
-    [babelKey, unpluginKey] = await Promise.all([runOutput(babelOut, ts), runOutput(unpluginOut, ts)]);
+    [babelKey, unpluginKey] = await Promise.all([
+      WANT_BABEL ? runOutput(babelOut, ts) : null,
+      WANT_UNPLUGIN ? runOutput(unpluginOut, ts) : null,
+    ]);
   }
-  if (babelKey === native && unpluginKey === native) return { armed: true, failed: false, detail: '' };
+  if ((!WANT_BABEL || babelKey === native) && (!WANT_UNPLUGIN || unpluginKey === native)) {
+    return { armed: true, failed: false, detail: '' };
+  }
   // import sets ride along as the localization signal: a shared miss (both diverge, sets agree)
   // roots in the provider's detection, a one-sided one in that emitter
-  const imports = `imports babel={ ${ [...importSet(babelOut)].join(', ') } } unplugin={ ${ [...importSet(unpluginOut)].join(', ') } }`;
+  const imports = `imports babel={ ${ WANT_BABEL ? [...importSet(babelOut)].join(', ') : '-' } }`
+    + ` unplugin={ ${ WANT_UNPLUGIN ? [...importSet(unpluginOut)].join(', ') : '-' } }`;
   return {
     armed: true,
     failed: true,
