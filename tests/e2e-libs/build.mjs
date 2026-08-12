@@ -6,6 +6,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import unplugin from '@core-js/unplugin';
 import { transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
+import { METHODS, phasesFor, pluginOpts as matrixOpts } from '../transpiler-integration/matrix.mjs';
 import { createRequire } from 'node:module';
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -18,22 +19,17 @@ const gzipP = promisify(gzip);
 export const HERE = import.meta.dirname;
 const TMP = join(HERE, '.tmp');
 
-export const METHODS = ['entry-global', 'usage-global', 'usage-pure'];
+// The methods and phases are the shared matrix, re-exported so the runners here have one import for
+// everything the build takes.
+export { METHODS, phasesFor };
 
 // unplugin is a bundler plugin and takes a phase; babel-plugin runs inside the Babel pass and has
 // none. That asymmetry is what the runtime tier's reference/delta pairing is built on.
 export const PROVIDERS = ['babel-plugin', 'unplugin'];
 
-// `entry-global` carries no phase for either provider (it expands `import 'core-js'`, so its set is a
-// function of `targets` alone), and babel-plugin carries none for any method.
-export function phasesFor(m, provider = 'unplugin') {
-  return provider === 'babel-plugin' || m === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
-}
-
+// the one axis this suite adds to the shared options: everything it builds is aimed at IE11
 function pluginOpts(method, phase) {
-  const opts = { method, version: '4.0', mode: 'full', targets: { ie: 11 } };
-  if (phase) opts.phase = phase;
-  return opts;
+  return matrixOpts(method, phase, { targets: { ie: 11 } });
 }
 
 // The entry has to sit under HERE/.tmp for its bare `core-js` / `rxjs` imports to resolve to the
@@ -380,13 +376,15 @@ export function assertES5(code, label) {
 // "wire size" of a bundle: minify (esbuild, keeps ES5) + gzip - what you'd actually ship. Shared so
 // pipeline.md and artifacts/manifest.json cannot drift apart if the minify settings ever change.
 export async function wireSize(code, label = 'wire size') {
+  // The premise is asserted on the INPUT. Parsing the output instead would only ask esbuild whether
+  // it emitted what it was just told to emit: `target: 'es5'` lowers what it can and throws on the
+  // rest, so such a check can never fire - and could not help where it counts anyway, since a `/a/u`
+  // literal leaves as `new RegExp("a", "u")`, which parses as ES5 and dies in IE11 all the same.
+  assertES5(code, label);
   // `target: 'es5'` is load-bearing, not cosmetic: without it esbuild minifies to esnext and emits
   // e.g. optional catch bindings, so the published "wire size" would describe a bundle that cannot
-  // load in the very engine the artifact targets, and would understate it besides. Parse what
-  // is actually measured rather than trusting the option: this number is published to manifest.json
-  // and pipeline.md as shippable, so it carries the same ES5 premise the bundle itself does.
+  // load in the very engine the artifact targets, and would understate it besides.
   const minText = (await esbuildTransform(code, { minify: true, legalComments: 'none', target: 'es5' })).code;
-  assertES5(minText, `${ label } (minified)`);
   const min = Buffer.from(minText);
   return { min: min.length, gz: (await gzipP(min)).length };
 }
