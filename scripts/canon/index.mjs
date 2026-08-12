@@ -445,6 +445,83 @@ async function commandContracts() {
   echo(green(`${ missing.length } exported functions without a contract line`));
 }
 
+// --- Delta ---
+
+// named symbols of one file version through the SAME extraction that builds the index, so the
+// delta and the index cannot disagree on what counts as a symbol; first entry per name wins
+function symbolsOf(source, file) {
+  const entries = [];
+  if (source !== null) indexSource({ source, file, entries });
+  const byName = new Map();
+  for (const entry of entries) if (!byName.has(entry.name)) byName.set(entry.name, entry);
+  return byName;
+}
+
+async function gitSource(ref, file) {
+  const result = await $({ nothrow: true, quiet: true })`git show ${ ref }:${ file }`;
+  return result.exitCode === 0 ? result.stdout : null;
+}
+
+// the mechanical enumeration half of the canon check over a diff: every ADDED named symbol is
+// an obligation to adjudicate against the canon, so the exit code stays 1 while any exist
+async function commandDelta(raw = 'HEAD') {
+  const parts = raw.split('..');
+  // git's three-dot merge-base form and longer chains are not modelled - reject them instead of
+  // silently reading them as the two-dot tree compare
+  if (raw.includes('...') || parts.length > 2) {
+    console.error(red('usage: canon delta [<ref>|<A>..<B>] - two-dot form only'));
+    process.exitCode = 1;
+    return;
+  }
+  // empty sides follow git: `A..` and `..B` read as HEAD on the empty side
+  const [rawA, rawB] = parts;
+  const refA = rawA || 'HEAD';
+  const refB = rawB === undefined ? undefined : rawB || 'HEAD';
+  const scope = ['--', ...PACKAGES];
+  const diffed = await $({ nothrow: true, quiet: true })`git diff --name-only ${ refB ? [refA, refB] : [refA] } ${ scope }`;
+  if (diffed.exitCode !== 0) {
+    console.error(red(`git diff failed: ${ diffed.stderr.trim().split('\n', 1)[0] }`));
+    process.exitCode = 1;
+    return;
+  }
+  let files = diffed.stdout.split('\n');
+  if (!refB) {
+    // a brand-new untracked helper file is invisible to `git diff`, and is all added symbols
+    files = files.concat((await $({ quiet: true })`git ls-files --others --exclude-standard ${ scope }`).stdout.split('\n'));
+  }
+  const index = await loadIndex();
+  const added = [];
+  const scoped = [...new Set(files.filter(entry => /\.m?js$/u.test(entry)))].sort();
+  for (const file of scoped) {
+    const before = symbolsOf(await gitSource(refA, file), file);
+    const source = refB ? await gitSource(refB, file) : await fs.pathExists(file) ? await fs.readFile(file, 'utf8') : null;
+    for (const [name, entry] of symbolsOf(source, file)) {
+      if (!before.has(name)) added.push({ name, file, line: entry.line });
+    }
+  }
+  for (const record of added) {
+    // same-name definitions are hard dup findings; near matches are the adjudication material -
+    // same-name rows are excluded from `near` so the two tiers never repeat each other
+    record.dups = index.entries.filter(entry => entry.name === record.name && entry.file !== record.file);
+    record.near = scoreIndex(index.entries, record.name, 8)
+      .map(({ entry }) => entry)
+      .filter(entry => entry.name !== record.name)
+      .slice(0, 3);
+  }
+  if (asJSON) {
+    echo(JSON.stringify({ mode: 'delta', from: refA, to: refB ?? 'worktree', added }));
+  } else {
+    for (const { name, file, line, dups, near } of added) {
+      echo(`${ cyan(name) }  ${ file }:${ cyan(line) }`);
+      for (const dup of dups) echo(red(`  dup! ${ dup.file }:${ dup.line }${ dup.parent ? ` (in ${ dup.parent })` : '' }`));
+      for (const entry of near) echo(`  ~ ${ cyan(entry.name) }  ${ entry.file }:${ entry.line }${ entry.contract ? `  - ${ entry.contract.slice(0, 100) }` : '' }`);
+    }
+    if (added.length) echo(green(`${ added.length } added named symbol(s) - each needs a canon verdict`));
+    else echo(green('no added named symbols'));
+  }
+  if (added.length) process.exitCode = 1;
+}
+
 // --- Entry ---
 
 switch (command) {
@@ -470,10 +547,15 @@ switch (command) {
   case 'contracts':
     await commandContracts();
     break;
+  case 'delta':
+    await commandDelta(rest[0]);
+    break;
   case 'reindex':
     await loadIndex({ force: true });
     break;
   default:
-    console.error(red('usage: canon find "<words>" [--full] | show <file:line> | dupes [--min N] | contracts | reindex  [--json]'));
+    console.error(red(
+      'usage: canon find "<words>" [--full] | show <file:line> | dupes [--min N] | contracts | delta [<ref>|<A>..<B>] | reindex  [--json]',
+    ));
     process.exitCode = 1;
 }
