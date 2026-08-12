@@ -8,7 +8,7 @@ Body shape is deliberately not compared: an AST codegen and a text rewrite diffe
 
 Node `^22.18.0 || >=24.11.0`, on the root dependencies - unlike most suites this directory has no `package.json` of its own. It runs both emitters in-process, and forks a worker per stripped evaluation: realms are never reclaimed, so a realm per snippet exhausts the shard's memory, and reusing one would be vacuous anyway - the first correct install masks every later miss.
 
-Run it with `npm run test-transpiler-differential`. It is slow - the corpus is large and every snippet is executed three times - so it is split across processes, as many of them running at once as half the core count.
+Run it with `npm run test-transpiler-differential`. It is slow - the corpus is large and every snippet is executed three times - so it is split across processes, as many of them running at once as half the core count. Every run prints a phase profile; the usage-global leg dominates it, so edit loops can scope the run with combinable positional tokens: `pure` skips that leg, `babel` / `unplugin` runs a single emitter (the import-parity oracle turns off) - e.g. `npm run test-transpiler-differential pure babel`. A scoped run labels itself as not a full verification; any defense-cycle gate or final check uses the unscoped default.
 
 ## Layout
 
@@ -18,6 +18,8 @@ Run it with `npm run test-transpiler-differential`. It is slow - the corpus is l
 - `strip-builtins.mjs`, `stripped-worker.mjs`, `global-leg.mjs`, `global-leg-worker.mjs` - the leg implementations
 - `index.mjs`, `shard.mjs` - the coordinator and one chunk of work
 - `tmp/` - generated, gitignored
+
+Arming evaluations (the input-side "does this source depend on a stripped builtin" probe) are cached across runs under `~/.cache/core-js-differential/`, keyed by a hash of the arming machinery and its babel dependencies - the cache self-invalidates on machinery, dependency or node changes and never affects verdicts, only skips re-evaluating the deterministic input side.
 
 ## Rules
 

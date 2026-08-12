@@ -16,7 +16,9 @@
 // the Windows worker-teardown race is probabilistic, a deterministic crash still fails on its
 // second death.
 import { fork } from 'node:child_process';
-import { mkdir, readdir, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,7 +67,41 @@ await mkdir(TMP, { recursive: true });
 const corpusTotal = [...generate()].length;
 const CHUNKS = CONCURRENCY * Math.max(1, Math.ceil(corpusTotal / SHARD_CAP / CONCURRENCY));
 
+// edit-loop scoping, combinable positional tokens - gates always run the unscoped default:
+// `pure` skips the usage-global leg (the bulk of the run per the phase profile); `babel` /
+// `unplugin` runs a single emitter, which turns the import-parity oracle OFF
+const tokens = new Set(argv._);
+for (const token of tokens) {
+  if (!['pure', 'babel', 'unplugin'].includes(token)) {
+    throw new Error(`unknown differential mode '${ token }' - supported: pure, babel, unplugin (combinable)`);
+  }
+}
+if (tokens.has('babel') && tokens.has('unplugin')) throw new Error('babel + unplugin is the default - drop both tokens');
+const PURE_ONLY = tokens.has('pure');
+const EMITTER = tokens.has('babel') ? 'babel' : tokens.has('unplugin') ? 'unplugin' : 'both';
+
 echo(green(`Transpiler differential: ${ cyan(corpusTotal) } snippets in ${ cyan(CHUNKS) } chunks (${ cyan(CONCURRENCY) } concurrent), three oracles per snippet (full-env three-way + pure stripped worker + usage-global stripped realm); progress streams below every ${ cyan(100) } snippets`));
+if (PURE_ONLY) echo(red('PURE-ONLY RUN: the usage-global leg is SKIPPED - not a full verification, gates need the default run'));
+if (EMITTER !== 'both') echo(red(`SINGLE-EMITTER RUN (${ EMITTER }): the other emitter and the import-parity oracle are OFF - not a full verification`));
+
+// the arming cache (see global-leg.mjs): valid only for THIS arming machinery - every file the
+// arming result flows through (the leg, its worker, the manifest, the serializer, the harness's
+// writeModule / TS-strip, and the alias rig the raw snippets import), the babel packages doing
+// that strip, and the node binary. the hash keys the FILENAME, so branches and machinery edits
+// coexist instead of poisoning each other. the plugins under test are absent on purpose: arming
+// never runs them
+const ARMING_MACHINERY = ['global-leg.mjs', 'global-leg-worker.mjs', 'strip-manifest.mjs', 'serialize.mjs', 'harness.mjs', 'rig-aliases.mjs'];
+const STRIP_DEPS = ['@babel/core', '@babel/plugin-transform-typescript', '@babel/plugin-proposal-decorators', '@babel/plugin-transform-class-properties'];
+const nodeRequire = createRequire(import.meta.url);
+// NUL between parts: a bare concat would let two different states hash equal when bytes move
+// across a boundary (file tail to next file head, version digit to the next version)
+const machinery = createHash('sha256');
+for (const name of ARMING_MACHINERY) machinery.update(await readFile(join(HERE, name))).update('\0');
+for (const name of STRIP_DEPS) machinery.update(nodeRequire(`${ name }/package.json`).version).update('\0');
+machinery.update(process.version);
+const ARMING_DIR = join(os.homedir(), '.cache', 'core-js-differential');
+const ARMING_NAME = `arming-${ machinery.digest('hex').slice(0, 12) }.json`;
+const ARMING_CACHE = join(ARMING_DIR, ARMING_NAME);
 
 const MARKER = /@@SHARD@@(?<json>.*)@@/u;
 const children = [];
@@ -74,7 +110,14 @@ function runChunk(chunk) {
     // execArgv: [] so the shard (a file module) does not inherit a loader / --input-type flag
     const child = fork(join(HERE, 'shard.mjs'), [], {
       execArgv: [],
-      env: { ...process.env, DIFF_SHARD: `${ chunk }/${ CHUNKS }`, DIFF_TMP: TMP },
+      env: {
+        ...process.env,
+        DIFF_SHARD: `${ chunk }/${ CHUNKS }`,
+        DIFF_TMP: TMP,
+        DIFF_LEGS: PURE_ONLY ? 'pure' : 'full',
+        DIFF_EMITTER: EMITTER,
+        DIFF_ARMING_CACHE: ARMING_CACHE,
+      },
       stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     });
     children.push(child);
@@ -148,15 +191,67 @@ let passed = 0;
 let globalChecked = 0;
 let globalArmed = 0;
 const failures = [];
+const timings = {};
 for (const r of results) {
   passed += r.passed;
   globalChecked += r.globalChecked;
   globalArmed += r.globalArmed;
   failures.push(...r.failures);
+  for (const [phase, ms] of Object.entries(r.timings ?? {})) timings[phase] = (timings[phase] ?? 0) + ms;
 }
 for (const f of failures) echo`${ red('FAIL') } ${ cyan(f) }`;
 
-echo`\nChunks: ${ CHUNKS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | Global leg: ${ cyan(globalArmed) } armed of ${ cyan(globalChecked) } checked`;
+const globalSummary = PURE_ONLY
+  ? red('SKIPPED (pure-only run - NOT a full verification)')
+  : `${ cyan(globalArmed) } armed of ${ cyan(globalChecked) } checked`;
+const emitterSummary = EMITTER === 'both' ? '' : ` | ${ red(`${ EMITTER }-only, parity oracle OFF`) }`;
+echo`\nChunks: ${ CHUNKS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | Global leg: ${ globalSummary }${ emitterSummary }`;
+
+// phase table: per-phase wall-time SUMMED over parallel shards (a CPU-time share, not the run's
+// wall-clock) - the shares, robust to machine noise, are what optimization decisions read.
+// `(inside ...)` phases run within another phase and are excluded from the percentage base
+const shareBase = Object.entries(timings)
+  .filter(([phase]) => !phase.includes('(inside'))
+  .reduce((sum, [, ms]) => sum + ms, 0);
+if (shareBase) {
+  echo(green('Phase profile (summed across shards):'));
+  const padWidth = Math.max(...Object.keys(timings).map(phase => phase.length));
+  for (const [phase, ms] of Object.entries(timings).sort((a, b) => b[1] - a[1])) {
+    const share = phase.includes('(inside') ? 'subset' : `${ (100 * ms / shareBase).toFixed(1) }%`;
+    echo`  ${ cyan(phase.padEnd(padWidth)) } ${ cyan(`${ (ms / 1000).toFixed(1) }s`.padStart(8)) }  ${ share }`;
+  }
+}
+
+// persist newly evaluated arming keys - failures do not invalidate them (arming is input-side).
+// fail-open: the cache must never fail the run
+if (!PURE_ONLY) {
+  try {
+    const merged = {};
+    for (const r of results) Object.assign(merged, r.newArmings ?? {});
+    if (Object.keys(merged).length) {
+      let existing = {};
+      try {
+        existing = JSON.parse(await readFile(ARMING_CACHE, 'utf8')).entries ?? {};
+      } catch { /* first run for this machinery */ }
+      await mkdir(ARMING_DIR, { recursive: true });
+      const tmpFile = `${ ARMING_CACHE }.${ process.pid }.tmp`;
+      await writeFile(tmpFile, JSON.stringify({ entries: { ...existing, ...merged } }));
+      await rename(tmpFile, ARMING_CACHE);
+      echo`arming cache: ${ cyan(Object.keys(merged).length) } new keys stored`;
+    }
+    // hash-keyed caches of dead machinery / branches accumulate - sweep the stale ones on every
+    // full run, not only on a storing one: stable machinery would otherwise never sweep at all
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    for (const entry of await readdir(ARMING_DIR)) {
+      if (entry === ARMING_NAME) continue;
+      const file = join(ARMING_DIR, entry);
+      if ((await stat(file)).mtimeMs < cutoff) await rm(file, { force: true });
+    }
+  } catch { /* cache trouble must not shadow the verdict above */ }
+}
+// the self-teaching line goes LAST - consumers read run TAILS (a `| tail -N` pipe cuts a top
+// banner off), and an agent that paid for one full run learns the cheap edit-loop modes here
+if (!tokens.size) echo`edit-loop scoping: ${ cyan('pure') } skips the usage-global leg, ${ cyan('babel') } / ${ cyan('unplugin') } runs one emitter - combinable positional tokens; the bare run stays the gate`;
 // a clean run leaves nothing behind; a failed one keeps its modules for reproduction (the tree
 // is reaped as dead by the next run's startup sweep)
 if (!failures.length) await rm(TMP, { recursive: true, force: true });
