@@ -47,7 +47,7 @@ npm workspaces; the packages:
   ./tests/eslint/node_modules/.bin/eslint --config ./tests/eslint/eslint.config.js path/to/changed-file.js
   ```
 
-  `npm run lint` is a full-build gate, not an edit-loop check, and so is `npm test`
+  `npm run lint` is a full-build gate, not an edit-loop check, and so are the test composites `npm test` and `npm run test-transpiling` - supersets of the granular runners: once per change, as its final gate, and never on one invocation line with a member they already contain
 - Verify a change with the runner for the area you touched; they are listed in `tests/AGENTS.md`. A runner builds its bundles, never the generated data, entries or types - rebuild those with `npm run prepare` and `npm run build-types`, or it passes against the previous build
 - Never edit generated files - the entry-point layers, the copies inside `packages/core-js-pure`, the `.json` built from `.mjs` sources, the bundles. `npm run prepare` is what produces them
 - Every code change requires a related test, and the whole suite must pass
