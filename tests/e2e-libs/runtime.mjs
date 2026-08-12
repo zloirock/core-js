@@ -8,14 +8,11 @@
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { librariesIn } from './libraries.mjs';
-import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
 const { mkdir, readFile, rm, writeFile } = fs;
 const { join, relative } = path;
 const { OVERWRITE } = process.env;
-const execFileP = promisify(execFile);
 
 const ART = join(HERE, 'artifacts');
 const MANIFEST = join(ART, 'manifest.json');
@@ -103,8 +100,10 @@ async function snapshot(file, lines, origins) {
   return 'drift';
 }
 
-// runs in the child: require the UMD bundle (argv[1]), call run(), print its checks as JSON
-const PREFLIGHT = 'const m = require(process.argv[1]); const run = m.run || (m.default && m.default.run) || m.default;'
+// runs in the child, where `-e` has no module path of its own: the bundle is resolved against the cwd,
+// since a bare `.tmp/x` would be read as a package name
+const PREFLIGHT = 'const m = require(require("node:path").resolve(process.argv[1]));'
+  + ' const run = m.run || (m.default && m.default.run) || m.default;'
   + ' Promise.resolve(run()).then(function (r) { process.stdout.write(JSON.stringify(r.checks)); })'
   + ' .catch(function (e) { process.stderr.write(String((e && e.stack) || e)); process.exit(1); });';
 
@@ -118,13 +117,9 @@ async function preflight(code) {
   const f = join(TMP, `preflight-${ process.pid }-${ process.hrtime.bigint() }.cjs`);
   await writeFile(f, code);
   try {
-    // A bundle whose `run()` never settles (a plausible symptom of a broken Promise polyfill) lets
-    // the child's event loop drain and exit 0 with EMPTY stdout, so without these guards the failure
-    // surfaces as a bare `Unexpected end of JSON input` that names neither the child nor the bundle.
-    // not `$`: the child is this very node binary, and on windows its path is not something a shell
-    // can execute - a backslashed `C:\...` reaches bash as an unquotable word
-    const { stdout } = await execFileP(process.execPath, ['-e', PREFLIGHT, f],
-      { timeout: 120_000, maxBuffer: 16 * 1024 * 1024 });
+    // `node` by name and a relative path: on windows `$` runs through bash, which cannot execute an
+    // absolute `C:\...`. An unsettled `run()` exits 0 with empty stdout, hence the guard below.
+    const { stdout } = await $({ cwd: HERE, quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ relative(HERE, f).replaceAll('\\', '/') }`;
     if (!stdout.trim()) throw new Error('preflight child produced no output - run() likely never settled');
     try {
       return JSON.parse(stdout);
