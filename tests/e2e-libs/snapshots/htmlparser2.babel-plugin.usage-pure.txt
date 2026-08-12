@@ -11,7 +11,6 @@
 @core-js/pure/full/atob
 @core-js/pure/full/function/instance/name
 @core-js/pure/full/get-iterator-method
-@core-js/pure/full/global-this
 @core-js/pure/full/instance/includes
 @core-js/pure/full/json/stringify
 @core-js/pure/full/map/constructor
@@ -27,7 +26,6 @@
 @core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
 @core-js/pure/full/reflect/construct
-@core-js/pure/full/self
 @core-js/pure/full/set/constructor
 @core-js/pure/full/string/from-code-point
 @core-js/pure/full/string/instance/code-point-at
