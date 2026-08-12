@@ -372,6 +372,19 @@ check('isStaticPlacement/Promise', isStaticPlacement('Promise'), 'static');
 check('isStaticPlacement/Capitalised unknown', isStaticPlacement('SomeRandomClass_xyz'), 'static');
 // lowercase starts -> null (not a static placement)
 check('isStaticPlacement/lowercase', isStaticPlacement('someFunction_xyz'), null);
+// a FOLDED computed key reaches here as an arbitrary string, and the answer licenses the name to be
+// spelled as a bare member tail - so a capitalised NON-identifier is not a placement. `$` and the
+// Unicode identifier classes stay accepted: the gate is identifier validity, not an ASCII word test
+check('isStaticPlacement/folded well-known symbol', isStaticPlacement('Symbol.iterator'), null);
+check('isStaticPlacement/dashed string key', isStaticPlacement('App-Key'), null);
+check('isStaticPlacement/dotted string key', isStaticPlacement('A.b'), null);
+check('isStaticPlacement/spaced string key', isStaticPlacement('A b'), null);
+check('isStaticPlacement/quote in string key', isStaticPlacement("A'b"), null);
+check('isStaticPlacement/newline in string key', isStaticPlacement('A\nb'), null);
+check('isStaticPlacement/empty string key', isStaticPlacement(''), null);
+check('isStaticPlacement/dollar in ident', isStaticPlacement('A$b'), 'static');
+check('isStaticPlacement/digits in ident', isStaticPlacement('A1'), 'static');
+check('isStaticPlacement/unicode continue', isStaticPlacement('Abé'), 'static');
 
 // --- resolveSymbolIteratorEntry ---
 

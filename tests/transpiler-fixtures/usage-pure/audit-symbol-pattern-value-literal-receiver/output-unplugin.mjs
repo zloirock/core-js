@@ -6,6 +6,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref, _ref4, _ref6, _ref8, _ref10, _ref12, _ref14, _ref15, _ref16, _ref17;
@@ -23,7 +24,7 @@ export const viaLiteralDefault = [next, other];
 
 // no inner default - same routing, nothing to lose but the timing
 const _ref3 = [4, 5];
-const { name: iterName } = _getIteratorMethod(_ref3);
+const iterName = _nameMaybeFunction(_getIteratorMethod(_ref3));
 const { [_Symbol$iterator]: _unused2, second } = _ref3;
 export const viaLiteralNoDefault = [iterName, second];
 

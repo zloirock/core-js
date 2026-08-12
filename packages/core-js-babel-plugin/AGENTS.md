@@ -39,4 +39,4 @@ Those runners only compare text, which settles cosmetic work; a change in BEHAVI
 
 One full `npm run test-transpiling` is the finish line - a VERY heavy run that composes every suite named here including this package's own runners: run it once, right before the work is handed off, never mid-loop, and never with a member on the same invocation line.
 
-When comparing this emitter against unplugin by hand, normalize whitespace and run each emitter in a separate process - they share provider module state, and a shared-state leak looks exactly like a desync. The differential harness deliberately does the opposite, running both in one process; do not "fix" it to match this advice.
+When comparing this emitter against unplugin by hand, normalize whitespace and run each emitter in a separate process - they share provider module state, and a shared-state leak looks exactly like a desync. The same state also accumulates across sequential `transformSync` calls within one process, so an injected-set probe is only valid as one probe per process. The differential harness deliberately does the opposite, running both in one process; do not "fix" it to match this advice.

@@ -27,7 +27,9 @@ import {
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
   paramsHaveInvisibleCallers,
+  patternBindingCount,
   peelNestedSequenceExpressions,
+  propertyKeyName,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
   propBindingIdentifier,
@@ -35,7 +37,6 @@ import {
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
-  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   classifyCallBranchForSynth,
@@ -59,7 +60,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   buildNestedDestructurePlan, isSymbolIteratorPatternProp, peelArrayWrapperPair,
-  probedNavProbeKey, resolvePolyfillableStaticProp,
+  probedNavProbeKey, resolvePolyfillableStaticProp, symbolIteratorInstanceLeaf,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   computedPropKeyHostsMachinery,
@@ -394,8 +395,7 @@ export default function createDestructureEmitter({
     if (!declarator) return 0;
     let count = declOriginalBindingCount.get(declarator.node);
     if (count === undefined) {
-      count = 0;
-      walkPatternIdentifiers(declarator.node.id, () => count++);
+      count = patternBindingCount(declarator.node.id);
       declOriginalBindingCount.set(declarator.node, count);
     }
     return count;
@@ -886,6 +886,17 @@ export default function createDestructureEmitter({
     return !!prop && skippedNodes.has(prop.node);
   }
 
+  // a leaf resolved as an INSTANCE member of the extracted iterator method: the synth call becomes
+  // the dispatcher's receiver (`_demethodize(_getIteratorMethod(x))`) instead of being destructured,
+  // the same shape a flat instance extraction emits. the call appears ONCE - the shared helper admits
+  // a single leaf precisely so no memo is owed here. takes the LEAF (a plan extraction record and the
+  // emitter's own resolution carry the same two fields), so both producers spell this once
+  function instanceLeafCall(leaf, value) {
+    return leaf?.instanceEntry
+      ? t.callExpression(injectPureImport(leaf.instanceEntry, leaf.instanceHint), [value])
+      : value;
+  }
+
   // value expression for one extraction record, kind-dispatched: `symbol-iterator` synth
   // wraps the receiver in `_getIteratorMethod(...)`, a static entry binds the pure import
   // (registering the body-extract alias; a ctor alias - kind global - was already
@@ -893,9 +904,9 @@ export default function createDestructureEmitter({
   // shared by the cascade's statement render and the in-place anchored rebuild
   function extractionValueExpr(e, initNode, plan, scope) {
     if (e.synth === 'symbol-iterator') {
-      return t.callExpression(
+      return instanceLeafCall(e, t.callExpression(
         t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
-        [flattenSynthReceiver(initNode, plan)]);
+        [flattenSynthReceiver(initNode, plan)]));
     }
     if (e.kind !== 'global') injector.registerBodyExtractAlias(e.localName, e.entry, scope.getBinding(e.localName));
     return injectPureImport(e.entry, e.hint);
@@ -1158,8 +1169,9 @@ export default function createDestructureEmitter({
   // init for an ANCHORED (single-ctor-key proxy-hop) residual: the plan-resolved ctor
   // entry when present (`= _Map` - patch-visible for mutated statics, defined on
   // missing-global targets), else a member read off the proxy's own binding
-  // (`= _globalThis.Math`). anchor keys come from the static-placement whitelist, so a
-  // plain identifier key node is always valid
+  // (`= _globalThis.Math`). the static-placement canon admits only identifier-valid names, so
+  // a plain identifier key node is always valid here (a key folding to `Symbol.iterator` /
+  // `'App-Key'` never reaches an anchored plan)
   function anchorInitNode(plan, anchorPath = null, initNode = null) {
     // an UNDEFINABLE probe nav init: the anchored read must ride the guard-value spelling
     // (`(null == _globalThis.window ? void 0 : _self).Math`) so the destructure still throws
@@ -1359,8 +1371,9 @@ export default function createDestructureEmitter({
       for (const e of outer.extractions ?? []) {
         let init;
         if (e.synth === 'symbol-iterator') {
-          init = t.callExpression(t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
-            [flattenSynthReceiver(declarator.node.init, plan)]);
+          init = instanceLeafCall(e, t.callExpression(
+            t.cloneNode(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName)),
+            [flattenSynthReceiver(declarator.node.init, plan)]));
         } else {
           // a ctor alias (kind global) was already trust-registered by the plan gate; statics keep
           // the body-extract alias
@@ -1661,9 +1674,17 @@ export default function createDestructureEmitter({
     // pipeline on the extracted pattern (`{ name } = _getIteratorMethod(x)` would re-extract
     // `name` through the whole-init memo, diverging from the text emitter's composed copy) -
     // value subtrees stay live, so defaults keep polyfilling
+    // the SAME question the plan asks for a proxy receiver, asked here for the receivers the plan
+    // never sees (`= Array` / a plain object reach the synth through this route). one helper, so the
+    // two producers cannot drift apart on it
+    const instanceLeaf = patternValue && entry === SYMBOL_ITERATOR_PURE_RESULT.entry
+      ? symbolIteratorInstanceLeaf({ value: patternValue, resolvePure, isDisabled: null, keyNameOf: propertyKeyName })
+      : null;
     function bindingLhs() {
+      if (instanceLeaf) return t.identifier(instanceLeaf.localName);
       return patternValue ? clonePatternClaimed(patternValue) : t.cloneNode(valueNode);
     }
+
     // an `insertBefore` below auto-wraps a bodyless control body (`if (c) var {...}=R`) in a block and
     // re-points THIS path at the wrapping block (whose `.kind` is undefined). the memoize hoist inserts
     // EARLY (before the kind read + the extract insert), so track the residual declaration separately and
@@ -1715,7 +1736,7 @@ export default function createDestructureEmitter({
       const isExport = declaration.parentPath?.isExportNamedDeclaration();
       const extracted = t.variableDeclaration(declaration.node.kind, [
         ...foldedTestRef ? [t.variableDeclarator(t.cloneNode(foldedTestRef))] : [],
-        t.variableDeclarator(bindingLhs(), polyfillValue),
+        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
       ]);
       (isExport ? declaration.parentPath : declaration)
         .replaceWith(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
@@ -1732,7 +1753,7 @@ export default function createDestructureEmitter({
       // standalone branch's `insertBefore` re-traversal, and the consumed / unplugin paths.
       // a LIVE-defaulted extraction takes this arm on a standalone host too: it must evaluate
       // AFTER the kept key's side effect (native reads the key first, then fires the default)
-      const trailing = t.variableDeclarator(bindingLhs(), polyfillValue);
+      const trailing = t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue));
       attachToPrevDeclarator.add(trailing);
       const hostDeclarator = prop.findParent(pp => pp.isVariableDeclarator());
       // successive pairs from the SAME declarator keep source order: anchor each insert on the
@@ -1746,7 +1767,7 @@ export default function createDestructureEmitter({
       // residual (the kept key's effect runs first) - the catch-canon shape the text emitter emits
       const extracted = t.variableDeclaration(residualDecl.node.kind, [
         t.variableDeclarator(t.cloneNode(foldedTestRef)),
-        t.variableDeclarator(bindingLhs(), polyfillValue),
+        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
       ]);
       const [guardPath] = residualDecl.insertAfter(extracted);
       splitResidualAfterDefaultProp({ prop, guardPath });
@@ -1754,7 +1775,7 @@ export default function createDestructureEmitter({
       const isExport = residualDecl.parentPath?.isExportNamedDeclaration();
       const extracted = t.variableDeclaration(residualDecl.node.kind, [
         ...foldedTestRef ? [t.variableDeclarator(t.cloneNode(foldedTestRef))] : [],
-        t.variableDeclarator(bindingLhs(), polyfillValue),
+        t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
       ]);
       (isExport ? residualDecl.parentPath : residualDecl)
         .insertBefore(isExport ? t.exportNamedDeclaration(extracted, []) : extracted);
@@ -1882,7 +1903,12 @@ export default function createDestructureEmitter({
       isForInit,
       isMultiDeclarator: declaration.node.declarations.length > 1,
       receiverNode: objectNode,
-      soleBindingInDeclaration: declaration.node.declarations.length === 1 && bindingCount === 1,
+      // the residual is dead when THIS extraction takes every binding of the declaration - not when
+      // the declaration happens to bind exactly one name. a pattern-valued extraction consumes its
+      // whole inner pattern, so counting its slice is what keeps a sibling prop / a rest element
+      // (whose bindings the extraction does NOT take) holding the residual
+      soleBindingInDeclaration: declaration.node.declarations.length === 1
+        && bindingCount === patternBindingCount(prop.node.value),
       initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
       propKeyIsPure: !computedKeyHasSideEffects(prop.node),
     });

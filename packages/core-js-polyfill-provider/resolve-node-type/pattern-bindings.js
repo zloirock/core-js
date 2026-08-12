@@ -20,7 +20,9 @@ import {
 } from './base.js';
 import { collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
-import { isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes, varInitStaleByRedecl } from '../helpers/ast-patterns.js';
+import {
+  declaratorBindsName, isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes, varInitStaleByRedecl,
+} from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
   t,
@@ -440,7 +442,7 @@ export function createPatternBindings({
     return null;
   }
 
-  function resolveAnnotatedMember(annotation, keyName, scope) {
+  function resolveAnnotatedMember(annotation, keyName, scope, depth = 0) {
     const unwrapped = unwrapTypeAnnotation(annotation);
     if (!unwrapped) return null;
     // `typeof Enum` in annotation position - member access on the enum object yields the
@@ -461,12 +463,14 @@ export function createPatternBindings({
     // its default must resolve in Inner's scope instead of being captured by Outer's `A` binding
     const defaultMap = followTypeAliasChain(unwrapped, scope).subst;
     return defaultMap
-      ? substituteTypeParams(memberType, defaultMap, scope, 0)
-      : resolveTypeAnnotation(memberType, scope);
+      ? substituteTypeParams(memberType, defaultMap, scope, depth + 1)
+      : resolveTypeAnnotation(memberType, scope, depth + 1);
   }
 
-  // step through `['a', 'b']` against the annotation; final step goes through resolveAnnotatedMember
-  function resolveAnnotatedMemberPath(annotation, keyPath, scope) {
+  // step through `['a', 'b']` against the annotation; final step goes through resolveAnnotatedMember.
+  // `depth` is the caller's remaining budget: an annotation reached through a member chain can name
+  // the chain's own host (`declare const o: { p: typeof o.p }`), and only the budget ends that loop
+  function resolveAnnotatedMemberPath(annotation, keyPath, scope, depth = 0) {
     if (!keyPath?.length) return null;
     let current = annotation;
     for (let i = 0; i < keyPath.length - 1; i++) {
@@ -476,7 +480,7 @@ export function createPatternBindings({
       if (!next) return null;
       current = next;
     }
-    return resolveAnnotatedMember(current, keyPath.at(-1), scope);
+    return resolveAnnotatedMember(current, keyPath.at(-1), scope, depth);
   }
 
   // recursively unwrap Promise<T> annotation to T for for-await-of element types
@@ -829,12 +833,38 @@ export function createPatternBindings({
     return node => restRebindFamily(node, name) === original;
   }
 
+  // an emitter that rewrites declarators IN PLACE and never re-crawls mid-traversal (babel; the text
+  // emitter cannot hit this) leaves a record whose declarator PROVABLY no longer binds the name: a
+  // pattern-valued extraction moves the name onto a new declarator and prunes the host to a
+  // sentinel. answering the structural question from that dead node reads as "unknown" and
+  // over-injects - `Object.keys` on such a binding loses its provably-non-primitive decline.
+  // re-find the live declarator among the host's own statements. the RECORD IS NOT TOUCHED: the
+  // alias / fold verdicts read it as evidence about the ORIGINAL declaration, and rewriting it there
+  // folds a conditionally-executed alias and drops live injections (both measured)
+  function liveBindingPath(binding, name) {
+    const declared = binding.path;
+    // only a DECLARATOR-hosted record can go stale this way; a param / for-x / catch binding keeps
+    // its own node, so the recovery never runs for it
+    if (declared?.node?.type !== 'VariableDeclarator' || declaratorBindsName(declared.node, name)) return declared;
+    let block = declared.parentPath?.parentPath;
+    if (block?.node?.type === 'ExportNamedDeclaration') block = block.parentPath;
+    const statements = block?.get?.('body');
+    if (!Array.isArray(statements)) return declared;
+    for (const statement of statements) {
+      const declaration = statement?.node?.type === 'ExportNamedDeclaration' ? statement.get('declaration') : statement;
+      if (declaration?.node?.type !== 'VariableDeclaration') continue;
+      const found = declaration.get('declarations').find(d => declaratorBindsName(d.node, name));
+      if (found) return found;
+    }
+    return declared;
+  }
+
   function resolveBindingType(path) {
     if (!t.isIdentifier(path.node)) return null;
     const binding = getScopeBinding(path.scope, path.node.name, path);
     if (!binding) return null;
-    const { path: bindingPath } = binding;
     const { name } = path.node;
+    const bindingPath = liveBindingPath(binding, name);
     const { node } = bindingPath;
     // a dominating var-redecl whose slot for `name` is an array-rest SLICE has no RHS node
     // the redecl path machinery could hand back - its slice TYPE resolves here instead,
@@ -956,8 +986,10 @@ export function createPatternBindings({
       if (plain && isNullishInit(valuePath.node, anchored.scope, anchored)) continue;
       types.push(assignedValueType(assignPath, name));
       // a compound operator's result and a destructuring slot are computed, not written from a
-      // single node - the path view cannot describe them
-      if (plain && !PATTERN_WRAPPERS.has(assignLeft(assignPath.node)?.type)) paths.push(valuePath);
+      // single node - the path view cannot describe them. `null` is the DECLINED sentinel of that
+      // view and the loop runs on for the type view, so a later plain write writes through the
+      // guard rather than into the sentinel
+      if (plain && !PATTERN_WRAPPERS.has(assignLeft(assignPath.node)?.type)) paths?.push(valuePath);
       else paths = null;
     }
     return { types, paths };
