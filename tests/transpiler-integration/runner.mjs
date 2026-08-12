@@ -4,6 +4,7 @@ import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/m
 import { pathToFileURL } from 'node:url';
 import './runtime-tests.mjs';
 import { makeBundlers } from './bundlers.mjs';
+import { METHODS as methods, phasesFor, pluginOpts } from './matrix.mjs';
 import { withTmpDir, verifyInNode, verifyPhases, verifyDynamic } from './runtime.mjs';
 import { viteHandoff } from './vite-handoff.mjs';
 import { hostBoundaries } from './host-boundaries.mjs';
@@ -16,16 +17,9 @@ const { cyan, green, red, yellow } = chalk;
 
 const testDir = import.meta.dirname;
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
-const methods = ['entry-global', 'usage-global', 'usage-pure'];
 
 function inputOf(method) {
   return resolve(testDir, `input-${ method }.js`);
-}
-
-function pluginOpts(method, phase) {
-  const opts = { method, version: '4.0', mode: 'full', targets: { ie: 11 } };
-  if (phase) opts.phase = phase;
-  return opts;
 }
 
 // every cell of every leg goes through `runLeg`, so this is the run's denominator. `failures`
@@ -34,11 +28,6 @@ function pluginOpts(method, phase) {
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
 const CELL_FLOOR = 236;
-
-// `entry-global` rejects `phase`; everything else runs across all three.
-function phasesFor(method) {
-  return method === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
-}
 
 const expected = {
   clamp: 4,
