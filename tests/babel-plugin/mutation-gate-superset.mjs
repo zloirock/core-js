@@ -6,7 +6,6 @@
 // must have its namespace named by the roots (or the roots must be open)
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import * as nodePath from 'node:path';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { collectMutationPrePass, createBabelAdapter } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 import { collectFileCensus } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
@@ -14,7 +13,7 @@ import { mutationShapesReducer } from '../../packages/core-js-polyfill-provider/
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
-  ? createRequire(pathToFileURL(`${ nodePath.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { parseAsync, traverse } = requireBabel('@babel/core');
 

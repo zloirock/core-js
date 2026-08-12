@@ -12,14 +12,15 @@
 // a bundler feeds them. Those cases gate the PER-CALL axis: everything above pays setup once on a
 // huge input, so a regression in per-file work (a cache that stops being reused across calls, say)
 // is invisible there and shows up only when the same bytes arrive as hundreds of separate calls.
-import { readdir, readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformAsync } from '@babel/core';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createUnplugin from '../../packages/core-js-unplugin/internals/plugin.js';
 
 const { cyan, green, red } = chalk;
+const { readdir, readFile } = fs;
+const { dirname, join } = path;
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MODES = ['usage-global', 'usage-pure'];
 
