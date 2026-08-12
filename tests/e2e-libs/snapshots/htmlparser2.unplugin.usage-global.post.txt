@@ -1,4 +1,2 @@
 -core-js/modules/es.error.cause
--core-js/modules/es.global-this
--core-js/modules/web.self
 +core-js/modules/es.array.concat
