@@ -20,16 +20,22 @@ const customLaunchers = {
   },
 };
 
+// Named here rather than inlined below: without it the `.slice` of `undefined` is the whole error
+// message, and this config is normally started by runtime.mjs rather than by hand.
+const files = process.argv.find(it => it.startsWith('-f='));
+if (!files) throw new Error('karma.conf.cjs needs the bundles to load: karma start karma.conf.cjs -f=<file>[,<file>...]');
+
 module.exports = config => config.set({
   plugins: ['karma-*'],
-  files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
+  files: files.slice(3).split(','),
   frameworks: ['qunit'],
   basePath: '.',
   customLaunchers,
   browsers: ['IE_NFM'],
   // a green QUnit run is otherwise near-silent (just "Executed N of N"). Forward each bundle's
-  // console.log - the "[e2e-libs] <lib>/<method>/<phase>: N/N checks passed in this IE11" line the
-  // driver prints - to the CI terminal, so the log states what actually ran, not just bundle counts.
+  // console.log - the "[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed in this
+  // IE11" line the driver prints - to the CI terminal, so the log states what actually ran rather
+  // than how many bundles there were.
   client: { captureConsole: true },
   browserConsoleLogOptions: { terminal: true, level: 'log' },
   logLevel: config.LOG_INFO,
