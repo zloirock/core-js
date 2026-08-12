@@ -228,7 +228,6 @@ You can run parts of the test case separately:
                                         # node pre-flight, ES5 UMD + self-checking HTML, real IE11 via Karma
                                         # (OVERWRITE=1 rewrites the injection snapshot baselines)
   npm run e2e-libs-pipeline             # size/time per build stage -> tests/e2e-libs/report/pipeline.md (report only)
-  npm run e2e-libs-throughput           # polyfilled-build cost across the bundlers -> report/throughput.md (report only)
   ```
 - [`publint`](https://publint.dev/) checks of the packages:
   ```sh
