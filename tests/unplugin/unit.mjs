@@ -6251,6 +6251,140 @@ function checkUnusedNameRestoreIdentity() {
 }
 checkUnusedNameRestoreIdentity();
 
+// shared probe for the two param-pattern tables below: transform, then report whether the module
+// the row is keyed on came out. A throw is reported as its message rather than as `false` so a
+// crawler abort is distinguishable from a silently dropped binding
+function injectsModule(source, module) {
+  try {
+    const result = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform(source, 'input.ts');
+    return new RegExp(`es\\.${ module }`).test(String(result?.code ?? ''));
+  } catch (error) {
+    return `threw: ${ error.message.split('\n', 1)[0] }`;
+  }
+}
+
+// --- params no scope owner walks: the whole crawler-hostile domain, not a list of type names ---
+// estree-toolkit consumes a binding pattern only where a scope owner puts one; a params list
+// anywhere else reaches the generic identifier crawler, which throws on a `RestElement`,
+// `ArrayPattern` or `AssignmentPattern` leaf and aborts the file. The fixture corpus carries the
+// shapes a reader recognizes - this table carries the REACH: the type positions and pattern kinds
+// the corpus has no line for, crossed with each other. Every row must transform AND still inject
+// for the trailing probe, so a neutralization that ate the file is as visible as one that crashed
+function checkUnscopedParamPatterns() {
+  const patterns = [
+    '...a: any[]',
+    '[a, b]: any',
+    '{ a }: any',
+    '{ a, ...r }: any',
+    '{ a: [b] }: any',
+    '[{ a }]: any',
+    '{ a = 1 }: any',
+    'a = 1',
+  ];
+  // the type-level hosts, then the positions a host can sit in that the crawler still reaches:
+  // an annotation hanging off a known ESTree node is skipped with its owner, a TS node's is not
+  const hosts = {
+    'fn-type-alias': param => `type F = (${ param }) => void;`,
+    'ctor-type-alias': param => `type C = new (${ param }) => object;`,
+    'call-signature': param => `interface I { (${ param }): void }`,
+    'construct-signature': param => `interface I { new (${ param }): object }`,
+    'method-signature': param => `interface I { m(${ param }): void }`,
+    'ambient-function': param => `declare function f(${ param }): void;`,
+    'ambient-method': param => `declare class K { m(${ param }): void }`,
+    'ambient-constructor': param => `declare class K { constructor(${ param }) }`,
+    'abstract-method': param => `abstract class K { abstract m(${ param }): void }`,
+    'overload-head': param => `function f(${ param }): void;\nfunction f(...z: any[]): void {}`,
+    'method-overload-head': param => `class K { m(${ param }): void; m(...z: any[]): void {} }`,
+    'namespace-function': param => `declare namespace N { function f(${ param }): void }`,
+    'module-block-function': param => `declare module 'm' { function f(${ param }): void }`,
+    'global-block-function': param => `declare global { function f(${ param }): void }`,
+    'as-expression': param => `const v = (null as any) as (${ param }) => void;`,
+    'satisfies-expression': param => `const v = (null as any) satisfies (${ param }) => void;`,
+    'union-member': param => `type U = string | ((${ param }) => void);`,
+    'intersection-member': param => `type X = { z: 1 } & ((${ param }) => void);`,
+    'tuple-member': param => `type A = [(${ param }) => void];`,
+    'array-of': param => `type A = ((${ param }) => void)[];`,
+    'indexed-access': param => `type A = ((${ param }) => void)['name'];`,
+    'conditional-type': param => `type C<T> = T extends (${ param }) => void ? 1 : 2;`,
+    'mapped-type-value': param => `type M = { [K in 'a']: (${ param }) => void };`,
+    'type-param-default': param => `type G<T = (${ param }) => void> = T;`,
+    'type-param-constraint': param => `type G<T extends (${ param }) => void> = T;`,
+    'fn-type-param-default': param => `declare function g<T = (${ param }) => void>(): T;`,
+    'type-predicate-return': param => `declare function f(x: unknown): x is (${ param }) => void;`,
+    'exported-alias': param => `export type F = (${ param }) => void;`,
+    'nested-in-signature-return': param => `interface I { m(${ param }): (...b: any[]) => void }`,
+  };
+  const probe = '\nconst probe = [1, 2].at(0);\n';
+  for (const [hostName, host] of Object.entries(hosts)) {
+    for (const param of patterns) {
+      check(`unscoped-params/${ hostName }/${ param }`, injectsModule(`${ host(param) }${ probe }`, 'array.at'), true);
+    }
+  }
+}
+checkUnscopedParamPatterns();
+
+// --- the mirror obligation: a params list a scope owner DOES walk must come out untouched ---
+// The neutralization is keyed on the host, so the way it fails is silent, not loud: touch a runtime
+// function's params and its bindings simply stop existing, taking every polyfill inside a parameter
+// default with them. Each row therefore carries a polyfillable call in the default slot and asserts
+// it is still detected - the same probe answers "not neutralized" and "still walked as a pattern"
+function checkRuntimeParamPatternsUntouched() {
+  const forms = {
+    'function declaration': 'function f([a, b] = [1, 2].flat()) { return a; }\nf();',
+    'function expression': 'const f = function ([a, b] = [1, 2].flat()) { return a; };\nf();',
+    'named function expression': 'const f = function g([a, b] = [1, 2].flat()) { return a; };\nf();',
+    arrow: 'const f = ([a, b] = [1, 2].flat()) => a;\nf();',
+    'async function': 'async function f([a, b] = [1, 2].flat()) { return a; }\nf();',
+    generator: 'function* f([a, b] = [1, 2].flat()) { yield a; }\nf();',
+    'async generator': 'async function* f([a, b] = [1, 2].flat()) { yield a; }\nf();',
+    'object method': 'const o = { m([a, b] = [1, 2].flat()) { return a; } };\no.m();',
+    'object setter': 'const o = { set v([a, b]) { this.x = a; } };\no.v = [1, 2].flat();',
+    'object arrow property': 'const o = { m: ([a, b] = [1, 2].flat()) => a };\no.m();',
+    'class method': 'class C { m([a, b] = [1, 2].flat()) { return a; } }\nnew C().m();',
+    'class static method': 'class C { static m([a, b] = [1, 2].flat()) { return a; } }\nC.m();',
+    'class private method': 'class C { #m([a, b] = [1, 2].flat()) { return a; } run() { return this.#m(); } }\nnew C().run();',
+    'class constructor': 'class C { constructor([a, b] = [1, 2].flat()) { this.a = a; } }\nnew C();',
+    'class setter': 'class C { set v([a, b]) { this.x = a; } }\nnew C().v = [1, 2].flat();',
+    'class field arrow': 'class C { m = ([a, b] = [1, 2].flat()) => a; }\nnew C().m();',
+    IIFE: '(function ([a, b] = [1, 2].flat()) { return a; })();',
+    'parameter property default': 'class C { constructor(public a = [1, 2].flat()) {} }\nnew C();',
+    'annotated destructure with default': 'function f({ head }: { head: number } = { head: [1, 2].flat()[0] }) { return head; }\nf();',
+    // the other slots the crawler walks as patterns, none of which goes through a params list
+    'catch destructure with default': 'try { null; } catch ({ message = [1, 2].flat() }) { console.log(message); }',
+    'destructuring declaration': 'const [a, b] = [1, 2].flat();\nconsole.log(a, b);',
+    'destructuring assignment default': 'let a;\n({ a = [1, 2].flat() } = {});\nconsole.log(a);',
+    'for-of destructure with default': 'for (const [a = [1, 2].flat()] of [[]]) console.log(a);',
+  };
+  for (const [name, source] of Object.entries(forms)) {
+    check(`walked-params/${ name }`, injectsModule(source, 'array.flat'), true);
+  }
+}
+checkRuntimeParamPatternsUntouched();
+
+// --- a type-argument list is spelled `params` too, and must survive untouched ---
+// `ReturnType<typeof fn>` reaches the resolver as a `params` array holding a type query, so a
+// neutralizer keyed on "this node has params" instead of "this param is a binding pattern" erases
+// the very type the receiver came for. The hostile sibling in the same file is what makes the row
+// meaningful: the neutralizer has to run and still leave the type argument alone
+function checkTypeArgumentListSurvives() {
+  const source = [
+    'type Hostile = (...a: any[]) => void;',
+    'declare function fn(a: number, ...rest: string[]): number[];',
+    'declare const narrowed: ReturnType<typeof fn>;',
+    'declare const restElement: Parameters<typeof fn>[1];',
+    'narrowed.at(0);',
+    'restElement.includes("x");',
+  ].join('\n');
+  const { code } = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+    .transform(source, 'input.ts');
+  check('type-args/ReturnType narrows to the array family', /es\.array\.at/.test(code), true);
+  check('type-args/ReturnType does not widen to string', /es\.string\.at/.test(code), false);
+  check('type-args/rest element narrows to the string family', /es\.string\.includes/.test(code), true);
+  check('type-args/rest element is not the whole rest array', /es\.array\.includes/.test(code), false);
+}
+checkTypeArgumentListSurvives();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');

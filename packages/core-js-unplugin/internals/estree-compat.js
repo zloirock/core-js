@@ -97,5 +97,10 @@ export const types = {
   isLogicalExpression: n => n?.type === 'LogicalExpression',
   isSpreadElement: n => n?.type === 'SpreadElement',
   isProgram: n => n?.type === 'Program',
-  isImport: n => n?.type === 'ImportExpression',
+  // babel's `Import` is the CALLEE keyword of `import(...)` - a slot ESTree has no node for at
+  // all, since it spells the whole call `ImportExpression`. Answering the callee question with
+  // `ImportExpression` therefore never fires on the shape it was meant for and DOES fire on
+  // `import('x')(1)`, where it types calling a promise as a promise. The dispatch resolves the
+  // ESTree form by its own node type, so the honest adapter answer here is "no such node"
+  isImport: () => false,
 };
