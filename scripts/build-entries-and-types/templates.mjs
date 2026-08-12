@@ -1,5 +1,6 @@
-import { basename } from 'node:path';
 import dedent from 'dedent';
+
+const { basename } = path;
 
 function importInternal(module, level) {
   return `require('${ level ? '../'.repeat(level) : './' }internals/${ module }');`;
