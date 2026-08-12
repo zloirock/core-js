@@ -1,7 +1,7 @@
-// an ambient overload set with a REST arm is not arity-matchable - the fold WIDENS to the
-// generic helper on BOTH the rest-taking and the discrete-arm call, on both emitters (the
-// estree lane binds ambient names to ONE head and must re-route through the by-name set
-// instead of single-selecting that head's return)
+// an ambient overload set with a REST arm: the rest arm accepts any arity, so it is never
+// refuted, but the DISCRETE arm still is - a two-arg call leaves the rest arm alone and narrows,
+// while a one-arg call both arms could take stays on the generic helper. the estree lane binds
+// ambient names to ONE head and must re-route through the by-name set instead of that head
 declare function ra(...xs: string[]): number[];
 declare function ra(x: number): string;
 export const viaRestCall = ra('a', 'b').at(0);
