@@ -96,6 +96,13 @@ jobs:
           cache: npm
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-libs
+      # the per-cell pages carry a line-by-line PASS/FAIL of the run that just failed, and this is
+      # the only job with a real IE11 to have produced them
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-libs-artifacts
+          path: tests/e2e-libs/artifacts
 
   bun:
     runs-on: ubuntu-latest

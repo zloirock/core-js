@@ -74,8 +74,10 @@ export function qunitHarness(label, expectedLabels) {
         // on the CI runner) the natives are present, so a missed usage-pure rewrite would resolve and
         // pass green - the exact modern-realm blind spot this leg exists to eliminate. Only IE exposes
         // document.documentMode (11 in standards mode); Edge/Chromium do not.
+        // 11 exactly, not merely set: IE's compatibility modes report 5 through 10 and serve a
+        // DIFFERENT set of natives, so a page rendered in one would be measuring another engine
         var dm = window.document && document.documentMode;
-        assert.ok(!!dm, LABEL + ': expected real IE11 (document.documentMode set), got documentMode=' + dm);
+        assert.strictEqual(dm, 11, LABEL + ': expected real IE11 in standards mode, got documentMode=' + dm);
         function report(res) {
           var checks = (res && res.checks) || [];
           var passed = 0, i;
