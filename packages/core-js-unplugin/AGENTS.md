@@ -44,4 +44,11 @@ Before writing a helper or a branch, check the canon - `npm run canon -- find "<
 
 A divergence from babel-plugin is recorded in a sidecar `output-unplugin.mjs` next to the fixture. A sidecar is a proof obligation: show what the difference actually is before accepting it.
 
-Those runners only compare text. Correctness is decided by the suites `npm run test-transpiling` composes - `test-e2e-usage-pure` executes the output, `test-transpiler-differential` compares it against native and the other emitter, `test-transpiler-integration` drives the real bundlers, `test-transpiler-perf` guards the complexity class - so a change in behavior rather than formatting is verified with the composite. Two things are specific to this plugin: e2e gives it a leg per phase, because each side of the babel sandwich is blind to the other, and only the `pre+post` one is also run in a stripped realm; and the integration matrix exercises it across every bundler, method and phase, which is where a hook or module-id assumption breaks instead of in a fixture.
+Those runners only compare text, which settles cosmetic work; a change in BEHAVIOR is verified while you work by the correctness suite nearest to it, scoped to what changed:
+
+- `npm run test-transpiler-differential unplugin` - this emitter against native at runtime, on the generated corpus; add `pure` while the usage-global path is untouched (the usual loop shape for work here). The argument-less run is the gate form - both emitters, every leg
+- `npm run test-e2e-usage-pure` - executes the transformed code; this plugin gets a leg per phase, because each side of the babel sandwich is blind to the other, and only the `pre+post` one also runs in a stripped realm
+- `npm run test-transpiler-integration` - when the change touches a hook, a module-id assumption or anything bundler-facing: the matrix exercises every bundler, method and phase, which is where those break instead of in a fixture
+- `npm run test-transpiler-perf` - guards the complexity class
+
+One full `npm run test-transpiling` is the finish line - a VERY heavy run that composes every suite named here including this package's own runners: run it once, right before the work is handed off, never mid-loop, and never with a member on the same invocation line.
