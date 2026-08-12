@@ -30,7 +30,7 @@
 // `hasAnyParamTypeRef`, `isStructuralAnnotation`.
 import {
   MAX_DEPTH, firstTypeParamIsInner, $Object, $Primitive,
-  argIndexForParam, dropLeadingThisParam, peelAssignmentPattern,
+  argIndexForParam, callArgumentPaths, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
 import { isVoidExpression, getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
@@ -158,7 +158,7 @@ export function createReturnType({
   // ArrayPattern param through `findPatternKeyPath` once per collected return of the body
   function resolveParamType({ index, param, keyPath }, fnPath, callPath) {
     if (param.type === 'RestElement') return new $Object('Array');
-    const args = callPath.get('arguments');
+    const args = callArgumentPaths(callPath);
     return keyPath
       ? resolvePatternParam(param, keyPath, index, args, fnPath)
       : resolveDirectParam(param, index, args, fnPath);
@@ -169,7 +169,7 @@ export function createReturnType({
   // (`x: T`) carries no default, so its declared type stays the authoritative narrow
   function paramHasOverridingArg(found, fnPath, callPath) {
     if (found.param.type !== 'AssignmentPattern') return false;
-    const args = callPath.node.arguments;
+    const args = callArgumentPaths(callPath).map(a => a.node);
     // align the call arg past a leading `this` pseudo-param (raw `found.index` indexes the AST params)
     const argIndex = argIndexForParam(fnPath.node.params, found.index);
     // a spread arg at/before this slot makes the default possibly overridden: treat as overridden
@@ -478,7 +478,7 @@ export function createReturnType({
         }
       }
     }
-    const args = callPath.get('arguments');
+    const args = callArgumentPaths(callPath);
     // drop the leading `this` pseudo-param so param annotations align with the call args (this side
     // reads annotations only, no AST params path - the dropped list is enough)
     const params = dropLeadingThisParam(fnPath.node.params);

@@ -602,7 +602,7 @@ export function createNameResolution({ t }) {
           ? [bodyPath]
           : bodyPath?.get?.('body');
         if (!Array.isArray(innerPaths)) continue;
-        const found = walkDeclPathsBySegments(segments, innerPaths, matchType);
+        const found = walkDeclPathsBySegments(segments, innerPaths, matchType, visited);
         if (found) return found;
         continue;
       }
@@ -621,7 +621,7 @@ export function createNameResolution({ t }) {
         ? [bodyPath]
         : bodyPath?.get?.('body');
       if (!Array.isArray(innerPaths)) continue;
-      const found = walkDeclPathsBySegments(segments.slice(moduleSegs.length), innerPaths, matchType);
+      const found = walkDeclPathsBySegments(segments.slice(moduleSegs.length), innerPaths, matchType, visited);
       if (found) return found;
     }
     return null;
