@@ -12,7 +12,6 @@
 // single emitter's fixtures cannot see a provider-level regression) rather than at resolver level:
 // the helper name is the only place the resolved family becomes observable.
 import { createRequire } from 'node:module';
-import { isAbsolute } from 'node:path';
 import { createChecker } from './harness.mjs';
 import { TS_NUMBER_TYPE, TS_UNKNOWN_TYPE } from '../../packages/core-js-polyfill-provider/resolve-node-type/ast-shapes.js';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
@@ -183,7 +182,7 @@ await checkBoth('synth class ref: two members of one class', `
   // but keeps the Windows drive letter (`D:/core-js/...`), which no leading-`/` test recognizes.
   // still discriminating - a resolution failure falls back to the bare specifier, absolute nowhere
   check('absolute imports: both variants resolved absolute [babel]',
-    imports(first).length === 2 && imports(first).every(specifier => isAbsolute(specifier)), true);
+    imports(first).length === 2 && imports(first).every(specifier => path.isAbsolute(specifier)), true);
   const firstUnplugin = unplugin(source, { absoluteImports: true }, 'input.mjs');
   check('absolute imports: stable across transforms in one process [unplugin]',
     unplugin(source, { absoluteImports: true }, 'input.mjs'), firstUnplugin);
