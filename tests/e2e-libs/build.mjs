@@ -86,14 +86,17 @@ let cachedToolchain;
 function babelToolchain() {
   if (!cachedToolchain) {
     cachedToolchain = {
+      // everything but the preset comes from the repo root, which `localRequire` walks up to: the same
+      // @babel/core the rest of the monorepo builds with, and the type strip it already uses in
+      // `scripts/bundle-tests`. The preset stays local because the root has none - and it is what a
+      // third-party corpus needs, since the root's hand-written plugin list is tuned for first-party
+      // sources and lowers no modern regexp syntax.
+      //
+      // Each is an absolute path rather than a bare name: Babel resolves a bare one from the file being
+      // compiled, which here is a library module deep in node_modules.
       core: localRequire('@babel/core'),
       preset: localRequire.resolve('@babel/preset-env'),
-      ts: localRequire.resolve('@babel/preset-typescript'),
-      // resolved to an absolute path rather than passed as the bare `'@core-js'` the fixture suites
-      // use: Babel's own scoped-name resolution would look for it from the file being compiled, which
-      // here is a library module deep in node_modules. Neither this package nor @core-js/unplugin is
-      // declared in this suite's package.json - both arrive through the monorepo's workspace links at
-      // the repo root, which is what `localRequire` walks up to.
+      ts: localRequire.resolve('@babel/plugin-transform-typescript'),
       corejs: localRequire.resolve('@core-js/babel-plugin'),
     };
   }
@@ -226,18 +229,18 @@ function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs =
       // transforms" has to mean for the stage that measures it. `coreJs` never pairs with it: the
       // provider has to see every module, not just the `.ts` ones.
       if (!downCompile && !typescript) return null;
-      // preset-typescript ONLY for `.ts` (see tsSources above). Presets apply in REVERSE order, so
-      // listing it last is what makes it run FIRST - types have to be gone before preset-env starts
-      // lowering. Adding it unconditionally would also be wrong in principle: it switches the parser
-      // to TS for every file, and TS resolves `<T>x` and `a < b > (c)` differently from JS.
+      // the type strip is a PLUGIN, and plugins run before presets - types have to be gone before
+      // preset-env starts lowering. Only for `.ts` (see tsSources above): applied unconditionally it
+      // would switch the parser to TS for every file, and TS resolves `<T>x` and `a < b > (c)`
+      // differently from JS.
       const presets = downCompile ? [[preset, { targets: { ie: '11' }, useBuiltIns: false, modules: false }]] : [];
-      if (typescript) presets.push([ts, {}]);
+      const plugins = typescript ? [[ts, {}]] : [];
+      if (coreJs) plugins.push([corejs, coreJs]);
       // `useBuiltIns: false` above is what leaves the stdlib to a provider. When `coreJs` is set that
       // provider is @core-js/babel-plugin, running as a PLUGIN in this same pass rather than as a
       // second tool downstream - which is the whole difference being measured against unplugin.
       const out = await core.transformAsync(code, {
-        filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false, presets,
-        ...coreJs ? { plugins: [[corejs, coreJs]] } : {},
+        filename: id, configFile: false, babelrc: false, sourceMaps: false, compact: false, presets, plugins,
       });
       return out && typeof out.code === 'string' ? { code: out.code, map: null } : null;
     },
