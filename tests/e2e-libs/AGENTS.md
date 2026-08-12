@@ -8,12 +8,12 @@ Node under `zx`, started through `npm run zxi` - the repo-wide tooling tier, sta
 
 `npm run test-e2e-libs` chains the two runners that assert - `test-e2e-libs-check-exercise`, then `test-e2e-libs-runtime` - and is part of `npm test`; `OVERWRITE=1` in front of the latter rewrites the snapshot baselines. `e2e-libs-pipeline` asserts nothing and is run by no automation at all: it is an instrument you start by hand when the cost of a build is the question. Every runner narrows on positional filters, as in `npm run e2e-libs-pipeline three`.
 
-This directory's `package.json` pins the libraries, `core-js` to the workspace, and the toolchain the runners build with - rollup, Babel, esbuild, Karma. No other bundler is here: the whole suite builds with rollup, and the bundler axis belongs to `tests/transpiler-integration`. Off a machine with IE11 every gate still runs and only Karma is skipped, so the browser leg happens in the `e2e-libs` CI job, on windows, and nowhere else - a green `npm test` is not a green CI here.
+This directory's `package.json` pins the libraries, `core-js` to the workspace, and the toolchain the runners build with - rollup, Babel, esbuild, Karma. No other bundler is here: the whole suite builds with rollup, and the bundler axis belongs to `tests/transpiler-integration`. Karma starts where IE11 is expected to exist: on CI, or on a machine with `iexplore`. Everywhere else every gate still runs and only the browser leg is skipped - which is why it happens in the `e2e-libs` CI job, on windows, and nowhere else, and why a green `npm test` is not a green CI here. On a CI runner without IE11 it would start and fail, so no other job may run this suite.
 
 ## Layout
 
 - `libraries.mjs` - the registry: one entry per library and its exercise. `librariesMatching` throws on a filter matching nothing, so a typo cannot produce a green empty report
-- `exercises/<lib>.mjs` - one deterministic exercise per library, exporting `run()` -> `{ checks }`; its header states what it drives and what it deliberately avoids
+- `exercises/<lib>.mjs` - one deterministic exercise per library, exporting `run()` -> `{ checks }`; its header states what it drives and what it deliberately avoids. `exercises/checks.mjs` is the comparison they share, and it is bundled with them, so it lives under the same rule: it may not call the stdlib either
 - `build.mjs` - the bundling core: the temp-entry scaffold, `runtimeBuild`, `TS_SOURCE_PACKAGES`, and the assertions the gates are made of. The methods and phases come from `tests/transpiler-integration/matrix.mjs`, which both bundler suites drive; this one adds `targets: { ie: 11 }` to them
 - `runtime.mjs` - the gating tier; `pipeline.mjs` - the reporting one; `check-exercise.mjs` - the exercises run raw, which separates a broken fixture from a broken toolchain
 - `harness.mjs`, `karma.conf.cjs` - the in-page harness, banner and QUnit over one scaffold, and the IE11 launcher
