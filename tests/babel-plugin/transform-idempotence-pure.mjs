@@ -4,13 +4,12 @@
 // guards or re-probe an already-probed claim; a dropped import would strand the render
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import * as nodePath from 'node:path';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
-  ? createRequire(pathToFileURL(`${ nodePath.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
 

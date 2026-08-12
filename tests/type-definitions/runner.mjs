@@ -1,7 +1,5 @@
-import { cpus } from 'node:os';
-import { fs } from 'zx';
-
 const { mkdir, rm, writeJson } = fs;
+const { join } = path;
 const { cyan, green, grey, red } = chalk;
 
 const { TYPE_DEFINITIONS_TESTS = 'SMOKE' } = process.env;
@@ -12,7 +10,7 @@ if (!['ALL', 'CI', 'SMOKE'].includes(TYPE_DEFINITIONS_TESTS)) {
 
 const ALL_TESTS = TYPE_DEFINITIONS_TESTS === 'ALL';
 const CI_TESTS = TYPE_DEFINITIONS_TESTS === 'CI';
-const NUM_CPUS = cpus().length;
+const NUM_CPUS = os.cpus().length;
 const TMP_DIR = './tmp/';
 
 const ES_TARGETS = [
@@ -83,7 +81,7 @@ let failed = 0;
 
 function getTmpEnvDir(env) {
   if (!env) return null;
-  return path.join(TMP_DIR, env.replaceAll('/', '-').replaceAll('@', ''));
+  return join(TMP_DIR, env.replaceAll('/', '-').replaceAll('@', ''));
 }
 
 async function runTasksInParallel() {
@@ -148,21 +146,21 @@ async function prepareEnvironments() {
     await $({ cwd: tmpEnvDir, verbose: false })`npm init --yes`;
     await $({ cwd: tmpEnvDir })`npm install ${ env }`;
     for (const mode of CORE_JS_MODES) {
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.json`), {
+      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ mode }/**/*.ts`],
         exclude: [`../../${ mode }/**/${ LIB_RULES.dom }`],
       });
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.dom.json`), {
+      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.dom.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ mode }/**/*.ts`],
       });
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.es6.json`), {
+      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.es6.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ mode }/**/*.ts`],
         exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`, `../../${ mode }/${ LIB_RULES.dom }`],
       });
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.es6.dom.json`), {
+      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.es6.dom.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ mode }/**/*.ts`],
         exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`],
