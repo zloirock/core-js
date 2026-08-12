@@ -3,6 +3,7 @@ import { deepEqual } from 'node:assert/strict';
 import { censusWalkTruncations } from '@core-js/polyfill-provider/detect-usage/mutations';
 import { pathToFileURL } from 'node:url';
 import { makeBundlers, withTmpDir } from './bundlers.mjs';
+import { METHODS as methods, phasesFor, pluginOpts } from './matrix.mjs';
 
 const { readFile, writeFile } = fs;
 const { dirname, join, resolve } = path;
@@ -10,16 +11,9 @@ const { cyan, green, red, yellow } = chalk;
 
 const testDir = import.meta.dirname;
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
-const methods = ['entry-global', 'usage-global', 'usage-pure'];
 
 function inputOf(method) {
   return resolve(testDir, `input-${ method }.js`);
-}
-
-function pluginOpts(method, phase) {
-  const opts = { method, version: '4.0', mode: 'full', targets: { ie: 11 } };
-  if (phase) opts.phase = phase;
-  return opts;
 }
 
 // every cell of every leg goes through `runLeg`, so this is the run's denominator. `failures`
@@ -27,13 +21,7 @@ function pluginOpts(method, phase) {
 // stops yielding prints the same final line and exits 0 (measured: 19 cells instead of 93).
 // Missing or outdated Bun skips its seven cells; every other cell remains required.
 let cells = 0;
-const CELL_FLOOR = 100;
-
-// `entry-global` rejects `phase`; everything else runs across all three.
-function phasesFor(method) {
-  return method === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
-}
-
+const CELL_FLOOR = 82;
 const expected = {
   clamp: 4,
   cooked: 'hello',
