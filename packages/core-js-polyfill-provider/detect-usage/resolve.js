@@ -12,6 +12,7 @@ import {
   trustedIdentifierAliasWrite,
 } from '../helpers/class-walk.js';
 import {
+  asProxyGlobalName,
   bindsModuleDefault,
   globalProxyNameFromImportSource,
   importSourceMatchesUserPackage,
@@ -32,6 +33,7 @@ import {
   patternSlotSpreadShifted,
   patternSlotValues,
   unwrapRuntimeExpr,
+  peelSequenceTail,
   peelZeroArgIifeReturn,
   pureCtorNameFromImportSource,
   reachingReassignmentValueNode,
@@ -674,11 +676,11 @@ export function requireCallSource(node, adapter, scope) {
   node = unwrapTransparentSeq(node);
   if ((node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression')
     || node.arguments?.length !== 1) return null;
-  let callee = unwrapTransparentSeq(node.callee);
-  if (callee?.type === 'SequenceExpression') {
-    const tail = callee.expressions?.at(-1);
-    if (tail) callee = unwrapTransparentSeq(tail);
-  }
+  // the callee sequence descends UNCONDITIONALLY - an effectful prefix does not hide the entry,
+  // it is preserved separately when the statement is removed - and at any depth: a single peel
+  // recognised `(spy(), require)('core-js/...')` but not `(a(), (b(), require))('core-js/...')`,
+  // and an unrecognised entry is left in place while its targets go uninjected
+  const callee = peelSequenceTail(unwrapTransparentSeq(node.callee), { step: unwrapTransparentSeq });
   if (callee?.type !== 'Identifier' || callee.name !== 'require') return null;
   if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
   return extractStaticString(node.arguments[0], adapter);
@@ -1420,7 +1422,7 @@ export function bareProxyGlobalAliasName(node, aliasCtx) {
       // write's, exactly what the guard exists for
       const hint = followed?.binding?.polyfillHint
         ?? (followed ? ctx.adapter.getBindingPolyfillHint?.(ctx.scope, cur.name) : null);
-      return hint && POSSIBLE_GLOBAL_OBJECTS.has(hint) ? hint : null;
+      return asProxyGlobalName(hint);
     }
     cur = unwrapTransparentSeq(followed.init);
     if (followed.scope !== ctx.scope) ctx = { ...ctx, scope: followed.scope };
@@ -1483,7 +1485,7 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   // import (`() => _globalThis`); the import binding names its source global through the
   // polyfillHint side-channel - resolve through it exactly like the bare-alias walk
   const rootName = identRootName
-    ?? (rootId && (POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? rootId.name : bareProxyGlobalAliasName(rootId, aliasCtx)));
+    ?? (rootId && (asProxyGlobalName(rootId.name) ?? bareProxyGlobalAliasName(rootId, aliasCtx)));
   if (!rootName || !isPristineProxyGlobal(adapter, rootName)) return null;
   let collapseIdx = -1;
   // the winning entry travels with the plan: every renderer needs exactly this resolution, and
@@ -1638,7 +1640,7 @@ function normalizeComputedKeyNode(node, bailOnSideEffectKey, adapter) {
   node = unwrapTransparentSeq(node);
   while (true) {
     if (bailOnSideEffectKey && node?.type === 'SequenceExpression' && sequencePrefixWithSideEffects(node)) return KEY_SIDE_EFFECT_BAIL;
-    while (node?.type === 'SequenceExpression') node = unwrapTransparentSeq(node.expressions.at(-1));
+    node = peelSequenceTail(node, { step: unwrapTransparentSeq });
     if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return node;
     if (adapter.method === 'usage-pure' && !zeroArgIifeSideEffectFree(node)) return node;
     const iifeRet = peelZeroArgIifeReturn(node);

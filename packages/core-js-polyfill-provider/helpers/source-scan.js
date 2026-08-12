@@ -138,34 +138,42 @@ export function parseDisableDirectives({ comments, offsetToLine, firstStmtStart,
 // everything else that OPENS on the target line spans to its own end, brace hosts included
 const PROGRAM_WRAPPER_TYPES = new Set(['Program', 'File']);
 
-// depth cap mirrors `resolve-node-type.MAX_DEPTH=64`. directive scan walks AST nodes
-// only (filtered by isASTNode), but pathological deeply-nested input still risks stack
-// overflow without a guard. silent truncation > crash here - directive can lose end-line
-// span on deep trees but disable-next-line still works (line itself is added to `lines`)
-const FIND_STATEMENT_MAX_DEPTH = 64;
-function findStatementEndLine({ node, targetLine, offsetToLine, depth = 0 }) {
-  if (depth > FIND_STATEMENT_MAX_DEPTH || !isASTNode(node)) return null;
-  const lines = nodeLineSpan(node, offsetToLine);
-  if (!lines || lines.start > targetLine || lines.end < targetLine) return null;
-  // a host OPENING on the target line spans the directive across its WHOLE body - decided BEFORE
-  // descending: an inline first statement on the same line would otherwise return its own shorter
-  // end-line and the directive would under-cover the block's trailing lines
-  if (lines.start === targetLine && !PROGRAM_WRAPPER_TYPES.has(node.type)) return lines.end;
-  // `isASTNode` filters foreign stamps (babel `extra`, sibling-plugin caches) so iterating
-  // every own key stays safe even when plugins decorate the tree with non-AST values. take the
-  // FARTHEST matching end across children - siblings sharing the target line must not shorten it
+// the scan descends the SOURCE's own nesting, so a depth budget answers "the user nested deeply"
+// exactly as it answers a broken tree: the previous cap of 64 truncated at ~16 levels of nested
+// callbacks and the directive silently lost its multi-line span there, revoking the opt-out and
+// injecting on a line the user disabled. an explicit worklist keeps the depth off the JS stack, so
+// the walk needs no budget; `visited` covers the only unbounded case left, a cyclic foreign tree.
+// the recursion this replaces only ever propagated the MAX end-line upward, so one flat accumulator
+// over the whole frontier is the same answer
+function findStatementEndLine({ node, targetLine, offsetToLine }) {
+  const pending = isASTNode(node) ? [node] : [];
+  // only nodes we DESCEND from need recording - the two `continue`s above are terminal, so a cycle
+  // can only close through this set
+  const descended = new Set();
   let best = null;
-  // eslint-disable-next-line no-restricted-syntax -- AST walker, keys are own-properties only
-  for (const key in node) {
-    const child = node[key];
-    if (Array.isArray(child)) {
-      for (const c of child) if (isASTNode(c)) {
-        const found = findStatementEndLine({ node: c, targetLine, offsetToLine, depth: depth + 1 });
-        if (found) best = best === null ? found : Math.max(best, found);
-      }
-    } else if (isASTNode(child)) {
-      const found = findStatementEndLine({ node: child, targetLine, offsetToLine, depth: depth + 1 });
-      if (found) best = best === null ? found : Math.max(best, found);
+  while (pending.length) {
+    const cur = pending.pop();
+    const lines = nodeLineSpan(cur, offsetToLine);
+    if (!lines || lines.start > targetLine || lines.end < targetLine) continue;
+    // a host OPENING on the target line spans the directive across its WHOLE body - decided BEFORE
+    // descending: an inline first statement on the same line would otherwise return its own shorter
+    // end-line and the directive would under-cover the block's trailing lines
+    if (lines.start === targetLine && !PROGRAM_WRAPPER_TYPES.has(cur.type)) {
+      // the FARTHEST matching end wins - siblings sharing the target line must not shorten it
+      if (best === null || lines.end > best) best = lines.end;
+      continue;
+    }
+    if (descended.has(cur)) continue;
+    descended.add(cur);
+    // `isASTNode` filters foreign stamps (babel `extra`, sibling-plugin caches) so iterating
+    // every own key stays safe even when plugins decorate the tree with non-AST values
+    // eslint-disable-next-line no-restricted-syntax -- AST walker, keys are own-properties only
+    for (const key in cur) {
+      const child = cur[key];
+      if (Array.isArray(child)) {
+        // element-wise, never a spread: a generated file's statement list can exceed the argument limit
+        for (const c of child) if (isASTNode(c)) pending.push(c);
+      } else if (isASTNode(child)) pending.push(child);
     }
   }
   return best;
