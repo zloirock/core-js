@@ -7,7 +7,7 @@
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
-import { librariesMatching } from './libraries.mjs';
+import { libraries, librariesMatching } from './libraries.mjs';
 import { fileURLToPath } from 'node:url';
 
 const { mkdir, readFile, rm, writeFile } = fs;
@@ -319,7 +319,7 @@ for (const { lib, method, provider, phase } of cells) {
     // UMD exposes global `E2E`; each bundle gets its OWN Karma page (one file per run below), so the
     // shared global name cannot make one cell's test execute another cell's bundle.
     const karmaFile = join(KARMA_OUT, `e2e-libs-${ lib.name }-${ provider }-${ method }-${ phase ?? 'noph' }.js`);
-    await writeFile(karmaFile, `${ code }\n${ qunitHarness(label, checks.length) }`);
+    await writeFile(karmaFile, `${ code }\n${ qunitHarness(label, checks.map(c => c.label)) }`);
     // `pre` is unplugin's known-incomplete phase and stays advisory (see the header). Every
     // babel-plugin cell gates: it has no phase axis, so it has no expected-to-fail configuration.
     karmaFiles.push({ file: karmaFile, label, gating: phase !== 'pre' });
@@ -391,8 +391,22 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
   }
 }
 
+// A baseline with no cell behind it - a library dropped from the registry, a phase renamed - is
+// invisible to everything above: nothing reads it, so nothing notices, and it sits in git looking
+// like coverage. Derived from the REGISTRY rather than from this run, so a filtered run does not
+// accuse the libraries it skipped.
+const expectedSnapshots = new Set(libraries.flatMap(lib => METHODS.filter(m => m !== 'entry-global')
+  .flatMap(method => PROVIDERS.flatMap(provider => phasesFor(method, provider)
+    .map(phase => snapPath(lib, provider, method, phase))))));
+const orphans = (await fs.readdir(SNAP)).map(f => join(SNAP, f)).filter(f => !expectedSnapshots.has(f));
+for (const file of orphans) {
+  if (OVERWRITE) await rm(file);
+  echo(`${ OVERWRITE ? 'removed orphan' : 'FAIL orphan' } snapshot ${ relative(HERE, file) }`
+    + `${ OVERWRITE ? '' : ' - no cell produces it; rerun with OVERWRITE=1 to remove it' }`);
+}
+
 if (drift) echo(`\nFAIL injection snapshot drifted in ${ drift } cell(s) - rerun with OVERWRITE=1 if intended`);
 if (missing) echo(`\nFAIL ${ missing } cell(s) have no snapshot baseline - rerun with OVERWRITE=1 to author them`);
 if (failed) echo(`\nFAIL ${ failed } cell(s) failed`);
-if (failed || drift || missing) process.exitCode = 1;
+if (failed || drift || missing || (orphans.length && !OVERWRITE)) process.exitCode = 1;
 else echo(`\nruntime tier green - ${ manifest.length } cell(s)`);

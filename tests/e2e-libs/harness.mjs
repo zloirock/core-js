@@ -62,11 +62,11 @@ export function bannerHarness(expected) {
 // speak first, and far above any real run: the exercises are deterministic and small.
 const RUN_TIMEOUT_MS = 20_000;
 
-export function qunitHarness(label, expected) {
+export function qunitHarness(label, expectedLabels) {
   return `
     (function () {
       var LABEL = ${ JSON.stringify(label) };
-      var EXPECTED = ${ expected };
+      var EXPECTED = ${ JSON.stringify(expectedLabels) };
       QUnit.test(LABEL, function (assert) {
         assert.timeout(${ RUN_TIMEOUT_MS });
         var done = assert.async();
@@ -84,9 +84,14 @@ export function qunitHarness(label, expected) {
             window.console.log('[e2e-libs] ' + LABEL + ': ' + passed + '/' + checks.length + ' checks passed in this IE11');
           }
           // an exercise reporting FEWER checks here than in node must not pass on the ones it did
-          // report. EXPECTED is always >= 1, since runtime.mjs refuses a zero-length pre-flight result.
-          // (No backticks in this block - it lives inside a template literal.)
-          assert.strictEqual(checks.length, EXPECTED, LABEL + ': check count differs from the node pre-flight');
+          // report. EXPECTED is always non-empty, since runtime.mjs refuses a zero-length pre-flight
+          // result. (No backticks in this block - it lives inside a template literal.)
+          assert.strictEqual(checks.length, EXPECTED.length, LABEL + ': check count differs from the node pre-flight');
+          // and the same COUNT under different labels is a different run: a branch that stopped
+          // executing and another that started would cancel out in the count alone
+          var labels = [];
+          for (i = 0; i < checks.length; i++) labels.push(checks[i].label);
+          assert.strictEqual(labels.join('|'), EXPECTED.join('|'), LABEL + ': check labels differ from the node pre-flight');
           for (i = 0; i < checks.length; i++) {
             var c = checks[i];
             assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: LABEL + ' - ' + c.label });
@@ -107,7 +112,7 @@ export function qunitHarness(label, expected) {
 `;
 }
 
-// Parse both targets as ES5 at load - one representative instantiation each is enough, since the
-// only per-instance variation is a baked-in number / string literal, which this parse still covers.
+// Parse both targets as ES5 at load - one representative instantiation each is enough, since the only
+// per-instance variation is a baked-in literal, which this parse still covers.
 assertES5(bannerHarness(0), 'banner harness');
-assertES5(qunitHarness('x', 0), 'qunit harness');
+assertES5(qunitHarness('x', ['a']), 'qunit harness');

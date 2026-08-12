@@ -17,6 +17,11 @@ export function phasesFor(method, provider = 'unplugin') {
 // `targets` is the caller's: this suite passes none on purpose, e2e-libs is about IE11. Everything
 // else is identical by intent - two suites that pin different core-js versions would be measuring
 // different libraries and calling the difference a plugin change.
+//
+// `'node_modules'` is the provider's own way of saying "whatever core-js is installed", which here is
+// the workspace one both suites bundle. A literal minor would go stale silently: bump the runtime and
+// the suites keep asking for the older module set, every gate stays green, and nothing covers what
+// the bump added.
 export function pluginOpts(method, phase, extra) {
-  return { method, version: '4.0', mode: 'full', ...extra, ...phase && { phase } };
+  return { method, version: 'node_modules', mode: 'full', ...extra, ...phase && { phase } };
 }
