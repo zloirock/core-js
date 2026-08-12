@@ -53,12 +53,22 @@ export function bannerHarness(expected) {
 // empty `checks` fails explicitly instead of passing as a test with zero assertions. Karma's summary
 // on a green run is only "Executed N of N", which is why the console line reports the count per cell -
 // karma.conf.cjs forwards it to the terminal.
+
+// A `run()` that never settles is the one failure this realm can produce and the node pre-flight
+// cannot: there `Promise` is native, here it is the polyfill under test. QUnit 2 sets no timeout of
+// its own - past 3s it only warns - so without this the page falls silent until karma's
+// `browserNoActivityTimeout` (30s by default) reports a disconnect, which reads as a browser or
+// network problem rather than as a broken polyfill. Kept under that default so QUnit is the one to
+// speak first, and far above any real run: the exercises are deterministic and small.
+const RUN_TIMEOUT_MS = 20_000;
+
 export function qunitHarness(label, expected) {
   return `
     (function () {
       var LABEL = ${ JSON.stringify(label) };
       var EXPECTED = ${ expected };
       QUnit.test(LABEL, function (assert) {
+        assert.timeout(${ RUN_TIMEOUT_MS });
         var done = assert.async();
         // fail loudly if this is NOT real IE11: on a modern engine (e.g. an iexplore -> Edge redirect
         // on the CI runner) the natives are present, so a missed usage-pure rewrite would resolve and
