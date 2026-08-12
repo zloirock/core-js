@@ -1,3 +1,0 @@
--@core-js/pure/full/global-this
--@core-js/pure/full/reflect/construct
--@core-js/pure/full/self

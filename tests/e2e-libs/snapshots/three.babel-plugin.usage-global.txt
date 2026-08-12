@@ -28,7 +28,6 @@ core-js/modules/es.data-view.to-string-tag
 core-js/modules/es.date.to-primitive
 core-js/modules/es.error.cause
 core-js/modules/es.function.name
-core-js/modules/es.global-this
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
