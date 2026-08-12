@@ -285,9 +285,14 @@ function renderNestedParamSynth({ prop, meta, deps }) {
     // the target (covers logical / conditional / sequence / paren AND transparent-IIFE hops -
     // call callee, arrow body, block return). the printer re-parenthesizes as needed, so the
     // plan's needsParens marker is text-emitter-only
+    // the descent length is the SOURCE's nesting, so it carries no hop budget: each step moves into
+    // a strictly smaller span and the walk ends on the tree - either at the target or at a level
+    // whose children do not contain it. a budget answered a legal deeply-nested pattern exactly as
+    // it answered a broken one, and the caller reads that as "nothing to replace" and prints the
+    // receiver raw - a polyfill silently lost past thirty-two levels, on this emitter only
     replaceTarget(targetNode, rendered) {
       let target = plan.host.get(plan.slot);
-      for (let guard = 0; target.node !== targetNode && guard < 32; guard++) {
+      while (target.node !== targetNode) {
         let next = null;
         for (const key of t.VISITOR_KEYS[target.node.type] ?? []) {
           const child = target.node[key];

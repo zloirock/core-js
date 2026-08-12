@@ -34,7 +34,10 @@ export function subsume(region, options) {
   }
 
   // descend an init expression, subsuming the proxy-global chains / bare identifiers the destructure
-  // rewrite owns while instance methods + literals survive (they compose in place)
+  // rewrite owns while instance methods + literals survive (they compose in place). the branch arms
+  // recurse on the source's own nesting with no bound, unlike the walkers around them - measured and
+  // left so: an init deep enough to reach it overflows the generic subtree walk long before, and
+  // both hosts' traversal gives out just past that
   function walkInit(node) {
     let cur = node;
     while (cur) {

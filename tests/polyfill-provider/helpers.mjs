@@ -39,9 +39,12 @@ import {
   privateNameSpelling,
   paramListReadsName,
   peelMemoizeWrappers,
+  peelSequenceTail,
+  peelZeroArgIifeReturn,
   SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
+  zeroArgIifeSideEffectFree,
   forEachStatementPosition,
   SINGLE_STATEMENT_SLOTS,
   spreadAtOrBefore,
@@ -607,6 +610,39 @@ check('parseDisableDirectives/empty array', parseDisableDirectives({ comments: [
     result instanceof Set && result.has(4));
 }
 
+// `core-js-disable-next-line` over a MULTI-LINE statement covers the statement's whole span, and
+// the depth it sits at is the source's: the retired 64-node budget truncated the scan at ~16
+// levels of nested callbacks and the opt-out was silently revoked from there down. build the
+// target statement under `depth` block levels and assert the span at a depth on each side
+{
+  function directiveLines(depth) {
+    // the directive sits on line `depth`, so the statement it covers opens on the next one
+    const targetLine = depth + 1;
+    let statement = {
+      type: 'ExpressionStatement',
+      loc: { start: { line: targetLine }, end: { line: targetLine + 2 } },
+    };
+    for (let i = depth; i > 0; i--) {
+      statement = {
+        type: 'BlockStatement',
+        body: [statement],
+        loc: { start: { line: i }, end: { line: targetLine + 2 + (depth - i) } },
+      };
+    }
+    return parseDisableDirectives({
+      comments: [{ value: 'core-js-disable-next-line', loc: { start: { line: depth }, end: { line: depth } } }],
+      ast: { type: 'Program', body: [statement], loc: { start: { line: 1 }, end: { line: 400 } } },
+    });
+  }
+  for (const depth of [8, 80]) {
+    const result = directiveLines(depth);
+    checkTruthy(`parseDisableDirectives/multi-line span at depth ${ depth } covers statement start`,
+      result instanceof Set && result.has(depth + 1));
+    checkTruthy(`parseDisableDirectives/multi-line span at depth ${ depth } covers statement end`,
+      result instanceof Set && result.has(depth + 3));
+  }
+}
+
 // comment without directive: ignored
 check('parseDisableDirectives/foreign comment ignored',
   parseDisableDirectives({ comments: [{ value: ' just a regular comment', end: 10 }] }), null);
@@ -782,11 +818,109 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
     '[core-js] [outer.ts] [core-js] [inner.ts] inner failure');
 }
 
+// --- peelSequenceTail ---
+
+// the single spelling of the comma-sequence descent. no source produces a cyclic AST, so these
+// assertions are the only oracle the guard has - the corpus cannot fail on it
+{
+  function id(name) {
+    return { type: 'Identifier', name };
+  }
+  function commaSeq(...expressions) {
+    return { type: 'SequenceExpression', expressions };
+  }
+
+  check('peelSequenceTail/non-sequence is identity', peelSequenceTail(id('X'))?.name, 'X');
+  check('peelSequenceTail/flat tail', peelSequenceTail(commaSeq(id('a'), id('X')))?.name, 'X');
+  check('peelSequenceTail/nested tail', peelSequenceTail(commaSeq(id('a'), commaSeq(id('b'), id('X'))))?.name, 'X');
+
+  // `step` runs on each tail - a wrapper between hops peels only through it
+  const wrapped = commaSeq(id('a'), { type: 'ParenthesizedExpression', expression: commaSeq(id('b'), id('X')) });
+  check('peelSequenceTail/without step a wrapper stops the descent',
+    peelSequenceTail(wrapped)?.type, 'ParenthesizedExpression');
+  check('peelSequenceTail/step peels between hops',
+    peelSequenceTail(wrapped, { step: unwrapRuntimeExpr })?.name, 'X');
+
+  // `onPrefix` sees every hop's full expression list
+  {
+    const seen = [];
+    peelSequenceTail(commaSeq(id('a'), commaSeq(id('b'), id('X'))), {
+      onPrefix: expressions => { seen.push(expressions.length); },
+    });
+    checkDeep('peelSequenceTail/onPrefix sees each hop', seen, [2, 2]);
+  }
+
+  // returning false from `onPrefix` REFUSES the hop: the descent stops on that node, which is how
+  // a caller that must not step through an effectful prefix reports it
+  check('peelSequenceTail/onPrefix false stops on the node',
+    peelSequenceTail(commaSeq(id('a'), id('X')), { onPrefix: () => false })?.type, 'SequenceExpression');
+
+  // a self-referential tail terminates instead of spinning; an empty list is not stepped into
+  {
+    const cyclic = commaSeq(id('a'));
+    cyclic.expressions.push(cyclic);
+    check('peelSequenceTail/cyclic tail terminates', peelSequenceTail(cyclic)?.type, 'SequenceExpression');
+    check('peelSequenceTail/empty sequence is not stepped into', peelSequenceTail(commaSeq())?.type, 'SequenceExpression');
+  }
+
+  // a caller alternating its own loop with this one guards the whole alternation by sharing `visited`
+  {
+    const visited = new Set();
+    const tail = id('X');
+    const outer = commaSeq(id('a'), tail);
+    check('peelSequenceTail/shared visited first pass', peelSequenceTail(outer, { visited })?.name, 'X');
+    check('peelSequenceTail/shared visited refuses a re-descent to the same tail',
+      peelSequenceTail(outer, { visited })?.type, 'SequenceExpression');
+  }
+}
+
+// --- the sequence descent's REFUSING consumers ---
+
+// a zero-arg IIFE reached through a comma-sequence callee: the descent must refuse an effectful
+// prefix at ANY level, not only the outermost, and still reach the arrow through pure ones. the
+// domain is enumerated element-wise because a single-level check answers three of these five wrong
+{
+  function id(name) {
+    return { type: 'Identifier', name };
+  }
+  function commaSeq(...expressions) {
+    return { type: 'SequenceExpression', expressions };
+  }
+  function iife(callee) {
+    return { type: 'CallExpression', callee, arguments: [], optional: false };
+  }
+  function arrow(body) {
+    return { type: 'ArrowFunctionExpression', params: [], body, async: false, generator: false };
+  }
+  function effect() {
+    return { type: 'CallExpression', callee: id('sideEffect'), arguments: [], optional: false };
+  }
+
+  const fn = arrow(id('X'));
+  const nestedEffectful = commaSeq(id('pure'), commaSeq(effect(), fn));
+  for (const [label, node, expected] of [
+    ['bare callee', iife(fn), true],
+    ['pure prefix', iife(commaSeq(id('pure'), fn)), true],
+    ['effectful prefix', iife(commaSeq(effect(), fn)), false],
+    ['pure outside, effectful inside', iife(nestedEffectful), false],
+    ['pure at both levels', iife(commaSeq(id('a'), commaSeq(id('b'), fn))), true],
+  ]) {
+    check(`zeroArgIifeSideEffectFree/${ label }`, zeroArgIifeSideEffectFree(node), expected);
+  }
+  // the RETURN peel reaches the same arrow through either nesting - refusal is the effect gate's
+  // job, not the peel's
+  check('peelZeroArgIifeReturn/through a flat sequence callee',
+    peelZeroArgIifeReturn(iife(commaSeq(id('p'), fn)))?.name, 'X');
+  const nestedPure = commaSeq(id('p'), commaSeq(id('q'), fn));
+  check('peelZeroArgIifeReturn/through a nested sequence callee',
+    peelZeroArgIifeReturn(iife(nestedPure))?.name, 'X');
+}
+
 // --- isFunctionParamDestructureParent ---
 
 // minimal path-like shape: `.node` + `.parentPath`. parser-agnostic helper exposed in
-// `ast-patterns.js`; depth cap (32) + cycle detection live in the function itself, so
-// synthetic paths exercise the throw without needing a real parser run
+// `ast-patterns.js`; the shared ancestor climb ends on the tree and on a cycle, never on a hop
+// budget, so synthetic paths exercise both terminations without needing a real parser run
 {
   // legitimate nested ObjectPattern in function param: `function({ outer: { inner } }) {}`
   // chain bottom-up: inner ObjectPattern -> ObjectProperty.value -> outer ObjectPattern ->
@@ -806,36 +940,41 @@ check('parseDisableDirectives/no loc no offsetToLine skipped',
     isFunctionParamDestructureParent(innerPath));
 }
 
-// 40-deep ObjectPattern chain with no function-like ancestor: depth cap (32) throws
-// with `[core-js]` prefix. each hop is `ObjectPattern.properties` -> prev (transparent
-// wrapper case), no break case fires until cap trips
+// nesting past the retired 32-hop budget is answered by the TREE, both ways: a 40-deep chain
+// owned by a function is a param destructure, the same chain owned by a declarator is not. the
+// budget used to throw `pattern nesting exceeds 32 levels` on both - a build abort on legal source
 {
-  // build path chain from innermost outward: at the end, innermost's parentPath chain
-  // reaches 40 ObjectPattern wrappers - more than the depth cap of 32
-  const innerOP = { type: 'ObjectPattern', properties: [] };
-  const innerPath = { node: innerOP, parentPath: null };
-  let currentPath = innerPath;
-  let prevNode = innerOP;
-  for (let i = 0; i < 40; i++) {
-    const wrapperNode = { type: 'ObjectPattern', properties: [prevNode] };
-    const wrapperPath = { node: wrapperNode, parentPath: null };
-    currentPath.parentPath = wrapperPath;
-    currentPath = wrapperPath;
-    prevNode = wrapperNode;
+  function nestedPatternPath(depth, ownerNode) {
+    const innerOP = { type: 'ObjectPattern', properties: [] };
+    const innerPath = { node: innerOP, parentPath: null };
+    let currentPath = innerPath;
+    let prevNode = innerOP;
+    for (let i = 0; i < depth; i++) {
+      const wrapperNode = { type: 'ObjectPattern', properties: [prevNode] };
+      currentPath.parentPath = { node: wrapperNode, parentPath: null };
+      currentPath = currentPath.parentPath;
+      prevNode = wrapperNode;
+    }
+    if (ownerNode) currentPath.parentPath = { node: { ...ownerNode, params: [prevNode] }, parentPath: null };
+    return innerPath;
   }
-  let crashed = false;
-  let message = '';
-  try {
-    isFunctionParamDestructureParent(innerPath);
-  } catch (error) {
-    crashed = true;
-    message = error.message;
-  }
-  checkTruthy('isFunctionParamDestructureParent/depth cap throws on deep nest', crashed);
-  checkTruthy('isFunctionParamDestructureParent/depth cap throw is core-js-prefixed',
-    message.includes('[core-js]'));
-  checkTruthy('isFunctionParamDestructureParent/depth cap mentions cycle reason',
-    message.includes('exceeds 32 levels'));
+  check('isFunctionParamDestructureParent/40-deep param nest resolves',
+    isFunctionParamDestructureParent(nestedPatternPath(40, { type: 'FunctionDeclaration' })), true);
+  check('isFunctionParamDestructureParent/40-deep non-param nest still false',
+    isFunctionParamDestructureParent(nestedPatternPath(40, null)), false);
+}
+
+// a CYCLIC parent chain - the case the retired budget nominally defended - terminates on the
+// visited set and answers with the helper's own bail, not a throw and not a hang
+{
+  const objectPattern = { type: 'ObjectPattern', properties: [] };
+  const wrapperNode = { type: 'ObjectPattern', properties: [objectPattern] };
+  const path = { node: objectPattern, parentPath: null };
+  const wrapperPath = { node: wrapperNode, parentPath: null };
+  path.parentPath = wrapperPath;
+  wrapperPath.parentPath = path;
+  wrapperNode.properties.push(wrapperNode);
+  check('isFunctionParamDestructureParent/cyclic parent chain bails', isFunctionParamDestructureParent(path), false);
 }
 
 // shallow non-function-param ObjectPattern: `const { x } = obj` -> VariableDeclarator,

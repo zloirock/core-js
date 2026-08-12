@@ -2,6 +2,7 @@
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
 import {
+  asProxyGlobalName,
   climbTransparentWrapperPath,
   collectFoldedReceiverSideEffects,
   getFallbackBranchSlots,
@@ -10,6 +11,7 @@ import {
   isMutatedGlobalSlot,
   isTaggedTemplateTagPosition,
   memberKeyName,
+  peelSequenceTail,
   privateNameSpelling,
   proxyNavRootIsSequence,
   staticMemberKeyName,
@@ -375,8 +377,7 @@ export function seedChainRootCallRescue({ node, scope, adapter, path }) {
 function proxyGlobalChainRootName({ node, scope, adapter, path }) {
   const { root } = descendToChainRoot(node);
   if (!root) return null;
-  const name = resolveObjectName({ objectNode: root, scope, adapter, path });
-  return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
+  return asProxyGlobalName(resolveObjectName({ objectNode: root, scope, adapter, path }));
 }
 
 // a rescued synth-swap receiver whose VALUE is discarded but whose verbatim re-emit would read an
@@ -1265,7 +1266,7 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
   // unplugin queues a parallel `globalThis -> _globalThis` rewrite overlapping the outer subsumption
   // (`_Array$from`) - the text-transform queue can't compose the eliminated needle and throws
   const wasSequence = obj.type === 'SequenceExpression';
-  while (obj.type === 'SequenceExpression') obj = unwrapTransparentSeq(obj.expressions.at(-1));
+  obj = peelSequenceTail(obj, { step: unwrapTransparentSeq });
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
     handledObjects.add(obj);
     return;

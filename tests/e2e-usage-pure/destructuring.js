@@ -3317,3 +3317,20 @@ QUnit.test('destructuring: a sequence tail an instance binding reads survives th
   assert.same(at.call(source, -1), 3);
 });
 
+// pattern nesting past the retired 32-hop budget is legal source generated code reaches. the climb
+// that classifies a parameter position used to THROW there, so nothing below ran at all. the
+// polyfill belongs in the LEAF's own default slot, which fires per-slot: an argument that leaves the
+// slot empty gets it, an argument that fills the slot keeps the caller's own value.
+QUnit.test('destructuring: a parameter pattern nested past thirty-two levels', assert => {
+  function deep([[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{ from } = Array]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]) {
+    return from([1, 2]);
+  }
+  assert.deepEqual(deep([[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[undefined]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]), [1, 2], 'an empty slot takes the default polyfill');
+  const calls = [];
+  function callerFrom(x) {
+    calls.push(x);
+    return 'caller';
+  }
+  assert.same(deep([[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{ from: callerFrom }]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]), 'caller', "a filled slot keeps the caller's value");
+  assert.deepEqual(calls, [[1, 2]], "the caller's method receives the arguments");
+});
