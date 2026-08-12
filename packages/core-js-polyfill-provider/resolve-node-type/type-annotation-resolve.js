@@ -280,7 +280,7 @@ export function createTypeAnnotationResolve({
         // itself). resolveAwaitedAnnotation peels annotation shapes but has no TSTypeQuery step,
         // so route the typeof through resolveTypeQuery here, mirroring the ReturnType case
         if (arg.type === 'TSTypeQuery') {
-          const queried = resolveTypeQuery(arg, scope);
+          const queried = resolveTypeQuery(arg, scope, depth);
           return queried ? unwrapPromise(queried) : null;
         }
         return resolveAwaitedAnnotation({ node: arg, scope, depth, typeParamMap, seen });
@@ -294,9 +294,11 @@ export function createTypeAnnotationResolve({
         // (mirrors Awaited / Extract / findTupleElement)
         if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope, depth);
         // direct function type alias (`type Fn = () => T; ReturnType<Fn>`): extract + shadow the signature-
-        // local `<T>` + fold the alias subst, then resolve (shared with the getTypeMembers mirror branch)
+        // local `<T>` + fold the alias subst, then resolve (shared with the getTypeMembers mirror branch).
+        // the extracted return is a BARE ref, so it resolves in the caller's context like every sibling
+        // arm - resolved raw it would re-bind by NAME to whatever same-named param encloses the use site
         const target = shadowedAliasReturnAnnotation(arg, scope);
-        return target ? resolveTypeAnnotation(target, scope, depth + 1) : null;
+        return target ? resolveAnnotationInContext({ node: target, scope, depth, typeParamMap, seen }) : null;
       }
       case 'InstanceType': {
         const arg = firstArg();
@@ -384,6 +386,10 @@ export function createTypeAnnotationResolve({
     // folded BOTH branches even when the conditional decidably fires to a single one (wrong
     // branch leaked when the other resolved to never / null)
     const result = evaluateConditionalType(node, null, scope, depth, null);
+    // the evaluation above can re-enter on the SAME node in another scope and install the
+    // per-scope map itself - re-read it rather than overwrite the slot, which would throw the
+    // nested call's entries away and leave the tree it collapsed to re-expand
+    byScope = conditionalResultCache.get(node);
     if (!byScope) conditionalResultCache.set(node, byScope = new Map());
     byScope.set(scope, { result, depth });
     return result;
@@ -649,14 +655,16 @@ export function createTypeAnnotationResolve({
       // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
       case 'TSTypeOperator':
         return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1, seen);
-      // TS typeof in type position: `typeof variable`
+      // TS typeof in type position: `typeof variable`. the budget crosses the cluster boundary
+      // with it - a `typeof` naming its own binding resolves right back here, and the annotation
+      // lane's budget is the only thing that ends that loop
       case 'TSTypeQuery':
-        return resolveTypeQuery(node, scope);
+        return resolveTypeQuery(node, scope, depth);
       // Flow typeof in type position: `typeof variable`
       case 'TypeofTypeAnnotation': {
         const arg = node.argument;
         return arg?.type === 'GenericTypeAnnotation'
-          ? resolveTypeofFromSegments(collectQualifiedSegments(arg.id), scope) : null;
+          ? resolveTypeofFromSegments(collectQualifiedSegments(arg.id), scope, depth) : null;
       }
       case 'TSConditionalType':
         return resolveConditionalType(node, scope, depth);

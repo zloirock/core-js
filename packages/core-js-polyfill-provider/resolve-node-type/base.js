@@ -136,6 +136,21 @@ export function argIndexForParam(params, rawIndex) {
   return rawIndex - (hasLeadingThisParam(params) ? 1 : 0);
 }
 
+// the ARGUMENT paths a call site hands its callee, in runtime order. a tagged template is a call
+// (``tag`a${x}` `` runs `tag(strings, x)`) but keeps its arguments in `quasi` instead of an
+// `arguments` slot, and neither parser's path answers a missing list key with a list - babel and
+// estree-toolkit both build a single NodePath, which slips past a `?? []` fallback and reaches the
+// consumers as a non-array. one accessor so no reader has to re-derive what a call's arguments are
+export function callArgumentPaths(callPath) {
+  const node = callPath?.node;
+  if (Array.isArray(node?.arguments)) return callPath.get('arguments') ?? [];
+  if (node?.type !== 'TaggedTemplateExpression') return [];
+  // slot 0 is the strings array the tag receives, so the interpolations keep the positions the
+  // declared params give them
+  const quasi = callPath.get('quasi');
+  return [quasi, ...quasi?.get('expressions') ?? []];
+}
+
 // --- Type classes ---
 //
 // markers QUALIFY a type without changing its family identity. equality / merging

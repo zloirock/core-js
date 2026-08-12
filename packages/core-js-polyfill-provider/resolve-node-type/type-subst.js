@@ -115,11 +115,17 @@ export function createTypeSubst({
       if (cached !== undefined) return cached;
     }
     const result = applyAliasSubstDeepInner(node, subst, depth, visited);
-    if (!perNode) {
-      perNode = new WeakMap();
-      applySubstCache.set(node, perNode);
+    // only a walk that STARTED here fills the slot. entered deeper, the budget can run out
+    // partway down and leave bare refs in the tree, and a later shallow call served that
+    // truncated copy hands downstream a bare `T` to re-derive by name. reading it deeper is
+    // the safe direction - a fuller substitution is exactly what the deeper call wanted
+    if (depth === 0) {
+      if (!perNode) {
+        perNode = new WeakMap();
+        applySubstCache.set(node, perNode);
+      }
+      perNode.set(subst, result);
     }
-    perNode.set(subst, result);
     return result;
   }
 

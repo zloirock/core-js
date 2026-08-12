@@ -233,6 +233,89 @@ function * generateDestructure() {
   }
 }
 
+// --- Anchor-key spelling (which single-property key may be written after a dot) ---
+// a `{ K: <inner> } = <proxy global>` pattern collapses onto the constructor ANCHOR, which spells `K`
+// as a member tail. a computed key folds to an ARBITRARY string, so the axis the plan branches on is
+// the key's spelling - a capitalised non-identifier reaches the same gate a real constructor name
+// does. the two arms are the two observables the collapse can destroy: `present` writes the key onto
+// the proxy global, so a tail spelled off the wrong property reads `undefined` instead of the value;
+// `absent` reads a key nothing carries, so native throws and an emitter that resolves the pattern
+// elsewhere erases the throw. full-env only - the observable is the native read, not an injection.
+// the binding HOST is a live axis, not dressing: the same key takes a different route class per host
+// (a declaration anchors or folds, a parameter default goes through the synth-swap mirror instead)
+const ANCHOR_KEYS = [
+  { id: 'folded-symbol', lhs: '[Symbol.iterator]', slot: 'Symbol.iterator' },
+  { id: 'folded-symbol-async', lhs: '[Symbol.asyncIterator]', slot: 'Symbol.asyncIterator' },
+  { id: 'dashed-string', lhs: "'App-Key'", slot: '"App-Key"' },
+  { id: 'spaced-string', lhs: "'A b'", slot: '"A b"' },
+  { id: 'dotted-template', lhs: '[`A.b`]', slot: '"A.b"' },
+  { id: 'dollar-ident', lhs: 'A$b', slot: '"A$b"' },
+  { id: 'plain-ident', lhs: 'Alpha', slot: '"Alpha"' },
+];
+const ANCHOR_RECEIVERS = [
+  { id: 'bare', src: 'globalThis' },
+  { id: 'alias', src: 'g', setup: 'const g = globalThis;' },
+];
+// each host binds the pattern's leaves and hands back the observable expression, so the two arms
+// differ only in what they read - `names` are the leaves the arm wants bound
+const ANCHOR_HOSTS = [
+  { id: 'decl', build: (lhs, recv, names) => `const { ${ lhs }: { ${ names } } } = ${ recv };` },
+  { id: 'assign', build: (lhs, recv, names) => `let ${ names }; ({ ${ lhs }: { ${ names } } } = ${ recv });` },
+  { id: 'param-default',
+    build: (lhs, recv, names) => `const [${ names }] = (function ({ ${ lhs }: { ${ names } } } = ${ recv })`
+      + ` { return [${ names }]; })();` },
+];
+function * generateAnchorKeySpelling() {
+  for (const key of ANCHOR_KEYS) {
+    for (const recv of ANCHOR_RECEIVERS) {
+      for (const host of ANCHOR_HOSTS) {
+        const setup = recv.setup ?? '';
+        const cell = `${ recv.id }/${ host.id }/${ key.id }`;
+        const present = `(() => { ${ setup } globalThis[${ key.slot }] = { from: Array.from, tag: "T" };`
+          + ` try { ${ host.build(key.lhs, recv.src, 'from, tag') } return [typeof from, tag]; }`
+          + ` finally { delete globalThis[${ key.slot }]; } })()`;
+        yield { ...snippet(`anchor-key-spelling/present/${ cell }`, present), strip: false };
+        const absent = `(() => { ${ setup } ${ host.build(key.lhs, recv.src, 'from') } return typeof from; })()`;
+        yield { ...snippet(`anchor-key-spelling/absent/${ cell }`, absent), strip: false };
+      }
+    }
+  }
+}
+
+// the INNER shape is the gate's other half and branches independently of host and receiver: an array
+// pattern drops every key class to the plain residual, and a bare binding splits them (a folded symbol
+// still extracts through the iterator-method helper, a constructor-shaped name no longer anchors). the
+// plain-object inner is the main cross-product's own cell and is not repeated here
+const ANCHOR_INNERS = [
+  { id: 'array-pattern', lhs: '[from]', value: '["A", "B"]', observe: 'from' },
+  { id: 'bare-binding', lhs: 'from', value: '{ tag: "T" }', observe: 'from && from.tag' },
+  { id: 'inner-rest',
+    lhs: '{ from, ...rest }', value: '{ from: Array.from, tag: "T" }',
+    observe: '[typeof from, rest.tag, "from" in rest]' },
+  // the rest arm routed through an `Object` static: that static declines exactly when its argument is
+  // provably non-primitive, so the cell also pins that a rest binding the emitter RELOCATED still
+  // answers "object" - reading it off the pruned host declarator instead re-injects the decline away
+  { id: 'inner-rest-static-arg',
+    lhs: '{ from, ...rest }', value: '{ from: Array.from, tag: "T" }',
+    observe: '[typeof from, Object.keys(rest).join()]' },
+  // a leaf that is an INSTANCE member of the extracted value: the plan binds the dispatcher result
+  // instead of destructuring, so the import set is the oracle - a full realm answers the same either
+  // way. the defaulted twin must NOT take that route, or the user default is dropped outright
+
+];
+function * generateAnchorInnerShape() {
+  for (const key of ANCHOR_KEYS) {
+    for (const inner of ANCHOR_INNERS) {
+      const present = `(() => { globalThis[${ key.slot }] = ${ inner.value };`
+        + ` try { const { ${ key.lhs }: ${ inner.lhs } } = globalThis; return ${ inner.observe }; }`
+        + ` finally { delete globalThis[${ key.slot }]; } })()`;
+      yield { ...snippet(`anchor-key-spelling/inner-present/${ inner.id }/${ key.id }`, present), strip: false };
+      const absent = `(() => { const { ${ key.lhs }: ${ inner.lhs } } = globalThis; return ${ inner.observe }; })()`;
+      yield { ...snippet(`anchor-key-spelling/inner-absent/${ inner.id }/${ key.id }`, absent), strip: false };
+    }
+  }
+}
+
 // --- Destructure ALIAS grammar (binding aliases the CONSTRUCTOR via element / value) ---
 // distinct from the member-extraction family above: `const [A] = [Array]` binds A to the Array
 // constructor itself (the array element), so the LATER static call resolves through A. covers the
@@ -5644,7 +5727,89 @@ function * generateSpreadArgumentIteration() {
     + ' const out = (() => Array)(bump()).from(["x"]); return out[0] + "|" + n; })()') };
 }
 
+// --- an index access whose KEY kind is unknown ---
+// a computed key that does not resolve may be any property key at runtime, so the value is the
+// union of every signature that could receive it. each row puts the runtime value in the family a
+// single-signature pick rules out - picking the string signature on a numeric key, or the number
+// one on a string key - and the mirrors keep the pair from passing on a constant answer. the type
+// rides on a PARAMETER annotation: given to a `const` with an object-literal init the resolver
+// reads the literal and never consults the signatures, which makes such a row say nothing. the
+// natives satisfy either family, so the rows carry the stripped realm
+function * generateIndexSignatureUnknownKey() {
+  function read(type, arg, key) {
+    return `(() => { function read(d: ${ type }, k: any) { return d[k].at(-1); }`
+      + ` return read(${ arg } as any, ${ key }); })()`;
+  }
+  // the two signatures DISAGREE, so no single one describes the access; the rows land on opposite
+  // families through the same declaration
+  const diverging = '{ [k: number]: number[]; [k: string]: string }';
+  yield { ...snippet('index-unknown-key/diverging-lands-array',
+    read(diverging, '{ 0: [1, 2] }', '0')), ts: true, strip: true };
+  yield { ...snippet('index-unknown-key/diverging-lands-string',
+    read(diverging, "{ s: 'abc' }", "'s'")), ts: true, strip: true };
+  // a SINGLE signature leaves no question about which applies, so the access still narrows
+  yield { ...snippet('index-unknown-key/single-signature',
+    read('{ [k: string]: number[] }', '{ s: [1, 2] }', "'s'")), ts: true, strip: true };
+  // a CONFORMING pair - the numeric value is assignable to the string one - collapses back to the
+  // string signature, so the union costs nothing where the declaration follows the rule
+  yield { ...snippet('index-unknown-key/conforming-pair',
+    read('{ [k: number]: number[]; [k: string]: number[] | string }', '{ 0: [1, 2] }', '0')),
+  ts: true, strip: true };
+}
+
+// --- a tagged template is a CALL, and its arguments decide the receiver ---
+// a tag runs as `tag(strings, ...interpolations)`, so the strings ARRAY occupies slot 0 and the
+// interpolations follow it. every row is arranged so the runtime value lands on the family a
+// mis-read of that argument list rules out: reading no arguments at all falls back to a declared
+// default, and reading the quasi as the string it is spelled like picks the wrong family for
+// slot 0. the full-env legs stay blind (both natives answer), so the rows carry the stripped realm
+/* eslint-disable no-template-curly-in-string -- snippets carry template-literal SOURCE as a string */
+function * generateTaggedTemplateCallArgs() {
+  // the generic parameter binds from the real interpolation; its declared default is the OTHER
+  // family, so a tag whose arguments are invisible resolves to the default and rules out the
+  // family the value actually has
+  for (const [id, dflt, interp] of [
+    ['generic-binds-string', 'number[]', "'abc'"],
+    ['generic-binds-array', 'string', '[1, 2]'],
+  ]) {
+    yield { ...snippet(`tagged-call-args/${ id }`,
+      `(() => { function tag<T = ${ dflt }>(s: TemplateStringsArray, v: T): T { return v; }`
+      + ` return tag\`x\${${ interp }}\`.at(-1); })()`), ts: true, strip: true };
+  }
+  // slot 0 IS the strings array, so a body reading that parameter reads an Array whatever the
+  // quasi looks like; the mirror reads an INTERPOLATION in the same shape, so the pair cannot pass
+  // on a blanket answer about either slot
+  yield { ...snippet('tagged-call-args/strings-param-is-array',
+    '(() => { function readStrings(s: readonly string[]) { return s.at(0); }'
+    + ' return readStrings`only`; })()'), ts: true, strip: true };
+  yield { ...snippet('tagged-call-args/interpolation-param-is-value',
+    '(() => { function readValue(s: TemplateStringsArray, v: string) { return v.at(-1); }'
+    + " return readValue`x${'abc'}`; })()"), ts: true, strip: true };
+  // an overload set reached through a tag: the arity the tag really supplies refutes one arm, and
+  // the two rows pick opposite arms so neither answer can be a constant
+  for (const [id, call] of [
+    ['overload-arity-three', 'pick`x${1}${2}`'],
+    ['overload-arity-one', 'pick`solo`'],
+  ]) {
+    yield { ...snippet(`tagged-call-args/${ id }`,
+      '(() => { function pick(s: TemplateStringsArray): string;'
+      + ' function pick(s: TemplateStringsArray, a: number, b: number): number[];'
+      + ' function pick(s: TemplateStringsArray, a?: number, b?: number) {'
+      + ' return a === undefined ? s[0] : [a, b]; }'
+      + ` return ${ call }.at(-1); })()`), ts: true, strip: true };
+  }
+  // a KNOWN static used as a tag: `returnsArgument` hands back the strings array, while a static
+  // with a declared string return hands back a string - same syntax, opposite families
+  yield { ...snippet('tagged-call-args/returns-argument-static',
+    '(() => Object.freeze`x`.at(0))()'), strip: true };
+  yield { ...snippet('tagged-call-args/string-raw-static',
+    '(() => String.raw`x`.at(0))()'), strip: true };
+}
+/* eslint-enable no-template-curly-in-string -- restore the rule after the tagged-template family */
+
 export function * generate() {
+  yield * generateIndexSignatureUnknownKey();
+  yield * generateTaggedTemplateCallArgs();
   yield * generateSpreadArgumentIteration();
   yield * generateDeclaredTypeOverResolve();
   yield * generateDeclarationNarrowRuntime();
@@ -5656,6 +5821,8 @@ export function * generate() {
   yield * generateTsLeadingThis();
   yield * generateNullableTruthyFold();
   yield * generateDestructure();
+  yield * generateAnchorKeySpelling();
+  yield * generateAnchorInnerShape();
   yield * generateDestructureAlias();
   yield * generateContainerSlots();
   yield * generateProxyAliasCells();

@@ -6,6 +6,7 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref2, _ref5, _ref7, _ref9, _ref11, _ref13, _ref14, _ref15, _ref16, _ref17;
@@ -32,9 +33,7 @@ const _ref3 = [4, 5],
     [_Symbol$iterator]: _unused2,
     second
   } = _ref3,
-  {
-    name: iterName
-  } = _getIteratorMethod(_ref3);
+  iterName = _nameMaybeFunction(_getIteratorMethod(_ref3));
 export const viaLiteralNoDefault = [iterName, second];
 
 // a plain instance leaf beside the pattern value shares the SAME memo ref across the eager

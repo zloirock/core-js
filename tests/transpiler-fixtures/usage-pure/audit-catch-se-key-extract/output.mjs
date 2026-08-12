@@ -7,6 +7,7 @@ import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-revers
 import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
 import _toSplicedMaybeArray from "@core-js/pure/actual/array/instance/to-spliced";
 import _withMaybeArray from "@core-js/pure/actual/array/instance/with";
+import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _at from "@core-js/pure/actual/instance/at";
 import _entries from "@core-js/pure/actual/instance/entries";
@@ -145,18 +146,14 @@ try {
 try {
   risky();
 } catch (_ref18) {
-  let {
-    name
-  } = _getIteratorMethod(_ref18);
+  let name = _nameMaybeFunction(_getIteratorMethod(_ref18));
   console.log(name);
 }
 // with a rest sibling the consumed symbol key keeps a sentinel so rest still excludes it
 try {
   risky();
 } catch (_ref19) {
-  let {
-    name
-  } = _getIteratorMethod(_ref19);
+  let name = _nameMaybeFunction(_getIteratorMethod(_ref19));
   let {
     [_Symbol$iterator]: _unused13,
     ...rest
