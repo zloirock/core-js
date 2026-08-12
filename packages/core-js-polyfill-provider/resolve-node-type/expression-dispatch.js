@@ -127,6 +127,11 @@ export function createExpressionDispatch({
       && !prototypeValueMayDispatch(path.node.arguments?.[0], !!getScopeBinding(path.scope, 'undefined', path))) {
       return new $Object('Object');
     }
+    // `import(...)` as a CallExpression with an `Import` callee is the babel@7 spelling and the only
+    // one that reaches here: babel@8 and the ESTree pipeline both emit `ImportExpression`, which the
+    // node-type switch below answers on its own. Live on that leg, so not dead - and never widen the
+    // predicate to `ImportExpression`, which is the whole call: it would type `import('x')(1)` as the
+    // promise instead of as the unmodelled value calling one yields
     if (t.isImport(callee.node)) return new $Object('Promise');
     return resolveCallReturnType(callee);
   }
