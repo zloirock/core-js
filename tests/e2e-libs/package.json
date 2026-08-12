@@ -2,11 +2,6 @@
   "name": "tests/e2e-libs",
   "type": "module",
   "private": true,
-  "zxi": {
-    "installExternalDirs": [
-      "../transpiler-integration"
-    ]
-  },
   "devDependencies": {
     "@babel/core": "^8.0.1",
     "@babel/preset-env": "^8.0.1",

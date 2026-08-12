@@ -48,7 +48,6 @@
     "test-e2e-libs-check-exercise": "npm run zxi time cd tests/e2e-libs/check-exercise.mjs",
     "e2e-libs-pipeline": "npm run zxi time cd tests/e2e-libs/pipeline.mjs",
     "test-e2e-libs-runtime": "npm run zxi time cd tests/e2e-libs/runtime.mjs",
-    "e2e-libs-throughput": "npm run zxi time cd tests/e2e-libs/throughput.mjs",
     "lint": "run-s prepare lint-raw",
     "lint-raw": "run-s build-types test-eslint bundle-package test-publint codespell",
     "test": "run-s prepare test-raw",
