@@ -3,6 +3,12 @@ import { canonicalArrayIndex, MAX_DEPTH } from '../resolve-node-type/base.js';
 
 // `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
+// an already-resolved NAME narrowed to the proxy-global surface, or null. the closing step of every
+// resolver that answers "which proxy global is this" - the chain-root walk, the branch walk and the
+// cycle guards all end here, so the narrow is asked in one place instead of once per resolver
+export function asProxyGlobalName(name) {
+  return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
+}
 // every constructor the engine provides. an `extends` naming one of these inherits ENGINE bodies:
 // they touch no user-declared field, unlike a base this module holds a binding for but cannot read
 export const KNOWN_GLOBAL_CONSTRUCTORS = new Set(Object.keys(knownBuiltInReturnTypes.constructors));
@@ -40,8 +46,9 @@ export function isRequireCall(expr) {
   let cur = unwrapRuntimeExpr(expr);
   if (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = unwrapRuntimeExpr(cur.object);
   if (cur?.type !== 'CallExpression' && cur?.type !== 'OptionalCallExpression') return false;
-  let callee = unwrapRuntimeExpr(cur.callee);
-  if (callee?.type === 'SequenceExpression') callee = unwrapRuntimeExpr(callee.expressions?.at(-1));
+  // the callee sequence descends to its tail, at any depth: a single peel recognised `(0, require)`
+  // but not `(a(), (b(), require))`, and an unrecognised entry call is not replaced at all
+  const callee = peelSequenceTail(unwrapRuntimeExpr(cur.callee), { step: unwrapRuntimeExpr });
   return callee?.type === 'Identifier' && callee.name === 'require';
 }
 
@@ -158,11 +165,12 @@ export function extractIndirectRequireSEPrefix(stmtNode) {
   // sequence (`unwrapParens` peels the tail of `0, (spy(), require)('core-js/...')` to the call).
   // descend that outer sequence the same way, collecting SE-ful prefix elements so `spy()` survives
   const prefix = [];
-  let expression = unwrapRuntimeExpr(stmtNode?.expression);
-  while (expression?.type === 'SequenceExpression') {
-    for (const e of expression.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
-    expression = unwrapRuntimeExpr(expression.expressions.at(-1));
-  }
+  const expression = peelSequenceTail(unwrapRuntimeExpr(stmtNode?.expression), {
+    step: unwrapRuntimeExpr,
+    onPrefix: expressions => {
+      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
+    },
+  });
   // babel models `(spy(), require)?.('core-js/...')` as an OptionalCallExpression; oxc wraps a
   // plain CallExpression in a ChainExpression that unwrapRuntimeExpr already strips. accept both
   // so the optional indirect-require recovers its prefix on either parser
@@ -170,10 +178,14 @@ export function extractIndirectRequireSEPrefix(stmtNode) {
   // the indirect-require callee is itself a `(spy(), require)` SequenceExpression - a TS-wrapped
   // `((spy(), require) as any)('core-js/...')` lands the SE behind a TSAsExpression, so peel the
   // same wrappers, then surface its SE-ful prefix elements (everything but the trailing `require`)
-  const callee = unwrapRuntimeExpr(expression.callee);
-  if (callee?.type === 'SequenceExpression' && callee.expressions.length >= 2) {
-    for (const e of callee.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
-  }
+  // every level of the callee sequence, not just the outermost: `(a(), (b(), require))('core-js/...')`
+  // discards both `a()` and `b()` with the statement
+  peelSequenceTail(unwrapRuntimeExpr(expression.callee), {
+    step: unwrapRuntimeExpr,
+    onPrefix: expressions => {
+      for (const e of expressions.slice(0, -1)) if (mayHaveSideEffects(e)) prefix.push(e);
+    },
+  });
   return prefix;
 }
 
@@ -3202,10 +3214,9 @@ export function canHoldBuiltIn(node) {
 // (`[(eff(), 'from')]`) resolves to that tail name ('from'); null otherwise. the member-access side
 // stops here: a member key is READ in place, so only the sequence form needs its prefix accounted for
 export function sequenceKeyStaticName(keyNode) {
-  let node = unwrapParens(keyNode);
+  const node = unwrapParens(keyNode);
   if (node?.type !== 'SequenceExpression') return null;
-  while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
-  return staticStringKey(node);
+  return staticStringKey(peelSequenceTail(node, { step: unwrapParens }));
 }
 
 // the static NAME a COMPUTED key resolves to, mirroring the shapes `resolveKey` folds structurally:
@@ -3217,8 +3228,7 @@ export function sequenceKeyStaticName(keyNode) {
 // its binding) are deliberately not mirrored - the gates accept `[k]` structurally and check its
 // binding separately, where the pattern is rendered rather than where the plan resolved it
 export function computedKeyStaticName(keyNode) {
-  let node = unwrapParens(keyNode);
-  while (node?.type === 'SequenceExpression') node = unwrapParens(node.expressions.at(-1));
+  const node = peelSequenceTail(unwrapParens(keyNode), { step: unwrapParens });
   if (node?.type === 'BinaryExpression' && node.operator === '+') {
     const left = computedKeyStaticName(node.left);
     const right = left === null ? null : computedKeyStaticName(node.right);
@@ -4190,11 +4200,12 @@ function isUpdateOperandWrapper(node) {
 // `unwrapSequenceTail` (synth-swap replaces only the inner Identifier, prefix stays in the
 // AST so `logCall()` side-effects in `(logCall(), Array)` still run). alternates the two
 // peel layers until stable so mixed shapes `cond ? ((0, Array) as any) : ...` reach the leaf
+// the `visited` set spans BOTH loops, so the alternation between them is guarded as a whole
 export function peelFallbackBranchInner(node) {
+  const visited = new Set();
   for (let prev; node !== prev;) {
     prev = node;
-    node = unwrapRuntimeExpr(node);
-    while (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
+    node = peelSequenceTail(unwrapRuntimeExpr(node), { visited });
   }
   return node;
 }
@@ -4212,6 +4223,23 @@ export function peelTransparentExprAncestorPath(path) {
     cur = cur.parentPath;
   }
   return cur;
+}
+
+// climb `parentPath` yielding `[parentPath, childPath]` for each step, up to the AST root. the
+// canonical ancestor climb for consumers whose walk length is the SOURCE's nesting depth: a legal
+// pattern nests as deep as the source says, so a fixed hop budget answers a deep-but-valid tree
+// exactly as it answers an invalid one - and the budget was spelled per site with opposite failure
+// modes (a silent `false` losing a polyfill at one, a build abort on legal code at the other).
+// termination is structural instead: the climb ends at the root, and the visited set covers the only
+// way a parent chain can run forever - a cyclic tree from a foreign plugin - by ending the climb so
+// the consumer answers with its own bail
+export function * ancestorPathSteps(path) {
+  const visited = new Set();
+  for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
+    if (visited.has(cur.node)) return;
+    visited.add(cur.node);
+    yield [cur.parentPath, cur];
+  }
 }
 
 // deep peel for fallback receivers: chain-assignment (`foo = bar = (cond ? A : B)`) +
@@ -4236,13 +4264,7 @@ export function peelFallbackReceiver(node) {
       visited.add(node.right);
       node = node.right;
     }
-    node = unwrapRuntimeExpr(node);
-    while (node?.type === 'SequenceExpression') {
-      const tail = node.expressions.at(-1);
-      if (visited.has(tail)) return node;
-      visited.add(tail);
-      node = tail;
-    }
+    node = peelSequenceTail(unwrapRuntimeExpr(node), { visited });
     // outer loop's top adds `node` to `visited` at the next iteration and bails on
     // re-entry; don't pre-add `iifeInner` here or we short-circuit before iterating through
     // a legitimate nested-IIFE peel chain (`(() => (() => expr)())()` -> outer peeled to
@@ -4394,10 +4416,7 @@ export function peelZeroArgIifeReturn(node) {
   // stops at SE; `(0, () => Array)()` (comma-sequence prefix on the callee) is a common
   // wrapper shape that should still recognise as IIFE. mirror `peelIifeCallee` which
   // already accepts SE-prefixed callees for the IIFE-identity gate
-  let callee = unwrapRuntimeExpr(node.callee);
-  while (callee?.type === 'SequenceExpression' && callee.expressions?.length) {
-    callee = unwrapRuntimeExpr(callee.expressions.at(-1));
-  }
+  const callee = peelSequenceTail(unwrapRuntimeExpr(node.callee), { step: unwrapRuntimeExpr });
   if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return null;
   if (callee.async || callee.generator) return null;
   const args = node.arguments ?? [];
@@ -4434,11 +4453,12 @@ export function peelZeroArgIifeReturn(node) {
 export function zeroArgIifeSideEffectFree(node) {
   if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return false;
   if (!(node.arguments ?? []).every(exprSideEffectFree)) return false;
-  let callee = unwrapRuntimeExpr(node.callee);
-  while (callee?.type === 'SequenceExpression' && callee.expressions?.length) {
-    if (!callee.expressions.slice(0, -1).every(exprSideEffectFree)) return false;
-    callee = unwrapRuntimeExpr(callee.expressions.at(-1));
-  }
+  // an effectful prefix refuses the descent, and the sequence node it stops on fails the callee
+  // type check below - the same `false` the hand-written loop returned from inside itself
+  const callee = peelSequenceTail(unwrapRuntimeExpr(node.callee), {
+    step: unwrapRuntimeExpr,
+    onPrefix: expressions => expressions.slice(0, -1).every(exprSideEffectFree),
+  });
   if (callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression') return false;
   const { body } = callee;
   if (body?.type !== 'BlockStatement') return exprSideEffectFree(body);
@@ -4623,16 +4643,38 @@ function patternBindsIdentifier(pattern, predicate) {
 // parens + TS expression wrappers (`as` / `satisfies` / `!` / chain) so SE through casts
 // (`(logCall(), R) as any`) lifts the same as bare SE - otherwise the prefix gets dropped
 // when the declarator is flattened. returns `{ prefix: Node[], tail: Node }`
+// descend a comma-sequence to the value it evaluates to - its TAIL, repeatedly. the one spelling of
+// that descent: it used to be hand-written at a dozen sites that agreed on the walk and disagreed on
+// everything around it (whether an empty sequence bails or dereferences `undefined`, whether the step
+// re-unwraps, and whether a self-referential tail spins forever - only two of them carried the guard).
+// `step` is the per-hop unwrap the caller needs on the tail (runtime wrappers / parens / its own
+// transparent peel); `onPrefix` sees the whole expression list of each hop and returning `false` from
+// it stops the descent on the current node, which is how a caller that must REFUSE an effectful prefix
+// reports it. `visited` is accepted so a caller whose outer loop alternates with this one guards the
+// whole alternation with a single set
+export function peelSequenceTail(node, { step = null, onPrefix = null, visited = new Set() } = {}) {
+  while (node?.type === 'SequenceExpression' && node.expressions.length) {
+    if (onPrefix && onPrefix(node.expressions) === false) return node;
+    const tail = node.expressions.at(-1);
+    if (visited.has(tail)) return node;
+    visited.add(tail);
+    node = step ? step(tail) : tail;
+  }
+  return node;
+}
+
 export function peelNestedSequenceExpressions(node) {
   const prefix = [];
-  let cursor = node;
-  while (cursor) {
-    cursor = unwrapRuntimeExpr(cursor);
-    if (cursor?.type !== 'SequenceExpression' || cursor.expressions.length < 2) break;
-    for (const e of cursor.expressions.slice(0, -1)) prefix.push(e);
-    cursor = cursor.expressions.at(-1);
-  }
-  return { prefix, tail: cursor };
+  // a single-element sequence carries no prefix to harvest, so the descent stops ON it rather
+  // than stepping through - the caller's `tail` stays that node, as it did before the canon
+  const tail = peelSequenceTail(unwrapRuntimeExpr(node), {
+    step: unwrapRuntimeExpr,
+    onPrefix(expressions) {
+      if (expressions.length < 2) return false;
+      for (const e of expressions.slice(0, -1)) prefix.push(e);
+    },
+  });
+  return { prefix, tail };
 }
 
 // `(fn, R)` IIFE arg or default-RHS evaluates to its tail. peel SE prefixes recursively
@@ -4649,13 +4691,7 @@ export function peelNestedSequenceExpressions(node) {
 // (caller's arg should win, default fires only when caller passes `undefined` - that's
 // where the polyfill belongs). shared between babel-plugin and unplugin synth-swap
 export function unwrapSafeSequenceTail(node) {
-  for (;;) {
-    node = unwrapRuntimeExpr(node);
-    if (node?.type !== 'SequenceExpression') return node;
-    const tail = node.expressions.at(-1);
-    if (!tail) return node;
-    node = tail;
-  }
+  return peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr });
 }
 
 // true when the path's enclosing context is an UpdateExpression, after peeling transparent
@@ -4694,23 +4730,22 @@ function isForXHeadAssignTarget(path) {
 // serves the emitters' write-position policy split: usage-global treats the leaf as a USAGE
 // (the slot must exist or the strict-mode write ReferenceErrors on engines missing the
 // global - same rescue as the flat form), usage-pure treats it as a write target
+function isPatternTargetSlot(pn, cn) {
+  if (pn.type === 'ArrayPattern') return pn.elements?.includes(cn);
+  if (pn.type === 'RestElement' || pn.type === 'SpreadElement') return pn.argument === cn;
+  if (pn.type === 'ObjectProperty' || pn.type === 'Property') return pn.value === cn;
+  if (pn.type === 'ObjectPattern') return pn.properties?.includes(cn);
+  return pn.type === 'AssignmentPattern' && pn.left === cn;
+}
+
 export function bareAssignmentPatternLeafPath(path) {
-  let cur = peelTransparentExprAncestorPath(path);
-  let parent = cur?.parentPath;
   let hops = 0;
-  function isTargetSlot(pn, cn) {
-    if (pn.type === 'ArrayPattern') return pn.elements?.includes(cn);
-    if (pn.type === 'RestElement' || pn.type === 'SpreadElement') return pn.argument === cn;
-    if (pn.type === 'ObjectProperty' || pn.type === 'Property') return pn.value === cn;
-    if (pn.type === 'ObjectPattern') return pn.properties?.includes(cn);
-    return pn.type === 'AssignmentPattern' && pn.left === cn;
-  }
-  while (parent?.node && hops++ < 32) {
-    if (isTargetSlot(parent.node, cur.node)) {
-      cur = parent;
-      parent = cur.parentPath;
-      continue;
-    }
+  for (const [parent, cur] of ancestorPathSteps(peelTransparentExprAncestorPath(path))) {
+    if (!parent.node) break;
+    hops++;
+    if (isPatternTargetSlot(parent.node, cur.node)) continue;
+    // the FIRST hop out of the leaf must be a pattern slot - anything else means the identifier
+    // never sat in a pattern at all
     if (hops === 1) return false;
     if (parent.node.type === 'AssignmentExpression') return parent.node.left === cur.node;
     return FOR_X_STATEMENT_TYPES.has(parent.node.type) && parent.node.left === cur.node;
@@ -4748,50 +4783,21 @@ const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
 // true when ObjectPattern at `path` sits at function-parameter position. walks up through
 // AssignmentPattern.left / ArrayPattern / RestElement.argument / ObjectProperty.value /
 // ObjectPattern.properties wrappers until a function-like owner appears or a non-wrapper
-// breaks the chain. realistic nesting < 8 hops; depth cap of 32 surfaces AST cycles loudly
+// breaks the chain. realistic nesting < 8 hops, but generated code goes deeper and the depth is
+// the SOURCE's - the shared climb ends on the tree, not on a budget
 export function isFunctionParamDestructureParent(path) {
   if (!path) return false;
-  let prev = path.node;
-  let parent = path.parentPath;
-  let depth = 0;
-  while (parent) {
-    if (depth++ >= 32) {
-      throw new Error('[core-js] isFunctionParamDestructureParent: pattern nesting exceeds 32 levels - likely an AST cycle');
-    }
+  for (const [parent, cur] of ancestorPathSteps(path)) {
     const { node } = parent;
     if (!node) return false;
     if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(node.type)) return true;
-    switch (node.type) {
-      case 'AssignmentPattern':
-        // bail when ObjectPattern sits on AssignmentPattern.right (`{x: ({y}=Z)} = src`) -
-        // that's a default value, not a param destructure; only `.left` is param shape
-        if (node.left !== prev) return false;
-        break;
-      case 'RestElement':
-        // RestElement transparent wrapper: `[a, ...{x}]` (rest target is destructured).
-        // bail when ObjectPattern sits anywhere other than `.argument` slot
-        if (node.argument !== prev) return false;
-        break;
-      case 'ObjectProperty':
-      case 'Property':
-        // ObjectProperty.value is a destructure target slot: `function({a: {x} = R})` carries
-        // the inner `{x}` (or `{x} = R` AssignmentPattern wrap) on `.value`. bail on `.key`
-        // (`{[k]: x}` computed-key with destructure pattern as the key node would mean the
-        // key itself is a parameter shape, which isn't valid TS / ESLint shape)
-        if (node.value !== prev) return false;
-        break;
-      case 'ObjectPattern':
-        // ObjectPattern wraps Property children: `function({a: {x}})` chain bottom-up reaches
-        // outer ObjectPattern after walking through inner Property. continue only when prev
-        // sits in `.properties` (transparent wrapper); ObjectPattern in any other slot would
-        // mean we're nested inside a non-destructure context (e.g. wrapper around a key)
-        if (!node.properties?.includes(prev)) return false;
-        break;
-      case 'ArrayPattern': break;
-      default: return false;
-    }
-    prev = node;
-    parent = parent.parentPath;
+    // a wrapper stays transparent only while the node we came from fills its TARGET slot - the
+    // same membership the assignment-position climb asks, so the two spell it once. what the
+    // slot test rejects here: `AssignmentPattern.right` (`{x: ({y}=Z)} = src` is a default value,
+    // not param shape), a RestElement slot other than `.argument`, an ObjectProperty `.key`
+    // (`{[k]: x}` with a pattern as the key is not a parameter shape), and an ObjectPattern
+    // reached from anywhere but `.properties`
+    if (!isPatternTargetSlot(node, cur.node)) return false;
   }
   return false;
 }
