@@ -182,7 +182,7 @@ You can run parts of the test case separately:
   npm run test-unplugin                 # unplugin shared transpiler fixtures
   npm run test-unplugin-unit            # unplugin internals (unit)
   npm run test-e2e-usage-pure           # end-to-end usage-pure bundles in NodeJS (builds them first; Karma leg is separate)
-  npm run test-transpiler-differential  # generated corpus: 3-way native == babel == unplugin + import-set parity + stripped-realm oracle
+  npm run test-transpiler-differential  # generated corpus: 3-way native == babel == unplugin + import-set parity + stripped-realm oracle; scope it with `pure` and/or `babel` / `unplugin`
   npm run test-transpiler-integration   # every supported bundler across methods and phases, runtime-verified
   npm run test-transpiler-perf          # complexity-class gates over real packages and synthetic worst-case shapes
   ```
