@@ -15,7 +15,7 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import {
   makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder,
-  assertES5, assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, HERE,
+  assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, UMD_OUTPUT, HERE,
 } from './build.mjs';
 import { librariesMatching } from './libraries.mjs';
 
@@ -27,13 +27,11 @@ if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' '
 const libs = librariesMatching(libFilter);
 if (methodFilter && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
 
-const UMD = { format: 'umd', name: 'E2E', esModule: false };
-
 async function timedBuild(entry, plugins, label = 'stage') {
   const t0 = process.hrtime.bigint();
   const build = await rollup({ input: entry, plugins, onwarn: strictWarn });
   try {
-    const { output } = await build.generate(UMD);
+    const { output } = await build.generate(UMD_OUTPUT);
     const [chunk] = output;
     const ms = Number(process.hrtime.bigint() - t0) / 1e6;
     // shared by every stage and by runtimeBuild: nothing this report measures - least of all [C],
@@ -53,7 +51,12 @@ async function timedBuild(entry, plugins, label = 'stage') {
 // intervals - the clock runs from idle -> in-flight until the last in-flight call settles - which is a
 // window in which the hook was active, not a partition of the build.
 function timeTransform(plugin, add) {
-  const hook = plugin.transform;
+  // `pre+post` hands back an ARRAY of sub-plugins, which rollup flattens - and a plugin with no
+  // transform hook has nothing to time. Neither shape may be indexed into blindly, or a phase this
+  // report does not measure today would fail on a property of `undefined`.
+  if (Array.isArray(plugin)) return plugin.map(sub => timeTransform(sub, add));
+  const hook = plugin?.transform;
+  if (!hook) return plugin;
   const orig = typeof hook === 'function' ? hook : hook.handler;
   let inFlight = 0;
   let since = 0n;
@@ -126,9 +129,9 @@ async function measure(lib, method) {
     // runtime.mjs refuses this shape for EVERY method, so this must too - an entry-global carve-out
     // would be both weaker than it is there and pointless, since entry-global injects the most of all.
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
-    // [B] == [A] with babelBusyMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
-    // premise directly instead of inferring it from the numbers
-    assertES5(c.code, cellC);
+    // [B] == [A] with babelBusyMs ~ 0 is the silent shape of a Babel stage that did nothing, so the
+    // ES5 premise is asserted directly rather than inferred from the numbers - `wireSize` parses
+    // exactly what it is about to measure, which is this stage's output.
     const { min, gz } = await wireSize(c.code, cellC);
     cell.C = {
       bytes: c.bytes, ms: +c.ms.toFixed(0), babelBusyMs: +babelBusyMs.toFixed(0), unpluginBusyMs: +unpluginBusyMs.toFixed(0),
@@ -139,7 +142,8 @@ async function measure(lib, method) {
 }
 
 // Warm the toolchain first: the one-off cost of loading rollup, Babel and unplugin would otherwise
-// land entirely on whichever cell ran first and make the cross-library [C] column incomparable.
+// land entirely on whichever cell ran first and make the cross-library [C] column incomparable. Which
+// library it warms with does not matter - what is being warmed is the toolchain, not a module graph.
 process.stdout.write('warming the toolchain ... ');
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
   entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
@@ -169,7 +173,8 @@ const scope = libFilter || methodFilter
   : `Full matrix: ${ rows.length } cell(s)`;
 let md = '# Pipeline: size and time per stage\n\n'
   + `${ scope }. `
-  + 'Rollup + Babel (syntax down-compile) + unplugin, single run. '
+  + 'Rollup + Babel (syntax down-compile) + unplugin, single run. The usage-* cells are measured at '
+  + 'the `post` phase, the one the runtime tier gates on; `entry-global` carries no phase at all. '
   + 'Stages: **[A]** library with no down-compile '
   + '(modern, tree-shaken; a TypeScript-source library has its types erased here and nothing else, '
   + 'since rollup cannot parse `.ts` at all - erasure is not a down-compile, so the whole cost of the '

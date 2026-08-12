@@ -5,7 +5,7 @@
 // what gates and what only informs - is in AGENTS.md rather than repeated here.
 //
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
-import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { runtimeBuild, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
 import { fileURLToPath } from 'node:url';
@@ -72,7 +72,12 @@ async function snapshot(file, lines, origins) {
     // a delta can legitimately be EMPTY (the phase agrees with the reference exactly). The file is
     // still written, so "agrees" is a recorded state rather than an absent one - otherwise a
     // vanished baseline and a perfect match would look identical on the next run.
-    await writeFile(file, lines.length ? `${ lines.join('\n') }\n` : '');
+    const content = lines.length ? `${ lines.join('\n') }\n` : '';
+    // write and report only what actually moved, as `tests/unplugin` and `tests/babel-plugin` do:
+    // an OVERWRITE sweep across forty cells otherwise says "updated" forty times and buries the
+    // handful of lines that are the reason it was run
+    if (base && `${ base.join('\n') }\n`.trim() === content.trim()) return 'ok';
+    await writeFile(file, content);
     echo(`    snapshot ${ base ? 'updated' : 'created' } (${ lines.length })`);
     return 'updated';
   }
@@ -89,14 +94,17 @@ async function snapshot(file, lines, origins) {
   if (!added.length && !removed.length) return 'ok';
   // quoted because a delta line carries its own leading `-`/`+`, which would otherwise read as part
   // of the drift marker: `+ -core-js/modules/web.self` is two signs meaning different things
-  for (const s of added) {
-    echo(`    + "${ s }"  (new)`);
-    // a specifier can land in several modules; all of them are candidates for the changed decision.
-    // strip a delta sign before the lookup - `origins` is keyed by the bare specifier
+  // Both directions get their origins looked up, because in a DELTA file both can mean "injected":
+  // a vanished `-spec` says this phase started injecting what the reference does, and that site is
+  // exactly the question. A specifier can land in several modules; all of them are candidates for
+  // the decision that changed. Strip the delta sign first - `origins` is keyed by the bare specifier,
+  // and a line that this build did not inject simply has none.
+  function withOrigins(mark, s) {
+    echo(`    ${ mark } "${ s }"`);
     for (const where of origins.get(s.replace(/^[+-]/, '')) ?? []) echo(`        injected into ${ where }`);
   }
-  // no origins for a removed one - by definition this build never injected it
-  for (const s of removed) echo(`    - "${ s }"  (gone)`);
+  for (const s of added) withOrigins('+', s);
+  for (const s of removed) withOrigins('-', s);
   return 'drift';
 }
 
@@ -269,10 +277,8 @@ for (const { lib, method, provider, phase } of cells) {
     const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase, provider);
     // the build alone - everything below this line is deliberately outside the measurement
     const buildMs = Number(process.hrtime.bigint() - t0) / 1e6;
-    // runtimeBuild asserts payload / no-externals. The ES5 down-compile is the caller's to assert and
-    // is the whole premise of an IE11 bundle: the pre-flight runs in a modern node realm and the
-    // browser page in a modern browser, so nothing else here would notice a skipped down-compile.
-    assertES5(code, label);
+    // payload, no-externals and the ES5 parse are runtimeBuild's own gates now. What is this
+    // runner's to say is that a build which injected NOTHING has verified nothing.
     if (!injected.length) throw new Error(`${ provider } injected 0 polyfills`);
 
     const isReference = provider === 'babel-plugin';
@@ -334,7 +340,7 @@ for (const { lib, method, provider, phase } of cells) {
       + `(${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz, built in ${ buildMs.toFixed(0) }ms)`);
     for (const c of bad) echo(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
     manifest.push({
-      lib: lib.name, provider, method, phase: phase ?? null, dir: rel, bytes, min, gz,
+      lib: lib.name, provider, method, phase: phase ?? null, label, dir: rel, bytes, min, gz,
       // diagnostic, not comparable across cells - see the header
       buildMs: +buildMs.toFixed(0),
       injections: injected.length,
@@ -347,23 +353,25 @@ for (const { lib, method, provider, phase } of cells) {
     if (provider === 'babel-plugin') failedReferences.add(refKey(lib, method));
     const reason = errorReason(err);
     echo(`FAIL ${ label }: ${ reason }`);
-    manifest.push({ lib: lib.name, provider, method, phase: phase ?? null, error: reason });
+    manifest.push({ lib: lib.name, provider, method, phase: phase ?? null, label, error: reason });
   }
 }
 
 if (!manifest.length) throw new Error('no cells ran - the registry or METHODS is empty');
 
 await mkdir(ART, { recursive: true });
-// `previous` was read before the wipe above - a filtered run keeps the entries of the libraries it
-// did not touch, whose pages are still on disk
-await writeFile(MANIFEST, `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
-echo(`\nartifacts -> ${ ART }\nmanifest -> ${ MANIFEST }`);
+echo(`\nartifacts -> ${ ART }`);
 echo('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.');
 
 // -------- real IE11, where one exists --------
 
 // Only start Karma where IE11 actually exists: the windows CI runner (CI set) or a dev box with
 // iexplore. Elsewhere every gate above has already run; the browser run is the CI-only part.
+//
+// What that leg made of each cell, keyed by label. The manifest is written AFTER this section for
+// exactly this reason: the leg that decides the real floor has to be in the artifact, not absent
+// from it because the file was already on disk when the browser started.
+const karmaOutcome = new Map();
 if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
   echo(`\n${ karmaFiles.length } bundle(s) also written to ${ KARMA_OUT }. IE11 not present and not CI - skipping Karma.`);
 } else {
@@ -372,7 +380,7 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
   echo('page holds a single library copy. post + pre+post (and entry-global) GATE the job; the `pre` phase is');
   echo('a NON-GATING per-library diagnostic (pre runs unplugin before Babel, so it can miss Babel-helper');
   echo('polyfills - expected to fail for some libraries, which is the signal we want, not a job failure).');
-  echo('Per-cell counts print as "[e2e-libs] <lib>/<method>/<phase>: N/N checks passed".');
+  echo('Per-cell counts print as "[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed".');
   for (const { file, label, gating } of karmaFiles) {
     echo(`\n-- IE11: ${ label }${ gating ? '' : ' [pre diagnostic, non-gating]' } --`);
     // both paths stay relative to the suite directory and forward-slashed: this leg runs on windows,
@@ -381,6 +389,7 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
     // one IE11 page at a time, on purpose (see header) - sequential await is intended here
     const bundle = relative(HERE, file).replaceAll('\\', '/');
     const { exitCode } = await $({ cwd: HERE, nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
+    karmaOutcome.set(label, exitCode === 0 ? 'passed' : gating ? 'failed' : 'diagnostic-failed');
     if (exitCode === 0) continue;
     // named on both branches: Karma prints its own failure above, but the tally at the end of a
     // forty-cell log has to be traceable to the cells that produced it
@@ -390,6 +399,12 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
     } else echo(`  pre diagnostic ${ label }: Karma exit ${ exitCode } - an expected-possible pre failure; not gating`);
   }
 }
+
+for (const entry of manifest) entry.karma = karmaOutcome.get(entry.label) ?? 'not run';
+// `previous` was read before the wipe above - a filtered run keeps the entries of the libraries it
+// did not touch, whose pages are still on disk
+await writeFile(MANIFEST, `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
+echo(`\nmanifest -> ${ MANIFEST }`);
 
 // A baseline with no cell behind it - a library dropped from the registry, a phase renamed - is
 // invisible to everything above: nothing reads it, so nothing notices, and it sits in git looking

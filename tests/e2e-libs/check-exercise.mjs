@@ -4,7 +4,7 @@
 // concern is real for runtime.mjs, which is why its pre-flight forks a child per bundle).
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
-import { libraries } from './libraries.mjs';
+import { librariesMatching } from './libraries.mjs';
 import { pathToFileURL } from 'node:url';
 
 const { basename, isAbsolute, join } = path;
@@ -12,9 +12,12 @@ const { basename, isAbsolute, join } = path;
 const HERE = import.meta.dirname;
 const [arg, ...surplus] = argv._;
 if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - check-exercise.mjs takes one optional target`);
-const targets = arg
-  ? [isAbsolute(arg) ? arg : join(HERE, arg.includes('/') ? arg : `exercises/${ arg }.mjs`)]
-  : libraries.map(l => l.exercise);
+// A PATH is taken as given - that is the form for running an exercise that is not in the registry
+// yet. Anything else goes through `librariesMatching`, which fails loudly on a name it does not know
+// and on an empty registry, so this runner cannot report `0 checks, 0 failing` and exit green.
+const targets = arg && (isAbsolute(arg) || arg.includes('/'))
+  ? [isAbsolute(arg) ? arg : join(HERE, arg)]
+  : librariesMatching(arg).map(l => l.exercise);
 
 // every failure mode names the exercise: destructuring a malformed result would otherwise throw a bare
 // "Cannot read properties of undefined" with nothing to say whose it was
