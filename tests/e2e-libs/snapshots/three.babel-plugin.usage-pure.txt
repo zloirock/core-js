@@ -12,7 +12,6 @@
 @core-js/pure/full/array/instance/splice
 @core-js/pure/full/function/instance/name
 @core-js/pure/full/get-iterator-method
-@core-js/pure/full/global-this
 @core-js/pure/full/instance/for-each
 @core-js/pure/full/instance/includes
 @core-js/pure/full/instance/keys
