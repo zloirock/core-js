@@ -4,13 +4,12 @@
 // hit re-validates both and falls back to a fresh traverse instead of returning the stale path
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import * as nodePath from 'node:path';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 import { freshPathOfNode } from '../../packages/core-js-babel-plugin/internals/detect-usage.js';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
-  ? createRequire(pathToFileURL(`${ nodePath.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { parseAsync, traverse, types: t } = requireBabel('@babel/core');
 
