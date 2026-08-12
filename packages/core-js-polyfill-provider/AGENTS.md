@@ -61,11 +61,10 @@ The feature definitions themselves are not here - they come from `@core-js/compa
 
 ## Tests
 
-`npm run test-polyfill-provider` runs every suite in `tests/polyfill-provider/` - the resolvers, the detectors, the helpers, the option layer, cross-parser equivalence and the escape-analysis domains - and the plugin fixtures cover what the emitters print. Neither is enough on its own: babel-vs-unplugin parity is blind to a regression that sits here and shifts both emitters the same way, and fixtures happily lock a wrong decision as long as both renderers agree on it.
+The edit loop, in order, scoped to what the change touches:
 
-The oracles that do not share that blind spot:
+- `npm run test-polyfill-provider` - every suite in `tests/polyfill-provider/`: the resolvers, the detectors, the helpers, the option layer, cross-parser equivalence and the escape-analysis domains
+- `npm run test-transpiler-differential pure` - a generated corpus through native and both emitters, comparing runtime results and import sets; `pure` skips the slow usage-global leg and fits while that path is untouched. Once the change reaches it - common here, usage-global detection and injection are decided in this package - the loop needs the argument-less run, every leg on. The single-emitter arguments (`babel` / `unplugin`) fit emitter-local work, not this package: a provider change shifts BOTH emitters, which is exactly what a single-emitter run cannot see
+- `npm run test-e2e-usage-pure` - executes the transformed code, in both emitters' bundles and in realms with the native built-ins stripped, so a polyfill that was never injected fails instead of silently passing on a native
 
-- `npm run test-e2e-usage-pure` executes the transformed code, in both emitters' bundles and in realms with the native built-ins stripped, so a polyfill that was never injected fails instead of silently passing on a native
-- `npm run test-transpiler-differential` runs a generated corpus through native and both emitters, comparing runtime results and import sets
-
-A change to the provider contract is verified with the composite `npm run test-transpiling`, which runs those together with every plugin runner.
+The provider suite alone is not enough, and neither are the plugin fixtures covering what the emitters print: babel-vs-unplugin parity is blind to a regression that sits here and shifts both emitters the same way, and fixtures happily lock a wrong decision as long as both renderers agree on it - the differential and e2e above are the oracles without that blind spot. One full `npm run test-transpiling` is the finish line - a VERY heavy run that composes every suite named here plus every plugin runner: run it once, right before the work is handed off, never mid-loop, and never with a member on the same invocation line.
