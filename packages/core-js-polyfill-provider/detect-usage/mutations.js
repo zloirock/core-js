@@ -27,6 +27,7 @@ import {
   memberKeyName,
   mutatedStaticKey,
   patternSlotValues,
+  peelSequenceTail,
   POSSIBLE_GLOBAL_OBJECTS,
   propertyKeyName,
   reassignmentValueNodes,
@@ -156,11 +157,7 @@ function collectGateRoots(node, out, firstKey = null, hops = 0, depth = 0) {
 // peel runtime wrappers + comma-sequence tail off a node so `(0, Object)` / `(eff(), Reflect)`
 // reach the bare identifier
 function peelToBareExpr(node) {
-  let cur = unwrapRuntimeExpr(node);
-  while (cur?.type === 'SequenceExpression' && cur.expressions.length) {
-    cur = unwrapRuntimeExpr(cur.expressions.at(-1));
-  }
-  return cur;
+  return peelSequenceTail(unwrapRuntimeExpr(node), { step: unwrapRuntimeExpr });
 }
 
 // the namespace NAME of a mutator callee (`Object` / `Reflect`) through the ONE read-side canon
@@ -1261,10 +1258,7 @@ function memberChainParts(node, ctx) {
     const key = mutationKeyName(root.property, root.computed, ctx);
     if (typeof key !== 'string') keys = null;
     else keys?.unshift(key);
-    root = unwrapRuntimeExpr(root.object);
-    while (root?.type === 'SequenceExpression' && root.expressions.length) {
-      root = unwrapRuntimeExpr(root.expressions.at(-1));
-    }
+    root = peelSequenceTail(unwrapRuntimeExpr(root.object), { step: unwrapRuntimeExpr });
   }
   return root ? { rootNode: root, keys } : null;
 }

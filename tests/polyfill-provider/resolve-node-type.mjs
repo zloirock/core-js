@@ -116,6 +116,7 @@ import {
   mayHaveSideEffects,
   reEvaluationObservable,
   objectPatternPropNeedsReceiverRewrite,
+  peelFallbackBranchInner,
   peelFallbackReceiver,
   peelNestedSequenceExpressions,
   isCleanDestructureAliasBinding,
@@ -150,6 +151,7 @@ import {
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   markSynthReceiverSkipped,
+  proxyGlobalRootName,
   remapInheritedStaticMeta,
   resolveSuperImportName,
   symbolKeyToEntry,
@@ -5525,6 +5527,16 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   check('ast-patterns: peelFallbackReceiver peels SE-with-side-effects to tail',
     peelFallbackReceiver(seWithCall)?.type, 'ConditionalExpression');
+
+  // the per-branch peel reaches the same leaf through the same wrappers
+  check('ast-patterns: peelFallbackBranchInner paren+TS+SE',
+    peelFallbackBranchInner(wrappedCond)?.type, 'ConditionalExpression');
+  // a SELF-REFERENTIAL SE tail (only a foreign plugin's synthetic tree can build one) terminates
+  // on the visited set - the deep peel already carried this guard, the per-branch one spun forever
+  const cyclicSE = { type: 'SequenceExpression', expressions: [{ type: 'NumericLiteral', value: 0 }] };
+  cyclicSE.expressions.push(cyclicSE);
+  check('ast-patterns: peelFallbackBranchInner cyclic SE tail terminates',
+    peelFallbackBranchInner(cyclicSE)?.type, 'SequenceExpression');
 }
 
 // --- ast-patterns: member-write contexts + tag predicates ---
@@ -6835,6 +6847,53 @@ runBoth('the subclass own namespace export outranks the parent one',
   };
   check('class-walk: globalProxyMemberName direct',
     globalProxyMemberName({ node: directProxy }), 'Map');
+
+  // the adapter-hop cycle guard keeps IN-FLIGHT names in module state, so its release matters as
+  // much as its capture: a name left occupied silently downgrades every later resolution of it to
+  // the node-only answer. no corpus input can reach that - only these assertions can
+  {
+    const gt = { type: 'Identifier', name: 'globalThis' };
+    const guardScope = { id: 'guard-scope' };
+    function stubAdapter(getBinding) {
+      return { method: 'usage-pure', packages: ['core-js'], hasBinding: () => false, getBinding };
+    }
+    function clean() {
+      return stubAdapter(() => null);
+    }
+
+    // a throw INSIDE the adapter lookup must still release the name
+    try {
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: stubAdapter(() => { throw new Error('probe'); }), path: null });
+    } catch { /* the throw is the point; the release is what is asserted next */ }
+    check('class-walk: in-flight guard releases after an adapter throw',
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: clean(), path: null }), 'globalThis');
+
+    // sequential resolutions of the same name in the same scope are independent
+    proxyGlobalRootName({ node: gt, scope: guardScope, adapter: clean(), path: null });
+    check('class-walk: in-flight guard does not persist between calls',
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: clean(), path: null }), 'globalThis');
+
+    // a nested lookup of a DIFFERENT name resolves normally; the SAME name is the cycle and answers
+    // node-only instead of recursing
+    let nestedOther = null;
+    const nesting = stubAdapter((sc, name) => {
+      if (name === 'globalThis') {
+        nestedOther = proxyGlobalRootName({ node: { type: 'Identifier', name: 'self' }, scope: sc, adapter: nesting, path: null });
+      }
+      return null;
+    });
+    proxyGlobalRootName({ node: gt, scope: guardScope, adapter: nesting, path: null });
+    check('class-walk: in-flight guard leaves a different name resolvable', nestedOther, 'self');
+
+    let nestedSame = null;
+    const cycling = stubAdapter((sc, name) => {
+      nestedSame ??= proxyGlobalRootName({ node: { type: 'Identifier', name }, scope: sc, adapter: cycling, path: null });
+      return null;
+    });
+    check('class-walk: in-flight guard breaks a same-name re-entry',
+      proxyGlobalRootName({ node: gt, scope: guardScope, adapter: cycling, path: null }), 'globalThis');
+    check('class-walk: same-name re-entry answers node-only', nestedSame, 'globalThis');
+  }
 
   // `self.Map` -> 'Map' (any proxy-global)
   const selfProxy = {
