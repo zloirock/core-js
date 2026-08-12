@@ -98,38 +98,26 @@ function toPosix(p) {
   return p.replaceAll('\\', '/');
 }
 const TS_SOURCE_ROOTS = [...TS_SOURCE_PACKAGES].map(name => toPosix(join(NODE_MODULES, name, 'src')));
-function tsEntry(name) {
-  return join(NODE_MODULES, name, 'src', 'index.ts');
-}
 
-// The snapshots do NOT guard this set: the type-derived injections come from a couple of origins
-// each, so dropping one package is masked by the other and every gate stays green while the fixture
-// quietly becomes half a JavaScript build. Assert the premise directly instead. This covers the
-// silent case - an install without the sources - and says nothing about editing the set above, which
-// is a visible code change with a diff to read.
-// Once per process: `tsSources()` is constructed by every rollup chain in the suite.
-let tsSourcesVerified = false;
-function assertTsSources() {
-  if (tsSourcesVerified) return;
-  // A SCOPED name would pass every check below and still do nothing: `resolveId` splits a bare
-  // specifier at the first `/`, so `@scope/pkg` arrives as `@scope`, never matches the set, and the
-  // package resolves to its published JS with the whole matrix green - the same silent degradation
-  // the missing-`src` check exists to stop, and one no baseline would notice either. Refuse it here
-  // rather than teach `resolveId` a two-segment form no entry uses: an untested resolution path
-  // would be its own way to be quietly wrong. Whoever adds the first scoped package writes both.
+// A SCOPED name would pass every other check and still do nothing: `resolveId` splits a bare
+// specifier at the first `/`, so `@scope/pkg` arrives as `@scope`, never matches the set, and the
+// package resolves to its published JS with the whole matrix green - the same silent degradation the
+// missing-source check below exists to stop, and one no baseline would notice either. Refuse it here
+// rather than teach `resolveId` a two-segment form no entry uses: an untested resolution path would
+// be its own way to be quietly wrong. Whoever adds the first scoped package writes both.
+//
+// A property of the SET, so it is checked once per process, wherever the first chain is built - unlike
+// the missing source below, which belongs to the specifier that asked for it.
+let scopedNamesChecked = false;
+function assertNoScopedNames() {
+  if (scopedNamesChecked) return;
   const scoped = [...TS_SOURCE_PACKAGES].filter(name => name.startsWith('@'));
   if (scoped.length) {
     throw new Error(`TS_SOURCE_PACKAGES: ${ scoped.join(', ') } is scoped, which \`tsSources\` cannot `
       + 'resolve - it splits a bare specifier at the first `/`, so the name never matches and the '
       + 'package would silently build from its published JS. Teach `resolveId` the `@scope/name` form first.');
   }
-  const missing = [...TS_SOURCE_PACKAGES].filter(name => !firstExistingFile([tsEntry(name)]));
-  if (missing.length) {
-    throw new Error(`TS_SOURCE_PACKAGES: no src/index.ts in ${ missing.join(', ') } - these packages are `
-      + 'built from their TypeScript sources (see build.mjs); without them the htmlparser2 fixture '
-      + 'silently degrades to a published-JS build. Reinstall, or drop them from the set deliberately.');
-  }
-  tsSourcesVerified = true;
+  scopedNamesChecked = true;
 }
 
 // A directory has to be rejected explicitly, not just skipped: an extensionless specifier such as
@@ -157,8 +145,25 @@ function firstExistingFile(candidates) {
 // The relative case is the TS-ESM idiom (the specifier names the file the compiler WILL emit, not the
 // one on disk); node's resolver never does this mapping, so without it every intra-package import
 // falls through to `nodeResolve` and resolves to nothing.
+// The snapshots do NOT guard this: the type-derived injections come from a couple of origins each, so
+// a package that quietly falls back to its published JS is masked by the others and every gate stays
+// green while the fixture becomes half a JavaScript build. So a listed package that cannot be served
+// from source is a hard failure - but raised HERE, against the specifier that asked for it, rather
+// than when the plugin is constructed: only the cells that actually import it are affected, and the
+// message names the import instead of accusing all four libraries of one package's missing `src`.
+function tsSourceOf(source) {
+  const [name, ...rest] = source.split('/');
+  if (!TS_SOURCE_PACKAGES.has(name)) return null;
+  const sub = rest.length ? rest.join('/') : 'index';
+  const file = firstExistingFile([join(NODE_MODULES, name, 'src', `${ sub }.ts`), join(NODE_MODULES, name, 'src', sub, 'index.ts')]);
+  if (file) return file;
+  throw new Error(`TS_SOURCE_PACKAGES: '${ source }' has no TypeScript source under node_modules/${ name }/src `
+    + '- that package is built from its sources (see build.mjs), and without them this build silently '
+    + 'degrades to a published-JS one. Reinstall, or drop the package from the set deliberately.');
+}
+
 export function tsSources() {
-  assertTsSources();
+  assertNoScopedNames();
   return {
     name: 'e2e-ts-sources',
     resolveId(source, importer) {
@@ -167,10 +172,7 @@ export function tsSources() {
         const abs = resolvePath(dirname(importer), source);
         return firstExistingFile([abs.replace(/\.[cm]?js$/, '.ts'), `${ abs }.ts`, join(abs, 'index.ts')]);
       }
-      const [name, ...rest] = source.split('/');
-      if (!TS_SOURCE_PACKAGES.has(name)) return null;
-      const sub = rest.length ? rest.join('/') : 'index';
-      return firstExistingFile([join(NODE_MODULES, name, 'src', `${ sub }.ts`), join(NODE_MODULES, name, 'src', sub, 'index.ts')]);
+      return tsSourceOf(source);
     },
   };
 }
@@ -395,6 +397,17 @@ export async function wireSize(code, label = 'wire size') {
 // error and fall back to the first line at all.
 const REASON_MAX = 200; // one terminal row; long enough for a stack's first frame
 export function errorReason(err) {
-  const lines = String(err?.stderr || err?.message || err).split('\n').map(l => l.trim()).filter(Boolean);
-  return (lines.find(l => /^\w*(?:Error|Exception)\b/.test(l)) ?? lines[0] ?? '').slice(0, REASON_MAX);
+  // each source is tried for CONTENT, not for truthiness: a child whose stderr is a lone newline
+  // would otherwise win the `||` chain and reduce the whole line to `FAIL <label>: `. The default
+  // `[object Object]` is skipped on the same ground - it is a stringification, not a reason
+  for (const source of [err?.stderr, err?.message, err]) {
+    const text = String(source ?? '');
+    if (text === '[object Object]') continue;
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    return (lines.find(l => /^\w*(?:Error|Exception)\b/.test(l)) ?? lines[0]).slice(0, REASON_MAX);
+  }
+  // nothing said anything - still name what failed rather than print an empty reason
+  return [err?.name, err?.exitCode === undefined ? null : `exit ${ err.exitCode }`].filter(Boolean).join(', ')
+    || 'failed without a message';
 }
