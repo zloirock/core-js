@@ -31,7 +31,9 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   paramsHaveInvisibleCallers,
   peelFallbackBranchInner,
+  patternBindingCount,
   peelNestedSequenceExpressions,
+  propertyKeyName,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
   propBindingIdentifier,
@@ -114,6 +116,7 @@ import {
   isSymbolIteratorPatternProp,
   peelArrayWrapperPair,
   probedNavProbeKey,
+  symbolIteratorInstanceLeaf,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
   classifyVariableDeclarationHost, isForInitDeclaration,
@@ -413,6 +416,15 @@ export function createDestructureEmitter({
   const pendingSeKeyRenames = [];
   // deferred instance-receiver copies (a consumed `eliminateResidual` extraction `m = _m(recv)`): the
   // natural visitor polyfills the receiver in place; flush composes those rewrites into the copy text
+  // the text twin of the AST emitter's `instanceLeafCall`: an extraction whose leaf resolved to an
+  // instance member of the extracted method feeds the synth call to the dispatcher instead of
+  // destructuring it. one spelling for all producers of this synth. takes the WRAP itself, not the
+  // record carrying it - two of the callers hold only the wrap, and taking a record forced them to
+  // build a synthetic one just to satisfy the signature
+  function instanceLeafSrc(wrap, synthSrc) {
+    return wrap ? `${ wrap }(${ synthSrc })` : synthSrc;
+  }
+
   const pendingReceiverExtracts = [];
   // deferred DUPLICATED instance-receiver copies (the residual SURVIVES, so the receiver is both
   // kept in place AND copied into the extraction). like `pendingReceiverExtracts` the receiver stays
@@ -1519,7 +1531,7 @@ export function createDestructureEmitter({
 
     for (const e of entries) {
       const isInstance = e.kind === 'instance' && initSrc;
-      const valueSrc = isInstance ? `${ e.binding }(${ objRef })` : e.binding;
+      const valueSrc = instanceLeafSrc(e.instanceWrap, isInstance ? `${ e.binding }(${ objRef })` : e.binding);
       // a pattern LHS (symbol prop-default) re-emits the pattern source; its inner rewrites
       // splice in by needle exactly like the default expression's
       const lhs = e.lhsPattern ? nodeSrc(e.lhsPattern) : e.localName;
@@ -2009,7 +2021,12 @@ export function createDestructureEmitter({
       // verbatim and its subtree stays visitor-visible (rescued from the consumed-pattern skip),
       // so inner rewrites (a default's instance call) compose into this decl by needle
       if (e.pattern) return { decl: `${ nodeSrc(e.pattern) } = ${ binding }(${ getReceiverSrc() })`, patternLhs: true };
-      return { decl: `${ e.localName } = ${ binding }(${ getReceiverSrc() })` };
+      // a leaf the plan resolved as an INSTANCE member of the extracted iterator method: the synth
+      // call becomes the dispatcher's receiver instead of being destructured, the text twin of the
+      // AST emitter's wrap. one leaf per plan, so the call is spelled exactly once and owes no memo
+      const call = `${ binding }(${ getReceiverSrc() })`;
+      if (e.instanceEntry) return { decl: `${ e.localName } = ${ injectPureImport(e.instanceEntry, e.instanceHint) }(${ call })` };
+      return { decl: `${ e.localName } = ${ call }` };
     }
     const binding = injectPureImport(e.entry, e.hint);
     // register the body-extract alias so receiver-narrowing through this binding
@@ -3009,7 +3026,7 @@ export function createDestructureEmitter({
       return false;
     }
     let bindingCount = 0;
-    if (declarator) walkPatternIdentifiers(declarator.id, () => bindingCount++);
+    if (declarator) bindingCount = patternBindingCount(declarator.id);
     function makePlan() {
       return planSideEffectKeyStrategy({
         polyfillKind: pureResult.kind,
@@ -3017,7 +3034,10 @@ export function createDestructureEmitter({
         isMultiDeclarator: declaration.declarations.length > 1,
         receiverNode,
         receiverIsWholeInit,
-        soleBindingInDeclaration: declaration.declarations.length === 1 && bindingCount === 1,
+        // dead when THIS extraction takes every binding of the declaration (see the AST twin): a
+        // pattern-valued extraction consumes its whole inner pattern, a sibling prop / rest does not
+        soleBindingInDeclaration: declaration.declarations.length === 1
+          && bindingCount === patternBindingCount(propNode.value),
         initIsPure: !!declarator && !mayHaveSideEffects(declarator.init),
         propKeyIsPure: !computedKeyHasSideEffects(propNode),
       });
@@ -3056,6 +3076,16 @@ export function createDestructureEmitter({
     // which skip-seeds its clone. the test ref is minted NOW so numbering matches babel
     const instanceDefaultNode = plan.instance && !patternValue
       && propNode.value?.type === 'AssignmentPattern' ? propNode.value.right : null;
+    // the SAME question the plan asks for a proxy receiver, asked here for the receivers the plan
+    // never sees - one helper, so the two producers cannot drift apart on it. with a leaf the pattern
+    // LHS disappears: the extracted method becomes the dispatcher's receiver. asked ABOVE every
+    // emission branch - a sibling binding takes a different branch than the dead-residual one, and
+    // asking inside one branch left the others rendering a plain destructure
+    const instanceLeaf = patternValue
+      ? symbolIteratorInstanceLeaf({ value: patternValue, resolvePure, isDisabled: null, keyNameOf: propertyKeyName })
+      : null;
+    const instanceLeafWrap = instanceLeaf
+      ? injectPureImport(instanceLeaf.instanceEntry, instanceLeaf.instanceHint) : null;
     // minted LAZILY at first use so a memo arm's receiver ref numbers first - babel mints its
     // memo ref before the guard ref, and the shared `_refN` sequence must match byte-for-byte
     let instanceDefaultRef = null;
@@ -3073,7 +3103,8 @@ export function createDestructureEmitter({
       const [start, end] = exportNode ? [exportNode.start, exportNode.end] : [declaration.start, declaration.end];
       // a pattern LHS composes at flush (its inner rewrites must bake in first) - the prefix
       // carries only the head then, the flush appends the composed pattern
-      const prefix = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ patternValue ? '' : `${ localId.name } = ` }`;
+      const lhsName = instanceLeaf ? instanceLeaf.localName : localId?.name;
+      const prefix = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ patternValue && !instanceLeaf ? '' : `${ lhsName } = ` }`;
       // INSTANCE: the receiver is consumed (this whole declaration is dropped, receiver appears only in
       // the copy). keep the receiver subtree VISIBLE so the natural visitor polyfills it in place, skip
       // the rest of the declarator, and defer the overwrite to flush where `composedRangeSrc` bakes the
@@ -3081,12 +3112,13 @@ export function createDestructureEmitter({
       // polyfill has no receiver, so it emits its bare binding immediately
       if (plan.instance) {
         // the receiver AND a pattern LHS stay visible: both re-emit as composed copies at flush
-        const keepRanges = patternValue ? [receiverNode, patternValue] : [receiverNode];
+        const keepRanges = patternValue && !instanceLeaf ? [receiverNode, patternValue] : [receiverNode];
         walkAstNodes({ root: declarator, visit: n => {
           if (keepRanges.every(k => n.start < k.start || n.end > k.end)) skippedNodes.add(n);
         } });
         pendingReceiverExtracts.push({
-          start, end, prefix, binding, receiverNode, lhsNode: patternValue,
+          start, end, prefix, binding, receiverNode, lhsNode: instanceLeaf ? null : patternValue,
+          instanceWrap: instanceLeafWrap,
           defaultSrc: instanceDefaultNode ? nodeSrc(instanceDefaultNode) : null,
           testRef: instanceDefaultNode ? getInstanceDefaultRef() : null,
         });
@@ -3160,7 +3192,10 @@ export function createDestructureEmitter({
       // drain, so the rename never competes with the pattern's inner transforms
       let lhs = localId?.name;
       if (patternValue) {
-        lhs = composedRangeSrc(patternValue);
+        // an instance leaf binds the dispatcher result directly; the pattern still retires to a
+        // sentinel so the residual slot behaves the same either way
+        lhs = instanceLeaf ? instanceLeaf.localName : composedRangeSrc(patternValue);
+        copyExpr = instanceLeafSrc(instanceLeafWrap, copyExpr);
         transforms.add(patternValue.start, patternValue.end, injector.generateUnusedName());
       }
       if (instanceDefaultNode) {
@@ -3813,8 +3848,13 @@ export function createDestructureEmitter({
     // by needle like any default-expr polyfill in this channel. bare pattern values route to the
     // SE-key pipeline upstream; catch params keep the key-swap (their relocation machinery is
     // localName-keyed)
-    const lhsPattern = symbolPatternDefault ? value.left : symbolPatternCatch ? value : null;
-    const localName = isDefault ? value.left.name : value?.name;
+    // the catch relocation is the THIRD producer of this synth; it asks the SAME shared helper as
+    // the plan and the declaration route, so a leaf resolves identically wherever the synth lands
+    const catchInstanceLeaf = symbolPatternCatch
+      ? symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled: null, keyNameOf: propertyKeyName })
+      : null;
+    const lhsPattern = symbolPatternDefault ? value.left : symbolPatternCatch && !catchInstanceLeaf ? value : null;
+    const localName = catchInstanceLeaf ? catchInstanceLeaf.localName : isDefault ? value.left.name : value?.name;
     const defaultSrc = isDefault ? nodeSrc(value.right) : null;
     if (!localName && !lhsPattern) return;
 
@@ -3914,6 +3954,8 @@ export function createDestructureEmitter({
     pending.entries.push({
       propNode, localName, binding, kind, testRef,
       lhsPattern,
+      instanceWrap: catchInstanceLeaf
+        ? injectPureImport(catchInstanceLeaf.instanceEntry, catchInstanceLeaf.instanceHint) : null,
       defaultSrc: dropDeadDefault ? null : defaultSrc,
       keepKeyInResidual: seKeyResidual,
     });
@@ -4118,7 +4160,7 @@ export function createDestructureEmitter({
   // where the parts text IS the needle), so emitting raw would drop the polyfill and orphan its
   // drained scoped-var. instance entries memo the receiver into a fresh ref to avoid double-eval
   function catchEntryLetDecl(e, ref) {
-    const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
+    const valueSrc = instanceLeafSrc(e.instanceWrap, e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding);
     // a pattern LHS composes here for the same reason the default does: the relocated `_ref`
     // overwrite leaves no original-text needle for the queued inner rewrites to splice against
     const lhs = e.lhsPattern ? composedRangeSrc(e.lhsPattern) : e.localName;
@@ -4910,10 +4952,10 @@ export function createDestructureEmitter({
     // deferred consumed instance-receiver extractions: the natural visitor has now polyfilled each
     // receiver in place (full substitution, scope-aware), so `composedRangeSrc` bakes those into the
     // copy and drains them from the queue before the dropped-declaration overwrite replaces the range
-    for (const { start, end, prefix, binding, receiverNode, lhsNode, defaultSrc, testRef } of pendingReceiverExtracts) {
+    for (const { start, end, prefix, binding, receiverNode, lhsNode, defaultSrc, testRef, instanceWrap } of pendingReceiverExtracts) {
       renderNestedDestructureStatements(receiverNode.start, receiverNode.end);
       const lhsSrc = lhsNode ? `${ composedRangeSrc(lhsNode) } = ` : '';
-      const call = `${ binding }(${ composedRangeSrc(receiverNode) })`;
+      const call = instanceLeafSrc(instanceWrap, `${ binding }(${ composedRangeSrc(receiverNode) })`);
       const rhs = defaultSrc ? `(${ testRef } = ${ call }) === void 0 ? ${ defaultSrc } : ${ testRef }` : call;
       transforms.add(start, end, `${ prefix }${ lhsSrc }${ rhs };`);
     }

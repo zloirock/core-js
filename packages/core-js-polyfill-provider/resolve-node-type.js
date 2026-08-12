@@ -262,7 +262,7 @@ function createResolveNodeType(babelNodeType, t, {
   // through (in order): T[number] inner, argPath descend, single-step constraint
   // fallback (root-is-typeparam path) - then call-site arg-literal rewrite for the
   // `NamedType[K]` shape, finally plain resolveTypeAnnotation
-  function resolveIndexedAccessSubst(node, typeParamMap, scope, depth) {
+  function resolveIndexedAccessSubst(node, typeParamMap, scope, depth, seen) {
     const indexNodes = [];
     let root = node;
     while (root?.type === 'TSIndexedAccessType') {
@@ -273,21 +273,29 @@ function createResolveNodeType(babelNodeType, t, {
     }
     const rootName = root && typeRefName(root);
     if (rootName && typeParamMap.has(rootName)) {
-      const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth });
+      const direct = resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth, seen });
       if (direct !== null) return direct;
+      // a SUPPLIED-but-opaque root is a deliberate stand-down, not an unknown to re-derive: the
+      // plain lane answers a bare ref from the parameter's own declared default / constraint,
+      // which is a type-specific Maybe over whatever the caller really passed
+      if (typeParamMap.get(rootName) === null) return null;
     }
     // `NamedType[K]` shape: K is out of scope at the call site, so `isKeyofTargeting`'s
     // constraint walk can't find K - rewrite each typeparam indexNode to the literal
     // bound to it at the call site (recorded on the side via `getTypeParamArgPath`) and
-    // hand the synthetic literal-indexed chain to the standard dispatcher. covers
+    // hand the synthetic literal-indexed chain back to the SUBSTITUTION dispatcher, which
+    // re-reads the now-literal keys against the map before degrading to the plain lane. covers
     // `pick<K extends keyof Items>(k: K): Items[K]` called as `pick('a')` / `pick(0)` /
     // ``pick(`a`)`` / chained `T[K1][K2]` with multiple typeparam slots
     const concrete = indexNodes.map(idx => indexFromArgLiteral(idx, typeParamMap));
     if (concrete.some((c, i) => c !== indexNodes[i])) {
-      const resolved = resolveTypeAnnotation(rebuildIndexedAccess(root, concrete), scope, depth);
+      const rebuilt = rebuildIndexedAccess(root, concrete);
+      // the rebuilt chain carries literal indices, so its own re-entry finds nothing left to
+      // rewrite and terminates in the plain lane one hop down
+      const resolved = substituteTypeParams(rebuilt, typeParamMap, scope, depth, seen);
       if (resolved !== null) return resolved;
     }
-    return resolveTypeAnnotation(node, scope, depth);
+    return resolveTypeAnnotation(node, scope, depth, seen);
   }
 
   // re-fold the unfolded `(root, indexNodes)` pair back into a chained TSIndexedAccessType.
@@ -334,7 +342,7 @@ function createResolveNodeType(babelNodeType, t, {
   // single resolution attempt against a known-mapped typeparam: T[number] inner,
   // argPath descent through literal keys, single-step constraint fallback. returns null
   // on miss so caller can fall through to plain resolveTypeAnnotation
-  function resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth }) {
+  function resolveIndexAccessHit({ rootName, indexNodes, typeParamMap, scope, depth, seen }) {
     if (indexNodes.length === 1 && indexNodes[0]?.type === 'TSNumberKeyword') {
       const inner = resolveInnerType(typeParamMap.get(rootName));
       if (inner) return inner;
@@ -360,7 +368,7 @@ function createResolveNodeType(babelNodeType, t, {
       const paramInfo = findTypeParameter(rootName, scope);
       if (paramInfo?.constraint) {
         const syntheticNode = { type: 'TSIndexedAccessType', objectType: paramInfo.constraint, indexType: indexNodes[0] };
-        return resolveTypeAnnotation(syntheticNode, paramInfo.scope, depth);
+        return resolveTypeAnnotation(syntheticNode, paramInfo.scope, depth, seen);
       }
     }
     return null;
@@ -718,7 +726,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     effectiveParam,
     resolveInnerType,
-    resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     substituteTypeParams: (...args) => substituteTypeParams(...args),
     applySubst: (...args) => applySubst(...args),
     applyAliasSubstDeep: (...args) => applyAliasSubstDeep(...args),
@@ -1600,6 +1607,7 @@ function createResolveNodeType(babelNodeType, t, {
     instanceMemberShadowable,
     getTypeMembers: (...args) => getTypeMembers(...args),
     findNamespacedFunctionPath,
+    findOverloadsForName,
     classCallableSlotReassigned: classFieldsCluster.classCallableSlotReassigned,
   });
   ({
@@ -2002,8 +2010,8 @@ function createResolveNodeType(babelNodeType, t, {
     expandMappedTypeMembers,
     isUnconstrainedTypeReference,
     pickConditionalBranchVia,
-    evaluateConditionalType,
     resolveTypeQueryBinding,
+    resolveIndexedAccessMemberAnnotationAST,
     buildCallSiteSubst,
     resolveTypeAnnotation,
     functionTypeReturnAnnotation,
@@ -2230,7 +2238,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolvePath,
     resolveNodeType,
     resolveBindingType,
-    resolveRuntimeExpression,
     unwrapTypeAnnotation,
     resolveGlobalName,
     resolveConstructorType,
