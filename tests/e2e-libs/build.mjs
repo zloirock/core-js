@@ -223,6 +223,11 @@ function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs =
     name: coreJs ? 'e2e-babel-syntax+core-js' : downCompile ? 'e2e-babel-syntax' : 'e2e-ts-strip',
     async transform(code, id) {
       if (BABEL_EXCLUDE.some(re => re.test(id))) return null;
+      // the same modules unplugin admits, and for the same reason it refuses these: a virtual module
+      // or a commonjs proxy is the bundler's own code, not the library's. Transforming them here would
+      // compare the two providers over different module sets - babel-plugin injecting for the interop
+      // helper rollup generated, unplugin never asked about it (`shouldTransform` in @core-js/unplugin)
+      if (id.includes('\0') || id.includes('?commonjs-') || id.includes('?commonjsExternal')) return null;
       const typescript = TS_EXTENSION.test(id);
       // With `downCompile: false` there is nothing to do to a `.js` module - returning null leaves it
       // byte-identical instead of round-tripping it through Babel's printer, which is what "no
@@ -266,6 +271,13 @@ export function makeTsStripPlugin() {
 // passes - node resolves what rollup would not - and the page uploaded to a browser is dead on arrival.
 export function strictWarn(w) {
   if (w.code === 'UNRESOLVED_IMPORT' || w.code === 'MISSING_EXPORT') throw new Error(`${ w.code }: ${ w.message }`);
+  // the one channel by which unplugin reports its own failure: a source oxc cannot parse is warned
+  // about and handed back untransformed, so that module loses its injections while the payload gate,
+  // the injection count and the ES5 parse all stay green on what the other modules contributed.
+  // Other plugins' warnings stay warnings - `w.plugin` is `core-js-unplugin`, or `:pre` / `:post`
+  if (w.code === 'PLUGIN_WARNING' && w.plugin?.startsWith('core-js-unplugin')) {
+    throw new Error(`${ w.plugin }: ${ w.message }`);
+  }
 }
 
 // The other half of the same guard, and NOT covered by strictWarn: rollup warns about an externalised

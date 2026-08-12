@@ -16,7 +16,6 @@ core-js/modules/es.array.with
 core-js/modules/es.async-iterator.async-dispose
 core-js/modules/es.error.cause
 core-js/modules/es.function.name
-core-js/modules/es.global-this
 core-js/modules/es.iterator.constructor
 core-js/modules/es.iterator.dispose
 core-js/modules/es.iterator.drop
@@ -50,7 +49,6 @@ core-js/modules/es.promise.constructor
 core-js/modules/es.promise.finally
 core-js/modules/es.promise.reject
 core-js/modules/es.promise.resolve
-core-js/modules/es.reflect.construct
 core-js/modules/es.reflect.namespace
 core-js/modules/es.regexp.exec
 core-js/modules/es.regexp.test
@@ -96,4 +94,3 @@ core-js/modules/web.dom-collections.for-each
 core-js/modules/web.dom-collections.iterator
 core-js/modules/web.dom-collections.keys
 core-js/modules/web.dom-collections.values
-core-js/modules/web.self
