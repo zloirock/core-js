@@ -1,5 +1,4 @@
 -@core-js/pure/full/get-iterator-method
--@core-js/pure/full/global-this
 -@core-js/pure/full/object/create
 -@core-js/pure/full/object/define-property
 -@core-js/pure/full/object/get-own-property-descriptor
