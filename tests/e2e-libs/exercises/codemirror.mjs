@@ -10,8 +10,10 @@
 // `RegExp#flags`, and the `RangeSet` chunk's own `findIndex` against `Array#findIndex`.
 //
 // The unicode block is a FALLBACK test rather than a polyfill test: `@codemirror/state` implements
-// `codePointAt` / `fromCodePoint` by hand and builds its word-character regexp from `\p{Alphabetic}`
-// inside a `try`/`catch` that IE11 cannot parse, so on the target the categorizer runs its manual path.
+// `codePointAt` / `fromCodePoint` by hand, and builds its word-character regexp by calling `RegExp`
+// with a `\p{Alphabetic}` source and the `u` flag inside a `try`/`catch`. IE11 parses that code - it
+// is the CONSTRUCTOR that throws there, the catch swallows it, and the categorizer, finding no
+// regexp, runs its manual path.
 import {
   Annotation, ChangeSet, CharCategory, Compartment, EditorSelection, EditorState, Facet, MapMode,
   Prec, RangeSet, RangeSetBuilder, RangeValue, StateEffect, StateField, Text,
@@ -146,6 +148,8 @@ export function run() {
   // helpers - so the cell's colour would end up reporting the exercise's syntax rather than anything
   // about codemirror. Calling `[Symbol.iterator]()` drives exactly the same library method
   // (`Text.prototype[Symbol.iterator]`, which returns `this.iter()`) with nothing of ours in between.
+  // The file is not helper-free for that - the `RangeValue` subclass above compiles through Babel's
+  // class helpers - and does not need to be: what matters is that no check asserts through one.
   function drain(textCursor) {
     const seen = [];
     while (!textCursor.next().done) seen.push(textCursor.value);
