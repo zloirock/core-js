@@ -1,13 +1,11 @@
 // The bundling core of the suite: option construction, temp entries, the runtime build, and the
-// reporting helpers the runners share. One thing is not visible from the call site - `captureInjections`
-// answers only for rollup, so a runner must not read it as what some other bundler emitted.
+// gates and reporting helpers the runners share.
 import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import unplugin from '@core-js/unplugin';
 import { transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
-import { makeBundlers } from '../transpiler-integration/bundlers.mjs';
 import { createRequire } from 'node:module';
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -55,27 +53,6 @@ export async function withEntry(exerciseAbs, method, label, fn) {
   }
 }
 
-// -------- throughput builders --------
-// Shared with `tests/transpiler-integration`, which pins the bundlers; an empty plugin list is the
-// plugin-less baseline. A corpus of real packages needs node_modules through vite's CommonJS interop,
-// and rollup's warnings about third-party code are not ours to fix.
-export const throughputBuilders = makeBundlers({
-  root: HERE,
-  commonjsInclude: [/core-js/, /node_modules/],
-  quiet: true,
-});
-
-// farm is excluded from the active set: its resolver fails on the extensionless `core-js/modules/*`
-// specifiers the GLOBAL methods inject whose name contains the substring `js` - `es.json.parse`,
-// `web.url.to-json` - which node and every other bundler resolve through core-js's
-// `exports: { "./modules/*": "./modules/*.js" }`. A name without that substring always resolves, and
-// so does a specifier that genuinely ends in `.js`: farm reads the substring as "the extension is
-// already there" and skips applying the exports target. Deterministic rather than graph-dependent,
-// and `usage-pure` and the plugin-less baseline never reach it. A resolve hook delegating `core-js/*`
-// to node's own resolver fixes it; we keep farm out rather than carry that shim until it is fixed
-// upstream. Throughput-only either way - the runtime tier is rollup.
-export const THROUGHPUT_BUNDLERS = Object.keys(throughputBuilders).filter(name => name !== 'farm');
-
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
 
 // -------- runtime builder: ES5 UMD via Babel(syntax) + a stdlib provider --------
@@ -107,8 +84,7 @@ function babelToolchain() {
 // Packages consumed as their TypeScript SOURCE, which is what gives the `pre` phase something to be
 // about (see exercises/htmlparser2.mjs). Only packages that actually ship `src/**/*.ts` are listed.
 //
-// A property of the toolchain rather than of a fixture, hence here and not in libraries.mjs - and only
-// ROLLUP learns about `.ts`, so a library listed here must stay out of `tiers: ['throughput']`.
+// A property of the toolchain rather than of a fixture, hence here and not in libraries.mjs.
 //
 // All of them are DECLARED in this suite's package.json even though some arrive only through another
 // package's graph: that declaration is what makes npm hoist them to this directory's node_modules
@@ -294,9 +270,8 @@ export function assertNoExternals(chunk, label) {
 // recorder matches specifier text, which survives in the module source even when rollup then drops
 // the module entirely. Flipping `sideEffects` to false in the pinned core-js is enough to do that -
 // every side-effect-only polyfill import is tree-shaken away, most of the bundle goes with them, and
-// a count-based gate still reads its full healthy number. throughput.mjs catches that shape by
-// comparing against a plugin-less baseline; measuring the chunk's own module table works for every
-// method and needs no second build to compare against.
+// a count-based gate still reads its full healthy number. Measuring the chunk's own module table
+// catches that shape for every method, and needs no second build to compare against.
 // The floor below is an order of magnitude under the smallest payload any cell of this suite
 // produces, so it discriminates "nothing arrived" from "a small one" without tracking either.
 const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\])/;
@@ -387,25 +362,6 @@ export function recorder(sink, origins) {
       },
     },
   };
-}
-
-// Plain unplugin, NO Babel: what unplugin makes of the SOURCE alone. throughput.mjs uses this as the
-// per-cell reference count to compare the other bundlers against, where Babel would only add work
-// that is not being measured. Note that without Babel in front of it the phase axis collapses -
-// `pre`, `post` and `pre+post` all inject the identical set (measured on every fixture) - so this is
-// NOT the capture to snapshot a phase matrix with - runtime.mjs snapshots the set `runtimeBuild`
-// produces, where Babel runs first and the phases separate.
-export async function captureInjections(exerciseAbs, method, phase) {
-  return withEntry(exerciseAbs, method, `snap-${ method }-${ phase ?? 'x' }`, async entry => {
-    const sink = new Set();
-    const build = await rollup({ input: entry, plugins: [tsSources(), u('rollup', method, phase), recorder(sink), nodeResolve(), commonjs()], onwarn: strictWarn });
-    try {
-      await build.generate({ format: 'es' });
-      return [...sink].sort();
-    } finally {
-      await build.close();
-    }
-  });
 }
 
 // -------- shared gates and reporting helpers --------

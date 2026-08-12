@@ -14,24 +14,14 @@ const DIR = dirname(FILE);
 
 $.verbose = true;
 
-async function install(dir) {
-  await $({ cwd: dir })`npm install \
+if (await pathExists(`${ DIR }/package.json`)) {
+  await $({ cwd: DIR })`npm install \
     --no-audit \
     --no-fund \
     --lockfile-version=3 \
     --loglevel=error \
     --force \
   `;
-}
-
-if (await pathExists(`${ DIR }/package.json`)) {
-  await install(DIR);
-
-  // a suite that imports a module from another directory runs it from THERE, so its dependencies
-  // resolve there and not here - `"zxi": { "installExternalDirs": ["../other"] }` is how such a
-  // suite declares what else has to be installed before its runner is imported
-  const { zxi } = JSON.parse(await fs.readFile(`${ DIR }/package.json`));
-  for (const dir of zxi?.installExternalDirs ?? []) await install(resolve(DIR, dir));
 
   $.preferLocal = [resolve(DIR), cwd()];
 }
