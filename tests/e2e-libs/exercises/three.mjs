@@ -13,11 +13,14 @@
 // an Array, so `floats.slice(a, b)` becomes a helper that falls through to `floats.slice` - `undefined`
 // on IE11. That is what keeps `KeyframeTrack#trim`/`#clone`, `AnimationUtils.subclip`/`makeClipAdditive`,
 // `BatchedMesh`, `InstancedMesh#setColorAt`, `mergeVertices` and `radixSort` out of this file, and
-// `Array#find` with them - `makeClipAdditive` is its only call site in three. `usage-global` covers
-// that ground; on `usage-pure` there is nothing to cover.
+// `Array#find` with them - outside the node-material graph, which is renderer-only anyway,
+// `makeClipAdditive` is its one call site in three. `usage-global` covers that ground; on
+// `usage-pure` there is nothing to cover.
 //
-// `Array#includes`, `.keys()`/`.values()`, `Math.log2` and `self` live only in WebGLRenderer and WebXR,
-// so nothing headless can execute them however the bundle is built.
+// `Array#includes`, `.keys()`/`.values()`, `Math.log2` and `self` are reachable only through a
+// renderer - WebGL, WebGPU, the node-material graph behind it, WebXR - or through a helper nothing
+// but a renderer calls, so no headless path executes them however the bundle is built. Which files
+// hold them moves with every three release; that no headless path reaches one does not.
 import * as THREE from 'three';
 import { deinterleaveAttribute, interleaveAttributes, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { reduceVertices, traverseGenerator } from 'three/addons/utils/SceneUtils.js';
