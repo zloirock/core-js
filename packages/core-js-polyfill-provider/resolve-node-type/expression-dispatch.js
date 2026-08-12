@@ -16,7 +16,7 @@
 // WeakMap (vs node-attached property) keeps the side-channel opaque to AST-cloning libs.
 import { $Object, $Primitive } from './base.js';
 import {
-  NO_PROTOTYPE_VALUE, installedPrototypeValueAt, objectLiteralPrototypeValue,
+  NO_PROTOTYPE_VALUE, installedPrototypeValueAt, isTaggedTemplateQuasiPosition, objectLiteralPrototypeValue,
   peelTransparentExprAncestorPath, prototypeValueMayDispatch, prototypeWriteHostPath,
 } from '../helpers/ast-patterns.js';
 import { unaryOperatorResultKind } from './value-ops.js';
@@ -35,7 +35,6 @@ export function createExpressionDispatch({
   resolvePath,
   resolveNodeType,
   resolveBindingType,
-  resolveRuntimeExpression,
   unwrapTypeAnnotation,
   resolveGlobalName,
   resolveConstructorType,
@@ -83,22 +82,17 @@ export function createExpressionDispatch({
     // resolveClassInheritance now distinguishes base-less (-> `Object`) from unknowable super (-> null /
     // generic), so no `|| $Object('Object')` floor - that would re-suppress the unknowable case
     if (classPath) return resolveClassInheritance(classPath);
-    const resolved = resolveRuntimeExpression(callee);
     // callee resolves to a TSConstructorType signature (or TSFunctionType - they share the
     // `returnType` slot and `functionTypeReturnAnnotation` treats both identically). example:
     // `const Ctor = wrap('a')` where `wrap<T>(): new (...) => string[]` - Ctor's annotation
     // walks through binding init -> call return -> TSConstructorType; `new Ctor(...)` yields
     // the constructor's return type. without this fallback, `new` on a binding with no
-    // direct class shape produces unknown ($Object(null)) and downstream narrows degrade
+    // direct class shape produces unknown ($Object(null)) and downstream narrows degrade.
+    // the `construct` kind carries the ES rule that a primitive return is discarded, and the call
+    // lane applies it to every RUNTIME answer - tested on the resolved callee's node shape here it
+    // reached only the function-value lane, letting an ambient head and a call-signature past
     const ctorReturn = resolveCallReturnType(callee, 'construct');
-    if (ctorReturn) {
-      // a plain function VALUE discards a primitive return at `new` time (yields a fresh object);
-      // only an object return survives (`function f(){ return [1]; }`). a construct signature
-      // (`new () => T`) resolves through an annotation, not a function-value node, and declares
-      // the instance type directly - trusted as-is even when the declared return is primitive
-      if (t.isFunction(resolved.node) && ctorReturn.primitive) return new $Object('Object');
-      return ctorReturn;
-    }
+    if (ctorReturn) return ctorReturn;
     // a resolved global name with no constructor type and no construct-signature fallback keeps its
     // foreign nominal ($Object(name)); a fully unresolvable callee stays unknown ($Object(null))
     return new $Object(name ?? null);
@@ -293,8 +287,12 @@ export function createExpressionDispatch({
       case 'NullLiteral':
         return new $Primitive('null');
       case 'StringLiteral':
-      case 'TemplateLiteral':
         return new $Primitive('string');
+      case 'TemplateLiteral':
+        // in the quasi slot the same node is the tag's strings ARRAY (a frozen `string[]`), and
+        // that slot becomes readable the moment a tagged template is enumerated as a call
+        return isTaggedTemplateQuasiPosition(path.parentPath?.node, path.node)
+          ? new $Object('Array', new $Primitive('string')) : new $Primitive('string');
       case 'NumericLiteral':
         return new $Primitive('number');
       case 'BigIntLiteral':

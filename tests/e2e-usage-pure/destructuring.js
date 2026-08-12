@@ -506,6 +506,68 @@ if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: nest
   assert.false(Symbol.iterator in rest);
 });
 
+// a SINGLE-property destructure off a proxy global whose key folds to a capitalised NON-identifier
+// string. the shape looks like the constructor-anchor one (`{ Map: { groupBy } } = globalThis`), but
+// the key cannot be spelled after a dot, so the pattern has to keep its own read. transforming this
+// file at all is half the oracle - babel aborted the build on the anchor render; the assertions are
+// the other half, since unplugin spliced `_globalThis.App-Key` and read the well-known symbol itself
+QUnit.test('destructuring: proxy-global single property under a non-identifier key', assert => {
+  globalThis['App-Key'] = { token: 'dashed' };
+  globalThis['A.b'] = { token: 'dotted' };
+  globalThis.A$b = { token: 'dollar' };
+  try {
+    const { 'App-Key': { token: dashed } } = globalThis;
+    assert.same(dashed, 'dashed', 'a dashed string key reads its own property');
+    const dotKey = 'A.b';
+    const { [dotKey]: { token: dotted } } = globalThis;
+    assert.same(dotted, 'dotted', 'a computed key folded from a binding is not a member tail');
+    // the identifier-valid neighbour keeps taking the anchored route
+    const { A$b: { token: dollar } } = globalThis;
+    assert.same(dollar, 'dollar', 'a `$` identifier key still anchors');
+  } finally {
+    delete globalThis['App-Key'];
+    delete globalThis['A.b'];
+    delete globalThis.A$b;
+  }
+});
+
+// same shape with a key folded from a well-known symbol: globalThis carries no such property, so the
+// source itself throws reading the nested pattern. reading `Symbol.iterator` off the proxy instead
+// (the pre-fix spelling) would bind `undefined` and erase that throw
+// NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
+if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: proxy-global single property under a folded symbol key', assert => {
+  assert.throws(() => {
+    const { [Symbol.iterator]: { description } } = globalThis;
+    return description;
+  }, TypeError, 'an absent well-known-symbol key throws where the source does');
+  const withKey = {};
+  withKey[Symbol.iterator] = { description: 'present' };
+  const { [Symbol.iterator]: { description } } = withKey;
+  assert.same(description, 'present', 'the same shape on a plain object still reads the key');
+});
+
+// runtime shape of a `[Symbol.iterator]` extraction whose leaf is an instance member of the
+// extracted method. the INJECTION itself is not observable here and is locked by the fixture
+// instead: a full realm answers the same either way, and the stripped legs cannot separate them
+// because `Function.prototype.name` is not in the strip manifest. what these rows do lock is the
+// runtime contract around it - the extraction still yields a working iterator method, a user
+// default still fires, and a two-leaf pattern still binds both names
+// NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
+if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: instance member off a symbol-key extraction', assert => {
+  const { [Symbol.iterator]: { name } } = [1, 2];
+  assert.same(typeof name, 'string', 'a Function instance member resolves off the extracted method');
+  // a DEFAULTED leaf keeps its default - binding the dispatcher result directly would drop it
+  const { [Symbol.iterator]: { missingMember = 'fallback' } } = [1, 2];
+  assert.same(missingMember, 'fallback', 'an absent member still falls to the user default');
+  // two leaves keep the destructure, and both still bind
+  const { [Symbol.iterator]: { name: twoName, call: twoCall } } = [1, 2];
+  assert.same(typeof twoName, 'string', 'the first leaf binds');
+  assert.same(typeof twoCall, 'function', 'the second leaf binds');
+  // the extracted method still works as one
+  const { [Symbol.iterator]: iterMethod } = [7, 8];
+  assert.same(iterMethod.call([7, 8]).next().value, 7, 'the extraction itself is the iterator method');
+});
+
 // catch-param destructure: a polyfillable key dispatches off the thrown object; a plain
 // key flows through untouched (the pattern stays in place - no receiver restructuring)
 QUnit.test('destructuring: catch param polyfillable and plain keys', assert => {

@@ -65,8 +65,11 @@ export function createTypeQuery({
   buildCallSiteSubst,
   functionTypeReturnAnnotation,
 }) {
-  // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
-  function resolveTypeofBinding(name, scope) {
+  // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation.
+  // `depth` is the caller's remaining budget: a `typeof` annotation can name the very binding it
+  // annotates (`declare const a: typeof a`), and the only bound on that loop is the budget the
+  // annotation lane carries - restarting it at 0 here made the recursion unbounded
+  function resolveTypeofBinding(name, scope, depth = 0) {
     const bindingPath = constantBindingPath(name, scope);
     // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
     // TSEnumDeclaration has no typeAnnotation slot, so treat it as $Object('Object') for
@@ -82,16 +85,16 @@ export function createTypeQuery({
       // reassignment, so look the declarator up regardless of const-ness and resolve its EXPLICIT
       // annotation only (the init is not the type once the binding is reassigned)
       const reassignedAnnotation = t.isVariableDeclarator(declPath?.node) ? declPath.node.id?.typeAnnotation : null;
-      return reassignedAnnotation ? resolveTypeAnnotation(reassignedAnnotation, scope) : null;
+      return reassignedAnnotation ? resolveTypeAnnotation(reassignedAnnotation, scope, depth + 1) : null;
     }
     if (t.isVariableDeclarator(bindingPath.node)) {
       const annotation = bindingPath.node.id?.typeAnnotation;
-      if (annotation) return resolveTypeAnnotation(annotation, scope);
+      if (annotation) return resolveTypeAnnotation(annotation, scope, depth + 1);
       const init = bindingPath.get('init');
       if (init.node) return resolveNodeType(init);
     } else {
       const annotation = findBindingAnnotation(bindingPath);
-      if (annotation) return resolveTypeAnnotation(annotation, scope);
+      if (annotation) return resolveTypeAnnotation(annotation, scope, depth + 1);
     }
     if (isFunctionOrClassDeclaration(bindingPath.node)) return new $Object('Function');
     return null;
@@ -102,7 +105,7 @@ export function createTypeQuery({
   // `resolveObjectMemberPath` helper (also used for destructure-key walks); class
   // declarations dispatch to `resolveClassMember` for the (single-step) static member case;
   // other shapes fall through to the binding's type annotation
-  function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
+  function resolveTypeofQualifiedMember(objectName, memberPath, scope, depth = 0) {
     // `typeof Enum.Member` - map the member to the enum's value kind ($Primitive('string'|
     // 'number')), but only when a nearer value binding doesn't shadow the enum head. const-agnostic
     // lookup: the shadow needs only the binding scope, and a reassigned `let Enum` shadows too
@@ -153,19 +156,21 @@ export function createTypeQuery({
       if (result) return result;
     }
     const annotation = findBindingAnnotation(bindingPath);
-    return annotation ? resolveAnnotatedMemberPath(annotation, memberPath, scope) : null;
+    return annotation ? resolveAnnotatedMemberPath(annotation, memberPath, scope, depth) : null;
   }
 
   // shared dispatch for `typeof X` and `typeof X.Y[.Z...]` - segments is what
   // collectQualifiedSegments returns for TS `TSQualifiedName` or Flow `QualifiedTypeIdentifier`
-  function resolveTypeofFromSegments(segments, scope) {
+  function resolveTypeofFromSegments(segments, scope, depth = 0) {
     if (!segments?.length) return null;
     const [rootName, ...chain] = segments;
-    return chain.length ? resolveTypeofQualifiedMember(rootName, chain, scope) : resolveTypeofBinding(rootName, scope);
+    return chain.length
+      ? resolveTypeofQualifiedMember(rootName, chain, scope, depth)
+      : resolveTypeofBinding(rootName, scope, depth);
   }
 
-  function resolveTypeQuery(node, scope) {
-    return resolveTypeofFromSegments(collectQualifiedSegments(node.exprName), scope);
+  function resolveTypeQuery(node, scope, depth = 0) {
+    return resolveTypeofFromSegments(collectQualifiedSegments(node.exprName), scope, depth);
   }
 
   // resolve a member of an object/class binding to its runtime value path

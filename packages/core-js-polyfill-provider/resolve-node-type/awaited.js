@@ -236,9 +236,9 @@ export function createAwaited({
   // findTypeMember reaches Awaited<T> member-access through here; the AST-level pick + alias
   // chase resolve the inner shape with no substitution context (substitution is applied by the
   // caller). the conditional-branch resolved-fallback only fires when AST + alias miss
-  function peelAwaitedWrapper(node, scope) {
+  function peelAwaitedWrapper(node, scope, depth = 0) {
     const arg = getSingleTypeRefArg(node, n => n === 'Awaited');
-    return arg ? peelAwaitedArgument({ arg, scope, depth: 0 }) : null;
+    return arg ? peelAwaitedArgument({ arg, scope, depth }) : null;
   }
 
   // unified passthrough detection: structure-preserving wrapper (`Readonly<T>`, `Partial<T>`,
@@ -246,9 +246,12 @@ export function createAwaited({
   // (`{ [K in keyof T]: T[K] }`). all are structurally identical to their inner type for
   // property-lookup purposes; callers recurse findTypeMember on the unwrapped inner with
   // accumulated subst applied
-  function unwrapPassthroughWrapper(node, scope) {
+  // `depth` is the caller's remaining budget: this peel and the member lookup that drives it
+  // recurse into each other, so a wrapper reached at depth D must continue from D - restarting
+  // the count here gave the pair a fresh budget on every hop and no termination guarantee
+  function unwrapPassthroughWrapper(node, scope, depth = 0) {
     return peelStructurePreservingWrapper(node, scope)
-      ?? peelAwaitedWrapper(node, scope)
+      ?? peelAwaitedWrapper(node, scope, depth)
       ?? (node?.type === 'TSMappedType' ? unwrapMappedTypePassthrough(node) : null);
   }
 

@@ -25,6 +25,7 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
+  isValidIdentifierName,
   isVarDeclaratorInLoopRerun,
   kebabToCamel,
   mayHaveSideEffects,
@@ -501,9 +502,14 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
   }
 }
 
+// callers pass either a receiver identifier or a FOLDED property key, and a key folds to any
+// string at all - `Symbol.iterator`, `'App-Key'`, `` `A.b` ``. an answer here licenses the name
+// to be SPELLED as a member tail (the ctor-key anchor plan), so the capitalisation convention
+// must be paired with the identifier-validity canon: without it babel aborts the build on
+// `t.identifier`, and unplugin splices unparsable text or silently reads a different property
 export function isStaticPlacement(name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return 'static';
-  if (name[0] >= 'A' && name[0] <= 'Z') return 'static';
+  if (name[0] >= 'A' && name[0] <= 'Z' && isValidIdentifierName(name)) return 'static';
   return null;
 }
 
