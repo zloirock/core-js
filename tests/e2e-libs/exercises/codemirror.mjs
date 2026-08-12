@@ -24,10 +24,7 @@ import { classHighlighter, getStyleTags, highlightTree, tagHighlighter, tags } f
 import { parser as cssParser } from '@lezer/css';
 import { configureNesting, parser as htmlParser } from '@lezer/html';
 import { parser as jsParser } from '@lezer/javascript';
-
-function eq(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+import { checker } from './checks.mjs';
 
 const SRC = `export function greet(name) {
   const parts = [name, 'world'];
@@ -109,10 +106,7 @@ function survey(tree) {
 }
 
 export function run() {
-  const checks = [];
-  function check(label, actual, expected) {
-    checks.push({ label, actual, expected, pass: eq(actual, expected) });
-  }
+  const { checks, check } = checker();
 
   // --- document layer: state + transactions ---
   let state = EditorState.create({ doc: SRC });
