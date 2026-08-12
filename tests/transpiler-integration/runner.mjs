@@ -173,9 +173,9 @@ const siblingMangler = createUnplugin(() => ({
   },
 }));
 
-// the shared adapters, configured for this suite: its output is loaded back as CommonJS, and the
-// rollup and vite legs assert the shape of the sourcemap they produce
-const bundlers = makeBundlers({ root: testDir, esbuildFormat: 'cjs', sourcemap: true });
+// `root` is per-case: vite, rsbuild and farm resolve from it, and each of them silently falls back
+// to the working directory, which under `zxi cd` is this suite rather than the case's temp dir
+const bundlers = makeBundlers({ root: testDir });
 
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
 // sibling the leg registers beside it - so the matrix is derived rather than spelled out
