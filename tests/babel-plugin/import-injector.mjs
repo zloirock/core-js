@@ -7,12 +7,11 @@
 // (default) and babel@7 (with BABEL_REQUIRE_FROM=../babel-plugin-v7) alike.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import * as nodePath from 'node:path';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 
 const { BABEL_REQUIRE_FROM } = process.env;
 const requireBabel = BABEL_REQUIRE_FROM
-  ? createRequire(pathToFileURL(`${ nodePath.resolve(BABEL_REQUIRE_FROM) }/`).href)
+  ? createRequire(pathToFileURL(`${ path.resolve(BABEL_REQUIRE_FROM) }/`).href)
   : createRequire(import.meta.url);
 const { transformAsync } = requireBabel('@babel/core');
 const t = requireBabel('@babel/types');

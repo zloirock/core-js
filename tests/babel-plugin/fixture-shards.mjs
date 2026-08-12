@@ -6,8 +6,6 @@
 // zx globals without a zxi round-trip (deps are already installed by the parent's zxi)
 import { fork } from 'node:child_process';
 import { createRequire } from 'node:module';
-import os from 'node:os';
-import path from 'node:path';
 
 const MARKER = /@@FIXTURE-SHARD@@(?<json>[^@]*)@@/u;
 
