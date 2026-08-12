@@ -1,13 +1,13 @@
 import { deepEqual } from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import { makeBundlers, withTmpDir } from './bundlers.mjs';
+import { METHODS as methods, phasesFor, pluginOpts } from './matrix.mjs';
 
 const { readFile, writeFile } = fs;
 const { dirname, join, resolve } = path;
 
 const testDir = import.meta.dirname;
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
-const methods = ['entry-global', 'usage-global', 'usage-pure'];
 
 function inputOf(method) {
   return resolve(testDir, `input-${ method }.js`);
@@ -22,18 +22,12 @@ let currentEngine;
 function enginesFor() {
   return [undefined, 'text'];
 }
-function pluginOpts(method, phase) {
-  const opts = { method, version: '4.0', mode: 'full' };
-  if (phase) opts.phase = phase;
-  if (currentEngine) opts.engine = currentEngine;
-  return opts;
-}
 
-// `entry-global` rejects `phase`; everything else runs across all three.
-function phasesFor(method) {
-  return method === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
+// the options both bundler suites agree on come from the shared matrix; the engine is THIS suite's
+// axis and rides in through the `extra` slot that exists for exactly that
+function optsFor(method, phase) {
+  return pluginOpts(method, phase, currentEngine && { engine: currentEngine });
 }
-
 const expected = {
   clamp: 4,
   cooked: 'hello',
@@ -180,7 +174,7 @@ const bundlers = makeBundlers({ root: testDir });
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
 // sibling the leg registers beside it - so the matrix is derived rather than spelled out
 const throughUnplugin = Object.fromEntries(Object.keys(bundlers).map(name => [name, (input, method, phase, extra = {}) => {
-  const plugins = [...extra.siblings ?? [], unplugin[name](pluginOpts(method, phase))];
+  const plugins = [...extra.siblings ?? [], unplugin[name](optsFor(method, phase))];
   return bundlers[name](input, plugins, extra);
 }]));
 
@@ -191,7 +185,7 @@ const builders = {
     const source = await readFile(input, 'utf8');
     const { code } = await transformAsync(source, {
       filename: input,
-      plugins: [['@core-js', pluginOpts(method)]],
+      plugins: [['@core-js', optsFor(method)]],
     });
     return bundlers.esbuild({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
   },
@@ -210,7 +204,7 @@ const builders = {
           outdir: ${ JSON.stringify(dir) },
           target: 'node',
           naming: 'bundle.js',
-          plugins: [plugin(${ JSON.stringify(pluginOpts(method, phase)) })],
+          plugins: [plugin(${ JSON.stringify(optsFor(method, phase)) })],
         });
         if (!result.success) { for (const l of result.logs) console.error(l); process.exit(1); }
       `);
