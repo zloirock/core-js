@@ -138,6 +138,23 @@ export function isUnionType(node) {
   return node?.type === 'TSUnionType' || node?.type === 'UnionTypeAnnotation';
 }
 
+// collapse a list of annotation nodes into ONE annotation: a lone member stays itself, several
+// become a union. the resolvers that synthesise a union - conditional branches, colliding mapped
+// keys, index signatures under an unknown key - all want that same shape, and a hand-built literal
+// per site is what let one of them keep a `length === 1` arm the others lacked
+export function unionAnnotationOf(types) {
+  // a member that is ITSELF a union is SPLICED, not nested: downstream resolves a nested arm as a
+  // whole, and an arm that diverges resolves to nothing, which sinks the entire set instead of
+  // contributing its members. the dialect predicate carries the Flow spelling too, which a
+  // hand-written `type === 'TSUnionType'` test at one of these sites had been missing
+  const flat = [];
+  for (const type of types) {
+    if (isUnionType(type)) flat.push(...type.types);
+    else flat.push(type);
+  }
+  return flat.length === 1 ? flat[0] : { type: 'TSUnionType', types: flat };
+}
+
 // TS + Flow function-TYPE predicate (the annotation form `(a: A) => B`, not a function node).
 // every callback-parameter peeler gates on this pair; restating it per site is how the Flow
 // arm went missing on one of them, so the list lives here
@@ -400,73 +417,75 @@ function paramLiteralValue(param) {
   return lit?.type === 'TSLiteralType' ? overloadLiteralValue(lit.literal) : undefined;
 }
 
-// TS overload selection by args - FIRST-MATCH faithful, LITERAL-aware. the walk is in
-// declaration order (TS picks the FIRST overload whose params accept the args) and stops at
-// the first verdict that isn't a provable NON-match:
-//   - provable MATCH (exact arity, every param a keyword matching the arg's kind or a
-//     literal matching the arg node's literal value) -> that overload wins;
-//   - provable NON-match (a keyword/literal param rejects its arg, extra REQUIRED params) ->
-//     skip to the next overload;
-//   - anything AMBIGUOUS (an `unknown` / `any` / union / generic param, an unresolvable arg
-//     kind, a same-family literal param without an arg literal to compare, optional / rest
-//     arity) -> null. an ambiguous EARLIER overload might be the TS-selected arm, so
-//     single-selecting a later one would narrow to the wrong arm - the caller's fold widens
-//     the divergent set to generic instead.
-// `argPaths` are the call's argument paths; the literal is read off the arg NODE (the
-// resolved type erases it), the kind from `resolveNodeType`
-export function matchOverloadByArgs(overloads, getParams, argPaths, resolveNodeType) {
-  if (overloads.length < 2) return null;
+// verdict of ONE param slot against its call arg: 'match' / 'non-match' / 'ambiguous'.
+// the literal is read off the arg NODE (the resolved type erases it), the kind from the
+// already-resolved arg types
+function paramSlotVerdict(param, argLiteral, argKind) {
+  if (param.type === 'RestElement') return 'ambiguous';
+  const paramLit = paramLiteralValue(param);
+  if (paramLit !== undefined) {
+    if (argLiteral !== undefined) return paramLit === argLiteral ? 'match' : 'non-match';
+    // a WIDE arg of the literal's own family may still hold the literal value at
+    // runtime through a const binding the kind extraction erased - undecidable
+    return argKind !== null && typeof paramLit !== argKind ? 'non-match' : 'ambiguous';
+  }
+  const keywordKind = paramPrimitiveKind(param);
+  if (keywordKind === null) return 'ambiguous';
+  if (argKind === null) return 'ambiguous';
+  return keywordKind === argKind ? 'match' : 'non-match';
+}
+
+// verdict of one overload against the whole arg list. every SUPPLIED slot is weighed even
+// once one of them comes back undecidable, so an arm the prefix provably rejects stays
+// rejected however its tail is declared - an optional / rest tail only costs the arm its
+// exact-arity MATCH, never its refutation
+function overloadArgVerdict(params, argLiterals, argKinds) {
+  if (!params) return 'ambiguous';
+  const extra = params.slice(argKinds.length);
+  // a rest param, or extra params that are ALL optional, may still accept the call; extra
+  // REQUIRED params, or more args than a rest-less list has slots, provably reject it
+  const arityFits = params.length === argKinds.length
+    || (params.length > argKinds.length && extra.every(p => p.optional || p.type === 'RestElement'))
+    || params.some(p => p.type === 'RestElement');
+  if (!arityFits) return 'non-match';
+  let verdict = params.length === argKinds.length ? 'match' : 'ambiguous';
+  for (let i = 0; i < params.length && i < argKinds.length; i++) {
+    const slot = paramSlotVerdict(params[i], argLiterals[i], argKinds[i]);
+    if (slot === 'non-match') return 'non-match';
+    if (slot === 'ambiguous') verdict = 'ambiguous';
+  }
+  return verdict;
+}
+
+// TS overload discrimination by args - FIRST-MATCH faithful, LITERAL-aware. answers with both
+// halves the callers need:
+//   - `selected`: the arm TS provably picks (exact arity, every param a keyword matching the
+//     arg's kind or a literal matching the arg node's literal value), or null. an AMBIGUOUS
+//     earlier arm (an `unknown` / `any` / union / generic param, an unresolvable arg kind, a
+//     same-family literal param without an arg literal to compare) might be the arm TS picks,
+//     so nothing after it can be single-selected;
+//   - `candidates`: every arm the args do not provably reject, for the caller's fold. an arm
+//     refuted by arity or by a param that rejects its arg is not a return this call can produce,
+//     and folding it in widened the answer to generic for no reason.
+// a set of fewer than two signatures is not discriminated at all - there is nothing to choose
+// between, and the lone arm is the caller's answer whatever the args are
+export function discriminateOverloads(overloads, getParams, argPaths, resolveNodeType) {
+  if (overloads.length < 2) return { selected: null, candidates: overloads };
   const argLiterals = argPaths.map(a => overloadLiteralValue(a.node));
   const argKinds = argPaths.map(a => primitiveTypeKind(resolveNodeType(a)?.type));
+  const candidates = [];
+  let selected = null;
+  let blocked = false;
   for (const ov of overloads) {
     // a leading `this` pseudo-param fills AST slot 0 but no runtime arg slot - drop it so
     // arity and per-slot pairing align with the call args (an undropped `this` skewed every
     // comparison by one: a this-annotated overload was skipped on arity or mismatched, and
     // a later arm won with the wrong type-specific helper)
-    const params = dropLeadingThisParam(getParams(ov));
-    if (!params) return null;
-    if (params.length !== argKinds.length) {
-      // a rest param, or extra params that are ALL optional, may still accept the call -
-      // not provable here, bail to the fold; extra REQUIRED params provably reject it
-      if (params.some(p => p.type === 'RestElement')) return null;
-      if (params.length > argKinds.length
-        && params.slice(argKinds.length).every(p => p.optional)) return null;
-      continue;
-    }
-    let verdict = 'match';
-    for (let i = 0; i < params.length; i++) {
-      const param = params[i];
-      if (param.type === 'RestElement') {
-        verdict = 'ambiguous';
-        break;
-      }
-      const paramLit = paramLiteralValue(param);
-      if (paramLit !== undefined) {
-        if (argLiterals[i] !== undefined) {
-          if (paramLit === argLiterals[i]) continue;
-          verdict = 'non-match';
-          break;
-        }
-        // a WIDE arg of the literal's own family may still hold the literal value at
-        // runtime through a const binding the kind extraction erased - undecidable
-        verdict = argKinds[i] !== null && typeof paramLit !== argKinds[i] ? 'non-match' : 'ambiguous';
-        break;
-      }
-      const keywordKind = paramPrimitiveKind(param);
-      if (keywordKind !== null) {
-        if (argKinds[i] === null) {
-          verdict = 'ambiguous';
-          break;
-        }
-        if (keywordKind === argKinds[i]) continue;
-        verdict = 'non-match';
-        break;
-      }
-      verdict = 'ambiguous';
-      break;
-    }
-    if (verdict === 'match') return ov;
-    if (verdict === 'ambiguous') return null;
+    const verdict = overloadArgVerdict(dropLeadingThisParam(getParams(ov)), argLiterals, argKinds);
+    if (verdict === 'non-match') continue;
+    candidates.push(ov);
+    if (verdict === 'ambiguous') blocked = true;
+    else if (!blocked && !selected) selected = ov;
   }
-  return null;
+  return { selected, candidates };
 }
