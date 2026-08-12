@@ -5,7 +5,6 @@ import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
 import config from './config/config.mjs';
-import { argv, fs } from 'zx';
 
 const { copy, mkdir, readFile, readJson, readdir, writeFile } = fs;
 

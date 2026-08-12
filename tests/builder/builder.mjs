@@ -1,10 +1,10 @@
 import { doesNotReject, ok, rejects, strictEqual, throws } from 'node:assert/strict';
-import { access, mkdtemp, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import builder from '@core-js/builder';
 import { getRolldownOptions } from '@core-js/builder/config.js';
+
+const { tmpdir } = os;
+const { join } = path;
 
 const { script } = await builder({
   modules: 'actual',
@@ -28,8 +28,8 @@ ok(!script.includes("import 'core-js/modules/esnext.string.dedent.js';"), 'actua
 const options = getRolldownOptions('input.js', 'output.js');
 const [coreJSLookup] = options.resolve.modules;
 
-ok(isAbsolute(coreJSLookup), 'rolldown options #1');
-await doesNotReject(access(join(coreJSLookup, 'core-js/package.json')), 'rolldown options #2');
+ok(path.isAbsolute(coreJSLookup), 'rolldown options #1');
+await doesNotReject(fs.access(join(coreJSLookup, 'core-js/package.json')), 'rolldown options #2');
 ok(options.resolve.modules.includes('node_modules'), 'rolldown options #3');
 throws(() => options.onLog('warn', { code: 'UNRESOLVED_IMPORT', message: 'dropped module' }, () => {
   throw new Error('delegated instead of failing');
@@ -41,7 +41,7 @@ strictEqual(delegated, 'CIRCULAR_DEPENDENCY', 'rolldown options #5');
 
 // point the OS temporary directory at one the test owns, so both the location of the scratch files and their
 // removal are observable - an unreachable one has to break the build, a writable one has to come back empty
-const sandbox = await mkdtemp(join(tmpdir(), 'core-js-builder-test-'));
+const sandbox = await fs.mkdtemp(join(tmpdir(), 'core-js-builder-test-'));
 const restore = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
 const bundleOptions = { modules: ['es.object.group-by', 'es.array.at'], targets: { ie: 11 }, format: 'bundle' };
 
@@ -58,14 +58,14 @@ redirectTempDirectory(sandbox);
 strictEqual(tmpdir(), sandbox, 'bundle ie 11 #2');
 
 const { script: bundle } = await builder(bundleOptions);
-const leftovers = await readdir(sandbox);
+const leftovers = await fs.readdir(sandbox);
 
 for (const [key, value] of Object.entries(restore)) {
   if (value === undefined) delete process.env[key];
   else process.env[key] = value;
 }
 
-await rm(sandbox, { force: true, recursive: true });
+await fs.remove(sandbox);
 
 const context = createContext({});
 
