@@ -1005,3 +1005,20 @@ testUnlessDetectLowered('global-proxy: a wrapper between the rewrites still comp
   assert.same((globalThis.globalThis)?.Array.of(2).at(0), 2, 'wrapped chain root on a present hop');
   /* eslint-enable @stylistic/no-extra-parens, no-unsafe-optional-chaining -- end of the wrapped forms */
 });
+
+// a legacy self-guard (`var P = P || fallback`) declares a name the file also binds as a destructure
+// alias of the global. resolving the inner name re-enters the resolver through the adapter, which
+// carries no cycle state - the recursion used to blow the stack and abort the build. the outer alias
+// keeps the polyfill; the inner name is the LOCAL var, so it must read the caller's value.
+QUnit.test('global-proxy: a self-guarded redeclaration beside a destructure alias', assert => {
+  const { Promise: Outer } = globalThis;
+  assert.same(typeof Outer.allSettled, 'function', 'the outer alias resolves to the polyfilled global');
+  function guarded(fallback) {
+    // eslint-disable-next-line no-shadow, no-var -- the self-guard IS the form under test
+    var Outer = Outer || fallback;
+    return Outer;
+  }
+  const shim = { tag: 'user' };
+  assert.same(guarded(shim), shim, 'the guarded local reads the fallback, not the global');
+  assert.same(guarded(shim).tag, 'user', "the local's value is the user's object");
+});
