@@ -244,10 +244,17 @@ const references = new Map();
 function refKey(lib, method) {
   return `${ lib.name }/${ method }`;
 }
+// A reference goes missing two ways, and they accuse different code: its own cell threw earlier in
+// this run, or the loop stopped visiting babel-plugin first. Only the second is a defect here, so
+// the failed keys are remembered and the message names the cell that actually broke.
+const failedReferences = new Set();
 function referenceFor(lib, method) {
-  const set = references.get(refKey(lib, method));
-  if (!set) throw new Error(`no babel-plugin reference for ${ refKey(lib, method) } - cell ordering is wrong`);
-  return set;
+  const key = refKey(lib, method);
+  const set = references.get(key);
+  if (set) return set;
+  throw new Error(failedReferences.has(key)
+    ? `the babel-plugin cell of ${ key } failed, so there is nothing to diff this phase against`
+    : `no babel-plugin reference for ${ key } - cell ordering is wrong`);
 }
 let failed = 0;
 let drift = 0;
@@ -317,8 +324,10 @@ for (const { lib, method, provider, phase } of cells) {
     // babel-plugin cell gates: it has no phase axis, so it has no expected-to-fail configuration.
     karmaFiles.push({ file: karmaFile, label, gating: phase !== 'pre' });
 
-    const ok = !bad.length;
-    if (!ok) failed++;
+    // a drifting or missing baseline is a red cell, so it may not be prefixed `ok`: the run is
+    // scanned by that prefix, and `exitCode` alone is no help on a log 40 cells long
+    const ok = !bad.length && snap !== 'drift' && snap !== 'missing';
+    if (bad.length) failed++;
     echo(`${ ok ? 'ok' : 'FAIL' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, `
       + `${ injected.length } inj${ delta ? ` (delta vs reference ${ delta.length })` : '' }`
       + `${ snap === 'skipped' ? '' : `, ${ snap }` } `
@@ -335,6 +344,7 @@ for (const { lib, method, provider, phase } of cells) {
     });
   } catch (err) {
     failed++;
+    if (provider === 'babel-plugin') failedReferences.add(refKey(lib, method));
     const reason = errorReason(err);
     echo(`FAIL ${ label }: ${ reason }`);
     manifest.push({ lib: lib.name, provider, method, phase: phase ?? null, error: reason });
