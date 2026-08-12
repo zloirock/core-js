@@ -16,7 +16,7 @@ npm run build-website-local    # what you want locally: builds core-js, gathers 
 npm run build-website          # only the rendering step, over whatever is already in the tree
 ```
 
-`index.mjs` is that rendering step: clean, Vite build, page generation, asset copy. Nothing here builds several versions - `scripts/runner.mjs`, `runner.sh` and `scripts/helpers.mjs` do, and they are not run from here: two workflows ship them to the deploy server, where they clone the repository and call the rendering step once per checked-out version. A push to `master` covers every version in the registry; a push to any other branch builds that branch alone, into its own path.
+`index.mjs` is that rendering step: clean, Vite build, page generation, asset copy. Nothing here builds several versions - `scripts/runner.mjs`, `runner.sh` and `scripts/helpers.mjs` do, and they are not run from here: two workflows ship exactly those three files to the deploy server, where a bare `node` runs them with no repository, no `node_modules` and no zx around. So `runner.mjs` and `helpers.mjs` must stay on `node:` builtins alone - do not convert them to the zx ambient globals the rest of the build enjoys. A push to `master` covers every version in the registry; a push to any other branch builds that branch alone, into its own path.
 
 ## Layout
 

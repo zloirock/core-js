@@ -17,15 +17,14 @@
 // second death.
 import { fork } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import os from 'node:os';
-import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generate } from './generate.mjs';
 
 const { cyan, green, red } = chalk;
-const HERE = dirname(fileURLToPath(import.meta.url));
+const { ensureDir, readdir, remove } = fs;
+const { join } = path;
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const TMP_ROOT = join(HERE, 'tmp');
 // this run's own subdirectory: concurrent runs must never share a tree - the old whole-root
 // clear raced a concurrent run's live writers (rm walks the dir, a writer adds a file, the
@@ -44,7 +43,7 @@ const SHARD_CAP = 1500;
 // each eval writes a fresh temp module (dynamic-import never reuses a URL), so trees grow
 // unbounded across runs. reap ONLY dead runs' trees (a killed run never cleans after itself)
 // plus legacy shared-root files; a live pid keeps its tree untouched
-await mkdir(TMP_ROOT, { recursive: true });
+await ensureDir(TMP_ROOT);
 for (const entry of await readdir(TMP_ROOT)) {
   const found = /^run-(?<pid>\d+)$/u.exec(entry);
   let dead = true;
@@ -56,9 +55,9 @@ for (const entry of await readdir(TMP_ROOT)) {
       // signal 0 threw - no such process, the tree is stale
     }
   }
-  if (dead) await rm(join(TMP_ROOT, entry), { recursive: true, force: true });
+  if (dead) await remove(join(TMP_ROOT, entry));
 }
-await mkdir(TMP, { recursive: true });
+await ensureDir(TMP);
 
 // generation is cheap string building (no transforms), so the corpus is materialized just to size
 // the pool. the count is a MULTIPLE of the slot count: the corpus splits evenly over the slots, and
@@ -96,7 +95,7 @@ const nodeRequire = createRequire(import.meta.url);
 // NUL between parts: a bare concat would let two different states hash equal when bytes move
 // across a boundary (file tail to next file head, version digit to the next version)
 const machinery = createHash('sha256');
-for (const name of ARMING_MACHINERY) machinery.update(await readFile(join(HERE, name))).update('\0');
+for (const name of ARMING_MACHINERY) machinery.update(await fs.readFile(join(HERE, name))).update('\0');
 for (const name of STRIP_DEPS) machinery.update(nodeRequire(`${ name }/package.json`).version).update('\0');
 machinery.update(process.version);
 const ARMING_DIR = join(os.homedir(), '.cache', 'core-js-differential');
@@ -231,12 +230,12 @@ if (!PURE_ONLY) {
     if (Object.keys(merged).length) {
       let existing = {};
       try {
-        existing = JSON.parse(await readFile(ARMING_CACHE, 'utf8')).entries ?? {};
+        existing = (await fs.readJson(ARMING_CACHE)).entries ?? {};
       } catch { /* first run for this machinery */ }
-      await mkdir(ARMING_DIR, { recursive: true });
+      await ensureDir(ARMING_DIR);
       const tmpFile = `${ ARMING_CACHE }.${ process.pid }.tmp`;
-      await writeFile(tmpFile, JSON.stringify({ entries: { ...existing, ...merged } }));
-      await rename(tmpFile, ARMING_CACHE);
+      await fs.writeJson(tmpFile, { entries: { ...existing, ...merged } });
+      await fs.rename(tmpFile, ARMING_CACHE);
       echo`arming cache: ${ cyan(Object.keys(merged).length) } new keys stored`;
     }
     // hash-keyed caches of dead machinery / branches accumulate - sweep the stale ones on every
@@ -245,7 +244,7 @@ if (!PURE_ONLY) {
     for (const entry of await readdir(ARMING_DIR)) {
       if (entry === ARMING_NAME) continue;
       const file = join(ARMING_DIR, entry);
-      if ((await stat(file)).mtimeMs < cutoff) await rm(file, { force: true });
+      if ((await fs.stat(file)).mtimeMs < cutoff) await remove(file);
     }
   } catch { /* cache trouble must not shadow the verdict above */ }
 }
@@ -254,5 +253,5 @@ if (!PURE_ONLY) {
 if (!tokens.size) echo`edit-loop scoping: ${ cyan('pure') } skips the usage-global leg, ${ cyan('babel') } / ${ cyan('unplugin') } runs one emitter - combinable positional tokens; the bare run stays the gate`;
 // a clean run leaves nothing behind; a failed one keeps its modules for reproduction (the tree
 // is reaped as dead by the next run's startup sweep)
-if (!failures.length) await rm(TMP, { recursive: true, force: true });
+if (!failures.length) await remove(TMP);
 if (failures.length) throw new Error('Some tests have failed');
