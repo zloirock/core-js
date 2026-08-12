@@ -4121,7 +4121,8 @@ function * generateForOfIterable() {
 // source branch, named default -> same via bindsModuleDefault, namespace `.default` -> the
 // interop member canon). the require / interop-wrapper styles cannot run on the NATIVE leg
 // (no `require` in real ESM; a stubbed one is the shadowed-require negative by design) -
-// those stay locked by fixtures and the e2e post leg. FULL-env: the write needs the live slot
+// those stay locked by fixtures and the e2e post leg. `strip: false`: the write needs the
+// live slot; the usage-global leg still runs these, armed empirically
 function * generateProxyImportSlotWrite() {
   const styles = [
     { id: 'esm-default', head: 'import gt from "@core-js/pure/full/global-this";', receiver: 'gt' },

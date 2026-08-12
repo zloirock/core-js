@@ -3,18 +3,22 @@
 // index.mjs for why process-sharding (global-mutation isolation) is the only safe parallelism.
 // DIFF_SHARD="k/N" selects the shard; the coordinator (index.mjs) forks N and aggregates.
 import { generate } from './generate.mjs';
-import { checkGlobalSnippet } from './global-leg.mjs';
-import { checkSnippet, closeStrippedWorker, summarizeVerdict } from './harness.mjs';
+import { checkGlobalSnippet, collectNewArmings } from './global-leg.mjs';
+import { checkSnippet, closeStrippedWorker, phaseNs, summarizeVerdict } from './harness.mjs';
 
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
 // same oldest target: every manifest feature is then required, so a missing injection is a
 // detection miss, never target filtering
 const GLOBAL_OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
 const [shard, total] = (process.env.DIFF_SHARD ?? '0/1').split('/').map(Number);
+// pure-only edit-loop mode: the coordinator already labels the run as not-a-full-verification
+const PURE_ONLY = process.env.DIFF_LEGS === 'pure';
 
 // materialized once: the exact subset size feeds the live progress stream (stderr, so the
 // coordinator's stdout JSON channel stays clean)
+let t0 = process.hrtime.bigint();
 const subset = [...generate()].filter((snippet, index) => index % total === shard);
+phaseNs['generate corpus'] = process.hrtime.bigint() - t0;
 const PROGRESS_EVERY = 100;
 let processed = 0;
 let passed = 0;
@@ -32,8 +36,9 @@ for (const snippet of subset) {
     else passed++;
     // the usage-global leg: skipped for by-design full-env shapes (their stripped divergence is
     // the family's point) and when there is no usable native reference (transform crash)
-    if (!snippet.fullEnv && !verdict.transformCrash) {
+    if (!PURE_ONLY && !snippet.fullEnv && !verdict.transformCrash) {
       globalChecked++;
+      t0 = process.hrtime.bigint();
       const globalVerdict = await checkGlobalSnippet({
         code: snippet.code,
         ts: snippet.ts,
@@ -43,6 +48,7 @@ for (const snippet of subset) {
       });
       if (globalVerdict.armed) globalArmed++;
       if (globalVerdict.failed) failures.push(`${ snippet.name } :: [global] ${ globalVerdict.detail }`);
+      phaseNs['global leg'] = (phaseNs['global leg'] ?? 0n) + (process.hrtime.bigint() - t0);
     }
   } catch (error) {
     failures.push(`${ snippet.name } :: HARNESS CRASH ${ error?.message ?? error }`);
@@ -57,8 +63,10 @@ closeStrippedWorker();
 // the coordinator reads this single JSON line from stdout. FLUSH before exiting: the write
 // callback fires once the payload is handed to the OS pipe buffer, which survives the
 // writer's death and still reaches the coordinator
+const timings = Object.fromEntries(Object.entries(phaseNs).map(([phase, ns]) => [phase, Number(ns / 1000000n)]));
+const newArmings = collectNewArmings();
 await new Promise(resolve => {
-  process.stdout.write(`\n@@SHARD@@${ JSON.stringify({ passed, failures, globalChecked, globalArmed }) }@@\n`, resolve);
+  process.stdout.write(`\n@@SHARD@@${ JSON.stringify({ passed, failures, globalChecked, globalArmed, timings, newArmings }) }@@\n`, resolve);
 });
 // HARD exit. natural teardown after thousands of per-eval worker threads (the usage-global
 // leg spawns one per evaluation) ACCESS_VIOLATIONs on Windows (exit code 0xC0000005 fired
