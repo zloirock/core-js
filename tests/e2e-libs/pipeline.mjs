@@ -6,8 +6,8 @@
 //   [B] + Babel -> ES5                       - syntax down-compiled, NO polyfills
 //   [C] + unplugin                           - + core-js polyfills = the real IE11 bundle
 // For usage-* all three stages are measured; for entry-global only [C] (`import 'core-js'` without
-// the plugin is pathological). Also captured: injection count, the Babel-vs-unplugin time split of
-// [C], and the minified + gzip "wire size" of [C] (what you'd actually ship).
+// the plugin is pathological). Also captured: injection count, how long each transform hook of [C]
+// had work in flight, and the minified + gzip "wire size" of [C] (what you'd actually ship).
 //
 // Usage:  npm run e2e-libs-pipeline [libFilter [methodFilter]]  ->  report/pipeline.{md,json}
 import { rollup } from 'rollup';
@@ -114,11 +114,11 @@ async function measure(lib, method) {
 
     // injections are recorded INSIDE this build: a separate pass without Babel in front of unplugin
     // would undercount, since the post phase consumes what Babel's helpers emit
-    let babelMs = 0;
-    let unpluginMs = 0;
+    let babelBusyMs = 0;
+    let unpluginBusyMs = 0;
     const sink = new Set();
-    const babel = timeTransform(makeBabelPlugin(), ms => { babelMs += ms; });
-    const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginMs += ms; });
+    const babel = timeTransform(makeBabelPlugin(), ms => { babelBusyMs += ms; });
+    const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginBusyMs += ms; });
     const c = await timedBuild(entry, [tsSources(), babel, nodeResolve(), commonjs(), up, recorder(sink)], cellC);
     cell.injections = sink.size;
     // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
@@ -126,12 +126,12 @@ async function measure(lib, method) {
     // runtime.mjs refuses this shape for EVERY method, so this must too - an entry-global carve-out
     // would be both weaker than it is there and pointless, since entry-global injects the most of all.
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
-    // [B] == [A] with babelMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
+    // [B] == [A] with babelBusyMs ~ 0 is the silent shape of a Babel stage that did nothing; assert the
     // premise directly instead of inferring it from the numbers
     assertES5(c.code, cellC);
     const { min, gz } = await wireSize(c.code, cellC);
     cell.C = {
-      bytes: c.bytes, ms: +c.ms.toFixed(0), babelMs: +babelMs.toFixed(0), unpluginMs: +unpluginMs.toFixed(0),
+      bytes: c.bytes, ms: +c.ms.toFixed(0), babelBusyMs: +babelBusyMs.toFixed(0), unpluginBusyMs: +unpluginBusyMs.toFixed(0),
       min, gz,
     };
     return cell;
@@ -191,7 +191,13 @@ for (const lib of libs) {
       md += `| [A] ${ c.ts ? 'types erased' : 'no transforms' } (modern) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
       md += `| [B] + Babel (ES5, no polyfills) | ${ kb(c.B.bytes) } | ${ c.B.ms } ms |\n`;
     }
-    md += `| [C] + unplugin (IE11) | ${ kb(c.C.bytes) } | ${ c.C.ms } ms (Babel ${ c.C.babelMs } / unplugin ${ c.C.unpluginMs }) |\n\n`;
+    md += `| [C] + unplugin (IE11) | ${ kb(c.C.bytes) } | ${ c.C.ms } ms |\n\n`;
+    // NOT printed as `total (Babel x / unplugin y)`: that form promises a partition, and these two
+    // are overlapping windows - modules transform concurrently, both hooks are async, so the clocks
+    // run at the same time and their sum may exceed the row above.
+    md += `**Hooks busy during [C]:** Babel ${ c.C.babelBusyMs } ms, unplugin ${ c.C.unpluginBusyMs } ms`
+      + ' - each is the span in which that hook had work in flight, so the two overlap and neither'
+      + ' divides the [C] time above.\n\n';
     md += `**Wire size of [C]:** minified ${ kb(c.C.min) } / gzip **${ kb(c.C.gz) }**`;
     if (c.A) md += ` - size delta: Babel ${ (c.B.bytes >= c.A.bytes ? '+' : '') + kb(c.B.bytes - c.A.bytes) } / polyfills +${ kb(c.C.bytes - c.B.bytes) }`;
     md += '\n\n';
