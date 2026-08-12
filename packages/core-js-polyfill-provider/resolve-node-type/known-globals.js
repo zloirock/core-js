@@ -24,11 +24,20 @@
 //   resolveGlobalStaticReference(path)
 //   resolveKnownGlobalReference(path)
 //   inferPromiseResolveReturnType(callPath)   - `Promise.resolve(x)` arg-based inner peel
-import { PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, $Object, $Primitive } from './base.js';
+import { PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, $Object, $Primitive, callArgumentPaths } from './base.js';
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import { getTypeArgs, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
+
+// invocation shapes whose value IS whatever the callee returns, so the return-shape rules below
+// (`Promise.resolve` flattening, `returnsArgument: N`) carry through them. `new` is excluded
+// deliberately - it yields the constructed object no matter what the callee returns
+const RETURNING_INVOCATION_TYPES = new Set([
+  'CallExpression',
+  'OptionalCallExpression',
+  'TaggedTemplateExpression',
+]);
 
 const MAX_PEEL = 16;
 
@@ -170,13 +179,11 @@ export function createKnownGlobals({
   // promoting to a registry pattern (`{ 'Promise.resolve': inferFn, 'Array.of': ..., ... }`)
   // keyed in `resolveKnownStaticReturnType` rather than open-coding each one
   function inferPromiseResolveReturnType(callPath) {
-    // defensive: callPath may be TaggedTemplateExpression when invoked via tag-recursion
-    // (`String.raw\`...\``) - TT has no `arguments` slot. check via node.type so the guard
-    // works for both babel paths (which expose `.isCallExpression()`) and estree-toolkit
-    // paths (which do not)
-    const callType = callPath?.node?.type;
-    if (callType !== 'CallExpression' && callType !== 'OptionalCallExpression') return null;
-    const [argPath] = callPath.get('arguments');
+    // `new Promise.resolve(x)` constructs rather than returns the callee's value, so the
+    // unwrap rule below does not describe it. checked via node.type so the gate works for both
+    // babel paths (which expose `.isCallExpression()`) and estree-toolkit paths (which do not)
+    if (!RETURNING_INVOCATION_TYPES.has(callPath?.node?.type)) return null;
+    const [argPath] = callArgumentPaths(callPath);
     if (!argPath || babelNodeType(argPath.node) === 'SpreadElement') return null;
     const argType = resolveNodeType(argPath);
     if (!argType || isNullableOrNever(argType)) return null;
@@ -189,9 +196,8 @@ export function createKnownGlobals({
   // (which drops the polyfill on ie:11). null when the slot is absent / preceded-or-filled by a
   // spread / unknown, so the caller falls back to the declared hint. mirrors `inferPromiseResolveReturnType`
   function inferReturnedArgType(callPath, index) {
-    const callType = callPath?.node?.type;
-    if (callType !== 'CallExpression' && callType !== 'OptionalCallExpression') return null;
-    const args = callPath.get('arguments');
+    if (!RETURNING_INVOCATION_TYPES.has(callPath?.node?.type)) return null;
+    const args = callArgumentPaths(callPath);
     const argPath = args[index];
     // a spread at or before the target index makes positional matching undecidable
     if (!argPath || args.slice(0, index + 1).some(a => babelNodeType(a.node) === 'SpreadElement')) return null;

@@ -232,6 +232,32 @@ export function resolvePolyfillableStaticProp({ prop, receiverName, resolvePure,
   return { pure, localName: valueNode.name };
 }
 
+// the extracted value IS the iterator method - a FUNCTION - so a leaf pulled out of it is an
+// INSTANCE member of that function. only the plan can say so: the extracted pattern's properties
+// are claimed (the re-visit must not re-enter the destructure pipeline on them), and that claim
+// equally silences the member dispatch that would otherwise resolve the leaf. a shorthand leaf is
+// not a member read either, so nothing downstream asks the question.
+// ONE leaf only, and that bound is load-bearing rather than incidental: each polyfilled leaf needs
+// the receiver again, and the receiver here is the synth CALL - re-running it would re-read the
+// source's `Symbol.iterator` a second time (a getter would fire twice). two leaves therefore need
+// a memo contract, which stays out of this plan
+export function symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled, keyNameOf }) {
+  const inner = peelInnerDefault(value);
+  if (inner?.type !== 'ObjectPattern' || inner.properties.length !== 1) return null;
+  const [leaf] = inner.properties;
+  if (!isPropertyNode(leaf) || leaf.computed || isDisabled?.(leaf)) return null;
+  // a DEFAULTED leaf stays on the destructure: the dispatcher result would have to be guarded
+  // (`(ref = _m(x)) === void 0 ? <default> : ref`), which is the instance-default channel's shape,
+  // and binding it directly here would drop the user's default outright
+  if (leaf.value?.type === 'AssignmentPattern') return null;
+  const key = keyNameOf(leaf);
+  const bound = key === null ? null : propBindingIdentifier(leaf.value);
+  if (!bound) return null;
+  const pure = resolvePure({ kind: 'property', object: 'function', key, placement: 'prototype' });
+  return pure?.kind === 'instance'
+    ? { localName: bound.name, instanceEntry: pure.entry, instanceHint: pure.hintName } : null;
+}
+
 // plan cache keyed by declarator node identity (unique per parse, so a module-level
 // WeakMap is per-file safe; entries GC with the program). the FIRST build wins: the
 // AssignmentExpression cascade plans a synthetic `{ id, init }` host and the render-time
@@ -353,6 +379,10 @@ export function buildNestedDestructurePlan({
       return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', localName }] };
     }
     if (isSymbolIteratorPatternProp(prop)) {
+      const leaf = symbolIteratorInstanceLeaf({
+        value: prop.value, resolvePure, isDisabled: leafDisabled, keyNameOf: propKeyNameScoped,
+      });
+      if (leaf) return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', ...leaf }] };
       return { kind: 'consumed', prop, extractions: [{ synth: 'symbol-iterator', pattern: prop.value }] };
     }
     return { kind: 'symbol-iterator-key', prop };

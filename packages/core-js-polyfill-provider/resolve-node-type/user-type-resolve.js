@@ -103,9 +103,9 @@ export function createUserTypeResolve({
       const arg = explicit ?? p.default;
       if (!pname || !arg) return;
       const map = explicit ? base : localMap;
-      const resolved = map.size > 0
-        ? substituteTypeParams(arg, map, scope, depth + 1, seen)
-        : resolveTypeAnnotation(arg, scope, depth + 1);
+      // an EMPTY map is the plain lane, which the substitution entry degrades to itself - going
+      // through it hands the decl-cycle guard over instead of restarting the walk empty here
+      const resolved = substituteTypeParams(arg, map.size > 0 ? map : null, scope, depth + 1, seen);
       // a PRESENT-but-opaque instantiation arg (and a consulted-but-unresolvable default,
       // e.g. a cyclic one) binds opaque (null): the body's type-param-declaration fallback
       // would otherwise re-derive the DEFAULT for a type the caller explicitly supplied -
@@ -181,10 +181,9 @@ export function createUserTypeResolve({
       // pass `seen` through to substitution to inherit caller's decl-cycle guard. without
       // it, a cyclic default `type R<T = R<T>>` walks the substitution recursion fresh and
       // only MAX_DEPTH=64 catches the loop (O(64) overhead per resolution); with `seen`,
-      // the second visit short-circuits via the side-channel WeakSet flag
-      return typeParamMap
-        ? substituteTypeParams(annotation, typeParamMap, typeParam.scope, depth + 1, seen)
-        : resolveTypeAnnotation(annotation, typeParam.scope, depth + 1);
+      // the second visit short-circuits via the side-channel WeakSet flag. the map-less lane
+      // needs it just as much, and the substitution entry degrades to that lane itself
+      return substituteTypeParams(annotation, typeParamMap, typeParam.scope, depth + 1, seen);
     }
     const declaration = findTypeDeclaration(name, scope);
     if (!declaration) return null;

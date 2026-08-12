@@ -48,6 +48,7 @@ export function createClassObjectMember({
   instanceMemberShadowable,
   getTypeMembers,
   findNamespacedFunctionPath,
+  findOverloadsForName,
   classCallableSlotReassigned,
 }) {
   // computed key matches only when statically resolvable to a string (`['foo']` literal,
@@ -254,7 +255,16 @@ export function createClassObjectMember({
       if (!callPath || depth > MAX_DEPTH) return null;
       if (!findNamespacedFunctionPath) return null;
       if (!classPath.node.id?.name) return null;
-      const found = findNamespacedFunctionPath([classPath.node.id.name, name], classPath.scope);
+      const segments = [classPath.node.id.name, name];
+      // a merged namespace declares overloads the same way an ambient scope does, and the single
+      // lookup below answers with the FIRST declaration whatever the call passes - the arms have
+      // to be discriminated by the arguments, or a divergent set folded, exactly as elsewhere
+      const overloads = findOverloadsForName?.(segments, classPath.scope) ?? [];
+      if (overloads.length >= 2) {
+        return foldOverloadReturns(overloads, p => p.node.params,
+          p => resolveReturnType(p, callPath), p => p.node.returnType, callPath);
+      }
+      const found = findNamespacedFunctionPath(segments, classPath.scope);
       if (found) {
         // matched in THIS class's namespace - own export wins. route through
         // `resolveReturnType` which handles BOTH annotated returns (with type-param subst
@@ -411,15 +421,17 @@ export function createClassObjectMember({
     // returnType / typeParameters) on either parser, or null when there's no declared signature
     const declaredReturnPath = bodylessReturnPath(member);
     if (callPath) {
-      // arg-discriminated bodyless overload set wins over findClassMember's single last-match
-      const overloaded = resolveBodylessMethodOverloads({ member, callPath, classSubst });
-      if (overloaded !== undefined) return overloaded;
       // EVERY callable member is a writable slot: `this.m = ...` replaces a method shorthand just
       // as it replaces a function-valued field, and the replacement may return a foreign family.
       // an OBSERVED write unseats the declared narrowing for every shape alike, or dispatch picks
       // a type-specific helper and throws on the replacement's value. a merely unknown writer set
-      // is not enough here - a method body exists whatever an external monkey-patch might do
+      // is not enough here - a method body exists whatever an external monkey-patch might do.
+      // it gates the OVERLOAD set too: a written slot answers with the replacement's value, which
+      // no arm of the declared set describes
       if (classCallableSlotReassigned(member) === 'written') return null;
+      // arg-discriminated bodyless overload set wins over findClassMember's single last-match
+      const overloaded = resolveBodylessMethodOverloads({ member, callPath, classSubst });
+      if (overloaded !== undefined) return overloaded;
       if (methodFn) {
         const r = resolveMethodOrGetterCallReturn({ methodFn, kind: member.node.kind, callPath, classSubst });
         if (r) return r;

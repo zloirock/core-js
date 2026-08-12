@@ -114,23 +114,30 @@ export function createElementTypes({
     // cycle guard: `type Rec = Rec[]` / `interface A extends B; interface B extends A`
     // would otherwise burn MAX_DEPTH hops before bottoming out (the alias / interface
     // branches both recurse through resolver). visited as a per-resolution Set keyed on
-    // decl identity short-circuits the second visit. depth fallback stays for safety
+    // decl identity short-circuits the second visit. depth fallback stays for safety.
+    // scoped to the CURRENT descent, like the canonical user-type walk: the mark answers
+    // "is this decl already open ABOVE me", and a set that only grows lets the first arm of
+    // a union read its siblings' repeat reference as a cycle and fold the whole union to null
     const visited = seen ?? new Set();
     if (visited.has(decl)) return null;
     visited.add(decl);
-    const subst = buildSubstMap(decl.typeParameters?.params, typeArgs, scope);
-    if (isTypeAlias(decl)) return resolver(applyAliasSubstDeep(typeAliasBody(decl), subst), scope, depth + 1, visited);
-    if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
-    for (const parent of decl.extends) {
-      const baseRef = synthInterfaceExtendsRef(parent);
-      // `resolveElementType` / `extractElementAnnotation` look up the parent's name via
-      // `typeRefName` (single-segment only), so qualified-name refs would bail anyway -
-      // skip them here to avoid an unproductive recursive call
-      if (!baseRef || baseRef.typeName.type !== 'Identifier') continue;
-      const result = resolver(applyAliasSubstDeep(baseRef, subst), scope, depth + 1, visited);
-      if (result) return result;
+    try {
+      const subst = buildSubstMap(decl.typeParameters?.params, typeArgs, scope);
+      if (isTypeAlias(decl)) return resolver(applyAliasSubstDeep(typeAliasBody(decl), subst), scope, depth + 1, visited);
+      if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
+      for (const parent of decl.extends) {
+        const baseRef = synthInterfaceExtendsRef(parent);
+        // `resolveElementType` / `extractElementAnnotation` look up the parent's name via
+        // `typeRefName` (single-segment only), so qualified-name refs would bail anyway -
+        // skip them here to avoid an unproductive recursive call
+        if (!baseRef || baseRef.typeName.type !== 'Identifier') continue;
+        const result = resolver(applyAliasSubstDeep(baseRef, subst), scope, depth + 1, visited);
+        if (result) return result;
+      }
+      return null;
+    } finally {
+      visited.delete(decl);
     }
-    return null;
   }
 
   // extract the raw element annotation node (not resolved) from a collection type.
