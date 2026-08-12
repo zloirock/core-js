@@ -7,12 +7,13 @@
 // that ship no sources stay JS - so the graph is deliberately mixed, the way a real project's
 // node_modules is.
 //
-// Feeding unplugin TypeScript is what gives the `phase` axis something to be about. On the JS fixtures
-// `post` is a strict superset of `pre`; here the phases separate in BOTH directions, so `pre+post` is
-// strictly larger than `post` and its cells gate exactly that union. `pre` reads type annotations no
-// later phase can see - `es.error.cause` off `onerror(error: Error)` - and resolves receivers from
-// them, a `Node[]` picking the array-specific pure helper where `post` falls back to the
-// receiver-agnostic one.
+// Feeding unplugin TypeScript is what gives the `phase` axis something to be about. On three and
+// codemirror `post` is a strict superset of `pre` - rxjs is bundled from an ES5 build, so Babel emits
+// nothing there for `post` to see and its phases agree exactly - while here they separate in BOTH
+// directions, so `pre+post` is strictly larger than `post` and its cells gate exactly that union.
+// `pre` reads type annotations no later phase can see - `es.error.cause` off `onerror(error: Error)`
+// - and resolves receivers from them, a `Node[]` picking the array-specific pure helper where `post`
+// falls back to the receiver-agnostic one.
 //
 // The exercise imports BARE specifiers, so `check-exercise` runs against the published JS while the
 // runtime tier builds the sources: the redirect belongs to the bundler, and keeping it there is what
