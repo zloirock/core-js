@@ -4007,14 +4007,50 @@ function getTSRuntimeBindings(scopeNode) {
   return cached;
 }
 
+// a parameter property (`constructor(private Map: T)`) declares its name in the constructor's own
+// scope, and neither parser's scope tracker registers it - the accessibility wrapper is a TS node
+// both of them walk past. A body read of that name therefore falls through to the global, which
+// `usage-pure` answers by substituting the polyfill OVER the caller's argument. Kept out of the
+// statement scan above because its reach is narrower: a statement declaration shadows the whole
+// subtree, this one does not reach the decorators (see the climb)
+const parameterPropertyNamesCache = new WeakMap();
+
+function getParameterPropertyNames(scopeNode) {
+  let cached = parameterPropertyNamesCache.get(scopeNode);
+  if (cached) return cached;
+  if (!Array.isArray(scopeNode?.params)) return null;
+  cached = new Set();
+  for (const param of scopeNode.params) {
+    if (param?.type !== 'TSParameterProperty') continue;
+    const target = param.parameter?.type === 'AssignmentPattern' ? param.parameter.left : param.parameter;
+    const name = tsRuntimeBindingName(target);
+    if (name) cached.add(name);
+  }
+  parameterPropertyNamesCache.set(scopeNode, cached);
+  return cached;
+}
+
 // walk path's ancestor chain checking each anchor body for TS runtime declarations.
 // covers `function f() { enum Map { A } new Map() }` (Map shadows global from inside f),
 // `namespace Outer { namespace Map {} new Map() }` (TSModuleBlock anchor), and similar
 // block / static-block / Program / function-body cases. path-based so TSModuleBlock works
 // even when the scope tracker doesn't register a scope for it
 export function findTSRuntimeBindingInPath(path, name) {
+  // a decorator is evaluated where the CLASS is defined, not inside the decorated function's
+  // parameter scope, so a parameter property is invisible to a decorator hanging off that same
+  // parameter list - the outer-scope carve-out computed member keys get for the same reason.
+  // Only the parameter arm is carved out: a statement declaration around the class does shadow
+  // the decorator, since the decorator really does sit inside that statement's scope.
+  // The same FACT is spelled twice more - the member-decorator skip in `findEnclosingClassMember`
+  // and the decorator collector in `outerThisKeyPaths` - and neither is reusable here: both answer
+  // a `this`-anchoring question from a class node downwards over MEMBER decorators, while this one
+  // asks a binding question while climbing UP and needs the PARAMETER decorator's owner. Collapsing
+  // the three onto one owner-of-a-decorator primitive is a binding-canon job, not this fix's
+  let decoratedOwner = null;
   for (let cur = path; cur; cur = cur.parentPath) {
+    if (cur.listKey === 'decorators') decoratedOwner = cur.parentPath?.parentPath?.node ?? null;
     if (getTSRuntimeBindings(cur.node)?.has(name)) return true;
+    if (cur.node !== decoratedOwner && getParameterPropertyNames(cur.node)?.has(name)) return true;
   }
   return false;
 }

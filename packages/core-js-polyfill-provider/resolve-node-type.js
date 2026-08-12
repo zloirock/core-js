@@ -1373,10 +1373,14 @@ function createResolveNodeType(babelNodeType, t, {
     // call expression: resolve callee function's return type annotation. async-generator
     // `yield* await inner()` parses the delegate as AwaitExpression wrapping the call -
     // peel one level so the call's return-type signature reaches the dispatch (Awaited<>
-    // on a Generator return is the same Generator shape, so unwrap is sound here)
+    // on a Generator return is the same Generator shape, so unwrap is sound here).
+    // That peel is also the ONLY route by which an optional call arrives here: a bare
+    // `make?.()` delegate resolves through the callee earlier and never reaches this branch,
+    // so the optional arm of the union below manifests only behind an `await`
     let resolved = resolveRuntimeExpression(exprPath);
     if (t.isAwaitExpression(resolved.node)) resolved = resolveRuntimeExpression(resolved.get('argument'));
-    if (t.isCallExpression(resolved.node) || t.isNewExpression(resolved.node)) {
+    if (t.isCallExpression(resolved.node) || t.isOptionalCallExpression(resolved.node)
+      || t.isNewExpression(resolved.node)) {
       const callee = resolveRuntimeExpression(resolved.get('callee'));
       if (t.isFunction(callee.node) && callee.node.returnType) {
         const params = generatorTypeParams(unwrapTypeAnnotation(callee.node.returnType), callee.scope);
