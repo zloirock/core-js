@@ -18,7 +18,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `transpiler-differential/` | `npm run test-transpiler-differential [pure] [babel\|unplugin]` | a generated corpus checked three ways: native == babel == unplugin at runtime, matching import sets, and the stripped-realm oracle; edit loops scope it with the tokens, gates run it bare |
 | `transpiler-integration/` | `npm run test-transpiler-integration` | real bundlers x methods x phases, runtime-verified |
 | `transpiler-perf/` | `npm run test-transpiler-perf` | transpiler perf gates and complexity-class discriminators |
-| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-runtime`, `e2e-libs-pipeline`, `e2e-libs-throughput` | real libraries taken to the ES5 floor through both providers, executed in Node and in real IE11 |
+| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-runtime`, `e2e-libs-pipeline` | real libraries taken to the ES5 floor through both providers, executed in Node and in real IE11 |
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
 | `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; and the query API |
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |
