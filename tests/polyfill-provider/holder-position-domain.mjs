@@ -8,12 +8,11 @@
 /* eslint-disable node/no-sync -- a one-shot corpus scan at test time: the async forms would buy
    nothing here and babel's parse / traverse are sync anyway */
 import { createRequire } from 'node:module';
-import * as nodePath from 'node:path';
-import { readdirSync, readFileSync } from 'node:fs';
 import { createChecker } from './harness.mjs';
 import { LITERAL, POSITIONS } from './holder-shape-equivalence.mjs';
 
 const { parseSync, traverse } = createRequire(import.meta.url)('@babel/core');
+const { join, relative, resolve } = path;
 
 const { checkTruthy, finish } = createChecker('holder-position-domain');
 
@@ -72,14 +71,14 @@ const DOMAIN = new Map(Object.entries({
 // sources it transforms for the runtime legs. a corpus of code nobody transpiles would widen the
 // domain with positions the analyses never see
 const CORPUS = [
-  { root: nodePath.resolve('../transpiler-fixtures'), takes: name => name === 'input.mjs' },
-  { root: nodePath.resolve('../e2e-usage-pure'), takes: name => name.endsWith('.js') },
+  { root: resolve('../transpiler-fixtures'), takes: name => name === 'input.mjs' },
+  { root: resolve('../e2e-usage-pure'), takes: name => name.endsWith('.js') },
 ];
 const PARSER_PLUGINS = ['jsx', 'typescript', 'decorators'];
 
 function collectPositions(dir, takes, found) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const file = nodePath.join(dir, entry.name);
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = join(dir, entry.name);
     if (entry.isDirectory()) {
       collectPositions(file, takes, found);
       continue;
@@ -89,7 +88,7 @@ function collectPositions(dir, takes, found) {
     // a fixture that pins syntax this parser build cannot read carries no position information -
     // skipping it under-reports the domain, which is the safe direction for a completeness check
     try {
-      ast = parseSync(readFileSync(file, 'utf8'), {
+      ast = parseSync(fs.readFileSync(file, 'utf8'), {
         configFile: false,
         babelrc: false,
         filename: file,
@@ -117,7 +116,7 @@ checkTruthy('the fixture corpus yields a position domain', found.size >= 25,
 
 for (const [position, file] of [...found].sort()) {
   checkTruthy(`${ position } is classified`, DOMAIN.has(position),
-    `unclassified position, first seen in ${ nodePath.relative(nodePath.resolve('..'), file) }`
+    `unclassified position, first seen in ${ relative(resolve('..'), file) }`
     + ' - decide it and add it to DOMAIN as consumes | forwards | hands-out | inspects');
 }
 
