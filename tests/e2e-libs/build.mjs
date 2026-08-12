@@ -10,7 +10,7 @@ import { METHODS, phasesFor, pluginOpts as matrixOpts } from '../transpiler-inte
 import { createRequire } from 'node:module';
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve as resolvePath } from 'node:path';
+import { basename, dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 
@@ -50,6 +50,12 @@ export async function withEntry(exerciseAbs, method, label, fn) {
 }
 
 export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
+
+// What every bundle of this suite is: one UMD file with a global name, loadable by the node pre-flight
+// and by a `<script>` in IE11 alike. Shared, because pipeline.mjs publishes sizes of bundles that have
+// to be the same shape as the ones runtime.mjs ships - two copies that drifted would have the report
+// describing an artifact nobody runs.
+export const UMD_OUTPUT = { format: 'umd', name: 'E2E', esModule: false };
 
 // -------- runtime builder: ES5 UMD via Babel(syntax) + a stdlib provider --------
 // A custom transform rather than @rollup/plugin-babel, so the suite's own @babel/core and
@@ -93,7 +99,8 @@ const NODE_MODULES = join(HERE, 'node_modules');
 // with `join`/`resolve` and so carry the platform separator, but the IE11 leg of this suite runs on
 // windows-2022, where a single normalized id from any of those sources would make a `startsWith` test
 // silently answer `false` - and then every intra-package import resolves to nothing. Compare in one
-// form instead; `recorder` and `runKarma` normalize for the same reason.
+// form instead; `recorder` normalizes for the same reason, and so does every path this suite hands
+// to a shell or to a glob.
 function toPosix(p) {
   return p.replaceAll('\\', '/');
 }
@@ -108,16 +115,29 @@ const TS_SOURCE_ROOTS = [...TS_SOURCE_PACKAGES].map(name => toPosix(join(NODE_MO
 //
 // A property of the SET, so it is checked once per process, wherever the first chain is built - unlike
 // the missing source below, which belongs to the specifier that asked for it.
-let scopedNamesChecked = false;
-function assertNoScopedNames() {
-  if (scopedNamesChecked) return;
+let setChecked = false;
+function assertUsableSet() {
+  if (setChecked) return;
   const scoped = [...TS_SOURCE_PACKAGES].filter(name => name.startsWith('@'));
   if (scoped.length) {
     throw new Error(`TS_SOURCE_PACKAGES: ${ scoped.join(', ') } is scoped, which \`tsSources\` cannot `
       + 'resolve - it splits a bare specifier at the first `/`, so the name never matches and the '
       + 'package would silently build from its published JS. Teach `resolveId` the `@scope/name` form first.');
   }
-  scopedNamesChecked = true;
+  // `resolveId` answers a bare specifier from the TOP-LEVEL copy whoever the importer is, which is
+  // right only while there is exactly one copy. A nested one - npm's answer to a version conflict -
+  // would have one package's importer served the other version's sources, mixing two libraries into
+  // a build that reports itself as either. Nothing downstream could see it, so refuse it here.
+  for (const name of TS_SOURCE_PACKAGES) {
+    // eslint-disable-next-line node/no-sync -- once per process, before any build starts
+    const nested = [...TS_SOURCE_PACKAGES].filter(other => existsSync(join(NODE_MODULES, name, 'node_modules', other)));
+    if (nested.length) {
+      throw new Error(`TS_SOURCE_PACKAGES: ${ name } carries its own copy of ${ nested.join(', ') } - `
+        + '`tsSources` resolves every bare specifier to the top-level copy, so the two versions would '
+        + 'be mixed silently. Reconcile the pinned versions so npm hoists a single copy.');
+    }
+  }
+  setChecked = true;
 }
 
 // A directory has to be rejected explicitly, not just skipped: an extensionless specifier such as
@@ -163,7 +183,7 @@ function tsSourceOf(source) {
 }
 
 export function tsSources() {
-  assertNoScopedNames();
+  assertUsableSet();
   return {
     name: 'e2e-ts-sources',
     resolveId(source, importer) {
@@ -307,6 +327,12 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider
       input: entry,
       // Exactly ONE provider per build. Both at once would inject the union and the cell would stop
       // describing either of them.
+      //
+      // Every library here resolves to ESM, which is what makes the injection safe: a provider adds an
+      // ESM `import` to whatever module it detects a usage in, and `@rollup/plugin-commonjs` refuses
+      // that inside a CommonJS module unless `transformMixedEsModules` is on. A library that arrives
+      // as CJS would fail loudly on its first injected module, not quietly - that is the flag to
+      // reach for then.
       plugins: [
         tsSources(),
         makeBabelPlugin(babel ? pluginOpts(method) : null),
@@ -318,11 +344,14 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider
       onwarn: strictWarn,
     });
     try {
-      const { output } = await build.generate({ format: 'umd', name: 'E2E', esModule: false });
+      const { output } = await build.generate(UMD_OUTPUT);
       const [chunk] = output;
-      const label = `${ provider }/${ method }/${ effPhase ?? 'entry' }`;
+      const label = `${ basename(exerciseAbs, '.mjs') }/${ provider }/${ method }${ effPhase ? `/${ effPhase }` : '' }`;
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
+      // the ES5 premise belongs to the build, not to whoever remembers to ask: the pre-flight realm
+      // and the browser page are both modern, so nothing else here would notice a skipped down-compile
+      assertES5(chunk.code, label);
       return { code: chunk.code, chunk, injected: [...sink].sort(), origins };
     } finally {
       await build.close();

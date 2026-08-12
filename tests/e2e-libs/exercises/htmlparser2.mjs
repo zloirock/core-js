@@ -38,10 +38,7 @@ import {
   decodeHTML, decodeHTMLStrict, decodeXML, encodeHTML, encodeXML, escapeAttribute, escapeUTF8,
 } from 'entities';
 import { parse as parseSelector, stringify as stringifySelector } from 'css-what';
-
-function eq(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
+import { checker } from './checks.mjs';
 
 // domhandler nodes are not DOM nodes - no `firstElementChild` - and reading `.children[0]` in a dozen
 // places reads like DOM code that it is not. Go through domutils' accessor instead.
@@ -83,10 +80,7 @@ const FEED = '<?xml version="1.0"?><rss version="2.0" xmlns:media="http://search
   + '</item></channel></rss>';
 
 export function run() {
-  const checks = [];
-  function check(label, actual, expected) {
-    checks.push({ label, actual, expected, pass: eq(actual, expected) });
-  }
+  const { checks, check } = checker();
 
   const doc = parseDocument(PAGE);
 
