@@ -6,7 +6,7 @@ Real third-party libraries taken to the polyfill floor and executed there: each 
 
 Node under `zx`, started through `npm run zxi` - the repo-wide tooling tier, stated in `scripts/AGENTS.md`. The suite declares no floor of its own, and CI exercises it on one version only, the node 26 its job pins. The exception is what lands in a page verbatim: `harness.mjs` and the HTML it renders are never transformed, so they are hand-written ES5, and both harness targets are parsed by `assertES5` at load.
 
-`npm run e2e-libs` chains the two runners that assert - `e2e-libs-check-exercise`, then `e2e-libs-runtime` - and is part of `npm test`; `OVERWRITE=1` in front of the latter rewrites the snapshot baselines. `e2e-libs-pipeline` and `e2e-libs-throughput` only report and stay out of the composite. Every runner narrows on positional filters, as in `npm run e2e-libs-throughput three rollup`.
+`npm run test-e2e-libs` chains the two runners that assert - `test-e2e-libs-check-exercise`, then `test-e2e-libs-runtime` - and is part of `npm test`; `OVERWRITE=1` in front of the latter rewrites the snapshot baselines. `e2e-libs-pipeline` and `e2e-libs-throughput` only report and stay out of the composite. Every runner narrows on positional filters, as in `npm run e2e-libs-throughput three rollup`.
 
 This directory's `package.json` pins the libraries, and `core-js` to the workspace; the bundlers come from `tests/transpiler-integration`, which its `zxi.installExternalDirs` field names so the bootstrap installs that directory too. Off a machine with IE11 every gate still runs and only Karma is skipped, so the browser leg happens in the `e2e-libs` CI job, on windows, and nowhere else - a green `npm test` is not a green CI here.
 

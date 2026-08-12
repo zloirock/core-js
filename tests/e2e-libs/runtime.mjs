@@ -4,7 +4,7 @@
 // whole design, and the rest of the reasoning - why the providers are paired as reference and delta,
 // what gates and what only informs - is in AGENTS.md rather than repeated here.
 //
-// Usage:  npm run e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
+// Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { librariesIn } from './libraries.mjs';

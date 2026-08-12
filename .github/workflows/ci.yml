@@ -95,7 +95,7 @@ jobs:
           node-version: 26.0.0
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npm run e2e-libs
+      - run: npm run test-e2e-libs
 
   bun:
     runs-on: ubuntu-latest
