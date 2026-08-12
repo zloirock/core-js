@@ -1,13 +1,18 @@
 // A headless RxJS pipeline: interop, operators, schedulers, subjects and error classes, self-checked
 // by the values and the side-effect order they produce.
 //
-// The centrepiece is `innerFrom`, rxjs's interop hub - every branch of it is driven, so the
-// well-known-symbol lookups and the iteration that follows happen inside rxjs rather than here.
+// The centrepiece is `innerFrom`, rxjs's interop hub: an Observable, an interop observable, an
+// array-like, a promise, a sync iterable and an async iterable all reach it, so the well-known-symbol
+// lookups and the iteration that follows happen inside rxjs rather than here. Its two remaining
+// branches stay out on purpose - a ReadableStream is not something core-js puts on the target, and
+// the invalid-input branch would assert rxjs's own error text rather than a polyfill.
 //
-// Nothing in this file may use spread, `for-of`, `async` or a generator: those compile to Babel
+// No CHECK here may depend on spread, `for-of`, `async` or a generator: those compile to Babel
 // helpers that reach for the stdlib from THIS module, which proves nothing about rxjs. `from(new
 // Set(...))` puts the same protocol where it belongs, and the regenerator machinery that does run is
-// the one tslib ships inside the rxjs bundle.
+// the one tslib ships inside the rxjs bundle. The file is not helper-free either way - the array
+// destructuring below emits one that asks for `Symbol.iterator` - and that is harmless exactly
+// because no assertion rides on it.
 //
 // Accepted deliberately: the `usage-pure/pre` cell is green on IE11 while the phase gap it stands for
 // is still open - nothing here walks into the unrewritten `Array.from` that sits in that bundle. rxjs
