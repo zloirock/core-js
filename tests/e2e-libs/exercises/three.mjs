@@ -27,10 +27,8 @@ import { reduceVertices, traverseGenerator } from 'three/addons/utils/SceneUtils
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { EdgeSplitModifier } from 'three/addons/modifiers/EdgeSplitModifier.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { checker } from './checks.mjs';
 
-function eq(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
 function round(n, d = 3) {
   return +n.toFixed(d);
 }
@@ -99,10 +97,7 @@ function buildSkinned() {
 }
 
 export function run() {
-  const checks = [];
-  function check(label, actual, expected) {
-    checks.push({ label, actual, expected, pass: eq(actual, expected) });
-  }
+  const { checks, check } = checker();
 
   // --- vector / quaternion math ---
   check('vec_length', round(new THREE.Vector3(3, 4, 0).length()), 5);
@@ -123,6 +118,10 @@ export function run() {
 
   // --- MathUtils: Math.trunc (roundToZero), Math.imul (Mulberry32), the clamp name-collision ---
   check('math_round_to_zero', arr(new THREE.Vector3(1.7, -2.7, 3.2).roundToZero()), [1, -2, 3]);
+  // The two values are Mulberry32's output for this seed - pinned, and not the "magic total" the
+  // suite's own rule forbids: they are defined by the algorithm, not by a version, so they move only
+  // if three replaces its generator, which is exactly when this check should be re-read. Determinism
+  // alone would not do: a `Math.imul` that returns the wrong number is still deterministic.
   THREE.MathUtils.seededRandom(42);
   check('math_seeded_random', [round(THREE.MathUtils.seededRandom(), 6), round(THREE.MathUtils.seededRandom(), 6)], [0.448291, 0.852466]);
   check('math_vector_clamp', arr(new THREE.Vector3(5, -5, 0).clamp(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1))), [1, -1, 0]);
@@ -331,11 +330,13 @@ export function run() {
 
   // --- three's own log path runs String#startsWith; capture it instead of printing it ---
   const logged = [];
-  THREE.setConsoleFunction((level, message) => logged.push(`${ level }:${ message }`));
+  THREE.setConsoleFunction((level, message) => logged.push({ level, message }));
   const selfParent = new THREE.Object3D();
   selfParent.add(selfParent);
   THREE.setConsoleFunction(null);
-  check('warn_self_add', logged, ['error:THREE.Object3D.add: object can\'t be added as a child of itself.']);
+  // the wording is three's to reword in any release; what this pins is that the log path ran at all -
+  // it is where `String#startsWith` lives - at the level and about the call that provoked it
+  check('warn_self_add', [logged.length, logged[0].level, /Object3D\.add/.test(logged[0].message)], [1, 'error', true]);
 
   // --- addons (three/addons/*, same package) ---
   check('addon_merge_geometries_groups', mergeGeometries([new THREE.BoxGeometry(1, 1, 1), new THREE.SphereGeometry(0.5, 6, 4)], true).groups.length, 2);

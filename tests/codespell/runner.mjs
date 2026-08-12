@@ -3,7 +3,7 @@ const skip = [
   'package**.json',
   '**/node_modules/**',
   './tests/**bundles',
-  // e2e-libs build output. Gitignored, so CI never sees it — it does not exist on a fresh checkout —
+  // e2e-libs build output. Gitignored, so CI never sees it - it does not exist on a fresh checkout -
   // but it does for anyone who ran `e2e-libs` before `lint`, and it is full of third-party
   // identifiers this dictionary reads as typos.
   './tests/e2e-libs/.tmp/**',
@@ -22,7 +22,7 @@ const ignoreWords = [
   'forIn',
   'importEnd',
   'larg',
-  // htmlparser2's streaming-handler callback name, spelled by the library — the e2e-libs fixture
+  // htmlparser2's streaming-handler callback name, spelled by the library - the e2e-libs fixture
   // passes `{ onopentag, ontext, onclosetag }` to `new Parser(...)` and cannot rename any of them
   'ontext',
   'outLow',

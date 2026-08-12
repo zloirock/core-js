@@ -32,10 +32,8 @@ import {
   observeOn, subscribeOn, windowCount, ignoreElements, finalize, tap, retry, repeat, throwIfEmpty,
 } from 'rxjs';
 import { TestScheduler } from 'rxjs/testing';
+import { checker, eq } from './checks.mjs';
 
-function eq(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
 function collect(obs) {
   return firstValueFrom(obs.pipe(toArray()));
 }
@@ -74,10 +72,7 @@ function interopObservable(values) {
 }
 
 export function run() {
-  const checks = [];
-  function check(label, actual, expected) {
-    checks.push({ label, actual, expected, pass: eq(actual, expected) });
-  }
+  const { checks, check } = checker();
 
   // --- subjects ---
   const bs = new BehaviorSubject(0);
