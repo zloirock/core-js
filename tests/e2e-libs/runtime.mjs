@@ -7,7 +7,7 @@
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
 import { runtimeBuild, assertES5, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
-import { librariesIn } from './libraries.mjs';
+import { librariesMatching } from './libraries.mjs';
 import { fileURLToPath } from 'node:url';
 
 const { mkdir, readFile, rm, writeFile } = fs;
@@ -22,7 +22,7 @@ const KARMA_OUT = join(TMP, 'karma');
 
 const [libFilter, ...surplus] = argv._;
 if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - runtime.mjs takes [libFilter]`);
-const libs = librariesIn('runtime', libFilter);
+const libs = librariesMatching(libFilter);
 
 // -------- consumers --------
 
