@@ -5,6 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
+  asProxyGlobalName,
   canHoldBuiltIn,
   findArrayWrappedDestructureHost,
   propBindingIdentifier,
@@ -15,6 +16,7 @@ import {
   objectPatternHasNestedValue,
   isReplayableSynthKey,
   peelNestedSequenceExpressions,
+  peelSequenceTail,
   FUNCTION_LIKE_NODE_TYPES,
   FN_NODE_TYPES,
   findEnclosingFunctionLikePath,
@@ -444,24 +446,31 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
 // arms, nested arms recursing. a non-branching node contributes its own resolution; an
 // unresolvable arm contributes nothing (enumerating only what folds is the safe direction -
 // a missed arm under-injects no worse than before, a guessed arm would fabricate a key).
-// depth-capped so a pathological nest stays bounded
-function flattenBranchKeys({ node, scope, adapter, path, depth = 0 }) {
-  if (!node) return [];
-  // oxc preserves paren nodes and both parsers keep TS casts - the branch shape must be
-  // detected through them (`(cond ? "flat" : "at") in []` arrives paren-wrapped on the text
-  // emitter and bare on babel); the recursion unwraps arm wrappers the same way
-  node = unwrapRuntimeExpr(node);
-  if (depth > 4) return [];
-  const slots = getFallbackBranchSlots(node);
-  if (!slots) {
-    const key = sharedResolveKey({ node, computed: true, scope, adapter, path });
-    return key ? [key] : [];
-  }
+// the fan is a worklist, not a recursion with a budget: arm nesting is the SOURCE's, so a
+// budget answered a legal `c ? 'flat' : c2 ? 'flat' : ... : 'at'` exactly as it answered a
+// broken tree - past five arms the trailing key stopped being enumerated and usage-global
+// silently dropped its polyfill. slots go on the stack in REVERSE so popping keeps the
+// depth-first left-to-right order the key list (and the import order behind it) is built in
+function flattenBranchKeys({ node, scope, adapter, path }) {
   const keys = [];
-  for (const slot of slots) {
-    for (const key of flattenBranchKeys({ node: node[slot], scope, adapter, path, depth: depth + 1 })) {
-      if (!keys.includes(key)) keys.push(key);
+  const pending = [node];
+  const fanned = new Set();
+  while (pending.length) {
+    // oxc preserves paren nodes and both parsers keep TS casts - the branch shape must be
+    // detected through them (`(cond ? "flat" : "at") in []` arrives paren-wrapped on the text
+    // emitter and bare on babel); arm wrappers unwrap the same way
+    const cur = unwrapRuntimeExpr(pending.pop());
+    if (!cur) continue;
+    const slots = getFallbackBranchSlots(cur);
+    if (!slots) {
+      const key = sharedResolveKey({ node: cur, computed: true, scope, adapter, path });
+      if (key && !keys.includes(key)) keys.push(key);
+      continue;
     }
+    // only a cyclic tree can re-reach a fanned node; the fan itself never revisits
+    if (fanned.has(cur)) continue;
+    fanned.add(cur);
+    for (let i = slots.length - 1; i >= 0; i--) pending.push(cur[slots[i]]);
   }
   return keys;
 }
@@ -2127,8 +2136,7 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         // only the value leaves inside its return expression are mirrored
         const inlined = peelZeroArgIifeReturn(tail);
         if (inlined) {
-          let calleeNode = unwrapRuntimeExpr(tail.callee);
-          while (calleeNode?.type === 'SequenceExpression') calleeNode = unwrapRuntimeExpr(calleeNode.expressions.at(-1));
+          const calleeNode = peelSequenceTail(unwrapRuntimeExpr(tail.callee), { step: unwrapRuntimeExpr });
           // the inlined value is at body-start only for an arrow whose body IS this expression
           // (a block-bodied or function-expression IIFE splices inside a `{ return ... }`, no `=>`
           // hazard); this overrides any incoming flag since the splice position is the inner wrapper's
@@ -2487,8 +2495,7 @@ export function resolveBranchProxyName({ branchNode, scope, adapter, path, eithe
     branch = unwrapExpressionChain(branch.operator === '&&' ? branch.right : branch.left);
   }
   if (!branch) return null;
-  const name = resolveObjectName({ objectNode: branch, scope, adapter, path });
-  return name && POSSIBLE_GLOBAL_OBJECTS.has(name) ? name : null;
+  return asProxyGlobalName(resolveObjectName({ objectNode: branch, scope, adapter, path }));
 }
 
 // shared branch-walk: do ALL reachable VALUE branches of a destructure receiver satisfy `isLeaf`? a

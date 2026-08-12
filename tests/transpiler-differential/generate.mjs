@@ -552,6 +552,45 @@ function * generateUnbracedBodyMinifierSplit() {
   }
 }
 
+// --- nesting DEPTH as an axis ---
+// every nested shape in this corpus stops at two or three levels, so the budgets the walkers used to
+// carry all sat ABOVE the whole corpus: a legal source one level deeper silently changed the answer
+// and nothing here noticed. the code under test branches on depth, which is what earns it a place in
+// the cross-product rather than multiplying cases as pass-through data
+function * generateNestingDepth() {
+  for (const depth of [2, 6, 34]) {
+    const open = '['.repeat(depth);
+    const close = ']'.repeat(depth);
+    // the polyfill belongs in the LEAF's own default slot, reached through `depth` array wrappers.
+    // an empty slot takes it - stripped, because a missed injection leaves nothing to call
+    yield { ...snippet(`nesting-depth/param-default-${ depth }`,
+      `(function (${ open }{ from } = Array${ close }) { return typeof from; })(${ open }undefined${ close })`), strip: true };
+    // the same slot FILLED: the caller's own value must win over the default, so a polyfill that
+    // overreaches here answers with the array `Array.from` builds instead of the string
+    yield { ...snippet(`nesting-depth/param-caller-${ depth }`,
+      `(function (${ open }{ from } = Array${ close }) { return from("caller"); })(${ open }{ from: v => v }${ close })`) };
+    // pattern and default paired POSITIONALLY at every level: a different walk than the leaf
+    // default above - the rendered replacement is DELIVERED by descending to the target, and that
+    // descent used to give up past a fixed hop count on one emitter only
+    yield { ...snippet(`nesting-depth/param-paired-${ depth }`,
+      `(() => { function paired(${ open }{ from }${ close } = ${ open }Array${ close }) { return typeof from; } return paired(); })()`), strip: true };
+    // a comma-sequence receiver nested `depth` deep: the descent to the tail is what resolves it,
+    // and every prefix must still run - the effect log counts them
+    yield { ...snippet(`nesting-depth/sequence-receiver-${ depth }`,
+      `${ '(log.push("e"), '.repeat(depth) }Array${ ')'.repeat(depth) }.of(7)[0]`), strip: true };
+  }
+  // a computed destructure key branching over `arms` arms, the trailing one naming a DIFFERENT
+  // method than its siblings. usage-pure leaves a branching key raw by design, so the observable
+  // is the usage-global import set rather than the stripped realm
+  for (const arms of [2, 6, 12]) {
+    const key = `${ Array.from({ length: arms }, (_, i) => `c${ i } ? "flat" : `).join('') }"at"`;
+    const params = Array.from({ length: arms }, (_, i) => `c${ i }`).join(', ');
+    const args = Array.from({ length: arms }, () => 'false').join(', ');
+    yield { ...snippet(`nesting-depth/branch-key-${ arms }`,
+      `(function (${ params }) { const { [${ key }]: m } = [1, [2]]; return typeof m; })(${ args })`) };
+  }
+}
+
 // --- own field vs prototype accessor: which member answers the read ---
 // a class field is defined after the body's methods and accessors exist, so it answers the read
 // whatever the source order - and an INSTANCE field also shadows an accessor further along the
@@ -5711,6 +5750,7 @@ export function * generate() {
   yield * generateCollectionReceivers();
   yield * generateForOfIterable();
   yield * generateProxyImportSlotWrite();
+  yield * generateNestingDepth();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) {
       const fullEnv = FULL_ENV_FAMILIES.has(family) || FULL_ENV_SNIPPETS.has(expr);

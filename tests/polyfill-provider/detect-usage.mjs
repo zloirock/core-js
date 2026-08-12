@@ -704,6 +704,9 @@ for (const [id, src, expected] of [
   ['rest element', '[...Promise] = arr;', true],
   ['pattern default', '[Promise = shim] = arr;', true],
   ['nested element', '[[Promise]] = deep;', true],
+  // the climb ends on the TREE, not on a hop budget: 36 levels used to answer a silent `false`,
+  // indistinguishable from "not a write position", and usage-global lost the slot's rescue there
+  ['nesting past the retired hop budget', `${ '['.repeat(36) }Promise${ ']'.repeat(36) } = deep;`, true],
   ['for-of pattern head', 'for ([Promise] of xs);', true],
   ['flat LHS is not a pattern leaf', 'Promise = shim;', false],
   ['declaration pattern', 'const [Promise] = arr;', false],
