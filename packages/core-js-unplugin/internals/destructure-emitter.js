@@ -1328,11 +1328,14 @@ export function createDestructureEmitter({
   }
 
   // render one destructure declarator's polyfilled binding-assignment `parts` (memo + per-entry
-  // rewrites + residual/rest pattern). drives both the byStatement block/for-init emit (via `ctx`
-  // carrying the `const `/`export ` prefixes) and the flatten-sibling fallback (empty prefixes ->
-  // bare `lhs = rhs` parts that renderBlockStatements re-prefixes). `preDrainedSplices`, when given,
-  // supplies the init's already-consumed body-wrap/insert splices (the flatten path drains per
-  // declarator up front) instead of re-draining the queue here
+  // rewrites + residual/rest pattern). each part is `{ decl, statement? }`: `statement: true` means
+  // the text is complete as authored (carries its own keyword, or is an expression statement) and no
+  // renderer may dress it with a declaration / export prefix. drives both the byStatement
+  // block/for-init emit (via `ctx` carrying the `const `/`export ` prefixes) and the flatten-sibling
+  // fallback (empty prefixes -> bare `lhs = rhs` declarator parts that renderBlockStatements
+  // re-prefixes). `preDrainedSplices`, when given, supplies the init's already-consumed
+  // body-wrap/insert splices (the flatten path drains per declarator up front) instead of
+  // re-draining the queue here
   function emitPolyfilled(info, parts, ctx, preDrainedSplices = null) {
     const { stmtPrefix, memoPrefix, isForInit, isAssignment } = ctx;
     const { entries, allProps, initSrc, scopeSnapshot } = info;
@@ -1509,7 +1512,9 @@ export function createDestructureEmitter({
     let objRef = initTransformed;
     if (needsMemo && initTransformed) {
       objRef = injector.generateLocalRef();
-      parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
+      // with a memoPrefix the part is a complete statement (its own `const ` keeps the internal
+      // ref temp out of any `export` list); for-init's empty prefix keeps it a comma declarator
+      parts.push({ decl: `${ memoPrefix }${ objRef } = ${ initTransformed }`, statement: !!memoPrefix });
     }
 
     // lift the static-init SE so its evaluation point survives extraction, placed at THIS
@@ -1524,8 +1529,10 @@ export function createDestructureEmitter({
       // a multi-part lift (harvested discard-SE `r = _globalThis.window, f()`) is a comma sequence:
       // as a for-init sink's declarator RHS it needs parens or the commas split the declarator list
       const sinkInit = liftParts && liftParts.length > 1 ? `(${ initTransformed })` : initTransformed;
-      if (isForInit) parts.push(`${ injector.generateLocalRef() } = ${ sinkInit }`);
-      else parts.push(parenthesizeExprStmtHazard(initTransformed));
+      // the block-level lift is a bare EXPRESSION statement (`bag[(e++, 'A')];`, `log();`) -
+      // flagged so the block renderer emits it verbatim instead of dressing it as a declarator
+      if (isForInit) parts.push({ decl: `${ injector.generateLocalRef() } = ${ sinkInit }` });
+      else parts.push({ decl: parenthesizeExprStmtHazard(initTransformed), statement: true });
     }
 
     for (const e of entries) {
@@ -1539,9 +1546,9 @@ export function createDestructureEmitter({
         if (isInstance) ref = scopeTracker.genRef(scopeSnapshot);
         // raw `e.defaultSrc` here (not composed): the parts text stays the original-source
         // needle `#substituteInners` splices any default-expr polyfill into
-        parts.push(`${ stmtPrefix }${ lhs } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`);
+        parts.push({ decl: `${ stmtPrefix }${ lhs } = ${ defaultGuardedRhs({ valueSrc, defaultSrc: e.defaultSrc, ref }) }`, statement: !!stmtPrefix });
       } else {
-        parts.push(`${ stmtPrefix }${ lhs } = ${ valueSrc }`);
+        parts.push({ decl: `${ stmtPrefix }${ lhs } = ${ valueSrc }`, statement: !!stmtPrefix });
       }
     }
 
@@ -1570,10 +1577,10 @@ export function createDestructureEmitter({
         })
         : remaining.map(residualPropSrc);
     if (rebuiltProps.length > 0) {
-      if (isAssignment && sentinelNames.length) parts.splice(slotStart, 0, `var ${ sentinelNames.join(', ') }`);
+      if (isAssignment && sentinelNames.length) parts.splice(slotStart, 0, { decl: `var ${ sentinelNames.join(', ') }`, statement: true });
       parts.push(isAssignment
-          ? `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`
-          : `${ stmtPrefix }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
+          ? { decl: `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`, statement: true }
+          : { decl: `${ stmtPrefix }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`, statement: !!stmtPrefix });
     }
   }
 
@@ -1623,7 +1630,7 @@ export function createDestructureEmitter({
         if (decls) {
           perDecl[i] = {
             ...perDecl[i],
-            extractions: [...perDecl[i].extractions, ...decls.map(decl => ({ decl }))],
+            extractions: [...perDecl[i].extractions, ...decls],
             // the render emitted this declarator WHOLE, its init included - the SE-prefix lift and
             // the for-init sink must not re-emit that init's effects on top of it
             preservedSrc: null, receiver: null, drainedRefs: [], memoRouted: true,
@@ -1829,10 +1836,12 @@ export function createDestructureEmitter({
         flushPreserveBuffer();
         const slotSEPrefixes = sePrefixesByIdx?.[i];
         if (slotSEPrefixes) for (const p of slotSEPrefixes) lines.push(`${ p };`);
-        // a sibling-fallback memo extraction carries its own `const ` keyword - an internal ref temp
-        // must stay out of the `export` list (mirrors babel's non-exported memo); emit it verbatim
+        // a `statement`-flagged extraction is complete as authored (a memo carrying its own
+        // `const ` so the internal ref temp stays out of the `export` list, or a lifted-SE
+        // expression statement) - emit it verbatim: dressing it as a declarator would export
+        // the temp or print an unparsable `const <expr>;`
         for (const e of r.extractions) {
-          lines.push(/^(?:const|let|var) /.test(e.decl) ? `${ e.decl };` : `${ exportPrefix }${ kind } ${ e.decl };`);
+          lines.push(e.statement ? `${ e.decl };` : `${ exportPrefix }${ kind } ${ e.decl };`);
         }
       }
       // SE-key trailing pairs run AFTER the residual (its kept key effect fires first) and
@@ -3038,6 +3047,11 @@ export function createDestructureEmitter({
     const pureResult = resolveDestructurePure(meta, pureRaw);
     if (!pureResult) return false;
     const isForInit = isForInitDeclaration(hostNode, declaration);
+    // the ONE export-wrapper resolution every preceding insert below consults: anything emitted
+    // ahead of an exported declaration must land BEFORE the `export` keyword - inserting at
+    // `declaration.start` lands between `export` and the kind, so the keyword attaches to the
+    // inserted temp and every user binding of the destructure silently drops out of the export
+    const exportNode = hostNode?.type === 'ExportNamedDeclaration' ? hostNode : null;
     // the DECISION comes from the shared provider plan (one procedure for both emitters):
     // 'resolved' walks nested keys (single-read + SE-peel gates), 'raw'/'raw-ctor' reuse the
     // top-level slot, 'whole-init-memo' routes the WHOLE init through the memo channel - the
@@ -3162,7 +3176,6 @@ export function createDestructureEmitter({
     // overwrite). skip the declarator subtree so the visitor doesn't queue a rewrite inside the dropped range
     // (the instance receiver stays visible + defers; a static polyfill carries no receiver, so nothing is stranded)
     if (plan.eliminateResidual) {
-      const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
       const [start, end] = exportNode ? [exportNode.start, exportNode.end] : [declaration.start, declaration.end];
       // a pattern LHS composes at flush (its inner rewrites must bake in first) - the prefix
       // carries only the head then, the flush appends the composed pattern
@@ -3241,6 +3254,10 @@ export function createDestructureEmitter({
     }
 
     function emit(copyExpr, hoist = '') {
+      // a non-empty `hoist` (the receiver-memo declaration) can only arrive at the trailing
+      // default/split arm and the plain arm - both memo branches gate their dispatch on
+      // `!plan.siblingDeclarator && !isFlattenClaimed`, because the sibling and flatten arms
+      // have no preceding-statement slot and would silently drop the declaration of `_ref`
       // pattern LHS: composed at (deferred) emit time so the natural visitor's rewrites inside
       // it bake into the extraction; the residual slot retires to the sentinel HERE, after the
       // drain, so the rename never competes with the pattern's inner transforms
@@ -3285,7 +3302,9 @@ export function createDestructureEmitter({
         // point ride the same trailing chain (their key segment precedes them). a memo hoist
         // (the receiver read) still precedes the statement: native evaluates the init
         // receiver before the key
-        if (hoist) emitPrecedingDeclStatement({ declPath, insertPos: declaration.start, text: hoist, order: propNode.start });
+        if (hoist) {
+          emitPrecedingDeclStatement({ declPath, insertPos: (exportNode ?? declaration).start, text: hoist, order: propNode.start });
+        }
         pendingSeKeyTrailing.push({
           declaration, declaratorNode: declarator, decl: `${ lhs } = ${ copyExpr }`,
           split: residualSplitSpec(),
@@ -3295,11 +3314,9 @@ export function createDestructureEmitter({
           srcStart: propNode.value.start, srcEnd: propNode.value.end,
         });
       } else {
-        // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export` keyword,
-        // so the original destructure keeps its export (any real sibling binding stays exported). inserting
-        // at `declaration.start` instead would land between `export` and `const`, stealing the keyword and
-        // dropping the destructure - and every sibling binding - out of the export. matches babel
-        const exportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
+        // an EXPORTED declaration: emit the extract as its own `export const` BEFORE the `export`
+        // keyword, so the original destructure keeps its export (any real sibling binding stays
+        // exported). matches babel
         const extraction = `${ exportNode ? 'export ' : '' }${ declaration.kind } ${ lhs } = ${ copyExpr };`;
         emitPrecedingDeclStatement({ declPath, insertPos: (exportNode ?? declaration).start,
           text: `${ hoist }${ extraction }\n`, order: propNode.start });
@@ -3307,8 +3324,13 @@ export function createDestructureEmitter({
     }
     if (!plan.instance) {
       emit(binding);  // static: the bare binding, no receiver
-    } else if (plan.memoizeReceiver && !isFlattenClaimed && !patternValue && isConstantLiteralReceiver(receiverNode)) {
+    } else if (plan.memoizeReceiver && !plan.siblingDeclarator && !isFlattenClaimed && !patternValue
+      && isConstantLiteralReceiver(receiverNode)) {
       // standalone constant-literal receiver: capture it into a single `_ref` hoisted BEFORE the residual,
+      // (`!plan.siblingDeclarator`: a for-init / multi-declarator host cannot take the hoist as a
+      // preceding statement - `emit()`'s sibling arm has no slot for it, so the `_ref` would go
+      // undeclared; those hosts fall to the sibling-aware member-memo branch below, which plants
+      // the memo as a preceding comma declarator at the source slot)
       // (`!patternValue`: a pattern-valued LHS composes its extraction text from the pattern subtree,
       // which the natural visitor has NOT rewritten yet at this eager visit-time emit - the stale
       // compose loses inner polyfills and its sentinel overwrite collides with the later inner
@@ -3349,15 +3371,14 @@ export function createDestructureEmitter({
       if (plan.siblingDeclarator) {
         emit(extract);
         if (firstUse) {
-          const memoExportNode = declPath.parentPath?.node?.type === 'ExportNamedDeclaration' ? declPath.parentPath.node : null;
           // an EXPORTED host must not export the internal memo temp: plant it as a bare
           // statement BEFORE the export instead of joining the exported comma list -
           // first-declarator only (nothing to reorder past); a later-declarator memo keeps
           // the comma slot
-          if (memoExportNode && declaration.declarations[0] === declarator) {
+          if (exportNode && declaration.declarations[0] === declarator) {
             pendingReceiverMemos.push({
               receiverNode, refName,
-              emitExtract: text => emitPrecedingDeclStatement({ declPath, insertPos: memoExportNode.start,
+              emitExtract: text => emitPrecedingDeclStatement({ declPath, insertPos: exportNode.start,
                 text: `${ declaration.kind } ${ refName } = ${ text };
 `, order: declarator.start }),
             });
@@ -5050,7 +5071,14 @@ export function createDestructureEmitter({
       // second time (the effect ran once already, inside the extract)
       if (memoFlatten && memo.emitExtract) memoFlatten.slot.memoRouted = true;
       if (memoFlatten && !memo.emitExtract) {
-        memoFlatten.slot.extractions.unshift({ decl: `${ memo.refName } = ${ text }` });
+        // block render splits the slot into separate statements at its own position, so nothing
+        // reorders when the memo takes the non-exported statement form (`const ` + statement flag,
+        // the same marker the sibling-fallback memo carries) - a bare declarator would be dressed
+        // `export const _ref = ...` and leak the temp into the module's named exports. a for-init
+        // slot stays a comma declarator (the loop header is one comma-list, and cannot be exported)
+        memoFlatten.slot.extractions.unshift(memoFlatten.entry.isForInit
+          ? { decl: `${ memo.refName } = ${ text }` }
+          : { decl: `const ${ memo.refName } = ${ text }`, statement: true });
         // the memo REFERENCES the init (it does not consume it): the slot keeps its verbatim
         // residual slice, so the SE-prefix lift and the full-preserve splice bake must still
         // treat it as non-extracted - the memo text already carries any init prefix
@@ -5265,27 +5293,27 @@ export function createDestructureEmitter({
       for (const dec of declPath.node.declarations) {
         const info = polyfilledByDecl.get(dec);
         // the receiver memo declares the ref every part of this slot then reads
-        for (const decl of leadingByDeclarator?.get(dec) ?? []) parts.push(`${ stmtPrefix }${ decl }`);
+        for (const decl of leadingByDeclarator?.get(dec) ?? []) parts.push({ decl: `${ stmtPrefix }${ decl }`, statement: !!stmtPrefix });
         if (info) emitPolyfilled(info, parts, emitCtx);
         // composed, not raw: a sibling may carry baked-in transforms of its own - an SE-key
         // trailing declarator insert anchored at its end, a polyfill rewrite in its init - and
         // a leftover point-insert inside the whole-declaration overwrite below would throw
-        else parts.push(`${ stmtPrefix }${ composedRangeSrc(dec) }`);
+        else parts.push({ decl: `${ stmtPrefix }${ composedRangeSrc(dec) }`, statement: !!stmtPrefix });
         // the pair lands right after its OWN declarator (a later sibling may read the extracted
         // name); a comma-append onto a statement-shaped part keeps it a sibling declarator
         const trailing = trailingByDeclarator?.get(dec);
-        if (trailing?.length) parts[parts.length - 1] += `, ${ trailing.join(', ') }`;
+        if (trailing?.length) parts.at(-1).decl += `, ${ trailing.join(', ') }`;
       }
     }
 
     if (isForInit) {
       // for-init lives inside the for-head parens (one comma-list), never at a statement boundary, and
       // its lifted SE is a `_ref = SE` comma member, not a standalone - so no left-boundary fusion here
-      transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
+      transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.map(p => p.decl).join(', ') }`);
     } else {
       // a lifted-SE first product (`+eff()` / `/re/...`) re-roots the line on a hazard char the original
       // node's leading `(` / `let` did not expose - guard the left boundary like the minifier split does
-      const text = wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath);
+      const text = wrapBodylessIfMulti(`${ parts.map(p => p.decl).join(';\n') };`, parts.length > 1, declPath);
       transforms.add(replaceNode.start, replaceNode.end, guardOverwriteLeftFusion(replaceNode.start, text, declPath));
     }
   }
