@@ -343,6 +343,7 @@ export default function createDestructureEmitter({
   getDebugOutput,
   markThrowingExtraction,
   probedNavGuardValueNode = null,
+  collapseKeptNavValueNode = null,
   sealedClaimThrowProbeNode,
 }) {
   // alias-resolution context for the proxy-global collapse: lets `findProxyGlobal` follow a
@@ -351,6 +352,16 @@ export default function createDestructureEmitter({
   // Node). null -> node-only collapse (root classified by name)
   function aliasCtxFromPath(path) {
     return path?.scope ? { scope: path.scope, adapter, path } : null;
+  }
+  // a discarded-init effect replayed as a clone: a kept chain-assignment among them stores the
+  // VALUE canon exactly like its in-place twin (the original was skip-seeded before its own
+  // root visit could collapse it, and the clone's insertion traversal re-derives nothing) -
+  // without this the replay froze a raw proxy nav into what the assignment stores
+  function cloneReplayedEffect(node, path) {
+    const clone = t.cloneNode(node, true);
+    const tail = peelNestedSequenceExpressions(clone).tail ?? clone;
+    if (tail.type === 'AssignmentExpression') collapseKeptNavValueNode?.(tail, path, { immediate: true });
+    return clone;
   }
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
@@ -1311,7 +1322,7 @@ export default function createDestructureEmitter({
         ? [...prefix, ...isChainAssignment(tail) ? [tail] : []]
         : [];
       const orphaned = assignPath.node;
-      const exprs = [...kept.map(n => t.cloneNode(n, true)), ...assignExprs];
+      const exprs = [...kept.map(n => cloneReplayedEffect(n, assignPath)), ...assignExprs];
       assignPath.replaceWith(exprs.length === 1 ? exprs[0] : t.sequenceExpression(exprs));
       t.traverseFast(orphaned, node => { skippedNodes.add(node); });
       return;
@@ -1415,7 +1426,7 @@ export default function createDestructureEmitter({
       declarator.node.id = plan.pattern;
       const replayed = [...plan.anchorSe ?? [], ...plan.discardSe ?? []];
       declarator.node.init = replayed.length
-        ? t.sequenceExpression([...replayed.map(node => t.cloneNode(node)), anchorInitNode(plan, declarator, oldInit)])
+        ? t.sequenceExpression([...replayed.map(node => cloneReplayedEffect(node, declarator)), anchorInitNode(plan, declarator, oldInit)])
         : anchorInitNode(plan, declarator, oldInit);
       t.traverseFast(oldInit, node => { skippedNodes.add(node); });
     }
@@ -1442,7 +1453,7 @@ export default function createDestructureEmitter({
         : plan.discardSe;
       if (replayable.length) {
         const last = extracted.at(-1);
-        last.init = t.sequenceExpression([...replayable.map(node => t.cloneNode(node)), last.init]);
+        last.init = t.sequenceExpression([...replayable.map(node => cloneReplayedEffect(node, declarator)), last.init]);
       }
     }
   }
@@ -2407,8 +2418,10 @@ export default function createDestructureEmitter({
         anchor: body[index] ?? null,
         seq: deferredSideEffects.length,
         // a fully-discarded proxy-nav receiver keeps only its harvested SE (the nav is dead and would throw
-        // off-browser on an unponyfillable hop); otherwise the whole init lifts verbatim minus a dead tail
-        node: t.expressionStatement(discardedReceiverSinkInit(initNode, containerPath) ?? t.cloneDeep(trimSideEffectTail(initNode))),
+        // off-browser on an unponyfillable hop); otherwise the whole init lifts minus a dead
+        // tail, a kept chain-assignment among it storing the value canon like its in-place twin
+        node: t.expressionStatement(discardedReceiverSinkInit(initNode, containerPath)
+          ?? cloneReplayedEffect(trimSideEffectTail(initNode), containerPath)),
       });
     }
   }

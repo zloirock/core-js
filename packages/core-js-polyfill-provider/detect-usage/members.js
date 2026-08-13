@@ -39,14 +39,17 @@ import {
   findProxyGlobal,
   inlineCallHasObservableEffects,
   inlineCallReturnExpression,
+  interopDefaultProxyName,
   isCallShape,
   isStaticPlacement,
   isTransparentWrapper,
   maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop,
   peelChainAssignment,
+  peelChainRootValue,
   prependChainAssignmentEffect,
   peelReceiverSequenceTail,
+  requireBoundProxyGlobalName,
   resolveKey,
   resolveObjectName,
   unwrapTransparentSeq,
@@ -530,8 +533,13 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // chain-assignment receiver `(a = Array).from(...)`: peel `=` chain so receiver
     // classification sees the rhs-most constructor (`Array`). don't push to sideEffects
     // here - instance dispatch captures the assignment via memoize `_ref = (a = Array)`,
-    // and static dispatch picks up the outermost assignment separately at emission time
-    const { value: classifyTarget, outer: chainAssignOuter } = peelChainAssignment(obj);
+    // and static dispatch picks up the outermost assignment separately at emission time.
+    // a chain-assign VALUE classifies through its SE-bearing sequence too (`(q = (se(),
+    // globalThis.self)).Map` resolves like the SE-free spelling) - the assignment above is
+    // kept / re-emitted whole, effects included, so the SE-bailing peel only under-resolved;
+    // a bare receiver keeps that peel (its callers may drop the peeled wrapper)
+    const { value: peeledValue, outer: chainAssignOuter } = peelChainAssignment(obj);
+    const classifyTarget = chainAssignOuter ? peelChainRootValue(obj) : peeledValue;
     // the container walk collects the slot's OTHER reaching values (written / repositioned)
     // beside its primary answer - they join the usage-global union axis below
     const containerUnion = [];
@@ -708,7 +716,7 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
 
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-  resolvePure = null, keptProxyHops = null,
+  resolvePure = null, keptProxyHops = null, keptDeclinedProxyMetaHops = false,
 }) {
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
@@ -871,10 +879,16 @@ export function handleMemberExpressionNode({
       || !resolveMeta || !!resolveMeta(meta, path);
     // a hop suppressed under a meta whose own OBJECT is an ordinary name (`bx.arr`) belongs to the
     // receiver PATH, not to the claim - it survives into the output and an emitter that can rewrite
-    // it without colliding with the outer span records it. a meta rooted at a proxy global
-    // (`self.Array`) IS the chain's claim, and its render owns the hop
-    markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver,
-      keptProxyHops: !subsumesReceiver && !POSSIBLE_GLOBAL_OBJECTS.has(meta.object) ? keptProxyHops : null });
+    // it without colliding with the outer span records it. a SUBSUMING meta rooted at a proxy
+    // global (`self.Array`) IS the chain's claim, and its render owns the hop. a DECLINED
+    // claim (`(kv = nav)?.BigInt`, no BigInt pure) leaves no render owning them: the TEXT
+    // emitter records them as still-live for its suppressed-hop callback
+    // (`keptDeclinedProxyMetaHops` - it has no re-visit to recover them), while the AST
+    // emitter's own channels re-render the rebuilt subtree and keeping them would detach
+    // nodes its destructure plans still read
+    markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure, subsumesReceiver,
+      keptProxyHops: !subsumesReceiver && (keptDeclinedProxyMetaHops || !POSSIBLE_GLOBAL_OBJECTS.has(meta.object))
+        ? keptProxyHops : null });
     // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
     // `_Symbol$iterator`, `Promise.resolve` -> `_Promise$resolve`), so the receiver chain is SUBSUMED -
     // unlike a prototype-method receiver (`_Map.prototype.has`) whose constructor member stays the
@@ -1246,10 +1260,20 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
   // SE-prefix root (`(n++, g).Map` with `const g = globalThis`) hides the proxy-global behind an
   // AssignmentExpression / SequenceExpression - without the peel the mid-chain ctor stays unmarked and
   // unplugin queues an overlapping rewrite. only an IDENTIFIER root classifies here (no call inlining)
-  const { root } = descendToChainRoot(node, true);
+  const { root, firstHop } = descendToChainRoot(node, true);
   if (root?.type !== 'Identifier') return false;
   // null / undefined resolved name is not in the set, so no explicit nullish guard needed
-  return POSSIBLE_GLOBAL_OBJECTS.has(resolveObjectName({ objectNode: root, scope, adapter, path }));
+  if (POSSIBLE_GLOBAL_OBJECTS.has(resolveObjectName({ objectNode: root, scope, adapter, path }))) return true;
+  // the CJS spellings of a pure global-proxy require root the chain differently - `X.default`
+  // one hop up (babel-lowered interop), a bare require-bound binding at the root itself (the
+  // injector's own `importStyle: 'require'` output) - and the classify walk recognizes both, so
+  // the marking walk must too: otherwise the mid-chain proxy hops stay live and a SECOND
+  // detection pass over the already substituted text re-claims one of them
+  // (`_globalThis.self.window` -> `_self.window`), diverging from the single-pass spelling
+  // that keeps the navigation raw
+  if (staticMemberKeyName(firstHop) === 'default'
+    && interopDefaultProxyName({ objectNode: root, scope, adapter, path })) return true;
+  return !!requireBoundProxyGlobalName({ node: root, scope, adapter, path });
 }
 
 // mark handled objects after processing a MemberExpression meta - suppresses duplicate Identifier
@@ -1257,7 +1281,7 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
 // key resolved). even when `meta.object === null` (receiver Identifier didn't match
 // `isStaticPlacement` - bound local variable), marking the receiver is correct: a local binding
 // shouldn't produce a polyfill import via the identifier visitor, so suppression is the right behaviour
-function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, subsumesReceiver = true,
+function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure = null, subsumesReceiver = true,
   keptProxyHops = null }) {
   let obj = unwrapTransparentSeq(node.object);
   // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
@@ -1272,20 +1296,35 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
     return;
   }
   if (!suppressProxyGlobals) return;
+  // a CHAIN-ASSIGN receiver hides the navigation in its VALUE: when that value carries an
+  // UNRESOLVABLE hop, its own leaf claim would either swallow the read below (`(k = globalThis
+  // .window.self)` -> `k = _self`) or detach the nodes an owning render reads - dig with the
+  // SE-keeping classify peel and mark the value's hops so the kept-nav channels own them. a
+  // fully-resolvable value keeps its natural claims (they compose into the re-emitted slices)
+  function keptStoredNavValue(candidate) {
+    if (candidate.type !== 'AssignmentExpression') return null;
+    const value = peelChainRootValue(candidate);
+    return value !== candidate && navHasUnresolvableProxyHop(value, spec => resolvePure?.(spec, path))
+      ? value : null;
+  }
   // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, ...) and mark
   // every intermediate MemberExpression so the inner visitor doesn't re-process it. stop at
   // the proxy global leaf itself - it may need its own polyfill when the outer is not polyfilled.
   // usage-global intentionally does NOT suppress intermediate visits: chains like
   // `globalThis.self.Object.keys` rely on the `self` member visit to register `web.self`, which
   // is a real runtime dependency (bare `self` is undefined in workers / strict envs otherwise)
-  let current = obj;
+  let current = keptStoredNavValue(obj) ?? obj;
   let buriedSequence = false;
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
     && (findProxyGlobal(current) || chainRootResolvesToProxyGlobal({ node: current, scope, adapter, path }))) {
+    // FIRST marker owns the hop: a SUBSUMING claim that already marked it (its render carries
+    // the whole span) must not have a later DECLINED sibling meta re-record it as still-live -
+    // the kept-nav render would race the claim's own receiver spelling
+    const freshlyMarked = !handledObjects.has(current);
     handledObjects.add(current);
     // the marking itself always stays - a text emitter must never queue a second rewrite over the
     // span that swallowed this hop; the set only tells an AST emitter the hop is still live
-    if (keptProxyHops && POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(current))) keptProxyHops.add(current);
+    if (freshlyMarked && keptProxyHops && POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(current))) keptProxyHops.add(current);
     // descend into an SE-BEARING sequence buried below a static hop (`(eff(), globalThis.self).Array`,
     // where the top-level receiver is NOT itself a sequence): `unwrapTransparentSeq` stops at such a
     // sequence, leaving its inner proxy leaf unmarked -> the member visitor queued a parallel rewrite the
@@ -1296,6 +1335,9 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
     // global (`(p(), (p(), globalThis).globalThis).Array`) into a dead `_globalThis` import
     if (!wasSequence && unwrapTransparentSeq(current.object).type === 'SequenceExpression') buriedSequence = true;
     current = wasSequence ? unwrapTransparentSeq(current.object) : peelReceiverSequenceTail(current.object);
+    // the descent may land ON the kept assignment mid-chain (`(b = nav).Map.length` - the
+    // instance channel's receiver walk): dig into its value like the top-level arm above
+    current = keptStoredNavValue(current) ?? current;
   }
   // a sequence-tail proxy-global leaf is independently visited (the tail sits inside a separately
   // walked SequenceExpression), unlike a direct receiver whose nested leaf the member visitor's
