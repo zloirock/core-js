@@ -3,6 +3,7 @@
 // produce identical results because the plugin-side adapters consume the same helpers
 import {
   getEntrySource,
+  mayBeEntryStatement,
   scanExistingCoreJSImports,
 } from '../../packages/core-js-polyfill-provider/detect-usage/entries.js';
 import {
@@ -126,6 +127,27 @@ check('staticReceiverHint/unknown name', staticReceiverHint('static', 'notAGloba
 check('staticReceiverHint/missing object', staticReceiverHint('static', null), null);
 
 // --- getEntrySource ---
+
+// `mayBeEntryStatement` is the ONE definition of the accepted-statement set, and a caller that
+// pre-filters a body walk asks it instead of re-listing the types. the coupling that makes that
+// safe is asserted here: whatever the predicate rejects, the resolver rejects too - so a new
+// accepting arm added without widening the set fails closed in ONE place instead of reaching
+// one emitter's detector and not the other's
+runBoth('mayBeEntryStatement/rejected types resolve to null',
+  'label: 0;\nclass C {}\nfunction f() {}\nlet v = require("core-js");\nexport const e = 1;',
+  (adapter, prog, lbl) => {
+    for (const type of ['LabeledStatement', 'ClassDeclaration', 'FunctionDeclaration',
+      'VariableDeclaration', 'ExportNamedDeclaration']) {
+      const path = adapter.pickPath(prog, type);
+      if (!path) continue;
+      check(`${ lbl } ${ type } predicate`, mayBeEntryStatement(path.node), false);
+      check(`${ lbl } ${ type } resolver`, getEntrySource(path.node, minimalAdapter, null), null);
+    }
+    // and the three accepted types are exactly the ones the predicate admits
+    check(`${ lbl } accepted set`, ['ImportDeclaration', 'TSImportEqualsDeclaration', 'ExpressionStatement']
+      .every(type => mayBeEntryStatement({ type })), true);
+    check(`${ lbl } nullish node`, mayBeEntryStatement(null), false);
+  });
 
 // bare side-effect import: `import 'core-js'`
 runBoth('getEntrySource/bare ImportDeclaration', 'import "core-js";', (adapter, prog, lbl) => {
