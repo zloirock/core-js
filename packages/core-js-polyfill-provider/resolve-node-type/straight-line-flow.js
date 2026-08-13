@@ -16,6 +16,7 @@ import {
   isDeferredContextStep,
   readRunsDeferredWithin,
 } from '../helpers/ast-patterns.js';
+import { isLoopStatement } from '../destructure-host-shape.js';
 
 // always-evaluated wrappers between assignment and its enclosing statement. spelled out from
 // THAT question rather than borrowed from the IIFE call-path table: the two sets look alike but
@@ -39,15 +40,12 @@ const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
   'LabeledStatement',
 ]);
 
-// shadow unlabeled `break` / `continue` - subtree walker tracks whether we're inside one
-const LOOP_LIKE_TYPES = new Set([
-  'ForStatement',
-  'ForInStatement',
-  'ForOfStatement',
-  'WhileStatement',
-  'DoWhileStatement',
-  'SwitchStatement',
-]);
+// shadows an unlabeled `break` / `continue` - the subtree walker tracks whether we are inside one.
+// composed on the canonical loop set rather than re-listing it: this asks a DIFFERENT question,
+// and `switch` is exactly the one non-loop member that answers it too
+function shadowsUnlabeledExit(node) {
+  return isLoopStatement(node) || node.type === 'SwitchStatement';
+}
 
 function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
@@ -59,7 +57,7 @@ function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
   }
   if (node.type === 'ReturnStatement' || node.type === 'ThrowStatement') return true;
   if (NESTED_BINDING_INTRODUCERS.has(node.type)) return false;
-  const nextInLoop = inLoopOrSwitch || LOOP_LIKE_TYPES.has(node.type);
+  const nextInLoop = inLoopOrSwitch || shadowsUnlabeledExit(node);
   let nextLabels = labels;
   if (node.type === 'LabeledStatement' && node.label) {
     nextLabels = new Set(labels);

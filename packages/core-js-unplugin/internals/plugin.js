@@ -74,7 +74,7 @@ import {
   createSyntaxVisitors,
 } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
-import { isCallee } from './emit-utils.js';
+import { isCallee, outerGuardOwnedRoot } from './emit-utils.js';
 import { collapseStandownRoot, createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
@@ -192,20 +192,6 @@ function semanticParentNode(metaPath) {
     parentPath = parentPath.parentPath;
   }
   return parentPath?.node;
-}
-
-// does a queued OUTER guard (a trailing instance dispatch that memoized this static's root) own the root's
-// nullability? descends the static member's receiver toward its chain root, probing the transform queue at
-// EVERY hop (the guard may memoize a mid-chain hop, e.g. a collapsed proxy-hop prefix, not the chain root
-// itself). an owned root emits the static BARE into the guard body, so the standalone guard-bail must stand
-// down for it
-function outerGuardOwnsStaticRoot(node, transforms) {
-  let root = node.object;
-  while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) {
-    if (transforms.findOuterGuardRef(root)) return true;
-    root = root.object;
-  }
-  return !!transforms.findOuterGuardRef(root);
 }
 
 function nonEmptyString(value) {
@@ -728,11 +714,14 @@ export default function createPlugin(options) {
         for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
         if (adoptable.size) refCanonEligible = false;
         injector.adoptOrphanRefs(adoptable);
-        // pre's rest-destructure sentinels are DECLARED by the rewritten pattern itself
-        // (`{ polyKey: _unusedN, ...rest }`), so they come from declaredNames - the injector
-        // validates the generator shape and re-arms its idempotency skip
-        injector.adoptUnusedNames(declaredNames);
       }
+      // a rest-destructure sentinel is DECLARED by the rewritten pattern itself
+      // (`{ polyKey: _unusedN, ...rest }`), so it comes from `declaredNames` and the injector
+      // validates the generator shape before re-arming its idempotency skip. that question -
+      // "did WE emit this sentinel" - has nothing to do with the phase: gated on `post`, a
+      // re-transform of our own output (the ordinary pass is `single`) re-extracted the previous
+      // sentinel as a live binding and minted a fresh one, growing the file on every pass
+      if (readsCensus && hasCoreJSImport(ast, packages)) injector.adoptUnusedNames(declaredNames);
       // entry-global handles re-emit via detectEntries - skip there. otherwise scan
       // unconditionally: post-with-inherit ALSO needs this because a sibling plugin
       // may have INJECTED new core-js imports between our pre and post (sibling preset
@@ -1399,7 +1388,7 @@ export default function createPlugin(options) {
           // falls through: the emitter emits the static BARE into the owning guard's body (the guard owns the
           // nullability), so it must NOT bail here
           if (staticEraseGuard?.kind === 'guard' && (meta.sideEffects?.length || meta.receiverEffectCount)
-            && !outerGuardOwnsStaticRoot(node, transforms)
+            && !outerGuardOwnedRoot(node, transforms)
             && migratableClaimSe({
               sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
               rootNode: staticEraseGuard.object, end: node.end,

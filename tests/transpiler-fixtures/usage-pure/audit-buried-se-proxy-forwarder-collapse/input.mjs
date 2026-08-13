@@ -16,3 +16,9 @@ export const c = obj[(eff(), globalThis.self).Symbol.iterator];
 export const d = (0, (() => globalThis)().self).Math.trunc(1.5);
 export const e = (eff(), (() => globalThis)()).Array.of(1, 2);
 export const f = obj[(eff(), globalThis).self.Symbol.asyncIterator];
+
+// the PURE twin of row `a`: the marking descent is SE-SHAPED by construction, not by choice - an
+// effect-free buried sequence is peeled straight through and never reaches the detector as a
+// sequence at all, so the whole prefix drops and the static collapses bare. the effectful row
+// above is what keeps its prefix; without this row the "by construction" claim is untested
+export const g = (0, globalThis.self).Array.from([3, 4]);
