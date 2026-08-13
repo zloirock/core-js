@@ -16,8 +16,8 @@
 // WeakMap (vs node-attached property) keeps the side-channel opaque to AST-cloning libs.
 import { $Object, $Primitive } from './base.js';
 import {
-  NO_PROTOTYPE_VALUE, installedPrototypeValueAt, isTaggedTemplateQuasiPosition, objectLiteralPrototypeValue,
-  peelTransparentExprAncestorPath, prototypeValueMayDispatch, prototypeWriteHostPath,
+  NO_PROTOTYPE_VALUE, cachedContainerPaths, installedPrototypeValueAt, isTaggedTemplateQuasiPosition,
+  objectLiteralPrototypeValue, peelTransparentExprAncestorPath, prototypeValueMayDispatch, prototypeWriteHostPath,
 } from '../helpers/ast-patterns.js';
 import { unaryOperatorResultKind } from './value-ops.js';
 
@@ -176,7 +176,10 @@ export function createExpressionDispatch({
     if (path.node?.type === 'ObjectExpression') {
       const literalValue = objectLiteralPrototypeValue(path.node, undefinedShadowed);
       // located by node IDENTITY off the same literal, so the property-shape rules stay in the canon
-      if (literalValue) values.push(path.get('properties').find(p => p.node?.value === literalValue)?.get('value') ?? NO_PROTOTYPE_VALUE);
+      if (literalValue) {
+        values.push(cachedContainerPaths(path, 'properties').find(p => p.node?.value === literalValue)?.get('value')
+          ?? NO_PROTOTYPE_VALUE);
+      }
     }
     // `Object.create(P)` installs P directly; a non-dispatching argument is already inert upstream
     const created = createdPrototypeArgumentPath(path);

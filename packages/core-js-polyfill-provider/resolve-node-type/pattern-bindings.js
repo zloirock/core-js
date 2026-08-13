@@ -21,7 +21,8 @@ import {
 import { collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import {
-  declaratorBindsName, isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes, varInitStaleByRedecl,
+  cachedContainerPaths, declaratorBindsName, isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes,
+  varInitStaleByRedecl,
 } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
@@ -291,7 +292,7 @@ export function createPatternBindings({
     // bail if any spread at or before target index - positions become unpredictable
     if (spreadAtOrBefore(elements, index)) return null;
     if (!elements[index]) return null; // hole
-    return resolveNodeType(arrayPath.get('elements')[index]);
+    return resolveNodeType(cachedContainerPaths(arrayPath, 'elements')[index]);
   }
 
   // resolve common element type from an ArrayExpression if all elements share the same type
@@ -303,7 +304,7 @@ export function createPatternBindings({
     for (let i = 0; i < elements.length; i++) {
       // bail on holes and spreads - can't determine element types
       if (!elements[i] || elements[i].type === 'SpreadElement') return null;
-      const resolved = resolveNodeType(arrayPath.get('elements')[i]);
+      const resolved = resolveNodeType(cachedContainerPaths(arrayPath, 'elements')[i]);
       if (!resolved) return null;
       common = commonType(common, resolved);
       if (!common) return null; // mixed types
@@ -321,7 +322,7 @@ export function createPatternBindings({
     let common = null;
     for (let i = 0; i < elements.length; i++) {
       if (!elements[i] || elements[i].type === 'SpreadElement') return null;
-      const member = resolveObjectMemberPath(resolveRuntimeExpression(arrayPath.get('elements')[i]), keyPath);
+      const member = resolveObjectMemberPath(resolveRuntimeExpression(cachedContainerPaths(arrayPath, 'elements')[i]), keyPath);
       if (!member) return null;
       common = commonType(common, member);
       if (!common) return null; // mixed types
@@ -543,7 +544,7 @@ export function createPatternBindings({
         // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
         // path matches the top-level extraction semantics
         if (spreadAtOrBefore(objPath.node.elements, step)) return null;
-        objPath = resolveRuntimeExpression(objPath.get('elements')[step]);
+        objPath = resolveRuntimeExpression(cachedContainerPaths(objPath, 'elements')[step]);
         keyPath = rest;
         continue;
       }
@@ -846,15 +847,23 @@ export function createPatternBindings({
     // only a DECLARATOR-hosted record can go stale this way; a param / for-x / catch binding keeps
     // its own node, so the recovery never runs for it
     if (declared?.node?.type !== 'VariableDeclarator' || declaratorBindsName(declared.node, name)) return declared;
-    let block = declared.parentPath?.parentPath;
-    if (block?.node?.type === 'ExportNamedDeclaration') block = block.parentPath;
-    const statements = block?.get?.('body');
-    if (!Array.isArray(statements)) return declared;
-    for (const statement of statements) {
-      const declaration = statement?.node?.type === 'ExportNamedDeclaration' ? statement.get('declaration') : statement;
-      if (declaration?.node?.type !== 'VariableDeclaration') continue;
-      const found = declaration.get('declarations').find(d => declaratorBindsName(d.node, name));
-      if (found) return found;
+    let statement = declared.parentPath;
+    if (statement?.parentPath?.node?.type === 'ExportNamedDeclaration') statement = statement.parentPath;
+    // scan the statement NODES and materialize a path only for the found declarator: a list-valued
+    // `path.get` builds a NodePath per element on every call, and this recovery runs per use over a
+    // list the emitter keeps rewriting, so going through paths here is quadratic in the block size.
+    // reading `container` assumes the main traversal - program-exit finalization replaces the
+    // Program body array wholesale (import-injector), but no type query runs after it
+    const body = statement?.container;
+    if (!Array.isArray(body) || typeof statement.getSibling !== 'function') return declared;
+    for (let i = 0; i < body.length; i++) {
+      const viaExport = body[i]?.type === 'ExportNamedDeclaration';
+      const declaration = viaExport ? body[i].declaration : body[i];
+      if (declaration?.type !== 'VariableDeclaration') continue;
+      const index = (declaration.declarations ?? []).findIndex(d => declaratorBindsName(d, name));
+      if (index === -1) continue;
+      const found = statement.getSibling(i);
+      return (viaExport ? found.get('declaration') : found).get('declarations')[index];
     }
     return declared;
   }

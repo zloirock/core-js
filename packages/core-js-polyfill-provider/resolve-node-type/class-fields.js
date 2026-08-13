@@ -28,6 +28,8 @@ import {
   memberWriteTargetPath,
 } from './class-member-shapes.js';
 import {
+  cachedContainerPaths,
+  classBodyMemberPaths,
   forEachPatternWriteMember,
   hasDeferredContextAncestor,
   declaratorBindsName,
@@ -361,7 +363,7 @@ export function createClassFields({
   // same-kind override of incompatible type is rejected by TS, but widening to a method /
   // accessor / `any`-typed field is not, so match all static slots conservatively
   function declaresStaticMember(classPath, fieldName) {
-    for (const bodyMember of classPath.get('body').get('body')) {
+    for (const bodyMember of classBodyMemberPaths(classPath)) {
       const { node } = bodyMember;
       if (node?.static && declaresPossibleShadow(node, fieldName)) return true;
     }
@@ -392,7 +394,7 @@ export function createClassFields({
   // instance slot (data field, method, accessor); a widening / `any`-typed / shape-changing
   // override shadows the inherited member read. StaticBlock carries no key and is skipped
   function declaresInstanceMember(classPath, fieldName) {
-    for (const bodyMember of classPath.get('body').get('body')) {
+    for (const bodyMember of classBodyMemberPaths(classPath)) {
       const { node } = bodyMember;
       if (node && !node.static && node.type !== 'StaticBlock' && declaresPossibleShadow(node, fieldName)) return true;
     }
@@ -788,7 +790,7 @@ export function createClassFields({
         // the OUTER `this`, exactly like heritage and computed keys (parameter decorators
         // are out of surface - see the param-decorator note in the false-positive registry)
         if (node.decorators?.length) out.push(...p.get('decorators'));
-        for (const member of p.get('body').get('body')) {
+        for (const member of classBodyMemberPaths(p)) {
           if (member.node?.decorators?.length) out.push(...member.get('decorators'));
           if (member.node?.computed) out.push(member.get('key'));
         }
@@ -877,7 +879,7 @@ export function createClassFields({
   // static)
   function staticOwnerMethodFns(classPath) {
     const paths = [];
-    for (const bodyMember of classPath.get('body').get('body')) {
+    for (const bodyMember of classBodyMemberPaths(classPath)) {
       // static initialization block - body is a Statement[] array directly on the node;
       // path.traverse() walks the descendants (statements + nested expressions) the same
       // way it walks a method's body; `this` here is the class itself
@@ -910,7 +912,7 @@ export function createClassFields({
   function ownerMethodFns(ownerPath) {
     const methodFns = [];
     if (t.isClass(ownerPath.node)) {
-      for (const bodyMember of ownerPath.get('body').get('body')) {
+      for (const bodyMember of classBodyMemberPaths(ownerPath)) {
         if (bodyMember.node.static) continue;
         if (isMethodMember(bodyMember.node)) {
           methodFns.push(methodFnPath(bodyMember));
@@ -928,7 +930,7 @@ export function createClassFields({
         }
       }
     } else if (t.isObjectExpression(ownerPath.node)) {
-      for (const propPath of ownerPath.get('properties')) {
+      for (const propPath of cachedContainerPaths(ownerPath, 'properties')) {
         const propNode = propPath.node;
         if (!propNode || t.isSpreadElement(propNode)) continue;
         // getters DO contribute writes to OTHER fields: `get foo() { this.bar = "x"; ... }`
