@@ -22,13 +22,19 @@ import {
   isTopLevelThisContext,
   collectFoldedReceiverSideEffects,
   isDirectiveStatement,
+  IMPORT_SPECIFIER_TYPES,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
   isValidIdentifierName,
   isVarDeclaratorInLoopRerun,
   kebabToCamel,
+  aliasReadGuardedAgainstNullish,
+  definedBranchOfGuardConditional,
+  isRenderedStoredValue,
+  isUndefinedNode,
   mayHaveSideEffects,
+  memberProxyHopName,
   paramReboundInBody,
   patternSlotHasDefault,
   patternSlotSpreadShifted,
@@ -203,7 +209,7 @@ export function peelChainAssignmentDeep(node) {
 // emit side keeps or harvests the assignment whole, effects included. a single alternation is NOT
 // enough: the assign peel stops at a SE-bearing sequence inside its RHS, so the sequence peel must
 // re-run after every assign peel until the node stops changing
-function peelChainRootValue(node) {
+export function peelChainRootValue(node) {
   let cur = peelReceiverSequenceTail(node);
   for (;;) {
     const next = peelReceiverSequenceTail(peelChainAssignmentDeep(cur));
@@ -219,7 +225,7 @@ function peelChainRootValue(node) {
 // the .object levels until a non-member root surfaces. SE-prefix wrapping the chain-assign
 // (`(prefix(), (a = Array)).from(x)`) is peeled to the tail at each hop - prefix effects
 // are captured separately upstream by `unwrapParensCollectingEffects` in `buildMemberMeta`
-function collectChainAssignsThroughMemberChain(receiverNode) {
+export function collectChainAssignsThroughMemberChain(receiverNode) {
   const collected = [];
   let cur = peelReceiverSequenceTail(receiverNode);
   while (cur) {
@@ -342,7 +348,10 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     // proven-call chain (`f()?.window?.[(se, 'self')]`): dropping that object collapsed the
     // chain to the bare ponyfill, running the key SE and the branch where native short-circuits
     const ownKey = ownSEKeyOptional && obj === memberNode.object;
-    const { value, outer: objAssign } = peelChainAssignment(obj);
+    // dig through an SE-bearing sequence around the assignment first (the assign-only peel
+    // refuses the wrapper): the wrapped twin holds the same undefinable value as the bare
+    // spelling, and the verdict must not flip on the wrapper
+    const { value, outer: objAssign } = peelChainAssignment(peelReceiverSequenceTail(obj));
     // a chain rooted in an opaque CALL that provably yields a proxy-global (the inline canon
     // admits only effect-transparent returns) is undefinable ONLY through its own unresolvable
     // hops - the call is always defined and contributes no source of undefined. objects sharing
@@ -441,7 +450,10 @@ export function staticMayEraseReceiver(memberNode, resolvePure, aliasCtx = null)
     && memberNode.optional && memberNode.computed
     && memberKeyName(memberNode) === null) effectiveCount -= 1;
   if (!effectiveCount) return true;
-  return !undefinableProxyRootValue(peelChainAssignment(root).value, resolvePure, aliasCtx);
+  // the SE-keeping chain-root peel: an SE-bearing sequence around the assignment (`((se(),
+  // g = nav))?.X`) holds the same undefinable value as the bare spelling - the assign-only
+  // peel refused the wrapper and the verdict flipped to erase on the wrapped twin
+  return !undefinableProxyRootValue(peelChainRootValue(root), resolvePure, aliasCtx);
 }
 
 // the one question every guard-keep decision asks about a chain root's VALUE: can it
@@ -462,11 +474,10 @@ export function claimReceiverEvaluationMayThrow(receiverObj, resolvePure, aliasC
   return proxyReceiverValueCanBeUndefined(unwrapRuntimeExpr(core.object), resolvePure, aliasCtx);
 }
 
-// a literal `undefined` reference or an effect-free `void X` - the statically-undefined value shape
-export function isUndefinedNode(node) {
-  if (node?.type === 'Identifier') return node.name === 'undefined';
-  return node?.type === 'UnaryExpression' && node.operator === 'void' && !mayHaveSideEffects(node.argument);
-}
+// the statically-undefined value shape and the guard-conditional branch picker live in
+// `helpers/ast-patterns.js` (the class-walk follow needs them below this module's layer);
+// re-exported here so the destructure consumers keep their import path
+export { definedBranchOfGuardConditional, isUndefinedNode };
 
 export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
   const seen = new Set();
@@ -524,8 +535,6 @@ const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // constraint, `my-lib/symbol/iterator` would be misclassified as Symbol.iterator
 const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.js)?$/;
-
-const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier', 'ImportNamespaceSpecifier']);
 
 // re-exported from the shared helper layer: the proxy-ROOT recogniser lives in a module this one
 // imports FROM, so the canon cannot sit here without a cycle
@@ -813,7 +822,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // param / catch / class name fall through to the final null. import bindings are hoisted
   // and immutable, so no flow-soundness gate applies; type-only imports erase before runtime
   // and must stay unresolvable
-  if (IMPORT_BINDING_TYPES.has(bindingType)) {
+  if (IMPORT_SPECIFIER_TYPES.has(bindingType)) {
     // type-only gates at BOTH levels (specifier and declaration) - the erased binding must not
     // resolve to a runtime global, matching the shared erasure canon
     return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
@@ -979,6 +988,20 @@ function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, pat
   // sibling gap that dropped injection under an inner-shadowed alias hop (`var g = a.Map` used where
   // `a` is a shadowing param)
   const initScope = binding.scope ?? scope;
+  // a guard-shaped conditional value (the stored kept-nav render - `null == _globalThis.window
+  // ? void 0 : _self.window` - or any user ternary of the same shape) stores either undefined
+  // or the defined branch: classification follows that branch, and the undefinable verdict
+  // (which reads the same shape) keeps the alias guard live at every claim site. without this
+  // arm the AST emitter's in-place collapse (and the sandwich's second pass over collapsed
+  // text) hides the nav from the alias reads, and their claims silently die. only a GUARDED
+  // read classifies: the void-0 arm is a real runtime value, and an unguarded read observes
+  // it natively (`probeHeld.Object` throws there) - the throw must survive
+  const definedBranch = definedBranchOfGuardConditional(unwrapped);
+  if (definedBranch) {
+    return isRenderedStoredValue(unwrapped) || aliasReadGuardedAgainstNullish(path, name)
+      ? resolveAliasValueNode({ value: definedBranch, name, binding, scope, adapter, seen, path })
+      : null;
+  }
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
     // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
@@ -1127,8 +1150,13 @@ function resolveProxyGlobalRoot({ receiver, scope, adapter, seen, path, usageNod
     // top-level `this` roots the chain as the global proxy (pragmatic assumption shared with
     // the type resolver via the same canon)
     } else if (obj.type === 'ThisExpression') return isTopLevelThisContext(path);
-    // mutated-root gating (direct name AND alias-resolved) lives inside the recognizer
-    return obj.type === 'Identifier' && isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode });
+    // mutated-root gating (direct name AND alias-resolved) lives inside the recognizer.
+    // a binding bound to a bare `require('<pkg>/<mode>/global-this')` holds the global object
+    // like the `.default` interop hop above - the injector's own `importStyle: 'require'`
+    // output re-parsed by a later pass (the pre+post sandwich) spells its roots exactly so,
+    // and an unrecognized root left the mid-chain proxy hops live to re-claim on that pass
+    return obj.type === 'Identifier' && (isProxyGlobalIdentifier({ node: obj, scope, adapter, seen, path, usageNode })
+      || !!requireBoundProxyGlobalName({ node: obj, scope, adapter, path }));
   }
 }
 
@@ -1436,6 +1464,98 @@ export function bareProxyGlobalAliasName(node, aliasCtx) {
   return null;
 }
 
+// the FULL `=` chain of a kept assignment, dug through transparent wrappers AND SE-bearing
+// sequences at every level (`((se0(), q = (se1(), w = nav)))` - the assign-only peel refused
+// the wrappers and a lowered `?.` memo hid its chain-assign exactly so). the AST emitter keeps
+// the wrappers in the tree, so only a TEXT render needs the peeled prefix expressions back:
+// they ride `seqAroundPrefix` in encounter order, which IS their source-eval order (each
+// prefix runs before the value below it computes), and re-emit ahead of the assignment heads.
+// a render that rebuilds the chain must write the INNERMOST step's value slot (and re-spell
+// every head) - replacing the OUTER right slot obliterates the mid-chain writes
+function digChainAssignSteps(core) {
+  // a sequence is a WRAPPER only while another `=` step lies below its tail; a sequence whose
+  // tail is the navigation itself is the assignment's VALUE - the sequence-root question
+  // (`allowSequenceRoot`), whose renders keep the prefix inside the value's own span
+  function assignBelowSeqTail(seq) {
+    let probe = seq;
+    for (;;) {
+      if (probe && isTransparentWrapper(probe)) probe = probe.expression;
+      else if (probe?.type === 'SequenceExpression' && probe.expressions?.length) probe = probe.expressions.at(-1);
+      else break;
+    }
+    return probe?.type === 'AssignmentExpression' && probe.operator === '=';
+  }
+  const steps = [];
+  const prefix = [];
+  let cur = core;
+  for (;;) {
+    if (cur && isTransparentWrapper(cur)) {
+      cur = cur.expression;
+    } else if (cur?.type === 'AssignmentExpression' && cur.operator === '=') {
+      steps.push(cur);
+      cur = cur.right;
+    } else if (cur?.type === 'SequenceExpression' && cur.expressions?.length && assignBelowSeqTail(cur)) {
+      prefix.push(...cur.expressions.slice(0, -1));
+      cur = cur.expressions.at(-1);
+    } else {
+      return steps.length
+        ? { steps, value: cur, seqAroundPrefix: prefix.length ? prefix : null } : null;
+    }
+  }
+}
+
+// climb the VALUE spine (wrappers, members, sequence TAILS) to the USER assignment whose `=`
+// right slot holds the node - null for a write target, a discarded prefix, or a generated
+// (positionless) memo target
+export function storedUserAssignmentOf(path) {
+  for (let p = path; p?.parentPath; p = p.parentPath) {
+    const parent = p.parentPath.node;
+    if (parent?.type === 'AssignmentExpression' && parent.operator === '=') {
+      return parent.right === p.node && typeof parent.start === 'number' ? parent : null;
+    }
+    if (parent?.type === 'SequenceExpression') {
+      if (parent.expressions.at(-1) !== p.node) return null;
+      continue;
+    }
+    if (parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression'
+      && !SKIPPABLE_WRAPPER_TYPES.has(parent?.type)) return null;
+  }
+  return null;
+}
+
+// a pristine PROXY-named hop on the VALUE spine of a user chain-assign target whose receiver
+// below is UNDEFINABLE: the hop collapse would change what the assignment STORES
+// (`(k = globalThis.window.self)` must not store the ponyfill where the source stores what the
+// environment's `window.self` holds), so the claim stands down and the caller renders the
+// stored canon through the returned assignment. the READ position keeps the realm collapse.
+// a READ target stays sound: its reads classify through the rendered guard conditional
+// (`resolveAliasValueNode`'s defined-branch arm), so their claims and guards survive
+export function storedNavHopClaimSuppressed(path, { scope, adapter, resolvePure }) {
+  if (!memberProxyHopName(path.node)) return false;
+  const stored = storedUserAssignmentOf(path);
+  if (!stored) return false;
+  return proxyReceiverValueCanBeUndefined(path.node.object, resolvePure, { scope, adapter, path })
+    ? stored : false;
+}
+
+// resolve every computed hop's key to a pristine proxy-global name, harvesting an SE-bearing
+// key's prefix expressions onto the hop (`[(c++, 'self')]` re-emits the `c++` with the render);
+// false = a key that does not fold to a pristine name, or one whose effects have no re-emit
+// shape - the whole plan bails on it
+function resolveComputedHopKeys(hops, { scope, adapter, path, unwrap }) {
+  for (const hop of hops) {
+    if (hop.name !== null) continue;
+    hop.name = resolveKey({ node: hop.node.property, computed: true, scope, adapter, seen: new Set(), path });
+    if (!hop.name || !isPristineProxyGlobal(adapter, hop.name)) return false;
+    const prop = unwrap(hop.node.property);
+    if (prop.type === 'SequenceExpression' && prop.expressions.length > 1
+      && prop.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+      hop.keySeExprs = prop.expressions.slice(0, -1);
+    } else if (mayHaveSideEffects(prop)) return false;
+  }
+  return true;
+}
+
 // PLAN a proven-nav guard collapse: the shared semantics both emitters render. a navigation
 // over a PROVEN root (an inline-provable call, a pristine proxy-global identifier), optionally
 // wrapped in a kept chain-assign, whose hops are all pristine proxy-global names splits into:
@@ -1447,10 +1567,15 @@ export function bareProxyGlobalAliasName(node, aliasCtx) {
 // kinds: 'nested' (a prefix test survives), 'sequence' (no prefix, but the root or its arg
 // carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
 // shape; the callers keep their own canons there
-export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq }) {
+export function planProvenNavGuardCollapse({
+  rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq, allowSequenceRoot = false,
+}) {
   let core = unwrap(rootNode);
-  const { outer: topAssign, value: topValue } = peelChainAssignment(core);
-  if (topAssign) core = unwrap(topValue);
+  const dug = digChainAssignSteps(core);
+  const topAssign = dug?.steps[0] ?? null;
+  const topAssignSteps = dug?.steps ?? [];
+  const seqAroundPrefix = dug?.seqAroundPrefix ?? null;
+  if (topAssign) core = unwrap(dug.value);
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') return null;
   const hops = [];
   // one hop of the descent: record it and hand back the object below, or null when the key is not
@@ -1465,6 +1590,16 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
     n = takeHop(n);
     if (n === null) return null;
   }
+  // a SEQUENCE below the hops (`(se(), globalThis).self.window`) is owned ONLY on request
+  // (`allowSequenceRoot`): the 'sequence' renders re-emit the root span, but an INNER claim's
+  // own queued rewrite (`arr.at(0)` in the prefix) has no slot in that re-emit - the text
+  // emitter's guard callers thread no rescue range and the AST emitter's DEFERRED snapshot
+  // clones the span before those claims land, so widening this walk unconditionally dropped
+  // their polyfills in the guard channels. an IMMEDIATE value-position consumer renders live
+  // nodes and opts in; everyone else keeps the root-substituted raw spelling for the shape
+  const seqRootNode = allowSequenceRoot && n?.type === 'SequenceExpression' ? n : null;
+  const seqRootEffects = !!seqRootNode && seqRootNode.expressions.slice(0, -1).some(mayHaveSideEffects);
+  if (seqRootNode) n = peelReceiverSequenceTail(seqRootNode);
   const { outer: chainAssign, value: chainAssignValue } = peelChainAssignment(n);
   const call = chainAssign ? unwrap(chainAssignValue) : n;
   const aliasCtx = { scope, adapter, path };
@@ -1476,16 +1611,7 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
   const identRootName = call?.type === 'Identifier' ? bareProxyGlobalAliasName(call, aliasCtx) : null;
   const identRoot = identRootName ? call : null;
   if (!identRoot && call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression') return null;
-  for (const hop of hops) {
-    if (hop.name !== null) continue;
-    hop.name = resolveKey({ node: hop.node.property, computed: true, scope, adapter, seen: new Set(), path });
-    if (!hop.name || !isPristineProxyGlobal(adapter, hop.name)) return null;
-    const prop = unwrap(hop.node.property);
-    if (prop.type === 'SequenceExpression' && prop.expressions.length > 1
-      && prop.expressions.slice(0, -1).some(mayHaveSideEffects)) {
-      hop.keySeExprs = prop.expressions.slice(0, -1);
-    } else if (mayHaveSideEffects(prop)) return null;
-  }
+  if (!resolveComputedHopKeys(hops, { scope, adapter, path, unwrap })) return null;
   const rootId = identRoot ?? inlineCallProxyGlobalRoot({ callNode: call, scope, adapter, path });
   // the AST emitter may have already rewritten the proven root INSIDE the callee to its pure
   // import (`() => _globalThis`); the import binding names its source global through the
@@ -1521,12 +1647,18 @@ export function planProvenNavGuardCollapse({ rootNode, scope, adapter, path, res
     tailShortCircuits ||= !resolvePure({ kind: 'global', name: hops[i].name });
   }
   const keySeExprs = hops.flatMap(hop => hop.keySeExprs ?? []);
-  const rootEffects = !!chainAssign
+  const rootEffects = !!chainAssign || seqRootEffects
     || (!identRoot && inlineCallHasObservableEffects({ callNode: call, scope, adapter, path }));
   return {
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
-    topAssign, topValue, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
-    leafName: hops[collapseIdx].name, leafPure, rootValueNode: n, call: identRoot ? null : call,
+    topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
+    seqAroundPrefix,
+    leafName: hops[collapseIdx].name, leafPure, rootValueNode: seqRootNode ?? n, seqRoot: !!seqRootNode,
+    // the proven root identifier and its resolved global name: an IDENT root's own node (a
+    // call root's inlined identifier lives off-span inside the callee and is not this), so a
+    // piecewise render can substitute the root inside a kept source slice
+    rootId: identRoot, rootName,
+    call: identRoot ? null : call,
     // the resolve context travels with the plan: a render re-asks the shared vestigial-`?.`
     // verdict about the kept prefix (a CLONE of it, so node identity cannot carry it)
     ctx: aliasCtx, resolvePure,
@@ -2085,6 +2217,45 @@ export function chainSealedObjects(node) {
     cur = object;
   }
   return sealed;
+}
+
+// a CLAIMLESS short-circuiting probe nav: a live `?.` in the chain - its own optional
+// objects, plus any sealed layer's inner nav (`(window?.self).X` hides the live `?.` from the
+// own-chain walk) - guards a value that can genuinely be undefined on-target, and NO member of
+// the chain names a static with its own ponyfill entry. such a chain may not collapse: the
+// erase runs the read where native short-circuits, and no claim render exists to carry the
+// guard. a chain WITH a claimable static stays with the claim machinery, whose guard logic
+// rides the canonized verdict. `resolvePure` answers both questions (`{ name }` spec).
+// `widenDeep`: an OWN-`?.` object that is a DEEP pristine proxy nav with an unresolvable hop
+// (`globalThis.window.self.window?.X`) counts as undefinable too - only for the callers that
+// proved NO channel owns the chain (the fold gate, the ownerless callback render): a claim's
+// receiver resolution keeps the narrow verdict, where the deep twin ERASES by the locked canon
+export function claimlessOptionalNavGuardsUndefinable(node, resolvePure, aliasCtx = null, { widenDeep = false } = {}) {
+  for (let cur = node; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+    cur = unwrapRuntimeExpr(cur.object)) {
+    const key = cur.computed ? null : cur.property?.name;
+    if (key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && resolvePure({ name: key })) return false;
+  }
+  // the deep widening applies to the chain's OWN live `?.` objects only: a sealed layer's
+  // inner nav (`(c++, g.self.window).X` - a paren-seq, no `?.` anywhere) can be undefined-
+  // VALUED without ever short-circuiting, and that is the accepted collapse, not a guard
+  return ownChainOptionalObjects(node).some(object => claimlessGuardedObjectUndefinable(object, resolvePure, aliasCtx, { widenDeep }))
+    || chainSealedObjects(node).some(inner => proxyReceiverValueCanBeUndefined(inner, resolvePure, aliasCtx));
+}
+
+// a guarded object of a CLAIMLESS probe chain that can genuinely be undefined: the shared
+// receiver verdict, plus (under `widenDeep`) the DEEP pristine-nav receiver it deliberately
+// answers false for (`globalThis.window.self.window?.X` - a CLAIMED chain over a deep nav
+// ERASES by the locked canon, so `proxyReceiverValueCanBeUndefined` keeps its narrow root
+// arms). callers prove the chain claimless first; a claimless probe over a pristine proxy nav
+// with an unresolvable hop short-circuits exactly like the flat identifier-rooted twin
+export function claimlessGuardedObjectUndefinable(object, resolvePure, aliasCtx = null, { widenDeep = false } = {}) {
+  if (proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx)) return true;
+  if (!widenDeep) return false;
+  const core = unwrapRuntimeExpr(peelReceiverSequenceTail(object));
+  return (core?.type === 'MemberExpression' || core?.type === 'OptionalMemberExpression')
+    && maximalProxyGlobalPrefix(core, aliasCtx, { throughChainAssign: true }) === core
+    && navHasUnresolvableProxyHop(core, resolvePure);
 }
 
 // the runtime VALUE of an inline proxy-nav can short-circuit to undefined: a LIVE `?.` in its
