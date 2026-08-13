@@ -183,21 +183,17 @@ function firstExistingFile(candidates) {
 }
 
 // Resolve into the TS sources of the packages above. MUST sit before `nodeResolve()` in every chain:
-// node resolution answers `htmlparser2` with the published `dist/**.js` (that is what the package's
-// `exports` map says), and whichever hook answers first wins.
+// node resolution answers `htmlparser2` with its published `dist/**.js`, and the first hook wins.
 //
-// Two shapes to cover, both taken from the real graph:
+// Two shapes, both from the real graph:
 //   bare      `htmlparser2` / `entities/decode`  ->  <pkg>/src/index.ts / <pkg>/src/decode.ts
 //   relative  `./Parser.js` from inside one of those `src` dirs  ->  ./Parser.ts
-// The relative case is the TS-ESM idiom (the specifier names the file the compiler WILL emit, not the
-// one on disk); node's resolver never does this mapping, so without it every intra-package import
-// falls through to `nodeResolve` and resolves to nothing.
-// The snapshots do NOT guard this: the type-derived injections come from a couple of origins each, so
-// a package that quietly falls back to its published JS is masked by the others and every gate stays
-// green while the fixture becomes half a JavaScript build. So a listed package that cannot be served
-// from source is a hard failure - but raised HERE, against the specifier that asked for it, rather
-// than when the plugin is constructed: only the cells that actually import it are affected, and the
-// message names the import instead of accusing all four libraries of one package's missing `src`.
+// The relative one is the TS-ESM idiom - the specifier names the file the compiler WILL emit - and
+// node's resolver never maps it, so without this every intra-package import resolves to nothing.
+// A listed package that cannot be served from source is a hard failure, and the snapshots do not
+// guard it: the type-derived injections have a couple of origins each, so one package falling back to
+// published JS is masked by the others. Raised against the specifier that asked, not at construction,
+// so only the cells importing it fail and the message names the import.
 function tsSourceOf(source) {
   const [name, ...rest] = source.split('/');
   if (!TS_SOURCE_PACKAGES.has(name)) return null;
@@ -320,17 +316,13 @@ export function assertNoExternals(chunk, label) {
   }
 }
 
-// How many bytes of core-js actually reached the chunk. The injection COUNT cannot answer this: the
-// recorder matches specifier text, which survives in the module source even when rollup then drops
-// the module entirely. Flipping `sideEffects` to false in the pinned core-js is enough to do that -
-// every side-effect-only polyfill import is tree-shaken away, most of the bundle goes with them, and
-// a count-based gate still reads its full healthy number. Measuring the chunk's own module table
-// catches that shape for every method, and needs no second build to compare against.
-// The floor below is an order of magnitude under the smallest payload any cell of this suite
-// produces, so it discriminates "nothing arrived" from "a small one" without tracking either.
-// The trailing separator is load-bearing in its own right, as the leading package boundary is for
-// `BABEL_EXCLUDE` above: without it `core-js` matches inside `core-js-builder` and `core-js-compat`
-// too, and bytes of a build tool would count towards the payload this gate is about.
+// How many bytes of core-js reached the chunk. The injection COUNT cannot answer it: the recorder
+// matches specifier text, which survives even when rollup drops the module - `sideEffects: false` in
+// the pinned core-js tree-shakes every polyfill away while the count still reads healthy. The chunk's
+// own module table catches that for every method. The floor is an order of magnitude under the
+// smallest payload here, so it separates "nothing arrived" from "a small one" without tracking either.
+// The trailing separator is load-bearing: without it `core-js` matches inside `core-js-builder` and
+// `core-js-compat`, and a build tool's bytes would count towards the payload.
 const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?[/\\]|@core-js[/\\])/;
 const MIN_CORE_JS_BYTES = 10_000;
 export function assertPayload(chunk, label) {
@@ -342,15 +334,13 @@ export function assertPayload(chunk, label) {
 
 // The ES5 UMD bundle, polyfilled by ONE of the two providers.
 //
-// Plugin ordering is not the array order: raw Rollup ignores the plugin-level `enforce` field but
-// honours the hook-level `order` unplugin sets on its transform. `usage-*` is 'post', so unplugin sees
-// Babel's helper output; `entry-global` is pinned to 'pre' regardless, which is harmless - it expands
-// `import 'core-js'` and needs no helpers. With `provider: 'babel-plugin'` unplugin is absent
-// entirely, which is why that build is the reference the phases are diffed against.
+// Plugin ordering is not the array order: raw Rollup ignores plugin-level `enforce` and honours the
+// hook-level `order` unplugin sets. `usage-*` is 'post', so unplugin sees Babel's helper output;
+// `entry-global` is pinned to 'pre' and needs none. `babel-plugin` builds without unplugin at all,
+// which is why they are the reference the phases diff against.
 //
-// `injected` is observed inside THIS build and is the SET, not a count: capturing it in a separate
-// pass would describe a different configuration, so a build whose own injection had gone no-op would
-// still report a healthy one.
+// `injected` is the SET, observed inside THIS build: a separate capture would describe a different
+// configuration, and a build whose injection had gone no-op would still report a healthy one.
 export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider = 'unplugin') {
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel - see above),
   // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`. babel-plugin has no
