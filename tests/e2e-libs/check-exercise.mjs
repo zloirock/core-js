@@ -15,7 +15,7 @@ if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' '
 // A PATH is taken as given - that is the form for running an exercise that is not in the registry
 // yet. Anything else goes through `librariesMatching`, which fails loudly on a name it does not know
 // and on an empty registry, so this runner cannot report `0 checks, 0 failing` and exit green.
-const targets = arg && (isAbsolute(arg) || arg.includes('/'))
+const targets = arg && (isAbsolute(arg) || arg.includes('/') || arg.includes('\\'))
   ? [isAbsolute(arg) ? arg : join(HERE, arg)]
   : librariesMatching(arg).map(l => l.exercise);
 

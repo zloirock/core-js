@@ -53,7 +53,10 @@ async function timedBuild(entry, plugins, label = 'stage') {
 function timeTransform(plugin, add) {
   // `pre+post` hands back an ARRAY of sub-plugins, which rollup flattens - and a plugin with no
   // transform hook has nothing to time. Neither shape may be indexed into blindly, or a phase this
-  // report does not measure today would fail on a property of `undefined`.
+  // report does not measure today would fail on a property of `undefined`. Note what the array branch
+  // does to the number: each sub-plugin accumulates its own busy window into one sink, so two phases
+  // active at once are summed rather than unioned. Nothing here measures `pre+post` - the stage below
+  // pins `post` - and no number this report prints is asserted, but a caller that does needs the union.
   if (Array.isArray(plugin)) return plugin.map(sub => timeTransform(sub, add));
   const hook = plugin?.transform;
   if (!hook) return plugin;
