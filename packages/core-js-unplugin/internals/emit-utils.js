@@ -42,6 +42,20 @@ export function isCalleeWrappedInParens(parent, node) {
   return false;
 }
 
+// the chain root whose nullability a queued OUTER guard (a trailing instance dispatch that memoized
+// it) already owns, or null. descends the member receiver toward the root, probing the transform
+// queue at EVERY hop - the guard may memoize a MID-chain hop (a collapsed proxy-hop prefix, `call()
+// ?.hop`), not the chain root itself. one descent for both consumers: the static emit needs the
+// owned ROOT to split effects on, the standalone guard-bail only needs to know one exists
+export function outerGuardOwnedRoot(node, transforms) {
+  let root = node.object;
+  while (root && (root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) {
+    if (transforms.findOuterGuardRef(root)) return root;
+    root = root.object;
+  }
+  return transforms.findOuterGuardRef(root) ? root : null;
+}
+
 // prefix an emitted leaf with source-text side effects as a sequence (`(se1, se2, leaf)`), and with
 // nothing at all when there are none. every render that replays effects ahead of its binding spells
 // this the same way, so the paren-and-comma form lives here rather than once per render

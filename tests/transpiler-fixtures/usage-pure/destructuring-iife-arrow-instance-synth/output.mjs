@@ -115,6 +115,30 @@ export const viaNestedIifes = (({
   concat: _concatMaybeArray([1, [2]])
 }))([3, 4]);
 
+// the argument position is read from the SAME resolver that located the receiver, so an argument
+// the resolver expanded out of an inline-array spread keeps its receiver TYPING - deriving the
+// position by identity over top-level `arguments` cannot see inside the spread and demoted these
+// to the generic dispatcher. the family of each row differs so a lost position is visible as a
+// wrong narrow, not just a missing one; a non-literal spread has no static position and stays native
+export const viaInlineSpreadArg = (({
+  at: atSpread
+}) => atSpread)(...[{
+  at: _atMaybeArray([1, 2])
+}]);
+export const viaInlineSpreadStringArg = (({
+  at: atSpreadStr
+}) => atSpreadStr)(...[{
+  at: _atMaybeString("abc")
+}]);
+export const viaInlineSpreadSecondSlot = ((first, {
+  entries: entriesSpread
+}) => entriesSpread)(...[other, {
+  entries: _entriesMaybeArray([1, 2])
+}]);
+export const viaNonLiteralSpreadBails = (({
+  flat: flatSpread
+}) => flatSpread)(...mkArgs());
+
 // a computed key that folds to a static name replays like a plain one, so it synths too;
 // the NEGATIVE the shared gate keeps native is a getter-bearing literal, which is not re-eval-inert
 export const viaComputedKeyFolds = (({
