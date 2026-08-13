@@ -37,6 +37,23 @@ import { checker, eq } from './checks.mjs';
 function collect(obs) {
   return firstValueFrom(obs.pipe(toArray()));
 }
+// Awaiting the block below through `Promise.all` would put `es.promise.all` in the baselines with THIS
+// file as its only origin - rxjs never calls it - which is the sole-origin trap exercises/checks.mjs
+// describes: a line that documents the harness, and that would stand over rxjs if it ever did call it.
+// Everything below is already in flight by the time this runs, so joining them in order costs nothing
+// and reaches only for `then`, which rxjs itself drives from a dozen modules.
+/* eslint-disable promise/prefer-await-to-then -- .then not await: keeps this module regenerator-free,
+   the same reason the header gives for banning `async` (see the sibling disable below) */
+function joinAll(list) {
+  const out = [];
+  let chain = Promise.resolve();
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    chain = chain.then(() => item).then(value => { out.push(value); });
+  }
+  return chain.then(() => out);
+}
+/* eslint-enable promise/prefer-await-to-then -- back to the default for the rest of the file */
 // Inputs for rxjs's interop hub (`innerFrom`). Built by hand rather than with generator syntax so
 // the machinery that runs is rxjs's, not a regenerator runtime of ours.
 function customIterable(values) {
@@ -235,7 +252,7 @@ export function run() {
   // via a var: the Set dedups at runtime, without tripping a literal-duplicate lint rule
   const setInput = [3, 1, 3, 2, 1];
 
-  return Promise.all([
+  return joinAll([
     // --- innerFrom: every branch of rxjs's interop hub ---
     collect(from(new Set(setInput))),
     collect(from(new Map([['a', 1], ['b', 2]]))),

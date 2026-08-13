@@ -1,41 +1,63 @@
-// The two lines every exercise needs, in one place: four copies of them would drift, and a check
-// that compares differently in one fixture than in another is a fixture that means something else.
+// The two lines every exercise needs, in one place: four copies of them would drift, and a check that
+// compares differently in one fixture than in another is a fixture that means something else.
 //
 // This module is BUNDLED into every cell, so it is held to the same rule as an exercise: it may not
-// call the standard library on a library's behalf. Nothing here reaches past ES3 - no `Number.isNaN`,
-// no `Object.entries`, no spread - or the injection sets would carry this file's own vocabulary and
-// the snapshots would stop describing the libraries.
-
-// `JSON.stringify` renders NaN and both infinities as `null`, so a check expecting `null` would pass
-// on a NaN - reachable wherever a library returns a sentinel position or a failed conversion. Map
-// them to strings first, and the comparison keeps them apart.
+// call the standard library on a library's behalf. The line that matters is the SOLE-ORIGIN one - a
+// specifier no library in the graph would have injected, which then describes this harness instead of
+// the library, or worse hides the library ceasing to need it. Today this file is the sole origin of
+// none: what it does inject (`es.array.push`, and the Symbol/iterator family every ES5 down-compile
+// pulls in) each arrive from a dozen or more places inside the libraries themselves.
 //
-// Key ORDER is deliberately left alone: normalizing it needs `Object.keys().sort()`, which is stdlib
-// this file must not call. No check here compares objects built by two different paths.
-function canonical(value) {
-  // the global `isFinite` covers NaN and both infinities at once, and unlike `Number.isNaN` or
-  // `Number.isFinite` it is not a polyfill target, so it adds nothing to this file's injection set.
-  // Three literals rather than one built by concatenation, for the same reason: Babel lowers both a
-  // template and a `+` on a string to `"".concat(...)`, a stdlib call this frame keeps out.
-  if (typeof value === 'number') {
-    if (isFinite(value)) return value;
-    return value === Infinity ? '#Infinity' : value === -Infinity ? '#-Infinity' : '#NaN';
-  }
-  if (Array.isArray(value)) {
-    const out = [];
-    for (let i = 0; i < value.length; i++) out.push(canonical(value[i]));
-    return out;
-  }
-  if (value && typeof value === 'object') {
-    const out = {};
-    for (const key in value) if (Object.prototype.hasOwnProperty.call(value, key)) out[key] = canonical(value[key]);
-    return out;
-  }
-  return value;
+// That is why the comparison below is structural rather than `JSON.stringify(a) === JSON.stringify(b)`.
+// `JSON.stringify` is a polyfill target at this floor, and while it was the comparison, `es.json.stringify`
+// sat in the rxjs and htmlparser2 baselines with this file as its ONLY origin, and in the codemirror and
+// three ones it stood over the library's own use of it - so that use could have stopped without a single
+// snapshot moving. Check a new call here against `origins` before adding one.
+
+// `toJSON` is asked for first, the way `JSON.stringify` asks: for a Date that method IS the value, and
+// walking its own properties instead finds none - every date would equal every other one and `{}`.
+// Applied exactly ONCE, as stringify applies it, so a `toJSON` returning another such object cannot
+// send this into a loop.
+function unwrap(value) {
+  return value && typeof value.toJSON === 'function' ? value.toJSON() : value;
 }
 
-export function eq(a, b) {
-  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+function has(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+// NaN equals NaN and the infinities equal themselves - both sides of a check come from the same
+// computation, so a sentinel matching its expectation is the useful answer. What must NOT hold is
+// `NaN` equalling `null`, which the old stringify comparison could not tell apart because JSON
+// renders both as `null`. The global `isFinite` covers all three cases at once and, unlike
+// `Number.isNaN` or `Number.isFinite`, is not a polyfill target.
+function sameNumber(a, b) {
+  if (isFinite(a) || isFinite(b)) return a === b;
+  return a === Infinity ? b === Infinity : a === -Infinity ? b === -Infinity : b !== Infinity && b !== -Infinity;
+}
+
+export function eq(rawA, rawB) {
+  const a = unwrap(rawA);
+  const b = unwrap(rawB);
+  if (typeof a === 'number' && typeof b === 'number') return sameNumber(a, b);
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!eq(a[i], b[i])) return false;
+    return true;
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    // Key ORDER does not decide, which a stringify comparison could not help but let it do: a library
+    // that assembles the same fields in another order is not a library that returns something else.
+    // Counting both ways is what makes a key present on one side only a difference.
+    let extra = 0;
+    for (const key in a) if (has(a, key)) {
+      if (!has(b, key) || !eq(a[key], b[key])) return false;
+      extra++;
+    }
+    for (const key in b) if (has(b, key)) extra--;
+    return extra === 0;
+  }
+  return a === b;
 }
 
 // Every exercise reports the same shape - `{ checks }`, one entry per assertion, carrying both sides
