@@ -996,9 +996,15 @@ export function createPolyfillEmitter({
     );
   }
 
-  // leading `, ...` separator for trailing call args - empty when there are none, so it appends
-  // straight after a receiver (`.call(recv${ commaArgs(args) })`)
-  function commaArgs(args) {
+  // leading `, ...` separator for a call's own arguments, appended straight after a receiver
+  // (`.call(recv${ commaArgs(callNode) })`). arity is asked of the AST, never of the sliced
+  // text: a zero-arg call whose parens hold trivia (`a.flat(/* depth */)`, `a.flat(\n)`) slices
+  // to a NON-EMPTY string, and a separator ahead of it emits `.call(a, )` - a trailing comma is
+  // ES2017 and a parse error for the whole module on the ES5 baseline. the falsy branch below
+  // is the unsliceable-call fallback (no locatable parens), not an arity test.
+  // `emitInheritedStaticCallSplit` reads arity the same way for its own separator
+  function commaArgs(callNode) {
+    const args = callNode?.arguments.length ? sliceBetweenParens(callNode) : null;
     return args ? `, ${ args }` : '';
   }
 
@@ -1228,7 +1234,7 @@ export function createPolyfillEmitter({
       // native yields undefined. an already-optional tail keeps its own `?.`
       methodTail: optionalizeMethodTail(code.slice(receiverNode.end, callee.end),
         !isSuper && receiverCarriesLiveOptional(receiverNode)),
-      argsText: sliceBetweenParens(optionalNode),
+      argsNode: optionalNode,
       tail,
     };
   }
@@ -1272,9 +1278,9 @@ export function createPolyfillEmitter({
   // chain receiver isn't a bare ident); `obj` is the `this` slot (reuses memoized ref
   // when allocated). `argsPart` is the leading `, ...args` separator handled here so
   // empty / non-empty cases don't litter the strategy emit
-  function buildCallParts({ bodyObj, isNonIdent, guardRef, args }) {
+  function buildCallParts({ bodyObj, isNonIdent, guardRef, argsNode }) {
     const { obj, firstArg } = allocCallObj(bodyObj, isNonIdent, guardRef);
-    const argsPart = commaArgs(args);
+    const argsPart = commaArgs(argsNode);
     return { obj, firstArg, argsPart };
   }
 
@@ -1286,18 +1292,20 @@ export function createPolyfillEmitter({
   //     `call` strategy with no guard / no SE-prefix can support it (other strategies
   //     interleave content that breaks substring boundaries)
   const BODY_STRATEGIES = {
-    new: ({ binding, bodyObj, guard, args }) => ({
+    new: ({ binding, bodyObj, guard, argsNode }) => ({
       // NewExpression with optional inner: babel-plugin's `normalizeOptionalChain` lifts
       // the conditional guard into the new's callee slot (`new (CONDITIONAL)(args)`), not
       // around the whole expression. inject guard inside the `new (...)` callee bracket
-      // so shape matches babel - and compose's rootRaw substitution lands at the right slot
-      body: `new (${ guard }${ binding }(${ bodyObj }))(${ args || '' })`,
+      // so shape matches babel - and compose's rootRaw substitution lands at the right slot.
+      // args land in their OWN parens with nothing ahead of them, so the slice stays verbatim
+      // (a comment-only list round-trips) - no separator means no dangling-comma hazard
+      body: `new (${ guard }${ binding }(${ bodyObj }))(${ (argsNode && sliceBetweenParens(argsNode)) || '' })`,
       clearGuard: true,
     }),
     bareMember: ({ binding, bodyObj }) => ({
       body: `${ binding }(${ bodyObj })`,
     }),
-    parenLookup: ({ binding, bodyObj, isNonIdent, guardRef, guard, args, sideEffects }) => {
+    parenLookup: ({ binding, bodyObj, isNonIdent, guardRef, guard, argsNode, sideEffects }) => {
       // `(arr?.method)(args)`: parens preserve Reference Type so native binds `this=arr` on
       // success; on nullish the outer non-optional call throws (chain ends at `?.`). emit
       // `(arr == null ? void 0 : binding(_ref = arr.b)).call(_ref, args)`:
@@ -1308,7 +1316,7 @@ export function createPolyfillEmitter({
       // when a guard is present, the receiver-derived SE (a computed key) must fire only on the
       // non-null branch (native short-circuits `?.` first), so fold it INTO the guard alternate
       // here and signal the outer concat (`clearSE`) not to prepend it onto the whole result
-      const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, args });
+      const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, argsNode });
       const callee = guard ? wrapSideEffects(`${ binding }(${ firstArg })`, sideEffects) : `${ binding }(${ firstArg })`;
       return {
         body: `(${ guard }${ callee }).call(${ obj }${ argsPart })`,
@@ -1316,8 +1324,8 @@ export function createPolyfillEmitter({
         clearSE: !!guard,
       };
     },
-    call: ({ binding, bodyObj, isNonIdent, guardRef, optionalCall, args, guard, sideEffects }) => {
-      const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, args });
+    call: ({ binding, bodyObj, isNonIdent, guardRef, optionalCall, argsNode, guard, sideEffects }) => {
+      const { obj, firstArg, argsPart } = buildCallParts({ bodyObj, isNonIdent, guardRef, argsNode });
       const dot = optionalCall ? '?.' : '.';
       const prefix = `${ binding }(${ firstArg })`;
       const suffix = `${ dot }call(${ obj }${ argsPart })`;
@@ -1435,7 +1443,7 @@ export function createPolyfillEmitter({
           : `null == (${ guardRef } = ${ methodCall.methodSrc }) ? void 0 : `;
         // splice the intermediate plain-member hop tail (`.x.y`) back onto the call result so
         // the outer polyfill reads off the right value instead of the bare call return
-        bodyObj = `${ guardRef }.call(${ callReceiver }${ commaArgs(methodCall.argsText) })${ methodCall.tail ?? '' }`;
+        bodyObj = `${ guardRef }.call(${ callReceiver }${ commaArgs(methodCall.argsNode) })${ methodCall.tail ?? '' }`;
         // the guarded CALL evaluates inside the alternate: with a folded key SE it must run
         // FIRST (ECMA evaluates the receiver before the computed key), so hoist its memo ahead
         // of the wrap instead of leaving the embedded `binding(ref = call)` form after the SE -
@@ -1553,7 +1561,12 @@ export function createPolyfillEmitter({
     return { optionalRoot: root, collapsedRoot, rootRaw, deoptPositions, rootNode, optionalNode, descendedThroughRefusal };
   }
 
-  // slice the original source between a call expression's parentheses, preserving every byte
+  // slice the original source between a call expression's parentheses, preserving every byte -
+  // including the trivia a zero-arg list can hold. only the paths that print the slice inside
+  // parens of their OWN (`new`, claim invoke) read it directly; anything joining it after a
+  // receiver goes through `commaArgs`, which gates the separator on AST arity.
+  // a separator the SOURCE wrote at the end of its own list rides through untouched - a list
+  // already spelled `f(1,)` means the target is not ES5 or a transpiler runs after us
   function sliceBetweenParens(callNode) {
     if (callNode.callee?.end === undefined || callNode.end === undefined) return null;
     const closeParen = callNode.end - 1;
@@ -1898,7 +1911,7 @@ export function createPolyfillEmitter({
       skippedNodes.add(recv.skipNode);
     }
     if (reused) ({ objectSrc, isNonIdent } = reused);
-    const argsSrc = isCall ? sliceBetweenParens(parent) : null;
+    const argsNode = isCall ? parent : null;
     const start = isCall ? parent.start : node.start;
     let end = isCall ? parent.end : node.end;
     // `methodCall` (optional method call `recv.m?.()` - keep `this` via `_ref.call(recv)`) is resolved
@@ -1911,7 +1924,7 @@ export function createPolyfillEmitter({
       }) : null;
     const built = buildReplacement(binding, objectSrc, {
       isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions: effectiveDeopt,
-      optionalCall: isCall && parent.optional, args: argsSrc,
+      optionalCall: isCall && parent.optional, argsNode,
       objectStart: node.object.start,
       preAllocatedGuardRef, receiverEffectCount, metaPath,
       // the receiver render may have PLACED some of these itself (a chain-assign root sequences them
@@ -3199,14 +3212,14 @@ export function createPolyfillEmitter({
         hops.push({
           poly: hopResult?.kind === 'instance' ? hopResult : null,
           keySE: hopKeySE,
-          args: sliceBetweenParens(current) ?? '',
+          argsNode: current,
           rawSrc: code.slice(hopCallee.object.end, current.end),
           // member-optional call hop (`recv?.m(...)`): a nullish receiver short-circuits the whole chain
           optional: hopCallee.optional,
         });
         step = peelChainStep(hopCallee.object, hopCalleePath.get('object'));
       } else {
-        hops.push({ poly: null, args: null, rawSrc: code.slice(current.object.end, current.end) });
+        hops.push({ poly: null, argsNode: null, rawSrc: code.slice(current.object.end, current.end) });
         step = peelChainStep(current.object, currentPath.get('object'));
       }
       if (!step) return null;
@@ -3358,14 +3371,14 @@ export function createPolyfillEmitter({
         // key SE replays between the receiver memo and the helper call - source order
         // (receiver, key effects, dispatch), mirroring the babel emission
         acc = hop.keySE?.length
-          ? `(${ slot.ref } = ${ acc }, ${ hop.keySE.join(', ') }, ${ slot.binding }(${ slot.ref }).call(${ slot.ref }${ commaArgs(hop.args) }))`
-          : `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hop.args) })`;
+          ? `(${ slot.ref } = ${ acc }, ${ hop.keySE.join(', ') }, ${ slot.binding }(${ slot.ref }).call(${ slot.ref }${ commaArgs(hop.argsNode) }))`
+          : `${ slot.binding }(${ slot.ref } = ${ acc }).call(${ slot.ref }${ commaArgs(hop.argsNode) })`;
       } else if (hop.poly) {
         // folded innermost poly hop: `acc` is the memoized chainStart result (mRef), safe to reuse
         // verbatim rather than allocate a redundant `_refN = mRef` memo (mirrors babel).
         // key SE replays ahead of the dispatch, like the slotted branch
         const binding = injectPureImport(hop.poly.entry, hop.poly.hintName);
-        const dispatch = `${ binding }(${ acc }).call(${ acc }${ commaArgs(hop.args) })`;
+        const dispatch = `${ binding }(${ acc }).call(${ acc }${ commaArgs(hop.argsNode) })`;
         acc = hop.keySE?.length ? `(${ hop.keySE.join(', ') }, ${ dispatch })` : dispatch;
       } else {
         // non-poly hops: verbatim mode keeps the `?.`; a guarded one deopts its connector
@@ -3453,8 +3466,7 @@ export function createPolyfillEmitter({
     const isReceiverSafe = isSuper || isReusableReceiver(innerCallee.object);
     const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
     const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
-    const innerArgs = sliceBetweenParens(chainStart) ?? '';
-    const outerArgs = sliceBetweenParens(parent) ?? '';
+    const innerSuffix = commaArgs(chainStart);
 
     // `recv.method?.()`: the `?.` guards the CALL, not the `.method` access - a nullish recv must
     // throw on the `.method` read like native, so omit the `null == recv` test (it would swallow
@@ -3481,8 +3493,8 @@ export function createPolyfillEmitter({
     const mRef = allHopsNonPoly ? null : scopeTracker.genRef();
     const outerRef = scopeTracker.genRef();
     const innerCall = allHopsNonPoly
-      ? `${ methodGet(methodArg) }?.call(${ aRef }${ commaArgs(innerArgs) })`
-      : foldInnerCall ? mRef : `${ mRef }.call(${ aRef }${ commaArgs(innerArgs) })`;
+      ? `${ methodGet(methodArg) }?.call(${ aRef }${ innerSuffix })`
+      : foldInnerCall ? mRef : `${ mRef }.call(${ aRef }${ innerSuffix })`;
     const { threaded, extraTests } = buildThreadedReceiver(innerCall, hops, {
       innermostGuardFolded: foldInnerCall, verbatimHops: allHopsNonPoly,
     });
@@ -3491,7 +3503,7 @@ export function createPolyfillEmitter({
       `null == ${ anAssign }`,
       `null == (${ mRef } = ${ methodGet(aRef) })`,
     ] : foldInnerCall ? [
-      `null == (${ mRef } = ${ methodGet(methodArg) }?.call(${ aRef }${ commaArgs(innerArgs) }))`,
+      `null == (${ mRef } = ${ methodGet(methodArg) }?.call(${ aRef }${ innerSuffix }))`,
     ] : !innerBinding && !isReceiverSafe ? [
       // non-poly inner with a side-effecting receiver: comma-split the receiver memo and the raw
       // method-get (`_ref = recv(), _ref2 = _ref.m`) instead of nesting the assignment inside the
@@ -3519,7 +3531,7 @@ export function createPolyfillEmitter({
       outerObj = `${ outerRef } = ${ threaded }`;
     }
     const dot = parent.optional ? '?.' : '.';
-    const suffix = commaArgs(outerArgs);
+    const suffix = commaArgs(parent);
     // fold outer computed-key side effects into the alternate so they fire only when the chain
     // does not short-circuit (native skips a computed-key eval on a nullish receiver) - matches
     // babel-compat.js, which folds the same SE into its conditional alternate
@@ -3607,9 +3619,10 @@ export function createPolyfillEmitter({
   // `super.foo(` (with optional SE wrapper); args stay VERBATIM at their source positions
   // (preserves source-map column precision - breakpoints / stack traces resolve to the
   // original arg slot instead of collapsing to super's start). closing `)` is overwritten
-  // only when sideEffects need the extra `))` wrap. `sep` branches on AST arity so
-  // a no-arg inherited-static call (`super.foo(/* c */)` / `this.foo(/* c */)`, comment
-  // round-trips inside source) doesn't get a dangling leading comma
+  // only when sideEffects need the extra `))` wrap. `sep` is `commaArgs`'s arity rule for a
+  // split emit - the args are never sliced here, so only the separator is decided: a no-arg
+  // inherited-static call (`super.foo(/* c */)` / `this.foo(/* c */)` in a static context, where
+  // a comment round-trips inside source) must not get a dangling leading comma
   function emitInheritedStaticCallSplit({ binding, parent, sideEffects }) {
     const args = parent.arguments;
     // splitPoint: position after `(` - first arg's start, or one before `)` for no-args.
