@@ -176,9 +176,10 @@ export const viaLogicalRetest = lg()?.window?.self && lg()?.window?.self?.Array.
 // legs construct the ponyfill (`new _Map`) - the arrow-paren reprint differs cosmetically
 export const viaIdentityCtorNew = ((x) => x)(globalThis)?.window?.Map && new (((x) => x)(globalThis)).Map([[1, 2]]).size;
 
-// an ALIAS holding an undefinable nav keeps its `?.` LIVE (the runtime VALUE is the nav's,
-// not the always-defined global the prefix walk sees) - the claim composes PLAIN into the
-// single outer test
+// an ALIAS holding an undefinable nav: the write stores the value canon (the guard
+// conditional), the read classifies through its defined branch, keeps its `?.` LIVE (the
+// runtime VALUE is the nav's, not the always-defined global the prefix walk sees) and the
+// claim composes PLAIN into the single outer test
 let navAlias;
 navAlias = globalThis.window?.self.window;
 export const viaAliasNavRead = navAlias?.Array.of(31).at(0);
