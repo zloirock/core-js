@@ -32,7 +32,7 @@ var callRootArg = null == (_ref4 = null == cr(_Promise).window ? void 0 : _self.
 // the literal-IIFE twin: the render rewrites the call, so a rescue decided by matching its output
 // text against the source loses the same read - the two rows fail under opposite wrong answers
 var iifeArg = null == (_ref5 = null == function () {
-  return globalThis;
+  return _globalThis;
 }(_Promise).window ? void 0 : _self.scriptBox.list) ? void 0 : _at(_ref5).call(_ref5, 0);
 var assignRoot = null == (_ref6 = null == (held = _globalThis).window ? void 0 : _self.scriptBox.list) ? void 0 : _at(_ref6).call(_ref6, 0);
 var a = [1];

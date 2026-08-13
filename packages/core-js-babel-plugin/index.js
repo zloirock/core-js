@@ -50,6 +50,7 @@ import {
   isAliasProxyHopChain,
   prependChainAssignmentEffect,
   staticMayEraseReceiver,
+  storedUserAssignmentOf,
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
@@ -275,6 +276,7 @@ export default function plugin(api, options) {
     probedNavGuardValueNode,
     sealedClaimThrowProbeNode,
     flushKeptNavCollapseAt,
+    keptNavHopClaimSuppressed,
     flushKeptNavCollapses,
     markThrowingExtraction,
     generateRef,
@@ -927,6 +929,11 @@ export default function plugin(api, options) {
               return;
             }
           }
+          // the KEPT chain-assign value this arm re-emits beside the swap collapses through the
+          // claim funnel first (`(q = globalThis.self.window).Promise.noSuchStatic` re-emits
+          // `q = _self.window`): the guarded arms above collapse inside their own test render,
+          // and this plain arm owns the assignment's emission the same way the claim channel does
+          if (hadChainAssign) collapseKeptNavValueNode(receiverPath.node, path, { immediate: true });
           // a SEALED probe receiver: the swap drops the read the source performs on the sealed
           // VALUE - re-emit it as a THROW probe (carrying the nav's key SE) ahead of the swap
           const throwProbe = sealedClaimThrowProbeNode(path);
@@ -1112,6 +1119,15 @@ export default function plugin(api, options) {
               });
               return;
             }
+            // the KEPT chain-assign value beside the claim collapses through the same canon the
+            // guarded twin reads (`(q = globalThis.self.window).Map` stores `_self.window`, a
+            // nested unresolvable prefix keeps its guard) - a kept raw `.self` hop reads an
+            // engine `self` the web.self ponyfill exists to serve. IMMEDIATE: this channel owns
+            // the assignment's emission (an earlier instance claim may have rebuilt the receiver,
+            // so the deferred flush could never match the emitted node by identity). the plan
+            // owns only the chain-assign shapes; everything else is a no-op here (a global-kind
+            // claim's path is a bare Identifier with no object slot)
+            if (path.node.object) collapseKeptNavValueNode(path.node.object, path, { immediate: true });
             const allEffects = prependChainAssignmentEffect(path.node.object, meta.sideEffects,
               meta.chainAssignInsertAt ?? meta.receiverEffectCount);
             // a SEALED probe receiver: re-emit the read the erase drops as a THROW probe ahead
@@ -1228,6 +1244,23 @@ export default function plugin(api, options) {
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
         keptProxyHops: isPure ? keptProxyHops : undefined,
+        // 'plan': the deferred flush owns the render; an ASSIGNMENT (the stored canon): the
+        // value collapses IN PLACE right now - the guard channel is live but no claim fired,
+        // and nothing else would spell the kept value (`(k = ((globalThis.window.self)))?.X`
+        // renders `k = null == _globalThis.window ? void 0 : _self` like its claimed twin)
+        suppressKeptNavHop: isPure ? path => {
+          const owned = keptNavHopClaimSuppressed(path);
+          if (owned && owned !== 'plan') collapseKeptNavValueNode(owned, path, { immediate: true });
+          return !!owned;
+        } : undefined,
+        // the same stored canon from the nav's proxy-global ROOT (the identifier visit is the
+        // one place the member subtree-skip cannot hide): the funnel plans the kept value and
+        // reports whether it rendered - every other shape falls through to the normal claim
+        suppressKeptNavRoot: isPure ? path => {
+          const stored = storedUserAssignmentOf(path);
+          if (!stored) return false;
+          return !!collapseKeptNavValueNode(stored, path, { immediate: true });
+        } : undefined,
         onSuppressedProxyHop: isPure ? path => {
           if (isRenderedPlanTail(path.parentPath?.node)) return;
           // the chain walk and the two verdicts it carries - the nav must be CONSUMED by a step
@@ -1241,6 +1274,15 @@ export default function plugin(api, options) {
             resolvesProperty: (key, endPath) => !!resolvePure({ kind: 'property', key }, endPath),
           });
           if (!chainEnd) return;
+          // a QUEUED kept-nav plan owns the assignment's whole emission - a fold or render
+          // firing inside its span detaches the nodes the deferred flush renders from; the
+          // stored canon (an owning ASSIGNMENT comes back) renders the kept value in place
+          const owned = keptNavHopClaimSuppressed(path);
+          if (owned === 'plan') return;
+          if (owned) {
+            collapseKeptNavValueNode(owned, path, { immediate: true });
+            return;
+          }
           // same precedence the meta-driven arm keeps: the hop COLLAPSE owns every chain it can
           // take, and only the navs it refuses - the short-circuiting probe - earn the render
           const hopCtx = path.scope ? { scope: path.scope, adapter, path } : null;
@@ -1333,6 +1375,7 @@ export default function plugin(api, options) {
           resolvedType,
           markThrowingExtraction,
           probedNavGuardValueNode,
+          collapseKeptNavValueNode,
           sealedClaimThrowProbeNode,
         });
         // drop per-file AST-keyed caches so memory is deterministic under long-running

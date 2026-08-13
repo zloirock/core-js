@@ -537,6 +537,160 @@ testUnlessDetectLowered('global-proxy: static claim under a tail collapses the k
   assert.same(r, hasWindow ? globalThis : undefined);
 });
 
+// the assigned VALUE of a chain-assign receiver follows the flat value rule: a fully ponyfilled
+// navigation stores the leaf's own ponyfill (the global object either way - what the assertion
+// checks is that the claim above it still resolves and the assignment still runs), a sequence
+// value runs its prefix exactly once, and a value stepping onto a NON-global keeps the raw read
+QUnit.test('global-proxy: static claim over a chain-assign value keeps the assignment and its effects', assert => {
+  let q;
+  const Ctor = (q = globalThis.self).Map;
+  assert.same(typeof Ctor, 'function');
+  const stored = new Ctor();
+  stored.set(1, 2);
+  assert.same(stored.get(1), 2);
+  assert.same(q, globalThis);
+  // the claimed static under a tail: the claim rides the collapsed value, the assignment stays
+  let t;
+  assert.same((t = globalThis.self).Number.MAX_SAFE_INTEGER.toFixed(1), globalThis.Number.MAX_SAFE_INTEGER.toFixed(1));
+  assert.same(t, globalThis);
+  // a sequence value: the prefix effect runs exactly once, ahead of the leaf
+  const log = [];
+  let s;
+  const seqCtor = (s = (log.push('e'), globalThis.self)).Map;
+  assert.same(typeof seqCtor, 'function');
+  assert.deepEqual(log, ['e']);
+  assert.same(s, globalThis);
+  // a value navigating onto a NON-global (`Math`) is not the global object: the member read
+  // stays raw and answers what the source answers
+  let v;
+  const notGlobal = (v = globalThis.Math).Map;
+  assert.same(notGlobal, undefined);
+  assert.same(v, globalThis.Math);
+});
+
+// the same value ending at a hop core-js does NOT ponyfill: the erasable `.self` hop collapses
+// to its ponyfill and the `.window` read stays - the value the assignment stores is what the
+// ENVIRONMENT's `window` slot holds (the guarded twin one test up keeps the same spelling), never
+// the collapsed root. the probe reads `window`, which has no ponyfill and answers the REAL
+// environment; every runner realm pairs `self` with `window`
+QUnit.test('global-proxy: chain-assign value collapses the erasable hop and keeps the tail read', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let u;
+  const viaWindow = (u = globalThis.self.window).Map;
+  assert.same(typeof viaWindow, 'function');
+  assert.same(u, hasWindow ? globalThis.window : undefined);
+  // the mid-chain write survives the collapse beside the outer one
+  let a, b;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren-wrapped inner write IS the form under test
+  const nested = (a = (b = globalThis.self.window)).Map;
+  assert.same(typeof nested, 'function');
+  assert.same(a, hasWindow ? globalThis.window : undefined);
+  assert.same(b, a);
+  // an inner write BELOW a hop of the outer value: the innermost collapses to the ponyfill,
+  // the outer stores the raw read off it
+  let m, n;
+  const belowHop = (m = (n = globalThis.self).window)?.Map;
+  assert.same(typeof belowHop, hasWindow ? 'function' : 'undefined');
+  assert.same(n, globalThis);
+  assert.same(m, hasWindow ? globalThis.window : undefined);
+  // a static VALUE claim leaves the `=` buried under the claim's receiver hops: the collapse
+  // digs the assignment out - the claim resolves through the ponyfill, the assignment stores
+  // the tail read, and a sequence prefix still runs exactly once
+  let c;
+  assert.same((c = globalThis.self.window).Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+  assert.same(c, hasWindow ? globalThis.window : undefined);
+  const log = [];
+  let d;
+  assert.deepEqual((d = (log.push('p'), globalThis).self.window).Array.of(7), [7]);
+  assert.deepEqual(log, ['p']);
+  assert.same(d, hasWindow ? globalThis.window : undefined);
+  // the fallback rewrite (a member outside the known statics) re-emits the same buried
+  // assignment beside the receiver swap, collapsed by the same rule
+  let e;
+  assert.same((e = globalThis.self.window).Promise.noSuchStatic, undefined);
+  assert.same(e, hasWindow ? globalThis.window : undefined);
+  // a sequence AROUND the assignment (not inside its value): the claim still fires through
+  // the kept assignment, and the prefix effect runs exactly once
+  log.length = 0;
+  let f;
+  // eslint-disable-next-line sonarjs/no-redundant-parentheses -- the paren-sealed sequence IS the form under test
+  const aroundCtor = ((log.push('s'), f = globalThis.self.window)).Map;
+  assert.same(typeof aroundCtor, 'function');
+  assert.deepEqual(log, ['s']);
+  assert.same(f, hasWindow ? globalThis.window : undefined);
+});
+
+// the seq-around shape under a LIVE guard: the test reads the collapsed value (never a raw
+// hop), short-circuits exactly where the environment lacks the slot, and runs the prefix once.
+// the lowering rewrites the `?.` into a temp-var ternary whose memoized test is a claimless
+// value position - the open claimless-value canon - so the lowered leg sits this one out
+testUnlessDetectLowered('global-proxy: guarded seq-around chain-assign value collapses in the test (runs without self in Node)', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const log = [];
+  let g;
+  const aroundGuardCtor = (log.push('g'), g = globalThis.self.window)?.Map;
+  assert.same(typeof aroundGuardCtor, hasWindow ? 'function' : 'undefined');
+  assert.deepEqual(log, ['g']);
+  assert.same(g, hasWindow ? globalThis.window : undefined);
+});
+
+// a stored target the module also READS takes the same value canon as the unread twin: the
+// reads classify through the stored guard conditional, so their own claims and guards survive
+// the collapse. a claim ABSENT from the definitions (`BigInt` has no pure entry) leaves the
+// ride guarded off the stored value instead of folding it onto a defined read; the plain-nav
+// ride without an assignment guards identically. an ALIAS root stores the same canon, and a
+// destructure host replays the kept assignment through it
+testUnlessDetectLowered('global-proxy: read-target stored values, absent-claim rides, alias and destructure hosts', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  let k1;
+  const proto = (k1 = globalThis.window.self)?.Object.getPrototypeOf({});
+  assert.same(proto, hasWindow ? Object.getPrototypeOf({}) : undefined);
+  assert.same(k1, hasWindow ? globalThis : undefined);
+  // the read-then-claim twin: the alias read resolves its statics through the stored value
+  let nav;
+  // eslint-disable-next-line prefer-const -- the assignment-form write IS the shape under test
+  nav = globalThis.window?.self.window;
+  assert.same(nav?.Array.of(31).at(0), hasWindow ? 31 : undefined);
+  // the definitions-absent leaf claim, assigned and plain
+  /* eslint-disable es/no-bigint -- the definitions-ABSENT claim is the shape under test; the
+     value is only read and compared, never invoked, so absent engines compare undefined */
+  let kv;
+  const big = (kv = globalThis.window.self.window)?.BigInt;
+  assert.same(big, hasWindow ? globalThis.BigInt : undefined);
+  assert.same(kv, hasWindow ? globalThis : undefined);
+  assert.same(globalThis.window.self.window?.BigInt, hasWindow ? globalThis.BigInt : undefined);
+  /* eslint-enable es/no-bigint -- end of the absent-claim forms */
+  // the alias-rooted stored value
+  const galias = globalThis;
+  let ka;
+  const aliased = (ka = galias.window.self)?.Object.isExtensible({});
+  assert.same(aliased, hasWindow ? true : undefined);
+  assert.same(ka, hasWindow ? globalThis : undefined);
+  // the destructure host over a stored value: the lift replays the kept assignment through
+  // the same canon instead of freezing raw hops into what the binding stores
+  let kd;
+  const Extracted = (() => {
+    const { Map: M } = kd = globalThis.self;
+    return M;
+  })();
+  assert.same(typeof Extracted, 'function');
+  assert.same(kd, globalThis);
+  // reads in a braced-if body and a later function body claim through the rendered value
+  // exactly like the raw source classifies them - the render IS the navigation it replaced
+  let kf;
+  // eslint-disable-next-line prefer-const -- the assignment-form write IS the shape under test
+  kf = globalThis.window?.self.window;
+  let branched;
+  if (kf) {
+    branched = kf.Array.from('cd');
+  }
+  assert.deepEqual(branched, hasWindow ? ['c', 'd'] : undefined);
+  function readsLater() {
+    return kf.Object.entries({ q: 1 });
+  }
+  if (hasWindow) assert.deepEqual(readsLater(), [['q', 1]]);
+});
+
 // the effect pipeline decides WHO re-emits an effect the fold discards, and only running the output
 // says whether the order survived. these are the four consumer shapes the decision has: an effect in
 // a computed key under a guard, effects on both sides of a claimed call, a receiver effect paired
