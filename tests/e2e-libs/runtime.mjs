@@ -199,7 +199,8 @@ await otherLibrariesInManifest(); // the value is the write's business; this cal
 // Cells are only written on the success path, so without a wipe a failed cell leaves yesterday's
 // all-green page on disk while the manifest records the failure - and the operator is told to upload
 // whatever is in those directories. An unfiltered run therefore clears everything; a filtered one
-// clears only what it is about to rebuild, and keeps the rest through `previous` above.
+// clears only what it is about to rebuild, and keeps the rest of the manifest through
+// `otherLibrariesInManifest`, which the write at the end of this file merges back in.
 if (libFilter) {
   for (const lib of libs) await rm(join(ART, lib.name), { recursive: true, force: true });
 } else {
