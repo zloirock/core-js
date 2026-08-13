@@ -13,12 +13,12 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // a for-init head
 let k1 = 0;
 var f1 = _Array$from;
-var _ref = Array.prototype;
+const _ref = Array.prototype;
 var { [(k1++, 'at')]: _unused, other1 } = _ref, a1 = _atMaybeArray(_ref);
 export const r1 = [typeof f1, typeof a1, k1];
 // SE-key declarator BEFORE the flatten declarator (the claim lands after the artifacts queue)
 let k2 = 0;
-var _ref2 = Array.prototype;
+const _ref2 = Array.prototype;
 var { [(k2++, 'flat')]: _unused2, other2 } = _ref2, fl2 = _flatMaybeArray(_ref2);
 var o2 = _Array$of;
 export const r2 = [typeof fl2, typeof o2, k2];
@@ -39,6 +39,6 @@ export const r4 = [typeof f4, typeof of4, k4];
 // renames, two trailing pairs - key effects in source order)
 let k5 = 0, j5 = 0;
 if (1) { var { keys: ks5 } = _globalThis.Array;
-var _ref5 = Array.prototype;
+const _ref5 = Array.prototype;
 var { [(k5++, 'at')]: _unused5, [(j5++, 'flat')]: _unused6, other5 } = _ref5, a5 = _atMaybeArray(_ref5), b5 = _flatMaybeArray(_ref5); }
 export const r5 = [typeof ks5, typeof a5, typeof b5, k5, j5];

@@ -153,6 +153,12 @@ const D_PATTERNS = [
   { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
   { id: 'nested-proxy-multi', recv: 'globalThis', lhs: '{ Array: { from, of } }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
   { id: 'se-key', recv: 'Array', lhs: '{ [(log.push("k"), "from")]: f }', names: ['f'], observe: 'typeof f', strip: true },
+  // SE-key off a CONSTANT-LITERAL receiver: the literal cannot be re-referenced, so the emitter
+  // must capture it into a DECLARED `_ref` in whatever slot the host offers (statement hoist /
+  // preceding comma declarator) - a ref minted without its declaration is a ReferenceError on
+  // every leg, and the sibling-declarator / for-init hosts below are exactly where that slot
+  // differs from the standalone one
+  { id: 'se-key-const-literal', recv: '[3, [7]]', lhs: '{ [(log.push("k"), "at")]: a, other }', names: ['a', 'other'], observe: '[typeof a, typeof other]', strip: true },
   // nested INSTANCE-method destructure (`{ y: { flat: m } } = { y: <recv> }`) - the body-extract path
   // distinct from the static / proxy-hop patterns above. a SOLE binding off a side-effect-free receiver
   // drops the dead residual entirely (`const m = _flat(<recv>)`); a SIBLING binding keeps the residual and
@@ -222,6 +228,16 @@ const D_HOSTS = [
     build: p => `(() => { var { Array: { from: xfrom } } = globalThis, ${ p.lhs } = ${ p.recv }; return [typeof xfrom, ${ p.observe }]; })()` },
   { id: 'bodyless-if', strip: true, build: p => `(() => { if (1) var ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
   { id: 'bodyless-do-while', strip: true, build: p => `(() => { do var ${ p.lhs } = ${ p.recv }; while (0); return ${ p.observe }; })()` },
+  // sibling-declarator hosts: a plain declarator sharing the declaration flips the emitter onto its
+  // sibling arm - the extraction becomes a trailing pair and a receiver memo a preceding comma
+  // declarator, since no preceding statement slot exists between declarators. both orders; the
+  // for-init head is the same arm inside a loop header, which cannot host a statement at all
+  { id: 'decl-sibling-trailing', strip: true,
+    build: p => `(() => { var ${ p.lhs } = ${ p.recv }, zTail = 1; return [zTail, ${ p.observe }]; })()` },
+  { id: 'decl-sibling-leading', strip: true,
+    build: p => `(() => { var zLead = 1, ${ p.lhs } = ${ p.recv }; return [zLead, ${ p.observe }]; })()` },
+  { id: 'for-init', strip: true,
+    build: p => `(() => { for (var ${ p.lhs } = ${ p.recv }, i0 = 0; i0 < 1; i0++); return ${ p.observe }; })()` },
 ];
 
 function * generateDestructure() {
