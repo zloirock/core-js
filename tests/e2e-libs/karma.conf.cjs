@@ -1,19 +1,12 @@
 'use strict';
-// Karma config for the e2e-libs IE11 leg. Mirrors tests/unit-karma/karma.conf.js but trimmed to the
-// only target that matters here: real IE11. No Chromium/Firefox/WebKit (and so no Playwright dep) -
-// modern engines are already covered by runtime.mjs's node pre-flight. This leg runs the full runtime
-// matrix (every library x method x unplugin phase) on real IE11, where a usage-pure detection miss
-// cannot hide; runtime.mjs invokes it once per bundle (one page per cell, so nothing is
-// co-loaded) - see AGENTS.md.
+// The e2e-libs IE11 leg, after tests/unit-karma/karma.conf.js but with only that target - modern
+// engines are covered by runtime.mjs's node pre-flight, so no Playwright dep either.
 //
-// QUnit is the same karma-qunit@4 / qunit@2 stack the unit-karma job already runs green in IE11.
-// ONE bundle comes in via `-f=`, a path relative to this directory: a self-contained UMD from
-// runtimeBuild with a QUnit driver appended (see runtime.mjs / harness.mjs). One per page is a
-// requirement rather than a convenience - see the isolation rule in AGENTS.md - so this takes a
-// single path and has no way to spell a second.
+// ONE bundle via `-f=`, relative to this directory: a UMD from runtimeBuild with a QUnit driver
+// appended. One per page is the isolation rule in AGENTS.md, hence no way to spell a second.
 //
-// IE is the only launcher, and it is unconditional: runtime.mjs starts Karma only where IE11 exists,
-// so a second check here would run in a process with none of its state and could only disagree.
+// The launcher is unconditional: runtime.mjs decides where IE11 exists, and a second check here would
+// run in a process holding none of its state.
 const customLaunchers = {
   IE_NFM: {
     base: 'IE',
