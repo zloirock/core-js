@@ -135,22 +135,27 @@ export function run() {
   const doc = state.doc.toString();
   check('doc_roundtrip', doc, HEADER + SRC + TAIL);
 
-  // --- Text's own iterators: the iterator method drives `Text.prototype[Symbol.iterator]`, the
-  // explicit cursors drive `RawTextCursor` / `PartialTextCursor` / `LineCursor` ---
+  // --- Text's own iterators: the explicit cursors drive `RawTextCursor` / `PartialTextCursor` /
+  // `LineCursor` ---
   // The iterator is invoked directly rather than with `for...of`: `for...of` would make Babel emit
   // `_createForOfIteratorHelper` into THIS module, and at the `pre` phase unplugin never sees Babel's
   // helpers - so the cell's colour would end up reporting the exercise's syntax rather than anything
-  // about codemirror. Calling `[Symbol.iterator]()` drives exactly the same library method
-  // (`Text.prototype[Symbol.iterator]`, which returns `this.iter()`) with nothing of ours in between.
-  // The file is not helper-free for that - the `RangeValue` subclass above compiles through Babel's
-  // class helpers - and does not need to be: what matters is that no check asserts through one.
+  // about codemirror. The file is not helper-free for that - the `RangeValue` subclass above compiles
+  // through Babel's class helpers - and does not need to be: what matters is that no check asserts
+  // through one.
+  //
+  // `Text.prototype[Symbol.iterator]` is deliberately NOT driven from here, in any spelling. Both
+  // spellings make this frame the one reaching for the protocol: `usage-pure` rewrites the call
+  // `chunks[Symbol.iterator]()` to core-js's `getIterator`, and the read `chunks[Symbol.iterator]` to
+  // its `getIteratorMethod` - and at `pre`, where no library module produces either, the exercise
+  // becomes their only origin and quietly fills in the phase gap the delta exists to record. The
+  // method is one line returning `this.iter()`, which the next check drives through the library's
+  // own frame.
   function drain(textCursor) {
     const seen = [];
     while (!textCursor.next().done) seen.push(textCursor.value);
     return seen;
   }
-  const chunks = Text.of(['one', 'two', 'three']);
-  check('text_symbol_iterator', drain(chunks[Symbol.iterator]()), ['one', '\n', 'two', '\n', 'three']);
   check('text_iter', drain(Text.of(['abc', 'def']).iter()), ['abc', '\n', 'def']);
   check('text_iter_range', drain(Text.of(['hello', 'world']).iterRange(2, 8)), ['llo', '\n', 'wo']);
   check('text_iter_lines', drain(Text.of(['l1', 'l2', 'l3']).iterLines(2, 4)), ['l2', 'l3']);
