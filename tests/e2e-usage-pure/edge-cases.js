@@ -759,3 +759,57 @@ QUnit.test('inference: prototype installed via setPrototypeOf dispatches inherit
   Object.setPrototypeOf(arrayLike, Array.prototype);
   assert.same(arrayLike.at(-1), 'c', 'the inherited instance method runs on the array-like');
 });
+
+// --- argument lists that hold nothing but trivia ---
+
+// a comment or a line break between the parens leaves the argument list textually non-empty while
+// the call is still zero-arity. the pure dispatch joins the receiver and the arguments into one
+// `.call(recv, args)`, so deciding "are there arguments" from that text emitted `.call(recv, )` -
+// a trailing comma, legal on a modern engine and a parse error for the whole bundle on the ES5
+// baseline this method targets. the comment spelling is the one that survives a lowering pass, so
+// it is what reaches the emitter on the legs that transform after babel
+QUnit.test('trivia args: a comment-only argument list is a zero-arity call', assert => {
+  assert.deepEqual([1, [2]].flat(/* depth */), [1, 2]);
+  assert.same([1, 2, 3].at(/* index */), 1);
+  assert.same('abc'.at(/* index */), 'a');
+});
+
+QUnit.test('trivia args: whitespace-only and line-comment argument lists too', assert => {
+  assert.deepEqual([1, [2]].flat(
+  ), [1, 2]);
+  // eslint-disable-next-line @stylistic/space-in-parens -- the whitespace IS the shape under test
+  assert.same([1, 2, 3].at( ), 1);
+  assert.deepEqual([1, [2]].flat(// depth
+  ), [1, 2]);
+});
+
+// the renderers that only a chained or guarded shape reaches; the standalone dispatch is exercised
+// by the rows above and the split emit by the one below, so the block as a whole covers every
+// renderer that joins arguments after a receiver - a regression in any single one surfaces here
+QUnit.test('trivia args: the chained and guarded renderers', assert => {
+  const arr = [1, [2]];
+  const holder = { make: () => [3, [4]] };
+  assert.deepEqual(arr.flat?.(/* c */), [1, 2], 'optional call');
+  // the paren-wrapped optional read keeps the Reference Type, so a nullish receiver throws exactly
+  // like native - that throw is the shape under test, not an accident
+  // eslint-disable-next-line no-unsafe-optional-chaining -- see above
+  assert.deepEqual((arr?.flat)(/* c */), [1, 2], 'paren-lookup callee');
+  assert.deepEqual(holder.make?.(/* c */).flat(/* c */), [3, 4], 'guard body over a memoized callee');
+  assert.same([[1], [2]].flat(/* c */).at(/* c */), 1, 'threaded hops and the outer slot');
+  assert.same(arr.flat?.(/* c */).at(0), 1, 'combined chain, inner slot');
+});
+
+QUnit.test('trivia args: the split emit of an inherited static', assert => {
+  class Sub extends Array {
+    static empty() {
+      return super.of(/* none */);
+    }
+  }
+  assert.same(Sub.empty().length, 0);
+});
+
+// NEGATIVE: an argument list that is not empty keeps every argument, whatever trivia sits beside it
+QUnit.test('trivia args: a real argument beside a comment still rides', assert => {
+  assert.deepEqual([1, [[2]]].flat(/* depth */ 2), [1, 2]);
+  assert.same([1, 2, 3].at(-1 /* last */), 3);
+});
