@@ -7,6 +7,7 @@ import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Map from "@core-js/pure/actual/map/constructor";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3;
 // Rooting the proxy-hop collapse THROUGH a chain-assignment proves the ROOT is a proxy global - it says
@@ -26,6 +27,21 @@ export const guardedWindowValue = null == (_ref = w = _globalThis.window) ? void
 
 let n;
 export const unguardedWindowValue = _flatMaybeArray((n = _globalThis.window).Array.prototype).call([1, [2]]);
+
+// an SE-bearing sequence prefix inside the kept assignment rides the guard TEST with its own
+// polyfills alive, and the value collapses by the shared rule (deepest ponyfillable hop, raw
+// tail read) exactly like the unguarded twin
+const arr = [1];
+let p;
+export const guardedSeqPrefixValue = null == (p = (_atMaybeArray(arr).call(arr, 0), _self).window) ? void 0 : _Map;
+
+// a guarded seq-rooted value whose unresolvable hop sits BELOW the ponyfillable leaf renders
+// the nested-guard canon exactly like the unguarded twin: the value's test keeps the prefix
+// effect alive with its own polyfill, the proven root substitutes eagerly (the deferred flush
+// may land where no visitor re-enters), and the kept assignment's plan owns the value's
+// spelling - no inner claim may detach what the render reads
+let nb;
+export const guardedSeqNestedBelow = null == (nb = null == (_atMaybeArray(arr).call(arr, 0), _globalThis).window ? void 0 : _self) ? void 0 : _Map.length;
 
 export const guardedWindowHop = null == (_ref2 = _globalThis.window) ? void 0 : _atMaybeArray(_ref2.Array.prototype).call([9], 0);
 
