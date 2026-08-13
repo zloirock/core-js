@@ -60,16 +60,16 @@ export const destructuredWithDefault = _Promise$allSettled([]);
 
 // --- TS-wrapped spellings ---
 let k7;
-export const castInsideAssign = (k7 = _self, _Math$trunc)(6.7);
+export const castInsideAssign = (k7 = _self as any, _Math$trunc)(6.7);
 let k8;
-export const castAroundValue = (k8 = _self, _Number$parseInt)('7', 10);
+export const castAroundValue = (k8 = (_self as any), _Number$parseInt)('7', 10);
 let k9;
 // the static stays raw here BY CONSTRUCTION, not by a miss: `Object.keys` only needs the
 // polyfill for a PRIMITIVE argument, and an object literal is filtered out of the injection.
 // what this row spells is the receiver: a non-null assertion over an unponyfillable hop
 export const nonNullOnUnponyfilled = (k9 = _globalThis.window!)?.Object.keys({ e: 5 });
 let k10;
-export const satisfiesOnPlainHop = (k10 = _self, _Object$assign)({}, { f: 6 });
+export const satisfiesOnPlainHop = (k10 = (_self satisfies object), _Object$assign)({}, { f: 6 });
 
 // a WRAPPER around a MULTI-HOP nav inside the chain-assign: the head the guard re-emits is the
 // target and the operator, nothing between them. slicing it up to the VALUE swallowed the wrapper's
@@ -79,7 +79,7 @@ export const wrappedMultiHopNav = null == (k13 = null == _globalThis.window ? vo
 let k14;
 export const wrappedResolvableNav = null == (k14 = _self.window) ? void 0 : _Promise$reject(1).catch(() => {});
 let k15;
-export const doubleWrappedNav = (k15 = _self)?.Object.getPrototypeOf({});
+export const doubleWrappedNav = (k15 = ((null == _globalThis.window ? void 0 : _self)))?.Object.getPrototypeOf({});
 let k11;
 export const castAroundAssign = (k11 = _self, _Math$sign)(-2);
 let k12;
