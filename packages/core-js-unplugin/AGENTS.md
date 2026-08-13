@@ -30,7 +30,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 Queues text transforms during traversal and applies them with MagicString afterwards. Two consequences:
 
 - A region that is being dropped is skipped at the visitor entry, before it is descended into, rather than drained at emit time. The tail of a `for` initializer is the exception that proves it: there the effect-free receiver tail is deliberately *not* skipped, because its proxy-global root still has to be seen and polyfilled - a raw `globalThis` left behind would throw
-- Output may differ from babel-plugin in formatting only; a semantic divergence means one of the two renderers is wrong
+- Output may differ from babel-plugin in formatting only; a semantic divergence means one of the two renderers is wrong. Formatting covers everything reprinting normalizes away, and this plugin lowers no syntax: a spelling the source already chose - a trailing comma in an argument list, layout, where a comment sits - survives a text splice while the AST renderer quietly drops it, and neither side is at fault. Text the emitter *authors* is the opposite case: it has to parse on the target, so what it writes is held to the target's syntax even when the surrounding source is not
 - Siblings never share the tree - each phase parses its own - so sibling interaction moves between the phases instead: `pre+post` hands its state across through the snapshot, and post re-scans the imports siblings inserted in between rather than trusting what pre saw
 
 Anything that has to be fixed in this package *and* in babel-plugin belongs in the provider instead.
