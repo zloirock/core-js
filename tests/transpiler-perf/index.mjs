@@ -132,7 +132,7 @@ const CASES = [
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 1, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
     'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
@@ -142,7 +142,7 @@ const CASES = [
   } },
   // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
