@@ -152,8 +152,9 @@ const siblingMangler = createUnplugin(() => ({
   },
 }));
 
-// `root` is per-case: vite, rsbuild and farm resolve from it, and each of them silently falls back
-// to the working directory, which under `zxi cd` is this suite rather than the case's temp dir
+// `root` is a parameter rather than a constant inside `bundlers.mjs` because only the caller knows
+// it: vite, rsbuild and farm resolve from it, and each silently falls back to the working directory
+// otherwise. This suite roots them where its inputs live, which is this directory
 const bundlers = makeBundlers({ root: testDir });
 
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
@@ -219,8 +220,9 @@ for (const [name, build] of Object.entries(builders)) {
     continue;
   }
   for (const method of methods) {
-    // babel-plugin ignores `phase`; other builders exercise the full range
-    const phases = name === 'babel' ? [undefined] : phasesFor(method);
+    // through the shared matrix rather than a local special-case: that babel-plugin has no phase of
+    // its own is one fact, and `matrix.mjs` is where both bundler suites read it from
+    const phases = phasesFor(method, name === 'babel' ? 'babel-plugin' : 'unplugin');
     for (const phase of phases) {
       const label = phase ? `${ name }/${ method }/${ phase }` : `${ name }/${ method }`;
       try {
