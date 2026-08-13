@@ -3,6 +3,7 @@ import { entryToGlobalHint } from './index.js';
 import {
   isVoidExpression,
   isNullLiteralNode,
+  cachedContainerPaths,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
@@ -427,7 +428,7 @@ function createResolveNodeType(babelNodeType, t, {
   function arrayLiteralElementPath(argPath, key) {
     const index = canonicalArrayIndex(key);
     if (index === null) return null;
-    const elements = argPath.get('elements');
+    const elements = cachedContainerPaths(argPath, 'elements');
     if (spreadAtOrBefore(elements, index)) return null;
     return elements[index]?.node ? elements[index] : null;
   }
@@ -442,7 +443,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (argPath?.node?.type === 'ArrayExpression') return arrayLiteralElementPath(argPath, key);
     if (argPath?.node?.type !== 'ObjectExpression') return null;
     // ObjectMethod is a leaf (Function value with no walkable inner shape)
-    return findObjectLiteralKey(argPath.get('properties'), key, () => null);
+    return findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key, () => null);
   }
 
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
@@ -461,7 +462,7 @@ function createResolveNodeType(babelNodeType, t, {
     // method shorthand (`{ foo() {...} }`) resolves to a Function value; an accessor `{ get k() {...} }`
     // (which babelNodeType also reports as ObjectMethod on BOTH parsers) resolves to the getter's
     // return type. onMethod returns the resolved Type for these; a plain key returns its value path
-    const valuePath = findObjectLiteralKey(argPath.get('properties'), key,
+    const valuePath = findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key,
       prop => prop.node.kind === 'get' ? resolveObjectGetterReturn(prop) : new $Object('Function'));
     if (valuePath === null) return null;
     // onMethod yields a resolved Type ($Object / $Primitive both carry a boolean `primitive`); a
@@ -1077,8 +1078,8 @@ function createResolveNodeType(babelNodeType, t, {
         if (!t.isArrayExpression(cur.node) || cur.node.elements.length <= step) return null;
         // a spread at or before `step` shifts the runtime position - the element at AST index `step`
         // is not the value at runtime slot `step` (same guard the sibling array-literal walks use)
-        if (spreadAtOrBefore(cur.get('elements'), step)) return null;
-        const next = cur.get('elements')[step];
+        if (spreadAtOrBefore(cur.node.elements, step)) return null;
+        const next = cachedContainerPaths(cur, 'elements')[step];
         if (!next?.node) return null;
         cur = resolveRuntimeExpression(next);
       } else {
@@ -1179,7 +1180,7 @@ function createResolveNodeType(babelNodeType, t, {
     if (initNode?.type === 'ArrayExpression' && initNode.elements?.length >= 0) {
       if (initNode.elements.some(el => !el || el.type === 'SpreadElement')) return new $Object('Array');
       let inner = null;
-      const elements = initPath.get('elements');
+      const elements = cachedContainerPaths(initPath, 'elements');
       for (let i = sliceStart; i < elements.length; i++) {
         const resolved = resolveNodeType(elements[i]);
         if (!resolved) return new $Object('Array');
