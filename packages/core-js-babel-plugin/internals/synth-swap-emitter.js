@@ -16,8 +16,7 @@ import {
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
   buildFlatSynthEntries,
-  findIifeCallSite,
-  resolveCallArgumentCoords,
+  findIifeArgPath,
   getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -113,20 +112,12 @@ export default function createSynthSwapEmitter({
   // has its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
   // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
   // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
-  // the spread-expansion + nested-spread bail (`f(...[a, ...rest])` is variadic, can't locate a
-  // later positional) is the canonical `resolveCallArgumentCoords` semantics - delegate it and only
-  // LOCATE the resolved coordinate as a path here, so babel and unplugin can't drift on the rules
+  // locating the argument is the shared `findIifeArgPath` (call site + spread-expanding
+  // coordinates); only the trailing peel is substrate-local - the AST emitter reads through a
+  // sequence tail, the text emitter peels transparent wrappers
   function detectIifeArgPath(wrapper, objectPattern) {
-    // no local shape gate: `findIifeCallSite` owns the function-node set (a second copy here is a
-    // second place to keep it in sync) and rejects a null path through `fnParentPath?.node`
-    const site = findIifeCallSite(wrapper, objectPattern.node);
-    if (!site) return null;
-    const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
-    if (!coords) return null;
-    const argPath = site.callPath.get('arguments')[coords.argIndex];
-    const elementPath = coords.elementIndex < 0
-      ? argPath : argPath.get('argument').get('elements')[coords.elementIndex];
-    return unwrapSequenceTail(elementPath);
+    const argPath = findIifeArgPath(wrapper, objectPattern.node);
+    return argPath ? unwrapSequenceTail(argPath) : null;
   }
 
   // NodePath whose `.node` becomes the synth object; null means inline-default fallback.

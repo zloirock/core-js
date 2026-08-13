@@ -191,7 +191,7 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // the root (the assignment evaluates first; under a live guard the key never evaluates at all when the
 // guard fires), so the renderer folds them into the surviving leaf key as a sequence prefix -
 // `X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]` - reproducing the native order by construction
-//   { kind: 'member', inner: <plan>, property: node, computed: bool }   // deeper nav under a kept leaf chain
+//   { kind: 'member', inner: <plan>, innerNode: node, property: node, computed: bool }  // deeper nav under a kept leaf chain
 // the three root kinds differ in what the renderer owes them. `alias` is an identifier whose OWN declaration
 // the pass already rewrote, so it is emitted verbatim. `pure` is swapped for an injected binding. `keep` is
 // an expression that must stay (a chain-assign the plan may not root through), and unlike `alias` its own
@@ -276,7 +276,10 @@ export function planProxyReceiver(receiver, {
     if (callRooted) return callRooted;
     if (!throughRoot) return null;
     const inner = planProxyReceiver(objectCore, { aliasCtx, throughChainAssign, resolvePure });
-    return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
+    // `innerNode` is the node `inner` describes. an AST renderer rebuilds this level around the inner
+    // render and never needs it; a TEXT renderer slices the surviving tail off the leaf's own end, and
+    // deriving that end from the OUTER node drops every member above the leaf
+    return inner ? { kind: 'member', inner, innerNode: objectCore, property: receiver.property, computed: receiver.computed } : null;
   }
   // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map` elsewhere, so bail here (a
   // root-collapse would emit native `_globalThis.Map` + a dead import). a WRITE target's leaf is the
