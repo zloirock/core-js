@@ -42,10 +42,17 @@ jobs:
         with:
           node-version: 26.0.0
           cache: npm
+      # the browsers belong to the playwright version, not to the lockfile: keying on the file
+      # would re-download a gigabyte on every unrelated dependency bump
+      - id: playwright
+        shell: bash
+        run: |
+          version=$(node -p "require('./tests/karma/package-lock.json').packages['node_modules/playwright'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: D:\ms-playwright
-          key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
+          key: playwright-windows-2022-${{ steps.playwright.outputs.version }}
       - run: npm run prepare-monorepo
       - run: npx run-s bundle-package test-unit-karma
 
@@ -59,10 +66,17 @@ jobs:
         with:
           node-version: 26.0.0
           cache: npm
+      # the browsers belong to the playwright version, not to the lockfile: keying on the file
+      # would re-download a gigabyte on every unrelated dependency bump
+      - id: playwright
+        shell: bash
+        run: |
+          version=$(node -p "require('./tests/karma/package-lock.json').packages['node_modules/playwright'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v6
         with:
           path: D:\ms-playwright
-          key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
+          key: playwright-windows-2022-${{ steps.playwright.outputs.version }}
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-usage-pure-karma
 

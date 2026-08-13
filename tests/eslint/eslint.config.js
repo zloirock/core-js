@@ -2735,7 +2735,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|promises|unit-@(karma|node))/**',
+      'tests/@(compat-@(data|tools)|eslint|entries|karma|promises|unit-node)/**',
       'website/scripts/runner.mjs',
       'website/scripts/helpers.mjs',
     ],
