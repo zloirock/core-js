@@ -52,7 +52,8 @@ import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-opt
 import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   descendToChainRoot, isAliasProxyHopChain, navHasUnresolvableProxyHop, peelChainAssignment,
-  peelReceiverSequenceTail, resolveKey as sharedResolveKey, resolveObjectName, undefinableOptionalGuard,
+  peelChainRootValue, peelReceiverSequenceTail, resolveKey as sharedResolveKey, resolveObjectName,
+  storedUserAssignmentOf, undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   harvestDiscardedReceiverSE, isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, shouldDropRescueReceiver,
@@ -1046,6 +1047,7 @@ export default function createPlugin(options) {
           transforms,
         });
         const {
+          collapseStoredKeptAssign,
           handleInExpression,
           handleSymbolIterator,
           nodeSrc,
@@ -1572,9 +1574,34 @@ export default function createPlugin(options) {
           resolveMeta: resolvePure,
           resolvePure,
           // the hop collapse owns every chain it can take; the navs it refuses - the
-          // short-circuiting probe - fall to the kept-nav render, exactly as in the AST emitter
+          // short-circuiting probe - fall to the kept-nav render, exactly as in the AST emitter.
+          // a hop inside a kept chain-assign VALUE (the marking walk dug into it - the value
+          // carries an unresolvable hop) skips the hop FOLD outright: folding would swallow the
+          // read below into what the assignment stores. the kept-nav render still runs - it
+          // spells the claimless canon in place, and it stands down by itself on a span an
+          // owning claim already replaced
           onSuppressedProxyHop: metaPath => {
+            const stored = storedUserAssignmentOf(metaPath);
+            if (stored) {
+              collapseStoredKeptAssign(stored, metaPath);
+              return;
+            }
             if (!collapseProxyHopRoot(metaPath)) renderKeptNavValue(metaPath);
+          },
+          // the stored canon from the nav's proxy-global ROOT visit (shared core tail): the
+          // one channel that still fires when no claim owns the value's hops - a DECLINED
+          // leaf claim (`(kv = nav)?.BigInt`, no BigInt pure) marks them handled without a
+          // render, and a rideless assignment (`kv = nav;`) never enters the member channel.
+          // a false return keeps the natural root rewrite (the render already spelled and
+          // claimed the span on true - the identifier rewrite inside would collide).
+          // gated like the marking dig: only an UNRESOLVABLE-hop value takes the stored
+          // render (a resolvable value keeps its natural claims), and a PATTERN target
+          // belongs to the destructure pipeline - claiming it here races that render
+          suppressKeptNavRoot: metaPath => {
+            const stored = storedUserAssignmentOf(metaPath);
+            if (!stored || stored.left?.type === 'ObjectPattern' || stored.left?.type === 'ArrayPattern') return false;
+            if (!navHasUnresolvableProxyHop(peelChainRootValue(stored), spec => resolvePure(spec, metaPath))) return false;
+            return collapseStoredKeptAssign(stored, metaPath);
           },
         }));
         traverse(ast, trackReferences ? mergeVisitors(usageVisitors, {
