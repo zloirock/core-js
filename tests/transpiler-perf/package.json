@@ -3,10 +3,10 @@
   "type": "module",
   "devDependencies": {
     "@codemirror/state": "6.7.6",
-    "@lezer/common": "1.5.3",
+    "@lezer/common": "1.5.4",
     "@lezer/highlight": "1.2.5",
-    "@lezer/javascript": "1.5.5",
-    "@lezer/lr": "1.4.10",
+    "@lezer/javascript": "1.5.6",
+    "@lezer/lr": "1.4.11",
     "rxjs": "7.8.2",
     "three": "0.186.1"
   }
