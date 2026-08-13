@@ -61,6 +61,7 @@ import {
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
+  claimlessOptionalNavGuardsUndefinable,
   descendToChainRoot,
   discardRescueNodes,
   findProxyGlobal,
@@ -1808,7 +1809,13 @@ export function createDestructureEmitter({
     const exportPrefix = isExport ? 'export ' : '';
     let preserveBuffer = [];
     function flushPreserveBuffer() {
-      for (const p of preserveBuffer) lines.push(`${ exportPrefix }${ kind } ${ p };`);
+      for (const p of preserveBuffer) {
+        // a residual that retains a directive-disabled leaf re-states the user's opt-out: the
+        // rebuilt statement lost the original comment, and a later detection pass over this
+        // output (the pre+post sandwich) would otherwise claim the deliberately-raw read
+        if (p.disabled) lines.push('// core-js-disable-next-line');
+        lines.push(`${ exportPrefix }${ kind } ${ p.src };`);
+      }
       preserveBuffer = [];
     }
     for (let i = 0; i < perDecl.length; i++) {
@@ -1827,7 +1834,7 @@ export function createDestructureEmitter({
       // keep the comma-pair shape of the trailing-sibling canon
       if (r.preservedSrc !== null) {
         const trailing = (r.trailingExtractions ?? []).map(e => `, ${ e.decl }`).join('');
-        preserveBuffer.push(r.preservedSrc + trailing);
+        preserveBuffer.push({ src: r.preservedSrc + trailing, disabled: !!r.keepsDisabledResidual });
       } else if (r.trailingExtractions?.length) {
         flushPreserveBuffer();
         for (const e of r.trailingExtractions) lines.push(`${ exportPrefix }${ kind } ${ e.decl };`);
@@ -2062,11 +2069,35 @@ export function createDestructureEmitter({
   // `{ extractions: [{ decl }], preservedSrc }` where `preservedSrc` is null when the
   // declarator is fully consumed, raw src when there's no plan to touch, or a rebuilt
   // `{ ... } = init` source when outer siblings remain
+  // does this kept pattern subtree retain a leaf the user directive-disabled? the plan keeps such
+  // a leaf verbatim, but the rebuilt statement no longer carries the user's comment - a LATER
+  // detection pass over the emitted text (the pre+post sandwich lowers and re-parses between the
+  // phases) would claim the deliberately-raw read, so the render re-states the directive above
+  // the residual. inline spellings do not survive the lowering reprint; the own-line comment does
+  function patternKeepsDisabledLeaf(node) {
+    if (!node) return false;
+    if (node.type === 'Property' && isDisabled(node)) return true;
+    const value = node.type === 'Property' ? node.value : node.type === 'AssignmentPattern' ? node.left : node;
+    const children = value?.type === 'ObjectPattern' ? value.properties
+      : value?.type === 'ArrayPattern' ? value.elements : null;
+    return !!children && children.some(child => patternKeepsDisabledLeaf(child));
+  }
+
   function rewriteDeclarator(declarator, scope, usePath = null) {
     const plan = planDeclarator(declarator, scope, usePath);
-    if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator), receiver: null };
+    if (!plan) {
+      return {
+        extractions: [], preservedSrc: nodeSrc(declarator), receiver: null,
+        // a fully-verbatim sibling keeps its INNER comments through the source slice, but a
+        // directive above the split-away statement is outside the span - re-state it
+        keepsDisabledResidual: isDisabled(declarator) || patternKeepsDisabledLeaf(declarator.id),
+      };
+    }
     const extractions = [];
     const preservedOuter = [];
+    // set when a kept residual row retains a directive-disabled leaf - the statement render
+    // re-states the user's opt-out above the rebuilt text (see `patternKeepsDisabledLeaf`)
+    let keepsDisabledResidual = false;
     // consumed-prop subtrees whose source re-emits verbatim inside an extraction (a
     // pattern-valued symbol extraction): rescued from the skip seed so their inner rewrites
     // stay queued for the compose splice
@@ -2261,6 +2292,7 @@ export function createDestructureEmitter({
         // verbatim source slice (a 'verbatim' plan node): a residual sibling whose inner
         // polyfillable content the natural visitor must still rewrite
         const sourceProp = plan.pattern.properties[i];
+        if (sourceProp && patternKeepsDisabledLeaf(sourceProp)) keepsDisabledResidual = true;
         if (sourceProp && emitted === nodeSrc(sourceProp)) {
           residualTargets.push({ srcStart: sourceProp.start, srcEnd: sourceProp.end, dstStart: dstOffset });
         } else if (outer.residualTargets?.length) {
@@ -2339,6 +2371,7 @@ export function createDestructureEmitter({
     return {
       extractions,
       preservedSrc,
+      keepsDisabledResidual,
       // captured separately so `injectForInitSESinks` (for-init partial-consume SE re-embed)
       // can slice off the trailing init slot by length without text-searching
       preservedInitSrc: initSrc,
@@ -4730,6 +4763,15 @@ export function createDestructureEmitter({
     // follows the SAME positional rule as after a fresh claim (a hop meta must still stand
     // down, or its value-canon claim races the owned span)
     if (transforms.hasRange(recv.start, recv.end)) return anchorOnHop;
+    // a live LEAF connector (`recv.optional`) over an UNDEFINABLE erased prefix, with no
+    // claimable static on the chain, may not fold: the connector's object is the WHOLE nav the
+    // fold erases, so `dropLeafOptionalConnector` reads the leaf where native short-circuits
+    // (`globalThis.window.self.window?.BigInt` with BigInt declined folded to
+    // `_globalThis.BigInt` - a defined value where native answers undefined). a `?.` INSIDE
+    // the erased prefix stays foldable - the plan-driven render rehangs its guard itself
+    if (recv.optional
+      && claimlessOptionalNavGuardsUndefinable(recv, ({ name }) => resolveGlobalPolyfill(name), aliasCtx,
+        { widenDeep: true })) return false;
     const collapsedSpan = { end: recv.end };
     const collapsed = substituteProxyGlobalRoot({
       node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget, throughChainAssign: true,

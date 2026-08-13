@@ -9,9 +9,12 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   POSSIBLE_GLOBAL_OBJECTS,
+  aliasReadGuardedAgainstNullish,
   arrayWrapSlotBindsName,
   asProxyGlobalName,
+  definedBranchOfGuardConditional,
   findVarOwnerDeclaring,
+  isRenderedStoredValue,
   isVarScopeBoundary,
   memberKeyName,
   objectPatternLiteralKeyPath,
@@ -303,8 +306,20 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
     const reaching = reachingReassignmentValueNode({ binding, usagePath: usageNode ?? path, usageNode: readNode });
     // peel the same wrappers the value-path (`resolveObjectName`) peels off a reaching write's RHS: a
     // SE-prefix sequence (`A = (eff(), self)`) resolves through its tail and a zero-arg IIFE
-    // (`A = (() => self)()`) through its return - the effects stay in the kept write
-    const peeled = reaching && peelIifeReturnTarget(unwrapInitForResolution(reaching));
+    // (`A = (() => self)()`) through its return - the effects stay in the kept write. a
+    // GUARD-shaped conditional (the stored kept-nav render - `null == _globalThis.window
+    // ? void 0 : _self.window`) classifies through its defined branch: the write stores either
+    // undefined or that nav, and the undefinable verdict keeps the alias guard live
+    let peeled = reaching && peelIifeReturnTarget(unwrapInitForResolution(reaching));
+    const definedPeeled = definedBranchOfGuardConditional(peeled);
+    if (definedPeeled) {
+      // only a GUARDED read follows the conditional (the void-0 arm is a real runtime value -
+      // an unguarded read observes it natively and the classification must not un-throw it);
+      // an emitter-RENDERED stored value bypasses the gate - it IS the navigation it replaced
+      if (!isRenderedStoredValue(peeled)
+        && !aliasReadGuardedAgainstNullish(path, name ?? decl?.id?.name)) return null;
+      peeled = peelIifeReturnTarget(unwrapInitForResolution(definedPeeled));
+    }
     const reachSeen = new Set(seen).add(binding.node ?? binding);
     const reachingRoot = peeled?.type === 'Identifier'
       ? proxyGlobalRootName({ node: peeled, scope, adapter, path, seen: reachSeen })
@@ -355,9 +370,18 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   }
   // a proxy-global bound through a zero-arg IIFE (`const g = (() => globalThis)(); g.X`) names the
   // same surface as a bare alias (`const g = globalThis`), so peel the wrapper before classifying -
-  // the container / global-name resolvers peel the identical shape
-  const init = peelIifeReturnTarget(
+  // the container / global-name resolvers peel the identical shape. a GUARD-shaped conditional
+  // (the stored kept-nav render) classifies through its defined branch, like the reaching-write
+  // arm above - the declarator-init and trusted-write spellings must not drift
+  let init = peelIifeReturnTarget(
     wrappedInit ? unwrapInitForResolution(wrappedInit) : writeInit ?? unwrapInitForResolution(decl?.init));
+  const definedInit = definedBranchOfGuardConditional(init);
+  if (definedInit) {
+    // same guarded-read gate as the reaching-write arm - the two value sources must not drift
+    if (!isRenderedStoredValue(init)
+      && !aliasReadGuardedAgainstNullish(path, name ?? decl?.id?.name)) return null;
+    init = peelIifeReturnTarget(unwrapInitForResolution(definedInit));
+  }
   // a root captured through a MEMBER read (`const s = globalThis.self`) names the proxy surface just
   // as a bare alias does - the chain recogniser below already walks exactly that shape, so hand it
   // over instead of bailing. only a chain whose LEAF is itself a proxy global is a root

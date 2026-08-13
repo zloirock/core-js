@@ -651,6 +651,18 @@ export function isIntrinsicJsxTagName(tagName) {
   return JSX_INTRINSIC_TAG_RE.test(tagName);
 }
 
+// climb from an identifier at the bottom of an N-deep `<Map.Provider.X />` object-chain to the
+// terminal member sitting in the tag-name slot; a non-member position returns the path itself.
+// only the root identifier is a runtime reference - the `.Provider.X` tail reads props off it -
+// so the callers judge the CLIMBED path's slot (opening-element name) to accept arbitrary depth
+export function climbJsxMemberChain(path) {
+  let cur = path;
+  while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
+    cur = cur.parentPath;
+  }
+  return cur;
+}
+
 // a FunctionExpression / FunctionDeclaration whose own name is referenced anywhere in its params
 // or body - a potential self-call (or an escape that leads to one). the name binds only inside the
 // function, so any such reference is the sole extra caller an immediately-invoked gate would
@@ -2489,6 +2501,38 @@ export function withoutValuelessDeclarationViolations(violations) {
 
 export function isReassignedBeyondDeclarator(binding) {
   return !!binding.constantViolations?.some(v => violationNode(v) !== binding.node);
+}
+
+// the canonical write set for a binding whose scope tracker misreports it - babel attributes a
+// switch-discriminant write of a case-shadowed name to the INNER binding, estree-toolkit misses
+// nested-block `var` redeclarations and cross-boundary `let` writes and records namespace-twin
+// phantoms. recompute from the AST by declaration kind, then strip the valueless-redeclaration
+// self-records, so both adapters hand the resolver one list for identical source; a path-less
+// lookup (no use anchor) and a kind outside the recompute keep the tracker's raw list
+export function recomputedBindingWrites({ kind, bindingPath, usePath, name, fallback }) {
+  return withoutValuelessDeclarationViolations(!usePath ? fallback
+    : kind === 'var' ? collectFunctionScopeVarReassignments(usePath, name)
+      : kind === 'let' || kind === 'const' ? collectScopeLetReassignments(bindingPath, name)
+        : fallback);
+}
+
+export const IMPORT_SPECIFIER_TYPES = new Set([
+  'ImportSpecifier',
+  'ImportDefaultSpecifier',
+  'ImportNamespaceSpecifier',
+]);
+
+// the import-binding fields of the adapter contract, off the binding's declaration slot:
+// `importSource` feeds the provider's symbol-import recognition, and `importKind` is the
+// EFFECTIVE kind - `import { type X }` carries it on the specifier, `import type X` on the
+// declaration - so the erasure canon reads one field covering both spellings
+export function importBindingView(bindingNode, bindingParent) {
+  const isImportBinding = IMPORT_SPECIFIER_TYPES.has(bindingNode?.type);
+  return {
+    isImportBinding,
+    importSource: isImportBinding ? bindingParent?.source?.value ?? null : null,
+    importKind: isImportBinding ? bindingNode?.importKind ?? bindingParent?.importKind ?? null : null,
+  };
 }
 
 // a body-extract alias binding whose ONLY write is the aliasing destructure itself is clean: a
@@ -5608,6 +5652,73 @@ export function mayHaveSideEffects(node) {
   const result = computeSideEffects(node, 0, false);
   SIDE_EFFECTS_CACHE.set(node, result);
   return result;
+}
+
+// a literal `undefined` reference or an effect-free `void X` - the statically-undefined value shape
+export function isUndefinedNode(node) {
+  if (node?.type === 'Identifier') return node.name === 'undefined';
+  return node?.type === 'UnaryExpression' && node.operator === 'void' && !mayHaveSideEffects(node.argument);
+}
+
+// the stored-canon VALUES an AST emitter rendered in place this pass: for classification they
+// ARE the navigation they replaced, so the guarded-read gate below does not apply - the raw
+// source (the text emitter's view, the pre-render state) classified them unconditionally, and
+// gating them would desync the legs on every unguarded read form. a USER-written conditional
+// never enters this set and keeps the gate (its void-0 arm is a real runtime value). WeakSet:
+// nodes die with their AST, and a re-parse (the sandwich's second pass) sees fresh unmarked
+// nodes - by then the reads are already claimed, so the gate's decline is vacuous there
+const renderedStoredValues = new WeakSet();
+// returns the node so a render site can mark in the value position it writes
+export function markRenderedStoredValue(node) {
+  if (node) renderedStoredValues.add(node);
+  return node;
+}
+export function isRenderedStoredValue(node) {
+  return !!node && renderedStoredValues.has(node);
+}
+
+// the branch a GUARD-shaped conditional (`test == null ? void 0 : X`, either arm order) can
+// actually define - X when exactly one arm is statically undefined, null otherwise (a plain
+// ternary, or one with both arms undefined, classifies as nothing). the shape every stored
+// kept-nav render emits, so the follows that classify an alias's held value read through it
+export function definedBranchOfGuardConditional(node) {
+  if (node?.type !== 'ConditionalExpression') return null;
+  const consequentUndefined = isUndefinedNode(node.consequent);
+  if (consequentUndefined === isUndefinedNode(node.alternate)) return null;
+  return consequentUndefined ? node.alternate : node.consequent;
+}
+
+// is this alias READ guarded against the nullish branch its guard-conditional value carries:
+// it rides its own `?.` (`alias?.X` - the claim composes into that test), sits in a branch
+// whose test reads the alias (`alias == null ? void 0 : alias.X`, `alias && alias.X`), or
+// under a statement-level guard host with a PRE-test reading it (`if (alias) { alias.X }`,
+// `while (alias) ...`, `for (; alias; ) ...` - the climb steps through the body blocks). the
+// conditional's void-0 arm is a REAL runtime value - not a proxy navigation the realm
+// collapse erases - so a PLAIN read observes it natively (`alias.Object` throws there) and
+// classification through the defined branch must not un-throw it. branch-DIRECTION stays
+// unparsed on purpose: a read in the unsafe branch classified before the gate existed too,
+// and parsing test polarity here would only desync the legs on those shapes. the climb ends
+// at a function boundary - an outer test does not dominate calls of an inner function
+export function aliasReadGuardedAgainstNullish(path, name) {
+  let prev = path?.node;
+  for (let cur = path?.parentPath; cur?.node; prev = cur.node, cur = cur.parentPath) {
+    const { node } = cur;
+    if (SKIPPABLE_WRAPPER_TYPES.has(node.type)) continue;
+    const isMemberish = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
+      || node.type === 'CallExpression' || node.type === 'OptionalCallExpression';
+    if (isMemberish) {
+      if (node.optional && (node.object === prev || node.callee === prev)) return true;
+      continue;
+    }
+    if (node.type === 'ConditionalExpression' && (node.consequent === prev || node.alternate === prev)
+      && identifierReferencedInSubtree(node.test, name)) return true;
+    if (node.type === 'LogicalExpression' && node.right === prev
+      && identifierReferencedInSubtree(node.left, name)) return true;
+    if ((node.type === 'IfStatement' || node.type === 'WhileStatement' || node.type === 'ForStatement')
+      && node.test && node.test !== prev && identifierReferencedInSubtree(node.test, name)) return true;
+    if (FUNCTION_LIKE_NODE_TYPES.has(node.type) || node.type === 'Program') break;
+  }
+  return false;
 }
 // strict superset of `mayHaveSideEffects`: additionally true when RE-evaluating the subtree is
 // observable even though a single evaluation is pure - a member READ (re-fires a getter / Proxy

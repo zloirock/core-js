@@ -1149,6 +1149,94 @@ export function createMutationSiteHandler({ adapter, mutated }) {
   return { handleSite, finalizeMutationSet };
 }
 
+// --- the pre-pass skeleton (shared by both plugins) ---
+
+// the cheap shape census gates the whole pass: only files that actually monkey-patch pay for
+// the scoped traverse + canonical receiver resolution. each plugin runs its own traversal
+// dialect over `handleSite` (null when the gate is closed) and calls `finalize` after it
+export function beginMutationPrePass({ rootNode, adapter, census = null }) {
+  const mutated = new Set();
+  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(rootNode, adapter.packages))) {
+    return { mutated, handleSite: null, finalize: null };
+  }
+  const { handleSite, finalizeMutationSet } = createMutationSiteHandler({ adapter, mutated });
+  return { mutated, handleSite, finalize: finalizeMutationSet };
+}
+
+// the parser-agnostic mutation-site visitor set: member visits classify destructure-LHS / for-x
+// contexts; the HOST visits classify delete / update / assignment with a downward wrapper peel
+// (stacked parens / TS casts); a bare-identifier for-x LHS assigns a global slot per iteration -
+// no member/assignment node exists for it, so the statement itself is the classification site.
+// babel layers its Optional* dialect twins on top
+export function mutationSiteVisitors(handleSite) {
+  return {
+    MemberExpression: handleSite,
+    CallExpression: handleSite,
+    AssignmentExpression: handleSite,
+    UpdateExpression: handleSite,
+    UnaryExpression: handleSite,
+    ForOfStatement: handleSite,
+    ForInStatement: handleSite,
+  };
+}
+
+// --- the parser-agnostic adapter core ---
+
+// the shared half of the emitter adapter contract: the mutation / written-slot gates and the
+// package view, closed over the same callbacks both plugin adapters receive. `buildHostMembers`
+// returns the host-specific scope machinery (it may close over the adapter it is handed - the
+// members only run after composition); `packages` stays a getter, so composition must go through
+// property descriptors - a spread would freeze the packages view at creation time
+export function createDetectionAdapter({
+  method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null,
+  getPackages = () => null, isTypingMutatedSlot = null,
+}, buildHostMembers) {
+  const adapter = {
+    // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
+    // a receiver-less helper (dropping the receiver), so the shared resolver gates the
+    // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
+    // inject side-effect imports, which is sound regardless of where the alias was assigned
+    method,
+    // a static the user monkey-patches is not a polyfillable static (pure only): detection
+    // leaves its receiver to the identifier machinery so the patch and the reads share the
+    // injected constructor object
+    isMutatedStatic(object, key) {
+      return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
+    },
+    // the TYPE layer asks a DIFFERENT question than the injection policy above: a patched static no
+    // longer returns what its declaration says, so its result type is unknown in EVERY method - a
+    // global-flavor narrow taken off the declaration silently drops the polyfill the replacement
+    // actually needs. the pure-only gate belongs to the injection skip, not to typing
+    // a container SLOT written anywhere (`const w = { k: Object }; w.k = Map`) is no built-in mutation,
+    // so it is deliberately NOT part of the mutated-static set - reporting it there would deopt every
+    // namespace gate in the file. its ONE reader is the receiver walk's container descent, which must
+    // stop trusting the literal's initial member once the slot has been replaced
+    isWrittenContainerSlot(object, key) {
+      const slots = getWrittenContainerSlots?.();
+      return !!slots && (slots.has(`${ object }.*`) || slots.has(mutatedStaticKey(object, key)));
+    },
+    // the KNOWN written value nodes reaching a slot: direct writes to the named slot plus
+    // unknown-slot (dynamic-key) writes, which may land anywhere on the container
+    writtenContainerSlotValues(object, key) {
+      const slots = getWrittenContainerSlots?.();
+      if (!slots) return [];
+      const direct = slots.get(mutatedStaticKey(object, key)) ?? [];
+      const viaUnknownSlot = key === '*' ? [] : slots.get(`${ object }.*`) ?? [];
+      return viaUnknownSlot.length ? [...direct, ...viaUnknownSlot] : direct;
+    },
+    isMutatedStaticSlot(object, key) {
+      return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
+        : isMutatedStaticPair(object, key, getMutatedStatics());
+    },
+    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
+    // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the
+    // resolved array before ANY injector exists, and the mutation pre-pass runs in exactly
+    // that window (injector-only sourcing left the pre-pass packages-blind there)
+    get packages() { return getPackages(); },
+  };
+  return Object.defineProperties(adapter, Object.getOwnPropertyDescriptors(buildHostMembers(adapter)));
+}
+
 // --- slot-DEOPT model (usage-pure) ---
 // a file that writes the SLOT of a global name in ANY form (`X = Y`, `X ||= Y`, `X++`,
 // `[X] = arr`, `for (X of ...)`, `globalThis.X = Y`, `delete globalThis.X`) makes every

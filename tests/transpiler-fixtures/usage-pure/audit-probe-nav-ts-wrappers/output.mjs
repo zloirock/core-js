@@ -35,7 +35,7 @@ export { c2 };
 // bare-`!` KEPT-ASSIGN spellings stay raw on BOTH legs (the kept canon owns the write; the
 // wrapper neither seals nor unlocks a collapse)
 let kv;
-export const bareNonNullKeptAssign = (kv = _globalThis.window?.self!.window)?.BigInt;
+export const bareNonNullKeptAssign = (kv = null == _globalThis.window ? void 0 : _self.window)?.BigInt;
 export const bareNonNullKeptValue = _globalThis.window?.self!.window;
 export { c };
 
