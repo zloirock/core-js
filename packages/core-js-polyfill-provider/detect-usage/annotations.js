@@ -495,31 +495,16 @@ export function checkTypeAnnotations(node, onGlobal) {
   if (node.returnType) walkTypeAnnotationGlobals(node.returnType, onGlobal);
   // babel spells a fn-TYPE signature's params `parameters` (`TSFunctionType` / `TSConstructorType` /
   // `TSCall-` / `TSConstruct-` / `TSMethodSignature`), oxc spells them `params` - the same pair the
-  // child-key table below carries. unplugin dispatches this helper on those very node types
-  const params = node.params ?? node.parameters;
-  if (params) {
-    for (const param of params) {
-      // `TSParameterProperty` wraps `constructor(public m: Map<...>)` shapes - the actual
-      // annotation lives on `.parameter`, which may itself be an `AssignmentPattern` for
-      // defaulted parameter properties (`constructor(public m: Map<...> = new Map())`)
-      const peeled = param.type === 'TSParameterProperty' ? param.parameter : param;
-      const p = peeled?.type === 'AssignmentPattern' ? peeled.left : peeled;
-      if (p?.typeAnnotation) walkTypeAnnotationGlobals(p.typeAnnotation, onGlobal);
-      // RestElement annotation: the pinned parsers (babel + oxc) place it directly on the rest
-      // element's `typeAnnotation` (covered above); `.argument.typeAnnotation` is a defensive
-      // fallback for an alternate ESTree shape neither currently emits. check both so
-      // `function f(...args: Array<Foo>)` detects Foo regardless of slot
-      if (p?.type === 'RestElement' && p.argument?.typeAnnotation) {
-        walkTypeAnnotationGlobals(p.argument.typeAnnotation, onGlobal);
-      }
-    }
+  // child-key table above carries. unplugin dispatches this helper on those very node types.
+  // the per-param descent is the WALKER's: only the two peels it has no child key for are spelled
+  // here - `TSParameterProperty` wraps `constructor(public m: Map<...>)` (the annotation lives on
+  // `.parameter`, itself possibly an `AssignmentPattern` for a defaulted parameter property)
+  for (const param of node.params ?? node.parameters ?? []) {
+    const peeled = param.type === 'TSParameterProperty' ? param.parameter : param;
+    const p = peeled?.type === 'AssignmentPattern' ? peeled.left : peeled;
+    if (p) walkTypeAnnotationGlobals(p, onGlobal);
   }
-  if (node.typeParameters?.params) {
-    for (const p of node.typeParameters.params) {
-      if (p.constraint) walkTypeAnnotationGlobals(p.constraint, onGlobal);
-      if (p.default) walkTypeAnnotationGlobals(p.default, onGlobal);
-    }
-  }
+  if (node.typeParameters) walkTypeAnnotationGlobals(node.typeParameters, onGlobal);
   // class `extends Foo<T>` - Babel: `superTypeParameters`, oxc TS-ESTree: `superTypeArguments`
   const superArgs = getSuperTypeArgs(node);
   if (superArgs) walkTypeAnnotationGlobals(superArgs, onGlobal);

@@ -482,6 +482,11 @@ const FA_ARG_SHAPES = [
   { id: 'member', arg: 'globalThis.Array' },
   { id: 'hop', arg: 'globalThis.globalThis.Array' },
   { id: 'call', arg: '(() => Array)()' },
+  // an INLINE-ARRAY spread: the argument is not at a top-level `arguments` index, it lives inside the
+  // spread's array. locating it by identity over `arguments` finds nothing and the dead default wins;
+  // only the shared coordinate resolver reaches it. the resolver is the same one every shape above
+  // goes through, so this member is what keeps its spread half honest
+  { id: 'spread', arg: '...[Array]' },
   { id: 'seq', arg: '(log.push("e"), Array)' },
   { id: 'conditional', arg: 'cond ? Array : Boolean' },
   // SE-prefix AND a branching tail together: the usable-arg gate must peel the sequence to see the
