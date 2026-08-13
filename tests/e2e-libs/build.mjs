@@ -8,7 +8,7 @@ import { transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
 import { METHODS, phasesFor, pluginOpts as matrixOpts } from '../transpiler-integration/matrix.mjs';
 import { createRequire } from 'node:module';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
@@ -27,9 +27,13 @@ export { METHODS, phasesFor };
 // none. That asymmetry is what the runtime tier's reference/delta pairing is built on.
 export const PROVIDERS = ['babel-plugin', 'unplugin'];
 
-// the one axis this suite adds to the shared options: everything it builds is aimed at IE11
+// The one axis this suite adds to the shared options, and the floor the whole thing is about. ONE
+// declaration, consumed both by the provider - which selects modules for it - and by preset-env, which
+// lowers syntax to it: two spellings could drift into Babel compiling for one engine while core-js
+// polyfills for another, and every gate would stay green, since each asks only about its own half.
+const IE11 = { ie: 11 };
 function pluginOpts(method, phase) {
-  return matrixOpts(method, phase, { targets: { ie: 11 } });
+  return matrixOpts(method, phase, { targets: IE11 });
 }
 
 // The entry has to sit under HERE/.tmp for its bare `core-js` / `rxjs` imports to resolve to the
@@ -65,11 +69,12 @@ let cachedToolchain;
 function babelToolchain() {
   if (!cachedToolchain) {
     cachedToolchain = {
-      // everything but the preset comes from the repo root, which `localRequire` walks up to: the same
-      // @babel/core the rest of the monorepo builds with, and the type strip it already uses in
-      // `scripts/bundle-tests`. The preset stays local because the root has none - and it is what a
-      // third-party corpus needs, since the root's hand-written plugin list is tuned for first-party
-      // sources and lowers no modern regexp syntax.
+      // Babel 8 throughout, the major the monorepo builds with. `@babel/core` and the preset resolve
+      // HERE though: preset-env peer-depends on core, so npm installs a copy beside it whether or not
+      // this package.json asks for one - dropping the declaration changes the lockfile and nothing
+      // else. The preset has to be local anyway, since the root has none: its hand-written plugin
+      // list is tuned for first-party sources and lowers no modern regexp syntax, which a
+      // third-party corpus needs. The type strip and the core-js plugin do come from the root.
       //
       // Each is an absolute path rather than a bare name: Babel resolves a bare one from the file being
       // compiled, which here is a library module deep in node_modules.
@@ -101,10 +106,26 @@ const NODE_MODULES = join(HERE, 'node_modules');
 // silently answer `false` - and then every intra-package import resolves to nothing. Compare in one
 // form instead; `recorder` normalizes for the same reason, and so does every path this suite hands
 // to a shell or to a glob.
-function toPosix(p) {
+export function toPosix(p) {
   return p.replaceAll('\\', '/');
 }
 const TS_SOURCE_ROOTS = [...TS_SOURCE_PACKAGES].map(name => toPosix(join(NODE_MODULES, name, 'src')));
+
+// Every installed package, scoped ones by their full `@scope/name`. Sync and once per process, like
+// everything else this file reads off the install.
+function nodeModulesEntries() {
+  const names = [];
+  // eslint-disable-next-line node/no-sync -- once per process, before any build starts
+  for (const entry of readdirSync(NODE_MODULES)) {
+    if (!entry.startsWith('@')) {
+      names.push(entry);
+      continue;
+    }
+    // eslint-disable-next-line node/no-sync -- once per process, before any build starts
+    for (const scoped of readdirSync(join(NODE_MODULES, entry))) names.push(`${ entry }/${ scoped }`);
+  }
+  return names;
+}
 
 // A SCOPED name would pass every other check and still do nothing: `resolveId` splits a bare
 // specifier at the first `/`, so `@scope/pkg` arrives as `@scope`, never matches the set, and the
@@ -128,13 +149,19 @@ function assertUsableSet() {
   // right only while there is exactly one copy. A nested one - npm's answer to a version conflict -
   // would have one package's importer served the other version's sources, mixing two libraries into
   // a build that reports itself as either. Nothing downstream could see it, so refuse it here.
-  for (const name of TS_SOURCE_PACKAGES) {
-    // eslint-disable-next-line node/no-sync -- once per process, before any build starts
-    const nested = [...TS_SOURCE_PACKAGES].filter(other => existsSync(join(NODE_MODULES, name, 'node_modules', other)));
-    if (nested.length) {
-      throw new Error(`TS_SOURCE_PACKAGES: ${ name } carries its own copy of ${ nested.join(', ') } - `
-        + '`tsSources` resolves every bare specifier to the top-level copy, so the two versions would '
-        + 'be mixed silently. Reconcile the pinned versions so npm hoists a single copy.');
+  //
+  // Every package in the graph is looked at, not only the listed ones: the importer that gets served
+  // the wrong sources is whoever asks, and `domhandler` holding its own `entities` is exactly as
+  // silent as `htmlparser2` doing it. One level deep and scoped names included, which is where npm
+  // puts a conflicting copy.
+  for (const owner of nodeModulesEntries()) {
+    for (const name of TS_SOURCE_PACKAGES) {
+      // eslint-disable-next-line node/no-sync -- once per process, before any build starts
+      if (owner !== name && existsSync(join(NODE_MODULES, owner, 'node_modules', name))) {
+        throw new Error(`TS_SOURCE_PACKAGES: ${ owner } carries its own copy of ${ name } - \`tsSources\` `
+          + 'resolves every bare specifier to the top-level copy, so the two versions would be mixed '
+          + 'silently. Reconcile the pinned versions so npm hoists a single copy.');
+      }
     }
   }
   setChecked = true;
@@ -174,7 +201,10 @@ function firstExistingFile(candidates) {
 function tsSourceOf(source) {
   const [name, ...rest] = source.split('/');
   if (!TS_SOURCE_PACKAGES.has(name)) return null;
-  const sub = rest.length ? rest.join('/') : 'index';
+  // the extension is dropped for the same reason the relative branch above drops it: a TS-ESM
+  // specifier names the file the compiler WILL emit, and that form is as legal across a package
+  // boundary as it is inside one
+  const sub = (rest.length ? rest.join('/') : 'index').replace(/\.[cm]?js$/, '');
   const file = firstExistingFile([join(NODE_MODULES, name, 'src', `${ sub }.ts`), join(NODE_MODULES, name, 'src', sub, 'index.ts')]);
   if (file) return file;
   throw new Error(`TS_SOURCE_PACKAGES: '${ source }' has no TypeScript source under node_modules/${ name }/src `
@@ -200,7 +230,7 @@ export function tsSources() {
 // `.d.ts` is deliberately NOT TypeScript here. Stripping one would erase it to an empty module and
 // hand rollup a silently empty dependency; leaving it alone makes rollup's own parser reject it, which
 // is the answer a declaration file in a runtime graph deserves. Nothing resolves one today - the
-// candidates below are all built as `<name>.ts` - so this is the regex saying what it means rather
+// candidates above are all built as `<name>.ts` - so this is the regex saying what it means rather
 // than a live path.
 export const TS_EXTENSION = /(?<!\.d)\.[cm]?ts$/;
 
@@ -232,7 +262,7 @@ function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs =
       // preset-env starts lowering. Only for `.ts` (see tsSources above): applied unconditionally it
       // would switch the parser to TS for every file, and TS resolves `<T>x` and `a < b > (c)`
       // differently from JS.
-      const presets = downCompile ? [[preset, { targets: { ie: '11' }, useBuiltIns: false, modules: false }]] : [];
+      const presets = downCompile ? [[preset, { targets: IE11, useBuiltIns: false, modules: false }]] : [];
       const plugins = typescript ? [[ts, {}]] : [];
       if (coreJs) plugins.push([corejs, coreJs]);
       // `useBuiltIns: false` above is what leaves the stdlib to a provider. When `coreJs` is set that
@@ -263,13 +293,19 @@ export function makeTsStripPlugin() {
 // Swallowing UNRESOLVED_IMPORT is not untidiness, it is the failure mode: rollup turns the specifier
 // into an external `require(...)`, so the polyfill leaves the bundle while the node pre-flight still
 // passes - node resolves what rollup would not - and the page uploaded to a browser is dead on arrival.
+// The prefix belongs to `@core-js/unplugin`, so it is read off an instance rather than spelled here.
+// This is the only channel by which unplugin reports its OWN failure - a module oxc could not parse is
+// handed back untransformed with a warning - and nothing else in the repo pins that name, so a rename
+// there would turn the gate below into a silent no-op.
+const [UNPLUGIN_NAME] = [u('rollup', 'usage-global', 'post')].flat()[0].name.split(':', 1);
+
 export function strictWarn(w) {
   if (w.code === 'UNRESOLVED_IMPORT' || w.code === 'MISSING_EXPORT') throw new Error(`${ w.code }: ${ w.message }`);
   // the one channel by which unplugin reports its own failure: a source oxc cannot parse is warned
   // about and handed back untransformed, so that module loses its injections while the payload gate,
   // the injection count and the ES5 parse all stay green on what the other modules contributed.
   // Other plugins' warnings stay warnings - `w.plugin` is `core-js-unplugin`, or `:pre` / `:post`
-  if (w.code === 'PLUGIN_WARNING' && w.plugin?.startsWith('core-js-unplugin')) {
+  if (w.code === 'PLUGIN_WARNING' && w.plugin?.startsWith(UNPLUGIN_NAME)) {
     throw new Error(`${ w.plugin }: ${ w.message }`);
   }
 }
@@ -292,7 +328,10 @@ export function assertNoExternals(chunk, label) {
 // catches that shape for every method, and needs no second build to compare against.
 // The floor below is an order of magnitude under the smallest payload any cell of this suite
 // produces, so it discriminates "nothing arrived" from "a small one" without tracking either.
-const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\])/;
+// The trailing separator is load-bearing in its own right, as the leading package boundary is for
+// `BABEL_EXCLUDE` above: without it `core-js` matches inside `core-js-builder` and `core-js-compat`
+// too, and bytes of a build tool would count towards the payload this gate is about.
+const CORE_JS_MODULE = /[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?[/\\]|@core-js[/\\])/;
 const MIN_CORE_JS_BYTES = 10_000;
 export function assertPayload(chunk, label) {
   const bytes = Object.entries(chunk.modules)
@@ -316,6 +355,11 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel - see above),
   // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`. babel-plugin has no
   // phase for any method: it IS the Babel pass, so there is no before/after to choose between.
+  //
+  // Both corrections below are load-bearing, and the `entry-global` cell is the proof: its caller
+  // passes the `undefined` that `phasesFor` gave it, which lands on the parameter DEFAULT and comes
+  // back as 'post' - which unplugin rejects for that method (it accepts only `pre` there, as a no-op).
+  // Whatever the pair does not support is dropped here rather than forwarded.
   const babel = provider === 'babel-plugin';
   const effPhase = babel ? undefined : phasesFor(method, provider).includes(phase) ? phase : undefined;
   return withEntry(exerciseAbs, method, `rt-${ provider }-${ method }-${ effPhase ?? 'x' }`, async entry => {
@@ -383,7 +427,7 @@ export function recorder(sink, origins) {
           if (!origins) continue;
           let where = origins.get(spec);
           if (!where) origins.set(spec, where = new Set());
-          where.add(relative(HERE, id).replaceAll('\\', '/'));
+          where.add(toPosix(relative(HERE, id)));
         }
         return null;
       },

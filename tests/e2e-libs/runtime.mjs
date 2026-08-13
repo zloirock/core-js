@@ -5,7 +5,7 @@
 // what gates and what only informs - is in AGENTS.md rather than repeated here.
 //
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
-import { runtimeBuild, wireSize, errorReason, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { runtimeBuild, wireSize, errorReason, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,10 @@ const ART = join(HERE, 'artifacts');
 const MANIFEST = join(ART, 'manifest.json');
 const SNAP = join(HERE, 'snapshots');
 const TMP = join(HERE, '.tmp');
-const KARMA_OUT = join(TMP, 'karma');
+// per process, like the temp entries and the pre-flight file: two runs split by library - the natural
+// way to halve a forty-cell wait - would otherwise have the second one's startup wipe the bundles the
+// first is still feeding to Karma, and the failure would name a missing file rather than any code
+const KARMA_OUT = join(TMP, `karma-${ process.pid }`);
 
 const [libFilter, ...surplus] = argv._;
 if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - runtime.mjs takes [libFilter]`);
@@ -127,7 +130,7 @@ async function preflight(code) {
   try {
     // `node` by name and a relative path: on windows `$` runs through bash, which cannot execute an
     // absolute `C:\...`. An unsettled `run()` exits 0 with empty stdout, hence the guard below.
-    const { stdout } = await $({ cwd: HERE, quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ relative(HERE, f).replaceAll('\\', '/') }`;
+    const { stdout } = await $({ cwd: HERE, quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ toPosix(relative(HERE, f)) }`;
     if (!stdout.trim()) throw new Error('preflight child produced no output - run() likely never settled');
     try {
       return JSON.parse(stdout);
@@ -177,17 +180,21 @@ function html(title, subtitle, checks) {
 
 // A filtered run merges into the existing manifest, so read and validate it FIRST: discovering a
 // corrupt one after the wipe would destroy the artifacts it describes and every rebuilt cell with it.
+// Read AGAIN just before writing (see the end of this file) - the run in between takes minutes, and
+// a sibling filtered run finishing inside that window would otherwise be dropped from the file.
 const rebuilt = new Set(libs.map(l => l.name));
-let previous = [];
-if (libFilter) {
+async function otherLibrariesInManifest() {
+  if (!libFilter) return [];
   try {
     const parsed = JSON.parse(await readFile(MANIFEST, 'utf8'));
     if (!Array.isArray(parsed)) throw new Error('manifest.json is not an array');
-    previous = parsed.filter(e => !rebuilt.has(e.lib));
+    return parsed.filter(e => !rebuilt.has(e.lib));
   } catch (err) {
     if (err.code !== 'ENOENT') throw err; // a corrupt manifest must not be silently discarded
+    return [];
   }
 }
+await otherLibrariesInManifest(); // the value is the write's business; this call is here to throw early
 
 // Cells are only written on the success path, so without a wipe a failed cell leaves yesterday's
 // all-green page on disk while the manifest records the failure - and the operator is told to upload
@@ -198,8 +205,29 @@ if (libFilter) {
 } else {
   await rm(ART, { recursive: true, force: true });
 }
-await rm(KARMA_OUT, { recursive: true, force: true });
+await rm(KARMA_OUT, { recursive: true, force: true }); // this run's own directory, see KARMA_OUT
 await mkdir(KARMA_OUT, { recursive: true });
+// Everything under `.tmp` is named after the process that owns it, and the bundles outlive their run
+// on purpose - without IE11 here they are the whole point of the message below. What nothing did was
+// collect them, and a `finally` cannot: a run killed by a signal is exactly the one that leaves its
+// entry and pre-flight files behind. So each run sweeps what belongs to processes that are gone -
+// `kill(pid, 0)` is the only question separating those from a live sibling's, which the per-process
+// naming exists to protect.
+const OWNED_BY = /-(?<pid>\d+)-\d+\.[cm]js$|^karma-(?<dirPid>\d+)$/;
+for (const entry of await fs.readdir(TMP, { withFileTypes: true })) {
+  const { pid, dirPid } = OWNED_BY.exec(entry.name)?.groups ?? {};
+  const owner = Number(pid ?? dirPid);
+  if (!owner || owner === process.pid) continue;
+  try {
+    process.kill(owner, 0);
+  } catch (err) {
+    // ESRCH is the only answer that means the pid is free. The other one, EPERM (EACCES on windows),
+    // says the process is alive and someone else's - a second user running this suite in a shared
+    // checkout - and treating that as gone would delete the bundles a live run is still feeding to
+    // Karma. Leaving files behind is the direction that cannot break a run.
+    if (err.code === 'ESRCH') await rm(join(TMP, entry.name), { recursive: true, force: true });
+  }
+}
 await mkdir(SNAP, { recursive: true });
 
 // Printed unconditionally, because the expensive question to answer after the fact is "was this the
@@ -264,7 +292,9 @@ function referenceFor(lib, method) {
     ? `the babel-plugin cell of ${ key } failed, so there is nothing to diff this phase against`
     : `no babel-plugin reference for ${ key } - cell ordering is wrong`);
 }
-let failed = 0;
+// by LABEL, not a counter: a cell can fail its node pre-flight and then fail again in IE11, and two
+// increments for one broken cell would misreport the size of the breakage in a forty-cell log
+const failedCells = new Set();
 let drift = 0;
 let missing = 0;
 
@@ -333,7 +363,7 @@ for (const { lib, method, provider, phase } of cells) {
     // a drifting or missing baseline is a red cell, so it may not be prefixed `ok`: the run is
     // scanned by that prefix, and `exitCode` alone is no help on a log 40 cells long
     const ok = !bad.length && snap !== 'drift' && snap !== 'missing';
-    if (bad.length) failed++;
+    if (bad.length) failedCells.add(label);
     echo(`${ ok ? 'ok' : 'FAIL' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, `
       + `${ injected.length } inj${ delta ? ` (delta vs reference ${ delta.length })` : '' }`
       + `${ snap === 'skipped' ? '' : `, ${ snap }` } `
@@ -349,7 +379,7 @@ for (const { lib, method, provider, phase } of cells) {
       checks: checks.length, preflightFailing: bad.length,
     });
   } catch (err) {
-    failed++;
+    failedCells.add(label);
     if (provider === 'babel-plugin') failedReferences.add(refKey(lib, method));
     const reason = errorReason(err);
     echo(`FAIL ${ label }: ${ reason }`);
@@ -365,15 +395,20 @@ echo('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js be
 
 // -------- real IE11, where one exists --------
 
-// Only start Karma where IE11 actually exists: the windows CI runner (CI set) or a dev box with
-// iexplore. Elsewhere every gate above has already run; the browser run is the CI-only part.
+// Only start Karma where IE11 actually exists: the windows CI runner (CI set), or a machine that
+// says where the browser is. `which` searches PATH, and a stock Windows install does not put
+// `C:\Program Files\Internet Explorer` there - karma-ie-launcher finds it anyway, through
+// `IE_BIN` or its own default locations - so `IE_BIN` is honoured here too rather than making a
+// local run turn on a PATH entry nobody has. Elsewhere every gate above has already run; the
+// browser leg is the CI-only part.
 //
 // What that leg made of each cell, keyed by label. The manifest is written AFTER this section for
 // exactly this reason: the leg that decides the real floor has to be in the artifact, not absent
 // from it because the file was already on disk when the browser started.
 const karmaOutcome = new Map();
-if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
-  echo(`\n${ karmaFiles.length } bundle(s) also written to ${ KARMA_OUT }. IE11 not present and not CI - skipping Karma.`);
+if (!(process.env.CI || process.env.IE_BIN || await which('iexplore.exe', { nothrow: true }))) {
+  echo(`\n${ karmaFiles.length } bundle(s) also written to ${ KARMA_OUT }. No IE11 here and not CI - skipping Karma.`
+    + ' On a windows box with IE11, point IE_BIN at iexplore.exe to run this leg locally.');
 } else {
   echo(`\nrunning Karma in real IE11 - ONE bundle per page (${ karmaFiles.length } pages), so no sibling shares a`);
   echo('realm: a global-patching method can never mask the usage-pure or pre gap of another cell, and each');
@@ -387,23 +422,24 @@ if (!(process.env.CI || await which('iexplore.exe', { nothrow: true }))) {
     // where `$` goes through bash - a native `D:\...` reaches it as an unquotable word - and Karma
     // matches `files` through glob, where a backslash is an escape and would match nothing
     // one IE11 page at a time, on purpose (see header) - sequential await is intended here
-    const bundle = relative(HERE, file).replaceAll('\\', '/');
+    const bundle = toPosix(relative(HERE, file));
     const { exitCode } = await $({ cwd: HERE, nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
     karmaOutcome.set(label, exitCode === 0 ? 'passed' : gating ? 'failed' : 'diagnostic-failed');
     if (exitCode === 0) continue;
     // named on both branches: Karma prints its own failure above, but the tally at the end of a
     // forty-cell log has to be traceable to the cells that produced it
     if (gating) {
-      failed++;
+      failedCells.add(label);
       echo(`  FAIL ${ label }: Karma exit ${ exitCode } in real IE11`);
     } else echo(`  pre diagnostic ${ label }: Karma exit ${ exitCode } - an expected-possible pre failure; not gating`);
   }
 }
 
 for (const entry of manifest) entry.karma = karmaOutcome.get(entry.label) ?? 'not run';
-// `previous` was read before the wipe above - a filtered run keeps the entries of the libraries it
-// did not touch, whose pages are still on disk
-await writeFile(MANIFEST, `${ JSON.stringify([...previous, ...manifest], null, 2) }\n`);
+// a filtered run keeps the entries of the libraries it did not touch, whose pages are still on disk.
+// Re-read rather than reuse what was validated before the wipe: this is the last moment before the
+// write, so a sibling run that finished meanwhile survives instead of being overwritten
+await writeFile(MANIFEST, `${ JSON.stringify([...await otherLibrariesInManifest(), ...manifest], null, 2) }\n`);
 echo(`\nmanifest -> ${ MANIFEST }`);
 
 // A baseline with no cell behind it - a library dropped from the registry, a phase renamed - is
@@ -422,6 +458,6 @@ for (const file of orphans) {
 
 if (drift) echo(`\nFAIL injection snapshot drifted in ${ drift } cell(s) - rerun with OVERWRITE=1 if intended`);
 if (missing) echo(`\nFAIL ${ missing } cell(s) have no snapshot baseline - rerun with OVERWRITE=1 to author them`);
-if (failed) echo(`\nFAIL ${ failed } cell(s) failed`);
-if (failed || drift || missing || (orphans.length && !OVERWRITE)) process.exitCode = 1;
+if (failedCells.size) echo(`\nFAIL ${ failedCells.size } cell(s) failed`);
+if (failedCells.size || drift || missing || (orphans.length && !OVERWRITE)) process.exitCode = 1;
 else echo(`\nruntime tier green - ${ manifest.length } cell(s)`);
