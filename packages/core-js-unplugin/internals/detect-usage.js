@@ -2,46 +2,42 @@
 import {
   buildDestructuringInitMeta,
   chooseFallbackReceiverNode,
-  collectDestructureUnionCandidates,
   isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
-  isKnownGlobalName,
-} from '@core-js/polyfill-provider/detect-usage/globals';
-import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
-import {
-  createMutationSiteHandler,
-  hasMutationCandidateShapes,
+  beginMutationPrePass,
+  createDetectionAdapter,
+  mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
 import {
-  createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from '@core-js/polyfill-provider/detect-usage/members';
-import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
+import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
+import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
   bareAssignmentPatternLeafPath,
-  collectFunctionScopeVarReassignments,
-  collectScopeLetReassignments,
+  climbJsxMemberChain,
   findFunctionScopeVarInPath,
   findIifeCallSite,
   findTSRuntimeBindingInPath,
   getTypeArgs,
+  IMPORT_SPECIFIER_TYPES,
+  importBindingView,
   isAmbientBindingShape,
   isASTNode,
   isFunctionParamDestructureParent,
   isIntrinsicJsxTagName,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
-  isMutatedStaticPair,
-  mutatedStaticKey,
   isNonReferencePosition,
   isTSTypeOnlyIdentifierPath,
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
+  recomputedBindingWrites,
   resolveCallArgument,
   resolveFallbackReceiver,
   synthVarHoistBinding,
@@ -57,12 +53,6 @@ import {
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
 // --- isReferenced ---
-
-const IMPORT_SPECIFIER_TYPES = new Set([
-  'ImportSpecifier',
-  'ImportDefaultSpecifier',
-  'ImportNamespaceSpecifier',
-]);
 
 const DECLARATION_ID_TYPES = new Set([
   'FunctionDeclaration',
@@ -324,22 +314,9 @@ function hasRuntimeBinding(scope, name, path = null) {
 // actually monkey-patch pay for the scoped toolkit traverse + canonical receiver resolution.
 // shares every resolution step with the read side via `mutations` (provider)
 export function collectMutationPrePass(ast, adapter, census = null) {
-  const mutated = new Set();
-  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(ast, adapter.packages))) return { mutated };
-  const { handleSite, finalizeMutationSet } = createMutationSiteHandler({ adapter, mutated });
-  // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
-  // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
-  const siteVisitors = {
-    MemberExpression: handleSite,
-    CallExpression: handleSite,
-    AssignmentExpression: handleSite,
-    UpdateExpression: handleSite,
-    UnaryExpression: handleSite,
-    // a bare-identifier for-x LHS assigns a global slot per iteration - no member/assignment
-    // node exists for it, so the statement itself is the classification site
-    ForOfStatement: handleSite,
-    ForInStatement: handleSite,
-  };
+  const { mutated, handleSite, finalize } = beginMutationPrePass({ rootNode: ast, adapter, census });
+  if (!handleSite) return { mutated };
+  const siteVisitors = mutationSiteVisitors(handleSite);
   // estree-toolkit omits `decorators` from the visitor keys of the DEFINED class / member node
   // types, so a monkey-patch hidden inside a `@decorator(...)` expression escapes the traverse and
   // the static stays wrongly substitutable (the read side already compensates via walkDecorators).
@@ -357,7 +334,7 @@ export function collectMutationPrePass(ast, adapter, census = null) {
     TSAbstractPropertyDefinition: visitDecoratorSites,
     TSAbstractAccessorProperty: visitDecoratorSites,
   });
-  finalizeMutationSet();
+  finalize();
   return { mutated };
 }
 
@@ -492,52 +469,9 @@ function resolveClosestBinding(scope, name, path) {
 // does - the two answer the SAME question, one through a dedicated lookup, one through its
 // native binding (the provider's consumer branches on the member's presence) per-transform state
 // lives in the instance closure - concurrent transforms each build their own
-export function createEstreeAdapter({
-  getInjector = () => null, method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null, getPackages = () => null,
-  isTypingMutatedSlot = null,
-} = {}) {
-  const adapter = {
-    // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
-    // a receiver-less helper (dropping the receiver), so the shared resolver gates the
-    // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
-    // inject side-effect imports, which is sound regardless of where the alias was assigned
-    method,
-    // a static the user monkey-patches is not a polyfillable static (pure only): detection
-    // leaves its receiver to the identifier machinery so the patch and the reads share the
-    // injected constructor object
-    isMutatedStatic(object, key) {
-      return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
-    },
-    // the TYPE layer asks a DIFFERENT question than the injection policy above: a patched static no
-    // longer returns what its declaration says, so its result type is unknown in EVERY method - a
-    // global-flavor narrow taken off the declaration silently drops the polyfill the replacement
-    // actually needs. the pure-only gate belongs to the injection skip, not to typing
-    // a container SLOT written anywhere (`const w = { k: Object }; w.k = Map`) is no built-in mutation,
-    // so it is deliberately NOT part of the mutated-static set - reporting it there would deopt every
-    // namespace gate in the file. its ONE reader is the receiver walk's container descent, which must
-    // stop trusting the literal's initial member once the slot has been replaced
-    isWrittenContainerSlot(object, key) {
-      const slots = getWrittenContainerSlots?.();
-      return !!slots && (slots.has(`${ object }.*`) || slots.has(mutatedStaticKey(object, key)));
-    },
-    // the KNOWN written value nodes reaching a slot: direct writes to the named slot plus
-    // unknown-slot (dynamic-key) writes, which may land anywhere on the container
-    writtenContainerSlotValues(object, key) {
-      const slots = getWrittenContainerSlots?.();
-      if (!slots) return [];
-      const direct = slots.get(mutatedStaticKey(object, key)) ?? [];
-      const viaUnknownSlot = key === '*' ? [] : slots.get(`${ object }.*`) ?? [];
-      return viaUnknownSlot.length ? [...direct, ...viaUnknownSlot] : direct;
-    },
-    isMutatedStaticSlot(object, key) {
-      return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
-        : isMutatedStaticPair(object, key, getMutatedStatics());
-    },
-    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
-    // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the
-    // resolved array before ANY injector exists, and the mutation pre-pass runs in exactly
-    // that window (injector-only sourcing left the pre-pass packages-blind there)
-    get packages() { return getPackages(); },
+export function createEstreeAdapter(options = {}) {
+  const { getInjector = () => null } = options;
+  return createDetectionAdapter(options, adapter => ({
     hasBinding(scope, name, path = null) {
       return hasRuntimeBinding(scope, name, path);
     },
@@ -591,11 +525,7 @@ export function createEstreeAdapter({
       // binding-first: the per-binding registry is exact - see the babel twin
       const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
       const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null) ?? null;
-      const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
-      const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-      // the EFFECTIVE kind: `import { type X }` carries it on the specifier, `import type X`
-      // on the declaration - the erasure canon needs one field covering both spellings
-      const importKind = isImportBinding ? b.path.node?.importKind ?? b.path.parent?.importKind ?? null : null;
+      const { isImportBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
       // same-named namespace/declare-global var twin as a violation. recompute from the AST via the
@@ -611,15 +541,13 @@ export function createEstreeAdapter({
       // twin's declarator, or a for-init `const` self) - the boundary-respecting scan excludes them,
       // matching babel; without this a const shadowed by a namespace twin keeps the phantom and a
       // resolvable use (e.g. a computed key `obj[K]`) wrongly bails
-      // the two RECOMPUTED branches are phantom-free by construction, but the raw-list branches
-      // (`!path`, and a kind the recompute does not cover) carry estree's valueless-redeclaration
-      // self-record (`var { Map: M } = g; var M;`). filter the whole ternary through the shared
-      // helper the babel twin wraps its own ternary in, so both adapters hand the resolver the
-      // same violation list for identical source
-      const constantViolations = withoutValuelessDeclarationViolations(!path ? b.constantViolations
-        : b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
-          : b.kind === 'let' || b.kind === 'const' ? collectScopeLetReassignments(b.path, name)
-            : b.constantViolations);
+      // the shared recompute's branches are phantom-free by construction, and its raw-list
+      // fallbacks (`!path`, a kind it does not cover) get the valueless-redeclaration
+      // self-record (`var { Map: M } = g; var M;`) stripped inside it, so both adapters hand
+      // the resolver the same violation list for identical source
+      const constantViolations = recomputedBindingWrites({
+        kind: b.kind, bindingPath: b.path, usePath: path, name, fallback: b.constantViolations,
+      });
       // the shared alias guard reads the RECOMPUTED violations (an assignment-form alias matches them
       // against its registered write span; the raw estree list carries phantoms) - so it runs after them
       // a VERIFIED identity hit needs no live shape verification - see the babel twin
@@ -642,6 +570,8 @@ export function createEstreeAdapter({
         kind: b.kind,
         constantViolations,
         importSource, importKind,
+        // READ count of the binding - estree-toolkit keeps reference paths (writes excluded)
+        references: b.references?.length ?? 0,
         // the scope the DECLARATOR is written in - see the babel twin. here it IS `b.scope`: unlike
         // babel, estree-toolkit never hoists a `var` out of its block, so a binding it DOES report
         // already sits in the scope the declarator was written in (a use that outruns the block
@@ -710,8 +640,7 @@ export function createEstreeAdapter({
       const inner = unwrapTransparentSeq(node);
       return isLiteralString(inner) ? inner.value : null;
     },
-  };
-  return adapter;
+  }));
 }
 
 function isLiteralString(node) {
@@ -1018,14 +947,10 @@ function isJsxOpeningTagName(path) {
 }
 
 // JSXMemberExpression root (`<Map.Provider.X />` -> `Map` Identifier sits at the bottom
-// of an `object`-chain whose terminal `MemberExpression` is the opening tag-name).
-// walks `.object` upward; arbitrary depth supported - returns true only when we land on
-// a JSXOpeningElement.name slot AFTER traversing at least one JSXMemberExpression hop
+// of an `object`-chain whose terminal `MemberExpression` is the opening tag-name): true only
+// when the shared climb lands on a JSXOpeningElement.name slot AFTER at least one hop
 function isJsxMemberRoot(path) {
-  let cur = path;
-  while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
-    cur = cur.parentPath;
-  }
+  const cur = climbJsxMemberChain(path);
   return cur !== path && isJsxOpeningTagName(cur);
 }
 
@@ -1033,24 +958,23 @@ function isJsxMemberRoot(path) {
 
 export function createUsageVisitors({
   adapter, onUsage, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
-  resolveMeta, resolvePure = null, onSuppressedProxyHop = null,
+  resolveMeta, resolvePure = null, onSuppressedProxyHop = null, suppressKeptNavRoot = null,
 }) {
-  // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
-  // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
-  // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
-  const skipUpdateTargets = method === 'usage-pure';
-  const handledObjects = new WeakSet();
   // hops the detector suppressed while the meta keeps its receiver PATH: the marking exists so no
   // second rewrite lands inside the span that swallowed them, but the nav itself still owes a
   // render - one that replaces the WHOLE chain span, which composes rather than collides
   const keptProxyHops = new WeakSet();
-  // read `kind` off the parent VariableDeclaration via the binding path - works across
-  // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
-  // another). babel's `binding.kind` is read directly via the babel adapter's own getter
-  const isSelfRefVarBinding = createSelfRefVarGuard(
-    b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
-    adapter,
-  );
+  const core = createUsageHandlerCore({
+    adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, suppressProxyGlobals,
+    // the text emitter has no AST re-visit: hops a DECLINED proxy-rooted meta marked handled
+    // must stay recorded for the suppressed-hop callback, or nothing renders them
+    keptProxyHops, keptDeclinedProxyMetaHops: true, onSuppressedProxyHop, suppressKeptNavRoot,
+    // read `kind` off the parent VariableDeclaration via the binding path - works across
+    // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
+    // another). babel's `binding.kind` is read directly via the babel adapter's own getter
+    selfRefBindingKind: b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
+  });
+  const { skipUpdateTargets } = core;
 
   // destructure-only wrapper (sole caller is extractPropertyKey): a side-effecting computed key
   // resolves to its tail for identity; the emitter keeps the key in the pattern (it runs once) and
@@ -1204,46 +1128,20 @@ export function createUsageVisitors({
     });
   }
 
-  function annotationGlobal(path) {
-    return name => {
-      // pass `path` so `hasRuntimeBinding`'s var-hoisting fallback can detect `var Name`
-      // declarations buried inside nested non-function blocks (estree-toolkit registers them
-      // in the block's own scope rather than hoisting to the enclosing function)
-      if (adapter.hasBinding(path.scope, name, path)) return;
-      onUsage({ kind: 'global', name }, path);
-    };
-  }
-
   function identifierVisitor(path) {
     // orphaned node (parent removed by sibling transform / pruning): downstream isReferenced
     // and parent-shape checks would crash on null. parity with babel-plugin's handleIdentifier
     if (!path.parent) return;
-    const { node, parent, key: parentKey } = path;
+    const { parent, key: parentKey } = path;
     if (!isReferenced({ path, skipUpdateTargets })) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
-    if (adapter.hasBinding(path.scope, node.name, path)) {
-      // self-reference `var X = X` - hoisted var init reads the outer (global) scope
-      // before the local is assigned. narrow via cached binding check; exclude let/const
-      // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
-      if (!isSelfRefVarBinding(path.scope?.getBinding?.(node.name), path)) return;
-      if (!isKnownGlobalName(node.name)) return;
-      if (handledObjects.has(node)) return;
-      onUsage({ kind: 'global', name: node.name }, path);
-      return;
-    }
-    // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
-    if (handledObjects.has(node)) return;
-    onUsage({ kind: 'global', name: node.name }, path);
+    core.emitGlobalUsage(path);
   }
 
   function memberExpressionVisitor(path) {
-    const { node } = path;
-    if (handledObjects.has(node)) {
-      if (keptProxyHops.has(node)) onSuppressedProxyHop?.(path);
-      return;
-    }
+    if (core.memberAlreadyHandled(path)) return;
     if (!isReferenced({ path, skipUpdateTargets })) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
       // intent); a deliberate override's receiver follows the SAME identifier routing the
@@ -1252,25 +1150,7 @@ export function createUsageVisitors({
       // reads use, so the patch and the reads land on one object - no marking
       return;
     }
-    const meta = handleMemberExpressionNode({
-      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure, keptProxyHops,
-    });
-    if (meta) {
-      onUsage(meta, path);
-      // usage-global union: extra reachable receiver / key targets each earn a side-effect import
-      for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
-    }
-  }
-
-  function binaryExpressionVisitor(path) {
-    const meta = handleBinaryIn({
-      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
-    });
-    if (!meta) return;
-    onUsage(meta, path);
-    // usage-global reachable union targets of a reassigned `in` key / receiver alias
-    for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
+    core.emitMemberUsage(path);
   }
 
   // Property visitor is shared: top-level destructure bindings and decorator-arg patterns
@@ -1280,25 +1160,13 @@ export function createUsageVisitors({
   function propertyVisitor(path) {
     if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
     // the container walk collects the slot's OTHER reaching values (written / repositioned)
-    // beside its primary answer - they join the usage-global union axis below
+    // beside its primary answer - they join the usage-global union axis in the shared funnel
     const containerUnion = [];
     const meta = buildDestructuringMeta(path.node, path.parentPath, containerUnion);
-    // a computed key folding to `Symbol.X` gets its provenance checked ONCE at this funnel
-    // (every destructure meta flows through here) - string spellings stay untagged so the
-    // symbol-routed emit paths leave them as plain property reads.
-    // `meta` may be null (an unresolvable - e.g. BRANCHING - computed key, or a mutated-static
-    // receiver): the primary dispatch skips, but the union below still runs - the provider
-    // synthesizes its branch-key carrier there, mirroring babel's funnel.
     // capture the key slots BEFORE dispatch, mirroring babel: a pure emit may restructure the
-    // property, so the union pass must not re-read the possibly-detached node
+    // property, so the shared funnel's union pass must not re-read the possibly-detached node
     const { key: keyNode, computed } = path.node;
-    const { scope } = path;
-    if (meta) onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
-    // usage-global reachable receiver / key union: each extra destructure target earns a
-    // side-effect import beside the primary, mirroring the member funnel
-    for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path, resolvePure, containerWalkObjects: containerUnion,
-    })) onUsage(extra, path);
+    core.emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects: containerUnion });
   }
 
   // JSX tag-name (`<Map />`) or N-deep member-root (`<Map.Provider.X />`). shared between
@@ -1322,17 +1190,13 @@ export function createUsageVisitors({
   const decoratorVisitors = {
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
-    BinaryExpression: binaryExpressionVisitor,
+    BinaryExpression: core.emitBinaryInUsage,
     Property: propertyVisitor,
     JSXIdentifier: jsxIdentifierVisitor,
   };
 
   function visitDecorators(path) {
     walkDecorators(path, decoratorVisitors);
-  }
-
-  function checkTypeAnnotation(path) {
-    checkTypeAnnotations(path.node, annotationGlobal(path));
   }
 
   // explicit type arguments at a call / new site (`bar<Map<...>>()`, `new Foo<Map<...>>()`)
@@ -1342,7 +1206,7 @@ export function createUsageVisitors({
   // guard. `getTypeArgs` reads babel `typeParameters` / oxc `typeArguments` uniformly
   function checkCallTypeArguments(path) {
     const typeArgs = getTypeArgs(path.node);
-    if (typeArgs) walkTypeAnnotationGlobals(typeArgs, annotationGlobal(path));
+    if (typeArgs) walkTypeAnnotationGlobals(typeArgs, core.annotationGlobal(path));
   }
 
   // a class node and its field shapes carry type-only globals the FunctionExpression walk
@@ -1354,14 +1218,14 @@ export function createUsageVisitors({
   // their type-only declarations are still signal
   function visitDecoratorsAndAnnotation(path) {
     visitDecorators(path);
-    if (walkAnnotations) checkTypeAnnotation(path);
+    if (walkAnnotations) core.checkTypeAnnotation(path);
   }
 
   return {
     ...walkAnnotations ? {
-      FunctionDeclaration: checkTypeAnnotation,
-      FunctionExpression: checkTypeAnnotation,
-      ArrowFunctionExpression: checkTypeAnnotation,
+      FunctionDeclaration: core.checkTypeAnnotation,
+      FunctionExpression: core.checkTypeAnnotation,
+      ArrowFunctionExpression: core.checkTypeAnnotation,
       // bodyless function-signature types carry their global refs in params / return / type
       // params but have no FunctionExpression body to drive the param/return walk above, so
       // sweep them directly (babel reaches these via ReferencedIdentifier). covers interface
@@ -1369,23 +1233,14 @@ export function createUsageVisitors({
       // inside type aliases), and ambient overload declare-functions. abstract / declare-class /
       // overload METHODS surface in oxc as a TSEmptyBodyFunctionExpression `.value` (the params
       // live there, not on the method node), so sweep that node rather than babel's TSDeclareMethod
-      TSMethodSignature: checkTypeAnnotation,
-      TSCallSignatureDeclaration: checkTypeAnnotation,
-      TSConstructSignatureDeclaration: checkTypeAnnotation,
-      TSFunctionType: checkTypeAnnotation,
-      TSConstructorType: checkTypeAnnotation,
-      TSDeclareFunction: checkTypeAnnotation,
-      TSEmptyBodyFunctionExpression: checkTypeAnnotation,
-      VariableDeclarator(path) {
-        if (path.node.id?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path));
-        }
-      },
-      CatchClause(path) {
-        if (path.node.param?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
-        }
-      },
+      TSMethodSignature: core.checkTypeAnnotation,
+      TSCallSignatureDeclaration: core.checkTypeAnnotation,
+      TSConstructSignatureDeclaration: core.checkTypeAnnotation,
+      TSFunctionType: core.checkTypeAnnotation,
+      TSConstructorType: core.checkTypeAnnotation,
+      TSDeclareFunction: core.checkTypeAnnotation,
+      TSEmptyBodyFunctionExpression: core.checkTypeAnnotation,
+      ...core.annotationDeclVisitors,
       // call / new / tagged-template type arguments (covers the optional-call form too). babel reaches
       // a `tag<Set<number>>` instantiation via ReferencedIdentifier; oxc hangs it off the tag node, so
       // sweep it here too or the type-only globals drop in unplugin only
@@ -1402,7 +1257,7 @@ export function createUsageVisitors({
     // so JSX inside decorator expressions (`@(<Map/>) class C {}`) also triggers
     JSXIdentifier: jsxIdentifierVisitor,
     MemberExpression: memberExpressionVisitor,
-    BinaryExpression: binaryExpressionVisitor,
+    BinaryExpression: core.emitBinaryInUsage,
     Property: propertyVisitor,
     // class node sweeps its own type params + `extends Base<...>` super-type-args
     ClassDeclaration: visitDecoratorsAndAnnotation,
@@ -1417,21 +1272,21 @@ export function createUsageVisitors({
 
 // --- Syntax visitors ---
 
+// the shared path handlers mapped onto estree's enumerated node types (methods hold a nested
+// FunctionExpression here, so the three named function types cover what babel's alias does)
 export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack = false }) {
-  const rules = createSyntaxRules({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
-  function onFunction(path) { return rules.onFunction(path.node); }
-  function onClass(path) { return rules.onClass(path.node); }
+  const handlers = createSyntaxPathHandlers({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
   return {
-    ImportExpression(path) { rules.onImportExpression(path.node); },
-    FunctionDeclaration: onFunction,
-    FunctionExpression: onFunction,
-    ArrowFunctionExpression: onFunction,
-    ForOfStatement(path) { rules.onForOfStatement(path.node); },
-    ArrayPattern(path) { rules.onArrayPattern(path.node); },
-    SpreadElement(path) { rules.onSpreadElement(path.node, path.parent?.type); },
-    YieldExpression(path) { rules.onYieldExpression(path.node); },
-    VariableDeclaration(path) { rules.onVariableDeclaration(path.node); },
-    ClassDeclaration: onClass,
-    ClassExpression: onClass,
+    ImportExpression: handlers.onImportExpression,
+    FunctionDeclaration: handlers.onFunction,
+    FunctionExpression: handlers.onFunction,
+    ArrowFunctionExpression: handlers.onFunction,
+    ForOfStatement: handlers.onForOfStatement,
+    ArrayPattern: handlers.onArrayPattern,
+    SpreadElement: handlers.onSpreadElement,
+    YieldExpression: handlers.onYieldExpression,
+    VariableDeclaration: handlers.onVariableDeclaration,
+    ClassDeclaration: handlers.onClass,
+    ClassExpression: handlers.onClass,
   };
 }
