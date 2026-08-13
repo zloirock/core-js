@@ -1101,6 +1101,76 @@ function * generateChainAssignValue() {
   }
 }
 
+// --- Kept-value canon: a chain-assign VALUE that navigates proxy hops ---
+// the hop-bearing complement of the chain-assign-value family above (hop-free by design): once the
+// value canon owns hop navigation, the assigned value spells by ONE rule - a fully-ponyfilled nav
+// as the LEAF's own ponyfill, an unresolvable TAIL raw off the deepest ponyfillable hop, a hop
+// below the collapse point behind a nested guard - and each VALUE row takes a distinct render path
+// (bare / tail-collapse / nested / their sequence-rooted twins / a mid-chain write / an alias
+// root), each CLAIM row a distinct emission channel (unguarded static read and call, guarded
+// static, instance memoize). the readbacks pin both assignment targets and the log pins the
+// prefix effect to exactly one run. rigged: the hops need live slots natively. one deliberate
+// exclusion: a CLAIMLESS value position asserts a canon still undecided - crossing it would
+// assert a decision instead of the contract
+const KVC_VALUES = [
+  ['pony-leaf', 'globalThis.self'],
+  ['pony-tail', 'globalThis.self.window'],
+  ['nested-below', 'globalThis.window.self'],
+  ['seq-leaf', '(log.push("v"), globalThis).self'],
+  ['seq-tail', '(log.push("v"), globalThis).self.window'],
+  ['seq-nested-below', '(log.push("v"), globalThis).window.self'],
+  ['midwrite-tail', '(ntw = globalThis.self.window)'],
+  // the inner write sits BELOW a hop of the outer value (a mid-chain kept assignment): the
+  // innermost value collapses, the outer read rides off it
+  ['midwrite-below-hop', '(ntw = globalThis.self).window'],
+  ['alias-seq-nested-below', '(log.push("v"), galias).window.self', { alias: true }],
+  // the sequence AROUND the assignment (not inside its value): recognition digs through the
+  // SE-bearing wrapper, the prefix effect stays alive and runs once
+  ['seq-around-leaf', 'globalThis.self', { around: true }],
+  ['seq-around-tail', 'globalThis.self.window', { around: true }],
+  // the COMPUTED spelling of a pristine hop rides the key-fold canon into the same collapse
+  ['computed-leaf', "globalThis['self']"],
+  // TS wrappers around the value are transparent to the peel canon; the cast/non-null token
+  // must neither block the collapse nor leak into the re-emitted spelling unbalanced
+  ['ts-cast-leaf', 'globalThis.self as any', { ts: true }],
+  ['ts-cast-tail', 'globalThis.self.window as any', { ts: true }],
+  ['ts-nonnull-tail', 'globalThis.self.window!', { ts: true }],
+];
+const KVC_CLAIMS = [
+  ['static-read', recv => `${ recv }.Number.MAX_SAFE_INTEGER`],
+  ['static-call', recv => `${ recv }.Array.of(7)`],
+  ['guarded-static', recv => `${ recv }?.Array.from?.([1])`, { guard: true }],
+  ['instance-proto', recv => `${ recv }.Array.prototype.includes.call([1], 1)`],
+  // the fallback rewrite (a member outside the known-statics whitelist), in both its plain and
+  // its guarded arm - a distinct emission channel with its own subsume/rescue bookkeeping
+  ['static-fallback', recv => `${ recv }.Promise.noSuchStatic`],
+  ['fallback-guarded', recv => `${ recv }?.Promise.noSuchStatic`, { guard: true }],
+  // a claim the TARGET MATRIX declines (`getPrototypeOf` needs nothing on the default targets):
+  // the stored canon still spells the kept value, with no claim to ride on
+  ['claim-declined', recv => `${ recv }?.Object.getPrototypeOf({}).constructor`, { guard: true }],
+  // a claim ABSENT from the definitions (`BigInt` has no pure entry at all) declines through a
+  // different layer than the target matrix - the stored canon must fire for it identically
+  ['claim-absent', recv => `${ recv }?.BigInt`, { guard: true }],
+  // the destructure channel: the assigned value is a destructure HOST here, whose receiver
+  // replacement re-emits the kept assignment through its own plan/emitter pair
+  ['destructure-decl', recv => `(() => { const { Map: M } = ${ recv }; return typeof M; })()`],
+];
+
+function * generateKeptValueCanon() {
+  for (const [valueId, value, valueOpts = {}] of KVC_VALUES) {
+    for (const [claimId, build, claimOpts = {}] of KVC_CLAIMS) {
+      if (valueOpts.noGuard && claimOpts.guard) continue;
+      const id = `kept-value-canon/${ valueId }-${ claimId }`;
+      const setup = valueOpts.alias ? ' const galias = globalThis;' : '';
+      const recv = valueOpts.around ? `((log.push("v"), ntm = ${ value }))` : `(ntm = ${ value })`;
+      const expr = `(() => { let ntw;${ setup } try {`
+        + ` return [String(${ build(recv) }), log.length, ntm === globalThis, ntw === globalThis]; }`
+        + ' catch (e) { return ["throw", log.length, false, false]; } })()';
+      yield { ...snippet(id, expr, { rig: true }), strip: false, ...valueOpts.ts ? { ts: true } : {} };
+    }
+  }
+}
+
 // --- A destructured IIFE parameter owns its argument slot ---
 // a flatten sibling walks the declarators it re-emits and substitutes proxy-global reads in them, but
 // an argument the callee destructures in its own param pattern belongs to the synth swap instead:
@@ -1325,11 +1395,16 @@ const BARE_PROBE_SHAPES = [
   { id: 'second-unresolvable-hop', tail: '?.window?.self.Array.of(5).at(0)' },
   { id: 'second-unresolvable-hop-optional', tail: '?.window?.self?.Array.of(6).at(0)' },
   { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)" },
+  // the declined-leaf connector over a DEEP plain nav: the hop fold must not erase the `?.`
+  // (it read a defined `_globalThis.BigInt` where the guarded canon answers undefined).
+  // rig-only: the unrigged twin throws NATIVELY at the plain `.self` read (the accepted
+  // realm-collapse divergence), which the three-way comparison cannot hold
+  { id: 'deep-plain-declined-leaf', tail: '.self.window?.BigInt', rigOnly: true },
 ];
 function * generateBareProxyProbe() {
   for (const shape of BARE_PROBE_SHAPES) {
     const inner = `(() => { const v = globalThis.window${ shape.tail }; return typeof v; })()`;
-    yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false };
+    if (!shape.rigOnly) yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false };
     yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false };
   }
   // a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
@@ -5844,6 +5919,7 @@ export function * generate() {
   yield * generateTypeVarHoist();
   yield * generateProxyGlobalSEReceiver();
   yield * generateChainAssignValue();
+  yield * generateKeptValueCanon();
   yield * generateIifeArgOwnership();
   yield * generateWrappedSiblingReceiver();
   yield * generateProxyHopCtor();

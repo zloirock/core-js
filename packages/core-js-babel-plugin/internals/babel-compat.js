@@ -5,9 +5,11 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import {
   claimReceiverEvaluationMayThrow,
   classifyReceiverSE, descendToChainRoot, keySideEffectsOnly, maximalProxyGlobalPrefix,
+  collectChainAssignsThroughMemberChain,
   guardTailPullCount,
   navHasUnresolvableProxyHop,
   peelChainAssignment, peelReceiverSequenceTail, inlineCallProxyGlobalRoot, planProvenNavGuardCollapse,
+  storedNavHopClaimSuppressed,
   proxyReceiverValueCanBeUndefined, sealedChainBoundary,
   resolveObjectName, vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -15,6 +17,7 @@ import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-wa
 import {
   createTypeAnnotationChecker,
   isReusableReceiver,
+  markRenderedStoredValue,
   memberKeyName,
   memberProxyHopName,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -60,9 +63,8 @@ function reparenthesizeTaggedTag(t, fromPath) {
 }
 
 export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry, injectPureGlobal } = {}) {
-  const { resolveNodeType, resolvedType } = typeResolvers ?? {};
-
-  const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+  const { resolveNodeType, resolvedType } = typeResolvers ?? {},
+        isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
   function reset() {
     isInTypeAnnotation.reset();
@@ -595,15 +597,34 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       return navGuardTestNode(node, null, plan);
     }
     if (plan.kind === 'nested') {
+      // the deferred flush may land inside a SUPPRESSED guard region no visitor re-enters, so
+      // the proven root substitutes EAGERLY in the test - a raw `globalThis` frozen there reads
+      // the engine global where the ponyfill belongs. an ALIAS root keeps its name (its own
+      // declaration is rewritten where it lives); the injected binding survives any re-visit
+      if (plan.rootId?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(plan.rootId.name)) {
+        const rootPure = plan.resolvePure({ kind: 'global', name: plan.rootName });
+        if (rootPure) plan.rootId.name = injectPureGlobal(rootPure.entry, rootPure.hintName).name;
+      }
+      // a DEEP CLONE resets node identity: the original prefix members were marked handled by
+      // the claim's own walk, so the flush requeue would skip their subtree and freeze a prefix
+      // effect's polyfill raw (`arr.at(0)` in the test); fresh nodes re-enter the visitors
       return t.conditionalExpression(
-        t.binaryExpression('==', t.nullLiteral(), keptPrefix(plan.hops[plan.lastUnresolvableIdx].node)),
+        t.binaryExpression('==', t.nullLiteral(),
+          t.cloneNode(keptPrefix(plan.hops[plan.lastUnresolvableIdx].node), true)),
         t.unaryExpression('void', t.numericLiteral(0)), withTail(leaf),
       );
     }
     if (plan.kind === 'sequence') {
-      const rootValue = keptPrefix(plan.rootValueNode);
-      const parts = keySeExprs.length ? [rootValue, ...keySeExprs, t.cloneNode(pureId)]
-        : [rootValue, t.cloneNode(pureId)];
+      // a SEQUENCE root carries only its PREFIX expressions into the render: the sequence's own
+      // tail is the proxy-root read the collapse replaces - re-emitting the whole sequence left
+      // it as a dead middle element dragging a dead import (`(se, _globalThis, _self)` where the
+      // text emitter spells `(se, _self)`). every other 'sequence' root (a chain-assign write,
+      // an effectful call) IS the effect and re-emits whole
+      const rootValue = plan.seqRoot
+        ? plan.rootValueNode.expressions.slice(0, -1).map(expr => keptPrefix(expr))
+        : [keptPrefix(plan.rootValueNode)];
+      const parts = keySeExprs.length ? [...rootValue, ...keySeExprs, t.cloneNode(pureId)]
+        : [...rootValue, t.cloneNode(pureId)];
       return withTail(t.sequenceExpression(parts));
     }
     return withTail(leaf);
@@ -618,7 +639,21 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // the member chain from every claim resolver still due to visit it (`(n = X)?.Array.of(...)`
   // lost its static claim), while the assignment node itself stays live through any memoize,
   // so the deferred mutation lands in whatever emit captured it
-  function collapseKeptNavValueNode(rootNode, anchorPath) {
+  // the assignment carrying the collapsible value may sit BURIED under member hops of the
+  // node a channel holds (`(q = globalThis.self.window).Number` - the claim's object tops at
+  // `.Number`, not at the `=`), so the funnel digs with the same walk the SE prelude uses and
+  // collapses every assignment it surfaces; a node that IS the assignment walks to itself
+  function collapseKeptNavValueNode(rootNode, anchorPath, opts) {
+    let rendered = false;
+    for (const chainAssign of collectChainAssignsThroughMemberChain(rootNode)) {
+      rendered = collapseKeptChainAssign(chainAssign, anchorPath, opts) || rendered;
+    }
+    return rendered;
+  }
+
+  // one dug assignment's collapse: plan, then render - immediately in place, or deferred to
+  // the assignment's own exit flush. true only when a render actually landed
+  function collapseKeptChainAssign(rootNode, anchorPath, { immediate = false } = {}) {
     const adapter = getAdapter?.();
     // the whole resolver-option family or nothing: this one omitted `injectPureGlobal` while
     // calling it at the tail, so a harness wired with only some of them would TypeError there
@@ -626,9 +661,24 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const plan = planProvenNavGuardCollapse({
       rootNode, scope: anchorPath.scope, adapter, path: anchorPath,
       resolvePure: ({ name }) => resolvePureGlobalEntry(name, anchorPath),
+      allowSequenceRoot: true,
     });
     if (!plan?.topAssign) return;
     const { leafPure: pure } = plan;
+    // a channel that OWNS the assignment's emission (the unguarded static claim re-emits it as a
+    // side effect, possibly on a REBUILT receiver whose nodes the deferred flush can never match
+    // by identity) collapses in place: the caller replaceWith-inserts the host right after, so
+    // the render re-enters traversal and the ES5 lowerings still visit it.
+    // the render replaces the INNERMOST `=` step's value slot - the plan peels the whole `=`
+    // chain to the nav, so writing the OUTER right would obliterate every mid-chain write
+    // (`q = w = nav` must keep `w =`)
+    if (immediate) {
+      // the stored-canon render is MARKED: for classification it IS the navigation it
+      // replaced, so the provider's alias follows bypass the guarded-read gate on it (a
+      // user-written conditional never gets the mark and keeps the gate)
+      plan.topAssignSteps.at(-1).right = markRenderedStoredValue(renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)));
+      return true;
+    }
     // snapshot a render source NOW (pre-lowering) by deep-cloning it: the flush lands at program
     // exit, AFTER the optional-chain lowering pass visited the tree, so a LIVE node reference may
     // by then have been moved into the lowering's own memo and the render would strand a dangling
@@ -657,18 +707,49 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       }
       return t.cloneNode(node, true);
     }
-    if (plan.kind === 'nested') {
-      const hop = plan.hops[plan.lastUnresolvableIdx];
-      const testNode = snapshotNavRenderNode(hop.node);
-      if (!testNode) return;
-      plan.hops[plan.lastUnresolvableIdx] = { ...hop, node: testNode };
-    } else if (plan.kind === 'sequence') {
-      const rootValue = snapshotNavRenderNode(plan.rootValueNode);
-      if (!rootValue) return;
-      plan.rootValueNode = rootValue;
+    // a SEQ-rooted plan keeps LIVE references instead of the snapshot: its prefix expressions
+    // carry their own pending claims (`arr.at(0)` polyfills after this queue point but before
+    // the assignment's exit, where the primary flush lands - children complete first), and a
+    // clone taken now would freeze them raw. the program-exit backstop skips these plans (see
+    // `flushKeptNavCollapses`) - by then the lowering may have moved what they reference
+    if (!plan.seqRoot) {
+      if (plan.kind === 'nested') {
+        const hop = plan.hops[plan.lastUnresolvableIdx];
+        const testNode = snapshotNavRenderNode(hop.node);
+        if (!testNode) return;
+        plan.hops[plan.lastUnresolvableIdx] = { ...hop, node: testNode };
+      } else if (plan.kind === 'sequence') {
+        const rootValue = snapshotNavRenderNode(plan.rootValueNode);
+        if (!rootValue) return;
+        plan.rootValueNode = rootValue;
+      }
+      plan.keySeExprs = plan.keySeExprs.map(se => t.cloneNode(se, true));
     }
-    plan.keySeExprs = plan.keySeExprs.map(se => t.cloneNode(se, true));
     pendingKeptNavCollapses.push({ plan, pureId: injectPureGlobal(pure.entry, pure.hintName) });
+  }
+
+  // a QUEUED kept-nav plan owns its assignment's whole emission: any other channel firing
+  // inside that span (the suppressed-hop fold, the short-circuit render, a hop's own claim)
+  // would detach the nodes the deferred flush renders from, freezing pre-claim spellings into
+  // the output ('plan'). only a pristine PROXY-named hop stands down (prefix effects like
+  // `arr.at(0)` keep their claims - the render re-emits them). beyond plan ownership, the
+  // shared stored-value canon refuses a CLAIMLESS hop collapse over an undefinable receiver
+  // ('stored') - the caller renders the kept-nav canon there instead of the plain collapse
+  function keptNavHopClaimSuppressed(path) {
+    if (pendingKeptNavCollapses.length && memberProxyHopName(path.node)) {
+      for (let p = path; p; p = p.parentPath) {
+        const { node } = p;
+        if (node?.type === 'AssignmentExpression'
+          && pendingKeptNavCollapses.some(({ plan }) => plan.topAssign === node)) return 'plan';
+      }
+    }
+    const adapter = getAdapter?.();
+    if (!adapter || !resolvePureGlobalEntry) return false;
+    // the shared canon returns the owning ASSIGNMENT for the stored case - the caller renders
+    // the kept value in place through it
+    return storedNavHopClaimSuppressed(path, {
+      scope: path.scope, adapter, resolvePure: ({ name }) => resolvePureGlobalEntry(name, path),
+    });
   }
 
   // a CLAIM-LESS kept nav whose VALUE can short-circuit, in a chain-END value-use position
@@ -930,16 +1011,29 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const { plan, pureId } = pendingKeptNavCollapses[i];
       if (plan.topAssign !== assignPath.node) continue;
       pendingKeptNavCollapses.splice(i, 1);
-      assignPath.get('right').replaceWith(renderNavCollapseAst(plan, pureId));
+      // the render lands in the INNERMOST `=` step's value slot - replacing the outer right
+      // obliterated the mid-chain writes (`q = w = nav` lost its `w =`). a nested host is
+      // mutated in place, then the outer right re-queues through replaceWith so the remaining
+      // merged passes (ES5 lowerings included) still visit what it carries
+      const host = plan.topAssignSteps.at(-1);
+      if (host === assignPath.node) {
+        assignPath.get('right').replaceWith(markRenderedStoredValue(renderNavCollapseAst(plan, pureId)));
+      } else {
+        host.right = markRenderedStoredValue(renderNavCollapseAst(plan, pureId));
+        assignPath.get('right').replaceWith(assignPath.node.right);
+      }
       return;
     }
   }
 
   // Program-exit backstop for a host whose exit hook never fired (a drain-cloned subtree
-  // re-planned outside the main walk); the in-tree hosts all flushed at their own exit
+  // re-planned outside the main walk); the in-tree hosts all flushed at their own exit.
+  // a SEQ-rooted plan holds live un-snapshotted references the lowering may have moved by
+  // now - it flushes at its own exit or not at all (the raw spelling stays, claims intact)
   function flushKeptNavCollapses() {
     for (const { plan, pureId } of pendingKeptNavCollapses) {
-      plan.topAssign.right = renderNavCollapseAst(plan, pureId);
+      if (plan.seqRoot) continue;
+      plan.topAssignSteps.at(-1).right = markRenderedStoredValue(renderNavCollapseAst(plan, pureId));
     }
     pendingKeptNavCollapses.length = 0;
   }
@@ -1526,6 +1620,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     emitGuardedClaim,
     navGuardTestNode,
     collapseKeptNavValueNode,
+    keptNavHopClaimSuppressed,
     isRenderedPlanTail: node => renderedPlanTails.has(node),
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,

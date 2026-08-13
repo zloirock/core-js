@@ -55,3 +55,22 @@ export function createSyntaxRules({ injectModulesForModeEntry, injectModulesForE
     },
   };
 }
+
+// the path-level halves of the emitters' syntax visitors: each plugin maps its own dialect's
+// visitor keys onto these handlers (babel's virtual `Function` / `Class` aliases and its
+// parser@7 `CallExpression` import shape, estree's enumerated node types) - the bodies stay
+// single-sourced here. `rules` is exposed for the one babel branch that dispatches manually
+export function createSyntaxPathHandlers(options) {
+  const rules = createSyntaxRules(options);
+  return {
+    rules,
+    onImportExpression(path) { rules.onImportExpression(path.node); },
+    onFunction(path) { rules.onFunction(path.node); },
+    onForOfStatement(path) { rules.onForOfStatement(path.node); },
+    onArrayPattern(path) { rules.onArrayPattern(path.node); },
+    onSpreadElement(path) { rules.onSpreadElement(path.node, path.parent?.type); },
+    onYieldExpression(path) { rules.onYieldExpression(path.node); },
+    onVariableDeclaration(path) { rules.onVariableDeclaration(path.node); },
+    onClass(path) { rules.onClass(path.node); },
+  };
+}
