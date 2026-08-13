@@ -21,7 +21,6 @@ core-js/modules/es.iterator.filter
 core-js/modules/es.iterator.find
 core-js/modules/es.iterator.map
 core-js/modules/es.iterator.some
-core-js/modules/es.json.stringify
 core-js/modules/es.map.constructor
 core-js/modules/es.map.get-or-insert
 core-js/modules/es.map.get-or-insert-computed

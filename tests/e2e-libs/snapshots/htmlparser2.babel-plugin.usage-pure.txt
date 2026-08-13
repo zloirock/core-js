@@ -12,7 +12,6 @@
 @core-js/pure/full/function/instance/name
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/includes
-@core-js/pure/full/json/stringify
 @core-js/pure/full/map/constructor
 @core-js/pure/full/number/is-nan
 @core-js/pure/full/number/parse-int
