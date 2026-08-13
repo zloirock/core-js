@@ -137,20 +137,12 @@ export function run() {
 
   // --- Text's own iterators: the explicit cursors drive `RawTextCursor` / `PartialTextCursor` /
   // `LineCursor` ---
-  // The iterator is invoked directly rather than with `for...of`: `for...of` would make Babel emit
-  // `_createForOfIteratorHelper` into THIS module, and at the `pre` phase unplugin never sees Babel's
-  // helpers - so the cell's colour would end up reporting the exercise's syntax rather than anything
-  // about codemirror. The file is not helper-free for that - the `RangeValue` subclass above compiles
-  // through Babel's class helpers - and does not need to be: what matters is that no check asserts
-  // through one.
+  // Cursors, not `for...of`: the loop would emit `_createForOfIteratorHelper` here, and at `pre`
+  // unplugin cannot see Babel's helpers, so the cell would report this file's syntax.
   //
-  // `Text.prototype[Symbol.iterator]` is deliberately NOT driven from here, in any spelling. Both
-  // spellings make this frame the one reaching for the protocol: `usage-pure` rewrites the call
-  // `chunks[Symbol.iterator]()` to core-js's `getIterator`, and the read `chunks[Symbol.iterator]` to
-  // its `getIteratorMethod` - and at `pre`, where no library module produces either, the exercise
-  // becomes their only origin and quietly fills in the phase gap the delta exists to record. The
-  // method is one line returning `this.iter()`, which the next check drives through the library's
-  // own frame.
+  // `Text.prototype[Symbol.iterator]` stays undriven in any spelling - the call rewrites to core-js's
+  // `getIterator`, the read to `getIteratorMethod`, and at `pre` no library module produces either,
+  // which makes this frame their only origin. It returns `this.iter()`, driven by the next check.
   function drain(textCursor) {
     const seen = [];
     while (!textCursor.next().done) seen.push(textCursor.value);
