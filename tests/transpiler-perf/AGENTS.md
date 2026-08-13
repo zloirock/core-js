@@ -8,7 +8,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json`. Run with `npm run tes
 
 ## What the bounds mean
 
-They are discriminators of complexity class, not timing assertions, and they carry wide headroom on purpose: a quadratic regression in the scope or flow analysis overshoots them on any machine, while ordinary machine variance does not. Tightening them to fit an observed number turns a stable gate into a flaky one.
+They are discriminators of complexity class, not timing assertions, and they carry wide headroom on purpose: a quadratic regression in the scope or flow analysis overshoots them on any machine, while ordinary machine variance does not. Tightening them to fit an observed number turns a stable gate into a flaky one. No bound sits below 2 seconds: CI runners can be several times slower than the reference machine, and a 1s bound leaves their healthy runs no variance headroom.
 
 The synthetic cases exist because real code is never dense enough in any single dimension: reassigned names, guards, discriminants, lagged aliases. A quadratic root in the machinery behind one of them stays invisible on a real bundle and is catastrophic on the shape built for it. A case whose source is an array of module sources gates the per-call axis instead, the way a bundler feeds modules one by one; those cases also demand a minimum number of injections, so a run cannot be fast by detecting nothing.
 
