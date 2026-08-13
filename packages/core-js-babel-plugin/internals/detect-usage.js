@@ -1,33 +1,28 @@
 import {
   buildDestructuringInitMeta,
   chooseFallbackReceiverNode,
-  collectDestructureUnionCandidates,
   isInnerDestructureDefault,
   resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  isKnownGlobalName,
-} from '@core-js/polyfill-provider/detect-usage/globals';
-import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
-import {
-  createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   unwrapTransparentSeq,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  createMutationSiteHandler,
-  hasMutationCandidateShapes,
+  beginMutationPrePass,
+  createDetectionAdapter,
+  mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
+import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
+import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
-  collectFunctionScopeVarReassignments,
-  collectScopeLetReassignments,
+  climbJsxMemberChain,
   findFunctionScopeVarInPath,
   findIifeCallSite,
   resolveFallbackReceiver,
   findTSRuntimeBindingInPath,
+  importBindingView,
   isAmbientBindingShape,
   bareAssignmentPatternLeafPath,
   isAssignOrForXWriteTargetPath,
@@ -39,8 +34,7 @@ import {
   buildOwnerWritePathIndex,
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
-  isMutatedStaticPair,
-  mutatedStaticKey,
+  recomputedBindingWrites,
   resolveCallArgument,
   unwrapSafeSequenceTail,
   walkPatternIdentifiers,
@@ -49,12 +43,6 @@ import {
 import {
   aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding, soleAliasWrite,
 } from '@core-js/polyfill-provider/helpers/class-walk';
-
-const IMPORT_SPECIFIER_TYPES = new Set([
-  'ImportDefaultSpecifier',
-  'ImportSpecifier',
-  'ImportNamespaceSpecifier',
-]);
 
 // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression so
 // `require('core-js/...' as any)` / `require((0, 'core-js/...'))` / `require(('core-js/...'))`
@@ -76,25 +64,15 @@ function stringLiteralValue(node) {
 // monkey-patch pay for the path traverse + canonical receiver resolution. shares every
 // resolution step with the read side via `mutations` (provider)
 export function collectMutationPrePass(programPath, adapter, census = null) {
-  const mutated = new Set();
-  if (!(census ? census.hasMutationShapes : hasMutationCandidateShapes(programPath.node, adapter.packages))) return { mutated };
-  const { handleSite, finalizeMutationSet } = createMutationSiteHandler({ adapter, mutated });
+  const { mutated, handleSite, finalize } = beginMutationPrePass({ rootNode: programPath.node, adapter, census });
+  if (!handleSite) return { mutated };
   programPath.traverse({
-    // member visits classify destructure-LHS / for-x contexts; the HOST visits classify
-    // delete / update / assignment with a downward wrapper peel (stacked parens / TS casts)
-    MemberExpression: handleSite,
+    ...mutationSiteVisitors(handleSite),
+    // babel's Optional* dialect twins of the shared member / call sites: without them an
+    // optional-chain mutation (`Object?.assign(Array, {...})`) escapes detection and
+    // usage-pure substitutes over the user patch
     OptionalMemberExpression: handleSite,
-    CallExpression: handleSite,
-    // `Object?.assign(Array, {...})` is an OptionalCallExpression - without this visitor the
-    // optional-call mutation escapes detection and usage-pure substitutes over the user patch
     OptionalCallExpression: handleSite,
-    AssignmentExpression: handleSite,
-    UpdateExpression: handleSite,
-    UnaryExpression: handleSite,
-    // a bare-identifier for-x LHS assigns a global slot per iteration - no member/assignment
-    // node exists for it, so the statement itself is the classification site
-    ForOfStatement: handleSite,
-    ForInStatement: handleSite,
     // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so this scoped
     // traverse never descends into a constructor parameter-property's legacy decorator and a
     // monkey-patch hidden there escapes detection - usage-pure would then substitute over the
@@ -105,7 +83,7 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
       for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
     },
   });
-  finalizeMutationSet();
+  finalize();
   return { mutated };
 }
 
@@ -117,10 +95,8 @@ export function collectMutationPrePass(programPath, adapter, census = null) {
 // native binding (the provider's consumer branches on the member's presence) per-transform state
 // lives in the instance closure - concurrent transforms each build their own; the argless
 // `babelAdapter` below is the stateless view the entry-detection path shares
-export function createBabelAdapter({
-  getInjector = () => null, method = null, getMutatedStatics = () => null, getWrittenContainerSlots = () => null, getPackages = () => null,
-  isTypingMutatedSlot = null,
-} = {}) {
+export function createBabelAdapter(options = {}) {
+  const { getInjector = () => null } = options;
   // the injector's declarator registry serves plugin-minted memo refs whose scope model
   // misrepresents the binding: scope-invisible on the memo-dense append path, or param-landed
   // by babel's `scope.push` on a callable scope (binding node = bare Identifier until the
@@ -132,48 +108,7 @@ export function createBabelAdapter({
     const bindingId = scope.getBindingIdentifier(name);
     return !bindingId || bindingId === memoDecl.id ? memoDecl : null;
   }
-  const adapter = {
-    // the provider mode this adapter serves. only `usage-pure` rewrites a proxy-global alias to
-    // a receiver-less helper (dropping the receiver), so the shared resolver gates the
-    // assignment-dominates-use soundness check on it; global / entry modes keep the call site and
-    // inject side-effect imports, which is sound regardless of where the alias was assigned
-    method,
-    // a static the user monkey-patches is not a polyfillable static (pure only): detection
-    // leaves its receiver to the identifier machinery so the patch and the reads share the
-    // injected constructor object
-    isMutatedStatic(object, key) {
-      return method === 'usage-pure' && isMutatedStaticPair(object, key, getMutatedStatics());
-    },
-    // the TYPE layer asks a DIFFERENT question than the injection policy above: a patched static no
-    // longer returns what its declaration says, so its result type is unknown in EVERY method - a
-    // global-flavor narrow taken off the declaration silently drops the polyfill the replacement
-    // actually needs. the pure-only gate belongs to the injection skip, not to typing
-    // a container SLOT written anywhere (`const w = { k: Object }; w.k = Map`) is no built-in mutation,
-    // so it is deliberately NOT part of the mutated-static set - reporting it there would deopt every
-    // namespace gate in the file. its ONE reader is the receiver walk's container descent, which must
-    // stop trusting the literal's initial member once the slot has been replaced
-    isWrittenContainerSlot(object, key) {
-      const slots = getWrittenContainerSlots?.();
-      return !!slots && (slots.has(`${ object }.*`) || slots.has(mutatedStaticKey(object, key)));
-    },
-    // the KNOWN written value nodes reaching a slot: direct writes to the named slot plus
-    // unknown-slot (dynamic-key) writes, which may land anywhere on the container
-    writtenContainerSlotValues(object, key) {
-      const slots = getWrittenContainerSlots?.();
-      if (!slots) return [];
-      const direct = slots.get(mutatedStaticKey(object, key)) ?? [];
-      const viaUnknownSlot = key === '*' ? [] : slots.get(`${ object }.*`) ?? [];
-      return viaUnknownSlot.length ? [...direct, ...viaUnknownSlot] : direct;
-    },
-    isMutatedStaticSlot(object, key) {
-      return isTypingMutatedSlot ? isTypingMutatedSlot(object, key)
-        : isMutatedStaticPair(object, key, getMutatedStatics());
-    },
-    // user-resolved package prefixes (`pkg` + `additionalPackages`) for symbol-import /
-    // proxy-import detection. plugin-supplied, NOT injector-published: the plugin knows the
-    // resolved array before ANY injector exists, and the mutation pre-pass runs in exactly
-    // that window (injector-only sourcing left the pre-pass packages-blind there)
-    get packages() { return getPackages(); },
+  return createDetectionAdapter(options, adapter => ({
     hasBinding(scope, name, path = null) {
       // a plugin-minted memo ref appended on the memo-dense fast path is scope-invisible
       // until the programExit re-crawl - the injector's declarator registry is authoritative
@@ -263,11 +198,7 @@ export function createBabelAdapter({
       const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null : null;
       const info = identityInfo ?? getInjector()?.getBindingInfo(name, useStart) ?? null;
       if (b) {
-        const isImportBinding = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type);
-        const importSource = isImportBinding ? b.path.parent?.source?.value ?? null : null;
-        // the EFFECTIVE kind: `import { type X }` carries it on the specifier, `import type X`
-        // on the declaration - the erasure canon needs one field covering both spellings
-        const importKind = isImportBinding ? b.path.node?.importKind ?? b.path.parent?.importKind ?? null : null;
+        const { isImportBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
         // `info.source !== null` means a registered pure import - only attach the hint when the
         // actual scope binding IS that import. `info.source === null` is a destructure-alias from
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
@@ -275,12 +206,11 @@ export function createBabelAdapter({
         // babel's scope model places the whole SwitchStatement - discriminant included - inside
         // the case-block scope, so a discriminant write of a name that a case-level lexical
         // shadows is attributed to the INNER binding and the outer binding's set misses it (per
-        // spec the discriminant evaluates in the OUTER env). recompute through the canonical AST
-        // scan per binding kind - the same recovery the unplugin adapter applies to estree scope
-        const constantViolations = withoutValuelessDeclarationViolations(
-          path && b.kind === 'var' ? collectFunctionScopeVarReassignments(path, name)
-            : path && (b.kind === 'let' || b.kind === 'const') ? collectScopeLetReassignments(b.path, name)
-              : b.constantViolations);
+        // spec the discriminant evaluates in the OUTER env) - the shared recompute reads the
+        // canonical AST scan per binding kind instead
+        const constantViolations = recomputedBindingWrites({
+          kind: b.kind, bindingPath: b.path, usePath: path, name, fallback: b.constantViolations,
+        });
         // a VERIFIED identity hit needs no live shape verification: the registration judged the
         // binding's COMPLETE original write set at pre-pass time, and any violation appearing
         // since is our own mutation (the value swap), not user flow. decl-form entries stay
@@ -307,6 +237,8 @@ export function createBabelAdapter({
         }) ? info.source : null;
         return {
           node: b.path.node, kind: b.kind, constantViolations, importSource, importKind,
+          // READ count of the binding (write positions excluded) - babel 7 counts, babel 8 keeps a Set
+          references: b.references ?? b.referencesSet?.size ?? 0,
           // the scope the DECLARATOR is written in - the const-alias walkers advance to it per hop
           // so a later hop reading an outer-declared name resolves it there, not against the
           // receiver-use scope where an inner shadow of that name would swallow the value.
@@ -395,8 +327,7 @@ export function createBabelAdapter({
     },
     isStringLiteral,
     getStringValue: stringLiteralValue,
-  };
-  return adapter;
+  }));
 }
 
 // a NodePath whose ancestor chain hits a detached node (`.node` null) before reaching the Program
@@ -638,6 +569,8 @@ export function createUsageVisitors({
 
   keptProxyHops = null,
   onSuppressedProxyHop = null,
+  suppressKeptNavHop = null,
+  suppressKeptNavRoot = null,
   onUsage,
   resolveMeta,
   resolvePure = null,
@@ -646,12 +579,13 @@ export function createUsageVisitors({
   toHint,
   walkAnnotations = true,
 }) {
-  // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
-  // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
-  // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
-  const skipUpdateTargets = method === 'usage-pure';
-  let handledObjects = new WeakSet();
-  let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind, adapter);
+  const core = createUsageHandlerCore({
+    adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, suppressProxyGlobals,
+    keptProxyHops, onSuppressedProxyHop, suppressKeptNavRoot,
+    // babel exposes the declaration kind directly on its Binding
+    selfRefBindingKind: b => b.kind,
+  });
+  const { skipUpdateTargets } = core;
 
   // destructure-only wrapper (every caller is inside handleDestructuring): a side-effecting
   // computed key resolves to its tail for identity; the emitter keeps the key in the pattern (it
@@ -671,17 +605,11 @@ export function createUsageVisitors({
     if (!skipReferencedCheck && !path.isReferencedIdentifier()) return;
     // the logical-assign LHS polyfill injection lives on a dedicated `Identifier` visitor
     // (babel classifies `Map ||= X` LHS as non-reference, so it doesn't reach this path)
-    // ReferencedIdentifier matches JSXIdentifier in too many positions. accept:
-    //   `<Foo />` - direct opening-element name
-    //   `<Foo.Bar.Baz />` - root of N-deep JSXMemberExpression chain at opening-element
-    //     name slot. the root identifier IS a runtime reference; the .Bar.Baz chain
-    //     accesses props on it. walks through the chain so deeper-than-2 still detects
-    // reject everything else: attribute names, JSXNamespacedName parts, .property positions
+    // ReferencedIdentifier matches JSXIdentifier in too many positions. accept only a direct
+    // opening-element name (`<Foo />`) or the root of an N-deep member chain there
+    // (`<Foo.Bar.Baz />`); reject attribute names, JSXNamespacedName parts, .property positions
     if (path.node.type === 'JSXIdentifier') {
-      let cur = path;
-      while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
-        cur = cur.parentPath;
-      }
+      const cur = climbJsxMemberChain(path);
       if (cur?.parent?.type !== 'JSXOpeningElement' || cur.key !== 'name') return;
     }
     // TS type-only positions: `type X = ...` / `interface X {...}` / `import type X = require(...)`
@@ -704,39 +632,21 @@ export function createUsageVisitors({
     // keeps `isReferencedIdentifier` true so the read reaches here; both checks peel transparent
     // ancestors before testing the write shapes
     if (skipUpdateTargets && (isInUpdateOperand(path.parentPath) || isAssignOrForXWriteTargetPath(path))) return;
-    const { node } = path;
     // adapter.hasBinding folds in two filters: skips type-only TSImportEquals (elided by
     // tsc - runtime resolves to global) and recognises plugin-managed bindings (pure-import
-    // aliases, global destructure aliases). single check, parity with unplugin's visitor
-    if (adapter.hasBinding(path.scope, node.name, path)) {
-      // self-reference `var X = X` - hoisted var init references its own name, which at
-      // runtime reads from the outer (global) scope before the local is assigned. narrow
-      // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
-      // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = ...`) don't get
-      // re-routed through generic-global polyfill
-      if (!isSelfRefVarBinding(path.scope.getBinding(node.name), path)) return;
-      // name equals the binding's own name (we looked up `binding` by `node.name`), so
-      // `isKnownGlobalName(node.name)` is sufficient - `resolveBindingToGlobal` would
-      // walk a now-mutated `init` and give an unreliable answer
-      if (!isKnownGlobalName(node.name)) return;
-      if (handledObjects.has(node)) return;
-      onUsage({ kind: 'global', name: node.name }, path);
-      return;
-    }
-    // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
-    if (handledObjects.has(node)) return;
-    onUsage({ kind: 'global', name: node.name }, path);
+    // aliases, global destructure aliases). single check, parity with unplugin's visitor.
+    // the stored kept-nav ROOT hook runs inside the core tail, shared with unplugin
+    core.emitGlobalUsage(path);
   }
 
   function handleMemberExpression(path) {
     const { node, parent } = path;
-    // a hop marked handled emits no meta - the marking keeps the TEXT emitter from queueing a
-    // rewrite overlapping the outer span. this emitter mutates the AST and has no such collision,
-    // so a hop the detector recorded as still-live gets its render driven here
-    if (handledObjects.has(node)) {
-      if (keptProxyHops?.has(node)) onSuppressedProxyHop?.(path);
-      return;
-    }
+    // this emitter mutates the AST and has no text-span collision, so a hop the detector
+    // recorded as still-live gets its render driven through the core's suppressed-hop callback
+    if (core.memberAlreadyHandled(path)) return;
+    // a proxy-named hop inside an assignment a QUEUED kept-nav plan owns: its claim would
+    // detach the nodes the deferred flush renders from - the plan spells the whole value
+    if (suppressKeptNavHop?.(path)) return;
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) {
       // a guarded SHIM write stays fully native (its statement is ignored as polyfill
       // intent); a deliberate override's receiver follows the SAME identifier routing the
@@ -745,34 +655,14 @@ export function createUsageVisitors({
       // reads use, so the patch and the reads land on one object - no marking
       return;
     }
-    const meta = handleMemberExpressionNode({
-      node, scope: path.scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
-      resolvePure, keptProxyHops,
-    });
-    if (meta) {
-      onUsage(meta, path);
-      // usage-global union: extra reachable receiver / key targets each earn a side-effect import
-      for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
-    }
+    core.emitMemberUsage(path);
   }
 
-  // destructure-prop emit funnel: every prop meta gets its computed `Symbol.X` key provenance
-  // checked once here, so a string spelling of the key stays untagged and the symbol-routed
-  // emit paths leave it as a plain property read
+  // capture the key slots BEFORE dispatch: a usage-pure emit may REPLACE the ObjectProperty
+  // (extraction / rewrite), detaching `path.node` for the shared funnel's union pass
   function emitPropUsage(meta, path, containerWalkObjects = null) {
-    // capture the key slots BEFORE dispatch: a usage-pure emit may REPLACE the ObjectProperty
-    // (extraction / rewrite), detaching `path.node` for the union pass below.
-    // `meta` may be null (an unresolvable - e.g. BRANCHING - computed key, or a mutated-static
-    // receiver): the primary dispatch skips, but the union still runs - the provider synthesizes
-    // its branch-key carrier there, so every producer bail keeps its reachable arm keys
     const { key: keyNode, computed } = path.node;
-    const { scope } = path;
-    if (meta) onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
-    // usage-global reachable receiver / key union: each extra destructure target earns a
-    // side-effect import beside the primary, mirroring the member funnel
-    for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path, resolvePure, containerWalkObjects,
-    })) onUsage(extra, path);
+    core.emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects });
   }
 
   // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
@@ -933,30 +823,6 @@ export function createUsageVisitors({
     emitPropUsage(meta, path, containerUnion);
   }
 
-  function handleBinaryExpression(path) {
-    const meta = handleBinaryIn({
-      node: path.node, scope: path.scope, adapter, handledObjects, isEntryAvailable, suppressProxyGlobals, path,
-    });
-    if (!meta) return;
-    onUsage(meta, path);
-    // usage-global reachable union targets of a reassigned `in` key / receiver alias
-    for (const extra of meta.extraCandidates ?? []) onUsage(extra, path);
-  }
-
-  // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
-  // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor). route through
-  // the adapter's `hasBinding` so the same filters apply as for `handleIdentifier`: ambient
-  // declarations (`declare const Map`) DON'T shadow (binding is tsc-elided); TS-runtime
-  // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk).
-  // a raw `getBindingIdentifier` here misses TS-runtime shadows entirely and conversely
-  // over-skips on ambient declarations - both avoided by going through the adapter
-  function annotationGlobal(path) {
-    return name => {
-      if (adapter.hasBinding(path.scope, name, path)) return;
-      onUsage({ kind: 'global', name }, path);
-    };
-  }
-
   return {
     ...walkAnnotations ? {
       // babel exposes methods as distinct node types (not MethodDefinition wrappers), so
@@ -967,19 +833,8 @@ export function createUsageVisitors({
       // typeAnnotation on the field-level node, NOT on a nested function, so they need
       // explicit dispatch too - without it the Map / Set polyfills miss on class-field
       // annotations even though the same annotation on a function param would emit
-      [TYPE_ANNOTATION_HOSTS](path) {
-        checkTypeAnnotations(path.node, annotationGlobal(path));
-      },
-      VariableDeclarator(path) {
-        if (path.node.id?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path));
-        }
-      },
-      CatchClause(path) {
-        if (path.node.param?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
-        }
-      },
+      [TYPE_ANNOTATION_HOSTS]: core.checkTypeAnnotation,
+      ...core.annotationDeclVisitors,
     } : null,
     // ReferencedIdentifier covers all read positions for polyfill detection. a combined
     // `'ReferencedIdentifier|Identifier'` shape would register the handler twice via
@@ -1007,7 +862,7 @@ export function createUsageVisitors({
       if (path.node.method) return;
       handleDestructuring(path);
     },
-    BinaryExpression: handleBinaryExpression,
+    BinaryExpression: core.emitBinaryInUsage,
     TSInstantiationExpression: restoreInstantiationParens,
     // @babel/types omits `decorators` from TSParameterProperty's visitor keys, so @babel/traverse
     // never descends into a legacy param decorator's expression on a constructor parameter-property
@@ -1021,17 +876,15 @@ export function createUsageVisitors({
       for (const decoratorPath of path.get('decorators')) path.requeue(decoratorPath);
     },
     // Program.enter calls this to drop per-file WeakSet state
-    [USAGE_VISITORS_RESET]: () => {
-      handledObjects = new WeakSet();
-      isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind, adapter);
-    },
-    [USAGE_VISITORS_IS_HANDLED]: node => handledObjects.has(node),
+    [USAGE_VISITORS_RESET]: core.reset,
+    [USAGE_VISITORS_IS_HANDLED]: core.isHandled,
   };
 }
 
-// syntax visitors for Babel - thin wrapper over shared createSyntaxRules
+// syntax visitors for Babel - the shared path handlers mapped onto babel's visitor dialect
+// (virtual `Function` / `Class` aliases cover the split method node types)
 export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack = false }) {
-  const rules = createSyntaxRules({
+  const handlers = createSyntaxPathHandlers({
     injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
   });
   return {
@@ -1039,17 +892,17 @@ export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesF
     // CallExpression { callee: { type: 'Import' } }. @babel/parser@8 parses the same
     // source as a top-level ImportExpression node - hence the second visitor below
     CallExpression(path) {
-      if (path.get('callee').isImport()) rules.onImportExpression(path.node);
+      if (path.get('callee').isImport()) handlers.rules.onImportExpression(path.node);
     },
-    ImportExpression(path) { rules.onImportExpression(path.node); },
-    Function(path) { rules.onFunction(path.node); },
+    ImportExpression: handlers.onImportExpression,
+    Function: handlers.onFunction,
     'ForOfStatement|ArrayPattern'(path) {
-      if (path.isForOfStatement()) rules.onForOfStatement(path.node);
-      else rules.onArrayPattern(path.node);
+      if (path.isForOfStatement()) handlers.onForOfStatement(path);
+      else handlers.onArrayPattern(path);
     },
-    SpreadElement(path) { rules.onSpreadElement(path.node, path.parent?.type); },
-    YieldExpression(path) { rules.onYieldExpression(path.node); },
-    VariableDeclaration(path) { rules.onVariableDeclaration(path.node); },
-    Class(path) { rules.onClass(path.node); },
+    SpreadElement: handlers.onSpreadElement,
+    YieldExpression: handlers.onYieldExpression,
+    VariableDeclaration: handlers.onVariableDeclaration,
+    Class: handlers.onClass,
   };
 }

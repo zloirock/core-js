@@ -93,7 +93,7 @@ export const wrappedMultiHopNav = null == (k13 = null == _globalThis.window ? vo
 let k14;
 export const wrappedResolvableNav = null == (k14 = _self.window) ? void 0 : _Promise$reject(1).catch(() => {});
 let k15;
-export const doubleWrappedNav = (k15 = _self)?.Object.getPrototypeOf({});
+export const doubleWrappedNav = (k15 = null == _globalThis.window ? void 0 : _self)?.Object.getPrototypeOf({});
 let k11;
 export const castAroundAssign = (k11 = _self, _Math$sign)(-2);
 let k12;

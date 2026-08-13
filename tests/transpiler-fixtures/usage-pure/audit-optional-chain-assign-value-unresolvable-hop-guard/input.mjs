@@ -16,6 +16,21 @@ export const guardedWindowValue = (w = globalThis.window)?.self.Array.prototype.
 let n;
 export const unguardedWindowValue = (n = globalThis.window).self.Array.prototype.flat.call([1, [2]]);
 
+// an SE-bearing sequence prefix inside the kept assignment rides the guard TEST with its own
+// polyfills alive, and the value collapses by the shared rule (deepest ponyfillable hop, raw
+// tail read) exactly like the unguarded twin
+const arr = [1];
+let p;
+export const guardedSeqPrefixValue = (p = (arr.at(0), globalThis).self.window)?.Map;
+
+// a guarded seq-rooted value whose unresolvable hop sits BELOW the ponyfillable leaf renders
+// the nested-guard canon exactly like the unguarded twin: the value's test keeps the prefix
+// effect alive with its own polyfill, the proven root substitutes eagerly (the deferred flush
+// may land where no visitor re-enters), and the kept assignment's plan owns the value's
+// spelling - no inner claim may detach what the render reads
+let nb;
+export const guardedSeqNestedBelow = (nb = (arr.at(0), globalThis).window.self)?.Map.length;
+
 export const guardedWindowHop = globalThis.window?.Array.prototype.at.call([9], 0);
 
 // the DESTRUCTURE-source shape of the same kept root: the text emitter reconstructs the receiver by
