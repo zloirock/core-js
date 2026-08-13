@@ -109,8 +109,11 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 
 // bounds are per (mode, emitter), set at ~3x the measured wall time of a healthy run on the
 // reference machine, rounded UP to a whole second (re-derive the same way after intentional
-// perf work). usage-pure REWRITES every detected use, so its budgets run
-// higher than the injection-only usage-global ones. `injections` is the vacuous-run floor - how
+// perf work) - but never below 2s: CI runners can be several times slower than the reference
+// machine, and a 1s bound leaves their healthy runs no variance headroom, while a quadratic
+// regression overshoots 2s on any machine just as surely. usage-pure REWRITES every detected
+// use, so its budgets run higher than the injection-only usage-global ones. `injections` is
+// the vacuous-run floor - how
 // many modules must inject. Single-source cases need their one; multi-module ones cannot demand
 // every module (a package always holds files with nothing to polyfill) but must not settle for
 // one either, or detection could die everywhere but a single module and still pass - faster, and
@@ -129,20 +132,20 @@ const CASES = [
   // under @babel/generator's 500kb styling-deopt threshold, so the NORMAL codegen path is
   // gated too - the big twin above always runs the deoptimised one
   { name: 'synthetic single-scope, 640 reassigned names', source: () => syntheticSingleScope(640), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic lagged aliases, 1000 names', source: () => syntheticLaggedAliases(1000), bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic guard-dense, 1500 names', source: () => syntheticGuardDense(1500), bounds: {
-    'usage-global': { babel: 1, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 1 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
@@ -150,7 +153,7 @@ const CASES = [
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
   { name: 'codemirror + lezer, mid-sized modules', source: () => packageModules(...CODEMIRROR_DIRECTORIES), injections: 3, bounds: {
-    'usage-global': { babel: 2, unplugin: 1 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
   } },
 ];
 
