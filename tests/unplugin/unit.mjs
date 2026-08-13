@@ -26,6 +26,7 @@ import createPlugin, {
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { createTopLevelStatementRemover } from '../../packages/core-js-unplugin/internals/detect-entry.js';
+import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
   canFuseWithOpenParen,
   collectAllBindingNames,
@@ -3181,8 +3182,8 @@ checkPrePostAliasMemberHandoff();
 // the comparator must DISCRIMINATE real divergences inside/after regex and template literals
 // (the old quote-toggle scanner fused a regex quote into a phantom string and mis-closed
 // nested templates - false PASS) while staying whitespace-insensitive outside literals
-async function checkCollapseWhitespaceLexer() {
-  const { collapseWhitespace: cw } = await import('./collapse-whitespace.mjs');
+function checkCollapseWhitespaceLexer() {
+  const cw = collapseWhitespace;
   check('collapse/regex quote discriminates suffix',
     cw('const r = /a"b/; f(1);') !== cw('const r = /a"b/; f(2);'), true);
   check('collapse/regex literal keeps its inner space', cw('const r = /a b/;').includes('/a b/'), true);
@@ -3198,7 +3199,7 @@ async function checkCollapseWhitespaceLexer() {
   check('collapse/comment apostrophe does not open a string',
     cw("// don't\nf(1);"), cw('f(1);'));
 }
-await checkCollapseWhitespaceLexer();
+checkCollapseWhitespaceLexer();
 
 // the discriminating other branch: a usage-pure pre REWRITES the source (`Array.from` -> pure
 // helper) and emits a content-bearing map, so post must CHAIN through it and OMIT its own
@@ -6240,6 +6241,104 @@ function checkRetransformStability() {
   }
 }
 checkRetransformStability();
+
+// --- call arity comes from the AST, not from the sliced argument text ---
+
+// every renderer that joins arguments after a dispatch receiver asks ONE helper for the leading
+// `, ` separator, and it must read arity off the call node: a zero-arg list holding a comment or a
+// line break slices to a NON-EMPTY string, and a separator ahead of it emits `.call(recv, )` - a
+// trailing comma, ES2017, which takes the whole module out on the ES5 baseline `usage-pure` targets.
+// stated as an invariant rather than an expected spelling: whatever a renderer prints for `m()`, it
+// must print for `m(/* c */)` too, so a new renderer joining the text raw fails here without anyone
+// having to predict its output
+function checkCallArityFromAst() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const PRELUDE = 'const a = [[1]];\nconst o = { m: () => [[1]] };\nconst p = { m: () => ({ x: [[1]] }) };\n';
+  // `%s` is the argument list, and a row carries one per separator it renders. one row per renderer -
+  // the standalone dispatch and its paren-lookup / optional-call spellings, the guard body that
+  // invokes a memoized non-polyfilled callee (bare and with a hop tail), the threaded hops, the
+  // combined chain's inner and outer slots, the split emit of an inherited static - plus a second
+  // row wherever one renderer owns two spellings of the same primitive, as the split emit does
+  const SHAPES = [
+    ['standalone dispatch', 'export const r = a.flat(%s);'],
+    ['paren-lookup callee', 'export const r = (a?.at)(%s);'],
+    ['optional call', 'export const r = a.includes?.(%s);'],
+    ['guard body over a memoized callee', 'export const r = o.m?.(%s).flat();'],
+    ['guard body with a hop tail', 'export const r = p.m?.(%s).x.flat();'],
+    ['threaded hops', 'export const r = a.flat(%s).flat(%s);'],
+    ['combined chain, inner slot', 'export const r = a.flat?.(%s).at(0);'],
+    ['combined chain, outer slot', 'export const r = a.flat?.(%s)?.at(%s);'],
+    ['inherited static split', 'class A extends Array { static f() { return super.from(%s); } }\nexport const r = A.f();'],
+    // `this` in a static context resolves through the same inherited-static machinery, so the split
+    // emit owns both spellings of the primitive - the twin is what keeps the domain enumerated
+    ['inherited static via this', 'class A extends Array { static f() { return this.of(%s); } }\nexport const r = A.f();'],
+  ];
+  // trivia the parser drops but a source slice keeps
+  const TRIVIA = ['\n', ' ', '/* c */', '/* c */\n', '// c\n', '\t/* c */ '];
+  function emit(body) {
+    return createPlugin(OPTIONS).transform(`${ PRELUDE }${ body }\n`, '/p.mjs')?.code ?? body;
+  }
+  for (const [label, template] of SHAPES) {
+    const slots = template.split('%s').length - 1;
+    const zeroArg = emit(template.replaceAll('%s', ''));
+    for (const trivia of TRIVIA) {
+      // comments and layout may legitimately ride along in the emitted text; the token stream may
+      // not move. the comparator's own lexer decides what "token stream" means here - a hand-rolled
+      // comment stripper next to it drifted from that answer on the first comment holding a `*`
+      check(`arity/${ label } is unmoved by ${ JSON.stringify(trivia) }`,
+        collapseWhitespace(emit(template.replaceAll('%s', trivia))), collapseWhitespace(zeroArg));
+    }
+    // the same rows with a REAL argument, counted rather than matched: one separator per filled slot.
+    // this is both the negative (arguments still ride, and ride behind the separator) and the
+    // vacuity guard - a row the resolver declines to rewrite renders no separator and lands on 0
+    check(`arity/${ label } renders one separator per argument`,
+      collapseWhitespace(emit(template.replaceAll('%s', '/* n */ 7'))).split(',7').length - 1, slots);
+  }
+  // the slice is taken by OFFSET out of the original source, and the shapes below are the ones that
+  // move offsets away from a naive character count - a CRLF pair, a leading BOM, an astral character
+  // ahead of (and inside) the list. the arity gate has to hold there too, or the separator comes back
+  // on exactly the sources whose offsets are hardest to reason about
+  const OFFSET_SHAPES = [
+    ['CRLF', 'const a = [[1]];\r\nexport const r = a.flat(\r\n);\r\n'],
+    ['CRLF inside a comment argument', 'const a = [[1]];\r\nexport const r = a.flat(/* one\r\ntwo */);\r\n'],
+    ['BOM', '﻿const a = [[1]];\nexport const r = a.flat(/* c */);\n'],
+    ['astral ahead of the call', 'const s = "\u{1F600}\u{1F600}";\nconst a = [[1]];\nexport const r = s.length + a.flat(/* c */).length;'],
+    ['astral inside the trivia', 'const a = [[1]];\nexport const r = a.flat(/* \u{1F600} */);'],
+  ];
+  // both assertions read the emitted text, and a character class spanning the argument slot is the
+  // wrong tool for it - an argument may itself carry parens (`_ref = helper(a).call(a)`), so such a
+  // pattern answers about the SHAPE of the receiver rather than about the separator. ask the two
+  // questions directly instead: does a list end in a comma, and did a dispatch happen at all
+  function hasDanglingSeparator(out) {
+    return collapseWhitespace(out).includes(',)');
+  }
+  function dispatches(out, helper) {
+    return out.includes(`${ helper }(`) && out.includes('.call(');
+  }
+  // both predicates answer with a boolean, so a negative row of theirs is only worth as much as the
+  // proof that they light up at all - pin the fire condition on literals next to the rows using them
+  check('arity/the dangling-separator predicate fires', hasDanglingSeparator('_x(a).call(a, );'), true);
+  check('arity/the dispatch predicate fires', dispatches('_flatMaybeArray(a).call(a);', '_flatMaybeArray'), true);
+  check('arity/the dispatch predicate stays quiet on untransformed source', dispatches('a.flat();', '_flatMaybeArray'), false);
+  for (const [label, source] of OFFSET_SHAPES) {
+    const out = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+    check(`arity/no separator survives ${ label }`, hasDanglingSeparator(out), false);
+    check(`arity/${ label } still dispatches`, dispatches(out, '_flatMaybeArray'), true);
+  }
+  // the post pass re-reads the emitter's OWN output, where the trivia the arity gate ignored is gone;
+  // a cadence that re-derived arity from that text would drift from the single-pass result
+  const CADENCE_SRC = 'const a = [[1]];\nexport const r = a.flat(/* c */).at(/* d */);\n';
+  const single = createPlugin(OPTIONS).transform(CADENCE_SRC, '/p.mjs')?.code ?? CADENCE_SRC;
+  // the cadence rows below compare against `single`, so they would agree vacuously on a source
+  // nothing rewrote - pin that the reference emission is a real one first
+  check('arity/the cadence reference is a real emission', dispatches(single, '_atMaybeArray'), true);
+  for (const passes of [['pre'], ['post'], ['pre', 'post'], ['pre', 'post', 'pre', 'post']]) {
+    let code = CADENCE_SRC;
+    for (const pass of passes) code = createPlugin(OPTIONS).transform(code, '/p.mjs', pass)?.code ?? code;
+    check(`arity/[${ passes.join('->') }] matches the single-pass emission`, code, single);
+  }
+}
+checkCallArityFromAst();
 
 // the bare-slot reclaim proves the bare prefix free before handing the allocation on. it must not
 // be probed AGAIN by the allocator it hands to - in the AST emitter that probe is a whole
