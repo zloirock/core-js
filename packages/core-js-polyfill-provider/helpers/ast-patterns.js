@@ -1548,6 +1548,12 @@ export function cachedContainerPaths(parentPath, key) {
   return paths;
 }
 
+// class body member PATHS through the container cache: the per-(body, name) position indexes
+// remove the rescans, this removes the per-query path re-materialization of the body list itself
+export function classBodyMemberPaths(classPath) {
+  return cachedContainerPaths(classPath.get('body'), 'body');
+}
+
 // ONE walk per owner maps every node to its parent - the positional predicates below climb
 // the spine in O(depth) instead of re-walking the whole owner per target (quadratic on
 // binding-heavy bundles). same per-node staleness contract as the sibling caches
@@ -2789,7 +2795,7 @@ export function findIifeArgPath(fnParentPath, paramNode) {
   const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
   if (!coords) return null;
   const argPath = site.callPath.get('arguments')[coords.argIndex];
-  return coords.elementIndex < 0 ? argPath : argPath.get('argument').get('elements')[coords.elementIndex];
+  return coords.elementIndex < 0 ? argPath : cachedContainerPaths(argPath.get('argument'), 'elements')[coords.elementIndex];
 }
 
 // `import type X = require(...)` is type-only - elided by tsc before runtime, references
@@ -3040,7 +3046,7 @@ export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
     if (argPath.node === target) return argPath;
     if (argPath.node?.type === 'SpreadElement' && argPath.node.argument?.type === 'ArrayExpression') {
       const index = argPath.node.argument.elements.indexOf(target);
-      if (index !== -1) return argPath.get('argument').get('elements')[index];
+      if (index !== -1) return cachedContainerPaths(argPath.get('argument'), 'elements')[index];
     }
   }
   return null;
