@@ -2776,6 +2776,22 @@ export function findIifeArgForParam(fnParentPath, paramNode) {
   return site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) : null;
 }
 
+// the argument PATH a bare-ObjectPattern IIFE param resolves to: the call site plus the
+// coordinate `resolveCallArgumentCoords` addresses it by, materialised as a path (an inline-array
+// spread expands, so the argument may live at `arguments[i].argument.elements[j]`). the ONE
+// locator both emitters use - a consumer that re-derives the position by an identity scan over
+// top-level `arguments` cannot see inside an expanded spread and silently loses the receiver
+// exactly where this resolver found it. NO trailing peel: babel unwraps a sequence tail, unplugin
+// peels transparent wrappers, and baking either one in here would impose it on the other
+export function findIifeArgPath(fnParentPath, paramNode) {
+  const site = findIifeCallSite(fnParentPath, paramNode);
+  if (!site) return null;
+  const coords = resolveCallArgumentCoords(site.callPath.node.arguments ?? [], site.paramIndex);
+  if (!coords) return null;
+  const argPath = site.callPath.get('arguments')[coords.argIndex];
+  return coords.elementIndex < 0 ? argPath : argPath.get('argument').get('elements')[coords.elementIndex];
+}
+
 // `import type X = require(...)` is type-only - elided by tsc before runtime, references
 // resolve to the global. babel scope tracker registers the binding regardless of modifier;
 // callers use this predicate to filter out type-only bindings from shadow checks

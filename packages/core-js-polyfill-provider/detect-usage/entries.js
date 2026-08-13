@@ -25,11 +25,24 @@ function importExpressionSource(node, adapter) {
   return null;
 }
 
+// the statement types `getEntrySource` can possibly accept - the ONE definition of that set.
+// a caller pre-filtering a body walk asks THIS, never a local copy: the copy is what silently
+// drops a newly accepted arm on one emitter only, and the two entry detectors then disagree
+const ENTRY_STATEMENT_TYPES = new Set(['ImportDeclaration', 'TSImportEqualsDeclaration', 'ExpressionStatement']);
+
+// can this statement be an entry at all? `getEntrySource`'s own first-line bail, exported so a
+// caller that pre-filters a body walk skips the adapter / scope work on the same domain the
+// resolver rejects - one membership test instead of a re-listed type set
+export function mayBeEntryStatement(node) {
+  return ENTRY_STATEMENT_TYPES.has(node?.type);
+}
+
 // extract entry source from an AST node (ImportDeclaration / require() / await import())
 // returns source string or null if not an entry pattern. when `scope` is provided, calls to a
 // shadowed `require` (locally bound) are ignored. `export * from 'core-js/...'` is deliberately
 // NOT an entry: a re-export is a bundle pattern, not an entry point
 export function getEntrySource(node, adapter, scope) {
+  if (!mayBeEntryStatement(node)) return null;
   // import 'core-js/...' - but `import type {} from 'core-js/...'` (and Flow's `import typeof`)
   // erases before runtime, so it is NOT a runtime side-effect entry and must not expand
   if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0

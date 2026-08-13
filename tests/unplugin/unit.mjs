@@ -51,6 +51,7 @@ import {
 import {
   isCallee,
   isCalleeWrappedInParens,
+  outerGuardOwnedRoot,
   unwrapNode,
 } from '../../packages/core-js-unplugin/internals/emit-utils.js';
 
@@ -5005,6 +5006,40 @@ function checkIsCalleeWrappedInParens() {
 }
 checkIsCalleeWrappedInParens();
 
+// --- emit-utils.outerGuardOwnedRoot: the chain root a queued OUTER guard already memoized ---
+// the single descent both consumers share - the static emit needs the owned ROOT node to split
+// effects on, the standalone guard-bail only needs to know whether one exists. every hop is
+// probed, and the root reached past the last member is probed too
+function checkOuterGuardOwnedRoot() {
+  const ident = { type: 'Identifier', name: 'g' };
+  const midHop = { type: 'MemberExpression', object: ident };
+  const outerHop = { type: 'OptionalMemberExpression', object: midHop };
+  const node = { type: 'MemberExpression', object: outerHop };
+  function queue(owned) {
+    return { findOuterGuardRef: root => root === owned ? '_ref' : null };
+  }
+
+  // nothing queued anywhere on the spine
+  check('outerGuardOwnedRoot/no guard', outerGuardOwnedRoot(node, queue(null)), null);
+
+  // the guard sits on the receiver's outermost hop - returned as-is, not descended past
+  check('outerGuardOwnedRoot/outermost hop owned', outerGuardOwnedRoot(node, queue(outerHop)), outerHop);
+
+  // MID-chain ownership (a collapsed proxy-hop prefix): the descent must probe EVERY hop,
+  // not just the first and the terminal
+  check('outerGuardOwnedRoot/mid-chain hop owned', outerGuardOwnedRoot(node, queue(midHop)), midHop);
+
+  // the non-member root past the last hop is probed too (`call()?.hop` memoizes the call)
+  check('outerGuardOwnedRoot/non-member root owned', outerGuardOwnedRoot(node, queue(ident)), ident);
+
+  // `node` ITSELF is never the answer: the guard question is about the receiver's spine
+  check('outerGuardOwnedRoot/node itself is out of the spine', outerGuardOwnedRoot(node, queue(node)), null);
+
+  // a receiver-less node bottoms out on `undefined`, which the queue answers null for
+  check('outerGuardOwnedRoot/no receiver', outerGuardOwnedRoot({ type: 'Identifier' }, queue(null)), null);
+}
+checkOuterGuardOwnedRoot();
+
 // --- SnapshotCache lifecycle: store -> take chains, miss-after-take, invalidate cycles ---
 // take() consumes the entry (last-write-wins HMR semantic) and returns `entry ?? null`
 function checkSnapshotStoreTakeRoundTrip() {
@@ -6169,6 +6204,40 @@ function checkRetransformStability() {
     const second = createPlugin(OPTIONS).transform(first, '/p.mjs')?.code ?? first;
     check(`retransform/${ label }`, second, first);
   }
+  // a rest-destructure leaves an `_unusedN` SENTINEL in the rewritten pattern. re-reading our own
+  // output has to recognise it as ours: adopting it only under `phase: 'pre+post'` left the ordinary
+  // (`single`) pass blind, so each re-run re-extracted the previous sentinel as a live exported
+  // binding and minted a fresh one - the file grew without bound. FOUR passes, because the first
+  // repeat alone would also pass under a scheme that merely alternates
+  for (const [label, source] of [
+    ['rest sentinel', 'export const { at, ...rest } = [1, 2];\nexport const r = [at, rest];\n'],
+    ['rest sentinel, two polyfilled keys',
+      'export const { at, flat, ...rest } = [1, [2]];\nexport const r = [at, flat, rest];\n'],
+    ['rest sentinel beside a plain sibling',
+      'export const { at, ...rest } = [1, 2];\nexport const { length } = [3];\nexport const r = [at, rest, length];\n'],
+  ]) {
+    let code = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+    const first = code;
+    for (let pass = 2; pass <= 4; pass++) code = createPlugin(OPTIONS).transform(code, '/p.mjs')?.code ?? code;
+    // the same over the PASS axis: the sentinel skip is about "did WE emit this", so a pre / post
+    // cadence must be as idempotent as the default single one - the gate that broke this read the
+    // pass, and only the single-pass shape would have caught it
+    for (const passes of [['pre'], ['post'], ['pre', 'post']]) {
+      let cadence = source;
+      for (let round = 0; round < 3; round++) {
+        for (const pass of passes) cadence = createPlugin(OPTIONS).transform(cadence, '/p.mjs', pass)?.code ?? cadence;
+      }
+      check(`retransform/${ label } is stable over the [${ passes.join('->') }] cadence`,
+        sentinels(cadence), sentinels(first));
+    }
+    function sentinels(text) {
+      return [...new Set(text.matchAll(/_unused\d*/g).map(m => m[0]))].sort().join(',');
+    }
+    check(`retransform/${ label } is stable over 4 passes`, code, first);
+    // stated separately from the text compare: the failure mode is GROWTH of the sentinel set, and
+    // naming it keeps a future regression legible instead of a wall-of-text diff
+    check(`retransform/${ label } mints no new sentinel`, sentinels(code), sentinels(first));
+  }
 }
 checkRetransformStability();
 
@@ -6384,6 +6453,71 @@ function checkTypeArgumentListSurvives() {
   check('type-args/rest element is not the whole rest array', /es\.array\.includes/.test(code), false);
 }
 checkTypeArgumentListSurvives();
+
+// --- the emitter factories publish exactly what the driver consumes ---
+// a returned key with no consumer reads as a supported entry point and survives every rename by
+// accident. the check is mechanical rather than a hand-kept list: the driver's own destructuring
+// block IS the expected set, so a key added on either side without the other fails here
+async function checkEmitterSurfacesHaveConsumers() {
+  const driver = await fs.readFile(
+    path.resolve('../../packages/core-js-unplugin/internals/plugin.js'), 'utf8');
+  function destructuredFrom(name) {
+    const block = driver.match(new RegExp(`const \\{([^}]*)\\} = ${ name };`));
+    return block[1].split(',').map(entry => entry.trim()).filter(Boolean).sort();
+  }
+  const { createPolyfillEmitter } = await import('../../packages/core-js-unplugin/internals/polyfill-emitter.js');
+  const { createDestructureEmitter } = await import('../../packages/core-js-unplugin/internals/destructure-emitter.js');
+  // the factories only capture their deps at construction time, so bare stubs are enough to read
+  // the shape of what they publish
+  function noop() {
+    return undefined;
+  }
+  const deps = new Proxy({ code: '', source: '', transforms: {}, skippedNodes: new Set() }, {
+    get: (target, key) => key in target ? target[key] : noop,
+    has: () => true,
+  });
+  // the dep object the driver BUILDS, against the parameter list the factory destructures: a key
+  // passed and never accepted reads as wiring that exists, and silently does nothing
+  function passedTo(call) {
+    const block = driver.match(new RegExp(`${ call }\\(\\{([^}]*)\\}`));
+    return block[1].split(',').map(entry => entry.trim().split(':', 1)[0].trim()).filter(Boolean).sort();
+  }
+  // `withDefaultOnly: false` narrows to the params with NO default - the ones whose absence is a
+  // TypeError rather than a documented opt-out
+  function acceptedBy(source, factoryName, { withDefaultOnly = true } = {}) {
+    const block = source.match(new RegExp(`export function ${ factoryName }\\(\\{([^}]*)\\}`));
+    return block[1].split(',').map(entry => entry.trim())
+      .filter(entry => entry && !entry.startsWith('//') && (withDefaultOnly || !entry.includes('=')))
+      .map(entry => entry.split(/[:=]/, 1)[0].trim()).sort();
+  }
+  const sources = {
+    'polyfill-emitter': await fs.readFile(
+      path.resolve('../../packages/core-js-unplugin/internals/polyfill-emitter.js'), 'utf8'),
+    'destructure-emitter': await fs.readFile(
+      path.resolve('../../packages/core-js-unplugin/internals/destructure-emitter.js'), 'utf8'),
+  };
+  for (const [label, factory, local, factoryName] of [
+    ['polyfill-emitter', createPolyfillEmitter, 'emitter', 'createPolyfillEmitter'],
+    ['destructure-emitter', createDestructureEmitter, 'destructureEmitter', 'createDestructureEmitter'],
+  ]) {
+    const published = Object.keys(factory(deps)).sort();
+    const consumed = destructuredFrom(local);
+    check(`${ label }/no published key without a consumer`,
+      published.filter(key => !consumed.includes(key)).join(',') || '(none)', '(none)');
+    check(`${ label }/no consumed key the factory does not publish`,
+      consumed.filter(key => !published.includes(key)).join(',') || '(none)', '(none)');
+    const accepted = acceptedBy(sources[label], factoryName);
+    check(`${ label }/no dep passed that the factory never accepts`,
+      passedTo(factoryName).filter(key => !accepted.includes(key)).join(',') || '(none)', '(none)');
+    // the symmetric half, and the one that makes an UNGUARDED call on a dep safe: a name the factory
+    // destructures without a default and the driver never passes arrives as `undefined`, and the call
+    // sites that dropped their defensive `?.` would throw instead of degrading
+    const undefaulted = acceptedBy(sources[label], factoryName, { withDefaultOnly: false });
+    check(`${ label }/every dep the factory requires is passed`,
+      undefaulted.filter(key => !passedTo(factoryName).includes(key)).join(',') || '(none)', '(none)');
+  }
+}
+await checkEmitterSurfacesHaveConsumers();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;

@@ -43,9 +43,11 @@ export function isQualifiedNameNode(node) {
 }
 
 // qualified-name accessors: the "left" / "right" slots differ across parsers but the
-// semantic role is identical (left=parent path, right=segment-name Identifier)
-export function qualifiedNameLeft(node) { return node.left ?? node.qualification ?? node.object; }
-export function qualifiedNameRight(node) { return node.right ?? node.id ?? node.property; }
+// semantic role is identical (left=parent path, right=segment-name Identifier). module-private -
+// `collectQualifiedSegments` below is the only consumer, and exporting them invited a test that
+// asserted the slots instead of the walk they serve
+function qualifiedNameLeft(node) { return node.left ?? node.qualification ?? node.object; }
+function qualifiedNameRight(node) { return node.right ?? node.id ?? node.property; }
 
 // walk a possibly-qualified name node into a [first, ..., last] segment list
 // returns null on any non-identifier link in the chain
