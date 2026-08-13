@@ -682,3 +682,40 @@ QUnit.test('side effect: an SE-key flatten slot leaves its init one evaluation',
   assert.deepEqual(of(5), [5]);
   assert.deepEqual(from([1, 2]), [1, 2]);
 });
+
+// SE: a constant-literal receiver with a side-effecting key on SIBLING-declarator hosts. the
+// receiver memo joins the declaration as a preceding comma declarator at the source slot, so the
+// extraction reads a declared ref and the key effect runs exactly once per destructure
+QUnit.test('side effect: SE-key const-literal receiver on a multi-declarator host', assert => {
+  let keyEval = 0;
+  // eslint-disable-next-line no-var, @stylistic/one-var-declaration-per-line, es/no-nonstandard-array-prototype-properties -- multi-declarator host under test
+  var { [(keyEval++, 'at')]: pick, other } = [10, 20], z = 1;
+  assert.strictEqual(keyEval, 1, 'key effect ran once');
+  assert.strictEqual(pick.call([10, 20], 1), 20, 'instance method extracted off the declared memo ref');
+  assert.strictEqual(typeof other, 'undefined', 'sibling binding untouched');
+  assert.strictEqual(z, 1, 'later declarator untouched');
+});
+
+QUnit.test('side effect: SE-key const-literal receiver in a for-init host', assert => {
+  let keyEval = 0;
+  let seen = '';
+  // eslint-disable-next-line no-var -- the for-init comma-list host is under test
+  for (var { [(keyEval++, 'flat')]: pick } = [[1], 2], i = 0; i < 1; i++) seen = typeof pick;
+  assert.strictEqual(keyEval, 1, 'key effect ran once');
+  assert.strictEqual(seen, 'function', 'instance method extracted inside the loop header');
+  // eslint-disable-next-line block-scoped-var -- `var` is function-scoped; reading the binding after the loop is the point
+  assert.deepEqual(pick.call([[5]]), [5], 'extraction reads the declared memo ref');
+});
+
+// SE buried in a computed-MEMBER receiver of a fully-consumed declarator beside a nested-proxy
+// flatten sibling: the lifted init re-emits as a bare expression statement (the effect runs once),
+// while both bindings still get their polyfills
+QUnit.test('side effect: computed-member receiver SE lifts once beside a flatten sibling', assert => {
+  const bag = { A: Array };
+  let e = 0;
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the flatten-sibling pairing is under test
+  const { from: m1 } = bag[(e++, 'A')], { Array: { of: of2 } } = globalThis;
+  assert.strictEqual(e, 1, 'receiver member-key effect ran once');
+  assert.deepEqual(m1([1, 2]), [1, 2], 'consumed declarator got the static polyfill');
+  assert.deepEqual(of2(3), [3], 'flatten sibling got its polyfill');
+});
