@@ -17,7 +17,6 @@
 @core-js/pure/full/instance/keys
 @core-js/pure/full/instance/values
 @core-js/pure/full/iterator/constructor
-@core-js/pure/full/json/stringify
 @core-js/pure/full/map/constructor
 @core-js/pure/full/number/is-finite
 @core-js/pure/full/object/assign
@@ -29,7 +28,6 @@
 @core-js/pure/full/object/get-own-property-symbols
 @core-js/pure/full/object/get-prototype-of
 @core-js/pure/full/object/keys
-@core-js/pure/full/promise/all
 @core-js/pure/full/promise/constructor
 @core-js/pure/full/promise/reject
 @core-js/pure/full/promise/resolve
