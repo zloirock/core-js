@@ -21,6 +21,7 @@
 import { $Object, MAX_DEPTH } from './base.js';
 import { internedTypeRef, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
+import { cachedContainerPaths, classBodyMemberPaths } from '../helpers/ast-patterns.js';
 
 const NAMESPACE_FN_PATH_TYPES = new Set(['FunctionDeclaration', 'TSDeclareFunction']);
 
@@ -93,7 +94,7 @@ export function createClassObjectMember({
   // setter-only slot reads `undefined`, so the merged-namespace fn that would resolve there
   // throws at runtime regardless of which type-specific helper is emitted - bias-safe to ignore
   function hasOwnAccessor({ classPath, name, isStatic }) {
-    const members = classPath.get('body').get('body');
+    const members = classBodyMemberPaths(classPath);
     for (const position of memberPositionsFor(classPath.node.body, members, name)) {
       const { node } = members[position];
       if (!!node.static !== isStatic) continue;
@@ -118,7 +119,7 @@ export function createClassObjectMember({
       // keys make the LAST definition win and a setter is skipped (setter-only reads `undefined`).
       // NOTE this legitimately diverges from `findObjectMember`: an object literal defines its keys
       // in source order on ONE object, so there a later setter really does shadow an earlier value
-      const members = classPath.get('body').get('body');
+      const members = classBodyMemberPaths(classPath);
       const positions = memberPositionsFor(classPath.node.body, members, name);
       let onPrototype = null;
       for (let p = positions.length - 1; p >= 0; p--) {
@@ -393,7 +394,7 @@ export function createClassObjectMember({
   // overload set (single sig / accessor) so the caller resolves the single signature instead
   function resolveBodylessMethodOverloads({ member, callPath, classSubst }) {
     if (member.node.kind === 'get' || member.node.kind === 'set') return undefined;
-    const siblings = member.parentPath?.get('body');
+    const siblings = member.parentPath ? cachedContainerPaths(member.parentPath, 'body') : undefined;
     if (!Array.isArray(siblings) || siblings.length < 2) return undefined;
     const { key } = member.node;
     const name = member.node.computed
@@ -562,7 +563,7 @@ export function createClassObjectMember({
   }
 
   function findObjectMember(objectPath, name) {
-    const properties = objectPath.get('properties');
+    const properties = cachedContainerPaths(objectPath, 'properties');
     for (let i = properties.length - 1; i >= 0; i--) {
       const prop = properties[i];
       if (t.isSpreadElement(prop.node)) return null;
