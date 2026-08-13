@@ -8,7 +8,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 
 ## Layout
 
-- `bundlers.mjs` - the bundler adapters themselves, one per tool: everything each one needs to emit a single node-loadable file, so `runner.mjs` is left with the matrix. `root` is the only thing the caller supplies, because it is the only thing that varies per case
+- `bundlers.mjs` - the bundler adapters themselves, one per tool: everything each one needs to emit a single node-loadable file, so `runner.mjs` is left with the matrix. `root` is the only thing the caller supplies, because it is the only thing the module cannot know: vite, rsbuild and farm resolve from it and fall back to the working directory in silence
 - `matrix.mjs` - the methods, the phases each one supports, and the plugin options that select them, shared with `tests/e2e-libs`. It pulls in nothing, so that suite imports it without installing this directory; keep it that way
 - `runner.mjs` - the matrix: those adapters crossed with the three methods and the phases each one supports, plus the two builders that are not plain bundler runs - babel-plugin, which has no phase of its own, and bun, which builds and verifies inside bun
 - `input-<method>.js` - the source for each injection method, plus `input-phases.js` for the pre/post interaction and `input-dynamic.js` for dynamic import
@@ -18,7 +18,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 ## Rules
 
 - The assertion is the runtime result of the built bundle, not its text - plus a check that every generated reference it contains is actually declared, which is how a mangled or half-applied injection is caught
-- No targets are passed: the cases run with `mode: 'full'` and a pinned `core-js` version, so what gets injected depends on the features the inputs use, not on a browser list
+- No targets are passed: the cases run with `mode: 'full'`, so what gets injected depends on the features the inputs use and not on a browser list. The core-js version is the installed one - `matrix.mjs` asks the provider for `node_modules` rather than naming a minor, so both bundler suites describe the workspace package they actually bundle
 - Adding a bundler means adding an adapter to `bundlers.mjs`, and checking whether it belongs to the sets in `@core-js/unplugin` that name bundlers by hand
 - Keep the inputs exercising features that really are polyfilled, or the run passes without any injection having happened
 - The id-flow legs hold something no other leg can see: that a bundler really mints the ids whose ADMISSION depends on the phase - an SFC sub-block, the component's own bare id, an inline `<script>` lifted out of html, a worker's source - and that the plugin takes or refuses each one exactly where `tests/unplugin/unit.mjs` declares it does. The verdict is read off the plugin's OWN hook, never by asking the predicate again: unplugin applies `transformInclude` inside the transform wrapper and returns without calling the handler when it refuses, so an `undefined` result means refused and any other result - `null` included, which is what a pre pass deferring to post returns - means the handler ran. A leg whose form reaches no stage fails instead of passing, so a cell cannot go green having observed nothing
