@@ -66,6 +66,16 @@ function syntheticLaggedAliases(names) {
   return parts.join('\n');
 }
 
+// member resolution materializes the class-body member list per query unless it goes through the
+// container-path cache - a quadratic in (members x uses) that no other case carries: the shapes
+// above are flat scopes, and real bundles never put member density and use density on one class
+function syntheticMemberDenseClass(members) {
+  const methods = Array.from({ length: members }, (unused, k) => `  m${ k }() { return [${ k }]; }`).join('\n');
+  const parts = [`class C {\n${ methods }\n}`, 'const c = new C();'];
+  for (let i = 0; i < members; i++) parts.push(`c.m${ i }().at(0);`, `c.m${ i }().at(1);`);
+  return parts.join('\n');
+}
+
 // `var { Global: local } = globalThis` registers an alias entry that has to be keyed under every
 // same-name declarator of the var scope. resolving those per registration by walking the scope
 // subtree is quadratic in (pairs x scope size); no other case here destructures the global at
@@ -142,6 +152,9 @@ const CASES = [
   } },
   { name: 'synthetic discriminant-dense, 1600 names', source: () => syntheticDiscriminantDense(1600), ts: true, bounds: {
     'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+  } },
+  { name: 'synthetic member-dense class, 2400 members', source: () => syntheticMemberDenseClass(2400), bounds: {
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
