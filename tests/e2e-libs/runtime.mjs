@@ -42,18 +42,12 @@ function snapPath(lib, provider, method, phase) {
   return join(SNAP, `${ lib.name }.${ provider }.${ method }${ phase ? `.${ phase }` : '' }.txt`);
 }
 
-// What a cell contributes to version control depends on which provider produced it.
+// babel-plugin is the REFERENCE, stored as the set it injected; each unplugin phase is a DELTA from
+// it - `-spec` for what the reference has and this phase does not, `+spec` the other way. A phase
+// differs by a handful of specifiers, and a full second set would bury them in identical lines.
 //
-// babel-plugin is the REFERENCE: it has no phase, so its file is simply the set it injected.
-// unplugin is a DELTA against the reference for the same (library, method): `-spec` for what
-// babel-plugin injected and this phase did not, `+spec` for the other direction. Storing the delta
-// rather than a second full set is the point of the pairing - the three unplugin phases of a library
-// differ from the reference by a handful of specifiers each, and it is exactly those handfuls that
-// carry the information. A full-set snapshot buries them in a wall of identical lines, and a phase
-// regression then has to be found by eye across two files.
-//
-// Missing first, extra second, each group sorted: stable output, and the two directions read
-// differently enough that they should not interleave.
+// Missing first, extra second, each sorted: stable output, and the two directions should not
+// interleave.
 function deltaLines(reference, injected) {
   const ref = new Set(reference);
   const now = new Set(injected);
@@ -308,8 +302,8 @@ for (const { lib, method, provider, phase } of cells) {
     const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase, provider);
     // the build alone - everything below this line is deliberately outside the measurement
     const buildMs = Number(process.hrtime.bigint() - t0) / 1e6;
-    // payload, no-externals and the ES5 parse are runtimeBuild's own gates now. What is this
-    // runner's to say is that a build which injected NOTHING has verified nothing.
+    // payload, no-externals and the ES5 parse are runtimeBuild's gates; this is the runner's:
+    // a build that injected NOTHING has verified nothing.
     if (!injected.length) throw new Error(`${ provider } injected 0 polyfills`);
 
     const isReference = provider === 'babel-plugin';
