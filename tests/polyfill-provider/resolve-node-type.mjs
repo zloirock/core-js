@@ -65,8 +65,6 @@ import {
   isTypeReferenceNode,
   literalTypeValueNode,
   loopReExecRegionHasViolation,
-  qualifiedNameLeft,
-  qualifiedNameRight,
   synthInterfaceExtendsRef,
   typeAliasBody,
   typeRefName,
@@ -6342,28 +6340,29 @@ runBoth('the subclass own namespace export outranks the parent one',
     unwrapReceiverLeaf(inner)?.name, 'x');
 }
 
-// --- ast-shapes: qualifiedNameLeft / qualifiedNameRight + heritage clauses ---
+// --- ast-shapes: qualified-name segment walk + heritage clauses ---
 
 {
-  // qualifiedNameLeft / qualifiedNameRight: parser-agnostic slot accessors
+  // the three parsers spell a qualified name in three slot pairs, and `collectQualifiedSegments`
+  // is the only production consumer of the accessors that read them. assert through it, on the
+  // FULL segment list: a per-slot assertion of the `left` accessor alone passes even when the
+  // Flow `qualification` slot drops out, because the recursion re-enters through the same accessor
   //   babel TSQualifiedName: { left, right }
   const babelQName = {
     type: 'TSQualifiedName',
     left: { type: 'Identifier', name: 'A' },
     right: { type: 'Identifier', name: 'B' },
   };
-  check('ast-shapes: qualifiedNameLeft TSQualifiedName',
-    qualifiedNameLeft(babelQName)?.name, 'A');
-  check('ast-shapes: qualifiedNameRight TSQualifiedName',
-    qualifiedNameRight(babelQName)?.name, 'B');
+  check('ast-shapes: segments of a babel TSQualifiedName',
+    collectQualifiedSegments(babelQName)?.join('.'), 'A.B');
   // flow QualifiedTypeIdentifier: { qualification, id }
   const flowQName = {
     type: 'QualifiedTypeIdentifier',
     qualification: { type: 'Identifier', name: 'NS' },
     id: { type: 'Identifier', name: 'X' },
   };
-  check('ast-shapes: qualifiedNameLeft Flow', qualifiedNameLeft(flowQName)?.name, 'NS');
-  check('ast-shapes: qualifiedNameRight Flow', qualifiedNameRight(flowQName)?.name, 'X');
+  check('ast-shapes: segments of a Flow QualifiedTypeIdentifier',
+    collectQualifiedSegments(flowQName)?.join('.'), 'NS.X');
   // oxc MemberExpression (type-position): { object, property }
   const oxcQName = {
     type: 'MemberExpression',
@@ -6371,10 +6370,19 @@ runBoth('the subclass own namespace export outranks the parent one',
     property: { type: 'Identifier', name: 'Y' },
     computed: false,
   };
-  check('ast-shapes: qualifiedNameLeft MemberExpression',
-    qualifiedNameLeft(oxcQName)?.name, 'NS');
-  check('ast-shapes: qualifiedNameRight MemberExpression',
-    qualifiedNameRight(oxcQName)?.name, 'Y');
+  check('ast-shapes: segments of an oxc type-position MemberExpression',
+    collectQualifiedSegments(oxcQName)?.join('.'), 'NS.Y');
+  // a NESTED babel name exercises the recursion through the left accessor on every level
+  check('ast-shapes: segments of a nested TSQualifiedName',
+    collectQualifiedSegments({ type: 'TSQualifiedName', left: babelQName, right: { type: 'Identifier', name: 'C' } })
+      ?.join('.'), 'A.B.C');
+  // a non-Identifier link anywhere in the chain refuses the whole walk
+  check('ast-shapes: segments refuse a computed link',
+    collectQualifiedSegments({ type: 'MemberExpression', object: oxcQName, property: { type: 'Literal', value: 0 }, computed: true }),
+    null);
+  // the same three spellings through the type-reference entry point
+  check('ast-shapes: typeRefSegments of a Flow GenericTypeAnnotation',
+    typeRefSegments({ type: 'GenericTypeAnnotation', id: flowQName })?.join('.'), 'NS.X');
 
   // extendsId: TS heritage `TSExpressionWithTypeArguments { expression }`
   const tsExtend = {
