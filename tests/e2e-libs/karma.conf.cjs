@@ -1,5 +1,5 @@
 'use strict';
-// The e2e-libs IE11 leg, after tests/unit-karma/karma.conf.js but with only that target - modern
+// The e2e-libs IE11 leg, after tests/karma/karma.conf.js but with only that target - modern
 // engines are covered by runtime.mjs's node pre-flight, so no Playwright dep either.
 //
 // ONE bundle via `-f=`, relative to this directory: a UMD from runtimeBuild with a QUnit driver
@@ -27,16 +27,17 @@ module.exports = config => config.set({
   basePath: '.',
   customLaunchers,
   browsers: ['IE_NFM'],
-  // a green QUnit run is otherwise near-silent (just "Executed N of N"). Forward each bundle's
-  // console.log - the "[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed in this
-  // IE11" line the driver prints - to the CI terminal, so the log states what actually ran rather
-  // than how many bundles there were.
-  client: { captureConsole: true },
-  browserConsoleLogOptions: { terminal: true, level: 'log' },
+  // a green QUnit run is otherwise near-silent (just "Executed N of N"), and the line that says what
+  // actually ran - "[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed in this IE11",
+  // printed by the driver - reaches the terminal on karma's own defaults. Only the level is set
+  // here, and it narrows them: `debug` would carry the client's chatter into a forty-page log.
+  // Partial by design - `config.set` deep-merges, so `format` and `terminal` stay as they are
+  browserConsoleLogOptions: { level: 'log' },
   logLevel: config.LOG_INFO,
-  // pinned rather than left to karma's default, because harness.mjs orders its own QUnit timeout
-  // UNDER this number: a `run()` that never settles has to be reported as a timed-out test - the
-  // shape that names a broken `Promise` polyfill - and not as a disconnected browser
+  // karma's own default today, spelled out because the number is not free to move: harness.mjs
+  // orders its QUnit timeout UNDER it, so that a `run()` which never settles is reported as a
+  // timed-out test - the shape that names a broken `Promise` polyfill - and not as a disconnected
+  // browser
   browserNoActivityTimeout: 30_000,
   singleRun: true,
 });
