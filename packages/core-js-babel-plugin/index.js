@@ -69,6 +69,7 @@ import {
   createSyntaxVisitors,
   createUsageVisitors,
   instantiationSlotNeedsParens,
+  foldInstantiationsPass,
   restoreParenCompensations,
   rebuildLaggedScopeBinding,
   USAGE_VISITORS_IS_HANDLED,
@@ -358,6 +359,11 @@ export default function plugin(api, options) {
     ...(() => {
       let skippedNodes = new WeakSet();
       let originalBodyNodes = new WeakSet();
+      // does the LATE paren pass have work on our OWN tree? the early pass answers it and OVERWRITES
+      // this - the `true` is the reset value (`resetPerFilePrimitives`), so a file that never reaches
+      // that pass at all (pre bailed on a destroyed Program, and with it `programExit`) still takes
+      // the full walk. never OR the answer into it: the reset already made it true
+      let parensPending = true;
       let disabledLines = null;
       let skipFile;
       // per-file count of modules injected by entry expansion - a non-zero count means the
@@ -732,7 +738,12 @@ export default function plugin(api, options) {
         // uninvoked; `tern as any<T>(x)` re-parses the type-argument list into a type) - walk the
         // wrapper chain above the replaced member and parenthesize the slot-filling node. the
         // slot is judged on what will OCCUPY it after the swap: at `cur === path` that is the
-        // guard ternary, not the member being replaced
+        // guard ternary, not the member being replaced.
+        // this is the ONE paren node spelled before the lowerings rather than in `post()`, and it is
+        // safe for a structural reason: what it wraps is `binding === ctor ? static : raw`, which
+        // cannot hold an `await` or a `yield`, so regenerator never has to explode it. it is also
+        // only reachable when the fold could not run - a foldable host takes the type arguments
+        // during the usage traversal, and by the time this walk climbs there is no node left to find
         let instantiationSlot = null;
         for (let cur = path; cur.parentPath; cur = cur.parentPath) {
           const parentType = cur.parentPath.node?.type;
@@ -1753,17 +1764,16 @@ export default function plugin(api, options) {
         if (!injector) return;
         // kept nav-collapse mutations land after every claim resolver has seen the source chain
         flushKeptNavCollapses();
-        // printing repair, after every rewrite: the generator drops the source parens that ended
-        // an optional chain used as a tagged template's TAG, and the reprint no longer parses.
-        // it runs LAST because the guard renders read the chain's own shape - a paren node added
-        // ahead of them would read as a seal and fold the tail the tag needs left outside.
-        // fresh visitor literal per call: traverse explodes the object in place
-        // both paren restorations run BEFORE the skipFile bail below, and for the same reason: they
-        // are not injection, they are damage control for the reprint this plugin's mere presence
-        // forces. a disabled file is still reprinted, so skipping them there hands back source that
-        // does not parse (`(mk<number>).x` -> `mk<number>.x`). re-running the instantiation one over
-        // an already-folded tree is inert - a folded host no longer carries an instantiation node
-        restoreParenCompensations(path);
+        // the FOLD half only - the parens wait for `post()`, which spells out its own reason. this
+        // one is here to catch what a sibling inserted before our exit ran, and it sits AHEAD of the
+        // skipFile bail below because a disabled file is reprinted just the same: the compensations
+        // are damage control for that reprint, not injection. re-running over an already-folded tree
+        // is inert - a folded host no longer carries an instantiation node. what the placement does
+        // NOT buy a disabled file is getting ahead of the lowerings: that file runs no usage
+        // traversal, so this is its ONLY fold, and by `Program:exit` every sibling visitor has read
+        // the node already - `((h.m)<T>)?.(a)` loses its receiver there exactly as it does with no
+        // core-js in the list at all
+        parensPending = foldInstantiationsPass(path);
         // probed-anchor destructure inits retype into their guard spelling at the same point
         destructureEmit?.flushProbedAnchorSwaps();
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
@@ -1801,7 +1811,7 @@ export default function plugin(api, options) {
         // LAST reachable point: `post()` runs after every sibling's `Program:exit`, so a shape a
         // later-ordered sibling inserted is compensated here or nowhere. ahead of the injector bail -
         // a skipped file is reprinted just the same
-        restoreParenCompensations(this.file?.path, originalBodyNodes);
+        restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
         if (!injector) return;
         // late style-switch is a safety-net for sibling plugins that strip all ESM markers
         // (e.g. `commonjs` rewriters) after our traversal. by post-phase our flush has
@@ -1843,6 +1853,7 @@ export default function plugin(api, options) {
         entryDirectiveCandidates = [];
         importStyle = null;
         originalBodyNodes = null;
+        parensPending = true;
         skippedNodes = new WeakSet();
       }
 
@@ -1901,10 +1912,10 @@ export default function plugin(api, options) {
               applyEntryDirectivePromotions(this.file.path);
             }
             // entry-global reprints the file like every babel mode but runs no usage traversal, so
-            // the paren restorations need their own pass here - OUTSIDE the skip, because a disabled
-            // file is reprinted just the same and would otherwise be handed back unparseable.
-            // fresh visitor literal per call: traverse explodes the object in place
-            restoreParenCompensations(this.file.path);
+            // the fold has no earlier mount here and this is its only one - OUTSIDE the skip,
+            // because a disabled file is reprinted just the same and would otherwise be handed back
+            // unparsable. the paren half runs in this mode's `post`, like everywhere else
+            parensPending = foldInstantiationsPass(this.file.path);
             injector.flush();
             // snapshot AFTER compensating AND after the flush, for the same reason the usage path
             // snapshots there: the flush inserts the import block, and nodes missing from the set
@@ -1914,7 +1925,9 @@ export default function plugin(api, options) {
           }),
           visitor: {},
           post: withFileTag(function entryGlobalPost() {
-            restoreParenCompensations(this.file?.path, originalBodyNodes);
+            // the twin of `postHook`'s first line, for the same reasons spelled out there: last
+            // reachable point, and ahead of every bail because a skipped file is reprinted too
+            restoreParenCompensations(this.file?.path, parensPending ? null : originalBodyNodes);
             injector?.flush();
             // shared with the main `programExit` tail (`finalizeInjector`): canonical-sort
             // the import region across all flushes and lift trailing arrow-`_ref` params
