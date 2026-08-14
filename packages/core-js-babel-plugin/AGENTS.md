@@ -18,7 +18,7 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`. Works with both `@babel/core
 
 ## Emitter model
 
-Mutates the AST in place during traversal, inside Babel's own parse. Detect and apply run as one pass in `pre()`, on the tree no sibling plugin has touched yet, and `Program:exit` only backstops what siblings insert afterwards - a deferred cross-phase apply would land on a tree they have since mutated. The other adapter, `@core-js/unplugin`, parses separately and queues text transforms; the two may differ in formatting, never in semantics.
+Mutates the AST in place during traversal, inside Babel's own parse. Detect and apply run as one pass in `pre()`, on the tree no sibling plugin has touched yet, and `Program:exit` only backstops what siblings insert afterwards - a deferred cross-phase apply would land on a tree they have since mutated. What is left behind still has to survive the lowerings that run after: a `ParenthesizedExpression` exists only under `createParenthesizedExpressions` and regenerator throws on any holding an `await` or `yield`, so grouping a reprint drops is restructured into plain nodes where it can be, and spelled as that node only where the printed text is genuinely misread without it. The other adapter, `@core-js/unplugin`, parses separately and queues text transforms; the two may differ in formatting, never in semantics.
 
 Anything that has to be fixed in this package *and* in unplugin belongs in the provider instead.
 
