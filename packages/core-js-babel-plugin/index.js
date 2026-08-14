@@ -68,8 +68,8 @@ import {
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
-  restoreInstantiationParens,
-  restoreOptionalTagParens,
+  instantiationSlotNeedsParens,
+  restoreParenCompensations,
   rebuildLaggedScopeBinding,
   USAGE_VISITORS_IS_HANDLED,
   USAGE_VISITORS_RESET,
@@ -730,14 +730,14 @@ export default function plugin(api, options) {
         // the generator prints the `expr<T>` instantiation slot without the parens its precedence
         // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
         // uninvoked; `tern as any<T>(x)` re-parses the type-argument list into a type) - walk the
-        // wrapper chain above the replaced member and parenthesize the slot-filling node; postfix
-        // `!` and existing parens already bind tighter than the argument list
+        // wrapper chain above the replaced member and parenthesize the slot-filling node. the
+        // slot is judged on what will OCCUPY it after the swap: at `cur === path` that is the
+        // guard ternary, not the member being replaced
         let instantiationSlot = null;
         for (let cur = path; cur.parentPath; cur = cur.parentPath) {
           const parentType = cur.parentPath.node?.type;
           if (parentType === 'TSInstantiationExpression') {
-            const slotType = cur.node.type;
-            if (slotType !== 'ParenthesizedExpression' && slotType !== 'TSNonNullExpression') instantiationSlot = cur;
+            if (instantiationSlotNeedsParens(cur === path ? guard : cur.node)) instantiationSlot = cur;
             break;
           }
           if (!TS_EXPR_WRAPPERS.has(parentType) && parentType !== 'ChainExpression'
@@ -1758,7 +1758,12 @@ export default function plugin(api, options) {
         // it runs LAST because the guard renders read the chain's own shape - a paren node added
         // ahead of them would read as a seal and fold the tail the tag needs left outside.
         // fresh visitor literal per call: traverse explodes the object in place
-        path.traverse({ TaggedTemplateExpression: restoreOptionalTagParens });
+        // both paren restorations run BEFORE the skipFile bail below, and for the same reason: they
+        // are not injection, they are damage control for the reprint this plugin's mere presence
+        // forces. a disabled file is still reprinted, so skipping them there hands back source that
+        // does not parse (`(mk<number>).x` -> `mk<number>.x`). re-running the instantiation one over
+        // an already-folded tree is inert - a folded host no longer carries an instantiation node
+        restoreParenCompensations(path);
         // probed-anchor destructure inits retype into their guard spelling at the same point
         destructureEmit?.flushProbedAnchorSwaps();
         // skipFile (`core-js-disable-file` directive or internal core-js source) means
@@ -1793,6 +1798,10 @@ export default function plugin(api, options) {
       // --- post(): detect sibling CJS transform ---
 
       function postHook() {
+        // LAST reachable point: `post()` runs after every sibling's `Program:exit`, so a shape a
+        // later-ordered sibling inserted is compensated here or nowhere. ahead of the injector bail -
+        // a skipped file is reprinted just the same
+        restoreParenCompensations(this.file?.path, originalBodyNodes);
         if (!injector) return;
         // late style-switch is a safety-net for sibling plugins that strip all ESM markers
         // (e.g. `commonjs` rewriters) after our traversal. by post-phase our flush has
@@ -1874,9 +1883,9 @@ export default function plugin(api, options) {
 
       // --- mode-specific plugin objects ---
 
-      /* eslint-disable prefer-arrow-callback -- pre/post handlers need babel's `this`
-         (`this === pluginPass` with `.file.opts.filename` for `withFileTag` to read);
-         arrow would inherit the enclosing IIFE-scope `this` and drop the file context */
+      // every pre/post handler below is a named function expression, not an arrow, because it needs
+      // babel's `this` (`this === pluginPass`, carrying `.file.path` and `.file.opts.filename` for
+      // `withFileTag`); an arrow would inherit the enclosing IIFE-scope `this` and drop the file
 
       if (method === 'entry-global') {
         return {
@@ -1890,18 +1899,22 @@ export default function plugin(api, options) {
               // object through manual pre-call + filtered traverse
               runEntryDetection(this.file.path, entryGlobalCallback);
               applyEntryDirectivePromotions(this.file.path);
-              // entry-global reprints the file like every babel mode but runs no usage
-              // traversal, so the instantiation paren restoration needs its own pass here.
-              // fresh visitor literal per call: traverse explodes the object in place
-              this.file.path.traverse({
-                TSInstantiationExpression: restoreInstantiationParens,
-                TaggedTemplateExpression: restoreOptionalTagParens,
-              });
             }
+            // entry-global reprints the file like every babel mode but runs no usage traversal, so
+            // the paren restorations need their own pass here - OUTSIDE the skip, because a disabled
+            // file is reprinted just the same and would otherwise be handed back unparseable.
+            // fresh visitor literal per call: traverse explodes the object in place
+            restoreParenCompensations(this.file.path);
             injector.flush();
+            // snapshot AFTER compensating AND after the flush, for the same reason the usage path
+            // snapshots there: the flush inserts the import block, and nodes missing from the set
+            // read as sibling-inserted. without a snapshot at all this mode has none, so its post
+            // pass would re-walk the whole file it just finished walking
+            originalBodyNodes = new WeakSet(this.file.path.node.body);
           }),
           visitor: {},
           post: withFileTag(function entryGlobalPost() {
+            restoreParenCompensations(this.file?.path, originalBodyNodes);
             injector?.flush();
             // shared with the main `programExit` tail (`finalizeInjector`): canonical-sort
             // the import region across all flushes and lift trailing arrow-`_ref` params
@@ -1939,7 +1952,6 @@ export default function plugin(api, options) {
         visitor: { Program: { exit: withFileTag(programExit) } },
         post: withFileTag(postHook),
       };
-      /* eslint-enable prefer-arrow-callback -- restore at end of plugin-return block */
     })(),
     /* eslint-enable max-statements -- close defer-block opened above */
   };
