@@ -1,3 +1,14 @@
 process.env.TIMING = true;
 
-await $`eslint --concurrency=auto --config ./tests/eslint/eslint.config.js ./ --fix=${ !!process.env.FIX }`;
+const { FIX } = process.env;
+const CACHE_PATH = './node_modules/.cache/eslint';
+const CONCURRENCY = !await fs.pathExists(CACHE_PATH);
+
+await $`eslint \
+  --concurrency=${ CONCURRENCY ? 'auto' : 'off' } \
+  --cache \
+  --cache-strategy content \
+  --cache-location: ${ CACHE_PATH } \
+  --config ./tests/eslint/eslint.config.js ./ \
+  --fix=${ !!FIX } \
+`;
