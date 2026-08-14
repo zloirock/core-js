@@ -405,7 +405,7 @@ export function isIifeCallNode(node) {
 // EXCLUDES `UnaryExpression` / `SequenceExpression` (which DO change semantics) and
 // `ChainExpression` (the optional-chain marker carries short-circuit semantics that
 // must be preserved at most call sites). used by AST walkers that need to reach the
-// SEMANTICALLY meaningful inner node - both expression-down (`peelTransparentPath`) and
+// SEMANTICALLY meaningful inner node - both expression-down (`peelTransparentWrapperPath`) and
 // parent-up (`unwrapTSExpressionParent`) walks
 export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
   ...TS_EXPR_WRAPPERS,
@@ -521,6 +521,15 @@ export function isReusableReceiver(node) {
 // parens but oxc preserves them, and TS expression wrappers can land on either parser
 export function peelSkippableWrapperPath(path) {
   while (path?.node && SKIPPABLE_WRAPPER_TYPES.has(path.node.type)) path = path.get('expression');
+  return path;
+}
+
+// the TRANSPARENT-only twin: same descent, minus `ChainExpression`. callers that classify a receiver
+// must not peel the optional-chain marker away - its short-circuit is part of the value they judge.
+// only babel's `createParenthesizedExpressions` and oxc produce paren NODES to peel; babel's default
+// parser records them in the `extra.parenthesized` flag instead, which call sites read separately
+export function peelTransparentWrapperPath(path) {
+  while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) path = path.get('expression');
   return path;
 }
 
@@ -867,16 +876,74 @@ export function enclosingParameterDecoratorOwner(usePath) {
   return null;
 }
 
-// is this binding unreachable from the use? two regions answer yes, both because a scope tracker
-// hoists a declaration onto the function scope that the use position never sees: a use in the
-// PARAMETER LIST cannot see what the BODY declares, and a use in a parameter DECORATOR cannot see
-// anything the decorated function declares at all - neither its parameters nor its body
-export function bindingInvisibleFromParameterList(bindingPath, usePath) {
-  if (!bindingPath?.node) return false;
-  const region = enclosingParameterDecoratorOwner(usePath)?.node
-    ?? enclosingParameterListOwner(usePath)?.node?.body;
-  if (!region) return false;
-  for (let p = bindingPath; p?.node; p = p.parentPath) if (p.node === region) return true;
+// is the use inside this statement's controlling HEAD - inside the statement, but not in any of the
+// body slots it holds? answered by ONE bounded climb from the use, and only asked once a binding has
+// actually been found in one of those slots, so the common lookup never pays for it
+function useSitsInStatementHead(usePath, hostNode, slots) {
+  let child = usePath;
+  for (let p = usePath?.parentPath; p?.node; child = p, p = p.parentPath) {
+    if (p.node !== hostNode) continue;
+    return slots.every(slot => p.node[slot] !== child.node);
+  }
+  return false;
+}
+
+// a program-level `var` in a SCRIPT does not create a fresh binding: it aliases the global property
+// of that name, which still holds the real global until the declarator's own assignment runs. so a
+// use at program level BEFORE that assignment reads the GLOBAL, whatever the tracker says - and a
+// declarator with no init never overwrites it at all. a use inside a function stays shadowed: whether
+// the call lands before or after the assignment is not decidable from position
+function scriptProgramVarUncoveredUse(ownerNode, declaratorNode, usePath) {
+  if (ownerNode?.type !== 'Program' || ownerNode.sourceType !== 'script') return false;
+  if (declaratorNode?.type !== 'VariableDeclarator') return false;
+  for (let p = usePath; p?.node && p.node.type !== 'Program'; p = p.parentPath) {
+    if (FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) return false;
+  }
+  // no init: the declaration never overwrites the global property, so it never shadows
+  const assignmentEnd = declaratorNode.init?.end;
+  const useStart = usePath?.node?.start;
+  return typeof useStart !== 'number' || typeof assignmentEnd !== 'number' || useStart < assignmentEnd;
+}
+
+// path-level entry for the region predicate: the binding path is a declarator, and the owner is the
+// var scope it hoists to (the declaration itself may sit in any nested block)
+function scriptProgramVarUncoveredBinding(bindingPath, usePath) {
+  if (bindingPath?.node?.type !== 'VariableDeclarator') return false;
+  if (bindingPath.parentPath?.node?.kind !== 'var') return false;
+  return scriptProgramVarUncoveredUse(findNearestVarScopeOwner(bindingPath)?.node, bindingPath.node, usePath);
+}
+
+// is this binding unreachable from the use? four cases answer yes. three are REGIONS, where a scope
+// tracker hoists a declaration onto an enclosing scope that the use position never sees: a use in the
+// PARAMETER LIST cannot see what the BODY declares, a use in a parameter DECORATOR cannot see
+// anything the decorated function declares at all - neither its parameters nor its body - and a use
+// in a statement HEAD cannot see what that statement's BODY declares. `var` is deliberately not a
+// REGION case HERE - it hoists to the function scope and DOES cover the parameter list and the
+// statement head. the decorator is where that stops: it is evaluated outside the function
+// altogether, so the decorated frame's own hoists are skipped by the var climb - the exemption
+// lives with that climb, which is what asks the `var` question. the fourth case
+// is POSITIONAL and `var`-only: a script's program-level `var` aliases a global property rather than
+// shadowing it, so a use before its assignment reads the global (see the helper above).
+// the walk is the BINDING's own ancestry, which the region test needs anyway: the two parameter
+// regions are compared node-wise as it climbs, and the statement-head question is asked only where
+// the binding really sits in a body slot
+export function bindingInvisibleFromUseRegion(bindingPath, usePath) {
+  if (!bindingPath?.node || !usePath?.node) return false;
+  if (scriptProgramVarUncoveredBinding(bindingPath, usePath)) return true;
+  const decorated = enclosingParameterDecoratorOwner(usePath)?.node ?? null;
+  const paramBody = decorated ? null : enclosingParameterListOwner(usePath)?.node?.body ?? null;
+  let child = null;
+  for (let p = bindingPath; p?.node; child = p, p = p.parentPath) {
+    // a binding written INSIDE a decorator is not something the decorated function declares - it
+    // sits in the same subtree as the use and covers it. a lexical lookup cannot hand back a
+    // SIBLING decorator's binding, so reaching this edge at all means the two share the decorator
+    if (decorated && p.listKey === 'decorators') return false;
+    if ((decorated && p.node === decorated) || (paramBody && p.node === paramBody)) return true;
+    if (!child) continue;
+    const slots = SINGLE_STATEMENT_SLOTS.get(p.node.type);
+    if (slots?.some(slot => p.node[slot] === child.node)
+      && useSitsInStatementHead(usePath, p.node, slots)) return true;
+  }
   return false;
 }
 
@@ -888,8 +955,13 @@ function climbVarScopeOwners(path, visit) {
   // a use inside a function's PARAMETER list sits outside the region that function's own `var`s
   // cover, so its nearest owner contributes nothing and the climb starts one frame out
   const paramFrame = enclosingParameterListOwner(path)?.node ?? null;
+  // a use inside a parameter DECORATOR sits outside the decorated function altogether - the
+  // decorator is evaluated where the class is defined - so that function's own hoists reach it no
+  // more than its parameters do. only ITS frame is skipped: a `var` further out really does cover
+  // the decorator. this is where `var` parts from the region cases, which it otherwise ignores
+  const decoratedFrame = enclosingParameterDecoratorOwner(path)?.node ?? null;
   for (let owner = findNearestVarScopeOwner(path); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
-    if (owner.node !== paramFrame) {
+    if (owner.node !== paramFrame && owner.node !== decoratedFrame) {
       const result = visit(owner);
       if (result !== undefined) return result;
     }
@@ -1184,9 +1256,14 @@ function isSloppyAtPath(path) {
 // non-strict code and shadows the global, but native scope trackers block-scope it and miss the
 // shadow -> usage-pure would wrongly substitute the global. gated on genuine sloppy context so
 // modules / "use strict" (where the function IS block-scoped) keep resolving `name` to the global
-// and usage-global never loses an injection. presence only - never reaches the declarator path
+// and usage-global never loses an injection. answers PRESENCE, but reads the declarator to do it:
+// a script's program-level `var` aliases the global property instead of shadowing it, so a use
+// before that declarator's assignment is NOT covered - the same positional carve-out
+// `bindingInvisibleFromUseRegion` applies, and both shadow gates have to answer alike or the
+// second re-asserts the shadow the first dropped
 export function findFunctionScopeVarInPath(path, name) {
-  if (findFunctionScopeVarDeclaratorInPath(path, name) !== null) return true;
+  const found = findVarOwnerDeclaring(path, name);
+  if (found && !scriptProgramVarUncoveredUse(found.owner?.node, found.declarator, path)) return true;
   return hasSloppyBlockFunctionInPath(path, name);
 }
 
@@ -1486,6 +1563,10 @@ export function wrapScopeBindingLookup(lookup) {
     const native = lookup(scope, name, path);
     const binding = hoistedVarTwin(synthCache, path, name, native) ?? native;
     if (!binding) return binding;
+    // a binding that does not cover the use is not the use's binding - the same question both
+    // detection gates ask, asked once here so the resolver cannot narrow THROUGH a shadow they
+    // already dropped and degrade the result to the generic helper
+    if (path && binding.path && bindingInvisibleFromUseRegion(binding.path, path)) return undefined;
     let wrapped = cache.get(binding);
     if (!wrapped) {
       wrapped = withCanonicalViolations(withoutPhantomWrites(binding), name) ?? binding;
@@ -4168,11 +4249,9 @@ export function findTSRuntimeBindingInPath(path, name) {
   // The same FACT is spelled twice more - the member-decorator skip in `findEnclosingClassMember`
   // and the decorator collector in `outerThisKeyPaths` - and neither is reusable here: both answer
   // a `this`-anchoring question from a class node downwards over MEMBER decorators, while this one
-  // asks a binding question while climbing UP and needs the PARAMETER decorator's owner. Collapsing
-  // the three onto one owner-of-a-decorator primitive is a binding-canon job, not this fix's
-  let decoratedOwner = null;
+  // asks a binding question while climbing UP, which is what the shared owner primitive answers
+  const decoratedOwner = enclosingParameterDecoratorOwner(path)?.node ?? null;
   for (let cur = path; cur; cur = cur.parentPath) {
-    if (cur.listKey === 'decorators') decoratedOwner = cur.parentPath?.parentPath?.node ?? null;
     if (getTSRuntimeBindings(cur.node)?.has(name)) return true;
     if (cur.node !== decoratedOwner && getParameterPropertyNames(cur.node)?.has(name)) return true;
   }

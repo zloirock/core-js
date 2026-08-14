@@ -18,7 +18,7 @@ import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
   climbJsxMemberChain,
-  bindingInvisibleFromParameterList,
+  bindingInvisibleFromUseRegion,
   findFunctionScopeVarInPath,
   findIifeCallSite,
   resolveFallbackReceiver,
@@ -125,12 +125,12 @@ export function createBabelAdapter(options = {}) {
         // shared `isAmbientBindingShape` covers all tsc-elided binding forms (declare,
         // type-only imports in 3 ESM variants, type-only TSImportEquals). without filtering
         // these, the binding would shadow the polyfill even though it doesn't exist at runtime.
-        // `bindingInvisibleFromParameterList` drops the second class the tracker over-reports:
+        // `bindingInvisibleFromUseRegion` drops the second class the tracker over-reports:
         // babel hangs the whole function - parameters and body - off one scope, so a use the
         // language evaluates OUTSIDE it (a parameter default, a parameter decorator) reads a
         // shadow that is not there
         if ((!b || !isAmbientBindingShape(b.path.node, b.path.parent))
-          && !(b && path && bindingInvisibleFromParameterList(b.path, path))) return true;
+          && !(b && path && bindingInvisibleFromUseRegion(b.path, path))) return true;
       }
       // TS-runtime declarations babel scope doesn't expose via getBindingIdentifier:
       // regular `enum`/`namespace`, `const enum`. walk path's ancestor chain (Program,
