@@ -5431,6 +5431,45 @@ const TS_FAMILIES = {
     '("abc" as const).at(0)',
     '(<number[]>arr).flat()',
   ],
+  // the `expr<T>` instantiation slot takes a LeftHandSideExpression, so every looser shape reaches
+  // it parenthesized. babel reprints the slot and unplugin splices around it, so only this leg sees
+  // a dropped paren: it re-associates the call into the arrow body / the ternary alternate / the
+  // optional chain, or turns the type arguments into a relational chain. each row is written so the
+  // re-association changes the VALUE - a shape whose two readings agree proves nothing here
+  'ts-instantiation-slot': [
+    '(() => { const f = n => [n, [2]].flat(); const r = ((() => f)<string>)()(1); return [Array.isArray(r), typeof r]; })()',
+    '(() => { const a = n => [n, [2]].flat(); const b = () => "alternate"; return ((true ? a : b)<string>)(1); })()',
+    '(() => { let q; const f = n => [n, [2]].flat(); const r = ((q = f)<string>)(1); return [r, q === f]; })()',
+    '(() => { const a = n => [n, [3]].flat(); const b = () => "b"; return typeof ((a || b)<string>)(1); })()',
+    '(() => { const b = n => [n, [2]].flat(); try { return ((["x"].at(0) + b)<string>)(1); } catch (e) { return e.constructor.name; } })()',
+    '(() => { const f = n => [n, [2]].flat(); try { return ((void f)<string>)(1); } catch (e) { return [e.constructor.name, f(1)]; } })()',
+    '(() => { let q = 0; const f = n => [n, [2]].flat(); try { return ((q++)<string>)(1); } catch (e) { return [e.constructor.name, q, f(1)]; } })()',
+    '(() => { let q = 0; const f = n => [n, [2]].flat(); try { return ((++q)<string>)(1); } catch (e) { return [e.constructor.name, q, f(1)]; } })()',
+    '(() => { const o = null; try { return ((o?.m)<string>)(1); } catch (e) { return [e.constructor.name, [1, [2]].flat()]; } })()',
+    '(() => { const o = null; try { return ((o?.())<string>)(1); } catch (e) { return [e.constructor.name, [1, [2]].flat()]; } })()',
+    // the slot's own contents are rewritten under the parens - the restoration reads it mid-flight
+    '(() => { const g = () => "g"; return ((g ? Array.from : g)<any>)([1, [2]]); })()',
+    '(() => { let q; const r = ((q = Array.of)<any>)(1); return [r, typeof q]; })()',
+    // the OTHER axis: where the instantiation sits. a member tail refuses a bare one outright, so
+    // `(holder<T>).m` is the only spelling of the shape and the emitter has to reproduce it; a
+    // conditional's `?` swallows a loose operand left bare
+    '(() => { const holder = { m: n => [n, [2]].flat() }; return (holder<any>).m(1); })()',
+    '(() => { const holder = [n => [n, [2]].flat()]; return (holder<any>)[0](1); })()',
+    '(() => { const holder = { m: n => [n, [3]].flat() }; return ((holder as any)<any>).m(1); })()',
+    '(() => { const t = true; const holder = { m: n => [n, [2]].flat() }; return ((t ? holder : holder)<any>).m(1); })()',
+    '(() => { const holder = { m: n => [n, [2]].flat() }; return (holder<any>)?.m(1); })()',
+    '(() => { const a = n => [n, [2]].flat(); const b = () => "b"; return ((true ? a : b)<any>) ? "picked" : "not"; })()',
+    // the type-argument list is type-only but names runtime globals, and folding hands the whole
+    // list to the host above - the import sets have to stay equal once it has moved
+    '(() => { const f = n => [n, [2]].flat(); return ((f as any)<Map<string, number>>)(1); })()',
+    '(() => { const f = () => [1, [2]].flat(); return typeof new ((f as any)<Set<number>>)(); })()',
+    '(() => { const holder = { m: n => [n, [2]].flat() }; return ((holder as any)<WeakMap<object, number>>).m(1); })()',
+    // negatives: shapes the slot accepts bare must not acquire parens (nor lose the polyfill)
+    '(() => { const f = n => [n, [2]].flat(); return ((f)<string>)(1); })()',
+    '(() => { let e = 0; const f = n => [n, [2]].flat(); const r = ((e++, f)<string>)(1); return [r, e]; })()',
+    '(() => { const o = { m: n => [n, [2]].flat() }; return ((o.m!)<string>)(1); })()',
+    '(() => { return ((Array.from as any)<any>)([1, [2]]); })()',
+  ],
   // polyfill in a TS parameter-property default: the memoize ref must hoist ABOVE the class, not into
   // the constructor body (a body var is invisible to the param default, which evaluates in the param
   // scope). cover the modifiers, multiple params, and a chained (nested-memoize) default
