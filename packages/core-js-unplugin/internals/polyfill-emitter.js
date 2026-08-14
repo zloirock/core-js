@@ -3702,10 +3702,15 @@ export function createPolyfillEmitter({
       emitInheritedStaticCallSplit({ binding, parent, sideEffects });
       return;
     }
-    // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement
+    // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement. a type
+    // INSTANTIATION is the exception the set does not draw: `<T>` is the user's own argument list,
+    // not an assertion about the expression being replaced, so absorbing it silently drops it
+    // (`((Array.from)<any>)(x)` -> `_Array$from(x)`) while the same call spelled with the arguments
+    // on the call keeps them. stop below it and the two spellings agree again
     let { start, end } = node,
         wrapperPath = metaPath.parentPath;
-    while (wrapperPath?.node && (TS_EXPR_WRAPPERS.has(wrapperPath.node.type)
+    while (wrapperPath?.node && wrapperPath.node.type !== 'TSInstantiationExpression'
+      && (TS_EXPR_WRAPPERS.has(wrapperPath.node.type)
         || wrapperPath.node.type === 'ParenthesizedExpression')) {
       ({ start, end } = wrapperPath.node);
       wrapperPath = wrapperPath.parentPath;
