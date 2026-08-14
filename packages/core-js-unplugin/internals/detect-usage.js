@@ -20,7 +20,7 @@ import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
   bareAssignmentPatternLeafPath,
-  bindingInvisibleFromParameterList,
+  bindingInvisibleFromUseRegion,
   climbJsxMemberChain,
   findFunctionScopeVarInPath,
   findIifeCallSite,
@@ -221,7 +221,7 @@ export function isCaseBlockBindingOutsideCases(native, path) {
 // fall through to the TS-runtime / var-hoist fallbacks - a nested-block `var` may still bind
 function nativeBindingInvisibleAtUse(native, path) {
   return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path)
-    || bindingInvisibleFromParameterList(native?.path, path);
+    || bindingInvisibleFromUseRegion(native?.path, path);
 }
 
 // estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a

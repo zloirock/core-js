@@ -281,6 +281,53 @@ const ANCHOR_HOSTS = [
     build: (lhs, recv, names) => `const [${ names }] = (function ({ ${ lhs }: { ${ names } } } = ${ recv })`
       + ` { return [${ names }]; })();` },
 ];
+// --- Receiver-bearing inner default (the default IS the receiver) ---
+// `{ inner: { from } = Array }` reads `Array.from` exactly when the outer slot is undefined, so a
+// mirror replacing that default must fire under precisely the same condition. two arms per cell:
+// the slot PRESENT, where the caller's own object is destructured natively and the default must not
+// run at all, and ABSENT, where the default runs and its static has to be the polyfill. the branchy
+// receivers are the boundary - a receiver NAME cannot say "either branch", so mirroring one arm
+// emits the other arm's static whenever it fires; the row watches the VALUE, which is what a
+// wrong-branch mirror destroys. the host axis is live: each one routes the pattern differently
+const RBD_RECEIVERS = [
+  { id: 'bare-ctor', src: 'Array', key: 'from', observe: 'String(from([1]))', strip: true },
+  { id: 'instance', src: '[1, 2]', key: 'at', observe: 'String(at.call([5, 6], 1))', strip: true },
+  { id: 'proxy-nav', src: 'globalThis.Array', key: 'from', observe: 'String(from([1]))', strip: true },
+  { id: 'branchy-or', src: 'Array || Iterator', key: 'from', observe: 'String(from([1]))', strip: false },
+  { id: 'branchy-ternary', src: 'flag ? Array : Iterator', key: 'from', observe: 'String(from([1]))', strip: false },
+  { id: 'no-receiver', src: '{}', key: 'from', observe: 'typeof from', strip: false },
+];
+const RBD_HOSTS = [
+  { id: 'decl', build: (pat, src) => `const ${ pat } = ${ src };` },
+  { id: 'assign', build: (pat, src, k) => `let ${ k }; (${ pat } = ${ src });` },
+  { id: 'catch', build: (pat, src) => `try { throw ${ src }; } catch (${ pat }) {`, close: '}' },
+  { id: 'for-of', build: (pat, src) => `for (const ${ pat } of [${ src }]) {`, close: '}' },
+  { id: 'param-default', build: (pat, src, k) => `const [${ k }] = (function (${ pat } = ${ src })`
+    + ` { return [${ k }]; })();`, own: true },
+];
+function * generateReceiverBearingDefault() {
+  for (const recv of RBD_RECEIVERS) {
+    for (const host of RBD_HOSTS) {
+      const pat = `{ inner: { ${ recv.key } } = ${ recv.src } }`;
+      for (const [arm, outer] of [['absent', '{}'], ['present', `{ inner: { ${ recv.key }: () => "OWN" } }`]]) {
+        // the parameter host takes its outer object as the CALLER argument, which the row cannot pass
+        // through the shared builder - its own default already stands in for the absent arm
+        if (host.own && arm === 'present') continue;
+        // instance receiver x for-of head is EXCLUDED, not forgotten: no emitter extracts an
+        // instance method in a for-x head at all - the binding is per-iteration, so the extraction
+        // would have to land inside the body rather than in a declarator slot. the flat twin
+        // (`for (const { at } of [arr])`) declines identically, so the gap predates this axis; it is
+        // filed in the area queue with that repro. every other host x receiver cell is crossed
+        if (recv.id === 'instance' && host.id === 'for-of') continue;
+        const body = `${ host.build(pat, outer, recv.key) } return ${ recv.observe }; ${ host.close ?? '' }`;
+        const expr = `(() => { const flag = true; ${ body } })()`;
+        yield { ...snippet(`receiver-bearing-default/${ arm }/${ recv.id }/${ host.id }`, expr),
+          strip: recv.strip && arm === 'absent' };
+      }
+    }
+  }
+}
+
 function * generateAnchorKeySpelling() {
   for (const key of ANCHOR_KEYS) {
     for (const recv of ANCHOR_RECEIVERS) {
@@ -5993,6 +6040,7 @@ export function * generate() {
   yield * generateTsLeadingThis();
   yield * generateNullableTruthyFold();
   yield * generateDestructure();
+  yield * generateReceiverBearingDefault();
   yield * generateAnchorKeySpelling();
   yield * generateAnchorInnerShape();
   yield * generateDestructureAlias();
