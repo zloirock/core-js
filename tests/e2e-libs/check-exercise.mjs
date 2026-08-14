@@ -33,29 +33,36 @@ async function checksOf(target, name) {
   return result.checks;
 }
 
+// named before the first one runs: this tier is fast, but it is also the one that says whether a red
+// runtime cell is the toolchain's fault or the fixture's, and that is not readable from a bare list
+// of check labels scrolling past
+echo(chalk.green(`exercises, raw in node - no bundler, no polyfills: ${ chalk.cyan(targets.length) } target(s)`
+  + ` - ${ chalk.cyan(targets.map(t => basename(t)).join(', ')) }`));
+
 let total = 0;
 let failing = 0;
 const broken = [];
 for (const target of targets) {
   const name = basename(target);
-  echo(`\n${ name }`);
+  echo(chalk.green(`\n${ chalk.cyan(name) }`));
   let checks;
   try {
     checks = await checksOf(target, name);
   } catch (error) {
     broken.push(name);
-    echo(`FAIL ${ name } did not run: ${ error.message }`);
+    echo(chalk.red(`FAIL ${ chalk.cyan(name) } did not run: ${ error.message }`));
     continue;
   }
   const bad = checks.filter(c => !c.pass);
   total += checks.length;
   failing += bad.length;
   for (const check of checks) {
-    echo(`${ check.pass ? 'ok  ' : 'FAIL' } ${ check.label }${ check.pass ? ''
-      : `  actual=${ JSON.stringify(check.actual) } expected=${ JSON.stringify(check.expected) }` }`);
+    echo((check.pass ? chalk.green : chalk.red)(`${ check.pass ? 'ok  ' : 'FAIL' } ${ chalk.cyan(check.label) }${ check.pass ? ''
+      : `  actual=${ JSON.stringify(check.actual) } expected=${ JSON.stringify(check.expected) }` }`));
   }
-  echo(`${ checks.length } checks, ${ bad.length } failing`);
+  echo((bad.length ? chalk.red : chalk.green)(`${ chalk.cyan(checks.length) } checks, ${ chalk.cyan(bad.length) } failing`));
 }
-echo(`\ntotal: ${ total } checks across ${ targets.length } exercise(s), ${ failing } failing`
-  + `${ broken.length ? `, ${ broken.length } exercise(s) did not run: ${ broken.join(', ') }` : '' }`);
+echo((failing || broken.length ? chalk.red : chalk.green)(`\ntotal: ${ chalk.cyan(total) } checks across `
+  + `${ chalk.cyan(targets.length) } exercise(s), ${ chalk.cyan(failing) } failing`
+  + `${ broken.length ? `, ${ chalk.cyan(broken.length) } exercise(s) did not run: ${ chalk.cyan(broken.join(', ')) }` : '' }`));
 if (failing || broken.length) process.exitCode = 1;
