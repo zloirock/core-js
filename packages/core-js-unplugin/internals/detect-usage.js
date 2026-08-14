@@ -20,6 +20,7 @@ import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
   bareAssignmentPatternLeafPath,
+  bindingInvisibleFromParameterList,
   climbJsxMemberChain,
   findFunctionScopeVarInPath,
   findIifeCallSite,
@@ -48,7 +49,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse, assignmentAliasWriteTrusted, hasCtorAliasCandidateShapes, isPolyfillAliasBinding, soleAliasWrite,
-  isSymbolDestructureAliasBinding, registerAliasPrePassSite,
+  isSymbolDestructureAliasBinding, registerAliasPrePassSite, usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
@@ -219,7 +220,8 @@ export function isCaseBlockBindingOutsideCases(native, path) {
 // declaration, or a case-block lexical binding consulted from outside the cases region. callers
 // fall through to the TS-runtime / var-hoist fallbacks - a nested-block `var` may still bind
 function nativeBindingInvisibleAtUse(native, path) {
-  return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path);
+  return isOverHoistedNamespaceBinding(native, path) || isCaseBlockBindingOutsideCases(native, path)
+    || bindingInvisibleFromParameterList(native?.path, path);
 }
 
 // estree-toolkit FALSELY records a DECLARATION as a constant-violation babel never does: a
@@ -555,8 +557,10 @@ export function createEstreeAdapter(options = {}) {
         info, binding: { path: b.path, constantViolations }, scope, adapter, injector: getInjector(), boundName: name,
       });
       // guarded registration = flow-trust refused: the member read stays native. the dominance
-      // gate keeps a use textually BEFORE its trusted write / declaration native too
-      const polyfillHint = info && !info.aliasGuarded && (isAliasBindingShape || isImportBinding)
+      // gate keeps a use textually BEFORE its trusted write / declaration native too.
+      // the babel twin admits a plugin-MINTED memo here as well; this emitter never mints one
+      // (no `registerGlobalAlias(..., { minted: true })` site), so the disjunct has no counterpart
+      const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding)
         && aliasSpanDominatesUse({ info, useStart: path?.node?.start ?? null }) ? info.hint : null;
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`

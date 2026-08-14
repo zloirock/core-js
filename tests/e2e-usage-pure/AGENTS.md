@@ -24,4 +24,6 @@ TypedArrays are not polyfilled in pure at all and need no coverage here.
 
 The babel bundle and unplugin's `pre+post` are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. The remaining legs stay full-environment on purpose.
 
+What the manifest cannot strip - `Object.assign`, which the lowered outputs call themselves - stays native in every local run, and the pure module hands that native back, so an assertion resting on its absence agrees here and fails only under Karma.
+
 What may be stripped is decided by the manifest in `tests/transpiler-differential/`, and the rule is pairing rather than a per-feature verdict: a global and the prototype helpers that ship with it are stripped together, because removing only the global leaves a half-state no real engine has, where a surviving native still serves pure calls. `Symbol` is deliberately never stripped for the same reason. Realm-sensitive work is verified across the Node versions CI runs, not on your local one alone.
