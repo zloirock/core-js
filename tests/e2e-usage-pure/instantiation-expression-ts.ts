@@ -112,6 +112,23 @@ QUnit.test('instantiation-ts: re-parenting keeps side-effect order and the recei
   assert.same(counter, 1, 'a re-parented update operand still runs exactly once');
 });
 
+// the compensating paren is a node only the generator understands, so it goes in after every
+// lowering has run. these shapes are the proof: each holds an `await` inside a slot that still owes
+// its parens, and this bundle lowers to ES5 - an early paren here does not fail an assertion, it
+// aborts the build, so the file compiling at all is half the lock and the values are the other half
+QUnit.test('instantiation-ts: parens owed inside an awaited slot survive the lowering', async assert => {
+  const done = assert.async();
+  const target = (n: number) => [n, [2]].flat();
+  const holder = { member: target };
+
+  assert.deepEqual((((await Promise.resolve(target)) as never)<never>)(1), [1, 2]);
+  assert.deepEqual((((await Promise.resolve(holder))<never>).member)(1), [1, 2]);
+  let counter = 0;
+  assert.same(typeof ((counter++)<never>), 'number', 'a fusing operand keeps its parens too');
+  assert.same(counter, 1);
+  done();
+});
+
 // negatives: the shapes the slot accepts bare must keep working untouched
 QUnit.test('instantiation-ts: slot-legal shapes stay bare', assert => {
   const target = (n: number) => [n, [2]].flat();
