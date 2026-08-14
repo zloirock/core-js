@@ -18,6 +18,7 @@ import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
   climbJsxMemberChain,
+  bindingInvisibleFromParameterList,
   findFunctionScopeVarInPath,
   findIifeCallSite,
   resolveFallbackReceiver,
@@ -42,6 +43,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse, assignmentAliasWriteTrusted, isPolyfillAliasBinding, isSymbolDestructureAliasBinding, soleAliasWrite,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 
 // shared `unwrapTransparentSeq` peels paren / TS expression wrappers / safe SequenceExpression so
@@ -122,8 +124,13 @@ export function createBabelAdapter(options = {}) {
         const b = scope.getBinding?.(name);
         // shared `isAmbientBindingShape` covers all tsc-elided binding forms (declare,
         // type-only imports in 3 ESM variants, type-only TSImportEquals). without filtering
-        // these, the binding would shadow the polyfill even though it doesn't exist at runtime
-        if (!b || !isAmbientBindingShape(b.path.node, b.path.parent)) return true;
+        // these, the binding would shadow the polyfill even though it doesn't exist at runtime.
+        // `bindingInvisibleFromParameterList` drops the second class the tracker over-reports:
+        // babel hangs the whole function - parameters and body - off one scope, so a use the
+        // language evaluates OUTSIDE it (a parameter default, a parameter decorator) reads a
+        // shadow that is not there
+        if ((!b || !isAmbientBindingShape(b.path.node, b.path.parent))
+          && !(b && path && bindingInvisibleFromParameterList(b.path, path))) return true;
       }
       // TS-runtime declarations babel scope doesn't expose via getBindingIdentifier:
       // regular `enum`/`namespace`, `const enum`. walk path's ancestor chain (Program,
@@ -226,7 +233,7 @@ export function createBabelAdapter(options = {}) {
         // `var _ref` scope binding that is NOT an alias-init shape, so the shape checks above miss it -
         // but it is allocator-owned (no user rebind) and its hint was set from a resolved proxy-global
         // root, so trust it directly. the dominance gate still bounds a use textually before the write
-        const polyfillHint = info && !info.aliasGuarded && (isAliasBindingShape || isImportBinding || info.minted)
+        const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || info.minted)
           && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module

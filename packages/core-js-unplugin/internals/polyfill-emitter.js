@@ -747,10 +747,11 @@ export function inlineCallNavGuardRootSrc({
   // the dug-through sequence prefix re-emits as raw slices - report them so a discarding
   // caller rescues the rewrites queued inside (`arr.at(0)` keeps its polyfill in the test)
   for (const expr of plan.seqAroundPrefix ?? []) verbatimSink?.push({ start: expr.start, end: expr.end });
-  const { hops, collapseIdx, lastUnresolvableIdx, keySeExprs, rootValueNode,
+  const { hops, collapseIdx, lastUnresolvableIdx, keySeExprs, rootValueNode, testKeySeCount,
     leafPure: pure } = plan;
   const leafBinding = injectPureImport(pure.entry, pure.hintName);
-  const keySeSrcs = keySeExprs.map(se => code.slice(se.start, se.end));
+  // the test's share is already inside the rendered prefix - only the hops ABOVE it re-emit here
+  const keySeSrcs = keySeExprs.slice(testKeySeCount).map(se => code.slice(se.start, se.end));
   const collapsed = [leafBinding, ...hops.slice(collapseIdx + 1).map(hop => hop.name)].join('.');
   // the kept writes re-wrap the collapsed value (`n = null == _globalThis.window ? void 0 :
   // _self.window`) - targets and operators only, EVERY `=` step of the chain (`q = w = <value>`;
@@ -2508,7 +2509,9 @@ export function createPolyfillEmitter({
     // an ALIAS root keeps its name (its own declaration is rewritten where it lives)
     const rootPure = POSSIBLE_GLOBAL_OBJECTS.has(rootId.name) ? resolveGlobalPolyfill(plan.rootName) : null;
     const rootSrc = rootPure ? injectPureImport(rootPure.entry, rootPure.hintName) : code.slice(rootId.start, rootId.end);
-    const keySeSrcs = plan.keySeExprs.map(se => code.slice(se.start, se.end));
+    // same split as the plain nested render: the kept prefix slice below already carries the key of
+    // every hop at or below the unresolvable one, so only the hops ABOVE it re-emit in the alternate
+    const keySeSrcs = plan.keySeExprs.slice(plan.testKeySeCount).map(se => code.slice(se.start, se.end));
     const leafBinding = injectPureImport(plan.leafPure.entry, plan.leafPure.hintName);
     const tailSrc = plan.hops.slice(plan.collapseIdx + 1)
       .map(hop => `${ hop.liveOptional ? '?.' : '.' }${ hop.name }`).join('');
@@ -4222,6 +4225,11 @@ export function createPolyfillEmitter({
   function renderKeptNavValue(metaPath) {
     const navNode = unwrapNode(metaPath.node);
     if (navNode?.type !== 'MemberExpression' && navNode?.type !== 'OptionalMemberExpression') return false;
+    // a receiver another channel already marked REPLACED has nothing left for this render to spell:
+    // a synth-swap literal supplants the whole nav, and its registration ran when the PATTERN was
+    // visited - before this nav. the span-owner bails below cannot see it, because that literal is
+    // queued post-traverse, so the collision surfaces as an equal-range abort at apply time
+    if (skippedNodes.has(navNode)) return false;
     // the walk and the "a polyfilled dispatch above owns this receiver" bail are the SHARED verdict
     // both emitters ask; only the key reader and the polyfill lookup are dialect-local
     const end = keptNavChainEndPath({

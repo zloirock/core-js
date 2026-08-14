@@ -224,3 +224,57 @@ QUnit.test('chain: proto-fallback and combined chains keep the root guard', asse
   assert.same((w2 = globalThis.window)?.self.Array.of(5).flat?.().map?.(x => x).at?.(0), hasWindow ? 5 : undefined);
   assert.same(w2, win);
 });
+
+// a polyfillable claim nested in a FOREIGN optional chain - an argument, a computed key, the
+// callee of a deeper hop. deoptionalizing the claim's own `?.` must not reach out into that chain:
+// the enclosing `?.` belongs to the host, and stripping it calls `undefined` where native
+// short-circuits. the present-host rows are the boundary: the chain runs and the polyfill serves
+QUnit.test('chain: a claim inside a foreign optional chain keeps the host guard', assert => {
+  const absent = undefined;
+  assert.same(absent?.fn(Array?.from([1])), undefined, 'argument slot');
+  assert.same(absent?.wrap[Array?.from([1]).length], undefined, 'computed-key slot');
+  assert.same(absent?.b.c(Array?.from([1])), undefined, 'deeper hop');
+  assert.same(absent?.fn?.(Array?.from), undefined, 'optional call over a claim READ');
+  const present = { fn: v => v, wrap: { 1: 'hit' }, b: { c: v => v } };
+  assert.deepEqual(present?.fn(Array?.from([1, 2])), [1, 2]);
+  assert.same(present?.wrap[Array?.from([1]).length], 'hit');
+  assert.deepEqual(present?.b.c(Array?.from([3])), [3]);
+  assert.same(present?.fn?.(Array?.from), Array.from);
+});
+
+QUnit.test('chain: an instance claim inside a foreign optional chain keeps the host guard', assert => {
+  const arr = [1, 2, 3];
+  const absent = undefined;
+  assert.same(absent?.fn(arr.at?.(-1)), undefined);
+  assert.same(absent?.wrap[arr.at(0)], undefined);
+  const present = { fn: v => v, wrap: { 1: 'hit' } };
+  assert.same(present?.fn(arr.at?.(-1)), 3);
+  assert.same(present?.wrap[arr.at(0)], 'hit');
+});
+
+// a side-effecting proxy-hop KEY read under a live `?.`. the guard test is the kept source of the
+// hop that owns the key, so it evaluates that effect once - and the alternate must not re-run it.
+// the count discriminates only where the guard actually PASSES, i.e. where `window` exists; in a
+// window-less realm the chain short-circuits after the same single evaluation
+QUnit.test('chain: a side-effecting hop key under a live optional runs once', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const log = [];
+  function eff(t) {
+    log.push(t);
+    return t;
+  }
+  /* eslint-disable no-sequences -- the side-effecting hop KEY is the shape under test */
+  const plainRoot = globalThis[eff('a'), 'window']?.self.Array;
+  assert.deepEqual(log, ['a'], 'the guarded hop key runs exactly once');
+  assert.same(plainRoot, hasWindow ? Array : undefined);
+  const g = globalThis;
+  const aliasRoot = g[eff('b'), 'window']?.self.Map;
+  assert.deepEqual(log, ['a', 'b'], 'an alias-rooted nav runs its key once too');
+  assert.same(aliasRoot, hasWindow ? Map : undefined);
+  // a key ABOVE the guarded hop is the boundary: the test never reaches it, so it belongs to the
+  // alternate and runs only when the guard passes
+  const aboveTheGuard = globalThis.window?.[eff('c'), 'self'].Set;
+  assert.deepEqual(log, hasWindow ? ['a', 'b', 'c'] : ['a', 'b'], 'a key above the guard rides the alternate');
+  /* eslint-enable no-sequences -- back to the ordinary rule below */
+  assert.same(aboveTheGuard, hasWindow ? Set : undefined);
+});

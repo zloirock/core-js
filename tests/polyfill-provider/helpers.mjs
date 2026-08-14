@@ -50,6 +50,7 @@ import {
   spreadAtOrBefore,
   methodReadsUsageCensus,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
+import { usableAliasInfo } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import { subsume } from '../../packages/core-js-polyfill-provider/helpers/subsumption.js';
 import { createChecker } from './harness.mjs';
@@ -1478,6 +1479,26 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
     check('subsume/throw is not self-branded', message.startsWith('[core-js]'), false);
     check('subsume/throw names its subsystem', message.startsWith('subsume: '), true);
   }
+}
+
+// --- usableAliasInfo: the read-time half of the injector's flow-trust refusal ---
+// the rule is spelled once and asked at every read of an injector record, in both plugins; the
+// domain is closed, so enumerate it - the flag decides, and nothing else about the record does
+{
+  check('usableAliasInfo/no record', usableAliasInfo(null), null);
+  check('usableAliasInfo/undefined record', usableAliasInfo(undefined), null);
+  const guarded = { hint: 'globalThis', entry: { name: '_globalThis' }, aliasGuarded: true };
+  check('usableAliasInfo/guarded record declines', usableAliasInfo(guarded), null);
+  const open = { hint: 'globalThis', entry: { name: '_globalThis' }, aliasGuarded: false };
+  check('usableAliasInfo/unguarded record passes through', usableAliasInfo(open), open);
+  const absent = { hint: 'Symbol', entry: null };
+  check('usableAliasInfo/absent flag reads as unguarded', usableAliasInfo(absent), absent);
+  // the flag is the ONLY question: an empty-but-unguarded record still passes, so a consumer
+  // reading a missing field sees `undefined` from the record rather than the guard's `null`
+  const empty = { aliasGuarded: false };
+  check('usableAliasInfo/empty unguarded record still passes', usableAliasInfo(empty), empty);
+  check('usableAliasInfo/consumer field of a declined record', usableAliasInfo(guarded)?.hint ?? null, null);
+  check('usableAliasInfo/consumer field of an accepted record', usableAliasInfo(open)?.hint ?? null, 'globalThis');
 }
 
 finish();
