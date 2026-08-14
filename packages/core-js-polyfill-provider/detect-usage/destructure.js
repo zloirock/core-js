@@ -2478,12 +2478,32 @@ export function applyNestedParamSynthPlan({ plan, renderTree, replaceTarget, ski
 // stable - once the chain bottoms out on a real global, AST mutations don't reverse it
 const nestedReceiverCache = new WeakMap();
 
+// the outer chain declined, but an inner DEFAULT carries a receiver of its own:
+// `{ inner: { from } = Array }` reads `Array.from` exactly when the outer slot is undefined, which
+// is exactly when a mirror of that default fires - so the receiver is resolvable after all, on any
+// host. asked ONLY as a fallback: a chain that resolves means the default is dead code and the
+// outer receiver is the real one (`{ Array: { from } = {} } = globalThis`)
+function innerDefaultReceiverName(outerProp, adapter) {
+  const value = outerProp?.node?.value;
+  if (value?.type !== 'AssignmentPattern' || value.left?.type !== 'ObjectPattern') return null;
+  const init = unwrapExpressionChain(value.right);
+  // a BRANCHY default (`= Array || Iterator`, `= c ? Array : Set`) declines here on purpose: this
+  // channel answers with a receiver NAME, and a name cannot say "either branch". picking one and
+  // mirroring it emits the wrong branch's static whenever the other one fires - the flat path can
+  // afford these shapes only because its meta carries `fromFallback` and the emit enumerates arms
+  if (!init || init.type === 'LogicalExpression' || init.type === 'ConditionalExpression') return null;
+  return resolveObjectName({
+    objectNode: init, scope: outerProp.scope, adapter, path: outerProp, usageNode: outerProp.node,
+  });
+}
+
 export function resolveNestedDestructureReceiver(outerProp, adapter, unionSink = null) {
   // the cache entry carries the container-slot union beside the name, so a cache hit replays
   // the alternatives into the caller's sink instead of silently dropping them
   const cached = nestedReceiverCache.get(outerProp.node);
   const union = cached ? cached.union : [];
-  const result = cached ? cached.name : computeNestedDestructureReceiver(outerProp, adapter, union);
+  const result = cached ? cached.name
+    : computeNestedDestructureReceiver(outerProp, adapter, union) ?? innerDefaultReceiverName(outerProp, adapter);
   if (unionSink) for (const name of union) if (!unionSink.includes(name)) unionSink.push(name);
   if (!cached && result) nestedReceiverCache.set(outerProp.node, { name: result, union });
   return result;

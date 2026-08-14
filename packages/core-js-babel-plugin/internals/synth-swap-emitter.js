@@ -12,6 +12,7 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
+  peelTransparentWrapperPath,
   isMemberWriteHost,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
@@ -19,7 +20,6 @@ import {
   findIifeArgPath,
   getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
@@ -79,18 +79,6 @@ export default function createSynthSwapEmitter({
     claimedDestructurePatterns.add(patternNode);
   }
 
-  // peel runtime-transparent expression wrappers (TS `as` / `satisfies` / `!` / ... and
-  // `ParenthesizedExpression` for `createParenthesizedExpressions: true`) so synth-target
-  // detection lands on the meaningful inner node. default parser tracks parens via the
-  // `extra.parenthesized` flag instead of nodes - that flag is checked separately at the
-  // relevant call sites (`isWrappedInParens` in babel-compat.js)
-  function peelTransparentPath(path) {
-    while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) {
-      path = path.get('expression');
-    }
-    return path;
-  }
-
   // `(fn, R)` SE evaluates to its tail. peel SE prefixes recursively through paren wrappers
   // so flat / nested forms (`(0, R)` vs `(0, (1, R))`) classify identically. peel is
   // unconditional including for side-effecting prefixes: synth-swap's `replaceWith` mutates
@@ -98,7 +86,7 @@ export default function createSynthSwapEmitter({
   // path-version companion of node-version `unwrapSafeSequenceTail` (`helpers/ast-patterns.js`)
   function unwrapSequenceTail(argPath) {
     while (argPath?.node) {
-      argPath = peelTransparentPath(argPath);
+      argPath = peelTransparentWrapperPath(argPath);
       if (!argPath?.isSequenceExpression()) return argPath;
       const tail = argPath.get('expressions').at(-1);
       if (!tail) return argPath;
@@ -264,7 +252,7 @@ export default function createSynthSwapEmitter({
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
     // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
-    return registerBranchTreeForKey({ branchPath: peelTransparentPath(rhsPath), objectPattern, lookupKey, slotKey });
+    return registerBranchTreeForKey({ branchPath: peelTransparentWrapperPath(rhsPath), objectPattern, lookupKey, slotKey });
   }
 
   // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
