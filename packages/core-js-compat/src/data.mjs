@@ -2790,10 +2790,12 @@ export const data = {
   'esnext.observable.of': {
   },
   'esnext.promise.all-keyed': {
+    firefox: '155',
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
   'esnext.promise.all-settled-keyed': {
+    firefox: '155',
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,

@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
-- Nothing
+- Compat data improvements:
+  - [`Promise.{ allKeyed, allSettledKeyed }`](https://github.com/tc39/proposal-await-dictionary) marked as [shipped in FF155](https://bugzilla.mozilla.org/show_bug.cgi?id=2057270)
 
 ### [3.50.0 - 2026.08.05](https://github.com/zloirock/core-js/releases/tag/v3.50.0)
 - Changes [v3.49.0...v3.50.0](https://github.com/zloirock/core-js/compare/v3.49.0...v3.50.0) (138 commits)
