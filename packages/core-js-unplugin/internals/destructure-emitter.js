@@ -9,6 +9,7 @@
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation), `collapseProxyHopRoot`,
 // `tryFlattenProxyHopHost` (alias-hop collapse hooks), `markLiftedSePrefixOperand`
 import {
+  peelTransparentWrapperPath,
   buildFlatSynthEntries,
   collectFoldedReceiverSideEffects,
   computedKeyHasSideEffects,
@@ -99,7 +100,6 @@ import {
   outerDestructureReceiver,
   planArrayWrappedStaticExtract,
   isConstantLiteralReceiver,
-  isInnerDestructureDefault,
   isViableBranchForKey,
   destructurePatternHostPath,
   nestedAssignmentStatementOf,
@@ -2829,36 +2829,32 @@ export function createDestructureEmitter({
   }
 
   // register an instance param-default synth: the default expression becomes the synth target and
-  // `applySynthSwaps` renders `{ at: _atMaybeArray(<receiver>) }` in its place. only the DIRECT param
-  // default qualifies - an inner default carries `{}`-style filler, not the receiver - and the shared
-  // gate bounds the receiver's shape / read count / global safety. the incoming entry resolved off the
+  // `applySynthSwaps` renders `{ at: _atMaybeArray(<receiver>) }` in its place. BOTH a parameter's own
+  // default and an INNER one qualify - the mirror replaces that default, so it fires exactly when the
+  // slot it defends is undefined, whatever host stands above it - and the shared gate bounds the
+  // receiver's shape / read count / global safety. the incoming entry resolved off the
   // TYPELESS meta (a generic helper, `_at`); typing the default here refines it to the receiver-narrowed
   // variant (`_atMaybeArray`) - the precision the top-level declarator form gets through the resolver's
-  // receiver walk. pure-only by construction: detection stays untyped so usage-global keeps its over-inject
-  // peel a PATH through the same transparent wrappers `receiver` peels off its node, so the receiver
-  // TYPING sees the runtime shape, not a TS cast's asserted annotation. `resolveNodeType` trusts a
-  // cast (`x as string`) over the real value, so an UNPEELED path refines to a type-specific Maybe
-  // (`_atMaybeString` on a runtime array -> throws on a target lacking String#at); the peeled path
-  // types off `x` itself and degrades to the generic dispatcher, matching the babel twins
-  function peelTransparentPath(path) {
-    let peeled = path;
-    while (peeled?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(peeled.node.type)) peeled = peeled.get('expression');
-    return peeled;
-  }
-
+  // receiver walk. pure-only by construction: detection stays untyped, so usage-global keeps its
+  // over-inject bias instead of narrowing here
   function tryRegisterParamDefaultInstanceSynthPure(pureResult, metaPath, propNode) {
     const objectPattern = metaPath.parent;
     const wrapperPath = metaPath.parentPath?.parentPath;
-    if (wrapperPath?.node?.type !== 'AssignmentPattern' || isInnerDestructureDefault(wrapperPath)) return false;
+    if (wrapperPath?.node?.type !== 'AssignmentPattern') return false;
     let receiver = wrapperPath.node.right;
     while (receiver && TRANSPARENT_EXPR_WRAPPER_TYPES.has(receiver.type)) receiver = receiver.expression;
     if (!paramDefaultInstanceSynthAllowed({
       objectPatternNode: objectPattern, receiverNode: receiver,
       scope: metaPath.scope, adapter: estreeAdapter, path: metaPath, resolvePure,
     })) return false;
+    // `receiverPath` is PEELED for the same reason `receiver` is: the TYPING must see the runtime
+    // shape, not a TS cast's asserted annotation. `resolveNodeType` trusts a cast (`x as string`)
+    // over the real value, so an unpeeled path refines to a type-specific Maybe (`_atMaybeString` on
+    // a runtime array - throws on a target lacking String#at); peeled, it types off `x` itself and
+    // degrades to the generic dispatcher, matching the babel twin
     const use = refineParamDefaultInstancePure({
       pureResult, key: resolveSynthKeys({ node: propNode, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath }).lookupKey,
-      receiverPath: peelTransparentPath(wrapperPath.get('right')), resolveNodeType, toHint, resolvePure, path: metaPath,
+      receiverPath: peelTransparentWrapperPath(wrapperPath.get('right')), resolveNodeType, toHint, resolvePure, path: metaPath,
     });
     const binding = injectPureImport(use.entry, use.hintName);
     skipReplacedReceiver(receiver);
@@ -2894,7 +2890,7 @@ export function createDestructureEmitter({
     const argPath = findIifeArgPath(wrapperPath, objectPattern);
     const use = refineParamDefaultInstancePure({
       pureResult, key: resolveSynthKeys({ node: propNode, scope: metaPath.scope, adapter: estreeAdapter, path: metaPath }).lookupKey,
-      receiverPath: argPath ? peelTransparentPath(argPath) : null,
+      receiverPath: argPath ? peelTransparentWrapperPath(argPath) : null,
       resolveNodeType, toHint, resolvePure, path: metaPath,
     });
     const binding = injectPureImport(use.entry, use.hintName);
