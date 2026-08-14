@@ -76,13 +76,13 @@ async function snapshot(file, lines, origins) {
     // handful of lines that are the reason it was run
     if (base && `${ base.join('\n') }\n`.trim() === content.trim()) return 'ok';
     await writeFile(file, content);
-    echo(`    snapshot ${ base ? 'updated' : 'created' } (${ lines.length })`);
+    echo(chalk.yellow(`    snapshot ${ base ? 'updated' : 'created' } (${ chalk.cyan(lines.length) })`));
     return 'updated';
   }
   // only an explicit OVERWRITE may author a baseline. Auto-creating one here would make a new library
   // (or a baseline lost in a merge) report success while having verified nothing.
   if (!base) {
-    echo(`    FAIL no baseline at ${ file } - rerun with OVERWRITE=1 to author it`);
+    echo(chalk.red(`    FAIL no baseline at ${ chalk.cyan(file) } - rerun with OVERWRITE=1 to author it`));
     return 'missing';
   }
   const now = new Set(lines);
@@ -98,8 +98,8 @@ async function snapshot(file, lines, origins) {
   // the decision that changed. Strip the delta sign first - `origins` is keyed by the bare specifier,
   // and a line that this build did not inject simply has none.
   function withOrigins(mark, s) {
-    echo(`    ${ mark } "${ s }"`);
-    for (const where of origins.get(s.replace(/^[+-]/, '')) ?? []) echo(`        injected into ${ where }`);
+    echo(chalk.red(`    ${ mark } "${ chalk.cyan(s) }"`));
+    for (const where of origins.get(s.replace(/^[+-]/, '')) ?? []) echo(chalk.red(`        injected into ${ chalk.cyan(where) }`));
   }
   for (const s of added) withOrigins('+', s);
   for (const s of removed) withOrigins('-', s);
@@ -247,15 +247,16 @@ async function version(pkg) {
 }
 const [vOxc, vCoreJs, vRxjs, vThree, vCm] = await Promise.all(
   ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
-echo(`environment: ${ process.platform }/${ process.arch } node ${ process.version }`
-  + ` | oxc-parser ${ vOxc } | core-js ${ vCoreJs } | rxjs ${ vRxjs } | three ${ vThree } | @codemirror/state ${ vCm }`);
+echo(chalk.green(`environment: ${ chalk.cyan(`${ process.platform }/${ process.arch }`) } node ${ chalk.cyan(process.version) }`
+  + ` | oxc-parser ${ chalk.cyan(vOxc) } | core-js ${ chalk.cyan(vCoreJs) } | rxjs ${ chalk.cyan(vRxjs) }`
+  + ` | three ${ chalk.cyan(vThree) } | @codemirror/state ${ chalk.cyan(vCm) }`));
 // The TS-source stack gets its own line: every package in it feeds the htmlparser2 cells and any of
 // them can move those snapshots, so naming only the one the fixture is called after would answer "was
 // this the same input?" with a fraction of the answer. domhandler / domelementtype / boolbase ship no sources
 // and are therefore not listed - they are ordinary JS dependencies like every other fixture's.
 const tsPackages = [...TS_SOURCE_PACKAGES];
 const tsVersions = await Promise.all(tsPackages.map(p => version(p)));
-echo(`TS sources: ${ tsPackages.map((p, i) => `${ p } ${ tsVersions[i] }`).join(' | ') }`);
+echo(chalk.green(`TS sources: ${ tsPackages.map((p, i) => `${ p } ${ chalk.cyan(tsVersions[i]) }`).join(' | ') }`));
 
 // PROVIDERS is ordered babel-plugin first, and the loop nests provider INSIDE method, so every
 // unplugin cell runs after the reference it is diffed against - no second pass, no cross-library
@@ -269,6 +270,25 @@ for (const lib of libs) {
     }
   }
 }
+
+// Only start Karma where IE11 actually exists: the windows CI runner (CI set), or a machine that has
+// the browser. The resolution is `tests/karma/internet-explorer.js`, shared with the unit legs and
+// the same one karma-ie-launcher performs - `IE_BIN`, then the standard location under each flavor of
+// the program files directory. PATH is not among them and never mentions Internet Explorer.
+// Answered HERE rather than at the leg itself, minutes later: whether the run ends in a browser is
+// half of what it is about to do, and the header below is where that has to be readable.
+const ie = findInternetExplorer();
+
+// What this run is about to spend those minutes on. A matrix this size is otherwise a silent wait
+// with no way to tell a full run from a filtered one, or a run that will end in IE11 from one whose
+// browser leg is not even going to start.
+echo(chalk.green(`\nruntime tier: ${ chalk.cyan(libs.length) } librar${ libs.length === 1 ? 'y' : 'ies' }`
+  + ` x ${ chalk.cyan(METHODS.length) } method(s) x ${ chalk.cyan(PROVIDERS.length) } provider(s), phases expanded`
+  + ` - ${ chalk.cyan(cells.length) } cell(s)${ libFilter ? ` filtered by ${ chalk.cyan(libFilter) }` : '' }`));
+const ie11Leg = process.env.CI || ie
+  ? `then ${ chalk.cyan('one page per cell') } runs in real IE11`
+  : `the IE11 leg is ${ chalk.cyan('skipped') } - no IE11 here and not CI`;
+echo(chalk.green(`each cell is built once, then gated, snapshotted, pre-flighted in node and written as a page; ${ ie11Leg }`));
 
 const manifest = [];
 const karmaFiles = [];
@@ -360,11 +380,17 @@ for (const { lib, method, provider, phase } of cells) {
     // scanned by that prefix, and `exitCode` alone is no help on a log 40 cells long
     const ok = !bad.length && snap !== 'drift' && snap !== 'missing';
     if (bad.length) failedCells.add(label);
-    echo(`${ ok ? 'ok' : 'FAIL' } ${ label }: ${ checks.length - bad.length }/${ checks.length } preflight, `
-      + `${ injected.length } inj${ delta ? ` (delta vs reference ${ delta.length })` : '' }`
-      + `${ snap === 'skipped' ? '' : `, ${ snap }` } `
-      + `(${ bytes }b raw / ${ (gz / 1024).toFixed(0) }KB gz, built in ${ buildMs.toFixed(0) }ms)`);
-    for (const c of bad) echo(`    FAIL ${ c.label } actual=${ JSON.stringify(c.actual) }`);
+    // `providers agree` is a statement about entry-global, not about a baseline, and is the one state
+    // that names itself; every other one is a snapshot's, and said so only in this file until it was
+    // spelled out here - a bare `ok` in the middle of a line answers nothing without the source
+    const snapshotState = snap === 'skipped' ? '' : snap === 'providers agree'
+      ? `, ${ chalk.cyan(snap) }` : `, snapshot ${ chalk.cyan(snap) }`;
+    echo((ok ? chalk.green : chalk.red)(`${ ok ? 'ok' : 'FAIL' } ${ chalk.cyan(label) }: `
+      + `${ chalk.cyan(`${ checks.length - bad.length }/${ checks.length }`) } preflight, `
+      + `${ chalk.cyan(injected.length) } injections${ delta ? ` (delta vs reference ${ chalk.cyan(delta.length) })` : '' }`
+      + `${ snapshotState } `
+      + `(${ chalk.cyan(bytes) }b raw / ${ chalk.cyan((gz / 1024).toFixed(0)) }KB gz, built in ${ chalk.cyan(buildMs.toFixed(0)) }ms)`));
+    for (const c of bad) echo(chalk.red(`    FAIL ${ chalk.cyan(c.label) } actual=${ JSON.stringify(c.actual) }`));
     manifest.push({
       lib: lib.name, provider, method, phase: phase ?? null, label, dir: rel, bytes, min, gz,
       // diagnostic, not comparable across cells - see the header
@@ -378,7 +404,7 @@ for (const { lib, method, provider, phase } of cells) {
     failedCells.add(label);
     if (provider === 'babel-plugin') failedReferences.add(refKey(lib, method));
     const reason = errorReason(err);
-    echo(`FAIL ${ label }: ${ reason }`);
+    echo(chalk.red(`FAIL ${ chalk.cyan(label) }: ${ reason }`));
     manifest.push({ lib: lib.name, provider, method, phase: phase ?? null, label, error: reason });
   }
 }
@@ -386,18 +412,13 @@ for (const { lib, method, provider, phase } of cells) {
 if (!manifest.length) throw new Error('no cells ran - the registry or METHODS is empty');
 
 await mkdir(ART, { recursive: true });
-echo(`\nartifacts -> ${ ART }`);
-echo('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.');
+echo(chalk.green(`\nartifacts -> ${ chalk.cyan(ART) }`));
+echo(chalk.cyan('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.'));
 
 // -------- real IE11, where one exists --------
 
-// Only start Karma where IE11 actually exists: the windows CI runner (CI set), or a machine that
-// has the browser. The resolution is `tests/karma/internet-explorer.js`, shared with the unit legs
-// and the same one karma-ie-launcher performs - `IE_BIN`, then the standard location under each
-// flavor of the program files directory. PATH is not among them and never mentions Internet
-// Explorer. Elsewhere every gate above has already run; the browser leg is the CI-only part.
-const ie = findInternetExplorer();
-
+// `ie` is resolved up at the header, which states whether this leg is going to run at all. Elsewhere
+// every gate above has already run; the browser leg is the CI-only part.
 const ATTEMPTS = 3;
 // a browser that never starts, never reaches the karma page or drops the connection says nothing
 // about the bundle - windows CI runners produce those often enough to repeat the page rather than
@@ -437,7 +458,7 @@ async function runKarmaPage(bundle, label) {
     // verdict on the cell nor a browser that deserves another chance
     const infrastructure = !signal && !TEST_FAILURE.test(output) && INFRASTRUCTURE_FAILURES.some(it => it.test(output));
     if (!infrastructure || attempt === ATTEMPTS) return { exitCode, infrastructure };
-    echo(`  ${ label }: the browser failed to run it, retrying (${ attempt + 1 } of ${ ATTEMPTS })`);
+    echo(chalk.yellow(`  ${ chalk.cyan(label) }: the browser failed to run it, retrying (${ chalk.cyan(attempt + 1) } of ${ chalk.cyan(ATTEMPTS) })`));
   }
 }
 
@@ -446,17 +467,19 @@ async function runKarmaPage(bundle, label) {
 // from it because the file was already on disk when the browser started.
 const karmaOutcome = new Map();
 if (!(process.env.CI || ie)) {
-  echo(`\n${ karmaFiles.length } bundle(s) also written to ${ KARMA_OUT }. No IE11 here and not CI - skipping Karma.`
-    + ' A windows box with IE11 in its usual place runs this leg by itself; IE_BIN names it anywhere else.');
+  echo(chalk.green(`\n${ chalk.cyan(karmaFiles.length) } bundle(s) also written to ${ chalk.cyan(KARMA_OUT) }.`
+    + ' No IE11 here and not CI - skipping Karma. A windows box with IE11 in its usual place runs this leg'
+    + ` by itself; ${ chalk.cyan('IE_BIN') } names it anywhere else.`));
 } else {
-  echo(`\nrunning Karma in real IE11 - ONE bundle per page (${ karmaFiles.length } pages), so no sibling shares a`);
-  echo('realm: a global-patching method can never mask the usage-pure or pre gap of another cell, and each');
-  echo('page holds a single library copy. post + pre+post (and entry-global) GATE the job; the `pre` phase is');
-  echo('a NON-GATING per-library diagnostic (pre runs unplugin before Babel, so it can miss Babel-helper');
-  echo('polyfills - expected to fail for some libraries, which is the signal we want, not a job failure).');
-  echo('Per-cell counts print as "[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed".');
+  echo(chalk.green(`\nrunning Karma in real IE11 - ONE bundle per page (${ chalk.cyan(karmaFiles.length) } pages), so no sibling shares a realm`));
+  echo(chalk.green('a global-patching method can never mask the usage-pure or pre gap of another cell, and each'));
+  echo(chalk.green(`page holds a single library copy. ${ chalk.cyan('post') } + ${ chalk.cyan('pre+post') }`
+    + ` (and ${ chalk.cyan('entry-global') }) GATE the job; the ${ chalk.cyan('pre') } phase is`));
+  echo(chalk.green('a NON-GATING per-library diagnostic (pre runs unplugin before Babel, so it can miss Babel-helper'));
+  echo(chalk.green('polyfills - expected to fail for some libraries, which is the signal we want, not a job failure).'));
+  echo(chalk.green(`Per-cell counts print as ${ chalk.cyan('"[e2e-libs] <lib>/<provider>/<method>[/<phase>]: N/N checks passed"') }.`));
   for (const { file, label, gating } of karmaFiles) {
-    echo(`\n-- IE11: ${ label }${ gating ? '' : ' [pre diagnostic, non-gating]' } --`);
+    echo(chalk.green(`\n-- IE11: ${ chalk.cyan(label) }${ gating ? '' : chalk.yellow(' [pre diagnostic, non-gating]') } --`));
     // both paths stay relative to the suite directory and forward-slashed: this leg runs on windows,
     // where `$` goes through bash - a native `D:\...` reaches it as an unquotable word - and Karma
     // matches `files` through glob, where a backslash is an escape and would match nothing
@@ -477,8 +500,11 @@ if (!(process.env.CI || ie)) {
     // it is allowed to produce, and a broken browser leg reddens the gating cells beside it anyway
     if (gating) {
       failedCells.add(label);
-      echo(`  FAIL ${ label }: ${ how }`);
-    } else echo(`  pre diagnostic ${ label }: ${ how }${ infrastructure ? '' : ' - an expected-possible pre failure' }; not gating`);
+      echo(chalk.red(`  FAIL ${ chalk.cyan(label) }: ${ how }`));
+    } else {
+      echo(chalk.yellow(`  pre diagnostic ${ chalk.cyan(label) }: ${ how }`
+        + `${ infrastructure ? '' : ' - an expected-possible pre failure' }; not gating`));
+    }
   }
 }
 
@@ -487,7 +513,7 @@ for (const entry of manifest) entry.karma = karmaOutcome.get(entry.label) ?? 'no
 // Re-read rather than reuse what was validated before the wipe: this is the last moment before the
 // write, so a sibling run that finished meanwhile survives instead of being overwritten
 await writeFile(MANIFEST, `${ JSON.stringify([...await otherLibrariesInManifest(), ...manifest], null, 2) }\n`);
-echo(`\nmanifest -> ${ MANIFEST }`);
+echo(chalk.green(`\nmanifest -> ${ chalk.cyan(MANIFEST) }`));
 
 // A baseline with no cell behind it - a library dropped from the registry, a phase renamed - is
 // invisible to everything above: nothing reads it, so nothing notices, and it sits in git looking
@@ -499,12 +525,12 @@ const expectedSnapshots = new Set(libraries.flatMap(lib => METHODS.filter(m => m
 const orphans = (await fs.readdir(SNAP)).map(f => join(SNAP, f)).filter(f => !expectedSnapshots.has(f));
 for (const file of orphans) {
   if (OVERWRITE) await rm(file);
-  echo(`${ OVERWRITE ? 'removed orphan' : 'FAIL orphan' } snapshot ${ relative(HERE, file) }`
-    + `${ OVERWRITE ? '' : ' - no cell produces it; rerun with OVERWRITE=1 to remove it' }`);
+  echo((OVERWRITE ? chalk.yellow : chalk.red)(`${ OVERWRITE ? 'removed orphan' : 'FAIL orphan' } snapshot ${ chalk.cyan(relative(HERE, file)) }`
+    + `${ OVERWRITE ? '' : ' - no cell produces it; rerun with OVERWRITE=1 to remove it' }`));
 }
 
-if (drift) echo(`\nFAIL injection snapshot drifted in ${ drift } cell(s) - rerun with OVERWRITE=1 if intended`);
-if (missing) echo(`\nFAIL ${ missing } cell(s) have no snapshot baseline - rerun with OVERWRITE=1 to author them`);
-if (failedCells.size) echo(`\nFAIL ${ failedCells.size } cell(s) failed`);
+if (drift) echo(chalk.red(`\nFAIL injection snapshot drifted in ${ chalk.cyan(drift) } cell(s) - rerun with OVERWRITE=1 if intended`));
+if (missing) echo(chalk.red(`\nFAIL ${ chalk.cyan(missing) } cell(s) have no snapshot baseline - rerun with OVERWRITE=1 to author them`));
+if (failedCells.size) echo(chalk.red(`\nFAIL ${ chalk.cyan(failedCells.size) } cell(s) failed`));
 if (failedCells.size || drift || missing || (orphans.length && !OVERWRITE)) process.exitCode = 1;
-else echo(`\nruntime tier green - ${ manifest.length } cell(s)`);
+else echo(chalk.green(`\nruntime tier green - ${ chalk.cyan(manifest.length) } cell(s)`));
