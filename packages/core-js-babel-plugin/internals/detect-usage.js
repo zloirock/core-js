@@ -532,20 +532,158 @@ export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 // already covered (e.g. `Symbol` in `Symbol.iterator in obj`)
 export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
 
-// @babel/generator drops the parens around a TS-cast callee under a type instantiation:
-// `((M.groupBy as any)<any>)([1])` reprints as `M.groupBy as any<any>([1])`, which re-parses -
-// and TS-strips - into a relational chain over a bare `any` identifier (runtime
-// ReferenceError). the drop reproduces on a plain parse/print round-trip with no plugin, so
-// restore an explicit paren node around the cast whenever this plugin's presence forces the
-// reprint. EVERY babel mode reprints (entry-global included), so each mounts this handler in
-// its OWN throwaway visitor map - babel's traverse/explode MUTATES visitor objects in place,
-// so a shared map object must never cross plugin instances. the pure guard-narrow emit
-// carries its own slot-local variant of the same restoration
+// shapes the instantiation slot (`<here><T>`) accepts BARE - a LeftHandSideExpression, plus the
+// few looser shapes @babel/generator parenthesizes on its own account (a SequenceExpression, an
+// object/class/function literal). ALLOWLIST, not denylist: a shape nobody anticipated is taken to
+// owe its parens and gets compensated, where a denylist that misses one miscompiles in silence.
+// what it owes them FOR is then narrowed below, by the host - the compensation is not free.
+// TSTypeAssertion is deliberately ABSENT - the drop leaves its stripped JS intact, but re-scopes
+// the assertion from the operand to the whole call
+const BARE_INSTANTIATION_SLOT_TYPES = new Set([
+  'ArrayExpression',
+  'BigIntLiteral',
+  'BooleanLiteral',
+  'CallExpression',
+  'ClassExpression',
+  'FunctionExpression',
+  'Identifier',
+  'Import',
+  'ImportExpression',
+  'MemberExpression',
+  'MetaProperty',
+  'NewExpression',
+  'NullLiteral',
+  'NumericLiteral',
+  'ObjectExpression',
+  // already parenthesized: a source paren kept as a node under `createParenthesizedExpressions`,
+  // or one this restoration itself put there on an earlier visit
+  'ParenthesizedExpression',
+  'RegExpLiteral',
+  'SequenceExpression',
+  'StringLiteral',
+  'Super',
+  'TSInstantiationExpression',
+  'TSNonNullExpression',
+  'TaggedTemplateExpression',
+  'TemplateLiteral',
+  'ThisExpression',
+]);
+
+// does the node filling a type-instantiation slot owe that slot the parens the source spelled?
+// @babel/generator has no `needsParens` rule for the slot, so anything looser than a
+// LeftHandSideExpression reprints BARE and re-parses as something else: `(await p)<T>(1)` becomes
+// `await p(1)` (the call moves inside the await), `(a?.b)<T>(1)` lets the chain swallow the call,
+// `(q = f)<T>(1)` assigns the call's result, `(++q)<T>(1)` stops parsing at all. asking the SLOT's
+// priority is what makes this total - the shapes that can reach it are not enumerable up front
+export function instantiationSlotNeedsParens(node) {
+  return !BARE_INSTANTIATION_SLOT_TYPES.has(node.type);
+}
+
+// the node the instantiation actually answers to, plus the child filling that node's slot. under
+// `createParenthesizedExpressions` the source parens are REAL nodes, so the host sits one or more
+// paren layers up instead of directly overhead and every question below would read the paren as
+// its host. paren layers ONLY: a TS cast between the instantiation and its host is a different
+// shape, not a transparent layer to climb through
+function hostSlotAbove(path) {
+  let child = path;
+  while (child.parentPath?.node?.type === 'ParenthesizedExpression') child = child.parentPath;
+  const host = child.parentPath?.node;
+  return host ? { host, childNode: child.node } : null;
+}
+
+// hosts that can carry type arguments of their own, each mapped to the slot it holds the
+// instantiation in
+const TYPE_ARGUMENT_HOST_SLOTS = new Map([
+  ['CallExpression', 'callee'],
+  ['NewExpression', 'callee'],
+  ['OptionalCallExpression', 'callee'],
+  ['TaggedTemplateExpression', 'tag'],
+]);
+
+// `((X)<T>)(a)` and `X<T>(a)` are the SAME TS spelling - a call carrying its own type arguments -
+// and the same holds for `new` and for a tagged template's tag. so hand the arguments to the host
+// above and drop the instantiation node: what is left is plain, and its slot is rendered by
+// @babel/generator's own precedence table, which is total where an allowlist is a standing guess.
+// it also keeps a `ParenthesizedExpression` out of the output - that node exists only under
+// `createParenthesizedExpressions`, and a lowering that has to rewrite the expression tree does not
+// know it (regenerator throws on one, and `await` / `yield` operands, which need the parens most,
+// are exactly what it must explode). babel 7 spells the field `typeParameters`, babel 8
+// `typeArguments`, on BOTH nodes, so carrying the key across is version-symmetric
+function foldInstantiationIntoTypeArgumentHost(path) {
+  const above = hostSlotAbove(path);
+  const slot = above && TYPE_ARGUMENT_HOST_SLOTS.get(above.host.type);
+  if (!slot || above.host[slot] !== above.childNode) return false;
+  const parent = above.host;
+  const key = 'typeArguments' in path.node ? 'typeArguments' : 'typeParameters';
+  // a host cannot carry two type-argument lists; leave the nested spelling to the paren restoration
+  if (parent[key]) return false;
+  parent[key] = path.node[key];
+  path.replaceWith(path.node.expression);
+  return true;
+}
+
+// slot shapes whose own trailing token FUSES with the `<` opening the type arguments, so the drop
+// misreads them under any host: `f as any<T>` re-parses the argument list into the cast's type,
+// `q++<T>` into a relational chain. every OTHER loose shape survives the drop unless something
+// FOLLOWS the instantiation - which is the host's question, below, not the slot's
+const FUSING_SLOT_TYPES = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSTypeAssertion',
+  'UpdateExpression',
+]);
+
+// a member tail rejects a BARE instantiation outright - TS spells the refusal "Invalid property
+// access after an instantiation expression" - so the parens the source put there are around the
+// INSTANTIATION, whatever its operand, and `(Array<number>).from(x)` is the only way to write the
+// shape at all. that makes this host's restoration unconditional, the one place the operand's own
+// priority does not decide
+function memberTailHost(path) {
+  const above = hostSlotAbove(path);
+  return (above?.host.type === 'MemberExpression' || above?.host.type === 'OptionalMemberExpression')
+    && above.host.object === above.childNode;
+}
+
+// a conditional's `?` absorbs a loose OPERAND left bare (`(c ? a : b)<T> ? x : y` re-reads as one
+// relational chain), so here the operand is what gets the parens back. every other host terminates
+// the expression and asks nothing - and parens it does not owe are not free, since they are spelled
+// as a node the rest of the pipeline may not accept
+function conditionalTestHost(path) {
+  const above = hostSlotAbove(path);
+  return above?.host.type === 'ConditionalExpression' && above.host.test === above.childNode;
+}
+
+// the source parens are what made the slot's contents legal, so restore them whenever this plugin's
+// presence forces the reprint - the drop reproduces on a plain parse/print round-trip with no
+// plugin. EVERY babel mode reprints (entry-global included), so each mounts this handler in its OWN
+// throwaway visitor map - babel's traverse/explode MUTATES visitor objects in place, so a shared map
+// object must never cross plugin instances. the pure guard-narrow emit restores the same slot from
+// its own side, through the same predicate
 export function restoreInstantiationParens(path) {
   const inner = path.node.expression;
-  if (inner.type === 'TSAsExpression' || inner.type === 'TSSatisfiesExpression' || inner.type === 'TSTypeAssertion') {
-    path.get('expression').replaceWith({ type: 'ParenthesizedExpression', expression: inner });
+  // hand the arguments over whatever the operand is - the host's own spelling does not depend on
+  // it, and a SURVIVING instantiation node has a second cost that has nothing to do with parens:
+  // it hides an optional call's callee from the lowering that memoizes the receiver, which then
+  // emits `_ref(a)` and drops `this`. folding first also keeps the arguments when the operand is
+  // substituted away, matching what the plain `X<T>(a)` spelling already does
+  if (foldInstantiationIntoTypeArgumentHost(path)) return;
+  const operandOwesParens = instantiationSlotNeedsParens(inner);
+  if (memberTailHost(path)) {
+    // both layers can be owed at once: the tail needs the instantiation wrapped, a fusing operand
+    // needs its own parens inside that. re-visiting the wrapped node is inert - its parent is the
+    // new paren, and its operand is either slot-legal or the paren just put around it
+    if (operandOwesParens) path.get('expression').replaceWith({ type: 'ParenthesizedExpression', expression: inner });
+    // a paren node ALREADY directly above satisfies the tail - the source spelled it and the parser
+    // kept it. re-wrapping there would also never terminate: the host walk climbs paren layers, so
+    // it would find the same member tail above every paren this branch adds
+    if (path.parentPath?.node?.type !== 'ParenthesizedExpression') {
+      path.replaceWith({ type: 'ParenthesizedExpression', expression: path.node });
+    }
+    return;
   }
+  if (!operandOwesParens) return;
+  if (!FUSING_SLOT_TYPES.has(inner.type) && !conditionalTestHost(path)) return;
+  path.get('expression').replaceWith({ type: 'ParenthesizedExpression', expression: inner });
 }
 
 // the same @babel/generator drop for a TAGGED template's tag: `(a?.b.tag)`x`` reprints as
@@ -559,6 +697,36 @@ export function restoreOptionalTagParens(path) {
   if (tag.type === 'OptionalMemberExpression' || tag.type === 'OptionalCallExpression'
     || tag.type === 'ChainExpression') {
     path.get('tag').replaceWith({ type: 'ParenthesizedExpression', expression: tag });
+  }
+}
+
+// the two paren compensations as ONE pass, so every mount spells them the same way. mounted three
+// times per file on purpose: inside the usage traversal (where the emitters can still compose with
+// the result), at `Program:exit` (siblings that inserted before ours ran), and at `post()` - the
+// only hook that runs after EVERY sibling's exit, which is the one place a shape inserted by a
+// later-ordered sibling can still be reached. re-running is inert: a folded host carries no
+// instantiation node, and a restored tag is no longer an optional chain
+export function restoreParenCompensations(programPath, originalBodyNodes = null) {
+  if (!programPath) return;
+  // fresh visitor literal per call: babel's traverse explodes the object in place
+  const visitor = {
+    TSInstantiationExpression: restoreInstantiationParens,
+    TaggedTemplateExpression: restoreOptionalTagParens,
+  };
+  // `post()` re-walks a tree the earlier passes already compensated, so it descends ONLY into what
+  // a sibling added since - the top-level nodes missing from the original set. a full re-walk there
+  // is pure waste on every file (measured in the tens of milliseconds per hundred kB) to catch a
+  // shape only a later-ordered sibling can introduce. no original set means no earlier pass ran
+  // (a disabled file), and then the whole program is what needs compensating.
+  // the `Program:exit` caller passes NO set on purpose, and gating it the same way would be a bug:
+  // the usage traversal mounts the instantiation half only, so the TAG half has no earlier pass at
+  // all and the user's own tags are compensated there and nowhere else
+  if (!originalBodyNodes) {
+    programPath.traverse(visitor);
+    return;
+  }
+  for (const childPath of programPath.get('body')) {
+    if (!originalBodyNodes.has(childPath.node)) childPath.traverse(visitor);
   }
 }
 
