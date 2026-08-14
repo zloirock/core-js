@@ -48,6 +48,13 @@ npm workspaces; the packages:
   ```
 
   `npm run lint` is a full-build gate, not an edit-loop check, and so are the test composites `npm test` and `npm run test-transpiling` - supersets of the granular runners: once per change, as its final gate, and never on one invocation line with a member they already contain
+- Spelling is gated too, by `codespell` - a `pip` package, not a dependency of this repository, so a machine without the binary skips the check while CI installs it and fails hard. Check the files you touched, again from the repository root:
+
+  ```sh
+  npm run codespell -- path/to/changed-file.js
+  ```
+
+  Unscoped, it is the last step of `npm run lint`. What it reports is a typo to fix in place; only a genuine identifier belongs in `ignoreWords` in `tests/codespell/runner.mjs`
 - Verify a change with the runner for the area you touched; they are listed in `tests/AGENTS.md`. A runner builds its bundles, never the generated data, entries or types - rebuild those with `npm run prepare` and `npm run build-types`, or it passes against the previous build
 - Never edit generated files - the entry-point layers, the copies inside `packages/core-js-pure`, the `.json` built from `.mjs` sources, the bundles. `npm run prepare` is what produces them
 - Every code change requires a related test, and the whole suite must pass
