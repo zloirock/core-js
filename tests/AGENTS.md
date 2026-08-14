@@ -2,7 +2,7 @@
 
 ## Target environment
 
-Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly zx scripts started through `npm run zxi`. Inside such a script the zx globals (`$`, `fs`, `path`, `glob`, `chalk`, `argv`, `echo`, ...) are ambient - do not import them - and the npm script is the only way to start one: a bare `node` loses the bootstrap's ambient globals and local dependencies; the rest of the bootstrap's contract is in `scripts/AGENTS.md`. That is the tier of everything here except the code that is itself under test, and the suites that run such code state their own tier in their own `AGENTS.md`. They are not the same: the compat probes sit on the polyfill baseline, while the QUnit suites are modern syntax transpiled before it runs.
+Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly zx scripts started through `npm run zxi`. Inside such a script the zx globals are ambient - do not import them - and the npm script is the only way to start one: a bare `node` loses the bootstrap's ambient globals and local dependencies; the rest of the bootstrap's contract, the list of those globals included, is in `scripts/AGENTS.md`. That is the tier of everything here except the code that is itself under test, and the suites that run such code state their own tier in their own `AGENTS.md`. They are not the same: the compat probes sit on the polyfill baseline, while the QUnit suites are modern syntax transpiled before it runs.
 
 ## Map
 
