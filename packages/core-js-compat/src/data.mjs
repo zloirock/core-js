@@ -831,9 +831,11 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.zip': {
+    chrome: '153',
     firefox: '148',
   },
   'es.iterator.zip-keyed': {
+    chrome: '153',
     firefox: '148',
   },
   'es.json.is-raw-json': {
