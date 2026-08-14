@@ -55,12 +55,15 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
   bareAssignmentPatternLeafPath,
-  bindingInvisibleFromParameterList,
+  bindingInvisibleFromUseRegion,
   BRACE_STATEMENT_HOST_TYPES,
   catchPropRewriteObservable,
   enclosingParameterDecoratorOwner,
   enclosingParameterListOwner,
+  findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
+  findVarOwnerDeclaring,
+  synthVarHoistBinding,
   isForXWriteTarget,
   LET_SCOPE_HOST_TYPES,
   noReassignmentReachesUsage,
@@ -1409,7 +1412,7 @@ for (const [variant, code, hints, expected] of SYMBOL_REF_CASES) {
   });
 }
 
-// --- enclosingParameterListOwner / bindingInvisibleFromParameterList ---
+// --- enclosingParameterListOwner / bindingInvisibleFromUseRegion ---
 
 // a parameter list is its own lexical region. both scope trackers hoist body declarations onto the
 // function scope, so without this rule `function f(x = Map) { var Map = 1 }` reads the body binding
@@ -1435,7 +1438,7 @@ for (const [variant, code, ownerTypes, invisible] of PARAM_FRAME_CASES) {
     const use = named.find(p => p !== declId && p.parentPath?.node?.type !== 'VariableDeclarator');
     const owner = enclosingParameterListOwner(use)?.node?.type ?? null;
     check(`${ lbl }/owner`, owner === null ? 0 : ownerTypes.includes(owner) ? 1 : owner, ownerTypes.length ? 1 : 0);
-    check(lbl, bindingInvisibleFromParameterList(declId?.parentPath ?? null, use), invisible);
+    check(lbl, bindingInvisibleFromUseRegion(declId?.parentPath ?? null, use), invisible);
   });
 }
 
@@ -1454,6 +1457,10 @@ const PARAM_DECORATOR_CASES = [
   ['decorator on a method, not a parameter', 'class C { @dec(Map) m() { let Map = 1; } }', false, false],
   ['decorator on a class', '@dec(Map) class C { }', false, false],
   ['a parameter DEFAULT is not a decorator', 'class C { constructor(x = Map) { let Map = 1; } }', false, true],
+  // the carve-out is about what the DECORATED function declares. a binding written inside the
+  // decorator sits in the same subtree as the use and covers it - reporting it invisible makes
+  // usage-pure rewrite the user's own name
+  ['decorator argument declares the name itself', 'class C { constructor(@dec((Map) => f(Map)) x) {} }', true, false],
 ];
 for (const [variant, code, isDecorator, invisible] of PARAM_DECORATOR_CASES) {
   const label = `parameterDecorator/${ variant } [babel]`;
@@ -1468,7 +1475,62 @@ for (const [variant, code, isDecorator, invisible] of PARAM_DECORATOR_CASES) {
   // in the first row the same-named PARAMETER is the declaration
   const [param] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
     && p.parentPath?.node?.params?.includes(p.node));
-  check(label, bindingInvisibleFromParameterList(decl?.parentPath ?? param ?? null, use), invisible);
+  check(label, bindingInvisibleFromUseRegion(decl?.parentPath ?? param ?? null, use), invisible);
+}
+
+// the var gate has to answer the decorator question too, and `var` is where the two gates could
+// drift: it is not a REGION case, so the first gate ignores it, while a body `var` genuinely does
+// not reach a decorator - TypeScript emits the decorator expression outside the class. only the
+// decorated function's OWN frame is exempt. babel-only for the reason given above
+// the read is nested in a CLOSURE inside the decorator: read directly in the decorator argument
+// the parameter-list carve-out already answers, because the parameter is then the climb's own child
+const DECORATOR_VAR_CASES = [
+  ['the decorated function body', 'class C { constructor(@dec(() => f(Map)) x) { var Map = 1; } }', false],
+  ['a frame further out', 'function g() { var Map = 1; class C { constructor(@dec(() => f(Map)) x) {} } }', true],
+  ['read directly in the decorator argument', 'class C { constructor(@dec(Map) x) { var Map = 1; } }', false],
+];
+for (const [variant, code, covered] of DECORATOR_VAR_CASES) {
+  const prog = babelAdapter.parseAndScope(code, 'module', ['decorators-legacy']);
+  const [use] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
+    && p.parentPath?.node?.arguments?.includes(p.node));
+  check(`decoratorVarFrame/${ variant } [babel]`, !!findFunctionScopeVarInPath(use, 'Map'), covered);
+  // the same climb feeds the two RESOLVER-side readers; asked here directly rather than through the
+  // emitted helper, which cannot tell them apart
+  check(`decoratorVarFrame/${ variant } declarator [babel]`,
+    !!findFunctionScopeVarDeclaratorInPath(use, 'Map'), covered);
+  check(`decoratorVarFrame/${ variant } synth twin [babel]`, !!synthVarHoistBinding(use, 'Map'), covered);
+  check(`decoratorVarFrame/${ variant } var owner [babel]`, !!findVarOwnerDeclaring(use, 'Map'), covered);
+}
+
+// --- bindingInvisibleFromUseRegion: the statement-head region ---
+
+// the third region of the same rule: a statement HEAD is outside the statement's BODY, so a body
+// `let` does not cover a use in the head. `var` is the boundary - it hoists to the function scope
+// and covers the head, which is why the region is asked about the DECLARATION's position rather
+// than about the loop form
+const STATEMENT_HEAD_CASES = [
+  ['for-init', 'for (let i = Map; false;) { let Map = 1; }', true, true],
+  ['for-test', 'for (let i = 0; i < Map;) { let Map = 1; }', true, true],
+  ['for-update', 'for (let i = 0; false; Map) { let Map = 1; }', true, true],
+  ['for-of right', 'for (const x of Map) { let Map = 1; }', true, true],
+  ['for-in right', 'for (const k in Map) { let Map = 1; }', true, true],
+  ['while test', 'while (Map) { let Map = 1; }', true, true],
+  ['do-while test', 'do { let Map = 1; } while (Map);', true, true],
+  ['if test', 'if (Map) { let Map = 1; }', true, true],
+  ['if test, declaration in the alternate', 'if (Map) { x(); } else { let Map = 1; }', true, true],
+  ['a use in the BODY is not a head', 'for (let i = 0; false;) { let Map = 1; y(Map); }', false, false],
+  ['an outer declaration is not the body', 'let Map = 1; for (let i = Map; false;) { }', true, false],
+  ['a body declaration nested in a block', 'while (Map) { { let Map = 1; } }', true, true],
+  ['no enclosing statement', 'const f = () => Map; let Map = 1;', false, false],
+];
+for (const [variant, code, , invisible] of STATEMENT_HEAD_CASES) {
+  runBoth(`statementHead/${ variant }`, code, (adapter, prog, lbl) => {
+    const named = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map');
+    const declId = named.find(p => DECLARATION_ID_PARENTS.has(p.parentPath?.node?.type)
+      && p.parentPath.node.id === p.node);
+    const use = named.find(p => p !== declId && p.parentPath?.node?.id !== p.node);
+    check(lbl, bindingInvisibleFromUseRegion(declId?.parentPath ?? null, use), invisible);
+  });
 }
 
 finish();
