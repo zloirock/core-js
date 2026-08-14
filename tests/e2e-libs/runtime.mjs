@@ -8,6 +8,7 @@
 import { runtimeBuild, wireSize, errorReason, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
+import findInternetExplorer from '../karma/internet-explorer.js';
 import { fileURLToPath } from 'node:url';
 
 const { mkdir, readFile, rm, writeFile } = fs;
@@ -124,7 +125,7 @@ async function preflight(code) {
   try {
     // `node` by name and a relative path: on windows `$` runs through bash, which cannot execute an
     // absolute `C:\...`. An unsettled `run()` exits 0 with empty stdout, hence the guard below.
-    const { stdout } = await $({ cwd: HERE, quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ toPosix(relative(HERE, f)) }`;
+    const { stdout } = await $({ quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ toPosix(relative(HERE, f)) }`;
     if (!stdout.trim()) throw new Error('preflight child produced no output - run() likely never settled');
     try {
       return JSON.parse(stdout);
@@ -391,19 +392,62 @@ echo('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js be
 // -------- real IE11, where one exists --------
 
 // Only start Karma where IE11 actually exists: the windows CI runner (CI set), or a machine that
-// says where the browser is. `which` searches PATH, and a stock Windows install does not put
-// `C:\Program Files\Internet Explorer` there - karma-ie-launcher finds it anyway, through
-// `IE_BIN` or its own default locations - so `IE_BIN` is honoured here too rather than making a
-// local run turn on a PATH entry nobody has. Elsewhere every gate above has already run; the
-// browser leg is the CI-only part.
-//
+// has the browser. The resolution is `tests/karma/internet-explorer.js`, shared with the unit legs
+// and the same one karma-ie-launcher performs - `IE_BIN`, then the standard location under each
+// flavor of the program files directory. PATH is not among them and never mentions Internet
+// Explorer. Elsewhere every gate above has already run; the browser leg is the CI-only part.
+const ie = findInternetExplorer();
+
+const ATTEMPTS = 3;
+// a browser that never starts, never reaches the karma page or drops the connection says nothing
+// about the bundle - windows CI runners produce those often enough to repeat the page rather than
+// redden a cell over one. The same list as in tests/karma/helpers.mjs, minus its playwright lines:
+// only IE11 runs here
+const INFRASTRUCTURE_FAILURES = [
+  /Cannot start /, // the browser process exited before it was captured
+  / crashed\./, // ... or after
+  /failed \d+ times \(/, // karma gave up restarting it
+  /has not captured in \d+ ms/, // it never reached the karma page
+  / DISCONNECTED|Disconnected /, // it dropped the connection mid-run
+];
+// what the reporters spell out for a real test result, which is never repeated. Read off a stream
+// karma has COLOURED - its reporter defaults to colours and does not consult a tty - and these spans
+// survive that only because `@colors/colors` wraps each whole template, leaving the escapes outside:
+// `green('TOTAL: %d SUCCESS')` is substituted into after it is painted. A pattern tightened to span
+// what karma paints separately would stop matching a run that passed, and read as no verdict at all
+const TEST_FAILURE = /\(\d+ FAILED\)|TOTAL: \d+ FAILED/;
+
+// One page, retried while the browser rather than the bundle is what failed. Reports which of the
+// two the last attempt died on, because the cell is only accused by the first: a red QUnit run is
+// this suite's verdict on the floor, a browser that never started is no verdict at all.
+async function runKarmaPage(bundle, label) {
+  for (let attempt = 1; ; attempt++) {
+    // IE spawns a second process that karma-ie-launcher only reaps through `wmic`, deprecated and
+    // already gone from newer windows images, and a leftover one takes over the next launch, which
+    // then exits at once as `Cannot start IE`. The sweep is blind - it takes every IE on the machine
+    // - so it is limited to a CI runner, where nothing else runs one and the pages here start
+    // strictly one at a time, and never touches a developer's own browser
+    if (process.env.CI && ie) await $({ nothrow: true, quiet: true })`taskkill /F /IM iexplore.exe`;
+
+    const { exitCode, signal, stdout, stderr } = await $({ nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
+    if (exitCode === 0) return { exitCode, infrastructure: false };
+
+    const output = stdout + stderr;
+    // a signal leaves `exitCode` null and means something outside stopped the run - neither a
+    // verdict on the cell nor a browser that deserves another chance
+    const infrastructure = !signal && !TEST_FAILURE.test(output) && INFRASTRUCTURE_FAILURES.some(it => it.test(output));
+    if (!infrastructure || attempt === ATTEMPTS) return { exitCode, infrastructure };
+    echo(`  ${ label }: the browser failed to run it, retrying (${ attempt + 1 } of ${ ATTEMPTS })`);
+  }
+}
+
 // What that leg made of each cell, keyed by label. The manifest is written AFTER this section for
 // exactly this reason: the leg that decides the real floor has to be in the artifact, not absent
 // from it because the file was already on disk when the browser started.
 const karmaOutcome = new Map();
-if (!(process.env.CI || process.env.IE_BIN || await which('iexplore.exe', { nothrow: true }))) {
+if (!(process.env.CI || ie)) {
   echo(`\n${ karmaFiles.length } bundle(s) also written to ${ KARMA_OUT }. No IE11 here and not CI - skipping Karma.`
-    + ' On a windows box with IE11, point IE_BIN at iexplore.exe to run this leg locally.');
+    + ' A windows box with IE11 in its usual place runs this leg by itself; IE_BIN names it anywhere else.');
 } else {
   echo(`\nrunning Karma in real IE11 - ONE bundle per page (${ karmaFiles.length } pages), so no sibling shares a`);
   echo('realm: a global-patching method can never mask the usage-pure or pre gap of another cell, and each');
@@ -418,15 +462,23 @@ if (!(process.env.CI || process.env.IE_BIN || await which('iexplore.exe', { noth
     // matches `files` through glob, where a backslash is an escape and would match nothing
     // one IE11 page at a time, on purpose (see header) - sequential await is intended here
     const bundle = toPosix(relative(HERE, file));
-    const { exitCode } = await $({ cwd: HERE, nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
-    karmaOutcome.set(label, exitCode === 0 ? 'passed' : gating ? 'failed' : 'diagnostic-failed');
+    const { exitCode, infrastructure } = await runKarmaPage(bundle, label);
+    // a page the browser never ran is recorded as neither passed nor failed: the manifest is what
+    // states the real floor of each cell, and `failed` there would claim IE11 gave a verdict it
+    // never gave. It still reddens a gating cell below - a cell with no verdict is not a green one
+    karmaOutcome.set(label, exitCode === 0 ? 'passed' : infrastructure ? 'browser failed' : gating ? 'failed' : 'diagnostic-failed');
     if (exitCode === 0) continue;
+    const how = infrastructure
+      ? `the browser failed to run it ${ ATTEMPTS } times - no verdict on this cell`
+      : `Karma exit ${ exitCode } in real IE11`;
     // named on both branches: Karma prints its own failure above, but the tally at the end of a
-    // forty-cell log has to be traceable to the cells that produced it
+    // forty-cell log has to be traceable to the cells that produced it. What gates stays the cell's
+    // own axis - a `pre` page the browser never ran is no more of a job failure than the red result
+    // it is allowed to produce, and a broken browser leg reddens the gating cells beside it anyway
     if (gating) {
       failedCells.add(label);
-      echo(`  FAIL ${ label }: Karma exit ${ exitCode } in real IE11`);
-    } else echo(`  pre diagnostic ${ label }: Karma exit ${ exitCode } - an expected-possible pre failure; not gating`);
+      echo(`  FAIL ${ label }: ${ how }`);
+    } else echo(`  pre diagnostic ${ label }: ${ how }${ infrastructure ? '' : ' - an expected-possible pre failure' }; not gating`);
   }
 }
 
