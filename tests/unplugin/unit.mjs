@@ -3994,6 +3994,30 @@ function checkSinglePostPassEmitsPureImports() {
 }
 checkSinglePostPassEmitsPureImports();
 
+// --- post re-recognizes pre's RELOCATED catch pattern ---
+// pre moves a catch pattern off the clause into `let <pattern> = _ref;` at the head of the block,
+// and leaves a binding the body never reads as a native read - an `_ref`-bound rewrite there costs
+// an import and a dispatcher call nothing observes. on a post re-parse the CatchClause host is
+// gone, so without recognizing the relocated shape the phase re-extracts exactly what pre declined
+function checkPostKeepsRelocatedCatchLiveness() {
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const unread = 'let out;\ntry { risky(); } catch ({ [Symbol.iterator]: it, at }) { out = it; }\nexport { out };';
+  const pre = createPlugin(opts).transform(unread, '/x31.mjs', 'pre');
+  check('relocated-catch/pre leaves the unread prop native', pre?.code?.includes('let { at } = _ref'), true);
+  const post = createPlugin(opts).transform(pre.code, '/x31.mjs', 'post');
+  check('relocated-catch/post does not re-extract it', (post?.code ?? pre.code).includes('let { at } = _ref'), true);
+  check('relocated-catch/post adds no instance import', /instance\/at/u.test(post?.code ?? ''), false);
+  // the boundary: a body that DOES read the binding still extracts on the post pass, and a
+  // declaration off some other value is an ordinary declarator, not a relocated catch pattern
+  const read = 'let out;\ntry { risky(); } catch (_ref) { let { at } = _ref; out = at; }\nexport { out };';
+  check('relocated-catch/a read binding still extracts',
+    /instance\/at/u.test(createPlugin(opts).transform(read, '/x31r.mjs', 'post')?.code ?? ''), true);
+  const foreign = 'const src = [1];\nlet out;\ntry { risky(); } catch (_ref) { let { at } = src; out = 1; }\nexport { out };';
+  check('relocated-catch/a declaration off another value is an ordinary declarator',
+    /instance\/at/u.test(createPlugin(opts).transform(foreign, '/x31f.mjs', 'post')?.code ?? ''), true);
+}
+checkPostKeepsRelocatedCatchLiveness();
+
 // --- post-without-pre re-recognizes pre's rest-destructure sentinels ---
 // pre rebuilds `const { from, ...rest } = Array` with a `_unused` sentinel keeping the rest
 // exclusion. a post pass whose snapshot was lost (sibling invalidation) re-parses that output;

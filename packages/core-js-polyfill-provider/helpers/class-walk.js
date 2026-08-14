@@ -119,6 +119,23 @@ function withBindingLookupGuard(scope, name, lookup) {
   }
 }
 
+// the `polyfillHint` side-channel: the ORIGINAL global name of a binding this plugin minted in
+// place (`globalThis` -> `_globalThis`, `Symbol` -> `_Symbol`). it lives in two spellings that are
+// one channel - on the binding record where the scope tracker owns it, and behind the adapter hook
+// where an injector-managed alias has no scope entry at all - so both are always asked together.
+// the binding is the CALLER's to resolve - the lookup is guarded against re-entry at some sites
+// and skipped entirely at others, so this only joins the two spellings
+export function bindingPolyfillHint({ binding, scope, name, adapter }) {
+  return binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, name) ?? null;
+}
+
+// a GUARDED registration is one whose flow-trust the injector REFUSED - none of its fields may
+// reach a consumer, so every read of an injector record passes through here. the flag is written
+// at registration time; this is the read-time half, and the only place the rule is spelled
+export function usableAliasInfo(info) {
+  return info && !info.aliasGuarded ? info : null;
+}
+
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint).
 // scope+adapter optional. shadow check (`function f(globalThis) {}`) bails unless polyfillHint
 // is set. `path` anchors TS-runtime shadow detection (`enum globalThis {}`).
@@ -137,7 +154,7 @@ export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding 
   // hint side-channel runs FIRST and independently of scope binding presence: post-rewrite
   // aliases like `_globalThis` are tracked by the injector's global-alias map but may have
   // no entry in babel's scope chain, so the init-follow path never observes them
-  const hint = binding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, node.name);
+  const hint = bindingPolyfillHint({ binding, scope, name: node.name, adapter });
   // a mutated proxy SLOT (`window = fake`) is the user's replacement, not the global surface -
   // neither the direct name nor a hint/alias resolving to it recognises as a proxy root (what
   // an alias holds depends on capture order, which no span model covers). an assignment-form
@@ -1491,7 +1508,7 @@ export function createClassHelpers({ t, adapter, resolveKey, getInjector = null 
       // shapes in-place, so `binding.path.init` is unrecoverable. plugin adapters expose
       // via binding object; resolver-tier adapter via side-channel
       const hintBinding = adapter.getBinding?.(scope, name);
-      const hint = hintBinding?.polyfillHint ?? adapter.getBindingPolyfillHint?.(scope, name);
+      const hint = bindingPolyfillHint({ binding: hintBinding, scope, name, adapter });
       if (hint) {
         // usage-pure must not trust an assignment-form hint whose write ENDS after the capture read
         // (`let P; class C extends P {...}; ({ Promise: P } = globalThis)` - the class captures P
