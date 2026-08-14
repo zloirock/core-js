@@ -1291,6 +1291,43 @@ function * generateProxyHopCtor() {
   }
 }
 
+// --- Side-effecting hop KEY under a live `?.` ---
+// the guard test is rendered from the kept source of the hop that OWNS the key, so that key is
+// already evaluated there; prefixing the alternate with it too runs the effect twice where native
+// runs it once. only the rig makes it visible - without live `self` / `window` the guard
+// short-circuits and the alternate, where the duplicate lives, is never evaluated. the axes are the
+// key's position relative to the guarded hop (below it, above it, both) and the root spelling,
+// because each root takes a different render: plain and alias go through the piecewise substitution,
+// the sequence root through the whole-value one
+// the alias root must be a CONST alias: a parameter holding the global is not a recognised alias,
+// so that nav stays native while the compared `Ctor` resolves - the row would report the resolver's
+// documented under-resolve instead of the effect order this family exists for
+const SHK_ROOTS = [
+  { id: 'plain', root: 'globalThis', wrap: expr => expr },
+  { id: 'alias', root: 'ga', wrap: expr => `(() => { const ga = globalThis; return ${ expr }; })()` },
+  { id: 'sequence', root: '(log.push("r"), globalThis)', wrap: expr => expr },
+];
+const SHK_SHAPES = [
+  { id: 'key-below-guard', nav: r => `${ r }[(log.push("k"), "window")]?.self` },
+  { id: 'key-above-guard', nav: r => `${ r }.window?.[(log.push("k"), "self")]` },
+  { id: 'key-both-sides', nav: r => `${ r }[(log.push("k1"), "window")]?.[(log.push("k2"), "self")]` },
+];
+// the leaf must be a global WITHOUT a pure constructor entry: with one (`Map`, `Set`, ...) the
+// collapse lands on the leaf itself and the alternate is a bare binding, which is exactly the shape
+// where no key can be re-emitted. an entry-less leaf keeps the collapse at the proxy hop and leaves
+// the leaf as a TAIL - the render that carries the key prefix, and the one that duplicated it
+const SHK_LEAVES = ['Array', 'Object', 'JSON', 'Math', 'Number', 'String'];
+function * generateSeHopKeyGuarded() {
+  let i = 0;
+  for (const { id: rootId, root, wrap } of SHK_ROOTS) {
+    for (const shape of SHK_SHAPES) {
+      const leaf = SHK_LEAVES[i++ % SHK_LEAVES.length];
+      const expr = `(${ wrap(`${ shape.nav(root) }.${ leaf } === ${ leaf }`) })`;
+      yield { ...snippet(`se-hop-key-guarded/${ rootId }/${ shape.id }`, expr, { rig: true }), strip: false };
+    }
+  }
+}
+
 // --- Kept proxy root: a chain-assign whose VALUE navigates a hop core-js does not ponyfill ---
 // rooting the hop collapse THROUGH such an assignment proves the ROOT is a proxy global, not that the
 // assignment STORED one - `window` carries no ponyfill entry, so its value is whatever the environment has.
@@ -5983,6 +6020,7 @@ export function * generate() {
   yield * generateIifeArgOwnership();
   yield * generateWrappedSiblingReceiver();
   yield * generateProxyHopCtor();
+  yield * generateSeHopKeyGuarded();
   yield * generateKeptProxyRoot();
   yield * generateBareProxyProbe();
   yield * wrapperOutcomeRows('wrapped-composition', WRAPPED_COMPOSE_SHAPES);

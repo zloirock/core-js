@@ -49,18 +49,6 @@ export function walkUpNestedDestructureToDeclaration(startPath) {
   return current;
 }
 
-// walk up the nested-destructure chain to the outer ObjectPattern, then to the host
-// (AssignmentExpression). returns the host path or null. mirror of
-// `walkUpNestedDestructureToDeclaration` but terminating at AssignmentExpression
-export function walkUpNestedDestructureToAssignment(startPath) {
-  let current = startPath;
-  while (current && current.node?.type !== 'AssignmentExpression') {
-    if (!NESTED_PATTERN_INTERMEDIATES.has(current.node?.type)) return null;
-    current = current.parentPath;
-  }
-  return current;
-}
-
 // gate `metaPath` for destructure rewrite: skip Property-of-Property nesting (handled by
 // the nested-proxy flatten path), accept CatchClause (treated as variable-decl with
 // generated ref), and apply the shared shape filter on the parent declarator/assignment.
