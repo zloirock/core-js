@@ -37,7 +37,7 @@
     "compat-node": "node tests/compat/node-runner",
     "compat-rhino": "npm run zxi tests/compat/rhino-adapter.mjs",
     "lint": "run-s prepare lint-raw",
-    "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint",
+    "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint codespell",
     "test": "run-s prepare test-raw",
     "test-raw": "run-s lint-raw bundle-tests test-unit test-promises test-observables test-entries test-compat-data test-compat-tools test-builder check",
     "test-eslint": "npm run zxi time tests/eslint/runner.mjs",
