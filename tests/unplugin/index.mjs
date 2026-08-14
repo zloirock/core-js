@@ -8,7 +8,7 @@ import {
   FIXTURE_SHARD, defaultShardCount, emitShardSummary, runShards, shardSlice,
 } from '../babel-plugin/fixture-shards.mjs';
 
-const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
+const { readdir, pathExists, readFile, readJson, rm, stat, writeFile } = fs;
 const { basename, join } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -18,17 +18,12 @@ const UTF8 = { encoding: 'utf8' };
 const ROOT = path.resolve('../..').replaceAll('\\', '/');
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
-function exists(file) {
-  // eslint-disable-next-line promise/prefer-await-to-then -- ok
-  return fs.access(file).then(() => true, () => false);
-}
-
 const counts = { passed: 0, failed: 0, skipped: 0 };
 
 // OVERWRITE sweeps run over thousands of untouched fixtures - write (and report) only what
 // actually changes so the regen deltas are the whole output. returns whether it changed
 async function writeIfChanged(directory, file, content) {
-  const previous = await exists(file) ? await readFile(file, UTF8) : null;
+  const previous = await pathExists(file) ? await readFile(file, UTF8) : null;
   if (previous === content) return false;
   if (content === null) await rm(file, { force: true });
   else await writeFile(file, content, UTF8);
@@ -109,7 +104,7 @@ function extractPluginOptions(babelOptions) {
 async function loadBabelOptions(directory) {
   for (const file of ['options.json', 'options.mjs']) {
     const full = join(directory, file);
-    if (!await exists(full)) continue;
+    if (!await pathExists(full)) continue;
     if (file.endsWith('.json')) return readJson(full, UTF8);
     const { pathToFileURL } = await import('node:url');
     return (await import(pathToFileURL(path.resolve(full)).href)).default;
@@ -299,7 +294,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
   // use the fixture's real input so runtime-triggered errors (e.g. `shouldInjectPolyfill`
   // throwing during usage resolution) can reach `transform` - a dummy `'x;'` misses them
   const inputPath = join(directory, 'input.mjs');
-  const source = await exists(inputPath) ? await readFile(inputPath, UTF8) : 'x;';
+  const source = await pathExists(inputPath) ? await readFile(inputPath, UTF8) : 'x;';
   // a babel@8-only error: unplugin's oxc parser accepts the input babel rejects (e.g. legacy
   // TS `module N {}`), so an `output-unplugin.mjs` sidecar records what unplugin emits instead
   // of erroring. present sidecar => expect a successful transform matching it
@@ -314,7 +309,7 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
     await writeIfChanged(directory, unpluginOutputFile, sidecar);
     return;
   }
-  if (await exists(unpluginOutputFile)) {
+  if (await pathExists(unpluginOutputFile)) {
     const { code } = captureTransform(source, pluginOptions, 'input.ts');
     return compareStrict(directory, normalize(code), unpluginOutputFile);
   }
@@ -365,7 +360,7 @@ async function checkSideChannels(directory, channels) {
       // runner - never clobber it. record unplugin's divergence in a `<stem>-unplugin.<ext>` variant
       // (assumes babel's base is already current; run the babel OVERWRITE first), drop it on agreement
       const variant = unpluginVariantPath(file);
-      const baseContent = await exists(file) ? normalizeExpected(normalize(await readFile(file, UTF8))) : null;
+      const baseContent = await pathExists(file) ? normalizeExpected(normalize(await readFile(file, UTF8))) : null;
       const desired = content !== null && baseContent !== null && content !== baseContent ? content : null;
       await writeIfChanged(directory, variant, desired);
       continue;
@@ -374,8 +369,8 @@ async function checkSideChannels(directory, channels) {
     // diverges from babel's baseline (e.g. babel@8 no-targets => ["defaults"] "added no polyfill"
     // vs unplugin's polyfill-all debug) - mirrors the `output-unplugin.mjs` divergence contract
     const variant = unpluginVariantPath(file);
-    const expectedFile = await exists(variant) ? variant : file;
-    const fileExists = await exists(expectedFile);
+    const expectedFile = await pathExists(variant) ? variant : file;
+    const fileExists = await pathExists(expectedFile);
     if (content === null) {
       if (!fileExists) continue;
       fail(directory, `unexpected ${ basename(expectedFile) } (commit empty or remove)`);
@@ -453,7 +448,7 @@ async function compareMainOutput({ directory, actual, babelOutput, method, hasUn
 
 async function runFixture(directory) {
   const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
-  const hasUnpluginOutput = await exists(unpluginOutputFile);
+  const hasUnpluginOutput = await pathExists(unpluginOutputFile);
   const babelOptions = await loadBabelOptions(directory);
 
   if (shouldSkip(path.basename(directory), babelOptions)) {
@@ -474,10 +469,10 @@ async function runFixture(directory) {
   }
 
   const errorFile = join(directory, 'error.txt');
-  if (await exists(errorFile)) return runErrorFixture(directory, pluginOptions, errorFile);
+  if (await pathExists(errorFile)) return runErrorFixture(directory, pluginOptions, errorFile);
 
   const outputFile = join(directory, 'output.mjs');
-  if (!await exists(outputFile)) {
+  if (!await pathExists(outputFile)) {
     counts.skipped++;
     return;
   }
