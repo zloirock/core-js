@@ -839,14 +839,60 @@ function collectScopeVars(scopeNode) {
   return locals;
 }
 
+// the function whose PARAMETER LIST contains this path, or null. the parameter list is its own
+// lexical region: what the function BODY declares does not cover a use here, so
+// `function f(x = Map) { var Map = 1 }` reads the OUTER `Map` in the default. a use inside a
+// closure written in the default answers null - that closure captures the parameter scope too, but
+// neither tracker models it and widening there is a separate decision
+export function enclosingParameterListOwner(usePath) {
+  let child = usePath;
+  for (let p = usePath?.parentPath; p?.node; child = p, p = p.parentPath) {
+    if (!FUNCTION_LIKE_NODE_TYPES.has(p.node.type)) continue;
+    return p.node.params?.includes(child.node) ? p : null;
+  }
+  return null;
+}
+
+// the function a parameter DECORATOR hanging over this path belongs to, or null. a decorator is
+// evaluated where the CLASS is defined - outside the parameter list it hangs off AND outside the
+// decorated function - so nothing that function declares shadows a name the decorator reads. the
+// parameter-PROPERTY arm of the same fact is carved out in `findTSRuntimeBindingInPath`
+export function enclosingParameterDecoratorOwner(usePath) {
+  for (let p = usePath; p?.node; p = p.parentPath) {
+    if (p.listKey !== 'decorators') continue;
+    const owner = p.parentPath?.parentPath;
+    return owner?.node && FUNCTION_LIKE_NODE_TYPES.has(owner.node.type)
+      && owner.node.params?.includes(p.parentPath.node) ? owner : null;
+  }
+  return null;
+}
+
+// is this binding unreachable from the use? two regions answer yes, both because a scope tracker
+// hoists a declaration onto the function scope that the use position never sees: a use in the
+// PARAMETER LIST cannot see what the BODY declares, and a use in a parameter DECORATOR cannot see
+// anything the decorated function declares at all - neither its parameters nor its body
+export function bindingInvisibleFromParameterList(bindingPath, usePath) {
+  if (!bindingPath?.node) return false;
+  const region = enclosingParameterDecoratorOwner(usePath)?.node
+    ?? enclosingParameterListOwner(usePath)?.node?.body;
+  if (!region) return false;
+  for (let p = bindingPath; p?.node; p = p.parentPath) if (p.node === region) return true;
+  return false;
+}
+
 // climb `path`'s enclosing var-scope owners (inclusive), calling `visit(owner)` at each and
 // returning the first non-undefined result, else undefined. stops AFTER a TSModuleBlock - a
 // namespace's bindings don't leak out, and a use outside one doesn't reach in. shared by the
 // var-declarator lookup and the sloppy block-function lookup below
 function climbVarScopeOwners(path, visit) {
+  // a use inside a function's PARAMETER list sits outside the region that function's own `var`s
+  // cover, so its nearest owner contributes nothing and the climb starts one frame out
+  const paramFrame = enclosingParameterListOwner(path)?.node ?? null;
   for (let owner = findNearestVarScopeOwner(path); owner; owner = findNearestVarScopeOwner(owner.parentPath)) {
-    const result = visit(owner);
-    if (result !== undefined) return result;
+    if (owner.node !== paramFrame) {
+      const result = visit(owner);
+      if (result !== undefined) return result;
+    }
     if (owner.node?.type === 'TSModuleBlock') break;
   }
   return undefined;
@@ -4235,6 +4281,44 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
     && prop.value?.type === 'AssignmentPattern';
 }
 
+// a catch pattern AFTER relocation: the emitters move it off the clause into `let <pattern> = _ref;`
+// at the head of the block, and a re-parse (unplugin's post pass, a sibling's output, or plain user
+// code written that way) sees an ordinary declarator. its bindings are still block-scoped to that
+// catch, which is what keeps the liveness question below the same one. the init must BE the clause's
+// own param, so a declaration off any other value is not mistaken for one. returns the body to scan
+// and the declaration to EXCLUDE from it - the relocated declaration's own binding occurrence would
+// otherwise read as a reference and make every prop look observable
+export function relocatedCatchPattern(declaratorPath) {
+  if (declaratorPath?.node?.type !== 'VariableDeclarator') return null;
+  const declaration = declaratorPath.parentPath;
+  const clause = declaration?.parentPath?.parentPath;
+  if (clause?.node?.type !== 'CatchClause' || clause.node.param?.type !== 'Identifier') return null;
+  const { init } = declaratorPath.node;
+  if (init?.type !== 'Identifier' || init.name !== clause.node.param.name) return null;
+  return { body: clause.node.body, skip: declaration.node };
+}
+
+// is a catch-hosted prop's `_ref`-bound rewrite OBSERVABLE? it costs an import and a dispatcher
+// call, so it is worth emitting only when something can see the binding: the catch BODY reads the
+// name, the prop itself reads through the receiver (`objectPatternPropNeedsReceiverRewrite` -
+// default / computed), or a rest sibling makes the residual pattern exclusion-bearing. asked PER
+// PROP: a sibling forcing the relocation says nothing about this one. `walkNode(root, visit)` is
+// the emitter's own full-subtree walker with parents (babel `traverseFast` has no parent argument,
+// so the babel side passes a path traversal) - the same injection the subsumption and class-walk
+// canons take
+export function catchPropRewriteObservable({ propNode, patternNode, bodyNode, localName, walkNode }) {
+  if (objectPatternPropNeedsReceiverRewrite(propNode)) return true;
+  if (patternNode?.properties?.some(isRestProperty)) return true;
+  if (!localName || !bodyNode) return false;
+  let referenced = false;
+  walkNode(bodyNode, (node, parent) => {
+    if (referenced || node?.type !== 'Identifier' || node.name !== localName) return;
+    if (isNonReferencePosition(parent, node) || isBindingPosition(parent, node)) return;
+    referenced = true;
+  });
+  return referenced;
+}
+
 // `RestElement` and `SpreadElement` are equivalent for `{a, ...rest}` patterns - estree
 // uses the latter, babel uses the former. helper centralises the check so destructure-
 // emitter rest-detection paths stay parser-agnostic
@@ -4832,22 +4916,6 @@ export function isAssignOrForXWriteTargetPath(path) {
   return isForXHeadAssignTarget(anchor);
 }
 
-// function-like types that carry `params` - ObjectPattern used as a parameter lives
-// either directly under one of these, or wrapped in an AssignmentPattern for the
-// `function({ x } = default) {}` form
-// ObjectMethod / ClassMethod are babel-only - oxc emits FunctionExpression under a
-// `value` slot (shorthand-method) or represents methods as Property/MethodDefinition
-// with FunctionExpression value. Keeping both lets the helper work across adapters
-// without relying on the caller to unwrap `value`
-const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
-  'FunctionDeclaration',
-  'FunctionExpression',
-  'ArrowFunctionExpression',
-  'ObjectMethod',
-  'ClassMethod',
-  'ClassPrivateMethod',
-]);
-
 // true when ObjectPattern at `path` sits at function-parameter position. walks up through
 // AssignmentPattern.left / ArrayPattern / RestElement.argument / ObjectProperty.value /
 // ObjectPattern.properties wrappers until a function-like owner appears or a non-wrapper
@@ -4858,7 +4926,7 @@ export function isFunctionParamDestructureParent(path) {
   for (const [parent, cur] of ancestorPathSteps(path)) {
     const { node } = parent;
     if (!node) return false;
-    if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(node.type)) return true;
+    if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) return true;
     // a wrapper stays transparent only while the node we came from fills its TARGET slot - the
     // same membership the assignment-position climb asks, so the two spell it once. what the
     // slot test rejects here: `AssignmentPattern.right` (`{x: ({y}=Z)} = src` is a default value,

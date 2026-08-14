@@ -35,7 +35,7 @@ import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-p
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
-  createClassHelpers, ctorAliasShapesReducer, registerAliasPrePassSite, remapInheritedStaticMeta,
+  createClassHelpers, ctorAliasShapesReducer, registerAliasPrePassSite, remapInheritedStaticMeta, usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -61,7 +61,7 @@ import {
 import { chainNavigatesIntoMutatedStatic, isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import createASTHelpers from './internals/babel-compat.js';
+import createASTHelpers, { deoptionalizeAstNode, isOptionalNode } from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
   collectMutationPrePass,
@@ -183,12 +183,10 @@ export default function plugin(api, options) {
     // a GUARDED alias registration (refused flow-trust) must not feed the type channel: its
     // hint would narrow member types over a flow the registration explicitly refused to trust
     getPolyfillBindingEntry(scope, name) {
-      const info = injector?.getBindingInfo?.(name);
-      return info && !info.aliasGuarded ? info.entry : null;
+      return usableAliasInfo(injector?.getBindingInfo?.(name))?.entry ?? null;
     },
     getPolyfillBindingHint(scope, name) {
-      const info = injector?.getBindingInfo?.(name);
-      return info && !info.aliasGuarded ? info.hint : null;
+      return usableAliasInfo(injector?.getBindingInfo?.(name))?.hint ?? null;
     },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
     // babel loses a binding from its scope registry after the destructure-assignment alias
@@ -268,7 +266,7 @@ export default function plugin(api, options) {
 
   const {
     isInTypeAnnotation,
-    deoptionalizeNode,
+    deoptionalizeDanglingOptionalParent,
     emitGuardedClaim,
     isRenderedPlanTail,
     navGuardTestNode,
@@ -327,17 +325,11 @@ export default function plugin(api, options) {
   // parenthesized chain boundary under babel codegen where the text emitter spells plain -
   // retype them in BOTH directions from the slot, stopping at a genuine `?.`
   function retypeDeadOptionalLinks(path) {
-    for (let p = path; p
-      && (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) && !p.node.optional;
-      p = p.parentPath) {
-      p.node.type = p.isOptionalMemberExpression() ? 'MemberExpression' : 'CallExpression';
-      delete p.node.optional;
+    for (let p = path; p && isOptionalNode(p.node) && !p.node.optional; p = p.parentPath) {
+      deoptionalizeAstNode(p.node);
     }
-    for (let d = path.node.object; d
-      && (d.type === 'OptionalMemberExpression' || d.type === 'OptionalCallExpression') && !d.optional;
-      d = d.object ?? d.callee) {
-      d.type = d.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
-      delete d.optional;
+    for (let d = path.node.object; d && isOptionalNode(d) && !d.optional; d = d.object ?? d.callee) {
+      deoptionalizeAstNode(d);
     }
   }
 
@@ -585,7 +577,7 @@ export default function plugin(api, options) {
         // inner, this differs from the inner - the combine then threads the surviving hops
         // onto the memoized inner result instead of dropping them (value corruption)
         const outerObjectNode = current.node;
-        while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
+        while (isOptionalNode(current.node)) {
           if (current.node.optional) break;
           current = peelWrapperPath(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
         }
@@ -1150,20 +1142,7 @@ export default function plugin(api, options) {
             replacePath.replaceWith(withSideEffects(id,
               throwProbe ? [throwProbe.node, ...claimEffects ?? []] : claimEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
-            if (wasOptional) {
-              // walk through ParenthesizedExpression / ChainExpression / TS wrappers when
-              // searching the dangling optional parent. without the peel, ESTree-mode chain
-              // shapes (`ChainExpression(OptionalMemberExpression(...))`) and TS wrappers
-              // hide the actual user-written `?.` from the immediate parent check, leaving
-              // grandparent .optional dangling against a now-non-optional left side
-              let p = replacePath.parentPath;
-              while (p?.node && (TS_EXPR_WRAPPERS.has(p.node.type)
-                  || p.node.type === 'ParenthesizedExpression'
-                  || p.node.type === 'ChainExpression')) {
-                p = p.parentPath;
-              }
-              if (p?.node?.optional) deoptionalizeNode(p);
-            }
+            if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
           }
         }
       }
