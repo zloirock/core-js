@@ -26,7 +26,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `promises/` | `npm run test-promises` | the Promises/A+ and ES6 promise conformance suites, in both flavors |
 | `test262/` | `npm run test262` | the official ECMAScript test suite |
 | `eslint/` | `npm run test-eslint` | the flat config itself lives here, in `eslint.config.js` |
-| `codespell/` | `npm run codespell` | spelling |
+| `codespell/` | `npm run codespell [paths]` | spelling; edit loops scope it with paths, gates run it bare |
 | `publint/` | `npm run test-publint` | packaging metadata of every workspace package |
 | `helpers/` | - | the custom QUnit assertions, the fixture builders and the environment constants every suite imports; restricted like the pure tests, because they import it |
 | `wpt-url-resources/` | - | Web Platform Tests data used by `unit-global/web.url.constructor.js` and its pure twin |
@@ -36,7 +36,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 
 `npm run test-transpiling` is the composite that runs every plugin and provider suite - the fixture and unit runners, e2e, the differential, integration and perf. It is a VERY heavy run and the final gate of transpiler work: one pass, right before the work is handed off - a single plugin's fixtures cannot see a regression that shifts both emitters the same way - and a superset, so putting a member on the same invocation line runs that suite twice. The edit loop takes the suite nearest the change instead, and the differential is normally scoped there by its combinable tokens: `pure` skips the usage-global leg, `babel` / `unplugin` runs one emitter - `npm run test-transpiler-differential pure babel` is the typical loop shape for emitter work.
 
-CI is not the same run as yours, in three ways: the suites differ in both directions - for example, `test262` and the `check` group are in no workflow, while the wider type-definition matrix runs only there; karma adds IE11, which locally joins in only on a machine that has it, so the bottom of the baseline is exercised there and nowhere else; and the heavier jobs are matrixed over the three operating systems and the whole supported Node range, of which you run one point. So a green CI is not a green `npm test` nor the other way round, and a single red matrix cell is a real failure.
+CI is not the same run as yours, in three ways: the suites differ in both directions - for example, `test262` and the `check` group are in no workflow, while the wider type-definition matrix runs only there; karma adds IE11 and the lint job installs `codespell`, and both join a local run only on a machine that already carries them, so the bottom of the baseline and the spelling gate are exercised there unconditionally; and the heavier jobs are matrixed over the three operating systems and the whole supported Node range, of which you run one point. So a green CI is not a green `npm test` nor the other way round, and a single red matrix cell is a real failure.
 
 The denser suites carry their own `AGENTS.md` with the conventions of the area; the rows above are the map, not the whole story.
 
