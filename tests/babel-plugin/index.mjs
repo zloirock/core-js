@@ -28,7 +28,7 @@ const requireBabel = BABEL_REQUIRE_FROM
 const { transformAsync } = requireBabel('@babel/core');
 
 const { _: args } = argv;
-const { access, readdir, readFile, readJson, rm, stat, writeFile } = fs;
+const { pathExists, readdir, readFile, readJson, rm, stat, writeFile } = fs;
 const { join } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -53,11 +53,6 @@ if (BABEL_SKIP) {
     if (!Array.isArray(value)) continue;
     for (const entry of value) skipPaths.add(entry);
   }
-}
-
-function exists(file) {
-  // eslint-disable-next-line promise/prefer-await-to-then -- ok
-  return access(file).then(() => true, () => false);
 }
 
 function normalizeOutput(code) {
@@ -132,7 +127,7 @@ async function resolveExpectedSlots(directory) {
     return Object.fromEntries(entries.map(([key, name]) => [key, join(directory, name)]));
   }
   const variantPaths = entries.map(([, name]) => variantPath(directory, name));
-  const variantHas = await Promise.all(variantPaths.map(exists));
+  const variantHas = await Promise.all(variantPaths.map(pathExists));
   const locked = variantHas.some(Boolean);
   return Object.fromEntries(entries.map(([key, name], i) => [
     key, variantHas[i] || locked ? variantPaths[i] : join(directory, name),
@@ -148,7 +143,7 @@ async function resolveExpectedSlots(directory) {
 async function overwriteVariant(directory, slots) {
   const baseline = await Promise.all(slots.map(async ([name]) => {
     const file = join(directory, name);
-    return await exists(file) ? readFile(file, UTF8) : null;
+    return await pathExists(file) ? readFile(file, UTF8) : null;
   }));
   const matchesBaseline = slots.every(([, content], i) => content === baseline[i]);
   // touch (and report) only what actually changes - an OVERWRITE sweep over thousands of
@@ -157,7 +152,7 @@ async function overwriteVariant(directory, slots) {
   for (const [name, content] of slots) {
     const file = variantPath(directory, name);
     const desired = matchesBaseline || content === null ? null : content;
-    const previous = await exists(file) ? await readFile(file, UTF8) : null;
+    const previous = await pathExists(file) ? await readFile(file, UTF8) : null;
     if (previous === desired) continue;
     changed = true;
     if (desired === null) await rm(file, { force: true });
@@ -173,7 +168,7 @@ async function runFixture(directory) {
   }
   const source = await readFile(join(directory, 'input.mjs'), UTF8);
   const optionsMjs = join(directory, 'options.mjs');
-  const options = await exists(optionsMjs)
+  const options = await pathExists(optionsMjs)
     ? (await import(pathToFileURL(path.resolve(optionsMjs)).href)).default
     : await readJson(join(directory, 'options.json'), UTF8);
   const { errorFile, outputFile, debugFile, warningsFile } = await resolveExpectedSlots(directory);
@@ -216,10 +211,10 @@ async function runFixture(directory) {
       [EXPECTED_SLOTS.warningsFile, warningsOutput],
     ]);
     // touch (and report) only what actually changes - the regen deltas ARE the output
-    let changed = await exists(staleFile);
+    let changed = await pathExists(staleFile);
     await rm(staleFile, { force: true });
     for (const [file, content] of expected) {
-      const previous = await exists(file) ? await readFile(file, UTF8) : null;
+      const previous = await pathExists(file) ? await readFile(file, UTF8) : null;
       if (previous === content) continue;
       changed = true;
       if (content !== null) await writeFile(file, content, UTF8);
@@ -229,12 +224,12 @@ async function runFixture(directory) {
     return;
   }
 
-  if (await exists(staleFile)) {
+  if (await pathExists(staleFile)) {
     failed++;
     return echo(red(`${ cyan(label(directory)) } failed: ${ error ? 'unexpected error' : 'expected an error but transform succeeded' }`));
   }
 
-  if (!await exists(actualFile)) {
+  if (!await pathExists(actualFile)) {
     // variant runs never auto-create baselines: the override file must be an explicit
     // decision per-fixture. baseline runs auto-create so adding a fresh fixture works
     if (BABEL_VARIANT) {
@@ -249,13 +244,13 @@ async function runFixture(directory) {
 
   for (const [file, content, normalizeExpected = x => x] of expected) {
     if (content === null) {
-      if (await exists(file)) {
+      if (await pathExists(file)) {
         failed++;
         return echo(red(`${ cyan(label(directory)) } failed: unexpected ${ cyan(file) }`));
       }
       continue;
     }
-    if (!await exists(file)) {
+    if (!await pathExists(file)) {
       failed++;
       return echo(red(`${ cyan(label(directory)) } failed: ${ cyan(file) } is missing`));
     }

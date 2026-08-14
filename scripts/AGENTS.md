@@ -12,7 +12,9 @@ npm run zxi [time] [cd] path/to/script.mjs
 
 That means, inside such a script:
 
-- `zx` globals (`$`, `fs`, `path`, `glob`, `chalk`, `argv`, `echo`, `cd`, ...) are ambient - do not import them
+- the `zx` globals are ambient - do not import them
+- `globalsZX` in `tests/eslint/eslint.config.js` is the list of them, and the lint config enforces it: an undeclared global is reported as undefined. The list is curated, not everything `zx` injects, so a feature a script needs is declared there first
+- `fs` is fs-extra rather than `node:fs`, so `pathExists`, `outputFile` and the rest of it are available, and `glob` is globby
 - `$.verbose` is on
 - if the script's own directory contains a `package.json`, `zxi` installs its dependencies first and prefers its local binaries
 - `time` prints the duration, `cd` runs the script with its own directory as the working directory
