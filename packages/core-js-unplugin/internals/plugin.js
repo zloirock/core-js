@@ -74,7 +74,7 @@ import {
   createSyntaxVisitors,
 } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
-import { isCallee, outerGuardOwnedRoot } from './emit-utils.js';
+import { isCallee, optionalCallTypeArgumentEdits, outerGuardOwnedRoot } from './emit-utils.js';
 import { collapseStandownRoot, createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
@@ -906,6 +906,28 @@ export default function createPlugin(options) {
           code: ms.toString(),
           map,
         };
+      }
+
+      // one pass for every method, ahead of the emitters: a type instantiation sitting directly
+      // under an optional call is the one shape whose SOURCE spelling a later lowering reads wrong,
+      // so it is normalized here rather than left to whoever consumes the output. edits land on
+      // `ms` before any queued transform, and both are point edits on type-only text no emitter
+      // claims. this is the deliberate exception to "the spelling the author chose survives"
+      // `?.` is a necessary condition for the shape, and cheaper to rule out than a walk: this pass
+      // is the only one every method pays for, so files that cannot contain it skip it entirely
+      if (code.includes('?.')) {
+        traverse(ast, {
+          CallExpression(path) {
+            // an opt-out is an opt-out whatever the edit is FOR: the whole-file directive already
+            // bails before this pass, and a line-scoped one has to reach it too, or the same
+            // directive family would hold at file scope and be ignored at line scope
+            if (isDisabled(path.node)) return;
+            const edits = optionalCallTypeArgumentEdits(path.node, code);
+            if (!edits) return;
+            ms.remove(edits.remove.start, edits.remove.end);
+            ms.appendLeft(edits.insert.pos, edits.insert.content);
+          },
+        });
       }
 
       // entry-global mode: replace `import 'core-js'` with resolved modules
