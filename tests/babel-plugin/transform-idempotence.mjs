@@ -58,6 +58,11 @@ const CASES = [
   // register the mutated static (the minted-shape gate + ctor-source recognition), or the
   // re-run substitutes the polyfill over the user's patch
   ['patch through a minted ctor import', 'import _Map from "@core-js/pure/actual/map/constructor";\n_Map.groupBy = patched;\nexport const r = _Map.groupBy([], f);'],
+  // the first pass hands a type-instantiation slot's arguments to the call above it and drops the
+  // instantiation node; the second pass reads the folded spelling, where there is no node left to
+  // fold and the type arguments must not be taken for a second, nested instantiation
+  ['instantiation folded into its call', 'export const r = ((Array.from as any)<any>)([1, [2]]);', true],
+  ['instantiation over a loose slot', 'declare const c: boolean;\nexport const r = ((c ? Array.of : Array.from)<any>)([1]);', true],
 ];
 
 const OPTIONS = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
