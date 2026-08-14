@@ -98,7 +98,7 @@ If you have no access to all required browsers / versions of browsers, use [Sauc
 
 ## Style and standards
 
-The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
+The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing), which also spell-checks the sources. Different places have different syntax and standard library limitations:
 - Polyfill implementations should use only ES5 syntax, they should not use other polyfills from the global scope. Beyond ES5, they may rely on the additions of the baseline - basic `WeakMap`, basic `Map` and `Set`, the `%TypedArray%` / `ArrayBuffer` / `DataView` constructors, and a way of setting a prototype - for internal use only.
 - Unit tests should use the modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the pure version should not use any modern standard library features.
 - Tools, scripts and tests, performed in NodeJS, should use only the syntax and the standard library available in NodeJS ^22.18.0 || >=24.11.0.
