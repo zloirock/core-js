@@ -11,6 +11,7 @@
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
+  peelTransparentWrapperPath,
   computedKeyHasSideEffects,
   dropDeadSequenceTail,
   hasRestSiblingExcept,
@@ -45,7 +46,6 @@ import {
   outerDestructureReceiver,
   planArrayWrappedStaticExtract,
   canTransformDestructuring as sharedCanTransformDestructuring,
-  isInnerDestructureDefault,
   nestedAssignmentStatementOf,
   paramDefaultInstanceSynthAllowed,
   refineParamDefaultInstancePure,
@@ -593,14 +593,15 @@ export default function createDestructureEmitter({
 
   // register an instance param-default synth: the default expression becomes the synth target and
   // apply() renders `{ at: _atMaybeArray(<receiver>) }` in its place (buildSynthLiteral's instance
-  // entry). only the DIRECT param default qualifies - an inner default carries `{}`-style filler,
-  // not the receiver - and the shared gate bounds the receiver's shape / read count / global safety
+  // entry). BOTH a parameter's own default and an INNER one qualify - the mirror replaces that
+  // default, so it fires exactly when the slot it defends is undefined, which is the condition under
+  // which the source destructures the default itself, whatever host stands above it. the shared gate
+  // bounds the receiver's shape / read count / global safety
   function tryRegisterParamDefaultInstanceSynth({ prop, entry, hintName }) {
     const objectPattern = prop.parentPath;
     const wrapper = objectPattern.parentPath;
-    if (!wrapper?.isAssignmentPattern() || isInnerDestructureDefault(wrapper)) return false;
-    let rightPath = wrapper.get('right');
-    while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(rightPath.node?.type)) rightPath = rightPath.get('expression');
+    if (!wrapper?.isAssignmentPattern()) return false;
+    const rightPath = peelTransparentWrapperPath(wrapper.get('right'));
     if (!paramDefaultInstanceSynthAllowed({
       objectPatternNode: objectPattern.node, receiverNode: rightPath.node,
       scope: prop.scope, adapter, path: prop, resolvePure,
@@ -1529,10 +1530,7 @@ export default function createDestructureEmitter({
       const stmts = extracted.map(d => wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [d]), declIsExport));
       const target = declIsExport ? declaration.parentPath : declaration;
       if (stmts.length === 1) target.replaceWith(stmts[0]);
-      else {
-        liftLeadingComments(declaration.node, stmts[0]);
-        target.replaceWithMultiple(stmts);
-      }
+      else target.replaceWithMultiple(stmts);
       return !!prop && skippedNodes.has(prop.node);
     }
     // multi-decl / for-init: declarator-level insert keeps the extractions AT THEIR SOURCE
@@ -1546,7 +1544,14 @@ export default function createDestructureEmitter({
       if (isForInit || declCount > 1) declarator.insertBefore(extracted);
       else {
         const newDecls = extracted.map(d => wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [d]), declIsExport));
-        liftLeadingComments(declaration.node, newDecls[0]);
+        // `insertBefore` is the one insertion here that does NOT carry the declaration's leading
+        // comments over - `replaceWith` / `replaceWithMultiple` inherit them on their own, which is
+        // why the sibling split paths need nothing
+        const lead = declaration.node.leadingComments;
+        if (lead?.length) {
+          newDecls[0].leadingComments = lead;
+          declaration.node.leadingComments = null;
+        }
         (declIsExport ? declaration.parentPath : declaration).insertBefore(newDecls);
       }
     }
@@ -2072,6 +2077,11 @@ export default function createDestructureEmitter({
     // `Array.from` is non-undefined on every engine we target (may just be buggy).
     // flatten the outer structure when it's a single-nested shape: replace the whole
     // VariableDeclarator with `const from = _Array$from` so the polyfill ALWAYS wins
+    // an INSTANCE receiver carried by the pattern's own default is mirrored the same way a
+    // parameter's is - the default is the receiver, and replacing it keeps the caller's object
+    // destructuring natively. only the receiver-less nested forms fall through to the SE-key path
+    if (kind === 'instance' && objectPattern.parentPath?.isAssignmentPattern()
+      && tryRegisterParamDefaultInstanceSynth({ prop, entry, hintName })) return;
     if (patternParent?.isObjectProperty() && kind !== 'instance') {
       if (tryFlattenNestedProxyDestructure(prop)) return;
       // conditional receiver: mirror each proxy operand per branch. when the pattern can't be
@@ -2749,14 +2759,6 @@ export default function createDestructureEmitter({
   // move leading comments from `from` AST node onto `to` (clears them on the source).
   // shared by cascade insert paths and `splitDeclarationAtSlot` so the relocated
   // first statement inherits the host's leading docblock
-  function liftLeadingComments(from, to) {
-    const lead = from.leadingComments;
-    if (lead?.length) {
-      to.leadingComments = lead;
-      from.leadingComments = null;
-    }
-  }
-
   // nested-proxy cascade split gate: fires on multi-decl + willRemove + non-for-init.
   // peels the consumed declarator's SE prefix (empty array when no SE) and delegates
   // to the shared `splitDeclarationAtSlot`. for-init / single-decl take legacy paths
@@ -2791,7 +2793,6 @@ export default function createDestructureEmitter({
       ...sePrefix.map(e => t.expressionStatement(t.cloneNode(e))),
       ...splitDeclarators([...extractedDeclarators, ...decls.slice(idx + 1)], kind, isExport),
     ];
-    if (stmts.length) liftLeadingComments(declaration.node, stmts[0]);
     const newPaths = declaration.replaceWithMultiple(stmts);
     // re-mark grouped products for the post-traverse split drain: `splitDeclarators` keeps
     // ObjectPattern-bearing runs comma-joined so later per-prop visits still see an intact
@@ -2904,7 +2905,6 @@ export default function createDestructureEmitter({
       const stmts = groups.map(g => g.length === 1 && memoDeclarators.has(g[0])
         ? t.variableDeclaration('const', g)
         : wrapAsExportIf(t.variableDeclaration(declaration.node.kind, g), isExport));
-      liftLeadingComments(declaration.node, stmts[0]);
       // an unbraced control slot takes exactly one statement - block-wrap the splits there
       // (the unplugin canon); plain statement lists splice in place
       if (isBodylessStatementSlot(slotParent, target.node)) target.replaceWith(t.blockStatement(stmts));
