@@ -44,4 +44,12 @@ function viaCastInstantiation(c) {
   if (c) ({ Promise: P4 } = globalThis);
   return ((P4.any as any)<number>)([1, 2]);
 }
-export const r = [viaCast(true), viaParen(true), viaNonNull(true), viaSeq(true), viaOptional(true), viaInstantiation(true), viaCastInstantiation(true)];
+// the same stack with a NON-NULL filling the slot: `!` already binds tighter than the type-argument
+// list, so this one takes the guard bare - the restoration owes parens to the slot's priority, not
+// to every wrapper it finds there
+function viaNonNullInstantiation(c) {
+  let P5;
+  if (c) ({ Promise: P5 } = globalThis);
+  return ((P5.race!)<number>)([]);
+}
+export const r = [viaCast(true), viaParen(true), viaNonNull(true), viaSeq(true), viaOptional(true), viaInstantiation(true), viaCastInstantiation(true), viaNonNullInstantiation(true)];
