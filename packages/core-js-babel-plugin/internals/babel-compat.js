@@ -45,6 +45,38 @@ function isOptionalOperand(child, parent) {
   return cur === child.node;
 }
 
+// the babel dialect spells the two optional-chain links as their own node TYPES. asking by type
+// keeps the path-form and node-form callers on one predicate - both spellings occur, and a
+// path-only predicate leaves the node-form ones re-deriving it
+const OPTIONAL_CHAIN_LINK_TYPES = new Set(['OptionalMemberExpression', 'OptionalCallExpression']);
+
+export function isOptionalNode(node) {
+  return OPTIONAL_CHAIN_LINK_TYPES.has(node?.type);
+}
+
+// rewrite an Optional{Member,Call}Expression in place into its plain twin
+export function deoptionalizeAstNode(node) {
+  node.type = node.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
+  delete node.optional;
+}
+
+// path form: babel caches the type on the path too, so it has to move with the node
+function deoptionalizeNode(path) {
+  deoptionalizeAstNode(path.node);
+  path.type = path.node.type;
+}
+
+// the claim carried its own `?.` and the replacement is always defined, so an ancestor whose
+// `.optional` pointed AT that claim now dangles against a non-optional left side - deopt it. the
+// same spine rule as `normalizeOptionalChain`'s climb bounds which ancestor that is: one reached
+// from an ARGUMENT or a computed key owns a `?.` of its own (`host?.fn?.(Array?.from)`), and
+// stripping it turns the user's short-circuit into a call on `undefined`
+function deoptionalizeDanglingOptionalParent(replacePath) {
+  let p = replacePath.parentPath;
+  while (p?.node && SKIPPABLE_WRAPPER_TYPES.has(p.node.type)) ({ parentPath: p } = p);
+  if (p?.node?.optional && isOptionalOperand(replacePath, p)) deoptionalizeNode(p);
+}
+
 // the resolver-facing options (`getAdapter` / `resolvePureGlobalEntry` / `injectPureGlobal`) are
 // genuinely optional: the unit harness constructs the helpers with the injector alone to isolate
 // AST-shape behaviour from resolver wiring, so every consumer of them must gate as a family
@@ -427,13 +459,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       : t.callExpression(callMember, callArgs);
   }
 
-  function deoptionalizeNode(path) {
-    const type = path.isOptionalMemberExpression() ? 'MemberExpression' : 'CallExpression';
-    path.node.type = type;
-    path.type = type;
-    delete path.node.optional;
-  }
-
   // strip Optional{Member,Call}Expression wrappers above a replaced node
   // stripFirstOptional: also deoptionalize the first user-written ?. in the chain
   // (used when the replacement is always defined, e.g., polyfill imports)
@@ -445,17 +470,21 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     while (parentPath && SKIPPABLE_WRAPPER_TYPES.has(parentPath.node?.type)) {
       ({ parentPath } = parentPath);
     }
-    if (!parentPath || !isOptionalOperand(path, parentPath)) return null;
+    if (!parentPath) return null;
     let topPath = null;
     let seenOptional = false;
-    function isOptional(p) {
-      return p.isOptionalMemberExpression() || p.isOptionalCallExpression();
-    }
-    // eslint-disable-next-line no-unmodified-loop-condition -- safe
-    while (isOptional(parentPath) && (!parentPath.node.optional || stripFirstOptional && !seenOptional)) {
+    // the node the climb came from. `isOptionalOperand` is asked at EVERY hop, not only at entry:
+    // an optional ancestor reached through an ARGUMENT or a computed KEY belongs to a different
+    // chain, and deoptionalizing it destroys the user's own short-circuit (`cb?.fn(Array?.from(x))`
+    // printed `(cb?.fn)(...)`, a TypeError where native answers undefined)
+    let cursor = path;
+    for (;;) {
+      if (!isOptionalNode(parentPath?.node) || !isOptionalOperand(cursor, parentPath)) break;
+      if (parentPath.node.optional && (!stripFirstOptional || seenOptional)) break;
       if (parentPath.node.optional) seenOptional = true;
       topPath = parentPath;
       deoptionalizeNode(parentPath);
+      cursor = parentPath;
       ({ parentPath } = parentPath);
     }
     // trailing optional CALL whose callee is the just-deoptionalized member (`x.includes?.(2)`):
@@ -576,7 +605,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   // the AST spelling of a nav-collapse plan (mirrors the text emitter's forms byte-for-byte)
   function renderNavCollapseAst(plan, pureId) {
-    const keySeExprs = plan.keySeExprs.map(se => t.cloneNode(se));
+    // the test's share is already inside the rendered prefix - only the hops ABOVE it re-emit here
+    const keySeExprs = plan.keySeExprs.slice(plan.testKeySeCount).map(se => t.cloneNode(se));
     const leaf = keySeExprs.length ? t.sequenceExpression([...keySeExprs, t.cloneNode(pureId)]) : t.cloneNode(pureId);
     // the TAIL hangs off the leaf INSIDE the guarded alternate (`null == X ? void 0 : _self
     // .window`) - hung off the whole ternary it would read `.window` off the short-circuited
@@ -1141,7 +1171,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     let current = path.get('object');
     const throughTS = current.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(current.node.type);
     current = peelTransparentChildPath(current);
-    while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
+    while (isOptionalNode(current.node)) {
       if (current.node.optional) {
         chainStart = current;
         break;
@@ -1182,7 +1212,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // `p && p !== path` guard: on orphaned paths parentPath chain can bottom out at null
     // before reaching `path`, which would infinite-loop the original `p !== path` test
     for (let p = chainStart.parentPath; p && p !== path; p = p.parentPath) {
-      if (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) deoptionalizeNode(p);
+      if (isOptionalNode(p.node)) deoptionalizeNode(p);
     }
     return [check, node.object, throughTS];
   }
@@ -1616,6 +1646,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   return {
     isInTypeAnnotation,
+    deoptionalizeDanglingOptionalParent,
     deoptionalizeNode,
     emitGuardedClaim,
     navGuardTestNode,

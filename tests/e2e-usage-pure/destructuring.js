@@ -3396,3 +3396,68 @@ QUnit.test('destructuring: a parameter pattern nested past thirty-two levels', a
   assert.same(deep([[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[{ from: callerFrom }]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]), 'caller', "a filled slot keeps the caller's value");
   assert.deepEqual(calls, [[1, 2]], "the caller's method receives the arguments");
 });
+
+// an assignment-destructure occupying an unbraced control slot. the receiver is memoized, so the
+// emitted `_ref` and the polyfill assignment reading it must land in the SAME block: an insertion
+// that block-wraps the slot a second time leaves the read above the declaration (ReferenceError).
+// the braced twin is the control - it needs no wrapping at all
+QUnit.test('destructuring: an assignment in an unbraced control slot memoizes in place', assert => {
+  const obj = { list: [1, 2, 3] };
+  let at, length;
+  if (obj.list) ({ at, length } = obj.list);
+  assert.same(at.call(obj.list, -1), 3, 'the polyfill reads the memoized receiver');
+  assert.same(length, 3, 'the residual binds off the same memo');
+  let bracedAt, bracedLength;
+  if (obj.list) { ({ at: bracedAt, length: bracedLength } = obj.list); }
+  assert.same(bracedAt.call(obj.list, -1), 3);
+  assert.same(bracedLength, 3);
+});
+
+QUnit.test('destructuring: an unbraced loop body memoizes in place', assert => {
+  const obj = { list: [4, 5] };
+  let at, length;
+  for (let i = 0; i < 1; i++) ({ at, length } = obj.list);
+  assert.same(at.call(obj.list, -1), 5);
+  assert.same(length, 2);
+  let doAt;
+  do ({ at: doAt } = obj.list); while (false);
+  assert.same(doAt.call(obj.list, 0), 4);
+});
+
+// a for-HEAD whose sibling declarator carries a side effect: the extraction re-registers only the
+// declarators it introduces. registering the whole declaration re-registers a sibling an earlier
+// prop already rewrote, which aborts the build - so this file failing to compile IS the assertion.
+// the effect itself still runs exactly once, wherever the sink lands in the header
+QUnit.test('destructuring: a for-head sibling declarator keeps its side effect once', assert => {
+  let calls = 0;
+  function getJSON() {
+    calls++;
+    return JSON;
+  }
+  let rounds = 0;
+  const seen = [];
+  for (const { Array: { from } } = globalThis, { parse } = getJSON(); rounds < 2; rounds++) {
+    seen.push(from([1]), parse('2'));
+  }
+  assert.same(calls, 1, 'the side-effecting sibling init runs once, not once per round');
+  assert.deepEqual(seen, [[1], 2, [1], 2], 'both head bindings stay usable across rounds');
+});
+
+// the VALUE of a destructuring assignment is its right side, so a receiver replaced by a synth
+// mirror literal changes what the capturing binding holds. the statement-position twin discards
+// that value and keeps mirroring - that is where the polyfill still lands
+QUnit.test('destructuring: a captured assignment value stays the receiver', assert => {
+  const shim = null;
+  let assign;
+  const host = { assign } = shim || Object;
+  assert.same(host, Object, 'the captured value is the branch object, not a mirror literal');
+  // the binding is the captured receiver's OWN slot, so `undefined` where the engine lacks the
+  // static; comparing it against `Object.assign` would put that slot against the pure module's
+  // export, and those agree only where the native exists
+  assert.same(assign, host.assign, 'the binding reads off the captured receiver, not a mirror');
+  let statementAssign;
+  // eslint-disable-next-line prefer-const -- a destructuring-assignment target cannot be `const`
+  ({ assign: statementAssign } = shim || Object);
+  assert.same(typeof statementAssign, 'function', 'the value-discarding twin keeps its own channel');
+  assert.deepEqual(statementAssign({}, { a: 1 }), { a: 1 });
+});

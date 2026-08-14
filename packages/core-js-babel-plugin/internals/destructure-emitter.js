@@ -14,18 +14,17 @@ import {
   computedKeyHasSideEffects,
   dropDeadSequenceTail,
   hasRestSiblingExcept,
-  isBindingPosition,
+  catchPropRewriteObservable,
+  relocatedCatchPattern,
   isChainAssignment,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
-  isNonReferencePosition,
   isReplayableSynthKey,
   isRestProperty,
   isSynthSimpleObjectPattern,
   isTransparentDestructureWrapper,
   mayHaveSideEffects,
-  objectPatternPropNeedsReceiverRewrite,
   paramsHaveInvisibleCallers,
   patternBindingCount,
   peelNestedSequenceExpressions,
@@ -51,6 +50,8 @@ import {
   paramDefaultInstanceSynthAllowed,
   refineParamDefaultInstancePure,
   conditionalDestructureLeftUntouchedWarning,
+  destructureAssignmentValueIsCaptured,
+  destructurePatternHostPath,
   fallbackDestructureHasPolyfillableBranch,
   planSideEffectKeyStrategy,
   qualifiesForParamBodyExtract,
@@ -162,24 +163,11 @@ function buildSEPrefixStatements(t, prefix) {
   return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
 }
 
-// the node that HOSTS this destructure prop, found by walking only the destructure's own pattern chain
-// (ObjectPattern / ArrayPattern / Property / AssignmentPattern wrappers) - a VariableDeclarator, an
-// AssignmentExpression, or a function param. NOT `findParent(...)`, which crosses function / assignment
-// boundaries and would wrongly latch onto an OUTER host (e.g. `const r = (() => { ({m} = x) })()`)
-function destructurePatternHost(prop) {
-  let path = prop.parentPath;
-  while (path && (path.isObjectPattern() || path.isArrayPattern()
-    || path.isObjectProperty() || path.isAssignmentPattern() || path.isRestElement())) {
-    path = path.parentPath;
-  }
-  return path;
-}
-
 // the VariableDeclaration that hosts this prop, or null when the host is an assignment target
 // (`({ y: { m } } = R)`) or a param - there is no declaration to extract a `const` into
 function hostDeclarationOf(prop) {
-  const host = destructurePatternHost(prop);
-  return host?.isVariableDeclarator() ? host.parentPath : null;
+  const host = destructurePatternHostPath(prop);
+  return host?.isVariableDeclarator?.() ? host.parentPath : null;
 }
 
 // generic SE-prefix lift: peels prefix from `node[key]`, emits ExpressionStatements before
@@ -434,7 +422,7 @@ export default function createDestructureEmitter({
   // shape almost none contain
   const retainedForInitHosts = new Set();
   function noteRetainedForInitHost(prop) {
-    const host = destructurePatternHost(prop);
+    const host = destructurePatternHostPath(prop);
     if (!host?.isVariableDeclarator?.()) return;
     const declaration = host.parentPath;
     const forStatement = declaration?.parentPath;
@@ -451,7 +439,10 @@ export default function createDestructureEmitter({
     if (parent?.isAssignmentExpression()) {
       // walk past Paren / TS wrappers between Assignment and its ExpressionStatement host.
       // without TS peel `({from} = Array) as any;` parses as ExprStmt > TSAsExpression >
-      // Assignment and the rewrite silently bails; mirror of unplugin's emit-utils peel
+      // Assignment and the rewrite silently bails; mirror of unplugin's emit-utils peel.
+      // transparent-only is deliberate here, unlike the file's `peelToExpressionStatement` canon:
+      // an SE prefix around the assignment is lifted to sibling statements BEFORE this gate, so a
+      // sequence wrapper survives only in a non-statement position, where the bare twin bails too
       const host = peelParenAndTSParentPath(parent);
       if (host?.node?.type !== 'ExpressionStatement') return false;
     }
@@ -769,6 +760,26 @@ export default function createDestructureEmitter({
     const innerNode = exprStmt.node;
     exprStmt.replaceWith(t.blockStatement([innerNode]));
     return exprStmt.get('body.0');
+  }
+
+  // canonical host-statement resolver for a destructure host. wrapping an unbraced control slot
+  // - whether through the canon above or through babel's own `insertBefore`, which does the same
+  // replaceWith internally - leaves every path already held for that statement pointing at the
+  // WRAPPER, so a second emission through such a path wraps again and lands its statement outside
+  // the block the first one built. babel@8 caches child paths per parent PATH, so re-`get`ting the
+  // descendants cannot re-seat what is already held; record the in-block host instead and resolve
+  // every later insertion for the same host through it
+  const reboundHostStatements = new WeakMap();
+
+  function hostStatementPath(parent) {
+    const rebound = reboundHostStatements.get(parent.node);
+    return rebound?.node ? rebound : peelParenAndTSParentPath(parent);
+  }
+
+  function blockWrappedHostStatement(parent) {
+    const host = ensureExprStmtInBlock(hostStatementPath(parent));
+    reboundHostStatements.set(parent.node, host);
+    return host;
   }
 
   // strip transparent wrappers (oxc parens / TS casts / chain / SE-with-AE-as-tail) sitting
@@ -1978,6 +1989,32 @@ export default function createDestructureEmitter({
     return null;
   }
 
+  // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each viable branch
+  // becomes its own `{key: _Branch$key}` literal, preserving runtime conditional semantics
+  function registerFallbackBranchSynth({ prop, meta }) {
+    // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each
+    // viable branch becomes its own `{key: _Branch$key}` literal, preserving runtime
+    // conditional semantics. receiver lives either on a destructure wrapper slot
+    // (`{p} = R`) or as the IIFE call-arg (`(({p}) => body)(R)`) - both shapes are
+    // unified by `resolveFallbackReceiverPath`. non-viable branches stay raw and the
+    // identifier visitor still rewrites bare globals via the standard path
+    // the same value-capture gate the provider's whole-receiver synth plan applies: replacing a
+    // branch of `host = ({ k } = shim || Object)` with a mirror literal hands `host` the literal
+    // instead of the branch object. the receiver's own value wins over the leaf here - the same
+    // trade the text emitter makes, whose gate sits ahead of the registration
+    const rhsPath = destructureAssignmentValueIsCaptured(prop)
+      ? null : resolveFallbackReceiverPath(prop.parentPath?.parentPath, prop.parentPath?.node);
+    const registered = rhsPath && synthSwap.tryRegisterPerBranchSynth(rhsPath, prop);
+    // warn only for a GENUINE candidate a structural pattern issue blocked - not for a key no
+    // branch actually polyfills (the build tags `object` permissively), which would lie. the gate
+    // is a debug-only concern, so skip it unless debug output is on
+    const debug = getDebugOutput();
+    if (!registered && debug
+      && fallbackDestructureHasPolyfillableBranch({ meta, path: prop, adapter, resolvePure })) {
+      debug.warn(conditionalDestructureLeftUntouchedWarning(meta.key));
+    }
+  }
+
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
     // a key-swap survivor of an already-rendered flatten / fold (revisits re-enter here
     // after the host rebuild requeues the pattern subtree): the natural computed-key
@@ -2012,23 +2049,14 @@ export default function createDestructureEmitter({
     // the rebuilt residual keeps it, the instance routes below must not steal it
     if (meta && isSourcedSymbolIteratorMeta(meta) && flattenPlanConsumesProp(prop)
       && (tryFlattenNestedProxyDestructure(prop) || keySwapOwnedProps.has(prop.node))) return;
+    // a RELOCATED catch pattern reaches here as an ordinary declarator - written that way by a
+    // sibling, by the text emitter's earlier phase, or by hand. its bindings are block-scoped to the
+    // catch, so the same per-prop liveness rule the clause form gets applies: a binding the body
+    // never reads is not worth an import and a dispatcher call. the clause form itself never gets
+    // here twice - `extractCatchClause` already dropped its unobservable props before relocating
+    if (relocatedCatchPropUnobservable(prop)) return;
     if (meta?.fromFallback) {
-      // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each
-      // viable branch becomes its own `{key: _Branch$key}` literal, preserving runtime
-      // conditional semantics. receiver lives either on a destructure wrapper slot
-      // (`{p} = R`) or as the IIFE call-arg (`(({p}) => body)(R)`) - both shapes are
-      // unified by `resolveFallbackReceiverPath`. non-viable branches stay raw and the
-      // identifier visitor still rewrites bare globals via the standard path
-      const rhsPath = resolveFallbackReceiverPath(prop.parentPath?.parentPath, prop.parentPath?.node);
-      const registered = rhsPath && synthSwap.tryRegisterPerBranchSynth(rhsPath, prop);
-      // warn only for a GENUINE candidate a structural pattern issue blocked - not for a key no
-      // branch actually polyfills (the build tags `object` permissively), which would lie. the gate
-      // is a debug-only concern, so skip it unless debug output is on
-      const debug = getDebugOutput();
-      if (!registered && debug
-        && fallbackDestructureHasPolyfillableBranch({ meta, path: prop, adapter, resolvePure })) {
-        debug.warn(conditionalDestructureLeftUntouchedWarning(meta.key));
-      }
+      registerFallbackBranchSynth({ prop, meta });
       return;
     }
     const objectPattern = prop.parentPath;
@@ -2135,6 +2163,31 @@ export default function createDestructureEmitter({
     skipEmptyPatternInit(prop);
   }
 
+  // `walkNode(root, visit(node, parent))` over a raw babel subtree: `t.traverseFast` hands the
+  // visitor no parent, and the provider's reference-position filters need one
+  function traverseWithParent(root, visit) {
+    t.traverse(root, (node, ancestors) => { visit(node, ancestors.at(-1)?.node ?? null); });
+  }
+
+  // a RELOCATED catch pattern dispatches as an ordinary declarator - written that way by a sibling,
+  // by the text emitter's earlier phase, or by hand. its bindings are block-scoped to the catch, so
+  // the same per-prop liveness rule the clause form gets applies: a binding the body never reads is
+  // not worth an import and a dispatcher call. the clause form never arrives here twice -
+  // `extractCatchClause` drops its unobservable props before relocating
+  function relocatedCatchPropUnobservable(prop) {
+    const relocated = relocatedCatchPattern(prop.parentPath?.parentPath);
+    if (!relocated) return false;
+    return !catchPropRewriteObservable({
+      propNode: prop.node, patternNode: prop.parentPath.node, bodyNode: relocated.body,
+      localName: propBindingIdentifier(prop.node.value)?.name ?? null,
+      walkNode: (root, visit) => {
+        for (const stmt of root.body ?? []) {
+          if (stmt !== relocated.skip) traverseWithParent(stmt, visit);
+        }
+      },
+    });
+  }
+
   // catch-clause receiver extraction: `catch ({ code }) { ... }` -> `catch (_ref) { let { code } = _ref; ... }`.
   // ArrayPattern destructuring in catch can't be polyfilled by property rewrite (bindings
   // are positional, not named), so extracting it is pure overhead - unplugin keeps it
@@ -2169,41 +2222,21 @@ export default function createDestructureEmitter({
     // default on the resolved key (the guarded `_ref`-read rewrite); a plain resolved
     // prop matters only when the body actually reads it. plain `{ code = 1 }` /
     // rest-only patterns destructure in place
-    if (param.properties.every(p => !computedPropKeyHostsMachinery({
+    const hasMachinery = param.properties.some(p => computedPropKeyHostsMachinery({
       propNode: p, scope: path.scope, adapter, path, resolvePure,
-    }))) {
-      if (!resolvableProps.length) return;
-      // the per-prop "needs a `_ref`-bound rewrite" rule is the shared predicate (rest / computed /
-      // default-valued prop) - the same one unplugin's catch gate uses. computed is already routed out
-      // above (its block-skip is a distinct consequence), so here it reduces to rest-or-default
-      const needsPatternRewrite = param.properties.some(objectPatternPropNeedsReceiverRewrite);
-      if (!needsPatternRewrite) {
-        const destructuredNames = new Set();
-        for (const p of resolvableProps) {
-          if (p.value?.type === 'Identifier') destructuredNames.add(p.value.name);
-        }
-        if (!destructuredNames.size) return;
-        // path-based traversal so we can look at `idPath.parent`: `isNonReferencePosition`
-        // filters Identifiers in non-reference slots (method/property keys, member-access
-        // tails, labels, import/export specifier names) - else `Math.includes` body would
-        // false-positive against a `{ includes }` catch binding and force a useless
-        // catch-receiver extraction. matches unplugin's same-named filter for shape parity.
-        // `isBindingPosition` ALSO filters declaration-id slots (function/class id, declarator
-        // id, catch param) - shadow re-declarations like `function from(){}` inside the catch
-        // body are bindings, not references; without skip we'd over-extract on every shadow
-        let referenced = false;
-        path.get('body').traverse({
-          Identifier(idPath) {
-            if (!destructuredNames.has(idPath.node.name)) return;
-            if (isNonReferencePosition(idPath.parent, idPath.node)) return;
-            if (isBindingPosition(idPath.parent, idPath.node)) return;
-            referenced = true;
-            idPath.stop();
-          },
-        });
-        if (!referenced) return;
-      }
-    }
+    }));
+    if (!hasMachinery && !resolvableProps.length) return;
+    // whether a resolvable prop is worth an `_ref`-bound rewrite is a PER-PROP question - the
+    // shared predicate both emitters ask. a machinery sibling forces the relocation but says
+    // nothing about this prop, so an unread one stays a native read in the residual instead of
+    // an import plus a dead dispatcher call
+    const unobservable = resolvableProps.filter(p => !catchPropRewriteObservable({
+      propNode: p, patternNode: param, bodyNode: path.node.body,
+      localName: p.value?.type === 'Identifier' ? p.value.name : null, walkNode: traverseWithParent,
+    }));
+    // nothing to rewrite and no machinery to relocate for: the pattern destructures in place
+    if (!hasMachinery && unobservable.length === resolvableProps.length) return;
+    for (const p of unobservable) skippedNodes.add(p);
     // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
     // - keeps one naming scheme across the plugin and matches unplugin's output shape
     const ref = injector.generateLocalRef(path.scope);
@@ -2248,7 +2281,7 @@ export default function createDestructureEmitter({
       const memoDeclarator = t.variableDeclarator(ref, receiver);
       memoDeclarators.add(memoDeclarator);
       parent.insertBefore(memoDeclarator);
-    } else parent.parentPath.insertBefore(t.variableDeclaration('const', [
+    } else blockWrappedHostStatement(parent).insertBefore(t.variableDeclaration('const', [
       t.variableDeclarator(ref, receiver),
     ]));
     const cloned = t.cloneNode(ref);
@@ -2345,10 +2378,18 @@ export default function createDestructureEmitter({
       const idx = decls.indexOf(parent.node);
       if (idx === -1) return;
       const sink = t.variableDeclarator(ref, sinkInit ?? t.cloneDeep(parent.node.init));
-      decls[idx] = t.variableDeclarator(localBinding, value);
+      const extracted = t.variableDeclarator(localBinding, value);
+      decls[idx] = extracted;
       const firstExtraction = decls.findIndex(d => forInitExtractionDecls.has(d));
       decls.splice(firstExtraction === -1 ? idx : firstExtraction, 0, sink);
-      declaration.scope?.registerDeclaration(declaration);
+      // register PER DECLARATOR, the same way the instance branch below does. registering the
+      // whole declaration re-registers every sibling id too, and a sibling an earlier per-prop
+      // emission already rewrote and registered then collides with itself - babel aborts the
+      // build with "Duplicate declaration"
+      for (const node of [extracted, sink]) {
+        const at = decls.indexOf(node);
+        if (at !== -1) declaration.scope?.registerDeclaration(declaration.get(`declarations.${ at }`));
+      }
     } else {
       parent.node.id = localBinding;
       parent.node.init = value;
@@ -2457,7 +2498,12 @@ export default function createDestructureEmitter({
     // extraction (`it = _getIteratorMethod(_ref)`). keep computed-key patterns on the per-prop path,
     // where the symbol key and its sibling statics each emit independently
     if (objectPattern.node.properties.some(p => t.isObjectProperty(p) && p.computed)) return false;
-    if (declarator.parentPath?.node?.leadingComments?.length) return false;
+    // shape alone is not enough: a prop the plan cannot consume stays a VERBATIM residual, and on a
+    // flat pattern that residual never re-enters the per-prop channel - an INSTANCE prop read off
+    // the constructor (`{ of, name } = Array`) has its ponyfill built and then discarded. hand any
+    // unconsumed prop back to the per-prop path, which emits the two kinds side by side
+    const plan = buildFlattenPlan({ declaratorNode: declarator.node, scope: declarator.scope, path: declarator });
+    if (plan?.outerProps?.some(outer => outer.kind === 'verbatim')) return false;
     return renderDeclaratorFlattenPlan(declarator, prop);
   }
 
@@ -2797,7 +2843,7 @@ export default function createDestructureEmitter({
     // peel Paren / TS wrappers up to the ExpressionStatement so the rewrite owns the whole
     // statement - replacing only the inner assignment leaves dead wrapper decoration
     // (`((from = _Array$from) satisfies unknown)!;`) the unplugin render never emits
-    const assignmentTarget = peelParenAndTSParentPath(parent);
+    const assignmentTarget = hostStatementPath(parent);
     const assignment = inheritSpan(t.expressionStatement(
       inheritSpan(t.assignmentExpression('=', localBinding, value), parent.node)), assignmentTarget.node);
     // save the original body index before the first insertBefore shifts it, so a deferred SE on
