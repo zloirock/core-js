@@ -1289,7 +1289,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // the outer CallExpression, isCall flips to false, and the polyfill emit drops `.call(arr)`
   // (broken `this`). default-parser path keeps the same shape via `extra.parenthesized`
   // flag, so peeling parens here aligns createParens=true with default-parser behavior.
-  // shared `TRANSPARENT_EXPR_WRAPPER_TYPES` keeps this in lockstep with `peelTransparentPath`
+  // shared `TRANSPARENT_EXPR_WRAPPER_TYPES` keeps this in lockstep with `peelTransparentWrapperPath`
   // in synth-swap-emitter.js (parent-up vs expression-down walks of the same wrapper set)
   function unwrapTSExpressionParent(path) {
     let current = path;
