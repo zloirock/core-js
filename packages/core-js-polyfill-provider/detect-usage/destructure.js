@@ -52,6 +52,7 @@ import {
 } from '../helpers/ast-patterns.js';
 import {
   assignmentAliasHintSoundAtRead,
+  bindingPolyfillHint,
   findNamespaceMemberValue,
   globalProxyMemberName,
   isUsableFallbackReceiverArg,
@@ -1287,16 +1288,39 @@ export function resolveDestructureReceiverPlan(leafPath, {
 // `ParenthesizedExpression` while babel folds them into node `extra` - peeling unifies the two. callers
 // emit the polyfill overwrite (`m = _m(recv)`) after this statement. AST/path-agnostic - serves both emitters
 export function nestedAssignmentStatementOf(leafPath) {
-  let path = leafPath.parentPath;
-  while (path && (path.node?.type === 'ObjectPattern' || path.node?.type === 'ArrayPattern'
-    || path.node?.type === 'ObjectProperty' || path.node?.type === 'Property'
-    || path.node?.type === 'AssignmentPattern' || path.node?.type === 'RestElement')) {
-    path = path.parentPath;
-  }
+  const path = destructurePatternHostPath(leafPath);
   if (path?.node?.type !== 'AssignmentExpression') return null;
   let host = path.parentPath;
   while (host?.node?.type === 'ParenthesizedExpression') host = host.parentPath;
   return host?.node?.type === 'ExpressionStatement' ? host : null;
+}
+
+// the node a pattern leaf's own chain climbs out into - the declarator, assignment, parameter or
+// catch clause the destructure belongs to. one climb, several questions asked of its result. NOT a
+// `findParent`, which crosses function and assignment boundaries and latches onto an OUTER host
+// (`const r = (() => { ({ m } = x) })()` would answer the declarator)
+const PATTERN_CHAIN_TYPES = new Set([
+  'ArrayPattern',
+  'AssignmentPattern',
+  'ObjectPattern',
+  'ObjectProperty',
+  'Property',
+  'RestElement',
+]);
+
+export function destructurePatternHostPath(leafPath) {
+  let path = leafPath.parentPath;
+  while (path && PATTERN_CHAIN_TYPES.has(path.node?.type)) path = path.parentPath;
+  return path ?? null;
+}
+
+// does the destructure ASSIGNMENT around this leaf have its value consumed (`host = ({ k } = R)`,
+// a `return`, a call argument)? an assignment yields its RHS, so a receiver replaced by a synth
+// mirror literal becomes the value the consumer captures - `host === Object` turns false. a
+// declarator, parameter or catch host answers false: there is no assignment value to capture
+export function destructureAssignmentValueIsCaptured(leafPath) {
+  return destructurePatternHostPath(leafPath)?.node?.type === 'AssignmentExpression'
+    && !nestedAssignmentStatementOf(leafPath);
 }
 
 export function canTransformDestructuring({ parentType, parentInit }) {
@@ -1338,7 +1362,7 @@ function reachingContainerValueNode({ binding, adapter, path, readNode, scope })
 function pluginRewrittenHopName({ current, binding, adapter, scope, readNode }) {
   const proxyName = proxyGlobalRootName({ node: current, binding, adapter, scope, path: null });
   if (proxyName && proxyName !== current.name) return proxyName;
-  const ctorHint = binding?.polyfillHint ?? adapter?.getBindingPolyfillHint?.(scope, current.name);
+  const ctorHint = bindingPolyfillHint({ binding, scope, name: current.name, adapter });
   return ctorHint && ctorHint !== current.name
     && assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) ? ctorHint : null;
 }

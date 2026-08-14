@@ -6,6 +6,7 @@
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
 import {
   assignmentAliasHintSoundAtRead,
+  bindingPolyfillHint,
   isAliasProxyRoot, globalProxyMemberName, isProxyGlobalIdentifierNode, memberKeyName,
   symbolKeyToEntry,
   proxyGlobalRootName,
@@ -1454,8 +1455,8 @@ export function bareProxyGlobalAliasName(node, aliasCtx) {
       // the polyfillHint side-channel (binding field OR adapter hook - the canonical duality);
       // a plain init-less binding (`let n; n = nav;`) stays unproven - its value is the
       // write's, exactly what the guard exists for
-      const hint = followed?.binding?.polyfillHint
-        ?? (followed ? ctx.adapter.getBindingPolyfillHint?.(ctx.scope, cur.name) : null);
+      const hint = followed
+        ? bindingPolyfillHint({ binding: followed.binding, scope: ctx.scope, name: cur.name, adapter: ctx.adapter }) : null;
       return asProxyGlobalName(hint);
     }
     cur = unwrapTransparentSeq(followed.init);
@@ -1647,11 +1648,19 @@ export function planProvenNavGuardCollapse({
     tailShortCircuits ||= !resolvePure({ kind: 'global', name: hops[i].name });
   }
   const keySeExprs = hops.flatMap(hop => hop.keySeExprs ?? []);
+  // how many of those the rendered TEST already evaluates. a 'nested' render spells the test as the
+  // source of `hops[lastUnresolvableIdx]`, which CONTAINS the key of every hop at or below it, so
+  // prefixing the alternate with the whole set runs those effects a second time (native evaluates
+  // the computed key once, before the short-circuit decision). `keySeExprs` is in hop order, so the
+  // test's share is its head - a COUNT, not a second node array, which would go stale when a
+  // renderer re-clones the plan's expressions for a deferred flush
+  const testKeySeCount = lastUnresolvableIdx === -1 ? 0
+    : hops.slice(0, lastUnresolvableIdx + 1).reduce((count, hop) => count + (hop.keySeExprs?.length ?? 0), 0);
   const rootEffects = !!chainAssign || seqRootEffects
     || (!identRoot && inlineCallHasObservableEffects({ callNode: call, scope, adapter, path }));
   return {
     kind: lastUnresolvableIdx !== -1 ? 'nested' : rootEffects ? 'sequence' : 'bare',
-    topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
+    topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx, keySeExprs, testKeySeCount,
     seqAroundPrefix,
     leafName: hops[collapseIdx].name, leafPure, rootValueNode: seqRootNode ?? n, seqRoot: !!seqRootNode,
     // the proven root identifier and its resolved global name: an IDENT root's own node (a
@@ -1948,7 +1957,13 @@ function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
   if (isMutatedGlobalSlot(adapter, 'Symbol')) return false;
   if (node.type === 'Identifier') {
     if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol', path);
-    if (!CAPITALISED_IDENT.test(node.name)) return false;
+    // the capitalisation probe bounds the const-alias walk for USER names only - a binding this
+    // plugin minted in place (`Symbol` -> `_Symbol`) carries its original global in the
+    // `polyfillHint` side-channel and is NOT capitalised, so the hint is asked first: gating it
+    // behind the convention makes the plugin fail to recognise its own rewrite
+    if (!CAPITALISED_IDENT.test(node.name) && !bindingPolyfillHint({
+      binding: adapter.getBinding(scope, node.name, path), scope, name: node.name, adapter,
+    })) return false;
     return resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path }) === 'Symbol';
   }
   return globalProxyMemberName({ node, scope, adapter, path }) === 'Symbol';

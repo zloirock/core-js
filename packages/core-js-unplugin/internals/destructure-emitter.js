@@ -17,6 +17,8 @@ import {
   FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
+  catchPropRewriteObservable,
+  relocatedCatchPattern,
   isBindingPosition,
   isChainAssignment,
   isFunctionParamDestructureParent,
@@ -27,7 +29,6 @@ import {
   isSynthSimpleObjectPattern,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
-  objectPatternPropNeedsReceiverRewrite,
   paramsHaveInvisibleCallers,
   peelFallbackBranchInner,
   patternBindingCount,
@@ -37,6 +38,7 @@ import {
   peelToExpressionStatement,
   findIifeArgPath,
   propBindingIdentifier,
+  receiverCarriesLiveOptional,
   resolveFallbackReceiver,
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
@@ -99,6 +101,7 @@ import {
   isConstantLiteralReceiver,
   isInnerDestructureDefault,
   isViableBranchForKey,
+  destructurePatternHostPath,
   nestedAssignmentStatementOf,
   conditionalDestructureLeftUntouchedWarning,
   fallbackDestructureHasPolyfillableBranch,
@@ -124,7 +127,6 @@ import {
   canTransformDestructuring,
   detectIifeArgReceiver,
   findSynthSwapReceiver,
-  walkUpNestedDestructureToAssignment,
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
 import { unwrapNode, withSeSrcs } from './emit-utils.js';
@@ -477,8 +479,10 @@ export function createDestructureEmitter({
     // shape gate: only proceed for shorthand / aliased / default-prop bindings - the same
     // shapes `cascadeAssignmentExpression` -> `rewriteDeclarator` plan walks
     if (!propBindingIdentifier(metaPath.node.value)) return false;
-    const assignPath = walkUpNestedDestructureToAssignment(metaPath.parentPath);
-    const assignNode = assignPath?.node;
+    // the canonical pattern-chain climb (the provider owns it); an assignment host is the only
+    // one this flatten renders
+    const assignPath = destructurePatternHostPath(metaPath);
+    const assignNode = assignPath?.node?.type === 'AssignmentExpression' ? assignPath.node : null;
     if (!assignNode || assignNode.operator !== '=') return false;
     // peel transparent wrappers between AssignmentExpression and ExpressionStatement so
     // `({...} = G)` (oxc parens), `({...} = G) as any` (TS cast) and minifier output
@@ -3924,28 +3928,22 @@ export function createDestructureEmitter({
 
     const declaratorPath = metaPath.parentPath?.parentPath;
     const isCatchClause = declaratorPath?.node?.type === 'CatchClause';
-    if (isCatchClause && !lhsPattern && !objectPatternPropNeedsReceiverRewrite(propNode)
-        && objectPattern.properties.every(p => p.type !== 'RestElement')) {
-      let referenced = false;
-      // matches babel-plugin's symmetric filter pair in `extractCatchClause`:
-      // `isNonReferencePosition` excludes method/property keys / member-access tails /
-      // labels / import-export specifier names; `isBindingPosition` additionally excludes
-      // declaration-id slots (NFE id, class id, declarator id, nested catch param) -
-      // shadow re-declarations like `const fn = function from() {}` inside the catch
-      // body are bindings, not references, and would otherwise force an unneeded
-      // catch-receiver extract. defensive symmetry with babel-plugin even when the
-      // polyfill-gated entry typically can't reach this walker (no receiver context for
-      // catch params), guarding against future top-level catch processors that might
-      // share this body-reference scan
-      walkAstNodes({
-        root: declaratorPath.node.body,
-        visit(n, parent) {
-          if (!referenced && n.type === 'Identifier' && n.name === localName
-              && !isNonReferencePosition(parent, n) && !isBindingPosition(parent, n)) referenced = true;
-        },
-      });
-      if (!referenced) return;
-    }
+    // the same pattern AFTER the relocation: the `post` pass re-parses `pre`'s output, where the
+    // catch pattern is a declaration off the catch param, so the CatchClause host is gone and the
+    // liveness rule would stop applying - the phase would re-extract exactly what `pre` judged
+    // unobservable and hand the bundle back the dead import
+    const relocated = isCatchClause ? null : relocatedCatchPattern(declaratorPath);
+    const catchBody = isCatchClause ? declaratorPath.node.body : relocated?.body ?? null;
+    // the shared per-prop gate: a rewrite nothing observes costs an import and a dispatcher call.
+    // a pattern-VALUED prop is out of its reach - its bindings are the pattern's, not `localName`
+    if (catchBody && !lhsPattern && !catchPropRewriteObservable({
+      propNode, patternNode: objectPattern, bodyNode: catchBody, localName,
+      walkNode: (root, visit) => {
+        for (const stmt of root.body ?? []) {
+          if (stmt !== relocated?.skip) walkAstNodes({ root: stmt, visit });
+        }
+      },
+    })) return;
     const isAssignment = !isCatchClause && declaratorPath?.node?.type === 'AssignmentExpression';
     // peel Paren / TS wrappers up to the enclosing ExpressionStatement so transforms.add's
     // range owns the statement's trailing `;` (otherwise leftover `;` produces `from = _X;;`)
@@ -4858,7 +4856,20 @@ export function createDestructureEmitter({
     // alias-rooted chain takes the plan's keep-alias branch (`g.self.X` -> `g.X`, babel-parity)
     // instead of pre-claiming through the shared resolver, which would swap the root to the
     // pure binding (`_globalThis.X`) and desync the emitters on the re-read target
-    return substituteProxyGlobalRoot({ node: member, src, baseStart: member.start, aliasCtx: ctx, ctx }) ?? src;
+    const substituted = substituteProxyGlobalRoot({ node: member, src, baseStart: member.start, aliasCtx: ctx, ctx });
+    if (substituted !== null) return substituted;
+    // the whole-chain collapse declined (a live `?.` over the nav keeps its short-circuit, so the
+    // hops cannot be dropped). the verbatim fallback is only sound for a chain with NO polyfillable
+    // root - printing one raw is the ReferenceError this substitution exists to prevent. swap the
+    // root alone and seal the chain, the shape the AST emitter renders for the same receiver
+    const rootNode = proxyGlobalWrappedRoot(member, ctx);
+    const rootPure = rootNode?.type === 'Identifier' ? resolveGlobalPolyfill(rootNode.name) : null;
+    if (!rootPure) return src;
+    const binding = injectPureImport(rootPure.entry, rootPure.hintName);
+    const swapped = src.slice(0, rootNode.start - member.start) + binding + src.slice(rootNode.end - member.start);
+    // a live `?.` short-circuits, so a member read appended to the rendered source has to be sealed
+    // or the tail joins the short-circuit instead of throwing the way the source does
+    return receiverCarriesLiveOptional(member) ? `(${ swapped })` : swapped;
   }
 
   // canonical re-read target for a MEMOIZED receiver (babel-twin of its memo-arg build),
