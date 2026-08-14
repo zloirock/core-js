@@ -14,6 +14,7 @@ import {
   SYMBOL_STATIC_KEYS,
 } from '../../packages/core-js-polyfill-provider/detect-usage/globals.js';
 import {
+  asSymbolRef,
   bindingSymbolKey,
   bindsModuleDefault,
   descendToChainRoot,
@@ -38,6 +39,8 @@ import {
 import {
   buildDestructuringInitMeta,
   collectDestructureUnionCandidates,
+  destructureAssignmentValueIsCaptured,
+  destructurePatternHostPath,
   collectMemberUnionCandidates,
   flattenFallbackBranches,
   isConstantLiteralReceiver,
@@ -52,7 +55,11 @@ import {
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
   bareAssignmentPatternLeafPath,
+  bindingInvisibleFromParameterList,
   BRACE_STATEMENT_HOST_TYPES,
+  catchPropRewriteObservable,
+  enclosingParameterDecoratorOwner,
+  enclosingParameterListOwner,
   findFunctionScopeVarInPath,
   isForXWriteTarget,
   LET_SCOPE_HOST_TYPES,
@@ -67,7 +74,7 @@ import {
   varInitDominatesUsage,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { parse as babelParse } from '@babel/parser';
-import { createChecker, findTypeNode } from './harness.mjs';
+import { babelAdapter, createChecker, findTypeNode } from './harness.mjs';
 
 const { check, checkDeep, checkTruthy, finish, runBoth } = createChecker('detect-usage');
 
@@ -1307,5 +1314,161 @@ runBoth('isForXWriteTarget/cast-wrapped head target itself',
     const head = adapter.pickPath(prog, 'MemberExpression', () => true);
     checkTruthy(lbl, isForXWriteTarget(head));
   }, ['typescript']);
+
+// --- destructurePatternHostPath / destructureAssignmentValueIsCaptured ---
+
+// a destructuring ASSIGNMENT yields its right side, so a receiver rewritten into a synth mirror
+// literal changes what a consumer of that value captures. the predicate answers per LEAF, off the
+// node its own pattern chain climbs out into - a declarator, parameter or catch host never captures
+// an assignment value and answers false whatever its shape
+const CAPTURED_VALUE_CASES = [
+  ['declarator captures', 'const host = ({ assign: a } = shim || Object);', 'AssignmentExpression', true],
+  ['assignment captures', 'host = ({ assign: a } = shim || Object);', 'AssignmentExpression', true],
+  ['return captures', 'function f() { return ({ assign: a } = Object); }', 'AssignmentExpression', true],
+  ['call argument captures', 'use(({ assign: a } = Object));', 'AssignmentExpression', true],
+  ['nested pattern still captures', 'const host = ({ inner: { assign: a } } = src);', 'AssignmentExpression', true],
+  ['array-wrapped pattern still captures', 'const host = ([{ assign: a }] = src);', 'AssignmentExpression', true],
+  ['statement position discards', '({ assign: a } = Object);', 'AssignmentExpression', false],
+  ['parenthesized statement discards', '(({ assign: a } = Object));', 'AssignmentExpression', false],
+  ['declarator host is not an assignment', 'const { assign: a } = Object;', 'VariableDeclarator', false],
+  ['parameter host is not an assignment', 'function f({ assign: a }) { return a; }', 'FunctionDeclaration', false],
+  ['catch host is not an assignment', 'try { risky(); } catch ({ assign: a }) { use(a); }', 'CatchClause', false],
+];
+for (const [variant, code, hostType, expected] of CAPTURED_VALUE_CASES) {
+  runBoth(`destructureAssignmentValueIsCaptured/${ variant }`, code, (adapter, prog, lbl) => {
+    const leaf = pickProp(adapter, prog);
+    check(`${ lbl }/host`, destructurePatternHostPath(leaf)?.node?.type, hostType);
+    check(lbl, destructureAssignmentValueIsCaptured(leaf), expected);
+  });
+}
+
+// --- catchPropRewriteObservable ---
+
+// whether a catch-hosted prop earns its `_ref`-bound rewrite is a PER-PROP question: the body reads
+// the binding, the prop reads through the receiver itself, or a rest sibling makes the residual
+// exclusion-bearing. a sibling that forced the pattern's relocation says nothing about this prop
+function walkNodes(root, visit, parent = null) {
+  if (!root || typeof root.type !== 'string') return;
+  visit(root, parent);
+  for (const value of Object.values(root)) {
+    if (Array.isArray(value)) for (const child of value) walkNodes(child, visit, root);
+    else if (value && typeof value.type === 'string') walkNodes(value, visit, root);
+  }
+}
+const CATCH_PROP_CASES = [
+  ['body reads the binding', 'try { r(); } catch ({ at }) { use(at); }', 'at', true],
+  ['body never reads it', 'try { r(); } catch ({ at }) { use(other); }', 'at', false],
+  ['machinery sibling does not make it observable', 'try { r(); } catch ({ [Symbol.iterator]: it, at }) { use(it); }', 'at', false],
+  ['rest sibling makes it observable', 'try { r(); } catch ({ at, ...rest }) { use(rest); }', 'at', true],
+  ['own default makes it observable', 'try { r(); } catch ({ at = 1 }) { use(other); }', 'at', true],
+  ['a member tail is not a read', 'try { r(); } catch ({ at }) { use(host.at); }', 'at', false],
+  ['a shadowing function id is not a read', 'try { r(); } catch ({ at }) { use(function at() {}); }', 'at', false],
+  ['an object key is not a read', 'try { r(); } catch ({ at }) { use({ at: 1 }); }', 'at', false],
+];
+for (const [variant, code, localName, expected] of CATCH_PROP_CASES) {
+  runBoth(`catchPropRewriteObservable/${ variant }`, code, (adapter, prog, lbl) => {
+    const clause = adapter.pickPath(prog, 'CatchClause', () => true);
+    const propNode = clause.node.param.properties.find(p => p.value?.name === localName
+      || p.value?.left?.name === localName);
+    check(lbl, catchPropRewriteObservable({
+      propNode, patternNode: clause.node.param, bodyNode: clause.node.body, localName, walkNode: walkNodes,
+    }), expected);
+  });
+}
+
+// --- asSymbolRef: the polyfillHint side-channel outranks the capitalisation probe ---
+
+// the capitalisation probe bounds the const-alias walk for USER names. a binding the plugin minted
+// in place carries its original global in `polyfillHint` and is NOT capitalised, so gating the hint
+// behind the convention makes the plugin fail to recognise its own rewrite
+// both detect-usage adapters attach the hint to the binding record they hand back, which is the
+// spelling the binding walk reads; the hook is the resolve-node-type adapter's spelling
+function hintAdapter(hints) {
+  return {
+    ...minimalAdapter,
+    method: 'usage-pure',
+    getBinding(scope, name) {
+      const binding = scope?.getBinding?.(name);
+      return binding && hints[name] ? { ...binding, polyfillHint: hints[name] } : binding;
+    },
+    getBindingNodeType() { return null; },
+  };
+}
+const SYMBOL_REF_CASES = [
+  ['minted lowercase alias with a Symbol hint', 'const _Symbol = 1; use(_Symbol.iterator);', { _Symbol: 'Symbol' }, true],
+  ['minted alias hinted at another global', 'const _Symbol = 1; use(_Symbol.iterator);', { _Symbol: 'Map' }, false],
+  ['uncapitalised alias with no hint', 'const sym = 1; use(sym.iterator);', {}, false],
+  ['capitalised alias with no hint stays on the walk', 'const Sym = 1; use(Sym.iterator);', {}, false],
+];
+for (const [variant, code, hints, expected] of SYMBOL_REF_CASES) {
+  runBoth(`asSymbolRef/${ variant }`, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.object?.type === 'Identifier');
+    check(lbl, !!asSymbolRef({
+      node: member.node.object, scope: member.scope, adapter: hintAdapter(hints), path: member,
+    }), expected);
+  });
+}
+
+// --- enclosingParameterListOwner / bindingInvisibleFromParameterList ---
+
+// a parameter list is its own lexical region. both scope trackers hoist body declarations onto the
+// function scope, so without this rule `function f(x = Map) { var Map = 1 }` reads the body binding
+// where the language reads the OUTER one. the declaration is located STRUCTURALLY, not through a
+// tracker - the rule is what is under test, not either tracker's view of it
+const DECLARATION_ID_PARENTS = new Set(['VariableDeclarator', 'FunctionDeclaration', 'ClassDeclaration']);
+// oxc reports an object method as a FunctionExpression; both are the same parameter owner
+const PARAM_FRAME_CASES = [
+  ['default of a function declaration', 'function f(x = Map) { var Map = 1; }', ['FunctionDeclaration'], true],
+  ['default of an arrow', 'const f = (x = Map) => { let Map = 1; };', ['ArrowFunctionExpression'], true],
+  ['default of a method', 'const o = { m(x = Map) { const Map = 1; } };', ['ObjectMethod', 'FunctionExpression'], true],
+  ['second parameter default', 'function f(a, x = Map) { class Map {} }', ['FunctionDeclaration'], true],
+  ['destructured parameter default', 'function f({ y } = Map) { function Map() {} }', ['FunctionDeclaration'], true],
+  ['body declaration is nested in a block', 'function f(x = Map) { { var Map = 1; } }', ['FunctionDeclaration'], true],
+  ['a use in the BODY is not in the frame', 'function g(a) { var Map = 1; return Map; }', [], false],
+  ['an outer declaration is not the body', 'var Map = 1; function f(x = Map) { }', ['FunctionDeclaration'], false],
+];
+for (const [variant, code, ownerTypes, invisible] of PARAM_FRAME_CASES) {
+  runBoth(`parameterFrame/${ variant }`, code, (adapter, prog, lbl) => {
+    const named = adapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map');
+    const declId = named.find(p => DECLARATION_ID_PARENTS.has(p.parentPath?.node?.type)
+      && p.parentPath.node.id === p.node);
+    const use = named.find(p => p !== declId && p.parentPath?.node?.type !== 'VariableDeclarator');
+    const owner = enclosingParameterListOwner(use)?.node?.type ?? null;
+    check(`${ lbl }/owner`, owner === null ? 0 : ownerTypes.includes(owner) ? 1 : owner, ownerTypes.length ? 1 : 0);
+    check(lbl, bindingInvisibleFromParameterList(declId?.parentPath ?? null, use), invisible);
+  });
+}
+
+// --- enclosingParameterDecoratorOwner ---
+
+// a parameter decorator is evaluated where the CLASS is defined, so nothing the decorated function
+// declares - parameters included - shadows a name it reads. only the parameter-property arm of this
+// fact had a carve-out; the ordinary parameter and the body are the same rule.
+// BABEL ONLY, and not by preference: estree-toolkit's visitor keys for `Identifier` do not include
+// `decorators`, so no path exists inside a plain parameter's decorator on that side and the
+// predicate can never be asked there. unplugin reaches the expression through its own subtree
+// walker and already resolves these reads to the global, so nothing depends on it
+const PARAM_DECORATOR_CASES = [
+  ['decorator over a parameter of that name', 'class C { constructor(@dec(Map) Map) {} }', true, true],
+  ['decorator over a parameter, body declares it', 'class C { constructor(@dec(Map) x) { let Map = 1; } }', true, true],
+  ['decorator on a method, not a parameter', 'class C { @dec(Map) m() { let Map = 1; } }', false, false],
+  ['decorator on a class', '@dec(Map) class C { }', false, false],
+  ['a parameter DEFAULT is not a decorator', 'class C { constructor(x = Map) { let Map = 1; } }', false, true],
+];
+for (const [variant, code, isDecorator, invisible] of PARAM_DECORATOR_CASES) {
+  const label = `parameterDecorator/${ variant } [babel]`;
+  const prog = babelAdapter.parseAndScope(code, 'module', ['decorators-legacy']);
+  // the READ, located structurally: the decorator call's argument, or a parameter default's right.
+  // a positional pick would land on the same-named PARAMETER instead
+  const [use] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
+    && (p.parentPath?.node?.arguments?.includes(p.node) || p.parentPath?.node?.right === p.node));
+  check(`${ label }/owner`, !!enclosingParameterDecoratorOwner(use), isDecorator);
+  const [decl] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
+    && p.parentPath?.node?.type === 'VariableDeclarator' && p.parentPath.node.id === p.node);
+  // in the first row the same-named PARAMETER is the declaration
+  const [param] = babelAdapter.collectPaths(prog, 'Identifier', p => p.node.name === 'Map'
+    && p.parentPath?.node?.params?.includes(p.node));
+  check(label, bindingInvisibleFromParameterList(decl?.parentPath ?? param ?? null, use), invisible);
+}
 
 finish();
