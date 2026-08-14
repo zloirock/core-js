@@ -6,6 +6,7 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise$any from "@core-js/pure/actual/promise/any";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Promise$withResolvers from "@core-js/pure/actual/promise/with-resolvers";
 // a this-PRESERVING wrapper between a guarded member and its call (`(M.groupBy as any)(...)`,
@@ -56,4 +57,12 @@ function viaCastInstantiation(c) {
   if (c) P4 = _Promise;
   return ((P4 === _Promise ? _Promise$any : P4.any.bind(P4)) as any)<number>([1, 2]);
 }
-export const r = [viaCast(true), viaParen(true), viaNonNull(true), viaSeq(true), viaOptional(true), viaInstantiation(true), viaCastInstantiation(true)];
+// the same stack with a NON-NULL filling the slot: `!` already binds tighter than the type-argument
+// list, so this one takes the guard bare - the restoration owes parens to the slot's priority, not
+// to every wrapper it finds there
+function viaNonNullInstantiation(c) {
+  let P5;
+  if (c) P5 = _Promise;
+  return (P5 === _Promise ? _Promise$race : P5.race.bind(P5))!<number>([]);
+}
+export const r = [viaCast(true), viaParen(true), viaNonNull(true), viaSeq(true), viaOptional(true), viaInstantiation(true), viaCastInstantiation(true), viaNonNullInstantiation(true)];

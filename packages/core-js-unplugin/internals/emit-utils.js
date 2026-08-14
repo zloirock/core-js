@@ -3,6 +3,7 @@
 // emitters spell the same way. no file-scope deps - callers pass their nodes, paths or
 // rendered fragments directly
 import { unwrapRuntimeExpr, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { skipGap } from './text-scan.js';
 
 // peel parens, chain expressions, AND TS wrappers - for AST identity checks (e.g. matching
 // `node` against `parent.callee` through `arr.includes!(1)`). delegates to shared
@@ -40,6 +41,29 @@ export function isCalleeWrappedInParens(parent, node) {
     return false;
   }
   return false;
+}
+
+// `((X)<T>)?.(a)` hides the callee from any later optional-chaining lowering: babel's
+// `isTransparentExprWrapper` does not list `TSInstantiationExpression` the way our own
+// `TS_EXPR_WRAPPERS` does, so it memoizes no receiver and emits a bare `_ref(a)` - the call loses
+// its `this`. `(X)?.<T>(a)` is the same TS spelling with no instantiation node left between the
+// call and its callee. returns the two POINT edits that spell it, or null: never a rebuilt span,
+// so the author's parens and any trivia between the operand and the type arguments survive
+export function optionalCallTypeArgumentEdits(node, code) {
+  if (node?.type !== 'CallExpression' || !node.optional) return null;
+  let { callee } = node;
+  while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+  if (callee?.type !== 'TSInstantiationExpression') return null;
+  const typeArgs = callee.typeArguments ?? callee.typeParameters;
+  if (!typeArgs) return null;
+  // the `?.` token is the first thing PAST the gap after the callee, and the gap can hold comments
+  // - a comment carrying `?.` of its own would swallow a scan that just searched for the characters
+  const optionalAt = skipGap(code, node.callee.end);
+  if (!code.startsWith('?.', optionalAt)) return null;
+  return {
+    remove: { start: typeArgs.start, end: typeArgs.end },
+    insert: { pos: optionalAt + 2, content: code.slice(typeArgs.start, typeArgs.end) },
+  };
 }
 
 // the chain root whose nullability a queued OUTER guard (a trailing instance dispatch that memoized
