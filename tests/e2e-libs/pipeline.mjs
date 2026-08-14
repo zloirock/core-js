@@ -147,18 +147,27 @@ async function measure(lib, method) {
 // Warm the toolchain first: the one-off cost of loading rollup, Babel and unplugin would otherwise
 // land entirely on whichever cell ran first and make the cross-library [C] column incomparable. Which
 // library it warms with does not matter - what is being warmed is the toolchain, not a module graph.
-process.stdout.write('warming the toolchain ... ');
+// this tier builds each cell three times over and gates nothing, so the wait is longer than the
+// runtime one's and buys a report rather than a verdict - say so before the first build, and say how
+// many cells that wait covers
+const measured = libs.length * (methodFilter ? 1 : METHODS.length);
+const filterNote = libFilter || methodFilter ? ` filtered by ${ chalk.cyan(`${ libFilter ?? '*' } x ${ methodFilter ?? '*' }`) }` : '';
+echo(chalk.green(`pipeline report: ${ chalk.cyan(libs.length) } librar${ libs.length === 1 ? 'y' : 'ies' }`
+  + ` x ${ chalk.cyan(methodFilter ? 1 : METHODS.length) } method(s) = ${ chalk.cyan(measured) } cell(s)${ filterNote },`
+  + ' each built at every stage it has - this measures, it gates nothing'));
+
+process.stdout.write(chalk.green('warming the toolchain ... '));
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
   entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
-echo('done');
+echo(chalk.green('done'));
 
 const rows = [];
 for (const lib of libs) {
   for (const method of METHODS) {
     if (methodFilter && method !== methodFilter) continue;
-    process.stdout.write(`measuring ${ lib.name }/${ method } ... `);
+    process.stdout.write(chalk.green(`measuring ${ chalk.cyan(`${ lib.name }/${ method }`) } ... `));
     rows.push(await measure(lib, method));
-    echo('done');
+    echo(chalk.green('done'));
   }
 }
 // cannot fire today - `librariesMatching` throws on an empty match and `methodFilter` is validated above -
@@ -215,4 +224,4 @@ const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
 await writeFile(join(REPORT, 'pipeline.md'), md);
 await writeFile(join(REPORT, 'pipeline.json'), `${ JSON.stringify({ scope, rows }, null, 2) }\n`);
-echo(`\nreport -> ${ join(REPORT, 'pipeline.md') }`);
+echo(chalk.green(`\nreport -> ${ chalk.cyan(join(REPORT, 'pipeline.md')) }`));
