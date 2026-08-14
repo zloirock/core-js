@@ -36,7 +36,9 @@ import {
   migratableClaimSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { createClassHelpers, ctorAliasShapesReducer, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  createClassHelpers, ctorAliasShapesReducer, remapInheritedStaticMeta, usableAliasInfo,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
@@ -344,14 +346,8 @@ export default function createPlugin(options) {
   });
   const typeResolvers = createResolveNodeType(nodeType, types, {
     // guarded alias hints must not feed the type channel - see the babel twin
-    getPolyfillBindingEntry: (scope, name) => {
-      const info = currentInjector?.getBindingInfo?.(name);
-      return info && !info.aliasGuarded ? info.entry : null;
-    },
-    getPolyfillBindingHint: (scope, name) => {
-      const info = currentInjector?.getBindingInfo?.(name);
-      return info && !info.aliasGuarded ? info.hint : null;
-    },
+    getPolyfillBindingEntry: (scope, name) => usableAliasInfo(currentInjector?.getBindingInfo?.(name))?.entry ?? null,
+    getPolyfillBindingHint: (scope, name) => usableAliasInfo(currentInjector?.getBindingInfo?.(name))?.hint ?? null,
     isReassignedBinding: (name, binding) => currentInjector?.isReassignedBinding?.(name, binding) ?? false,
     // a monkey-patched static no longer returns its known type - drop the static-call return narrow
     // to generic so a patched `Array.from(x).at(0)` isn't type-locked to `_atMaybeArray`
@@ -1588,10 +1584,17 @@ export default function createPlugin(options) {
           // short-circuiting probe - fall to the kept-nav render, exactly as in the AST emitter.
           // a hop inside a kept chain-assign VALUE (the marking walk dug into it - the value
           // carries an unresolvable hop) skips the hop FOLD outright: folding would swallow the
-          // read below into what the assignment stores. the kept-nav render still runs - it
-          // spells the claimless canon in place, and it stands down by itself on a span an
-          // owning claim already replaced
+          // read below into what the assignment stores. the kept-nav render still runs - it spells
+          // the claimless canon in place - and stands down on three things it cannot own: a span an
+          // owning claim already replaced, a receiver another channel marked REPLACED (a synth
+          // literal supplants it, and its registration happens before this nav is visited), and an
+          // opt-out directive
           onSuppressedProxyHop: metaPath => {
+            // an opt-out is an opt-out whatever the edit is FOR - the same rule the optional-call
+            // type-argument pass above spells. all three channels below INJECT (a ponyfilled root
+            // and leaf), so none of them is the reprint compensation that has to run regardless;
+            // the whole-file directive bails earlier, a line-scoped one only reaches here
+            if (isDisabled(metaPath.node)) return;
             const stored = storedUserAssignmentOf(metaPath);
             if (stored) {
               collapseStoredKeptAssign(stored, metaPath);
