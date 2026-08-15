@@ -47,6 +47,7 @@ export function createMemberResolve({
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   findBindingAnnotation,
   findExpressionAnnotation,
+  withLookupPath,
   functionTypeReturnAnnotation,
   applyAliasSubstDeep,
   shadowMethodTypeParams,
@@ -112,6 +113,17 @@ export function createMemberResolve({
     if (node?.type !== 'Identifier' || !props.length) return null;
     const binding = getScopeBinding(scope, node.name);
     if (!binding) return null;
+    // anchor on the DECLARATION for the whole member walk below, not just for reading the
+    // annotation: every hop re-resolves type NAMES, and under the use-site anchor those names
+    // answer in whatever container the USE happens to sit in - a namespace-local namesake of a
+    // type declared outside it is the wrong family, not a missed narrowing. the scope beside it
+    // already comes from the declaration for the same reason
+    return withLookupPath(binding.path, () => resolveMemberChainFrom(binding, props));
+  }
+
+  // the walk itself, split out so the caller can anchor the WHOLE of it on the declaration rather
+  // than only the annotation read - see the anchor note at the call site
+  function resolveMemberChainFrom(binding, props) {
     let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
     const scopeRef = binding.path.scope;
     // props collected leaf-first; consume from the end to walk root-down. last entry stays
@@ -337,11 +349,13 @@ export function createMemberResolve({
 
   function resolveTypedMember(objectPath, name, callPath) {
     let annotation, scope;
+    let anchorPath = null;
     if (t.isIdentifier(objectPath.node)) {
       const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
       if (!binding) return null;
       annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
       scope = binding.path.scope;
+      anchorPath = binding.path;
       // identifier without explicit annotation: route through findExpressionAnnotation so
       // binding init chains get traversed (`const obj = wrap('a')` -> wrap's substituted
       // return -> TSTypeLiteral). without this, `obj.foo()` where obj has no `: T` annotation
@@ -351,6 +365,7 @@ export function createMemberResolve({
         if (info) {
           annotation = unwrapTypeAnnotation(info.annotation);
           scope = info.scope;
+          anchorPath = info.path ?? anchorPath;
         }
       }
     } else {
@@ -361,10 +376,15 @@ export function createMemberResolve({
       if (info) {
         annotation = unwrapTypeAnnotation(info.annotation);
         scope = info.scope;
+        anchorPath = info.path ?? null;
       }
     }
     if (!annotation) return null;
-    return resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath });
+    // same reason as the member-chain walk: the annotation was WRITTEN where the binding is, so
+    // the names inside it have to resolve there too
+    return anchorPath
+      ? withLookupPath(anchorPath, () => resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath }))
+      : resolveMemberOnAnnotation({ annotation, scope, objectPath, name, callPath });
   }
 
   // the annotation-rooted half of `resolveTypedMember`, split out so a predicate-guard

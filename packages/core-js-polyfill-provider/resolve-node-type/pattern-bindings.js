@@ -471,20 +471,28 @@ export function createPatternBindings({
       : resolveTypeAnnotation(memberType, scope, depth + 1);
   }
 
+  // walk an annotation down a destructure key path, member by member, and stop at the annotation.
+  // the Type-domain path below walks the same prefix and then resolves the LAST key into a Type;
+  // the annotation lane in `call-resolution` walks the WHOLE path and keeps the annotation - the
+  // two differ only in what the final step produces, so the walk itself lives here once
+  function annotationAtKeyPath(annotation, keyPath, scope) {
+    let current = annotation;
+    for (const key of keyPath) {
+      const unwrapped = unwrapTypeAnnotation(current);
+      if (!unwrapped) return null;
+      current = findTypeMember({ objectType: unwrapped, key, scope });
+      if (!current) return null;
+    }
+    return current;
+  }
+
   // step through `['a', 'b']` against the annotation; final step goes through resolveAnnotatedMember.
   // `depth` is the caller's remaining budget: an annotation reached through a member chain can name
   // the chain's own host (`declare const o: { p: typeof o.p }`), and only the budget ends that loop
   function resolveAnnotatedMemberPath(annotation, keyPath, scope, depth = 0) {
     if (!keyPath?.length) return null;
-    let current = annotation;
-    for (let i = 0; i < keyPath.length - 1; i++) {
-      const unwrapped = unwrapTypeAnnotation(current);
-      if (!unwrapped) return null;
-      const next = findTypeMember({ objectType: unwrapped, key: keyPath[i], scope });
-      if (!next) return null;
-      current = next;
-    }
-    return resolveAnnotatedMember(current, keyPath.at(-1), scope, depth);
+    const prefix = annotationAtKeyPath(annotation, keyPath.slice(0, -1), scope);
+    return prefix === null ? null : resolveAnnotatedMember(prefix, keyPath.at(-1), scope, depth);
   }
 
   // recursively unwrap Promise<T> annotation to T for for-await-of element types
@@ -1078,6 +1086,7 @@ export function createPatternBindings({
     findForLoopParent,
     resolveArrayLiteralElement,
     resolveArrayLiteralCommonType,
+    annotationAtKeyPath,
     findBindingAnnotation,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
