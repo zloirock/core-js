@@ -14,6 +14,7 @@ import {
   createDetectionAdapter,
   mutationSiteVisitors,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
+import { isTypeAnnotationNodeType, typeOnlyImportShadows } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
@@ -838,6 +839,10 @@ export function createUsageVisitors({
     // polyfilling is pure over-injection (and breaks TS output for exports / duplicates the
     // import LHS for TSImportEquals)
     if (isTSTypeOnlyIdentifierPath(path)) return;
+    // a type REFERENCE stays referenced on babel and so lands here rather than on the annotation
+    // walk - ask it the type-space shadow question the annotation lane asks
+    if (isTypeAnnotationNodeType(path.parent.type)
+      && typeOnlyImportShadows({ adapter, scope: path.scope, name: path.node.name, path, hostType: path.parent.type })) return;
     // `isReferencedIdentifier` is permissive on a BODYLESS method-shaped member key (an overload
     // signature `Map(): void;`, `abstract Map(): void`): it reports the key as referenced, so a
     // global-shaped member NAME would pull in that global's polyfill. the key names a member, never
