@@ -51,6 +51,7 @@ import {
 import { peelArrayWrapperPair } from '../../packages/core-js-polyfill-provider/detect-usage/destructure-plan.js';
 import {
   isTypeAnnotationNodeType,
+  typeOnlyImportShadows,
   walkTypeAnnotationGlobals,
 } from '../../packages/core-js-polyfill-provider/detect-usage/annotations.js';
 import {
@@ -1531,6 +1532,51 @@ for (const [variant, code, , invisible] of STATEMENT_HEAD_CASES) {
     const use = named.find(p => p !== declId && p.parentPath?.node?.id !== p.node);
     check(lbl, bindingInvisibleFromUseRegion(declId?.parentPath ?? null, use), invisible);
   });
+}
+
+// --- type space vs value space for the same name ---
+// a type-only import is elided by tsc, so the VALUE of that name is the global and must still be
+// polyfilled - but in a TYPE position the same import IS the shadow. the walker reports which host
+// a name came from so the two questions stay apart
+function annotationHosts(programNode, type) {
+  const node = findTypeNode(programNode, type);
+  if (!node) throw new Error(`no ${ type } node found`);
+  const found = [];
+  walkTypeAnnotationGlobals(node, (name, hostType) => found.push(`${ name }@${ hostType }`));
+  return found;
+}
+
+runBoth('walkTypeAnnotationGlobals/reports a plain type reference host',
+  'let x: Set<number>;', (adapter, prog, lbl) => {
+    checkDeep(lbl, annotationHosts(prog.node, 'TSTypeReference'), ['Set@TSTypeReference']);
+  });
+
+runBoth('walkTypeAnnotationGlobals/reports a typeof query host apart',
+  'let x: typeof Set;', (adapter, prog, lbl) => {
+    checkDeep(lbl, annotationHosts(prog.node, 'TSTypeQuery'), ['Set@TSTypeQuery']);
+  });
+
+{
+  // the predicate reads the binding through the adapter view, so a stub adapter states the case
+  // exactly: one name, one import kind, one host
+  function adapterFor(importKind) {
+    return { getBinding: () => ({ importKind }) };
+  }
+  function ask(importKind, hostType) {
+    return typeOnlyImportShadows({
+      adapter: adapterFor(importKind), scope: null, name: 'Set', path: null, hostType,
+    });
+  }
+  check('typeOnlyImportShadows/type import shadows a type reference', ask('type', 'TSTypeReference'), true);
+  check('typeOnlyImportShadows/flow typeof import shadows too', ask('typeof', 'TSTypeReference'), true);
+  check('typeOnlyImportShadows/value import does not shadow', ask('value', 'TSTypeReference'), false);
+  check('typeOnlyImportShadows/no import kind does not shadow', ask(null, 'TSTypeReference'), false);
+  // `typeof X` names the runtime binding the import never provides - the global stays exposed
+  check('typeOnlyImportShadows/typeof query is value space', ask('type', 'TSTypeQuery'), false);
+  // a binding-less name view must not read as a shadow either
+  check('typeOnlyImportShadows/no binding at all', typeOnlyImportShadows({
+    adapter: { getBinding: () => null }, scope: null, name: 'Set', path: null, hostType: 'TSTypeReference',
+  }), false);
 }
 
 finish();
