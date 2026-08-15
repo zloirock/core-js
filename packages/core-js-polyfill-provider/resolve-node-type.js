@@ -1798,6 +1798,7 @@ function createResolveNodeType(babelNodeType, t, {
     usageRunsDeferred: straightLineFlowCluster.usageRunsDeferred,
   });
   const {
+    annotationAtKeyPath,
     findArrayPatternKeyPath,
     findDestructuredKeyPath,
     findForLoopParent,
@@ -1881,6 +1882,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveNodeType,
     resolveRuntimeExpression,
     resolveReturnType,
+    withLookupPath,
     foldOverloadReturns,
     findAmbientFunctionPaths,
     resolveFromMemberExpression: (...args) => resolveFromMemberExpression(...args),
@@ -1905,6 +1907,9 @@ function createResolveNodeType(babelNodeType, t, {
     getTypeMembers: (...args) => getTypeMembers(...args),
     keyMatchesName,
     findBindingAnnotation,
+    findPatternKeyPath,
+    annotationAtKeyPath,
+    findTypeMember: (...args) => findTypeMember(...args),
     narrowUnionByAssignmentLiteral,
     buildSubstMap,
     typeParamName,
@@ -2048,6 +2053,7 @@ function createResolveNodeType(babelNodeType, t, {
     getTypeMembers,
     keyMatchesName,
     findBindingAnnotation,
+    withLookupPath,
     findExpressionAnnotation,
     functionTypeReturnAnnotation,
     applyAliasSubstDeep,
