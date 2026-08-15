@@ -1,7 +1,7 @@
 process.env.TIMING = true;
 
 const { FIX } = process.env;
-const CACHE_PATH = './node_modules/.cache/eslint';
+const CACHE_PATH = './tests/eslint/node_modules/.cache/eslint';
 const CONCURRENCY = !await fs.pathExists(CACHE_PATH);
 
 await $`eslint \
