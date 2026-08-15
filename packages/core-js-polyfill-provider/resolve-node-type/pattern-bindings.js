@@ -18,7 +18,9 @@
 import {
   $Object, $Primitive, PATTERN_WRAPPERS, argIndexForParam, canonicalArrayIndex, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
-import { collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode } from './ast-shapes.js';
+import {
+  collectQualifiedSegments, isBareUndefinedIdentifier, isFunctionTypeNode, withMemberModifiers,
+} from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import {
   cachedContainerPaths, declaratorBindsName, isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes,
@@ -34,6 +36,7 @@ export function createPatternBindings({
   resolveRuntimeExpression,
   resolveInnerType,
   commonType,
+  foldUnionTypes,
   isNullableOrNever,
   isNullishInit,
   anchorPathScope,
@@ -907,7 +910,15 @@ export function createPatternBindings({
     // downstream `findTypeDeclaration` calls - lets parsers without TSModuleDeclaration
     // scope (estree-toolkit) fall back to walking ancestors for namespace-local type decls
     const typeAnnotation = findBindingAnnotation(bindingPath);
-    if (typeAnnotation) return withLookupPath(bindingPath, () => resolveTypeAnnotation(typeAnnotation, bindingPath.scope));
+    if (typeAnnotation) {
+      // an optional parameter (`function f(a?: T)`) admits undefined on every call that omits it,
+      // exactly like an optional property - mark it on the same channel so the logical truthy-fold
+      // cannot collapse `a ?? fallback` to the annotated branch. the flag lives on the binding node,
+      // not on the annotation, so it has to be re-applied here; `findBindingAnnotation` itself hands
+      // back a raw slot that several callers pattern-match by node type
+      const marked = withMemberModifiers(typeAnnotation, { optional: Boolean(node?.optional) });
+      return withLookupPath(bindingPath, () => resolveTypeAnnotation(marked, bindingPath.scope));
+    }
     // unannotated arrow / function param passed as a call argument: infer from the callee's
     // matching parameter slot. without this, `Holder<number>.use(items => items.X)` resolves
     // `items` to the raw `T[]` from the method signature and dispatches the generic polyfill
@@ -1014,10 +1025,13 @@ export function createPatternBindings({
   // can land before a later invocation, so all of them reach the read whatever their source position
   function deferredReadUnionType(binding, bindingPath, name, usagePath) {
     const arms = reachableValueArms(binding, bindingPath, name, usagePath)?.types;
-    // an arm that resolves to no type leaves the value set open, and an open set is exactly the
-    // unknown the caller had before
-    if (!arms?.length || arms.some(arm => !arm)) return null;
-    return arms.reduce((a, b) => commonType(a, b));
+    if (!arms?.length) return null;
+    // the CANONICAL union fold, not a bare reduce over `commonType`: an unresolvable arm bails the
+    // whole set (an open set is exactly the unknown the caller had before), a dropped nullish arm
+    // marks the result, and - the reason the hand-written reduce was wrong - a disagreement
+    // SHORT-CIRCUITS instead of letting the next arm re-seed the accumulator off the null. with the
+    // reduce, `[1,2] | 'abc' | [3,4]` answered Array purely because the clash was not last
+    return foldUnionTypes(arms, arm => arm);
   }
 
   function resolveFromDeclaratorInit(binding, bindingPath, path, name) {
