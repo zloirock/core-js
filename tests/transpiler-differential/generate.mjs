@@ -704,6 +704,70 @@ function * generateTypeMarkerPeels() {
   // and the fixture pair - and a row added here would answer from the parameter annotation alone
 }
 
+// --- containers the parser may not open a scope for, and destructured members ---
+// a TS namespace body is a lexical container on both parsers but a SCOPE level on only one, and a
+// switch statement hosts its declarations under `cases` rather than a plain body. either gap makes
+// the declaration walk answer with an OUTER namesake - the wrong family, which the stripped realm
+// catches when the string helper meets an array - or, with no namesake to grab, widen to both.
+// the braced switch case is the control half of that axis: it opens a block the scope walk already
+// reads, so it must stay identical while its unbraced twin moves.
+// the container axis is crossed with HOW the type is reached, because the two answers come from
+// different lanes: an annotated local goes through the declaration lookup, a parameter through the
+// binding one. every row carries a real runtime value - the corpus EXECUTES - and the value arrives
+// through `JSON.parse` on purpose: a literal initializer answers by itself and the row would pass
+// whether or not the container was ever walked
+// each host binds the read ITSELF rather than rewriting a shared body by string surgery: a
+// `.replace` over the read would miss silently the moment a read is reworded, and the row would
+// keep passing while testing nothing
+const CONTAINER_HOSTS = [
+  ['namespace', (decl, expr) => `namespace NS { ${ decl } export const out = ${ expr }; }\nreturn NS.out;`],
+  ['switch-braced', (decl, expr) => `let out = ""; switch (1) { case 1: { ${ decl } out = ${ expr }; } }\nreturn out;`],
+  ['switch-unbraced', (decl, expr) => `let out = ""; switch (1) { case 1: ${ decl } out = ${ expr }; }\nreturn out;`],
+];
+const CONTAINER_READS = [
+  ['annotated-local', 'const raw: any = JSON.parse(\'{"items":[7,8]}\'); const v: Row = raw;',
+    'String(v.items.at(-1))'],
+  ['param', 'function take(v: Row) { return String(v.items.at(-1)); }',
+    'take(JSON.parse(\'{"items":[7,8]}\'))'],
+];
+// a destructured name binds a MEMBER of its container, and a member of FUNCTION type is where the
+// call lane has to descend the key path: handing back the container's annotation loses the return
+// type, so the read widens to every family that has the method
+const DESTRUCTURE_PATTERNS = [
+  ['object', 'const { list } = api;', 'list'],
+  ['renamed', 'const { list: got } = api;', 'got'],
+  ['nested', 'const { inner: { list } } = wrap;', 'list'],
+  ['array', 'const [list] = pair;', 'list'],
+];
+function * generateContainerLocalTypes() {
+  for (const [host, wrap] of CONTAINER_HOSTS) {
+    for (const [read, decl, expr] of CONTAINER_READS) {
+      // crossed with whether an OUTER namesake exists: with one, a blind walk answers the wrong
+      // family; without one, it answers nothing and the read widens - different failures, both real
+      for (const shadowing of [true, false]) {
+        const prelude = shadowing ? 'interface Row { items: string }\n' : '';
+        yield { ...snippet(`container-local-type/${ host }-${ read }-${ shadowing ? 'shadowing' : 'alone' }`,
+          `(() => { ${ prelude }${ wrap(`interface Row { items: number[] }\n${ decl }`, expr) } })()`), ts: true, strip: true };
+      }
+    }
+  }
+  for (const [pattern, destructure, name] of DESTRUCTURE_PATTERNS) {
+    // the overloaded shape is the BAIL half of this axis: without the call site the name cannot be
+    // answered, so the read has to widen instead of picking a head - in usage-pure a wrong head
+    // throws, while a widened read only degrades
+    for (const [shape, member, arg] of [['method', 'list(): number[];', ''],
+      ['fn-prop', 'list: () => number[];', ''],
+      ['overloaded', 'list(x: number): number[]; list(x: string): string;', '1']]) {
+      yield { ...snippet(`destructured-member/${ pattern }-${ shape }`,
+        `(() => { interface Api { ${ member } }\n`
+        + 'const api: Api = { list: (() => [7, 8]) as Api[\'list\'] };\n'
+        + 'const wrap: { inner: Api } = { inner: api };\n'
+        + 'const pair: [Api[\'list\'], string] = [api.list, "x"];\n'
+        + `${ destructure }\nreturn String(${ name }(${ arg }).at(-1)); })()`), ts: true, strip: true };
+    }
+  }
+}
+
 // --- shared type-alias declaration across union arms ---
 // one generic declaration reached by two references that DISAGREE on the type argument. the walk
 // expands it once and each reference applies its own argument afterwards, so the arms stay distinct
@@ -6119,6 +6183,7 @@ export function * generate() {
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
   yield * generateTypeMarkerPeels();
+  yield * generateContainerLocalTypes();
   yield * generateSharedAliasUnionArms();
   yield * generateOptionalForeignReceiver();
   yield * generateUnbracedBodyMinifierSplit();
