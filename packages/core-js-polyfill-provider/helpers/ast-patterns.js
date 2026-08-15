@@ -2655,6 +2655,17 @@ export const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportNamespaceSpecifier',
 ]);
 
+// the type-only-ness of an import binding is spelled on EITHER side, and the two spellings are not
+// exclusive: `import type { X }` marks the declaration while the specifier keeps its own kind
+// `'value'`, so a plain `??` chain stops at that 'value' and reads the binding as a runtime import.
+// the declaration side is therefore asked FIRST when it carries the type-only mark, and only then
+// does the ordinary node-then-parent order apply. ONE home for that rule - the predicate
+// `importBindingIsTypeOnly` below answers through this, so the two cannot drift
+export function importBindingKind(bindingNode, bindingParent) {
+  if (isTypeOnlyImportKind(bindingParent?.importKind)) return bindingParent.importKind;
+  return bindingNode?.importKind ?? bindingParent?.importKind ?? null;
+}
+
 // the import-binding fields of the adapter contract, off the binding's declaration slot:
 // `importSource` feeds the provider's symbol-import recognition, and `importKind` is the
 // EFFECTIVE kind - `import { type X }` carries it on the specifier, `import type X` on the
@@ -2664,7 +2675,7 @@ export function importBindingView(bindingNode, bindingParent) {
   return {
     isImportBinding,
     importSource: isImportBinding ? bindingParent?.source?.value ?? null : null,
-    importKind: isImportBinding ? bindingNode?.importKind ?? bindingParent?.importKind ?? null : null,
+    importKind: isImportBinding ? importBindingKind(bindingNode, bindingParent) : null,
   };
 }
 
@@ -4034,12 +4045,13 @@ export function isTypeOnlyImportKind(kind) {
   return kind === 'type' || kind === 'typeof';
 }
 
-// type-only at EITHER level: the specifier (`import { type X }`) carries its own kind, while
-// `import type X from ...` puts the kind on the ImportDeclaration and leaves the specifier's
-// null - both parsers agree, and both spellings erase the binding, so both must gate
+// type-only at EITHER level, for a binding rather than a node pair: an adapter VIEW already carries
+// the resolved kind, a raw binding carries its node plus the declaration above it. both spellings
+// erase the binding, so both must gate - the two-level rule itself lives in `importBindingKind`
 export function importBindingIsTypeOnly(binding) {
-  return isTypeOnlyImportKind(binding?.importKind ?? binding?.node?.importKind)
-    || isTypeOnlyImportKind((binding?.path?.parent ?? binding?.path?.parentPath?.node)?.importKind);
+  return isTypeOnlyImportKind(binding?.importKind ?? importBindingKind(
+    binding?.node, binding?.path?.parent ?? binding?.path?.parentPath?.node,
+  ));
 }
 
 // the `export` modifier (babel@7 flags `isExport` on the node; @8 / oxc wrap it in an
@@ -4177,7 +4189,7 @@ const tsRuntimeBindingsCache = new WeakMap();
 // every case, so its host statements are all cases' consequents flattened - a braceless
 // `enum X {}` in any case shadows the global for a use in that or a fall-through case.
 // returns null when the node has no host-able body
-function getDirectStatementBody(node) {
+export function getDirectStatementBody(node) {
   if (!node) return null;
   if (Array.isArray(node.body)) return node.body;
   if (Array.isArray(node.body?.body)) return node.body.body;

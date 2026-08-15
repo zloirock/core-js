@@ -20,7 +20,9 @@
 //   resolveCallReturnType(callee)                     - main call-return entry
 //   functionTypeReturnAnnotation(node)                - cross-dialect return-slot extractor
 //   shadowedAliasReturnAnnotation(arg, scope)         - `ReturnType<Fn alias>` shadow resolver
-//   findExpressionAnnotation(path, depth?)            - { annotation, scope } | null
+//   findExpressionAnnotation(path, depth?)            - { annotation, scope, path } | null
+//     `path` is the DECLARATION the annotation was written on, so a consumer can resolve the names
+//     inside it where they were written rather than where the value is used
 //   resolveIndexSignatureValue(typeNode, scope, subst) - TSIndexSignature member resolution
 //   indexAccessKeyKind(memberPath)                    - computed-key kind classifier
 //   buildCallSiteSubst(fnNode, callNode)              - explicit `<...>` args -> subst Map
@@ -63,6 +65,9 @@ export function createCallResolution({
   resolveNodeType,
   resolveRuntimeExpression,
   resolveReturnType,
+  withLookupPath,
+  findPatternKeyPath,
+  annotationAtKeyPath,
   foldOverloadReturns,
   findAmbientFunctionPaths,
   findOverloadsForName,
@@ -193,9 +198,12 @@ export function createCallResolution({
     if (!paths.length) return undefined;
     // `resolveReturnType` reads the declaration's own `returnType`, which the Flow spelling does not
     // have - fall back to resolving the signature's return annotation directly for that shape
+    // each head resolves its return under ITS OWN declaration path: the annotation was written
+    // there, so the type names in it belong to that container - anchoring on the call site instead
+    // hands a `declare function` written outside a namespace the namesake declared inside it
     return foldOverloadReturns(paths, p => ambientSignatureNode(p.node).params,
-      p => resolveReturnType(p, callPath)
-        ?? resolveTypeAnnotation(unwrapTypeAnnotation(ambientSignatureNode(p.node).returnType), p.scope),
+      p => withLookupPath(p, () => resolveReturnType(p, callPath)
+        ?? resolveTypeAnnotation(unwrapTypeAnnotation(ambientSignatureNode(p.node).returnType), p.scope)),
       p => ambientSignatureNode(p.node).returnType, callPath);
   }
 
@@ -489,7 +497,7 @@ export function createCallResolution({
     function lookup(typeNode) {
       return propName === null
         ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
-        : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, subst, callPath });
+        : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, anchor: objInfo.path, subst, callPath });
     }
     if (isUnionType(target)) {
       // FOLD across the branches instead of taking the first that resolves: a value matching a
@@ -523,7 +531,7 @@ export function createCallResolution({
   // position, where the marker is ignored by design (a nullish receiver throws transformed or not).
   // measured, not assumed - the site IS reached with an optional member, and in each such shape the
   // fold that would read the marker either sits elsewhere or never routes here
-  function resolveMemberInTypeMembers({ typeNode, propName, scope, subst, callPath = null }) {
+  function resolveMemberInTypeMembers({ typeNode, propName, scope, anchor = null, subst, callPath = null }) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;
     // an OVERLOADED method set (2+ same-named non-accessor signatures): the first arm's
@@ -538,7 +546,7 @@ export function createCallResolution({
         && discriminateOverloads(named, m => m.parameters ?? m.params,
           callArgumentPaths(callPath), resolveNodeType).selected;
       if (!selected) return null;
-      return { annotation: applySubst(selected, subst), scope };
+      return { annotation: applySubst(selected, subst), scope, path: anchor };
     }
     for (const m of members) {
       if (!keyMatchesName(m.key, propName, scope, m.computed)) continue;
@@ -554,7 +562,7 @@ export function createCallResolution({
       else if (m.type === 'TSMethodSignature') raw = m;
       else raw = m.typeAnnotation ?? m.returnType ?? m.value;
       if (!raw) continue;
-      return { annotation: applySubst(raw, subst), scope };
+      return { annotation: applySubst(raw, subst), scope, path: anchor };
     }
     return null;
   }
@@ -615,6 +623,46 @@ export function createCallResolution({
     return picked ? { annotation: applySubst(picked, subst), scope } : null;
   }
 
+  // a DESTRUCTURED name binds a MEMBER of the initializer, not the initializer itself. handing
+  // back the init's own annotation makes `const { m } = i` read as `I`, and the call lane then
+  // finds no return type on it - so a destructured method loses its return where the very same
+  // method kept it when read as `i.m`. the Type lane already descends the key path; this is the
+  // annotation lane's half of that walk, which is the half a call return is read from.
+  // hands `info` back UNCHANGED where the member cannot be named at all - a rest slice, or an
+  // overload set this lane has no call site to pick from; the caller then serves the generic
+  function destructuredMemberAnnotation(info, bindingPath, name) {
+    if (!info) return null;
+    // a declarator carries the pattern on `id`; a destructured PARAMETER is the pattern itself
+    const { node } = bindingPath;
+    const pattern = node.type === 'VariableDeclarator' ? node.id : node;
+    const keyPath = findPatternKeyPath(pattern, name, bindingPath.scope);
+    if (!keyPath) return info;
+    // a negative index is the array walker's REST sentinel, not a slot to read: the member behind
+    // it is a slice of the source, which this walk cannot name
+    if (keyPath.some(key => typeof key === 'number' && key < 0)) return info;
+    const host = keyPath.length > 1
+      ? annotationAtKeyPath(info.annotation, keyPath.slice(0, -1), info.scope) : info.annotation;
+    if (!host) return null;
+    // an OVERLOADED member cannot be answered here: this lane resolves the NAME, and the canon that
+    // picks a head (`resolveMemberInTypeMembers`) needs the CALL to discriminate on. picking the
+    // first head would be a guess, and in usage-pure a wrong head is a throw while an unresolved
+    // name only degrades - hand the container back and let the generic dispatch serve it
+    const leaf = keyPath.at(-1);
+    const hostMembers = getTypeMembers({ objectType: unwrapTypeAnnotation(host), scope: info.scope }) ?? [];
+    if (hostMembers.filter(m => m.type === 'TSMethodSignature'
+      && keyMatchesName(m.key, leaf, info.scope, m.computed)).length >= 2) return info;
+    const annotation = annotationAtKeyPath(host, [leaf], info.scope);
+    return annotation ? { ...info, annotation } : null;
+  }
+
+  // an annotation always travels with the declaration it was WRITTEN at: `scope` is where its
+  // names resolve, and the path is the lookup anchor for a container the parser opened no scope
+  // for. one constructor for both fields - a site that set only `scope` left the anchor pointing
+  // at the USE, which resolves a name against whatever namespace the use sits in
+  function annotationAt(annotation, declPath) {
+    return { annotation, scope: declPath.scope, path: declPath };
+  }
+
   // find the raw type annotation of an expression (follows bindings and const chains).
   // memoized by path.node identity - `resolveFromMemberExpression` invokes this twice when
   // the resolved and original object paths differ, and recursive descents revisit common
@@ -647,7 +695,7 @@ export function createCallResolution({
     if (path.node.type === 'ChainExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
     if (path.node.type === 'TSAsExpression' || path.node.type === 'TSSatisfiesExpression'
       || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
-      return { annotation: path.node.typeAnnotation, scope: path.scope };
+      return annotationAt(path.node.typeAnnotation, path);
     }
     if (path.node.type === 'TSNonNullExpression' || path.node.type === 'TSInstantiationExpression') {
       return findExpressionAnnotation(path.get('expression'), depth + 1);
@@ -662,11 +710,15 @@ export function createCallResolution({
         // to FooB after the assignment. without this `f.data` after the assignment
         // resolves on the declared union and emits the generic polyfill
         const narrowed = narrowUnionByAssignmentLiteral(path, annotation, binding.path.scope);
-        return { annotation: narrowed ?? annotation, scope: binding.path.scope };
+        // the annotation of a destructured binding describes its CONTAINER (`function f({ m }: I)`),
+        // so the same key-path descent the initializer lane needs applies here too
+        return destructuredMemberAnnotation(annotationAt(narrowed ?? annotation, binding.path), binding.path, path.node.name);
       }
       if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
         const init = binding.path.get('init');
-        if (init.node) return findExpressionAnnotation(init, depth + 1);
+        if (init.node) {
+          return destructuredMemberAnnotation(findExpressionAnnotation(init, depth + 1), binding.path, path.node.name);
+        }
       }
     }
     // obj.prop / obj?.prop - resolve property type through the object's annotation chain,
@@ -705,7 +757,7 @@ export function createCallResolution({
         const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node, path.scope);
         const rawReturn = unwrapTypeAnnotation(fnPath.node.returnType);
         const annotation = subst ? applyAliasSubstDeep(rawReturn, subst) : rawReturn;
-        return { annotation, scope: fnPath.scope };
+        return annotationAt(annotation, fnPath);
       }
       // typed method call `w.inner.value()`: only function-shaped annotations produce a
       // return type. non-function property annotations bail to keep downstream chains sound
@@ -715,7 +767,7 @@ export function createCallResolution({
         if (memberInfo) {
           const unwrappedMember = unwrapTypeAnnotation(memberInfo.annotation);
           const ret = functionTypeReturnAnnotation(unwrappedMember);
-          if (ret) return { annotation: ret, scope: memberInfo.scope };
+          if (ret) return { ...memberInfo, annotation: ret };
         }
       } else if (callee.node.type === 'Identifier') {
         // function-typed const callee: `declare const f: () => T; f().X` - extract returnType
@@ -724,7 +776,7 @@ export function createCallResolution({
         const calleeInfo = findExpressionAnnotation(callee, depth + 1);
         const calleeAnnot = calleeInfo?.annotation && unwrapTypeAnnotation(calleeInfo.annotation);
         const ret = functionTypeReturnAnnotation(calleeAnnot);
-        if (ret) return { annotation: ret, scope: calleeInfo.scope };
+        if (ret) return { ...calleeInfo, annotation: ret };
       }
     }
     return null;
