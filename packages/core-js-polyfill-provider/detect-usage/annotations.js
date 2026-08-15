@@ -8,7 +8,8 @@
 //     consumes `?.`, so the receiver null-check is redundant. `node` may be the optional member
 //     OR the optional call wrapping it (`Array.from?.(...)`); a call unwraps to its callee
 import {
-  getSuperTypeArgs, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS,
+  getSuperTypeArgs,
+  importBindingIsTypeOnly, isMutatedStaticMeta, memberKeyName, POSSIBLE_GLOBAL_OBJECTS,
   TRANSPARENT_EXPR_WRAPPER_TYPES, unwrapRuntimeExpr,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName, isProxyGlobalIdentifierNode } from '../helpers/class-walk.js';
@@ -131,6 +132,20 @@ const FLOW_TYPE_ONLY_NODES = new Set([
   'QualifiedTypeIdentifier',
 ]);
 
+// a TYPE position and a VALUE position ask different shadow questions of the same name, and
+// `adapter.hasBinding` answers the value one: it deliberately ignores a type-only import because
+// tsc elides it, so a VALUE of that name really is the global. in a TYPE position that same import
+// IS the shadow - `import type { Set } from 'immutable'` makes `x: Set<number>` name immutable's
+// Set, and injecting es.set.* for it polyfills a global the annotation never named. both detection
+// lanes ask this: the shared annotation walk, and babel's identifier visitor, which reports a type
+// reference as a referenced identifier and so reaches type positions through the value path
+export function typeOnlyImportShadows({ adapter, scope, name, path, hostType }) {
+  // `typeof X` names the RUNTIME binding, so the elided import leaves the global exposed there -
+  // the type-space answer applies to a plain type reference only
+  if (hostType === 'TSTypeQuery') return false;
+  return importBindingIsTypeOnly(adapter.getBinding?.(scope, name, path));
+}
+
 // is `type` a TS/Flow type-only node? `Declare*` is a stable Flow prefix
 export function isTypeAnnotationNodeType(type) {
   if (!type) return false;
@@ -209,7 +224,9 @@ const TYPE_REFERENCE_SLOTS = {
   TSTypeQuery: 'exprName',
 };
 
-// walk a type annotation subtree, invoking `onGlobal(name)` for every bare type reference.
+// walk a type annotation subtree, invoking `onGlobal(name, hostType)` for every bare type
+// reference. `hostType` is the node the name was read from - `typeof X` READS the runtime binding,
+// so a consumer asking a type-space question has to tell that host apart from a plain type reference.
 // `isTypeWalkable` keeps the walker out of runtime bodies; `seen` bounds cyclic inputs
 export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   if (!annotation) return;
@@ -221,7 +238,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     seen.add(node);
     const refSlot = TYPE_REFERENCE_SLOTS[node.type];
     const ref = refSlot ? node[refSlot] : null;
-    if (ref?.type === 'Identifier') onGlobal(ref.name);
+    if (ref?.type === 'Identifier') onGlobal(ref.name, node.type);
     // a qualified type name (`globalThis.Map.prototype`): `exprName` / `typeName` is a TSQualifiedName
     // whose leftmost `left` is the chain root. unplugin's estree-toolkit scope tracker does not visit
     // the chain, so surface the runtime globals here or the two pipelines diverge (babel reaches them
@@ -241,7 +258,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
       const [root] = segments;
       const rootIsProxy = root?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(root.name);
       if (node.type === 'TSTypeQuery' || rootIsProxy) {
-        if (root?.type === 'Identifier') onGlobal(root.name);
+        if (root?.type === 'Identifier') onGlobal(root.name, node.type);
         // when the root is a proxy-global, EACH subsequent segment is itself a real global reference for
         // as long as the chain so far is all proxy-globals (`globalThis` / `self` / `window`): a proxy
         // member resolves back to a global (`globalThis.self.Map` references globalThis AND self AND Map),
@@ -254,7 +271,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
         for (let i = 1; i < segments.length && prevIsProxy; i++) {
           const seg = segments[i];
           if (seg?.type !== 'Identifier') break;
-          onGlobal(seg.name);
+          onGlobal(seg.name, node.type);
           prevIsProxy = POSSIBLE_GLOBAL_OBJECTS.has(seg.name);
         }
       }
