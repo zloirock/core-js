@@ -1,61 +1,4 @@
-import { cpus } from 'node:os';
-
-const ignore = {
-  root: [
-    // TODO: temporarily, to avoid issues with v4 refactoring
-    '@babel/core',
-    '@babel/plugin-transform-arrow-functions',
-    '@babel/plugin-transform-block-scoped-functions',
-    '@babel/plugin-transform-block-scoping',
-    '@babel/plugin-transform-classes',
-    '@babel/plugin-transform-class-properties',
-    '@babel/plugin-transform-class-static-block',
-    '@babel/plugin-transform-computed-properties',
-    '@babel/plugin-transform-destructuring',
-    '@babel/plugin-transform-duplicate-named-capturing-groups-regex',
-    '@babel/plugin-transform-explicit-resource-management',
-    '@babel/plugin-transform-exponentiation-operator',
-    '@babel/plugin-transform-for-of',
-    '@babel/plugin-transform-literals',
-    '@babel/plugin-transform-logical-assignment-operators',
-    '@babel/plugin-transform-member-expression-literals',
-    '@babel/plugin-transform-modules-commonjs',
-    '@babel/plugin-transform-new-target',
-    '@babel/plugin-transform-nullish-coalescing-operator',
-    '@babel/plugin-transform-numeric-separator',
-    '@babel/plugin-transform-object-rest-spread',
-    '@babel/plugin-transform-object-super',
-    '@babel/plugin-transform-optional-catch-binding',
-    '@babel/plugin-transform-optional-chaining',
-    '@babel/plugin-transform-parameters',
-    '@babel/plugin-transform-private-methods',
-    '@babel/plugin-transform-private-property-in-object',
-    '@babel/plugin-transform-property-literals',
-    '@babel/plugin-transform-regenerator',
-    '@babel/plugin-transform-regexp-modifiers',
-    '@babel/plugin-transform-reserved-words',
-    '@babel/plugin-transform-shorthand-properties',
-    '@babel/plugin-transform-spread',
-    '@babel/plugin-transform-template-literals',
-    '@babel/plugin-transform-unicode-regex',
-  ],
-  'core-js-builder': [
-    'mkdirp',
-    'webpack',
-  ],
-  'scripts/bundle-tests': [
-    // TODO: temporarily, to avoid issues with v4 refactoring
-    '@babel/core',
-  ],
-  'tests/eslint': [
-    // eslint-plugin-sonarjs does not work with typescript@7
-    'typescript',
-  ],
-  'tests/observables': [
-    '@babel/cli',
-    'moon-unit',
-  ],
-};
+import config from './config.mjs';
 
 const pkgs = await glob([
   'package.json',
@@ -65,15 +8,39 @@ const pkgs = await glob([
 
 async function checkPackage(path) {
   const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
-  if (!dependencies && !devDependencies) return;
+  const exceptions = config[name];
 
-  const exclude = ignore[name];
+  if (exceptions === 'exclude' || (!dependencies && !devDependencies)) return;
+
+  const allDependencies = [...Object.entries(dependencies ?? {}), ...Object.entries(devDependencies ?? {})];
+  const allDependenciesNames = allDependencies.map(([key]) => key);
+
+  function getExceptionsKind(kind) {
+    if (exceptions === kind) return allDependenciesNames;
+    return Object.entries(exceptions ?? []).flatMap(([key, value]) => {
+      if (value !== kind) return [];
+      if (!key.includes('*')) return [key];
+      const re = new RegExp(`^${ key.replaceAll('*', '.+') }$`);
+      return allDependenciesNames.filter(it => re.test(it));
+    });
+  }
+
+  const exclude = getExceptionsKind('exclude');
+  for (const [key, version] of allDependencies) {
+    if (key.startsWith('@core-js/') || version.startsWith('file:')) exclude.push(key);
+  }
+
+  const minor = getExceptionsKind('minor');
+  const patch = getExceptionsKind('patch');
 
   const { stdout } = await $({ verbose: false })`updates \
     --json \
     --file ${ path } \
     --timeout 60000 \
-    --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
+    --exclude ${ exclude.join(',') } \
+    --minor ${ minor.join(',') } \
+    --patch ${ patch.join(',') } \
+    ${ process.env.UDEPS ? '--update' : [] } \
   `;
 
   const results = JSON.parse(stdout)?.results?.npm;
@@ -87,7 +54,7 @@ async function checkPackage(path) {
 
 let i = 0;
 
-await Promise.all(Array(cpus().length).fill().map(async () => {
+await Promise.all(Array(os.cpus().length).fill().map(async () => {
   while (i < pkgs.length) {
     const path = pkgs[i++];
     try {
