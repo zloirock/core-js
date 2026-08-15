@@ -193,14 +193,20 @@ export function createKnownGlobals({
   // a static flagged `returnsArgument: N` returns that argument unchanged (ECMAScript identity,
   // e.g. Object.freeze -> 0), so the result keeps the argument's concrete container type:
   // `Object.freeze([...]).includes()` must narrow to the array, not the registry's generic 'Object'
-  // (which drops the polyfill on ie:11). null when the slot is absent / preceded-or-filled by a
-  // spread / unknown, so the caller falls back to the declared hint. mirrors `inferPromiseResolveReturnType`
+  // (which drops the polyfill on ie:11). mirrors `inferPromiseResolveReturnType`.
+  // the two failure modes are DIFFERENT answers and the caller reads them apart:
+  //   `undefined` - no usable slot (absent, or a spread makes positional matching undecidable),
+  //                 so the declared hint is still the honest answer;
+  //   `null`      - the slot is FILLED but its type is unknown. an identity static returns exactly
+  //                 that value, so the call is equally unknown. collapsing this into the hint
+  //                 claimed `Object` for a value nothing is known about, and an Object hint
+  //                 SUPPRESSES the instance polyfill outright - a missed polyfill on the target,
+  //                 not merely a lost narrow
   function inferReturnedArgType(callPath, index) {
-    if (!RETURNING_INVOCATION_TYPES.has(callPath?.node?.type)) return null;
+    if (!RETURNING_INVOCATION_TYPES.has(callPath?.node?.type)) return undefined;
     const args = callArgumentPaths(callPath);
     const argPath = args[index];
-    // a spread at or before the target index makes positional matching undecidable
-    if (!argPath || args.slice(0, index + 1).some(a => babelNodeType(a.node) === 'SpreadElement')) return null;
+    if (!argPath || args.slice(0, index + 1).some(a => babelNodeType(a.node) === 'SpreadElement')) return undefined;
     const argType = resolveNodeType(argPath);
     return argType && !isNullableOrNever(argType) ? argType : null;
   }
@@ -217,7 +223,7 @@ export function createKnownGlobals({
     }
     if (callPath && typeof hint.returnsArgument === 'number') {
       const inferred = inferReturnedArgType(callPath, hint.returnsArgument);
-      if (inferred) return inferred;
+      if (inferred !== undefined) return inferred;
     }
     return typeFromHint(hint);
   }
