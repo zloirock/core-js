@@ -15,6 +15,7 @@
 // Public surface:
 //   peelStructurePreservingWrapper(node)
 //   unwrapPassthroughWrapper(node, scope)
+//   passthroughModifierDelta(node, scope) - the member-flag delta ONE such hop crosses
 //   resolveAwaitedAnnotation({ node, scope, depth, typeParamMap, seen })
 //   resolveAwaitExpressionType(path)
 //   functionTypeParams(node)
@@ -25,11 +26,13 @@
 // this is the sole declaration.
 import { MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS, dropLeadingThisParam } from './base.js';
 import {
+  composeModifierDeltas,
   isFunctionTypeNode,
   isMethodShapeMember,
   isObjectTypeLiteral,
   isTypeReferenceNode,
   isUnionType,
+  modifierWrapperDelta,
   typeRefSegments,
 } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
@@ -253,6 +256,30 @@ export function createAwaited({
     return peelStructurePreservingWrapper(node, scope)
       ?? peelAwaitedWrapper(node, scope, depth)
       ?? (node?.type === 'TSMappedType' ? unwrapMappedTypePassthrough(node) : null);
+  }
+
+  // the member-flag delta ONE `unwrapPassthroughWrapper` hop crosses. it is not always the
+  // outermost wrapper's: the `Awaited<T>` walker peels through structure-preserving wrappers,
+  // Promise layers, indexed accesses and alias hops on its own, so `Awaited<Promise<Partial<I>>>`
+  // loses every layer in a single hop and a top-level read answers for none of them. walk the
+  // walker's OWN steps - outermost first, so an inner `Required<>` cannot override the
+  // `Partial<>` above it - and stop exactly where the peel stopped.
+  // `endpoint` is what the peel answered: a walk that does not land on it took a different route,
+  // and deltas it collected were never crossed, so the outermost read is all we can honestly
+  // claim there. without that bound `Partial<Promise<Required<I>>>` would apply the `Required<>`
+  // the peel never reached
+  function passthroughModifierDelta(node, scope, endpoint, depth = 0) {
+    let delta = null;
+    for (let cur = node, hops = 0; cur && hops <= MAX_DEPTH; hops++) {
+      if (cur === endpoint) return delta;
+      delta = composeModifierDeltas(delta, modifierWrapperDelta(cur));
+      const next = peelAwaitedCommonSteps(cur, scope, depth)
+        ?? getSingleTypeRefArg(cur, n => n === 'Awaited')
+        ?? (cur.type === 'TSMappedType' ? unwrapMappedTypePassthrough(cur) : null);
+      if (!next) break;
+      cur = unwrapTypeAnnotation(next);
+    }
+    return modifierWrapperDelta(node);
   }
 
   // --- Type walker (resolved-type fold) ---
@@ -499,6 +526,7 @@ export function createAwaited({
   return {
     peelStructurePreservingWrapper,
     unwrapPassthroughWrapper,
+    passthroughModifierDelta,
     resolveAwaitedAnnotation,
     resolveAwaitExpressionType,
     functionTypeParams,
