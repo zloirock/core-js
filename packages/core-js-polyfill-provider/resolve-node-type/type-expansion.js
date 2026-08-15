@@ -29,8 +29,8 @@ import {
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import {
-  isPrivateMemberNode, isTypeReferenceNode, mutableCollectionName, readonlyCollectionBase,
-  unionAnnotationOf,
+  isPrivateMemberNode, isTypeReferenceNode, mappedModifierDelta, mutableCollectionName,
+  readonlyCollectionBase, unionAnnotationOf,
 } from './ast-shapes.js';
 
 // `resolveInferElementPattern` sentinel: the extends clause is a recognised `Container<infer U>`
@@ -339,14 +339,16 @@ export function createTypeExpansion({
   }
 
   // synth a property signature for one expanded mapped key. shared between literal-union
-  // and keyof source paths. nameType present but unevaluable splits into two outcomes:
+  // and keyof source paths - only the keyof lane can pass `sourceMember`, since a literal-union
+  // source names keys rather than carrying members to inherit flags from.
+  // nameType present but unevaluable splits into two outcomes:
   //   RENAME_SKIP        - explicit `as never` / mismatched conditional, drop key
   //   non-string (null)  - rename undecidable for THIS key (e.g. union with a partially-
   //                        unresolvable TypeReference branch). drop key from the partial
   //                        expansion: decidable keys still narrow, undecidable fall through
   //                        to generic dispatch. safe upper bound - never includes a key that
   //                        user-rename would exclude
-  function buildMappedMember({ node, paramName, keyName, substValue, body }) {
+  function buildMappedMember({ node, paramName, keyName, substValue, body, sourceMember = null }) {
     const renamed = node.nameType ? evalRenameTemplate(node.nameType, paramName, keyName) : keyName;
     if (renamed === RENAME_SKIP || typeof renamed !== 'string') return null;
     const subst = new Map([[paramName, substValue]]);
@@ -354,6 +356,10 @@ export function createTypeExpansion({
       type: 'TSPropertySignature',
       key: { type: 'Identifier', name: renamed },
       computed: false,
+      // the synthesized member inherits the SOURCE member's optionality unless the mapped type's
+      // own `?` / `-?` modifier overrides it - dropping both is how a hand-written `Partial`
+      // (`{ [K in keyof T]?: T[K] }`) resolved to a required member
+      optional: mappedModifierDelta(node).optional ?? Boolean(sourceMember?.optional),
       typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: applyAliasSubstDeep(body, subst) },
     };
   }
@@ -452,7 +458,7 @@ export function createTypeExpansion({
       // can't name leaves the mapped result indeterminate)
       if (keyName === null) return null;
       const member = buildMappedMember({
-        node, paramName: shape.paramName, keyName, substValue: literalTypeFromKeyName(keyName), body,
+        node, paramName: shape.paramName, keyName, substValue: literalTypeFromKeyName(keyName), body, sourceMember: m,
       });
       if (member) pushMappedMember(out, member);
     }

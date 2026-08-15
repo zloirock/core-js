@@ -16,7 +16,7 @@
 // (`unwrapMappedTypePassthrough`, `evaluateConditionalType`) the handlers call into.
 import { $Object, MAX_DEPTH, firstTypeParamIsInner } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
-import { readonlyCollectionBase } from './ast-shapes.js';
+import { markMappedReadonly, markReadonlyCollection } from './ast-shapes.js';
 
 // shared accessor for the first type-arg slot on a TS/Flow ref node. `getTypeArgs` returns
 // a wrapper carrying `.params` or null when the ref carries no `<...>`; `firstTypeArg`
@@ -86,8 +86,14 @@ export function createTypeResolveDispatch({
     // the higher-kinded `F` would otherwise record its KEY here, diverging from the direct-annotation
     // lane (`resolveKnownContainerType`) which gates the same way
     if (!firstTypeParamIsInner(bound.constructor)) return bound;
-    const inner = substRecurse({ node: firstArg, typeParamMap, scope, depth, seen });
-    return new $Object(bound.constructor, safeInnerType(inner));
+    const inner = safeInnerType(substRecurse({ node: firstArg, typeParamMap, scope, depth, seen }));
+    // stamp the inner on a CLONE of `bound`, never on a fresh `$Object`: the bound type may
+    // already carry markers (`.readonly` from a readonly-collection spelling, `.mayBeNullish`
+    // from a union fold), and rebuilding from the identity fields alone silently drops them
+    if (!inner) return bound;
+    const applied = bound.clone();
+    applied.inner = inner;
+    return applied;
   }
 
   // T[] / Array<T> -> $Object('Array', inner) with substituted element type
@@ -104,8 +110,8 @@ export function createTypeResolveDispatch({
   // mapped type: passthrough body recurses with subst preserved; non-passthrough opaque
   function substMappedAsType(node, typeParamMap, scope, depth, seen) {
     const passthrough = unwrapMappedTypePassthrough(node);
-    if (passthrough) return substRecurse({ node: passthrough, typeParamMap, scope, depth, seen });
-    return new $Object(null);
+    if (!passthrough) return new $Object(null);
+    return markMappedReadonly(substRecurse({ node: passthrough, typeParamMap, scope, depth, seen }), node);
   }
 
   // TSTypeOperator: `keyof T` opaque, other operators (e.g. `readonly`) transparent
@@ -180,8 +186,7 @@ export function createTypeResolveDispatch({
     // `readonly T[]` / `ReadonlyArray<T>` resolved through generic substitution loses
     // `.readonly`, flipping a readonly-discriminating conditional to the wrong family.
     // idempotent - the plain-lane fallthrough above may have stamped already
-    if (result && !result.primitive && readonlyCollectionBase(node)) return result.mark('readonly');
-    return result;
+    return markReadonlyCollection(result, node);
   }
 
   return { substituteTypeParams };
