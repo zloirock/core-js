@@ -28,7 +28,9 @@ import {
   dropLeadingThisParam,
   hasLeadingThisParam,
 } from './base.js';
-import { typeRefName } from './ast-shapes.js';
+import {
+  composeModifierDeltas, modifierWrapperDelta, typeRefName, withMemberModifiers,
+} from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeFolding({
@@ -138,7 +140,18 @@ export function createTypeFolding({
     return hasLeadingThisParam(params) ? params[0].typeAnnotation ?? null : null;
   }
 
+  // a tuple slot's own `?` already arrives as a source-level TSOptionalType, so an ABSENT wrapper
+  // delta must leave the annotation alone - only an explicit `Partial<>` / `Required<>` speaks
+  function withTupleElementDelta(annotation, modifiers) {
+    return modifiers?.optional === undefined
+      ? annotation : withMemberModifiers(annotation, { optional: modifiers.optional });
+  }
+
   function findTupleElement(objectType, index, scope, depth = 0) {
+    // a modifier wrapper over a TUPLE changes its elements' optionality exactly as it changes an
+    // object's members (`Partial<[A, B]>` is `[A?, B?]`), and both peels below make the wrapper
+    // invisible - accumulate the delta the same way the member walk does
+    let modifiers = null;
     while (true) {
       // self-recursive alias behind a structure-preserving wrapper (`type R<T> = Readonly<R<T>>;
       // R<number>[0]`) re-enters with a FRESH followTypeAliasChain on each peel, escaping that
@@ -148,6 +161,7 @@ export function createTypeFolding({
       // `findTypeMember`'s peel-then-follow-then-peel pattern
       const peeledBefore = peelStructurePreservingWrapper(objectType, scope);
       if (peeledBefore) {
+        modifiers = composeModifierDeltas(modifiers, modifierWrapperDelta(objectType));
         objectType = peeledBefore;
         depth += 1;
         continue;
@@ -166,11 +180,14 @@ export function createTypeFolding({
       if (params) {
         for (let i = 0; i < params.length; i++) {
           const { param, isRest } = effectiveParam(params[i]);
-          const annotation = param?.typeAnnotation?.typeAnnotation;
-          if (!isRest && i === index) return applyAliasSubstDeep(annotation, subst) ?? null;
+          // `Parameters<typeof f>[N]` of an optional param is `T | undefined` - the flag sits on
+          // the param node, so the tuple element has to carry it forward like a member does
+          const annotation = withMemberModifiers(param?.typeAnnotation?.typeAnnotation,
+            { optional: Boolean(param?.optional) });
+          if (!isRest && i === index) return withTupleElementDelta(applyAliasSubstDeep(annotation, subst) ?? null, modifiers);
           if (isRest) {
             return i <= index
-              ? applyAliasSubstDeep(extractElementAnnotation(annotation, scope, 0), subst) ?? null
+              ? withTupleElementDelta(applyAliasSubstDeep(extractElementAnnotation(annotation, scope, 0), subst) ?? null, modifiers)
               : null;
           }
         }
@@ -181,6 +198,7 @@ export function createTypeFolding({
       // through to generic `_at`
       const peeledAfter = peelStructurePreservingWrapper(target, scope);
       if (peeledAfter) {
+        modifiers = composeModifierDeltas(modifiers, modifierWrapperDelta(target));
         objectType = applySubst(peeledAfter, subst);
         depth += 1;
         continue;
@@ -205,7 +223,7 @@ export function createTypeFolding({
         ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
       if (!memberNode) return null;
       // deep subst so generic args reach nested shapes: `Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
-      return applyAliasSubstDeep(memberNode, subst);
+      return withTupleElementDelta(applyAliasSubstDeep(memberNode, subst), modifiers);
     }
   }
 
@@ -346,11 +364,15 @@ export function createTypeFolding({
     return result && isNullableOrNever(result) ? null : result;
   }
 
-  // resolve a type annotation, returning null for nullable/never types (not useful as inner types)
+  // resolve a type annotation, returning null for nullable/never types (not useful as inner types).
+  // `mayBeNullish` records "a null / undefined arm was dropped from this union" - which is exactly
+  // what `NonNullable<T>` removes, so the marker must not outlive the strip. leaving it on made
+  // MORE type information produce a WIDER answer: `NonNullable<I['a']>` stayed generic where the
+  // bare `I['a']` it is derived from would have narrowed
   function resolveNonNullableAnnotation({ node, scope, depth, typeParamMap, seen }) {
     if (!node) return null;
-    const resolved = resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
-    return safeInnerType(resolved);
+    const resolved = safeInnerType(resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen }));
+    return resolved?.mayBeNullish ? resolved.unmark('mayBeNullish') : resolved;
   }
 
   // collapse a resolved inner-Type to null when it is nullable / never / falsy - or not a

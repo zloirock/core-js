@@ -1,31 +1,43 @@
 // Type-member resolution. dispatches member access against any TS / Flow type-position node:
-//   - `findTypeMember({objectType, key, scope, depth})` - extract a member's annotation node
-//     by key; covers interface bodies + class merging + tuple indexing + index signatures +
-//     conditional / mapped / structure-preserving wrappers + alias chain
+//   - `findTypeMember({objectType, key, scope, depth, modifiers})` - extract a member's annotation
+//     node by key; covers interface bodies + class merging + tuple indexing + index signatures +
+//     conditional / mapped / structure-preserving wrappers + alias chain. `modifiers` is the
+//     descriptor-flag delta of the wrappers already peeled above the current node - callers start
+//     it absent and the walk accumulates it
 //   - `getTypeMembers({objectType, scope, depth, visited})` - flat list of structural members
 //     for a given type node (used by callers iterating all members; rest of the cluster +
 //     callers like `discriminant-narrow` / `call-resolution`)
 //
 // Most surface is cluster-private (recursive cascade between findTypeMember <->
 // getTypeMembers, the interface / class collectors, condition / indexed-access helpers).
-// External callers see only `findTypeMember`, `getTypeMembers`, `findParentClassDecl`,
-// `resolveIndexedAccessMembers`, `pickIndexSignature` - the last three power factory branches
-// outside the dispatch (the class-extends walker, indexed-access dispatcher, index-signature
-// pick from `resolveIndexSignatureMember`).
-import { canonicalArrayIndex, KEY_FILTERING_WRAPPERS, MAX_DEPTH, STRUCTURE_PRESERVING_WRAPPERS } from './base.js';
+// External callers see only `findTypeMember`, `getTypeMembers` and `reset`. `findParentClassDecl`,
+// `resolveIndexedAccessMembers` and `pickIndexSignature` are cluster-private despite the mirrors
+// elsewhere naming them: neighbouring files cite `pickIndexSignature` as the static-key twin of
+// their own dynamic-key pick, and that is a cross-reference, not a call.
 import {
+  canonicalArrayIndex,
+  KEY_FILTERING_WRAPPERS,
+  MAX_DEPTH,
+  MODIFIER_WRAPPER_DELTAS,
+  STRUCTURE_PRESERVING_WRAPPERS,
+} from './base.js';
+import {
+  applyMemberModifierDelta,
+  composeModifierDeltas,
   interfaceBodyMembers,
   internedTypeRef,
   isInterfaceDeclaration,
   isReadonlyArrayType,
   isTypeAlias,
   isUnionType,
+  modifierWrapperDelta,
   synthInterfaceExtendsRef,
   typeAliasBody,
   typeRefName,
   typeRefSegments,
   TS_NUMBER_TYPE,
   unionAnnotationOf,
+  withMemberModifiers,
 } from './ast-shapes.js';
 import { getHeritageTypeArgs, getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -61,6 +73,7 @@ export function createTypeMembers({
   resolveTypeAnnotation,
   functionTypeReturnAnnotation,
   unwrapPassthroughWrapper,
+  passthroughModifierDelta,
   collectInferredNames,
   dropMapKeys,
 }) {
@@ -162,7 +175,7 @@ export function createTypeMembers({
     if (objectType.type === 'TSParenthesizedType') {
       return getTypeMembers({ objectType: peelTSParenthesized(objectType), scope, depth: depth + 1, visited });
     }
-    // a synthetic TSOptionalType (from `withOptional` on an optional member `a?: T`) carries the
+    // a synthetic TSOptionalType (from `withMemberModifiers` on an optional member `a?: T`) carries the
     // undefined possibility, but its MEMBERS are the inner type's - a multi-hop re-feed that leaves
     // the wrapper in place bottoms out to null here and the whole chain bails (-> over-inject)
     if (objectType.type === 'TSOptionalType') {
@@ -174,14 +187,7 @@ export function createTypeMembers({
     if (objectType.type === 'TSIndexedAccessType' || objectType.type === 'IndexedAccessType') {
       return resolveIndexedAccessMembers(objectType, scope, depth, visited);
     }
-    // mapped type: trivial passthrough delegates to the source's members; `as`-rename
-    // expands per-key with statically-evaluated rename templates so `r._a` on
-    // `{ [K in keyof T as `_${K}`]: T[K] }` resolves through to the source field type
-    if (objectType.type === 'TSMappedType') {
-      const passthrough = unwrapMappedTypePassthrough(objectType);
-      if (passthrough) return getTypeMembers({ objectType: unwrapTypeAnnotation(passthrough), scope, depth: depth + 1, visited });
-      return expandMappedTypeMembers({ node: objectType, scope, depth, visited });
-    }
+    if (objectType.type === 'TSMappedType') return resolveMappedTypeMembers({ objectType, scope, depth, visited });
     // intersection: collect members from all parts. nested union branches (`A & (B | C)`)
     // expand recursively - without the expansion `getTypeMembers` would receive the bare
     // union node and return null, dropping every member reachable through B or C
@@ -376,6 +382,18 @@ export function createTypeMembers({
     }
   }
 
+  // mapped type: a trivial passthrough delegates to the source's members, an `as`-rename expands
+  // per-key with statically-evaluated rename templates so `r._a` on `{ [K in keyof T as `_${K}`]: T[K] }`
+  // resolves through to the source field type. the passthrough hands over the member SET but not the
+  // `?` / `-?` modifier sitting on the mapped type itself - re-applied here, exactly as the
+  // utility-wrapper lane does (the expansion lane stamps it per member instead, in `buildMappedMember`)
+  function resolveMappedTypeMembers({ objectType, scope, depth, visited }) {
+    const passthrough = unwrapMappedTypePassthrough(objectType);
+    if (!passthrough) return expandMappedTypeMembers({ node: objectType, scope, depth, visited });
+    const inner = getTypeMembers({ objectType: unwrapTypeAnnotation(passthrough), scope, depth: depth + 1, visited });
+    return applyMemberModifierDelta(inner, modifierWrapperDelta(objectType));
+  }
+
   // expand `<Wrapper><T, ...>` members. transparent wrappers (`Readonly` / `Partial`)
   // pass through to T's members. `Pick` / `Omit` filter T's members when keys arg is
   // statically-evaluable; non-decidable keys-arg falls back to passthrough (over-emit
@@ -384,7 +402,10 @@ export function createTypeMembers({
     const args = getTypeArgs(objectType)?.params;
     const arg = args?.[0];
     if (!arg) return null;
-    const innerMembers = getTypeMembers({ objectType: unwrapTypeAnnotation(arg), scope, depth: depth + 1, visited });
+    const inner = getTypeMembers({ objectType: unwrapTypeAnnotation(arg), scope, depth: depth + 1, visited });
+    // a modifier wrapper's whole effect is on the descriptor flags of the members it passes
+    // through - handing the inner list back verbatim is what made `Partial<T>` a no-op
+    const innerMembers = applyMemberModifierDelta(inner, MODIFIER_WRAPPER_DELTAS.get(wrapperName));
     if (!innerMembers || !KEY_FILTERING_WRAPPERS.has(wrapperName)) return innerMembers;
     const keys = staticKeySet(args[1]);
     if (!keys) return innerMembers;
@@ -565,7 +586,7 @@ export function createTypeMembers({
     return null;
   }
 
-  function findTypeMember({ objectType, key, scope, depth = 0 }) {
+  function findTypeMember({ objectType, key, scope, depth = 0, modifiers = null }) {
     while (true) {
       if (!objectType || depth > MAX_DEPTH) return null;
       // peel a leading TSParenthesizedType (`(A | B)['k']`) so the union / intersection / structural
@@ -574,7 +595,10 @@ export function createTypeMembers({
       // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
       // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
       // descends into the inner type-param
-      const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
+      const { node: aliased, subst, modifiers: aliasModifiers } = followTypeAliasChain(objectType, scope);
+      // the alias walk peels a trivial mapped passthrough of its own - take its delta before the
+      // wrapper it came from is out of reach
+      modifiers = composeModifierDeltas(modifiers, aliasModifiers);
       // `Readonly<[T, U]>[0]` - after chain-follow the alias may still land on a structure-
       // preserving wrapper. peel it here so the tuple branch below gets the raw TSTupleType
       // (getTypeMembers fallback returns null for tuples - they carry element types, not members)
@@ -585,8 +609,14 @@ export function createTypeMembers({
       // SUBSTITUTE before unwrapping: `Awaited<T>` with subst T -> Promise<X[]> must unwrap the
       // SUBSTITUTED promise layer (peel-then-subst yielded the raw Promise and dropped the
       // member); order-equivalent for the structure-preserving wrappers (`Readonly<T>` etc.)
-      const passthrough = unwrapPassthroughWrapper(applySubst(aliased ?? objectType, subst), scope, depth);
+      const substituted = applySubst(aliased ?? objectType, subst);
+      const passthrough = unwrapPassthroughWrapper(substituted, scope, depth);
       if (passthrough) {
+        // a modifier wrapper changes the descriptor FLAGS of the members it passes through,
+        // and the peel above is about to make it invisible - record its delta so the return
+        // points below answer with the flags the wrapper imposes, not the inner member's own.
+        // outermost wins: `Partial<Required<T>>` is read outside-in
+        modifiers = composeModifierDeltas(modifiers, passthroughModifierDelta(substituted, scope, passthrough, depth));
         objectType = passthrough;
         depth += 1;
         continue;
@@ -601,10 +631,15 @@ export function createTypeMembers({
       }
       // an optional property (`a?: T`) admits undefined even on a present receiver; the
       // signature's own `optional` flag would otherwise be dropped when only the annotation
-      // is returned. a synthetic TSOptionalType wrapper carries the possibility to the
-      // annotation resolvers, which mark the resolved type for the logical truthy-fold gate
-      function withOptional(annotation, member) {
-        return member.optional && annotation ? { type: 'TSOptionalType', typeAnnotation: annotation } : annotation;
+      // is returned. every member-annotation return point goes through here, so a getter or
+      // method return is marked on the same terms as a property - and a modifier wrapper
+      // peeled above overrides the member's own flags, which is what `Partial<T>` means
+      function withMarkers(annotation, member = null) {
+        // THREE states, not two: a wrapper delta decides, else the member's own flag decides, and
+        // with NEITHER the annotation is left alone. `optional: false` is a REMOVAL in the marker
+        // contract, so passing it as "nothing known" would strip a slot's own source-level `?`
+        const optional = modifiers?.optional ?? (member ? Boolean(member.optional) : undefined);
+        return optional === undefined ? annotation : withMemberModifiers(annotation, { optional });
       }
       // conditional types route through dedicated helper: extracts the branch-pick logic
       // (AST equality > structural Type Object eval > infer-pattern fallback > undecidable
@@ -631,8 +666,12 @@ export function createTypeMembers({
         if (found.length === 1) return found[0];
         return { type: aliased.type, types: found };
       }
+      // the tuple / array ELEMENT return is a member-annotation return like every other one below,
+      // so it owes the accumulated wrapper delta: `Partial<[T, U]>[0]` reached here without it and
+      // served the element's own family to a slot the wrapper made optional. `length` is a number
+      // and carries no optionality, which the marker writer already answers by node type
       const indexedElement = tryIndexedElementMember({ aliased, key, scope, subst });
-      if (indexedElement) return indexedElement;
+      if (indexedElement) return withMarkers(indexedElement);
       // walk through trivial mapped passthroughs / aliases when looking up members
       const members = getTypeMembers({ objectType: aliased ?? objectType, scope, depth });
       if (!members) return null;
@@ -643,7 +682,7 @@ export function createTypeMembers({
           // the first hit halts the walk and over-emits the generic polyfill family
           case 'TSPropertySignature':
             if (!keyMatchesName(member.key, key, scope, member.computed) || !member.typeAnnotation) break;
-            return withOptional(withSubst(member.typeAnnotation), member);
+            return withMarkers(withSubst(member.typeAnnotation), member);
           // getter: read the return; setter: continue iteration to a paired getter;
           // plain method: expose the full signature (see returnMemberMethodNode)
           case 'TSMethodSignature':
@@ -654,7 +693,7 @@ export function createTypeMembers({
               // above are careful to keep reachable
               const got = member.typeAnnotation ?? member.returnType;
               if (!got) break;
-              return withSubst(got);
+              return withMarkers(withSubst(got));
             }
             if (member.kind === 'set') break;
             return returnMemberMethodNode(member, subst);
@@ -667,10 +706,10 @@ export function createTypeMembers({
             if (member.kind === 'get') {
               const got = functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value));
               if (!got) break;
-              return withSubst(got);
+              return withMarkers(withSubst(got));
             }
             if (member.kind === 'set') break;
-            return withOptional(withSubst(member.value), member);
+            return withMarkers(withSubst(member.value), member);
           case 'ClassProperty':         // flow, and babel TS `abstract` / `declare` fields
           case 'PropertyDefinition':    // babel TS / ESTree spec
           case 'TSAbstractPropertyDefinition': // oxc `abstract x: T` (babel keeps ClassProperty)
@@ -683,7 +722,7 @@ export function createTypeMembers({
             // over-emit the generic Maybe polyfill family. keep parser-shape list in sync with
             // `createClassMemberShape.isPropertyMember` in `class-member-shapes.js`
             if (!member.computed && keyMatchesName(member.key, key) && member.typeAnnotation) {
-              return withOptional(withSubst(member.typeAnnotation), member);
+              return withMarkers(withSubst(member.typeAnnotation), member);
             }
             break;
           // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
@@ -699,14 +738,14 @@ export function createTypeMembers({
             if (member.kind === 'get') {
               const got = member.returnType ?? member.value?.returnType;
               if (!got) break;
-              return withSubst(got);
+              return withMarkers(withSubst(got));
             }
             if (member.kind === 'set') break;
             return returnMemberMethodNode(member, subst);
         }
       }
       const indexSig = pickIndexSignature(members, key);
-      if (indexSig) return withSubst(indexSig);
+      if (indexSig) return withMarkers(withSubst(indexSig));
       // Flow: ObjectTypeIndexer is stored separately on the type node, not in properties.
       // reuse the `aliased`/`subst` from the top-of-function `followTypeAliasChain` instead of
       // re-walking the alias chain - the chain is identity-stable and the two walks would

@@ -34,6 +34,7 @@ import {
   INTRINSIC_STRING_TRANSFORMERS,
   KEY_FILTERING_WRAPPERS,
   MEMBER_ANNOTATION_SLOTS,
+  MODIFIER_WRAPPER_DELTAS,
   NULLABLE_NEVER_ANNOTATIONS,
   NUMBER_LITERAL_RE,
   NUMERIC_KEY_SHAPE_RE,
@@ -9953,5 +9954,458 @@ runBoth('bodyless overloads of one name fold to their common return',
     if (!call) return fail(lbl, 'no c.m() found');
     checkType(lbl, adapter.makeResolver().resolveNodeType(call), { primitive: false, ctor: 'Map' });
   });
+
+// --- Member optionality markers surviving the type-layer peels ---
+
+// the `mayBeNullish` marker is how an optional member reaches the logical folds: without it a
+// `x ?? fallback` reads always-truthy and collapses to the annotated branch, handing a
+// type-specific helper to a value that may be the fallback at runtime. every case below spells
+// the SAME optionality through a different peel, and each is paired with the required control -
+// a case whose answer does not move when the `?` is removed is proving nothing
+function checkNullish(label, type, expected) {
+  if (!type) return fail(label, 'got null type');
+  if (type.mayBeNullish !== expected) return fail(label, `mayBeNullish=${ type.mayBeNullish }, want ${ expected }`);
+  pass();
+}
+
+function memberMarkerCase({ label, code, want }) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    if (!decl) return fail(lbl, 'no `v` declarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    checkNullish(lbl, type, want);
+  });
+}
+
+for (const [label, wrapper, want] of [
+  ['`Partial<>` marks the members it passes through', 'Partial<I>', true],
+  ['`Required<>` strips the optionality it passes through', 'Required<I>', false],
+  ['`Readonly<>` leaves member optionality alone', 'Readonly<I>', true],
+  ['`NoInfer<>` leaves member optionality alone', 'NoInfer<I>', true],
+]) {
+  memberMarkerCase({
+    label: `member markers: ${ label }`,
+    code: `interface I { a?: number[] }\ndeclare const o: ${ wrapper };\nconst v = o.a;`,
+    want,
+  });
+}
+
+memberMarkerCase({
+  label: 'member markers: `Partial<>` over a required member marks it',
+  code: 'interface I { a: number[] }\ndeclare const o: Partial<I>;\nconst v = o.a;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - the bare interface member stays required',
+  code: 'interface I { a: number[] }\ndeclare const o: I;\nconst v = o.a;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: the OUTER modifier wins over the inner one',
+  code: 'interface I { a: number[] }\ndeclare const o: Partial<Required<I>>;\nconst v = o.a;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - the outer `Required<>` wins the same way',
+  code: 'interface I { a?: number[] }\ndeclare const o: Required<Partial<I>>;\nconst v = o.a;',
+  want: false,
+});
+
+// the ADDING modifiers are asked over a REQUIRED source member and the removing one over an
+// optional source member, so in each case the modifier - not the source flag - is what the
+// answer rests on
+for (const [label, modifier, source, want] of [
+  ['a mapped `?` matches the `Partial<>` wrapper', '?', 'a: number[]', true],
+  ['a mapped `+?` is the same modifier spelled explicitly', '+?', 'a: number[]', true],
+  ['a mapped `-?` removes the source optionality', '-?', 'a?: number[]', false],
+]) {
+  memberMarkerCase({
+    label: `member markers: ${ label }`,
+    code: `interface I { ${ source } }\ntype M = { [K in keyof I]${ modifier }: I[K] };\ndeclare const o: M;\nconst v = o.a;`,
+    want,
+  });
+}
+
+memberMarkerCase({
+  label: 'member markers: a bare mapped type inherits the source member flag',
+  code: 'interface I { a?: number[] }\ntype M = { [K in keyof I]: I[K] };\ndeclare const o: M;\nconst v = o.a;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - a bare mapped type over a required member stays required',
+  code: 'interface I { a: number[] }\ntype M = { [K in keyof I]: I[K] };\ndeclare const o: M;\nconst v = o.a;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: an `as`-renamed mapped key carries the modifier too',
+  code: 'interface I { a: number[] }\ntype M = { [K in keyof I as Uppercase<K & string>]?: I[K] };\ndeclare const o: M;\nconst v = o.A;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: an optional parameter admits undefined',
+  code: 'declare function f(a?: number[]): void;\ndeclare const o: Parameters<typeof f>[0];\nconst v = o;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - a required parameter does not',
+  code: 'declare function f(a: number[]): void;\ndeclare const o: Parameters<typeof f>[0];\nconst v = o;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: a keyof-self value union includes the optional member undefined',
+  code: 'interface I { a?: number[] }\ndeclare const o: I[keyof I];\nconst v = o;',
+  want: true,
+});
+
+memberMarkerCase({
+  label: 'member markers: control - a required keyof-self value union does not',
+  code: 'interface I { a: number[] }\ndeclare const o: I[keyof I];\nconst v = o;',
+  want: false,
+});
+
+memberMarkerCase({
+  label: 'member markers: `NonNullable<>` strips the marker back off',
+  code: "interface I { a?: number[] }\ndeclare const o: NonNullable<I['a']>;\nconst v = o;",
+  want: false,
+});
+
+// the delta table is the single source of transparent-wrapper membership: a wrapper that is
+// peeled without an entry here would pass its members through with the wrong flags
+checkDeep('member markers: every transparent wrapper declares its delta',
+  [...TRANSPARENT_WRAPPERS].filter(name => !MODIFIER_WRAPPER_DELTAS.has(name)), []);
+check('member markers: `Partial` adds optionality',
+  MODIFIER_WRAPPER_DELTAS.get('Partial').optional, true);
+check('member markers: `Required` removes it',
+  MODIFIER_WRAPPER_DELTAS.get('Required').optional, false);
+check('member markers: `Readonly` is member-flag neutral',
+  MODIFIER_WRAPPER_DELTAS.get('Readonly').optional, undefined);
+
+// --- The other markers a peel drops: the literal stamp and the readonly view ---
+
+// each case resolves a conditional type that DISCRIMINATES on the marker, so the answer is a
+// whole different family: `Array` means the true branch was taken, `string` the false one.
+// every marker-carrying spelling is paired with the control that removes just that detail
+function markerBranchCase({ label, code, want }) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    if (!decl) return fail(lbl, 'no `v` declarator');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), want);
+  });
+}
+
+const IS_MUTABLE = 'type IsMutable<T> = T extends number[] ? number[] : string;';
+const ARRAY_BRANCH = { primitive: false, ctor: 'Array' };
+const STRING_BRANCH = { primitive: true, kind: 'string' };
+
+// the intrinsic string transformers are computable on a literal argument and TS keeps the result
+// a LITERAL type - a dropped stamp reads as wide-vs-narrow and takes the false branch
+for (const [name, arg, result] of [
+  ['Uppercase', "'a'", "'A'"],
+  ['Lowercase', "'A'", "'a'"],
+  ['Capitalize', "'ab'", "'Ab'"],
+  ['Uncapitalize', "'Ab'", "'ab'"],
+]) {
+  markerBranchCase({
+    label: `type markers: \`${ name }\` keeps the literal stamp`,
+    code: `type P = ${ name }<${ arg }> extends ${ result } ? number[] : string;\ndeclare const q: P;\nconst v = q;`,
+    want: ARRAY_BRANCH,
+  });
+  markerBranchCase({
+    label: `type markers: control - \`${ name }\` against a non-matching literal`,
+    code: `type P = ${ name }<${ arg }> extends 'zz' ? number[] : string;\ndeclare const q: P;\nconst v = q;`,
+    want: STRING_BRANCH,
+  });
+}
+
+// a readonly collection is NOT assignable to its mutable form, so every spelling of the readonly
+// view has to carry the marker - and every spelling that removes it has to take it back off
+for (const [label, spelling, want] of [
+  ['`Readonly<>` over a collection', 'Readonly<number[]>', STRING_BRANCH],
+  ['`ReadonlyArray<>`', 'ReadonlyArray<number>', STRING_BRANCH],
+  ['the `readonly` operator', 'readonly number[]', STRING_BRANCH],
+  ['Flow `$ReadOnlyArray<>`', '$ReadOnlyArray<number>', STRING_BRANCH],
+  ['Flow `$ReadOnly<>`', '$ReadOnly<number[]>', STRING_BRANCH],
+  ['control - the mutable collection', 'number[]', ARRAY_BRANCH],
+]) {
+  markerBranchCase({
+    label: `type markers: ${ label }`,
+    code: `${ IS_MUTABLE }\ndeclare const q: IsMutable<${ spelling }>;\nconst v = q;`,
+    want,
+  });
+}
+
+// a HOMOMORPHIC readonly mapped type is the same type `Readonly<>` spells, so it answers alike
+for (const [label, alias, applied, want] of [
+  ['a hand-written readonly mapped type', '{ readonly [K in keyof T]: T[K] }', 'MyMap<number[]>', STRING_BRANCH],
+  ['the explicit `+readonly` spelling', '{ +readonly [K in keyof T]: T[K] }', 'MyMap<number[]>', STRING_BRANCH],
+  ['`-readonly` takes the marker back off', '{ -readonly [K in keyof T]: T[K] }', 'MyMap<Readonly<number[]>>', ARRAY_BRANCH],
+  ['control - a mapped type with no modifier', '{ [K in keyof T]: T[K] }', 'MyMap<number[]>', ARRAY_BRANCH],
+]) {
+  markerBranchCase({
+    label: `type markers: ${ label }`,
+    code: `${ IS_MUTABLE }\ntype MyMap<T> = ${ alias };\ndeclare const q: IsMutable<${ applied }>;\nconst v = q;`,
+    want,
+  });
+}
+
+// a higher-kinded application stamps the inner on the BOUND type; rebuilding it from the
+// identity fields alone drops whatever markers the bound already carried
+markerBranchCase({
+  label: 'type markers: a higher-kinded application keeps the bound type markers',
+  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\ntype Apply<F, X> = F<X>;'
+    + '\ndeclare const q: IsMutable<Apply<ReadonlySet, number>>;\nconst v = q;',
+  want: STRING_BRANCH,
+});
+markerBranchCase({
+  label: 'type markers: control - a higher-kinded application of the mutable container',
+  code: 'type IsMutable<T> = T extends Set<number> ? number[] : string;\ntype Apply<F, X> = F<X>;'
+    + '\ndeclare const q: IsMutable<Apply<Set, number>>;\nconst v = q;',
+  want: ARRAY_BRANCH,
+});
+
+// --- One shadow gate before any built-in name recognition ---
+
+// a user DECLARATION or a type PARAMETER of the same name outranks the built-in reading. the
+// utility switch had no gate at all, so a user `Awaited` / a parameter named `Record` answered
+// with the utility's verdict for a value the source says is an array
+for (const [label, code] of [
+  ['a user alias named `Record`', 'type Record<K, V> = V[];\ndeclare const q: Record<string, number>;\nconst v = q;'],
+  ['a user alias named `Awaited`', 'type Awaited<T> = T[];\ndeclare const q: Awaited<number>;\nconst v = q;'],
+  ['a user alias named `NonNullable`', 'type NonNullable<T> = T[];\ndeclare const q: NonNullable<number>;\nconst v = q;'],
+  ['a user alias named `Exclude`', 'type Exclude<A, B> = A[];\ndeclare const q: Exclude<number, string>;\nconst v = q;'],
+  ['a user alias named `PropertyKey`', 'type PropertyKey = number[];\ndeclare const q: PropertyKey;\nconst v = q;'],
+  ['a parameter named `Record`', 'declare function f<Record extends number[]>(x: Record): Record;\ndeclare const q: number[];\nconst v = f(q);'],
+  ['a parameter named `Partial`', 'declare function f<Partial extends number[]>(x: Partial): Partial;\ndeclare const q: number[];\nconst v = f(q);'],
+]) {
+  markerBranchCase({ label: `shadow gate: ${ label } outranks the utility`, code, want: ARRAY_BRANCH });
+}
+
+// the real utilities must keep answering as before, and a QUALIFIED reference names a namespace
+// member that no bare declaration competes with
+markerBranchCase({
+  label: 'shadow gate: control - the real `NonNullable<>` still strips',
+  code: 'declare const q: NonNullable<number[] | null>;\nconst v = q;',
+  want: ARRAY_BRANCH,
+});
+markerBranchCase({
+  label: 'shadow gate: control - the real `Awaited<>` still unwraps',
+  code: 'declare const q: Awaited<Promise<number[]>>;\nconst v = q;',
+  want: ARRAY_BRANCH,
+});
+markerBranchCase({
+  label: 'shadow gate: control - a qualified reference is not shadowed',
+  code: 'namespace NS { export type Partial = number[]; }\ndeclare function f<Partial>(): NS.Partial;\nconst v = f();',
+  want: ARRAY_BRANCH,
+});
+
+// --- One value-vs-ambient gate, one identity-static answer, one union fold ---
+
+// a nearer VALUE binding is what a call really reaches: the ambient declaration of the same
+// name is only in play when nothing shadows it. the `const` and local-class forms already
+// resolved through their own initializers - the PARAMETER form had no initializer to walk and
+// fell through to the ambient probe, which answered with the wrong family
+for (const [label, code, want] of [
+  ['a local const shadows `declare function`',
+    "declare function make(): number[];\nfunction probe() {\n  const make = () => 'abc';\n  const v = make();\n}", { primitive: true, kind: 'string' }],
+  ['a PARAMETER shadows `declare function`',
+    'declare function make(): number[];\nfunction probe(make: () => string) {\n  const v = make();\n}', { primitive: true, kind: 'string' }],
+  ['control - nothing shadows the ambient declaration',
+    'declare function make(): number[];\nfunction probe() {\n  const v = make();\n}', { primitive: false, ctor: 'Array' }],
+]) {
+  markerBranchCase({ label: `ambient gate: ${ label }`, code, want });
+}
+
+// an identity static (`returnsArgument`) returns its argument, so an UNRESOLVABLE argument makes
+// the call equally unresolvable. the registry's generic `Object` hint is not a harmless
+// approximation there - an Object hint suppresses the instance polyfill outright
+runBoth('identity statics: an unresolvable argument is not an Object',
+  'declare const o: any;\nconst v = Object.freeze(o);',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (type) return fail(lbl, `got ${ type.primitive ? type.type : type.constructor }, want an unresolved receiver`);
+    pass();
+  });
+
+markerBranchCase({
+  label: 'identity statics: control - a resolvable argument still narrows',
+  code: 'const v = Object.freeze([1, 2]);',
+  want: { primitive: false, ctor: 'Array' },
+});
+markerBranchCase({
+  label: 'identity statics: control - an absent slot keeps the declared hint',
+  code: 'const v = Object.freeze();',
+  want: { primitive: false, ctor: 'Object' },
+});
+
+// the deferred-read union folds through the CANONICAL fold, so a disagreement short-circuits
+// instead of letting the next arm re-seed the accumulator off the null `commonType` answered.
+// the position of the clash must not decide the answer
+for (const [label, writes, want] of [
+  ['a clash in the MIDDLE bails the whole set', ["v = 'abc';", 'v = [3, 4];'], null],
+  ['a clash LAST bails too', ['v = [3, 4];', "v = 'abc';"], null],
+  ['four arms with the clash buried still bail', ["v = 'a';", 'v = [3];', 'v = [4];'], null],
+  ['control - arms that all agree still narrow', ['v = [3, 4];', 'v = [5];'], { primitive: false, ctor: 'Array' }],
+]) {
+  const code = `let v = [1, 2];\nfunction read() { const seen = v; }\n${ writes.join('\n') }\nread();`;
+  runBoth(`deferred union: ${ label }`, code, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'seen');
+    if (!decl) return fail(lbl, 'no `seen` declarator');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (want === null) {
+      if (type) return fail(lbl, `got ${ type.primitive ? type.type : type.constructor }, want a bailed fold`);
+      return pass();
+    }
+    checkType(lbl, type, want);
+  });
+}
+
+// --- Siblings of the marker / ambient roots (defense cycle) ---
+
+// a modifier wrapper over a TUPLE changes its ELEMENTS exactly as it changes an object's members,
+// and the tuple walk peels the wrapper in two places of its own
+for (const [label, alias, index, want] of [
+  ['`Partial<>` over a tuple marks its elements', 'Partial<[number[], string]>', 0, true],
+  ['control - the bare tuple element stays required', '[number[], string]', 0, false],
+  ['`Required<>` over a tuple strips the element `?`', 'Required<[string, (number[])?]>', 1, false],
+  ['control - the bare optional element keeps its `?`', '[string, (number[])?]', 1, true],
+  ['`Readonly<>` is not a member-value marker on a tuple', 'Readonly<[number[], string]>', 0, false],
+]) {
+  memberMarkerCase({
+    label: `tuple markers: ${ label }`,
+    code: `type P = ${ alias };\ndeclare const q: P[${ index }];\nconst v = q;`,
+    want,
+  });
+}
+
+// ONE `unwrapPassthroughWrapper` hop can cross SEVERAL wrappers: the Awaited walker peels through
+// structure-preserving wrappers itself, so a top-level-only read of the delta answers for neither
+memberMarkerCase({
+  label: 'passthrough delta: `Awaited<Partial<I>>` keeps the Partial delta',
+  code: 'interface I { a: number[] }\ndeclare const o: Awaited<Partial<I>>;\nconst v = o.a;',
+  want: true,
+});
+memberMarkerCase({
+  label: 'passthrough delta: control - `Awaited<I>` adds nothing',
+  code: 'interface I { a: number[] }\ndeclare const o: Awaited<I>;\nconst v = o.a;',
+  want: false,
+});
+memberMarkerCase({
+  label: 'passthrough delta: `Awaited<Required<I>>` strips it again',
+  code: 'interface I { a?: number[] }\ndeclare const o: Awaited<Required<I>>;\nconst v = o.a;',
+  want: false,
+});
+
+// the value-vs-ambient gate covers the CLASS lookups too, and must NOT read an overload
+// implementation as a shadow of its own heads - they are one declaration entity, and babel
+// registers only the impl as the binding
+// a parameter-shadowed ambient class declines rather than answering with the parameter's own
+// construct signature - the safe direction, and the point is that it no longer answers with the
+// AMBIENT one
+runBoth('ambient gate: a parameter shadows `declare class`',
+  'declare class H { pick(): number[] }\nfunction f(H: { new (): { pick(): string } }) {\n  const v = new H().pick();\n}',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+    if (type && !type.primitive && type.constructor === 'Array') {
+      return fail(lbl, 'answered with the SHADOWED ambient class');
+    }
+    pass();
+  });
+
+for (const [label, code, want] of [
+  ['a local class shadows `declare class`',
+    "declare class H { pick(): number[] }\nfunction f() {\n  class H { pick() { return 'abc'; } }\n  const v = new H().pick();\n}",
+    { primitive: true, kind: 'string' }],
+  ['control - nothing shadows the ambient class',
+    'declare class H { pick(): number[] }\nfunction f() {\n  const v = new H().pick();\n}',
+    { primitive: false, ctor: 'Array' }],
+  ['control - an overload IMPLEMENTATION is not a shadow of its heads',
+    'function pick(): number[];\nfunction pick() { return [1, 2]; }\nconst v = pick();',
+    { primitive: false, ctor: 'Array' }],
+]) {
+  markerBranchCase({ label: `ambient gate: ${ label }`, code, want });
+}
+
+// the member-LIST flag rewriter is a SEPARATE channel from the per-annotation one: the read path
+// carries the delta as an accumulator, while consumers that iterate the whole member list
+// (the keyof-self value folds, on both the annotation and the runtime side) read the flag off
+// the members themselves. neutralising it moved neither suite until these cases existed
+for (const [label, object, want] of [
+  ['`Partial<>` reaches the keyof-self value fold', 'Partial<I>', true],
+  ['control - the bare interface does not', 'I', false],
+]) {
+  memberMarkerCase({
+    label: `member-list delta: ${ label }`,
+    code: `interface I { a: number[] }\ndeclare const q: ${ object }[keyof ${ object }];\nconst v = q;`,
+    want,
+  });
+}
+for (const [label, object, want] of [
+  ['`Required<>` strips it on the same fold', 'Required<I>', false],
+  ['control - the optional member keeps it', 'I', true],
+]) {
+  memberMarkerCase({
+    label: `member-list delta: ${ label }`,
+    code: `interface I { a?: number[] }\ndeclare const q: ${ object }[keyof ${ object }];\nconst v = q;`,
+    want,
+  });
+}
+memberMarkerCase({
+  label: 'member-list delta: a hand-written mapped `?` reaches it too',
+  code: 'interface I { a: number[] }\ntype M = { [K in keyof I]?: I[K] };\ndeclare const q: M[keyof M];\nconst v = q;',
+  want: true,
+});
+
+// the tuple / array ELEMENT return is a member return like any other and owes the wrapper delta -
+// a RUNTIME index read reaches it by a different route than the type-level `P[0]` above, which is
+// why the type-level lock alone left it open
+memberMarkerCase({
+  label: 'tuple markers: a RUNTIME index read carries the wrapper delta',
+  code: 'const t: Partial<[number[], string]> = [];\nconst v = t[0];',
+  want: true,
+});
+memberMarkerCase({
+  label: 'tuple markers: control - a runtime index read of the bare tuple does not',
+  code: 'const t: [number[], string] = [[1], "x"];\nconst v = t[0];',
+  want: false,
+});
+// ... and with NEITHER a wrapper delta nor a member flag the annotation is left alone, so a slot's
+// own source-level `?` survives: `optional: false` is a REMOVAL, not "nothing known"
+memberMarkerCase({
+  label: 'tuple markers: a slot own `?` survives an absent delta',
+  code: 'const t: [(number[])?] = [];\nconst v = t[0];',
+  want: true,
+});
+
+// the passthrough hop crosses whatever the Awaited walker crosses - Promise layers and alias hops
+// included - and stops where the peel stopped. a walk bounded only by the SYNTACTIC wrapper chain
+// answered for none of the layers behind a Promise, and a walk with no endpoint would apply a
+// wrapper the peel never reached
+for (const [label, annotation, want] of [
+  ['a wrapper behind a Promise layer is crossed', 'Awaited<Promise<Partial<I>>>', true],
+  ['a wrapper behind an alias hop is crossed', 'Awaited<AliasedPartial>', true],
+  ['control - no wrapper behind the Promise', 'Awaited<Promise<I>>', false],
+  // the endpoint bound itself is not lockable here: for a wrapper to sit BELOW where the peel
+  // stopped, it has to be inside a node the peel refused to enter - and the member is then
+  // unreachable too, so the leak has no observable. the bound stays a defensive invariant,
+  // stated at the walk
+]) {
+  memberMarkerCase({
+    label: `passthrough delta: ${ label }`,
+    code: 'interface I { a: number[] }\ntype AliasedPartial = Partial<I>;'
+      + `\ndeclare const o: ${ annotation };\nconst v = (o as any).a;`,
+    want,
+  });
+}
 
 finish();
