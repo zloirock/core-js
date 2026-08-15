@@ -4,7 +4,7 @@
 // handlers here, so the emission decisions stay single-sourced. spans several sibling modules'
 // domains (members, destructure, globals, annotations) on purpose: homing it in any one of them
 // would add a cross-import between siblings, and the emitters are its only consumers
-import { checkTypeAnnotations, walkTypeAnnotationGlobals } from './annotations.js';
+import { checkTypeAnnotations, typeOnlyImportShadows, walkTypeAnnotationGlobals } from './annotations.js';
 import { collectDestructureUnionCandidates } from './destructure.js';
 import { isKnownGlobalName } from './globals.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
@@ -115,8 +115,14 @@ export function createUsageHandlerCore({
   // declarations (`declare const Map`) DON'T shadow (binding is tsc-elided); TS-runtime
   // declarations (`enum Map`, `namespace Map`) DO shadow (resolved via path ancestor walk)
   function annotationGlobal(path) {
-    return name => {
+    return (name, hostType) => {
       if (adapter.hasBinding(path.scope, name, path)) return;
+      // a TYPE position asks a different question than a value one, and `hasBinding` answers the
+      // value one: it deliberately drops a type-only import because tsc elides it, so a VALUE of
+      // that name really is the global. the same import is precisely what shadows the global as a
+      // TYPE - `import type { Set } from 'immutable'` makes `x: Set<number>` name immutable's Set,
+      // and pulling es.set.* in for it polyfills a global the annotation never named
+      if (typeOnlyImportShadows({ adapter, scope: path.scope, name, path, hostType })) return;
       onUsage({ kind: 'global', name }, path);
     };
   }

@@ -26,6 +26,7 @@ import {
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
+  importBindingView,
   directiveValue,
   extractIndirectRequireSEPrefix,
   findFunctionScopeVarInPath,
@@ -1499,6 +1500,34 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
   check('usableAliasInfo/empty unguarded record still passes', usableAliasInfo(empty), empty);
   check('usableAliasInfo/consumer field of a declined record', usableAliasInfo(guarded)?.hint ?? null, null);
   check('usableAliasInfo/consumer field of an accepted record', usableAliasInfo(open)?.hint ?? null, 'globalThis');
+}
+
+// --- import-binding view: the type-only spelling lives on either side ---
+// a specifier under `import type { X }` keeps its OWN kind 'value', so reading node-then-parent
+// through a plain `??` stops at that 'value' and the binding reads as a runtime import - the exact
+// shape a type-space shadow check asks about
+{
+  function decl(kind) {
+    return { type: 'ImportDeclaration', importKind: kind, source: { value: 'immutable' } };
+  }
+  function named(specKind = 'value') {
+    return { type: 'ImportSpecifier', importKind: specKind };
+  }
+  const rows = [
+    ['import type { X }', named(), decl('type'), 'type'],
+    ['import { type X }', named('type'), decl('value'), 'type'],
+    ['import type X (default)', { type: 'ImportDefaultSpecifier' }, decl('type'), 'type'],
+    ['flow import typeof { X }', named(), decl('typeof'), 'typeof'],
+    ['plain value import', named(), decl('value'), 'value'],
+  ];
+  for (const [label, node, parent, want] of rows) {
+    check(`importBindingView/${ label } reads as ${ want }`, importBindingView(node, parent).importKind, want);
+    check(`importBindingView/${ label } keeps its source`, importBindingView(node, parent).importSource, 'immutable');
+  }
+  // a non-import binding carries neither field, whatever its own shape says
+  const view = importBindingView({ type: 'VariableDeclarator', importKind: 'type' }, decl('type'));
+  check('importBindingView/non-import binding has no kind', view.importKind, null);
+  check('importBindingView/non-import binding has no source', view.importSource, null);
 }
 
 finish();

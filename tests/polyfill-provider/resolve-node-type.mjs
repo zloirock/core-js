@@ -161,7 +161,13 @@ const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAg
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
 // fall back to that and corrupt the comparison. use `ctor` instead
+const TYPE_EXPECTATION_KEYS = new Set(['primitive', 'kind', 'ctor']);
 function checkType(label, type, expected) {
+  // an expectation key this function does not read is silently satisfied - and the three it does
+  // read are all easy to mis-spell into a real field name (`constructor` for `ctor`, `type` for
+  // `kind`), which turns the whole case green while asserting nothing. reject the typo instead
+  const unknown = Object.keys(expected).filter(key => !TYPE_EXPECTATION_KEYS.has(key));
+  if (unknown.length) return fail(label, `unknown expectation key(s): ${ unknown.join(', ') }`);
   if (!type) return fail(label, 'got null type');
   const { primitive, kind, ctor } = expected;
   if (primitive !== undefined && type.primitive !== primitive) {
@@ -10407,5 +10413,220 @@ for (const [label, annotation, want] of [
     want,
   });
 }
+
+// --- containers a parser may not open a scope for ---
+// a namespace body is a lexical container on both parsers but a SCOPE level on only one, and a
+// switch statement hosts its declarations under `cases` rather than a body. either gap makes the
+// declaration walk answer with an outer namesake or with nothing at all - the wrong family, or a
+// member type that vanishes - so each row states which declaration the reference must reach
+function checkContainerLocalType(label, code, expected) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'items');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member), expected);
+  });
+}
+
+const ARRAY_MEMBER = { ctor: 'Array' };
+const STRING_MEMBER = { primitive: true, kind: 'string' };
+
+for (const [label, body] of [
+  ['parameter annotation', 'export function f(v: Inner) { return v.items; }'],
+  ['local const annotation', 'const v: Inner = null as any;\n  export const r = v.items;'],
+  ['ambient const annotation', 'declare const v: Inner;\n  export const r = v.items;'],
+  ['ambient function return', 'declare function make(): Inner;\n  export const r = make().items;'],
+  ['local function return', 'function make(): Inner { return null as any; }\n  export const r = make().items;'],
+]) {
+  checkContainerLocalType(`namespace-local interface reached through a ${ label }`,
+    `namespace NS {\n  interface Inner { items: number[] }\n  ${ body }\n}`, ARRAY_MEMBER);
+}
+
+// the declaration KINDS the walk leaf-matches, and the depths it has to cross
+for (const [label, decl] of [
+  ['interface', 'interface Inner { items: number[] }'],
+  ['type alias', 'type Inner = { items: number[] };'],
+  ['class', 'class Inner { items: number[] = []; }'],
+]) {
+  checkContainerLocalType(`namespace-local ${ label } outranks an outer namesake`,
+    `interface Inner { items: string }\nnamespace NS {\n  ${ decl }\n  export function f(v: Inner) { return v.items; }\n}`,
+    ARRAY_MEMBER);
+}
+
+// the same shadowing, reached through the routes that re-resolve the type NAME after the
+// annotation itself was read - each of them has to answer in the container the annotation was
+// written in, not in the one the value is read from
+for (const [label, body] of [
+  ['an ambient const', 'declare const v: Inner;\n  export const r = v.items;'],
+  ['an ambient function return', 'declare function make(): Inner;\n  export const r = make().items;'],
+  ['a local const annotation', 'const v: Inner = null as any;\n  export const r = v.items;'],
+  ['merged interface siblings', 'interface Inner { tag: number }\n  declare const v: Inner;\n  export const r = v.items;'],
+]) {
+  checkContainerLocalType(`namespace-local declaration outranks an outer namesake through ${ label }`,
+    `interface Inner { items: string }\nnamespace NS {\n  interface Inner { items: number[] }\n  ${ body }\n}`,
+    ARRAY_MEMBER);
+}
+
+// the reverse pairing of the same rule, and the reason the anchor is the DECLARATION rather than
+// the use: a value declared outside keeps the outer type however deep inside a namespace it is read
+for (const [label, decl, read] of [
+  ['an ambient const', 'declare const w: I;', 'w.items'],
+  ['an ambient function return', 'declare function make(): I;', 'make().items'],
+  ['a local const annotation', 'const w: I = null as any;', 'w.items'],
+]) {
+  checkContainerLocalType(`an outer declaration read inside a namespace keeps its own type through ${ label }`,
+    `interface I { items: string }\n${ decl }\nnamespace A {\n  interface I { items: number[] }\n  export const r = ${ read };\n}`,
+    STRING_MEMBER);
+}
+
+// a function BODY is not a container the scope walk is blind to - the walk drills into a
+// function's block itself - so the anchor lane must not re-answer for one. it did while the
+// stop-criterion was scope OWNERSHIP: a block owns no scope, its function does
+runBoth('a block-local declaration does not outrank the class an outer annotation names',
+  `
+    declare class Base { constructor(a: number[]); }
+    class Derived extends Base {}
+    function shadowed() {
+      class Base { constructor(b: string); }
+      type P = ConstructorParameters<typeof Derived>;
+      const picked: P[0] = null as any;
+      return picked;
+    }
+  `, (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'picked');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), ARRAY_MEMBER);
+  });
+
+checkContainerLocalType('namespace-local declaration wins from a nested namespace',
+  `
+    interface Inner { items: string }
+    namespace A { export namespace B { interface Inner { items: number[] }
+      export function f(v: Inner) { return v.items; } } }
+  `, ARRAY_MEMBER);
+
+checkContainerLocalType('a declaration used before its namespace-local declaration still reaches it',
+  `
+    interface Inner { items: string }
+    namespace NS { export function f(v: Inner) { return v.items; }
+      interface Inner { items: number[] } }
+  `, ARRAY_MEMBER);
+
+// merged interface siblings are collected by the OTHER lookup lane, which needs the same
+// compensation - with only one of the two lanes fixed the member list comes back empty
+checkContainerLocalType('merged namespace-local interface siblings are all collected',
+  `
+    namespace NS { interface Inner { tag: number }
+      interface Inner { items: number[] }
+      declare const v: Inner;
+      export const r = v.items; }
+  `, ARRAY_MEMBER);
+
+// negatives: a container that does NOT enclose the reference must not contribute
+checkContainerLocalType('a sibling namespace does not lend its declaration',
+  `
+    namespace Other { export interface Inner { items: string } }
+    namespace NS { interface Inner { items: number[] }
+      export function f(v: Inner) { return v.items; } }
+  `, ARRAY_MEMBER);
+
+checkContainerLocalType('an outer annotation keeps the outer declaration when read inside a namespace',
+  `
+    interface I { items: string }
+    declare const w: I;
+    namespace A { interface I { items: number[] }
+      export const r = w.items; }
+  `, STRING_MEMBER);
+
+checkContainerLocalType('an outer ambient signature keeps the outer declaration inside a namespace',
+  `
+    interface I { items: string }
+    declare function make(): I;
+    namespace A { interface I { items: number[] }
+      export const r = make().items; }
+  `, STRING_MEMBER);
+
+// a switch statement is ONE block scope spanning every case, so an unbraced case's declaration
+// covers the whole statement - the braced twin passes either way and pins that they agree
+for (const [label, open, close] of [['braced', '{', '}'], ['unbraced', '', '']]) {
+  checkContainerLocalType(`a declaration in an ${ label } switch case shadows an outer namesake`,
+    `
+      interface Inner { items: string }
+      declare const k: number;
+      switch (k) { case 1: ${ open }
+        interface Inner { items: number[] }
+        declare const v: Inner;
+        globalThis.out = v.items;
+      ${ close } }
+    `, ARRAY_MEMBER);
+}
+
+// --- a destructured name binds a MEMBER, not its container ---
+// the annotation lane used to hand back the container's own annotation for a destructured binding,
+// so a call through the name found no return type on it: `const { m } = i; m()` resolved generic
+// while the very same `i.m()` resolved precisely. property members already worked - they are the
+// control that shows the gap was the CALL half, not destructuring itself
+function checkDestructuredCall(label, code, expected, callee = 'm') {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.name === callee);
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), expected);
+  });
+}
+
+for (const [label, code, callee] of [
+  ['method signature', 'interface I { m(): number[]; }\ndeclare const i: I;\nconst { m } = i;\nconst v = m();'],
+  ['function-typed property', 'interface I { m: () => number[]; }\ndeclare const i: I;\nconst { m } = i;\nconst v = m();'],
+  ['renamed binding', 'interface I { m(): number[]; }\ndeclare const i: I;\nconst { m: got } = i;\nconst v = got();', 'got'],
+  ['type alias container', 'type I = { m(): number[] };\ndeclare const i: I;\nconst { m } = i;\nconst v = m();'],
+  ['nested pattern', 'interface I { inner: { m(): number[] }; }\ndeclare const i: I;\nconst { inner: { m } } = i;\nconst v = m();'],
+  ['array pattern', 'declare const t: [() => number[], string];\nconst [m] = t;\nconst v = m();'],
+  ['call initializer', 'interface I { m(): number[]; }\ndeclare function make(): I;\nconst { m } = make();\nconst v = m();'],
+]) {
+  checkDestructuredCall(`destructured ${ label } keeps its return type`, code, { ctor: 'Array' }, callee);
+}
+
+// the renamed case above must read the KEY, not the local name - a walk that used the binding name
+// would miss the member entirely, so a string-returning twin pins which side is read
+checkDestructuredCall('destructured member reads the key, not the local name',
+  'interface I { m(): string; other(): number[]; }\ndeclare const i: I;\nconst { m } = i;\nconst v = m();',
+  { primitive: true, kind: 'string' });
+
+// an OVERLOADED member has no single answer without the call site, and this lane resolves the NAME.
+// picking the first head is a guess that usage-pure pays for with a throw, so the walk hands the
+// container back and the generic dispatch serves it - the direct call keeps its discrimination
+runBoth('a destructured OVERLOADED member is not narrowed to one head',
+  `
+    interface Api { m(x: string): string; m(x: number): number[]; }
+    declare const api: Api;
+    const { m } = api;
+    const v = m(1);
+  `, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.name === 'm');
+    const type = adapter.makeResolver().resolveNodeType(call);
+    check(lbl, type === null || type.constructor === undefined, true);
+  });
+
+runBoth('the same overloads still discriminate on a DIRECT call',
+  `
+    interface Api { m(x: string): string; m(x: number): number[]; }
+    declare const api: Api;
+    const v = api.m(1);
+  `, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.property?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { ctor: 'Array' });
+  });
+
+runBoth('a destructured parameter member keeps its return type',
+  'interface I { m(): number[]; }\nfunction f({ m }: I) { const v = m(); return v; }',
+  (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression', p => p.node.callee?.name === 'm');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(call), { ctor: 'Array' });
+  });
+
+// a rest slice names no single member, so the walk hands the container back rather than guessing -
+// the negative that keeps the descent from reading the array walker's negative-index sentinel
+runBoth('a rest-slice binding is not descended into',
+  'declare const t: [() => number[], () => string];\nconst [, ...rest] = t;\nconst v = rest;',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { ctor: 'Array' });
+  });
 
 finish();
