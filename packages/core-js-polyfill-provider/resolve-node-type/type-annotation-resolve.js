@@ -14,19 +14,35 @@
 // and `resolveNonNullableAnnotation` live in the factory (they're consumed both inside this
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
-import { $Object, $Primitive, literalNodeValue, firstTypeParamIsInner } from './base.js';
+import {
+  $Object, $Primitive, INTRINSIC_STRING_TRANSFORMERS, literalNodeValue, firstTypeParamIsInner,
+} from './base.js';
 import {
   isMethodShapeMember,
   isOpenKeywordAnnotation,
   isUnionType,
   literalTypeValueNode,
+  markMappedReadonly,
+  markReadonlyCollection,
   peelTSParenthesized,
-  readonlyCollectionBase,
   typeRefSegments,
+  withMemberModifiers,
 } from './ast-shapes.js';
 import { getTypeArgs, propertyKeyName, singleQuasiString } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
+
+// the intrinsic string transformers are COMPUTABLE on a literal argument, and TS keeps the result
+// a literal type: `Uppercase<'a'>` is `'A'`, not `string`. dropping the stamp makes every
+// conditional that discriminates on it (`Uppercase<'a'> extends 'A'`) read as wide-vs-narrow and
+// take the FALSE branch - the wrong family, silently. the table is the one the mapped-rename lane
+// evaluates its `as` clauses with. a folded literal UNION is opaque: its members are
+// unrecoverable, so there is nothing to transform and the result stays a bare keyword
+function intrinsicStringTransform(name, resolved) {
+  const literal = resolved?.primitive && !resolved.literalUnion && typeof resolved.literal === 'string'
+    ? INTRINSIC_STRING_TRANSFORMERS[name](resolved.literal) : undefined;
+  return new $Primitive('string', literal);
+}
 
 export function createTypeAnnotationResolve({
   t,
@@ -161,6 +177,20 @@ export function createTypeAnnotationResolve({
     // never matches a parameter. only the CONTAINER lookup is suppressed: the parameter still
     // resolves through its own constraint / default further down, as TS reads it
     const shadowedByTypeParam = Boolean(findTypeParameter(name, scope));
+    // ONE shadow gate for every UTILITY-name recognition below - the structure-preserving branch
+    // spelled half of it inline and the utility switch had none at all, so `type Awaited<T> = T[]`
+    // and `f<Record>` were answered by the built-in reading of the name instead of by what the
+    // source declared. asked on the SOURCE spelling (the alias folding below rewrites `name`) and
+    // computed at most once: a declaration lookup is not free, and only a name the tables actually
+    // claim ever asks. containers stay on the type-PARAMETER half alone, matching the member-side
+    // twin - a `interface Array<T>` augmentation must not stop `Array` being an Array
+    // read on the SOURCE spelling too, before the alias folding below rewrites `name`. only an
+    // UNQUALIFIED name can be shadowed: `NS.Partial` names a namespace member that no bare
+    // parameter or top-level declaration competes with - and asking the declaration lookup with a
+    // dotted string as ONE segment collides in its cache with the real `['NS', 'Partial']` walk,
+    // answering the later lookup with this one's miss. the lookup is memoized per (scope, name)
+    const shadowedUtilityName = !name.includes('.')
+      && (shadowedByTypeParam || Boolean(findTypeDeclaration([name], scope)));
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
@@ -192,7 +222,7 @@ export function createTypeAnnotationResolve({
     // a USER declaration of the same name outranks the built-in wrapper, exactly as a type PARAMETER
     // does above: `interface Pick<T> { picked: number[] }` is not the global `Pick`, and resolving it
     // as one hands back the type ARGUMENT (`string`) in place of the declared shape
-    if (STRUCTURE_PRESERVING_WRAPPERS.has(name) && !findTypeDeclaration([name], scope)) {
+    if (STRUCTURE_PRESERVING_WRAPPERS.has(name) && !shadowedUtilityName) {
       const arg = firstArg();
       const resolved = resolveArg(arg, isOpenKeywordAnnotation(arg) ? null : new $Object('Object'));
       // `Readonly<collection>` is a readonly collection - tag it like `ReadonlyArray` so a conditional-
@@ -205,7 +235,7 @@ export function createTypeAnnotationResolve({
         && (resolved.constructor === 'Array' || resolved.constructor === 'Set' || resolved.constructor === 'Map')
         ? resolved.mark('readonly') : resolved;
     }
-    switch (name) {
+    if (!shadowedUtilityName) switch (name) {
       // structurally new shape from their type parameter - collapse to Object
       case 'Record':
       case '$Shape':
@@ -238,11 +268,12 @@ export function createTypeAnnotationResolve({
         }
         return new $Object('Array', inner ?? null);
       }
-      // Flow: $Keys
       case 'Uppercase':
       case 'Lowercase':
       case 'Capitalize':
       case 'Uncapitalize':
+        return intrinsicStringTransform(name, resolveArg(firstArg(), null));
+      // Flow: $Keys
       case '$Keys':
         return new $Primitive('string');
       // ThisParameterType<typeof fn> peels fn's `this` pseudo-param type, so a method on the
@@ -453,7 +484,9 @@ export function createTypeAnnotationResolve({
       // an untyped (implicit-any) member makes `T[keyof T]` include `any`, which absorbs the
       // whole union - a narrow to the surviving typed members would be unsound
       if (!annotation) return null;
-      valueAnnotations.push(annotation);
+      // an optional member contributes `undefined` to the value union exactly as a `| undefined`
+      // arm would; folding the bare annotation loses it and the union reads always-present
+      valueAnnotations.push(withMemberModifiers(annotation, { optional: Boolean(m.optional) }));
     }
     if (!valueAnnotations.length) return null;
     return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, scope, depth + 1));
@@ -536,8 +569,7 @@ export function createTypeAnnotationResolve({
   // resolution may have union-folded (`Readonly<T[] | null>`) and already carry mayBeNullish
   function resolveTypeAnnotation(node, scope, depth = 0, seen = null) {
     const result = resolveTypeAnnotationInner(node, scope, depth, seen);
-    if (result && !result.primitive && readonlyCollectionBase(node)) return result.mark('readonly');
-    return result;
+    return markReadonlyCollection(result, node);
   }
 
   function resolveTypeAnnotationInner(node, scope, depth = 0, seen = null) {
@@ -621,7 +653,8 @@ export function createTypeAnnotationResolve({
       // through to T directly; everything else is structurally opaque
       case 'TSMappedType': {
         const passthrough = unwrapMappedTypePassthrough(node);
-        return passthrough ? resolveTypeAnnotation(passthrough, scope, depth + 1, seen) : null;
+        if (!passthrough) return null;
+        return markMappedReadonly(resolveTypeAnnotation(passthrough, scope, depth + 1, seen), node);
       }
       case 'TSArrayType':
       case 'ArrayTypeAnnotation':

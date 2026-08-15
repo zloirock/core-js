@@ -9,7 +9,7 @@
 // empirically per parser - change them only with care
 import { getTypeArgs, isDeferredContextStep, isTypeAnnotationWrapper } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
-import { dropLeadingThisParam, literalNodeValue, PRIMITIVE_HINTS } from './base.js';
+import { dropLeadingThisParam, literalNodeValue, MODIFIER_WRAPPER_DELTAS, PRIMITIVE_HINTS } from './base.js';
 
 // statement list directly inside a TSModuleDeclaration. for Babel's nested form
 // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
@@ -78,13 +78,16 @@ export function readonlyCollectionBase(node) {
   if (n?.type === 'TSTypeOperator' && n.operator === 'readonly') return 'Array';
   if (n?.type !== 'TSTypeReference') return null;
   const name = typeRefName(n);
-  if (name === 'ReadonlyArray') return 'Array';
+  // `$ReadOnlyArray` is Flow's spelling of `ReadonlyArray`, and `$ReadOnly` of `Readonly` - the same
+  // types, so the same answer: a name-keyed reader that knows only the TS half tags one dialect and
+  // not the other, and a readonly-discriminating conditional then flips by which dialect wrote it
+  if (name === 'ReadonlyArray' || name === '$ReadOnlyArray') return 'Array';
   if (name === 'ReadonlySet') return 'Set';
   if (name === 'ReadonlyMap') return 'Map';
   // `Readonly<X>` is the readonly view of X - on a collection it IS that collection's readonly form
   // (`Readonly<T[]>` === `readonly T[]`, `Readonly<[T, U]>` === `readonly [T, U]`), so its base is X's
   // collection base (a tuple is array-family, matching the `readonly` operator form above)
-  if (name === 'Readonly') {
+  if (name === 'Readonly' || name === '$ReadOnly') {
     const arg = peelTSParenthesized(getTypeArgs(n)?.params?.[0]);
     if (arg?.type === 'TSTupleType') return 'Array';
     return mutableCollectionName(arg) ?? readonlyCollectionBase(arg);
@@ -95,6 +98,93 @@ export function readonlyCollectionBase(node) {
 // is the type node a READONLY array shape (`readonly T[]` / `ReadonlyArray<T>`)?
 export function isReadonlyArrayType(node) {
   return readonlyCollectionBase(node) === 'Array';
+}
+
+// --- Member modifier markers ---
+
+// the descriptor-flag delta a modifier wrapper (`Partial<T>` / `Required<T>` / ...) applies to
+// the members it passes through, or null for a node that is not one. the peel that unwraps such
+// a wrapper answers only WHERE to continue; this answers WHAT it changed, off the same table, so
+// the two cannot disagree about membership
+export function modifierWrapperDelta(node) {
+  const n = peelTSParenthesized(isTypeAnnotationWrapper(node) ? node.typeAnnotation : node);
+  // a mapped type spells the same delta with its own `?` modifier, and the passthrough peel
+  // (`{ [K in keyof T]?: T[K] }` -> T) discards it exactly like the utility wrapper does
+  if (n?.type === 'TSMappedType') return mappedModifierDelta(n);
+  return MODIFIER_WRAPPER_DELTAS.get(typeRefName(n)) ?? null;
+}
+
+// the readonly half of a mapped type's modifiers, applied to an already-resolved Type. a
+// HOMOMORPHIC readonly mapped type is the readonly VIEW of its source - `{ readonly [K in keyof
+// T]: T[K] }` over a collection is that collection's readonly form, the same type `Readonly<T>`
+// spells - so it carries the same marker, and `-readonly` takes it back off. both resolution
+// lanes call this at their mapped-type arm, where the passthrough is already in hand; the
+// name-keyed `readonlyCollectionBase` cannot answer it, since the source is behind a type param
+export function markMappedReadonly(resolved, node) {
+  const { readonly } = mappedModifierDelta(node);
+  if (!resolved || resolved.primitive || readonly === undefined) return resolved;
+  return readonly ? resolved.mark('readonly') : resolved.unmark('readonly');
+}
+
+// the readonly post-pass BOTH resolution lanes run on their own result: a readonly-collection
+// SPELLING resolves to the mutable constructor, and only this marker keeps a readonly-discriminating
+// conditional on the false branch. the plain and substitution lanes carried a byte-identical copy
+// each; one name so a new readonly spelling reaches both by construction
+export function markReadonlyCollection(resolved, node) {
+  return resolved && !resolved.primitive && readonlyCollectionBase(node) ? resolved.mark('readonly') : resolved;
+}
+
+// a mapped type's modifier slots: `?` / `+?` add, `-?` remove, absent leaves the source member's
+// own flag - and the same three spellings for `readonly`. parsers spell the presence form as
+// `true` or `'+'`, and they disagree on ABSENCE: babel leaves the slot undefined where oxc writes
+// `false`. both mean "no modifier", so neither may be read as a REMOVAL - only the literal `'-'`
+// is one. a `Boolean(modifier)` shortcut here inverts three cases on one parser and none on the
+// other. the two flags answer different questions and are read by different consumers:
+// `optional` is member-scoped (the descriptor), `readonly` is the collection-view marker a
+// homomorphic mapped type shares with `Readonly<T>`
+export function mappedModifierDelta(node) {
+  function flag(modifier) {
+    if (modifier === '-') return false;
+    return modifier === true || modifier === '+' ? true : undefined;
+  }
+  return { optional: flag(node?.optional), readonly: flag(node?.readonly) };
+}
+
+// compose two deltas walked outside-in: `Partial<Required<T>>` reads Partial LAST, so the
+// OUTER wrapper wins on any flag both name. an absent flag defers to the inner one
+export function composeModifierDeltas(outer, inner) {
+  if (!outer) return inner;
+  if (!inner) return outer;
+  return { ...inner, ...outer };
+}
+
+// the ONE marker writer of the ANNOTATION channel: a member's `optional` descriptor flag lives
+// on the member NODE, but every consumer downstream reads a resolved Type - so the flag travels
+// as a synthetic `TSOptionalType` that `resolveTypeAnnotation` already stamps into `mayBeNullish`.
+// two RESOLVED-side twins reach the same marker from the other end (`markFieldOptional` and the
+// merged-interface arm in `class-object-member`, both `.mark('mayBeNullish')` on a finished Type);
+// they cannot route through here because they hold a Type, not an annotation.
+// producing a member / parameter / element annotation without routing it through here is how a
+// peel silently drops the flag: `(x ?? 'fallback').at(0)` then folds to the left operand and
+// emits a type-specific helper for a value that may be the right one at runtime
+export function withMemberModifiers(annotation, { optional = false } = {}) {
+  if (!annotation) return annotation;
+  // `optional: false` is a REMOVAL, not merely "nothing to add": a tuple slot spells its own `?`
+  // as a source-level TSOptionalType, and `Required<[A, B?]>` has to take that node back off.
+  // on the member lanes the flag lives on the member rather than the annotation, so the strip is
+  // a no-op there and the one contract serves both
+  if (!optional) return annotation.type === 'TSOptionalType' ? annotation.typeAnnotation : annotation;
+  return annotation.type === 'TSOptionalType' ? annotation : { type: 'TSOptionalType', typeAnnotation: annotation };
+}
+
+// the same delta applied to a member LIST instead of one annotation - the shape `getTypeMembers`
+// hands back, where the flag still sits on the descriptor. members are shared AST nodes, so the
+// re-flagged ones are shallow copies; a delta that changes nothing returns the very same list,
+// and a delta that changes something keeps every UNAFFECTED member's node identity (the array
+// itself is rebuilt either way, which no consumer keys on)
+export function applyMemberModifierDelta(members, delta) {
+  if (!members || delta?.optional === undefined) return members;
+  return members.map(m => m.optional === delta.optional ? m : { ...m, optional: delta.optional });
 }
 
 // the MUTABLE collection name a type node denotes: `T[]` / `Array<T>` -> 'Array', `Set<T>` -> 'Set',

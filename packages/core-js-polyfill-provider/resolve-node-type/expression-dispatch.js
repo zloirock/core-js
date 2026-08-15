@@ -106,8 +106,13 @@ export function createExpressionDispatch({
       // known constructor called without `new`: String(), Array(), etc.
       const known = resolveConstructorCallType(name, path);
       if (known) return known;
-      // known global function: parseInt(), parseFloat(), etc.
-      if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
+      // known global function: parseInt(), parseFloat(), etc. gated on the same mutated-slot
+      // invariant the `Object.create` arm below states and the two static-registry arms already
+      // apply: a replaced global returns whatever the patch returns, so the known narrow drops to
+      // generic. reading the slot directly handed a type-specific helper to a foreign value
+      if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name) && !isMutatedStatic('globalThis', name)) {
+        return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
+      }
     }
     // `Object.create` with a prototype that cannot dispatch (null gives a prototype-less object, any
     // other primitive throws) yields nothing a polyfill could serve - the same verdict the

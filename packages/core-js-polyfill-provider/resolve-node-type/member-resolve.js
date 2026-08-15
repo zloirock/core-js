@@ -29,7 +29,7 @@
 import { MAX_DEPTH, $Primitive, nodePathInScope } from './base.js';
 import {
   collectQualifiedSegments, isMethodShapeMember, isQualifiedNameNode, isUnionType, peelTSParenthesized,
-  typeRefName,
+  typeRefName, withMemberModifiers,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import { getTypeArgs, isMemberWriteHost, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
@@ -507,7 +507,8 @@ export function createMemberResolve({
       // an untyped (implicit-any) member makes the union `any` - mirrors the annotation-side
       // keyof-self fold: no surviving-member narrow is sound
       if (!annotation) return null;
-      valueAnnotations.push(annotation);
+      // ... and so does its optional-marker half: an optional member puts `undefined` in the union
+      valueAnnotations.push(withMemberModifiers(annotation, { optional: Boolean(m.optional) }));
     }
     if (!valueAnnotations.length) return null;
     return foldUnionTypes(valueAnnotations, p => resolveTypeAnnotation(p, param.scope));
