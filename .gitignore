@@ -8,7 +8,7 @@ node_modules/
 .DS_Store
 .idea
 
-/bundles/
+/.work/
 /docs/web/blog/
 /docs/web/changelog.md
 /docs/web/contributing.md

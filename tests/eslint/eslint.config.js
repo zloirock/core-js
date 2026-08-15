@@ -2365,6 +2365,7 @@ const globalsZX = {
 export default [
   {
     ignores: [
+      '.work/**',
       'deno/corejs/**',
       'docs/**',
       'packages/core-js-bundle/!(package.json)',
