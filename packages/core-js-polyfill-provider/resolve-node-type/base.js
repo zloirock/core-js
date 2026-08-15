@@ -445,14 +445,24 @@ export const MEMBER_ANNOTATION_SLOTS = ['typeAnnotation', 'returnType', 'value']
 // truly transparent wrappers: member set identical to first arg. modifiers like
 // `Partial` / `Readonly` only change descriptor flags (optional / readonly), not the
 // key set; `NoInfer` is fully transparent. `ThisType<T>` excluded - only meaningful
-// inside object-literal context, requires special handling
-export const TRANSPARENT_WRAPPERS = new Set([
-  'NoInfer',
-  'Partial',
-  'Readonly',
-  'Required',
-  '$ReadOnly',
+// inside object-literal context, requires special handling.
+// the value is that flag DELTA: `true` adds the modifier to every member passed through,
+// `false` removes it, an absent key leaves the member's own flag alone. membership and
+// delta are one table so a wrapper cannot be transparent without declaring what it changes -
+// peeling one without applying its delta is how `Partial<T>.a` lost its optionality.
+// only `optional` is member-scoped and therefore listed: `Readonly<T>` freezes the property
+// SLOT, and `Readonly<{ a: number[] }>['a']` is still a mutable array, so it contributes no
+// delta to the member's VALUE type. `Readonly` applied to a collection is a different
+// question (`Readonly<T[]>` === `readonly T[]`) and belongs to `readonlyCollectionBase`
+export const MODIFIER_WRAPPER_DELTAS = new Map([
+  ['NoInfer', {}],
+  ['Partial', { optional: true }],
+  ['Readonly', {}],
+  ['Required', { optional: false }],
+  ['$ReadOnly', {}],
 ]);
+
+export const TRANSPARENT_WRAPPERS = new Set(MODIFIER_WRAPPER_DELTAS.keys());
 
 // key-filtering wrappers: member set is a SUBSET of first arg's, selected by second arg.
 // when second arg is a statically-evaluable literal / literal-union, `getTypeMembers`

@@ -562,7 +562,7 @@ function createResolveNodeType(babelNodeType, t, {
   // `isAmbientFunctionNode` / `isAmbientClassNode` / `isAmbientFunctionOrClassNode` are
   // module-level consts in the cluster file - identity-stable for `ambientDeclCache`'s
   // `matchType` key
-  const nameResolutionCluster = createNameResolution({ t });
+  const nameResolutionCluster = createNameResolution({ t, getScopeBinding });
   const {
     withLookupPath,
     currentLookupPath,
@@ -1034,6 +1034,7 @@ function createResolveNodeType(babelNodeType, t, {
   ({ peelStructurePreservingWrapper, functionTypeParams } = awaitedCluster);
   const {
     unwrapPassthroughWrapper,
+    passthroughModifierDelta,
     resolveAwaitedAnnotation,
     resolveAwaitExpressionType,
     resolveIndexedAccessMemberAnnotationAST,
@@ -1765,6 +1766,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveRuntimeExpression,
     resolveInnerType,
     commonType,
+    foldUnionTypes,
     isNullishInit,
     anchorPathScope,
     isNullableOrNever,
@@ -2017,6 +2019,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveTypeAnnotation,
     functionTypeReturnAnnotation,
     unwrapPassthroughWrapper,
+    passthroughModifierDelta,
     collectInferredNames,
     dropMapKeys,
   });
