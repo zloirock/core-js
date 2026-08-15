@@ -328,3 +328,95 @@ QUnit.test('typed dispatch: a deferred read folds every reachable arm, whatever 
   mixed = 'xyz';
   assert.same(read(), 'z');
 });
+
+QUnit.test('typed dispatch: a declaration inside a namespace body serves the reference in it', assert => {
+  // a namespace body is a lexical container for one parser and a scope level for the other, so
+  // the walk that looks a declaration up could step straight past it to an outer namesake - the
+  // wrong family, which throws in a stripped realm - or miss it entirely and drop the rewrite
+  interface Items { items: string; }
+  const outerItems: Items = { items: 'abc' };
+
+  namespace Local {
+    interface Items { items: number[]; }
+    export function readParam(v: Items) {
+      return v.items.at(-1);
+    }
+    export function readIncludes(v: Items) {
+      return v.items.includes(20);
+    }
+    // read in the namespace BODY, with no function in between: there the nearest scope is
+    // already the one OUTSIDE the namespace, so reaching the local declaration is only possible
+    // by anchoring the lookup on the declaration the annotation sits on. the source is opaque on
+    // purpose - a literal answers for the annotation and the declaration is never consulted
+    const held: Items = JSON.parse('{"items":[40,50]}');
+    export const localLast = held.items.at(-1);
+  }
+
+  assert.same(Local.readParam({ items: [10, 20, 30] }), 30);
+  assert.true(Local.readIncludes({ items: [10, 20] }));
+  // the same shadowing reached through a LOCAL annotation rather than a parameter: the member
+  // walk re-resolves the type name after the annotation is read, so it has to answer in the
+  // namespace the annotation was written in. the source is opaque on purpose - a literal would
+  // answer for it and the declaration would never be consulted
+  assert.same(Local.localLast, 50);
+  // the negative: an annotation written OUTSIDE keeps its own declaration, so this receiver has
+  // to stay on the string helper - the array one would throw here in a stripped realm
+  assert.same(outerItems.items.at(-1), 'c');
+});
+
+QUnit.test('typed dispatch: an unbraced switch case declares into the whole statement', assert => {
+  // a switch statement is ONE block scope spanning every case, and its declarations hang off
+  // `cases` rather than a plain body - a walk reading only `.body` sees none of them and answers
+  // with the outer namesake instead
+  interface Row { items: string; }
+  const outerRow: Row = { items: 'xyz' };
+  const k = 1;
+  let seen: number | undefined;
+  switch (k) {
+    case 1:
+      interface Row { items: number[]; }
+      // the initializer has to be opaque to the type layer AND live at runtime: a literal - even
+      // behind an `any` annotation - answers by itself and the case-local declaration is never
+      // consulted, so the lock passes whether or not the walk reaches it
+      const row: Row = JSON.parse('{"items":[70,80,90]}');
+      seen = row.items.at(-1);
+  }
+
+  assert.same(seen, 90);
+  assert.same(outerRow.items.at(-1), 'z');
+});
+
+QUnit.test('typed dispatch: a destructured method keeps the return type of its signature', assert => {
+  // NOT a fail-before lock: before the fix this resolved to the GENERIC helper, which runs fine in
+  // a stripped realm too - the difference is only visible in the chosen helper, which the fixtures
+  // pin. this guards the other direction: a future regression that picks the wrong FAMILY here
+  // hands a string helper an array and throws where the generic one merely degraded
+  interface Api {
+    list(): number[];
+    text: () => string;
+  }
+  const api: Api = {
+    list: () => [1, 2, 3],
+    text: () => 'ab',
+  };
+  const { list, text } = api;
+
+  assert.same(list().at(-1), 3);
+  assert.same(text().padStart(3, '-'), '-ab');
+});
+
+QUnit.test('typed dispatch: an overloaded member read through a destructure stays generic', assert => {
+  // the head this lane would have picked is the WRONG one for the call that follows, and in pure a
+  // wrong head is a throw rather than a degrade - the stripped realm is where that difference shows.
+  // the direct call keeps its discrimination, so both halves are asserted side by side
+  interface Api {
+    pick(x: number): number[];
+    pick(x: string): string;
+  }
+  const api: Api = { pick: ((x: any) => (typeof x === 'number' ? [10, 20, 30] : 'abc')) as Api['pick'] };
+
+  assert.same(api.pick(1).at(-1), 30);
+  const { pick } = api;
+  assert.same(pick(1).at(-1), 30);
+  assert.same(pick('s').at(-1), 'c');
+});

@@ -24,7 +24,7 @@ import {
   nodePathInScope,
 } from './base.js';
 import { collectQualifiedSegments, isInterfaceDeclaration, isTypeAlias, moduleStatements } from './ast-shapes.js';
-import { STATEMENT_LIST_HOST_TYPES, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
+import { STATEMENT_LIST_HOST_TYPES, getDirectStatementBody, unwrapExportedDeclaration } from '../helpers/ast-patterns.js';
 
 // visitor-key list for recovering a real NodePath of a namespaced declaration via
 // `nodePathInScope` - the union of every node type `isFunctionOrClassDeclaration` /
@@ -53,6 +53,56 @@ export function isAmbientClassNode(node) {
 }
 export function isAmbientFunctionOrClassNode(node) {
   return isAmbientFunctionNode(node) || isAmbientClassNode(node);
+}
+
+// the anchor's enclosing block-like containers (TSModuleBlock / Program / BlockStatement /
+// StaticBlock), NEAREST FIRST. respects TS lexical scoping: only containers that ENCLOSE the
+// lookup site are yielded, never siblings. both decl lanes below need exactly this walk where
+// a parser opens no scope for a container, and they read different halves of one - the type
+// lane its statement array, the ambient lane its path - so they share the walk, not the read
+function * lookupPathContainers(path) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    if (!STATEMENT_LIST_HOST_TYPES.has(cur.node?.type)) continue;
+    // stop at the first container the scope walk ALREADY READS - the owner node of the nearest
+    // scope, or the block it drills into for one (a function's scope is the function, its
+    // statements live in the BlockStatement below it: that block is covered, not skipped).
+    // what this yields is exactly what the scope chain is blind to, and a hit here therefore
+    // outranks one from the scope chain - but only because the caller anchors on the path of the
+    // DECLARATION being resolved. anchored on the USE instead, this lane hands a value declared
+    // outside a namespace whatever namesake the use happens to sit next to
+    const owner = cur.scope?.block ?? cur.scope?.path?.node;
+    if (cur.node === owner || (owner && getDirectStatementBody(owner) === cur.node.body)) return;
+    yield cur;
+  }
+}
+
+// the statement-list hosts sitting BETWEEN a scope level and the next one up - the lexical
+// containers the scope chain itself skips. load-bearing where a parser opens no scope for a TS
+// namespace body (estree-toolkit): without them the climb steps straight from a function to
+// Program, so a namespace-local declaration loses to an outer one of the same name - the wrong
+// family, not a missed narrowing. babel opens that scope itself, so there this yields nothing.
+// the walk stops at the next scope's own node, so no container is ever visited twice
+function * inBetweenContainerPaths(scope) {
+  const block = scope.block ?? scope.path?.node;
+  const boundary = scope.parent ? scope.parent.block ?? scope.parent.path?.node : null;
+  for (let cur = scope.path?.parentPath; cur?.node && cur.node !== boundary; cur = cur.parentPath) {
+    if (cur.node !== block && STATEMENT_LIST_HOST_TYPES.has(cur.node.type)) yield cur;
+  }
+}
+
+// every lexical container of one scope level, NEAREST FIRST. the two lookup lanes below read
+// different halves of a container - the decl walk its statement array, the ambient walk its
+// PATHS - so they share the traversal, not the extraction
+function * scopeContainerPaths(scope) {
+  if (scope.path) yield scope.path;
+  yield * inBetweenContainerPaths(scope);
+}
+
+// the node-side read of the same containers: the decl walk wants statement ARRAYS, not paths
+function * scopeStatementLists(scope) {
+  const own = getDirectStatementBody(scope.block ?? scope.path?.node);
+  if (own) yield own;
+  for (const path of inBetweenContainerPaths(scope)) yield path.node.body;
 }
 
 export function createNameResolution({ t, getScopeBinding = () => null }) {
@@ -127,29 +177,60 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   }
 
   // resolve ambient declaration paths matching `name` up the scope chain. `firstMatch=true` returns
-  // the first hit; `firstMatch=false` returns ALL matches at the FIRST scope that has any and stops,
-  // respecting TS lexical shadowing (an inner `declare function fn` is used exclusively; outer-scope
-  // siblings don't bleed in). per-scope matches come from the cached index, so this is O(scope-depth)
+  // the first hit; `firstMatch=false` returns ALL matches at the FIRST container that has any and
+  // stops, respecting TS lexical shadowing (an inner `declare function fn` is used exclusively;
+  // outer siblings don't bleed in). each scope level contributes its own containers plus the ones
+  // the chain skips, so a parser that opens no scope for a namespace body still reaches what is
+  // written inside it. per-container matches come from the cached index, so this stays O(depth)
   function walkAmbientDeclarationPath({ name, scope, matchType, firstMatch = true }) {
     for (let cur = scope; cur; cur = cur.parent) {
-      const matches = scopeAmbientIndex(cur.path, matchType)?.get(name);
-      if (matches?.length) return firstMatch ? matches[0] : matches.slice();
+      for (const path of scopeContainerPaths(cur)) {
+        const matches = scopeAmbientIndex(path, matchType)?.get(name);
+        if (matches?.length) return firstMatch ? matches[0] : matches.slice();
+      }
     }
     return firstMatch ? null : [];
+  }
+
+  // the ambient twin of `findTypeDeclInLookupPath`, over the same container walk: where the
+  // parser opens no scope for a namespace body, the scope lane above never reaches the ambient
+  // declarations written inside it and the call resolves to nothing at all
+  let lookupPathAmbientCache = new WeakMap();
+  function ambientInLookupPath({ name, matchType, firstMatch = true }) {
+    const path = lookupPathStack.at(-1);
+    if (!path) return firstMatch ? null : [];
+    const byName = getOrInitMap(getOrInitMap(lookupPathAmbientCache, path), matchType);
+    const cacheKey = `${ firstMatch ? '1' : '*' }${ name }`;
+    if (!byName.has(cacheKey)) {
+      let found = null;
+      for (const container of lookupPathContainers(path)) {
+        const matches = scopeAmbientIndex(container, matchType)?.get(name);
+        if (matches?.length) {
+          found = matches;
+          break;
+        }
+      }
+      byName.set(cacheKey, found);
+    }
+    const matches = byName.get(cacheKey);
+    if (!matches) return firstMatch ? null : [];
+    return firstMatch ? matches[0] : matches.slice();
   }
 
   // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
   // enclosing statement lists instead. `matchType` picks the ambient kind we want.
   // keyed by (scope, matchType, name) - matchType references are module-level constants,
-  // safe Map keys; inner Map uses string name
+  // safe Map keys; inner Map uses string name. only the SCOPE lane is cached there: the
+  // anchor lane answers per lookup-path and carries its own cache, the same split the
+  // type-decl twin makes between `lookupTypeDeclInScope` and its fallback
   let ambientDeclCache = new WeakMap();
   function findAmbientDeclarationPath(name, scope, matchType) {
     if (!scope) return null;
+    const anchored = ambientInLookupPath({ name, matchType });
+    if (anchored) return ambientShadowedByValue(name, scope, anchored);
     const byName = getOrInitMap(getOrInitMap(ambientDeclCache, scope), matchType);
-    if (byName.has(name)) return byName.get(name);
-    const result = ambientShadowedByValue(name, scope, walkAmbientDeclarationPath({ name, scope, matchType }));
-    byName.set(name, result);
-    return result;
+    if (!byName.has(name)) byName.set(name, walkAmbientDeclarationPath({ name, scope, matchType }));
+    return ambientShadowedByValue(name, scope, byName.get(name));
   }
 
   // ONE value-vs-ambient gate for every ambient lookup: a nearer VALUE binding of the name is what
@@ -183,8 +264,10 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   // scope-chain walk is already O(scope-depth): it reads the per-scope ambient index built once by
   // the shared `walkAmbientDeclarationPath`, so an extra (scope, name) layer would buy nothing
   function findAmbientFunctionPaths(name, scope) {
-    return ambientShadowedByValue(name, scope,
-      walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }));
+    const matchType = isAmbientFunctionNode;
+    const anchored = ambientInLookupPath({ name, matchType, firstMatch: false });
+    return ambientShadowedByValue(name, scope, anchored.length
+      ? anchored : walkAmbientDeclarationPath({ name, scope, matchType, firstMatch: false }));
   }
 
   // `declare class X { ... }` - babel doesn't bind the name as a value (unlike runtime
@@ -313,23 +396,20 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     return null;
   }
 
-  // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings
-  // at the first containing scope (interface merging only - others don't merge).
+  // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings at the first
+  // containing statement list (interface merging only - others don't merge). "containing" is per
+  // LIST, not per scope level: a level contributes its own body and the lists the chain skips over.
   // `leafMatch` threads through to `walkStatementsForDecl`; see there for the contract
   function walkScopesForDecl({ name, scope, collect, leafMatch = isTypeBearingDeclaration }) {
     if (!scope) return null;
     const segments = typeof name === 'string' ? name.split('.') : name;
     for (let cur = scope; cur; cur = cur.parent) {
-      const block = cur.block ?? cur.path?.node;
-      if (!block) continue;
-      // Program / BlockStatement / TSModuleBlock / StaticBlock host statements directly at
-      // `.body`; Function / method scopes wrap in a BlockStatement, so drill once more. the
-      // direct hosts already expose the statement array, so test for an array before drilling
-      const body = Array.isArray(block.body) ? block.body : block.body?.body;
-      const before = collect?.length;
-      const result = walkStatementsForDecl({ segments, statements: body, collect, leafMatch });
-      if (!collect && result) return result;
-      if (collect && collect.length > before) return null;
+      for (const statements of scopeStatementLists(cur)) {
+        const before = collect?.length;
+        const result = walkStatementsForDecl({ segments, statements, collect, leafMatch });
+        if (!collect && result) return result;
+        if (collect && collect.length > before) return null;
+      }
     }
     return null;
   }
@@ -412,15 +492,17 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     return decl;
   }
 
-  // when scope-chain lookup misses AND a lookup-path anchor is on the stack, fall back to
-  // walking that path's ancestors for enclosing namespace bodies. activates for parsers
-  // (estree-toolkit) that don't expose TSModuleDeclaration / TSModuleBlock as scope levels.
-  // babel parsers create scopes for namespaces so scope-chain hits first and the fallback
-  // is a no-op there
+  // the anchor lane goes FIRST, and only because the anchor is the path of the DECLARATION being
+  // resolved: it answers exclusively for containers the scope chain cannot see (a namespace body on
+  // a parser that opens no scope for one), so where it answers at all it answers about a strictly
+  // narrower context and a namespace-local declaration beats an outer namesake. on babel every such
+  // container owns a scope, so the lane yields nothing and the scope walk decides as it always did.
+  // anchored on the USE instead, this order picks up whatever namesake the use happens to sit next
+  // to - measured, both emitters, wrong family
   function findTypeDeclaration(name, scope) {
     if (!scope) return null;
-    return lookupTypeDeclInScope(name, scope)
-      ?? findTypeDeclInLookupPath(name);
+    return findTypeDeclInLookupPath(name)
+      ?? lookupTypeDeclInScope(name, scope);
   }
 
   // execute `fn` with `path` registered as the current lookup-path anchor. used by
@@ -447,37 +529,36 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     }
   }
 
-  // walk the current lookup-path anchor's ancestors for enclosing block-like containers
-  // (TSModuleBlock / Program / BlockStatement / StaticBlock) and check each one's direct
-  // statements for the type decl. respects TS lexical scoping: only containers that
-  // ENCLOSE the lookup site are checked, not siblings. mirrors `findTSRuntimeBindingInPath`.
+  // check each enclosing container's direct statements for the type decl. mirrors `findTSRuntimeBindingInPath`.
   // cache keyed on (path-anchor, name): each missed scope-chain lookup re-walks the same
   // O(pathDepth) ancestors per call site - WeakMap per anchor amortises to O(unique-names).
   // negative results cached too so repeat misses don't keep re-walking
   let lookupPathDeclCache = new WeakMap();
-  function findTypeDeclInLookupPath(name) {
+  function findTypeDeclInLookupPath(name, all = false) {
     const path = lookupPathStack.at(-1);
-    if (!path) return null;
-    const cacheKey = nameCacheKey(name) ?? '';
+    if (!path) return all ? [] : null;
+    // the two modes answer differently on the same (anchor, name) - one declaration versus every
+    // merged sibling - so they cannot share a cache slot
+    const cacheKey = `${ all ? '*' : '1' }${ nameCacheKey(name) ?? '' }`;
     let perPath = lookupPathDeclCache.get(path);
     if (perPath?.has(cacheKey)) return perPath.get(cacheKey);
     const segments = typeof name === 'string' ? name.split('.') : name;
-    let result = null;
-    for (let cur = path; cur; cur = cur.parentPath) {
-      const { node } = cur;
-      const statements = STATEMENT_LIST_HOST_TYPES.has(node?.type) ? node.body : null;
-      if (!statements) continue;
+    let result = all ? [] : null;
+    for (const container of lookupPathContainers(path)) {
+      const collect = all ? [] : null;
       const found = walkStatementsForDecl({
-        segments, statements, collect: null, leafMatch: isTypeBearingDeclaration,
+        segments, statements: container.node.body, collect, leafMatch: isTypeBearingDeclaration,
       });
-      if (found) {
-        result = found;
+      // collect mode stops at the first container that HAS the name, mirroring the scope walk:
+      // merged siblings live together, and an outer container's must not join them
+      if (all ? collect.length : found) {
+        result = all ? collect : found;
         break;
       }
     }
     if (!perPath) lookupPathDeclCache.set(path, perPath = new Map());
     perPath.set(cacheKey, result);
-    return result;
+    return all ? result.slice() : result;
   }
 
   // narrow `findTypeDeclaration` to TSEnumDeclaration. callers care about the enum-decl
@@ -507,13 +588,17 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     return !bindingPath || !findEnumDeclaration(name, bindingPath.scope);
   }
 
-  // all `interface X {}` siblings at the first scope level that contains one. cached per-
-  // (scope, name): without the cache a class with N inherited interfaces re-walks the scope
-  // chain per ancestor; the cache amortises them to O(unique-names-per-scope). WeakMap
-  // keyed on scope so the per-scope Map collects when its AST does
+  // all `interface X {}` siblings at the first container that has any, in the same lane order as
+  // the single-hit twin above (anchor first, for the reason stated there) - the merged-member
+  // collector reads THIS lane, so a namespace-local interface would otherwise come back with no
+  // members at all, or with an outer namesake's. only the SCOPE lane is cached per (scope, name):
+  // without it a class with N inherited interfaces re-walks the chain per ancestor. the anchor lane
+  // answers per ANCHOR and keeps its own cache. WeakMap keyed on scope so the Map collects with the AST
   let allTypeDeclCache = new WeakMap();
   function findAllTypeDeclarations(name, scope) {
     if (!scope) return [];
+    const anchored = findTypeDeclInLookupPath(name, true);
+    if (anchored.length) return anchored;
     const cacheKey = nameCacheKey(name) ?? '';
     let perScope = allTypeDeclCache.get(scope);
     // hand out a COPY: the cache exists to skip the scope WALK, not the (1-3 element) allocation,
@@ -571,6 +656,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     typeParamCache = new WeakMap();
     allTypeDeclCache = new WeakMap();
     lookupPathDeclCache = new WeakMap();
+    lookupPathAmbientCache = new WeakMap();
     stmtDeclIndexCache = new WeakMap();
   }
 
