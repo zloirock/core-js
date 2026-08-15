@@ -191,3 +191,140 @@ QUnit.test('typed dispatch: ReturnType over a function alias binds the supplied 
   const viaAlias = 'abc' as any as ThroughAlias<string>;
   assert.same(viaAlias.at(-1), 'c');
 });
+
+// --- Optionality markers surviving the type-layer peels ---
+// an optional member admits `undefined` on a present receiver, so `?? fallback` really can yield
+// the fallback at runtime. a peel that drops the `?` makes the union look always-truthy, folds it
+// to the annotated branch and emits that branch's specific helper - which throws on the fallback
+// in a realm without the native method. every form below spells the same optionality through a
+// different peel, and each asserts the FALLBACK value: a wrong narrow cannot survive it
+
+QUnit.test('typed dispatch: `Partial<>` makes its members admit undefined', assert => {
+  interface Source { items: number[] }
+  const partial: Partial<Source> = {};
+  assert.same((partial.items ?? 'fallback').at(0), 'f');
+  type Aliased = Partial<Source>;
+  const aliased: Aliased = {};
+  assert.same((aliased.items ?? 'fallback').at(-1), 'k');
+});
+
+QUnit.test('typed dispatch: a hand-written mapped `?` matches the utility wrapper', assert => {
+  interface Source { items: number[] }
+  type Optionalized = { [K in keyof Source]?: Source[K] };
+  const mapped: Optionalized = {};
+  assert.same((mapped.items ?? 'fallback').at(0), 'f');
+  // `-?` is the mirror: it REMOVES the optionality its source declares, so the read below is
+  // genuinely always-present and narrowing to the array is correct
+  interface OptionalSource { items?: number[] }
+  type Requiredized = { [K in keyof OptionalSource]-?: OptionalSource[K] };
+  const required: Requiredized = { items: [4, 5] };
+  assert.same(required.items.at(-1), 5);
+});
+
+QUnit.test('typed dispatch: an optional parameter admits undefined on every omitting call', assert => {
+  function firstOf(items?: number[]) {
+    return (items ?? 'fallback').at(0);
+  }
+  assert.same(firstOf(), 'f');
+  assert.same(firstOf([9]), 9);
+});
+
+declare function parametersTarget(items?: number[]): void;
+
+QUnit.test('typed dispatch: `Parameters<>` carries the parameter optionality into the tuple', assert => {
+  const slot = undefined as any as Parameters<typeof parametersTarget>[0];
+  assert.same((slot ?? 'fallback').at(-1), 'k');
+});
+
+QUnit.test('typed dispatch: a keyof-self value union includes the optional member undefined', assert => {
+  interface Source { items?: number[] }
+  const viaAnnotation = undefined as any as Source[keyof Source];
+  assert.same((viaAnnotation ?? 'fallback').at(0), 'f');
+  function read<T extends Source>(source: T, key: keyof T) {
+    return (source[key] ?? 'fallback').at(-1);
+  }
+  assert.same(read({} as Source, 'items'), 'k');
+});
+
+QUnit.test('typed dispatch: `Required<>` and `NonNullable<>` strip the optionality back off', assert => {
+  interface Source { items?: number[] }
+  const required: Required<Source> = { items: [1, 2, 3] };
+  assert.same(required.items.at(-1), 3);
+  const nonNullable = [4, 5] as NonNullable<Source['items']>;
+  assert.same(nonNullable.at(0), 4);
+});
+
+// --- Markers and shadowing that decide which FAMILY is served ---
+// each case below picks a conditional branch on a type-level marker, so a lost marker does not
+// merely widen the answer - it serves the other family's helper to the value the source declares.
+// the assertions are on real values, and the stripped realm has no native to fall back on
+
+QUnit.test('typed dispatch: an intrinsic string transformer keeps its literal type', assert => {
+  type UpperMatched = Uppercase<'a'> extends 'A' ? number[] : string;
+  const matched = [7, 8] as UpperMatched;
+  assert.same(matched.at(-1), 8);
+  type UpperMissed = Uppercase<'a'> extends 'zz' ? number[] : string;
+  const missed = 'abc' as UpperMissed;
+  assert.same(missed.at(-1), 'c');
+});
+
+QUnit.test('typed dispatch: a readonly view is not its mutable form', assert => {
+  type IsMutable<T> = T extends number[] ? number[] : string;
+  type MyReadonly<T> = { readonly [K in keyof T]: T[K] };
+  type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+  const viaMapped = 'abc' as IsMutable<MyReadonly<number[]>>;
+  assert.same(viaMapped.at(-1), 'c');
+  const viaMutable = [1, 2] as IsMutable<Mutable<Readonly<number[]>>>;
+  assert.same(viaMutable.at(-1), 2);
+  const viaUtility = 'xyz' as IsMutable<ReadonlyArray<number>>;
+  assert.same(viaUtility.at(0), 'x');
+});
+
+QUnit.test('typed dispatch: a user declaration outranks the utility of the same name', assert => {
+  type Record<K, V> = V[];
+  const shadowedAlias: Record<string, number> = [3, 4];
+  assert.same(shadowedAlias.at(-1), 4);
+  function pick<Awaited extends number[]>(x: Awaited): Awaited {
+    return x;
+  }
+  assert.same(pick([5, 6]).at(-1), 6);
+});
+
+declare function ambientMake(): number[];
+
+QUnit.test('typed dispatch: a value binding outranks the ambient declaration it shadows', assert => {
+  // the parameter has no initializer to walk, so resolution fell through to the ambient
+  // declaration of the same name and served the array helper to the string this really returns
+  function viaParam(ambientMake: () => string) {
+    return ambientMake().at(-1);
+  }
+  assert.same(viaParam(() => 'abc'), 'c');
+});
+
+QUnit.test('typed dispatch: an identity static passes its argument type through', assert => {
+  const frozen = Object.freeze([1, 2, 3]);
+  assert.same(frozen.at(-1), 3);
+  // an argument whose type is genuinely unknown - a parameter with no annotation and no
+  // initializer - makes the call unknown too, so the generic dispatch has to serve whatever
+  // really arrives. answering with the registry's `Object` hint injected nothing at all
+  function frozenLast(value) {
+    return Object.freeze(value).at(-1);
+  }
+  assert.same(frozenLast('abc'), 'c');
+  assert.same(frozenLast([4, 5]), 5);
+});
+
+QUnit.test('typed dispatch: a deferred read folds every reachable arm, whatever their order', assert => {
+  // the arms disagree in the MIDDLE of the write sequence: a bare reduce over the fold let the
+  // arm AFTER the disagreement re-seed the accumulator, so the union answered Array and the
+  // string arm got the array helper
+  let mixed = [1, 2];
+  function read() {
+    return mixed.at(-1);
+  }
+  mixed = 'abc';
+  mixed = [3, 4];
+  assert.same(read(), 4);
+  mixed = 'xyz';
+  assert.same(read(), 'z');
+});

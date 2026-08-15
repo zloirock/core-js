@@ -55,7 +55,7 @@ export function isAmbientFunctionOrClassNode(node) {
   return isAmbientFunctionNode(node) || isAmbientClassNode(node);
 }
 
-export function createNameResolution({ t }) {
+export function createNameResolution({ t, getScopeBinding = () => null }) {
   function isFunctionLike(node) {
     return !!node && (t.isFunction(node) || AMBIENT_FUNCTION_TYPES.has(node.type));
   }
@@ -147,9 +147,31 @@ export function createNameResolution({ t }) {
     if (!scope) return null;
     const byName = getOrInitMap(getOrInitMap(ambientDeclCache, scope), matchType);
     if (byName.has(name)) return byName.get(name);
-    const result = walkAmbientDeclarationPath({ name, scope, matchType });
+    const result = ambientShadowedByValue(name, scope, walkAmbientDeclarationPath({ name, scope, matchType }));
     byName.set(name, result);
     return result;
+  }
+
+  // ONE value-vs-ambient gate for every ambient lookup: a nearer VALUE binding of the name is what
+  // the reference really reaches, so an ambient declaration is in play only when something NARROWER
+  // does not stand in front of it. two things the naive "is there a binding" test gets wrong, and
+  // both are load-bearing:
+  //   - the estree adapter BINDS ambient names where babel leaves them out of `scope.bindings`, so
+  //     a binding whose own node IS one of the found declarations is that declaration, not a shadow;
+  //   - an overload HEAD and its IMPLEMENTATION are one declaration entity sharing one name, and
+  //     babel registers only the impl, so a same-SCOPE binding must not read as a shadow. only a
+  //     binding from a NARROWER scope - a parameter, a local `const`, a local class - stands in
+  //     front of the ambient one here. a same-scope binding that is NOT an overload head (`declare
+  //     function f` beside `var f = ...`, which TS rejects but this plugin never typechecks) is
+  //     answered correctly anyway, and not by this gate: the runtime-expression lane resolves the
+  //     binding before the ambient probe is reached - measured, not assumed
+  function ambientShadowedByValue(name, scope, found) {
+    const paths = Array.isArray(found) ? found : found ? [found] : [];
+    if (!paths.length) return found;
+    const binding = getScopeBinding(scope, name);
+    const shadowed = binding
+      && paths.every(p => p.node !== binding.path?.node && p.scope !== binding.scope);
+    return shadowed ? (Array.isArray(found) ? [] : null) : found;
   }
 
   // collect all ambient function decls by name. used for multi-overload predicate resolution where
@@ -161,7 +183,8 @@ export function createNameResolution({ t }) {
   // scope-chain walk is already O(scope-depth): it reads the per-scope ambient index built once by
   // the shared `walkAmbientDeclarationPath`, so an extra (scope, name) layer would buy nothing
   function findAmbientFunctionPaths(name, scope) {
-    return walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false });
+    return ambientShadowedByValue(name, scope,
+      walkAmbientDeclarationPath({ name, scope, matchType: isAmbientFunctionNode, firstMatch: false }));
   }
 
   // `declare class X { ... }` - babel doesn't bind the name as a value (unlike runtime
