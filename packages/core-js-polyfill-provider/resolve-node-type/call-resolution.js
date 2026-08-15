@@ -518,6 +518,11 @@ export function createCallResolution({
   // function value; callers chain into `functionTypeReturnAnnotation` to peel the return.
   // Flow's `ObjectTypeProperty` stores the type in `m.value` (covers both property shape
   // AND method shape where value is a FunctionTypeAnnotation); fallback after the TS slots
+  // NOTE this lookup hands back the member's RAW annotation and deliberately carries no optional
+  // marker, unlike `findTypeMember`: every shape that reaches it puts the answer in RECEIVER
+  // position, where the marker is ignored by design (a nullish receiver throws transformed or not).
+  // measured, not assumed - the site IS reached with an optional member, and in each such shape the
+  // fold that would read the marker either sits elsewhere or never routes here
   function resolveMemberInTypeMembers({ typeNode, propName, scope, subst, callPath = null }) {
     const members = typeNode ? getTypeMembers({ objectType: typeNode, scope }) : null;
     if (!members) return null;

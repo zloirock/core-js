@@ -634,6 +634,76 @@ function * generateTypeVarHoist() {
     + ' if (box.kind === "a") { return box.v.at(0); } return "no"; })()'), ts: true, strip: true };
 }
 
+// --- type-layer MARKERS crossed with the peels that make them invisible ---
+// an optional member admits undefined on a present receiver, so `?? fallback` really yields the
+// fallback - and the peel that unwraps the wrapper it was declared through has to carry the flag,
+// or the fold collapses to the annotated branch and serves ITS family's helper to the string.
+// the axis is the SPELLING of the optionality, crossed with the polarity: the adding wrappers must
+// keep the fold two-operand, the removing ones must take it back to the single narrow. the emitter
+// -parity leg is blind to all of it (one shared resolver moves both), and only the stripped realm
+// tells a correct generic dispatch from a wrong type-specific one
+// every row carries a REAL runtime value - the corpus EXECUTES, and a `declare` binding has none,
+// so a type-only prelude would make every leg throw alike and prove nothing
+const MARKER_ADDING = [
+  ['utility-wrapper', 'interface I { a: number[] } const s: Partial<I> = {}; const v = s.a;'],
+  ['mapped-modifier', 'interface I { a: number[] } type M = { [K in keyof I]?: I[K] };'
+    + ' const s: M = {}; const v = s.a;'],
+  ['optional-member', 'interface I { a?: number[] } const s: I = {}; const v = s.a;'],
+  ['optional-param', 'function take(a?: number[]) { return a; } const v = take();'],
+  ['keyof-self-value', 'interface I { a?: number[] } const src: I = {};'
+    + ' const v = src["a" as keyof I];'],
+  ['tuple-slot', 'const t: Partial<[number[], string]> = []; const v = t[0];'],
+  ['awaited-nested', 'interface I { a: number[] } const s = {} as Awaited<Partial<I>>; const v = s.a;'],
+  ['awaited-over-promise', 'interface I { a: number[] }'
+    + ' const s = {} as Awaited<Promise<Partial<I>>>; const v = s.a;'],
+  ['awaited-over-alias', 'interface I { a: number[] } type P = Partial<I>;'
+    + ' const s = {} as Awaited<P>; const v = s.a;'],
+];
+const MARKER_REMOVING = [
+  ['required-wrapper', 'interface I { a?: number[] } const s: Required<I> = { a: [7, 8] }; const v = s.a;'],
+  ['mapped-minus', 'interface I { a?: number[] } type M = { [K in keyof I]-?: I[K] };'
+    + ' const s: M = { a: [7, 8] }; const v = s.a;'],
+  ['non-nullable', "interface I { a?: number[] } const v = [7, 8] as NonNullable<I['a']>;"],
+];
+function * generateTypeMarkerPeels() {
+  // the marked side: the value really IS absent at runtime, so the fold takes the fallback and only
+  // a GENERIC dispatch can serve it. a lost marker emits the array helper and the strip leg throws
+  for (const [id, prelude] of MARKER_ADDING) {
+    yield { ...snippet(`type-marker-peel/adds-${ id }`,
+      `(() => { ${ prelude } return String((v ?? "fallback").at(0)); })()`), ts: true, strip: true };
+  }
+  // the stripped side: the wrapper REMOVES the optionality its source declares, so the read really
+  // is always-present and the narrow is correct. a marker that outlives the strip degrades to the
+  // generic helper - same runtime answer, different import set, which the harness compares
+  for (const [id, prelude] of MARKER_REMOVING) {
+    yield { ...snippet(`type-marker-peel/removes-${ id }`,
+      `(() => { ${ prelude } return String((v ?? "fallback").at(0)); })()`), ts: true, strip: true };
+  }
+  // a user declaration and a type PARAMETER both outrank the built-in reading of the same name -
+  // answering with the utility hands the wrong family to a value the source declares as an array
+  // the ANNOTATION has to be the only source of the type, or the row proves nothing: an array
+  // LITERAL initializer answers the same whether or not the shadow gate ran, so the value arrives
+  // through a call the resolver cannot see into
+  yield { ...snippet('type-marker-peel/shadowed-utility-alias',
+    '(() => { type Record<K, V> = V[]; const opaque: any = JSON.parse("[7,8]");'
+    + ' const v: Record<string, number> = opaque; return v.at(-1); })()'), ts: true, strip: true };
+  yield { ...snippet('type-marker-peel/shadowed-utility-param',
+    '(() => { function pick<Awaited extends number[]>(x: Awaited) { return x; }'
+    + ' const opaque: any = JSON.parse("[7,8]"); return pick(opaque as number[]).at(-1); })()'),
+  ts: true, strip: true };
+  // an identity static returns its ARGUMENT, so an unresolvable one makes the call unresolvable -
+  // the registry's Object hint would suppress the instance polyfill outright
+  yield { ...snippet('type-marker-peel/identity-static-opaque',
+    '(() => { function frozenLast(value) { return Object.freeze(value).at(-1); }'
+    + ' return String(frozenLast("abc")) + String(frozenLast([4, 5])); })()'), strip: true };
+  // a value binding outranks the ambient declaration it shadows; the overload IMPLEMENTATION of a
+  // name is not a shadow of its own heads, and both directions ride on one predicate
+  // the value-vs-ambient gate has NO row here on purpose: for a parameter to shadow an ambient
+  // declaration one has to exist, and `declare` is a statement TS rejects inside the function body
+  // this corpus wraps every snippet in. the gate is locked where the form fits - the provider suite
+  // and the fixture pair - and a row added here would answer from the parameter annotation alone
+}
+
 // --- shared type-alias declaration across union arms ---
 // one generic declaration reached by two references that DISAGREE on the type argument. the walk
 // expands it once and each reference applies its own argument afterwards, so the arms stay distinct
@@ -6048,6 +6118,7 @@ export function * generate() {
   yield * generateProxyAliasCells();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
+  yield * generateTypeMarkerPeels();
   yield * generateSharedAliasUnionArms();
   yield * generateOptionalForeignReceiver();
   yield * generateUnbracedBodyMinifierSplit();
