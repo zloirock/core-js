@@ -19,7 +19,7 @@
 // deps in the factory; merging puts the two halves in the same closure.
 //
 // Public surface:
-//   followTypeAliasChain(node, scope)          - alias chain walker; returns { node, subst }
+//   followTypeAliasChain(node, scope)          - alias chain walker; { node, subst, modifiers }
 //   swapAliasToTSTypeQueryWithSubst(ann, scope) - terminal TSTypeQuery + subst, or pass-through
 //   applyAliasSubstDeep(node, subst, depth?, visited?) - core AST walker (cached + cycle-safe)
 //   applySubst(node, subst)                     - predicate-style helper
@@ -31,7 +31,9 @@
 // Pure predicates (`isTypeAlias`, `typeAliasBody`, `typeRefName`) come from `ast-shapes`;
 // imported directly because they're closure-free
 import { MAX_DEPTH, MEMBER_ANNOTATION_SLOTS } from './base.js';
-import { isTypeAlias, isTypeReferenceNode, typeAliasBody, typeRefName, TS_UNKNOWN_TYPE } from './ast-shapes.js';
+import {
+  isTypeAlias, isTypeReferenceNode, modifierWrapperDelta, typeAliasBody, typeRefName, TS_UNKNOWN_TYPE,
+} from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
 export function createTypeSubst({
@@ -401,8 +403,10 @@ export function createTypeSubst({
   // --- Alias chain walker ---
 
   // follow type alias chain: type A = type B = ... until non-alias or non-reference found
-  // returns { node, subst } where subst is a Map<string, ASTNode> of accumulated type parameter
-  // substitutions through the chain, or null if no generic aliases were traversed
+  // returns { node, subst, modifiers } where subst is a Map<string, ASTNode> of accumulated type
+  // parameter substitutions through the chain, or null if no generic aliases were traversed, and
+  // `modifiers` is the member-flag delta of any modifier wrapper the walk peeled away (see
+  // `modifierWrapperDelta`) - the caller re-applies it, since the peel makes the wrapper invisible
   function followTypeAliasChain(node, scope) {
     let depth = MAX_DEPTH;
     let subst = null;
@@ -457,12 +461,17 @@ export function createTypeSubst({
     // needs the source type concrete (`keyof T` enumeration requires T's literal members);
     // fold accumulated subst into the whole node so the rename expansion runs on the
     // post-substitution mapped type
+    let modifiers = null;
     if (node?.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(node);
-      if (passthrough) node = unwrapTypeAnnotation(applySubst(passthrough, subst));
-      else if (subst) node = applyAliasSubstDeep(node, subst);
+      if (passthrough) {
+        // `{ [K in keyof T]?: T[K] }` passes T's members through with `?` ADDED - report the
+        // delta, or the peel silently answers with T's own (required) descriptors
+        modifiers = modifierWrapperDelta(node);
+        node = unwrapTypeAnnotation(applySubst(passthrough, subst));
+      } else if (subst) node = applyAliasSubstDeep(node, subst);
     }
-    return { node, subst };
+    return { node, subst, modifiers };
   }
 
   // generic alias chain ending in TSTypeQuery (`type Q<T> = typeof fn<T>`, `type Q = typeof X`).
