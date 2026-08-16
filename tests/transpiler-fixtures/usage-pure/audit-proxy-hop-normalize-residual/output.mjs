@@ -41,7 +41,7 @@ const {
 // boundary: a side-effecting computed key keeps the nested handling (effect must run once)
 const {
   [(effK(), 'WeakMap')]: {
-    customE
+    customX
   }
 } = _globalThis;
-export const r = [customY, tryFn, customZ, customA, nav, customB, customG, customU, customK, customE];
+export const r = [customY, tryFn, customZ, customA, nav, customB, customG, customU, customK, customX];
