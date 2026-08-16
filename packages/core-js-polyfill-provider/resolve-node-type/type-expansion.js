@@ -795,7 +795,7 @@ export function createTypeExpansion({
   // does the resolved CHECK type plausibly extend the matched infer container (`check extends
   // Container<infer U>`, i.e. is the check side assignable TO the container)? full structural
   // assignability is out of scope, so only the cheaply-decidable PRIMITIVE-vs-container
-  // disjointness is enforced (the unsound direction the finding targets). a `string` is assignable
+  // disjointedness is enforced (the unsound direction the finding targets). a `string` is assignable
   // ONLY to `Iterable<string>` - the minimal interface needing just `[Symbol.iterator]` - so only
   // the sync `Iterable` family admits a string check side; it is not assignable to Array / Set /
   // Promise nor to the stricter iterator/generator interfaces (see `containerInferFamily`). object

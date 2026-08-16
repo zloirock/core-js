@@ -14,5 +14,5 @@ const { "\u0049terator": { customU } } = globalThis;
 // a computed static-string key resolves like the literal spelling
 const { ['WeakSet']: { customK } } = globalThis;
 // boundary: a side-effecting computed key keeps the nested handling (effect must run once)
-const { [(effK(), 'WeakMap')]: { customE } } = globalThis;
-export const r = [customY, tryFn, customZ, customA, nav, customB, customG, customU, customK, customE];
+const { [(effK(), 'WeakMap')]: { customX } } = globalThis;
+export const r = [customY, tryFn, customZ, customA, nav, customB, customG, customU, customK, customX];
