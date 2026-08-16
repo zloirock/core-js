@@ -1440,7 +1440,7 @@ runBoth('discriminant union: decimal bigint guard narrows decimal bigint member'
     checkType(lbl, resolver.resolveNodeType(refs[0]), { primitive: true, kind: 'string' });
   });
 
-// disjointness control: a bigint guard must NOT match a same-DIGIT number member - `1n !== 1`, so
+// disjointedness control: a bigint guard must NOT match a same-DIGIT number member - `1n !== 1`, so
 // neither branch matches and the narrow yields the unrefined union (both sides resolve to their
 // real runtime values, and a BigInt never equals a Number)
 runBoth('discriminant union: bigint guard does not narrow same-digit number member',
