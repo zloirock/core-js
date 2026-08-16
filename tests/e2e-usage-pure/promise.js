@@ -20,10 +20,15 @@ QUnit.test('Promise.resolve / reject', assert => {
 
 QUnit.test('Promise.race', assert => {
   const async = assert.async();
+  let timer;
   Promise.race([
-    new Promise(resolve => setTimeout(() => resolve('slow'), 100)),
+    new Promise(resolve => {
+      timer = setTimeout(() => resolve('slow'), 100);
+    }),
     Promise.resolve('fast'),
   ]).then(v => {
+    // the slow arm loses by design, and an armed timer keeps node alive for its whole delay
+    clearTimeout(timer);
     assert.same(v, 'fast');
     async();
   });
