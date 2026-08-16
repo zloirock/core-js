@@ -106,5 +106,8 @@
     "npm-run-all2": "^9.0.3",
     "semver": "^7.8.5",
     "zx": "^8.8.5"
+  },
+  "overrides": {
+    "serialize-javascript": "7.0.5"
   }
 }
