@@ -11,10 +11,8 @@ const NOISE = /^(?:ok \d+|TAP version)/;
 // a browser page never has to exit, so the karma legs stay silent about the same leak
 function reportArmedTimers() {
   // the bun leg shares this reporter, and not every Bun has this
-  /* eslint-disable node/no-unsupported-features/node-builtins -- safe */
   if (typeof process.getActiveResourcesInfo != 'function') return;
   const armed = process.getActiveResourcesInfo().filter(type => type === 'Timeout').length;
-  /* eslint-enable node/no-unsupported-features/node-builtins -- safe */
   if (!armed) return;
   process.stdout.write(`# ${ armed } timer(s) still armed after the run - a fallback timeout ` +
     'is not disarmed on its winning path; find it with an async_hooks Timeout trace\n');
