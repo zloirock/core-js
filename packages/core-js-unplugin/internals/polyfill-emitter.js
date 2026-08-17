@@ -24,6 +24,7 @@ import {
   peelMemoizeWrappers,
   peelNestedSequenceExpressions,
   TS_EXPR_WRAPPERS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   POSSIBLE_GLOBAL_OBJECTS,
   staticMemberKeyName,
   isValidIdentifierName,
@@ -43,10 +44,15 @@ import {
   maximalProxyGlobalPrefix,
   claimReceiverEvaluationMayThrow,
   navHasUnresolvableProxyHop,
+  navValueCanShortCircuit,
   guardTailPullCount,
   planProvenNavGuardCollapse,
   peelChainAssignment,
+  chainReadsThroughSeal,
   chainSealedObjects,
+  navGuardTestBase,
+  partitionEffectsAtProbe,
+  sealedClaimLeafGuardPlan,
   claimlessGuardedObjectUndefinable,
   claimlessOptionalNavGuardsUndefinable,
   sealedLayerBetween,
@@ -442,15 +448,22 @@ function parenCalleeAbove(metaPath, node) {
   let step = metaPath;
   while (step?.node && unwrapNode(step.node) !== node) step = step.parentPath;
   let wrapped = false;
-  for (let up = step?.parentPath; up?.node; up = up.parentPath) {
+  // the climb has to know WHICH slot it came up through: only the callee / tag position binds the
+  // reference. an ARGUMENT reaching the same call is not a paren'd callee, and answering as if it
+  // were hands the argument a `?.` tail the source never wrote
+  let child = step?.node;
+  for (let up = step?.parentPath; up?.node; child = up.node, up = up.parentPath) {
     const { type } = up.node;
-    if (type === 'ParenthesizedExpression') {
+    // a TS cast seals the chain exactly as parens do (the canon set is the two together), and it is
+    // transparent to this climb: stopping on it read `(nav?.hop as any)(1)` as an unsealed callee
+    // and folded the call into the guarded branch, which answers undefined where the source throws
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) {
       wrapped = true;
       continue;
     }
     // a tagged template binds `this` from its tag reference just like a call
-    if (type === 'TaggedTemplateExpression') return true;
-    if (type === 'CallExpression' || type === 'OptionalCallExpression') return wrapped;
+    if (type === 'TaggedTemplateExpression') return up.node.tag === child;
+    if (type === 'CallExpression' || type === 'OptionalCallExpression') return wrapped && up.node.callee === child;
     if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression' && type !== 'ChainExpression') return false;
   }
   return false;
@@ -772,11 +785,20 @@ export function inlineCallNavGuardRootSrc({
     // identity-IIFE arg) substitutes IN the rendered text - a raw identifier there would race
     // the standalone identifier transform inside this replacement's span. the test's own
     // vestigial `?.` drop and the tail's `liveOptional` spelling are the shared verdict
-    const prefixSrc = substituteSpanProxyGlobals({
-      rootNode: hops[lastUnresolvableIdx].node, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill,
-      deoptNodes: vestigialNavOptionals(hops[lastUnresolvableIdx].node, ({ name }) => resolveGlobalPolyfill(name),
-        { scope: metaPath.scope, adapter, path: metaPath }),
-    }).src;
+    // the hops BELOW the probe are resolvable by construction, so the deepest of them supplies the
+    // base and the test reads the probe off its ponyfill (`_self.window`) instead of off a source
+    // slice with only the root swapped (`_globalThis.self.window` - a native `self` read where the
+    // ponyfill is the point). the price is deliberate: the base is now always defined, so a host
+    // missing `self` gets the guard's `void 0` where the source threw. the source slice stays when
+    // there is no resolvable hop below the probe, its key is computed, or a key effect rides inside
+    const testBase = navGuardTestBase(plan);
+    const prefixSrc = testBase
+      ? `${ injectPureImport(testBase.basePure.entry, testBase.basePure.hintName) }.${ testBase.probeName }`
+      : substituteSpanProxyGlobals({
+        rootNode: hops[lastUnresolvableIdx].node, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill,
+        deoptNodes: vestigialNavOptionals(hops[lastUnresolvableIdx].node, ({ name }) => resolveGlobalPolyfill(name),
+          { scope: metaPath.scope, adapter, path: metaPath }),
+      }).src;
     const tailSrc = hops.slice(collapseIdx + 1)
       .map(hop => `${ hop.liveOptional ? '?.' : '.' }${ hop.name }`).join('');
     return {
@@ -1005,8 +1027,14 @@ export function createPolyfillEmitter({
   // is the unsliceable-call fallback (no locatable parens), not an arity test.
   // `emitInheritedStaticCallSplit` reads arity the same way for its own separator
   function commaArgs(callNode) {
-    const args = callNode?.arguments.length ? sliceBetweenParens(callNode) : null;
+    const args = callArgsSrc(callNode);
     return args ? `, ${ args }` : '';
+  }
+
+  // the same arguments WITHOUT the separator, for a render that re-spells the source's own call
+  // (`recv.m?.(args)`) rather than appending them to a receiver
+  function callArgsSrc(callNode) {
+    return (callNode?.arguments.length ? sliceBetweenParens(callNode) : null) ?? '';
   }
 
   // source of `node` with its outer `ParenthesizedExpression` wrapper dropped - except
@@ -1827,9 +1855,14 @@ export function createPolyfillEmitter({
     // collapses receiver-INDEPENDENT (`_Set`, the ponyfill canon babel reads statics through) instead
     // of re-reading the raw `_ref.Set` off the memo
     const reuseCandidateRef = !optionalRoot && rootNode ? transforms.findOuterGuardRef(rootNode) : null;
-    const recv = recvOverride ?? resolveReceiverSource(receiverObj, metaPath,
-      (!!optionalRoot && !isBareIdentifier(optionalRoot) && !methodCall && !!rootNode && rootNode !== node.object)
-      || !!reuseCandidateRef, rootNode, null, sideEffects ?? []);
+    // no `growSpan`: this emit owns `[start, end)` off the DISPATCH, and a receiver render that
+    // took chain steps of its own would splice its `?.` into the middle of that replacement
+    const recv = recvOverride ?? resolveReceiverSource(receiverObj, metaPath, {
+      suppressCollapseInject:
+        (!!optionalRoot && !isBareIdentifier(optionalRoot) && !methodCall && !!rootNode && rootNode !== node.object)
+        || !!reuseCandidateRef,
+      rebindRootNode: rootNode, callerSe: sideEffects ?? [],
+    });
     let { src: objectSrc, isNonIdent } = recv;
     // proxy-global guard root: when the receiver path did NOT already substitute the leaf
     // (`recv.substituted` false - e.g. a CALL receiver `globalThis.list?.flat().m()` hides the
@@ -3036,8 +3069,13 @@ export function createPolyfillEmitter({
   // every result carries `verbatimRanges`: the source spans its `src` reproduces UNCHANGED. a caller
   // that discards the receiver region rescues them, so a rewrite queued inside one keeps the slot it
   // will compose into - the answer comes from whichever render built the text, never from its shape
-  function resolveReceiverSource(receiverObj, metaPath, suppressCollapseInject = false, rebindRootNode = null,
-    hostPath = null, callerSe = []) {
+  // `growSpan` is the caller's declaration that it replaces `[node.start, result.end)` rather than
+  // splicing `src` into a slot of its own: only then may the sealed render TAKE chain steps past
+  // the receiver. it rode on `hostPath` being threaded, which is a fact about the call spelling,
+  // not about what the caller does with the answer - a caller that spelled the argument and
+  // dropped `end` would have spliced a dangling `?.` into an expression slot
+  function resolveReceiverSource(receiverObj, metaPath, { suppressCollapseInject = false, rebindRootNode = null,
+    hostPath = null, callerSe = [], growSpan = false } = {}) {
     // top-level peel: receiver may be wrapped in Paren / Chain / TS (`(globalThis).flat?.()`,
     // `(globalThis?.X.Y).flat?.()`, `(globalThis as any).flat?.()`). without peel the direct-
     // Identifier and chain-Member resolvers reject the wrapper at their type gates and the
@@ -3080,19 +3118,42 @@ export function createPolyfillEmitter({
       verbatimRanges: [],
     };
     const chain = resolveProxyGlobalChainSrc(unwrapped, metaPath, suppressCollapseInject, callerSe);
+    // the collapse erases the read the source performs on a SEALED probe value, exactly as the
+    // claim channel's erase does (`(globalThis.window?.self).Map.name` - an absent `window` throws
+    // at `.Map` where the collapsed `_Map` just answers). the claim channel re-emits that read as
+    // a throw probe; a receiver collapse owes the same probe, or the emitters split on the one
+    // shape where the receiver IS the erased claim
+    const chainProbe = chain ? sealedThrowProbePrefix(unwrapped, metaPath) : null;
+    // a SEALED receiver whose OWN `?.` guards an undefinable probe (`(globalThis.window?.Map).name`):
+    // the seal ends the chain there, so the dispatch above reads the collapsed value PLAINLY and has
+    // to see the short-circuit. handing it the bare ponyfill answers on the very branch the source
+    // throws on - render the guard AROUND the collapse, the shape the AST emitter builds
+    const sealedGuardTest = chain && !chainProbe && sealedLayerBetween(receiverObj, unwrapped)
+      ? sealedCollapseGuardTest(unwrapped, metaPath) : null;
+    // a MUTATED global slot cancels the ponyfill, so the collapse has nothing to substitute and can
+    // only re-read the very key the probe just read - off the same realm object, both roots being
+    // spellings of it. the sequence then reads the slot TWICE and answers the second read; the probe
+    // already IS the value, which is the single read the AST emitter emits. wherever the collapse
+    // answers something else (a ponyfill binding) the sequence stays: there the two differ
+    const probeIsCollapse = !!chainProbe && isMutatedGlobalSlot(estreeAdapter, chainProbe.key);
     if (chain) return {
-      src: chain.src,
+      src: chainProbe ? (probeIsCollapse ? chainProbe.src : `(${ chainProbe.src }, ${ chain.src })`)
+        : sealedGuardTest ? `(null == ${ sealedGuardTest } ? void 0 : ${ chain.src })` : chain.src,
       isNonIdent: true,
       skipNode: chain.leafNode,
       substituted: true,
       // a receiver-INDEPENDENT collapse (optional rebind whose whole tail folds to a pure ctor binding):
       // the caller reads `src` as the guard body directly instead of stitching the raw `_ref.` tail
       receiverIndependent: chain.receiverIndependent,
-      // prefix-substitution shape of the collapse, threaded into the rewrite hint for needle rebuild
-      subPrefix: chain.subPrefix,
-      subTailStart: chain.subTailStart,
-      subStart: chain.subStart,
-      consumedSe: chain.consumedSe ?? [],
+      // prefix-substitution shape of the collapse, threaded into the rewrite hint for needle rebuild.
+      // a probe wraps the collapse in a sequence, so those offsets no longer describe where the
+      // emitted text starts - a needle rebuilt off them would splice into the probe
+      subPrefix: chainProbe ? null : chain.subPrefix,
+      subTailStart: chainProbe ? null : chain.subTailStart,
+      subStart: chainProbe ? null : chain.subStart,
+      // the probe runs the nav's key SE once (native order: test, key effect, read) - hand those
+      // nodes on like the claim channel does, so no other channel replays them
+      consumedSe: [...chain.consumedSe ?? [], ...chainProbe?.keySeExprs ?? []],
       verbatimRanges: chain.verbatimRanges ?? [],
     };
     // a claim-less short-circuitable PROBE nav under the receiver (`globalThis.window?.
@@ -3107,7 +3168,7 @@ export function createPolyfillEmitter({
       && (unwrapped.type === 'MemberExpression' || unwrapped.type === 'OptionalMemberExpression')
       && claimlessOptionalNavGuardsUndefinable(unwrapped, ({ name }) => resolveGlobalPolyfill(name),
         { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath })) {
-      const sealed = sealedNavReceiverSrc(unwrapped, metaPath, hostPath);
+      const sealed = sealedNavReceiverSrc(unwrapped, metaPath, hostPath, { growSpan });
       // `sealedNav` marks the render that SKIPPED the chain it replaced: consumers that would
       // otherwise re-emit the receiver from raw source must take this text instead, or the
       // skipped nodes never get their rewrite
@@ -3136,6 +3197,18 @@ export function createPolyfillEmitter({
       substituted: false,
       verbatimRanges: [{ start: receiverObj.start, end: receiverObj.end }],
     };
+  }
+
+  // the test a SEALED collapse has to keep: the `?.` hop whose object can genuinely be undefined,
+  // rendered through the shared nav-guard canon so its proxy root substitutes. null when no single
+  // `?.` expresses the short-circuit (the erase verdict's own standdown) or the hop cannot render
+  function sealedCollapseGuardTest(nav, metaPath) {
+    const aliasCtx = { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath };
+    const verdict = undefinableOptionalGuard(nav, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
+    if (verdict.kind !== 'guard') return null;
+    return proxyNavGuardRootSrc({
+      rootNode: verdict.object, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
+    }) ?? null;
   }
 
   // peel Paren / Chain / TS wrappers off a (node, path) pair in lockstep, keeping chain descent
@@ -3467,10 +3540,6 @@ export function createPolyfillEmitter({
     // `null == (_ref = arr) || ...`), saving one allocated `_ref` and matching parity.
     // super's `this` receiver is always reusable
     const isReceiverSafe = isSuper || isReusableReceiver(innerCallee.object);
-    const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
-    const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
-    const innerSuffix = commaArgs(chainStart);
-
     // `recv.method?.()`: the `?.` guards the CALL, not the `.method` access - a nullish recv must
     // throw on the `.method` read like native, so omit the `null == recv` test (it would swallow
     // the throw into void 0). keep it only when the receiver access is itself optional
@@ -3478,12 +3547,10 @@ export function createPolyfillEmitter({
     // case it also carries the receiver assignment so a side-effecting receiver evaluates once.
     // mirrors babel-compat.js's `replaceInstanceChainCombined`
     const testsReceiver = innerCallee.optional || receiverShortCircuits;
-    const methodArg = testsReceiver || isReceiverSafe ? aRef : `${ aRef } = ${ receiver }`;
-    // byte-parity with babel for `recv.m?.()?.hop...` (call-optional chainStart + member-optional
-    // ADJACENT hop): babel folds the inner call into the chainStart test via `?.call`, so mRef holds
-    // the call RESULT and a single `null == mRef` covers BOTH the `m?.()` short-circuit (the `?.call`)
-    // and the adjacent `?.hop` short-circuit; the hop then threads on the memoized result. every other
-    // chainStart keeps the method-test form (which already matches babel's output)
+    // the chainStart test FOLDS the inner call for `recv.m?.()?.hop...` (call-optional chainStart
+    // + member-optional ADJACENT hop): mRef then holds the call RESULT, so a single `null == mRef`
+    // covers BOTH the `m?.()` short-circuit and the adjacent `?.hop` one, and the hop threads on
+    // the memoized result. every other chainStart keeps the method-test form
     // every hop NON-poly: the whole chain stays a single `?.`-connected expression (the
     // chainStart folds to `helper(recv)?.call(recv)`, hops re-emit verbatim) and the OUTER
     // test alone covers the short-circuit - matching the babel emission, which never breaks
@@ -3491,6 +3558,14 @@ export function createPolyfillEmitter({
     const allHopsNonPoly = !innerCallee.optional && hops.length > 0 && hops.every(h => !h.poly)
       && hops.at(-1).optional && node.optional;
     const foldInnerCall = !allHopsNonPoly && !innerCallee.optional && hops.length > 0 && hops.at(-1).optional;
+    // a folded NON-poly inner re-spells the source's own optional CALL (`recv.m?.(args)`), which
+    // reads the receiver ONCE and binds `this` by position: no memo, no `.call`. only a POLY inner
+    // needs `.call(recv)` there - its dispatcher already consumed the receiver as an argument
+    const foldsSourceCall = foldInnerCall && !testsReceiver && !innerBinding && !isSuper;
+    const aRef = isReceiverSafe || foldsSourceCall ? receiver : scopeTracker.genRef();
+    const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
+    const innerSuffix = commaArgs(chainStart);
+    const methodArg = testsReceiver || isReceiverSafe ? aRef : `${ aRef } = ${ receiver }`;
     // no chainStart test exists on the all-non-poly path - skipping the ref keeps the
     // allocation order (and so the `_refN` numbering) aligned with the babel emission
     const mRef = allHopsNonPoly ? null : scopeTracker.genRef();
@@ -3505,6 +3580,8 @@ export function createPolyfillEmitter({
     const tests = allHopsNonPoly ? [] : testsReceiver ? [
       `null == ${ anAssign }`,
       `null == (${ mRef } = ${ methodGet(aRef) })`,
+    ] : foldsSourceCall ? [
+      `null == (${ mRef } = ${ methodGet(receiver) }?.(${ callArgsSrc(chainStart) }))`,
     ] : foldInnerCall ? [
       `null == (${ mRef } = ${ methodGet(methodArg) }?.call(${ aRef }${ innerSuffix }))`,
     ] : !innerBinding && !isReceiverSafe ? [
@@ -3898,14 +3975,43 @@ export function createPolyfillEmitter({
     // nodes leave the claim's own SE channel and the residual effects ride AFTER the probe.
     // an SE-bearing computed key on the sealed hop keeps its own migration canon, and a
     // defined sealed value (all-plain nav) has no throw to reproduce - both skip the probe
+    // the two sealed spellings are mutually exclusive by construction - a seal INSIDE the nav gets
+    // the throw probe ahead of the claim, a seal ABOVE it keeps the guarded value in its place
     if (emitSealedProbedClaim({
       binding, node, sideEffects, insertAt: chainAssignInsertAt ?? receiverEffectCount, metaPath, start, end,
-    })) return;
+    }) || emitSealedConsumerClaim({ node, parent, metaPath, start, end })) return;
     transforms.add(start, end,
       composeBindingReplacement({
         binding, receiverObj: node.object, sideEffects, insertAt: chainAssignInsertAt ?? receiverEffectCount,
         region: node, metaPath,
       }));
+  }
+
+  // the erase replaces the whole navigation, and a SEAL above it means the consumer reads that
+  // value PLAINLY: the short-circuit the nav still performs has to survive, or the read runs on the
+  // always-defined ponyfill where the source throws (`(globalThis.self.window?.self).Box = 1` wrote
+  // to a live object). the boundary keeps the guard for a member read and a write host is one, so
+  // the guarded VALUE replaces the claim - the AST emitter renders the same shape. false when no
+  // seal sits over this claim, when the sealed value cannot short-circuit, or when no plan spells it
+  function emitSealedConsumerClaim({ node, parent, metaPath, start, end }) {
+    if (parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression') return false;
+    if (parent.optional || unwrapNode(parent.object) !== node) return false;
+    if (!sealedLayerBetween(parent.object, node)) return false;
+    // asked of the CONSUMER, not the claim: the canon's seal arm is what reports the sealed value
+    // undefinable, and below the seal the same walk sees only an ordinary deep nav
+    if (!navValueCanShortCircuit(parent, ({ name }) => resolveGlobalPolyfill(name),
+      { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath })) return false;
+    // the guarded VALUE comes from the shared nav plan, not from the erase verdict: that verdict
+    // only names an undefinable `?.` OBJECT, and a deep nav has none by the multihop canon while
+    // the plan still spells the short-circuit the seal makes observable. the source's own parens
+    // survive around the replaced span, so the render needs none of its own
+    const navGuard = inlineCallNavGuardRootSrc({
+      rootNode: node, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
+    });
+    if (!navGuard) return false;
+    transforms.add(start, end, navGuard.src);
+    skipCollapsedChainExceptRootCall(node, skippedNodes, { keepSe: navGuard.keySeExprs });
+    return true;
   }
 
   // the SEALED-receiver erase spelling: throw probe first (carrying the nav's key SE), the
@@ -3916,7 +4022,9 @@ export function createPolyfillEmitter({
     const probeSe = new Set(throwProbe.keySeExprs);
     const residual = (prependChainAssignmentEffect(unwrapNode(node.object), sideEffects, insertAt) ?? [])
       .filter(se => !probeSe.has(se));
-    transforms.add(start, end, `(${ [throwProbe.src, ...residual.map(nodeSrc), binding].join(', ') })`);
+    const { ahead, after } = partitionEffectsAtProbe(residual, throwProbe.navStart);
+    transforms.add(start, end,
+      `(${ [...ahead.map(nodeSrc), throwProbe.src, ...after.map(nodeSrc), binding].join(', ') })`);
     // the probe RENDERS the sealed nav, so of the receiver only the effects come back as source
     // text - the residual ones around the binding, and the probe's own key SE inside its render.
     // everything else is gone and its queued rewrites with it
@@ -3976,8 +4084,12 @@ export function createPolyfillEmitter({
   // so it lifts to `?.` - EXCEPT across a SEALED layer (paren boundary), which keeps the
   // source's own throw semantics. the tail slices from the WRAPPER'S end so a seal's
   // close-paren never leaks into it. shared by the claimless receiver arm and the synth
-  // param-default channel
-  function sealedNavReceiverSrc(unwrapped, metaPath, hostPath = null, { widenDeep = false } = {}) {
+  // param-default channel.
+  // the result is a SPAN REPLACEMENT - `src` is meaningful only for a caller that replaces
+  // `[node.start, end)`. only such a caller may ask for `growSpan`, which lets the fold TAKE
+  // chain steps past the node and can leave `src` ending in a dangling `?.`; a caller splicing
+  // the text into a slot of its own keeps the default and gets a render that stops at the node
+  function sealedNavReceiverSrc(unwrapped, metaPath, hostPath = null, { widenDeep = false, growSpan = false } = {}) {
     // only a chain whose value genuinely short-circuits (a live `?.` over the probe) or that
     // crosses a SEALED probe layer earns the guarded render - a defined nav keeps the
     // collapse canons (a greedy render here diverged the emitters on plain `.self` chains).
@@ -3993,7 +4105,10 @@ export function createPolyfillEmitter({
     let target = unwrapped;
     let navObj = null;
     let navGuard = null;
-    while (!memberProxyHopName(target)) {
+    // the END may itself be a proxy hop (`(nav).window`, no polyfillable tail above it) and the
+    // guard it needs still lives BELOW it - run the descent at least once, so the search is not
+    // stopped by the very node it starts on
+    for (let first = true; first || !memberProxyHopName(target); first = false) {
       const objNode = unwrapNode(target.object);
       if (objNode?.type !== 'MemberExpression' && objNode?.type !== 'OptionalMemberExpression') break;
       navGuard = inlineCallNavGuardRootSrc({
@@ -4009,7 +4124,14 @@ export function createPolyfillEmitter({
     // rescue the harvested key SE from the chain skip: its polyfillable content must keep its
     // queued rewrite (composed back by needle), and the import survives
     skipCollapsedChainExceptRootCall(navObj, skippedNodes, { keepSe: navGuard.keySeExprs });
-    const sealedEnd = sealedLayerBetween(target.object, navObj);
+    // the seal may sit ABOVE the rendered nav (a layer between it and the tail) or INSIDE it,
+    // below a proxy hop the render collapses away (`(globalThis.window?.self).self.foo` - the
+    // guard absorbs `.self`, and the source's throw at that read goes with it). the second is
+    // the shared predicate's question; measuring only the first let the fold and the `?.` lift
+    // run across a seal and answer `void 0` where the source throws
+    const sealedEnd = sealedLayerBetween(target.object, navObj)
+      || chainReadsThroughSeal(navObj, ({ name }) => resolveGlobalPolyfill(name),
+        { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath });
     // a layer between the nav and its consumer (`(nav).x`, `(nav as any).x`) closes AFTER the nav
     // node ends, so a tail sliced at that end opens with the closer of a paren the render already
     // replaced. take the slice from where the span rebalances instead, and keep whatever the layer
@@ -4064,11 +4186,13 @@ export function createPolyfillEmitter({
         // the chain may continue PAST this span (`...?.self.performance.now()`): a pulled tail
         // ends in a plain ternary, so a continuation left outside would read off the
         // short-circuited `void 0`. TAKE it - the span grows to cover what was pulled, and the
-        // swallowed nodes are marked so their own visitors do not emit a second time
-        const grown = guardTailSpan({
+        // swallowed nodes are marked so their own visitors do not emit a second time.
+        // only a caller that replaces up to the returned `end` may take anything: for the rest
+        // the render stops at the node, and the continuation keeps the lifted spelling below
+        const grown = growSpan ? guardTailSpan({
           metaPath: hostPath, fromNode: unwrapped, end: unwrapped.end, leadingCall: true,
           allPlain: hops.slice(0, taken).every(hop => !hop.optional),
-        });
+        }) : { end: unwrapped.end, taken: 0 };
         // the growth keeps everything it could take: a consumer that parenthesizes the guard
         // wraps the WHOLE folded value, so no step needs to sit outside those parens
         const { end } = grown;
@@ -4238,9 +4362,16 @@ export function createPolyfillEmitter({
     });
     if (!end) return false;
     const chainEnd = unwrapNode(end.node);
-    if (memberProxyHopName(chainEnd)) return false;
+    // a chain END that is itself a pristine proxy hop belongs to the alias / kept canons - EXCEPT
+    // when the nav's own value short-circuits: no claim sits above such a chain, so nothing else
+    // owns it, and standing down leaves the hops RAW (`_globalThis.window?.self.window` - a native
+    // `.self` read where the ponyfill is the whole point). the hop collapse refuses exactly this
+    // nav by canon, and this is the receiver that refusal never had
+    if (memberProxyHopName(chainEnd) && !navValueCanShortCircuit(navNode,
+      ({ name }) => resolveGlobalPolyfill(name),
+      { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath })) return false;
     if (transforms.containsRange(chainEnd.start, chainEnd.end)) return false;
-    const sealed = sealedNavReceiverSrc(chainEnd, metaPath, end, { widenDeep: true });
+    const sealed = sealedNavReceiverSrc(chainEnd, metaPath, end, { widenDeep: true, growSpan: true });
     if (!sealed) return false;
     // the render seals PAST the chain end, so the claim covers a range the probe above never saw -
     // asking `hasRange` on the chain end and adding the sealed span let an owner of the grown range
@@ -4282,17 +4413,44 @@ export function createPolyfillEmitter({
     const aliasCtx = { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath };
     if (!proxyReceiverValueCanBeUndefined(boundary.inner,
       ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) return null;
+    // the nav plan renders a guard whose LEAF is a proxy hop; when the sealed nav ends at the
+    // CLAIM itself (`(globalThis.window?.Array).of`) it has none to render, and the read the seal
+    // makes observable would be dropped. build the same shape from its two halves instead - the
+    // erase verdict's `?.` object as the test, the chain collapse as the always-defined alternate
     const navGuard = inlineCallNavGuardRootSrc({
       rootNode: boundary.inner, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
-    });
+    }) ?? sealedClaimLeafGuard(boundary.inner, metaPath);
     if (!navGuard) return null;
     skipCollapsedChainExceptRootCall(boundary.inner, skippedNodes, { keepSe: navGuard.keySeExprs });
     return {
       // the guard test runs an effect-bearing CALL root exactly once - carry it like a key
       // SE so every consumer's identity filter keeps other channels from re-running it
       keySeExprs: navGuard.rootEffectCall ? [...navGuard.keySeExprs, navGuard.rootEffectCall] : navGuard.keySeExprs,
+      // the probe RENDERS the nav, so an effect the source wrote BEFORE it (a sequence prefix on
+      // the receiver) still runs first - consumers split their residual effects on this position
+      navStart: boundary.inner.start,
+      // the key the probe itself reads: a consumer that also spells that read needs to know the two
+      // are the same one, and the boundary walk that answers it has already run here
+      key,
       src: `(${ navGuard.src })${ boundary.member.computed ? `[${ JSON.stringify(key) }]` : `.${ key }` }`,
     };
+  }
+
+  // the guarded VALUE of a sealed nav that ends AT a claim: the erase verdict names the `?.` object
+  // to test, the chain resolver spells the always-defined collapse. shaped like the plan's own
+  // result so the probe consumer cannot tell the two apart
+  function sealedClaimLeafGuard(nav, metaPath) {
+    const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolveGlobalPolyfill(name),
+      { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath });
+    if (!plan) return null;
+    const test = proxyNavGuardRootSrc({
+      rootNode: plan.guardObject, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
+    });
+    if (!test) return null;
+    const alternate = plan.leafPure
+      ? injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)
+      : isBareIdentifier(plan.leafName) ? plan.leafName : null;
+    return alternate ? { src: `null == ${ test } ? void 0 : ${ alternate }`, keySeExprs: [] } : null;
   }
 
   // compose the binding's text replacement with receiver-side effects + ASI guard.
