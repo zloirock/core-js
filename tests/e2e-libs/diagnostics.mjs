@@ -1,4 +1,4 @@
-// How this suite says what went wrong, in one place. Four surfaces report a failure - the raw tier,
+// How this suite says what went wrong. Four surfaces report a failure - the raw tier,
 // the runtime tier, and the two harness targets on the page - and each of them used to answer the
 // same two questions its own way, so which of them a failure happened to reach decided whether it
 // named a reason at all.
