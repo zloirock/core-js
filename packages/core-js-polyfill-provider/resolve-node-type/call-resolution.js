@@ -81,7 +81,7 @@ export function createCallResolution({
   findOverloadsForName,
   resolveFromMemberExpression,
   resolveKnownStaticReturnType,
-  resolveStaticReturnFromHint,
+  typeFromHint,
   resolveKnownInstanceMember,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   staticPairFromPolyfillEntry,
@@ -237,10 +237,10 @@ export function createCallResolution({
     // aliased patched static (`const af = Array.from` after `Array.from = ...`) - same drop to generic
     if (isMutatedStatic(pair.constructor, pair.method)) return null;
     const retHint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method);
-    // delegate to the shared hint resolver so an aliased `freeze(a)` honors `returnsArgument` /
-    // Promise.resolve arg-inference exactly like the direct `Object.freeze(a)` - not just the
-    // declared hint, which would drop the array narrow to the generic 'Object'
-    return retHint ? resolveStaticReturnFromHint({ hint: retHint, callPath }) : null;
+    // delegate to the shared hint resolver so an aliased `freeze(a)` honors the `argument`
+    // directive exactly like the direct `Object.freeze(a)` - not just the declared hint, which
+    // would drop the array narrow to the generic 'Object'
+    return retHint ? typeFromHint(retHint, undefined, callPath) : null;
   }
 
   // resolve `const { from } = Array` / nested `const { a: { from } } = wrapper` patterns
