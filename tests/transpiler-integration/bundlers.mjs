@@ -1,7 +1,19 @@
-// The bundler adapters, one entry per supported tool: `(input, plugins, extra) -> { code, ext?, map? }`.
-// The caller supplies the plugins it wants registered - unplugin's adapter for a bundler, or a sibling
-// beside it - and gets the bundle back as text. Everything a tool needs to produce one node-loadable
-// file is set here, so the matrix in `runner.mjs` stays about methods and phases.
+// The bundler adapters, one entry per supported tool. The caller supplies the plugins it wants
+// registered - unplugin's adapter for a bundler, or a sibling beside it - and gets the bundle back as
+// text. Everything a tool needs to produce one node-loadable file is set here, so the matrix in
+// `runner.mjs` stays about methods and phases.
+//
+// The shape as a table, because the eight do not share it exactly and a dropped option changes no
+// result - it changes what a leg covers:
+//
+//   in   input    string entry path, or - esbuild only - the esbuild input option itself
+//        plugins  registered as given, in order
+//        extra    { inlineDynamic?: boolean }, taken by every adapter EXCEPT esbuild and farm, whose
+//                 output is single-file by construction - the dynamic leg sends the flag to all of
+//                 them, and for those two it is already true rather than dropped
+//   out  code     the bundle, as text                         (every adapter)
+//        ext      the extension the runner must write it under (esbuild, farm - both emit CommonJS)
+//        map      the output sourcemap                         (rollup, vite - `assertMapShape` reads it)
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,16 +41,35 @@ export async function withTmpDir(fn) {
 // the one question both suites have to answer identically, since it is the same failure of the same
 // plugins. Whatever is not escalated is handed BACK: installing a handler replaces a tool's own
 // printing rather than adding to it, so a warning nobody chose to ignore would otherwise be destroyed.
+// `PLUGIN_WARNING` from unplugin is the third: it is the only channel by which the plugin reports its
+// OWN failure - a module its parser could not read is handed back untransformed - and a suite that
+// drops it tests a build the plugin quietly gave up on
+//
+// The plugin's name comes from the caller, which reads it off a live instance: a literal here would
+// be a second place to keep it, and the one whose drift is silent - a rename in the plugin turns the
+// escalation below into a no-op while every leg stays green.
 const FATAL_WARNINGS = new Set(['UNRESOLVED_IMPORT', 'MISSING_EXPORT']);
-function strictWarn(warning, warn) {
-  if (FATAL_WARNINGS.has(warning.code)) throw new Error(`${ warning.code }: ${ warning.message }`);
-  warn(warning);
+function makeStrictWarn(unpluginName) {
+  return function strictWarn(warning, warn) {
+    if (FATAL_WARNINGS.has(warning.code)) throw new Error(`${ warning.code }: ${ warning.message }`);
+    if (warning.code === 'PLUGIN_WARNING' && warning.plugin?.startsWith(unpluginName)) {
+      throw new Error(`${ warning.plugin }: ${ warning.message }`);
+    }
+    warn(warning);
+  };
 }
 
 // The tools with no code to classify by. esbuild and the webpack family already ERROR on an import
-// they cannot resolve - the case above - so what is left here is everything else they noticed, and it
-// is returned rather than printed by either: `write: false` gives esbuild no reason to print, and
-// `stats.hasErrors()` is the only half of the stats object the adapter reads.
+// they cannot resolve - the case above - so what is left here is everything else they noticed, and
+// both hand it back as a value. Only webpack is silent about it on its own, since nothing calls
+// `stats.toString()`; esbuild's JS API logs at `warning` by default, and is set below to `silent` so
+// that this stays the one place a warning is printed rather than the second.
+//
+// Six of the eight adapters are reached by one of the two - esbuild, webpack and rspack here, rollup,
+// rolldown and vite by the handler above. rsbuild and farm are neither: both turn their own logging
+// down to keep progress lines out of a run this long, and neither hands warnings back as a value.
+// On those two a plugin that gave up on a module says so to nobody, and only the runtime assertions
+// are left to notice.
 function reportWarnings(label, messages) {
   for (const message of messages) console.warn(`[${ label }] ${ message }`);
 }
@@ -46,12 +77,18 @@ function reportWarnings(label, messages) {
 export function makeBundlers({
   // the directory vite, rsbuild and farm root their configuration at
   root,
+  // the plugin name the escalation above matches on, derived by the caller from an instance
+  unpluginName,
 } = {}) {
   // vite, rsbuild and farm all resolve from `root`, and each of them silently falls back to the
   // process working directory - which under `zxi cd` is whichever suite happens to be running
   if (!root) throw new Error('makeBundlers: `root` is required');
+  // required rather than defaulted, for the reason the escalation block gives: a default IS a
+  // literal, and its drift is the silent kind
+  if (!unpluginName) throw new Error('makeBundlers: `unpluginName` is required');
+  const strictWarn = makeStrictWarn(unpluginName);
 
-  async function webpackLike(compiler, input, plugins, { inlineDynamic } = {}) {
+  async function webpackLike(name, compiler, input, plugins, { inlineDynamic } = {}) {
     return withTmpDir(async dir => {
       const filename = 'out.mjs';
       const all = [...plugins];
@@ -69,7 +106,7 @@ export function makeBundlers({
       try {
         const stats = await promisify(instance.run.bind(instance))();
         if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
-        if (stats.hasWarnings()) reportWarnings('webpack-like', stats.compilation.warnings.map(w => w.message));
+        if (stats.hasWarnings()) reportWarnings(name, stats.compilation.warnings.map(w => w.message));
       } finally {
         await promisify(instance.close.bind(instance))();
       }
@@ -80,6 +117,9 @@ export function makeBundlers({
   return {
     // `input` is an entry path, or the esbuild input option itself - `{ stdin: ... }` for a caller
     // that has the source in hand rather than on disk
+    // No `extra`: without `splitting` esbuild emits ONE file for any input, so `inlineDynamic` is
+    // already true of the output and there is nothing to wire. Declared in the table above rather than
+    // taken and ignored - a parameter that is accepted and dropped reads as one that is honoured
     async esbuild(input, plugins = []) {
       const { build } = await import('esbuild');
       const result = await build({
@@ -87,8 +127,10 @@ export function makeBundlers({
         plugins,
         bundle: true,
         write: false,
-        // the runner loads what it built, and esbuild is the one tool here whose output this suite
-        // takes as CommonJS - hence the extension that goes with it
+        // see `reportWarnings`: the line it prints is the one this suite controls
+        logLevel: 'silent',
+        // the runner loads what it built, and this suite takes the output of two of its tools as
+        // CommonJS - this one and farm below - hence the extension that goes with it
         format: 'cjs',
         platform: 'node',
       });
@@ -117,10 +159,8 @@ export function makeBundlers({
       const { build } = await import('vite');
       const result = await build({
         root,
-        // `warn`, not `silent`: vite is the one tool here whose warning channel the caller cannot
-        // install - it omits `onwarn` from `rollupOptions` on purpose and routes everything through
-        // this logger instead. It already ERRORS on an import it cannot resolve, so what silencing
-        // it costs is the rest, which is exactly what `strictWarn` hands back everywhere else
+        // `warn`, not `silent`: what a log level decides here is only whether what the handler below
+        // hands back is printed or destroyed
         logLevel: 'warn',
         build: {
           write: false,
@@ -129,8 +169,11 @@ export function makeBundlers({
           lib: { entry: input, formats: ['es'] },
           // the ids vite hands to its CommonJS interop: the inputs here need core-js alone
           commonjsOptions: { include: [/core-js/] },
-          // vite bundles with rolldown, so the output option follows rolldown's spelling
-          rollupOptions: inlineDynamic ? { output: { codeSplitting: false } } : {},
+          // vite bundles with rolldown, so the output option follows rolldown's spelling - and the
+          // handler reaches it the same way. Of the three codes `strictWarn` escalates vite raises
+          // only `UNRESOLVED_IMPORT` by itself; the other two, the plugin's own channel among them,
+          // are warnings here and would leave this leg alone in answering the question differently
+          rollupOptions: { onwarn: strictWarn, ...inlineDynamic ? { output: { codeSplitting: false } } : {} },
         },
         resolve: { dedupe: ['core-js'] },
         plugins,
@@ -141,12 +184,12 @@ export function makeBundlers({
 
     async webpack(input, plugins = [], extra = {}) {
       const webpack = (await import('webpack')).default;
-      return webpackLike(webpack, input, plugins, extra);
+      return webpackLike('webpack', webpack, input, plugins, extra);
     },
 
     async rspack(input, plugins = [], extra = {}) {
       const { rspack } = await import('@rspack/core');
-      return webpackLike(rspack, input, plugins, extra);
+      return webpackLike('rspack', rspack, input, plugins, extra);
     },
 
     // rsbuild drives rspack: same chunk-loader semantics, plugin passed through unplugin's rsbuild
@@ -209,6 +252,8 @@ export function makeBundlers({
       });
     },
 
+    // No `extra`, for esbuild's reason: `partialBundling` below forces one file for any input, so
+    // `inlineDynamic` is already true of the output
     async farm(input, plugins = []) {
       const { build, Logger } = await import('@farmfe/core');
       // Logger level: 'error' doesn't silence "Build completed" - override info methods directly

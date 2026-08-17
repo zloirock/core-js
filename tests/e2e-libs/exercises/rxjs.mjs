@@ -20,7 +20,7 @@
 // `three` carries the phase diagnostic instead. Do not add spread or `for-of` to make this cell red.
 import {
   of, from, range, merge, concat, zip, combineLatest, forkJoin, throwError, defer, generate,
-  EMPTY, NEVER, scheduled, pairs, partition, connectable, observable as symbolObservable,
+  EMPTY, scheduled, pairs, partition, connectable, observable as symbolObservable,
   BehaviorSubject, ReplaySubject, AsyncSubject, Subject, Subscription, Notification,
   firstValueFrom, lastValueFrom, queueScheduler, asapScheduler, asyncScheduler,
   EmptyError, ArgumentOutOfRangeError, NotFoundError, SequenceError, ObjectUnsubscribedError,
@@ -41,7 +41,7 @@ function collect(obs) {
 // file as its only origin - rxjs never calls it - which is the sole-origin trap exercises/checks.mjs
 // describes: a line that documents the harness, and that would stand over rxjs if it ever did call it.
 // Everything below is already in flight by the time this runs, so joining them in order costs nothing
-// and reaches only for `then`, which rxjs itself drives from a dozen modules.
+// and reaches only for `then` and `catch`, both of which rxjs itself drives from a dozen modules.
 /* eslint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- .then and .catch
    rather than await: keeps this module regenerator-free, the same reason the header gives for banning
    `async` (see the sibling disable below). The rejection handler is a handler, not a callback - await
@@ -275,8 +275,16 @@ export function run() {
     collect(from({ length: 3, 0: 'l0', 1: 'l1', 2: 'l2' })),
     collect(scheduled(new Set(['s1', 's2']), queueScheduler)),
     collect(scheduled(customAsyncIterable(['a1']), asyncScheduler)),
-    collect(of('asap').pipe(observeOn(asapScheduler))),
-    collect(of('queued').pipe(subscribeOn(queueScheduler))),
+    // Merged with a SYNCHRONOUS emission in both cases. A scheduler decides when a value arrives, and
+    // a single value collected into an array cannot show that - both operators could be deleted from
+    // these pipes and the checks below stayed green. Against a synchronous neighbour the order is the
+    // answer: through asap and through async, the scheduled value arrives second.
+    //
+    // `subscribeOn` is on the ASYNC scheduler for that reason and not on queue: queue is trampolined,
+    // so deferring a subscription to it changes nothing anything here can observe. Queue keeps its
+    // coverage two lines up, where `scheduled` drives it.
+    collect(merge(of('asap').pipe(observeOn(asapScheduler)), of('sync'))),
+    collect(merge(of('queued').pipe(subscribeOn(asyncScheduler)), of('sync'))),
     collect(pairs({ p: 1, q: 2 })),
 
     // --- transformation / filtering ---
@@ -304,7 +312,10 @@ export function run() {
     collect(of(1, 2, 3).pipe(mergeScan((acc, x) => of(acc + x), 0))),
     collect(of('w').pipe(withLatestFrom(of('L')))),
     collect(of(1).pipe(zipWith(of('z')))),
-    collect(of('fast').pipe(raceWith(NEVER))),
+    // the receiver is deferred so that the racer is the one that can win: raced against NEVER, a
+    // synchronous receiver emits the same value whether or not `raceWith` is in the pipe at all, and
+    // the check could not tell the operator from its absence. Deferred, dropping it yields 'slow'
+    collect(of('slow').pipe(observeOn(asyncScheduler), raceWith(of('fast')))),
     collect(of(1).pipe(concatWith(of(2)), mergeWith(of(3)))),
     collect(of(2, 3).pipe(startWith(1), endWith(4))),
 
@@ -348,8 +359,8 @@ export function run() {
     check('from_array_like', nx(), ['l0', 'l1', 'l2']);
     check('scheduled_iterable_queue', nx(), ['s1', 's2']);
     check('scheduled_async_iterable', nx(), ['a1']);
-    check('observeOn_asap', nx(), ['asap']);
-    check('subscribeOn_queue', nx(), ['queued']);
+    check('observeOn_asap', nx(), ['sync', 'asap']);
+    check('subscribeOn_async', nx(), ['sync', 'queued']);
     check('pairs_object_entries', nx(), [['p', 1], ['q', 2]]);
 
     check('reduce_sum', nx(), 15);
