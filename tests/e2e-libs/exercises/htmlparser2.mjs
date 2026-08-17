@@ -151,11 +151,24 @@ export function run() {
   check('pseudo_icontains', selectAll('li:icontains("DASH")', doc).length, 1);
   check('pseudo_has', selectAll('ul:has(li.sel)', doc).length, 1);
   check('is_match', is(items[1], 'li.sel[data-n="2"]'), true);
-  check('compiled_query', selectAll(compile('li.sel'), doc).length, 1);
+  // the compiled query is USED as one, not just handed back to `selectAll` - that entry point takes a
+  // raw string too, so `compile = source => source` satisfied the count and the check said nothing
+  // about compilation having happened
+  const isSelected = compile('li.sel');
+  check('compiled_query', selectAll(isSelected, doc).length, 1);
+  // called behind a `typeof` guard, so that the same degraded `compile` reddens this check instead of
+  // throwing "isSelected is not a function" out of the exercise and costing every check after it
+  check('compiled_query_predicate',
+    typeof isSelected === 'function' ? [isSelected(items[1]), isSelected(items[0])] : ['not a predicate'], [true, false]);
   check('descendant_cache', selectAll('body #list li', doc).length, 3);
   // `:scope` has three implementations picked by context length; only the >= 2 one reaches
   // `context.includes(element)`, which is one of the two `Node[]`-annotated receivers the header is about
-  check('scope_context', selectAll(':scope', items.slice(0, 2), { context: items.slice(0, 2) }).length, 2);
+  //
+  // The element list is WIDER than the context on purpose. Handing the same two arrays to both never
+  // asks `includes` a question whose answer is `false`, so an `includes` degraded to always-true
+  // returned the same count and the check stayed green - the receiver it exists to observe was never
+  // observed. Three elements against a context of two: only the two are in scope
+  check('scope_context', selectAll(':scope', items.slice(0, 3), { context: items.slice(0, 2) }).length, 2);
   check('lang_match', is(selectOne('#list', doc), ':lang(en)'), true);
   check('lang_reject', is(selectOne('#list', doc), ':lang(fr)'), false);
   // `:has()` marks the selector as carrying an expensive subselector, which is the only thing that
@@ -200,10 +213,13 @@ export function run() {
   const root = firstChild(detached);
   replaceElement(selectOne('b', detached), firstChild(parseDocument('<z>z</z>')));
   check('replace_element', getName(firstChild(root)), 'z');
+  // the children in ORDER, not how many of them there are: `append` satisfies a count of three exactly
+  // as `prepend` does, and where the node landed is the whole of what `prepend` decides. `remove_element`
+  // was the same shape and is fixed by the same change
   prepend(firstChild(root), firstChild(parseDocument('<w/>')));
-  check('prepend', getChildren(root).length, 3);
+  check('prepend', getChildren(root).map(getName), ['w', 'z', 'c']);
   removeElement(firstChild(root));
-  check('remove_element', getChildren(root).length, 2);
+  check('remove_element', getChildren(root).map(getName), ['z', 'c']);
 
   return { checks };
 }
