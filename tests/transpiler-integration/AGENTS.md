@@ -8,7 +8,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` pinning the bundlers. 
 
 ## Layout
 
-- `bundlers.mjs` - the bundler adapters themselves, one per tool: everything each one needs to emit a single node-loadable file, so `runner.mjs` is left with the matrix. `root` is the only thing the caller supplies, because it is the only thing the module cannot know: vite, rsbuild and farm resolve from it and fall back to the working directory in silence
+- `bundlers.mjs` - the bundler adapters themselves, one per tool: everything each one needs to emit a single node-loadable file, so `runner.mjs` is left with the matrix. `root` and `unpluginName` are the two things the caller supplies, and neither is defaulted, because either default fails in silence: vite, rsbuild and farm resolve from `root` and fall back to the working directory without a word, and a plugin name spelled here instead of read off a live instance stops matching on a rename in the plugin while every leg stays green
 - `matrix.mjs` - the methods, the phases each one supports, and the plugin options that select them, shared with `tests/e2e-libs`. `deadline.mjs` - the bound a runner puts on a wait, beside it under the same contract. Neither pulls anything in, which is what lets that suite import them without installing this directory; keep it that way
 - `runner.mjs` - the matrix: those adapters crossed with the three methods and the phases each one supports, plus the two builders that are not plain bundler runs - babel-plugin, which has no phase of its own, and bun, which builds and verifies inside bun
 - `input-<method>.js` - the source for each injection method, plus `input-phases.js` for the pre/post interaction and `input-dynamic.js` for dynamic import

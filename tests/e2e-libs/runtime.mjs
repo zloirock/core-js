@@ -8,7 +8,7 @@
 import { cellLabel, describeInput, runtimeBuild, wireSize, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
 import { positionals } from './cli.mjs';
 import { checkFailureLine, discard, errorReason } from './diagnostics.mjs';
-import { bannerHarness, qunitHarness } from './harness.mjs';
+import { PAGE, bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
 import findInternetExplorer from '../karma/internet-explorer.js';
 
@@ -25,10 +25,12 @@ const TMP = join(HERE, '.tmp');
 // first is still feeding to Karma, and the failure would name a missing file rather than any code
 const KARMA_OUT = join(TMP, `karma-${ process.pid }`);
 
-// the net under the per-cell `catch` below - see `transpiler-integration/deadline.mjs` for what it
-// is against. Without it the run stops with no line saying which cell was in flight
+// A rejection nobody claimed ends the run either way; what this decides is what the reader gets out
+// of it. node dumps the throwable raw, which for anything without a `message` is `[object Object]`,
+// so the reason is turned into one line here - and the original is kept as `cause`, which node prints
+// underneath with the stack this line would otherwise replace. Neither shape names the cell.
 process.on('unhandledRejection', reason => {
-  throw new Error(`unhandled rejection - ${ errorReason(reason) }`);
+  throw new Error(`unhandled rejection - ${ errorReason(reason) }`, { cause: reason });
 });
 
 const [libFilter] = positionals(argv, { names: ['libFilter'], usage: 'runtime.mjs takes [libFilter]' });
@@ -113,10 +115,18 @@ async function snapshot(file, lines, origins) {
 }
 
 // runs in the child, where `-e` has no module path of its own: the bundle is resolved against the cwd,
-// since a bare `.tmp/x` would be read as a package name
+// since a bare `.tmp/x` would be read as a package name.
+//
+// The replacer is `jsonLossyAsText` from `diagnostics.mjs`, spelled again because nothing is imported
+// here: this is where a check's `actual` crosses a process boundary, and plain `JSON.stringify` would
+// turn a NaN from a broken `Math.sign`, or the `undefined` a guard produced, into `null` before any
+// renderer on the far side could say otherwise. Functions and symbols go the same way.
 const PREFLIGHT = 'const m = require(require("node:path").resolve(process.argv[1]));'
   + ' const run = m.run || (m.default && m.default.run) || m.default;'
-  + ' Promise.resolve(run()).then(function (r) { process.stdout.write(JSON.stringify(r.checks)); })'
+  + ' Promise.resolve(run()).then(function (r) { process.stdout.write(JSON.stringify(r.checks,'
+  + ' function (k, v) { if (typeof v === "number" && !isFinite(v)) return String(v);'
+  + ' if (v === undefined || typeof v === "symbol") return String(v);'
+  + ' return typeof v === "function" ? "[function " + (v.name || "anonymous") + "]" : v; })); })'
   + ' .catch(function (e) { process.stderr.write(String((e && e.stack) || e)); process.exit(1); });';
 
 // Run a UMD bundle in a fresh node process (full realm, isolated) and return its `run()` checks.
@@ -139,7 +149,10 @@ async function preflight(code) {
       throw new Error(`preflight stdout is not JSON: ${ stdout.slice(0, 200) }`);
     }
   } finally {
-    await rm(f, { force: true });
+    // through `discard` like every other cleanup here: this one wraps the call that PRODUCES the
+    // cell's verdict, and `force` covers only ENOENT - a `.cjs` a just-exited child still holds open
+    // on the windows leg raises EPERM, which would replace that verdict or redden a cell that passed
+    await discard(() => rm(f, { force: true }), relative(HERE, f));
   }
 }
 
@@ -150,17 +163,23 @@ function esc(s) {
 }
 
 // The in-page harness (banner target) lives in harness.mjs, shared with the Karma driver and parsed
-// as ES5 at that module's load. `bannerHarness(count)` bakes the pre-flight count in, so a page whose
-// in-browser run returns fewer checks than node did cannot paint itself green.
+// as ES5 at that module's load. `bannerHarness` bakes the pre-flight's label SEQUENCE in, so a page
+// whose in-browser run reproduces neither those checks nor their number cannot paint itself green.
 function html(title, subtitle, checks) {
   const rows = checks.map(c => `<tr class="${ c.pass ? 'ok' : 'bad' }"><td>${ esc(c.label) }</td><td>${ c.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
   const failing = checks.filter(c => !c.pass).length;
+  // ids and state classes come from `PAGE`, the same object the harness addresses - a literal here and
+  // a literal there have nothing tying them together. The banner carries its own background rather
+  // than taking it from a state class alone: the text is white unconditionally, so a class this
+  // renderer does not define would paint white on white and the page would report nothing. The state
+  // rules carry the id too: a class alone loses to it on specificity, and the banner would stay grey
+  // through PASS and FAIL alike - the one channel a reader takes in before any text
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>e2e-libs ${ esc(title) }/${ esc(subtitle) }</title>
 <style>
   body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:720px}
-  #banner{padding:1rem;border-radius:8px;font-weight:700;font-size:18px;color:#fff}
-  .green{background:#166534}.red{background:#991b1b}.wait{background:#525252}
+  #${ PAGE.banner }{padding:1rem;border-radius:8px;font-weight:700;font-size:18px;color:#fff;background:#525252}
+  #${ PAGE.banner }.${ PAGE.pass }{background:#166534}#${ PAGE.banner }.${ PAGE.fail }{background:#991b1b}
   table{border-collapse:collapse;margin-top:1rem;width:100%}
   td{border:1px solid #ccc;padding:4px 8px}
   tr.ok td:nth-child(2){color:#166534;font-weight:700}
@@ -168,24 +187,33 @@ function html(title, subtitle, checks) {
 </style></head>
 <body>
   <h1>${ esc(title) } - <code>${ esc(subtitle) }</code></h1>
-  <div id="banner" class="wait">running...</div>
+  <div id="${ PAGE.banner }">running...</div>
   <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
-  <table id="tbl"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
+  <table id="${ PAGE.table }"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
   <script src="bundle.js"></script>
-  <script>${ bannerHarness(checks.length) }  </script>
+  <script>${ bannerHarness(checks.map(c => c.label)) }  </script>
 </body></html>
 `;
 }
 
 // -------- the single pass --------
 
-// A filtered run merges into the existing manifest, so read and validate it FIRST: discovering a
-// corrupt one after the wipe would destroy the artifacts it describes and every rebuilt cell with it.
-// Read AGAIN just before writing (see the end of this file) - the run in between takes minutes, and
-// a sibling filtered run finishing inside that window would otherwise be dropped from the file.
+// what this run is about to rebuild, and so what it may not keep from the file below
 const rebuilt = new Set(libs.map(l => l.name));
+// Derived rather than curated - see `describeInput` - so a package that turns out to be the sole
+// origin of a baseline line is named without anyone having noticed. Read before the manifest is, since
+// the merge below keeps only cells built against the same one.
+const input = await describeInput();
+
+// What a filtered run keeps from the existing manifest, and `null` when the file itself has to go -
+// the caller acts on that, so this stays a question rather than a question that also deletes.
+//
+// Read and validated FIRST: discovering a corrupt one after the wipe would destroy the artifacts it
+// describes and every rebuilt cell with it. Read AGAIN just before writing (see the end of this file)
+// - the run in between takes minutes, and a sibling filtered run finishing inside that window would
+// otherwise be dropped from the file.
 async function otherLibrariesInManifest() {
-  if (!libFilter) return [];
+  if (libFilter === undefined) return [];
   try {
     const parsed = JSON.parse(await readFile(MANIFEST, 'utf8'));
     // `{ input, cells }`, not a bare array: this file outlives the run, and without the input it
@@ -197,7 +225,16 @@ async function otherLibrariesInManifest() {
     // may be a live sibling's.
     if (!Array.isArray(parsed?.cells)) {
       echo(chalk.yellow(`  ${ chalk.cyan(relative(HERE, MANIFEST)) } is from an older shape of this runner - starting a new one`));
-      return [];
+      return null;
+    }
+    // and only cells fed the SAME input, all of it: the write at the end stamps this run's `input`
+    // over whatever it keeps, so a cell built under another node or another version of the polyfill
+    // stack would come back relabelled as this run's. The lockfile digest alone cannot answer that -
+    // it covers this directory's install, and the polyfill stack resolves from the root tree.
+    // Compared as text, which both sides are safe for: they come from `describeInput`, in its order.
+    if (JSON.stringify(parsed.input) !== JSON.stringify(input)) {
+      echo(chalk.yellow(`  ${ chalk.cyan(relative(HERE, MANIFEST)) } was built against another input - keeping only this run's cells`));
+      return null;
     }
     return parsed.cells.filter(e => !rebuilt.has(e.lib));
   } catch (err) {
@@ -205,13 +242,20 @@ async function otherLibrariesInManifest() {
     return [];
   }
 }
-await otherLibrariesInManifest(); // the value is the write's business; this call is here to throw early
+// read here to throw early; the write at the end reads again. A file this run refuses to merge is
+// one it also refuses to leave standing: it describes cells built from another input, beside pages
+// this run is not going to rewrite, and the next reader cannot tell which are which.
+if (await otherLibrariesInManifest() === null) await rm(MANIFEST, { force: true });
 
 // Cells are only written on the success path, so without a wipe a failed cell leaves yesterday's
-// all-green page on disk while the manifest records the failure - and the operator is told to upload
-// whatever is in those directories. An unfiltered run therefore clears everything; a filtered one
-// clears only what it is about to rebuild, and keeps the rest of the manifest through
-// `otherLibrariesInManifest`, which the write at the end of this file merges back in.
+// all-green page on disk while the manifest records the failure. An unfiltered run therefore clears
+// everything; a filtered one clears ONLY the libraries it is about to rebuild, and keeps the rest of
+// the manifest through `otherLibrariesInManifest`, which the write at the end merges back in.
+//
+// Filtered stays per-library even when nothing was kept, because splitting a forty-cell wait across
+// two filtered runs is the workflow `KARMA_OUT` is named per-process for: at the moment both start,
+// neither has written the manifest yet, and a run that cleared the whole directory on that ground
+// would delete the pages its sibling had just built.
 if (libFilter) {
   for (const lib of libs) await rm(join(ART, lib.name), { recursive: true, force: true });
 } else {
@@ -222,7 +266,8 @@ await mkdir(KARMA_OUT, { recursive: true });
 // Everything under `.tmp` is named after the process that owns it, and the bundles outlive their run
 // on purpose - without IE11 here they are the whole point of the message below. What nothing did was
 // collect them, and a `finally` cannot: a run killed by a signal is exactly the one that leaves its
-// entry and pre-flight files behind. So each run sweeps what belongs to processes that are gone -
+// entry and pre-flight files behind. `.tmp` is read rather than created here because the `mkdir`
+// above just made it. So each run sweeps what belongs to processes that are gone -
 // `kill(pid, 0)` is the only question separating those from a live sibling's, which the per-process
 // naming exists to protect.
 const OWNED_BY = /-(?<pid>\d+)-\d+\.[cm]js$|^karma-(?<dirPid>\d+)$/;
@@ -249,9 +294,7 @@ await mkdir(SNAP, { recursive: true });
 
 // Printed unconditionally, because the expensive question to answer after the fact is "was this the
 // same input?" - and a snapshot that drifts between two machines is answered almost entirely by this
-// plus the injection origins above. Derived rather than curated - see `describeInput` - so a package
-// that turns out to be the sole origin of a baseline line is named without anyone having noticed.
-const input = await describeInput();
+// plus the injection origins above.
 echo(chalk.green(`environment: ${ chalk.cyan(input.environment) } | lockfile ${ chalk.cyan(input.lockfile) }`));
 // the TS-source stack is called out of the same list rather than fetched separately: those packages
 // are consumed as SOURCE, so they move the htmlparser2 baselines through a path none of the others do
@@ -365,7 +408,9 @@ for (const { lib, method, provider, phase } of cells) {
     const bytes = Buffer.byteLength(code);
     const { min, gz } = await wireSize(code, label);
 
-    const rel = phase ? join(lib.name, provider, method, phase) : join(lib.name, provider, method);
+    // split back out of `label` rather than rebuilt from the same fields, so the directory and the
+    // line naming it cannot drift; `cellLabel` joins on `/` and `join` puts the platform's back
+    const rel = join(...label.split('/'));
     const dir = join(ART, rel);
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'bundle.js'), code);
@@ -416,7 +461,11 @@ if (!manifest.length) throw new Error('no cells ran - the registry or METHODS is
 
 await mkdir(ART, { recursive: true });
 echo(chalk.green(`\nartifacts -> ${ chalk.cyan(ART) }`));
-echo(chalk.cyan('Upload each <lib>/<provider>/<method>[/<phase>]/index.html (+ bundle.js beside it) to BrowserStack/SauceLabs IE11 for a manual real-engine check.'));
+// by the manifest rather than by what is in the directory: a filtered run rebuilds its own libraries
+// and leaves the others' pages where they are, so the file is what says which of them this run stands
+// behind
+echo(chalk.green(`Upload the page of each cell the manifest lists - ${ chalk.cyan('<lib>/<provider>/<method>[/<phase>]/index.html') },`));
+echo(chalk.green(`${ chalk.cyan('bundle.js') } beside it - to BrowserStack/SauceLabs IE11 for a manual real-engine check.`));
 
 // -------- real IE11, where one exists --------
 
@@ -440,14 +489,23 @@ const INFRASTRUCTURE_FAILURES = [
 // `green('TOTAL: %d SUCCESS')` is substituted into after it is painted. A pattern tightened to span
 // what karma paints separately would stop matching a run that passed, and read as no verdict at all
 const TEST_FAILURE = /\(\d+ FAILED\)|TOTAL: \d+ FAILED/;
+// and its other half. Karma prints the total and only THEN tears down, which is the part that hangs
+// (see the deadline below), so a child the deadline had to kill has usually already answered. A
+// non-zero count, because `TOTAL: 0 SUCCESS` is a page that executed nothing
+const TEST_SUCCESS = /TOTAL: [1-9]\d* SUCCESS/;
 
 // A backstop on the karma child, not a budget for the page: the page has its own in `harness.mjs`,
 // ordered under karma's `browserNoActivityTimeout`, and both sit inside this one. What this is against
 // is the child that never exits at all - karma reaps IE's second process through `exec(wmic ...)`,
 // which is unbounded and which karma waits on while shutting down, so a `wmic` that hangs hangs the
 // job with nothing on screen. zx sets no timeout of its own, so without a number here there is none.
-// Per ATTEMPT, so the worst case is this times `ATTEMPTS`.
-const KARMA_DEADLINE = '300s';
+// Per ATTEMPT, and an attempt that hits it is not retried, so a cell spends it at most once. It has
+// to sit ABOVE karma's own ladder, which `karma.conf.cjs` pins for exactly this: a capture that fails
+// is retried there before karma gives up, and a bound under the sum of those attempts would fire on a
+// slow runner doing nothing wrong. Ours, not zx's `timeout`: zx kills a windows child through
+// `taskkill`, which leaves no signal on the object, so a deadline inferred from the exit shape is
+// invisible on the one platform this leg runs on.
+const KARMA_DEADLINE_MS = 300_000;
 // the sweep is a windows builtin that either answers at once or is not there; it may not become the
 // thing that hangs the leg it exists to protect
 const SWEEP_DEADLINE = '30s';
@@ -464,15 +522,52 @@ async function runKarmaPage(bundle, label) {
     // strictly one at a time, and never touches a developer's own browser
     if (process.env.CI && ie) await $({ nothrow: true, quiet: true, timeout: SWEEP_DEADLINE })`taskkill /F /IM iexplore.exe`;
 
-    const { exitCode, signal, stdout, stderr } = await $({ nothrow: true, timeout: KARMA_DEADLINE })`karma start karma.conf.cjs -f=${ bundle }`;
-    if (exitCode === 0) return { exitCode, infrastructure: false };
+    const child = $({ nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
+    let timedOut = false;
+    // both failure shapes of the kill are caught here, and neither is a verdict on this cell: zx
+    // throws synchronously once the child has settled, and its windows path falls back from
+    // `taskkill` to the `wmic` this deadline exists because of, which rejects. Uncaught, the first
+    // ends the run from inside a timer and the second through the net at the top of this file.
+    // Escalating past zx is not tidiness: this kill is the only thing between the deadline and the
+    // unbounded `await` below, so one that did not happen leaves the leg with no bound at all.
+    const timer = setTimeout(async () => {
+      timedOut = true;
+      try {
+        await child.kill();
+      } catch (err) {
+        echo(chalk.yellow(`  ${ chalk.cyan(label) }: could not stop karma - ${ errorReason(err) }`));
+        try {
+          child.child?.kill('SIGKILL');
+        } catch { /* nothing left to try from here - the wait below is what reports the outcome */ }
+      }
+    }, KARMA_DEADLINE_MS);
+    let result;
+    try {
+      result = await child;
+    } finally {
+      clearTimeout(timer);
+    }
+    const { exitCode, signal, stdout, stderr } = result;
+    if (exitCode === 0) return { exitCode, infrastructure: false, timedOut: false };
 
     const output = stdout + stderr;
+    // The deadline fires on a karma that will not EXIT, which is a different question from whether
+    // it ran the page: the teardown it hangs in comes after the reporters. A printed total is that
+    // answer and is taken as one - discarding it would redden a cell IE11 passed. The exit code is
+    // synthesized, since a killed child has none, and the event is said out loud and carried into
+    // the manifest: reported as a plain pass, a leg where every page had to be killed reads as one
+    // that ran clean.
+    const failed = TEST_FAILURE.test(output);
+    if (timedOut && (failed || TEST_SUCCESS.test(output))) {
+      echo(chalk.yellow(`  ${ chalk.cyan(label) }: karma answered and then would not exit - killed at the deadline`));
+      return { exitCode: failed ? 1 : 0, infrastructure: false, timedOut: false, deadlineKilled: true };
+    }
     // a signal leaves `exitCode` null and means something outside stopped the run - neither a
-    // verdict on the cell nor a browser that deserves another chance. The deadline above arrives as
-    // one, so a child killed by it is reported rather than retried: the page had its full budget
-    const infrastructure = !signal && !TEST_FAILURE.test(output) && INFRASTRUCTURE_FAILURES.some(it => it.test(output));
-    if (!infrastructure || attempt === ATTEMPTS) return { exitCode, infrastructure };
+    // verdict on the cell nor a browser that deserves another chance. So does our own deadline, once
+    // the check above has ruled out a verdict it printed before hanging. Tracked rather than read off
+    // the exit, because zx leaves no signal there on the one platform this leg runs on
+    const infrastructure = !timedOut && !signal && !failed && INFRASTRUCTURE_FAILURES.some(it => it.test(output));
+    if (timedOut || !infrastructure || attempt === ATTEMPTS) return { exitCode, infrastructure, timedOut };
     echo(chalk.yellow(`  ${ chalk.cyan(label) }: the browser failed to run it, retrying (${ chalk.cyan(attempt + 1) } of ${ chalk.cyan(ATTEMPTS) })`));
   }
 }
@@ -500,15 +595,23 @@ if (!(process.env.CI || ie)) {
     // matches `files` through glob, where a backslash is an escape and would match nothing
     // one IE11 page at a time, on purpose (see header) - sequential await is intended here
     const bundle = toPosix(relative(HERE, file));
-    const { exitCode, infrastructure } = await runKarmaPage(bundle, label);
+    const { exitCode, infrastructure, timedOut, deadlineKilled } = await runKarmaPage(bundle, label);
     // a page the browser never ran is recorded as neither passed nor failed: the manifest is what
     // states the real floor of each cell, and `failed` there would claim IE11 gave a verdict it
     // never gave. It still reddens a gating cell below - a cell with no verdict is not a green one
-    karmaOutcome.set(label, exitCode === 0 ? 'passed' : infrastructure ? 'browser failed' : gating ? 'failed' : 'diagnostic-failed');
+    const outcome = exitCode === 0 ? 'passed'
+      : timedOut ? 'no verdict - deadline'
+      : infrastructure ? 'browser failed'
+      : gating ? 'failed' : 'diagnostic-failed';
+    // the suffix rather than a state of its own: what IE11 said is the same either way, and what
+    // this adds is that karma had to be killed to say it
+    karmaOutcome.set(label, deadlineKilled ? `${ outcome } - deadline` : outcome);
     if (exitCode === 0) continue;
-    const how = infrastructure
-      ? `the browser failed to run it ${ ATTEMPTS } times - no verdict on this cell`
-      : `Karma exit ${ exitCode } in real IE11`;
+    const how = timedOut
+      ? 'karma did not exit within its budget - no verdict on this cell'
+      : infrastructure
+        ? `the browser failed to run it ${ chalk.cyan(ATTEMPTS) } times - no verdict on this cell`
+        : `Karma exit ${ chalk.cyan(exitCode) } in real IE11`;
     // named on both branches: Karma prints its own failure above, but the tally at the end of a
     // forty-cell log has to be traceable to the cells that produced it. What gates stays the cell's
     // own axis - a `pre` page the browser never ran is no more of a job failure than the red result
@@ -518,7 +621,7 @@ if (!(process.env.CI || ie)) {
       echo(chalk.red(`  FAIL ${ chalk.cyan(label) }: ${ how }`));
     } else {
       echo(chalk.yellow(`  pre diagnostic ${ chalk.cyan(label) }: ${ how }`
-        + `${ infrastructure ? '' : ' - an expected-possible pre failure' }; not gating`));
+        + `${ timedOut || infrastructure ? '' : ' - an expected-possible pre failure' }; not gating`));
     }
   }
 }
@@ -526,11 +629,25 @@ if (!(process.env.CI || ie)) {
 for (const entry of manifest) entry.karma = karmaOutcome.get(entry.label) ?? 'not run';
 // a filtered run keeps the entries of the libraries it did not touch, whose pages are still on disk.
 // Re-read rather than reuse what was validated before the wipe: this is the last moment before the
-// write, so a sibling run that finished meanwhile survives instead of being overwritten
+// write, so a sibling run that finished meanwhile survives instead of being overwritten.
+//
+// Reported rather than thrown, unlike the read before the first cell: there an unreadable manifest
+// costs nothing and stops the run early, here it would cost the whole matrix its record - the tally,
+// the artifact line and every cell just built - over a file a killed sibling left half-written.
+let merged = [];
+try {
+  // `null` here is a file written since the wipe and refused for the same reasons - a sibling on
+  // another input. Nothing of it is kept, and the write below replaces it outright
+  merged = await otherLibrariesInManifest() ?? [];
+} catch (err) {
+  echo(chalk.red(`\nFAIL could not re-read ${ chalk.cyan(relative(HERE, MANIFEST)) } - ${ errorReason(err) };`
+    + ' writing this run\'s cells alone'));
+  process.exitCode = 1;
+}
 await writeFile(MANIFEST, `${ JSON.stringify({
   input,
   scope: libFilter ?? 'all libraries',
-  cells: [...await otherLibrariesInManifest(), ...manifest],
+  cells: [...merged, ...manifest],
 }, null, 2) }\n`);
 echo(chalk.green(`\nmanifest -> ${ chalk.cyan(MANIFEST) }`));
 
