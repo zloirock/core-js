@@ -1176,3 +1176,135 @@ QUnit.test('global-proxy: a self-guarded redeclaration beside a destructure alia
   assert.same(guarded(shim), shim, 'the guarded local reads the fallback, not the global');
   assert.same(guarded(shim).tag, 'user', "the local's value is the user's object");
 });
+
+// a seal whose sealed value the collapse ABSORBS: the hop right above the parens is itself a proxy
+// hop (`.self`), so it folds away and the paren goes with it. the read at that hop is the source's
+// own throw - it must survive the fold, in every consumer position, and it must not come back as a
+// `?.` the source never wrote. the host decides which half is observable, as everywhere here
+testUnlessDetectLowered('global-proxy: a seal under an absorbed proxy hop keeps its read', assert => {
+  /* eslint-disable @stylistic/no-extra-parens, no-unsafe-optional-chaining -- the parens ARE
+     the form under test: they seal the chain so the hop above them reads a possibly-absent value */
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  function paramDefault({ at } = ((globalThis.window?.self).self.missingBox) ?? { at: 'fallback' }) {
+    return at;
+  }
+  let stored = 'unwritten';
+  function chainAssign() {
+    return (stored = (globalThis.window?.self).self.missingBox).at;
+  }
+  function deleted() {
+    return delete (globalThis.window?.self).self.missingBox.at;
+  }
+  if (WINDOW_PRESENT) {
+    assert.same(paramDefault(), 'fallback', 'a present host reads the absent box and takes the default');
+    // the host being present only moves WHERE the throw comes from: the box itself is absent, so the
+    // read and the delete land on `undefined` one hop later instead of on the short-circuited nav
+    assert.throws(chainAssign, TypeError, 'the assignment stores the absent box, then the read off it throws');
+    assert.same(stored, undefined, 'and the store is observable - it ran before the throw');
+    assert.throws(deleted, TypeError, 'the delete operand reads off the absent box and throws too');
+  } else {
+    assert.throws(paramDefault, TypeError, 'the sealed read throws instead of folding to the default');
+    assert.throws(chainAssign, TypeError, 'the sealed read throws before the assignment');
+    assert.same(stored, 'unwritten', 'so nothing is stored');
+    assert.throws(deleted, TypeError, 'the delete operand is read plainly, no `?.` invented');
+  }
+  // the OPPOSITE polarity: the `?.` sits OUTSIDE the seal, so the sealed value is what it produced
+  // and the plain read above it throws on either host - the negative that must not follow the fix
+  let held = 'unwritten';
+  assert.throws(() => ((held = globalThis.window)?.self).self.missingBox.at(0), TypeError,
+    'a `?.` outside the seal still leaves a plain read above it');
+  assert.same(held, globalThis.window, 'the write below the seal still ran');
+  /* eslint-enable @stylistic/no-extra-parens, no-unsafe-optional-chaining -- end of the sealed forms */
+});
+
+// the same seal under a claim the RECEIVER channel erases: `(nav).Map` collapses to the ponyfill
+// ctor, and the instance dispatch above it reads off that ctor. the read the source performs on the
+// sealed value has to be re-emitted as a throw probe, exactly as the claim channel already does for
+// the shapes that keep the receiver
+testUnlessDetectLowered('global-proxy: a sealed nav under an instance dispatch keeps its probe', assert => {
+  /* eslint-disable no-unsafe-optional-chaining -- the seal is the form under test */
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  if (WINDOW_PRESENT) {
+    assert.same(typeof (globalThis.window?.self).Map.name, 'string', 'a present host reads the ctor name');
+    assert.same(typeof (globalThis.window?.self).Promise.name, 'string', 'and any other ponyfilled ctor');
+    assert.same(typeof (globalThis.window?.self).Map.name.length, 'number', 'a tail above it reads too');
+    assert.same(typeof (globalThis.window?.Map).name, 'string', 'the seal over the ctor itself reads too');
+  } else {
+    assert.throws(() => (globalThis.window?.self).Map.name, TypeError, 'the sealed read throws');
+    assert.throws(() => (globalThis.window?.self).Promise.name, TypeError, 'for every ponyfilled ctor');
+    assert.throws(() => (globalThis.window?.self).Map.name.length, TypeError, 'and through a tail');
+    // the consumers that always kept the probe stay put - one per shape family
+    assert.throws(() => (globalThis.window?.self).Map.prototype, TypeError, 'prototype read');
+    assert.throws(() => (globalThis.window?.self).Array.of(1), TypeError, 'static call');
+    assert.throws(() => (globalThis.window?.self).Number.MAX_SAFE_INTEGER, TypeError, 'ctor static');
+    // the seal one level further out: the nav ENDS at the ponyfilled ctor, so the collapse keeps
+    // the guard around the value instead of a probe ahead of it - the read above still throws
+    assert.throws(() => (globalThis.window?.Map).name, TypeError, 'seal over the claimed ctor itself');
+    assert.throws(() => (globalThis.window?.self.Map).name, TypeError, 'and one hop deeper');
+    // a seal over a nav that ends AT the claim keeps the read too - the guard is built from the
+    // erase verdict's own `?.` object where the nav plan has no hop leaf to render
+    assert.throws(() => (globalThis.window?.self.Promise).resolve, TypeError, 'sealed nav ending at the claim');
+    // a WRITE host is a member access like any other: the seal keeps its read, so the collapse
+    // may not target the live realm global
+    assert.throws(() => { (globalThis.self.window?.self).Box = 1; }, TypeError, 'sealed write host');
+    assert.throws(() => delete (globalThis.self.window?.self).Box, TypeError, 'sealed delete host');
+    assert.throws(() => (globalThis.self.window?.self).n++, TypeError, 'sealed update host');
+    // a leaf core-js ponyfills no constructor for still gets its read reproduced, off the global's
+    // own name - the claim beside it keeps the polyfill
+    assert.throws(() => (globalThis.window?.Array).of(1), TypeError, 'sealed nav ending at an unponyfilled ctor');
+    // a sealed CALLEE: the seal ends the chain, so the call applies to whatever the chain produced
+    // and has to throw on the short-circuited value. folded into the guarded branch it would answer
+    // undefined instead - the call must stay OUTSIDE the guard, in each invoking position
+    assert.throws(() => (globalThis.window?.self)(1), TypeError, 'sealed callee');
+    // eslint-disable-next-line new-cap -- the lowercase callee IS the form: a sealed nav in `new` position
+    assert.throws(() => new (globalThis.window?.self)(), TypeError, 'sealed callee under new');
+    assert.throws(() => (globalThis.window?.self)`x`, TypeError, 'sealed callee as a template tag');
+    let assigned;
+    assert.throws(() => ((assigned = globalThis.window)?.self)(1), TypeError, 'sealed callee over a chain-assign root');
+    assert.same(assigned, globalThis.window, 'and the assignment below the seal still ran');
+  }
+  // the effects the source wrote BEFORE the nav run before the read the probe reproduces, on
+  // either host - a sequence prefix is not part of the guarded value
+  let seq = 0;
+  try {
+    /* eslint-disable-next-line sonarjs/no-redundant-parentheses -- the seal over the sequence IS the form */
+    ((seq++, globalThis.window?.self)).Array.of(1);
+  } catch { /* the sealed read throws off-window; the prefix still ran */ }
+  assert.same(seq, 1, 'the sequence prefix runs exactly once, ahead of the sealed read');
+  /* eslint-enable no-unsafe-optional-chaining -- end of the probe forms */
+});
+
+// an ALL-proxy chain as a destructure SOURCE drops every hop to the root - but only when the chain
+// really is the invariant realm global. one whose VALUE short-circuits (a live `?.`, or one hidden
+// under a seal) is not: dropping the hops there answers a defined object where the source
+// destructures undefined and throws
+testUnlessDetectLowered('global-proxy: an all-proxy destructure source keeps its short-circuit', assert => {
+  /* eslint-disable no-unsafe-optional-chaining -- the seal is the form under test */
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  // the pattern names NO polyfillable prop on purpose: a claimed one is owned by the synth-swap
+  // channel, and only an unclaimed pattern (and an array pattern) reaches the hop-dropping collapse
+  function sealedSource() {
+    const { at } = (globalThis.window?.self).window;
+    return typeof at;
+  }
+  function optionalSource() {
+    const { at } = globalThis.window?.self.window;
+    return typeof at;
+  }
+  function arraySource() {
+    const [first] = (globalThis.window?.self).window;
+    return typeof first;
+  }
+  if (WINDOW_PRESENT) {
+    assert.same(sealedSource(), 'undefined', 'a present host destructures the realm global');
+    assert.same(optionalSource(), 'undefined', 'and so does the unsealed spelling');
+  } else {
+    assert.throws(sealedSource, TypeError, 'the sealed read throws where the hops would have dropped');
+    assert.throws(optionalSource, TypeError, 'and the short-circuited value cannot be destructured');
+    assert.throws(arraySource, TypeError, 'an array pattern reaches the same collapse');
+  }
+  // the accepted boundary stays: an ALL-PLAIN deep nav collapses whole, `self` being erasable anywhere
+  const { Map: Plain } = globalThis.self.window;
+  assert.same(typeof Plain, 'function', 'an all-plain deep nav still collapses to the root');
+  /* eslint-enable no-unsafe-optional-chaining -- end of the source forms */
+});
