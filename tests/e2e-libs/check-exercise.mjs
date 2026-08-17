@@ -4,6 +4,7 @@
 // concern is real for runtime.mjs, which is why its pre-flight forks a child per bundle).
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
+import { checkFailureLine, errorReason } from './diagnostics.mjs';
 import { librariesMatching } from './libraries.mjs';
 import { pathToFileURL } from 'node:url';
 
@@ -50,15 +51,16 @@ for (const target of targets) {
     checks = await checksOf(target, name);
   } catch (error) {
     broken.push(name);
-    echo(chalk.red(`FAIL ${ chalk.cyan(name) } did not run: ${ error.message }`));
+    echo(chalk.red(`FAIL ${ chalk.cyan(name) } did not run: ${ errorReason(error) }`));
     continue;
   }
   const bad = checks.filter(c => !c.pass);
   total += checks.length;
   failing += bad.length;
   for (const check of checks) {
-    echo((check.pass ? chalk.green : chalk.red)(`${ check.pass ? 'ok  ' : 'FAIL' } ${ chalk.cyan(check.label) }${ check.pass ? ''
-      : `  actual=${ JSON.stringify(check.actual) } expected=${ JSON.stringify(check.expected) }` }`));
+    echo((check.pass ? chalk.green : chalk.red)(check.pass
+      ? `ok   ${ chalk.cyan(check.label) }`
+      : `FAIL ${ checkFailureLine(check) }`));
   }
   echo((bad.length ? chalk.red : chalk.green)(`${ chalk.cyan(checks.length) } checks, ${ chalk.cyan(bad.length) } failing`));
 }
