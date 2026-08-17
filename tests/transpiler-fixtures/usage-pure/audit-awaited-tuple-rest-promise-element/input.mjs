@@ -1,6 +1,5 @@
-// `Awaited<[...Promise<X>[]]>` distributes Awaited into the rest element: the rest's array element is
-// `Promise<number[]>`, peeled to `number[]` (not left as an array of Promise). `t[0]` is then
-// `number[]` and `.at` narrows to the array variant, matching the fixed-position tuple form
+// nor does a rest element: `Awaited<[...Promise<X>[]]>` is the tuple itself, so `t[0]` is
+// `Promise<X>` and dispatch stays generic - the fixed-position and optional forms answer the same
 type T = Awaited<[...Promise<number[]>[]]>;
 declare const t: T;
 function go() { t[0].at(0); }

@@ -4,6 +4,7 @@
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
+import { entryToGlobalHint } from '../index.js';
 import {
   assignmentAliasHintSoundAtRead,
   bindingPolyfillHint,
@@ -828,7 +829,7 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
     // resolve to a runtime global, matching the shared erasure canon
     return bindsModuleDefault(binding?.node) && !importBindingIsTypeOnly(binding)
       ? globalProxyNameFromImportSource(binding?.importSource, adapter.packages)
-        ?? pureCtorNameFromImportSource(binding?.importSource, adapter.packages)
+        ?? pureCtorNameFromImportSource(binding?.importSource, adapter.packages, entryToGlobalHint)
       : null;
   }
   // the TS require-import twin (`import g = require('.../global-this')`) binds the module

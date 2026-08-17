@@ -163,9 +163,14 @@ export function createDiscriminantNarrow({
     return { key: `${ parent.key }.${ field }`, dynamic: false };
   }
 
+  // null when the binding's reference set could not be enumerated - distinct from an empty list,
+  // which states there ARE no writes. the caller drops every guard on the null, because a write it
+  // never saw is exactly what invalidates a narrow
   function memberPathWriteViolations({ objectBinding, anchorPath, targetKey }) {
+    const references = collectBindingReferences(objectBinding, anchorPath);
+    if (!references) return null;
     const out = [];
-    for (const ref of collectBindingReferences(objectBinding, anchorPath) ?? []) {
+    for (const ref of references) {
       // climb to the top of the member-access chain rooted at this `obj` reference,
       // stepping THROUGH transparent wrappers per hop - a TS cast between hops
       // (`(box as any).kind = v`) otherwise strands the climb below the write host and
@@ -221,12 +226,13 @@ export function createDiscriminantNarrow({
     // each one counts against a guard only when it targets THAT guard's discriminant field
     const violations = [...objectBinding?.constantViolations ?? []];
     const fieldWrites = [];
+    let writesUnknown = false;
     if (objectBinding) {
-      for (const write of memberPathWriteViolations({ objectBinding, anchorPath: varPath, targetKey })) {
-        (write.writeKey === undefined ? violations : fieldWrites).push(write);
-      }
+      const writes = memberPathWriteViolations({ objectBinding, anchorPath: varPath, targetKey });
+      if (writes) for (const write of writes) (write.writeKey === undefined ? violations : fieldWrites).push(write);
+      else writesUnknown = true;
     }
-    return { rootName, objectBinding, violations, fieldWrites, targetKey, objectStart: varPath.node?.start };
+    return { rootName, objectBinding, violations, fieldWrites, writesUnknown, targetKey, objectStart: varPath.node?.start };
   }
 
   // the `<targetKey>.<field>` write-keys a guard's discriminant clauses test, so a field write only
@@ -451,6 +457,9 @@ export function createDiscriminantNarrow({
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
     const ctx = buildDiscriminantContext(varPath, targetKey);
+    // the writer set is not enumerable - every guard below rests on having seen the writes, so none
+    // of them can be trusted
+    if (ctx.writesUnknown) return guards;
     const anchor = ctx.objectBinding ? bindingLoopAnchor(ctx.objectBinding) : null;
     const violationNodes = ctx.violations.map(v => v.node);
     // once we walk out past a back-edge loop whose body reassigns the binding, every guard above
@@ -824,6 +833,7 @@ export function createDiscriminantNarrow({
   }
 
   return {
+    flattenUnionBranches,
     findPrecedingBlockAssignment,
     narrowUnionByAssignmentLiteral,
     narrowDiscriminatedUnion,

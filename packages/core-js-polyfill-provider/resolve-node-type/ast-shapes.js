@@ -397,6 +397,25 @@ export function isOpenKeywordAnnotation(node) {
   return OPEN_KEYWORD_ANNOTATION_TYPES.has(node?.type);
 }
 
+// the TOP keywords - `any` / `unknown` and Flow's `any` / `mixed`: EVERY type is assignable to one,
+// so written as a container's argument it constrains nothing. deliberately NOT the open-keyword set
+// above, which also carries `object` - the top of the non-primitive types only, so `Array<object>`
+// really does reject a `number` element.
+// the Flow halves look unreachable and are not: both consumers are TS-only shapes (a conditional
+// branch, a mapped `as` clause), but the utility NAMES they key on are resolved by name in any
+// dialect, so `Extract<Array<number> | string, Array<mixed>>` in a Flow file reaches here and
+// answers correctly. measured, not assumed - do not drop them as dead
+const TOP_KEYWORD_ANNOTATION_TYPES = new Set([
+  'TSAnyKeyword',
+  'TSUnknownKeyword',
+  'AnyTypeAnnotation',
+  'MixedTypeAnnotation',
+]);
+
+export function isTopKeywordAnnotation(node) {
+  return TOP_KEYWORD_ANNOTATION_TYPES.has(peelTSParenthesized(node)?.type);
+}
+
 // is this class member private? `#x` field / method / getter-setter / `accessor #x` / `static #x`.
 // EVERY private form keys on a PrivateName (babel) or PrivateIdentifier (oxc), so the key type alone
 // is the cross-parser-complete signal - no node-type list (ClassPrivateProperty / ClassPrivateMethod /

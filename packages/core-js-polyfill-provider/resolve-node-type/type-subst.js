@@ -24,7 +24,6 @@
 //   applyAliasSubstDeep(node, subst, depth?, visited?) - core AST walker (cached + cycle-safe)
 //   applySubst(node, subst)                     - predicate-style helper
 //   substMembers(members, subst)                - batch-apply over a member list
-//   reset()                                     - per-file cache invalidation
 // (`substMemberAnnotations` / `dropTypeParamSubst` stay cluster-internal - used by the
 // member / function-type substitution paths, not exposed on the returned surface)
 //
@@ -34,7 +33,7 @@ import { MAX_DEPTH, MEMBER_ANNOTATION_SLOTS } from './base.js';
 import {
   isTypeAlias, isTypeReferenceNode, modifierWrapperDelta, typeAliasBody, typeRefName, TS_UNKNOWN_TYPE,
 } from './ast-shapes.js';
-import { getTypeArgs } from '../helpers/ast-patterns.js';
+import { getTypeArgs, withTypeArgParams } from '../helpers/ast-patterns.js';
 
 export function createTypeSubst({
   unwrapTypeAnnotation,
@@ -50,15 +49,6 @@ export function createTypeSubst({
   functionTypeParams,
 }) {
   // --- AST substitution ---
-
-  // memoize `(node, subst)` -> result. without cache, deep-nested generic mapped passthroughs
-  // (`type Step1<T> = { [K in keyof T]: T[K] }; type Step2<T> = Step1<{...}>; ...`) cause
-  // exponential redundant walks because each recursion branches into the substitution value
-  // (which contains TypeReferences that re-enter the walk). cycle guard `seen` Set is local
-  // to TypeReference walks - doesn't dedup work across cousin branches. WeakMap on node
-  // GC-clears with the AST; inner WeakMap on subst Map identity scopes per-walk. visited-aware
-  // calls bypass cache (the visited Set restricts result vs unvisited)
-  let applySubstCache = new WeakMap();
 
   // substitute type-param references through `followTypeAliasChain`'s subst map.
   // recurses into refs/args/arrays/tuples/unions so interface-extends args reach
@@ -97,8 +87,7 @@ export function createTypeSubst({
     if (!args?.params?.length) return base;
     const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1, visited));
     if (base === node && next.every((p, i) => p === args.params[i])) return node;
-    const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
-    return { ...base, [argsKey]: { ...args, params: next } };
+    return withTypeArgParams(node, next, base);
   }
 
   // expects an AST-subst map: `Map<string, ASTNode>` built by `buildSubstMap`.
@@ -106,29 +95,14 @@ export function createTypeSubst({
   // do NOT pass a Type-object-valued binding map (built by `resolveTypeArgs`) - the
   // recursion would treat resolved Type Objects as AST nodes and produce nonsense.
   // for Type-object-valued maps use `substituteTypeParams` instead
+  // NOT memoized. a `(node, subst)` memo used to sit here for the deep-nested mapped passthroughs,
+  // but a `visited` Set is allocated at the FIRST substitution (`substTypeReference`) and every call
+  // below it has to bypass a memo whose result depends on that set - so the memo only ever served
+  // the walk's prefix. removing it measured identical on nested mapped shapes (depth 3-5, width 3-5)
+  // and on the perf gate; `MAX_DEPTH` is what bounds the class here, not the cache
   function applyAliasSubstDeep(node, subst, depth = 0, visited = null) {
     if (depth > MAX_DEPTH || !subst || !node || typeof node !== 'object') return node;
-    // cache miss: compute via inner switch, store result keyed by (node, subst). visited
-    // walks (cycle guard active) skip cache - their result depends on caller's `seen` state
-    if (visited) return applyAliasSubstDeepInner(node, subst, depth, visited);
-    let perNode = applySubstCache.get(node);
-    if (perNode) {
-      const cached = perNode.get(subst);
-      if (cached !== undefined) return cached;
-    }
-    const result = applyAliasSubstDeepInner(node, subst, depth, visited);
-    // only a walk that STARTED here fills the slot. entered deeper, the budget can run out
-    // partway down and leave bare refs in the tree, and a later shallow call served that
-    // truncated copy hands downstream a bare `T` to re-derive by name. reading it deeper is
-    // the safe direction - a fuller substitution is exactly what the deeper call wanted
-    if (depth === 0) {
-      if (!perNode) {
-        perNode = new WeakMap();
-        applySubstCache.set(node, perNode);
-      }
-      perNode.set(subst, result);
-    }
-    return result;
+    return applyAliasSubstDeepInner(node, subst, depth, visited);
   }
 
   function substTypeReference(node, subst, depth, visited) {
@@ -396,10 +370,6 @@ export function createTypeSubst({
     return out;
   }
 
-  function reset() {
-    applySubstCache = new WeakMap();
-  }
-
   // --- Alias chain walker ---
 
   // follow type alias chain: type A = type B = ... until non-alias or non-reference found
@@ -495,6 +465,5 @@ export function createTypeSubst({
     substMembers,
     shadowMethodTypeParams,
     dropTypeParamSubst,
-    reset,
   };
 }
