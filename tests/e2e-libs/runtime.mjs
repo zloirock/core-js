@@ -5,7 +5,8 @@
 // what gates and what only informs - is in AGENTS.md rather than repeated here.
 //
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
-import { runtimeBuild, wireSize, errorReason, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { cellLabel, runtimeBuild, wireSize, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { checkFailureLine, errorReason } from './diagnostics.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
 import findInternetExplorer from '../karma/internet-explorer.js';
@@ -315,12 +316,12 @@ let drift = 0;
 let missing = 0;
 
 for (const { lib, method, provider, phase } of cells) {
-  const label = `${ lib.name }/${ provider }/${ method }${ phase ? `/${ phase }` : '' }`;
+  const label = cellLabel({ name: lib.name, provider, method, phase });
   try {
     // ONE build. Everything below reads from it - the set that gets snapshotted is the set inside the
     // bundle that gets pre-flighted, measured and shipped to IE11.
     const t0 = process.hrtime.bigint();
-    const { code, injected, origins } = await runtimeBuild(lib.exercise, method, phase, provider);
+    const { code, injected, origins } = await runtimeBuild(lib, method, phase, provider);
     // the build alone - everything below this line is deliberately outside the measurement
     const buildMs = Number(process.hrtime.bigint() - t0) / 1e6;
     // payload, no-externals and the ES5 parse are runtimeBuild's gates; this is the runner's:
@@ -390,7 +391,7 @@ for (const { lib, method, provider, phase } of cells) {
       + `${ chalk.cyan(injected.length) } injections${ delta ? ` (delta vs reference ${ chalk.cyan(delta.length) })` : '' }`
       + `${ snapshotState } `
       + `(${ chalk.cyan(bytes) }b raw / ${ chalk.cyan((gz / 1024).toFixed(0)) }KB gz, built in ${ chalk.cyan(buildMs.toFixed(0)) }ms)`));
-    for (const c of bad) echo(chalk.red(`    FAIL ${ chalk.cyan(c.label) } actual=${ JSON.stringify(c.actual) }`));
+    for (const c of bad) echo(chalk.red(`    FAIL ${ checkFailureLine(c) }`));
     manifest.push({
       lib: lib.name, provider, method, phase: phase ?? null, label, dir: rel, bytes, min, gz,
       // diagnostic, not comparable across cells - see the header
