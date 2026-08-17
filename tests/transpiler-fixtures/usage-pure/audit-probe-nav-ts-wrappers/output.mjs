@@ -32,11 +32,12 @@ export function castSealSynth({
 }
 export { c2 };
 
-// bare-`!` KEPT-ASSIGN spellings stay raw on BOTH legs (the kept canon owns the write; the
-// wrapper neither seals nor unlocks a collapse)
+// the bare-`!` KEPT-ASSIGN spelling stays raw on BOTH legs (the kept canon owns the write; the
+// wrapper neither seals nor unlocks a collapse). its VALUE twin has no write to keep, so the
+// short-circuit render owns it and the hop resolves to its ponyfill instead of being read raw
 let kv;
 export const bareNonNullKeptAssign = (kv = null == _globalThis.window ? void 0 : _self.window)?.BigInt;
-export const bareNonNullKeptValue = _globalThis.window?.self!.window;
+export const bareNonNullKeptValue = null == _globalThis.window ? void 0 : _self.window;
 export { c };
 
 // a CAST-sealed SE-key destructure source: the wrapper peels transparently, the residual

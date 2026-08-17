@@ -4,6 +4,9 @@
 // depth its anchor sits at - a chain-assign anchor IS an assignment, so a descent that peels through
 // assignments walks past it and the climb dies on the first wrapper, leaving the hop raw.
 // a cast around the root, a non-null assertion, plain parens, and a wrapper mid-chain. distinct methods.
+// the sidecar discharges the same claim in the text emitter's own spelling: it splices source and so
+// keeps the type-only operators (`as any`, `!`) and a `?.` the AST emitter drops as dead - erased and
+// short-circuit-free respectively, so both sides run the bare twin's semantics
 let a;
 export const throughCast = ((a = globalThis.window) as any)?.self.Array.prototype.flat.call([1, [2]]);
 
@@ -13,6 +16,8 @@ export const throughNonNull = (b = globalThis.window)!?.self.Array.prototype.at.
 let c;
 export const throughParens = ((c = globalThis.window))?.self.Array.prototype.includes.call([1], 1);
 
+// a cast seal MID-CHAIN ends the chain there: the read above it observes the sealed value and
+// throws, so the dropped hop's `?.` may not be re-hung on the leaf that now reads off the root
 let d;
 export const wrapperMidChain = ((d = globalThis.window)?.self as any).Array.prototype.findLast.call([1], x => x);
 // a TS cast around the kept root COMBINED with a SE-bearing hop key: the wrapper peels away and the

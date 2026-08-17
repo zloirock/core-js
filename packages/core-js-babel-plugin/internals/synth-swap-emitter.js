@@ -319,9 +319,15 @@ export default function createSynthSwapEmitter({
       : t.memberExpression(rootNode, property, computed);
   }
 
-  function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false, throughChainAssign = false } = {}) {
+  // `hopsOnly`: take the collapse ONLY when it drops redundant hops off a root that is already
+  // spelled (a memo ref, an alias). a plan that resolves a PURE root injects an import, which is a
+  // claim decision - a caller asking merely to drop hops must not make one behind the resolver's back
+  function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false,
+    throughChainAssign = false, hopsOnly = false } = {}) {
     const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
-    return plan ? renderProxyReceiverPlanAst(plan) : null;
+    if (!plan) return null;
+    if (hopsOnly && plan.rootBinding?.pure) return null;
+    return renderProxyReceiverPlanAst(plan);
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base

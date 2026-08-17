@@ -69,6 +69,7 @@ import {
   findProxyGlobal,
   isAliasProxyHopChain,
   navHasUnresolvableProxyHop,
+  navValueCanShortCircuit,
   proxyReceiverValueCanBeUndefined,
   isStaticPlacement,
   maximalProxyGlobalHop,
@@ -4429,7 +4430,7 @@ export function createDestructureEmitter({
     // read the polyfillable hop raw off a defined receiver. a defined nav resolves null and
     // falls through to those reconstructions
     if (aliasRooted && !isWriteTarget) {
-      const aliasSealed = sealedNavReceiverSrc(unwrapNode(node), metaPath, hostPath);
+      const aliasSealed = sealedNavReceiverSrc(unwrapNode(node), metaPath, hostPath, { growSpan: !!spanOut });
       if (aliasSealed) {
         if (spanOut) spanOut.end = aliasSealed.end;
         return aliasSealed.src;
@@ -4441,7 +4442,8 @@ export function createDestructureEmitter({
     // assignment text in place so the natural identifier rewrite composes into it
     const assignRooted = !!earlyRoot && throughChainAssign && !findProxyGlobal(node, aliasCtx);
     if (!isWriteTarget && !aliasRooted && !assignRooted) {
-      const shared = resolveReceiverSource(node, metaPath, false, null, hostPath);
+      // this channel replaces up to `spanOut.end`, so the sealed render may take chain steps
+      const shared = resolveReceiverSource(node, metaPath, { hostPath, growSpan: !!spanOut });
       if (shared?.substituted) {
         if (shared.skipNode) skippedNodes.add(shared.skipNode);
         if (spanOut && shared.end !== undefined) spanOut.end = shared.end;
@@ -4734,7 +4736,7 @@ export function createDestructureEmitter({
         // AST emitter's render of the same residual. a defined nav resolves null and defers
         if (target.properties?.some(p => handledSideEffectKeyProps.has(p))
           && !transforms.hasRange(recv.start, recv.end)) {
-          const sealed = sealedNavReceiverSrc(recv, aliasCtx?.path, recPath);
+          const sealed = sealedNavReceiverSrc(recv, aliasCtx?.path, recPath, { growSpan: true });
           if (sealed) {
             const sealedRoot = findProxyGlobal(recv, aliasCtx);
             if (sealedRoot) skippedNodes.add(sealedRoot);
@@ -4762,6 +4764,11 @@ export function createDestructureEmitter({
     if (allProxyEnd) {
       if (target?.type !== 'ObjectPattern' && target?.type !== 'ArrayPattern') return false;
       if (valueObservingCarrier || !navHasUnresolvableProxyHop(recv, resolvePure)) return false;
+      // a chain whose VALUE short-circuits (a live `?.`, or one hidden under a seal) is not the
+      // invariant realm global this drop assumes: dropping every hop to the root answers a DEFINED
+      // object where the source destructures `undefined` and throws. the AST emitter asks the same
+      // canon on its own drive; an all-plain deep nav still collapses (the accepted proxy boundary)
+      if (navValueCanShortCircuit(recv, resolvePure, aliasCtx)) return false;
       const rootIdent = findProxyGlobal(recv, aliasCtx, true);
       const rootPure = rootIdent && resolveGlobalPolyfill(rootIdent.name);
       if (!rootPure) return false;
@@ -4943,7 +4950,9 @@ export function createDestructureEmitter({
           ? injectPureImport(receiverPure.entry, receiverPure.hintName)
           : ctorPure ? injectPureImport(ctorPure.entry, ctorPure.hintName)
           // a receiver whose chain crosses the probe nav renders through the shared guarded
-          // descend (pony hop, seal-aware tail) - a raw `.self` read misses the ponyfill class
+          // descend (pony hop, seal-aware tail) - a raw `.self` read misses the ponyfill class.
+          // the text lands in the synth LITERAL, a slot of this channel's own, so the render
+          // must stop at the receiver (no `growSpan`) - there is no span here to grow into
           : sealedNavReceiverSrc(readReceiver, path)?.src ?? synthMemberReceiverSrc(readReceiver, ctx));
       }
       // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop

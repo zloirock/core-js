@@ -10,6 +10,9 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
 // slice is unbalanced on its own and only holds where the surrounding source closes it. every
 // consumer that reuses it (a memo body, a composition needle) inherits that, so the render stands
 // down here and the raw source keeps its own shape
+// the sidecar is the text emitter's own spelling of the same result: it splices source, so the
+// type-only layers stay in the output (they erase downstream) and an object literal keeps the
+// source's line breaks where the AST emitter reprints it
 _globalThis.tsBox = {
   n: 4,
   inner: {
@@ -44,3 +47,14 @@ export const doubleParenLayer = null == (_ref9 = (null == _globalThis.window ? v
 export const nonNullArgument = _Array$of((null == _globalThis.window ? void 0 : _self.tsBox.n)!);
 export const castArgument = _Array$of((null == _globalThis.window ? void 0 : _self.tsBox.list) as any[]);
 export const nonNullArgumentNested = _Array$of(_Array$of((null == _globalThis.window ? void 0 : _self.tsBox.inner.n)!));
+
+// a cast around the whole nav in CALLEE position seals the chain exactly as parens do, so the call
+// applies to what the chain produced and throws on the short-circuited value. read as an unsealed
+// callee the call folds into the guarded branch and answers undefined instead - and the climb that
+// answers this must check the slot it came up through, or an ARGUMENT reaching the same call
+// (below) is mistaken for a paren'd callee and gets a `?.` tail the source never wrote
+let held: unknown;
+export const castSealedCallee = (null == _globalThis.window ? void 0 : _self)(1);
+export const castSealedCalleeAssignRoot = (null == (held = _globalThis.window) ? void 0 : _self)(1);
+export const castSealedCalleeComputed = (null == _globalThis.window ? void 0 : _self)(1);
+export const castSealedTag = (null == _globalThis.window ? void 0 : _self)`x`;
