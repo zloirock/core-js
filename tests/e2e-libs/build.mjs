@@ -6,7 +6,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import unplugin from '@core-js/unplugin';
 import { transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
-import { METHODS, phasesFor, pluginOpts as matrixOpts } from '../transpiler-integration/matrix.mjs';
+import { METHODS, PHASES, isPhase, phasesFor, pluginOpts as matrixOpts } from '../transpiler-integration/matrix.mjs';
 import { discard } from './diagnostics.mjs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -27,8 +27,10 @@ const TMP = join(HERE, '.tmp');
 export { METHODS, phasesFor };
 
 // unplugin is a bundler plugin and takes a phase; babel-plugin runs inside the Babel pass and has
-// none. That asymmetry is what the runtime tier's reference/delta pairing is built on.
-export const PROVIDERS = ['babel-plugin', 'unplugin'];
+// none. That asymmetry is what the runtime tier's reference/delta pairing is built on. Re-exported
+// rather than spelled again: the axis belongs to `matrix.mjs` along with the methods and the phases,
+// which is what makes an unrecognised value fail there rather than fall out of a branch here.
+export { PROVIDERS } from '../transpiler-integration/matrix.mjs';
 
 // The one axis this suite adds to the shared options, and the floor the whole thing is about. ONE
 // declaration, consumed both by the provider - which selects modules for it - and by preset-env, which
@@ -94,20 +96,17 @@ function babelToolchain() {
 
 // -------- what this run was fed --------
 // "Was this the same input?" is the expensive question to answer after the fact, and a snapshot that
-// drifts between two machines is answered almost entirely by this.
-//
-// DERIVED from the declarations that decide what is installed here, never curated. Which package is
-// the sole origin of a baseline line is not knowable by reading the list - a transitive dependency
-// deep in a fixture's graph can be the only caller of a method - so a list of what feels like input is
-// the list that goes stale. The toolchain is in it for the same reason: a Babel bump moves injection
-// sets exactly as a library bump does.
+// drifts between two machines is answered almost entirely by this section.
 async function version(pkg) {
   // resolving `<pkg>/package.json` is the direct route and finds a hoisted or nested copy too, but it
-  // fails for packages whose `exports` map does not list it (three, @codemirror/state) - fall back to
-  // the flat path under this suite before giving up
+  // fails for packages whose `exports` map does not list it (three, @codemirror/state) - hence the
+  // flat path under this suite, and then the root tree, before giving up
   for (const file of [
     () => fileURLToPath(import.meta.resolve(`${ pkg }/package.json`)),
     () => join(NODE_MODULES, pkg, 'package.json'),
+    // the workspace links, where the plugins live: their `exports` map does not list `package.json`
+    // and they are not installed under this directory at all
+    () => join(HERE, '..', '..', 'node_modules', pkg, 'package.json'),
   ]) {
     try {
       return JSON.parse(await readFile(file())).version;
@@ -116,17 +115,25 @@ async function version(pkg) {
   return '?'; // a missing version is diagnostic noise, never a reason to abort a run
 }
 
-// `@core-js/pure` is appended rather than declared: it is the runtime of the `usage-pure` cells and
-// this directory cannot pin it - see AGENTS.md - so the declarations alone leave out that half of the
-// matrix's polyfill source.
+// DERIVED from the declarations that decide what is installed here, never curated. Which package is
+// the sole origin of a baseline line is not knowable by reading a list - a transitive dependency deep
+// in a fixture's graph can be the only caller of a method - so a curated list is the one that goes
+// stale. The toolchain is in it for the same reason: a Babel bump moves injection sets exactly as a
+// library bump does.
 //
-// The named list is what a reader acts on and is still not the whole input: a TRANSITIVE version moves
-// baselines exactly as a declared one does, and nothing declares it here. The lockfile digest is the
-// complete half - it stands for every resolved version in the tree, so two runs whose digests agree
-// were fed the same packages, and two that differ can be diffed on the file itself.
+// The polyfill stack is APPENDED rather than declared: this directory pins none of it - see AGENTS.md
+// - and every one of those packages decides what a cell injects. `oxc-parser` is here for a reason of
+// its own: unplugin parses through it and it ships per-platform native bindings, so it is the one
+// whose behaviour could differ between two runners at an identical version.
+//
+// The named list is what a reader acts on; the lockfile digest stands behind it for the transitive
+// versions nothing here declares. Note what the digest does NOT cover: this file is the install of
+// this directory, and the appended packages resolve from the root tree, so equal digests mean the
+// libraries matched, not that the plugins did. The named versions above are what answers that.
 export async function describeInput() {
   const declared = JSON.parse(await readFile(join(HERE, 'package.json'))).devDependencies ?? {};
-  const names = [...new Set([...Object.keys(declared), '@core-js/pure'])].sort();
+  const names = [...new Set([...Object.keys(declared),
+    '@core-js/pure', '@core-js/unplugin', '@core-js/babel-plugin', 'oxc-parser'])].sort();
   const versions = await Promise.all(names.map(name => version(name)));
   return {
     environment: `${ process.platform }/${ process.arch } node ${ process.version }`,
@@ -399,15 +406,6 @@ export function assertPayload(chunk, label) {
   if (bytes < MIN_CORE_JS_BYTES) throw new Error(`${ label }: only ${ bytes }b of core-js reached the bundle`);
 }
 
-// The ES5 UMD bundle, polyfilled by ONE of the two providers.
-//
-// Plugin ordering is not the array order: raw Rollup ignores plugin-level `enforce` and honours the
-// hook-level `order` unplugin sets. `usage-*` is 'post', so unplugin sees Babel's helper output;
-// `entry-global` is pinned to 'pre' and needs none. `babel-plugin` builds without unplugin at all,
-// which is why they are the reference the phases diff against.
-//
-// `injected` is the SET, observed inside THIS build: a separate capture would describe a different
-// configuration, and a build whose injection had gone no-op would still report a healthy one.
 // What a cell is called, everywhere it is called anything: the gates inside the build, the runner's
 // line, the artifact directory and the Karma page name the same cell and have to name it the same
 // way. Built from the registry entry, never from the file system - `name` and `exercise` are separate
@@ -417,19 +415,35 @@ export function cellLabel({ name, provider, method, phase }) {
   return `${ name }/${ provider }/${ method }${ phase ? `/${ phase }` : '' }`;
 }
 
-// `lib` is the registry entry rather than a path: the entry is the cell's identity, and a path alone
-// leaves this function reconstructing a name from the file system
+// The ES5 UMD bundle, polyfilled by ONE of the two providers. `lib` is the registry entry rather than
+// a path: the entry is the cell's identity, and a path alone leaves this function reconstructing a
+// name from the file system.
+//
+// Plugin ordering is not the array order: raw Rollup ignores plugin-level `enforce` and honours the
+// hook-level `order` unplugin sets. `usage-*` is 'post', so unplugin sees Babel's helper output;
+// `entry-global` is pinned to 'pre' and needs none. `babel-plugin` builds without unplugin at all,
+// which is why they are the reference the phases diff against.
+//
+// `injected` is the SET, observed inside THIS build: a separate capture would describe a different
+// configuration, and a build whose injection had gone no-op would still report a healthy one.
 export async function runtimeBuild(lib, method, phase = 'post', provider = 'unplugin') {
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel - see above),
   // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`. babel-plugin has no
   // phase for any method: it IS the Babel pass, so there is no before/after to choose between.
   //
-  // Both corrections below are load-bearing, and the `entry-global` cell is the proof: its caller
-  // passes the `undefined` that `phasesFor` gave it, which lands on the parameter DEFAULT and comes
-  // back as 'post' - which unplugin rejects for that method (it accepts only `pre` there, as a no-op).
+  // The correction below is load-bearing, and the `entry-global` cell is the proof: its caller passes
+  // the `undefined` that `phasesFor` gave it, which lands on the parameter DEFAULT and comes back as
+  // 'post' - which unplugin rejects for that method (it accepts only `pre` there, as a no-op).
   // Whatever the pair does not support is dropped here rather than forwarded.
+  //
+  // Dropping an UNSUPPORTED phase and dropping an UNRECOGNISED one look identical from here and are
+  // not the same event: the first is the correction above, the second is a typo, and dropped in
+  // silence it lands on the plugin's own default - `pre`, the one phase this suite does not gate -
+  // under a label that has lost its phase segment. `phasesFor` covers the other two axes on the call
+  // below.
+  if (!isPhase(phase)) throw new Error(`unknown phase '${ phase }' - this matrix covers ${ PHASES.join(', ') }`);
   const babel = provider === 'babel-plugin';
-  const effPhase = babel ? undefined : phasesFor(method, provider).includes(phase) ? phase : undefined;
+  const effPhase = phasesFor(method, provider).includes(phase) ? phase : undefined;
   return withEntry(lib.exercise, method, `rt-${ provider }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
     // recorded alongside the set so a snapshot drift can name the module the extra injection came

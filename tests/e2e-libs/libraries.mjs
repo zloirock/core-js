@@ -29,8 +29,12 @@ export const libraries = [
 
 // The libraries, optionally narrowed to one by name. A typo'd filter that matches nothing must fail
 // loudly here rather than let a runner write a green empty report.
+//
+// `=== undefined` is the test for "no filter", not truthiness: '' and 0 are things the user typed, and
+// under `!filter` either returns the WHOLE registry past the gate below, which fires on an empty
+// result. `cli.mjs` guarantees the argument arrives as a string or not at all.
 export function librariesMatching(filter) {
-  const found = libraries.filter(l => !filter || l.name === filter);
+  const found = libraries.filter(l => filter === undefined || l.name === filter);
   if (!found.length) throw new Error(`no library matches filter '${ filter }'`);
   return found;
 }
