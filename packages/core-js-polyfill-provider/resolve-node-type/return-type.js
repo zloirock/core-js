@@ -33,7 +33,7 @@ import {
   argIndexForParam, callArgumentPaths, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
-import { isVoidExpression, getTypeArgs, spreadAtOrBefore } from '../helpers/ast-patterns.js';
+import { getCallSiteTypeArgs, getTypeArgs, isVoidExpression, spreadAtOrBefore } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
@@ -460,7 +460,7 @@ export function createReturnType({
     typeParamArgPaths.set(typeParamMap, argPaths);
     const suppliedOpaqueParams = new Set();
     // phase 0: explicit type arguments at call site: foo<string>(...)
-    const callTypeArgs = getTypeArgs(callPath.node)?.params;
+    const callTypeArgs = getCallSiteTypeArgs(callPath.node)?.params;
     if (callTypeArgs) {
       // the sole caller already required `fnPath.node.typeParameters?.params?.length`, and this
       // phase runs FIRST on a fresh map - so neither an absent param list nor an already-bound name

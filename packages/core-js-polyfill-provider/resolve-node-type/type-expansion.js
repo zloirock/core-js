@@ -8,7 +8,7 @@
 // Public surface:
 //   mapped:      mappedTypeKeyName, mappedTypeConstraint, unwrapMappedTypePassthrough,
 //                expandMappedTypeMembers
-//   conditional: evaluateConditionalType, pickConditionalBranchVia, isUnconstrainedTypeReference
+//   conditional: evaluateConditionalType, pickConditionalBranchVia, isUnconstrainedTypeShape
 //   shared:     typeRefSegmentsEqual, dropMapKeys, trueBranchSubst
 //
 // Service object carries the cross-cluster helpers used by both groups. Several deps
@@ -29,7 +29,7 @@ import {
 } from './base.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 import {
-  isPrivateMemberNode, isTypeReferenceNode, mappedModifierDelta, mutableCollectionName,
+  isPrivateMemberNode, isTopKeywordAnnotation, isTypeReferenceNode, mappedModifierDelta, mutableCollectionName,
   readonlyCollectionBase, unionAnnotationOf,
 } from './ast-shapes.js';
 
@@ -64,11 +64,15 @@ export function createTypeExpansion({
   // string-shaped numeric keys (`'0'`, `'42'`) are produced by `getKeyName` when iterating member
   // lists of a `keyof T` source whose underlying T uses numeric indexers. the key reaching here is
   // ALWAYS a string - both producers stringify (`String(...)` on the literal-union lane, `getKeyName`
-  // on the `keyof` lane, whose numeric arm converts) - so the shape test is the whole question.
-  // it intentionally over-matches Infinity-shaped keys (`1e999`) rather than running a runtime
-  // `Number.isFinite` guard (accepted over-emit direction)
+  // on the `keyof` lane, whose numeric arm converts) - so the question is whether this text COULD be
+  // the stringification of a number, and only its canonical form can be. `'01'`, `'1.0'` and `'1e10'`
+  // pass the shape but no number prints that way, so they are string keys and answer `K extends
+  // number` with false and `K extends string` with true, exactly as TS does. `'1e999'` falls out the
+  // same way - a number prints `Infinity`. the sibling `${number}` validator keeps its looser rule on
+  // purpose: TS admits `7e1` in a template placeholder, where canonicalizing would UNDER-resolve
   function isNumericKeyShape(keyValue) {
-    return typeof keyValue === 'string' && NUMERIC_KEY_SHAPE_RE.test(keyValue);
+    return typeof keyValue === 'string' && NUMERIC_KEY_SHAPE_RE.test(keyValue)
+      && String(Number(keyValue)) === keyValue;
   }
 
   // shared cross-parser key resolution for TSMappedType. babel: `node.typeParameter.name`
@@ -264,7 +268,7 @@ export function createTypeExpansion({
     checkType = peelTSParenthesized(checkType);
     extendsType = peelTSParenthesized(extendsType);
     if (checkType?.type !== 'TSTypeReference' || checkType.typeName?.name !== paramName) return null;
-    if (extendsType?.type === 'TSAnyKeyword' || extendsType?.type === 'TSUnknownKeyword') return true;
+    if (isTopKeywordAnnotation(extendsType)) return true;
     if (extendsType?.type === 'TSStringKeyword') {
       if (typeof keyValue !== 'string') return false;
       // upstream coerces numeric-literal mapped sources (`[K in 0 | 1]`) to string repr
@@ -273,10 +277,11 @@ export function createTypeExpansion({
       // the caller folds both branches rather than over-returning true
       return isNumericKeyShape(keyValue) ? null : true;
     }
-    // expand-mapped pipeline coerces numeric-literal sources to string keys before reaching
-    // here; `isNumericKeyShape` matches numeric-string keys as well as actual numbers,
-    // preserving `K extends number` precision. edge `'0' | 1` conflated to number - over-emit
-    // direction safe for polyfill detection
+    // TS keeps the two spellings apart - `{ 0: T }` has a NUMBER key, `{ '0': T }` a string one -
+    // but the pipeline stringifies both before this sees them. the canonical text keeps answering
+    // TRUE: bare numeric keys are what these renames are written for, and the `'0' | 1` conflation
+    // is the accepted over-emit. a NON-canonical text is not conflated with anything - no number
+    // prints as `'01'` / `'1.0'` / `'1e10'` - so those are string keys and answer false
     if (extendsType?.type === 'TSNumberKeyword') return isNumericKeyShape(keyValue);
     if (templateLiteralTypeParts(extendsType)) return matchTemplatePattern(extendsType, keyValue);
     if (extendsType?.type === 'TSLiteralType') {
@@ -575,8 +580,15 @@ export function createTypeExpansion({
     return false;
   }
 
+  // the lowercase `object` keyword is the top of the NON-primitive types, and it has to be read off
+  // the AST: it resolves to a constructor-null `$Object`, which is also what an unresolved shape
+  // produces, and deciding assignability on that shape would answer for both
+  function isObjectKeywordShape(node) {
+    return peelTSParenthesized(node)?.type === 'TSObjectKeyword';
+  }
+
   // `extendIsUnconstrained` reflects POST-SUBST AST shape: caller computes via
-  // `isUnconstrainedTypeReference(node, typeParamMap?)` (map omitted when AST is already
+  // `isUnconstrainedTypeShape(node, typeParamMap?)` (map omitted when AST is already
   // substituted; passed when reasoning from raw AST + Type-Object map for
   // evaluateConditionalType / pickAwaitedConditionalBranch). passing raw AST directly
   // without subst awareness mis-classifies a typeparam ref `U` (no typeArguments in alias
@@ -585,7 +597,7 @@ export function createTypeExpansion({
   // (`[]`, `{}`). caller computes via `isConcreteEmptyShape(extendsAST)`. used to
   // distinguish syntactic empty (deterministic falseBranch) from post-resolve inner-less
   // artefacts (undecidable, fall back to fold)
-  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty }) {
+  function pickConditionalBranch({ check, extend, extendIsUnconstrained, extendIsConcreteEmpty, extendIsObjectKeyword }) {
     if (!check || !extend) return null;
     // never is the bottom type: assignable to any T, so `never extends T` is always true.
     // without this short-circuit, the primitive-vs-X tail rules below see never as just
@@ -634,6 +646,15 @@ export function createTypeExpansion({
       // both concrete, differing inners (Array<number> vs Array<string>): disjoint
       return false;
     }
+    // capital `Object` is the boxed top: every non-nullish check extends it, primitives included
+    // (`string extends Object` is true per TS). it resolves constructor-null like the lowercase
+    // keyword, so only this marker separates the two - and the bare `$Object(null)` an unresolved
+    // shape produces must NOT take this arm, which is why the rule keys on the marker and not on
+    // a null constructor. `never` is decided above
+    if (extend.topObject) return !isNullableOrNever(check);
+    // its lowercase twin is the top of the NON-primitive types instead: `number[] extends object`
+    // holds, `string extends object` does not
+    if (extendIsObjectKeyword) return !check.primitive;
     // non-primitive check (Array / Map / Promise / ...) vs primitive extend (string / number /
     // never / null / ...): disjoint per TS structural subtyping. object types can't extend
     // primitives. subsumes the `extends never` case (never is primitive) - generic rule with
@@ -675,6 +696,7 @@ export function createTypeExpansion({
       extend: resolveOne(extendsAST),
       extendIsUnconstrained: isUnconstrained,
       extendIsConcreteEmpty: isConcreteEmptyShape(extendsAST),
+      extendIsObjectKeyword: isObjectKeywordShape(extendsAST),
     });
   }
 
@@ -698,9 +720,35 @@ export function createTypeExpansion({
   //     `node.extendsType` raw because they substitute via `typeParamMap` rather than
   //     pre-applying. typeparam refs whose name is in the map substitute to a concrete
   //     shape and are NOT unconstrained even though their raw AST has no typeArguments
-  function isUnconstrainedTypeReference(node, typeParamMap = null) {
+  // `any[]` / `Array<unknown>` / `readonly any[]` / `Map<any, any>`: every WRITTEN argument is a top
+  // keyword, so the shape constrains no inner - the same answer the bare `Array` shorthand gives. a
+  // partly-top spelling (`Map<string, any>`) is not this shape and keeps its concrete comparison
+  function hasOnlyTopTypeArguments(node) {
+    let target = peelTSParenthesized(node);
+    if (target?.type === 'TSTypeOperator' && target.operator === 'readonly') target = peelTSParenthesized(target.typeAnnotation);
+    if (target?.type === 'TSArrayType') return isTopKeywordAnnotation(target.elementType);
+    if (!isTypeReferenceNode(target)) return false;
+    const params = getTypeArgs(target)?.params;
+    return !!params?.length && params.every(isTopKeywordAnnotation);
+  }
+
+  // the mirror of the predicate below: a BARE reference whose name the map BINDS. it is what makes
+  // a conditional distributive, so a caller may only apply a distribution rule once this answers
+  // yes - `[T] extends [string]` wraps the same parameter and distributes over nothing
+  function isBoundNakedTypeParam(node, typeParamMap) {
+    if (!typeParamMap) return false;
+    const target = peelTSParenthesized(node);
+    if (!isTypeReferenceNode(target) || getTypeArgs(target)?.params?.length) return false;
+    const name = typeRefName(target);
+    return !!name && typeParamMap.has(name);
+  }
+
+  function isUnconstrainedTypeShape(node, typeParamMap = null) {
     if (!node) return false;
     const target = peelTSParenthesized(node);
+    // an explicitly written top argument says exactly what a missing one says. without this the
+    // `!extend.inner` branch below reads `Extract<T, any[]>` as undecidable and sinks the result
+    if (hasOnlyTopTypeArguments(node)) return true;
     if (!isTypeReferenceNode(target)) return false;
     if (getTypeArgs(target)?.params?.length) return false;
     if (!typeParamMap) return true;
@@ -734,13 +782,20 @@ export function createTypeExpansion({
       return substituteTypeParams(branchNode, map, scope, depth + 1, seen);
     }
     // RAW AST + Type-object map path: substituteTypeParams resolves through typeParamMap.
-    // pass raw AST + map to isUnconstrainedTypeReference so typeparam refs that bind via the
+    // pass raw AST + map to isUnconstrainedTypeShape so typeparam refs that bind via the
     // map are NOT misclassified as unconstrained
+    // distributing over `never` yields `never`: NO branch runs. picking one hands a branch-typed
+    // narrow to a binding that can hold no value - in usage-pure a type-specific helper on an
+    // uninhabited receiver. only the naked spelling distributes, hence the predicate
+    if (isBoundNakedTypeParam(node.checkType, typeParamMap)) {
+      const bound = recurse(node.checkType, typeParamMap);
+      if (bound?.primitive && bound.type === 'never') return bound;
+    }
     const branch = pickConditionalBranchVia({
       checkAST: node.checkType,
       extendsAST: node.extendsType,
       resolveOne: ast => recurse(ast, typeParamMap),
-      isUnconstrained: isUnconstrainedTypeReference(node.extendsType, typeParamMap),
+      isUnconstrained: isUnconstrainedTypeShape(node.extendsType, typeParamMap),
     });
     if (branch !== null) return branch ? recurse(node.trueType, trueMap()) : recurse(node.falseType, typeParamMap);
     return resolveConditionalBranches(
@@ -964,8 +1019,9 @@ export function createTypeExpansion({
     // conditional
     evaluateConditionalType,
     pickConditionalBranchVia,
-    isUnconstrainedTypeReference,
+    isUnconstrainedTypeShape,
     collectInferredNames,
+    matchTemplatePattern,
     // shared
     typeRefSegmentsEqual,
     dropMapKeys,
