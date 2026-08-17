@@ -27,6 +27,17 @@ export function errorReason(err) {
     || 'failed without a message';
 }
 
+// Removing what a run left behind, in the shape `tests/AGENTS.md` requires of every suite: reported,
+// never thrown. Two callers here - a cell's temp entry, and the sweep that runs before the first cell
+// and so has no cell to blame at all.
+export async function discard(remove, what) {
+  try {
+    await remove();
+  } catch (err) {
+    echo(chalk.yellow(`  could not remove ${ chalk.cyan(what) } - ${ errorReason(err) } (left behind on purpose)`));
+  }
+}
+
 // A check's two sides, rendered. `JSON.stringify` throws on a circular structure, and a circular
 // structure is a LEGAL value here - `actual` is whatever the library handed back, and a DOM node
 // knows its parent - so a value that cannot be rendered may cost its own line and nothing more.
