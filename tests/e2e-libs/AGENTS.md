@@ -14,9 +14,10 @@ This directory's `package.json` pins the libraries, `core-js` to the workspace, 
 
 - `libraries.mjs` - the registry: one entry per library and its exercise. `librariesMatching` throws on a filter matching nothing, so a typo cannot produce a green empty report
 - `exercises/<lib>.mjs` - one deterministic exercise per library, exporting `run()` -> `{ checks }`; its header states what it drives and what it deliberately avoids. `exercises/checks.mjs` is the comparison they share, and it is bundled with them, so it lives under the same rule: it may not call the stdlib either
-- `build.mjs` - the bundling core: the temp-entry scaffold, `runtimeBuild`, `TS_SOURCE_PACKAGES`, and the assertions the gates are made of. The methods and phases come from `tests/transpiler-integration/matrix.mjs`, which both bundler suites drive; this one adds `targets: { ie: 11 }` to them
+- `build.mjs` - the bundling core: the temp-entry scaffold, `runtimeBuild`, `TS_SOURCE_PACKAGES`, and the assertions the gates are made of. The methods and phases come from `tests/transpiler-integration/matrix.mjs`, which both bundler suites drive; this one adds `targets: { ie: 11 }` to them. The bound a runner puts on a wait comes from `deadline.mjs` beside it, under the same contract
 - `runtime.mjs` - the gating tier; `pipeline.mjs` - the reporting one; `check-exercise.mjs` - the exercises run raw, which separates a broken fixture from a broken toolchain
 - `harness.mjs`, `karma.conf.cjs` - the in-page harness, banner and QUnit over one scaffold, and the IE11 launcher
+- `diagnostics.mjs` - what the suite says when something fails: the reason extractor, the failing-check line, and the ES5 twin of the extractor the two page targets are built with. Dependency-free, so the raw tier does not load a bundler to print a line
 - `snapshots/` is committed; `artifacts/`, `report/` and `.tmp/` are generated and gitignored
 
 ## The matrix
