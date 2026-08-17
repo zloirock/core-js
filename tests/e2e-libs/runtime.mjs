@@ -6,6 +6,7 @@
 //
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
 import { cellLabel, describeInput, runtimeBuild, wireSize, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { positionals } from './cli.mjs';
 import { checkFailureLine, discard, errorReason } from './diagnostics.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
@@ -30,8 +31,7 @@ process.on('unhandledRejection', reason => {
   throw new Error(`unhandled rejection - ${ errorReason(reason) }`);
 });
 
-const [libFilter, ...surplus] = argv._;
-if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - runtime.mjs takes [libFilter]`);
+const [libFilter] = positionals(argv, { names: ['libFilter'], usage: 'runtime.mjs takes [libFilter]' });
 const libs = librariesMatching(libFilter);
 
 // -------- consumers --------
