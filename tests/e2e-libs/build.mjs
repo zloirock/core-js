@@ -7,9 +7,12 @@ import unplugin from '@core-js/unplugin';
 import { transform as esbuildTransform } from 'esbuild';
 import { parse as acornParse } from 'acorn';
 import { METHODS, phasesFor, pluginOpts as matrixOpts } from '../transpiler-integration/matrix.mjs';
+import { discard } from './diagnostics.mjs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
@@ -49,7 +52,9 @@ export async function withEntry(exerciseAbs, method, label, fn) {
   try {
     return await fn(file);
   } finally {
-    await rm(file, { force: true });
+    // through `discard`: a bare `rm` here throws INSIDE the `finally`, which replaces whatever this
+    // cell was about to report - and reddens a cell that had just passed
+    await discard(() => rm(file, { force: true }), relative(HERE, file));
   }
 }
 
@@ -85,6 +90,55 @@ function babelToolchain() {
     };
   }
   return cachedToolchain;
+}
+
+// -------- what this run was fed --------
+// "Was this the same input?" is the expensive question to answer after the fact, and a snapshot that
+// drifts between two machines is answered almost entirely by this.
+//
+// DERIVED from the declarations that decide what is installed here, never curated. Which package is
+// the sole origin of a baseline line is not knowable by reading the list - a transitive dependency
+// deep in a fixture's graph can be the only caller of a method - so a list of what feels like input is
+// the list that goes stale. The toolchain is in it for the same reason: a Babel bump moves injection
+// sets exactly as a library bump does.
+async function version(pkg) {
+  // resolving `<pkg>/package.json` is the direct route and finds a hoisted or nested copy too, but it
+  // fails for packages whose `exports` map does not list it (three, @codemirror/state) - fall back to
+  // the flat path under this suite before giving up
+  for (const file of [
+    () => fileURLToPath(import.meta.resolve(`${ pkg }/package.json`)),
+    () => join(NODE_MODULES, pkg, 'package.json'),
+  ]) {
+    try {
+      return JSON.parse(await readFile(file())).version;
+    } catch { /* try the next route */ }
+  }
+  return '?'; // a missing version is diagnostic noise, never a reason to abort a run
+}
+
+// `@core-js/pure` is appended rather than declared: it is the runtime of the `usage-pure` cells and
+// this directory cannot pin it - see AGENTS.md - so the declarations alone leave out that half of the
+// matrix's polyfill source.
+//
+// The named list is what a reader acts on and is still not the whole input: a TRANSITIVE version moves
+// baselines exactly as a declared one does, and nothing declares it here. The lockfile digest is the
+// complete half - it stands for every resolved version in the tree, so two runs whose digests agree
+// were fed the same packages, and two that differ can be diffed on the file itself.
+export async function describeInput() {
+  const declared = JSON.parse(await readFile(join(HERE, 'package.json'))).devDependencies ?? {};
+  const names = [...new Set([...Object.keys(declared), '@core-js/pure'])].sort();
+  const versions = await Promise.all(names.map(name => version(name)));
+  return {
+    environment: `${ process.platform }/${ process.arch } node ${ process.version }`,
+    lockfile: await digestOf(join(HERE, 'package-lock.json')),
+    packages: Object.fromEntries(names.map((name, index) => [name, versions[index]])),
+  };
+}
+
+async function digestOf(file) {
+  try {
+    return createHash('sha256').update(await readFile(file)).digest('hex').slice(0, 12);
+  } catch { return '?'; } // same rule as a missing version: diagnostic noise, never a reason to abort
 }
 
 // -------- TypeScript sources --------
@@ -302,7 +356,12 @@ export function makeTsStripPlugin() {
 // there would turn the gate below into a silent no-op.
 const [UNPLUGIN_NAME] = [u('rollup', 'usage-global', 'post')].flat()[0].name.split(':', 1);
 
-export function strictWarn(w) {
+// `warn` is rollup's own handler, and taking it is not optional: installing `onwarn` REPLACES the
+// default printing rather than adding to it, so every code this function does not escalate is
+// destroyed unless it is handed back. Required rather than defaulted - rollup always passes it, and a
+// default would be a second way to lose the channel silently, which is the defect this shape exists
+// against.
+export function strictWarn(w, warn) {
   if (w.code === 'UNRESOLVED_IMPORT' || w.code === 'MISSING_EXPORT') throw new Error(`${ w.code }: ${ w.message }`);
   // the one channel by which unplugin reports its own failure: a source oxc cannot parse is warned
   // about and handed back untransformed, so that module loses its injections while the payload gate,
@@ -311,6 +370,7 @@ export function strictWarn(w) {
   if (w.code === 'PLUGIN_WARNING' && w.plugin?.startsWith(UNPLUGIN_NAME)) {
     throw new Error(`${ w.plugin }: ${ w.message }`);
   }
+  warn(w);
 }
 
 // The other half of the same guard, and NOT covered by strictWarn: rollup warns about an externalised

@@ -18,7 +18,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `transpiler-differential/` | `npm run test-transpiler-differential [pure] [babel\|unplugin]` | a generated corpus checked three ways: native == babel == unplugin at runtime, matching import sets, and the stripped-realm oracle; edit loops scope it with the tokens, gates run it bare |
 | `transpiler-integration/` | `npm run test-transpiler-integration` | real bundlers x methods x phases, runtime-verified |
 | `transpiler-perf/` | `npm run test-transpiler-perf` | transpiler perf gates and complexity-class discriminators |
-| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-runtime`, `e2e-libs-pipeline` | real libraries taken to the ES5 floor through both providers, executed in Node and in real IE11 |
+| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-check-exercise`, `test-e2e-libs-runtime`, `e2e-libs-pipeline` | real libraries taken to the ES5 floor through both providers, executed in Node and in real IE11 |
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
 | `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; and the query API |
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |
@@ -47,3 +47,4 @@ The denser suites carry their own `AGENTS.md` with the conventions of the area; 
 - Lock all the behavior a fix touches, including boundaries, negatives and forms that already passed - not only the case that failed
 - Assertions come from the specification and from the feature's identity, never from the branches of the implementation under test
 - Suites that run both in Node and in browsers must branch their `window`-dependent assertions on the environment instead of assuming a browser
+- Cleanup never speaks for the case. An `rm` that throws from a bare `finally` replaces the reason the case failed with the reason a file could not be deleted, and reddens one that passed - `force` covers only `ENOENT`, and a file a tool still holds open raises something else. Remove inside its own `try`, report the failure and never rethrow it: a leftover temp file cannot break a run, and a displaced verdict is a defect attributed to the wrong code. A wipe that stands outside every verdict is the other case - there it is output a later step reads back, and a removal that fails has to stop the run
