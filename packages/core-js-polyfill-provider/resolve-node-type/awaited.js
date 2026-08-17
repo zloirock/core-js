@@ -1,10 +1,10 @@
 // `Awaited<T>` resolution + `await` expression handler. Two parallel surfaces share the
 // peel sequence but emit different outputs:
 //   - AST walker (`peelAwaitedArgument` / `peelAwaitedCommonSteps`) - preserves shape past
-//     `Promise<>` wrappers and union / intersection / tuple distribution so callers like
+//     `Promise<>` wrappers and union / intersection distribution so callers like
 //     `findTypeMember` can recurse into the inner AST and inspect its members directly.
 //   - Type walker (`resolveAwaitedAnnotation`) - folds via `commonType` / `foldUnionTypes`
-//     / `tupleAsArrayType` and lands in `resolveAnnotationInContext` at terminal. drives
+//     and lands in `resolveAnnotationInContext` at terminal. drives
 //     `resolveAwaitExpressionType` (await semantics) and the findTypeMember resolved path.
 //
 // kept in one cluster because the two walkers cross-reference each other: the AST walker uses the
@@ -44,7 +44,6 @@ export function createAwaited({
   findTypeDeclaration,
   unwrapTypeAnnotation,
   peelTSParenthesized,
-  rebuildTupleElements,
   indexedAccessKey,
   findTypeMember,
   followTypeAliasChain,
@@ -52,7 +51,6 @@ export function createAwaited({
   unwrapMappedTypePassthrough,
   foldUnionTypes,
   foldIntersectionTypes,
-  tupleAsArrayType,
   promiseRefInner,
   unwrapPromise,
   resolveNodeType,
@@ -67,7 +65,7 @@ export function createAwaited({
   keyMatchesName,
   findExpressionAnnotation,
   pickConditionalBranchVia,
-  isUnconstrainedTypeReference,
+  isUnconstrainedTypeShape,
 }) {
   // same source as every other consumer of these two shape predicates - built from `t` here
   // rather than threaded in, so the cluster does not need a factory thunk for a pure predicate
@@ -131,13 +129,11 @@ export function createAwaited({
       const nextTypes = peeled.types.map(recurse).filter(Boolean);
       return nextTypes.length ? { ...peeled, types: nextTypes } : null;
     }
-    // distribute Awaited over tuple elements per TS spec `Awaited<[A, B, C]>` =
-    // `[Awaited<A>, Awaited<B>, Awaited<C>]`. peel inside TSNamedTupleMember /
-    // TSRestType wrappers without dropping their structure so downstream findTupleElement
-    // still sees the tuple shape with the awaited inner types
-    if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
-      return rebuildTupleElements(peeled, el => peelAwaitedTupleElement({ element: el, scope, depth }));
-    }
+    // NO tuple arm: `Awaited<T>` unwraps only what `await` unwraps - an object with a callable
+    // `then` - and a tuple has none, so `Awaited<[Promise<A>, Promise<B>]>` IS that tuple, elements
+    // still promises. distributing it read element 0 as `A` and handed an A-specific helper a
+    // Promise. the union arm above is the real distribution: a conditional type distributes over a
+    // naked union, which is why `Awaited<Promise<A> | Promise<B>>` does peel and this does not
     // nested `Awaited<Awaited<X>>` - inner Awaited reaches here as a TSTypeReference whose
     // name fails Promise / wrapper / alias-chain checks. peel once so recursion sees the
     // inner X. unique to AST walker - resolveAwaitedAnnotation routes through
@@ -197,39 +193,6 @@ export function createAwaited({
     if (isMethodShapeMember(member.type) || isFunctionTypeNode(member)) return member;
     const annotation = unwrapTypeAnnotation(member.typeAnnotation ?? member.returnType ?? member);
     return annotation && annotation !== peeled ? annotation : null;
-  }
-
-  // peel Awaited inside a tuple element preserving TSNamedTupleMember / TSRestType
-  // wrappers (`[name: Promise<X>]`, `[...Promise<X>[]]`) - we want the inner type peeled
-  // but the labelled / rest structure kept so findTupleElement still recognises the shape
-  function peelAwaitedTupleElement({ element, scope, depth }) {
-    if (element.type === 'TSNamedTupleMember') {
-      return {
-        ...element,
-        elementType: peelAwaitedTupleElement({ element: element.elementType, scope, depth: depth + 1 }),
-      };
-    }
-    if (element.type === 'TSRestType') {
-      // `[...Promise<X>[]]`: the rest's typeAnnotation is a TSArrayType whose elementType is the
-      // Promise to peel - not the Promise directly. peel the array's element and rebuild the array
-      // so the rest position distributes like the fixed / optional ones (peelAwaitedArgument has no
-      // array case, so peeling the TSArrayType node itself would leave the inner Promise untouched)
-      const rest = element.typeAnnotation;
-      if (rest?.type === 'TSArrayType') {
-        const innerElement = peelAwaitedArgument({ arg: rest.elementType, scope, depth: depth + 1 });
-        return { ...element, typeAnnotation: { ...rest, elementType: innerElement } };
-      }
-      const inner = peelAwaitedArgument({ arg: rest, scope, depth: depth + 1 });
-      return { ...element, typeAnnotation: inner };
-    }
-    // `[A, B?]` form - TSOptionalType wraps the inner annotation. peel into the wrapper
-    // so Promise / union / wrapper distribution on the inner type fires; the rest of the
-    // tuple-shape stays preserved
-    if (element.type === 'TSOptionalType') {
-      const inner = peelAwaitedArgument({ arg: element.typeAnnotation, scope, depth: depth + 1 });
-      return { ...element, typeAnnotation: inner };
-    }
-    return peelAwaitedArgument({ arg: element, scope, depth: depth + 1 });
   }
 
   // `Awaited<X>` wrapper: returns the peeled inner X (with Promise / union / intersection
@@ -324,15 +287,10 @@ export function createAwaited({
     if (peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
       return foldIntersectionTypes(peeled.types, recurse);
     }
-    // TS spec: `Awaited<[A, B, C]>` = `[Awaited<A>, Awaited<B>, Awaited<C>]` -
-    // element-wise mapping. Type representation is atomic (no tuple), so collapse to
-    // Array<commonInner> after per-element Awaited peel. without this, tuples of Promises
-    // bottom out via resolveAnnotationInContext as `Array<Promise>` (commonInner of unpeeled
-    // promise elements), and indexed access (`p[0]`) yields Promise instead of the awaited
-    // element type
-    if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
-      return tupleAsArrayType(peeled, recurse);
-    }
+    // NO tuple arm here either, for the reason its AST-walker twin states: a tuple has no callable
+    // `then`, so `Awaited<Tuple>` IS that tuple and `p[0]` is the element as written. a tuple of
+    // promises bottoming out as `Array<Promise>` is the CORRECT answer, not the miss the arm here
+    // was added to repair
     // post-subst alias body landing on a conditional must be evaluated BEFORE the alias-chain
     // re-walk so Awaited<picked-branch> recurses with the chosen AST. undecidable -> fold both
     // branches under Awaited (mirrors TS's distributive widening). INTENTIONAL DIVERGENCE
@@ -350,7 +308,11 @@ export function createAwaited({
     // only fire on annotation SHAPES - a param substituted to Promise<X[]> reaches here with
     // its promise layer intact and must still be awaited (it resolved to the raw Promise and
     // dropped the member lookup)
-    return resolved?.constructor === 'Promise' ? unwrapPromise(resolved) : resolved;
+    if (resolved?.constructor === 'Promise') return unwrapPromise(resolved);
+    // `Awaited<T>` unwraps a structural thenable on exactly the contract `await` does, and the peel
+    // that answers it already exists - it was wired to the await lane alone, so the annotation form
+    // (`Awaited<MyThenable>`) resolved to the thenable OBJECT instead of what its `then` hands on
+    return peelUserThenable(peeled, scope) ?? resolved;
   }
 
   // pick a conditional-type branch in Awaited contexts: prefer AST-level literal precision
@@ -363,7 +325,7 @@ export function createAwaited({
       checkAST: node.checkType,
       extendsAST: node.extendsType,
       resolveOne: ast => resolveAnnotationInContext({ node: ast, scope, depth: depth + 1, typeParamMap, seen }),
-      isUnconstrained: isUnconstrainedTypeReference(node.extendsType, typeParamMap),
+      isUnconstrained: isUnconstrainedTypeShape(node.extendsType, typeParamMap),
     });
   }
 
@@ -519,7 +481,7 @@ export function createAwaited({
   // public surface exposes only what factory / other clusters consume; AST<->Type
   // cross-references (peelAwaitedCommonSteps, pickAwaitedConditionalBranch,
   // getSingleTypeRefArg, peelAwaitedArgument,
-  // peelAwaitedTupleElement, peelAwaitedWrapper, resolveAwaitedFromCallBody,
+  // peelAwaitedWrapper, resolveAwaitedFromCallBody,
   // peelUserThenable, cbFirstArgAnnotation) live as private closures inside the cluster.
   // `resolveIndexedAccessMemberAnnotationAST` exposed so call-resolution can peel
   // `T['key']` annotations on binding callees (`type M = T['m']; declare const fn: M; fn()`)

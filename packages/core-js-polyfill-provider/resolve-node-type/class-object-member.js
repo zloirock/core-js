@@ -21,7 +21,7 @@
 import { $Object, MAX_DEPTH } from './base.js';
 import { internedTypeRef, isOpenKeywordAnnotation, isPrivateMemberNode } from './ast-shapes.js';
 import { createClassMemberShape } from './class-member-shapes.js';
-import { cachedContainerPaths, classBodyMemberPaths } from '../helpers/ast-patterns.js';
+import { cachedContainerPaths, classBodyMemberPaths, getTypeArgs, withTypeArgParams } from '../helpers/ast-patterns.js';
 
 const NAMESPACE_FN_PATH_TYPES = new Set(['FunctionDeclaration', 'TSDeclareFunction']);
 
@@ -251,42 +251,52 @@ export function createClassObjectMember({
   // walks the parent-class chain (visited-set guards cycles) so `class Child extends Base`
   // sees `Base`'s merged namespace exports as inherited statics. mirrors `findClassMember`'s
   // super-walk semantics for class body
+  // ONE host's merged-namespace export, without any notion of a class: the segments an export is
+  // declared under, the overload fold when the set is ambiguous, the single declaration otherwise.
+  // `undefined` means "no export of that name HERE", which is what lets the class loop below keep
+  // walking its super chain while a standalone namespace - which has no chain - asks exactly once
+  function namespaceExportReturn({ hostName, scope, name, callPath }) {
+    if (!findNamespacedFunctionPath || !hostName) return undefined;
+    const segments = [hostName, name];
+    // a merged namespace declares overloads the same way an ambient scope does, and the single
+    // lookup below answers with the FIRST declaration whatever the call passes - the arms have
+    // to be discriminated by the arguments, or a divergent set folded, exactly as elsewhere
+    const overloads = findOverloadsForName?.(segments, scope) ?? [];
+    if (overloads.length >= 2) {
+      return foldOverloadReturns(overloads, p => p.node.params,
+        p => resolveReturnType(p, callPath), p => p.node.returnType, callPath);
+    }
+    const found = findNamespacedFunctionPath(segments, scope);
+    if (!found) return undefined;
+    // matched in THIS host's namespace - own export wins. route through `resolveReturnType` which
+    // handles BOTH annotated returns (with type-param subst from call-site args -
+    // `identity<T>(item: T): T` + `Box.identity('hello')` -> T=string) AND body-return inference
+    // (`function build() { return [1,2,3] }` -> Array). ClassDeclaration leaves
+    // (`export class Inner {}`) miss the visitor list and fall through to null - synthesising a
+    // TSTypeReference back to the inner class would face scope-binding issues and the user-class
+    // member path doesn't over-inject without that signal. returning null rather than `undefined`
+    // is load-bearing for the class caller: it stops the parent walk, because a parent's same-named
+    // export has a different return type and would emit the wrong family for the child override.
+    // a TYPE filter, spelled as one: `found` is already the NodePath, so asking `nodePathInScope`
+    // to recover it hid a whole-program traversal behind that helper's hits-only cache - and the
+    // class caller runs this inside its super-chain loop. the filter is this lane's stated
+    // contract, not a behaviour gate: probed over the namespace-class forms (called / `new` /
+    // read / interface call-signature) it changes no answer, because `resolveReturnType` declines
+    // a class leaf on its own today. it stays so the accepted kinds are named here rather than
+    // resting on that coincidence
+    return NAMESPACE_FN_PATH_TYPES.has(found.node.type) ? resolveReturnType(found, callPath, null) : null;
+  }
+
   function resolveMergedNamespaceStatic({ classPath, name, callPath, depth = 0, visited }) {
     while (true) {
       if (!callPath || depth > MAX_DEPTH) return null;
-      if (!findNamespacedFunctionPath) return null;
-      if (!classPath.node.id?.name) return null;
-      const segments = [classPath.node.id.name, name];
-      // a merged namespace declares overloads the same way an ambient scope does, and the single
-      // lookup below answers with the FIRST declaration whatever the call passes - the arms have
-      // to be discriminated by the arguments, or a divergent set folded, exactly as elsewhere
-      const overloads = findOverloadsForName?.(segments, classPath.scope) ?? [];
-      if (overloads.length >= 2) {
-        return foldOverloadReturns(overloads, p => p.node.params,
-          p => resolveReturnType(p, callPath), p => p.node.returnType, callPath);
-      }
-      const found = findNamespacedFunctionPath(segments, classPath.scope);
-      if (found) {
-        // matched in THIS class's namespace - own export wins. route through
-        // `resolveReturnType` which handles BOTH annotated returns (with type-param subst
-        // from call-site args - `identity<T>(item: T): T` + `Box.identity('hello')` -> T=string)
-        // AND body-return inference (`function build() { return [1,2,3] }` -> Array).
-        // ClassDeclaration leaves (`export class Inner {}`) miss the visitor list and fall
-        // through to null - synthesising a TSTypeReference back to the inner class would
-        // face scope-binding issues and the user-class member path doesn't over-inject
-        // without that signal. bail on null result instead of falling through to the
-        // parent walk: parent's same-name export has a different return type, and
-        // returning its annotation would emit the wrong polyfill family for the runtime
-        // value of the child override
-        // a TYPE filter, spelled as one: `found` is already the NodePath, so asking
-        // `nodePathInScope` to recover it hid a whole-program traversal behind that helper's
-        // hits-only cache - and this sits inside the super-chain loop.
-        // the filter is this lane's stated contract, not a behaviour gate: probed over the
-        // namespace-class forms (called / `new` / read / interface call-signature) it changes no
-        // answer, because `resolveReturnType` declines a class leaf on its own today. it stays so
-        // the accepted kinds are named here rather than resting on that coincidence
-        return NAMESPACE_FN_PATH_TYPES.has(found.node.type) ? resolveReturnType(found, callPath, null) : null;
-      }
+      // an ANONYMOUS class stops the walk rather than continuing to its parent: the name is what
+      // an export would be declared under, so without one there is nothing to look up at any hop
+      if (!findNamespacedFunctionPath || !classPath.node.id?.name) return null;
+      const own = namespaceExportReturn({
+        hostName: classPath.node.id.name, scope: classPath.scope, name, callPath,
+      });
+      if (own !== undefined) return own;
       const seen = visited ?? new Set();
       if (seen.has(classPath.node)) return null;
       seen.add(classPath.node);
@@ -504,15 +514,9 @@ export function createClassObjectMember({
   // otherwise the parent's decl-param map binds raw `T` instead of the substituted concrete
   function applySubstToTypeRefArgs(typeRef, subst) {
     if (!subst) return typeRef;
-    // mirror getTypeArgs: babel uses `typeParameters`, oxc/ESTree uses `typeArguments`.
-    // reading only `typeParameters` would silently no-op subst on oxc-built parentRefs
-    const argsKey = typeRef?.typeParameters ? 'typeParameters' : 'typeArguments';
-    const args = typeRef?.[argsKey];
+    const args = getTypeArgs(typeRef);
     if (!args?.params?.length) return typeRef;
-    return {
-      ...typeRef,
-      [argsKey]: { ...args, params: args.params.map(a => applyAliasSubstDeep(a, subst)) },
-    };
+    return withTypeArgParams(typeRef, args.params.map(a => applyAliasSubstDeep(a, subst)));
   }
 
   function resolveMemberFromMembers({ members, name, scope, callPath }) {
@@ -620,6 +624,7 @@ export function createClassObjectMember({
   // `resolveBodylessMethodOverloads`
   return {
     findClassMember,
+    namespaceExportReturn,
     resolveClassMember,
     methodFnPath,
     classSubstInner,

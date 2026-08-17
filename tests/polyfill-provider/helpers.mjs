@@ -2,6 +2,8 @@
 // parser-agnostic pure string / data logic - heavily consumed by plugin-options validation
 // and entry detection across babel-plugin + unplugin; regressions here surface as silent
 // pattern matcher / import-id misnormalisation downstream
+import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
+import { entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
 import {
   findUniqueName,
   isEntryPattern,
@@ -50,6 +52,8 @@ import {
   SINGLE_STATEMENT_SLOTS,
   spreadAtOrBefore,
   methodReadsUsageCensus,
+  pureCtorNameFromImportSource,
+  staticMemberFromEntrySegment,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { usableAliasInfo } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
@@ -1528,6 +1532,96 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
   const view = importBindingView({ type: 'VariableDeclarator', importKind: 'type' }, decl('type'));
   check('importBindingView/non-import binding has no kind', view.importKind, null);
   check('importBindingView/non-import binding has no source', view.importSource, null);
+}
+
+// entry-path segments back to registry keys. kebab -> camel alone cannot restore a capital that
+// does not start a word, and every one of those misses reads as "not a known built-in" - silently,
+// at whatever the caller's widest answer is
+{
+  function source(ns) { return `@core-js/pure/actual/${ ns }/constructor`; }
+  const constructors = [
+    ['map', 'Map'],
+    ['weak-map', 'WeakMap'],
+    // the conversion alone answers `Regexp` / `Url` / `UrlSearchParams` / `DomException` here
+    ['regexp', 'RegExp'],
+    ['url', 'URL'],
+    ['url-search-params', 'URLSearchParams'],
+    ['dom-exception', 'DOMException'],
+  ];
+  for (const [segment, want] of constructors) {
+    check(`pureCtorNameFromImportSource/${ segment }`,
+      pureCtorNameFromImportSource(source(segment), null, entryToGlobalHint), want);
+  }
+  // a namespace the hint index does not name keeps the plain conversion - dropping it would lose
+  // constructors the index has no entry for
+  check('pureCtorNameFromImportSource/outside the hint index',
+    pureCtorNameFromImportSource(source('array-buffer'), null, entryToGlobalHint), 'ArrayBuffer');
+  // and with no resolver injected at all, the conversion is all there is
+  check('pureCtorNameFromImportSource/no resolver', pureCtorNameFromImportSource(source('url')), 'Url');
+
+  const members = [
+    ['Array', 'from', 'from'],
+    ['Array', 'from-async', 'fromAsync'],
+    ['Reflect', 'set-prototype-of', 'setPrototypeOf'],
+    // the conversion answers `isNan` / `rawJson` / `isRawJson` / `utc` here
+    ['Number', 'is-nan', 'isNaN'],
+    ['JSON', 'raw-json', 'rawJSON'],
+    ['JSON', 'is-raw-json', 'isRawJSON'],
+    ['Date', 'utc', 'UTC'],
+  ];
+  for (const [constructor, segment, want] of members) {
+    check(`staticMemberFromEntrySegment/${ constructor }.${ segment }`,
+      staticMemberFromEntrySegment(constructor, segment), want);
+  }
+  // an unresolved constructor and a segment the table does not name both keep the plain
+  // conversion rather than inventing a key
+  check('staticMemberFromEntrySegment/no constructor',
+    staticMemberFromEntrySegment(null, 'is-nan'), 'isNan');
+  check('staticMemberFromEntrySegment/unknown member',
+    staticMemberFromEntrySegment('Number', 'no-such-method'), 'noSuchMethod');
+}
+
+// the desugared-default ternary (`_ref === void 0 ? D : _ref`) is matched by SHAPE, and equality has
+// no operand order - a lowering writes the reference first, a hand-written or minified guard just as
+// readily writes the probe first. both spellings must answer the same, and a strict `=== null` must
+// answer neither: it leaves `undefined` on the self branch, so folding to the default would collapse
+// to a value the runtime never takes
+{
+  function ident(name) { return { type: 'Identifier', name }; }
+  const VOID_ZERO = { type: 'UnaryExpression', operator: 'void', argument: { type: 'NumericLiteral', value: 0 } };
+  const NULL_LITERAL = { type: 'NullLiteral' };
+  const UNDEFINED_STRING = { type: 'StringLiteral', value: 'undefined' };
+  function typeOf(name) { return { type: 'UnaryExpression', operator: 'typeof', argument: ident(name) }; }
+  function ternary(left, operator, right) {
+    return {
+      type: 'ConditionalExpression',
+      test: { type: 'BinaryExpression', operator, left, right },
+      consequent: { type: 'ArrayExpression', elements: [] },
+      alternate: ident('a'),
+    };
+  }
+  const rows = [
+    ['a === void 0', ident('a'), '===', VOID_ZERO, 'consequent'],
+    ['void 0 === a', VOID_ZERO, '===', ident('a'), 'consequent'],
+    ['a == null', ident('a'), '==', NULL_LITERAL, 'consequent'],
+    ['null == a', NULL_LITERAL, '==', ident('a'), 'consequent'],
+    ['typeof a === "undefined"', typeOf('a'), '===', UNDEFINED_STRING, 'consequent'],
+    ['"undefined" === typeof a', UNDEFINED_STRING, '===', typeOf('a'), 'consequent'],
+    ['a === null', ident('a'), '===', NULL_LITERAL, null],
+    ['null === a', NULL_LITERAL, '===', ident('a'), null],
+  ];
+  for (const [label, left, operator, right, want] of rows) {
+    check(`matchSelfDefaultTernarySlot/${ label }`, matchSelfDefaultTernarySlot(ternary(left, operator, right)), want);
+  }
+  // the inverse spelling puts the self-reference on the OTHER branch, in both operand orders
+  const inverse = ternary(ident('a'), '!==', VOID_ZERO);
+  inverse.consequent = ident('a');
+  inverse.alternate = { type: 'ArrayExpression', elements: [] };
+  check('matchSelfDefaultTernarySlot/a !== void 0', matchSelfDefaultTernarySlot(inverse), 'alternate');
+  const inverseYoda = ternary(VOID_ZERO, '!==', ident('a'));
+  inverseYoda.consequent = ident('a');
+  inverseYoda.alternate = { type: 'ArrayExpression', elements: [] };
+  check('matchSelfDefaultTernarySlot/void 0 !== a', matchSelfDefaultTernarySlot(inverseYoda), 'alternate');
 }
 
 finish();

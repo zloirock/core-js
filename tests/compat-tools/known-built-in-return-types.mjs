@@ -1,4 +1,4 @@
-import { deepEqual, ok } from 'node:assert/strict';
+import { deepEqual, fail, ok } from 'node:assert/strict';
 
 const knownBuiltInReturnTypes = await fs.readJson('packages/core-js-compat/known-built-in-return-types.json');
 
@@ -51,9 +51,13 @@ const VALID_TYPES = new Set([
   'WeakSet',
 ]);
 
+// the resolution directives. `element` / `inherit` name the RECEIVER's own inner; the `argument`
+// trio names the CALL's - arg 0 itself, the awaited common of its elements, the return of the
+// callback it holds. both families are directives rather than types and carry no inner of their own
+const RESOLUTION_DIRECTIVES = new Set(['element', 'inherit', 'argument', 'argument-element', 'argument-return']);
+
 function isValidHint(hint) {
-  // resolution directives (only valid in instance method hints)
-  if (hint === 'element' || hint === 'inherit') return true;
+  if (RESOLUTION_DIRECTIVES.has(hint)) return true;
   // normalized hint: always { type, element?, resolved?, mutatesArgument?, returnsArgument?, nullable? }
   if (typeof hint !== 'object' || hint === null) return false;
   // a directive may be wrapped in object form to carry qualifiers (`{ type: 'element',
@@ -81,14 +85,57 @@ function isValidHint(hint) {
   // only the `true` form is emitted
   if ('mutatesElements' in hint && hint.mutatesElements !== true) return false;
   const innerHint = hint.element ?? hint.resolved ?? null;
-  return innerHint === null || isValidHint(innerHint);
+  if (innerHint === null) return true;
+  // an inner hint may be a union - a list of two or more member hints, each valid on its own
+  // (`Reflect.ownKeys` -> string | symbol). unions are inner-only and do not nest: an entry's
+  // own type is a single hint, and a member that is itself a list fails the member check
+  const union = Array.isArray(innerHint);
+  if (union && innerHint.length < 2) return false;
+  return (union ? innerHint : [innerHint]).every(isValidHint);
 }
 
 // structural validation — every entry in every table has a valid shape
+// an ARGUMENT directive answers off the CALL, so it is meaningful only where the resolver decodes
+// the hint with a call in hand - the static- and instance-METHOD lanes. Everywhere else (properties,
+// constructors, the global-method lane, which decodes without one) it would resolve to nothing and
+// leave the bare container, and no one would be told. the tables say which lanes those are, so the
+// check belongs here rather than in a comment: this is the schema half that keeps the data from
+// expressing what the decoder cannot act on
+const CALL_AWARE_KINDS = new Set(['staticMethods', 'instanceMethods']);
+
+function argumentDirectivesOf(hint, found = []) {
+  if (typeof hint === 'string') {
+    if (hint.startsWith('argument')) found.push(hint);
+    return found;
+  }
+  if (!hint || typeof hint !== 'object') return found;
+  if (Array.isArray(hint)) {
+    for (const member of hint) argumentDirectivesOf(member, found);
+    return found;
+  }
+  argumentDirectivesOf(hint.type, found);
+  if (hint.element !== undefined) argumentDirectivesOf(hint.element, found);
+  if (hint.resolved !== undefined) argumentDirectivesOf(hint.resolved, found);
+  return found;
+}
+
+function checkHint(label, kind, hint) {
+  ok(isValidHint(hint), `${ label }: hint '${ JSON.stringify(hint) }' is valid`);
+  const directives = argumentDirectivesOf(hint);
+  if (directives.length && !CALL_AWARE_KINDS.has(kind)) {
+    fail(`${ label }: argument directive '${ directives[0] }' sits in a lane decoded without a call`);
+  }
+  // `type` is the container the call produces; a directive names its INNER, never the container
+  const outerType = typeof hint === 'string' ? hint : hint?.type;
+  if (typeof outerType === 'string' && outerType.startsWith('argument')) {
+    fail(`${ label }: argument directive '${ outerType }' used as the container type`);
+  }
+}
+
 for (const kind of ['globalMethods', 'globalProperties']) {
   ok(knownBuiltInReturnTypes[kind], `has ${ kind }`);
   for (const [name, hint] of Object.entries(knownBuiltInReturnTypes[kind])) {
-    ok(isValidHint(hint), `${ kind }.${ name }: hint '${ JSON.stringify(hint) }' is valid`);
+    checkHint(`${ kind }.${ name }`, kind, hint);
   }
 }
 
@@ -96,7 +143,7 @@ for (const kind of ['staticMethods', 'staticProperties', 'instanceMethods', 'ins
   ok(knownBuiltInReturnTypes[kind], `has ${ kind }`);
   for (const [className, members] of Object.entries(knownBuiltInReturnTypes[kind])) {
     for (const [member, hint] of Object.entries(members)) {
-      ok(isValidHint(hint), `${ kind }.${ className }.${ member }: hint '${ JSON.stringify(hint) }' is valid`);
+      checkHint(`${ kind }.${ className }.${ member }`, kind, hint);
     }
   }
 }
@@ -109,8 +156,28 @@ deepEqual(knownBuiltInReturnTypes.globalProperties.undefined, { type: 'undefined
 deepEqual(knownBuiltInReturnTypes.staticProperties.Symbol.iterator, { type: 'symbol' });
 // element hint
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, { type: 'Array', element: { type: 'string' } });
-// resolved hint
-deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all, { type: 'Promise', resolved: { type: 'Array' } });
+// union element hint - the members are normalized individually
+deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.ownKeys, {
+  type: 'Array',
+  element: [{ type: 'string' }, { type: 'symbol' }],
+});
+// resolved hint carrying an ARGUMENT directive: what the call settles to lives in the call, not in
+// the method, and `Promise.all` / `Array.fromAsync` say it with the SAME hint - which is the truth
+// a name-keyed registry in the resolver used to hide
+deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all,
+  { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync,
+  { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.resolve, { type: 'Promise', resolved: 'argument' });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.race, { type: 'Promise', resolved: 'argument-element' });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.try, { type: 'Promise', resolved: 'argument-return' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.then, { type: 'Promise', resolved: 'argument-return' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.reduce, { type: 'Promise', resolved: 'argument-return' });
+// the deliberate NON-directives: a rejection value is not a resolution, `catch` settles two
+// different ways, and the settled wrappers are not the awaited elements
+deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.reject, { type: 'Promise' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.catch, { type: 'Promise' });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.allSettled, { type: 'Promise', resolved: { type: 'Array' } });
 // nullable 'element' directive (spec return is element | undefined); bare top-level
 // 'element' no longer occurs - every element-returning method admits undefined per spec
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.at, { type: 'element', nullable: true });
@@ -144,6 +211,8 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Object.freeze, { type: 'Object',
 // mutatesElements annotation (in-place element mutators)
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.push, { type: 'number', mutatesElements: true });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.sort, { type: 'Array', element: 'inherit', mutatesElements: true });
+// splice mutates the receiver but returns the removed elements, so it inherits despite the flag
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.splice, { type: 'Array', element: 'inherit', mutatesElements: true });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.set, { type: 'undefined', mutatesElements: true });
 
 // mutatesElements - the exact flagged sets. the element-retype bail derives its whitelist
