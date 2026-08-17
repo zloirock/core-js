@@ -348,8 +348,13 @@ export function run() {
   ]);
 
   // --- @lezer/common tree utilities ---
-  // `Tree#toString` runs the node names through JSON.stringify whenever one is not a bare word
-  check('tree_to_string', jsParser.parse('let x = 1;').toString().slice(0, 30), 'Script(VariableDeclaration(let');
+  // `Tree#toString` runs a node name through JSON.stringify whenever it is not a bare word, and the
+  // quoted `";"` is the only name here that takes that path - so the assertion has to reach it, which
+  // a prefix of the rendering does not. Its PRESENCE, not the rendering as a whole: the whole would
+  // pin the grammar, and a `@lezer/javascript` bump renaming a node would redden this for nothing.
+  // `indexOf` rather than `match`, which is itself a polyfill target and would put `es.string.match`
+  // in this exercise's injection set, flattening the provider divergence the baselines record for it.
+  check('tree_to_string', jsParser.parse('let x = 1;').toString().indexOf('";"') > 0, true);
   const weak = new NodeWeakMap();
   const { firstChild } = tree.topNode;
   weak.set(firstChild, 'tagged');
@@ -409,7 +414,11 @@ export function run() {
   const customSpans = [];
   highlightTree(jsParser.parse('let n = 42;'), custom, (from, to, cls) => customSpans.push([from, to, cls]));
   check('hl_custom_tags', customSpans, [[0, 3, 'kw'], [8, 10, 'num']]);
-  check('hl_style_tags', getStyleTags(tree.resolveInner(0, 1)) !== undefined, true);
+  // the TAG it resolved, not that something came back - the same rule the `closedBy` lookup above
+  // states in its own comment, and a truthiness test is what that rule forbids: any
+  // `getStyleTags` returning an object at all satisfied it. Read through `?.` so a degraded one
+  // returning nothing reddens this check instead of throwing out of the whole exercise
+  check('hl_style_tags', String(getStyleTags(tree.resolveInner(0, 1))?.tags), 'lineComment');
 
   // --- the other two grammars ---
   const css = survey(cssParser.parse(CSS_SRC));
