@@ -23,8 +23,8 @@ import {
 } from './ast-shapes.js';
 import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straight-line-flow.js';
 import {
-  cachedContainerPaths, declaratorBindsName, isVoidExpression, spreadAtOrBefore, staleVarRedeclNodes,
-  varInitStaleByRedecl,
+  cachedContainerPaths, declaratorBindsName, isVoidExpression, objectLiteralPrototypeValue, spreadAtOrBefore,
+  staleVarRedeclNodes, varInitStaleByRedecl,
 } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
@@ -73,6 +73,16 @@ export function createPatternBindings({
     return null;
   }
 
+  // does this rest slot bind `name` DIRECTLY? a rest whose argument is a PATTERN
+  // (`function f(...[s])`, `const [...{ 0: s }] = a`) does NOT: the name is a slot inside the
+  // slice, so answering the slice's own family for it narrows to the wrong one - a string
+  // argument read as an Array throws on a target that lacks the method. five sites asked this
+  // question by hand and the rest-PARAMETER branch was the one that forgot
+  function restBindsNameDirectly(node, name) {
+    return node?.type === 'RestElement' && node.argument?.type === 'Identifier'
+      && node.argument.name === name;
+  }
+
   // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
   // sentinel conventions:
   //   - null              not found
@@ -88,7 +98,7 @@ export function createPatternBindings({
       // `-1` = position-0 rest (may alias the WHOLE RHS); a later-positioned rest binds a
       // SLICE, encoded `-(i + 1)` so a slice can never claim whole-RHS coverage downstream
       if (el.type === 'RestElement') {
-        if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-(i + 1)];
+        if (restBindsNameDirectly(el, name)) return [-(i + 1)];
         // nested ArrayPattern inside rest (`[a, ...[head]] = arr`). the rest slice has
         // the same element type as the source; an inner positional access at `j` then maps
         // to source index `i + j` (rest starts at outer position `i`)
@@ -195,6 +205,11 @@ export function createPatternBindings({
       const keyPath = findDestructuredKeyPath(pattern, varName, bindingPath.scope);
       if (keyPath?.length !== 1 || typeof keyPath[0] !== 'string') return null;
       if (init.properties.some(prop => prop.type === 'SpreadElement' || prop.computed)) return null;
+      // a literal that installs a PROTOTYPE can supply the key without owning it, so a missing own
+      // property is no longer proof the default fires - the same reason a spread leaves this
+      // undecided one line above. answering 'absent' there took the default's flavor over the
+      // inherited value's, which is a wrong family rather than a coarse one
+      if (objectLiteralPrototypeValue(init)) return null;
       // match via the SAME canonical `getKeyName` the pattern side used to build `keyPath`, so a
       // numeric key `{ 0: ... }` (stringified to `'0'` by getKeyName) matches its path entry - a raw
       // `prop.key.value` probe compared the number `0` against the string `'0'` and judged it absent.
@@ -355,7 +370,7 @@ export function createPatternBindings({
   function nestedRestType(pattern, varName) {
     if (pattern?.type === 'ObjectPattern') {
       for (const prop of pattern.properties) {
-        if (prop?.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === varName) {
+        if (restBindsNameDirectly(prop, varName)) {
           return new $Object('Object');
         }
         if (babelNodeType(prop) !== 'ObjectProperty') continue;
@@ -369,7 +384,7 @@ export function createPatternBindings({
       if (!el) continue;
       let nested;
       if (el.type === 'RestElement') {
-        if (el.argument?.type === 'Identifier' && el.argument.name === varName) return new $Object('Array');
+        if (restBindsNameDirectly(el, varName)) return new $Object('Array');
         nested = nestedRestType(el.argument, varName);
       } else {
         nested = nestedRestType(peelAssignmentPattern(el), varName);
@@ -660,6 +675,13 @@ export function createPatternBindings({
     return null;
   }
 
+  // the destructuring pattern a binding node carries, either kind, or null for a plain binding.
+  // the annotation written on such a pattern describes the CONTAINER, so a consumer asking what
+  // the BINDING is must walk the destructure key path instead of reading that annotation
+  function bindingDestructuringPattern(node) {
+    return findBindingPattern(node, 'ObjectPattern') ?? findBindingPattern(node, 'ArrayPattern');
+  }
+
   // callback-param inference for unannotated arrow / function params passed as a call argument.
   // shape: `recv.method(arg => arg.X)` where `recv: Alias<Arg>` with `method(cb: (a: ParamT) => void)`.
   // `findTypeMember` deep-substitutes the receiver's alias type-args into the returned method
@@ -832,8 +854,7 @@ export function createPatternBindings({
   // both bind the name through a rest slot of the SAME family, the redecl cannot change the
   // structural narrow - it is ignorable for invalidation. null = not a rest binding
   function restRebindFamily(node, name) {
-    if (node?.type === 'RestElement' && node.argument?.type === 'Identifier'
-      && node.argument.name === name) return 'Array';
+    if (restBindsNameDirectly(node, name)) return 'Array';
     if (node?.type === 'VariableDeclarator') return nestedRestType(node.id, name)?.constructor ?? null;
     return null;
   }
@@ -896,17 +917,16 @@ export function createPatternBindings({
     // regardless of call-site. annotated form (`...xs: T[]`) flows through the annotation
     // branch below; unannotated falls here. without this, `.at(0)` on `xs` dispatches the
     // generic polyfill instead of the array-specific helper
-    if (node?.type === 'RestElement') {
+    if (restBindsNameDirectly(node, name)) {
       const annotated = findBindingAnnotation(bindingPath);
       if (annotated) return resolveTypeAnnotation(annotated, bindingPath.scope);
       return structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(binding, name)) ? null : new $Object('Array');
     }
     // destructured object / array: for (const { a } of ...) / const [a] = ...
-    const objectPattern = findBindingPattern(node, 'ObjectPattern');
-    const pattern = objectPattern ?? findBindingPattern(node, 'ArrayPattern');
+    const pattern = bindingDestructuringPattern(node);
     if (pattern) {
       if (structuralNarrowInvalidated(binding, path, sameRestFamilyRebind(binding, name))) return null;
-      const slot = objectPattern
+      const slot = pattern.type === 'ObjectPattern'
         ? resolveObjectBinding(pattern, name, bindingPath)
         : resolveArrayBinding(pattern, name, bindingPath);
       return foldWithPatternDefault(slot, pattern, name, bindingPath);
@@ -1088,6 +1108,7 @@ export function createPatternBindings({
     resolveArrayLiteralCommonType,
     annotationAtKeyPath,
     findBindingAnnotation,
+    bindingDestructuringPattern,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
     resolveForOfResolvedElement,

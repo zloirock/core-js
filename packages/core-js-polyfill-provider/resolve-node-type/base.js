@@ -475,6 +475,17 @@ export const KEY_FILTERING_WRAPPERS = new Set(['Pick', 'Omit']);
 // this. callers that DO care (getTypeMembers) branch separately on key-filter case
 export const STRUCTURE_PRESERVING_WRAPPERS = TRANSPARENT_WRAPPERS.union(KEY_FILTERING_WRAPPERS);
 
+// the utilities lib.d.ts writes as a NAKED conditional over their first parameter, which is what
+// makes them distribute over a union argument (`U<A | B>` === `U<A> | U<B>`). the structure-
+// preserving wrappers are the counter-example and must never join: `Pick<A | B, K>` is one mapped
+// type over the whole union. `Extract` / `Exclude` / `Awaited` / `NonNullable` are distributive too
+// but distribute inside their own resolvers, which also carry the `never`-arm rules
+export const DISTRIBUTIVE_UTILITIES = new Set([
+  'InstanceType',
+  'Parameters',
+  'ConstructorParameters',
+]);
+
 // TS `PromiseLike<T>` / Flow `Thenable<T>` are structural supertypes of Promise that
 // `await` / `Awaited<>` unwrap identically; alias them to Promise for type resolution
 export const PROMISE_SYNONYMS = new Set(['PromiseLike', 'Thenable']);

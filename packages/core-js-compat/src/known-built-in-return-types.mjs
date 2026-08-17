@@ -1,3 +1,23 @@
+// A hint is a type name (`'Array'`), or an object carrying that name plus qualifiers. Four strings
+// are DIRECTIVES rather than names - they say where the type comes from instead of naming it, and
+// they are only ever the INNER of a hint (`element` / `resolved`), never its `type`:
+//
+//   'inherit' / 'element'  - the RECEIVER's own inner. `Array#filter` returns an array of whatever
+//                            the receiver held, so `{ type: 'Array', element: 'inherit' }`
+//   'argument'             - arg 0 of the CALL, awaited. `Promise.resolve(x)` settles to x
+//   'argument-element'     - the awaited common type of arg 0's ELEMENTS, so arg 0 is the iterable:
+//                            `Promise.race([a, b])`. `Promise.all` / `Array.fromAsync` wrap it in an
+//                            Array and therefore carry the IDENTICAL hint. NOT "the arguments" -
+//                            a method whose result holds its argument LIST (`Array.of(a, b)`) is a
+//                            different shape and has no directive today
+//   'argument-return'      - the return type of the callback arg 0 holds: `Promise.try(fn)`,
+//                            `Promise#then(fn)`, `AsyncIterator#reduce(fn)`
+//
+// An argument directive answers off the CALL, so it is meaningful only in the static-method and
+// instance-method tables - the lanes the resolver decodes with a call in hand. `tests/compat-tools`
+// enforces that, and the resolver decodes the directives generically: a new row here starts working
+// without touching the plugins.
+
 export const globalProxies = [
   'global',
   'globalThis',
@@ -309,7 +329,7 @@ export const instanceMethods = {
     slice: { type: 'Array', element: 'inherit' },
     some: 'boolean',
     sort: { type: 'Array', element: 'inherit', mutatesElements: true },
-    splice: { type: 'Array', mutatesElements: true },
+    splice: { type: 'Array', element: 'inherit', mutatesElements: true },
     toLocaleString: 'string',
     toReversed: { type: 'Array', element: 'inherit' },
     toSorted: { type: 'Array', element: 'inherit' },
@@ -337,7 +357,7 @@ export const instanceMethods = {
     flatMap: 'AsyncIterator',
     forEach: { type: 'Promise', resolved: 'undefined' },
     map: 'AsyncIterator',
-    reduce: 'Promise',
+    reduce: { type: 'Promise', resolved: 'argument-return' },
     some: { type: 'Promise', resolved: 'boolean' },
     take: { type: 'AsyncIterator', element: 'inherit' },
     toArray: { type: 'Promise', resolved: { type: 'Array', element: 'inherit' } },
@@ -504,10 +524,12 @@ export const instanceMethods = {
     valueOf: 'number',
   },
   Promise: {
+    // `catch` settles to the RECEIVER's value on the fulfilled path and to the handler's return
+    // on the rejected one - two resolutions, and a hint carries one, so it stays undeclared
     catch: 'Promise',
     finally: { type: 'Promise', resolved: 'inherit' },
     // eslint-disable-next-line unicorn/no-thenable -- false positive
-    then: 'Promise',
+    then: { type: 'Promise', resolved: 'argument-return' },
   },
   RegExp: {
     exec: { type: 'Array', element: 'string', nullable: true },
@@ -660,7 +682,7 @@ export const staticMethods = {
   },
   Array: {
     from: 'Array',
-    fromAsync: { type: 'Promise', resolved: 'Array' },
+    fromAsync: { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } },
     isArray: 'boolean',
     of: 'Array',
   },
@@ -828,15 +850,20 @@ export const staticMethods = {
     values: 'Array',
   },
   Promise: {
-    all: { type: 'Promise', resolved: 'Array' },
+    all: { type: 'Promise', resolved: { type: 'Array', element: 'argument-element' } },
     allKeyed: { type: 'Promise', resolved: 'Object' },
+    // the settled wrappers are `{ status, value }` records, not the awaited elements, so the
+    // element stays undeclared - `argument-element` here would name the input's type for a
+    // value that never appears
     allSettled: { type: 'Promise', resolved: 'Array' },
     allSettledKeyed: { type: 'Promise', resolved: 'Object' },
-    any: 'Promise',
-    race: 'Promise',
+    any: { type: 'Promise', resolved: 'argument-element' },
+    race: { type: 'Promise', resolved: 'argument-element' },
+    // a rejection value is not a resolution: nothing about the argument describes what this
+    // settles to
     reject: 'Promise',
-    resolve: 'Promise',
-    try: 'Promise',
+    resolve: { type: 'Promise', resolved: 'argument' },
+    try: { type: 'Promise', resolved: 'argument-return' },
     withResolvers: 'Object',
   },
   RangeError: {
@@ -853,7 +880,7 @@ export const staticMethods = {
     getPrototypeOf: { type: 'Object', nullable: true },
     has: 'boolean',
     isExtensible: 'boolean',
-    ownKeys: 'Array',
+    ownKeys: { type: 'Array', element: ['string', 'symbol'] },
     preventExtensions: 'boolean',
     // 3-arg form mutates target (index 0); 4-arg `Reflect.set(t, k, v, receiver)` routes
     // the write through `target.[[Set]]` and lands on receiver (index 3). flag both - sound

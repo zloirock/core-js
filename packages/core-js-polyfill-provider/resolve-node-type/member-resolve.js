@@ -32,7 +32,10 @@ import {
   typeRefName, withMemberModifiers,
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
-import { getTypeArgs, isMemberWriteHost, memberKeyName, unwrapRuntimeExpr } from '../helpers/ast-patterns.js';
+import {
+  getTypeArgs, isMemberWriteHost, memberKeyName, peelSkippableWrapperPath, unwrapRuntimeExpr,
+} from '../helpers/ast-patterns.js';
+import { memberWriteTargetPath } from './class-member-shapes.js';
 import { staticMemberKeyName } from '../helpers/class-walk.js';
 
 const CLASS_PATH_TYPES = ['ClassDeclaration'];
@@ -46,6 +49,7 @@ export function createMemberResolve({
   keyMatchesName,
   KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   findBindingAnnotation,
+  bindingDestructuringPattern,
   findExpressionAnnotation,
   withLookupPath,
   functionTypeReturnAnnotation,
@@ -83,6 +87,9 @@ export function createMemberResolve({
   findAmbientClassPath,
   resolveArrayLiteralElement,
   findAllEnumDeclarations,
+  getModuleFieldIndex,
+  namespaceExportReturn,
+  findNamespacedValueAnnotation,
   resolveEnumMemberType,
   resolveEnumType,
   resolveNodeType,
@@ -353,7 +360,14 @@ export function createMemberResolve({
     if (t.isIdentifier(objectPath.node)) {
       const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
       if (!binding) return null;
-      annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
+      // an annotation written ON a destructuring pattern describes the CONTAINER, not the name
+      // bound out of it - the rule `resolveBindingType` states before its own direct-annotation
+      // lane. reading a member off it answers for the container wherever the container happens to
+      // carry that key (a numeric index on a tuple: `const [, ...rest]: [string, number[]]` made
+      // `rest[0]` the source's element 0). skip it here and let the `findExpressionAnnotation`
+      // fallback below walk the destructure key path to the binding's own slot
+      annotation = bindingDestructuringPattern(binding.path.node)
+        ? null : unwrapTypeAnnotation(findBindingAnnotation(binding.path));
       scope = binding.path.scope;
       anchorPath = binding.path;
       // identifier without explicit annotation: route through findExpressionAnnotation so
@@ -601,15 +615,16 @@ export function createMemberResolve({
   // through - babel cannot represent the paren boundary distinctly, so both parsers
   // over-mark the parenthesized `(o?.a).b` form identically (degrade-safe)
   function chainMayShortCircuit(path) {
-    for (let cur = path; cur;) {
-      const type = cur.node?.type;
-      if (type === 'ChainExpression') {
-        cur = cur.get('expression');
-        continue;
-      }
+    // the canonical peel, not a hand-rolled `ChainExpression` arm: a TS wrapper BETWEEN hops
+    // (`a?.b!.c`, `(a?.b as T).c`) is transparent at runtime and the optional chain short-circuits
+    // straight through it. stopping at the wrapper reported the whole chain as never-nullish, and
+    // the truthy-fold then collapsed `a?.b!.c || "x"` to the left arm's family
+    for (let cur = peelSkippableWrapperPath(path); cur?.node;) {
+      const { type } = cur.node;
       if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression'
         && type !== 'CallExpression' && type !== 'OptionalCallExpression') return false;
-      const next = type === 'CallExpression' || type === 'OptionalCallExpression' ? cur.get('callee') : cur.get('object');
+      const next = peelSkippableWrapperPath(type === 'CallExpression' || type === 'OptionalCallExpression'
+        ? cur.get('callee') : cur.get('object'));
       if (cur.node.optional === true) {
         const receiver = resolveNodeType(next);
         if (!receiver || receiver.mayBeNullish || isNullableOrNever(receiver)) return true;
@@ -690,6 +705,21 @@ export function createMemberResolve({
         const result = resolveClassMember({ classPath: ambientClass, name, isStatic: true, callPath });
         if (result) return result;
       }
+      // a STANDALONE namespace reaches no class body, so the merged-namespace lane above never ran
+      // for it and `NS.f()` stayed unresolved while the very same export merged onto a class
+      // resolved. the lookup is keyed by SEGMENTS and never needed a class - it is asked here for
+      // the namespace's own name, once, since a namespace has no super chain to walk
+      const namespaceExport = namespaceExportReturn({
+        hostName: objectPath.node.name, scope: objectPath.scope, name, callPath,
+      });
+      if (namespaceExport !== undefined && namespaceExport !== null) return namespaceExport;
+      // the VALUE half of the same question: `NS.v` where the namespace exports a const. its name
+      // lives on the DECLARATOR, which is why no lookup here used to see it at all
+      const valueAnnotation = findNamespacedValueAnnotation([objectPath.node.name, name], objectPath.scope);
+      if (valueAnnotation) {
+        const valueType = resolveTypeAnnotation(unwrapTypeAnnotation(valueAnnotation), objectPath.scope);
+        if (valueType) return valueType;
+      }
     }
     // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
     const typed = resolveTypedMember(objectPath, name, callPath)
@@ -724,10 +754,10 @@ export function createMemberResolve({
   // (`const [x] = a`) copy the value at execution and stay exempt.
   // which methods mutate is registry data (`mutatesElements` markers), not local knowledge;
   // the safe direction is a WHITELIST of known non-mutating methods - a method the registry
-  // does not know may be any mutator at runtime, so it bails like a dynamic key. a registry value
-  // is `string | { type, ... }` and only the OBJECT form can carry the marker, so a bare-string
-  // entry is "not known non-mutating" and stays out: reading the marker off a shape that cannot
-  // hold one admitted such an entry unconditionally, which is the whitelist inverted
+  // does not know may be any mutator at runtime, so it bails like a dynamic key. the generated data
+  // normalises every entry to an object EXCEPT a bare resolution directive (`'element'` / `'inherit'`),
+  // which carries no marker slot at all - such an entry is "not known non-mutating" and stays out,
+  // since reading the marker off a shape that cannot hold one would admit it unconditionally
   const ARRAY_METHOD_HINTS = KNOWN_INSTANCE_METHOD_RETURN_TYPES.Array ?? {};
   const ELEMENT_SAFE_METHODS = new Set(Object.entries(ARRAY_METHOD_HINTS)
     .filter(([, hint]) => hint !== null && typeof hint === 'object' && !hint.mutatesElements)
@@ -744,11 +774,38 @@ export function createMemberResolve({
     return false;
   }
 
+  // descend a member chain to the identifier it is rooted at; anything else returns as-is
+  function memberChainRootPath(path) {
+    let cur = path;
+    while (cur?.node?.type === 'MemberExpression' || cur?.node?.type === 'OptionalMemberExpression') {
+      cur = cur.get('object');
+    }
+    return cur;
+  }
+
   function arrayElementsMayBeRetyped(objectPath, anchorPath) {
-    if (!t.isIdentifier(objectPath.node)) return false;
+    // a receiver that is a STORED SLOT rather than a binding (`o.xs[0]`) is UNKNOWN, not clean: this
+    // walk enumerates a binding's references and finds nothing for a member path, so answering "no
+    // retype" kept the element narrow over writes nobody looked for - `o.xs[0] = "abc"` then
+    // `o.xs[0].at(0)` handed the array helper a string. every OTHER non-binding receiver keeps the
+    // clean answer on purpose: a call result (`a.splice(0, 1)[0]`) takes its element from the
+    // resolved TYPE, which no element write into some other array can invalidate. an ALIAS needs no
+    // hop of its own - `const a = arr` is itself a retentive reference of `arr` below
+    // a member-chain receiver (`o.xs[0]`, `nested[0][0]`) names no binding of its own, so this walk
+    // found nothing for it and answered "clean" - the element narrow then survived `o.xs[0] = "abc"`.
+    // its ROOT binding is what the writes go through, so ask about that instead of bailing: the
+    // reference walk below sees the same writes from the root and keeps a literal chain nobody
+    // writes (`nested[0][0]`) precise
+    objectPath = memberChainRootPath(objectPath);
+    if (!t.isIdentifier(objectPath?.node)) return false;
     const binding = getScopeBinding(objectPath.scope, objectPath.node.name, objectPath);
     if (!binding) return true;
-    for (const ref of collectBindingReferences(binding, anchorPath) ?? []) {
+    const references = collectBindingReferences(binding, anchorPath);
+    // a null reference set is "could not be enumerated", the opposite verdict from an empty one:
+    // a retyping write may exist and simply be out of reach. reading it as "no references" kept
+    // the element narrow alive over writes nobody looked at
+    if (!references) return true;
+    for (const ref of references) {
       const member = ref.parentPath;
       const memberNode = member?.node;
       // a WHOLE-binding write (plain reassign / update / for-x head) is the FLOW layer's
@@ -775,6 +832,14 @@ export function createMemberResolve({
         && memberNode.object === ref.node;
       if (!isMemberRead) return true;
       if (isMemberWriteHost(member)) return true;
+      // the write may sit further UP the chain than this hop: from a reference to `o`, the element
+      // write `o.xs[0] = "abc"` is two accesses out, and stopping at `o.xs` read it as a plain
+      // property read. climb the accesses rooted at this one and ask the same question at each
+      for (let up = member; up.parentPath?.node?.object === up.node
+        && (up.parentPath.node.type === 'MemberExpression' || up.parentPath.node.type === 'OptionalMemberExpression');) {
+        up = up.parentPath;
+        if (isMemberWriteHost(up)) return true;
+      }
       // canonical key extraction so a computed-literal spelling (`a["unshift"]`) hits the
       // registry exactly like the dotted form; a CALL through an UNRESOLVED dynamic key
       // (`a[m]("x")`) may be any mutator at runtime, so it bails too - a dynamic-key pure
@@ -843,6 +908,27 @@ export function createMemberResolve({
     return left;
   }
 
+  // is `<enum>.<memberName>` assigned anywhere at module scope? the write index is keyed by FIELD
+  // name, so the receiver still has to be matched - by the enum's own root segment, since that is
+  // the name a write has to spell to reach this container. a receiver that resolves to something
+  // else with the same name only over-reports, which degrades the read rather than mis-narrowing it
+  function enumSlotExternallyWritten(path, segments, memberName) {
+    let program = path;
+    while (program && program.node?.type !== 'Program') program = program.parentPath;
+    if (!program?.node) return false;
+    const rootName = segments.at(-1);
+    for (const writePath of getModuleFieldIndex(program).writesByField.get(memberName) ?? []) {
+      // the index stores the WRITE (an assignment / update / pattern member), not the member
+      // itself - `memberWriteTargetPath` is the canon that lands on the member for every shape
+      // and peels the wrappers a cast puts in the way (`(S as any).Ready = ...`)
+      const target = memberWriteTargetPath(writePath);
+      const receiver = target?.node?.object ? unwrapRuntimeExpr(target.node.object) : null;
+      const receiverSegments = receiver ? collectMemberSegments(receiver) : null;
+      if (receiverSegments?.at(-1) === rootName) return true;
+    }
+    return false;
+  }
+
   // member access on a TSEnumDeclaration receiver. covers two shapes:
   //   - non-computed `E.A` / `N.E.A` -> enum value-kind primitive (the member's resolved
   //     kind via `resolveEnumMemberKind`, defaulting to number for implicit auto-numbered)
@@ -864,7 +950,18 @@ export function createMemberResolve({
     // SE-bearing key `E[(c++, 'A')]` - all look up the same member (staticMemberKeyName folds the SE
     // tail); numeric / dynamic keys fall through to the reverse-map fallback below
     const memberName = staticMemberKeyName(path.node);
-    if (memberName !== null) return resolveEnumMemberType(enumDecls, memberName);
+    // a declared enum member type is sound only while nothing REWRITES that slot: `enum S { Ready = "x" }`
+    // then `(S as any).Ready = [1, 2]` leaves the read narrowed to string over an Array value - a wrong
+    // family, which usage-pure turns into a throw. class statics already deopt here, through the
+    // field-flow fold's module-wide write phase; an enum is the same kind of container but reaches no
+    // class body, and `isMutatedStatic` cannot answer for it either - in usage-pure that registry holds
+    // only KNOWN GLOBALS (measured, which is why a gate written in its image was dead). ask the same
+    // per-program write index the fold asks, and DECLINE instead of folding: over-reporting a write
+    // only degrades the read to generic, the safe direction in both methods
+    if (memberName !== null) {
+      return enumSlotExternallyWritten(path, segments, memberName)
+        ? null : resolveEnumMemberType(enumDecls, memberName);
+    }
     // `E[E.A]` numeric reverse-map: numeric enum + numeric-typed computed key -> string
     if (!path.node.computed) return null;
     if (resolveEnumType(enumDecls)?.type !== 'number') return null;

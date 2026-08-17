@@ -20,7 +20,7 @@
 // scope adapter (`BABEL_BINDING_ADAPTER`) feeds `globalProxyMemberName` /
 // `walkStaticReceiverChain` for `extends NS.Inner.Class` lookups
 import { EMPTY_CLOSURE, EXTENDS_CHILD_RESOLVERS } from './base.js';
-import { createMemberWriteShape, memberWriteTargetPath } from './class-member-shapes.js';
+import { createMemberWriteShape, memberWriteReceiverPath } from './class-member-shapes.js';
 import {
   VALUE_FLOW_ASSIGN_OPS,
   classBodyHoldsSuperMethod,
@@ -52,6 +52,7 @@ import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 // eslint-disable-next-line max-statements -- factory of the escape / closure analysis
 export function createClosureAnalysis({
+  resolveStaticCalleePair,
   callArgumentEscapes,
   ownerMethodFns,
   staticOwnerMethodFns,
@@ -509,6 +510,15 @@ export function createClosureAnalysis({
     if (!t.isIdentifier(node)) return false;
     const binding = getScopeBinding(objPath.scope, node.name, objPath);
     return !!binding && closure.has(binding);
+  }
+
+  // an INSTANCE slot is also written through the prototype (`C.prototype.m = fn`, or the same
+  // target handed to `Object.assign`). the receiver is then a member off a closure binding rather
+  // than the binding itself, which the identity predicate above cannot see
+  function isReceiverPrototypeInClosure(objPath, closure) {
+    const node = unwrapRuntimeExpr(objPath.node);
+    if (!t.isMemberExpression(node) || node.computed || node.property?.name !== 'prototype') return false;
+    return isReceiverInClosure(objPath.get('object'), closure);
   }
 
   // classify a closure-binding-name reference's contribution to temporal-flow bounding:
@@ -1047,12 +1057,12 @@ export function createClosureAnalysis({
   // double-counting. predicate decides whether the receiver belongs to the field's monitored
   // set (closure-membership for instance / static flows)
   function pushIfWriteMatches(writePath, predicate, out) {
-    const objPath = memberWriteTargetPath(writePath).get('object');
+    const objPath = memberWriteReceiverPath(writePath);
+    if (!objPath?.node) return;
     const peeled = unwrapRuntimeExpr(objPath.node);
     if (t.isThisExpression(peeled)) return;
     if (!predicate(objPath)) return;
-    const contributed = writePathContributedType(writePath);
-    if (contributed) out.push(contributed);
+    out.push(writePathContributedType(writePath));
   }
 
   // precomputed per-module index for the module-wide flow scan. naive approach does two full
@@ -1122,6 +1132,26 @@ export function createClosureAnalysis({
           const name = memberWriteFieldName(p.node.argument);
           if (name) pushMultimap(writesByField, name, p);
         },
+        // `Object.assign(target, { k: v })` writes `target.k` without a member expression anywhere,
+        // so the bare-member visitors above never see it. index each SOURCE PROPERTY under its key -
+        // `memberWriteReceiverPath` resolves such an entry back to the call's target, and the
+        // contributed type falls to the `unknown` default, which is the sound direction for a write
+        // whose value this index does not model. a computed or spread source names no fixed key and
+        // is skipped: it can land anywhere, which is the wildcard question, not this one
+        CallExpression(p) {
+          // through the shared callee resolver, not a name match: by the time the census runs the
+          // emitter may already have rewritten the call to its pure alias (`_Object$assign`), and
+          // the resolver knows that spelling, the proxy-global one, and the user-shadow bail
+          if (resolveStaticCalleePair(p.node.callee, p.scope, 'assign')?.constructor !== 'Object') return;
+          const args = p.get('arguments');
+          for (let i = 1; i < args.length; i++) {
+            if (args[i].node?.type !== 'ObjectExpression') continue;
+            for (const prop of args[i].get('properties')) {
+              const name = propertyKeyName(prop.node);
+              if (name) pushMultimap(writesByField, name, prop);
+            }
+          }
+        },
         // `for (o.field of iter)` / `for (o.field in obj)` rebind `o.field` each iteration. a
         // VariableDeclaration head binds a fresh local (not a member write), so skip it
         'ForOfStatement|ForInStatement'(p) {
@@ -1152,6 +1182,7 @@ export function createClosureAnalysis({
   return {
     computeObjectAliasClosure,
     isReceiverInClosure,
+    isReceiverPrototypeInClosure,
     moduleFieldCensusCollector,
     getClosureTemporalBound,
     getClassInstanceTemporalBound,

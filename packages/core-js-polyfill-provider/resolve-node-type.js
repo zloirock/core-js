@@ -9,12 +9,12 @@ import {
   findVarOwnerDeclaring,
   getTypeArgs,
   isTypeAnnotationWrapper,
-  kebabToCamel,
   ownerWritePathIndex,
   peelZeroArgIifeReturn,
   singleQuasiString,
   spreadAtOrBefore,
   staleVarRedeclNodes,
+  staticMemberFromEntrySegment,
   synthVarHoistBinding,
   unwrapRuntimeExpr,
   varInitStaleByRedecl,
@@ -28,6 +28,7 @@ import {
   PATTERN_WRAPPERS,
   $Primitive,
   PROMISE_SYNONYMS,
+  DISTRIBUTIVE_UTILITIES,
   STRUCTURE_PRESERVING_WRAPPERS,
   TYPE_HINTS,
   TYPEOF_HINT_GROUPS,
@@ -573,6 +574,7 @@ function createResolveNodeType(babelNodeType, t, {
     findAmbientFunctionPaths,
     findAmbientClassPath,
     findNamespacedFunctionPath,
+    findNamespacedValueAnnotation,
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,
@@ -657,7 +659,7 @@ function createResolveNodeType(babelNodeType, t, {
   // populated them
   /* eslint-disable prefer-const -- destructuring assignment below rebinds these */
   let buildCallSiteSubst, substituteTypeParams, functionTypeParams;
-  let findExpressionAnnotation, findTypeMember, getTypeMembers, classSubstInner, methodFnPath;
+  let findExpressionAnnotation, findTypeMember, getTypeMembers, arrayElementType, classSubstInner, methodFnPath;
   let findClassPathForTypeReference, findClassMember, findObjectMember;
   let resolveObjectMember, resolveTypeAnnotation, resolveKnownContainerType, extendsClauseName;
   /* eslint-enable prefer-const -- destructuring assignment below rebinds these */
@@ -682,6 +684,12 @@ function createResolveNodeType(babelNodeType, t, {
     resolveGlobalStaticReference,
     resolveKnownGlobalReference,
   } = createKnownGlobals({
+    // thunk: `commonType` is declared further down the factory - same forward-decl shape the
+    // other late deps use
+    commonType: (...args) => commonType(...args),
+    // same forward-decl thunk: the return-type cluster is built after this one
+    resolveReturnType: (...args) => resolveReturnType(...args),
+    resolveRuntimeExpression,
     babelNodeType,
     isMemberLike,
     isMutatedStatic,
@@ -718,6 +726,7 @@ function createResolveNodeType(babelNodeType, t, {
     isNullableOrNever,
     isNullableOrNeverAnnotation,
     foldUnionTypes,
+    foldUnionArmTypes,
     foldIntersectionTypes,
     resolveTupleInner,
     resolveNonNullableAnnotation,
@@ -736,6 +745,8 @@ function createResolveNodeType(babelNodeType, t, {
     resolveTypeQueryBinding: (...args) => resolveTypeQueryBinding(...args),
     pickLastAmbientOverload: (...args) => pickLastAmbientOverload(...args),
     findClassPathForTypeReference: (...args) => findClassPathForTypeReference(...args),
+    peelTSParenthesized,
+    unwrapTypeAnnotation,
   });
 
   // value-ops cluster: per-shape runtime resolvers - binary-operator narrowing, union /
@@ -822,8 +833,9 @@ function createResolveNodeType(babelNodeType, t, {
     expandMappedTypeMembers,
     evaluateConditionalType,
     pickConditionalBranchVia,
-    isUnconstrainedTypeReference,
+    isUnconstrainedTypeShape,
     collectInferredNames,
+    matchTemplatePattern,
     typeRefSegmentsEqual,
     dropMapKeys,
     trueBranchSubst,
@@ -855,7 +867,6 @@ function createResolveNodeType(babelNodeType, t, {
     substMembers,
     shadowMethodTypeParams,
     dropTypeParamSubst,
-    reset: resetTypeSubst,
   } = createTypeSubst({
     unwrapTypeAnnotation,
     findTypeDeclaration,
@@ -1014,7 +1025,6 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapMappedTypePassthrough,
     foldUnionTypes,
     foldIntersectionTypes,
-    tupleAsArrayType,
     promiseRefInner,
     unwrapPromise,
     resolveNodeType,
@@ -1029,7 +1039,7 @@ function createResolveNodeType(babelNodeType, t, {
     keyMatchesName,
     findExpressionAnnotation: (...args) => findExpressionAnnotation(...args),
     pickConditionalBranchVia,
-    isUnconstrainedTypeReference,
+    isUnconstrainedTypeShape,
   });
   ({ peelStructurePreservingWrapper, functionTypeParams } = awaitedCluster);
   const {
@@ -1043,8 +1053,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `resolveTypeAnnotation` + `resolveConstructorType` + `resolveConstructorCallType` live
   // in `resolve-node-type/type-annotation-resolve.js` along with the named-utility-type
   // dispatch (`resolveNamedType`), literal / conditional / indexed-access / keyof handlers,
-  // and the cluster-private `resolveExtractExclude` / `resolveKnownContainerType` /
-  // `isAssignableTo`. forward-declared via `let` near the top of the factory; instantiation
+  // and the cluster-private `resolveExtractExclude` / `resolveKnownContainerType`.
+  // forward-declared via `let` near the top of the factory; instantiation
   // appears further down once the late cluster outputs (typeQuery / element-types / awaited)
   // it consumes are bound
 
@@ -1431,6 +1441,7 @@ function createResolveNodeType(babelNodeType, t, {
     classBindingRefClassifier,
     computeAliasClosureFromBinding,
     methodReadLeaks,
+    resolveStaticCalleePair,
   } = bindingAnalysisCluster;
 
   // `resolveThisAnchor` / `resolveThisObject` / `resolveSuperClassPath`
@@ -1499,6 +1510,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs. service deps from `binding-analysis` are already destructured; the rest are
   // factory function decls (hoisted) or pure imports
   const closureAnalysisCluster = createClosureAnalysis({
+    resolveStaticCalleePair,
     // forward-decl thunks: the own-`this` scan reuses the class-fields method enumerators, and that
     // cluster is instantiated after this one
     ownerMethodFns: (...args) => ownerMethodFns(...args),
@@ -1521,6 +1533,7 @@ function createResolveNodeType(babelNodeType, t, {
   const {
     computeObjectAliasClosure,
     isReceiverInClosure,
+    isReceiverPrototypeInClosure,
     getClosureTemporalBound,
     getClassInstanceTemporalBound,
     getClassInstanceClosure,
@@ -1560,11 +1573,13 @@ function createResolveNodeType(babelNodeType, t, {
     getClassBindingClosure,
     getClassConstructorNames,
     resolveExpressionToClassPath,
+    resolveRuntimeExpression,
     classRefLandsOutside,
     getClassInstanceClosure,
     getClassInstanceTemporalBound,
     getClosureTemporalBound,
     isReceiverInClosure,
+    isReceiverPrototypeInClosure,
     computeObjectAliasClosure,
     isNullableOrNever,
     commonType,
@@ -1620,6 +1635,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveObjectMember,
   } = classObjectMemberCluster);
   const {
+    namespaceExportReturn,
     resolveClassMember,
     applySubstToTypeRefArgs,
   } = classObjectMemberCluster;
@@ -1665,6 +1681,7 @@ function createResolveNodeType(babelNodeType, t, {
   // because typeofGuards depends on `createPredicateGuards` which lands after this point;
   // the thunks resolve at AST-walk time after factory init completes
   const {
+    flattenUnionBranches,
     findPrecedingBlockAssignment,
     narrowUnionByAssignmentLiteral,
     narrowDiscriminatedUnion,
@@ -1693,9 +1710,9 @@ function createResolveNodeType(babelNodeType, t, {
   // post-rewrite alias `const from = _Array$from`: injector exposes the canonical entry
   // path (`array/from`) - leading segment maps to the constructor name via the same
   // resolver injector itself uses (`entryToGlobalHint`), trailing segment is the method.
-  // entry paths are kebab-case (`reflect/set-prototype-of`, `array/from-async`); table
-  // keys are camelCase (`Reflect.setPrototypeOf`, `Array.fromAsync`) - convert via
-  // `kebabToCamel`. single-segment names (`from`, `assign`) pass through unchanged.
+  // entry paths are kebab-case (`reflect/set-prototype-of`, `number/is-nan`); table keys are
+  // camelCase (`Reflect.setPrototypeOf`, `Number.isNaN`) and the conversion back cannot restore
+  // every capital, so the trailing segment resolves against the registry's own keys.
   // kept in factory (not in call-return cluster) because binding-analysis cluster
   // instantiated upstream consumes it as a service dep
   function staticPairFromPolyfillEntry(scope, name) {
@@ -1710,7 +1727,7 @@ function createResolveNodeType(babelNodeType, t, {
     // constructors (`reflect/xxx` shimmed but not tracked structurally) and downstream
     // call-return inference reads garbage
     if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
-    return { constructor, method: kebabToCamel(segments.at(-1)) };
+    return { constructor, method: staticMemberFromEntrySegment(constructor, segments.at(-1)) };
   }
 
   // post-rewrite VALUE alias of a whole namespace / constructor (`_Math` from 'math/namespace',
@@ -1805,6 +1822,7 @@ function createResolveNodeType(babelNodeType, t, {
     resolveArrayLiteralElement,
     resolveArrayLiteralCommonType,
     findBindingAnnotation,
+    bindingDestructuringPattern,
     resolveAnnotatedMember,
     resolveAnnotatedMemberPath,
     resolveForOfResolvedElement,
@@ -1823,6 +1841,7 @@ function createResolveNodeType(babelNodeType, t, {
   // eslint-disable-next-line prefer-const -- destructuring assignment below rebinds this
   let functionTypeReturnAnnotation;
   const typeQueryCluster = createTypeQuery({
+    foldUnionArmTypes,
     t,
     constantBindingPath,
     bindingDeclaratorPath,
@@ -1869,8 +1888,11 @@ function createResolveNodeType(babelNodeType, t, {
   // forward-declared `functionTypeReturnAnnotation` + `buildCallSiteSubst` so typeQuery
   // (instantiated earlier) sees them via thunks
   const callResolutionCluster = createCallResolution({
+    foldUnionArmTypes,
+    resolveMemberPropertyName,
     t,
     babelNodeType,
+    commonType,
     findOverloadsForName,
     getScopeBinding,
     hasParamTypeRef: returnTypeCluster.hasParamTypeRef,
@@ -1898,7 +1920,6 @@ function createResolveNodeType(babelNodeType, t, {
     resolveReturnTypeFromTypeQuery,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     unwrapTypeAnnotation,
-    getMemberProperty,
     followTypeAliasChain,
     applySubst,
     shadowMethodTypeParams,
@@ -1909,6 +1930,8 @@ function createResolveNodeType(babelNodeType, t, {
     findBindingAnnotation,
     findPatternKeyPath,
     annotationAtKeyPath,
+    findTupleElement,
+    arrayElementType: (...args) => arrayElementType(...args),
     findTypeMember: (...args) => findTypeMember(...args),
     narrowUnionByAssignmentLiteral,
     buildSubstMap,
@@ -1925,6 +1948,7 @@ function createResolveNodeType(babelNodeType, t, {
   // outputs (all just-destructured). assigns the factory's forward-declared `let`s for
   // `resolveTypeAnnotation` / `resolveConstructorType` / `resolveConstructorCallType`
   const typeAnnotationResolveCluster = createTypeAnnotationResolve({
+    flattenUnionBranches,
     evaluateConditionalType: (...args) => evaluateConditionalType(...args),
     t,
     babelNodeType,
@@ -1933,6 +1957,7 @@ function createResolveNodeType(babelNodeType, t, {
     KNOWN_CONSTRUCTORS,
     CONSTRUCTOR_ALIASES,
     PROMISE_SYNONYMS,
+    DISTRIBUTIVE_UTILITIES,
     STRUCTURE_PRESERVING_WRAPPERS,
     MAX_DEPTH,
     isAmbientClassNode,
@@ -1973,6 +1998,8 @@ function createResolveNodeType(babelNodeType, t, {
     unwrapMappedTypePassthrough,
     tupleAsArrayType,
     getTypeMembers: (...args) => getTypeMembers(...args),
+    pickConditionalBranchVia,
+    isUnconstrainedTypeShape,
   });
   ({
     resolveTypeAnnotation,
@@ -1993,6 +2020,7 @@ function createResolveNodeType(babelNodeType, t, {
   // direct (awaited destructured early); the forward-decl `let`s `findTypeMember` /
   // `getTypeMembers` are this cluster's OUTPUTS, populated by the destructure assignment below
   const typeMembersCluster = createTypeMembers({
+    matchTemplatePattern,
     memoize,
     unwrapTypeAnnotation,
     peelTSParenthesized,
@@ -2016,7 +2044,7 @@ function createResolveNodeType(babelNodeType, t, {
     followTypeAliasChain,
     unwrapMappedTypePassthrough,
     expandMappedTypeMembers,
-    isUnconstrainedTypeReference,
+    isUnconstrainedTypeShape,
     pickConditionalBranchVia,
     resolveTypeQueryBinding,
     resolveIndexedAccessMemberAnnotationAST,
@@ -2028,7 +2056,7 @@ function createResolveNodeType(babelNodeType, t, {
     collectInferredNames,
     dropMapKeys,
   });
-  ({ findTypeMember, getTypeMembers } = typeMembersCluster);
+  ({ arrayElementType, findTypeMember, getTypeMembers } = typeMembersCluster);
 
   // member-resolve cluster: typed-side member walking + runtime receiver-aware dispatch.
   // groups annotation-based member-resolution (chain walker, return resolver, typed-member
@@ -2043,6 +2071,9 @@ function createResolveNodeType(babelNodeType, t, {
   // call-resolution cluster above) and the hoisted `resolveNodeType` function declaration
   const memberResolveCluster = createMemberResolve({
     t,
+    getModuleFieldIndex,
+    namespaceExportReturn,
+    findNamespacedValueAnnotation,
     KNOWN_INSTANCE_METHOD_RETURN_TYPES,
     // forward-decl thunk: narrow-by-guards instantiates later in the factory body
     findAnnotationGuard: path => findAnnotationGuard(path),
@@ -2053,6 +2084,7 @@ function createResolveNodeType(babelNodeType, t, {
     getTypeMembers,
     keyMatchesName,
     findBindingAnnotation,
+    bindingDestructuringPattern,
     withLookupPath,
     findExpressionAnnotation,
     functionTypeReturnAnnotation,
@@ -2307,7 +2339,6 @@ function createResolveNodeType(babelNodeType, t, {
     callResolutionCluster.resetExpressionAnnotationCache();
     resolveCache = new WeakMap();
     resolvedTypeCache = new WeakMap();
-    resetTypeSubst();
   }
 
   function resolveNodeType(path) {

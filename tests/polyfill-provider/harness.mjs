@@ -10,6 +10,7 @@ import { parseSync as oxcParseSync } from 'oxc-parser';
 import { traverse as estreeTraverse } from 'estree-toolkit';
 import { createResolveNodeType } from '../../packages/core-js-polyfill-provider/resolve-node-type.js';
 import { nodeType as estreeNodeType, types as estreeTypes } from '../../packages/core-js-unplugin/internals/estree-compat.js';
+import { neutralizeUnwalkedParamPatterns } from '../../packages/core-js-unplugin/internals/plugin.js';
 
 // `@babel/traverse` is a CJS module re-exported as default under ESM consumption
 const babelTraverse = _babelTraverse.default ?? _babelTraverse;
@@ -60,6 +61,13 @@ export const oxcAdapter = {
     const filename = sourceType === 'script' ? 'test.js' : 'test.ts';
     // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
     const { program } = oxcParseSync(filename, code, { sourceType });
+    // the same pass the real unplugin pipeline runs before ANY scope traverse: estree-toolkit
+    // aborts its crawl on a bodyless signature whose parameter is a pattern (`declare function
+    // f(...a: T[])`, an overload head, an interface call or construct signature) - reported
+    // upstream in https://github.com/sarsamurmu/estree-toolkit/issues/12. without this the shape
+    // is not one a scenario here could use at all; sharing the plugin's neutraliser keeps the
+    // harness on the same footing as the pipeline instead of testing a narrower language
+    neutralizeUnwalkedParamPatterns(program);
     let programPath = null;
     estreeTraverse(program, {
       $: { scope: true },

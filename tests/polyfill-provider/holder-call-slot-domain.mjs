@@ -115,4 +115,67 @@ for (const [label, shape, inspects] of SHAPES) {
   }
 }
 
+// second walk over the same domain, with a holder that carries NO own-`this` methods. the rows above
+// can never reach the layer below the method-safety check - a value carrying methods escapes there
+// first - so the callees that expose it through the call's RESULT are only visible here. two ways
+// that happens, and both are read off the callee rather than the syntax: the result IS the argument
+// (`Object.freeze(v)`), or it is a container the argument was put into (`Array.of(v)`)
+const RESULT_CARRIES_ARGUMENT = new Set([
+  'Array.from',
+  'Array.fromAsync',
+  'Array.of',
+  'AsyncIterator.from',
+  'Iterator.concat',
+  'Iterator.from',
+  'Iterator.zip',
+  'Iterator.zipKeyed',
+  'Map.groupBy',
+  'Object.entries',
+  'Object.freeze',
+  'Object.preventExtensions',
+  'Object.seal',
+  'Object.setPrototypeOf',
+  'Object.values',
+  'Promise.all',
+  'Promise.allKeyed',
+  'Promise.allSettled',
+  'Promise.allSettledKeyed',
+  'Promise.any',
+  'Promise.race',
+  'Promise.reject',
+  'Promise.resolve',
+  'Promise.try',
+]);
+// the container half of that set is deliberately coarse. `Array.of(v)` hands `v` itself back at
+// index 0, while `Array.from(v)` / `Object.values(v)` / `Promise.all(v)` expose only what `v`
+// CONTAINED - no write through them can retype a field of `v` itself. the registry describes the
+// result's element type, not whether the arguments went into it, so the two are indistinguishable
+// here and the coarse answer is the safe one: it widens where it need not, and widening only costs
+// the generic polyfill
+// callees that write through the slot itself never reached the retention question - the mutation
+// profile answers first
+const MUTATES_SLOT_0 = new Set([
+  'Object.assign',
+  'Object.defineProperties',
+  'Object.defineProperty',
+  'Reflect.defineProperty',
+  'Reflect.deleteProperty',
+  'Reflect.set',
+]);
+
+function buildRetentionSource() {
+  return STATICS.map((pair, index) => `export function probe${ index }() { `
+    + `const holder = { rows${ index }: [1, 2] }; `
+    + `sink(${ pair }(holder, other)); `
+    + `return holder.rows${ index }.at(0); }`).join('\n');
+}
+
+const retention = await verdicts(buildRetentionSource());
+checkTruthy('no own-`this` holder: every probe reports a verdict', retention.size === STATICS.length,
+  `matched ${ retention.size } probes of ${ STATICS.length }`);
+for (const [index, pair] of STATICS.entries()) {
+  const expected = RESULT_CARRIES_ARGUMENT.has(pair) || MUTATES_SLOT_0.has(pair) ? 'escapes' : 'local';
+  check(`${ pair } (no own-\`this\` holder, slot 0, result held)`, retention.get(index), expected);
+}
+
 finish();

@@ -1,8 +1,9 @@
-// Extract with a UNION target. TS distributes Extract<U, A | B> as
-// Extract<U, A> | Extract<U, B>. Folding the target union: if A and B are different outer
-// shapes (string[] and number[]) the fold yields no target and Extract bails. when A and B
-// share the same outer (Array) but differ inside, the common-type fold strips the inner
-// type, leaving generic Array. probe whether narrow precision survives.
+// Extract with a UNION target. TS distributes Extract<U, A | B> as Extract<U, A> | Extract<U, B>,
+// and so does the resolver: each source member is asked about every target ARM, not about their
+// folded shape. `Set<number>` is the member that decides the answer here - no arm shares its
+// constructor, and two different known constructors are NOT a decidable pair (subtype relations
+// between them exist, `Array extends Iterable` among them). an undecidable member sinks the whole
+// result rather than being guessed either way, so the receiver keeps the generic helper.
 type Pool = number[] | string[] | Set<number>;
 type Narrowed = Extract<Pool, number[] | string[]>;
 declare const arr: Narrowed;
