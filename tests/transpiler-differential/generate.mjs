@@ -823,6 +823,65 @@ function * generateEnumRewrites() {
     '(() => { enum S { Ready = "xy" }\nreturn String(S.Ready.at(-1)); })()'), ts: true, strip: true };
 }
 
+// --- how a directive READS its argument, crossed with the shape it is invoked through ---
+// the registry answers some calls off the CALL rather than off the method: `argument` hands back
+// argument 0, `argument-element` the common type of its elements, `argument-return` the return of
+// the callback it holds. What the resolver branches on is the FORM the argument is written in and
+// the INVOCATION it sits in - which static carries the directive is pass-through data, so one
+// carrier per directive is the whole axis.
+// Every row is built so the RIGHT answer and the plausible WRONG ones are different types: the
+// element of the iterable is a string while the iterable is an array, the callback returns a string
+// while a later argument is an array, and the decoy slot of the identity static is a string too. A
+// reader that drifts to the container, to a later slot, or to the argument instead of its element
+// therefore picks a String helper for an Array receiver or the reverse, which usage-pure turns into
+// a throw the native leg sees. Same-typed rows would be inert here: under-resolution is invisible
+// to all three oracles by construction, because a declined narrow still injects a GENERIC polyfill
+// that behaves exactly like the specific one.
+const DIRECTIVE_ARG_FORMS = [
+  ['inline', written => written],
+  ['named', () => 'held'],
+  ['spread-of-literal', written => `...[${ written }]`],
+  ['spread-of-reference', () => '...spread'],
+  ['parenthesised', written => `(${ written })`],
+  ['ts-wrapped', written => `${ written } as any`],
+];
+// the invocation shapes whose value IS the callee's return. `new` is deliberately absent - it
+// yields the constructed object, so no directive describes it
+const DIRECTIVE_CALLS = [
+  ['call', (callee, args) => `${ callee }(${ args })`],
+  ['optional-call', (callee, args) => `${ callee }?.(${ args })`],
+];
+function * generateDirectiveArgForms() {
+  for (const [form, write] of DIRECTIVE_ARG_FORMS) {
+    for (const [shape, invoke] of DIRECTIVE_CALLS) {
+      // `argument`: the identity static hands argument 0 back. the LATER slot is a string, so a
+      // read that drifts off slot 0 answers String for an Array receiver
+      yield { ...snippet(`directive-arg-form/argument-${ form }-${ shape }`,
+        '(() => { const held = [1, 2]; const spread = [[1, 2]];'
+        + ` return String(${ invoke('Object.freeze', write('[1, 2]')) }.at(-1)); })()`), ts: true, strip: true };
+      // `argument-element`: argument 0 is the ITERABLE and its ELEMENT is the answer. the element is
+      // a string while the iterable is an array, so answering with the container is a wrong family
+      yield { ...snippet(`directive-arg-form/argument-element-${ form }-${ shape }`,
+        'await (async () => { const held = [\'xy\']; const spread = [[\'xy\']];'
+        + ` return String((await ${ invoke('Promise.any', write('[\'xy\']')) }).at(-1)); })()`),
+      ts: true, strip: true };
+      // `argument-return`: the callback's RETURN is the answer - a string - while the later slot is
+      // an array. reading the slot instead of its return, or the next slot, lands on the wrong one.
+      // the carrier is `then` rather than `Promise.try`, which the lowest supported Node lacks - a
+      // snippet whose NATIVE leg throws for want of the built-in compares nothing. the callback is
+      // written parenthesised so the TS wrapper lands on the FUNCTION and not on its body
+      yield { ...snippet(`directive-arg-form/argument-return-${ form }-${ shape }`,
+        'await (async () => { const held = () => \'xy\'; const spread = [() => \'xy\'];'
+        + ` return String((await ${ invoke('Promise.resolve(0).then', `${ write('(() => \'xy\')') }, [1, 2]`) }).at(-1)); })()`),
+      ts: true, strip: true };
+    }
+  }
+  // a tagged template is the third returning shape: argument 0 is the strings array the runtime
+  // builds, not anything written at the call site
+  yield { ...snippet('directive-arg-form/argument-tagged-template',
+    '(() => String(Object.freeze`xy`.at(-1)))()'), strip: true };
+}
+
 // --- shared type-alias declaration across union arms ---
 // one generic declaration reached by two references that DISAGREE on the type argument. the walk
 // expands it once and each reference applies its own argument afterwards, so the arms stay distinct
@@ -6206,8 +6265,8 @@ function * generateTaggedTemplateCallArgs() {
       + ' return a === undefined ? s[0] : [a, b]; }'
       + ` return ${ call }.at(-1); })()`), ts: true, strip: true };
   }
-  // a KNOWN static used as a tag: `returnsArgument` hands back the strings array, while a static
-  // with a declared string return hands back a string - same syntax, opposite families
+  // a KNOWN static used as a tag: the `argument` directive hands back the strings array, while a
+  // static with a declared string return hands back a string - same syntax, opposite families
   yield { ...snippet('tagged-call-args/returns-argument-static',
     '(() => Object.freeze`x`.at(0))()'), strip: true };
   yield { ...snippet('tagged-call-args/string-raw-static',
@@ -6241,6 +6300,7 @@ export function * generate() {
   yield * generateContainerLocalTypes();
   yield * generateRestSlices();
   yield * generateEnumRewrites();
+  yield * generateDirectiveArgForms();
   yield * generateSharedAliasUnionArms();
   yield * generateOptionalForeignReceiver();
   yield * generateUnbracedBodyMinifierSplit();

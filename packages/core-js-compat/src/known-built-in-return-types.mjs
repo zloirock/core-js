@@ -1,22 +1,26 @@
 // A hint is a type name (`'Array'`), or an object carrying that name plus qualifiers. Four strings
 // are DIRECTIVES rather than names - they say where the type comes from instead of naming it, and
-// they are only ever the INNER of a hint (`element` / `resolved`), never its `type`:
+// they are written wherever a type name is: as the hint's own `type` when the directive IS the
+// answer, or as its inner (`element` / `resolved`) when the answer is a container of it:
 //
-//   'inherit' / 'element'  - the RECEIVER's own inner. `Array#filter` returns an array of whatever
-//                            the receiver held, so `{ type: 'Array', element: 'inherit' }`
-//   'argument'             - arg 0 of the CALL, awaited. `Promise.resolve(x)` settles to x
-//   'argument-element'     - the awaited common type of arg 0's ELEMENTS, so arg 0 is the iterable:
-//                            `Promise.race([a, b])`. `Promise.all` / `Array.fromAsync` wrap it in an
-//                            Array and therefore carry the IDENTICAL hint. NOT "the arguments" -
-//                            a method whose result holds its argument LIST (`Array.of(a, b)`) is a
-//                            different shape and has no directive today
-//   'argument-return'      - the return type of the callback arg 0 holds: `Promise.try(fn)`,
-//                            `Promise#then(fn)`, `AsyncIterator#reduce(fn)`
+//   'inherit'           - the RECEIVER's own inner. `Array#filter` returns an array of whatever the
+//                         receiver held, so `{ type: 'Array', element: 'inherit' }`, and `Array#at`
+//                         returns that element itself: `{ type: 'inherit', nullable: true }`
+//   'argument'          - arg 0 of the CALL, awaited. `Promise.resolve(x)` settles to x, and the
+//                         identity statics hand it back: `Object.freeze` is `{ type: 'argument' }`
+//   'argument-element'  - the awaited common type of arg 0's ELEMENTS, so arg 0 is the iterable:
+//                         `Promise.race([a, b])`. `Promise.all` / `Array.fromAsync` wrap it in an
+//                         Array and therefore carry the IDENTICAL hint. NOT "the arguments" -
+//                         a method whose result holds its argument LIST (`Array.of(a, b)`) is a
+//                         different shape and has no directive today
+//   'argument-return'   - the return type of the callback arg 0 holds: `Promise.try(fn)`,
+//                         `Promise#then(fn)`, `AsyncIterator#reduce(fn)`
 //
 // An argument directive answers off the CALL, so it is meaningful only in the static-method and
 // instance-method tables - the lanes the resolver decodes with a call in hand. `tests/compat-tools`
 // enforces that, and the resolver decodes the directives generically: a new row here starts working
-// without touching the plugins.
+// without touching the plugins. The four names themselves belong to the resolver, which declares
+// them in its `resolve-node-type/base.js` - a fifth is a change there, not a row here.
 
 export const globalProxies = [
   'global',
@@ -302,16 +306,16 @@ export const instanceProperties = {
 // known return types for built-in instance methods
 export const instanceMethods = {
   Array: {
-    at: { type: 'element', nullable: true },
+    at: { type: 'inherit', nullable: true },
     concat: 'Array',
     copyWithin: { type: 'Array', element: 'inherit', mutatesElements: true },
     entries: { type: 'Iterator', element: 'Array' },
     every: 'boolean',
     fill: { type: 'Array', mutatesElements: true },
     filter: { type: 'Array', element: 'inherit' },
-    find: { type: 'element', nullable: true },
+    find: { type: 'inherit', nullable: true },
     findIndex: 'number',
-    findLast: { type: 'element', nullable: true },
+    findLast: { type: 'inherit', nullable: true },
     findLastIndex: 'number',
     flat: 'Array',
     flatMap: 'Array',
@@ -322,10 +326,10 @@ export const instanceMethods = {
     keys: { type: 'Iterator', element: 'number' },
     lastIndexOf: 'number',
     map: 'Array',
-    pop: { type: 'element', nullable: true, mutatesElements: true },
+    pop: { type: 'inherit', nullable: true, mutatesElements: true },
     push: { type: 'number', mutatesElements: true },
     reverse: { type: 'Array', element: 'inherit', mutatesElements: true },
-    shift: { type: 'element', nullable: true, mutatesElements: true },
+    shift: { type: 'inherit', nullable: true, mutatesElements: true },
     slice: { type: 'Array', element: 'inherit' },
     some: 'boolean',
     sort: { type: 'Array', element: 'inherit', mutatesElements: true },
@@ -353,7 +357,7 @@ export const instanceMethods = {
     drop: { type: 'AsyncIterator', element: 'inherit' },
     every: { type: 'Promise', resolved: 'boolean' },
     filter: { type: 'AsyncIterator', element: 'inherit' },
-    find: { type: 'Promise', resolved: { type: 'element', nullable: true } },
+    find: { type: 'Promise', resolved: { type: 'inherit', nullable: true } },
     flatMap: 'AsyncIterator',
     forEach: { type: 'Promise', resolved: 'undefined' },
     map: 'AsyncIterator',
@@ -486,7 +490,7 @@ export const instanceMethods = {
     drop: { type: 'Iterator', element: 'inherit' },
     every: 'boolean',
     filter: { type: 'Iterator', element: 'inherit' },
-    find: { type: 'element', nullable: true },
+    find: { type: 'inherit', nullable: true },
     flatMap: 'Iterator',
     forEach: 'undefined',
     includes: 'boolean',
@@ -612,16 +616,16 @@ export const instanceMethods = {
     valueOf: 'symbol',
   },
   TypedArray: {
-    at: { type: 'element', nullable: true },
+    at: { type: 'inherit', nullable: true },
     copyWithin: { type: 'TypedArray', element: 'inherit', mutatesElements: true },
     // only `number` - acceptable assumption
     entries: { type: 'Iterator', element: { type: 'Array', element: 'number' } },
     every: 'boolean',
     fill: { type: 'TypedArray', element: 'inherit', mutatesElements: true },
     filter: { type: 'TypedArray', element: 'inherit' },
-    find: { type: 'element', nullable: true },
+    find: { type: 'inherit', nullable: true },
     findIndex: 'number',
-    findLast: { type: 'element', nullable: true },
+    findLast: { type: 'inherit', nullable: true },
     findLastIndex: 'number',
     forEach: 'undefined',
     includes: 'boolean',
@@ -819,17 +823,17 @@ export const staticMethods = {
     parseInt: 'number',
   },
   Object: {
-    assign: { type: 'Object', mutatesArgument: [0], returnsArgument: 0 },
+    assign: { type: 'argument', mutatesArgument: [0] },
     // create: intentionally NOT listed. it returns a NEW object whose [[Prototype]] is arg 0, so the
     // result's instance-method surface is indeterminate - an array-proto result inherits array methods
     // (`Object.create([1]).includes` is live), a plain-object proto does not. a static `Object` hint
     // would wrongly assert "no such methods" and bail those reads to native (ie:11 break); typing it
     // as the arg would lie to `Array.isArray` guards. an absent hint yields an indeterminate return,
     // routing the result to the receiver-dispatching generic helper - correct and guard-clean
-    defineProperties: { type: 'Object', mutatesArgument: [0], returnsArgument: 0 },
-    defineProperty: { type: 'Object', mutatesArgument: [0], returnsArgument: 0 },
+    defineProperties: { type: 'argument', mutatesArgument: [0] },
+    defineProperty: { type: 'argument', mutatesArgument: [0] },
     entries: { type: 'Array', element: 'Array' },
-    freeze: { type: 'Object', returnsArgument: 0 },
+    freeze: { type: 'argument' },
     fromEntries: 'Object',
     getOwnPropertyDescriptor: { type: 'Object', nullable: true },
     getOwnPropertyDescriptors: 'Object',
@@ -844,9 +848,9 @@ export const staticMethods = {
     isSealed: 'boolean',
     keys: { type: 'Array', element: 'string' },
     keysLength: 'number',
-    preventExtensions: { type: 'Object', returnsArgument: 0 },
-    seal: { type: 'Object', returnsArgument: 0 },
-    setPrototypeOf: { type: 'Object', returnsArgument: 0 },
+    preventExtensions: { type: 'argument' },
+    seal: { type: 'argument' },
+    setPrototypeOf: { type: 'argument' },
     values: 'Array',
   },
   Promise: {
