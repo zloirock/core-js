@@ -14,7 +14,7 @@ import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import {
-  makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder,
+  makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder, isLibraryModule,
   assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, UMD_OUTPUT, HERE,
 } from './build.mjs';
 import { librariesMatching } from './libraries.mjs';
@@ -89,9 +89,14 @@ async function baseStages(lib) {
     let ts = false;
     const counter = {
       name: 'src-count',
+      // never rewrites anything - `transform` is only how a plugin gets shown every module
       transform(code, id) {
-        src += Buffer.byteLength(code);
-        if (TS_EXTENSION.test(id)) ts = true;
+        // the same predicate the Babel plugin admits modules by: rollup's interop shims and commonjs
+        // proxies are the bundler's own code, and counting them here reports them as library source
+        if (isLibraryModule(id)) {
+          src += Buffer.byteLength(code);
+          if (TS_EXTENSION.test(id)) ts = true;
+        }
         return null;
       },
     };
