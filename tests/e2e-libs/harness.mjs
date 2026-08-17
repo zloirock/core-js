@@ -6,6 +6,7 @@
 // `usage-pure` does not patch one - so both targets branch on a thenable rather than adopting it.
 
 import { assertES5 } from './build.mjs';
+import { ES5_REASON_SOURCE } from './diagnostics.mjs';
 
 // `expected` is the node pre-flight count, baked in so an exercise returning fewer checks in-browser
 // than it did in node cannot paint the page green.
@@ -36,10 +37,11 @@ export function bannerHarness(expected) {
         tbody.appendChild(tr);
       });
     }
+${ ES5_REASON_SOURCE }
     function showError(err) {
       var b = document.getElementById('banner');
       b.className = 'red';
-      b.textContent = 'ERROR - ' + (err && err.message ? err.message : err);
+      b.textContent = 'ERROR - ' + e2eReason(err);
     }
     try {
       var res = E2E.run();
@@ -100,8 +102,9 @@ export function qunitHarness(label, expectedLabels) {
           }
           done();
         }
+${ ES5_REASON_SOURCE }
         function fail(err) {
-          assert.ok(false, LABEL + ': run() threw - ' + (err && err.message ? err.message : err));
+          assert.ok(false, LABEL + ': run() threw - ' + e2eReason(err));
           done();
         }
         try {

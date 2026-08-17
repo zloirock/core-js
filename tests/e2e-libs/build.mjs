@@ -10,7 +10,7 @@ import { METHODS, phasesFor, pluginOpts as matrixOpts } from '../transpiler-inte
 import { createRequire } from 'node:module';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, relative, resolve as resolvePath } from 'node:path';
+import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 
@@ -238,16 +238,23 @@ export const TS_EXTENSION = /(?<!\.d)\.[cm]?ts$/;
 // module in the graph - the ES5 down-compile silently becomes a no-op while the injection count and
 // the modern-realm pre-flight both stay green.
 const BABEL_EXCLUDE = [/[/\\](?:node_modules|packages)[/\\](?:core-js(?:-pure)?|@core-js[/\\][^/\\]+)[/\\]/];
+
+// Is this module the LIBRARY's, or the bundler's own? The same question `shouldTransform` asks inside
+// `@core-js/unplugin`, and the same answer: a virtual module or a commonjs proxy is machinery rollup
+// minted, not code anybody wrote.
+//
+// Two consumers, and both need the same answer. Transforming the bundler's own modules would compare
+// the providers over different module sets - babel-plugin injecting for an interop helper unplugin is
+// never asked about - and counting them as library source overstates the reporting tier's `src`.
+export function isLibraryModule(id) {
+  return !id.includes('\0') && !id.includes('?commonjs-') && !id.includes('?commonjsExternal');
+}
 function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs = null }) {
   return {
     name: coreJs ? 'e2e-babel-syntax+core-js' : downCompile ? 'e2e-babel-syntax' : 'e2e-ts-strip',
     async transform(code, id) {
       if (BABEL_EXCLUDE.some(re => re.test(id))) return null;
-      // the same modules unplugin admits, and for the same reason it refuses these: a virtual module
-      // or a commonjs proxy is the bundler's own code, not the library's. Transforming them here would
-      // compare the two providers over different module sets - babel-plugin injecting for the interop
-      // helper rollup generated, unplugin never asked about it (`shouldTransform` in @core-js/unplugin)
-      if (id.includes('\0') || id.includes('?commonjs-') || id.includes('?commonjsExternal')) return null;
+      if (!isLibraryModule(id)) return null;
       const typescript = TS_EXTENSION.test(id);
       // With `downCompile: false` there is nothing to do to a `.js` module - returning null leaves it
       // byte-identical instead of round-tripping it through Babel's printer, which is what "no
@@ -341,7 +348,18 @@ export function assertPayload(chunk, label) {
 //
 // `injected` is the SET, observed inside THIS build: a separate capture would describe a different
 // configuration, and a build whose injection had gone no-op would still report a healthy one.
-export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider = 'unplugin') {
+// What a cell is called, everywhere it is called anything: the gates inside the build, the runner's
+// line, the artifact directory and the Karma page name the same cell and have to name it the same
+// way. Built from the registry entry, never from the file system - `name` and `exercise` are separate
+// fields there, so an exercise whose file name differs from its entry would otherwise be reported
+// under two identities in one line.
+export function cellLabel({ name, provider, method, phase }) {
+  return `${ name }/${ provider }/${ method }${ phase ? `/${ phase }` : '' }`;
+}
+
+// `lib` is the registry entry rather than a path: the entry is the cell's identity, and a path alone
+// leaves this function reconstructing a name from the file system
+export async function runtimeBuild(lib, method, phase = 'post', provider = 'unplugin') {
   // entry-global never carries a phase; usage-* default to 'post' (unplugin after babel - see above),
   // but runtime.mjs passes an explicit phase to also build `pre` / `pre+post`. babel-plugin has no
   // phase for any method: it IS the Babel pass, so there is no before/after to choose between.
@@ -352,7 +370,7 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider
   // Whatever the pair does not support is dropped here rather than forwarded.
   const babel = provider === 'babel-plugin';
   const effPhase = babel ? undefined : phasesFor(method, provider).includes(phase) ? phase : undefined;
-  return withEntry(exerciseAbs, method, `rt-${ provider }-${ method }-${ effPhase ?? 'x' }`, async entry => {
+  return withEntry(lib.exercise, method, `rt-${ provider }-${ method }-${ effPhase ?? 'x' }`, async entry => {
     const sink = new Set();
     // recorded alongside the set so a snapshot drift can name the module the extra injection came
     // from, without a second build in a different configuration to go looking for it
@@ -380,7 +398,7 @@ export async function runtimeBuild(exerciseAbs, method, phase = 'post', provider
     try {
       const { output } = await build.generate(UMD_OUTPUT);
       const [chunk] = output;
-      const label = `${ basename(exerciseAbs, '.mjs') }/${ provider }/${ method }${ effPhase ? `/${ effPhase }` : '' }`;
+      const label = cellLabel({ name: lib.name, provider, method, phase: effPhase });
       assertNoExternals(chunk, label);
       assertPayload(chunk, label);
       // the ES5 premise belongs to the build, not to whoever remembers to ask: the pre-flight realm
@@ -454,23 +472,5 @@ export async function wireSize(code, label = 'wire size') {
   return { min: min.length, gz: (await gzipP(min)).length };
 }
 
-// Turn an unknown throwable into one console-width line. Child-process failures carry the real
-// reason on stderr, not on `message` (which is just "Command failed: ..."), and node prints the
-// offending `file:line` BEFORE the actual `TypeError: ...` - so prefer the first line that names an
-// error and fall back to the first line at all.
-const REASON_MAX = 200; // one terminal row; long enough for a stack's first frame
-export function errorReason(err) {
-  // each source is tried for CONTENT, not for truthiness: a child whose stderr is a lone newline
-  // would otherwise win the `||` chain and reduce the whole line to `FAIL <label>: `. The default
-  // `[object Object]` is skipped on the same ground - it is a stringification, not a reason
-  for (const source of [err?.stderr, err?.message, err]) {
-    const text = String(source ?? '');
-    if (text === '[object Object]') continue;
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    if (!lines.length) continue;
-    return (lines.find(l => /^\w*(?:Error|Exception)\b/.test(l)) ?? lines[0]).slice(0, REASON_MAX);
-  }
-  // nothing said anything - still name what failed rather than print an empty reason
-  return [err?.name, err?.exitCode === undefined ? null : `exit ${ err.exitCode }`].filter(Boolean).join(', ')
-    || 'failed without a message';
-}
+// What this suite says when something fails is in `diagnostics.mjs`, which has no dependencies: a
+// runner that wants one line of it must not have to load rollup, Babel and esbuild first.
