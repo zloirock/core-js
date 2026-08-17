@@ -115,13 +115,24 @@ export function matchSelfDefaultTernarySlot(node, { isLocalUndefinedName = () =>
   return isInverse ? 'alternate' : 'consequent';
 }
 
+// equality has no operand order, and neither do the tools that emit these tests: a lowering writes
+// `_ref === void 0`, a hand-written or minified guard just as readily `void 0 === _ref`. one
+// directional predicate asked BOTH ways rather than a second set of arms - a missed spelling costs
+// the fold and leaves the receiver generic, so the asymmetry was silent
 function selfTernaryRefName(left, right, isLoose, isLocalUndefinedName) {
-  if (left?.type === 'UnaryExpression' && left.operator === 'typeof'
-    && left.argument?.type === 'Identifier' && isStringLiteralValue(right, 'undefined')) return left.argument.name;
-  if (left?.type !== 'Identifier') return null;
-  if (isVoidZeroNode(right)) return left.name;
-  if (isBareUndefinedIdentifier(right) && !isLocalUndefinedName()) return left.name;
-  if (isLoose && isNullLiteralNode(right)) return left.name;
+  return selfTernaryRefNameOrdered(left, right, isLoose, isLocalUndefinedName)
+    ?? selfTernaryRefNameOrdered(right, left, isLoose, isLocalUndefinedName);
+}
+
+function selfTernaryRefNameOrdered(ref, probe, isLoose, isLocalUndefinedName) {
+  if (ref?.type === 'UnaryExpression' && ref.operator === 'typeof'
+    && ref.argument?.type === 'Identifier' && isStringLiteralValue(probe, 'undefined')) return ref.argument.name;
+  if (ref?.type !== 'Identifier') return null;
+  if (isVoidZeroNode(probe)) return ref.name;
+  if (isBareUndefinedIdentifier(probe) && !isLocalUndefinedName()) return ref.name;
+  // a strict `=== null` is NOT a nullish default: it leaves `undefined` on the self branch, so the
+  // fold would collapse to a default the runtime never takes
+  if (isLoose && isNullLiteralNode(probe)) return ref.name;
   return null;
 }
 

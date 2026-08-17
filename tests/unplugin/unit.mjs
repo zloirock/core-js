@@ -6642,6 +6642,52 @@ async function checkEmitterSurfacesHaveConsumers() {
 }
 await checkEmitterSurfacesHaveConsumers();
 
+// `checkUnscopedParamPatterns` above proves the BEHAVIOR - every one of those hosts still injects,
+// so the neutralisation covers them. What it cannot notice is a parameter-bearing node type that
+// did not exist when the allowlist was written: `PARAM_PATTERN_SCOPE_OWNERS` names the three types
+// that OWN a scope, and anything else has its parameter patterns blanked. A parser upgrade adding a
+// fourth scope owner would silently lose that scope's bindings, and a new bodyless shape would
+// crash a user build outright, because `runTransform` rethrows. So pin the SET itself
+function checkParamPatternHostsAreEnumerated() {
+  const SOURCES = [
+    'function f(...a) {}',
+    'const f = function (...a) {};',
+    'const f = (...a) => a;',
+    'class C { m(...a) {} get x() { return 1; } set x(v) {} }',
+    'const o = { m(...a) {} };',
+    'declare function f(...a: number[]): void;',
+    'function g(...a: number[]): void;\nfunction g(...a: any[]): any {}',
+    'interface I { (...a: number[]): void; new (...a: number[]): void; m(...a: number[]): void }',
+    'declare class C { m(...a: number[]): void; }',
+    'declare abstract class A { abstract m(...a: number[]): void; }',
+    'declare const f: (...a: number[]) => void;',
+    'declare const C2: new (...a: number[]) => void;',
+    'class D { constructor(public m = 1) {} }',
+  ];
+  const EXPECTED = [
+    'ArrowFunctionExpression', 'FunctionDeclaration', 'FunctionExpression', 'TSCallSignatureDeclaration',
+    'TSConstructSignatureDeclaration', 'TSConstructorType', 'TSDeclareFunction', 'TSEmptyBodyFunctionExpression',
+    'TSFunctionType', 'TSMethodSignature',
+  ];
+  const seen = new Set();
+  (function collect(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const child of node) collect(child);
+      return;
+    }
+    if (Array.isArray(node.params)) seen.add(node.type);
+    for (const value of Object.values(node)) collect(value);
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  })(SOURCES.map(code => parseSync('input.ts', code, { sourceType: 'module' }).program));
+  check('parameter-bearing node types are the ones the allowlist was written against',
+    [...seen].sort().join(','), EXPECTED.join(','));
+  // the corpus has to actually exercise the crashing half, or the set above could be pinned on a
+  // sample that never reaches a bodyless signature
+  check('the corpus reaches bodyless signatures', seen.has('TSDeclareFunction') && seen.has('TSMethodSignature'), true);
+}
+checkParamPatternHostsAreEnumerated();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');

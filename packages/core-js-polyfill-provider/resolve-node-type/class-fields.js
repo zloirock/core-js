@@ -25,6 +25,7 @@
 import {
   createClassMemberShape,
   createMemberWriteShape,
+  memberWriteReceiverPath,
   memberWriteTargetPath,
 } from './class-member-shapes.js';
 import {
@@ -63,10 +64,12 @@ export function createClassFields({
   classAncestorPaths,
   getClassConstructorNames,
   resolveExpressionToClassPath,
+  resolveRuntimeExpression,
   getClassInstanceClosure,
   getClassInstanceTemporalBound,
   getClosureTemporalBound,
   isReceiverInClosure,
+  isReceiverPrototypeInClosure,
   computeObjectAliasClosure,
   isNullableOrNever,
   commonType,
@@ -113,19 +116,27 @@ export function createClassFields({
 
   // shared shape of class-field and object-field flow scans. phases:
   //   1. earlyBail (anonymous binding, exported binding) -> null candidates, no inference
-  //   2. initPath value type -> seed candidate
+  //   2. initPath value type -> seed candidate; an init present but UNRESOLVABLE bails the whole
+  //      scan, since the slot holds that value until something overwrites it
   //   3. internalThisScan (own methods of class / object) -> `this.<field> = ...` writes
   //   4. programGate (leak detection: instances escaping via fn-arg / return / spread) -> bail.
   //      a private field is scope-closed (can't escape), so its gate never bails
   //   5. programWritesPush (subclass `this.X = ...` + module-wide `<expr>.X = Y` writes; for a
-  //      private field, the in-class-body `<expr>.#X = Y` writes - see the per-collector branches)
+  //      private field, the in-class-body `<expr>.#X = Y` writes - see the per-collector branches).
+  //      returns false on the same "writer set not enumerable" verdict phase 3 can reach, since the
+  //      surfaces it scans - descendants and ancestors - carry wildcards of their own
   // null result signals "writer set not enumerable" - caller treats as no inference
   function collectFieldCandidates(opts) {
     if (opts.earlyBail?.()) return null;
     const candidates = [];
     if (opts.initPath?.node) {
       const initType = resolveNodeType(opts.initPath);
-      if (initType) candidates.push(initType);
+      // an init this layer cannot resolve is still a value the slot HOLDS, from construction until
+      // something overwrites it. dropping it folds the writes alone and answers with a family the
+      // field demonstrably is not yet - the same unsound narrow a dropped wildcard produces, so it
+      // takes the same "writer set not enumerable" exit
+      if (!initType) return null;
+      candidates.push(initType);
     }
     // a false verdict means the surface holds a write the scan cannot attribute to a field -
     // the writer set is not enumerable, which is the same "no inference" signal as an early bail
@@ -133,7 +144,11 @@ export function createClassFields({
     const program = findProgramPath(opts.anchor);
     if (!program) return candidates;
     if (opts.programGate?.(program)) return null;
-    opts.programWritesPush?.(program, candidates);
+    // the push phase scans surfaces the class does not own - descendants and ancestors - and those
+    // hold wildcards too. a `this[k] = v` in a SUBCLASS overwrites the slot this class declared,
+    // and a base-class one runs with the subclass instance as `this`, so either verdict is the same
+    // "writer set not enumerable" signal as an own-surface wildcard, and is returned the same way
+    if (opts.programWritesPush?.(program, candidates) === false) return null;
     return candidates;
   }
 
@@ -415,7 +430,6 @@ export function createClassFields({
       earlyBail: () => !isPrivate && isClassExported(classPath),
       initPath: member.get('value'),
       internalThisScan: candidates => appendThisWritesFor(getStaticMethodThisWrites(classPath), fieldName, candidates),
-      isPrivate,
       anchor: classPath,
       programGate: program => {
         if (isPrivate) return false;
@@ -448,7 +462,14 @@ export function createClassFields({
         // writes feed the inherited slot. skip the base (internalThisScan already covered it)
         for (const sub of descendant.paths) {
           if (sub === classPath) continue;
-          appendThisWritesFor(getStaticMethodThisWrites(sub), fieldName, candidates);
+          if (!appendThisWritesFor(getStaticMethodThisWrites(sub), fieldName, candidates)) return false;
+        }
+        // and every ANCESTOR's static surface: static methods are inherited, so `Sub.method()` runs
+        // the BASE body with `this` bound to the subclass, and its `this.<field> = Y` writes land on
+        // the slot the subclass declared. twin of the instance plane's ancestor walk
+        for (const ancestor of classAncestorPaths(classPath)) {
+          if (ancestor.path
+            && !appendThisWritesFor(getStaticMethodThisWrites(ancestor.path), fieldName, candidates)) return false;
         }
         // static-field temporal narrow not yet modeled (any `<C>.<X>` use could be a deferred
         // call observing static state). bound = Infinity keeps the existing fold-all behavior.
@@ -476,7 +497,6 @@ export function createClassFields({
       earlyBail: () => !isPrivate && isClassExported(classPath),
       initPath: member.get('value'),
       internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(classPath), fieldName, candidates),
-      isPrivate,
       anchor: classPath,
       programGate: program => {
         if (isPrivate) return false;
@@ -508,19 +528,22 @@ export function createClassFields({
         // skip the base classPath since `internalThisScan` already covered it
         for (const sub of descendant.paths) {
           if (sub === classPath) continue;
-          appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
+          if (!appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates)) return false;
         }
         // and every ANCESTOR's non-static methods: an inherited method runs with this instance as
         // `this`, so a base-class `this.<field> = Y` writes the slot the SUBCLASS declared. the
         // descendant walk above covers the other direction only
         for (const ancestor of classAncestorPaths(classPath)) {
-          if (ancestor.path) appendThisWritesFor(getInstanceMethodThisWrites(ancestor.path), fieldName, candidates);
+          if (ancestor.path
+            && !appendThisWritesFor(getInstanceMethodThisWrites(ancestor.path), fieldName, candidates)) return false;
         }
         function predicate(p) {
           // the constructor-name set is the fast filter; the class NODES are the proof. a
           // same-named class in another scope answers to the same name, and folding ITS
           // instance write in widens a field this class never sees written
           return isReceiverInClosure(p, closure)
+            // `C.prototype.<slot> = ...` reaches every instance, so it belongs to this fold too
+            || isReceiverPrototypeInClosure(p, closure)
             || (isReceiverNewOfClass(p, constructorNames)
               && !classRefLandsOutside(unwrapRuntimeExpr(p.node)?.callee, p.scope, descendant.nodes));
         }
@@ -603,10 +626,27 @@ export function createClassFields({
     });
   }
 
+  // which class does a module-level `<expr>.<slot> = ...` write reach, on the plane the slot lives
+  // on? a STATIC slot is written through the class itself (`C.m = fn`), an INSTANCE slot through the
+  // prototype (`C.prototype.m = fn`) or through an instance (`new C().m = fn`, or a binding holding
+  // one). asking only the static plane left every prototype and instance monkey-patch reported as
+  // mere ignorance, and 'unknown' is exactly the verdict a declared method body survives
+  function writeTargetClassPath(receiver, isStatic) {
+    if (isStatic) return resolveExpressionToClassPath(receiver);
+    const resolved = resolveRuntimeExpression(receiver);
+    const node = resolved?.node;
+    if (t.isMemberExpression(node) && !node.computed && node.property?.name === 'prototype') {
+      return resolveExpressionToClassPath(resolved.get('object'));
+    }
+    if (t.isNewExpression(node)) return resolveExpressionToClassPath(resolved.get('callee'));
+    return null;
+  }
+
   // is there an observable write into this slot anywhere? the rescue question for a bailed scan,
   // so it enumerates the same surfaces the full collector does - own body AND every enumerable
-  // subclass (an inherited slot is written by `this.<slot> = ...` in a descendant too), plus, for a
-  // static slot, every write whose RECEIVER resolves back to this class. the receiver is resolved
+  // subclass (an inherited slot is written by `this.<slot> = ...` in a descendant too), plus every
+  // module write whose RECEIVER reaches this slot ON ITS OWN PLANE - the class itself for a static
+  // one, the prototype or an instance for an instance one. the receiver is resolved
   // rather than name-matched because an alias (`const D = C; D.m = ...`) makes the class-binding
   // closure unenumerable - exactly the case that bailed the full scan, so its name set is known to
   // be incomplete. asks the shared module write index directly rather than the candidate folder:
@@ -623,13 +663,13 @@ export function createClassFields({
       const index = member.node.static ? getStaticMethodThisWrites(owner) : getInstanceMethodThisWrites(owner);
       if (!appendThisWritesFor(index, fieldName, out) || out.length) return true;
     }
-    if (!member.node.static) return false;
     const ownerNodes = new Set(owners.map(owner => owner.node));
     for (const writePath of getModuleFieldIndex(program).writesByField.get(fieldName) ?? []) {
-      const receiver = memberWriteTargetPath(writePath).get('object');
+      const receiver = memberWriteReceiverPath(writePath);
+      if (!receiver?.node) continue;
       // `this.<slot>` receivers are the this-writes index's job, already asked above
       if (t.isThisExpression(unwrapRuntimeExpr(receiver.node))) continue;
-      if (ownerNodes.has(resolveExpressionToClassPath(receiver)?.node)) return true;
+      if (ownerNodes.has(writeTargetClassPath(receiver, member.node.static)?.node)) return true;
     }
     return false;
   }
@@ -678,7 +718,6 @@ export function createClassFields({
       // it the read narrows off the external-write-only set and mis-emits an element-specialized
       // polyfill for a value the method already reassigned to an incompatible type
       internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(objectPath), fieldName, candidates),
-      isPrivate: false,
       anchor: objectPath,
       programWritesPush: (program, candidates) => {
         const bound = getClosureTemporalBound(closure, program);
@@ -748,8 +787,7 @@ export function createClassFields({
       }
       let types = index.get(fieldName);
       if (!types) index.set(fieldName, types = []);
-      const contributed = writePathContributedType(p);
-      if (contributed) types.push(contributed);
+      types.push(writePathContributedType(p));
     }
     // a destructuring-assignment LHS (`({ v: this.x } = src)`) or for-of/for-in head
     // (`for (this.x of it)`) writes `this.x` to an opaque destructure / iteration value, but the

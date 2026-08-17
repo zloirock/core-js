@@ -1,5 +1,5 @@
-import _at from "@core-js/pure/actual/instance/at";
-import _includes from "@core-js/pure/actual/instance/includes";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 var _ref, _ref2;
 // Four nested generic alias hops, each adding a mapped wrapper, stay under the per-walk depth budget.
 // Substitution must thread the original `T` through every layer so per-key narrows still fire.
@@ -11,5 +11,5 @@ declare const r: Step4<{
   a: number[];
   b: string[];
 }>;
-_at(_ref = r.a).call(_ref, 0);
-_includes(_ref2 = r.b).call(_ref2, 'x');
+_atMaybeArray(_ref = r.a).call(_ref, 0);
+_includesMaybeArray(_ref2 = r.b).call(_ref2, 'x');

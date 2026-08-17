@@ -12,10 +12,16 @@ import {
 } from '../../packages/core-js-compat/src/known-built-in-return-types.mjs';
 
 // normalize shorthand string hints ('Array', 'string') to { type: 'Array' }, { type: 'string' }
-// 'element' and 'inherit' are resolution directives, not types — left as strings
+// the resolution DIRECTIVES are not types and stay strings: 'element' / 'inherit' name the
+// receiver's own inner, and the `argument*` trio names the CALL's - arg 0 itself, the awaited
+// common of its elements, or the return of the callback it holds
+const RESOLUTION_DIRECTIVES = new Set(['element', 'inherit', 'argument', 'argument-element', 'argument-return']);
+
 function normalizeHint(hint) {
+  // a list is a union of member hints, each normalized on its own
+  if (Array.isArray(hint)) return hint.map(normalizeHint);
   if (typeof hint === 'string') {
-    if (hint === 'element' || hint === 'inherit') return hint;
+    if (RESOLUTION_DIRECTIVES.has(hint)) return hint;
     return { type: hint };
   }
   const result = { type: hint.type };
