@@ -14,7 +14,7 @@ import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import {
-  makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder, isLibraryModule,
+  makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder, isLibraryModule, describeInput,
   assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, UMD_OUTPUT, HERE,
 } from './build.mjs';
 import { librariesMatching } from './libraries.mjs';
@@ -228,5 +228,8 @@ for (const lib of libs) {
 const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
 await writeFile(join(REPORT, 'pipeline.md'), md);
-await writeFile(join(REPORT, 'pipeline.json'), `${ JSON.stringify({ scope, rows }, null, 2) }\n`);
+// the report is what outlives the run, and `scope` describes the REQUEST rather than the input - two
+// reports with the same scope can be measurements of different trees. `input` is the same derived
+// identity the gating tier prints, so the two products answer "was this the same input?" alike
+await writeFile(join(REPORT, 'pipeline.json'), `${ JSON.stringify({ input: await describeInput(), scope, rows }, null, 2) }\n`);
 echo(chalk.green(`\nreport -> ${ chalk.cyan(join(REPORT, 'pipeline.md')) }`));
