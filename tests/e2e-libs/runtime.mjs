@@ -5,12 +5,11 @@
 // what gates and what only informs - is in AGENTS.md rather than repeated here.
 //
 // Usage:  npm run test-e2e-libs-runtime [libFilter]    OVERWRITE=1 rewrites the snapshot baselines
-import { cellLabel, runtimeBuild, wireSize, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
-import { checkFailureLine, errorReason } from './diagnostics.mjs';
+import { cellLabel, describeInput, runtimeBuild, wireSize, toPosix, METHODS, PROVIDERS, phasesFor, TS_SOURCE_PACKAGES, HERE } from './build.mjs';
+import { checkFailureLine, discard, errorReason } from './diagnostics.mjs';
 import { bannerHarness, qunitHarness } from './harness.mjs';
 import { libraries, librariesMatching } from './libraries.mjs';
 import findInternetExplorer from '../karma/internet-explorer.js';
-import { fileURLToPath } from 'node:url';
 
 const { mkdir, readFile, rm, writeFile } = fs;
 const { join, relative } = path;
@@ -189,8 +188,18 @@ async function otherLibrariesInManifest() {
   if (!libFilter) return [];
   try {
     const parsed = JSON.parse(await readFile(MANIFEST, 'utf8'));
-    if (!Array.isArray(parsed)) throw new Error('manifest.json is not an array');
-    return parsed.filter(e => !rebuilt.has(e.lib));
+    // `{ input, cells }`, not a bare array: this file outlives the run, and without the input it
+    // cannot answer what it exists for - a cell is only comparable against a run fed the same packages.
+    //
+    // A file that parses but has another shape is STALE, not corrupt: `artifacts/` is generated and
+    // gitignored, so it is one this suite wrote itself. Reported and started over, or the runner
+    // refuses to run until someone deletes its own output. Unparsable still throws below - that one
+    // may be a live sibling's.
+    if (!Array.isArray(parsed?.cells)) {
+      echo(chalk.yellow(`  ${ chalk.cyan(relative(HERE, MANIFEST)) } is from an older shape of this runner - starting a new one`));
+      return [];
+    }
+    return parsed.cells.filter(e => !rebuilt.has(e.lib));
   } catch (err) {
     if (err.code !== 'ENOENT') throw err; // a corrupt manifest must not be silently discarded
     return [];
@@ -221,6 +230,7 @@ for (const entry of await fs.readdir(TMP, { withFileTypes: true })) {
   const { pid, dirPid } = OWNED_BY.exec(entry.name)?.groups ?? {};
   const owner = Number(pid ?? dirPid);
   if (!owner || owner === process.pid) continue;
+  let gone = false;
   try {
     process.kill(owner, 0);
   } catch (err) {
@@ -228,42 +238,28 @@ for (const entry of await fs.readdir(TMP, { withFileTypes: true })) {
     // says the process is alive and someone else's - a second user running this suite in a shared
     // checkout - and treating that as gone would delete the bundles a live run is still feeding to
     // Karma. Leaving files behind is the direction that cannot break a run.
-    if (err.code === 'ESRCH') await rm(join(TMP, entry.name), { recursive: true, force: true });
+    gone = err.code === 'ESRCH';
   }
+  // outside that `catch`, and through `discard`: inside it an `rm` that throws is indistinguishable
+  // from `process.kill` throwing, and it fires HERE, before the first cell is built - the one
+  // direction the comment above says this sweep must never take
+  if (gone) await discard(() => rm(join(TMP, entry.name), { recursive: true, force: true }), entry.name);
 }
 await mkdir(SNAP, { recursive: true });
 
 // Printed unconditionally, because the expensive question to answer after the fact is "was this the
 // same input?" - and a snapshot that drifts between two machines is answered almost entirely by this
-// line plus the injection origins above. `oxc-parser` earns its place: unplugin parses through it and
-// it ships per-platform native bindings, so it is the one dependency whose behaviour could plausibly
-// differ across runners at an identical version.
-async function version(pkg) {
-  // resolving `<pkg>/package.json` is the direct route and finds a hoisted or nested copy too, but it
-  // fails for packages whose `exports` map does not list it (three, @codemirror/state) - fall back to
-  // the flat path under this suite before giving up
-  for (const file of [
-    () => fileURLToPath(import.meta.resolve(`${ pkg }/package.json`)),
-    () => join(HERE, 'node_modules', pkg, 'package.json'),
-  ]) {
-    try {
-      return JSON.parse(await readFile(file())).version;
-    } catch { /* try the next route */ }
-  }
-  return '?'; // a missing version is diagnostic noise, never a reason to abort a run
-}
-const [vOxc, vCoreJs, vRxjs, vThree, vCm] = await Promise.all(
-  ['oxc-parser', 'core-js', 'rxjs', 'three', '@codemirror/state'].map(p => version(p)));
-echo(chalk.green(`environment: ${ chalk.cyan(`${ process.platform }/${ process.arch }`) } node ${ chalk.cyan(process.version) }`
-  + ` | oxc-parser ${ chalk.cyan(vOxc) } | core-js ${ chalk.cyan(vCoreJs) } | rxjs ${ chalk.cyan(vRxjs) }`
-  + ` | three ${ chalk.cyan(vThree) } | @codemirror/state ${ chalk.cyan(vCm) }`));
-// The TS-source stack gets its own line: every package in it feeds the htmlparser2 cells and any of
-// them can move those snapshots, so naming only the one the fixture is called after would answer "was
-// this the same input?" with a fraction of the answer. domhandler / domelementtype / boolbase ship no sources
-// and are therefore not listed - they are ordinary JS dependencies like every other fixture's.
+// plus the injection origins above. Derived rather than curated - see `describeInput` - so a package
+// that turns out to be the sole origin of a baseline line is named without anyone having noticed.
+const input = await describeInput();
+echo(chalk.green(`environment: ${ chalk.cyan(input.environment) } | lockfile ${ chalk.cyan(input.lockfile) }`));
+// the TS-source stack is called out of the same list rather than fetched separately: those packages
+// are consumed as SOURCE, so they move the htmlparser2 baselines through a path none of the others do
 const tsPackages = [...TS_SOURCE_PACKAGES];
-const tsVersions = await Promise.all(tsPackages.map(p => version(p)));
-echo(chalk.green(`TS sources: ${ tsPackages.map((p, i) => `${ p } ${ chalk.cyan(tsVersions[i]) }`).join(' | ') }`));
+echo(chalk.green(`TS sources: ${ tsPackages
+  .map(p => chalk.cyan(`${ p } ${ input.packages[p] ?? '?' }`)).join(' | ') }`));
+echo(chalk.green(`packages: ${ Object.entries(input.packages)
+  .map(([name, v]) => chalk.cyan(`${ name } ${ v }`)).join(' | ') }`));
 
 // PROVIDERS is ordered babel-plugin first, and the loop nests provider INSIDE method, so every
 // unplugin cell runs after the reference it is diffed against - no second pass, no cross-library
@@ -531,7 +527,11 @@ for (const entry of manifest) entry.karma = karmaOutcome.get(entry.label) ?? 'no
 // a filtered run keeps the entries of the libraries it did not touch, whose pages are still on disk.
 // Re-read rather than reuse what was validated before the wipe: this is the last moment before the
 // write, so a sibling run that finished meanwhile survives instead of being overwritten
-await writeFile(MANIFEST, `${ JSON.stringify([...await otherLibrariesInManifest(), ...manifest], null, 2) }\n`);
+await writeFile(MANIFEST, `${ JSON.stringify({
+  input,
+  scope: libFilter ?? 'all libraries',
+  cells: [...await otherLibrariesInManifest(), ...manifest],
+}, null, 2) }\n`);
 echo(chalk.green(`\nmanifest -> ${ chalk.cyan(MANIFEST) }`));
 
 // A baseline with no cell behind it - a library dropped from the registry, a phase renamed - is
