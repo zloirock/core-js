@@ -1026,9 +1026,9 @@ export default function plugin(api, options) {
         if (path.isObjectProperty()) {
           destructureEmit.handleObjectPropertyResult({ prop: path, meta, kind, entry, hintName });
         } else {
-          // the inherited-static-resolves-to-instance bail lives in the provider's `resolvePureWith`
-          // now (single-sourced with usage-global's `resolveUsage`), so `result` is already null here
-          // for that shape and the `inheritedStatic && !result` bail above caught it
+          // the inherited-static-resolves-to-instance bail lives in the provider's `resolveUsage`,
+          // the entry BOTH flavors go through, so `result` is already null here for that shape and
+          // the `inheritedStatic && !result` bail above caught it
           // a static claim whose receiver navigates 2+ undefinable optional hops STANDS DOWN (keeps the raw
           // chain - no single test expresses the union). resolve it BEFORE the import so a kept-raw claim
           // leaves no dead pure import: injectPureImport eagerly registers even when the id goes unused

@@ -21,7 +21,6 @@ import {
   isInterfaceDeclaration,
   isTypeAlias,
   typeAliasBody,
-  typeRefName,
   TS_UNKNOWN_TYPE,
 } from './ast-shapes.js';
 import { getHeritageTypeArgs, getTypeArgs, heritageClause } from '../helpers/ast-patterns.js';
@@ -386,8 +385,10 @@ export function createUserTypeResolve({
     if (arg.type === 'TSTypeReference' && arg.typeName?.type === 'Identifier' && paramNames.has(arg.typeName.name)) {
       return externalColliderInline(arg.typeName.name, scope) ?? arg;
     }
-    // nested collider: build a per-name subst of the external inline forms reachable in this arg,
-    // then let the shared deep walk splice them in (names with no external decl stay as the param)
+    // nested collider: build a per-name subst of the external inline forms for every colliding name
+    // that HAS an external decl, then let the shared deep walk splice in the ones this arg actually
+    // mentions. the map is not filtered against the arg on purpose - that would need a name walk of
+    // its own, while the shared walk already returns the arg UNCHANGED when it mentions none of them
     let colliderSubst = null;
     for (const name of paramNames) {
       if (!name) continue;
@@ -424,8 +425,12 @@ export function createUserTypeResolve({
       // shadowing sibling param or an outer decl, bound by the transitive pass) - so a default is left
       // untouched by both branches
       if (explicit) {
-        const argName = incomingSubst && typeRefName(arg);
-        arg = argName && incomingSubst.has(argName) ? incomingSubst.get(argName) : resolveColliderArg(arg, paramNames, scope);
+        // the CANONICAL deep walk, not a whole-node name test: a prior-hop param can occur NESTED
+        // (`B<{ w: T }>`), and a test that only matches a bare reference dropped the chained binding
+        // there. every other subst-into-args site already walks, and the walk answers the bare case
+        // identically - it returns the mapped node itself
+        const substituted = incomingSubst ? applyAliasSubstDeep(arg, incomingSubst) : arg;
+        arg = substituted === arg ? resolveColliderArg(arg, paramNames, scope) : substituted;
       }
       subst.set(typeParamName(declParams[i]), arg);
     }

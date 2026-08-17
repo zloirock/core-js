@@ -64,6 +64,7 @@ export function createTypeQuery({
   applyAliasSubstDeep,
   buildCallSiteSubst,
   functionTypeReturnAnnotation,
+  foldUnionArmTypes,
 }) {
   // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation.
   // `depth` is the caller's remaining budget: a `typeof` annotation can name the very binding it
@@ -349,8 +350,13 @@ export function createTypeQuery({
     // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
     // the annotation-only path which also handles qualified names (`typeof NS.fn`)
     const fnType = findTypeQueryFunctionType(param.exprName, scope);
-    const ret = fnType && functionTypeReturnAnnotation(fnType.type);
-    return ret ? resolveTypeAnnotation(ret, fnType.scope, depth + 1) : null;
+    if (!fnType) return null;
+    // a union of signatures is one value with several shapes - same alternatives fold the call
+    // lane uses, so `ReturnType<typeof f>` and `f()` answer alike
+    return foldUnionArmTypes(fnType.type, arm => {
+      const ret = functionTypeReturnAnnotation(arm);
+      return ret ? resolveTypeAnnotation(ret, fnType.scope, depth + 1) : null;
+    });
   }
 
   return {

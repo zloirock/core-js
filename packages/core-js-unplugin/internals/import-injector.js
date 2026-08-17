@@ -1,4 +1,5 @@
-import { kebabToCamel } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { entryToGlobalHint } from '@core-js/polyfill-provider';
+import { staticMemberFromEntrySegment } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { safeErrorMessage } from '@core-js/polyfill-provider/helpers/pattern-matching';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState, {
@@ -394,7 +395,7 @@ export default class ImportInjector extends ImportInjectorState {
       const segments = source.split('/');
       const ctor = segments.length >= 2 ? ctorNameByNamespace.get(segments.at(-2)) : null;
       if (!ctor) return false;
-      const key = kebabToCamel(segments.at(-1));
+      const key = staticMemberFromEntrySegment(entryToGlobalHint(segments.at(-2)), segments.at(-1));
       return new RegExp(`\\b${ esc(ctor) }\\s*[.\\[]\\s*["']?${ key }\\b`).test(bodyText);
     }
     const activePure = [...this.pureImports].filter(([source, name]) => !this.existingPureImports.has(source)

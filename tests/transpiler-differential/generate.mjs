@@ -768,6 +768,61 @@ function * generateContainerLocalTypes() {
   }
 }
 
+// --- an array REST binds a SLICE, not the source ---
+// the slice's element type is the source's own only when the source is HOMOGENEOUS or the slice
+// starts at 0. a positional source sliced past 0 holds a different type at every index, so
+// answering with the container types the slice by the source's element 0 - a wrong family, which
+// usage-pure turns into a throw the native leg sees. container kind is the branching axis: the
+// tuple rows have to widen while the array rows have to stay narrow, so a fix that simply widens
+// every rest read fails the same family that catches the original defect. the slice START branches
+// for the same reason - at 0 the slice IS the whole source and stays exact for both kinds.
+// the three hosts are three different lanes: an init annotation goes through the destructure
+// key-path walk, an annotation written ON the pattern through the typed-member walk, and a
+// parameter through the binding one
+const REST_SLICE_SOURCES = [
+  ['tuple', '[string, number[]]', '["xy",[7,8]]'],
+  ['array', 'string[]', '["ab","cd"]'],
+];
+const REST_SLICE_HOSTS = [
+  ['init-annotated', (type, json, pattern, read) => `const a: ${ type } = JSON.parse('${ json }');\n`
+    + `const ${ pattern } = a;\nreturn ${ read };`],
+  ['pattern-annotated', (type, json, pattern, read) => `const ${ pattern }: ${ type } = `
+    + `JSON.parse('${ json }');\nreturn ${ read };`],
+  ['param-annotated', (type, json, pattern, read) => `function take(${ pattern }: ${ type }) `
+    + `{ return ${ read }; }\nreturn take(JSON.parse('${ json }'));`],
+];
+function * generateRestSlices() {
+  for (const [kind, type, json] of REST_SLICE_SOURCES) {
+    for (const [host, wrap] of REST_SLICE_HOSTS) {
+      for (const [start, pattern] of [['past-0', '[, ...rest]'], ['from-0', '[...rest]']]) {
+        yield { ...snippet(`tuple-rest-slice/${ kind }-${ host }-${ start }`,
+          `(() => { ${ wrap(type, json, pattern, 'String(rest[0].at(-1))') } })()`), ts: true, strip: true };
+      }
+    }
+  }
+}
+
+// --- a REWRITTEN enum slot must not keep its declared member type ---
+// unlike the other precision families here this one IS visible to the oracles: the declared member
+// is a string and the value written over it is an Array, so a read that keeps the narrow picks a
+// string-specific helper for an array receiver and THROWS, where native returns the element.
+// the untouched twin is the branch that keeps the family honest - it must stay narrowed, so a fix
+// that simply stops narrowing every enum fails here
+const ENUM_REWRITE_CASES = [
+  ['rewritten-at-top-level', '(S as any).Ready = [7, 8];'],
+  ['rewritten-in-a-function', 'function boom() { (S as any).Ready = [7, 8]; }\nboom();'],
+];
+function * generateEnumRewrites() {
+  for (const [label, mutation] of ENUM_REWRITE_CASES) {
+    yield { ...snippet(`enum-rewrite/${ label }`,
+      `(() => { enum S { Ready = "xy" }\n${ mutation }\nreturn String((S.Ready as any).at(-1)); })()`),
+    ts: true, strip: true };
+  }
+  // the untouched enum keeps its declared member type, and the read stays string-narrowed
+  yield { ...snippet('enum-rewrite/untouched-stays-narrowed',
+    '(() => { enum S { Ready = "xy" }\nreturn String(S.Ready.at(-1)); })()'), ts: true, strip: true };
+}
+
 // --- shared type-alias declaration across union arms ---
 // one generic declaration reached by two references that DISAGREE on the type argument. the walk
 // expands it once and each reference applies its own argument afterwards, so the arms stay distinct
@@ -6184,6 +6239,8 @@ export function * generate() {
   yield * generateIifeArgShadow();
   yield * generateTypeMarkerPeels();
   yield * generateContainerLocalTypes();
+  yield * generateRestSlices();
+  yield * generateEnumRewrites();
   yield * generateSharedAliasUnionArms();
   yield * generateOptionalForeignReceiver();
   yield * generateUnbracedBodyMinifierSplit();
