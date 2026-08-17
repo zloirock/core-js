@@ -27,6 +27,21 @@ export const PRIMITIVES = new Set([
   'undefined',
 ]);
 
+// The grammar of the return-type registry, and not a fact about any built-in: these four strings
+// say WHERE a hint's type comes from instead of naming it, each mapped to the side it reads. It
+// lives here rather than in `@core-js/compat` because that package only carries the registry -
+// nothing in it interprets a hint - while this file already holds the resolver's other hint
+// vocabularies. What each one MEANS is documented where it is acted on: the call-side three at
+// `resolveArgumentDirective`, all four for a data author in the registry's own header. The data
+// cannot introduce one on its own - a name with no branch in the decoder throws rather than
+// resolving to nothing, and an unreadable directive answers "unknown", never a fallback container.
+export const RESOLUTION_DIRECTIVES = assign(create(null), {
+  argument: 'call',
+  'argument-element': 'call',
+  'argument-return': 'call',
+  inherit: 'receiver',
+});
+
 export const TYPE_HINTS = new Set([
   ...PRIMITIVE_HINTS,
   'array',

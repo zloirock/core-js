@@ -5,9 +5,10 @@
 // without re-walking AST shape.
 //
 // Public surface:
-//   typeFromHint(hint, objectType?)           - hint -> Type object (recursive for nested
-//                                               element / resolved slots; objectType
-//                                               supplies 'element' / 'inherit' inner)
+//   typeFromHint(hint, objectType?, callPath?) - hint -> Type object (recursive for nested
+//                                               element / resolved slots; objectType supplies
+//                                               the 'inherit' inner, callPath the call-side
+//                                               directives - omit it and they answer nothing)
 //   resolveInnerType(type)                    - container element peel (string hint or
 //                                               cached Type object slot)
 //   unwrapPromise(type)                       - recursive Promise<Promise<...T>> -> T
@@ -18,22 +19,27 @@
 //   lookupNested(table, key1, key2)           - two-level registry table accessor
 //   resolveGlobalMember(path)                 - MemberExpression -> { objectName, memberName }
 //                                               when receiver is a known global
-//   resolveKnownInstanceMember(path, table)   - registry-keyed instance member resolver
+//   resolveKnownInstanceMember(path, table, callPath?)
+//                                             - registry-keyed instance member resolver
 //   resolveKnownStaticReturnType(callee, callPath)
 //   resolveKnownPropertyReturnType(path)
 //   resolveGlobalStaticReference(path)
 //   resolveKnownGlobalReference(path)
-import { PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, $Object, $Primitive, callArgumentPaths } from './base.js';
+import {
+  PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, RESOLUTION_DIRECTIVES,
+  $Object, $Primitive, callArgumentPaths,
+} from './base.js';
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import {
-  FUNCTION_LIKE_NODE_TYPES, getTypeArgs, resolveCallArgumentCoords, TRANSPARENT_EXPR_WRAPPER_TYPES,
+  FUNCTION_LIKE_NODE_TYPES, getTypeArgs, peelTransparentWrapperPath, resolveCallArgumentCoords,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
 // invocation shapes whose value IS whatever the callee returns, so the return-shape rules below
-// (`Promise.resolve` flattening, `returnsArgument: N`) carry through them. `new` is excluded
+// (`resolved` flattening, the `argument` directives) carry through them. `new` is excluded
 // deliberately - it yields the constructed object no matter what the callee returns
 const RETURNING_INVOCATION_TYPES = new Set([
   'CallExpression',
@@ -56,6 +62,10 @@ export function createKnownGlobals({
   KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
   KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
   KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+  // the vocabulary is the resolver's own, so it defaults to the declaration next door. it stays a
+  // parameter only so a suite can hand in a doctored one: a directive the data ships with no
+  // branch here is a mismatch nothing else can build
+  KNOWN_RESOLUTION_DIRECTIVES = RESOLUTION_DIRECTIVES,
   commonType,
   resolveReturnType,
   resolveRuntimeExpression,
@@ -64,25 +74,50 @@ export function createKnownGlobals({
   // `element` / `resolved` inner hint, optional `nullable` - the spec return admits
   // undefined / null (`find` / `at` / `pop` / `exec` / ...), so the decoded type is
   // marked and the logical truthy-fold will not collapse on it
+  // every directive, one reader. WHICH side a directive reads is data - the artifact ships it - so
+  // both sides route off that field rather than one off data and the other off a literal name.
+  // null means "this string is not a directive" for the name path below, and also "the directive
+  // could not be read" - both leave the caller with no type, which is the same answer. a name the
+  // data ships with no implementation is neither: it throws, because answering unknown would make
+  // the narrow it was written for silently not happen
+  function typeFromDirective(hint, objectType, callPath) {
+    switch (KNOWN_RESOLUTION_DIRECTIVES[hint]) {
+      case 'receiver': return resolveReceiverDirective(hint, objectType);
+      case 'call': return resolveArgumentDirective(hint, callPath);
+      default: return null;
+    }
+  }
+
+  function resolveReceiverDirective(directive, objectType) {
+    if (directive === 'inherit') return resolveInnerType(objectType);
+    throw new Error(`no resolver for receiver directive '${ directive }'`);
+  }
+
+  function decodeTypeName(name) {
+    if (isDirective(name)) return null;
+    return PRIMITIVES.has(name) ? new $Primitive(name) : new $Object(name);
+  }
+
   function typeFromHint(hint, objectType, callPath) {
     // a union hint (`Reflect.ownKeys` -> string | symbol) has no Type representation here;
     // decoding it as unknown keeps the container's element unresolved rather than picking a
     // member. the escape analysis reads the union off the registry instead
     if (Array.isArray(hint)) return null;
-    if (typeof hint === 'string') {
-      if (hint === 'element' || hint === 'inherit') return resolveInnerType(objectType);
-      if (ARGUMENT_DIRECTIVES.has(hint)) return resolveArgumentDirective(hint, callPath);
-      if (PRIMITIVES.has(hint)) return new $Primitive(hint);
-      return new $Object(hint);
-    }
+    if (typeof hint === 'string') return typeFromDirective(hint, objectType, callPath) ?? decodeTypeName(hint);
     let base;
-    if (hint.type === 'element' || hint.type === 'inherit') {
-      base = resolveInnerType(objectType);
+    // a directive as the hint's OWN type means the directive IS the answer, so an unreadable one
+    // leaves nothing rather than falling back to a container the data never promised
+    if (isDirective(hint.type)) {
+      base = typeFromDirective(hint.type, objectType, callPath);
     } else if (PRIMITIVES.has(hint.type)) {
       base = new $Primitive(hint.type);
     } else {
+      // `resolved` names what a promise SETTLES to, and settling is what unwraps - so the await
+      // lives here, once, instead of inside each directive that may feed the slot
+      const settles = hint.resolved !== undefined;
       const innerHint = hint.element ?? hint.resolved ?? null;
-      const inner = innerHint ? typeFromHint(innerHint, objectType, callPath) : null;
+      let inner = innerHint ? typeFromHint(innerHint, objectType, callPath) : null;
+      if (settles && inner) inner = unwrapPromise(inner);
       // an argument directive that could not be read leaves the container bare, which is the
       // declared answer minus the precision - never a guess about what the call was given
       base = new $Object(hint.type, inner);
@@ -164,7 +199,7 @@ export function createKnownGlobals({
   }
 
   // resolve return type of a known instance member (method or property) from a lookup table
-  // for methods, objectType is passed through to typeFromHint to resolve 'element'/'inherit'
+  // for methods, objectType is passed through to typeFromHint to resolve 'inherit'
   function resolveKnownInstanceMember(path, table, callPath) {
     const name = resolveMemberPropertyName(path);
     if (!name) return null;
@@ -178,7 +213,7 @@ export function createKnownGlobals({
   }
 
   // the ARGUMENT directives: what a call resolves to when the answer lives in the call itself
-  // rather than in the method. they are the static-side twins of `element` / `inherit`, which name
+  // rather than in the method. they are the static-side twins of `inherit`, which names
   // the RECEIVER's inner, and the data spells them in the same slots - so a new method needs a row
   // there and nothing here.
   //   `argument`         - arg 0 itself, one promise layer peeled (`Promise.resolve`)
@@ -188,7 +223,12 @@ export function createKnownGlobals({
   //                        `AsyncIterator.reduce`)
   // every one of them answers null on anything it cannot read - a literal-free iterable, a spread,
   // an unresolvable element - and the caller then serves the declared container bare
-  const ARGUMENT_DIRECTIVES = new Set(['argument', 'argument-element', 'argument-return']);
+  // which side each directive reads is DATA, shipped beside the values it qualifies. restating the
+  // list here would drift in the one direction nothing catches: a name this file has not heard of
+  // is not an error, it decodes as an object type OF that name and the narrow silently stops
+  function isDirective(name) {
+    return hasOwn(KNOWN_RESOLUTION_DIRECTIVES, name);
+  }
 
   // `new Promise.resolve(x)` constructs rather than returns the callee's value, so no directive
   // describes it. checked via node.type so the gate works for both babel paths (which expose
@@ -206,12 +246,12 @@ export function createKnownGlobals({
       : args[coords.argIndex].get('argument').get('elements')[coords.elementIndex];
   }
 
-  // a value the call hands over is awaited the way the runtime awaits it - ALL the way down, since
-  // `Promise.resolve(promiseOfPromise)` settles to the innermost value. that is exactly what the
-  // `unwrapPromise` canon above does; a one-layer peel here was a weaker re-derivation of it
-  function awaitedTypeOf(path) {
+  // the value a slot holds, as written. AWAITING is not this function's business: it belongs to the
+  // `resolved` slot, which is what "settles to" means - `Promise.resolve(p)` unwraps p while
+  // `Object.freeze(p)` hands the very same promise back, and both read argument 0 through here
+  function typeOfArgument(path) {
     const type = path && resolveNodeType(path);
-    return !type || isNullableOrNever(type) ? null : unwrapPromise(type);
+    return !type || isNullableOrNever(type) ? null : type;
   }
 
   // the function a callback slot NAMES: written inline, or referenced by a name the runtime-
@@ -231,26 +271,35 @@ export function createKnownGlobals({
     return resolved?.node && FUNCTION_LIKE_NODE_TYPES.has(babelNodeType(resolved.node)) ? resolved : null;
   }
 
+  // the branches below ARE the list of call directives this file implements - a `default` that
+  // throws is what keeps them honest against the shipped vocabulary, and it is reached even when
+  // the argument is unreadable, so a name with no branch can never answer off the last one
   function resolveArgumentDirective(directive, callPath) {
     const argPath = directiveArgument(callPath);
-    if (!argPath) return null;
-    if (directive === 'argument') return awaitedTypeOf(argPath);
+    if (directive === 'argument') return argPath && typeOfArgument(argPath);
     if (directive === 'argument-element') {
+      if (!argPath) return null;
+      // through the wrappers FIRST, and through the canonical set: babel strips `(xs)` at parse
+      // while oxc keeps a `ParenthesizedExpression`, so a shape test on the raw node answers
+      // differently per parser on the same source - the two emitters then inject different helpers
+      const literal = peelTransparentWrapperPath(argPath);
       // only a literal array of non-spread elements is readable; anything else keeps the container.
       // the elements fold exactly as a union does - a disagreement leaves no inner
-      if (babelNodeType(argPath.node) !== 'ArrayExpression') return null;
-      const elements = argPath.get('elements');
+      if (babelNodeType(literal.node) !== 'ArrayExpression') return null;
+      const elements = literal.get('elements');
       if (!elements.length) return null;
       let inner = null;
       for (const element of elements) {
         if (!element?.node || babelNodeType(element.node) === 'SpreadElement') return null;
-        const awaited = awaitedTypeOf(element);
+        const awaited = unwrapPromise(typeOfArgument(element));
         if (!awaited) return null;
         inner = inner ? commonType(inner, awaited) : awaited;
         if (!inner) return null;
       }
       return inner;
     }
+    if (directive !== 'argument-return') throw new Error(`no resolver for call directive '${ directive }'`);
+    if (!argPath) return null;
     // `argument-return`: a LATER argument that is itself a callback opens a second resolution path
     // (`then(onFulfilled, onRejected)`), and one hint cannot carry two - bail rather than answer
     // off the first. an ordinary later argument is data the callback receives (`Promise.try(fn, a)`)
@@ -268,40 +317,7 @@ export function createKnownGlobals({
     // the annotation; awaited once, since a callback returning a promise is flattened by the
     // methods that carry this directive
     const returned = resolveReturnType(fnPath);
-    if (!returned || isNullableOrNever(returned)) return null;
-    return returned.constructor === 'Promise' ? resolveInnerType(returned) : returned;
-  }
-
-  // a static flagged `returnsArgument: N` returns that argument unchanged (ECMAScript identity,
-  // e.g. Object.freeze -> 0), so the result keeps the argument's concrete container type:
-  // `Object.freeze([...]).includes()` must narrow to the array, not the registry's generic 'Object'
-  // (which drops the polyfill on ie:11). shares `directiveArgument`'s slot-selection rule.
-  // the two failure modes are DIFFERENT answers and the caller reads them apart:
-  //   `undefined` - no usable slot (absent, or a spread makes positional matching undecidable),
-  //                 so the declared hint is still the honest answer;
-  //   `null`      - the slot is FILLED but its type is unknown. an identity static returns exactly
-  //                 that value, so the call is equally unknown. collapsing this into the hint
-  //                 claimed `Object` for a value nothing is known about, and an Object hint
-  //                 SUPPRESSES the instance polyfill outright - a missed polyfill on the target,
-  //                 not merely a lost narrow
-  function inferReturnedArgType(callPath, index) {
-    const argPath = directiveArgument(callPath, index);
-    if (!argPath) return undefined;
-    const argType = resolveNodeType(argPath);
-    return argType && !isNullableOrNever(argType) ? argType : null;
-  }
-
-  // resolve a known static method's return type from its registry hint + call path. the hint's own
-  // ARGUMENT directives are decoded by `typeFromHint` from the call, and a
-  // `returnsArgument: N` static (Object.freeze / seal / defineProperty ...) returns that argument's
-  // concrete type. shared by the direct (`Object.freeze(a)`) and aliased (`const { freeze } = Object;
-  // freeze(a)`) paths so both narrow identically instead of the aliased one dropping to generic 'Object'
-  function resolveStaticReturnFromHint({ hint, callPath }) {
-    if (callPath && typeof hint.returnsArgument === 'number') {
-      const inferred = inferReturnedArgType(callPath, hint.returnsArgument);
-      if (inferred !== undefined) return inferred;
-    }
-    return typeFromHint(hint, undefined, callPath);
+    return !returned || isNullableOrNever(returned) ? null : returned;
   }
 
   function resolveKnownStaticReturnType(callee, callPath) {
@@ -312,7 +328,7 @@ export function createKnownGlobals({
     if (isMutatedStatic(info.objectName, info.memberName)) return null;
     const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
     if (!hint) return null;
-    return resolveStaticReturnFromHint({ objectName: info.objectName, memberName: info.memberName, hint, callPath });
+    return typeFromHint(hint, undefined, callPath);
   }
 
   function resolveKnownPropertyReturnType(path) {
@@ -353,7 +369,6 @@ export function createKnownGlobals({
     isPromiseRefName,
     lookupNested,
     resolveKnownInstanceMember,
-    resolveStaticReturnFromHint,
     resolveKnownStaticReturnType,
     resolveKnownPropertyReturnType,
     resolveGlobalStaticReference,
