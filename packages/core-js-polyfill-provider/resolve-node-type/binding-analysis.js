@@ -28,7 +28,7 @@
 // Service object passes factory helpers (`memoize`, `findProgramPath`, `getDeclaratorBindingName`,
 // `staticPairFromPolyfillEntry`, `lookupNested`, `KNOWN_STATIC_METHOD_RETURN_TYPES`) and the
 // Babel/ESTree type adapter `t`. Module-level state (`exportedNamesCache`) ships with `reset()`.
-import { PATTERN_WRAPPERS } from './base.js';
+import { PATTERN_WRAPPERS, PRIMITIVES } from './base.js';
 import {
   FUNCTION_LIKE_NODE_TYPES,
   POSSIBLE_GLOBAL_OBJECTS,
@@ -485,13 +485,13 @@ export function createBindingAnalysis({
   // ask - the named-holder classifier and the anonymous-object one - so an object written inline at the
   // argument reads exactly like one bound to a name first. three layers: a value carrying own-`this`
   // methods additionally needs the slot listed as method-safe (anything else may extract a method and
-  // rebind its `this`), the callee must not mutate that slot, and an identity-returning callee must not
-  // have its result held (the result aliases the value back out)
+  // rebind its `this`), the callee must not mutate that slot, and a callee whose result retains the
+  // value must not have that result held (the result aliases the value back out)
   function callArgumentEscapes({ callNode, argNode, argPath, hasOwnThisMethods }) {
     if (referenceInstallsUnreadBody(callNode, argNode, argPath, null)) return true;
     if (hasOwnThisMethods && !methodSafeCallArgSlot(callNode, argNode, argPath?.scope)) return true;
     if (!isKnownNonMutatingCallSite(callNode, argNode, argPath)) return true;
-    return heldIdentityReturningResult(callNode, argNode, argPath);
+    return heldResultRetainsArgument(callNode, argNode, argPath);
   }
 
   // ref classifier used during alias-closure construction. categories:
@@ -552,31 +552,71 @@ export function createBindingAnalysis({
     // `[...obj]`, `{...obj}` - all routed through the helper which unwraps SpreadElement
     // and consults the callee's mutatesArgument profile
     if (isKnownNonMutatingCallSite(parent, refNode, refPath)) {
-      // identity-returning callees (`Object.freeze(o)` returns o) alias the argument through the
-      // call RESULT: a held result re-exposes the object outside the closure's name set (writes
-      // and method extraction through it are invisible), so only a discarded call stays trivial
-      return heldIdentityReturningResult(parent, refNode, refPath) ? 'leak' : 'trivial';
+      // some of those callees alias the argument through the call RESULT - by returning it
+      // (`Object.freeze(o)`) or by boxing it (`Array.of(o)`). a held result re-exposes the object
+      // outside the closure's name set (writes and method extraction through it are invisible),
+      // so only a discarded call stays trivial
+      return heldResultRetainsArgument(parent, refNode, refPath) ? 'leak' : 'trivial';
     }
     return 'leak';
   }
 
-  // known callees that RETURN their first argument, DERIVED from the static-return metadata (single
-  // source of truth). `Object.assign` / `defineProperty` also return arg 0 but ALSO mutate it, so
-  // their target slot is already a mutating-arg leak - only the non-mutating identity returners (no
-  // `mutatesArgument`) need the held-result check. `Reflect.setPrototypeOf` returns a boolean, so it
-  // carries no `returnsArgument` and is excluded by construction
+  // container returns that can carry a value the call was handed. a plain `Object` return is never
+  // one of them here: the registry's object-typed statics derive their result FROM the argument
+  // (`getPrototypeOf`, `getOwnPropertyDescriptor`) rather than boxing it
+  const ARGUMENT_HOLDING_RETURN_TYPES = new Set([
+    'Array',
+    'AsyncIterator',
+    'Iterator',
+    'Map',
+    'Promise',
+    'Set',
+    'WeakMap',
+    'WeakSet',
+  ]);
+
+  // a container whose element hint is pinned to primitives holds no reference to the argument -
+  // `Object.keys(o)` is string, `Reflect.ownKeys(o)` a string | symbol union. an unconstrained
+  // element (`Array.of`, `Promise.resolve`) can hold anything the call was given.
+  // an ARGUMENT directive in that slot reads as non-primitive and therefore HOLDS - which is the
+  // right answer by construction: the directive exists precisely because the value came from the
+  // call. so this predicate needs no directive branch of its own
+  function returnMayHoldArgument(hint) {
+    if (!ARGUMENT_HOLDING_RETURN_TYPES.has(hint?.type)) return false;
+    const inner = hint.element ?? hint.resolved ?? null;
+    if (inner === null) return true;
+    const members = Array.isArray(inner) ? inner : [inner];
+    return members.some(member => !PRIMITIVES.has(member?.type ?? member));
+  }
+
+  // known callees whose RESULT re-exposes an argument, DERIVED from the static-return metadata
+  // (single source of truth). two shapes, and the argument slots differ: an identity returner hands
+  // back arg 0 itself (`Object.freeze(o)`), while a holding container can carry any argument it was
+  // given (`Array.of(a, b)`). `Object.assign` / `defineProperty` also return arg 0 but ALSO mutate
+  // it, so their target slot is already a mutating-arg leak - only the non-mutating identity
+  // returners need the held-result check. `Reflect.setPrototypeOf` returns a boolean, so it carries
+  // no `returnsArgument` and is excluded by construction
   const IDENTITY_RETURNING_STATIC_CALLEES = new Set();
+  const ARGUMENT_HOLDING_STATIC_CALLEES = new Set();
   for (const [ctor, methods] of Object.entries(KNOWN_STATIC_METHOD_RETURN_TYPES)) {
     for (const [method, hint] of Object.entries(methods)) {
       if (hint?.returnsArgument === 0 && !hint.mutatesArgument) IDENTITY_RETURNING_STATIC_CALLEES.add(`${ ctor }.${ method }`);
+      if (returnMayHoldArgument(hint)) ARGUMENT_HOLDING_STATIC_CALLEES.add(`${ ctor }.${ method }`);
     }
   }
-  function heldIdentityReturningResult(parent, refNode, refPath) {
+  // does THIS call hand the value back out through its result? the two sets above name the callees
+  // that can; this asks whether the argument sits in a slot they carry, and whether the result is
+  // held at all - a discarded call re-exposes nothing
+  function heldResultRetainsArgument(parent, refNode, refPath) {
     if (parent?.type !== 'CallExpression' && parent?.type !== 'OptionalCallExpression') return false;
     // `refNode` is the walker-peeled OUTERMOST wrapper - the argument node itself
-    if (parent.arguments?.[0] !== refNode) return false;
+    if (!parent.arguments?.includes(refNode)) return false;
     const pair = resolveStaticCalleePair(parent.callee, refPath?.scope);
-    if (!pair || !IDENTITY_RETURNING_STATIC_CALLEES.has(`${ pair.constructor }.${ pair.method }`)) return false;
+    if (!pair) return false;
+    const key = `${ pair.constructor }.${ pair.method }`;
+    const retains = ARGUMENT_HOLDING_STATIC_CALLEES.has(key)
+      || (parent.arguments[0] === refNode && IDENTITY_RETURNING_STATIC_CALLEES.has(key));
+    if (!retains) return false;
     const ctx = peelTransparentExprAncestorPath(refPath?.parentPath)?.parentPath?.node;
     if (ctx?.type === 'ExpressionStatement') return false;
     if (ctx?.type === 'UnaryExpression' && ctx.operator === 'void') return false;

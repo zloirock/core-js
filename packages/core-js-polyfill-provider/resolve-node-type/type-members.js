@@ -50,6 +50,7 @@ export function createTypeMembers({
   keyMatchesName,
   getKeyName,
   literalKeyValue,
+  matchTemplatePattern,
   indexedAccessKey,
   findAllTypeDeclarations,
   findTypeDeclaration,
@@ -65,7 +66,7 @@ export function createTypeMembers({
   followTypeAliasChain,
   unwrapMappedTypePassthrough,
   expandMappedTypeMembers,
-  isUnconstrainedTypeReference,
+  isUnconstrainedTypeShape,
   pickConditionalBranchVia,
   resolveTypeQueryBinding,
   resolveIndexedAccessMemberAnnotationAST,
@@ -443,27 +444,55 @@ export function createTypeMembers({
     return out;
   }
 
+  // does an index signature whose key type is neither `string` nor `number` nor `symbol` admit this
+  // key? the template half routes through the SHARED pattern matcher rather than a second reading
+  // of the same grammar; a union asks each arm, a literal compares its value
+  function indexSignatureAdmitsKey(keyNode, key) {
+    if (!keyNode) return false;
+    if (keyNode.type === 'TSUnionType') {
+      return keyNode.types.some(arm => indexSignatureAdmitsKey(peelTSParenthesized(arm), key));
+    }
+    const template = matchTemplatePattern(keyNode, String(key));
+    if (template !== null) return template;
+    if (keyNode.type === 'TSLiteralType') {
+      const value = literalKeyValue(keyNode.literal);
+      return value !== null && String(value) === String(key);
+    }
+    return false;
+  }
+
   // mixed `{[k:number]:A; [k:string]:B}` index signatures resolve per-lookup: a numeric key may
   // fall back to the string signature (numeric keys coerce to string keys), but a non-numeric
-  // string key resolves only via the string signature. unwrap the TSTypeAnnotation wrapper THEN
-  // peel TSParenthesizedType - oxc preserves `(string)` as TSParenthesizedType, and the
-  // discriminator check below compares against bare keyword types
+  // string key resolves only via the string signature. a key type that is none of the three keywords
+  // spells the keys it admits (a template, a literal, a union of those) and answers through
+  // `indexSignatureAdmitsKey`; a signature it names OUTRANKS the permissive string one. unwrap the
+  // TSTypeAnnotation wrapper THEN peel TSParenthesizedType - oxc preserves `(string)` as
+  // TSParenthesizedType, and the discriminator check below compares against bare keyword types
   function pickIndexSignature(members, key) {
     let numberSig = null;
     let stringSig = null;
+    let patternSig = null;
     for (const member of members) {
       if (member.type !== 'TSIndexSignature' || !member.typeAnnotation) continue;
-      const keyType = peelTSParenthesized(unwrapTypeAnnotation(member.parameters?.[0]?.typeAnnotation))?.type;
-      if (keyType === 'TSNumberKeyword') numberSig ??= member.typeAnnotation;
-      // a symbol index signature is never selectable by a string / number property key; skip it so
-      // it cannot be mistaken for the (otherwise permissive) string signature in the final fallback
-      else if (keyType === 'TSSymbolKeyword') continue;
-      else stringSig ??= member.typeAnnotation;
+      const keyNode = peelTSParenthesized(unwrapTypeAnnotation(member.parameters?.[0]?.typeAnnotation));
+      const keyType = keyNode?.type;
+      switch (keyType) {
+        case 'TSNumberKeyword': numberSig ??= member.typeAnnotation; break;
+        // a symbol index signature is never selectable by a string / number property key; skip it so
+        // it cannot be mistaken for the (otherwise permissive) string signature in the final fallback
+        case 'TSSymbolKeyword': break;
+        case 'TSStringKeyword': stringSig ??= member.typeAnnotation; break;
+        // any OTHER key type spells the keys it admits and no others (a template, a literal, a union
+        // of those). reading it as the permissive string signature answered a key the signature does
+        // not admit with its value type - a member TS does not give the source at all
+        default: if (indexSignatureAdmitsKey(keyNode, key)) patternSig ??= member.typeAnnotation;
+      }
     }
     const isNumericKey = typeof key === 'number' || /^-?\d+$/.test(String(key));
     // a number-only / symbol-only index type has no member for a non-numeric string key, so
-    // returning the number / symbol value type there would be over-emission, not a real member
-    return isNumericKey ? (numberSig ?? stringSig) : stringSig;
+    // returning the number / symbol value type there would be over-emission, not a real member.
+    // a matched pattern outranks the permissive string signature - it named this key
+    return isNumericKey ? (numberSig ?? patternSig ?? stringSig) : (patternSig ?? stringSig);
   }
 
   // element AST of an array-shaped type (`X[]` / `Array<X>` / `ReadonlyArray<X>`, readonly-peeled)
@@ -540,7 +569,7 @@ export function createTypeMembers({
       checkAST: checkSubst,
       extendsAST: extendSubst,
       resolveOne: ast => resolveTypeAnnotation(ast, scope, depth + 1),
-      isUnconstrained: isUnconstrainedTypeReference(extendSubst),
+      isUnconstrained: isUnconstrainedTypeShape(extendSubst),
     });
     if (branch !== null) {
       return findTypeMember({ objectType: innerWithSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth: depth + 1 });
@@ -684,7 +713,13 @@ export function createTypeMembers({
             if (!keyMatchesName(member.key, key, scope, member.computed) || !member.typeAnnotation) break;
             return withMarkers(withSubst(member.typeAnnotation), member);
           // getter: read the return; setter: continue iteration to a paired getter;
-          // plain method: expose the full signature (see returnMemberMethodNode)
+          // plain method: expose the full signature (see returnMemberMethodNode). this arm alone
+          // skips the shared marker step, and that is NOT free - `m?(): T` and `m?: () => T` are
+          // one thing to TS yet answer differently about the value being possibly-undefined.
+          // routing it through `withMarkers` was MEASURED and regresses a working narrow: the
+          // marker reaches the CALL spine, where a destructured optional method (`const { m } = i;
+          // m!()`) then bails to generic. a fix needs a channel that reaches the value-read fold
+          // without reaching the call - see the queue entry
           case 'TSMethodSignature':
             if (!keyMatchesName(member.key, key, scope, member.computed)) break;
             if (member.kind === 'get') {
@@ -765,6 +800,7 @@ export function createTypeMembers({
   }
 
   return {
+    arrayElementType,
     findTypeMember,
     getTypeMembers,
     reset,
