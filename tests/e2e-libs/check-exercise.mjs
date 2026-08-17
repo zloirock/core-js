@@ -4,46 +4,79 @@
 // concern is real for runtime.mjs, which is why its pre-flight forks a child per bundle).
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
-import { checkFailureLine, errorReason } from './diagnostics.mjs';
+import { positionals } from './cli.mjs';
+import { eq } from './exercises/checks.mjs';
+import { checkFailureLine, errorReason, renderValue } from './diagnostics.mjs';
 import { withDeadline } from '../transpiler-integration/deadline.mjs';
 import { librariesMatching } from './libraries.mjs';
 import { pathToFileURL } from 'node:url';
 
 const { basename, isAbsolute, join } = path;
 
-// the net under every per-target `catch` below - see `deadline.mjs` for what it is against.
-// Without it the process ends with no exercise named and no total printed
+// A rejection nobody claimed ends the run either way; what this decides is what the reader gets out
+// of it. node dumps the throwable raw, which for anything without a `message` is `[object Object]`,
+// so the reason is turned into one line here - and the original is kept as `cause`, which node prints
+// underneath with the stack this line would otherwise replace. Neither shape names the exercise.
 process.on('unhandledRejection', reason => {
-  throw new Error(`unhandled rejection - ${ errorReason(reason) }`);
+  throw new Error(`unhandled rejection - ${ errorReason(reason) }`, { cause: reason });
 });
 
 const HERE = import.meta.dirname;
-const [arg, ...surplus] = argv._;
-if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - check-exercise.mjs takes one optional target`);
+const [arg] = positionals(argv, { names: ['target'], usage: 'check-exercise.mjs takes one optional target' });
 // A PATH is taken as given - that is the form for running an exercise that is not in the registry
 // yet. Anything else goes through `librariesMatching`, which fails loudly on a name it does not know
 // and on an empty registry, so this runner cannot report `0 checks, 0 failing` and exit green.
-const targets = arg && (isAbsolute(arg) || arg.includes('/') || arg.includes('\\'))
+const targets = arg !== undefined && (isAbsolute(arg) || arg.includes('/') || arg.includes('\\'))
   ? [isAbsolute(arg) ? arg : join(HERE, arg)]
   : librariesMatching(arg).map(l => l.exercise);
 
-// every failure mode names the exercise: destructuring a malformed result would otherwise throw a bare
-// "Cannot read properties of undefined" with nothing to say whose it was
-// This tier is the first step of `test-e2e-libs`, so a `run()` that never settles here declares the
-// fixture sound having checked nothing, and silently: node drains and exits 0. A backstop against a
-// fixture that stopped, not a budget - the exercises are deterministic and small.
+// This tier is the first step of `test-e2e-libs`, so a `run()` that never settles here would declare
+// the fixture sound having checked nothing - node aborts the module on the unsettled top-level await
+// and names an `await` line, never the exercise. A backstop against a fixture that stopped, not a
+// budget: the exercises are deterministic and small.
 const RUN_DEADLINE_MS = 60_000;
 
-async function checksOf(target, name) {
+// every failure mode names the exercise: destructuring a malformed result would otherwise throw a bare
+// "Cannot read properties of undefined" with nothing to say whose it was
+async function oneRun(target, name) {
   const mod = await import(pathToFileURL(target).href);
   if (typeof mod.run !== 'function') throw new Error(`${ name } does not export run()`);
   const result = await withDeadline(() => mod.run(), { ms: RUN_DEADLINE_MS, what: `${ name } run()` });
   if (!Array.isArray(result?.checks)) {
-    throw new Error(`${ name } returned a malformed result: expected { checks: [...] }, got ${ JSON.stringify(result)?.slice(0, 120) }`);
+    // through `renderValue`, not `JSON.stringify`: a circular result is a legal thing for an exercise
+    // to hand back, and stringifying it here would replace this diagnosis with a TypeError of its own
+    throw new Error(`${ name } returned a malformed result: expected { checks: [...] }, got ${ renderValue(result).slice(0, 120) }`);
   }
   // an exercise that silently stopped reporting would otherwise pass as "0 checks, 0 failing"
   if (!result.checks.length) throw new Error(`${ name } returned no checks`);
   return result.checks;
+}
+
+// TWICE, element by element. Determinism is a rule of this area and this tier is its arbiter, so the
+// envelope alone is not what it checks: a fixture that answers differently each time otherwise
+// reaches the gating tier, where it reddens a cell every other run and reads as a flaky toolchain -
+// a fixture defect waved through by the tier that exists to tell the two apart. The class is live,
+// `three` calling `Math.random()` in `generateUUID`. Element by element rather than stringifying the
+// whole, because the question is WHICH check moved; the label too, since a check without one passes
+// the gating tier's comparison.
+async function checksOf(target, name) {
+  const first = await oneRun(target, name);
+  const second = await oneRun(target, name);
+  if (first.length !== second.length) {
+    throw new Error(`${ name } is not deterministic: ${ first.length } checks on the first run, ${ second.length } on the second`);
+  }
+  for (const [index, check] of first.entries()) {
+    const other = second[index];
+    if (check.label === undefined) throw new Error(`${ name } check #${ index + 1 } has no label`);
+    if (check.label !== other.label) {
+      throw new Error(`${ name } is not deterministic: check #${ index + 1 } is '${ check.label }' on the first run and '${ other.label }' on the second`);
+    }
+    if (check.pass !== other.pass || !eq(check.actual, other.actual)) {
+      throw new Error(`${ name } is not deterministic: '${ check.label }' gave `
+        + `${ renderValue(check.actual) } on the first run and ${ renderValue(other.actual) } on the second`);
+    }
+  }
+  return first;
 }
 
 // named before the first one runs: this tier is fast, but it is also the one that says whether a red
