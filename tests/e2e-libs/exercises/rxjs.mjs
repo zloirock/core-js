@@ -42,18 +42,30 @@ function collect(obs) {
 // describes: a line that documents the harness, and that would stand over rxjs if it ever did call it.
 // Everything below is already in flight by the time this runs, so joining them in order costs nothing
 // and reaches only for `then`, which rxjs itself drives from a dozen modules.
-/* eslint-disable promise/prefer-await-to-then -- .then not await: keeps this module regenerator-free,
-   the same reason the header gives for banning `async` (see the sibling disable below) */
+/* eslint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- .then and .catch
+   rather than await: keeps this module regenerator-free, the same reason the header gives for banning
+   `async` (see the sibling disable below). The rejection handler is a handler, not a callback - await
+   is what this block may not use */
 function joinAll(list) {
   const out = [];
   let chain = Promise.resolve();
   for (let i = 0; i < list.length; i++) {
-    const item = list[i];
-    chain = chain.then(() => item).then(value => { out.push(value); });
+    // Claimed here, where it arrives, rather than where the chain gets to it. Every entry is already
+    // in flight by the time this runs, so entry N rejecting is an event that happens whether or not
+    // anyone is listening - and the chain below does not listen to N until N-1 has settled. In that
+    // window the rejection is unhandled, which takes the whole process down: no failing check, no
+    // total, no line naming this exercise, and the three exercises queued after it never run.
+    // Recording the outcome and re-throwing it in its own turn keeps the order and loses nothing.
+    const settled = Promise.resolve(list[i]).then(value => ({ value })).catch(error => ({ error }));
+    chain = chain.then(() => settled).then(result => {
+      if ('error' in result) throw result.error;
+      out.push(result.value);
+    });
   }
   return chain.then(() => out);
 }
-/* eslint-enable promise/prefer-await-to-then -- back to the default for the rest of the file */
+/* eslint-enable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- back to the
+   default for the rest of the file */
 // Inputs for rxjs's interop hub (`innerFrom`). Built by hand rather than with generator syntax so
 // the machinery that runs is rxjs's, not a regenerator runtime of ours.
 function customIterable(values) {
