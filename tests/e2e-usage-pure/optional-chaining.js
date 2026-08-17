@@ -1449,3 +1449,22 @@ QUnit.test('optional chain: twin slot in a class receiver', assert => {
   assert.same(new Box(['ax', 'bx', 'cx']).pick(v => v.startsWith('b')), 'bx');
   assert.same(new Box(null).pick(() => true), undefined);
 });
+
+// the parens around the RECEIVER seal the chain there: a `?.` inside them short-circuits only the
+// sealed value, and the dispatch above reads it plainly and throws. lifting a guard out of the
+// dispatch instead answers `undefined` on the very branch the source throws on
+QUnit.test('optional chain: a sealed receiver throws instead of short-circuiting the dispatch', assert => {
+  const host = {};
+  const filled = { items: [[1], [2]] };
+  /* eslint-disable no-unsafe-optional-chaining, sonarjs/no-redundant-parentheses -- the parens around
+     the receiver ARE the form under test: they end the chain before the dispatch */
+  assert.throws(() => (host.items?.missing).flat?.().at(0), TypeError, 'sealed receiver, optional call');
+  assert.throws(() => (host.items?.missing).at?.(0), TypeError, 'sealed receiver, optional dispatch call');
+  assert.throws(() => (host.items?.missing).flat().at(0), TypeError, 'sealed receiver, plain call');
+  assert.throws(() => ((host.items?.missing)).flat?.(), TypeError, 'a doubled wrapper seals the same');
+  // unsealed control: the same `?.` now guards the whole chain and the dispatch never runs
+  assert.same(host.items?.missing.flat?.().at(0), undefined, 'unsealed spelling short-circuits');
+  // a defined sealed value runs the dispatch for real
+  assert.deepEqual((filled.items?.at(0)).flat?.(), [1], 'a present sealed value dispatches');
+  /* eslint-enable no-unsafe-optional-chaining, sonarjs/no-redundant-parentheses -- end of the sealed receiver forms */
+});

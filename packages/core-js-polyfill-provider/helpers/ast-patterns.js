@@ -3339,8 +3339,12 @@ export function walkAstChildren(node, visit) {
 export function receiverCarriesLiveOptional(node) {
   for (let cur = node; cur && typeof cur === 'object';) {
     // oxc keeps a paren NODE, babel only marks `extra.parenthesized` on the wrapped node -
-    // check both spellings or the two dialects disagree on where the chain ends
-    if (cur !== node && cur.extra?.parenthesized) return false;
+    // check both spellings or the two dialects disagree on where the chain ends. the START
+    // node's own parens count too: `(a?.b).flat?.()` ends the chain at the seal, so the
+    // receiver hands the helper a value it must throw on. exempting them read the babel
+    // default-parser spelling as short-circuiting while oxc (a paren NODE, which no branch
+    // below steps through) already answered false for the same source
+    if (cur.extra?.parenthesized) return false;
     if (cur.optional === true) return true;
     if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
     else if (cur.type === 'CallExpression' || cur.type === 'OptionalCallExpression') cur = cur.callee;
@@ -6385,9 +6389,13 @@ export function memberChainEndPath({ path, unwrap = node => node }) {
   let end = path;
   for (;;) {
     // a transparent wrapper between hops (`nav!.X`, `(nav).X`) is not the chain's end - step past
-    // it the same way the node-level peels do, so the walk sees the member above
+    // it the same way the node-level peels do, so the walk sees the member above. wrappers STACK
+    // (a sealed optional nav is a paren over a ChainExpression), so each step compares against the
+    // wrapper just crossed - matching the original node throughout stopped at the first one and
+    // reported such a nav as having no chain above it at all
     let up = end.parentPath;
-    while (up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === end.node) up = up.parentPath;
+    for (let inner = end.node; up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type)
+      && up.node.expression === inner; up = up.parentPath) inner = up.node;
     const above = up?.node;
     if (above?.type !== 'MemberExpression' && above?.type !== 'OptionalMemberExpression') break;
     if (unwrap(above.object) !== unwrap(end.node)) break;
