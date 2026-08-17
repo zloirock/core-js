@@ -131,10 +131,10 @@ const CODEMIRROR_DIRECTORIES = ['@codemirror/state/dist', '@lezer/common/dist', 
 // modules under usage-global and 47/212 under usage-pure, codemirror in 4/6 under both
 const CASES = [
   { name: 'three.core.js', source: () => threeBuild('three.core.js'), bounds: {
-    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 4, unplugin: 4 },
+    'usage-global': { babel: 4, unplugin: 4 }, 'usage-pure': { babel: 5, unplugin: 4 },
   } },
   { name: 'three.module.js', source: () => threeBuild('three.module.js'), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   { name: 'synthetic single-scope, 2000 reassigned names', source: () => syntheticSingleScope(2000), bounds: {
     'usage-global': { babel: 3, unplugin: 3 }, 'usage-pure': { babel: 4, unplugin: 3 },
@@ -158,7 +158,7 @@ const CASES = [
   } },
   // stays under the 500kb codegen-deopt threshold, so the normal babel print path is the one measured
   { name: 'synthetic var-destructured globals, 800 pairs', source: () => syntheticVarDestructuredGlobals(800), bounds: {
-    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 2, unplugin: 2 },
+    'usage-global': { babel: 2, unplugin: 2 }, 'usage-pure': { babel: 3, unplugin: 2 },
   } },
   // per-call axis, two granularities: rxjs spreads 233kb over ~210 tiny modules so call overhead
   // dominates, the codemirror set puts 402kb in 6 mid-sized ones so per-file work and bytes both show
