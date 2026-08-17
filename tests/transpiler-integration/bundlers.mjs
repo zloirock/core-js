@@ -12,8 +12,35 @@ export async function withTmpDir(fn) {
   try {
     return await fn(dir);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    // its own `try`, per `tests/AGENTS.md`: a bundler still holding a file open is what raises here,
+    // and the directory is under the system temp, which something other than this suite sweeps
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch (error) {
+      console.warn(`could not remove ${ dir } - ${ error.message } (left behind on purpose)`);
+    }
   }
+}
+
+// An injected specifier a tool cannot resolve does not fail the build: it becomes an external import,
+// the bundle comes back whole and every assertion downstream runs against a bundle the polyfill never
+// reached. Measured: rollup and rolldown both return that bundle, and rolldown says nothing at all.
+// The same two codes `strictWarn` escalates in tests/e2e-libs/build.mjs, for the same reason - this is
+// the one question both suites have to answer identically, since it is the same failure of the same
+// plugins. Whatever is not escalated is handed BACK: installing a handler replaces a tool's own
+// printing rather than adding to it, so a warning nobody chose to ignore would otherwise be destroyed.
+const FATAL_WARNINGS = new Set(['UNRESOLVED_IMPORT', 'MISSING_EXPORT']);
+function strictWarn(warning, warn) {
+  if (FATAL_WARNINGS.has(warning.code)) throw new Error(`${ warning.code }: ${ warning.message }`);
+  warn(warning);
+}
+
+// The tools with no code to classify by. esbuild and the webpack family already ERROR on an import
+// they cannot resolve - the case above - so what is left here is everything else they noticed, and it
+// is returned rather than printed by either: `write: false` gives esbuild no reason to print, and
+// `stats.hasErrors()` is the only half of the stats object the adapter reads.
+function reportWarnings(label, messages) {
+  for (const message of messages) console.warn(`[${ label }] ${ message }`);
 }
 
 export function makeBundlers({
@@ -42,6 +69,7 @@ export function makeBundlers({
       try {
         const stats = await promisify(instance.run.bind(instance))();
         if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
+        if (stats.hasWarnings()) reportWarnings('webpack-like', stats.compilation.warnings.map(w => w.message));
       } finally {
         await promisify(instance.close.bind(instance))();
       }
@@ -64,6 +92,7 @@ export function makeBundlers({
         format: 'cjs',
         platform: 'node',
       });
+      reportWarnings('esbuild', result.warnings.map(w => w.text));
       return { code: result.outputFiles[0].text, ext: '.cjs' };
     },
 
@@ -74,6 +103,7 @@ export function makeBundlers({
       const bundle = await rollup({
         input,
         plugins: [...plugins, nodeResolve(), commonjs()],
+        onwarn: strictWarn,
       });
       try {
         const { output } = await bundle.generate({ format: 'es', sourcemap: true, inlineDynamicImports: !!inlineDynamic });
@@ -87,7 +117,11 @@ export function makeBundlers({
       const { build } = await import('vite');
       const result = await build({
         root,
-        logLevel: 'silent',
+        // `warn`, not `silent`: vite is the one tool here whose warning channel the caller cannot
+        // install - it omits `onwarn` from `rollupOptions` on purpose and routes everything through
+        // this logger instead. It already ERRORS on an import it cannot resolve, so what silencing
+        // it costs is the rest, which is exactly what `strictWarn` hands back everywhere else
+        logLevel: 'warn',
         build: {
           write: false,
           sourcemap: true,
@@ -163,6 +197,7 @@ export function makeBundlers({
           platform: 'node',
           treeshake: false,
           plugins,
+          onwarn: strictWarn,
           output: {
             format: 'esm', file, externalLiveBindings: false, keepNames: true,
             // rolldown spells single-chunk output as `codeSplitting: false` and deprecated
