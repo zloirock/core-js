@@ -25,13 +25,31 @@ export function memberWriteTargetPath(writePath) {
   return peelSkippableWrapperPath(writePath.get('left'));
 }
 
+// every census consumer asks the same question of an indexed write: through WHICH receiver does it
+// reach the field. for a member write that is the member's `.object`, but an `Object.assign(target,
+// { k: v })` source property writes `target.k` with no member expression anywhere, so its receiver
+// is the call's first argument. one accessor keeps the two shapes from growing two readers
+export function memberWriteReceiverPath(writePath) {
+  const { type } = writePath.node;
+  if (type === 'ObjectProperty' || type === 'Property') {
+    return writePath.parentPath?.parentPath?.get('arguments')?.[0] ?? null;
+  }
+  return memberWriteTargetPath(writePath).get('object');
+}
+
 // class-member kind predicates. babel emits distinct node types for public / private /
 // accessor members; ESTree (oxc) uses MethodDefinition / PropertyDefinition with
 // PrivateIdentifier keys. collapse both shapes to one predicate per category so callers
 // don't miss private members. parameterised by `t` so adapter dispatch stays in the cluster
 export function createClassMemberShape({ t }) {
+  // the four shapes a class METHOD takes across the two dialects, and the bodyless pair is not
+  // optional: babel spells `declare` / `abstract` members `TSDeclareMethod` while oxc normalises the
+  // concrete ones and keeps `TSAbstractMethodDefinition`. omitting them made the same source answer
+  // differently per parser - a `declare class C { then(cb: (v: T) => void): void }` was a thenable on
+  // one side and an opaque object on the other
   function isMethodMember(node) {
-    return t.isClassMethod(node) || t.isClassPrivateMethod?.(node);
+    return t.isClassMethod(node) || t.isClassPrivateMethod?.(node)
+      || node?.type === 'TSDeclareMethod' || node?.type === 'TSAbstractMethodDefinition';
   }
   function isPropertyMember(node) {
     return t.isClassProperty(node) || t.isClassAccessorProperty(node) || t.isClassPrivateProperty?.(node);
@@ -69,6 +87,9 @@ export function createMemberWriteShape({ t, getKeyName, resolveNodeType }) {
     }
     return getKeyName(target.property);
   }
+  // TOTAL: every write contributes a type. an opaque RHS yields the `unknown` sentinel rather than
+  // null, so a caller must never gate on the result - a guard there reads as "this write might not
+  // count", which is exactly the dropped-write bug the sentinel exists to prevent
   function writePathContributedType(writePath) {
     if (writePath.node.type === 'AssignmentExpression' && writePath.node.operator === '=') {
       // an opaque RHS (resolveNodeType -> null) must WIDEN the field to unknown, not be dropped:

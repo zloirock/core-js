@@ -105,6 +105,46 @@ function * scopeStatementLists(scope) {
   for (const path of inBetweenContainerPaths(scope)) yield path.node.body;
 }
 
+// the NAMED leaves one statement contributes. a declaration names itself through `id`, but a
+// `const a = 1, b = 2` names one per DECLARATOR and the name lives THERE, not on the statement -
+// which is why a value export of a namespace was invisible to every lookup here. both readers
+// below keyed on `decl.id?.name` independently; they share this walk instead so they cannot drift.
+// every leaf still passes the caller's `leafMatch`, so a lookup whose predicate rejects a
+// declarator - which every type-side predicate does - sees exactly the leaves it saw before
+// a QUALIFIED lookup can only CONTINUE through a namespace or an import-equals alias; every other
+// statement is visited and rejected. index those per statement list, or a module with N declarations
+// and N qualified reads pays N^2 - the leaf half still needs every statement, but it runs for
+// `collect` alone (first-match goes through the decl index). module-level like the walkers around
+// it: the key is the parse's own statement array, so entries die with the AST rather than per file
+const stmtDescentCache = new WeakMap();
+function statementDescentDecls(statements) {
+  let cached = stmtDescentCache.get(statements);
+  if (cached) return cached;
+  cached = [];
+  for (const statement of statements) {
+    const decl = unwrapExportedDeclaration(statement);
+    if (decl && (decl.type === 'TSImportEqualsDeclaration' || decl.type === 'TSModuleDeclaration')) cached.push(decl);
+  }
+  stmtDescentCache.set(statements, cached);
+  return cached;
+}
+
+function * declLeaves(decl) {
+  if (decl.type === 'VariableDeclaration') {
+    for (const declarator of decl.declarations ?? []) {
+      if (declarator?.id?.type === 'Identifier') yield [declarator.id.name, declarator];
+    }
+    return;
+  }
+  if (decl.id?.name) yield [decl.id.name, decl];
+}
+
+// the leaf predicate for a namespace's exported VALUE: only a declarator carries one, and the
+// name lives on IT rather than on the statement, which is why a decl-level match never saw it
+function isValueDeclarator(node) {
+  return node?.type === 'VariableDeclarator';
+}
+
 export function createNameResolution({ t, getScopeBinding = () => null }) {
   function isFunctionLike(node) {
     return !!node && (t.isFunction(node) || AMBIENT_FUNCTION_TYPES.has(node.type));
@@ -325,7 +365,16 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
       for (const statement of stmts) {
         const decl = unwrapExportedDeclaration(statement);
         if (!decl) continue;
-        if (decl.id?.name && leafMatch(decl) && !index.has(decl.id.name)) index.set(decl.id.name, decl);
+        for (const [leafName, leaf] of declLeaves(decl)) {
+          if (!leafMatch(leaf)) continue;
+          // EVERY matching leaf, in statement order: the first-match reader takes `[0]` and the
+          // collect reader takes the whole list, so both halves of the lookup share one pass.
+          // indexing only the first left collect walking every statement per call - N declarations
+          // and N collect reads is the same N^2 the qualified half was indexed out of
+          const leaves = index.get(leafName);
+          if (leaves) leaves.push(leaf);
+          else index.set(leafName, [leaf]);
+        }
         if (decl.type === 'TSModuleDeclaration' && isGlobalAugmentation(decl)) {
           const inner = moduleStatements(decl);
           if (inner) add(inner);
@@ -338,22 +387,26 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
 
   function walkStatementsForDecl({ segments, statements, collect, leafMatch = isTypeBearingDeclaration, visited = new Set() }) {
     if (!Array.isArray(statements) || !Array.isArray(segments) || !segments.length) return null;
-    // hot path: single-segment first-match resolves through the O(1) per-statement-list index
-    if (segments.length === 1 && !collect) return statementDeclIndex(statements, leafMatch).get(segments[0]) ?? null;
+    // hot path: a single segment - first-match OR collect - resolves through the O(1) per-statement
+    // -list index. its construction already mirrors this walk for that case: leaves of the level's
+    // own statements, descending only into `declare global` (a bare name must not reach into a
+    // named namespace body, and a qualified one never gets here)
+    if (segments.length === 1) {
+      const leaves = statementDeclIndex(statements, leafMatch).get(segments[0]);
+      if (!collect) return leaves?.[0] ?? null;
+      if (leaves) collect.push(...leaves);
+      return null;
+    }
     const [head, ...rest] = segments;
-    for (const statement of statements) {
-      const decl = unwrapExportedDeclaration(statement);
-      if (!decl) continue;
-      if (rest.length === 0 && decl.id?.name === head && leafMatch(decl)) {
-        if (!collect) return decl;
-        collect.push(decl);
-        continue;
-      }
+    // past the single-segment return above, `rest` is never empty: this loop only ever CONTINUES a
+    // qualified lookup, so it visits the two statement kinds a continuation can pass through and
+    // nothing else. the leaf half lives in the index
+    for (const decl of statementDescentDecls(statements)) {
       // TS `import IE = NS;` / `import IE = NS.Inner;` namespace alias - redirect head
       // segment through the moduleReference's segments and re-walk. external-module form
       // (`import X = require('m')`) has TSExternalModuleReference which `collectQualified
       // Segments` rejects (non-Identifier slot), so it correctly bails without misrouting
-      if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head && rest.length) {
+      if (decl.type === 'TSImportEqualsDeclaration' && decl.id?.name === head) {
         // cyclic alias (`import A = A.B`, mutual `import A = B; import B = A`) re-walks the same
         // statement list with an ever-growing segment array - without a visited-set the recursion
         // never bottoms out and throws RangeError, aborting the whole transform. bail on re-entry
@@ -380,13 +433,9 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
         if (inner && !collect) return inner;
         continue;
       }
-      // bare-name lookup (`rest.length === 0`) MUST NOT descend into nested
-      // TSModuleDeclaration bodies - that would violate TS lexical scoping:
-      // `namespace N { interface Box {} }; declare const x: Box;` - top-level `Box`
-      // is undefined, the bare name must not promiscuously pick up `N.Box`. scope-
-      // chain climbing is handled by `walkScopesForDecl`; each scope checks its OWN
-      // direct statements only
-      if (rest.length === 0) continue;
+      // a bare name must NOT reach into a nested TSModuleDeclaration body - `namespace N { interface
+      // Box {} }; declare const x: Box;` leaves top-level `Box` undefined - and it no longer can:
+      // the index this walk defers bare names to descends into `declare global` alone
       if (!startsWithSegments(segments, moduleSegs)) continue;
       const inner = walkStatementsForDecl({
         segments: segments.slice(moduleSegs.length), statements: moduleStatements(decl), collect, leafMatch, visited,
@@ -441,6 +490,15 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   }
 
   // resolve `typeof NS.Inner.fn` namespaced lookups to the first function/class decl on the path
+  // a namespace's exported VALUE (`namespace NS { export const v: T }` and its `declare` twin).
+  // the declaration walk surfaces declarators now, so this is the SAME finder with the leaf
+  // predicate that accepts one. it hands back the ANNOTATION rather than a path: a namespace
+  // member's declared type is the sound answer here, while reading an initializer would need a
+  // live path the walk does not carry - and declining there only degrades to generic
+  function findNamespacedValueAnnotation(segments, scope) {
+    return findFirstDecl({ name: segments, scope, leafMatch: isValueDeclarator })?.id?.typeAnnotation ?? null;
+  }
+
   function findNamespacedFunctionPath(segments, scope) {
     return recoverDeclPath(findFirstDecl({ name: segments, scope, leafMatch: isFunctionOrClassDeclaration }), scope);
   }
@@ -472,7 +530,13 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
   // references (`NS.Type`) and array-form callsites share the cache slot with their string form.
   // ONE serializer for every cache in this cluster - the three hand-written ternaries fell back
   // differently (`null` / `''` / an optional-chained join), so the same non-array, non-string name
-  // was cached under three different keys depending on which lookup asked
+  // was cached under three different keys depending on which lookup asked.
+  // the collapse is lossy on purpose and safe only under one invariant: `['NS','Array']` and the
+  // string `'NS.Array'` land on the SAME slot, so asking a dotted name as ONE segment would poison
+  // that slot with its miss for the genuine segmented walk. only a single-segment reference can be
+  // shadowed, so the shadow gate never asks a composite name - locked by the qualified-reference
+  // negative in `TYPE_PARAM_SHADOW_CASES`. a caller that starts asking composite names here has to
+  // key them apart instead
   function nameCacheKey(name) {
     if (typeof name === 'string') return name;
     return Array.isArray(name) ? name.join('.') : null;
@@ -748,6 +812,7 @@ export function createNameResolution({ t, getScopeBinding = () => null }) {
     findAmbientFunctionPaths,
     findAmbientClassPath,
     findNamespacedFunctionPath,
+    findNamespacedValueAnnotation,
     findOverloadsForName,
     findDeclPathBySegments,
     findTypeDeclaration,

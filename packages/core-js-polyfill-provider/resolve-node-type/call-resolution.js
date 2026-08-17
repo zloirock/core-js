@@ -32,7 +32,7 @@
 // binding-analysis cluster instantiated upstream (factory function declaration is hoisted;
 // moving it here would force a cluster-instantiation-order rework)
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { MAX_DEPTH, $Object, callArgumentPaths, dropLeadingThisParam } from './base.js';
+import { MAX_DEPTH, $Object, callArgumentPaths, canonicalArrayIndex, dropLeadingThisParam } from './base.js';
 import {
   collectQualifiedSegments,
   discriminateOverloads,
@@ -47,10 +47,14 @@ import {
 } from './ast-shapes.js';
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
-  cleanDestructureAliasWrites, getTypeArgs, isCleanDestructureAliasBinding, isGuardedAliasingWrite,
+  cleanDestructureAliasWrites, getCallSiteTypeArgs, getTypeArgs, isCleanDestructureAliasBinding,
+  isGuardedAliasingWrite,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
+
+// the annotation shapes that describe `new X()` - the only ones whose return is an INSTANCE type
+const CONSTRUCT_SIGNATURE_TYPES = new Set(['TSConstructorType', 'TSConstructSignatureDeclaration']);
 
 export function createCallResolution({
   t,
@@ -61,6 +65,8 @@ export function createCallResolution({
   isMutatedStatic = () => false,
   isFunctionLike,
   isNullableOrNever,
+  commonType,
+  foldUnionArmTypes,
   hasParamTypeRef = null,
   resolveNodeType,
   resolveRuntimeExpression,
@@ -68,6 +74,8 @@ export function createCallResolution({
   withLookupPath,
   findPatternKeyPath,
   annotationAtKeyPath,
+  findTupleElement,
+  arrayElementType,
   foldOverloadReturns,
   findAmbientFunctionPaths,
   findOverloadsForName,
@@ -84,7 +92,7 @@ export function createCallResolution({
   resolveReturnTypeFromTypeQuery,
   resolveTypeAnnotation,
   unwrapTypeAnnotation,
-  getMemberProperty,
+  resolveMemberPropertyName,
   followTypeAliasChain,
   applySubst,
   shadowMethodTypeParams,
@@ -98,14 +106,13 @@ export function createCallResolution({
   typeParamName,
   effectiveParam,
   resolveIndexedAccessMemberAnnotationAST,
-  foldUnionTypes,
 }) {
   // --- Call-return dispatch ---
 
   function resolveMemberCallType(memberPath, callPath) {
     return resolveFromMemberExpression(memberPath, callPath)
       || resolveKnownStaticReturnType(memberPath, callPath)
-      || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
+      || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES, callPath);
   }
 
   // ES construct semantics: a constructor's PRIMITIVE return is DISCARDED and the fresh object
@@ -140,17 +147,20 @@ export function createCallResolution({
     // direct call: foo() / IIFE: (() => expr)() / ambient TSDeclareFunction follow-through
     const resolved = resolveRuntimeExpression(callee);
     if (isFunctionLike(resolved.node)) {
-      // an ambient head may have overload SIBLINGS - a lone head's return must not
-      // short-circuit (it narrows a call TS routes to another arm; the estree adapter
-      // binds ambient names and resolves them to ONE head, where babel leaves the bare
-      // Identifier and reaches the by-name fold below). re-route ambient heads through
-      // the fold - a single-head set resolves to the same return through it
-      if (isAmbientFunctionNode(resolved.node)) {
-        const headName = resolved.node.id?.name;
-        const ambient = headName
-          ? resolveAmbientFunctionReturn(headName, resolved.scope ?? callee.scope, callee.parentPath) : undefined;
-        if (ambient !== undefined) return ambient;
-      }
+      // an overload SET answers before the node the name resolves to. TS makes the heads the only
+      // callable signatures and the implementation uncallable, so a direct call takes the FIRST head
+      // whose params match the arguments - the implementation's own return never participates.
+      // asking `isAmbientFunctionNode(resolved.node)` first skipped exactly the concrete set: an
+      // all-ambient set resolves the name to a head, but `function f(a): A; function f(b): B;
+      // function f(x) {...}` resolves it to the IMPLEMENTATION, so the fold never ran and the
+      // implementation answered alone. the head lookup is already scope-correct for both - heads
+      // declared beside the implementation are not "shadowed by value" (same scope), while an
+      // unrelated ambient of the same name in an OUTER scope still is. a set with no heads returns
+      // `undefined` here and falls through to the implementation, which is the whole non-overload world
+      const headName = resolved.node.id?.name;
+      const ambient = headName
+        ? resolveAmbientFunctionReturn(headName, resolved.scope ?? callee.scope, callee.parentPath) : undefined;
+      if (ambient !== undefined) return foldHeadAgainstImplementation(ambient, resolved, callee);
       return resolveReturnType(resolved, callee.parentPath);
     }
     // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
@@ -193,6 +203,15 @@ export function createCallResolution({
     return unwrapTypeAnnotation(node.id?.typeAnnotation) ?? node;
   }
 
+  // an overload HEAD describes one arm; the implementation describes them all. where the two
+  // disagree the call may produce either, so the answer is their common type - and a head that
+  // an `any` implementation cannot corroborate is not a narrowing this layer may keep
+  function foldHeadAgainstImplementation(headType, implPath, callee) {
+    if (!headType || isAmbientFunctionNode(implPath.node)) return headType;
+    const own = resolveReturnType(implPath, callee.parentPath);
+    return own && !commonType(headType, own) ? null : headType;
+  }
+
   function resolveAmbientFunctionReturn(name, scope, callPath) {
     const paths = findAmbientFunctionPaths(name, scope);
     if (!paths.length) return undefined;
@@ -221,7 +240,7 @@ export function createCallResolution({
     // delegate to the shared hint resolver so an aliased `freeze(a)` honors `returnsArgument` /
     // Promise.resolve arg-inference exactly like the direct `Object.freeze(a)` - not just the
     // declared hint, which would drop the array narrow to the generic 'Object'
-    return retHint ? resolveStaticReturnFromHint({ objectName: pair.constructor, memberName: pair.method, hint: retHint, callPath }) : null;
+    return retHint ? resolveStaticReturnFromHint({ hint: retHint, callPath }) : null;
   }
 
   // resolve `const { from } = Array` / nested `const { a: { from } } = wrapper` patterns
@@ -389,28 +408,35 @@ export function createCallResolution({
       const peeled = resolveIndexedAccessMemberAnnotationAST(target, info.scope, 0);
       if (peeled) target = peeled;
     }
-    let ret = functionTypeReturnAnnotation(target);
-    // a callable / constructable object type or interface (`{ (): T }` / `interface C { new (): T }`)
-    // carries its signature as a member, not a bare function-type node. resolve the type's members
-    // (getTypeMembers handles inline literals, interface merge / extends, and generic-arg subst) and
-    // peel the signature matching the context - a CALL narrows through the call signature, a `new`
-    // through the construct signature, so the two never cross-resolve (`new` on a call-only type
-    // stays unresolved instead of narrowing to the call return)
-    if (!ret) {
-      const sigType = signatureKind === 'construct' ? 'TSConstructSignatureDeclaration' : 'TSCallSignatureDeclaration';
-      const sigs = (getTypeMembers({ objectType: target, scope: info.scope }) ?? []).filter(m => m.type === sigType);
-      // an OVERLOADED signature set arg-discriminates one arm or widens through the shared
-      // fold - picking last narrowed a divergent set to the wrong arm's type-specific Maybe
-      // (`(x: number): number[]; (x: string): string` called with 5 must resolve number[])
-      if (sigs.length >= 2) {
-        return foldOverloadReturns(sigs, m => m.parameters ?? m.params, m => {
-          const r = functionTypeReturnAnnotation(m);
-          return r ? resolveTypeAnnotation(r, info.scope) : null;
-        }, m => functionTypeReturnAnnotation(m), callee.parentPath);
+    // a UNION callee IS one of its arms and nothing here says which, so every arm's return goes
+    // through the shared alternatives fold
+    return foldUnionArmTypes(target, returnOfCallableTarget);
+
+    // the return TYPE of a single (non-union) callable annotation, resolved in the callee's scope
+    function returnOfCallableTarget(callable) {
+      let ret = functionTypeReturnAnnotation(callable);
+      // a callable / constructable object type or interface (`{ (): T }` / `interface C { new (): T }`)
+      // carries its signature as a member, not a bare function-type node. resolve the type's members
+      // (getTypeMembers handles inline literals, interface merge / extends, and generic-arg subst) and
+      // peel the signature matching the context - a CALL narrows through the call signature, a `new`
+      // through the construct signature, so the two never cross-resolve (`new` on a call-only type
+      // stays unresolved instead of narrowing to the call return)
+      if (!ret) {
+        const sigType = signatureKind === 'construct' ? 'TSConstructSignatureDeclaration' : 'TSCallSignatureDeclaration';
+        const sigs = (getTypeMembers({ objectType: callable, scope: info.scope }) ?? []).filter(m => m.type === sigType);
+        // an OVERLOADED signature set arg-discriminates one arm or widens through the shared
+        // fold - picking last narrowed a divergent set to the wrong arm's type-specific Maybe
+        // (`(x: number): number[]; (x: string): string` called with 5 must resolve number[])
+        if (sigs.length >= 2) {
+          return foldOverloadReturns(sigs, m => m.parameters ?? m.params, m => {
+            const r = functionTypeReturnAnnotation(m);
+            return r ? resolveTypeAnnotation(r, info.scope) : null;
+          }, m => functionTypeReturnAnnotation(m), callee.parentPath);
+        }
+        if (sigs.length === 1) ret = functionTypeReturnAnnotation(sigs[0]);
       }
-      if (sigs.length === 1) ret = functionTypeReturnAnnotation(sigs[0]);
+      return ret ? resolveTypeAnnotation(ret, info.scope) : null;
     }
-    return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
 
   // --- Expression annotation walker ---
@@ -422,19 +448,14 @@ export function createCallResolution({
   // the second hop because `arr` annotation `{b:...}|null` makes `getTypeMembers` bail.
   // computed access without statically-known name (`obj[k]` where k isn't a literal) falls
   // back to TSIndexSignature lookup via `resolveIndexSignatureValue`
-  // do the union's per-branch member results agree? a VALUE-typed member folds through the
-  // shared union canon (`Array | Array` keeps the narrow, `Array | string` degrades); a member
-  // whose annotation is structural (an object literal / interface hop, which resolves to no
-  // runtime type) is compared by SHAPE instead - the chain continues through it, so two
-  // branches may only share a hop when the hop's members match
+  // do the union's per-branch member results agree? by SHAPE, one question for every branch kind.
+  // a value-typed fold cannot be the first answer here: a structural hop (an object literal /
+  // interface) resolves to a bare `Object`, so two DIVERGING hops (`{ rows: number[] }` and
+  // `{ rows: string }`) fold to a common `Object` and read as agreement - the chain then continues
+  // through the first branch and hands its type-specific helper a value of the other family. the
+  // fingerprint answers both kinds instead: it collapses a runtime type to its identity, exactly as
+  // a value fold would, and summarises a structural one member by member
   function branchResultsAgree(infos) {
-    const resolved = infos.map(info => resolveTypeAnnotation(unwrapTypeAnnotation(info.annotation), info.scope));
-    // a successful fold settles it: every branch carries a VALUE type and they converge
-    if (resolved.every(Boolean) && foldUnionTypes(infos, (info, index) => resolved[index])) return true;
-    // no fold result does NOT mean divergence - it is also what a structural hop yields (an object
-    // literal / interface resolves to no runtime type, and two IDENTICAL hops fold to nothing just
-    // like two incompatible ones). fall through to the shape comparison rather than reading the
-    // empty fold as disagreement, or identical branches lose a narrow they are entitled to
     const keys = infos.map(info => annotationShapeKey(unwrapTypeAnnotation(info.annotation), info.scope, 0));
     return keys.every(key => key !== null && key === keys[0]);
   }
@@ -482,7 +503,10 @@ export function createCallResolution({
   }
 
   function resolveMemberAnnotation(path, depth) {
-    const propName = getMemberProperty(path.node);
+    // the CANONICAL key resolver, not the raw node read: a computed key that names a static member
+    // (`const k = 'a'; o[k]`) is the same access as `o['a']`, and reading the node alone dropped it
+    // into the index-signature arm - the whole chain past that hop then lost its annotation
+    const propName = resolveMemberPropertyName(path);
     const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
     if (!objInfo) return null;
     const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
@@ -494,7 +518,24 @@ export function createCallResolution({
     const parentType = path.parentPath?.node?.type;
     const callPath = (parentType === 'CallExpression' || parentType === 'OptionalCallExpression')
       && path.parentPath.node.callee === path.node ? path.parentPath : null;
+    // a numeric index into a POSITIONAL type is neither a named member nor an index signature, so
+    // neither arm below can answer it: `getTypeMembers` on a tuple yields nothing to match by name,
+    // and a tuple declares no index signature. the SIBLING lane already answers it - `findTypeMember`
+    // routes a numeric key to `findTupleElement` - so without the same arm here the two member-lookup
+    // lanes disagree, and which one runs depends on the shape of the FIRST hop: `o.inner[1]` resolved
+    // (named hop enters the sibling lane) while `t[0][1]` and `t[0].v` died at the index hop, because
+    // this lane returned no annotation for `t[0]` and the whole chain stopped there
+    // the two INDEXABLE kinds are asked in the order the sibling lane asks them: a tuple answers
+    // positionally, an array-shaped type answers with its element whatever the index. `arrayElementType`
+    // is the right canon for the second and `extractElementAnnotation` is NOT - the latter answers
+    // "element when ITERATED" and synthesizes `[K, V]` for a Map, whose `m[0]` is `undefined` at
+    // runtime: narrowing that to a tuple would be a wrong family, not a coarse one
+    const numericIndex = canonicalArrayIndex(propName);
     function lookup(typeNode) {
+      if (numericIndex !== null) {
+        const element = findTupleElement(typeNode, numericIndex, objInfo.scope) ?? arrayElementType(typeNode);
+        if (element) return { annotation: applySubst(element, subst), scope: objInfo.scope, path: objInfo.path };
+      }
       return propName === null
         ? resolveIndexSignatureValue(typeNode, objInfo.scope, subst, keyKind)
         : resolveMemberInTypeMembers({ typeNode, propName, scope: objInfo.scope, anchor: objInfo.path, subst, callPath });
@@ -617,8 +658,12 @@ export function createCallResolution({
       // TS requires the numeric value to be assignable to the string one, so on conforming input
       // the union collapses back to the string signature and loses nothing; on input that does not
       // conform - which parses and reaches here regardless - it diverges and the fold degrades to
-      // the generic dispatch instead of handing over a foreign family
-      default: picked = unionOfSignatures([stringSig, numberSig, symbolSig]);
+      // the generic dispatch instead of handing over a foreign family.
+      // the union is only meaningful when SOME signature can receive an arbitrary key, and that is
+      // the string one alone - TS converts a numeric key to a string, while a number-only or
+      // symbol-only shape has no member for a plain string key at all. folding the survivors there
+      // answered with a family the access may never produce, so it degrades instead
+      default: picked = stringSig ? unionOfSignatures([stringSig, numberSig, symbolSig]) : null;
     }
     return picked ? { annotation: applySubst(picked, subst), scope } : null;
   }
@@ -637,9 +682,21 @@ export function createCallResolution({
     const pattern = node.type === 'VariableDeclarator' ? node.id : node;
     const keyPath = findPatternKeyPath(pattern, name, bindingPath.scope);
     if (!keyPath) return info;
-    // a negative index is the array walker's REST sentinel, not a slot to read: the member behind
-    // it is a slice of the source, which this walk cannot name
-    if (keyPath.some(key => typeof key === 'number' && key < 0)) return info;
+    // a negative index is the array walker's REST sentinel: the binding is a SLICE of the source,
+    // not a slot. a slice taken from position 0 IS the whole source, and every slice of a NON-
+    // positional container (`string[]`) has the container's own type - both keep `info`. a
+    // positional container (tuple, `Parameters<>`) sliced past 0 holds a different type at each
+    // index, so handing the container back types the slice by the SOURCE's element 0 - a wrong
+    // family, not merely a coarse one. `findTupleElement` is the positional test because it peels
+    // wrappers and follows the alias chain, which a raw `tupleElements` read misses for `type T = [A, B]`
+    const restAt = keyPath.findIndex(key => typeof key === 'number' && key < 0);
+    if (restAt !== -1) {
+      const sliceStart = -keyPath[restAt] - 1;
+      if (!sliceStart) return info;
+      const host = restAt ? annotationAtKeyPath(info.annotation, keyPath.slice(0, restAt), info.scope) : info.annotation;
+      const unwrapped = host ? unwrapTypeAnnotation(host) : null;
+      return unwrapped && findTupleElement(unwrapped, 0, info.scope) ? null : info;
+    }
     const host = keyPath.length > 1
       ? annotationAtKeyPath(info.annotation, keyPath.slice(0, -1), info.scope) : info.annotation;
     if (!host) return null;
@@ -729,13 +786,35 @@ export function createCallResolution({
     // direct `f()`: pull the callee's declared return type and substitute explicit call-site
     // type args (`makeBox<number>()`) so downstream member lookups see concrete types
     const callType = babelNodeType(path.node);
-    if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
-      let fnPath = resolveRuntimeExpression(path.get('callee'));
+    // `new X()` walks the same callee annotation, but ONLY through a CONSTRUCT signature. a plain
+    // function type's declared return is not the instance type - `new f()` discards a primitive
+    // return and yields the fresh object - so a non-construct annotation must not answer here, and
+    // the function-declaration lane below is skipped outright (a callee that resolves to a real
+    // function or class is the type lane's business, under its own construct semantics).
+    // without this entry the annotation simply stopped at the `new` hop, so a member read off an
+    // inline object return (`new X().chars`) lost the annotation and the chain died there, while
+    // the identical read behind a plain call annotation (`f().chars`) resolved
+    const isConstruct = callType === 'NewExpression';
+    function signatureReturn(annotation, scope) {
+      if (!annotation) return null;
+      // the construct GATE is all this adds: an alias is transparent to the signature it names
+      // (`type Ctor = new () => T`), so the test applies to what the chain ends at, not to the
+      // reference. the extraction itself is the canon's - it also shadows the signature's OWN type
+      // params before applying the alias binding, which a re-derived `applySubst` would drop
+      if (isConstruct) {
+        const { node: aliased } = followTypeAliasChain(annotation, scope);
+        if (!CONSTRUCT_SIGNATURE_TYPES.has((aliased ?? annotation)?.type)) return null;
+      }
+      return shadowedAliasReturnAnnotation(annotation, scope);
+    }
+    if (isConstruct || callType === 'CallExpression' || callType === 'OptionalCallExpression') {
+      let fnPath = isConstruct ? null : resolveRuntimeExpression(path.get('callee'));
       // ambient `declare function f<T>(...): R` - babel doesn't bind the name, so
       // resolveRuntimeExpression returns the bare Identifier; the estree adapter binds it
       // and hands back ONE head of a possibly-overloaded ambient set. both shapes consult
       // the full by-name set - single-selecting a lone head bypasses arg-discrimination
-      const ambientCalleeName = t.isIdentifier(fnPath.node) && !isFunctionLike(fnPath.node) ? fnPath.node.name
+      const ambientCalleeName = !fnPath ? null
+        : t.isIdentifier(fnPath.node) && !isFunctionLike(fnPath.node) ? fnPath.node.name
         : isAmbientFunctionNode(fnPath.node) ? fnPath.node.id?.name : null;
       if (ambientCalleeName) {
         const ambients = findAmbientFunctionPaths(ambientCalleeName, fnPath.scope);
@@ -751,7 +830,7 @@ export function createCallResolution({
           [fnPath] = ambients;
         }
       }
-      if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
+      if (fnPath && isFunctionLike(fnPath.node) && fnPath.node.returnType) {
         // explicit `<...>` args; argument inference fallback (`makeBox(arr)` lifts arr's
         // annotation onto T). without subst, generic return `{value: T}` leaks unsubstituted
         const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node, path.scope);
@@ -766,7 +845,7 @@ export function createCallResolution({
         const memberInfo = findExpressionAnnotation(callee, depth + 1);
         if (memberInfo) {
           const unwrappedMember = unwrapTypeAnnotation(memberInfo.annotation);
-          const ret = functionTypeReturnAnnotation(unwrappedMember);
+          const ret = signatureReturn(unwrappedMember, memberInfo.scope);
           if (ret) return { ...memberInfo, annotation: ret };
         }
       } else if (callee.node.type === 'Identifier') {
@@ -775,7 +854,7 @@ export function createCallResolution({
         // receiver narrowing past the call hop because findExpressionAnnotation falls through
         const calleeInfo = findExpressionAnnotation(callee, depth + 1);
         const calleeAnnot = calleeInfo?.annotation && unwrapTypeAnnotation(calleeInfo.annotation);
-        const ret = functionTypeReturnAnnotation(calleeAnnot);
+        const ret = signatureReturn(calleeAnnot, calleeInfo?.scope ?? path.scope);
         if (ret) return { ...calleeInfo, annotation: ret };
       }
     }
@@ -787,7 +866,7 @@ export function createCallResolution({
   // bare reference colliding with a function type-param name (`fn<T, U>` called `<X, T>`) is resolved
   // to its declaration body so the transitive subst can't recapture it (`U -> T -> X`)
   function buildCallSiteSubst(fnNode, callNode, scope) {
-    return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params, scope);
+    return buildSubstMap(fnNode.typeParameters?.params, getCallSiteTypeArgs(callNode)?.params, scope);
   }
 
   // inert unresolvable annotation node bound for a supplied-but-opaque type-param: it

@@ -1,6 +1,8 @@
+import { entryToGlobalHint } from '@core-js/polyfill-provider';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
-  isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike, kebabToCamel,
+  isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike,
+  staticMemberFromEntrySegment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import ImportInjectorState, {
   assignCanonicalRefSlots,
@@ -431,7 +433,8 @@ export default class ImportInjector extends ImportInjectorState {
       if (!local || !nameBySource.has(local) || (counts.get(local) ?? 0) > 1) continue;
       const segments = nameBySource.get(local).split('/');
       const ctorLocal = segments.length >= 2 ? ctorLocalByNamespace.get(segments.at(-2)) : null;
-      if (ctorLocal && memberPairs.has(`${ ctorLocal }.${ kebabToCamel(segments.at(-1)) }`)) continue;
+      const memberKey = staticMemberFromEntrySegment(entryToGlobalHint(segments.at(-2)), segments.at(-1));
+      if (ctorLocal && memberPairs.has(`${ ctorLocal }.${ memberKey }`)) continue;
       bodyPath.remove();
     }
   }
