@@ -592,15 +592,15 @@ export function createBindingAnalysis({
   // known callees whose RESULT re-exposes an argument, DERIVED from the static-return metadata
   // (single source of truth). two shapes, and the argument slots differ: an identity returner hands
   // back arg 0 itself (`Object.freeze(o)`), while a holding container can carry any argument it was
-  // given (`Array.of(a, b)`). `Object.assign` / `defineProperty` also return arg 0 but ALSO mutate
+  // given (`Array.of(a, b)`). `Object.assign` / `defineProperty` also carry the `argument` directive but ALSO mutate
   // it, so their target slot is already a mutating-arg leak - only the non-mutating identity
   // returners need the held-result check. `Reflect.setPrototypeOf` returns a boolean, so it carries
-  // no `returnsArgument` and is excluded by construction
+  // no `argument` directive and is excluded by construction
   const IDENTITY_RETURNING_STATIC_CALLEES = new Set();
   const ARGUMENT_HOLDING_STATIC_CALLEES = new Set();
   for (const [ctor, methods] of Object.entries(KNOWN_STATIC_METHOD_RETURN_TYPES)) {
     for (const [method, hint] of Object.entries(methods)) {
-      if (hint?.returnsArgument === 0 && !hint.mutatesArgument) IDENTITY_RETURNING_STATIC_CALLEES.add(`${ ctor }.${ method }`);
+      if (hint?.type === 'argument' && !hint.mutatesArgument) IDENTITY_RETURNING_STATIC_CALLEES.add(`${ ctor }.${ method }`);
       if (returnMayHoldArgument(hint)) ARGUMENT_HOLDING_STATIC_CALLEES.add(`${ ctor }.${ method }`);
     }
   }

@@ -755,7 +755,8 @@ export function createMemberResolve({
   // which methods mutate is registry data (`mutatesElements` markers), not local knowledge;
   // the safe direction is a WHITELIST of known non-mutating methods - a method the registry
   // does not know may be any mutator at runtime, so it bails like a dynamic key. the generated data
-  // normalises every entry to an object EXCEPT a bare resolution directive (`'element'` / `'inherit'`),
+  // normalises every entry to an object EXCEPT a bare resolution directive (`'inherit'`, the
+  // `argument` trio),
   // which carries no marker slot at all - such an entry is "not known non-mutating" and stays out,
   // since reading the marker off a shape that cannot hold one would admit it unconditionally
   const ARRAY_METHOD_HINTS = KNOWN_INSTANCE_METHOD_RETURN_TYPES.Array ?? {};
