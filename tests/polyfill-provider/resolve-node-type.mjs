@@ -15,6 +15,7 @@ import {
 } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { blockAlwaysExits, canFallThrough, nodeAlwaysExits, nodeAlwaysHardExits } from '../../packages/core-js-polyfill-provider/resolve-node-type/exit-analysis.js';
 import { matchSelfDefaultTernarySlot } from '../../packages/core-js-polyfill-provider/resolve-node-type/value-ops.js';
+import { createKnownGlobals } from '../../packages/core-js-polyfill-provider/resolve-node-type/known-globals.js';
 import {
   isAmbientClassNode,
   isAmbientFunctionNode,
@@ -10251,8 +10252,8 @@ for (const [label, code, want] of [
   markerBranchCase({ label: `ambient gate: ${ label }`, code, want });
 }
 
-// an identity static (`returnsArgument`) returns its argument, so an UNRESOLVABLE argument makes
-// the call equally unresolvable. the registry's generic `Object` hint is not a harmless
+// an identity static declares `type: 'argument'` - it returns its argument, so an UNRESOLVABLE
+// argument makes the call equally unresolvable. a generic `Object` answer is not a harmless
 // approximation there - an Object hint suppresses the instance polyfill outright
 runBoth('identity statics: an unresolvable argument is not an Object',
   'declare const o: any;\nconst v = Object.freeze(o);',
@@ -10268,11 +10269,30 @@ markerBranchCase({
   code: 'const v = Object.freeze([1, 2]);',
   want: { primitive: false, ctor: 'Array' },
 });
-markerBranchCase({
-  label: 'identity statics: control - an absent slot keeps the declared hint',
-  code: 'const v = Object.freeze();',
-  want: { primitive: false, ctor: 'Object' },
-});
+// a directive that cannot be read answers UNKNOWN; there is no container to fall back to, because
+// the directive occupies the type slot itself. no fallback is lost: with no argument these return
+// `undefined` (freeze, seal, preventExtensions) or throw (assign, defineProperty, setPrototypeOf),
+// so the `Object` this used to answer was never a value any of them produces
+for (const call of ['Object.freeze()', 'Object.assign()', 'Object.setPrototypeOf()']) {
+  runBoth(`identity statics: an absent slot answers unknown, not the container - ${ call }`,
+    `const v = ${ call };`,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('init'));
+      if (type) return fail(lbl, `got ${ type.primitive ? type.type : type.constructor }, want unknown`);
+      pass();
+    });
+}
+
+// the SIBLING half: where the directive sits in the `resolved` slot the declared container is a
+// real declaration, not a fallback, so an unreadable argument leaves it standing
+for (const call of ['Promise.all()', 'Promise.resolve()', 'Array.fromAsync()']) {
+  markerBranchCase({
+    label: `identity statics: a directive under a container keeps the container - ${ call }`,
+    code: `const v = ${ call };`,
+    want: { primitive: false, ctor: 'Promise' },
+  });
+}
 
 // the deferred-read union folds through the CANONICAL fold, so a disagreement short-circuits
 // instead of letting the next arm re-seed the accumulator off the null `commonType` answered.
@@ -11742,6 +11762,28 @@ const ARGUMENT_DIRECTIVE_ROWS = [
   // declines the narrow, which usage-global shows by keeping BOTH families injected
   ['a reassigned callback binding', 'let mk = () => [1];\nmk = () => "s" as any;\nasync function f() { const r = await Promise.try(mk); (r as any).at(0); }', 'drop'],
   ['a non-literal iterable', 'async function f() { declare const xs: number[][]; const r = (await Promise.all(xs))[0]; r.at(0); }', 'drop'],
+  // the iterable behind a transparent wrapper is still the iterable, and it has to read the same on
+  // BOTH parsers: babel strips `([...])` at parse while oxc keeps a ParenthesizedExpression, so a
+  // shape test on the raw node made the two emitters inject different helpers for one source
+  ['a parenthesised iterable', 'async function f() { const r = (await Promise.all(([[1], [2]])))[0]; r.at(0); }', 'Array'],
+  ['a TS-wrapped iterable', 'async function f() { const r = (await Promise.all([[1], [2]] as any))[0]; r.at(0); }', 'Array'],
+  ['a doubly wrapped iterable', 'async function f() { const r = (await Promise.all((([[1], [2]]) as any)))[0]; r.at(0); }', 'Array'],
+  ['a wrapper over a NON-literal still declines', 'async function f() { declare const xs: number[][]; const r = (await Promise.all((xs)))[0]; r.at(0); }', 'drop'],
+  // the ELEMENTS carry wrappers too, and the spread test that guards them reads a raw node type
+  ['a parenthesised element of the iterable', 'async function f() { const r = (await Promise.all([([1]), [2]]))[0]; r.at(0); }', 'Array'],
+  ['a TS-wrapped element of the iterable', 'async function f() { const r = (await Promise.all([[1] as any, [2]]))[0]; r.at(0); }', 'Array'],
+  ['a wrapped SPREAD element still declines', 'async function f() { declare const xs: number[][]; const r = (await Promise.all([...(xs)]))[0]; r.at(0); }', 'drop'],
+  // the carrier is reached by more than a bare member: through a proxy-global hop, and through a
+  // binding that aliases the static. both land on the same registry entry, so both must read it
+  ['through a proxy-global hop', 'const v = globalThis.Object.freeze([1, 2]);\nv.at(0);', 'Array'],
+  ['through a window hop', 'const v = window.Object.freeze([1, 2]);\nv.at(0);', 'Array'],
+  ['through an aliased static', 'const f = Object.freeze;\nconst v = f([1, 2]);\nv.at(0);', 'Array'],
+  // the elements fold as a union does: agreement narrows, ANY disagreement leaves the container
+  // bare rather than picking the first arm
+  ['elements that disagree bail', 'async function f() { const r = (await Promise.all([[1], "xy" as any]))[0]; (r as any).at(0); }', 'drop'],
+  ['a disagreement in the MIDDLE bails too', 'async function f() { const r = (await Promise.all([[1], "xy" as any, [2]]))[0]; (r as any).at(0); }', 'drop'],
+  ['three arms that all agree still narrow', 'async function f() { const r = (await Promise.all([[1], [2], [3]]))[0]; r.at(0); }', 'Array'],
+  ['an empty iterable leaves the container bare', 'async function f() { const r = (await Promise.all([]))[0]; (r as any).at(0); }', 'drop'],
   // deliberately undeclared: a rejection is not a resolution, `catch` settles two ways, and the
   // settled wrappers are not the awaited elements
   ['reject carries no directive', 'async function f() { const r = await Promise.reject([1]); (r as any).at(0); }', 'drop'],
@@ -11749,6 +11791,64 @@ const ARGUMENT_DIRECTIVE_ROWS = [
 ];
 for (const [label, source, want] of ARGUMENT_DIRECTIVE_ROWS) {
   runBoth(`argument directive: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// The directive vocabulary and what each directive MEANS both live in the resolver, one file apart:
+// the grammar in `base.js`, the branch that acts on it here. A name declared with no branch is the
+// drift that pair invites, and the answer must not be "unknown" - that reads as "could not resolve"
+// and the narrow the row was written for silently stops. Both sides are driven through the factory
+// with a doctored vocabulary, which is the only way to build that mismatch.
+function knownGlobalsWithVocabulary(directives) {
+  const table = {};
+  return createKnownGlobals({
+    babelNodeType: node => node?.type,
+    isMemberLike: () => false,
+    isNullableOrNever: () => false,
+    resolveMemberPropertyName: () => null,
+    resolveGlobalName: () => null,
+    resolveNodeType: () => null,
+    KNOWN_STATIC_METHOD_RETURN_TYPES: table,
+    KNOWN_STATIC_PROPERTY_RETURN_TYPES: table,
+    KNOWN_INSTANCE_PROPERTY_RETURN_TYPES: table,
+    KNOWN_GLOBAL_PROPERTY_RETURN_TYPES: table,
+    KNOWN_GLOBAL_METHOD_RETURN_TYPES: table,
+    KNOWN_RESOLUTION_DIRECTIVES: directives,
+    commonType: () => null,
+    resolveReturnType: () => null,
+    resolveRuntimeExpression: () => null,
+  });
+}
+
+for (const [label, directives, hint, wanted] of [
+  ['an unimplemented CALL directive', { 'argument-key': 'call' }, 'argument-key', /no resolver for call directive/],
+  ['an unimplemented RECEIVER directive', { 'inner-key': 'receiver' }, 'inner-key', /no resolver for receiver directive/],
+]) {
+  const { typeFromHint } = knownGlobalsWithVocabulary(directives);
+  let message = null;
+  try {
+    typeFromHint(hint);
+  } catch (error) {
+    message = error.message;
+  }
+  if (message === null) fail(`vocabulary drift: ${ label }`, 'answered instead of throwing');
+  else if (!wanted.test(message)) fail(`vocabulary drift: ${ label }`, `threw '${ message }'`);
+  else pass();
+}
+
+// the control half: the vocabulary the artifact really ships resolves through the same routing
+// without throwing, so the guards above are not simply refusing everything
+for (const [label, directives, hint] of [
+  ['a shipped call directive', { argument: 'call' }, 'argument'],
+  ['a shipped receiver directive', { inherit: 'receiver' }, 'inherit'],
+  ['a name outside the vocabulary is a TYPE, not a directive', {}, 'Array'],
+]) {
+  const { typeFromHint } = knownGlobalsWithVocabulary(directives);
+  try {
+    typeFromHint(hint);
+    pass();
+  } catch (error) {
+    fail(`vocabulary drift control: ${ label }`, `threw '${ error.message }'`);
+  }
 }
 
 finish();
