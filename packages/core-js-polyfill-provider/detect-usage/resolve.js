@@ -268,8 +268,16 @@ export function prependChainAssignmentEffect(receiverNode, baseEffects, insertAt
 // optionals are not the outer chain's to count
 export function ownChainOptionalObjects(node) {
   const objects = [];
-  for (let cur = node, depth = 0; cur && depth++ <= MAX_KEY_DEPTH;) {
-    if (cur !== node && cur.extra?.parenthesized) break;
+  // the START node's own parens are the value's own skin, not a seal it hides behind - the flag
+  // spelling says so with the `cur !== node` exemption below, and the NODE spelling has to peel
+  // them to say the same. left unpeeled, `(nav?.hop)` reported no optionals at all and its
+  // consumers read the value as never short-circuiting
+  // `ChainExpression` comes off with them: estree marks the chain with a node babel does not
+  // spell at all, and it is the very short-circuit being counted, so entering it is the point
+  let start = node;
+  while (start?.type === 'ParenthesizedExpression' || start?.type === 'ChainExpression') start = start.expression;
+  for (let cur = start, depth = 0; cur && depth++ <= MAX_KEY_DEPTH;) {
+    if (cur !== start && cur.extra?.parenthesized) break;
     if (cur.type === 'TSNonNullExpression') {
       cur = cur.expression;
       continue;
@@ -1634,6 +1642,10 @@ export function planProvenNavGuardCollapse({
   }
   if (collapseIdx === -1) return null;
   if (hops.some((hop, i) => hop.keySeExprs && i > collapseIdx)) return null;
+  // a hop earns a GUARD only when its own read can genuinely be undefined - the positional rule the
+  // value canon owns (`globalThis.window` is the environment probe; a DEEPER unresolvable hop is a
+  // realm self-reference the collapse assumes present). keying on name-resolution alone built a
+  // test for a value the same canon calls defined, and split the emitters on their own boundary
   let lastUnresolvableIdx = -1;
   for (let i = 0; i < collapseIdx; i++) {
     if (!resolvePure({ kind: 'global', name: hops[i].name })) lastUnresolvableIdx = i;
@@ -2060,25 +2072,7 @@ export function descendToChainRoot(node, throughChainAssign = false) {
 // optionalCount aggregates across sealed boundaries and over-reports for chain SEMANTICS (an
 // emit route keyed on it would treat `(a?.b).c` like a live `?.` and mis-place receiver SE)
 export function ownChainOptionalCount(node) {
-  let count = 0;
-  let cur = node;
-  let depth = 0;
-  while (cur && depth++ <= MAX_KEY_DEPTH) {
-    // babel keeps no paren NODES - a parenthesized subexpression carries `extra.parenthesized`;
-    // reaching one below the start seals the chain exactly like estree's ParenthesizedExpression
-    // (which the member type-check below stops at). the START node's own parens wrap the outer
-    // context, not its inner chain, so they do not seal
-    if (cur !== node && cur.extra?.parenthesized) break;
-    if (cur.type === 'TSNonNullExpression') {
-      cur = cur.expression;
-      continue;
-    }
-    if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression'
-      && cur.type !== 'CallExpression' && cur.type !== 'OptionalCallExpression') break;
-    if (cur.optional) count++;
-    cur = cur.object ?? cur.callee;
-  }
-  return count;
+  return ownChainOptionalObjects(node).length;
 }
 
 // find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain.
@@ -2217,6 +2211,70 @@ export function sealedChainBoundary(node) {
   return null;
 }
 
+// does the chain READ THROUGH a seal? a parenthesized layer over an UNDEFINABLE value whose
+// consumer member is a PLAIN read: the sealed value short-circuits internally, but that read
+// observes it and THROWS where a guard render answers `void 0`. so no render may fold steps into
+// a guarded alternate across such a seal, re-hang a `?.` above it, or climb a guard out of a
+// helper that consumes the value. an OPTIONAL consumer (`(nav)?.X`) performs no such read - its
+// short-circuit IS the guard's void-0 branch - and a seal over an always-defined value (`(q =
+// globalThis).window` - the parens only group the assignment) reads nothing that can throw
+export function chainReadsThroughSeal(node, resolvePure, aliasCtx = null) {
+  for (let cur = peelReceiverSequenceTail(node);
+    cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';) {
+    const object = unwrapRuntimeExpr(peelReceiverSequenceTail(cur.object));
+    // the sealed value is a VALUE question, so it reads through a chain assignment: the write
+    // stores the nav and the seal observes exactly what the nav produced
+    if (!cur.optional && sealedLayerBetween(cur.object, object)
+      && (proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx)
+        || navValueCanShortCircuit(object, resolvePure, aliasCtx, { throughChainAssign: true }))) return true;
+    cur = object;
+  }
+  return false;
+}
+
+// the BASE a nav-guard test reads its probe hop off, as a decision both emitters render their own
+// way. by default the test is the source slice with only the root substituted (`_globalThis.self
+// .window` - a native `self` read where its ponyfill is the point); the hops below the probe are
+// resolvable by construction, so the deepest of them supplies the base and the test becomes
+// `_self.window`. the price is deliberate and owner-decided: that base is always defined, so a host
+// missing `self` gets the guard's `void 0` where the source threw. null keeps the source slice -
+// no resolvable hop below the probe, a computed probe key, or a key effect the slice evaluates
+export function navGuardTestBase(plan) {
+  const idx = plan.lastUnresolvableIdx;
+  const below = idx > 0 ? plan.hops[idx - 1] : null;
+  if (!below || plan.testKeySeCount || plan.hops[idx].computed) return null;
+  const basePure = plan.resolvePure({ kind: 'global', name: below.name });
+  return basePure ? { basePure, probeName: plan.hops[idx].name } : null;
+}
+
+// which side of a sealed throw probe an effect rides: source order decides, and the probe RENDERS
+// the nav, so an effect written BEFORE it (`((c++, nav)).Array.of(1)`) runs before the read the
+// probe reproduces. both emitters split their residual effects on this one rule. the boundary is
+// `sideEffectsPastOffset` - asked once and complemented, so the halves stay EXHAUSTIVE: consumers
+// splice them as the whole effect list, and an offset that helper declines (a synthetic node has
+// no `start`) must leave every effect ahead of the probe, never drop it
+export function partitionEffectsAtProbe(effects, navStart) {
+  const after = sideEffectsPastOffset(navStart, effects);
+  const past = new Set(after);
+  return { ahead: effects.filter(effect => !past.has(effect)), after };
+}
+
+// the guarded VALUE of a sealed nav that ENDS AT a claim, as a decision both emitters render their
+// own way: the nav plan has no ponyfillable hop leaf to build a guard from there, so the erase
+// verdict names the `?.` object to test and the claim's own leaf supplies the always-defined
+// alternate. `leafPure` when core-js ponyfills that leaf as a constructor; otherwise `leafName` -
+// the source's own global name, which IS that value (the probe reads a property off it exactly as
+// written, and the claim beside it still carries the polyfill). null when no single `?.` expresses
+// the short-circuit, or the leaf is neither ponyfilled nor a plain name
+export function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null) {
+  const verdict = undefinableOptionalGuard(nav, resolvePure, aliasCtx);
+  if (verdict.kind !== 'guard') return null;
+  const leafPure = proxyGlobalMemberCtorPure({ receiver: nav, aliasCtx, resolvePure });
+  if (leafPure) return { guardObject: verdict.object, leafPure, leafName: null };
+  const leafName = staticMemberKeyName(nav);
+  return leafName ? { guardObject: verdict.object, leafPure: null, leafName } : null;
+}
+
 // SEALED objects of a nav chain: each member OBJECT wrapped in a parenthesized layer (source
 // parens, a paren'd cast - `(nav).X`, `(nav as any).X`). the seal hides the inner nav from
 // own-chain walks (the outer chain parses PLAIN above it), but the sealed VALUE still
@@ -2283,14 +2341,19 @@ export function claimlessGuardedObjectUndefinable(object, resolvePure, aliasCtx 
 // internal `?.` short-circuits only the sealed value; the plain read above observes it, throw
 // semantics, never skips), so the walk stops at a seal after testing the link's own `?.`.
 // entry parens are value-transparent - the value asked about IS the sealed one
-export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null) {
+export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null, { throughChainAssign = false } = {}) {
   let cur = unwrapRuntimeExpr(peelReceiverSequenceTail(navNode));
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const raw = peelReceiverSequenceTail(cur.object);
     const object = unwrapRuntimeExpr(raw);
     if (cur.optional) {
       if (isCallShape(object)) return callValueCanBeUndefined(object, aliasCtx);
-      if (navHasUnresolvableProxyHop(object, resolvePure)) return true;
+      // `throughChainAssign`: a write under the `?.` STORES the nav and hands the same value on
+      // (`(q = globalThis.window)?.self`). only a caller asking about the VALUE reads through it -
+      // the default verdict keeps the write opaque, because the emit channels key their routing on
+      // it and flipping that globally strands a raw root in a guard memo
+      if (navHasUnresolvableProxyHop(throughChainAssign
+        ? peelChainAssignment(object).value ?? object : object, resolvePure)) return true;
     }
     // a PARENTHESIZED layer seals (source parens or a paren'd cast - `(nav).X`, `(nav as any)
     // .X`): the seal stops the OUTER chain's short-circuit (a plain read above it observes the

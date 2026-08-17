@@ -37,7 +37,10 @@ export const staticClaimUnderGuard = null == (_ref8 = _globalThis.window) ? void
 export const bareStaticClaim = null == _globalThis.window ? void 0 : _self.Array;
 export const twoClaimsOneStatement = [null == _globalThis.window ? void 0 : _Array$of(1), null == _globalThis.window ? void 0 : _self.Object.keys({})];
 export const claimInsideArgument = null == _globalThis.window ? void 0 : _Array$of(null == _globalThis.window ? void 0 : _Math$trunc(1.5));
-export const parenthesizedClaim = _Array$of(1);
+// the seal ends the chain before the claim's own key, so the source reads `.of` off a value that
+// can be undefined - the erase re-emits exactly that read ahead of the claim. the alternate is the
+// global's own name where core-js ponyfills no constructor for it
+export const parenthesizedClaim = ((null == _globalThis.window ? void 0 : Array).of, _Array$of)(1);
 export const claimThenInstance = null == (_ref10 = _globalThis.window) ? void 0 : _atMaybeArray(_ref11 = _Array$from('ab')).call(_ref11, 0);
 export const claimsAcrossOperator = (null == _globalThis.window ? void 0 : _Math$trunc(1.5)) + (null == _globalThis.window ? void 0 : _Number$EPSILON);
 
