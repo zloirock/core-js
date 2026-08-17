@@ -13,6 +13,20 @@ export function asProxyGlobalName(name) {
 // they touch no user-declared field, unlike a base this module holds a binding for but cannot read
 export const KNOWN_GLOBAL_CONSTRUCTORS = new Set(Object.keys(knownBuiltInReturnTypes.constructors));
 
+// an entry-path segment is kebab-case and its capitalization is NOT recoverable by conversion:
+// `is-nan` reads back as `isNan`, `raw-json` as `rawJson`, `utc` as `utc`. every one of those
+// misses the registry, and a miss is silent - the caller reads it as "not a known static" and
+// falls back to its widest answer. the registry spells the member exactly and no two built-in
+// names differ only by case, so its own keys resolve what the conversion cannot. the CONSTRUCTOR
+// half of the same question already has a canonical answer in `entryToGlobalHint`
+export function staticMemberFromEntrySegment(constructor, segment) {
+  const camel = kebabToCamel(segment);
+  const methods = knownBuiltInReturnTypes.staticMethods[constructor];
+  if (!methods || Object.hasOwn(methods, camel)) return camel;
+  const lowered = camel.toLowerCase();
+  return Object.keys(methods).find(key => key.toLowerCase() === lowered) ?? camel;
+}
+
 // typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
@@ -402,6 +416,11 @@ export function isIifeCallNode(node) {
 // runtime-transparent expression wrappers: peeling the wrapper preserves the inner
 // expression's semantics. covers TS expression wrappers (`as`, `satisfies`, `!`, ...) AND
 // `ParenthesizedExpression` (preserved by parser when `createParenthesizedExpressions: true`).
+// WHICH SET TO PICK: a peel that walks a RUNTIME expression on the two-parser path takes THIS one -
+// oxc emits a paren NODE where babel emits none, so the TS-only set answers differently per parser
+// on the same source. `TS_EXPR_WRAPPERS` alone is right only where the question is about a TS cast
+// as such (marking that a value passed through one), or in babel-only code that never sees a paren
+// node. every current narrow use was audited against that rule.
 // EXCLUDES `UnaryExpression` / `SequenceExpression` (which DO change semantics) and
 // `ChainExpression` (the optional-chain marker carries short-circuit semantics that
 // must be preserved at most call sites). used by AST walkers that need to reach the
@@ -4013,13 +4032,17 @@ export function globalProxyNameFromImportSource(source, packages = null) {
 // the minted ctor binding (`_Map.groupBy = patched`) must still register the mutated static -
 // hint-only recognition left the WRITE channel blind while the READ channel substitutes
 const PURE_CTOR_ENTRY_SOURCE = /(?:^|\/)(?<ns>[a-z][\w-]*)\/constructor(?:\.js)?$/;
-export function pureCtorNameFromImportSource(source, packages = null) {
+// `toGlobalHint` is `entryToGlobalHint`, injected rather than imported: it lives in the package
+// entry, which imports THIS module. without it the kebab segment is only capitalized, and the
+// namespaces whose capitals do not start a word (`url` -> `URL`, `regexp` -> `RegExp`) resolve to
+// a name no table knows
+export function pureCtorNameFromImportSource(source, packages = null, toGlobalHint = null) {
   if (!source) return null;
   if (!CORE_JS_IMPORT_SOURCE_PREFIX.test(source) && !importSourceMatchesUserPackage(source, packages)) return null;
   const match = PURE_CTOR_ENTRY_SOURCE.exec(source);
   if (!match) return null;
   const name = kebabToCamel(match.groups.ns);
-  return name.charAt(0).toUpperCase() + name.slice(1);
+  return toGlobalHint?.(match.groups.ns) ?? name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 // true when `node` binds the module's default export (either as default specifier or as named
@@ -5580,6 +5603,26 @@ export function staticFallbackSwapRedundant(receiverNode, sideEffects) {
 // `superTypeArguments` under the same split
 export const getTypeArgs = node => node?.typeParameters ?? node?.typeArguments;
 export const getSuperTypeArgs = node => node?.superTypeArguments ?? node?.superTypeParameters;
+
+// the WRITE half of `getTypeArgs`: rebuild a reference-shape node carrying `params` as its type
+// arguments, into whichever key the parser filled. `base` is the spread base for callers that
+// swapped the node out from under the args. reading the key one way and writing it another is the
+// failure this pairing exists to prevent - a clone built on the wrong key reads back as no-args
+export function withTypeArgParams(node, params, base = node) {
+  return { ...base, [node?.typeParameters ? 'typeParameters' : 'typeArguments']: { ...getTypeArgs(node), params } };
+}
+
+// the explicit type arguments of a CALL, wherever the spelling puts them. `f<T>()` hangs them on
+// the call itself, but PARENTHESISING the instantiation makes it the callee and carries them there
+// (`(f<T>)()`, `((f)<T>)()`), leaving the call slot empty - a reader that only asks the call node
+// skips the substitution entirely and the return type stays generic. peel only parens / chain here:
+// `unwrapRuntimeExpr` also strips `TSInstantiationExpression`, which is the node holding the args
+export function getCallSiteTypeArgs(callNode) {
+  const own = getTypeArgs(callNode);
+  if (own) return own;
+  const callee = peelMemoizeWrappers(callNode?.callee);
+  return callee?.type === 'TSInstantiationExpression' ? getTypeArgs(callee) : undefined;
+}
 
 // Flow's ambient class (`declare class Sub extends Base<T>`) has no `superClass` and no
 // superType* slots at all - both the parent reference and its type arguments live on the

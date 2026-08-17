@@ -1,10 +1,11 @@
-// a direct call takes the IMPLEMENTATION signature, so `f()` is an array and only the array family
-// may be injected. Both heads answer `string`, which is what makes that visible: picking either
-// head, or widening over them, would put the string family in instead. The rest params are what put
-// the heads in the scope-less position that used to be rewritten into a body-bearing declaration,
-// and that rewrite is exactly how the widened answer used to happen. Note the model: TypeScript
-// itself resolves this call against the first matching head, not against the implementation.
+// a direct call resolves against the FIRST head whose parameters match, exactly as TypeScript does -
+// the implementation signature is not callable. The heads answer `string` while the implementation is
+// declared `any`, so the two answers stay distinguishable: taking the implementation would degrade to
+// the generic helper. The body returns a string on purpose - the emitted helper must match the RUNTIME
+// value or it throws on an engine lacking the method, and TS itself rejects a set whose implementation
+// contradicts its heads. The rest params keep the heads in the scope-less position that used to be
+// rewritten into a body-bearing declaration, which is how the widened answer used to happen.
 function f(...a: number[]): string;
 function f(...a: string[]): string;
-function f(...a: any[]): number[] { return [1]; }
+function f(...a: any[]): any { return "ab"; }
 f().at(0);

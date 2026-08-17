@@ -141,7 +141,10 @@ function blankPatternInterior(node) {
 // the node TYPE stays as parsed: retyping an ambient head to a body-bearing `FunctionDeclaration`
 // makes an overload head indistinguishable from its implementation, which widens `f()` over the
 // heads babel resolves through the impl
-function neutralizeUnwalkedParamPatterns(node) {
+// exported for the cross-parser test harness: any consumer that builds estree-toolkit SCOPES over a
+// TS AST needs this same pass first, or a bodyless signature with a pattern parameter aborts the
+// crawl before its own visitors run
+export function neutralizeUnwalkedParamPatterns(node) {
   if (!node || typeof node !== 'object') return;
   if (Array.isArray(node.params) && !PARAM_PATTERN_SCOPE_OWNERS.has(node.type)) {
     for (let i = 0; i < node.params.length; i++) {
@@ -567,7 +570,11 @@ export default function createPlugin(options) {
     }
 
     // a binding pattern in a params list estree-toolkit never walks as a pattern - every
-    // type-level signature TS has - aborts the crawl, so neutralize them before it runs
+    // type-level signature TS has - aborts the crawl, so neutralize them before it runs.
+    // deliberately UNCONDITIONAL: the pass is a plain walk over an AST the parser has just built
+    // and the crawler is about to walk again, so gating it on a TS extension buys nothing measurable
+    // and costs a code path resting on a subtle assumption - oxc enables TS on `.ts`/`.mts`/`.cts`/
+    // `.tsx`, lowercase only, so a `.TS` file would silently lose the pass
     neutralizeUnwalkedParamPatterns(ast);
 
     // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
@@ -1368,8 +1375,8 @@ export default function createPlugin(options) {
           }
           if (emitStaticFallbackSwap()) return;
           // the inherited-static-resolves-to-instance bail (`super.X` / `this.X` in static ctx where
-          // X has no static on the super class) lives in the provider's `resolvePureWith` now (single
-          // sourced with usage-global's `resolveUsage`), so `pureResult` is already null for that shape
+          // X has no static on the super class) lives in the provider's `resolveUsage`, the entry BOTH
+          // flavors go through, so `pureResult` is already null for that shape
           // and the `if (!pureResult) return;` above caught it - the fallback never fires (gated on
           // `!inheritedStatic`)
           if (!pureResult) {

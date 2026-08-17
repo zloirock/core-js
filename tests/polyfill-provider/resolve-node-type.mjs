@@ -161,7 +161,7 @@ const { check, checkDeep, checkTruthy, fail, finish, pass, runBoth, runBothAndAg
 // NOTE: `constructor` as a destructured key reads via prototype chain
 // (`Object.prototype.constructor` = the Object function), so a missing slot would
 // fall back to that and corrupt the comparison. use `ctor` instead
-const TYPE_EXPECTATION_KEYS = new Set(['primitive', 'kind', 'ctor']);
+const TYPE_EXPECTATION_KEYS = new Set(['primitive', 'kind', 'ctor', 'nullish']);
 function checkType(label, type, expected) {
   // an expectation key this function does not read is silently satisfied - and the three it does
   // read are all easy to mis-spell into a real field name (`constructor` for `ctor`, `type` for
@@ -169,7 +169,7 @@ function checkType(label, type, expected) {
   const unknown = Object.keys(expected).filter(key => !TYPE_EXPECTATION_KEYS.has(key));
   if (unknown.length) return fail(label, `unknown expectation key(s): ${ unknown.join(', ') }`);
   if (!type) return fail(label, 'got null type');
-  const { primitive, kind, ctor } = expected;
+  const { primitive, kind, ctor, nullish } = expected;
   if (primitive !== undefined && type.primitive !== primitive) {
     return fail(label, `primitive=${ type.primitive }, want ${ primitive }`);
   }
@@ -178,6 +178,11 @@ function checkType(label, type, expected) {
   }
   if (ctor !== undefined && type.constructor !== ctor) {
     return fail(label, `type.constructor=${ type.constructor }, want ${ ctor }`);
+  }
+  // the optionality MARKER is part of the resolved type and had no way to be asserted, so every
+  // case that cared about it could only pin the family and silently accept either marker
+  if (nullish !== undefined && Boolean(type.mayBeNullish) !== nullish) {
+    return fail(label, `mayBeNullish=${ Boolean(type.mayBeNullish) }, want ${ nullish }`);
   }
   pass();
 }
@@ -931,28 +936,34 @@ runBoth('TS conditional: `T extends string ? Array : Map` with concrete T -> Arr
     checkType(lbl, type, { primitive: false, ctor: 'Array' });
   });
 
-// `never extends X` is true for every X (never is the bottom type, assignable to everything),
-// so a conditional with check = never must pick the true branch unconditionally
-runBoth('TS conditional: `never extends X` picks true branch (bottom-type semantics)',
-  'type Box<T> = T extends string ? string[] : Map<string, number>; let r: Box<never>;',
-  (adapter, prog, lbl) => {
-    const decl = adapter.pickPath(prog, 'VariableDeclarator');
-    const resolver = adapter.makeResolver();
-    const type = resolver.resolveNodeType(decl.get('id'));
-    checkType(lbl, type, { primitive: false, ctor: 'Array' });
-  });
+// `never extends X` is true for every X - never is the bottom type, assignable to everything - so
+// the check written DIRECTLY picks the true branch, and it must do so before the "primitive check vs
+// concrete-object extend" disjoint rule, which would otherwise answer false for any primitive check
+for (const [form, code] of [
+  ['primitive extend', 'type R = never extends string ? string[] : Map<string, number>; let r: R;'],
+  ['object extend', 'type R = never extends Array<number> ? string[] : Map<string, number>; let r: R;'],
+]) {
+  runBoth(`TS conditional: \`never extends X\` written directly picks the true branch: ${ form }`, code,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+    });
+}
 
-// `never extends Array<...>` (object extend, not primitive): bottom-type rule must fire
-// before the "primitive-check vs concrete-object-extend" disjoint rule that otherwise
-// returns false for any check-side primitive against a concrete extend
-runBoth('TS conditional: `never extends Array<X>` (object extend) still picks true branch',
-  'type Box<T> = T extends Array<number> ? string[] : Map<string, number>; let r: Box<never>;',
-  (adapter, prog, lbl) => {
-    const decl = adapter.pickPath(prog, 'VariableDeclarator');
-    const resolver = adapter.makeResolver();
-    const type = resolver.resolveNodeType(decl.get('id'));
-    checkType(lbl, type, { primitive: false, ctor: 'Array' });
-  });
+// through a NAKED type parameter the same check reads the other way: the conditional is
+// distributive, and distributing over `never` yields `never`, so NO branch types the binding.
+// these two rows asserted the true branch and were wrong - real tsc answers `never` for both
+for (const [form, code] of [
+  ['primitive extend', 'type Box<T> = T extends string ? string[] : Map<string, number>; let r: Box<never>;'],
+  ['object extend', 'type Box<T> = T extends Array<number> ? string[] : Map<string, number>; let r: Box<never>;'],
+]) {
+  runBoth(`TS conditional: a naked parameter bound to never distributes to never: ${ form }`, code,
+    (adapter, prog, lbl) => {
+      const decl = adapter.pickPath(prog, 'VariableDeclarator');
+      const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+      check(`${ lbl } no branch types the binding`, !(type && type.constructor === 'Array'), true);
+    });
+}
 
 // --- bigint literal conditional types (canonicalized literal value, cross-parser) ---
 
@@ -1038,20 +1049,18 @@ runBoth('TS conditional: distinct negative number literals do not extend (false 
     checkType(lbl, type, { primitive: false, ctor: 'Map' });
   });
 
-// nested conditional with `never` propagated through both checks: outer picks true, the
-// resolver substitutes T = never into the body, then the inner T extends-check also fires
-// and must pick its own true branch. without bottom-type rule both calls fall through
-// the primitive-vs-X rules and return false, picking the deepest false branch
-runBoth('TS conditional: nested `T extends ... ? ... : T extends ... ? A : B` with T=never picks outermost true',
+// a nested conditional does not change the distribution rule: the OUTER check is the naked
+// parameter, so `Box<never>` is `never` whole and neither nesting level types the binding. the row
+// asserted the outermost true branch and was wrong - real tsc answers `never`
+runBoth('TS conditional: a naked parameter bound to never distributes to never: nested conditional',
   `
     type Box<T> = T extends string ? string[] : T extends number ? Map<string, number> : Set<string>;
     let r: Box<never>;
   `,
   (adapter, prog, lbl) => {
     const decl = adapter.pickPath(prog, 'VariableDeclarator');
-    const resolver = adapter.makeResolver();
-    const type = resolver.resolveNodeType(decl.get('id'));
-    checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    const type = adapter.makeResolver().resolveNodeType(decl.get('id'));
+    check(`${ lbl } no branch types the binding`, !(type && type.constructor === 'Array'), true);
   });
 
 // --- Readonly array is NOT assignable to a mutable `Array<infer U>` infer pattern ---
@@ -3002,9 +3011,21 @@ for (const { label, checked, extend, taken } of BOXED_WRAPPER_CASES) {
     });
 }
 
-// the wide-object extends fold both branches instead of deciding, so the receiver keeps neither
-// branch's type - asserting that separately keeps the table above about DECIDED pairings only
-for (const extend of ['Object', 'object', '{}']) {
+// the lowercase keyword is the top of the NON-primitive types, so `string extends object` is FALSE
+// in TS and the false branch is the answer - decided, not folded
+runBoth('conditional wide extends: string / object takes the false branch',
+  `type C<T> = T extends object ? number[] : Set<number>;
+   declare const v: C<string>;
+   v.at(0);`,
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Set' });
+  });
+
+// its boxed-top and empty-shape neighbours are an accepted UNDER-resolve, not a semantic claim: TS
+// decides both TRUE (`string extends Object`, `string extends {}`), this layer folds both branches
+// and keeps neither type. safe - the receiver falls back to the generic helper - so the row asserts
+// what the layer does rather than pinning a decision it has not earned
+for (const extend of ['Object', '{}']) {
   runBoth(`conditional wide extends: string / ${ extend } stays undecided`,
     `type C<T> = T extends ${ extend } ? number[] : Set<number>;
      declare const v: C<string>;
@@ -10628,5 +10649,1106 @@ runBoth('a rest-slice binding is not descended into',
     const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'v');
     checkType(lbl, adapter.makeResolver().resolveNodeType(decl.get('init')), { ctor: 'Array' });
   });
+
+// --- an array REST binds a SLICE of the source, not the source ---
+// the annotation lane handed the CONTAINER's annotation back for a rest binding, so a POSITIONAL
+// container typed the slice by its own element 0: `const [, ...rest]: [string, number[]]` resolved
+// `rest[0]` to string, the wrong family rather than a coarse one - and usage-pure pays for a wrong
+// family with a throw. a slice taken from position 0 IS the whole source, and every slice of a
+// homogeneous container has the container's own type, so both of those must stay precise; only a
+// positional container sliced past 0 declines. the alias and wrapper spellings are the ones a raw
+// tuple-element read would miss, so they pin that the positional test follows the alias chain
+function checkReceiverType(label, code, expected) {
+  runBoth(label, code, (adapter, prog, lbl) => {
+    const call = adapter.pickPath(prog, 'CallExpression',
+      p => p.node.callee?.type === 'MemberExpression' && p.node.callee.property?.name === 'at');
+    const type = adapter.makeResolver().resolveNodeType(call.get('callee').get('object'));
+    if (expected === null) return check(lbl, type, null);
+    checkType(lbl, type, expected);
+  });
+}
+
+for (const [label, code] of [
+  ['bare tuple, rest after a hole',
+    'const a: [string, number[]] = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+  ['bare tuple, rest after an element',
+    'const a: [string, number[]] = ["x", [1]];\nconst [h, ...rest] = a;\nrest[0].at(0);'],
+  ['tuple behind a type alias',
+    'type T = [string, number[]];\nconst a: T = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+  ['tuple behind a Readonly wrapper',
+    'const a: Readonly<[string, number[]]> = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+  ['tuple with a trailing rest of its own',
+    'const a: [string, ...number[][]] = ["x", [1]];\nconst [, ...rest] = a;\nrest[0].at(0);'],
+]) {
+  checkReceiverType(`${ label } does not type the slice by the source's element 0`, code, null);
+}
+
+// the precision the fix must NOT cost: a slice from position 0 is the whole source, and a
+// homogeneous container hands every slice its own element type
+for (const [label, code, expected] of [
+  ['homogeneous string[]',
+    'const a: string[] = ["x"];\nconst [, ...rest] = a;\nrest[0].at(0);', { primitive: true, kind: 'string' }],
+  ['homogeneous number[][]',
+    'const a: number[][] = [[1]];\nconst [, ...rest] = a;\nrest[0].at(0);', { ctor: 'Array' }],
+  ['bare tuple sliced from 0',
+    'const a: [number[], string] = [[1], "x"];\nconst [...rest] = a;\nrest[0].at(0);', { ctor: 'Array' }],
+  ['aliased tuple sliced from 0',
+    'type T = [number[], string];\nconst a: T = [[1], "x"];\nconst [...rest] = a;\nrest[0].at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } keeps its slice element type`, code, expected);
+}
+
+// the annotation can also be written ON the pattern, and that spelling reaches the typed-member
+// walk instead of the destructure key-path walk - a second lane with the same container-for-binding
+// confusion, so every pattern-annotated spelling is pinned here too
+for (const [label, code] of [
+  ['declarator-annotated', 'const [, ...rest]: [string, number[]] = ["x", [1]];\nrest[0].at(0);'],
+  ['function param', 'function f([, ...rest]: [string, number[]]) { rest[0].at(0); }'],
+  ['arrow param', 'const f = ([, ...rest]: [string, number[]]) => { rest[0].at(0); };'],
+  ['method param', 'class C { f([, ...rest]: [string, number[]]) { rest[0].at(0); } }'],
+]) {
+  checkReceiverType(`${ label } rest slice does not type the slice by the source's element 0`, code, null);
+}
+
+for (const [label, code, expected] of [
+  ['declarator-annotated, sliced from 0',
+    'const [...rest]: [number[], string] = [[1], "x"];\nrest[0].at(0);', { ctor: 'Array' }],
+  ['declarator-annotated, homogeneous',
+    'const [, ...rest]: string[] = ["x"];\nrest[0].at(0);', { primitive: true, kind: 'string' }],
+  ['param-annotated, homogeneous',
+    'function f([, ...rest]: string[]) { rest[0].at(0); }', { primitive: true, kind: 'string' }],
+  ['param-annotated, sliced from 0',
+    'function f([...rest]: [number[], string]) { rest[0].at(0); }', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } keeps its slice element type`, code, expected);
+}
+
+// the pattern-level annotation must stay available to every NON-rest read of the same patterns -
+// skipping it in the typed-member walk would have cost these their narrowing
+checkReceiverType('a declarator-annotated plain element stays exact',
+  'const [, second]: [string, number[]] = ["x", [1]];\nsecond.at(0);', { ctor: 'Array' });
+checkReceiverType('a param-annotated plain element stays exact',
+  'function f([, second]: [string, number[]]) { second.at(0); }', { ctor: 'Array' });
+checkReceiverType('a param-annotated object member stays exact',
+  'function f({ m }: { m: number[] }) { m.at(0); }', { ctor: 'Array' });
+
+// controls: a PLAIN destructured element carries no rest sentinel and must be untouched
+checkReceiverType('a plain destructured element 0 stays exact',
+  'const a: [string, number[]] = ["x", [1]];\nconst [first] = a;\nfirst.at(0);',
+  { primitive: true, kind: 'string' });
+checkReceiverType('a plain destructured element 1 stays exact',
+  'const a: [string, number[]] = ["x", [1]];\nconst [, second] = a;\nsecond.at(0);',
+  { ctor: 'Array' });
+
+// --- an INDEX hop in receiver position keeps its annotation ---
+// two member-lookup lanes exist, and only the sibling one (`findTypeMember`) knew how to key a
+// numeric index. so which lane ran depended on the shape of the FIRST hop: `o.inner[1]` resolved
+// because a named hop enters the sibling lane, while `t[0][1]` and `t[0].v` died AT the index hop -
+// the annotation lane answered nothing for `t[0]`, so the chain stopped before the second hop.
+// the tuple half is positional (`findTupleElement`), the array half is not (`arrayElementType`)
+for (const [label, code, expected] of [
+  ['inline tuple, index then index',
+    'declare const t: [[string, number[]], number];\nt[0][1].at(0);', { ctor: 'Array' }],
+  ['aliased tuple, index then index',
+    'type Inner = [string, number[]];\ndeclare const t: [Inner, number];\nt[0][1].at(0);', { ctor: 'Array' }],
+  ['hops split across a const',
+    'declare const t: [[string, number[]], number];\nconst inner = t[0];\ninner[1].at(0);', { ctor: 'Array' }],
+  ['index hop then MEMBER hop',
+    'declare const t: [{ v: number[] }, number];\nt[0].v.at(0);', { ctor: 'Array' }],
+  ['array OF tuple, index then index',
+    'declare const t: [string, number[]][];\nt[0][1].at(0);', { ctor: 'Array' }],
+  ['readonly array of tuple',
+    'declare const t: ReadonlyArray<[string, number[]]>;\nt[0][1].at(0);', { ctor: 'Array' }],
+  // the shape that already worked - it enters the sibling lane, and pins that the two now agree
+  ['member hop then index hop (already worked)',
+    'declare const o: { inner: [string, number[]] };\no.inner[1].at(0);', { ctor: 'Array' }],
+  // a homogeneous array keeps answering with its element, whatever the index
+  ['homogeneous array element',
+    'declare const s: string[];\ns[0].at(0);', { primitive: true, kind: 'string' }],
+]) {
+  checkReceiverType(`${ label } resolves through the index hop`, code, expected);
+}
+
+// the NEGATIVE that picks the canon: `arrayElementType` covers `X[]` / `Array<X>` / `ReadonlyArray<X>`
+// and nothing else. `extractElementAnnotation` would have looked like the same helper while answering
+// "element when ITERATED" - it synthesizes `[K, V]` for a Map, and `m[0]` is `undefined` at runtime,
+// so keying an index off it would narrow a receiver that has no element at all
+checkReceiverType('a Map is not indexable and must not be narrowed by index',
+  'declare const m: Map<string, number[]>;\nm[0].at(0);', null);
+checkReceiverType('a Set is not indexable and must not be narrowed by index',
+  'declare const s: Set<number[]>;\ns[0].at(0);', null);
+
+// --- an `any` implementation whose body contradicts the heads declines ---
+// TS enforces head/implementation agreement only while the implementation declares a REAL return.
+// an `any` one type-checks with its body returning another family entirely, so the CONTRACT and
+// the FACT disagree - and this lane picks the polyfill for the runtime value. take neither side:
+// a wrong family THROWS on a target engine that lacks the method, generic dispatch only degrades
+for (const [label, code] of [
+  ['body returns the argument',
+    'function f(x: string): string;\nfunction f(x: number): number[];\n'
+    + 'function f(x: any): any { return x; }\nf(1).at(0);'],
+  ['body is one literal of another family',
+    'function f(x: number): string;\nfunction f(x: string): string;\n'
+    + 'function f(x: any): any { return [1]; }\nf(1).at(0);'],
+  ['body is one literal, heads say array',
+    'function f(x: number): number[];\nfunction f(x: string): number[];\n'
+    + 'function f(x: any): any { return "s"; }\nf(1).at(0);'],
+]) {
+  checkReceiverType(`${ label } - contract vs fact`, code, null);
+}
+
+// --- explicit call-site type arguments, wherever the spelling puts them ---
+// `f<T>()` hangs the arguments on the CALL, but parenthesising the instantiation makes it the
+// CALLEE and carries them there, leaving the call slot empty - so the readers that asked only the
+// call node skipped the substitution and the return stayed generic. the boundary is narrower than
+// "wrapped": `(f)<T>()` is still a call WITH arguments and always worked; only a parenthesised
+// INSTANTIATION moved them
+for (const [label, code, expected] of [
+  ['flat', 'declare function pick<T>(): T;\npick<number[]>().at(0);', { ctor: 'Array' }],
+  ['callee parenthesised', 'declare function pick<T>(): T;\n(pick)<number[]>().at(0);', { ctor: 'Array' }],
+  ['instantiation parenthesised', 'declare function pick<T>(): T;\n(pick<number[]>)().at(0);', { ctor: 'Array' }],
+  ['both parenthesised', 'declare function pick<T>(): T;\n((pick)<number[]>)().at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } instantiation narrows the return`, code, expected);
+}
+
+// the same four spellings with a STRING argument: an assertion that only ever expects Array would
+// pass on a lane that ignores the argument altogether and answers by the receiver's own shape
+for (const [label, code] of [
+  ['flat', 'declare function pick<T>(): T;\npick<string>().at(0);'],
+  ['callee parenthesised', 'declare function pick<T>(): T;\n(pick)<string>().at(0);'],
+  ['instantiation parenthesised', 'declare function pick<T>(): T;\n(pick<string>)().at(0);'],
+  ['both parenthesised', 'declare function pick<T>(): T;\n((pick)<string>)().at(0);'],
+]) {
+  checkReceiverType(`${ label } instantiation carries a string argument`, code, { primitive: true, kind: 'string' });
+}
+
+// --- a REWRITTEN enum slot stops answering with its declared member type ---
+// `enum S { Ready = "x" }` then `(S as any).Ready = [1, 2]` left the read narrowed to string over an
+// Array value - a wrong family, and in usage-pure a throw. class statics already deopt through the
+// field-flow fold's module-wide write phase; an enum is the same kind of container but reaches no
+// class body, and the mutated-statics registry cannot answer either (in usage-pure it records only
+// KNOWN GLOBALS, which is why a gate written in its image measured dead). the same per-program write
+// index answers it, and the read DECLINES rather than folding - over-reporting only degrades
+for (const [label, code, expected] of [
+  ['a rewritten slot',
+    'enum S { Ready = "x" }\n(S as any).Ready = [1, 2];\nS.Ready.at(0);', null],
+  ['a slot rewritten inside a function',
+    'enum S { Ready = "x" }\nfunction boom() { (S as any).Ready = [1, 2]; }\nboom();\nS.Ready.at(0);', null],
+  ['a slot rewritten before its read',
+    'enum S { Ready = "x" }\nconst w = ((S as any).Ready = [1, 2]);\nS.Ready.at(0);', null],
+  // precision: the gate keys on BOTH the member name and the receiver, so neither half alone deopts
+  ['an untouched enum',
+    'enum S { Ready = "x" }\nS.Ready.at(0);', { primitive: true, kind: 'string' }],
+  ['a write to a DIFFERENT member of the same enum',
+    'enum S { Ready = "x", Other = "y" }\n(S as any).Other = [1, 2];\nS.Ready.at(0);',
+    { primitive: true, kind: 'string' }],
+  ['a write to the same member name on ANOTHER receiver',
+    'enum S { Ready = "x" }\nconst other: any = {};\nother.Ready = [1, 2];\nS.Ready.at(0);',
+    { primitive: true, kind: 'string' }],
+]) {
+  checkReceiverType(`${ label } - enum member read`, code, expected);
+}
+
+// --- a direct call of an OVERLOADED function answers from the heads ---
+// TS makes the heads the only callable signatures and the implementation uncallable, so a direct
+// call takes the first head whose parameters match. the resolver used to answer from the
+// implementation instead - and only for a CONCRETE set: an all-ambient set resolves the name to a
+// head, while `function f(a): A; function f(b): B; function f(x) {...}` resolves it to the
+// implementation, which is what skipped the overload fold. `ReturnType<typeof f>` keeps its own
+// rule (the LAST head, TS's canonical signature) and the pair below pins that they stay distinct
+// a REALISTIC overload implementation branches, so its body has no single answer and the head
+// stands. an implementation whose body has ONE knowable answer that contradicts the head is the
+// user lying through `any` - TS type-checks it, and this lane declines rather than pick a side
+const OVERLOAD_IMPL = 'function f(x: any): any { return typeof x === "string" ? x : [x]; }\n';
+for (const [label, code, expected] of [
+  ['heads discriminate on a string argument',
+    `function f(x: string): string;\nfunction f(x: number): number[];\n${ OVERLOAD_IMPL }f("a").at(0);`,
+    { primitive: true, kind: 'string' }],
+  ['heads discriminate on a number argument',
+    `function f(x: string): string;\nfunction f(x: number): number[];\n${ OVERLOAD_IMPL }f(1).at(0);`,
+    { ctor: 'Array' }],
+  ['an unknowable body leaves the head standing',
+    'declare const src: any;\nfunction f(x: string): string;\nfunction f(x: number): number[];\n'
+    + 'function f(x: any): any { return src; }\nf(1).at(0);', { ctor: 'Array' }],
+  ['a body that AGREES with the heads leaves them standing',
+    'function f(x: number): string;\nfunction f(x: string): string;\n'
+    + 'function f(x: any): any { return "ab"; }\nf(1).at(0);', { primitive: true, kind: 'string' }],
+  ['an implementation declaring a REAL return keeps the head',
+    'function f(x: number): number[];\nfunction f(x: string): number[];\n'
+    + 'function f(x: any): number[] { return [1]; }\nf(1).at(0);', { ctor: 'Array' }],
+  // controls: no heads means the implementation IS the signature, and the ambient set already worked
+  ['a head-less function answers from its own body',
+    'function f(x: any): number[] { return [1]; }\nf(1).at(0);', { ctor: 'Array' }],
+  ['an all-ambient overload set still discriminates',
+    'declare function f(x: string): string;\ndeclare function f(x: number): number[];\nf(1).at(0);',
+    { ctor: 'Array' }],
+  // the OTHER rule, unchanged: a type query over the same set takes the last head
+  ['ReturnType<typeof f> keeps taking the LAST head',
+    `function f(x: string): string;\nfunction f(x: number): number[];\n${ OVERLOAD_IMPL }`
+    + 'declare const r: ReturnType<typeof f>;\nr.at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } - overloaded direct call`, code, expected);
+}
+
+// --- a STANDALONE namespace resolves its exported function like a merged one ---
+// the merged-namespace lookup is keyed by SEGMENTS and never needed a class: it took a classPath
+// only to read a name and a scope. so `class C {} namespace C { export function make() }` resolved
+// while the identical export on a standalone `namespace NS` did not - the lane simply was not
+// reached, because a namespace receiver has no class context. the shared half is asked here once,
+// a namespace having no super chain to walk
+for (const [label, code, expected] of [
+  ['exported function',
+    'namespace NS { export function f(): number[] { return [1]; } }\nNS.f().at(0);', { ctor: 'Array' }],
+  ['exported function, string return',
+    'namespace NS { export function f(): string { return "a"; } }\nNS.f().at(0);',
+    { primitive: true, kind: 'string' }],
+  ['ambient exported function',
+    'declare namespace NS { function f(): number[]; }\nNS.f().at(0);', { ctor: 'Array' }],
+  ['overloaded namespace export discriminates',
+    'declare namespace NS { function f(x: string): string; function f(x: number): number[]; }\nNS.f(1).at(0);',
+    { ctor: 'Array' }],
+  // the shapes that already resolved - they pin that the shared half still serves its first caller
+  ['merged onto a class still resolves',
+    'class C {}\nnamespace C { export function make(): number[] { return [1]; } }\nC.make().at(0);',
+    { ctor: 'Array' }],
+  ['a namespace-local read from inside the body still resolves',
+    'namespace NS { export const v: number[] = JSON.parse("[1]");\nexport const r = v.at(0); }',
+    { ctor: 'Array' }],
+  // the VALUE half: a const export names itself on the DECLARATOR, so the declaration walk saw
+  // nothing at all for it until that walk started surfacing declarators as leaves
+  ['exported const',
+    'namespace NS { export const v: number[] = JSON.parse("[1]"); }\nNS.v.at(0);', { ctor: 'Array' }],
+  ['exported const, string',
+    'namespace NS { export const v: string = JSON.parse("\\"a\\""); }\nNS.v.at(0);',
+    { primitive: true, kind: 'string' }],
+  ['ambient exported const',
+    'declare namespace NS { const v: number[]; }\nNS.v.at(0);', { ctor: 'Array' }],
+  ['one declarator of a MULTI-declarator export',
+    'namespace NS { export const a: string = JSON.parse("\\"s\\""), v: number[] = JSON.parse("[1]"); }\nNS.v.at(0);',
+    { ctor: 'Array' }],
+  // an UNANNOTATED export declines rather than guessing: the walk carries no live path, so an
+  // initializer cannot be read here, and declining only degrades to the generic dispatch
+  ['an unannotated const export declines',
+    'namespace NS { export const v = JSON.parse("[1]"); }\nNS.v.at(0);', null],
+]) {
+  checkReceiverType(`${ label } - namespace member`, code, expected);
+}
+
+// --- a `new` hop carries its annotation like a call hop ---
+// the annotation walk had no entry for `NewExpression` at all, so a member read off an inline
+// object return died AT the `new` hop, while the identical read behind a plain call annotation
+// resolved. the entry is gated on a CONSTRUCT signature: a plain function type's declared return
+// is not the instance type - `new f()` discards a primitive return and yields the fresh object
+for (const [label, code, expected] of [
+  ['ctor type, member off an inline object return',
+    'declare const X: new (...s: string[]) => { chars: string[] };\nnew X().chars.at(0);', { ctor: 'Array' }],
+  ['ctor type without rest params',
+    'declare const X: new (s: string) => { chars: string[] };\nnew X("a").chars.at(0);', { ctor: 'Array' }],
+  ['ctor type behind an alias',
+    'type Ctor = new () => { chars: string[] };\ndeclare const X: Ctor;\nnew X().chars.at(0);', { ctor: 'Array' }],
+  ['a string member off the same shape',
+    'declare const X: new () => { tag: string };\nnew X().tag.at(0);', { primitive: true, kind: 'string' }],
+  // the shapes that already resolved, pinned so the new entry did not displace them
+  ['CONTROL a direct array return still resolves',
+    'declare const X: new (...s: string[]) => string[];\nnew X().at(0);', { ctor: 'Array' }],
+  ['CONTROL a plain CALL hop still resolves',
+    'declare const f: () => { chars: string[] };\nf().chars.at(0);', { ctor: 'Array' }],
+  ['CONTROL a declared class member still resolves',
+    'declare class X { chars: string[]; }\nnew X().chars.at(0);', { ctor: 'Array' }],
+  // the gate itself: `new` over a NON-construct annotation must not read its return as the instance
+  ['a plain function type under `new` does not answer',
+    'declare const f: () => { chars: string[] };\nnew (f as any)().chars.at(0);', null],
+]) {
+  checkReceiverType(`${ label } - construct hop`, code, expected);
+}
+
+// --- the optionality marker is SYMMETRIC, and `undefined` has one meaning however it is spelled ---
+// the queue carried "asymmetry of undefined" as never-checked. measured on both readings it does not
+// reproduce, so these pin the symmetry instead: the delta table has two directions and a drift in
+// either would show up here, as would a spelling that stops admitting undefined
+for (const [label, decl, nullish] of [
+  ['optional property', 'interface I { a?: number[] }\ndeclare const i: I;', true],
+  ['union with undefined', 'interface I { a: number[] | undefined }\ndeclare const i: I;', true],
+  ['optional AND union', 'interface I { a?: number[] | undefined }\ndeclare const i: I;', true],
+  ['plain required', 'interface I { a: number[] }\ndeclare const i: I;', false],
+  // the wrapper pair, both directions and both round trips
+  ['Partial adds it', 'interface I { a: number[] }\ndeclare const i: Partial<I>;', true],
+  ['Required removes it', 'interface I { a?: number[] }\ndeclare const i: Required<I>;', false],
+  ['Required<Partial<I>> round trip', 'interface I { a: number[] }\ndeclare const i: Required<Partial<I>>;', false],
+  ['Partial<Required<I>> round trip', 'interface I { a?: number[] }\ndeclare const i: Partial<Required<I>>;', true],
+  // the hand-written mapped spellings must agree with their wrapper twins
+  ['mapped `-?` removes it',
+    'interface I { a?: number[] }\ntype R = { [K in keyof I]-?: I[K] };\ndeclare const i: R;', false],
+  ['mapped `?` adds it',
+    'interface I { a: number[] }\ntype P = { [K in keyof I]?: I[K] };\ndeclare const i: P;', true],
+]) {
+  checkReceiverType(`${ label } - optionality marker`, `${ decl }\ni.a!.at(0);`, { ctor: 'Array', nullish });
+}
+
+// --- an optional method's VALUE marker (asymmetric today, deliberately not pinned) ---
+// `m?(): T` and `m?: () => T` are one thing to TS, but only the property spelling marks the value
+// as possibly-undefined. the property half is correct and guarded here; the method half is a known
+// gap recorded in the queue, and it is NOT asserted either way - locking the current answer would
+// pin the defect, and asserting the right one would fail
+for (const [label, decl, nullish] of [
+  ['optional function property', 'interface I { m?: () => number[] }', true],
+  ['required function property', 'interface I { m: () => number[] }', false],
+]) {
+  runBoth(`${ label } - method value marker`, `${ decl }\ndeclare const i: I;\nconst f = i.m;`,
+    (adapter, prog, lbl) => {
+      const decl2 = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'f');
+      checkType(lbl, adapter.makeResolver().resolveNodeType(decl2.get('init')),
+        { ctor: 'Function', nullish });
+    });
+}
+
+// the slot reads the marker must not disturb - these take the MARKED signature apart. (a
+// `ReturnType<NonNullable<I['m']>>` spelling is not resolved by this layer at all, with or without
+// the marker - measured, and recorded in the queue as its own pre-existing gap rather than pinned here)
+checkReceiverType('a called optional method still reads its return',
+  'interface I { m?(): number[] }\ndeclare const i: I;\ni.m!().at(0);', { ctor: 'Array' });
+checkReceiverType('an optional method reached through a destructure still reads its return',
+  'interface I { m?(): number[] }\ndeclare const i: I;\nconst { m } = i;\nm!().at(0);', { ctor: 'Array' });
+checkReceiverType('an optional method with params still reads them',
+  'interface I { m?(x: string): number[] }\ndeclare const i: I;\ni.m!("a").at(0);', { ctor: 'Array' });
+
+// --- shapes the harness can only reach because it shares the plugin's pattern neutralisation ---
+// a bodyless signature with a pattern parameter aborts `estree-toolkit`'s scope crawl; the harness
+// runs the same pass the pipeline does, so these are testable here rather than fixture-only
+for (const [label, code, expected] of [
+  ['ambient function with a rest parameter',
+    'declare function pick(...a: number[]): number[];\npick().at(0);', { ctor: 'Array' }],
+  ['overload heads with rest parameters',
+    'function pick(...a: number[]): number[];\nfunction pick(...a: any[]): any { return [1]; }\npick().at(0);',
+    { ctor: 'Array' }],
+  ['interface call signature with a rest parameter',
+    'interface P { (...a: number[]): number[] }\ndeclare const p: P;\np().at(0);', { ctor: 'Array' }],
+  ['interface construct signature with a rest parameter',
+    'interface P { new (...a: number[]): number[] }\ndeclare const C: P;\nnew C().at(0);', { ctor: 'Array' }],
+  ['declare class method with a rest parameter',
+    'declare class C { m(...a: number[]): number[]; }\ndeclare const c: C;\nc.m().at(0);', { ctor: 'Array' }],
+  ['ambient function with a destructured parameter',
+    'declare function pick([a]: number[]): number[];\npick([1]).at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } - bodyless signature`, code, expected);
+}
+
+// --- a rest slot answers its own family only for the name it binds DIRECTLY ---
+// `function f(...xs)` makes `xs` an Array whatever the call passes, but `function f(...[s])` binds
+// `s` to the FIRST ARGUMENT - answering Array there narrows a string to the wrong family, which
+// throws on a target lacking the method. five sites asked the identity question by hand; the
+// rest-PARAMETER branch was the one that forgot, so they now share one predicate
+for (const [label, code, expected] of [
+  ['the rest parameter itself is an Array',
+    'function f(...xs) { xs.at(0); }\nf("a");', { ctor: 'Array' }],
+  ['a name destructured OUT of a rest parameter is not',
+    'function f(...[s]) { s.at(0); }\nf("abc");', null],
+  ['same, second slot', 'function f(...[a, s]) { s.at(0); }\nf("x", "abc");', null],
+  ['same, object-destructured', 'function f(...{ 0: s }) { s.at(0); }\nf("abc");', null],
+  ['same, nested deeper', 'function f(...[[s]]) { s.at(0); }\nf(["abc"]);', null],
+  // the sibling shapes that already applied the identity check, pinned so the shared predicate
+  // keeps serving them
+  ['an array-pattern rest is still an Array', 'const [...r] = ["a"];\nr.at(0);', { ctor: 'Array' }],
+  ['an object rest is still an Object', 'const { ...r } = { a: 1 };\nr.at(0);', { ctor: 'Object' }],
+  ['a nested array-pattern rest is still an Array', 'const [[...r]] = [["a"]];\nr.at(0);', { ctor: 'Array' }],
+]) {
+  checkReceiverType(`${ label } - rest identity`, code, expected);
+}
+
+// --- an installed prototype means a missing own key is not statically absent ---
+// `{ __proto__: base }` can supply the key without owning it, so the destructuring default is not
+// provably dead there - taking it hands back the default's flavor over the inherited value's.
+// a spread already left this undecided for the same reason; the prototype channel did not
+for (const [label, code, expected] of [
+  ['an installed prototype leaves presence undecided',
+    'const base = { a: "abc" };\nconst { a = [1] } = { __proto__: base };\na.at(0);', null],
+  ['a plain missing key still takes the default',
+    'const { a = [1] } = {};\na.at(0);', { ctor: 'Array' }],
+  ['a present key still wins over the default',
+    'const { a = [1] } = { a: "abc" };\na.at(0);', { primitive: true, kind: 'string' }],
+  ['a spread still leaves presence undecided',
+    'declare const other: any;\nconst { a = [1] } = { ...other };\na.at(0);', null],
+]) {
+  checkReceiverType(`${ label } - static presence`, code, expected);
+}
+
+// `splice` returns the REMOVED elements, so its result is receiver-typed even though the items
+// spliced in need not be - the registry gives it `element: 'inherit'` like `slice`. its
+// copy-returning neighbours `toSpliced` / `with` substitute values of their own and stay unknown
+runBoth('registry: Array#splice inherits the receiver element type',
+  'const a = [[1], [2]];\nconst x = a.splice(0, 1)[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    checkType(lbl, resolver.resolveNodeType(decl.get('id')), { primitive: false, ctor: 'Array' });
+  });
+
+// `Reflect.ownKeys` is the one entry whose element hint is a UNION (string | symbol). the type
+// layer has no union representation, so the element must read as unknown rather than as either
+// member - picking one would rewrite a symbol key through a string helper
+runBoth('registry: Reflect.ownKeys element union resolves to no single constructor',
+  'const o = { a: 1 };\nconst x = Reflect.ownKeys(o)[0];',
+  (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator', p => p.node.id?.name === 'x');
+    const resolver = adapter.makeResolver();
+    const type = resolver.resolveNodeType(decl.get('id'));
+    checkTruthy(`${ lbl }: element stays unresolved`, !type || (!type.primitive && !type.constructor),
+      `got primitive=${ type?.primitive } ctor=${ type?.constructor }`);
+  });
+
+// `Extract`/`Exclude` ARE the conditional (`T extends U ? T : never` and its complement), so they
+// answer through the same picker. two shapes a second, weaker reading of assignability got wrong:
+// a literal target is NARROWER than the bare keyword, and a structural target's members were never
+// modelled at all
+runBoth('extract: a literal target does not swallow the bare keyword',
+  'type X = Exclude<string, "a">;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: true, kind: 'string' });
+  });
+
+runBoth('extract: a literal target still excludes its own literal',
+  'type X = Exclude<"a" | number[], "a">;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// `number[]` is NOT assignable to `Record<string, unknown>` in TS, but this layer never modelled
+// the target's members - so the member is undecidable and must sink the WHOLE result. deciding it
+// assignable dropped the array arm and left `_atMaybeString` on a runtime array
+runBoth('extract: an undecidable member sinks the whole result',
+  'type X = Exclude<number[] | string, Record<string, unknown>>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = annotatedReceiverType(adapter, prog);
+    if (resolved?.primitive || resolved?.constructor) {
+      return fail(lbl, `undecidable Exclude decided a family (${ resolved.constructor ?? resolved.type })`);
+    }
+    pass();
+  });
+
+// the decidable neighbour of the row above keeps its precision - the bail is not a blanket give-up
+runBoth('extract: a decidable target still narrows',
+  'type X = Exclude<number[] | string, string>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, annotatedReceiverType(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// class-field flow: a slot's writer set spans the whole hierarchy and both write channels, and any
+// hole in it leaves a narrow the runtime does not honour. every row below widened wrongly before,
+// each through a different half of the same contract
+const FIELD_FLOW_WIDENS = [
+  // a computed write names no slot, so it poisons every field of the surface it sits on - and that
+  // surface is inherited in BOTH directions
+  ['descendant wildcard poisons the base field',
+    'class Base { xs = [1]; }\nclass Sub extends Base { poison(k, v) { this[k] = v; } }\nconst s = new Sub();\ns.xs.at(0);'],
+  ['ancestor wildcard poisons the subclass field',
+    'class Base { poison(k, v) { this[k] = v; } }\nclass Sub extends Base { xs = [1]; }\nconst s = new Sub();\ns.xs.at(0);'],
+  ['static: ancestor wildcard poisons the subclass slot',
+    'class Base { static poison(k, v) { this[k] = v; } }\nclass Sub extends Base { static xs = [1]; }\nSub.xs.at(0);'],
+  // a static method is inherited too, so a base body runs with the SUBCLASS as `this`
+  ['static: ancestor this-write reaches the subclass slot',
+    'class Base { static poison() { this.xs = "abc"; } }\nclass Sub extends Base { static xs = [1]; }\nSub.xs.at(0);'],
+  // the slot holds its init until something overwrites it, so an init this layer cannot read is a
+  // value the fold must account for rather than drop
+  ['an unresolvable init is not dropped',
+    'class C { xs = opaque(); m() { this.xs = [1]; } }\nconst c = new C();\nc.xs.at(0);'],
+  // the module write index has to answer for the INSTANCE plane as well: a method slot is replaced
+  // through the prototype or through an instance, neither of which is a `this.` write
+  ['prototype write replaces the method',
+    'class C { m() { return [1]; } }\nC.prototype.m = () => "abc";\nconst c = new C();\nc.m().at(0);'],
+  ['instance write replaces the method',
+    'class C { m() { return [1]; } }\nconst c = new C();\nc.m = () => "abc";\nc.m().at(0);'],
+  // `Object.assign` writes its target's keys with no member expression anywhere
+  ['Object.assign into the prototype replaces the method',
+    'class C { m() { return [1]; } }\nObject.assign(C.prototype, { m: () => "abc" });\nconst c = new C();\nc.m().at(0);'],
+];
+for (const [label, source] of FIELD_FLOW_WIDENS) {
+  runBoth(`field flow: ${ label }`, source, (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the narrow survived a write it cannot account for');
+    pass();
+  });
+}
+
+// the same rows must stay PRECISE where nothing reaches the slot - the widening above is a verdict,
+// not a blanket give-up
+const FIELD_FLOW_KEEPS = [
+  ['an inert subclass leaves the base field narrow',
+    'class Base { xs = [1]; }\nclass Sub extends Base { ok() { return 1; } }\nconst s = new Sub();\ns.xs.at(0);'],
+  ['a resolvable init folds with its write',
+    'class C { xs = [2]; m() { this.xs = [1]; } }\nconst c = new C();\nc.xs.at(0);'],
+  ['an unrelated static slot stays narrow',
+    'class Base { static ok() { return 1; } }\nclass Sub extends Base { static xs = [1]; }\nSub.xs.at(0);'],
+  ['Object.assign of another key leaves the method narrow',
+    'class C { m() { return [1]; } }\nObject.assign(C.prototype, { n: () => "abc" });\nconst c = new C();\nc.m().at(0);'],
+];
+for (const [label, source] of FIELD_FLOW_KEEPS) {
+  runBoth(`field flow: ${ label }`, source, (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// `Awaited<T>` unwraps what `await` unwraps - an object with a callable `then`. a tuple has none,
+// so a tuple of promises is its own Awaited and element access answers the PROMISE. verified against
+// the compiler: `Awaited<[Promise<number[]>]>[0]` is assignable to `Promise<number[]>`
+const AWAITED_TUPLE_SHAPES = [
+  ['fixed', 'type T = Awaited<[Promise<number[]>, Promise<string>]>;'],
+  ['optional', 'type T = Awaited<[Promise<number[]>, Promise<string>?]>;'],
+  ['rest', 'type T = Awaited<[...Promise<number[]>[]]>;'],
+  ['named', 'type T = Awaited<[first: Promise<number[]>]>;'],
+];
+for (const [label, declaration] of AWAITED_TUPLE_SHAPES) {
+  runBoth(`awaited: a ${ label } tuple element stays a Promise`,
+    `${ declaration }\ndeclare const t: T;\nt[0].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'the element was peeled to its awaited inner type');
+      pass();
+    });
+}
+
+// the removal cuts the peel, not the tuple: a tuple whose elements are NOT promises resolves
+// exactly as it did, through both walkers - the AST one and the resolved-type twin
+runBoth('awaited: a promise-free tuple still resolves its element',
+  'type X = Awaited<[number[], number[]]>;\ndeclare const x: X;\nx[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('awaited: a promise OF a tuple still unwraps to the tuple',
+  'type X = Awaited<Promise<[number[], number[]]>>;\ndeclare const x: X;\nx[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// `Awaited<T>` unwraps a STRUCTURAL thenable on the same contract `await` does - verified against
+// the compiler for the interface, the class and the negative. the peel existed but answered only the
+// await lane, so the annotation form resolved to the thenable object itself
+runBoth('awaited: an interface thenable unwraps through the annotation',
+  'interface Th { then(cb: (v: number[]) => void): void }\ntype X = Awaited<Th>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('awaited: a class thenable unwraps through the annotation',
+  'declare class C { then(cb: (v: number[]) => void): void }\ntype X = Awaited<C>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// the bodyless spellings are where the two parsers diverged: babel emits `TSDeclareMethod` for both
+// `declare` and `abstract`, oxc keeps `TSAbstractMethodDefinition`. a method-shape list holding
+// neither made this class a thenable on one parser and an opaque object on the other
+runBoth('awaited: an abstract thenable method unwraps on both parsers',
+  'abstract class C { abstract then(cb: (v: number[]) => void): void }\ntype X = Awaited<C>;\ndeclare const x: X;\nx.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// and a NON-thenable stays itself - the peel must not swallow an ordinary object
+runBoth('awaited: a non-thenable interface is its own Awaited',
+  'interface Plain { rows: number[] }\ntype X = Awaited<Plain>;\ndeclare const x: X;\nx.rows.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// the union arm IS the real distribution - a conditional type distributes over a naked union - so
+// removing the tuple arm must not touch it
+runBoth('awaited: a union of promises still peels',
+  'type T = Awaited<Promise<number[]> | Promise<number[]>>;\ndeclare const t: T;\nt.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a key-remap `as` clause matches the key as TEXT. TS keeps `{ 0: T }` (number key) apart from
+// `{ '0': T }` (string key), but the pipeline stringifies both before the clause sees them - so a
+// CANONICAL numeric text is undecidable and the clause must bail. a non-canonical one is decided:
+// no number prints as `'01'` / `'1.0'` / `'1e10'`, so those are string keys, the filter below keeps
+// them, and the member's own type survives. reading them as numbers dropped the member entirely
+for (const key of ['01', '1.0', '1e10']) {
+  runBoth(`mapped as-clause: '${ key }' is a string key, so the member survives`,
+    `type Src = { '${ key }': number[] };\n`
+    + 'type M = { [K in keyof Src as K extends number ? never : K]: Src[K] };\n'
+    + `declare const m: M;\nm['${ key }'].at(0);`,
+    (adapter, prog, lbl) => {
+      checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+    });
+}
+// the canonical text keeps its accepted conflation: `{ 0: T }` and `{ '0': T }` are one key by the
+// time the clause sees them, and the bare spelling these renames are written for wins
+for (const key of ['0', '42']) {
+  runBoth(`mapped as-clause: '${ key }' still reads as a number key`,
+    `type Src = { '${ key }': number[] };\n`
+    + 'type M = { [K in keyof Src as K extends number ? never : K]: Src[K] };\n'
+    + `declare const m: M;\nm['${ key }'].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'the numeric key survived a number-key filter');
+      pass();
+    });
+}
+
+// an optional chain short-circuits through a TS wrapper the same as without one - `a?.b!.c` and
+// `(a?.b as T).c` are `undefined` whenever `a` is nullish. reading the wrapper as the end of the
+// chain reported it never-nullish, and the truthy-fold then collapsed `<chain> || "x"` to the
+// chain's own family, handing an Array-specific helper the string the runtime actually produces
+const CHAIN_WRAPPER_SHAPES = [
+  ['bare', 'a?.b.c'],
+  ['non-null assertion between hops', 'a?.b!.c'],
+  ['as-cast between hops', '(a?.b as { c: number[] }).c'],
+];
+for (const [label, chain] of CHAIN_WRAPPER_SHAPES) {
+  runBoth(`optional chain (${ label }) keeps the fold open`,
+    `declare const a: { b?: { c: number[] } };\nconst v = ${ chain } || "x";\nv.at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a short-circuiting chain folded to its own family');
+      pass();
+    });
+}
+
+// the same fold MUST still collapse when nothing can short-circuit - the bail is a verdict, not a
+// blanket give-up
+runBoth('non-optional chain still folds to its own family',
+  'declare const a: { b: { c: number[] } };\nconst v = a.b.c || "x";\nv.at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// an element write reaches the read through whatever spelling holds the array: a binding, or a
+// member chain rooted at one. the retype walk enumerated a BINDING's references and looked one hop
+// out, so a chain receiver found no binding at all and a write two accesses out read as a plain
+// property read - the element narrow then survived it and handed the array helper a string
+runBoth('element retype: a member-chain receiver sees the write',
+  'const o = { xs: [[1]] };\no.xs[0] = "abc";\no.xs[0].at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the element narrow survived a retyping write');
+    pass();
+  });
+
+runBoth('element retype: a bare binding receiver still sees the write',
+  'const arr = [[1]];\narr[0] = "abc";\narr[0].at(0);',
+  (adapter, prog, lbl) => {
+    const resolved = atReceiver(adapter, prog);
+    if (resolved?.constructor === 'Array') return fail(lbl, 'the element narrow survived a retyping write');
+    pass();
+  });
+
+// and both spellings keep their precision when nothing writes - the bail is a verdict, not a
+// blanket give-up on member chains
+runBoth('element retype: an unwritten chain keeps its narrow',
+  'const nested = [[[1]], [[2]]];\nnested[0][0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+runBoth('element retype: an unwritten binding keeps its narrow',
+  'const arr = [[1]];\narr[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// an index signature admits the keys its key TYPE spells. reading anything that is not `number` or
+// `symbol` as the permissive `string` signature answered a key the signature does not admit with its
+// value type - a member TS refuses to give the source at all
+// spliced rather than written whole: a `${` inside a plain string is a lint error, and a template
+// literal holding an escaped one is another
+const TEMPLATE_KEY_SHAPE = `{ [k: \`a$${ '{' }string}\`]: number[] }`;
+const INDEX_SIGNATURE_ROWS = [
+  ['template, key matches', TEMPLATE_KEY_SHAPE, 'abc', 'Array'],
+  ['template, key does not match', TEMPLATE_KEY_SHAPE, 'zzz', 'none'],
+  ['literal union, key in it', '{ [k: "a" | "b"]: number[] }', 'a', 'Array'],
+  ['literal union, key outside it', '{ [k: "a" | "b"]: number[] }', 'c', 'none'],
+  // the plain keywords keep answering exactly as before
+  ['bare string signature', '{ [k: string]: number[] }', 'zzz', 'Array'],
+  ['bare number signature, string key', '{ [k: number]: number[] }', 'zzz', 'none'],
+];
+for (const [label, shape, key, want] of INDEX_SIGNATURE_ROWS) {
+  runBoth(`index signature: ${ label }`, `type T = ${ shape };\ndeclare const o: T;\no["${ key }"].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (want === 'Array') return checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a key the signature does not admit resolved to its value type');
+      return pass();
+    });
+}
+
+// an unresolvable computed key may be any kind at runtime, and only the STRING signature receives an
+// arbitrary one - TS converts a numeric key to a string, while a number-only or symbol-only shape
+// has no member for a plain string key at all. folding the survivors of a partial set answered with
+// a family the access may never produce
+const DYNAMIC_KEY_ROWS = [
+  ['number-only signature', '{ [k: number]: number[] }', 'none'],
+  ['symbol-only signature', '{ [k: symbol]: number[] }', 'none'],
+  ['string signature alone', '{ [k: string]: number[] }', 'Array'],
+  ['string beside number', '{ [k: number]: number[]; [k: string]: number[] }', 'Array'],
+];
+for (const [label, shape, want] of DYNAMIC_KEY_ROWS) {
+  runBoth(`dynamic key: ${ label }`,
+    `type T = ${ shape };\ndeclare const o: T;\ndeclare const k: any;\no[k].at(0);`,
+    (adapter, prog, lbl) => {
+      const resolved = atReceiver(adapter, prog);
+      if (want === 'Array') return checkType(lbl, resolved, { primitive: false, ctor: 'Array' });
+      if (resolved?.constructor === 'Array') return fail(lbl, 'a partial signature set answered a dynamic key');
+      return pass();
+    });
+}
+
+// a STATIC numeric key still reads the number signature - the bail is about the unresolvable key
+runBoth('dynamic key: a static numeric key still reads the number signature',
+  'type T = { [k: number]: number[] };\ndeclare const o: T;\no[0].at(0);',
+  (adapter, prog, lbl) => {
+    checkType(lbl, atReceiver(adapter, prog), { primitive: false, ctor: 'Array' });
+  });
+
+// a computed key that names a static member IS that member access: `const k = 'a'; o[k]` and
+// `o['a']` differ only in spelling. the annotation walker read the key off the node instead of
+// through the canonical resolver, so the const-bound spelling fell into the index-signature arm and
+// every hop past it lost its annotation
+const COMPUTED_KEY_ROWS = [
+  ['literal key', "declare const o: { a: { xs: number[] }, b: { xs: string } };\no['a'].xs.includes(1);", 'Array'],
+  ['const-bound key', "const k = 'a';\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'Array'],
+  ['let never reassigned', "let k = 'a';\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'Array'],
+  // and the resolver still tracks WHICH value the key holds - the reassigned spellings answer from
+  // the key they actually carry, not from the one they were declared with
+  ['let reassigned to another key', "let k = 'a';\nk = 'b';\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'String'],
+  ['let reassigned dynamically', "declare const src: string;\nlet k = 'a';\nk = src;\ndeclare const o: { a: { xs: number[] }, b: { xs: string } };\no[k].xs.includes(1);", 'none'],
+];
+for (const [label, source, want] of COMPUTED_KEY_ROWS) {
+  runBoth(`computed key: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (want === 'none') {
+      if (type?.constructor || type?.primitive) return fail(lbl, `a dynamic key resolved to ${ type.constructor ?? type.type }`);
+      return pass();
+    }
+    if (want === 'Array') return checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    return checkType(lbl, type, { primitive: true, kind: 'string' });
+  });
+}
+
+// a chained generic alias carries the outer binding into the inner hop, and the prior-hop param can
+// sit ANYWHERE in the argument - not only as the whole node. testing the argument's own name matched
+// a bare reference and dropped the binding for every nested occurrence
+const CHAINED_ALIAS_ROWS = [
+  ['bare reference', 'type B<U> = { v: U };\ntype A<T> = B<T>;\ndeclare const x: A<number[]>;\nx.v.includes(1);'],
+  ['array shorthand', 'type B<U> = { v: U };\ntype A<T> = B<T[]>;\ndeclare const x: A<number>;\nx.v.includes(1);'],
+  ['generic argument', 'type B<U> = { v: U };\ntype A<T> = B<Array<T>>;\ndeclare const x: A<number>;\nx.v.includes(1);'],
+  ['nested in an object literal', 'type B<U> = { v: U };\ntype A<T> = B<{ w: T }>;\ndeclare const x: A<number[]>;\nx.v.w.includes(1);'],
+];
+for (const [label, source] of CHAINED_ALIAS_ROWS) {
+  runBoth(`chained alias: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    checkType(lbl, adapter.makeResolver().resolveNodeType(member.get('object')), { primitive: false, ctor: 'Array' });
+  });
+}
+
+// the promise combinators resolve to what their ARGUMENTS hold, which the registry hint cannot say -
+// it describes the method, not the call. `all` wraps the folded element type in an array, `race` and
+// `any` yield it directly, and a disagreement between elements leaves no inner at all
+const PROMISE_COMBINATOR_ROWS = [
+  ['all, awaited then indexed', 'async function f() {\n  const t = await Promise.all([Promise.resolve([1]), Promise.resolve([2])]);\n  return t[0].includes(1);\n}', 'Array'],
+  ['all, destructured', 'async function f() {\n  const [a] = await Promise.all([Promise.resolve([1])]);\n  return a.includes(1);\n}', 'Array'],
+  ['race yields the element itself', 'async function f() {\n  const v = await Promise.race([Promise.resolve([1]), Promise.resolve([2])]);\n  return v.includes(1);\n}', 'Array'],
+  ['any yields the element itself', 'async function f() {\n  const v = await Promise.any([Promise.resolve([1])]);\n  return v.includes(1);\n}', 'Array'],
+  // a plain (non-promise) element is its own awaited value
+  ['plain elements', 'async function f() {\n  const t = await Promise.all([[1], [2]]);\n  return t[0].includes(1);\n}', 'Array'],
+  // and the disagreements degrade rather than pick one arm
+  ['mixed families', 'async function f() {\n  const t = await Promise.all([Promise.resolve([1]), Promise.resolve("s")]);\n  return t[0].includes(1);\n}', 'none'],
+  ['a spread element is unreadable',
+    'declare const rest: Promise<number[]>[];\n'
+    + 'async function f() {\n  const t = await Promise.all([...rest]);\n  return t[0].includes(1);\n}', 'none'],
+];
+for (const [label, source, want] of PROMISE_COMBINATOR_ROWS) {
+  runBoth(`promise combinator: ${ label }`, source, (adapter, prog, lbl) => {
+    const member = adapter.pickPath(prog, 'MemberExpression', p => p.node.property?.name === 'includes');
+    const type = adapter.makeResolver().resolveNodeType(member.get('object'));
+    if (want === 'Array') return checkType(lbl, type, { primitive: false, ctor: 'Array' });
+    if (type?.constructor === 'Array') return fail(lbl, 'an unreadable argument list still narrowed');
+    return pass();
+  });
+}
+
+// --- call sites of the predicates the cycle changed ---
+// isMethodMember decides the scan roots of the class-field write flow: a bodyless member
+// must neither become a root nor hide the writes the concrete members carry.
+// the poisoning write assigns a foreign family to an inferred field, which valid TS forbids
+// (TS2322) - the shape belongs to untyped JS, and the contract is that the resolver stays
+// conservative on it rather than trusting the initializer
+const SCAN_ROOT_ROWS = [
+  ['abstract member beside a this-write',
+    'abstract class C { abstract q(): void; xs = [1]; poison() { this.xs = "abc"; } }\n'
+    + 'class D extends C { q() {} }\nconst d = new D();\nd.xs.at(0);', 'drop'],
+  ['same class without the abstract member',
+    'class C { xs = [1]; poison() { this.xs = "abc"; } }\nconst c = new C();\nc.xs.at(0);', 'drop'],
+  ['abstract member, no write - narrow survives',
+    'abstract class C { abstract q(): void; xs = [1]; }\nclass D extends C { q() {} }\n'
+    + 'const d = new D();\nd.xs.at(0);', 'Array'],
+  ['overload signatures beside a this-write',
+    'class C { xs = [1]; m(a: number): void; m(a: string): void; m(a: any) { this.xs = "abc"; } }\n'
+    + 'const c = new C();\nc.xs.at(0);', 'drop'],
+];
+// memberWriteReceiverPath roots the write in the same fold, whether the receiver is reached
+// through the class body or through a binding handed to Object.assign
+const SCAN_ROOT_ROWS_ASSIGN = [
+  ['assign into an instance binding', 'class C { xs = [1]; }\nconst c = new C();\nObject.assign(c, { xs: "abc" });\nc.xs.at(0);', 'drop'],
+  ['assign into an unrelated binding', 'class C { xs = [1]; }\nconst c = new C();\nconst other = {};\nObject.assign(other, { xs: "abc" });\nc.xs.at(0);', 'Array'],
+];
+for (const [label, source, want] of [...SCAN_ROOT_ROWS, ...SCAN_ROOT_ROWS_ASSIGN]) {
+  runBoth(`class-field write flow: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// isNumericKeyShape gates BOTH arms of a mapped-type `as` clause; the string arm is the one
+// a numeric-looking key reaches, and a canonical numeric spelling stays unresolved there
+const MAPPED_AS_STRING_ARM = 'type M = { [K in keyof Src as K extends string ? K : never]: Src[K] };\ndeclare const m: M;\n';
+const MAPPED_AS_STRING_ARM_ROWS = [
+  ['non-canonical numeric key resolves', "type Src = { '01': number[] };\n", "m['01'].at(0);", 'Array'],
+  ['canonical numeric key bails', "type Src = { '0': number[] };\n", "m['0'].at(0);", 'drop'],
+  ['plain string key resolves', 'type Src = { a: number[] };\n', 'm.a.at(0);', 'Array'],
+];
+for (const [label, src, use, want] of MAPPED_AS_STRING_ARM_ROWS) {
+  runBoth(`mapped-type as clause, string arm: ${ label }`, `${ src }${ MAPPED_AS_STRING_ARM }${ use }`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// an extends side whose arguments are all written as a TOP keyword constrains no inner, exactly
+// like the bare `Array` shorthand - `Extract<T, any[]>` must decide, not sink as undecidable.
+// every expectation below is the type real tsc computes for the same expression
+const TOP_ARGUMENT_EXTENDS_ROWS = [
+  ['any[] target', 'type R = Extract<number[] | string, any[]>;', 'Array'],
+  ['unknown[] target', 'type R = Extract<number[] | string, unknown[]>;', 'Array'],
+  ['readonly unknown[] target', 'type R = Extract<number[] | string, readonly unknown[]>;', 'Array'],
+  ['Array<any> target', 'type R = Extract<number[] | string, Array<any>>;', 'Array'],
+  ['tuple check against any[]', 'type R = Extract<[number, string] | boolean, any[]>;', 'Array'],
+  // a UNION target distributes arm by arm; it is never resolved as a whole, which this layer
+  // could only answer with null - and a guard on that answer sank every union target
+  ['union target, two arms', 'type R = Exclude<number[] | string | symbol, string | symbol>;', 'Array'],
+  ['union target, three arms', 'type R = Exclude<number[] | string | symbol | boolean, string | symbol | boolean>;', 'Array'],
+  ['union target mixing top and primitive', 'type R = Extract<number[] | string, any[] | symbol>;', 'Array'],
+  ['union target behind an alias', 'type X = string | symbol;\ntype R = Exclude<number[] | string | symbol, X>;', 'Array'],
+  // again input tsc rejects (TS2304): the lock is that an unresolvable arm sinks the whole answer
+  ['union target with an unresolvable arm (tsc rejects)', 'type R = Exclude<number[] | string, string | Nowhere>;', 'drop'],
+  ['unresolvable target (tsc rejects)', 'type R = Extract<number[] | string, Nowhere>;', 'drop'],
+  ['structural target this layer never modelled', 'type R = Extract<number[] | string, { length: number }>;', 'drop'],
+  // the negatives: a target that is NOT all-top keeps its concrete comparison. each resolves to
+  // `never`, and TS forbids a property access on `never` - so the source is one tsc rejects, and
+  // what the row locks is that an uninhabited receiver gets no family-specific helper
+  ['concrete element target', 'type R = Extract<number[] | string, Array<string>>;', 'drop'],
+  ['object element is not a top', 'type R = Extract<number[] | string, Array<object>>;', 'drop'],
+  ['foreign container with top arguments', 'type R = Extract<number[] | string, Map<any, any>>;', 'drop'],
+  ['concrete readonly target', 'type R = Extract<number[] | string, readonly string[]>;', 'drop'],
+];
+for (const [label, decl, want] of TOP_ARGUMENT_EXTENDS_ROWS) {
+  runBoth(`top-argument extends: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// the same predicate answers for the other three conditional-branch sites, each with the
+// concrete-argument negative that must NOT decide. those negatives resolve to `never`, whose
+// property access tsc rejects - the row asks only that no branch types the receiver
+const TOP_ARGUMENT_SITE_ROWS = [
+  ['plain conditional type', 'type P<T> = T extends any[] ? T : never;\ntype R = P<number[]>;', 'Array'],
+  ['plain conditional type, concrete argument', 'type P<T> = T extends Array<string> ? T : never;\ntype R = P<number[]>;', 'drop'],
+  ['conditional type member', 'interface Box<T> { v: T extends readonly unknown[] ? T : string }\ntype R = Box<number[]>["v"];', 'Array'],
+  ['conditional type member, concrete argument', 'interface Box<T> { v: T extends Array<string> ? T : string }\ntype R = Box<number[]>["v"];', 'drop'],
+  ['conditional under Awaited', 'type U<T> = T extends Array<any> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'Array'],
+  ['conditional under Awaited, concrete argument', 'type U<T> = T extends Array<string> ? T : never;\ntype R = Awaited<Promise<U<number[]>>>;', 'drop'],
+];
+for (const [label, decl, want] of TOP_ARGUMENT_SITE_ROWS) {
+  runBoth(`top-argument extends at site: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// a union CALLEE is one value with several signatures: convergent arms keep the narrow, divergent
+// ones degrade, and the two lanes that read a signature - the call itself and `ReturnType<typeof f>`
+// - have to answer alike
+const UNION_CALLEE_ROWS = [
+  ['direct call, convergent arms', 'declare const f: (() => number[]) | (() => number[]);\nf().at(0);', 'Array'],
+  ['direct call, divergent arms', 'declare const f: (() => number[]) | (() => string);\nf().at(0);', 'drop'],
+  ['direct call, nullish arm drops out', 'declare const f: (() => number[]) | undefined;\nf!().at(0);', 'Array'],
+  ['union behind an alias', 'type F = (() => number[]) | (() => number[]);\ndeclare const f: F;\nf().at(0);', 'Array'],
+  ['single signature control', 'declare const f: () => number[];\nf().at(0);', 'Array'],
+  ['ReturnType over the union', 'declare const f: (() => number[]) | (() => number[]);\ndeclare const r: ReturnType<typeof f>;\nr.at(0);', 'Array'],
+  ['ReturnType over divergent arms', 'declare const f: (() => number[]) | (() => string);\ndeclare const r: ReturnType<typeof f>;\nr.at(0);', 'drop'],
+  ['callable object types', 'declare const f: { (): number[] } | { (): number[] };\nf().at(0);', 'Array'],
+  // `new` on a union whose second arm is call-only is TS2351 - the lock is that the two signature
+  // kinds never cross-resolve even when the source is one tsc rejects
+  ['construct signatures stay apart (tsc rejects)', 'declare const C: { new (): number[] } | { (): string };\nnew C().at(0);', 'drop'],
+];
+for (const [label, source, want] of UNION_CALLEE_ROWS) {
+  runBoth(`union callee: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// an indexed access distributes over a union OBJECT the way it already did over a union INDEX -
+// `(A | B)[K]` is `A[K] | B[K]`. a self `keyof` index travels with its arm, which widens the key
+// set to that arm's own: a superset of the union's shared keys, so the fold degrades rather than
+// over-resolves. every expectation is the type real tsc computes
+const UNION_INDEXED_ACCESS_ROWS = [
+  ['literal key', 'type S = { v: number[] } | { v: number[] };\ntype R = S["v"];', 'Array'],
+  ['union without an alias', 'type R = ({ v: number[] } | { v: number[] })["v"];', 'Array'],
+  ['string index signature', 'type S = { [k: string]: number[] } | { [k: string]: number[] };\ntype R = S[string];', 'Array'],
+  ['numeric index', 'type S = number[][] | number[][];\ntype R = S[number];', 'Array'],
+  ['union object and union index', 'type S = { a: number[]; b: number[] } | { a: number[]; b: number[] };\ntype R = S["a" | "b"];', 'Array'],
+  ['self keyof', 'type S = { v: number[] } | { v: number[] };\ntype R = S[keyof S];', 'Array'],
+  ['self keyof, arms carry extra keys', 'type S = { v: number[]; x: number[] } | { v: number[]; y: number[] };\ntype R = S[keyof S];', 'Array'],
+  ['divergent arms', 'type S = { v: number[] } | { v: string };\ntype R = S["v"];', 'drop'],
+  // the two below are input real tsc REJECTS (TS2339 on the missing key, TS2304 on the undeclared
+  // name). the plugin never typechecks what it is given, so what they lock is the other half of the
+  // contract: malformed input degrades to the generic helper instead of resolving to some arm
+  ['an arm missing the key (tsc rejects the source)', 'type S = { v: number[] } | { w: number };\ntype R = S["v"];', 'drop'],
+  ['an unresolvable arm (tsc rejects the source)', 'type S = { v: number[] } | Nowhere;\ntype R = S["v"];', 'drop'],
+  // tsc says number[] here; the arm superset drags in a foreign family, so this degrades - an
+  // under-resolve, and the safe direction for usage-pure
+  ['self keyof, extra key of another family', 'type S = { v: number[]; x: string } | { v: number[] };\ntype R = S[keyof S];', 'drop'],
+];
+for (const [label, decl, want] of UNION_INDEXED_ACCESS_ROWS) {
+  runBoth(`union indexed access: ${ label }`, `${ decl }\ndeclare const r: R;\nr.at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+// the utilities lib.d.ts writes as a naked conditional distribute over a union argument, whether
+// the result is read directly or indexed into - and a same-named user declaration outranks all of it
+const DISTRIBUTIVE_UTILITY_ROWS = [
+  ['Parameters over a union', 'type R = Parameters<((a: number[]) => void) | ((a: number[]) => void)>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['Parameters, single signature', 'type R = Parameters<(a: number[]) => void>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['ConstructorParameters over a union', 'declare class K { constructor(a: number[]) }\n'
+    + 'type R = ConstructorParameters<typeof K | typeof K>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['InstanceType over a union, indexed', 'declare class K { v: number[] }\ntype R = InstanceType<typeof K | typeof K>["v"];\ndeclare const r: R;\nr.at(0);', 'Array'],
+  ['Parameters over a union, indexed', 'declare function g(a: number[]): void;\ntype R = Parameters<typeof g | typeof g>[0];\ndeclare const r: R;\nr.at(0);', 'Array'],
+  // `export {}` makes the source a MODULE, which is the only scope where a local name SHADOWS the
+  // global utility - in a script it collides with it instead (TS2300) and the row would be asking
+  // its question of input TypeScript rejects
+  ['a user alias of the same name wins', 'export {};\ntype Parameters<T> = string;\n'
+    + 'type R = Parameters<((a: number[]) => void) | ((a: number[]) => void)>;\n'
+    + 'declare const r: R;\n(r as any).at(0);', 'drop'],
+  ['a user alias wins AND supplies the type', 'export {};\ntype ConstructorParameters<T> = number[];\n'
+    + 'declare class K { constructor(a: string) }\n'
+    + 'type R = ConstructorParameters<typeof K | typeof K>;\ndeclare const r: R;\nr.at(0);', 'Array'],
+  // a structure-preserving wrapper is NOT distributive: `Pick<A | B, K>` is one mapped type over
+  // the whole union, so it must keep answering through its own resolver
+  ['Pick over a union still resolves', 'type R = Pick<{ v: number[] } | { v: number[] }, "v">["v"];\ndeclare const r: R;\nr.at(0);', 'Array'],
+];
+for (const [label, source, want] of DISTRIBUTIVE_UTILITY_ROWS) {
+  runBoth(`distributive utility: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// a NAKED type parameter makes a conditional distributive, and distributing over `never` yields
+// `never` - no branch runs, so no branch may type the receiver. every expectation is real tsc's
+const NEVER_DISTRIBUTION_ROWS = [
+  ['naked parameter instantiated with never', 'type C<T> = T extends string ? number[] : string;\ntype R = C<never>;', 'drop'],
+  ['naked parameter, ordinary argument', 'type C<T> = T extends string ? number[] : string;\ntype R = C<string>;', 'Array'],
+  ['naked parameter, argument misses the branch', 'type C<T> = T extends string ? number[] : string;\ntype R = C<number>;', 'drop'],
+  // the non-distributive spellings keep their old answers: only the naked one distributes
+  ['never written directly in the check', 'type R = never extends string ? number[] : string;', 'Array'],
+  ['parameter wrapped in a tuple', 'type C<T> = [T] extends [string] ? number[] : string;\ntype R = C<never>;', 'drop'],
+  ['never as a union member, not the whole argument', 'type C<T> = T extends string ? number[] : boolean;\ntype R = C<never | number[]>;', 'drop'],
+];
+for (const [label, decl, want] of NEVER_DISTRIBUTION_ROWS) {
+  runBoth(`never distribution: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// `Parameters` / `ConstructorParameters` read an INLINE signature's parameter list as readily as a
+// `typeof` query's - the indirection was never what the utility needs. every expectation is tsc's
+const INLINE_SIGNATURE_PARAMS_ROWS = [
+  ['inline signature, first parameter', 'type R = Parameters<(a: number[]) => void>[0];', 'Array'],
+  ['inline signature, later parameter', 'type R = Parameters<(a: string, b: number[]) => void>[1];', 'Array'],
+  ['union of inline signatures', 'type R = Parameters<((a: number[]) => void) | ((a: number[]) => void)>[0];', 'Array'],
+  ['typeof query keeps working', 'declare function g(a: number[]): void;\ntype R = Parameters<typeof g>[0];', 'Array'],
+  // an ALIAS to a signature is that signature, and a GENERIC alias carries its binding into the
+  // parameter's own annotation - the list elements are parameter nodes, so a subst handed the node
+  // leaves the free type param sitting inside it
+  ['alias to a signature', 'type F = (a: number[]) => void;\ntype R = Parameters<F>[0];', 'Array'],
+  ['chain of aliases', 'type F = (a: number[]) => void;\ntype G = F;\ntype R = Parameters<G>[0];', 'Array'],
+  ['generic alias, bound argument', 'type F<T> = (a: T) => void;\ntype R = Parameters<F<number[]>>[0];', 'Array'],
+  ['generic alias, later parameter', 'type F<T> = (a: string, b: T) => void;\ntype R = Parameters<F<number[]>>[1];', 'Array'],
+  ['generic alias, foreign argument', 'type F<T> = (a: T) => void;\ntype R = Parameters<F<string>>[0];', 'drop'],
+  ['generic construct alias', 'type C<T> = new (a: T) => object;\ntype R = ConstructorParameters<C<number[]>>[0];', 'Array'],
+  ['crossed kind through an alias', 'type C = new (a: number[]) => object;\ntype R = Parameters<C>[0];', 'drop'],
+  // `ThisParameterType` is the same reader over the `this` slot, and it understood only the
+  // `typeof` spelling too - the two must not disagree about which forms they accept
+  ['this slot, inline signature', 'type R = ThisParameterType<(this: number[], a: string) => void>;', 'Array'],
+  ['this slot through an alias', 'type F = (this: number[], a: string) => void;\ntype R = ThisParameterType<F>;', 'Array'],
+  ['this slot, generic alias', 'type F<T> = (this: T, a: string) => void;\ntype R = ThisParameterType<F<number[]>>;', 'Array'],
+  ['this slot, foreign argument', 'type F<T> = (this: T, a: string) => void;\ntype R = ThisParameterType<F<string>>;', 'drop'],
+  ['no this slot at all', 'type F = (a: number[]) => void;\ntype R = ThisParameterType<F>;', 'drop'],
+  ['ConstructorParameters, inline construct signature', 'type R = ConstructorParameters<new (a: number[]) => object>[0];', 'Array'],
+  // each name takes only the signature kind it is defined over - a crossed spelling is one tsc
+  // rejects, and it must stay unresolved rather than answer off the wrong shape
+  ['Parameters over a construct signature stays unresolved', 'type R = Parameters<new (a: number[]) => object>[0];', 'drop'],
+  ['ConstructorParameters over a call signature stays unresolved', 'type R = ConstructorParameters<(a: number[]) => void>[0];', 'drop'],
+];
+for (const [label, decl, want] of INLINE_SIGNATURE_PARAMS_ROWS) {
+  runBoth(`inline signature parameters: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// a SURVIVING nullish arm of an Extract / Exclude source marks the result instead of sinking it -
+// the same contract the value-union fold applies. expectations are tsc's
+const EXTRACT_NULLISH_ARM_ROWS = [
+  ['Exclude keeps an array beside a null arm', 'type R = Exclude<number[] | null | string, string>;', 'Array'],
+  ['Extract keeps an array beside an undefined arm', 'type R = Extract<number[] | undefined, readonly unknown[] | undefined>;', 'Array'],
+  ['a nullish arm alone still resolves to no container', 'type R = Exclude<null | undefined, string>;', 'drop'],
+  ['a divergent real arm still sinks it', 'type R = Exclude<number[] | null | string, symbol>;', 'drop'],
+];
+for (const [label, decl, want] of EXTRACT_NULLISH_ARM_ROWS) {
+  runBoth(`extract nullish arm: ${ label }`, `${ decl }\ndeclare const r: R;\n(r as any).at(0);`,
+    want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
+
+// what a call SETTLES to often lives in the call, not in the method - the data says so with the
+// `argument` directives, and the resolver reads them off the hint rather than off a name list.
+// `Promise.all` and `Array.fromAsync` carry the identical hint, which is what a name-keyed
+// registry used to hide: only the listed names got the inference
+const ARGUMENT_DIRECTIVE_ROWS = [
+  ['argument: the awaited value itself', 'async function f() { const r = await Promise.resolve([1]); r.at(0); }', 'Array'],
+  ['argument-element: race', 'async function f() { const r = await Promise.race([Promise.resolve([1])]); r.at(0); }', 'Array'],
+  ['argument-element: any', 'async function f() { const r = await Promise.any([Promise.resolve([1])]); r.at(0); }', 'Array'],
+  ['argument-element under Array: all', 'async function f() { const r = (await Promise.all([[1], [2]]))[0]; r.at(0); }', 'Array'],
+  ['argument-element under Array: fromAsync', 'async function f() { const r = (await Array.fromAsync([[1], [2]]))[0]; r.at(0); }', 'Array'],
+  ['argument-return: Promise.try', 'async function f() { const r = await Promise.try(() => [1]); r.at(0); }', 'Array'],
+  ['argument-return: then', 'async function f() { const r = await Promise.resolve(0).then(() => [1]); r.at(0); }', 'Array'],
+  ['argument-return keeps extra data args', 'async function f() { const r = await Promise.try((a: number) => [a], 1); r.at(0); }', 'Array'],
+  // the bails: one hint cannot carry two resolutions, and nothing may be guessed about an
+  // argument the reader cannot see
+  ['a second callback opens a second resolution', 'async function f() { const r = await Promise.resolve(0).then(() => [1], () => "s"); r.at(0); }', 'drop'],
+  ['elements of different families', 'async function f() { const r = (await Promise.all([[1], "s"]))[0]; r.at(0); }', 'drop'],
+  ['a spread hides the elements', 'async function f() { declare const xs: number[][]; const r = (await Promise.all([...xs]))[0]; r.at(0); }', 'drop'],
+  // both peels go through the canons the file already had: awaiting settles ALL the way down, and
+  // a LITERAL spread still names its arguments - only a spread whose source is opaque does not
+  ['nested promises settle to the innermost', 'async function f() { const r = await Promise.resolve(Promise.resolve([1])); r.at(0); }', 'Array'],
+  ['three layers deep', 'async function f() { const r = await Promise.resolve(Promise.resolve(Promise.resolve([1]))); r.at(0); }', 'Array'],
+  ['a literal spread still names the argument', 'async function f() { const r = await Promise.resolve(...[[1]]); r.at(0); }', 'Array'],
+  ['a literal spread of the iterable', 'async function f() { const r = (await Promise.all(...[[[1], [2]]]))[0]; r.at(0); }', 'Array'],
+  ['an opaque spread stays undecidable', 'async function f() { declare const xs: any[]; const r = await Promise.resolve(...xs); (r as any).at(0); }', 'drop'],
+  // a callback slot may NAME its function instead of writing it, and BOTH slots are read the same
+  // way - reading only literals in the second one let `then(onFulfilled, onRejected)` answer off
+  // the first of two resolution paths
+  ['a named callback', 'function mk() { return [1]; }\nasync function f() { const r = await Promise.try(mk); r.at(0); }', 'Array'],
+  ['an arrow bound to a name', 'const mk = () => [1];\nasync function f() { const r = await Promise.try(mk); r.at(0); }', 'Array'],
+  ['then with a named callback', 'function mk() { return [1]; }\nasync function f() { const r = await Promise.resolve(0).then(mk); r.at(0); }', 'Array'],
+  ['a NAMED second callback still bails', 'function a() { return [1]; }\nfunction b() { return "s"; }\n'
+    + 'async function f() { const r = await Promise.resolve(0).then(a, b); (r as any).at(0); }', 'drop'],
+  ['a named arrow as the second callback bails', 'const b = () => "s";\nasync function f() { const r = await Promise.resolve(0).then(() => [1], b); (r as any).at(0); }', 'drop'],
+  ['data in the later slot changes nothing', 'function mk(a: number) { return [a]; }\nasync function f() { const r = await Promise.try(mk, 1); r.at(0); }', 'Array'],
+  ['a slot holding no function at all', 'const notFn = 42;\nasync function f() { const r = await Promise.try(notFn as any); (r as any).at(0); }', 'drop'],
+  // a TS wrapper hides either shape, so the slot reader has to look through one - and only a
+  // REFERENCE is worth following at all, which is what keeps the guard off every data argument
+  ['an inline callback under a TS wrapper', 'async function f() { const r = await Promise.try((() => [1]) as any); r.at(0); }', 'Array'],
+  ['a named callback under a TS wrapper', 'const mk = () => [1];\nasync function f() { const r = await Promise.try(mk!); r.at(0); }', 'Array'],
+  // the callback's return is the answer, so an UNCERTAIN return is no answer: divergent branches,
+  // no return at all, a throw, a generator - each leaves the container bare
+  ['two returns of one family', 'async function f() { const r = await Promise.try(() => { if (Math.random()) return [1]; return [2]; }); r.at(0); }', 'Array'],
+  ['divergent branches', 'async function f() { const r = await Promise.try(() => Math.random() > 0.5 ? [1] : "s" as any); (r as any).at(0); }', 'drop'],
+  ['no return at all', 'async function f() { const r = await Promise.try(() => {}); (r as any).at(0); }', 'drop'],
+  ['a throwing callback', 'async function f() { const r = await Promise.try(() => { throw new Error(); }); (r as any).at(0); }', 'drop'],
+  // and the mutation guards still speak: a mutated static or a reassigned callback binding
+  // declines the narrow, which usage-global shows by keeping BOTH families injected
+  ['a reassigned callback binding', 'let mk = () => [1];\nmk = () => "s" as any;\nasync function f() { const r = await Promise.try(mk); (r as any).at(0); }', 'drop'],
+  ['a non-literal iterable', 'async function f() { declare const xs: number[][]; const r = (await Promise.all(xs))[0]; r.at(0); }', 'drop'],
+  // deliberately undeclared: a rejection is not a resolution, `catch` settles two ways, and the
+  // settled wrappers are not the awaited elements
+  ['reject carries no directive', 'async function f() { const r = await Promise.reject([1]); (r as any).at(0); }', 'drop'],
+  ['catch carries no directive', 'async function f() { const r = await Promise.resolve([1]).catch(() => [2]); (r as any).at(0); }', 'drop'],
+];
+for (const [label, source, want] of ARGUMENT_DIRECTIVE_ROWS) {
+  runBoth(`argument directive: ${ label }`, source, want === 'Array' ? arrayAtReceiver : dropAtReceiver);
+}
 
 finish();

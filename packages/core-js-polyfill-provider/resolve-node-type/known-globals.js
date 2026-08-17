@@ -23,10 +23,12 @@
 //   resolveKnownPropertyReturnType(path)
 //   resolveGlobalStaticReference(path)
 //   resolveKnownGlobalReference(path)
-//   inferPromiseResolveReturnType(callPath)   - `Promise.resolve(x)` arg-based inner peel
 import { PRIMITIVES, PRIMITIVE_WRAPPERS, PROMISE_SYNONYMS, $Object, $Primitive, callArgumentPaths } from './base.js';
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
-import { getTypeArgs, TS_EXPR_WRAPPERS } from '../helpers/ast-patterns.js';
+import {
+  FUNCTION_LIKE_NODE_TYPES, getTypeArgs, resolveCallArgumentCoords, TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+} from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -54,14 +56,22 @@ export function createKnownGlobals({
   KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
   KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
   KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+  commonType,
+  resolveReturnType,
+  resolveRuntimeExpression,
 }) {
   // decode a return-type hint. object form: `type` is itself a string hint, optional
   // `element` / `resolved` inner hint, optional `nullable` - the spec return admits
   // undefined / null (`find` / `at` / `pop` / `exec` / ...), so the decoded type is
   // marked and the logical truthy-fold will not collapse on it
-  function typeFromHint(hint, objectType) {
+  function typeFromHint(hint, objectType, callPath) {
+    // a union hint (`Reflect.ownKeys` -> string | symbol) has no Type representation here;
+    // decoding it as unknown keeps the container's element unresolved rather than picking a
+    // member. the escape analysis reads the union off the registry instead
+    if (Array.isArray(hint)) return null;
     if (typeof hint === 'string') {
       if (hint === 'element' || hint === 'inherit') return resolveInnerType(objectType);
+      if (ARGUMENT_DIRECTIVES.has(hint)) return resolveArgumentDirective(hint, callPath);
       if (PRIMITIVES.has(hint)) return new $Primitive(hint);
       return new $Object(hint);
     }
@@ -72,7 +82,9 @@ export function createKnownGlobals({
       base = new $Primitive(hint.type);
     } else {
       const innerHint = hint.element ?? hint.resolved ?? null;
-      const inner = innerHint ? typeFromHint(innerHint, objectType) : null;
+      const inner = innerHint ? typeFromHint(innerHint, objectType, callPath) : null;
+      // an argument directive that could not be read leaves the container bare, which is the
+      // declared answer minus the precision - never a guess about what the call was given
       base = new $Object(hint.type, inner);
     }
     return hint.nullable && base ? base.mark('mayBeNullish') : base;
@@ -153,7 +165,7 @@ export function createKnownGlobals({
 
   // resolve return type of a known instance member (method or property) from a lookup table
   // for methods, objectType is passed through to typeFromHint to resolve 'element'/'inherit'
-  function resolveKnownInstanceMember(path, table) {
+  function resolveKnownInstanceMember(path, table, callPath) {
     const name = resolveMemberPropertyName(path);
     if (!name) return null;
     const objectType = resolveNodeType(path.get('object'));
@@ -162,38 +174,108 @@ export function createKnownGlobals({
     if (!key) return null;
     const hint = lookupNested(table, key, name);
     if (!hint) return null;
-    return typeFromHint(hint, objectType);
+    return typeFromHint(hint, objectType, callPath);
   }
 
-  // `Promise.resolve(x)` -> `Promise<typeof x>`: arg-based inner inference. the static
-  // hint table can't carry "infer inner from argN" cleanly (it'd require typeFromHint to
-  // accept callPath everywhere), so handle this widely-used resolver-style static specially.
-  // without this, `await Promise.resolve([1,2,3])` resolves to $Promise<null>, unwrapPromise
-  // returns null, await gives unknown, downstream member dispatch goes generic.
-  // `Promise.resolve(thenable)` flattens at runtime; treat outer Promise<Promise<X>> as
-  // Promise<X> so unwrapPromise lands on a precise inner without two-layer peel.
-  //
-  // EXTENSION POINT: future "arg-based static inference" needs (e.g. `Array.of(...args)` ->
-  // Array<commonType>, `Map.groupBy(arr, fn)` -> Map<ReturnType<fn>, arr-inner>) currently
-  // require new special-case helpers. when adding a third resolver-style static, consider
-  // promoting to a registry pattern (`{ 'Promise.resolve': inferFn, 'Array.of': ..., ... }`)
-  // keyed in `resolveKnownStaticReturnType` rather than open-coding each one
-  function inferPromiseResolveReturnType(callPath) {
-    // `new Promise.resolve(x)` constructs rather than returns the callee's value, so the
-    // unwrap rule below does not describe it. checked via node.type so the gate works for both
-    // babel paths (which expose `.isCallExpression()`) and estree-toolkit paths (which do not)
+  // the ARGUMENT directives: what a call resolves to when the answer lives in the call itself
+  // rather than in the method. they are the static-side twins of `element` / `inherit`, which name
+  // the RECEIVER's inner, and the data spells them in the same slots - so a new method needs a row
+  // there and nothing here.
+  //   `argument`         - arg 0 itself, one promise layer peeled (`Promise.resolve`)
+  //   `argument-element` - the awaited common type of arg 0's elements (`Promise.race` / `any`,
+  //                        and nested under Array for `Promise.all` / `Array.fromAsync`)
+  //   `argument-return`  - the return type of the callback arg 0 holds (`Promise.try`, `then`,
+  //                        `AsyncIterator.reduce`)
+  // every one of them answers null on anything it cannot read - a literal-free iterable, a spread,
+  // an unresolvable element - and the caller then serves the declared container bare
+  const ARGUMENT_DIRECTIVES = new Set(['argument', 'argument-element', 'argument-return']);
+
+  // `new Promise.resolve(x)` constructs rather than returns the callee's value, so no directive
+  // describes it. checked via node.type so the gate works for both babel paths (which expose
+  // `.isCallExpression()`) and estree-toolkit paths (which do not)
+  function directiveArgument(callPath, index = 0) {
     if (!RETURNING_INVOCATION_TYPES.has(callPath?.node?.type)) return null;
-    const [argPath] = callArgumentPaths(callPath);
-    if (!argPath || babelNodeType(argPath.node) === 'SpreadElement') return null;
-    const argType = resolveNodeType(argPath);
-    if (!argType || isNullableOrNever(argType)) return null;
-    return new $Object('Promise', argType.constructor === 'Promise' ? resolveInnerType(argType) : argType);
+    const args = callArgumentPaths(callPath);
+    // which raw slot holds the EFFECTIVE argument at `index` is the canon's question, and it answers
+    // it better than a spread-anywhere bail did: `f(...[a, b])` still names its arguments, and only
+    // a spread whose source is not a literal makes the position undecidable
+    const coords = resolveCallArgumentCoords(args.map(a => a.node), index);
+    if (!coords) return null;
+    return coords.elementIndex < 0
+      ? args[coords.argIndex]
+      : args[coords.argIndex].get('argument').get('elements')[coords.elementIndex];
+  }
+
+  // a value the call hands over is awaited the way the runtime awaits it - ALL the way down, since
+  // `Promise.resolve(promiseOfPromise)` settles to the innermost value. that is exactly what the
+  // `unwrapPromise` canon above does; a one-layer peel here was a weaker re-derivation of it
+  function awaitedTypeOf(path) {
+    const type = path && resolveNodeType(path);
+    return !type || isNullableOrNever(type) ? null : unwrapPromise(type);
+  }
+
+  // the function a callback slot NAMES: written inline, or referenced by a name the runtime-
+  // expression canon resolves. null when the slot holds no function at all
+  function callbackPathOf(path) {
+    const type = path?.node && babelNodeType(path.node);
+    if (!type) return null;
+    if (FUNCTION_LIKE_NODE_TYPES.has(type)) return path;
+    // only a REFERENCE has anything for the runtime canon to follow - a literal, an object or an
+    // array denotes itself. this guard is not an optimisation detail: the walk runs on every later
+    // argument of every directive call, and data arguments (`Promise.try(fn, 1, 2, 3)`) are the
+    // common case. the wrapper set is the TRANSPARENT one, not the TS-only one: babel strips
+    // `(mk)` at parse and oxc keeps a `ParenthesizedExpression`, so the narrower set answered
+    // differently per parser on the same source
+    if (type !== 'Identifier' && !TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) return null;
+    const resolved = resolveRuntimeExpression(path);
+    return resolved?.node && FUNCTION_LIKE_NODE_TYPES.has(babelNodeType(resolved.node)) ? resolved : null;
+  }
+
+  function resolveArgumentDirective(directive, callPath) {
+    const argPath = directiveArgument(callPath);
+    if (!argPath) return null;
+    if (directive === 'argument') return awaitedTypeOf(argPath);
+    if (directive === 'argument-element') {
+      // only a literal array of non-spread elements is readable; anything else keeps the container.
+      // the elements fold exactly as a union does - a disagreement leaves no inner
+      if (babelNodeType(argPath.node) !== 'ArrayExpression') return null;
+      const elements = argPath.get('elements');
+      if (!elements.length) return null;
+      let inner = null;
+      for (const element of elements) {
+        if (!element?.node || babelNodeType(element.node) === 'SpreadElement') return null;
+        const awaited = awaitedTypeOf(element);
+        if (!awaited) return null;
+        inner = inner ? commonType(inner, awaited) : awaited;
+        if (!inner) return null;
+      }
+      return inner;
+    }
+    // `argument-return`: a LATER argument that is itself a callback opens a second resolution path
+    // (`then(onFulfilled, onRejected)`), and one hint cannot carry two - bail rather than answer
+    // off the first. an ordinary later argument is data the callback receives (`Promise.try(fn, a)`)
+    // and changes nothing
+    // the callback may be NAMED rather than written inline (`Promise.try(mk)`), and a name is a
+    // reference to resolve, not a shape to reject - the runtime-expression canon is what reaches
+    // the value behind it. anything that does not land on a function-like node stays unresolved
+    const fnPath = callbackPathOf(argPath);
+    if (!fnPath) return null;
+    // the SECOND callback is found the same way as the first: reading only literals here while the
+    // first slot resolves names made `then(onFulfilled, onRejected)` answer off one of two paths
+    const rest = callArgumentPaths(callPath).slice(1);
+    if (rest.some(a => callbackPathOf(a))) return null;
+    // the callback's own return goes through the canon that already infers it from the body and
+    // the annotation; awaited once, since a callback returning a promise is flattened by the
+    // methods that carry this directive
+    const returned = resolveReturnType(fnPath);
+    if (!returned || isNullableOrNever(returned)) return null;
+    return returned.constructor === 'Promise' ? resolveInnerType(returned) : returned;
   }
 
   // a static flagged `returnsArgument: N` returns that argument unchanged (ECMAScript identity,
   // e.g. Object.freeze -> 0), so the result keeps the argument's concrete container type:
   // `Object.freeze([...]).includes()` must narrow to the array, not the registry's generic 'Object'
-  // (which drops the polyfill on ie:11). mirrors `inferPromiseResolveReturnType`.
+  // (which drops the polyfill on ie:11). shares `directiveArgument`'s slot-selection rule.
   // the two failure modes are DIFFERENT answers and the caller reads them apart:
   //   `undefined` - no usable slot (absent, or a spread makes positional matching undecidable),
   //                 so the declared hint is still the honest answer;
@@ -203,29 +285,23 @@ export function createKnownGlobals({
   //                 SUPPRESSES the instance polyfill outright - a missed polyfill on the target,
   //                 not merely a lost narrow
   function inferReturnedArgType(callPath, index) {
-    if (!RETURNING_INVOCATION_TYPES.has(callPath?.node?.type)) return undefined;
-    const args = callArgumentPaths(callPath);
-    const argPath = args[index];
-    if (!argPath || args.slice(0, index + 1).some(a => babelNodeType(a.node) === 'SpreadElement')) return undefined;
+    const argPath = directiveArgument(callPath, index);
+    if (!argPath) return undefined;
     const argType = resolveNodeType(argPath);
     return argType && !isNullableOrNever(argType) ? argType : null;
   }
 
-  // resolve a known static method's return type from its registry hint + call path. the arg-inference
-  // specials run BEFORE the declared hint: `Promise.resolve(x)` peels the arg's inner type, and a
+  // resolve a known static method's return type from its registry hint + call path. the hint's own
+  // ARGUMENT directives are decoded by `typeFromHint` from the call, and a
   // `returnsArgument: N` static (Object.freeze / seal / defineProperty ...) returns that argument's
   // concrete type. shared by the direct (`Object.freeze(a)`) and aliased (`const { freeze } = Object;
   // freeze(a)`) paths so both narrow identically instead of the aliased one dropping to generic 'Object'
-  function resolveStaticReturnFromHint({ objectName, memberName, hint, callPath }) {
-    if (callPath && objectName === 'Promise' && memberName === 'resolve') {
-      const inferred = inferPromiseResolveReturnType(callPath);
-      if (inferred) return inferred;
-    }
+  function resolveStaticReturnFromHint({ hint, callPath }) {
     if (callPath && typeof hint.returnsArgument === 'number') {
       const inferred = inferReturnedArgType(callPath, hint.returnsArgument);
       if (inferred !== undefined) return inferred;
     }
-    return typeFromHint(hint);
+    return typeFromHint(hint, undefined, callPath);
   }
 
   function resolveKnownStaticReturnType(callee, callPath) {
@@ -267,7 +343,7 @@ export function createKnownGlobals({
     return null;
   }
 
-  // `resolveGlobalMember` / `inferPromiseResolveReturnType` stay cluster-private (used
+  // `resolveGlobalMember` / `resolveArgumentDirective` stay cluster-private (used
   // only inside `resolveKnownStaticReturnType` / `resolveGlobalStaticReference`)
   return {
     typeFromHint,
