@@ -73,12 +73,27 @@ export function createEnumTypes({ babelNodeType }) {
   // what the member even holds - measured: babel refuses to transpile the enum at all, swc gives
   // the member `undefined`. neither is an enum value kind, so a non-numeric predecessor bails to
   // null (opaque) instead of letting the `number` default over-resolve into the wrong family
-  function memberValueKind(members, index) {
-    let i = index;
-    while (i >= 0 && !members[i].initializer) i -= 1;
-    if (i < 0) return 'number'; // a bare member OPENING a block auto-numbers from 0
-    const kind = resolveEnumMemberKind(members[i].initializer);
-    return i === index || kind === 'number' ? kind : null;
+  // asking it per member walked BACK to that initialiser each time and re-read it, so a block of N
+  // members re-resolved the same initialiser once per member after it. one FORWARD pass carries the
+  // last initialised kind instead and answers every member on the way; `visit` returning false stops
+  // it, which is how the single-member lookup pays for only the prefix it needs
+  function eachMemberKind(members, visit) {
+    let lastKind = null;
+    // distinct from `lastKind === null`, which also means "the last initialiser was unclassifiable" -
+    // a bare member after THAT one bails, while one before any initialiser auto-numbers
+    let seenInitializer = false;
+    for (let i = 0; i < members.length; i++) {
+      const { initializer } = members[i];
+      // a bare member OPENING a block auto-numbers from 0; after an initialised one it continues
+      // that member's sequence, which valid TS permits only when the sequence is numeric
+      if (initializer) {
+        lastKind = resolveEnumMemberKind(initializer);
+        seenInitializer = true;
+      }
+      const kind = initializer ? lastKind
+        : !seenInitializer || lastKind === 'number' ? 'number' : null;
+      if (visit(i, kind) === false) return;
+    }
   }
 
   // TS merges `enum E {}` blocks, so a member may live in any of them and both lookups below take
@@ -90,7 +105,12 @@ export function createEnumTypes({ babelNodeType }) {
       const members = enumMembers(declaration);
       const index = members?.findIndex(m => enumMemberName(m) === name) ?? -1;
       if (index < 0) continue;
-      const kind = memberValueKind(members, index);
+      let kind = null;
+      eachMemberKind(members, (i, memberKind) => {
+        if (i !== index) return true;
+        kind = memberKind;
+        return false;
+      });
       if (kind) return new $Primitive(kind);
     }
     return null;
@@ -102,17 +122,21 @@ export function createEnumTypes({ babelNodeType }) {
     let kind = null;
     for (const declaration of declarations) {
       const members = enumMembers(declaration) ?? [];
-      for (let i = 0; i < members.length; i++) {
-        const memberKind = memberValueKind(members, i);
-        if (!memberKind) return null;
+      let disagreed = false;
+      eachMemberKind(members, (_index, memberKind) => {
+        if (!memberKind || (kind !== null && kind !== memberKind)) {
+          disagreed = true;
+          return false;
+        }
         kind ??= memberKind;
-        if (kind !== memberKind) return null;
-      }
+        return true;
+      });
+      if (disagreed) return null;
     }
     return kind ? new $Primitive(kind) : null;
   }
 
-  // `enumMembers` / `resolveEnumMemberKind` / `memberValueKind` stay cluster-private
+  // `enumMembers` / `resolveEnumMemberKind` / `eachMemberKind` stay cluster-private
   return {
     findEnumMember,
     resolveEnumMemberType,

@@ -10,7 +10,7 @@
 //
 // All other handlers (`resolveNamedType` / `resolveLiteralType` / `resolveConditionalType` /
 // `resolveKeyofSelfValueUnion` / `resolveIndexedAccessType` / `resolveKnownContainerType` /
-// `resolveExtractExclude` / `isAssignableTo`) are cluster-private. `resolveAnnotationInContext`
+// `resolveExtractExclude`) are cluster-private. `resolveAnnotationInContext`
 // and `resolveNonNullableAnnotation` live in the factory (they're consumed both inside this
 // cluster and by awaited cluster) and route into `resolveTypeAnnotation` for the no-subst
 // path - factory destructure binds the cluster output by the time those run.
@@ -28,7 +28,7 @@ import {
   typeRefSegments,
   withMemberModifiers,
 } from './ast-shapes.js';
-import { getTypeArgs, propertyKeyName, singleQuasiString } from '../helpers/ast-patterns.js';
+import { getTypeArgs, propertyKeyName, singleQuasiString, withTypeArgParams } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
 
@@ -53,6 +53,7 @@ export function createTypeAnnotationResolve({
   KNOWN_CONSTRUCTORS,
   CONSTRUCTOR_ALIASES,
   PROMISE_SYNONYMS,
+  DISTRIBUTIVE_UTILITIES,
   STRUCTURE_PRESERVING_WRAPPERS,
   MAX_DEPTH,
   isAmbientClassNode,
@@ -86,36 +87,47 @@ export function createTypeAnnotationResolve({
   foldUnionTypes,
   foldIntersectionTypes,
   commonType,
-  typesEqual,
-  innersEqual,
   findTypeMember,
   findTupleElement,
   unwrapMappedTypePassthrough,
   tupleAsArrayType,
+  flattenUnionBranches,
   getTypeMembers,
+  pickConditionalBranchVia,
+  isUnconstrainedTypeShape,
 }) {
-  function isAssignableTo(candidate, target) {
-    if (typesEqual(candidate, target)) {
-      // matching outer type (e.g. both Array) - require inner distinction for container types
-      // so `Extract<Array<number>|Array<string>, Array<string>>` narrows correctly. target with
-      // no inner (bare `Array`) accepts any inner (covariant); mismatched inners reject
-      if (!target.inner) return true;
-      return innersEqual(candidate.inner, target.inner);
-    }
-    // capital `Object` (boxed-top): every candidate but null / undefined / never is
-    // assignable (`Extract<string | number[], Object>` keeps BOTH arms in TS - dropping
-    // the primitive arm narrowed the union to a wrong-family Maybe on a runtime string)
-    if (target.topObject) return !isNullableOrNever(candidate);
-    // any non-primitive is assignable to lowercase `object` / a structural literal shape
-    return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
-  }
-
   function resolveExtractExclude({ first, second, scope, depth, keep, typeParamMap, seen }) {
     function resolve(node) {
       return resolveAnnotationInContext({ node, scope, depth, typeParamMap, seen });
     }
-    const target = resolve(second);
-    if (!target) return null;
+    // the target is never resolved as a WHOLE: this layer has no union representation, so folding
+    // `string | symbol` answers null and a guard on that fold sinks every union target before the
+    // arms are consulted. an unresolvable arm still sinks the result, through the picker's
+    // undecided verdict below - which is the same protection, arm by arm
+    //
+    // a union target DISTRIBUTES: `T extends A | B` holds when the check extends either arm. asking
+    // the picker about the union's folded shape instead loses exactly what it needs - the fold of
+    // `string[] | number[]` is an inner-less `Array`, undecidable against `number[]`, while the arm
+    // itself decides it
+    const targetAlias = followTypeAliasChain(peelTSParenthesized(unwrapTypeAnnotation(second)), scope);
+    const targetNode = targetAlias.node ? peelTSParenthesized(targetAlias.node) : peelTSParenthesized(unwrapTypeAnnotation(second));
+    const targetArms = targetNode && isUnionType(targetNode)
+      ? targetNode.types.map(arm => applySubst(arm, targetAlias.subst))
+      : [second];
+    function decideAgainst(checkAST) {
+      let undecided = false;
+      for (const arm of targetArms) {
+        const verdict = pickConditionalBranchVia({
+          checkAST,
+          extendsAST: arm,
+          resolveOne: resolve,
+          isUnconstrained: isUnconstrainedTypeShape(arm, typeParamMap),
+        });
+        if (verdict === true) return true;
+        if (verdict === null) undecided = true;
+      }
+      return undecided ? null : false;
+    }
     let unwrapped = peelTSParenthesized(unwrapTypeAnnotation(first));
     if (!unwrapped) return null;
     // capture subst so generic union members (`type Foo<T> = T | string`) keep their bindings.
@@ -123,22 +135,46 @@ export function createTypeAnnotationResolve({
     const { node: aliasTarget, subst } = followTypeAliasChain(unwrapped, scope);
     if (aliasTarget) unwrapped = peelTSParenthesized(aliasTarget);
     if (!unwrapped) return null;
-    const types = isUnionType(unwrapped) ? unwrapped.types : [unwrapped];
+    // a source member may itself be an alias for a union (`type Outer = boolean[] | Inner`). its
+    // FOLDED shape strips the inner type every arm still carries, so the ARMS are what the loop
+    // iterates - through the canon that already does this walk with cycle-cutting and dedup, not a
+    // second flattener. the outer hop's binding is applied BEFORE handing the branches over, since
+    // the canon starts each branch's alias chain fresh
+    const bound = isUnionType(unwrapped)
+      ? unwrapped.types.map(arm => applySubst(arm, subst))
+      : [applySubst(unwrapped, subst)];
+    const types = isUnionType(unwrapped) ? flattenUnionBranches(bound, scope) : bound;
     let result = null;
     let anyKept = false;
-    for (const member of types) {
-      const substituted = applySubst(member, subst);
+    let droppedNullish = false;
+    for (const substituted of types) {
       const resolved = resolve(substituted);
       if (!resolved) return null;
       // `never` is the union identity (`T | never == T`): it contributes no real receiver and
       // mismatches in `commonType`, bailing the whole Extract/Exclude result. skip it before
       // the assignability fold (mirrors union folding), so the surviving members still resolve
       if (resolved.primitive && resolved.type === 'never') continue;
-      if (isAssignableTo(resolved, target) !== keep) continue;
+      // `Extract<T, U>` IS `T extends U ? T : never` and `Exclude` its complement, so the question
+      // is the conditional picker's, not a second reading of assignability. it is tri-state: an
+      // undecidable member (`number[]` against a structural `Record<string, unknown>`, whose
+      // members this layer never modelled) must sink the WHOLE result rather than be guessed -
+      // guessing it assignable dropped the arm and left a wrong-family Maybe on the survivor
+      const decided = decideAgainst(substituted);
+      if (decided === null) return null;
+      if (decided !== keep) continue;
       anyKept = true;
+      // a SURVIVING nullish arm carries no shape of its own and must not sink the fold - it marks
+      // the survivors instead, exactly as the union fold does. folding it in through `commonType`
+      // disagreed with every real member, so `Exclude<T[] | null, string>` answered nothing where
+      // its own value union answers `T[]` marked nullable
+      if (isNullableOrNever(resolved)) {
+        droppedNullish = true;
+        continue;
+      }
       result = commonType(result, resolved);
       if (!result) return null;
     }
+    if (droppedNullish && result && !isNullableOrNever(result)) result = result.mark('mayBeNullish');
     // all members excluded -> never (not null/unknown)
     if (!anyKept) return new $Primitive('never');
     return result;
@@ -181,9 +217,11 @@ export function createTypeAnnotationResolve({
     // spelled half of it inline and the utility switch had none at all, so `type Awaited<T> = T[]`
     // and `f<Record>` were answered by the built-in reading of the name instead of by what the
     // source declared. asked on the SOURCE spelling (the alias folding below rewrites `name`) and
-    // computed at most once: a declaration lookup is not free, and only a name the tables actually
-    // claim ever asks. containers stay on the type-PARAMETER half alone, matching the member-side
-    // twin - a `interface Array<T>` augmentation must not stop `Array` being an Array
+    // computed at most once. it is asked for EVERY unqualified name, not only for one the tables
+    // claim - and that is deliberate: a file's names are mostly DISTINCT, so a lazy spelling behind
+    // the two readers below buys lookups no memo can serve and pays for the extra closure.
+    // containers stay on the type-PARAMETER half alone, matching the member-side twin - an
+    // `interface Array<T>` augmentation must not stop `Array` being an Array
     // read on the SOURCE spelling too, before the alias folding below rewrites `name`. only an
     // UNQUALIFIED name can be shadowed: `NS.Partial` names a namespace member that no bare
     // parameter or top-level declaration competes with - and asking the declaration lookup with a
@@ -235,6 +273,12 @@ export function createTypeAnnotationResolve({
         && (resolved.constructor === 'Array' || resolved.constructor === 'Set' || resolved.constructor === 'Map')
         ? resolved.mark('readonly') : resolved;
     }
+    // lib.d.ts writes these as a NAKED conditional over their first parameter, which makes them
+    // distributive: `U<A | B>` is `U<A> | U<B>`. the resolvers below each expect one concrete shape
+    // (a class binding, a signature) and answer null on a union, so the argument is distributed here
+    // once - rebuilt per arm and folded, the way the indexed access distributes its object. the
+    // structure-preserving wrappers above are deliberately NOT in the set: `Pick<A | B, K>` is a
+    // mapped type over the whole union, not the union of per-arm picks
     if (!shadowedUtilityName) switch (name) {
       // structurally new shape from their type parameter - collapse to Object
       case 'Record':
@@ -443,6 +487,30 @@ export function createTypeAnnotationResolve({
       && typeRefSegmentsEqual(param.constraint.typeAnnotation, target);
   }
 
+  // `InstanceType<A | B>` IS `InstanceType<A> | InstanceType<B>`, but the union hides INSIDE the
+  // utility, so the object-side distribution below never sees it and the whole access falls into
+  // `getTypeMembers`, which has no union branch. surfacing it as a real union node lets the one
+  // distribution serve both spellings. anything else is handed back untouched
+  function distributiveUtilityAsUnion(node, scope) {
+    const peeled = peelTSParenthesized(node);
+    // argument presence is two property reads and rejects nearly every reference in a file, so it
+    // is asked BEFORE the name walk and the two shadow lookups behind it
+    const params = getTypeArgs(peeled)?.params;
+    if (!params?.length) return node;
+    const name = typeRefName(peeled);
+    // a USER declaration or a type PARAMETER of the same name outranks the built-in reading, the
+    // same gate the name resolver applies before it trusts any utility spelling
+    if (!DISTRIBUTIVE_UTILITIES.has(name) || findTypeParameter(name, scope)
+      || findTypeDeclaration([name], scope)) return node;
+    const argAlias = followTypeAliasChain(peelTSParenthesized(unwrapTypeAnnotation(params[0])), scope);
+    const arg = argAlias.node ? peelTSParenthesized(argAlias.node) : peelTSParenthesized(unwrapTypeAnnotation(params[0]));
+    if (!isUnionType(arg)) return node;
+    return {
+      type: 'TSUnionType',
+      types: arg.types.map(arm => withTypeArgParams(peeled, [applySubst(arm, argAlias.subst), ...params.slice(1)])),
+    };
+  }
+
   // TS indexed access type: Config["items"], [string, number[]][1], Items[number], Dict[string]
   // `T[keyof T]` shape: fold each property's value annotation into a union (mirrors TS
   // evaluation). returns resolved Type / null on hit, undefined when shape doesn't match.
@@ -500,6 +568,28 @@ export function createTypeAnnotationResolve({
     // the index operand needs the same peel: oxc keeps a `T[('a')]` index as TSParenthesizedType,
     // so every `.type ===` dispatch below would miss the inner literal and bail on that parser only
     const indexType = peelTSParenthesized(node.indexType);
+    // the mirror of the union INDEX below: a union OBJECT distributes too, `(A | B)[K]` being
+    // `A[K] | B[K]`, and the same fold aggregates the arms. without it the object slips whole into
+    // `getTypeMembers`, which has no union branch and answers null, so every union-typed source
+    // lost the access entirely. the alias hop is where the union usually hides (`type S = A | B`)
+    const objectAlias = followTypeAliasChain(objectType, scope);
+    const objectUnion = distributiveUtilityAsUnion(objectAlias.node
+      ? peelTSParenthesized(objectAlias.node) : objectType, scope);
+    if (isUnionType(objectUnion)) {
+      // a SELF `keyof` index has to travel with the arm: `keyof S` still names the whole union
+      // after distribution and the self-fold below would no longer recognise it. an arm's own key
+      // set is a SUPERSET of the union's shared keys, so the fold either converges - and then the
+      // shared subset carries that same type - or degrades. it cannot over-resolve
+      const selfKeyof = isKeyofTargeting(node.indexType, objectType, scope);
+      return foldUnionTypes(objectUnion.types, arm => {
+        const armNode = applySubst(arm, objectAlias.subst);
+        return resolveTypeAnnotation({
+          type: 'TSIndexedAccessType',
+          objectType: armNode,
+          indexType: selfKeyof ? { type: 'TSTypeOperator', operator: 'keyof', typeAnnotation: armNode } : node.indexType,
+        }, scope, depth + 1);
+      });
+    }
     // T[number] - element type of array/tuple. both dialect spellings of the keyword: a name-only
     // test here left every Flow file taking the generic path on a shape TS resolves precisely
     if (indexType?.type === 'TSNumberKeyword' || indexType?.type === 'NumberTypeAnnotation') {
@@ -671,6 +761,14 @@ export function createTypeAnnotationResolve({
       case 'GenericTypeAnnotation': {
         const segments = typeRefSegments(node);
         if (!segments) return null;
+        // a naked-conditional utility over a union argument is the union of its per-arm results.
+        // surfaced as a real union node, so the union fold serves it and the name-keyed resolvers
+        // below keep seeing exactly one concrete shape - the same unwrap the indexed access uses.
+        // gated on the segments ALREADY parsed above: this runs on every type reference in the
+        // file, and re-deriving the name here cost 15% on a reference-dense source
+        const asUnion = segments.length === 1 && DISTRIBUTIVE_UTILITIES.has(segments[0])
+          ? distributiveUtilityAsUnion(node, scope) : node;
+        if (asUnion !== node) return resolveTypeAnnotation(asUnion, scope, depth + 1);
         return resolveNamedType({ name: segments.join('.'), node, scope, depth, seen });
       }
       // transparent wrapper - unwrap and resolve the inner type
