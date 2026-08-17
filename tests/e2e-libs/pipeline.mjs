@@ -17,15 +17,24 @@ import {
   makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder, isLibraryModule, describeInput,
   assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, UMD_OUTPUT, HERE,
 } from './build.mjs';
+import { positionals } from './cli.mjs';
+import { errorReason } from './diagnostics.mjs';
 import { librariesMatching } from './libraries.mjs';
 
 const { mkdir, writeFile } = fs;
 const { join } = path;
 
-const [libFilter, methodFilter, ...surplus] = argv._;
-if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - pipeline.mjs takes [libFilter] [methodFilter]`);
+// the same net the other two runners carry, for the same reason: node dumps an unclaimed rejection
+// raw, which for anything without a `message` is `[object Object]`, and the original travels on as
+// `cause` so the stack survives the line
+process.on('unhandledRejection', reason => {
+  throw new Error(`unhandled rejection - ${ errorReason(reason) }`, { cause: reason });
+});
+
+const [libFilter, methodFilter] = positionals(argv,
+  { names: ['libFilter', 'methodFilter'], usage: 'pipeline.mjs takes [libFilter] [methodFilter]' });
 const libs = librariesMatching(libFilter);
-if (methodFilter && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
+if (methodFilter !== undefined && !METHODS.includes(methodFilter)) throw new Error(`no method matches filter '${ methodFilter }'`);
 
 async function timedBuild(entry, plugins, label = 'stage') {
   const t0 = process.hrtime.bigint();
