@@ -5,10 +5,17 @@
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
 import { checkFailureLine, errorReason } from './diagnostics.mjs';
+import { withDeadline } from '../transpiler-integration/deadline.mjs';
 import { librariesMatching } from './libraries.mjs';
 import { pathToFileURL } from 'node:url';
 
 const { basename, isAbsolute, join } = path;
+
+// the net under every per-target `catch` below - see `deadline.mjs` for what it is against.
+// Without it the process ends with no exercise named and no total printed
+process.on('unhandledRejection', reason => {
+  throw new Error(`unhandled rejection - ${ errorReason(reason) }`);
+});
 
 const HERE = import.meta.dirname;
 const [arg, ...surplus] = argv._;
@@ -22,10 +29,15 @@ const targets = arg && (isAbsolute(arg) || arg.includes('/') || arg.includes('\\
 
 // every failure mode names the exercise: destructuring a malformed result would otherwise throw a bare
 // "Cannot read properties of undefined" with nothing to say whose it was
+// This tier is the first step of `test-e2e-libs`, so a `run()` that never settles here declares the
+// fixture sound having checked nothing, and silently: node drains and exits 0. A backstop against a
+// fixture that stopped, not a budget - the exercises are deterministic and small.
+const RUN_DEADLINE_MS = 60_000;
+
 async function checksOf(target, name) {
   const mod = await import(pathToFileURL(target).href);
   if (typeof mod.run !== 'function') throw new Error(`${ name } does not export run()`);
-  const result = await mod.run();
+  const result = await withDeadline(() => mod.run(), { ms: RUN_DEADLINE_MS, what: `${ name } run()` });
   if (!Array.isArray(result?.checks)) {
     throw new Error(`${ name } returned a malformed result: expected { checks: [...] }, got ${ JSON.stringify(result)?.slice(0, 120) }`);
   }

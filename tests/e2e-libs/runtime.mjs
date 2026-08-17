@@ -25,6 +25,12 @@ const TMP = join(HERE, '.tmp');
 // first is still feeding to Karma, and the failure would name a missing file rather than any code
 const KARMA_OUT = join(TMP, `karma-${ process.pid }`);
 
+// the net under the per-cell `catch` below - see `transpiler-integration/deadline.mjs` for what it
+// is against. Without it the run stops with no line saying which cell was in flight
+process.on('unhandledRejection', reason => {
+  throw new Error(`unhandled rejection - ${ errorReason(reason) }`);
+});
+
 const [libFilter, ...surplus] = argv._;
 if (surplus.length) throw new Error(`unexpected argument(s): ${ surplus.join(' ') } - runtime.mjs takes [libFilter]`);
 const libs = librariesMatching(libFilter);
@@ -439,6 +445,17 @@ const INFRASTRUCTURE_FAILURES = [
 // what karma paints separately would stop matching a run that passed, and read as no verdict at all
 const TEST_FAILURE = /\(\d+ FAILED\)|TOTAL: \d+ FAILED/;
 
+// A backstop on the karma child, not a budget for the page: the page has its own in `harness.mjs`,
+// ordered under karma's `browserNoActivityTimeout`, and both sit inside this one. What this is against
+// is the child that never exits at all - karma reaps IE's second process through `exec(wmic ...)`,
+// which is unbounded and which karma waits on while shutting down, so a `wmic` that hangs hangs the
+// job with nothing on screen. zx sets no timeout of its own, so without a number here there is none.
+// Per ATTEMPT, so the worst case is this times `ATTEMPTS`.
+const KARMA_DEADLINE = '300s';
+// the sweep is a windows builtin that either answers at once or is not there; it may not become the
+// thing that hangs the leg it exists to protect
+const SWEEP_DEADLINE = '30s';
+
 // One page, retried while the browser rather than the bundle is what failed. Reports which of the
 // two the last attempt died on, because the cell is only accused by the first: a red QUnit run is
 // this suite's verdict on the floor, a browser that never started is no verdict at all.
@@ -449,14 +466,15 @@ async function runKarmaPage(bundle, label) {
     // then exits at once as `Cannot start IE`. The sweep is blind - it takes every IE on the machine
     // - so it is limited to a CI runner, where nothing else runs one and the pages here start
     // strictly one at a time, and never touches a developer's own browser
-    if (process.env.CI && ie) await $({ nothrow: true, quiet: true })`taskkill /F /IM iexplore.exe`;
+    if (process.env.CI && ie) await $({ nothrow: true, quiet: true, timeout: SWEEP_DEADLINE })`taskkill /F /IM iexplore.exe`;
 
-    const { exitCode, signal, stdout, stderr } = await $({ nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
+    const { exitCode, signal, stdout, stderr } = await $({ nothrow: true, timeout: KARMA_DEADLINE })`karma start karma.conf.cjs -f=${ bundle }`;
     if (exitCode === 0) return { exitCode, infrastructure: false };
 
     const output = stdout + stderr;
     // a signal leaves `exitCode` null and means something outside stopped the run - neither a
-    // verdict on the cell nor a browser that deserves another chance
+    // verdict on the cell nor a browser that deserves another chance. The deadline above arrives as
+    // one, so a child killed by it is reported rather than retried: the page had its full budget
     const infrastructure = !signal && !TEST_FAILURE.test(output) && INFRASTRUCTURE_FAILURES.some(it => it.test(output));
     if (!infrastructure || attempt === ATTEMPTS) return { exitCode, infrastructure };
     echo(chalk.yellow(`  ${ chalk.cyan(label) }: the browser failed to run it, retrying (${ chalk.cyan(attempt + 1) } of ${ chalk.cyan(ATTEMPTS) })`));
