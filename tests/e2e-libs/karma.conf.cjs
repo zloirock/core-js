@@ -39,5 +39,14 @@ module.exports = config => config.set({
   // timed-out test - the shape that names a broken `Promise` polyfill - and not as a disconnected
   // browser
   browserNoActivityTimeout: 30_000,
+  // karma's own defaults again, spelled out for the same reason: `runtime.mjs`'s deadline has to sit
+  // above the whole capture ladder - one attempt plus `retryLimit` retries, each bounded by
+  // `captureTimeout` - so neither number is free to move without moving that one. Nor are they all of
+  // what sits under it: karma's own kill and disconnect grace and the run window above add to the
+  // ladder, so the margin is thinner than the difference of these two numbers. Lowered they would fit
+  // more easily, at the cost of the flaky IE11 captures this leg is full of; the unit leg beside it
+  // raises both instead
+  captureTimeout: 60_000,
+  retryLimit: 2,
   singleRun: true,
 });
