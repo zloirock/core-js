@@ -1,5 +1,6 @@
 import { deepEqual } from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
+import { KNOWN_BUNDLERS, isChunkLoaderBundler } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { makeBundlers, withTmpDir } from './bundlers.mjs';
 import { METHODS as methods, phasesFor, pluginOpts } from './matrix.mjs';
 
@@ -172,6 +173,30 @@ const siblingMangler = createUnplugin(() => ({
 // otherwise. This suite roots them where its inputs live, which is this directory
 const bundlers = makeBundlers({ root: testDir });
 
+// The bundler axis is kept by hand in four places at once - the adapters here, the two leg lists
+// below, and two sets inside `@core-js/unplugin` that name bundlers as strings - so something has to
+// compare them: an adapter added without a leg entry produces a full green method x phase grid with
+// no cells on either leg, exit 0, and no line saying so.
+//
+// Cross-checks rather than derivation, deliberately - `matrix.mjs` states why an axis derived from the
+// code under test stops covering whatever that code drops.
+//
+// Against the NAMED exports, which are what this package advertises: one entry pair per binding. The
+// default export is wider - it publishes whatever upstream's `createUnplugin` returned - so switching
+// this to it would demand a cell for every bundler unplugin can name, which is a decision for
+// `packages/core-js-unplugin` and not for a suite. bun is the exception with a reason: it builds
+// inside a spawned process, so it has a builder here rather than an adapter in `bundlers.mjs`.
+const targeted = Object.keys(unplugin).filter(name => KNOWN_BUNDLERS.has(name) && name !== 'bun');
+const adapters = Object.keys(bundlers);
+const missingAdapter = targeted.filter(name => !adapters.includes(name));
+const unknownAdapter = adapters.filter(name => !KNOWN_BUNDLERS.has(name));
+if (missingAdapter.length || unknownAdapter.length) {
+  throw new Error('the bundler axis disagrees with @core-js/unplugin:'
+    + `${ missingAdapter.length ? ` the plugin exports an adapter for ${ missingAdapter.join(', ') } and this suite has none;` : '' }`
+    + `${ unknownAdapter.length ? ` the plugin does not know ${ unknownAdapter.join(', ') };` : '' }`
+    + ' every bundler core-js ships an entry pair for gets a cell here');
+}
+
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
 // sibling the leg registers beside it - so the matrix is derived rather than spelled out
 const throughUnplugin = Object.fromEntries(Object.keys(bundlers).map(name => [name, (input, method, phase, extra = {}) => {
@@ -285,7 +310,17 @@ for (const name of ['rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild'
 // bun stays out: its builder runs in a spawned Bun.build script that cannot thread the
 // single-file forcing, and bun is not a chunk-loader bundler (no Promise.all wrapper)
 const dynamicInput = resolve(testDir, 'input-dynamic.js');
-for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']) {
+const DYNAMIC_LEG = new Set(['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']);
+// A chunk-loader classification earns a bundler an extra `es.promise.all`, and this leg is the only
+// place it is observable, so a classified bundler with an adapter here has to have a cell: the list is
+// kept by hand and a name dropped from it takes its coverage along in silence. Over the adapters, not
+// over the plugin's set - that set names bundlers this suite has nothing to drive.
+const unexercisedChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) && !DYNAMIC_LEG.has(name));
+if (unexercisedChunkLoaders.length) {
+  throw new Error(`${ unexercisedChunkLoaders.join(', ') } is classified as a chunk loader in @core-js/unplugin`
+    + ' and has no dynamic-import cell - the one leg where that classification is observable');
+}
+for (const name of DYNAMIC_LEG) {
   const label = `${ name }/usage-global/dynamic-import`;
   try {
     const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
