@@ -54,7 +54,7 @@ import {
   resolveObjectName,
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
-  chainSealedObjects, ownChainOptionalObjects, proxyReceiverValueCanBeUndefined,
+  chainReadsThroughSeal, chainSealedObjects, ownChainOptionalObjects, proxyReceiverValueCanBeUndefined,
 } from './resolve.js';
 
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
@@ -331,8 +331,11 @@ export function planProxyReceiver(receiver, {
     harvestedSE: collectFoldedReceiverSideEffects(receiver.object)
       .filter(effect => effect !== keptAssignRoot && !keyPrefixSet.has(effect)),
     keyPrefixSE,
-    // the erased hop's own `?.` guarded the KEPT root, so it moves to the leaf that now reads off it
-    optional: !!(keptAssignRoot && (objectCore.optional || droppedHopOptional)),
+    // the erased hop's own `?.` guarded the KEPT root, so it moves to the leaf that now reads off
+    // it - UNLESS a seal stands between them (`((q = gw)?.self).self.box`): there the source reads
+    // the sealed value PLAINLY and throws, and re-hanging the guard answers `undefined` instead
+    optional: !!(keptAssignRoot && (objectCore.optional || droppedHopOptional)
+      && !chainReadsThroughSeal(receiver, resolvePure, aliasCtx)),
     property: receiver.property,
     computed: receiver.computed,
   };
