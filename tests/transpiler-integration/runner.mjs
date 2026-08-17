@@ -117,7 +117,9 @@ async function verifyInBun(code, label, method) {
 }
 
 // --- builders ---
-// each returns { code, ext?, verifier? }. verifier defaults to verifyInNode.
+// each returns { code, ext?, map?, verifier? }. `verifier` defaults to verifyInNode; `map` is the key
+// rollup and vite add, and `assertMapShape` below consumes it. `bundlers.mjs` carries the full table -
+// a builder here is that plus the two that are not plain bundler runs.
 
 const unplugin = await import('@core-js/unplugin');
 
@@ -153,15 +155,23 @@ const siblingMangler = createUnplugin(() => ({
   },
 }));
 
+// The plugin's own name, read off an instance rather than spelled anywhere: `bundlers.mjs` escalates
+// the warning unplugin reports its own parse failures through, and a literal copy of the name would
+// stop matching on a rename in the plugin with every leg still green. The phase suffix - `:post` here
+// - comes off with the split. `tests/e2e-libs/build.mjs` derives it the same way, for the same gate.
+const [UNPLUGIN_NAME] = [unplugin.rollup(pluginOpts('usage-global', 'post'))].flat()[0].name.split(':', 1);
+
 // `root` is a parameter rather than a constant inside `bundlers.mjs` because only the caller knows
 // it: vite, rsbuild and farm resolve from it, and each silently falls back to the working directory
 // otherwise. This suite roots them where its inputs live, which is this directory
-const bundlers = makeBundlers({ root: testDir });
+const bundlers = makeBundlers({ root: testDir, unpluginName: UNPLUGIN_NAME });
 
-// The bundler axis is kept by hand in four places at once - the adapters here, the two leg lists
-// below, and two sets inside `@core-js/unplugin` that name bundlers as strings - so something has to
-// compare them: an adapter added without a leg entry produces a full green method x phase grid with
-// no cells on either leg, exit 0, and no line saying so.
+// The bundler axis is kept by hand in six places at once - the adapters in `bundlers.mjs`, the two
+// leg lists below, and three sets inside `@core-js/unplugin` that name bundlers as strings - so
+// something has to compare what it can: an adapter added without a leg entry produces a full green
+// method x phase grid with no cells on either leg, exit 0, and no line saying so. Two of those sets
+// are compared here; the third, `PRE_POST_UNSAFE_BUNDLERS`, is private to the plugin - which is why
+// the `pre+post` list below is the one nothing answers for, as AGENTS.md says.
 //
 // Cross-checks rather than derivation, deliberately - `matrix.mjs` states why an axis derived from the
 // code under test stops covering whatever that code drops.
@@ -180,6 +190,19 @@ if (missingAdapter.length || unknownAdapter.length) {
     + `${ missingAdapter.length ? ` the plugin exports an adapter for ${ missingAdapter.join(', ') } and this suite has none;` : '' }`
     + `${ unknownAdapter.length ? ` the plugin does not know ${ unknownAdapter.join(', ') };` : '' }`
     + ' every bundler core-js ships an entry pair for gets a cell here');
+}
+
+// A chunk-loader classification earns a bundler an extra `es.promise.all`, and the dynamic-import leg
+// at the end of this file is the only place it is observable, so a classified bundler with an adapter
+// here has to have a cell there: the list is kept by hand and a name dropped from it takes its
+// coverage along in silence. Over the adapters, not over the plugin's set - that set names bundlers
+// this suite has nothing to drive. Answered up here with the check above, since both read the
+// adapters alone: at the leg itself it would report after the whole grid had already run.
+const DYNAMIC_LEG = new Set(['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']);
+const unexercisedChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) && !DYNAMIC_LEG.has(name));
+if (unexercisedChunkLoaders.length) {
+  throw new Error(`${ unexercisedChunkLoaders.join(', ') } is classified as a chunk loader in @core-js/unplugin`
+    + ' and has no dynamic-import cell - the one leg where that classification is observable');
 }
 
 // every bundler is driven the same way here - unplugin's binding for that tool, plus whatever
@@ -288,16 +311,6 @@ for (const name of ['rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild'
 // bun stays out: its builder runs in a spawned Bun.build script that cannot thread the
 // single-file forcing, and bun is not a chunk-loader bundler (no Promise.all wrapper)
 const dynamicInput = resolve(testDir, 'input-dynamic.js');
-const DYNAMIC_LEG = new Set(['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild', 'farm']);
-// A chunk-loader classification earns a bundler an extra `es.promise.all`, and this leg is the only
-// place it is observable, so a classified bundler with an adapter here has to have a cell: the list is
-// kept by hand and a name dropped from it takes its coverage along in silence. Over the adapters, not
-// over the plugin's set - that set names bundlers this suite has nothing to drive.
-const unexercisedChunkLoaders = adapters.filter(name => isChunkLoaderBundler(name) && !DYNAMIC_LEG.has(name));
-if (unexercisedChunkLoaders.length) {
-  throw new Error(`${ unexercisedChunkLoaders.join(', ') } is classified as a chunk loader in @core-js/unplugin`
-    + ' and has no dynamic-import cell - the one leg where that classification is observable');
-}
 for (const name of DYNAMIC_LEG) {
   const label = `${ name }/usage-global/dynamic-import`;
   try {

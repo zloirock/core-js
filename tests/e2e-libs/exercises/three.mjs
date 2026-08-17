@@ -308,10 +308,20 @@ export function run() {
 
   // --- skinning ---
   const skinned = buildSkinned();
+  // POSED before the transform is asked for. Unposed, every bone matrix is the identity, so
+  // `applyBoneTransform` handed back the vertex it was given and this check asserted its own input:
+  // the vertex is at (0.5, 2, 0.5) in the geometry and the expectation said (0.5, 2, 0.5). The root
+  // bone is the one to move, since `skinWeight` binds every vertex to it with weight 1.
+  skinned.skeleton.bones[0].position.set(0, 1, 0);
+  skinned.skeleton.bones[0].updateMatrixWorld(true);
   skinned.skeleton.update();
   const skinnedVertex = new THREE.Vector3().fromBufferAttribute(skinned.geometry.getAttribute('position'), 0);
   skinned.applyBoneTransform(0, skinnedVertex);
-  check('skin_bone_transform', arr(skinnedVertex), [0.5, 2, 0.5]);
+  // the second half is `skeleton.update()`'s OWN product: it fills `boneMatrices` from the posed
+  // bones, `applyBoneTransform` reads the matrices rather than those, and nothing else here touches
+  // them - so without this element that call is dead code sitting above a passing check. Element 13
+  // is the Y translation of bone 0's column-major 4x4, which is the axis the pose above moved
+  check('skin_bone_transform', [arr(skinnedVertex), round(skinned.skeleton.boneMatrices[13])], [[0.5, 3, 0.5], 1]);
 
   // --- Cache keys go through `new URL()` inside three's isBlobURL ---
   THREE.Cache.enabled = true;
@@ -342,17 +352,55 @@ export function run() {
   check('addon_merge_geometries_groups', mergeGeometries([new THREE.BoxGeometry(1, 1, 1), new THREE.SphereGeometry(0.5, 6, 4)], true).groups.length, 2);
   const indexedBox = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
   const interleavedAttrs = interleaveAttributes([indexedBox.getAttribute('position'), indexedBox.getAttribute('normal')]);
-  check('addon_interleave_roundtrip', [interleavedAttrs.length, deinterleaveAttribute(interleavedAttrs[0]).count], [2, 54]);
+  // the STRIDE and the offsets are what interleaving produces - two attributes woven into one buffer -
+  // and nothing else here is. The vertex count is the INPUT's, so it is compared BACK to the input
+  // rather than pinned: a retessellation upstream moves it and says nothing about weaving. Both reads
+  // go through `?.`, and `deinterleaveAttribute` is called only behind the same guard, because it
+  // reaches into `.data.array` itself: an `interleaveAttributes` that hands its argument straight
+  // back would throw from inside three and cost the whole exercise instead of reddening this check
+  const [woven] = interleavedAttrs;
+  check('addon_interleave_roundtrip', [
+    woven?.data?.stride,
+    interleavedAttrs.map(a => a.offset),
+    woven?.data ? deinterleaveAttribute(woven).count === indexedBox.getAttribute('position').count : undefined,
+  ], [6, [0, 3], true]);
   // traverseGenerator is a recursive `yield*` - the delegation machinery that runs is the addon's
   check('addon_traverse_generator', [...traverseGenerator(scene)].length, 3);
   check('addon_reduce_vertices', round(reduceVertices(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()), (max, v) => Math.max(max, v.x), 0)), 0.5);
-  check('addon_skeleton_clone', cloneSkinned(buildSkinned()).skeleton.bones.length, 2);
-  const split = new EdgeSplitModifier().modify(new THREE.BoxGeometry(1, 1, 1, 2, 2, 2), 1);
-  // splitting at the cube's hard edges can only add vertices, never drop indices
-  check('addon_edge_split', [split.getAttribute('position').count >= 54, split.getIndex().count], [true, 144]);
+  const skeletonSource = buildSkinned();
+  const skeletonClone = cloneSkinned(skeletonSource);
+  // that it is a CLONE: new bone objects, with the parent link rebuilt among THEM. The bone count is
+  // the source's own property, so a `clone` that returned its argument satisfied it
+  check('addon_skeleton_clone', [
+    skeletonClone.skeleton.bones.length,
+    skeletonClone.skeleton.bones[0] !== skeletonSource.skeleton.bones[0],
+    skeletonClone.skeleton.bones[1].parent === skeletonClone.skeleton.bones[0],
+  ], [2, true, true]);
+  const splitInput = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
+  const beforeSplit = splitInput.getAttribute('position').count;
+  const beforeIndices = splitInput.getIndex().count;
+  const split = new EdgeSplitModifier().modify(splitInput, 1);
+  // splitting at the cube's hard edges duplicates the vertices sitting on them and drops no indices,
+  // so the vertex count has to GROW while the index count stays put - and growing it is the part a
+  // `modify` returning its argument cannot fake. Both halves are RELATIONS to the input: the totals
+  // themselves are properties of the geometry, and a retessellation upstream would redden them for
+  // no reason of ours
+  check('addon_edge_split',
+    [split.getAttribute('position').count > beforeSplit, split.getIndex().count === beforeIndices], [true, true]);
   const rounded = new RoundedBoxGeometry(1, 1, 1, 2, 0.2); // Math.sign, seven sites
   rounded.computeBoundingBox();
-  check('addon_rounded_box_bounds', [arr(rounded.boundingBox.min), arr(rounded.boundingBox.max)], [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]);
+  // the bounds alone cannot tell a rounded box from a plain one - both span -0.5..0.5 - so the
+  // rounding this line is named after was not observed by it at all. The CORNERS are what the radius
+  // removes: a BoxGeometry has vertices exactly at (+-0.5, +-0.5, +-0.5), a rounded one has none
+  let exactCorners = 0;
+  const roundedPosition = rounded.getAttribute('position');
+  for (let i = 0; i < roundedPosition.count; i++) {
+    const v = new THREE.Vector3().fromBufferAttribute(roundedPosition, i);
+    if (Math.abs(v.x) === 0.5 && Math.abs(v.y) === 0.5 && Math.abs(v.z) === 0.5) exactCorners++;
+  }
+  check('addon_rounded_box_bounds',
+    [arr(rounded.boundingBox.min), arr(rounded.boundingBox.max), exactCorners],
+    [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5], 0]);
 
   // --- async tail: three's `async parseAsync`, driven by a plain `.then` so the regenerator +
   // Promise machinery that actually runs belongs to three, not to this module ---
