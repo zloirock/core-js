@@ -26,6 +26,9 @@ export const staticClaimUnderGuard = globalThis.window?.self.Array.of(1).at(0);
 export const bareStaticClaim = globalThis.window?.self.Array;
 export const twoClaimsOneStatement = [globalThis.window?.self.Array.of(1), globalThis.window?.self.Object.keys({})];
 export const claimInsideArgument = globalThis.window?.self.Array.of(globalThis.window?.self.Math.trunc(1.5));
+// the seal ends the chain before the claim's own key, so the source reads `.of` off a value that
+// can be undefined - the erase re-emits exactly that read ahead of the claim. the alternate is the
+// global's own name where core-js ponyfills no constructor for it
 export const parenthesizedClaim = (globalThis.window?.self.Array).of(1);
 export const claimThenInstance = globalThis.window?.self.Array.from('ab').at(0);
 export const claimsAcrossOperator = globalThis.window?.self.Math.trunc(1.5) + globalThis.window?.self.Number.EPSILON;

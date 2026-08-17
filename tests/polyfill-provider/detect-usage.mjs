@@ -16,6 +16,7 @@ import {
 import {
   asSymbolRef,
   bindingSymbolKey,
+  chainReadsThroughSeal,
   bindsModuleDefault,
   descendToChainRoot,
   isStaticPlacement,
@@ -1203,6 +1204,51 @@ for (const [variant, code, expected, parserPlugins] of [
     check(lbl, ownChainOptionalCount(top.node), expected);
   }, parserPlugins);
 }
+// the sealed value asked about ITSELF, not through a read above it: a caller holding the callee of
+// `(nav?.hop)(1)` holds the parenthesized node in the estree spelling and the flagged inner node in
+// babel's. the value short-circuits either way, and answering 0 for the node spelling told the
+// invoke gate the call was part of the chain - it folded the call into the guard's alternate, so a
+// nullish root returned undefined where the source calls undefined and throws
+runBoth('ownChainOptionalCount/the sealed value itself, as a callee', '(globalThis?.[k1])(1);', (adapter, prog, lbl) => {
+  const call = adapter.pickPath(prog, 'CallExpression', () => true);
+  check(lbl, ownChainOptionalCount(call.node.callee), 1);
+});
+
+// --- chainReadsThroughSeal (does a PLAIN read observe a sealed, short-circuitable value?) ---
+
+// every render that folds chain steps into a guarded alternate, re-hangs a `?.` above one, or
+// erases a claim asks this: a seal whose consumer read is PLAIN turns the source's short-circuit
+// into a throw, so the guard may not answer `void 0` there. an OPTIONAL consumer performs no such
+// read, and a seal over an always-defined value (the parens grouping an assignment) reads nothing
+// that can throw. both parser spellings of the seal - the estree node and babel's flag - count
+function sealReadPure(name) {
+  return name === 'globalThis' || name === 'self'
+    ? { entry: `actual/${ name === 'self' ? 'self' : 'global-this' }`, hintName: name, kind: 'global' } : null;
+}
+for (const [variant, code, expected, parserPlugins] of [
+  ['seal below a plain read', '(globalThis.window?.self).self.box;', true],
+  ['seal directly below the read', '(globalThis.window?.self).box;', true],
+  ['seal below an OPTIONAL read', '(globalThis.window?.self)?.box;', false],
+  ['seal over an always-defined value', '(q = globalThis).window?.self.box;', false],
+  ['no seal at all', 'globalThis.window?.self.box;', false],
+  ['cast-sealed plain read', '(globalThis.window?.self as any).self.box;', true, ['typescript']],
+  ['bare non-null keeps the chain open', 'globalThis.window?.self!.box;', false, ['typescript']],
+  // the write hands its value on, so the seal observes exactly what the nav produced - the value
+  // question reads THROUGH the assignment. the routing verdict deliberately does not: flipping it
+  // globally strands a raw root in a guard memo, so the through-write reading is opt-in
+  ['chain-assign under the `?.`', '((q = globalThis.window)?.self).self.box;', true],
+]) {
+  runBoth(`chainReadsThroughSeal/${ variant }`, `let q; ${ code }`, (adapter, prog, lbl) => {
+    function isBoxRead(p) {
+      return p.node.property?.name === 'box';
+    }
+    const top = adapter.pickPath(prog, 'MemberExpression', isBoxRead)
+      ?? adapter.pickPath(prog, 'OptionalMemberExpression', isBoxRead);
+    check(lbl, chainReadsThroughSeal(top.node, ({ name }) => sealReadPure(name),
+      { scope: top.scope, adapter, path: top }), expected);
+  }, parserPlugins);
+}
+
 // contrast: the ROOT-finding walk aggregates across sealed boundaries by design - consumers
 // keying emit ROUTES on it would over-report (the reason the flag uses the own-chain walk)
 runBoth('descendToChainRoot/optionalCount aggregates across a paren seal', '(globalThis?.[k1]).window[key];', (adapter, prog, lbl) => {
