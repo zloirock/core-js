@@ -51,6 +51,7 @@ import {
   prependChainAssignmentEffect,
   staticMayEraseReceiver,
   storedUserAssignmentOf,
+  partitionEffectsAtProbe,
   undefinableOptionalGuard,
   receiverSideEffectsOnly,
   resolveKey as sharedResolveKey,
@@ -171,6 +172,8 @@ function splitMinifierSequenceDestructure(programPath, t) {
 
 export default function plugin(api, options) {
   const { types: t, caller } = api;
+  // set at program entry, read by the late-bound compat callbacks below
+  let currentSynthSwap = null;
 
   // `getPolyfillBindingEntry` / `getPolyfillBindingHint` read `injector` lazily (assigned in
   // Program enter, declared below) - same late-binding closure pattern as `createASTHelpers`
@@ -301,6 +304,15 @@ export default function plugin(api, options) {
       debugOutput?.add(entry);
       return injector.addPureImport(entry, hintName);
     },
+    // late-bound like the injector - the synth-swap emitter exists only inside the program visit.
+    // only its receiver-collapse half is wanted here, for a chain the guard channel found no real
+    // probe on
+    collapseReceiverHops(receiver, path, { hopsOnly = false } = {}) {
+      const swap = currentSynthSwap?.();
+      return swap && path?.scope
+        ? swap.collapseProxyGlobalReceiver(receiver, { hopsOnly, aliasCtx: { scope: path.scope, adapter, path } })
+        : null;
+    },
   });
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
@@ -370,6 +382,7 @@ export default function plugin(api, options) {
       // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
       // freshly-allocated WeakSet
       let synthSwap;
+      currentSynthSwap = () => synthSwap;
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -637,6 +650,12 @@ export default function plugin(api, options) {
         }
       }
 
+      // the probe node between the effect halves the shared rule splits
+      function probeOrderedEffects(throwProbe, effects) {
+        const { ahead, after } = partitionEffectsAtProbe(effects, throwProbe.navStart);
+        return [...ahead, throwProbe.node, ...after];
+      }
+
       // `X in Y` rewrite. The branch decision and side-effect harvest live in the shared
       // planInExpression; here we only render the chosen shape into babel AST
       const foldedInTests = new WeakSet();
@@ -673,7 +692,11 @@ export default function plugin(api, options) {
         if (plan.kind === 'symbol') {
           const id = injectPureImport(plan.entry, plan.hint);
           if (plan.call) {
-            path.replaceWith(withLhsSe(t.callExpression(id, [t.cloneNode(plan.right)])));
+            // the helper CONSUMES the operand the way `in` did - it throws on a nullish one - so a
+            // guard rendered for the operand's own chain must stay INSIDE the argument. climbing
+            // out of the call (the receiver-dispatch lift, where the whole chain short-circuits)
+            // answers `undefined` where the source throws, and strands the memo it built
+            path.replaceWith(withLhsSe(markThrowingExtraction(t.callExpression(id, [t.cloneNode(plan.right)]))));
           } else {
             // swap only the LHS in place so the RHS keeps its visited state (not re-traversed)
             path.get('left').replaceWith(id);
@@ -943,7 +966,7 @@ export default function plugin(api, options) {
           const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
           const fbEffects = probeSe ? allEffects.filter(se => !probeSe.has(se)) : allEffects;
           receiverPath.replaceWith(withSideEffects(fallbackId(),
-            throwProbe ? [throwProbe.node, ...fbEffects] : fbEffects));
+            throwProbe ? probeOrderedEffects(throwProbe, fbEffects) : fbEffects));
           // receiver-only rewrite: the member ITSELF is not polyfilled (static-FALLBACK, only the
           // receiver swaps to the pure ctor), so a trailing optional CALL (`Promise.noSuchStatic?.(1)`)
           // is a GENUINE guard for the possibly-undefined member and must survive. stripFirstOptional
@@ -1140,7 +1163,7 @@ export default function plugin(api, options) {
             const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
             const claimEffects = probeSe ? (allEffects ?? []).filter(se => !probeSe.has(se)) : allEffects;
             replacePath.replaceWith(withSideEffects(id,
-              throwProbe ? [throwProbe.node, ...claimEffects ?? []] : claimEffects));
+              throwProbe ? probeOrderedEffects(throwProbe, claimEffects ?? []) : claimEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional) deoptionalizeDanglingOptionalParent(replacePath);
           }
