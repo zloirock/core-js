@@ -50,11 +50,12 @@ class KeptHost {
   // absent `window` it must read nothing (not throw), and the key effect must not run
   static plainTail = null == _globalThis.window ? void 0 : (c++, _self).Number;
   plainDotTail = null == _globalThis.window ? void 0 : _self.JSON;
-  // a chain END that is ITSELF a proxy hop - dotted, static-string computed or SE-keyed
-  // computed alike - belongs to the alias / kept canons and stays raw (a value render of
-  // only its object would strand the end hop outside the guard)
-  static endHop = _globalThis.window?.self?.['window'];
-  endHopSeKey = _globalThis.window?.self?.[c++, 'window'];
+  // a chain END that is ITSELF a proxy hop belongs to the alias / kept canons - unless the nav
+  // below it short-circuits, and then nothing else owns the chain at all: the render takes it,
+  // the end hop rides outside the guard on the always-defined ponyfill, and the hop stops being
+  // read raw. an SE-keyed end keeps its own migration canon and stays as it was
+  static endHop = null == _globalThis.window ? void 0 : _self['window'];
+  endHopSeKey = null == _globalThis.window ? void 0 : _self[c++, 'window'];
   field = (_globalThis.window ?? _globalThis)[c++, 'self']?.Array;
   static {
     var _ref6;

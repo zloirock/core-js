@@ -33,6 +33,12 @@ export const aliasValueRoot = (a = w)?.self?.self.Array.of(1).flat?.();
 // a mutated CONSTRUCTOR slot cancels the claim the same way a mutated static does
 let c;
 export const mutatedCtorSlot = (c = globalThis.window)?.self?.self.Set.name.at?.(0);
+// the mutated slot read off a SEALED receiver: the seal ends the chain, so the source reads the
+// key off a value that CAN be undefined and throws there. collapsing the navigation away answered
+// the patched value instead - the guarded read has to survive, and it is the ANSWER as well as the
+// throw: a mutation cancels the ponyfill, so there is nothing else for the collapse to substitute
+export const sealedMutatedSlot = (globalThis.window?.self).Set;
+
 // a NON-mutated polyfillable builtin in the same nav shape: nothing cancels the claim, so the
 // leaf routes through its ponyfill while the guard still binds the undefinable root
 let nm;
