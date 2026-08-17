@@ -29,7 +29,7 @@ import {
   hasLeadingThisParam,
 } from './base.js';
 import {
-  composeModifierDeltas, modifierWrapperDelta, typeRefName, withMemberModifiers,
+  composeModifierDeltas, isUnionType, modifierWrapperDelta, typeRefName, withMemberModifiers,
 } from './ast-shapes.js';
 import { getTypeArgs } from '../helpers/ast-patterns.js';
 
@@ -47,6 +47,8 @@ export function createTypeFolding({
   resolveTypeQueryBinding,
   pickLastAmbientOverload,
   findClassPathForTypeReference,
+  peelTSParenthesized,
+  unwrapTypeAnnotation,
 }) {
   function unwrapTupleMember(element) {
     let node = element;
@@ -90,10 +92,35 @@ export function createTypeFolding({
   // params list of the function/class referenced by `Parameters<typeof fn>` /
   // `ConstructorParameters<typeof Cls>`. classes without an own constructor inherit - walk
   // `extends` chain until own params (plain function) or a `constructor` method surface
+  // the signature a signature-reading utility's first argument NAMES, plus the binding its alias hop
+  // carries. `Parameters` / `ConstructorParameters` / `ThisParameterType` all begin here and differ
+  // only in which slot they take afterwards - holding the walk in one place is what stops them
+  // drifting apart about which spellings they understand, which they already did once
+  function utilityArgumentSignature(typeRef, scope) {
+    const arg = getTypeArgs(typeRef)?.params?.[0];
+    const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
+    const { node: aliased, subst } = followTypeAliasChain(peeled, scope);
+    return { arg, signature: aliased ? peelTSParenthesized(aliased) : peeled, subst };
+  }
+
   function resolveParametersParams(typeRef, scope) {
     const name = typeRefName(typeRef);
     if (name !== 'Parameters' && name !== 'ConstructorParameters') return null;
-    const arg = getTypeArgs(typeRef)?.params?.[0];
+    // an INLINE signature - or an alias to one - carries its params right here; the `typeof` lane
+    // below is the indirection, not the requirement. each name takes the signature kind it is
+    // defined over (`Parameters` a CALL signature, `ConstructorParameters` a construct one), so a
+    // crossed spelling stays unresolved instead of answering off the wrong shape
+    const { arg, signature: inline, subst: aliasSubst } = utilityArgumentSignature(typeRef, scope);
+    const inlineKind = name === 'Parameters' ? 'TSFunctionType' : 'TSConstructorType';
+    if (inline?.type === inlineKind || (name === 'Parameters' && inline?.type === 'FunctionTypeAnnotation')) {
+      const params = dropLeadingThisParam(inline.params ?? null);
+      // a GENERIC alias binds its own parameters on the hop (`type F<T> = (a: T) => void`), so the
+      // binding is carried into each parameter's ANNOTATION - the list elements are parameter nodes,
+      // and a deep-subst handed the node itself leaves the free `T` sitting inside untouched
+      if (!params || !aliasSubst) return params;
+      return params.map(param => param?.typeAnnotation
+        ? { ...param, typeAnnotation: applyAliasSubstDeep(param.typeAnnotation, aliasSubst) } : param);
+    }
     if (arg?.type !== 'TSTypeQuery') return null;
     // overloaded `typeof fn`: select the LAST ambient head's params (TS canonical signature),
     // matching ReturnType's selection. no-op for classes / non-overloaded subjects
@@ -133,7 +160,14 @@ export function createTypeFolding({
   // instead of dropping it, so the receiver type (`function f(this: number[])` -> `number[]`) resolves
   function resolveThisParamAnnotation(typeRef, scope) {
     if (typeRefName(typeRef) !== 'ThisParameterType') return null;
-    const arg = getTypeArgs(typeRef)?.params?.[0];
+    // the same walk the parameter-list twin above runs - shared so the two cannot disagree about
+    // which spellings they understand
+    const { arg, signature, subst: aliasSubst } = utilityArgumentSignature(typeRef, scope);
+    if (signature?.type === 'TSFunctionType' || signature?.type === 'FunctionTypeAnnotation') {
+      const thisParam = hasLeadingThisParam(signature.params) ? signature.params[0] : null;
+      const annotation = thisParam?.typeAnnotation ?? null;
+      return annotation && aliasSubst ? applyAliasSubstDeep(annotation, aliasSubst) : annotation;
+    }
     if (arg?.type !== 'TSTypeQuery') return null;
     const current = pickLastAmbientOverload(resolveTypeQueryBinding(arg, scope), arg, scope);
     const params = current?.node?.params;
@@ -391,6 +425,22 @@ export function createTypeFolding({
   // `foldIntersectionTypes` / `resolveTupleInner` invoke it), `isTupleRestElement` /
   // `unwrapTupleMember` (only `tupleAsArrayType` / `resolveTupleInner` / `findTupleElement`
   // consume them)
+  // fold the per-arm answers of a union whose arms are ALTERNATIVES OF ONE VALUE - a callee that
+  // is one of several signatures, and so on. nullish arms drop out; an arm nothing can resolve
+  // sinks the whole answer; the survivors must converge, because the value could be any of them
+  // and a narrow that holds for only one arm dispatches the rest through a wrong-family Maybe.
+  // a non-union node is simply its own single arm
+  function foldUnionArmTypes(node, resolveArm) {
+    if (!isUnionType(node)) return resolveArm(node);
+    // nullish arms drop on the ANNOTATION, not after resolution as the sibling value-union fold
+    // does, and nothing here marks the result nullish: these arms are alternative CALLEES, so a
+    // nullish one contributes no return at all - it throws - rather than a nullish return
+    const arms = node.types
+      .map(arm => peelTSParenthesized(unwrapTypeAnnotation(arm)))
+      .filter(arm => !isNullableOrNeverAnnotation(arm));
+    return foldTypes(arms, resolveArm, resolved => resolved ? 2 : 0);
+  }
+
   return {
     tupleElements,
     rebuildTupleElements,
@@ -405,6 +455,7 @@ export function createTypeFolding({
     isNullableOrNever,
     isNullableOrNeverAnnotation,
     foldUnionTypes,
+    foldUnionArmTypes,
     foldIntersectionTypes,
     resolveTupleInner,
     resolveNonNullableAnnotation,
