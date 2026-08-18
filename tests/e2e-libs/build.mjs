@@ -368,6 +368,11 @@ const [UNPLUGIN_NAME] = [unpluginFor('rollup', 'usage-global', 'post')].flat()[0
 // destroyed unless it is handed back. Required rather than defaulted - rollup always passes it, and a
 // default would be a second way to lose the channel silently, which is the defect this shape exists
 // against.
+// A package boundary, not a substring: `node_modules` unanchored also matches a CHECKOUT DIRECTORY
+// that happens to carry the word, and then every cycle below is silenced - the same trap the
+// `core-js` exclude above spells out. Same shape as `BABEL_EXCLUDE` and `CORE_JS_MODULE`.
+const NODE_MODULES_SEGMENT = /[/\\]node_modules[/\\]/;
+
 export function strictWarn(w, warn) {
   if (w.code === 'UNRESOLVED_IMPORT' || w.code === 'MISSING_EXPORT') throw new Error(`${ w.code }: ${ w.message }`);
   // the one channel by which unplugin reports its own failure: a source oxc cannot parse is warned
@@ -377,6 +382,10 @@ export function strictWarn(w, warn) {
   if (w.code === 'PLUGIN_WARNING' && w.plugin?.startsWith(UNPLUGIN_NAME)) {
     throw new Error(`${ w.plugin }: ${ w.message }`);
   }
+  // A cycle wholly inside a dependency is that library's shape - d3-selection and d3-transition are
+  // full of them - and nothing here can act on one, while the lines bury the warnings that do mean
+  // something. A cycle reaching one of the suite's OWN modules is a different event and prints.
+  if (w.code === 'CIRCULAR_DEPENDENCY' && w.ids?.every(id => NODE_MODULES_SEGMENT.test(id))) return;
   warn(w);
 }
 

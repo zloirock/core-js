@@ -19,6 +19,15 @@ export const libraries = [
     exercise: join(HERE, 'exercises', 'three.mjs'),
   },
   {
+    // The widest graph: the `d3` facade re-exports some thirty packages, so the provider scans
+    // hundreds of small modules and the bundler resolves the injections across all of them - the
+    // build-side cost that scales with module COUNT, which neither rxjs's single published package
+    // nor three's one monolith reaches. A large part of what is scanned never reaches the bundle, so a
+    // snapshot line here can stand over a module the exercise never runs.
+    name: 'd3',
+    exercise: join(HERE, 'exercises', 'd3.mjs'),
+  },
+  {
     // The TypeScript fixture: built from the libraries' own `src/**/*.ts`, not their published JS -
     // see `TS_SOURCE_PACKAGES` in build.mjs. Only rollup has been taught to resolve `.ts` here, which
     // both runners use, and which is also where the phase axis this fixture exists for lives.
