@@ -264,8 +264,8 @@ function deeperLiveOptionalThroughPristineHops(current, adapter) {
   for (let deeper = unwrapNode(chainChild(current)); deeper && typeof deeper === 'object';
     deeper = unwrapNode(chainChild(deeper))) {
     if (deeper.type === 'MemberExpression' || deeper.type === 'OptionalMemberExpression') {
-      const key = memberKeyName(deeper);
-      if (key && POSSIBLE_GLOBAL_OBJECTS.has(key) && isMutatedGlobalSlot(adapter, key)) return false;
+      const key = memberProxyHopName(deeper);
+      if (key && isMutatedGlobalSlot(adapter, key)) return false;
     }
     if (deeper.optional) return true;
   }
@@ -329,9 +329,7 @@ function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapte
     if (!dropped.boundary) return null;
   }
   const survivor = hops.at(-1);
-  const survivorKey = survivor && (survivor.computed
-    ? (typeof survivor.property?.value === 'string' ? survivor.property.value : null)
-    : survivor.property?.name);
+  const survivorKey = survivor && staticMemberKeyName(survivor);
   if (survivorKey && resolveGlobalPolyfill?.(survivorKey)
     && !isMutatedGlobalSlot(adapter, survivorKey)) return null;
   // a side-effecting dropped key DOES have a channel here: it migrates into the surviving leaf key as a
@@ -342,11 +340,15 @@ function proxyTailBoundaryAfterRoot({ receiver, rootNode, metaPath, code, adapte
     if (sawCall) return null;
     const leaf = hops.at(-1);
     if (!leaf) return null;
+    // the dotted key is re-spelled from the canon's NAME, so a key with no static name (a private
+    // one carries `.name` all the same) declines the migration instead of inventing a slot
+    const leafDottedKey = leaf.computed ? null : memberKeyName(leaf);
+    if (!leaf.computed && leafDottedKey === null) return null;
     return {
       migrate: {
         keySrcs: dropped.droppedSe.map(effect => code.slice(effect.start, effect.end)),
         leafKeySrc: leaf.computed
-          ? code.slice(leaf.property.start, leaf.property.end) : JSON.stringify(leaf.property.name),
+          ? code.slice(leaf.property.start, leaf.property.end) : JSON.stringify(leafDottedKey),
         // the remainder starts after the whole MEMBER, not after the key: a computed leaf still has its
         // own closing bracket past the key (`['Array']` -> a stray `]` would survive into the splice)
         leafEnd: leaf.end,
@@ -945,7 +947,7 @@ function skipReceiverTailMembers(receiverNode, skippedNodes, rootBoundary, resol
   const boundary = rootBoundary ? unwrapNode(rootBoundary) : null;
   let hop = unwrapNode(receiverNode);
   while ((hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression') && hop !== boundary) {
-    const key = hop.computed ? null : hop.property?.name;
+    const key = staticMemberKeyName(hop);
     const claimable = !!key && !POSSIBLE_GLOBAL_OBJECTS.has(key) && !!resolveGlobalPolyfill?.(key);
     if (!claimable) skippedNodes.add(hop);
     hop = unwrapNode(hop.object);
@@ -1766,19 +1768,21 @@ export function createPolyfillEmitter({
   // the collapse itself is applied upstream by `resolveReceiverSource`, not by the reuse render below
   function staticPairTailCollapse(receiver, rootNode) {
     const field = unwrapNode(receiver);
-    if ((field?.type !== 'MemberExpression' && field?.type !== 'OptionalMemberExpression')
-      || field.computed || !field.property?.name) return null;
+    if (field?.type !== 'MemberExpression' && field?.type !== 'OptionalMemberExpression') return null;
+    const fieldKey = memberKeyName(field);
     const ctorHop = unwrapNode(field.object);
-    if ((ctorHop?.type !== 'MemberExpression' && ctorHop?.type !== 'OptionalMemberExpression')
-      || ctorHop.computed || !ctorHop.property?.name) return null;
+    if (fieldKey === null
+      || (ctorHop?.type !== 'MemberExpression' && ctorHop?.type !== 'OptionalMemberExpression')) return null;
+    const ctorKey = memberKeyName(ctorHop);
+    if (ctorKey === null) return null;
     const boundary = unwrapNode(rootNode);
     let hop = unwrapNode(ctorHop.object);
     while ((hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression') && hop !== boundary) {
-      if (hop.computed || !isPristineProxyGlobal(estreeAdapter, hop.property?.name)) return null;
+      if (!isPristineProxyGlobal(estreeAdapter, memberKeyName(hop))) return null;
       hop = unwrapNode(hop.object);
     }
     if (hop !== boundary) return null;
-    return resolveStaticPolyfill(ctorHop.property.name, field.property.name);
+    return resolveStaticPolyfill(ctorKey, fieldKey);
   }
 
   // reuse an OUTER guard's memo ref for this dispatch's chain root. root IS the receiver:
@@ -2270,17 +2274,18 @@ export function createPolyfillEmitter({
   // `.prototype.has` tail). `claimMutated` declines the whole render (the user's patch owns the surface)
   function computeStaticClaim(hops) {
     let claimIdx = hops.length - 1;
-    // every hop the loop passed OVER is in `POSSIBLE_GLOBAL_OBJECTS`, i.e. has a non-null claim
-    // key by construction - the claimability of the hops above `claimIdx` needs no second test
-    while (claimIdx >= 0 && POSSIBLE_GLOBAL_OBJECTS.has(hopClaimKey(hops[claimIdx]))) claimIdx--;
-    const claimHop = claimIdx >= 0 && hopClaimKey(hops[claimIdx]) !== null ? hops[claimIdx] : null;
+    // every hop the loop passed OVER is a proxy-global name, i.e. has a non-null claim key by
+    // construction - the claimability of the hops above `claimIdx` needs no second test
+    while (claimIdx >= 0 && memberProxyHopName(hops[claimIdx])) claimIdx--;
+    const claimKey = claimIdx >= 0 ? staticMemberKeyName(hops[claimIdx]) : null;
+    const claimHop = claimKey !== null ? hops[claimIdx] : null;
     // the claim reads THROUGH every hop below it under the realm-self-reference assumption,
     // which a user-replaced slot breaks - a mutated hop below the claim declines it exactly
     // like a mutation of the claimed static itself
-    const claimMutated = !!claimHop && (isMutatedStaticPair('globalThis', hopClaimKey(claimHop), mutatedStatics)
+    const claimMutated = !!claimHop && (isMutatedStaticPair('globalThis', claimKey, mutatedStatics)
       || hops.slice(0, claimIdx).some(hop => unpristineProxyHop(hop, estreeAdapter)));
     const claimTailWrapped = !!claimHop && chainClaimTailWrapped(hops, claimIdx);
-    const claimPure = claimHop && !claimTailWrapped ? resolveGlobalPolyfill(hopClaimKey(claimHop)) : null;
+    const claimPure = claimHop && !claimTailWrapped ? resolveGlobalPolyfill(claimKey) : null;
     return { claimIdx, claimHop, claimPure, claimTailWrapped, claimMutated };
   }
 
@@ -2305,7 +2310,7 @@ export function createPolyfillEmitter({
   // deferred routing. returns the collapse or null (claim doesn't cleanly span -> caller's other branches)
   function emitSuppressInjectReceiverIndependent({ hops, receiverObj, claimIdx, claimHop, claimPure, claimTailWrapped, leafNode }) {
     if (!claimPure || claimTailWrapped
-      || (claimHop !== hops[0] && !(claimIdx === 2 && hopClaimKey(hops[1]) === 'prototype'))
+      || (claimHop !== hops[0] && !(claimIdx === 2 && staticMemberKeyName(hops[1]) === 'prototype'))
       || hops.slice(claimIdx + 1).some(hop => hop.computed)) return null;
     const claimBinding = injectPureImport(claimPure.entry, claimPure.hintName);
     const tailStart = claimHop === hops[0] ? receiverObj.end
@@ -2385,16 +2390,16 @@ export function createPolyfillEmitter({
         inward.push(hop);
         hop = unwrapNode(peelReceiverSequenceTail(hop.object));
       }
-      if (sound && !resolveGlobalPolyfill(inward[0]?.property?.name)) {
+      if (sound && inward.length && !resolveGlobalPolyfill(memberKeyName(inward[0]))) {
         // `inward` is outermost-first; the first resolvable entry PAST the tail is the deepest
         // usable leaf, and everything below it must resolve too. the collapse point and the
         // hops below it must also be PRISTINE - substituting a ponyfill for a slot the user
         // patched would swap their object for the polyfilled one
-        const idx = inward.findIndex(hop => resolveGlobalPolyfill(hop.property?.name));
+        const idx = inward.findIndex(hop => resolveGlobalPolyfill(memberKeyName(hop)));
         if (idx > 0 && inward.slice(idx).every(hop => !unpristineProxyHop(hop, aliasCtx?.adapter))
-          && inward.slice(idx + 1).every(hop => resolveGlobalPolyfill(hop.property?.name))) {
+          && inward.slice(idx + 1).every(hop => resolveGlobalPolyfill(memberKeyName(hop)))) {
           collapseHop = inward[idx];
-          pure = resolveGlobalPolyfill(collapseHop.property.name);
+          pure = resolveGlobalPolyfill(memberKeyName(collapseHop));
         }
       }
     }
@@ -2747,14 +2752,25 @@ export function createPolyfillEmitter({
         for (let i = hops.length - 1; i >= claimIdx; i--) {
           if (hops[i].computed) collectFoldedReceiverSideEffects(hops[i].property, claimKeySe);
         }
-        // a sequence prefix AROUND the kept assignment is the caller's re-emit; taking it over
-        // places it ahead of the assignment INSIDE this sequence (the AST emitter's flat shape,
-        // `(se, t = _self, _Map)`) instead of the caller's extra wrap around the whole render
-        if (callerSe.length && callerSe.every(effect => effect.end <= chainAssign.start)) {
+        // the caller's re-emit, taken over so it lands INSIDE this sequence instead of wrapping the
+        // whole render - and split by POSITION, because the assignment is the object being read: a
+        // sequence prefix AROUND it leads it, while a key from a hop the collapse already dropped
+        // follows it (`(p = _root, k(), _Map)`). the dropped hop is inner, so its key precedes the
+        // claim hop's own. keeping only the leading half wrapped the trailing one outside, running a
+        // key before the assignment that the source runs after it
+        // a key on the CLAIM hop is already in `claimKeySe`; taking it over here too would run it twice
+        const claimKeySet = new Set(claimKeySe);
+        const preAssignSe = callerSe.filter(effect => effect.end <= chainAssign.start);
+        const postAssignSe = callerSe.filter(effect => effect.start >= chainAssign.end && !claimKeySet.has(effect));
+        if (callerSe.length
+          && callerSe.every(effect => effect.end <= chainAssign.start
+            || effect.start >= chainAssign.end || claimKeySet.has(effect))) {
           consumedSe = callerSe;
         }
-        const claimInner = `${ [...consumedSe.map(effect => nodeSrc(effect)), assignSrc].join(', ') }, ${
-          [...claimKeySe.map(effect => nodeSrc(effect)), injectPureImport(claimPure.entry, claimPure.hintName)].join(', ') }`;
+        const claimInner = `${ [...(consumedSe.length ? preAssignSe : []).map(effect => nodeSrc(effect)), assignSrc].join(', ') }, ${
+          [...(consumedSe.length ? postAssignSe : []).map(effect => nodeSrc(effect)),
+            ...claimKeySe.map(effect => nodeSrc(effect)),
+            injectPureImport(claimPure.entry, claimPure.hintName)].join(', ') }`;
         const claimTailStart = afterOptional(claimHop.end, !(hops[claimIdx - 1]?.computed ?? false));
         const claimTail = code.slice(claimTailStart, receiverObj.end);
         const claimVerbatim = [...assignVerbatim, { start: claimTailStart, end: receiverObj.end }];
@@ -4531,7 +4547,8 @@ export function createPolyfillEmitter({
   // `prependChainAssignmentEffect(unwrapNode(receiverObj), sideEffects)` to absorb
   // chain-assignment receivers + the `meta.sideEffects` captured by detect-usage. `insertAt`
   // (the receiver/key boundary) places the chain-assign before the computed-key SE per ECMA
-  // receiver-before-key; the fallback path passes receiver-only effects so it omits it (appends).
+  // receiver-before-key; the fallback path passes the slot its prototype-ctor harvest recorded, and
+  // omits it (appends) only when that harvest found no chain-assign to place.
   // the composed text reproduces the harvested effects and NOTHING else of `region`, which is what
   // its subsumption declares - the rescue list is the render's own answer, not a shape guess
   function composeBindingReplacement({ binding, receiverObj, sideEffects, insertAt, region, metaPath }) {
@@ -4568,7 +4585,7 @@ export function createPolyfillEmitter({
   // replacement so `called++` in `(called++, Promise).noSuchStatic` doesn't drop
   function replaceStaticFallback({
     binding, node, metaPath, sideEffects, receiverEffectCount, receiverNode = node.object, protoCtorReceiverSE,
-    fallbackGuard: threadedGuard = null,
+    protoCtorChainAssignAt = null, chainAssignInsertAt = null, fallbackGuard: threadedGuard = null,
   }) {
     // an undefinable optional root may NOT fold into the kept sequence - the fold eats the
     // `?.` guard (native short-circuits to undefined where the folded read yields a value).
@@ -4655,8 +4672,12 @@ export function createPolyfillEmitter({
     // only the receiver-SE (drop the trailing computed-key SE) to avoid double-evaluating it.
     // `receiverNode` is the CTOR sub-receiver for a `prototype` placement (`globalThis.Map` within
     // `globalThis.Map.prototype`) so `.prototype` is kept; the whole `.object` for a static placement.
-    // `protoCtorReceiverSE`: a SE-sequence buried in that ctor sub-receiver (`(c++, globalThis.self).Map`) the
-    // receiver-SE collect couldn't reach - re-emit so the `_Map` swap keeps the `c++` (`(c++, _Map).prototype`)
+    // `protoCtorReceiverSE`: the effects buried in that ctor sub-receiver the receiver-SE collect couldn't
+    // reach - a sequence prefix (`(c++, globalThis.self).Map`) or a hop's own computed KEY
+    // (`globalThis.self[(c++, 'Map')]`) - re-emitted so the `_Map` swap keeps the `c++` (`(c++, _Map).prototype`)
+    // the sub-receiver's own effects sit DEEPER than this member's, so they lead; the chain-assign
+    // absorbed by `composeBindingReplacement` splices at the slot the harvest recorded inside them,
+    // not at the end - appended, it ran after a folded key the source evaluates later
     const baseEffects = receiverSideEffectsOnly(receiverEffectCount, sideEffects) ?? [];
     const fbEffects = protoCtorReceiverSE ? [...protoCtorReceiverSE, ...baseEffects] : baseEffects;
     // a SEALED probe receiver: re-emit the dropped sealed-value read as a THROW probe
@@ -4670,6 +4691,7 @@ export function createPolyfillEmitter({
     }
     transforms.add(receiverNode.start, receiverNode.end, composeBindingReplacement({
       binding, receiverObj: receiverNode, sideEffects: fbEffects, region: receiverNode, metaPath,
+      insertAt: protoCtorChainAssignAt ?? chainAssignInsertAt ?? undefined,
     }));
   }
 
@@ -4756,14 +4778,6 @@ export function createPolyfillEmitter({
 function memoHoist(bodyObj, scopeTracker) {
   const ref = scopeTracker.genRef();
   return { leadingMemo: `${ ref } = ${ bodyObj }`, bodyObj: ref };
-}
-
-// claim key of a chain-assign-rooted hop: a dotted key, or a (sequence-peeled) string-literal
-// computed key; null = unclaimable spelling
-function hopClaimKey(hop) {
-  if (!hop.computed) return hop.property?.name ?? null;
-  const { tail } = peelNestedSequenceExpressions(hop.property);
-  return typeof tail?.value === 'string' ? tail.value : null;
 }
 
 // wrapper token INSIDE the verbatim tail slice above the claim hop (the root paren around the

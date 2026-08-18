@@ -16,6 +16,21 @@ function shadowed(Symbol) {
   return [d, fe4];
 }
 shadowed({ iterator: 'k' });
+// the SPELLING of `Symbol` is the canon's question, not this render's: a capitalised const alias and
+// a proxy-global access name the same global, so they re-key like the bare name - read as a bare
+// Identifier only, they leaked raw `Symbol` text into the residual. a SLOT-mutated `Symbol` is the
+// opposite direction and must NOT re-key: the user's replacement does not carry the well-known
+// symbols, so the read stays on their object
+const Sym = Symbol;
+const { Map: { [Sym.iterator]: aliased }, Object: { fromEntries: fe6 } } = globalThis;
+aliased;
+fe6(u1);
+const { Map: { [globalThis.Symbol.iterator]: viaProxy }, Object: { fromEntries: fe7 } } = globalThis;
+viaProxy;
+fe7(u2);
+const { Map: { [globalThis.self.Symbol.iterator]: viaHop }, Object: { fromEntries: fe8 } } = globalThis;
+viaHop;
+fe8(u3);
 // the re-key must not depend on WHICH sibling dispatched the flatten (the key visitor may
 // or may not have fired on the original before the residual is cloned / sliced), nor on the
 // host kind - an assignment host re-keys the same way

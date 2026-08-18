@@ -1365,6 +1365,118 @@ testUnlessDetectLowered('global-proxy: a leading effect keeps its guarded claim'
   assert.same(effects, 3, 'each leading effect ran exactly once, on either branch');
 });
 
+// the hop that NAMES the polyfilled constructor decides one claim, and the claim has to answer the
+// same however that key is written. the folded spellings under-resolved: the swap read the ctor raw
+// off the global (`_globalThis[(keys++, 'Set')]` - the method's target engines have no `Set` there),
+// and on the text emitter the swap that did fire DROPPED the key's own effect. `.add` is deliberately
+// a prototype method with no pure entry of its own - one WITH an entry resolves as an instance claim
+// and never reaches the constructor swap this locks. `.globalThis.` spells the redundant hop, so the
+// chain runs in Node too, where `self` / `window` do not exist
+QUnit.test('global-proxy: a ctor hop claims the same in every key spelling', assert => {
+  let keys = 0;
+  const dotted = globalThis.globalThis.Set.prototype.add;
+  // eslint-disable-next-line dot-notation -- the computed STRING spelling of the key is the subject
+  const computed = globalThis.globalThis['Set'].prototype.add;
+  // eslint-disable-next-line dot-notation, @stylistic/quotes -- as above, for the single-quasi TEMPLATE spelling
+  const template = globalThis.globalThis[`Set`].prototype.add;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its effect must survive the swap
+  const sequence = globalThis.globalThis[(keys++, 'Set')].prototype.add;
+  const iife = globalThis.globalThis[(() => 'Set')()].prototype.add;
+  assert.same(typeof dotted, 'function', 'the dotted spelling reaches the ponyfilled prototype');
+  assert.same(computed, dotted, 'a static-string computed key names the same constructor');
+  assert.same(template, dotted, 'and so does a single-quasi template key');
+  assert.same(sequence, dotted, 'and a key whose sequence prefix carries an effect');
+  assert.same(iife, dotted, 'and one folded out of a pure zero-argument call');
+  assert.same(keys, 1, 'the effect buried in that key ran exactly once');
+  // the same claim under a receiver-WRAPPING helper, the other owner of this route
+  let names = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- as above: the KEY carries the effect
+  const wrapped = globalThis.globalThis[(names++, 'Set')].prototype.add.name;
+  assert.same(typeof wrapped, 'string', 'the wrapped read resolves through the same claim');
+  assert.same(names, 1, 'and runs its key effect exactly once');
+});
+
+// the chain-assign root of that same claim is a RECEIVER effect: the source runs it BEFORE the key
+// it precedes. it re-emits through the swap's own absorber, which APPENDED it - past the key effect
+// harvested from the same sub-receiver. both emitters agreed on that order, so nothing but a runtime
+// observable catches it: the key reads what the assignment stored, and read the wrong thing
+QUnit.test('global-proxy: a chain-assign root evaluates before the key it precedes', assert => {
+  let target;
+  // eslint-disable-next-line no-useless-assignment -- the initial value is what a key evaluated too EARLY would leave
+  let seenAtKey = 'unset';
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject
+  const method = (target = globalThis).globalThis[(seenAtKey = target, 'Set')].prototype.add;
+  assert.same(typeof method, 'function', 'the claim still reaches the ponyfilled prototype');
+  assert.same(target, globalThis, 'the assignment stored the realm global');
+  assert.same(seenAtKey, globalThis, 'and it had already run when the key was evaluated');
+});
+
+// a BARE probed nav as a destructure source (`{ structuredClone } = (globalThis.window?.self)`): the
+// collapse consumes the whole pattern, so the read native performs off the probe VALUE is re-emitted
+// as a throw probe. the slot was read as an Identifier key only, so the same slot spelled as a static
+// string or a template lost that probe and ANSWERED where native throws. every spelling names one slot
+// and owes one behaviour; a computed SE key is the deliberate exception - it keeps its residual channel
+testUnlessDetectLowered('global-proxy: a bare probed nav throws in every spelling of its slot', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  /* eslint-disable @stylistic/no-extra-parens, no-unsafe-optional-chaining, no-useless-computed-key, @stylistic/quotes -- the SUBJECT is a sealed
+     probe nav destructured by one slot in three spellings: the parens are the seal, the short-circuit is
+     the throw under test, and the computed / template keys are the spellings that used to lose it */
+  function dotted() {
+    const { structuredClone: sc } = (globalThis.window?.self);
+    return typeof sc;
+  }
+  function computed() {
+    const { ['structuredClone']: sc } = (globalThis.window?.self);
+    return typeof sc;
+  }
+  function template() {
+    const { [`structuredClone`]: sc } = (globalThis.window?.self);
+    return typeof sc;
+  }
+  /* eslint-enable @stylistic/no-extra-parens, no-unsafe-optional-chaining, no-useless-computed-key, @stylistic/quotes -- end of the three-spelling subject */
+  if (WINDOW_PRESENT) {
+    assert.same(dotted(), 'function', 'a present host binds the polyfilled slot');
+    assert.same(computed(), 'function', 'and the computed spelling of the same slot binds it too');
+    assert.same(template(), 'function', 'and the template spelling');
+  } else {
+    assert.throws(dotted, TypeError, 'an absent host throws destructuring the probe value');
+    assert.throws(computed, TypeError, 'the computed spelling of the same slot throws with it');
+    assert.throws(template, TypeError, 'and so does the template spelling');
+  }
+});
+
+// a chain-assign root is the OBJECT being read, so the source evaluates it before any key above it.
+// three channels used to place the key first: the provider withheld the slot from a static READ, the
+// text emitter's fallback never received it, and its claim render took over only the effects sitting
+// BEFORE the assignment - a key from a hop the collapse had already dropped got wrapped around the
+// whole render. the key reads what the assignment stored, which is what makes the order observable
+testUnlessDetectLowered('global-proxy: a chain-assign root evaluates before every key above it', assert => {
+  function staticRead() {
+    let t;
+    /* eslint-disable-next-line @stylistic/no-extra-parens, es/no-nonstandard-set-properties -- the parenthesized sequence
+       KEY is the subject; the absent static `Set.size` is the read that keeps this route on the fallback swap */
+    const v = (t = globalThis)[(order.push(t === undefined ? 'key-first' : 'assign-first'), 'Set')].size;
+    return [typeof v, order.pop()];
+  }
+  function droppedHopKey() {
+    let p;
+    // eslint-disable-next-line @stylistic/no-extra-parens -- as above: the key sits on a hop the collapse DROPS
+    const v = (p = globalThis)[(order.push(p === undefined ? 'key-first' : 'assign-first'), 'globalThis')].Map.name;
+    return [typeof v, order.pop()];
+  }
+  function claimHopKey() {
+    let m;
+    // eslint-disable-next-line @stylistic/no-extra-parens -- as above: the key sits on the CLAIM hop
+    const v = (m = globalThis).globalThis[(order.push(m === undefined ? 'key-first' : 'assign-first'), 'Set')].name;
+    return [typeof v, order.pop()];
+  }
+  const order = [];
+  assert.deepEqual(staticRead(), ['undefined', 'assign-first'], 'a static READ runs the assignment first');
+  assert.deepEqual(droppedHopKey(), ['string', 'assign-first'], 'and so does a key on a hop the collapse drops');
+  assert.deepEqual(claimHopKey(), ['string', 'assign-first'], 'and a key on the claim hop itself');
+  assert.same(order.length, 0, 'each row observed exactly one key evaluation');
+});
+
 // a KEPT chain-assign VALUE collapses its pony hops whatever claim stands above it - the spelling
 // the static claim beside it already read through. an instance claim used to leave the hop raw, so
 // the stored value and the read went through a native `self` off the global instead of its ponyfill
