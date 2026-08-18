@@ -4,6 +4,11 @@
 
 // `toJSON` first, once, the way `JSON.stringify` does it: for a Date that method IS the value, and
 // walking own properties instead finds none, so every date would equal every other one and `{}`.
+//
+// It costs a check its teeth, which is the half worth knowing when writing one: a Date compares EQUAL
+// to the ISO string it renders, so an assertion that a library formatted a date into that string is
+// also satisfied by one that handed the Date straight back. Where the point of the check is that a
+// value was rendered, assert its `typeof` alongside it.
 function unwrap(value) {
   return value && typeof value.toJSON === 'function' ? value.toJSON() : value;
 }
