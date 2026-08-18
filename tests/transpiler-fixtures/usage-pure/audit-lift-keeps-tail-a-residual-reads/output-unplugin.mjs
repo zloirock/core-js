@@ -5,7 +5,9 @@ import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 // the dead-tail lift drops a sequence tail whose value nothing reads. a skip-mark alone does not
 // prove that: a residual binding still reads the receiver off it, and dropping the tail bound that
 // residual off the bare prefix instead (`name` came out undefined). the full-consume rows keep
-// their lift, and the rest sibling keeps the whole init
+// their lift, and the rest sibling keeps the whole init.
+// the sidecar is the re-reference of an EFFECT-FREE prefix: this emitter reads the peeled tail
+// again, the text one memoizes it. nothing observes the difference while the prefix has no effects
 const arr = [1];
 const _ref = (0, Array);
 export const of = _Array$of;

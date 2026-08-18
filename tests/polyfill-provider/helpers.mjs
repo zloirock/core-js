@@ -28,32 +28,34 @@ import {
   parseDisableDirectives,
 } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import {
-  importBindingView,
+  classOwnThisMethodInfo,
   directiveValue,
   extractIndirectRequireSEPrefix,
   findFunctionScopeVarInPath,
+  findObjectKeyBeforeSpread,
   findTSRuntimeBindingInPath,
   findVarOwnerDeclaring,
-  findObjectKeyBeforeSpread,
+  forEachStatementPosition,
+  importBindingView,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
   isReusableReceiver,
-  classOwnThisMethodInfo,
-  privateNameSpelling,
+  methodReadsUsageCensus,
+  migratableClaimSe,
+  nodeSpan,
   paramListReadsName,
   peelMemoizeWrappers,
   peelSequenceTail,
   peelZeroArgIifeReturn,
+  privateNameSpelling,
+  pureCtorNameFromImportSource,
+  SINGLE_STATEMENT_SLOTS,
   SKIPPABLE_WRAPPER_TYPES,
+  spreadAtOrBefore,
+  staticMemberFromEntrySegment,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
   zeroArgIifeSideEffectFree,
-  forEachStatementPosition,
-  SINGLE_STATEMENT_SLOTS,
-  spreadAtOrBefore,
-  methodReadsUsageCensus,
-  pureCtorNameFromImportSource,
-  staticMemberFromEntrySegment,
 } from '../../packages/core-js-polyfill-provider/helpers/ast-patterns.js';
 import { usableAliasInfo } from '../../packages/core-js-polyfill-provider/helpers/class-walk.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
@@ -1622,6 +1624,44 @@ check('methodReadsUsageCensus/entry-global does not', methodReadsUsageCensus('en
   inverseYoda.consequent = ident('a');
   inverseYoda.alternate = { type: 'ArrayExpression', elements: [] };
   check('matchSelfDefaultTernarySlot/void 0 !== a', matchSelfDefaultTernarySlot(inverseYoda), 'alternate');
+}
+
+// `nodeSpan` and the claim-SE regions are the two cross-dialect readers the emitters share: babel
+// hands them CLONES, which keep `loc` and lose the numeric pair, while oxc hands them the numbers
+// and no `loc`. both spellings have to answer the same, and the region split has to name three
+// homes - an effect with no region at all is what makes a claim stand down.
+{
+  function shape(value) { return JSON.stringify(value); }
+  check('nodeSpan/numeric pair leads', shape(nodeSpan({ start: 3, end: 9 })), shape({ start: 3, end: 9 }));
+  check('nodeSpan/loc index answers a clone', shape(nodeSpan({ loc: { start: { index: 3 }, end: { index: 9 } } })), shape({ start: 3, end: 9 }));
+  check('nodeSpan/numeric wins over loc', shape(nodeSpan({ start: 1, end: 2, loc: { start: { index: 7 }, end: { index: 8 } } })), shape({ start: 1, end: 2 }));
+  check('nodeSpan/neither spelling answers', nodeSpan({ type: 'Identifier' }), null);
+  check('nodeSpan/half a span is no span', nodeSpan({ start: 3 }), null);
+  check('nodeSpan/nullish node', nodeSpan(null), null);
+
+  const root = { start: 10, end: 20 };
+  function se(start, end) { return { start, end }; }
+  check('migratableClaimSe/no SE channel at all', shape(migratableClaimSe({ sideEffects: [], rootNode: root, end: 30 })), shape({ leading: [], migrated: [] }));
+  const inside = se(12, 15);
+  const after = se(21, 25);
+  const before = se(2, 5);
+  check('migratableClaimSe/inside the root rides in the test',
+    shape(migratableClaimSe({ sideEffects: [inside], rootNode: root, end: 30 })), shape({ leading: [], migrated: [] }));
+  check('migratableClaimSe/between root and claim migrates',
+    shape(migratableClaimSe({ sideEffects: [after], rootNode: root, end: 30 })), shape({ leading: [], migrated: [after] }));
+  check('migratableClaimSe/before the root leads',
+    shape(migratableClaimSe({ sideEffects: [before], rootNode: root, end: 30 })), shape({ leading: [before], migrated: [] }));
+  check('migratableClaimSe/all three regions at once',
+    shape(migratableClaimSe({ sideEffects: [before, inside, after], rootNode: root, end: 30 })), shape({ leading: [before], migrated: [after] }));
+  check('migratableClaimSe/an effect straddling the root has no region',
+    migratableClaimSe({ sideEffects: [se(5, 15)], rootNode: root, end: 30 }), null);
+  check('migratableClaimSe/an effect past the claim has no region',
+    migratableClaimSe({ sideEffects: [se(31, 40)], rootNode: root, end: 30 }), null);
+  check('migratableClaimSe/a position-less effect has no region',
+    migratableClaimSe({ sideEffects: [{ type: 'CallExpression' }], rootNode: root, end: 30 }), null);
+  check('migratableClaimSe/a CLONE root still answers',
+    shape(migratableClaimSe({ sideEffects: [after], rootNode: { loc: { start: { index: 10 }, end: { index: 20 } } }, end: 30 })),
+    shape({ leading: [], migrated: [after] }));
 }
 
 finish();
