@@ -46,7 +46,7 @@ A divergence from babel-plugin is recorded in a sidecar `output-unplugin.mjs` ne
 
 Those runners only compare text, which settles cosmetic work; a change in BEHAVIOR is verified while you work by the correctness suite nearest to it, scoped to what changed:
 
-- `npm run test-transpiler-differential unplugin` - this emitter against native at runtime, on the generated corpus; add `pure` while the usage-global path is untouched (the usual loop shape for work here). The argument-less run is the gate form - both emitters, every leg
+- `npm run test-transpiler-differential` - both emitters against native at runtime, on the generated corpus. Run it bare: evaluations are cached across runs, so a repeat costs what the edit changed. The `unplugin` token narrows the run to this emitter and turns the import-parity oracle off - use it to isolate a suspect, never to save time
 - `npm run test-e2e-usage-pure` - executes the transformed code; this plugin gets a leg per phase, because each side of the babel sandwich is blind to the other, and only the `pre+post` one also runs in a stripped realm
 - `npm run test-transpiler-integration` - when the change touches a hook, a module-id assumption or anything bundler-facing: the matrix exercises every bundler, method and phase, which is where those break instead of in a fixture
 - `npm run test-transpiler-perf` - guards the complexity class

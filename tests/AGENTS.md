@@ -15,7 +15,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `babel-plugin/`, `babel-plugin-v7/` | `npm run test-babel-plugin`, `-unit`, `-v7`, `-unit-v7` | `@core-js/babel-plugin` against `@babel/core` 8 and 7 |
 | `unplugin/` | `npm run test-unplugin`, `test-unplugin-unit` | `@core-js/unplugin` |
 | `polyfill-provider/` | `npm run test-polyfill-provider` | the provider itself: resolvers, detectors, helpers, options, cross-parser equivalence, escape-analysis domains |
-| `transpiler-differential/` | `npm run test-transpiler-differential [pure] [babel\|unplugin]` | a generated corpus checked three ways: native == babel == unplugin at runtime, matching import sets, and the stripped-realm oracle; edit loops scope it with the tokens, gates run it bare |
+| `transpiler-differential/` | `npm run test-transpiler-differential`, `test-transpiler-differential-cache` | a generated corpus checked three ways: native == babel == unplugin at runtime, matching import sets, and the stripped-realm oracle. Evaluations are cached across runs, so a repeat costs what the edit changed - run it bare, the `pure` / `babel` / `unplugin` tokens narrow what is under test, not the runtime. The second command is the cache's own suite |
 | `transpiler-integration/` | `npm run test-transpiler-integration` | real bundlers x methods x phases, runtime-verified |
 | `transpiler-perf/` | `npm run test-transpiler-perf` | transpiler perf gates and complexity-class discriminators |
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
