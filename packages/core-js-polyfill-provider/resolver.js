@@ -3,9 +3,8 @@
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import {
   kebabToPascal,
-  mayHaveSideEffects,
   POSSIBLE_GLOBAL_OBJECTS,
-  proxyNavRootIsSequence,
+  proxyNavEffectsHarvestable,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
@@ -349,13 +348,13 @@ export function createPolyfillResolver(options, {
         const protoReceiver = unwrapRuntimeExpr(path?.node?.object);
         const plainMember = protoReceiver
           && (protoReceiver.type === 'MemberExpression' || protoReceiver.type === 'OptionalMemberExpression');
-        // a SE-SEQUENCE-rooted ctor sub-receiver (`(c++, globalThis.self).Map.prototype` OR the deeper
-        // `(c++, globalThis).self.Map.prototype`) KEEPS the fallback - its ctor swap harvests the folded
-        // sequence SE into `(c++, _Map).prototype`. an IIFE-call / chain-assignment / computed-key root is owned
-        // by the receiver-peel / natural visitor (whose shell the whole-swap would drop) and stays deferred; a
-        // non-plain receiver is unavailable to swap. mirrors the detect-usage harvest gate
-        const seSequenceCtorSub = proxyNavRootIsSequence(protoReceiver?.object);
-        if (!plainMember || (mayHaveSideEffects(protoReceiver.object) && !seSequenceCtorSub)) {
+        // an SE-SEQUENCE-rooted ctor sub-receiver (`(c++, globalThis.self).Map.prototype` OR the deeper
+        // `(c++, globalThis).self.Map.prototype`) and a computed-KEY effect (`globalThis.self[(c++, 'Map')]
+        // .prototype`) both KEEP the fallback - the ctor swap harvests either into the prefix
+        // (`(c++, _Map).prototype`). only an IIFE-call root is owned by the receiver-peel / natural
+        // visitor, whose shell the whole-swap would drop; a non-plain receiver is unavailable to swap.
+        // mirrors the detect-usage harvest gate
+        if (!plainMember || !proxyNavEffectsHarvestable(protoReceiver.object)) {
           return { result: null, fallback: null };
         }
       }
