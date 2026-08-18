@@ -1243,8 +1243,13 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
 // AST/path-agnostic (`.node` / `.parentPath` / `.scope` on both emitters); `resolvePureGlobal` is
 // the emitter's pure-entry probe (name -> truthy) so the ctor shortcut resolves through the
 // caller's own channel. `proxyCtor` rides along for the memo's global-alias registration
+// `patternSize` - the pattern's ORIGINAL property count. an emitter that MUTATES the pattern as its
+// props emit asks this after the shrink, and a group that started with several props would then be
+// read as a sole-prop one: the init inlines into the surviving prop, so an extraction already
+// planted ahead of it runs BEFORE the init's own effects, which native runs first. the text emitter
+// never mutates, so its live count IS the original and it passes nothing
 export function resolveDestructureReceiverPlan(leafPath, {
-  allowSeFreeSingleRead = false, adapter = null, resolvePureGlobal = null,
+  allowSeFreeSingleRead = false, adapter = null, resolvePureGlobal = null, patternSize = null,
 } = {}) {
   const patternPath = leafPath.parentPath;
   const host = patternPath?.parentPath;
@@ -1258,7 +1263,7 @@ export function resolveDestructureReceiverPlan(leafPath, {
   if (!objectNode) return { channel: 'resolved', node: null };
   // a sole-prop pattern reads the receiver once - the extraction inlines the WHOLE init verbatim
   // (SE prefix included), so no memo is ever needed there
-  if (patternPath.node.properties.length <= 1) return { channel: 'raw', node: objectNode };
+  if ((patternSize ?? patternPath.node.properties.length) <= 1) return { channel: 'raw', node: objectNode };
   // an init that peels (parens / TS wrappers, both AST flavors) to a bare Identifier with no
   // SE-bearing prefix elided on the way is freely re-referenceable - reuse the identifier.
   // an SE-crossed peel falls through: only the whole-init memo preserves the prefix's order
