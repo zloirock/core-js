@@ -1363,7 +1363,8 @@ export default function createPlugin(options) {
             // `(called++, Promise).noSuchStatic` keeps the `called++` rather than dropping it
             replaceStaticFallback({
               binding, node, metaPath, sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount, receiverNode,
-              protoCtorReceiverSE: meta.protoCtorReceiverSE, fallbackGuard,
+              protoCtorReceiverSE: meta.protoCtorReceiverSE, protoCtorChainAssignAt: meta.protoCtorChainAssignAt ?? null,
+              chainAssignInsertAt: meta.chainAssignInsertAt ?? null, fallbackGuard,
             });
             // outer text-emit absorbs the whole receiver: any inner Identifier whose name
             // matches the polyfill's substitution would compose into the emit (`_Map` substring

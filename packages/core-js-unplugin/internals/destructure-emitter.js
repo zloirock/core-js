@@ -28,8 +28,11 @@ import {
   isMemberWriteHost,
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
+  isValidIdentifierName,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
+  memberProxyHopName,
+  staticMemberKeyName,
   paramsHaveInvisibleCallers,
   peelFallbackBranchInner,
   patternBindingCount,
@@ -82,6 +85,7 @@ import {
   proxyGlobalWrappedRoot,
   resolveKey,
   resolveSynthKeys,
+  anchoredResidualSymbolKeyName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   harvestDiscardedReceiverSE,
@@ -1375,10 +1379,12 @@ export function createDestructureEmitter({
       } else {
         // a BARE probed nav (`{ structuredClone } = (globalThis.window?.self)` - no member
         // read to seal): native throws reading the pattern key off the probe value, so
-        // re-emit that read as `(guard).<key>` on the same slot. static identifier keys
-        // only - a computed SE key keeps its residual channel; a nav the shared guard plan
-        // cannot collapse (no ponyfillable leaf) keeps today's render
-        const bareKey = !last.propNode.computed && last.propNode.key?.type === 'Identifier' ? last.propNode.key.name : null;
+        // re-emit that read as `(guard).<key>` on the same slot. the key comes from the canon,
+        // so a static-string / template spelling of the SAME slot re-emits the same read - read
+        // as Identifier-only, those spellings dropped the probe and answered where native throws.
+        // a computed SE key still keeps its residual channel (the canon does not fold one), and a
+        // nav the shared guard plan cannot collapse (no ponyfillable leaf) keeps today's render
+        const bareKey = propertyKeyName(last.propNode);
         if (bareKey && proxyReceiverValueCanBeUndefined(info.initNode, ({ name }) => resolveGlobalPolyfill(name),
           { scope: info.declaratorPath?.scope, adapter: estreeAdapter, path: info.declaratorPath })) {
           const navBase = unwrapNode(info.initNode);
@@ -1392,7 +1398,9 @@ export function createDestructureEmitter({
             // an effect-bearing CALL root runs once in the guard test - register it with the
             // probe-carried SE so the lift harvest's identity filter does not replay it
             if (navGuard.rootEffectCall) info.probeSeNodes = [...info.probeSeNodes ?? [], navGuard.rootEffectCall];
-            last.binding = `((${ navGuard.src }).${ bareKey }, ${ last.binding })`;
+            // a slot name that is not spellable bare (`{ 'a-b': v }`) re-reads computed
+            const keyRead = isValidIdentifierName(bareKey) ? `.${ bareKey }` : `[${ JSON.stringify(bareKey) }]`;
+            last.binding = `((${ navGuard.src })${ keyRead }, ${ last.binding })`;
           }
         }
       }
@@ -1921,24 +1929,24 @@ export function createDestructureEmitter({
   // `Symbol` text in the rebuilt slice: whether the standalone key visitor fired before the
   // flatten's skip seeding depends on WHICH sibling dispatched the flatten, so first bake and
   // drain any QUEUED rewrites into the slice (they would orphan against this whole-prop
-  // render); a still-raw key (the visitor was suppressed) re-keys directly, gated like that
-  // visitor - a scope-shadowed `Symbol` is the user's own object (raw text correct), a
-  // non-well-known name falls to the polyfilled CONSTRUCTOR read (`[_Symbol.foo]` - raw
-  // `Symbol` throws ReferenceError on symbol-less engines)
+  // render); a still-raw key (the visitor was suppressed) re-keys directly - the DECISION is the
+  // shared canon (alias and proxy-global spellings of `Symbol` answer like the bare name, a
+  // shadowed or SLOT-MUTATED one refuses - the user's object is not the well-known symbols), only
+  // the render is local: a non-well-known name falls to the polyfilled CONSTRUCTOR read
+  // (`[_Symbol.foo]` - raw `Symbol` throws ReferenceError on symbol-less engines)
   function anchoredResidualPropSrc(prop, scope) {
     const composed = composedRangeSrc(prop);
     if (composed !== nodeSrc(prop)) return composed;
-    const { key } = prop;
-    if (prop.computed && key?.type === 'MemberExpression' && !key.computed
-      && key.object?.type === 'Identifier' && key.object.name === 'Symbol'
-      && key.property?.type === 'Identifier'
-      && !estreeAdapter.hasBinding(scope, 'Symbol', null)) {
-      const entry = symbolKeyToEntry(`Symbol.${ key.property.name }`);
+    const name = anchoredResidualSymbolKeyName({
+      key: prop.key, computed: prop.computed, scope, adapter: estreeAdapter, path: null,
+    });
+    if (name !== null) {
+      const entry = symbolKeyToEntry(`Symbol.${ name }`);
       if (entry && isEntryNeeded?.(entry)) {
-        return `[${ injectPureImport(entry, `Symbol$${ key.property.name }`) }]: ${ nodeSrc(prop.value) }`;
+        return `[${ injectPureImport(entry, `Symbol$${ name }`) }]: ${ nodeSrc(prop.value) }`;
       }
       if (isEntryNeeded?.('symbol/constructor')) {
-        return `[${ injectPureImport('symbol/constructor', 'Symbol') }.${ key.property.name }]: ${ nodeSrc(prop.value) }`;
+        return `[${ injectPureImport('symbol/constructor', 'Symbol') }.${ name }]: ${ nodeSrc(prop.value) }`;
       }
     }
     return composed;
@@ -4397,7 +4405,7 @@ export function createDestructureEmitter({
     plan ??= ctx && resolveCallRootedProxyCollapse({ receiver: target, ...ctx });
     if (!plan) return null;
     // a pure-ctor leaf (`(() => globalThis)().self.Map`) is whole-swapped to the pure ctor elsewhere, so bail
-    const leafName = memberKeyName(target);
+    const leafName = staticMemberKeyName(target);
     if (leafName && resolveGlobalPolyfill(leafName)) return null;
     const rootPure = resolveGlobalPolyfill(plan.rootName);
     if (!rootPure) return null;
@@ -4853,10 +4861,7 @@ export function createDestructureEmitter({
     for (let hop = unwrapNode(recv); hop
       && (hop.type === 'MemberExpression' || hop.type === 'OptionalMemberExpression');
       hop = unwrapNode(hop.object)) {
-      const hopKey = hop.computed
-        ? (typeof hop.property?.value === 'string' ? hop.property.value : null)
-        : hop.property?.name;
-      if (hopKey && POSSIBLE_GLOBAL_OBJECTS.has(hopKey)) skippedNodes.add(hop);
+      if (memberProxyHopName(hop)) skippedNodes.add(hop);
     }
     // "does the collapse OWN the anchoring meta": always with a substituted root; with a LIVE
     // (assign-buried) root - only a non-identifier meta sitting on a HOP edge (its value-canon

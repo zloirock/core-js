@@ -12,9 +12,10 @@ var _ref, _ref2, _ref3, _ref4;
 // effect past the root, so it folds ahead of the pure ctor in the non-null branch (`(n += 1000, _WeakMap)`,
 // runs only when the receiver is non-nullish). distinct ctor + side-effect shape per line: bare root, a deep
 // `.self.window` hop, a computed key-SE, and a computed key-SE ABOVE a prototype TAIL.
-// the LAST case is the key one: with a `.prototype.add` tail past the static, the ctor can NOT whole-swap
-// (`_Set.prototype.add`) because that skip DROPS the key-SE - the receiver-DEPENDENT read `_ref[n += 1e5, 'Set']
-// .prototype.add` keeps the key intact, matching babel; a DIRECT static leaf (no tail) still whole-swaps.
+// the LAST case is the key one: a `.prototype.add` tail past the static does not hold the ctor back - the
+// key-SE migrates ahead of the whole-swap as a sequence prefix (`(n += 1e5, _Set).prototype.add`), the same
+// shape a DIRECT static leaf takes. reading it off the memo instead (`_ref[n += 1e5, 'Set'].prototype.add`)
+// kept the key but lost the ponyfill: a native `Set` read, absent on the engines this method targets.
 let n = 0;
 const bareRoot = null == (_ref = (() => {
   n += 1;
@@ -31,5 +32,5 @@ const keySe = null == (_ref3 = (() => {
 const keySeTail = null == (_ref4 = (() => {
   n += 10000;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction(_ref4[n += 1e5, "Set"].prototype.add);
+})()) ? void 0 : _nameMaybeFunction((n += 1e5, _Set).prototype.add);
 export { bareRoot, deepHop, keySe, keySeTail, n };
