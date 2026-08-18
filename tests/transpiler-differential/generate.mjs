@@ -1717,6 +1717,71 @@ const KPR_SHAPES = [
   // key SE (`log.push("k")`) rides the bare body once - two distinct SE channels, neither dropped nor swapped
   { id: 'nohop-seq-computed-static-call', value: 'globalThis.window', tail: '?.Array[(log.push("k"), "of")](5).at(0)', se: true },
 ];
+// --- Ctor-hop key spelling: one claim, every spelling of the key that names the constructor ---
+// the hop naming the ponyfilled ctor can be written five ways, and the claim that swaps it to the pure
+// binding owes the same answer to all of them. the folded spellings under-resolved and the read stayed
+// RAW - a native `Set` off the proxy global, which is exactly what the method targets do not have; the
+// effect-bearing spellings additionally lost the key's own effect on one emitter. two axes branch the
+// code: the KEY spelling and the effect KIND buried in it (an assignment rides the harvested prefix, a
+// CALL routes through the chain-root rescue), plus the ROOT, since a guarded chain-root call stitches
+// its tail onto a memo instead of re-emitting it. the oracles here are import parity (a claim that
+// fired on one emitter only) and the effect log (a dropped key effect) - the full-environment value is
+// blind, because the raw read finds the native the realm still has
+const CKS_KEYS = [
+  { id: 'dotted', src: k => `.${ k }` },
+  { id: 'computed-string', src: k => `["${ k }"]` },
+  { id: 'template', src: k => `[\`${ k }\`]` },
+  { id: 'seq-assign', src: k => `[(ntm = (ntm || 0) + 7, "${ k }")]` },
+  { id: 'seq-call', src: k => `[(log.push("k"), "${ k }")]` },
+  { id: 'iife', src: k => `[(() => "${ k }")()]` },
+];
+// every root takes its OWN channel to the same claim, measured one by one: a bare proxy name, a
+// redundant pristine hop, an ALIAS binding of the global, a chain-assign, a hop with no ponyfill
+// entry of its own (`window`), and a chain-root CALL under a live `?.` whose tail is stitched onto
+// a guard memo rather than re-emitted. each answered the key spellings differently before the fix
+const CKS_ROOTS = [
+  { id: 'bare', src: 'globalThis' },
+  { id: 'proxy-hop', src: 'globalThis.self' },
+  // a CONST alias of the global is its own channel and needs a scope to live in, so this root wraps
+  // the whole expression; a parameter holding the global is deliberately not one (not recognised)
+  { id: 'alias', src: 'ga.self', wrap: e => `(() => { const ga = globalThis; return ${ e }; })()` },
+  { id: 'call-root', src: 'nrm().self' },
+  // writes the SHARED `ntm` on purpose: the row then observes the assignment's order against the key
+  // effect as well as the key question - the two used to compose in the wrong order (`prependChain
+  // AssignmentEffect` appended the assignment where the source runs it before a folded key), and both
+  // emitters agreed on it, so only this runtime observable catches a regression
+  { id: 'chain-assign', src: '(ntm = globalThis).self' },
+  { id: 'unresolvable-hop', src: 'globalThis.window.self' },
+  { id: 'guarded-call', src: '(() => { log.push("r"); return globalThis; })()?.self' },
+];
+// `add` is deliberately a prototype method with no pure entry of its own: one WITH an entry resolves as
+// an instance meta and never reaches the ctor-swap fallback this family is about. the `.name` tail adds
+// the second owner - a receiver-wrapping helper over the same claim
+// the `.name` row keeps the ROUTE (a receiver-wrapping `nameMaybeFunction` helper sits over the same
+// claim) but observes only the TYPE: the ponyfill's own `.name` is empty where the native's is not, a
+// documented pure-mode divergence that would redden every row of this family for an unrelated reason
+const CKS_TAILS = [
+  { id: 'proto-method', tail: '.prototype.add', use: e => `typeof ${ e }` },
+  { id: 'proto-method-name', tail: '.prototype.add.name', use: e => `typeof ${ e }` },
+  // the nav ENDING at `.prototype` is its own owner - the read past it happens off a binding the
+  // resolver cannot follow, so the constructor swap is the only thing that can polyfill it
+  { id: 'proto-end', tail: '.prototype', use: e => `(P => typeof P.add)(${ e })` },
+];
+function * generateCtorKeySpelling() {
+  for (const root of CKS_ROOTS) {
+    for (const key of CKS_KEYS) {
+      for (const t of CKS_TAILS) {
+        const name = `ctor-key-spelling/${ root.id }/${ key.id }/${ t.id }`;
+        const wrap = root.wrap ?? (e => e);
+        const expr = wrap(t.use(`${ root.src }${ key.src('Set') }${ t.tail }`));
+        // `ntm` is the prelude's module-level `let`, so an assignment-KIND key effect is observable
+        // per snippet without a setup statement the snippet shape has no room for
+        yield { ...snippet(name, `[${ expr }, ntm ?? null]`, { rig: true }), strip: false };
+      }
+    }
+  }
+}
+
 function * generateKeptProxyRoot() {
   for (const shape of KPR_SHAPES) {
     const assign = shape.se ? `(log.push("se"), t = ${ shape.value })` : `(t = ${ shape.value })`;
@@ -6521,6 +6586,7 @@ export function * generate() {
   yield * generateIifeArgOwnership();
   yield * generateWrappedSiblingReceiver();
   yield * generateProxyHopCtor();
+  yield * generateCtorKeySpelling();
   yield * generateSeHopKeyGuarded();
   yield * generateKeptProxyRoot();
   yield * generateBareProxyProbe();
