@@ -224,7 +224,7 @@ export function run() {
   const note = Annotation.define();
   const bump = StateEffect.define();
   const annotated = EditorState.create({ doc: 'q' }).update({ annotations: note.of('hi'), effects: bump.of(7) });
-  check('config_annotation_effect', [annotated.annotation(note), annotated.effects.map(e => e.is(bump) && e.value)], ['hi', [7]]);
+  check('config_annotation_effect', [annotated.annotation(note), annotated.effects.map(effect => effect.is(bump) && effect.value)], ['hi', [7]]);
 
   // --- JSON round-trips ---
   const fieldSpec = { count: editCount };
@@ -312,10 +312,10 @@ export function run() {
   // the load-bearing assertion: the fragmented parse does strictly LESS work than the cold one.
   // Nothing above observes the parse itself, so this is what proves reuse actually happened.
   function parseSteps(src, frags) {
-    const p = jsParser.startParse(src, frags);
-    let n = 0;
-    while (!p.advance()) n++;
-    return n;
+    const parse = jsParser.startParse(src, frags);
+    let steps = 0;
+    while (!parse.advance()) steps++;
+    return steps;
   }
   check('incremental_reuses_fragments', parseSteps(newDoc, fragments) < parseSteps(newDoc, []), true);
 
@@ -339,7 +339,7 @@ export function run() {
   }
   check('highlight_spans_ordered', ordered, true);
 
-  const tokens = spans.slice(0, 4).map(s => [doc.slice(s.from, s.to), s.classes]);
+  const tokens = spans.slice(0, 4).map(span => [doc.slice(span.from, span.to), span.classes]);
   check('highlight_tokens', tokens, [
     ['// header', 'tok-comment'],
     ['export', 'tok-keyword'],
@@ -360,9 +360,9 @@ export function run() {
   weak.set(firstChild, 'tagged');
   check('tree_node_weak_map', [weak.get(firstChild), weak.get(tree.topNode) === undefined], ['tagged', true]);
   function walkCount(treeCursor) {
-    let n = 0;
-    do n++; while (treeCursor.next());
-    return n;
+    let seen = 0;
+    do seen++; while (treeCursor.next());
+    return seen;
   }
   // `bigTree`, not `tree`, and deliberately so. `doc` stays under lezer's `DefaultBufferLength`, so
   // it parses into a single `TreeBuffer` with no anonymous nodes at all, and BOTH modes walk the

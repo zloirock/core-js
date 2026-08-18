@@ -5,7 +5,7 @@
 //
 // Usage:  npm run test-e2e-libs-check-exercise [exercisePathOrLibName]
 import { positionals } from './cli.mjs';
-import { eq } from './exercises/checks.mjs';
+import { deepEqual } from './exercises/checks.mjs';
 import { checkFailureLine, errorReason, renderValue } from './diagnostics.mjs';
 import { withDeadline } from '../transpiler-integration/deadline.mjs';
 import { librariesMatching } from './libraries.mjs';
@@ -28,7 +28,7 @@ const [arg] = positionals(argv, { names: ['target'], usage: 'check-exercise.mjs 
 // and on an empty registry, so this runner cannot report `0 checks, 0 failing` and exit green.
 const targets = arg !== undefined && (isAbsolute(arg) || arg.includes('/') || arg.includes('\\'))
   ? [isAbsolute(arg) ? arg : join(HERE, arg)]
-  : librariesMatching(arg).map(l => l.exercise);
+  : librariesMatching(arg).map(lib => lib.exercise);
 
 // This tier is the first step of `test-e2e-libs`, so a `run()` that never settles here would declare
 // the fixture sound having checked nothing - node aborts the module on the unsettled top-level await
@@ -71,7 +71,7 @@ async function checksOf(target, name) {
     if (check.label !== other.label) {
       throw new Error(`${ name } is not deterministic: check #${ index + 1 } is '${ check.label }' on the first run and '${ other.label }' on the second`);
     }
-    if (check.pass !== other.pass || !eq(check.actual, other.actual)) {
+    if (check.pass !== other.pass || !deepEqual(check.actual, other.actual)) {
       throw new Error(`${ name } is not deterministic: '${ check.label }' gave `
         + `${ renderValue(check.actual) } on the first run and ${ renderValue(other.actual) } on the second`);
     }
@@ -83,7 +83,7 @@ async function checksOf(target, name) {
 // runtime cell is the toolchain's fault or the fixture's, and that is not readable from a bare list
 // of check labels scrolling past
 echo(chalk.green(`exercises, raw in node - no bundler, no polyfills: ${ chalk.cyan(targets.length) } target(s)`
-  + ` - ${ chalk.cyan(targets.map(t => basename(t)).join(', ')) }`));
+  + ` - ${ chalk.cyan(targets.map(target => basename(target)).join(', ')) }`));
 
 let total = 0;
 let failing = 0;
@@ -99,7 +99,7 @@ for (const target of targets) {
     echo(chalk.red(`FAIL ${ chalk.cyan(name) } did not run: ${ errorReason(error) }`));
     continue;
   }
-  const bad = checks.filter(c => !c.pass);
+  const bad = checks.filter(check => !check.pass);
   total += checks.length;
   failing += bad.length;
   for (const check of checks) {

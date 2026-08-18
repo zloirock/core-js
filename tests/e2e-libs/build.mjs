@@ -17,7 +17,7 @@ import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 
-const gzipP = promisify(gzip);
+const gzipAsync = promisify(gzip);
 
 export const HERE = import.meta.dirname;
 const TMP = join(HERE, '.tmp');
@@ -60,7 +60,7 @@ export async function withEntry(exerciseAbs, method, label, fn) {
   }
 }
 
-export const u = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
+export const unpluginFor = (bundler, method, phase) => unplugin[bundler](pluginOpts(method, phase));
 
 // What every bundle of this suite is: one UMD file with a global name, loadable by the node pre-flight
 // and by a `<script>` in IE11 alike. Shared, because pipeline.mjs publishes sizes of bundles that have
@@ -314,7 +314,7 @@ function babelSyntaxPlugin({ core, preset, ts, corejs }, { downCompile, coreJs =
   return {
     name: coreJs ? 'e2e-babel-syntax+core-js' : downCompile ? 'e2e-babel-syntax' : 'e2e-ts-strip',
     async transform(code, id) {
-      if (BABEL_EXCLUDE.some(re => re.test(id))) return null;
+      if (BABEL_EXCLUDE.some(pattern => pattern.test(id))) return null;
       if (!isLibraryModule(id)) return null;
       const typescript = TS_EXTENSION.test(id);
       // With `downCompile: false` there is nothing to do to a `.js` module - returning null leaves it
@@ -361,7 +361,7 @@ export function makeTsStripPlugin() {
 // This is the only channel by which unplugin reports its OWN failure - a module oxc could not parse is
 // handed back untransformed with a warning - and nothing else in the repo pins that name, so a rename
 // there would turn the gate below into a silent no-op.
-const [UNPLUGIN_NAME] = [u('rollup', 'usage-global', 'post')].flat()[0].name.split(':', 1);
+const [UNPLUGIN_NAME] = [unpluginFor('rollup', 'usage-global', 'post')].flat()[0].name.split(':', 1);
 
 // `warn` is rollup's own handler, and taking it is not optional: installing `onwarn` REPLACES the
 // default printing rather than adding to it, so every code this function does not escalate is
@@ -464,7 +464,7 @@ export async function runtimeBuild(lib, method, phase = 'post', provider = 'unpl
         makeBabelPlugin(babel ? pluginOpts(method) : null),
         nodeResolve(),
         commonjs(),
-        ...babel ? [] : [u('rollup', method, effPhase)],
+        ...babel ? [] : [unpluginFor('rollup', method, effPhase)],
         recorder(sink, origins),
       ],
       onwarn: strictWarn,
@@ -543,7 +543,7 @@ export async function wireSize(code, label = 'wire size') {
   // load in the very engine the artifact targets, and would understate it besides.
   const minText = (await esbuildTransform(code, { minify: true, legalComments: 'none', target: 'es5' })).code;
   const min = Buffer.from(minText);
-  return { min: min.length, gz: (await gzipP(min)).length };
+  return { min: min.length, gz: (await gzipAsync(min)).length };
 }
 
 // What this suite says when something fails is in `diagnostics.mjs`, which has no dependencies: a

@@ -20,13 +20,13 @@ function sameNumber(a, b) {
   return a === Infinity ? b === Infinity : a === -Infinity ? b === -Infinity : b !== Infinity && b !== -Infinity;
 }
 
-export function eq(rawA, rawB) {
+export function deepEqual(rawA, rawB) {
   const a = unwrap(rawA);
   const b = unwrap(rawB);
   if (typeof a === 'number' && typeof b === 'number') return sameNumber(a, b);
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (!eq(a[i], b[i])) return false;
+    for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i])) return false;
     return true;
   }
   if (a && b && typeof a === 'object' && typeof b === 'object') {
@@ -35,7 +35,7 @@ export function eq(rawA, rawB) {
     // Counting both ways is what makes a key present on one side only a difference.
     let extra = 0;
     for (const key in a) if (has(a, key)) {
-      if (!has(b, key) || !eq(a[key], b[key])) return false;
+      if (!has(b, key) || !deepEqual(a[key], b[key])) return false;
       extra++;
     }
     for (const key in b) if (has(b, key)) extra--;
@@ -51,7 +51,7 @@ export function checker() {
   return {
     checks,
     check(label, actual, expected) {
-      checks.push({ label, actual, expected, pass: eq(actual, expected) });
+      checks.push({ label, actual, expected, pass: deepEqual(actual, expected) });
     },
   };
 }
