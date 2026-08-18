@@ -9,16 +9,18 @@
 // leftover native call now throws instead of being masked by the present builtin) and proves the
 // polyfill stands alone. See strip-builtins.mjs / stripped-worker.mjs.
 import { transformAsync } from '@babel/core';
-import { mkdir, writeFile } from 'node:fs/promises';
 import { fork } from 'node:child_process';
-import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import tsStrip from '@babel/plugin-transform-typescript';
 import decoratorsPlugin from '@babel/plugin-proposal-decorators';
 import classPropsPlugin from '@babel/plugin-transform-class-properties';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { cached } from './cache-store.mjs';
 import { runtimeKey } from './serialize.mjs';
+
+const { outputFile } = fs;
+const { dirname, join } = path;
 
 // wall-time per phase, summed over this shard's sequential snippets - the coordinator aggregates
 // the per-shard buckets into the run's phase table, which is what optimization decisions read.
@@ -120,20 +122,25 @@ let counter = 0;
 // cross-contaminated results). exported for the usage-global leg, whose modules run in
 // ShadowRealms instead of this realm
 export async function writeModule(code, ts = false) {
-  await mkdir(TMP, { recursive: true });
   const file = join(TMP, `m${ process.pid }_${ counter++ }.mjs`);
-  await writeFile(file, ts ? await stripTypeScript(code) : code);
+  // fs-extra's outputFile creates the directory chain itself, so the tree needs no separate mkdir
+  await outputFile(file, ts ? await stripTypeScript(code) : code);
   return file;
 }
-// execute a module in THIS realm (full builtins). returns the observable result plus the file
-// path, so the same file can later be re-run in the stripped worker without re-transforming
-async function evalModule(code, ts = false) {
-  const file = await writeModule(code, ts);
+// a module file written ON DEMAND: the cache answers most evaluations, and an answered one needs no
+// file at all. memoized, because a stripped MISS behind a full-env HIT still needs the same file -
+// and both legs must run the identical bytes, not two writes of them
+function lazyModule(code, ts) {
+  let promise = null;
+  return () => promise ??= writeModule(code, ts);
+}
+// execute a module in THIS realm (full builtins) and reduce it to its observable key
+async function evalInRealm(file) {
   try {
-    const mod = await import(pathToFileURL(file).href);
-    return { result: { ok: true, r: mod.r, effects: mod.effects }, file };
+    const mod = await import(pathToFileURL(await file()).href);
+    return runtimeKey({ ok: true, r: mod.r, effects: mod.effects });
   } catch (error) {
-    return { result: { ok: false, errorName: error?.name ?? 'Error' }, file };
+    return runtimeKey({ ok: false, errorName: error?.name ?? 'Error' });
   }
 }
 
@@ -230,15 +237,26 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   // NON-enumerable so a globalThis rest/spread/Object.keys probe counts the same as the outputs (a bare
   // `self` still resolves - identifier [[Get]] ignores the enumerable flag)
   let t0 = process.hrtime.bigint();
-  Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
-  const native = runtimeKey((await evalModule(src, ts)).result);
-  delete globalThis.self;
+  const native = await cached({
+    type: 'native',
+    code: src,
+    evaluate: async () => {
+      Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
+      try {
+        return await evalInRealm(lazyModule(src, ts));
+      } finally {
+        delete globalThis.self;
+      }
+    },
+  });
   mark('eval native', t0);
   t0 = process.hrtime.bigint();
-  const babelEval = WANT_BABEL ? await evalModule(babelOut, ts) : null;
-  const unpluginEval = WANT_UNPLUGIN ? await evalModule(unpluginOut, ts) : null;
-  const babelRun = babelEval && runtimeKey(babelEval.result);
-  const unpluginRun = unpluginEval && runtimeKey(unpluginEval.result);
+  // the two files are shared with the stripped legs below: same bytes, written at most once, and
+  // not written at all when both realms answer from the cache
+  const babelFile = lazyModule(babelOut, ts);
+  const unpluginFile = lazyModule(unpluginOut, ts);
+  const babelRun = WANT_BABEL ? await cached({ type: 'pure-babel', code: babelOut, evaluate: () => evalInRealm(babelFile) }) : null;
+  const unpluginRun = WANT_UNPLUGIN ? await cached({ type: 'pure-unplugin', code: unpluginOut, evaluate: () => evalInRealm(unpluginFile) }) : null;
   mark('eval transformed x2', t0);
 
   // stripped-realm oracle: gated on the snippet's `strip` flag - the generator's assertion that this
@@ -258,8 +276,12 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
   // the stripped realm a reference that a leftover (now-throwing) native call would visibly diverge from
   if (stripCheck && !native.startsWith('ERR')) {
     t0 = process.hrtime.bigint();
-    babelStripped = WANT_BABEL ? await evalStripped(babelEval.file) : null;
-    unpluginStripped = WANT_UNPLUGIN ? await evalStripped(unpluginEval.file) : null;
+    babelStripped = WANT_BABEL
+      ? await cached({ type: 'strip-babel', code: babelOut, evaluate: async () => evalStripped(await babelFile()) })
+      : null;
+    unpluginStripped = WANT_UNPLUGIN
+      ? await cached({ type: 'strip-unplugin', code: unpluginOut, evaluate: async () => evalStripped(await unpluginFile()) })
+      : null;
     strippedMismatch = (WANT_BABEL && babelStripped !== native) || (WANT_UNPLUGIN && unpluginStripped !== native);
     mark('stripped worker x2', t0);
   }
