@@ -28,6 +28,8 @@ The symmetry stops at globals. Declining to resolve a receiver *type* is safe, b
 
 Navigation through the global proxies collapses on purpose - `globalThis`, `self` and `window` are one object here, `self` a realm-local self-reference erasable anywhere - so a plain hop through `window` answers `undefined` where an engine throws. The divergence is accepted, not a defect, and `navHasUnresolvableProxyHop` owns the question; do not grow a second predicate.
 
+Marking a proxy global handled says "no second rewrite inside my span", never "my render consumed it". The two coincide only for a receiver-LESS claim - a static collapsing to one import, or a chain whose constructor hop is itself pure-resolvable. An instance claim hands its receiver to the helper as an argument, a `delete` target renders nothing at all, and a declined claim renders nothing either: there the global is still a live read that owes its own substitution, and a marking that outran the render ships a raw `globalThis` to an engine that has none. Whatever asks that question must ask it of the RENDER, not of the claim's resolvability.
+
 ## Accepted semantic boundaries
 
 Beyond the proxy collapse above, these divergences are design decisions with an accepted price:
