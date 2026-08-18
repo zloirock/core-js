@@ -8,7 +8,7 @@ Body shape is deliberately not compared: an AST codegen and a text rewrite diffe
 
 Node `^22.18.0 || >=24.11.0`, on the root dependencies - unlike most suites this directory has no `package.json` of its own. It runs both emitters in-process, and forks a worker per stripped evaluation: realms are never reclaimed, so a realm per snippet exhausts the shard's memory, and reusing one would be vacuous anyway - the first correct install masks every later miss.
 
-Run it with `npm run test-transpiler-differential`. It is slow - the corpus is large and every snippet is executed three times - so it is split across processes, as many of them running at once as half the core count. Every run prints a phase profile; the usage-global leg dominates it, so edit loops can scope the run with combinable positional tokens: `pure` skips that leg, `babel` / `unplugin` runs a single emitter (the import-parity oracle turns off) - e.g. `npm run test-transpiler-differential pure babel`. A scoped run labels itself as not a full verification; any defense-cycle gate or final check uses the unscoped default.
+Run it with `npm run test-transpiler-differential`. The corpus is large and every snippet is executed three times, so the work is split across processes, as many at once as half the core count. Evaluations are cached across runs (below), so only a first run pays for the whole corpus: a repeat costs what the edit changed, which is usually a minute or less. **Run it bare.** The positional tokens `pure` (skip the usage-global leg) and `babel` / `unplugin` (one emitter, import-parity oracle off) exist for narrowing what is UNDER TEST, not for speed - the cache already removed that reason - and a scoped run labels itself as not a full verification.
 
 ## Layout
 
@@ -17,9 +17,26 @@ Run it with `npm run test-transpiler-differential`. It is slow - the corpus is l
 - `strip-manifest.mjs` - what may be removed from a realm, and the pairing rules that make a strip meaningful
 - `strip-builtins.mjs`, `stripped-worker.mjs`, `global-leg.mjs`, `global-leg-worker.mjs` - the leg implementations
 - `index.mjs`, `shard.mjs` - the coordinator and one chunk of work
+- `cache-store.mjs` - the evaluation cache, below; `cache.mjs` is its test (`npm run test-transpiler-differential-cache`), cheap enough for the edit loop
 - `tmp/` - generated, gitignored
 
-Arming evaluations (the input-side "does this source depend on a stripped builtin" probe) are cached across runs under `~/.cache/core-js-differential/`, keyed by a hash of the arming machinery and its babel dependencies - the cache self-invalidates on machinery, dependency or node changes and never affects verdicts, only skips re-evaluating the deterministic input side.
+## The evaluation cache
+
+An evaluation is a pure function of the code bytes, the realm they run in and the core-js runtime they import, so unchanged ones are memoized across runs under `~/.cache/core-js-differential/`. This is what makes the bare run cheap: a repeat re-executes only what the edit moved.
+
+The file is grouped per snippet (`cases[name] = { src, <type>: cell }`), one cell per (snippet, type), so nothing accumulates - a changed result rewrites its cell in place. Invalidation is layered, each level as local as it can be:
+
+- the name left the corpus - the group goes with it
+- `src` moved (the generator rewrote that case) - the whole group is void
+- a cell's own `h` moved - only that cell, which is the usual case after a plugin edit
+- a `runtime` stamp moved - only the cells under that tree; `native` / `arming` read the raw source and depend on no runtime, the usage-pure cells on `@core-js/pure`, the usage-global ones on `core-js/modules`
+- the machinery hash in the FILE NAME changed (both legs, their workers, the manifest, serializer, harness, shard, alias rig, the babel packages doing the TS strip, the node binary) - branches and machinery edits get their own file rather than poisoning each other
+
+Two things are never cached: a failing snippet (an `ERR` from a dying worker is indistinguishable from a real one, and cached it would pin the case red forever) and a result the audit proved unreproducible.
+
+The cache never decides a verdict on its own, and the AUDIT is what keeps that true: a rotating sample of the hits is re-evaluated and compared. A reproducible disagreement fails the run loudly - a key lost a dimension, so every other hit that run is suspect. An unreproducible one means the snippet is not a function of its code alone; it is evicted instead of reported. Hit / evaluated / audited counts print in the summary, and `cache.mjs` is the suite for all of this (`npm run test-transpiler-differential-cache`, seconds).
+
+`INVALIDATE_CACHE=1` discards the stored contents by hand. **A last resort, not a habit** - the layers above already cover every ordinary reason, so reach for it only when a run is suspect in a way none of them can express, and say why. A routine run does not need it.
 
 ## Rules
 
