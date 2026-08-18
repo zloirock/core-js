@@ -1648,14 +1648,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     });
   }
 
-  // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
-  // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
-  // like native, while each `?.` contributes its own `null == ...` test.
-  // caller (findInnerPolyChain) guarantees outer is a call expression.
-  // unplugin re-implements this combined-chain logic as a text-level rewrite. the two emit
-  // differently - babel rebuilds the AST recursively (stacked optional-poly hops nest naturally),
-  // unplugin emits one flat OR-chain in a single pass; semantically identical, and where the
-  // textual shape diverges the unplugin fixture carries an output-unplugin.mjs sidecar
   // rebuild a receiver sub-chain with the inner optional call (`target`) spliced out for
   // `replacement` (the memoized inner result). deep-clones each hop so siblings - call args /
   // computed keys - are fresh, then overrides the chain-child with the recursively-spliced node
@@ -1675,9 +1667,22 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return t.assignmentExpression('=', t.cloneNode(ref), value);
   }
 
-  function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects }) {
+  // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
+  // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
+  // like native, while each `?.` contributes its own `null == ...` test.
+  // the outer is a call OR a bare GET (`recv.m?.().at`) - `outerIsCall` says which, and a GET
+  // ends the emit at the member itself, with no arguments to fold and no `.call` receiver.
+  // unplugin re-implements this combined-chain logic as a text-level rewrite. the two emit
+  // differently - babel rebuilds the AST recursively (stacked optional-poly hops nest naturally),
+  // unplugin emits one flat OR-chain in a single pass; semantically identical, and where the
+  // textual shape diverges the unplugin fixture carries an output-unplugin.mjs sidecar
+  function replaceInstanceChainCombined(outerPath, outerId,
+    { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
-    const outerCall = callerPath.parent;
+    // a GET tail has no call to fold: the emit ends at the member itself, and the outer dispatch
+    // is the bare helper read (`_at(recv)`) instead of `_at(recv).call(recv, args)`
+    const outerCall = outerIsCall ? callerPath.parent : null;
+    const emitPath = outerCall ? callerPath.parentPath : callerPath;
     const { scope } = outerPath;
 
     // a receiver carrying a LIVE `?.` short-circuits the WHOLE chain natively, so it must be
@@ -1690,6 +1695,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
       [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
+    if (chainStartType) resolvedType?.set(mCall, chainStartType);
 
     // `arr.flat?.()`: the `?.` guards the CALL, not the `.flat` access - reading `.flat` on a
     // nullish `arr` must THROW like native, so emit NO `null == receiver` test (it would swallow
@@ -1725,17 +1731,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // AHEAD of the folded key SE and dispatch on the ref (the optional-outer path already
     // memoized into the test's vRef, so the hoist no-ops there on a pure identifier)
     const [outerRecv, foldedSE] = hoistReceiverSE(outerObject, sideEffects, null, scope);
-    const replacement = withSideEffects(buildMethodCall({
+    const replacement = withSideEffects(outerCall ? buildMethodCall({
       id: outerId, object: outerRecv, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
       anchorNode: outerPath.node,
-    }), foldedSE);
+    }) : t.callExpression(t.cloneNode(outerId), [outerRecv]), foldedSE);
     // trailing NON-optional in-chain continuations (`...flat?.()?.at(0).length`) ride the
     // SUCCESS branch: native short-circuit skips them, while links left outside would apply
     // to the ternary result and throw on the void 0 path where native yields undefined. a
     // surviving optional continuation (`?.x`) guards the ternary RESULT and stays outside;
     // parens / casts end the chain at parse (plain Member parent), so the climb stops there
     // and their native throw-past-boundary semantics survive
-    let tipPath = callerPath.parentPath;
+    let tipPath = emitPath;
     for (;;) {
       const par = tipPath.parentPath;
       // a CALL continuation climbs even when ITS `?.(` is genuine: the call pairs with the
@@ -1749,8 +1755,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       break;
     }
     let alternate = replacement;
-    if (tipPath.node !== outerCall) {
-      alternate = spliceChainInner(tipPath.node, outerCall, replacement);
+    if (tipPath.node !== emitPath.node) {
+      alternate = spliceChainInner(tipPath.node, emitPath.node, replacement);
       // over a PLAIN dispatch root the spliced trailing links are DEAD Optional*-typed -
       // retype them plain, else babel codegen parenthesizes the chain boundary. over a LIVE
       // `?.call` root (optional outer call) they stay Optional*: they are genuine chain
@@ -1771,7 +1777,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the stamp is placed by the visitor's own `annotateCallReturnType` on the CALL node - the
     // fixture corpus happens not to reach a combined chain whose result is read again, which is
     // why the unit suite carries the case instead
-    const outerCallType = resolvedType?.get(outerCall);
+    const outerCallType = outerCall ? resolvedType?.get(outerCall) : undefined;
     if (outerCallType) resolvedType.set(conditional, outerCallType);
     tipPath.replaceWith(conditional);
   }
