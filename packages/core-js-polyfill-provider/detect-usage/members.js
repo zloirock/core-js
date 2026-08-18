@@ -10,10 +10,9 @@ import {
   isMemberWriteHost,
   isMutatedGlobalSlot,
   isTaggedTemplateTagPosition,
-  memberKeyName,
   peelSequenceTail,
   privateNameSpelling,
-  proxyNavRootIsSequence,
+  proxyNavEffectsHarvestable,
   staticMemberKeyName,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
@@ -282,24 +281,26 @@ export function planProxyReceiver(receiver, {
     return inner ? { kind: 'member', inner, innerNode: objectCore, property: receiver.property, computed: receiver.computed } : null;
   }
   // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map` elsewhere, so bail here (a
-  // root-collapse would emit native `_globalThis.Map` + a dead import). a WRITE target's leaf is the
-  // assignment slot - hops still collapse.
+  // root-collapse would emit native `_globalThis.Map` + a dead import). asked through the canon, so a
+  // leaf named by a FOLDED key (`[(c++, 'Map')]`, a template, a pure zero-arg call) bails with the
+  // dotted one - the whole-swap covers every spelling now that its own harvest gate does, and a
+  // narrower question here left exactly those spellings to the root collapse, which renders the ctor
+  // read RAW off the substituted root. a WRITE target's leaf is the assignment slot - hops still collapse.
   // a MUTATED ctor slot (`globalThis.Set = Patched`) cancels the whole-swap - nothing downstream owns the prefix -
   // so when the collapse is FORCED anyway (an unresolvable hop in the chain, or an alias/ref root the leaf swap
   // cannot reach), the plan proceeds and the leaf reads raw off the collapsed base. an all-resolvable
   // literal-rooted nav keeps the bail: its leaf-adjacent hop still earns the natural ponyfill swap (`_self.Set`).
   // a nav still CARRYING `?.` keeps the bail too: the exception's renders vouch no root guard, so a live
   // optional must first pass the guard-building rewrite - its guarded REBUILD comes back here optional-free
-  const leafName = memberKeyName(receiver);
-  if (!isWriteTarget && leafName && resolvePure({ kind: 'global', name: leafName })
-    && !(isMutatedGlobalSlot(aliasCtx?.adapter, leafName)
+  const leafKey = staticMemberKeyName(receiver);
+  if (!isWriteTarget && leafKey && resolvePure({ kind: 'global', name: leafKey })
+    && !(isMutatedGlobalSlot(aliasCtx?.adapter, leafKey)
       && ownChainOptionalCount(receiver) === 0
       && (navHasUnresolvableProxyHop(receiver.object, resolvePure)
         || (!keptAssignRoot && isAliasProxyRoot(throughRoot, aliasCtx))))) return null;
   // the leaf is itself a redundant proxy hop reached via a SE-bearing key (`globalThis[(e++, 'self')]`) - the
   // harvest reads the chain OBJECT not the key, so collapsing would re-root a proxy chain and loop; bail
-  const hopLeaf = staticMemberKeyName(receiver);
-  if (hopLeaf && POSSIBLE_GLOBAL_OBJECTS.has(hopLeaf)) return null;
+  if (leafKey && POSSIBLE_GLOBAL_OBJECTS.has(leafKey)) return null;
   const rootPure = throughRoot && resolvePure({ kind: 'global', name: throughRoot.name });
   // an ALIAS root (`const g = globalThis; g.self.X`) keeps its identifier and only drops the hops; a direct
   // root swaps to its pure ctor
@@ -348,7 +349,7 @@ function planCallRootedProxyReceiver(receiver, aliasCtx, resolvePure) {
   if (!aliasCtx) return null;
   const plan = resolveCallRootedProxyCollapse({ receiver, ...aliasCtx });
   if (!plan) return null;
-  const leafName = memberKeyName(receiver);
+  const leafName = staticMemberKeyName(receiver);
   if (leafName && resolvePure({ kind: 'global', name: leafName })) return null;
   const rootPure = resolvePure({ kind: 'global', name: plan.rootName });
   if (!rootPure) return null;
@@ -415,38 +416,6 @@ export function shouldDropRescueReceiver(inner) {
   return obj?.type === 'MemberExpression' || obj?.type === 'OptionalMemberExpression';
 }
 
-// a static dispatch on a member-chain receiver collapses the WHOLE receiver into a single polyfill call
-// (`globalThis[(o.push(1), 'Array')].from(x)` -> `_Array$from(x)`), so a side effect buried in the
-// receiver's nested computed keys (incl `+` / template folds) OR its chain-root CALL would be silently
-// dropped. walk the chain object-first (source eval order): the deepest object - a chain-root call seeded
-// in `rescue` - is pushed FIRST, ahead of the shallower hop-key SE, so a two-step harvest-then-append
-// can't reverse source `(call, key)` to `(key, call)`. STOPS at a chain-ASSIGNMENT (the emit re-emits the
-// whole rhs, so harvesting it here too would double-run). instance dispatch memoizes the receiver,
-// preserving its source + SE, so only the static path needs this
-// `chainAssignInsertAt` re-orders the spliced chain-assign ahead of a hop-key SE from a hop ABOVE its
-// root - correct ONLY for a TERMINAL static-method CALL, where the whole receiver flattens into one
-// side-effect sequence the emitters render identically (`(r = gt)[(k(), 'self')].Array.of()`). when
-// the static is instead READ as a value (a member receiver `...Map.name`, a bare reference), an
-// instance-helper / consumer MEMOIZES the ctor, and that memo owns the receiver-SE order - which the
-// two emitters spell differently (babel folds the harvested key into the memo, unplugin keeps it a
-// prepended prefix), so a flat re-order there splits them. a call callee is never memoized, so it is
-// the stable cross-emitter signal. peels the transparent wrappers the resolver's own walks peel
-function staticIsCallCallee(path) {
-  let current = path;
-  for (let guard = 0; guard < 64 && current; guard++) {
-    const parent = current.parentPath;
-    const parentNode = parent?.node;
-    if (!parentNode) return false;
-    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(parentNode.type) && parentNode.expression === current.node) {
-      current = parent;
-      continue;
-    }
-    return (parentNode.type === 'CallExpression' || parentNode.type === 'OptionalCallExpression')
-      && parentNode.callee === current.node;
-  }
-  return false;
-}
-
 // COMPLETE side-effect harvest of a fully-discarded receiver, in source eval order: sequence
 // prefixes + buried hop-key effects + chain-root calls (via the canonical `collectFoldedReceiverSideEffects`
 // receiver walk) AND the chain-assignment spliced at its eval position. this is the EXACT set the
@@ -504,22 +473,25 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     && !!getFallbackBranchSlots(unwrapRuntimeExpr(computedKeyNode));
   if ((!key && !branchKeyedOnly) || key === 'prototype') return null;
   let meta = key ? tryBuildPrototypeMeta({ obj, key, scope, adapter, path }) : null;
-  // a SE-SEQUENCE-rooted ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
-  // .has` OR the deeper `(c++, globalThis).self.Map.prototype.has`) buries its leading SE below `node.object`
-  // (which is `X.Map.prototype`, a member - the top-level collect above saw none). descend the ctor sub-receiver
-  // proxy nav to its root; when that root is a SequenceExpression, harvest the folded SE into a SEPARATE field
-  // so ONLY the prototype-FALLBACK ctor swap re-emits it (`(c++, _Map).prototype.has`). the instance path
-  // (`X.Array.prototype.flat`) also builds a prototype meta but already harvests its receiver SE via its own
-  // collapse - putting this in `sideEffects` would double-count there and spuriously memoize. an IIFE-call /
-  // chain-assignment / computed-key nav root is owned elsewhere; mirrors the resolver's matching gate
-  if (meta && proxyNavRootIsSequence(obj.object)) {
+  // an effect-bearing ctor sub-receiver of a prototype-method read (`(c++, globalThis.self).Map.prototype
+  // .has`, the deeper `(c++, globalThis).self.Map.prototype.has`, or a computed-KEY effect
+  // `globalThis.self[(c++, 'Map')].prototype.has`) buries that effect below `node.object` (which is
+  // `X.Map.prototype`, a member - the top-level collect above saw none). harvest the folded SE into a
+  // SEPARATE field so ONLY the prototype-FALLBACK ctor swap re-emits it (`(c++, _Map).prototype.has`).
+  // the instance path (`X.Array.prototype.flat`) also builds a prototype meta but already harvests its
+  // receiver SE via its own collapse - putting this in `sideEffects` would double-count there and
+  // spuriously memoize. an IIFE-call nav root is owned elsewhere; mirrors the resolver's matching gate
+  if (meta && proxyNavEffectsHarvestable(obj.object)) {
     const protoCtorReceiverSE = [];
-    collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE);
-    // a chain-assign ROOT re-emits through the claim's own receiver absorber - harvesting it
-    // here too would run the assignment twice (the symbol strand applies the same exemption)
-    const keptOuter = peelChainAssignment(descendToChainRoot(obj.object).root).outer;
-    const effects = keptOuter ? protoCtorReceiverSE.filter(effect => effect !== keptOuter) : protoCtorReceiverSE;
-    if (effects.length) meta.protoCtorReceiverSE = effects;
+    // a chain-assign ROOT re-emits through the claim's own receiver absorber, so the harvest must
+    // EXCLUDE it - through the collector's own position box, which also records the slot it evaluates
+    // in. filtering it out afterwards dropped that slot, and the absorber then appended it at the END:
+    // `(a = globalThis).self[(c++, 'Map')].prototype.has` ran `c++` before the assignment where the
+    // source runs it after (both emitters, so only a runtime oracle sees it)
+    const chainAssignAt = { at: null };
+    collectFoldedReceiverSideEffects(obj.object, protoCtorReceiverSE, null, chainAssignAt);
+    if (protoCtorReceiverSE.length) meta.protoCtorReceiverSE = protoCtorReceiverSE;
+    if (chainAssignAt.at !== null) meta.protoCtorChainAssignAt = chainAssignAt.at;
   }
   // a prototype-navigated read (`C.prototype[k]`) unions its reachable keys like every other
   // member: each alternative dispatches as a typeless prototype meta (over-inject-safe), with the
@@ -576,16 +548,21 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     if (branchKeyedOnly && !meta.extraCandidates?.length) return null;
     // gated on `!chainAssignOuter` because a chain-assign receiver already re-emits its whole rhs
     // (including these nested keys) via the preserved assignment - collecting here too double-runs it.
-    // static collapse discards the WHOLE receiver, so harvest its SE (chain-root call + buried hop-key) in
-    // source-eval order via the rescue-seeded fold walk
+    // a static dispatch collapses the WHOLE receiver into one polyfill read, so an effect buried in its
+    // nested computed keys (incl `+` / template folds) or its chain-root CALL would be silently dropped.
+    // the walk goes object-first, in source eval order: the deepest object - a chain-root call seeded in
+    // `rescue` - is pushed FIRST, ahead of the shallower hop-key SE, so a harvest-then-append cannot
+    // reverse source `(call, key)` into `(key, call)`. an instance dispatch memoizes its receiver and
+    // keeps source + SE, so only the static path needs this
     if (placement === 'static' && !chainAssignOuter) {
       const rescue = seedChainRootCallRescue({ node: classifyTarget, scope, adapter, path });
-      // a DEEP chain-assign (`(r = gt)[key(...)].X` - not the peeled outer) is skipped by the harvest
-      // but spliced back by the emitter. capture its eval position so the splice lands before the
-      // hop-key SE (`key(...)`) that runs AFTER it, not at the receiver/key boundary
+      // a DEEP chain-assign (`(r = gt)[key(...)].X` - not the peeled outer) is skipped by the harvest and
+      // spliced back by the emitter, so record where it EVALUATES: the assignment is the object being
+      // read, so it runs before any key above it, and `chainAssignInsertAt` puts the splice there rather
+      // than at the receiver/key boundary. a READ needs that slot exactly as much as a terminal call
       const chainAssignAt = { at: null };
       collectFoldedReceiverSideEffects(classifyTarget, sideEffects, rescue, chainAssignAt);
-      if (chainAssignAt.at !== null && staticIsCallCallee(path)) meta.chainAssignInsertAt = chainAssignAt.at;
+      if (chainAssignAt.at !== null) meta.chainAssignInsertAt = chainAssignAt.at;
     }
     // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)
     // carries through to the polyfill emit if the body block has a prefix expression statement
