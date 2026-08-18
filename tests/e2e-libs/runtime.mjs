@@ -21,7 +21,7 @@ const MANIFEST = join(ART, 'manifest.json');
 const SNAP = join(HERE, 'snapshots');
 const TMP = join(HERE, '.tmp');
 // per process, like the temp entries and the pre-flight file: two runs split by library - the natural
-// way to halve a forty-cell wait - would otherwise have the second one's startup wipe the bundles the
+// way to halve a full-matrix wait - would otherwise have the second one's startup wipe the bundles the
 // first is still feeding to Karma, and the failure would name a missing file rather than any code
 const KARMA_OUT = join(TMP, `karma-${ process.pid }`);
 
@@ -80,7 +80,7 @@ async function snapshot(file, lines, origins) {
     // vanished baseline and a perfect match would look identical on the next run.
     const content = lines.length ? `${ lines.join('\n') }\n` : '';
     // write and report only what actually moved, as `tests/unplugin` and `tests/babel-plugin` do:
-    // an OVERWRITE sweep across forty cells otherwise says "updated" forty times and buries the
+    // an OVERWRITE sweep across the matrix otherwise says "updated" for every cell and buries the
     // handful of lines that are the reason it was run
     if (base && `${ base.join('\n') }\n`.trim() === content.trim()) return 'ok';
     await writeFile(file, content);
@@ -252,7 +252,7 @@ if (await otherLibrariesInManifest() === null) await rm(MANIFEST, { force: true 
 // everything; a filtered one clears ONLY the libraries it is about to rebuild, and keeps the rest of
 // the manifest through `otherLibrariesInManifest`, which the write at the end merges back in.
 //
-// Filtered stays per-library even when nothing was kept, because splitting a forty-cell wait across
+// Filtered stays per-library even when nothing was kept, because splitting a full-matrix wait across
 // two filtered runs is the workflow `KARMA_OUT` is named per-process for: at the moment both start,
 // neither has written the manifest yet, and a run that cleared the whole directory on that ground
 // would delete the pages its sibling had just built.
@@ -355,7 +355,7 @@ function referenceFor(lib, method) {
     : `no babel-plugin reference for ${ key } - cell ordering is wrong`);
 }
 // by LABEL, not a counter: a cell can fail its node pre-flight and then fail again in IE11, and two
-// increments for one broken cell would misreport the size of the breakage in a forty-cell log
+// increments for one broken cell would misreport the size of the breakage in a matrix-wide log
 const failedCells = new Set();
 let drift = 0;
 let missing = 0;
@@ -380,7 +380,7 @@ for (const { lib, method, provider, phase } of cells) {
     const delta = isReference ? null : deltaLines(referenceFor(lib, method), injected);
 
     // `entry-global` expands `import 'core-js'` into a function of `targets`/`version`/`mode` alone -
-    // it never reads the library, so a per-library baseline would pin the same text four times over
+    // it never reads the library, so a per-library baseline would pin the same text once per fixture
     // (that set is pinned exactly, once, in tests/transpiler-fixtures/entry-global). What IS
     // library-independent and worth asserting is that the two providers agree on that expansion:
     // same inputs, same compat data, so any divergence is a bug in one of them rather than a
@@ -425,7 +425,7 @@ for (const { lib, method, provider, phase } of cells) {
     karmaFiles.push({ file: karmaFile, label, gating: phase !== 'pre' });
 
     // a drifting or missing baseline is a red cell, so it may not be prefixed `ok`: the run is
-    // scanned by that prefix, and `exitCode` alone is no help on a log 40 cells long
+    // scanned by that prefix, and `exitCode` alone is no help on a log the length of the matrix
     const ok = !bad.length && snap !== 'drift' && snap !== 'missing';
     if (bad.length) failedCells.add(label);
     // `providers agree` is a statement about entry-global, not about a baseline, and is the one state
@@ -613,7 +613,7 @@ if (!(process.env.CI || iePath)) {
         ? `the browser failed to run it ${ chalk.cyan(ATTEMPTS) } times - no verdict on this cell`
         : `Karma exit ${ chalk.cyan(exitCode) } in real IE11`;
     // named on both branches: Karma prints its own failure above, but the tally at the end of a
-    // forty-cell log has to be traceable to the cells that produced it. What gates stays the cell's
+    // matrix-wide log has to be traceable to the cells that produced it. What gates stays the cell's
     // own axis - a `pre` page the browser never ran is no more of a job failure than the red result
     // it is allowed to produce, and a broken browser leg reddens the gating cells beside it anyway
     if (gating) {
