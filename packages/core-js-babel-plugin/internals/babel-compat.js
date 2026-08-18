@@ -27,6 +27,7 @@ import {
   receiverCarriesLiveOptional,
   reEvaluationObservable,
   migratableClaimSe,
+  nodeSpan,
   SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
@@ -52,6 +53,23 @@ function isOptionalOperand(child, parent) {
 // keeps the path-form and node-form callers on one predicate - both spellings occur, and a
 // path-only predicate leaves the node-form ones re-deriving it
 const OPTIONAL_CHAIN_LINK_TYPES = new Set(['OptionalMemberExpression', 'OptionalCallExpression']);
+
+// the receiver copy an emit hands to its helper. the kept-nav collapse of a chain-assign inside it
+// is DEFERRED to program exit - an early rewrite hides the member chain from the claim resolvers
+// still due to visit it - and that flush matches by NODE, so the copy has to register for it in its
+// own right: keyed on the original it landed on the detached subtree while the emitted one kept the
+// raw hop (`(k = _globalThis.self.window)` where the value canon spells `(k = _self.window)`, the
+// spelling the static claim beside it already reads through). the assignment may sit anywhere inside
+// the copy - directly, under the member hops the canon's own dig walks, or under a helper call an
+// inner claim already built around it - so the registration walks the whole copy, each candidate
+// self-gating on the plan
+export function cloneReceiverForEmit({ t, collapse, node, path }) {
+  const clone = t.cloneNode(node);
+  t.traverseFast(clone, inner => {
+    if (inner.type === 'AssignmentExpression') collapse(inner, path);
+  });
+  return clone;
+}
 
 export function isOptionalNode(node) {
   return OPTIONAL_CHAIN_LINK_TYPES.has(node?.type);
@@ -338,10 +356,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // a kept chain-assign VALUE with collapsible pony hops spells through the shared plan
     // (`v = _globalThis.self.window` -> `v = _self.window`) before the test freezes it
     collapseKeptNavValueNode(guardObject, path);
-    const migratedSe = migratableClaimSe({
-      sideEffects, receiverEffectCount, rootNode: guardObject, end: path.node.end,
+    const claimSe = migratableClaimSe({
+      sideEffects, receiverEffectCount, rootNode: guardObject, end: nodeSpan(path.node)?.end,
     });
-    if (!migratedSe) return;
+    if (!claimSe) return;
+    const { leading: leadingSe, migrated: migratedSe } = claimSe;
     // user parens on a mid-chain node TERMINATE the chain there: a PLAIN read above the seal
     // throws natively where the sealed chain would short-circuit, so a whole-chain guarded
     // claim would swallow that throw. the shared predicate answers for both dialects and
@@ -423,6 +442,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       || deleteWalk.node?.type === 'ParenthesizedExpression')) deleteWalk = deleteWalk.parentPath;
     const deleteTail = !!deleteWalk?.isUnaryExpression() && deleteWalk.node.operator === 'delete'
       && (claimBody.type === 'MemberExpression' || claimBody.type === 'OptionalMemberExpression');
+    // the `delete` shape re-hangs the tail OUTSIDE the guard, and a sequence prefix around a
+    // delete target deletes nothing - keep the raw stand-down for a leading effect there
+    if (deleteTail && leadingSe.length) return;
     if (deleteTail) {
       const guard = markGuardedClaim(t.conditionalExpression(
         t.binaryExpression('==', t.nullLiteral(), test),
@@ -439,7 +461,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       claimBody,
     ));
     markParenTerminatedIfWrapped(target, claimResult);
-    target.replaceWith(claimResult);
+    // effects the source wrote AHEAD of the guarded root run before the test, so they wrap the
+    // whole claim rather than riding in either of its branches
+    target.replaceWith(withSideEffects(claimResult, leadingSe));
   }
 
   function wrapConditional(check, result) {
@@ -1206,15 +1230,39 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       let core = peelChainAssignment(navNode).value ?? navNode;
       while (core && SKIPPABLE_WRAPPER_TYPES.has(core.type)) core = core.expression;
       if (core?.type !== 'SequenceExpression' || core.expressions.length < 2) return;
-      let root = core.expressions[core.expressions.length - 1];
-      while (root && (SKIPPABLE_WRAPPER_TYPES.has(root.type)
-        || root.type === 'MemberExpression' || root.type === 'OptionalMemberExpression')) {
-        root = SKIPPABLE_WRAPPER_TYPES.has(root.type) ? root.expression : root.object;
-      }
+      // the canonical descent peels a sequence tail at EVERY hop; the hand-rolled walk this
+      // replaced peeled wrappers and members only, so a NESTED sequence tail (`(d++, (c++,
+      // globalThis))`) ended the walk on the inner sequence and froze a raw global in the test
+      const { root } = descendToChainRoot(core);
       if (root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)
         || anchorPath.scope.hasBinding(root.name, true)) return;
       const pure = resolvePureGlobalEntry(root.name, anchorPath);
-      if (pure) root.name = injectPureGlobal(pure.entry, pure.hintName).name;
+      if (!pure) return;
+      const binding = injectPureGlobal(pure.entry, pure.hintName);
+      // the substitution owes the HOP COLLAPSE too, not only the root: a redundant proxy hop left
+      // above the pure binding reads an engine `self` off it (undefined off-browser), so the test
+      // fires where the collapsed spelling - the one the text emitter prints for this same nav -
+      // answers. only a tail that is proxy navigation WHOLE collapses; anything else keeps its shape
+      // the tail sits at the bottom of the NESTED sequences, which is also the slot to write
+      let seq = core;
+      for (;;) {
+        let next = seq.expressions.at(-1);
+        while (next && SKIPPABLE_WRAPPER_TYPES.has(next.type)) next = next.expression;
+        if (next?.type !== 'SequenceExpression' || !next.expressions.length) break;
+        seq = next;
+      }
+      let tail = seq.expressions.at(-1);
+      while (tail && SKIPPABLE_WRAPPER_TYPES.has(tail.type)) tail = tail.expression;
+      const ctx = { scope: anchorPath.scope, adapter: getAdapter?.(), path: anchorPath };
+      // a value that can be UNDEFINED at runtime is the environment probe itself (`globalThis
+      // .window` off-browser, a live `?.` over such a read) - collapsing it to the always-defined
+      // binding answers on the branch the source skips. THE shared verdict owns that question
+      if (tail !== root && ctx.adapter && maximalProxyGlobalPrefix(tail, ctx) === tail
+        && !proxyReceiverValueCanBeUndefined(tail, ({ name }) => resolvePureGlobalEntry(name, anchorPath), ctx)) {
+        seq.expressions[seq.expressions.length - 1] = t.identifier(binding.name);
+        return;
+      }
+      root.name = binding.name;
     }
     const { node } = path;
     if (node.optional) {
@@ -1546,7 +1594,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       ? buildMethodCall({
         id, object: recvNode, scope: path.scope, args: parent.arguments, optionalCall: parent.optional, anchorNode: parent,
       })
-      : t.callExpression(id, [t.cloneNode(recvNode)]);
+      : t.callExpression(id, [cloneReceiverForEmit({ t, collapse: collapseKeptNavValueNode, node: recvNode, path })]);
     const result = guardedRecv
       ? markGuardedClaim(t.conditionalExpression(guardedRecv.test, guardedRecv.consequent, withSideEffects(built, effectiveSE)))
       : built;
