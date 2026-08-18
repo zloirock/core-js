@@ -27,7 +27,7 @@ An evaluation is a pure function of the code bytes, the realm they run in and th
 The file is grouped per snippet (`cases[name] = { src, <type>: cell }`), one cell per (snippet, type), so nothing accumulates - a changed result rewrites its cell in place. Invalidation is layered, each level as local as it can be:
 
 - the name left the corpus - the group goes with it
-- `src` moved (the generator rewrote that case) - the whole group is void
+- `src` moved - the whole group is void. `src` covers the snippet's own bytes AND the chunk prefix ahead of it: snippets share one realm and the corpus mutates globals on purpose, so what a snippet observes depends on which ones ran before it. A plugin edit leaves the prefix alone and keeps the cache warm; a corpus edit invalidates what follows it, which is the work that genuinely has to be redone
 - a cell's own `h` moved - only that cell, which is the usual case after a plugin edit
 - a `runtime` stamp moved - only the cells under that tree; `native` / `arming` read the raw source and depend on no runtime, the usage-pure cells on `@core-js/pure`, the usage-global ones on `core-js/modules`
 - the machinery hash in the FILE NAME changed (both legs, their workers, the manifest, serializer, harness, shard, alias rig, the babel packages doing the TS strip, the node binary) - branches and machinery edits get their own file rather than poisoning each other
@@ -42,6 +42,7 @@ The cache never decides a verdict on its own, and the AUDIT is what keeps that t
 
 - The corpus mutates globals, so snippets cannot share a realm. Work is split into chunks, each a separate process running its subset sequentially; adding in-process concurrency reintroduces the interleaving that produced false failures before
 - A snippet has to run natively without throwing for an uninteresting reason, or the three-way comparison says nothing
+- An observable must be a function of the SNIPPET, not of the realm. Snippets share a realm with the corpus cases that write onto globals on purpose, so a key COUNT over a shared receiver - `globalThis`, a constructor - reports which snippets ran before this one rather than what the emitter did: it drifts with the chunk order and compares values the three legs observed at different moments. Observe shape (`typeof r`, a named key, a value) instead of size; a literal built inside the snippet is a safe receiver for counting, a shared one never is
 - Extend by adding a family to the generator, not by adding one-off snippets: a family covers a class of shapes, and a single case only proves itself
 - An axis belongs in a cross-product only if the code under test branches on it; one carried as pass-through data - which static method, say - multiplies cases without adding a path. To collapse a suspect axis, re-seed the regression the family exists to catch: still red means the axis was redundant
 - Before stripping a built-in, check the manifest's pairing rules - removing half of a paired feature leaves a state no real engine has, and the result is noise rather than a finding

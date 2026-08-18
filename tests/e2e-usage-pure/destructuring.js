@@ -3461,3 +3461,77 @@ QUnit.test('destructuring: a captured assignment value stays the receiver', asse
   assert.same(typeof statementAssign, 'function', 'the value-discarding twin keeps its own channel');
   assert.deepEqual(statementAssign({}, { a: 1 }), { a: 1 });
 });
+
+// a destructure whose init is MEMOIZED keeps resolving statics for the props AFTER the memo. this
+// emitter mutates the host in place, so the memo replaces the init and every later prop resolves
+// against a bare ref; without the constructor's name riding along, the first INSTANCE prop ended
+// static extraction and the rest shipped as native reads (undefined in the stripped realm)
+QUnit.test('destructuring: statics after an instance prop off a memoized init', assert => {
+  let effects = 0;
+  function arrayCtor() {
+    effects++;
+    return Array;
+  }
+  const { name, of, from } = arrayCtor();
+  assert.same(typeof of, 'function', 'a static AFTER the instance prop is still extracted');
+  assert.same(typeof from, 'function', 'and so is the one after that');
+  assert.deepEqual(of(1, 2), [1, 2], 'the extracted static works');
+  assert.deepEqual(from([3, 4]), [3, 4], 'and so does the second');
+  assert.same(typeof name, 'string', 'the instance prop between them still reads');
+  assert.same(effects, 1, 'the memoized init evaluated once');
+  // the same shape with the statics on BOTH sides of the instance prop
+  const seqEffects = [];
+  const { of: seqOf, name: seqName, from: seqFrom } = (seqEffects.push('r'), Array);
+  assert.deepEqual(seqOf(5), [5], 'a static before the instance prop');
+  assert.deepEqual(seqFrom([6]), [6], 'and one after it');
+  assert.same(typeof seqName, 'string', 'the instance prop still reads');
+  assert.deepEqual(seqEffects, ['r'], 'the sequence prefix ran once');
+});
+
+// a destructure prop that IS polyfilled owns the pattern, not the whole init: the claims INSIDE the
+// init keep their own rewrites, because the extraction re-emits that init rather than replacing it.
+// claiming the whole proxy-rooted chain left the inner claim as a native read the target may lack
+QUnit.test('destructuring: an init claim survives a polyfilled pattern prop', assert => {
+  const { name } = globalThis.Array.prototype.at;
+  assert.same(typeof name, 'string', 'the pattern prop resolves');
+  const { name: ctorName } = globalThis.Map.prototype.has;
+  assert.same(typeof ctorName, 'string', 'and so does one over a collapsing constructor');
+  // an array pattern reaches the same init through a different consumer, and a length read proves
+  // the value the pattern destructured is the polyfilled function rather than a stripped native
+  const { length } = globalThis.Array.prototype.at;
+  assert.same(typeof length, 'number', 'a non-polyfilled pattern prop reads off the polyfilled claim');
+});
+
+// a claim under a polyfilled pattern prop keeps its own render on BOTH the shapes the init channels
+// decline: a PROBED nav (whose value can short-circuit) and a claim whose side effects the host
+// rebuild left position-less. each used to ship the init raw - one deferring to a visitor its own
+// skip-mark had suppressed, the other standing down because a clone keeps `loc` but not the span
+QUnit.test('destructuring: a declined init still gets its claim rendered', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  /* eslint-disable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- the throw on the
+     short-circuit IS the asserted semantics, and the nested sequence IS the form under test */
+  function probedCtor() {
+    const { name } = globalThis.window?.self.Map;
+    return typeof name;
+  }
+  function probedStatic() {
+    const { name } = globalThis.window?.self.Array.of;
+    return typeof name;
+  }
+  let seq = 0;
+  function leadingEffect() {
+    const { name } = (seq++, (seq++, globalThis.window?.self))?.Array.of;
+    return typeof name;
+  }
+  /* eslint-enable no-unsafe-optional-chaining, @stylistic/no-extra-parens -- end of the forms */
+  if (WINDOW_PRESENT) {
+    assert.same(probedCtor(), 'string', 'the constructor claim resolves through its guard');
+    assert.same(probedStatic(), 'string', 'and so does the static one');
+    assert.same(leadingEffect(), 'string', 'a leading effect does not cost the claim');
+  } else {
+    assert.throws(probedCtor, TypeError, 'an absent host short-circuits and the pattern throws, as the source does');
+    assert.throws(probedStatic, TypeError, 'the static claim short-circuits with it');
+    assert.throws(leadingEffect, TypeError, 'and so does the leading-effect form');
+  }
+  assert.same(seq, 2, 'the leading effects ran exactly once each');
+});

@@ -47,6 +47,7 @@ import {
   navValueCanShortCircuit,
   guardTailPullCount,
   planProvenNavGuardCollapse,
+  collectChainAssignsThroughMemberChain,
   peelChainAssignment,
   chainReadsThroughSeal,
   chainSealedObjects,
@@ -3190,6 +3191,15 @@ export function createPolyfillEmitter({
       substituted: true,
       verbatimRanges: seTail.prefixNodes.map(node => ({ start: node.start, end: node.end })),
     };
+    // the receiver rides VERBATIM from here, so its inner rewrites compose in by needle - but a
+    // KEPT chain-assign inside it has no visitor of its own to collapse its pony hops (the claim
+    // above subsumes them), and the natural root rewrite alone spells `(k = _globalThis.self
+    // .window)` where the value canon - the one the static claim beside it already reads through -
+    // spells `(k = _self.window)`. dig with the same walk the AST emitter's twin uses and claim
+    // each assignment's own span; the claim composes into the verbatim slice
+    for (const chainAssign of collectChainAssignsThroughMemberChain(receiverObj)) {
+      collapseStoredKeptAssign(chainAssign, metaPath);
+    }
     return {
       src: unwrapParensSrc(receiverObj),
       isNonIdent: !isReusableReceiver(receiverObj),
@@ -3839,8 +3849,10 @@ export function createPolyfillEmitter({
       // descended root - a mid-chain `?.` guards a hop the always-defined root does not
       const rootNode = eraseGuard.object;
       if (!rootNode) return;
-      const migratedSe = migratableClaimSe({ sideEffects, receiverEffectCount, rootNode, end });
-      if (!migratedSe) return;
+      // the `delete` shape re-hangs its tail OUTSIDE the guard, and a sequence prefix around a
+      // delete target deletes nothing - it keeps the raw stand-down for a leading effect
+      const claimSe = migratableClaimSe({ sideEffects, receiverEffectCount, rootNode, end });
+      if (!claimSe || (claimSe.leading.length && deleteAboveChain(metaPath, node))) return;
       // the source slices a guard render reproduces VERBATIM: the skip below rescues them, so a
       // rewrite queued inside (`arr.at(0)` in a kept sequence prefix) composes into the test
       // instead of dying with the discarded span
@@ -3922,7 +3934,7 @@ export function createPolyfillEmitter({
       // delimits the expression on its own
       const { needsParens } = resolveGuardWrap({ isCall: invoke, start, end: claimEnd,
         metaPath: memberTail && metaPath.node === node && metaPath.parentPath ? metaPath.parentPath : metaPath });
-      const seSrcs = migratedSe.map(nodeSrc),
+      const seSrcs = claimSe.migrated.map(nodeSrc),
             claimBody = invoke ? withSeSrcs(seSrcs, `${ binding }(${ sliceBetweenParens(parent) ?? '' })${
               invokeTail ? code.slice(parent.end, invokeTail) : '' }`)
         // the migrated SE wraps the BINDING only - the tail reads off its value, so keeping it
@@ -3932,12 +3944,18 @@ export function createPolyfillEmitter({
           ? `${ withSeSrcs(seSrcs, binding) }${ code.slice(afterOptional(end, true), claimEnd) }`
         : withSeSrcs(seSrcs, binding);
       const guardPrefix = `null == ${ rootSrc } ? void 0 : `;
-      const guarded = outerGuarded ? claimBody : `${ guardPrefix }${ claimBody }`;
+      // effects the source wrote AHEAD of the guarded root evaluate before the test does, so they
+      // wrap the whole claim instead of riding in either branch (the AST emitter's shape). the
+      // sequence needs its own parens wherever the slot cannot hold a comma, so it forces the wrap
+      // below - and with the guard no longer at the text start the ownership offset would be wrong,
+      // so the hoist slot is withheld rather than published shifted
+      const guarded = `${ claimSe.leading.map(se => `${ nodeSrc(se) }, `).join('') }${
+        outerGuarded ? claimBody : `${ guardPrefix }${ claimBody }` }`;
       // the plain guarded form declares guard OWNERSHIP: the queue's ownership pass migrates
       // the guard into the nearest enclosing test slot (an outer combined / instance guard) -
       // left on the claim it would ride into a helper-GET argument and hand it `void 0` on the
       // short-circuit path. the paren-wrapped and optional-callee spellings own their tokens
-      const ownHint = !outerGuarded && !optionalCallee && !needsParens
+      const ownHint = !outerGuarded && !optionalCallee && !needsParens && !claimSe.leading.length
         ? { guardOwn: { prefixEnd: guardPrefix.length } } : null;
       // a chain CONTINUATION past this span reads off the guard value: plain, it throws where
       // the source short-circuits, so the claim takes the separator with it and hands the tail
@@ -3956,13 +3974,15 @@ export function createPolyfillEmitter({
             // no longer occurs in that content
             navConsumed = transforms.hasOuterGuard(unwrapNode(node.object));
       if (!navConsumed) transforms.add(start, claimSpanEnd, claimSpelling({
-        guarded, deleteTail, optionalCallee, liftsTail, outerGuarded, needsParens,
+        guarded,
+        deleteTail, optionalCallee, liftsTail, outerGuarded, needsParens: needsParens || !!claimSe.leading.length,
         deletedTailSrc: deleteTail ? code.slice(afterOptional(end, true), parent.end).replace(/^\s*\./, '') : '',
       }), null, deleteTail || liftsTail ? null : ownHint);
       if (invoke || memberTail) skippedNodes.add(parent);
       // rescue the migrated SE from the skip - same needle-compose contract as the key SE -
       // plus the guard render's verbatim slices, whose queued inner rewrites compose in
-      skipCollapsedChainExceptRootCall(node, skippedNodes, { keepSe: migratedSe, rescueRanges: guardVerbatim });
+      skipCollapsedChainExceptRootCall(node, skippedNodes,
+        { keepSe: [...claimSe.migrated, ...claimSe.leading], rescueRanges: guardVerbatim });
       return;
     }
     // an erased-guard static reached through an outer guard emits bare into its body
