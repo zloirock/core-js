@@ -3042,7 +3042,10 @@ const AW_SYMBOL_ITER = [
   { id: 'nested-prop-rest', pre: 'const { y: { [Symbol.iterator]: it, ...r } } = { y: [4, 5] };', obs: '[typeof it, Object.keys(r).length]' },
   { id: 'nested-prop-sole', pre: 'const { z: { [Symbol.iterator]: single } } = { z: [6] };', obs: 'typeof single' },
   { id: 'assign-aw', pre: 'let it, r; [{ [Symbol.iterator]: it, ...r }] = [[7]];', obs: 'typeof it' },
-  { id: 'compose-static-symbol-rest', pre: "const [{ 'from': f, [Symbol.iterator]: it, ...r }] = [Array];", obs: '[typeof f, typeof it, Object.keys(r).length]' },
+  // `Array` is a SHARED receiver: the corpus writes new enumerable statics onto it on purpose
+  // (`Array.tmpDiffX`), so a key count here measures which snippets ran before this one. Shape, not
+  // size - the extracted `from` is non-enumerable and was never in the rest to begin with
+  { id: 'compose-static-symbol-rest', pre: "const [{ 'from': f, [Symbol.iterator]: it, ...r }] = [Array];", obs: '[typeof f, typeof it, typeof r]' },
   { id: 'se-element-single-eval', pre: 'const [{ [Symbol.iterator]: se, ...sr }] = [(() => { log.push(1); return [8]; })()];', obs: 'typeof se' },
   { id: 'const-chain-decline', pre: 'const chain = [[9]]; const [{ [Symbol.iterator]: chained, ...cr }] = chain;', obs: 'typeof chained' },
   // a getter-backed element: the sole-binding extraction is the receiver's ONLY read, so the
@@ -3054,14 +3057,15 @@ const AW_SYMBOL_ITER = [
   // pattern-VALUED symbol prop on a constant-literal receiver: the extraction text must drain
   // at flush - the eager visit-time compose hard-aborted the whole transform on this shape
   { id: 'pattern-value-literal-default', pre: 'const { [Symbol.iterator]: { next = [1].flat() }, other } = [1, 2, 3];', obs: '[typeof next, other]' },
-  // the rest-count observable measures the REALM's global shape, which cannot survive the
-  // usage-global leg's realm boundary (a worker global differs from the shard global) - fullEnv
-  // keeps that leg off; the cell's injection surface is covered by its keyless siblings
+  // the rest is observed by its SHAPE, never by its size: a key count over `globalThis` measures the
+  // realm rather than the emitter, and snippets share a realm with the 475 corpus cases that write
+  // onto globals on purpose - so the count moved with whatever ran before it in the chunk. `typeof r`
+  // still discriminates the property this row exists for (the rest sibling survives into the
+  // preserved residual); a dropped rest reads `undefined` instead of `object`
   {
     id: 'nest-sibling-symbol-first',
     pre: 'const [{ [Symbol.iterator]: it, Array: { from: f }, ...r }] = [globalThis];',
-    obs: '[typeof it, typeof f, Object.keys(r).length]',
-    fullEnv: true,
+    obs: '[typeof it, typeof f, typeof r]',
   },
   { id: 'nest-sibling-nest-first', pre: 'const { Array: { from: f }, [Symbol.iterator]: it, ...r } = globalThis;', obs: '[typeof it, typeof f]' },
   // the harvested init effect runs exactly once ahead of the extractions
