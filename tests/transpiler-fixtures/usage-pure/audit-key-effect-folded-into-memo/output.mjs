@@ -23,7 +23,7 @@ export const viaMemoFold = (_ref = (_pushMaybeArray(log).call(log, 'a'), _Map), 
 // the emitters differ only in whether the sequence is memoized before the helper reads it - one
 // evaluation either way, sidecar-locked
 let held;
-export const viaChainAssignRoot = (_flatMaybeArray(arr).call(arr).length, held = _globalThis, _Set).size;
+export const viaChainAssignRoot = (held = _globalThis, _flatMaybeArray(arr).call(arr).length, _Set).size;
 
 // the same effect under consumers that do NOT fold it into a memo: the key effect rides ahead of
 // the collapsed binding, and its polyfills survive there too

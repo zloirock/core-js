@@ -5464,18 +5464,28 @@ export function unwrapParens(node) {
   return node;
 }
 
-// descend a proxy-nav ctor sub-receiver (`(c++, globalThis.self).Map` / the deeper `(c++, globalThis).self
-// .Map`) through its member hops to the root, peeling transparent wrappers (oxc parens, chains, TS casts -
-// `((c++, globalThis.self).Map as any).prototype`). true when that root is a HARVESTABLE SE the
-// prototype-fallback ctor swap re-emits ahead of the claim: a SequenceExpression prefix
+// the roots the whole-nav ctor swap re-emits ahead of the claim: a SequenceExpression prefix
 // (`(c++, _Map).prototype`) or a chain-assignment (`(n = gw, _Map).prototype` - the kept assign
-// evaluates first, exactly like a sequence member). false for an IIFE-call / bare root
-export function proxyNavRootIsSequence(node) {
+// evaluates first, exactly like a sequence member)
+const HARVESTABLE_NAV_ROOTS = new Set(['SequenceExpression', 'AssignmentExpression']);
+
+// is EVERY effect a proxy nav carries one the whole-nav ctor swap can re-emit? the swap discards the
+// sub-receiver text, so an effect survives only through a channel that prepends it, and
+// `collectFoldedReceiverSideEffects` harvests exactly two: the root below, and the hops' own computed
+// KEYS (`globalThis.self[(c++, 'Map')].prototype.has` -> `(c++, _Map).prototype.has`). an effect
+// anywhere else - an IIFE root, a call mid-chain - belongs to the receiver-peel mechanism, which
+// PRESERVES the shell the swap would drop, so the swap stands down there instead. gating on the ROOT
+// alone left the key spelling deciding the claim: the same ctor was swapped when written `.Map` and
+// read raw off the global when written `[(c++, 'Map')]`.
+// the descent peels only RUNTIME-transparent wrappers (oxc parens, chains, TS casts), deliberately
+// NOT `descendToChainRoot`: that canon peels sequence TAILS too, which would hand back `globalThis`
+// for the very `(c++, globalThis)` root this predicate exists to recognise
+export function proxyNavEffectsHarvestable(node) {
   let root = unwrapRuntimeExpr(node);
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
     root = unwrapRuntimeExpr(root.object);
   }
-  return root?.type === 'SequenceExpression' || root?.type === 'AssignmentExpression';
+  return HARVESTABLE_NAV_ROOTS.has(root?.type) || !mayHaveSideEffects(root);
 }
 
 // a string is spellable as a bare IdentifierName (`from`, `$x`, `with` - reserved words are
