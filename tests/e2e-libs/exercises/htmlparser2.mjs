@@ -86,17 +86,17 @@ export function run() {
 
   // --- parser: implied end tags, void elements, foreign content ---
   check('list_items', selectAll('#list > li', doc).length, 3);
-  check('table_cells', selectAll('td', doc).map(el => textContent(el)), ['r1c1', 'r1c2', 'r2c1', 'r2c2']);
-  check('dl_pairs', selectAll('dt, dd', doc).map(el => getName(el)), ['dt', 'dd', 'dt', 'dd']);
-  check('options', selectAll('option', doc).map(el => getAttributeValue(el, 'value')), ['a', 'b']);
+  check('table_cells', selectAll('td', doc).map(element => textContent(element)), ['r1c1', 'r1c2', 'r2c1', 'r2c2']);
+  check('dl_pairs', selectAll('dt, dd', doc).map(element => getName(element)), ['dt', 'dd', 'dt', 'dd']);
+  check('options', selectAll('option', doc).map(element => getAttributeValue(element, 'value')), ['a', 'b']);
   check('paragraphs', selectAll('p', doc).length, 3);
-  check('void_elements', selectAll('img, br, hr', doc).map(el => getName(el)), ['img', 'br', 'hr']);
-  check('svg_adjusted', selectAll('svg *', doc).map(el => getName(el)), ['clipPath', 'path', 'foreignObject', 'div']);
+  check('void_elements', selectAll('img, br, hr', doc).map(element => getName(element)), ['img', 'br', 'hr']);
+  check('svg_adjusted', selectAll('svg *', doc).map(element => getName(element)), ['clipPath', 'path', 'foreignObject', 'div']);
   check('foreign_integration', textContent(selectOne('svg div', doc)), 'inner');
   check('script_rawtext', textContent(selectOne('script', doc)).indexOf('</scr') > 0, true);
   // the parser drops the SECOND `data-dup` - that decision is an `Object.hasOwn` call in Parser.ts
   check('dup_attribute', getAttributeValue(selectOne('div[title]', doc), 'data-dup'), '1');
-  check('comment_kept', filter(n => n.type === 'comment', doc.children, true).length, 1);
+  check('comment_kept', filter(node => node.type === 'comment', doc.children, true).length, 1);
 
   // --- entities through the tokenizer ---
   check('entity_named', textContent(selectOne('title', doc)), 'T & t');
@@ -110,8 +110,8 @@ export function run() {
   check('has_attrib', hasAttrib(items[1], 'class'), true);
   check('siblings', getSiblings(items[0]).length, 3);
   check('children_count', getChildren(selectOne('#list', doc)).length, 3);
-  check('find_one', getName(findOne(el => el.name === 'td', doc.children, true)), 'td');
-  check('exists_one', existsOne(el => el.name === 'table', doc.children), true);
+  check('find_one', getName(findOne(element => element.name === 'td', doc.children, true)), 'td');
+  check('exists_one', existsOne(element => element.name === 'table', doc.children), true);
   check('get_text', getText(selectOne('title', doc)), 'T & t');
   check('inner_text', innerText(selectOne('#list', doc)).indexOf('one <x>'), 0);
   // both of domutils' `Array#includes` sites: `uniqueSort` de-duplicates with
@@ -127,8 +127,8 @@ export function run() {
   /* eslint-disable array-func/no-unnecessary-this-arg -- these are domutils' `find(test, nodes,
      recurse, limit)` / `filter(test, node, recurse, limit)`, not `Array#find` / `Array#filter`; the
      lint reading the second argument as a `thisArg` IS the collision under test */
-  check('collision_find', getName(DomUtils.find(n => n.name === 'table', doc.children, true, 1)[0]), 'table');
-  check('collision_filter', DomUtils.filter(n => n.name === 'li', doc.children, true).length, 3);
+  check('collision_find', getName(DomUtils.find(node => node.name === 'table', doc.children, true, 1)[0]), 'table');
+  check('collision_filter', DomUtils.filter(node => node.name === 'li', doc.children, true).length, 3);
   /* eslint-enable array-func/no-unnecessary-this-arg -- end of the domutils namespace block */
 
   // --- dom-serializer ---
