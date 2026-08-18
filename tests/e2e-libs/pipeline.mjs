@@ -189,6 +189,9 @@ for (const lib of libs) {
 if (!rows.length) throw new Error(`no (library x method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
 // -------- report --------
+// Local to this report, and the console lines next door keep their own `/ 1024`: they colour the
+// NUMBER and leave the unit plain (`scripts/AGENTS.md`), so one helper would have to hand back the
+// two halves separately to serve both.
 function toKB(bytes) {
   return `${ (bytes / 1024).toFixed(0) } KB`;
 }

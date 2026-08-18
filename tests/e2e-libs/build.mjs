@@ -530,6 +530,52 @@ export function assertES5(code, label) {
   }
 }
 
+// What the page programs may read from the engine. Short on purpose: everything else has to be
+// declared in the program itself, and a name added here is a global the ES5 floor must actually have.
+const PAGE_GLOBALS = new Set(['window', 'document', 'setTimeout', 'clearTimeout', 'console',
+  'String', 'Object', 'Error', 'JSON', 'E2E', 'QUnit']);
+
+// Every name a program reads is one it declares or one above. The parse next to this cannot answer
+// that - an undeclared reference is valid ES5 and dies only when the line RUNS - and the text this
+// guards is a template literal, which no linter here reads. What that leaves uncovered is the banner
+// target specifically: CI executes the QUnit one, so a broken reference there reddens a cell, while
+// the banner is only ever opened by a person, after a failure, which is when it would instead be
+// blank. Union of declarations rather than per-scope, so shadowing cannot produce a false name.
+export function assertDeclared(code, label) {
+  const ast = acornParse(code, { ecmaVersion: 5 });
+  const declared = new Set(PAGE_GLOBALS);
+  const read = new Set();
+  (function walk(node, parent) {
+    if (!node || typeof node.type !== 'string') return;
+    switch (node.type) {
+      case 'Identifier': {
+        // a property or a key is a name of something else, not a read of this program's scope
+        const isMember = parent?.type === 'MemberExpression' && parent.property === node && !parent.computed;
+        const isKey = parent?.type === 'Property' && parent.key === node && !parent.computed;
+        if (!isMember && !isKey) read.add(node.name);
+        return;
+      }
+      case 'VariableDeclarator': declared.add(node.id.name); break;
+      case 'FunctionDeclaration': case 'FunctionExpression':
+        if (node.id) declared.add(node.id.name);
+        for (const param of node.params) declared.add(param.name);
+        break;
+      case 'CatchClause': if (node.param) declared.add(node.param.name); break;
+      default:
+    }
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if (Array.isArray(value)) for (const child of value) walk(child, node);
+      else walk(value, node);
+    }
+  }(ast, null));
+  const undeclared = [...read].filter(name => !declared.has(name));
+  if (undeclared.length) {
+    throw new Error(`${ label }: reads ${ undeclared.join(', ') }, which nothing declares`
+      + ' - the page would throw where the line runs');
+  }
+}
+
 // "wire size" of a bundle: minify (esbuild, keeps ES5) + gzip - what you'd actually ship. Shared so
 // pipeline.md and artifacts/manifest.json cannot drift apart if the minify settings ever change.
 export async function wireSize(code, label = 'wire size') {
