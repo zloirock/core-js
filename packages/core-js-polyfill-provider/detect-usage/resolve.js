@@ -4,7 +4,7 @@
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
-import { entryToGlobalHint } from '../index.js';
+import { entryToGlobalHint, resolve as resolveBuiltInMeta } from '../index.js';
 import {
   assignmentAliasHintSoundAtRead,
   bindingPolyfillHint,
@@ -2387,7 +2387,7 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   }
   if (navValueCanShortCircuit(core, resolvePure, aliasCtx)) return true;
   const hop = staticMemberKeyName(core);
-  if (!hop || !POSSIBLE_GLOBAL_OBJECTS.has(hop) || resolvePure({ kind: 'global', name: hop })) return false;
+  if (!proxyHopLacksPureEntry(hop, resolvePure)) return false;
   const rootRaw = unwrapRuntimeExpr(peelReceiverSequenceTail(core.object));
   const rootObj = unwrapRuntimeExpr(peelChainAssignment(rootRaw).value ?? rootRaw);
   if (rootObj?.type === 'Identifier') return !!isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx });
@@ -2471,6 +2471,22 @@ export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
 // _self).Set = v`), and claiming it here would conflict with that already-queued rewrite.
 // `staticMemberKeyName` folds a SE-bearing computed hop key (`globalThis[(e++, 'window')]`) so it is
 // detected
+// is this proxy-hop key one the pure package cannot back at all (`window` - there is no `_window`)?
+// the question is about the ENTRY EXISTING, never about the target asking for it: a hop the target
+// already has natively (`self` on a modern browserslist) is still a name pure can spell, and reading
+// it as "unresolvable" turns an erasable navigation into an environment probe - the two emitters
+// then answer the same source differently, which is what the target-only spelling produced. the
+// per-target resolver still leads, so a hop it answers needs no definitions lookup.
+// the canon's near names decide a HOST SHAPE, not entry existence, so none of them subsumes this:
+// `tryFlattenProxyHopHost` / `isProxyHopHostShape` classify a destructure host, `rebuildWrappedProxyChain`
+// re-emits hops onto a binding. `navHasUnresolvableProxyHop` stays the owner of the question - this is
+// its arm, lifted so `proxyReceiverValueCanBeUndefined` asks it in the same spelling
+function proxyHopLacksPureEntry(hop, resolvePure) {
+  return !!hop && POSSIBLE_GLOBAL_OBJECTS.has(hop)
+    && !resolvePure({ kind: 'global', name: hop })
+    && !resolveBuiltInMeta({ kind: 'global', name: hop });
+}
+
 export function navHasUnresolvableProxyHop(navNode, resolvePure) {
   // peel transparent wrappers / SE tails at entry and at every hop, mirroring the sibling
   // walkers (`maximalProxyGlobalPrefix` / `findProxyGlobal`): a TS cast or a sequence
@@ -2481,7 +2497,7 @@ export function navHasUnresolvableProxyHop(navNode, resolvePure) {
   let cur = peelReceiverSequenceTail(navNode);
   while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') {
     const hop = staticMemberKeyName(cur);
-    if (hop && POSSIBLE_GLOBAL_OBJECTS.has(hop) && !resolvePure({ kind: 'global', name: hop })) return true;
+    if (proxyHopLacksPureEntry(hop, resolvePure)) return true;
     cur = peelReceiverSequenceTail(cur.object);
   }
   return false;
