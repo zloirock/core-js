@@ -67,10 +67,10 @@ export function bannerHarness(expectedLabels) {
       // the element is not assumed to exist: on a page whose markup has moved, an error path that
       // read it first would throw from the very handler that is there to report a throw
       function paint(state, text) {
-        var b = document.getElementById(BANNER);
-        if (!b) return;
-        b.className = state;
-        b.textContent = text;
+        var element = document.getElementById(BANNER);
+        if (!element) return;
+        element.className = state;
+        element.textContent = text;
       }
 
       // guarded like the banner above, and read through one function by every caller: a table whose
@@ -89,12 +89,12 @@ export function bannerHarness(expectedLabels) {
         var tbody = tbodyOf();
         if (!tbody) return;
         tbody.innerHTML = '';
-        var tr = document.createElement('tr');
-        var td = document.createElement('td');
-        td.colSpan = 2;
-        td.textContent = text;
-        tr.appendChild(td);
-        tbody.appendChild(tr);
+        var row = document.createElement('tr');
+        var cell = document.createElement('td');
+        cell.colSpan = 2;
+        cell.textContent = text;
+        row.appendChild(cell);
+        tbody.appendChild(row);
       }
 
       function labelsOf(checks) {
@@ -109,9 +109,9 @@ export function bannerHarness(expectedLabels) {
         // the same guarantee the QUnit target asserts first: only IE exposes documentMode, and 11
         // exactly, since its compatibility modes report 5 through 10 and serve a DIFFERENT set of
         // natives. A green page in another engine is a claim about a floor this page never touched
-        var dm = window.document && document.documentMode;
-        if (dm !== 11) {
-          paint(FAIL, 'NOT IE11 - documentMode=' + dm + '. These checks ran, but not on the floor this page is for.');
+        var documentMode = window.document && document.documentMode;
+        if (documentMode !== 11) {
+          paint(FAIL, 'NOT IE11 - documentMode=' + documentMode + '. These checks ran, but not on the floor this page is for.');
           tableSays('the rows above are the node pre-flight; this browser is not the target engine');
           return;
         }
@@ -141,15 +141,15 @@ export function bannerHarness(expectedLabels) {
         paint(bad ? FAIL : PASS, text);
         tbody.innerHTML = '';
         for (i = 0; i < checks.length; i++) {
-          var tr = document.createElement('tr');
-          tr.className = checks[i].pass ? 'ok' : 'bad';
+          var row = document.createElement('tr');
+          row.className = checks[i].pass ? 'ok' : 'bad';
           var name = document.createElement('td');
           name.textContent = checks[i].label;
           var result = document.createElement('td');
           result.textContent = checks[i].pass ? 'PASS' : 'FAIL';
-          tr.appendChild(name);
-          tr.appendChild(result);
-          tbody.appendChild(tr);
+          row.appendChild(name);
+          row.appendChild(result);
+          tbody.appendChild(row);
         }
       }
 ${ ES5_REASON_SOURCE }
@@ -194,8 +194,8 @@ export function qunitHarness(label, expectedLabels) {
         // document.documentMode (11 in standards mode); Edge/Chromium do not.
         // 11 exactly, not merely set: IE's compatibility modes report 5 through 10 and serve a
         // DIFFERENT set of natives, so a page rendered in one would be measuring another engine
-        var dm = window.document && document.documentMode;
-        assert.strictEqual(dm, 11, LABEL + ': expected real IE11 in standards mode, got documentMode=' + dm);
+        var documentMode = window.document && document.documentMode;
+        assert.strictEqual(documentMode, 11, LABEL + ': expected real IE11 in standards mode, got documentMode=' + documentMode);
         function report(res) {
           var checks = (res && res.checks) || [];
           var passed = 0, i;
@@ -216,8 +216,8 @@ export function qunitHarness(label, expectedLabels) {
           for (j = 0; j < EXPECTED.length; j++) expected += (j ? '|' : '') + EXPECTED[j];
           assert.strictEqual(labels, expected, LABEL + ': check labels differ from the node pre-flight');
           for (i = 0; i < checks.length; i++) {
-            var c = checks[i];
-            assert.pushResult({ result: !!c.pass, actual: c.actual, expected: c.expected, message: LABEL + ' - ' + c.label });
+            var check = checks[i];
+            assert.pushResult({ result: !!check.pass, actual: check.actual, expected: check.expected, message: LABEL + ' - ' + check.label });
           }
           done();
         }

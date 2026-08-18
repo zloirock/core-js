@@ -34,16 +34,16 @@ export function errorReason(err) {
       text = String(source ?? '');
     } catch { continue; }
     if (text === '[object Object]') continue;
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean).filter(l => !STACK_FRAME.test(l));
+    const lines = text.split('\n').map(line => line.trim()).filter(Boolean).filter(line => !STACK_FRAME.test(line));
     if (!lines.length) continue;
-    const named = lines.find(l => /^\w*(?:Error|Exception)\b/.test(l));
+    const named = lines.find(line => /^\w*(?:Error|Exception)\b/.test(line));
     if (named) return named.slice(0, REASON_MAX);
     // what zx leaves once its frame is gone is `exit code: N` and, for a killed child, `signal: SIG`.
     // The signal is the half that says WHY it stopped, so a child that died without a word reports
     // both - and BESIDE whatever it did say, never instead of it: zx appends that footer to the
     // child's own output, so returning the footer alone drops the sentence the reader came for
-    const footer = lines.filter(l => ZX_FOOTER.test(l));
-    const said = lines.find(l => !ZX_FOOTER.test(l));
+    const footer = lines.filter(line => ZX_FOOTER.test(line));
+    const said = lines.find(line => !ZX_FOOTER.test(line));
     return [said, ...footer].filter(Boolean).join(', ').slice(0, REASON_MAX);
   }
   // nothing said anything - still name what failed rather than print an empty reason
@@ -70,7 +70,7 @@ export async function discard(remove, what) {
 // become `null`, and `undefined`, a function and a symbol become `null` inside an array or vanish
 // from an object. Every one of them compares UNEQUAL to `null` there, so rendering them as it would
 // describe the failure as the one shape the comparison exists to distinguish. `-0` is not in the set:
-// `eq` holds it equal to `0`, so rendering both as `0` says exactly what the comparison saw.
+// `deepEqual` holds it equal to `0`, so rendering both as `0` says exactly what the comparison saw.
 //
 // The pre-flight child applies the same rule, spelled again there because it runs in `node -e` with
 // nothing imported: see `PREFLIGHT` in runtime.mjs.
