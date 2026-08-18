@@ -16,13 +16,12 @@
 // from the input, never from the output under test (a missed injection cannot un-arm itself), and
 // it arms the `strip:false` hosts (param-default / assignment) the pure leg must skip: under
 // usage-global's inject-if-might contract those have no "legitimately did not inject" escape.
-import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { cached } from './cache-store.mjs';
 import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, writeModule } from './harness.mjs';
 
+const { dirname, join } = path;
 const WORKER = join(dirname(fileURLToPath(import.meta.url)), 'global-leg-worker.mjs');
 
 // run an already-written module file in a fresh stripped worker realm; resolves to its runtimeKey.
@@ -63,57 +62,27 @@ function runStripped(file) {
   });
 }
 
-async function runOutput(code, ts) {
-  const file = await writeModule(code, ts);
-  return runStripped(file);
+// one stripped-realm evaluation, memoized by (snippet, type) in the shared cache: the worker spawn
+// is what this leg costs, and it only has to happen when the code that would run in it changed
+function runOutput({ type, code, ts }) {
+  return cached({ type, code, evaluate: async () => runStripped(await writeModule(code, ts)) });
 }
 
-// --- arming cache ---
 // arming is a property of the INPUT - the raw source's stripped-realm key - independent of the
-// plugins under test and deterministic over the deterministic corpus, so it is cached across
-// runs. the coordinator validates the cache against the strip-machinery hash and passes its
-// path; a hit skips the worker spawn, while the comparison against this run's native reference
-// stays live. new keys are reported through the shard marker and merged by the coordinator
-const newArmings = {};
-let armingCache = null;
-// caches the load PROMISE, not the object: a value-cached variant hands the pre-read empty
-// object to any caller arriving while the first read is still in flight
-function loadedArmingCache() {
-  return armingCache ??= (async () => {
-    const file = process.env.DIFF_ARMING_CACHE;
-    if (!file) return {};
-    try {
-      return JSON.parse(await readFile(file, 'utf8')).entries ?? {};
-    } catch {
-      // absent or torn cache - every arming just evaluates
-      return {};
-    }
-  })();
-}
-export function collectNewArmings() {
-  return newArmings;
-}
-function snippetHash(code, ts) {
-  // the fixed-width flag goes FIRST, so the variable-length code needs no delimiter after it
-  return createHash('sha256').update(ts ? '1' : '0').update(code).digest('hex').slice(0, 16);
-}
+// plugins under test and deterministic over the deterministic corpus. It rides the same cache as
+// the outputs, in its own cell type, and unlike them it survives a core-js edit: the raw source
+// imports no core-js at all. The comparison against this run's native reference stays live.
 // never rejects: the promise floats unhandled while the transforms run, so a rejection here
 // (a temp-file write failure, say) would bypass the shard's per-snippet catch and kill the shard
 async function armingEval(code, ts) {
-  const cache = await loadedArmingCache();
-  const hash = snippetHash(code, ts);
-  if (hash in cache) return cache[hash];
   const t0 = process.hrtime.bigint();
   let key;
   try {
-    key = await runOutput(code, ts);
+    key = await runOutput({ type: 'arming', code, ts });
   } catch (error) {
     key = `WORKER-CRASH|arming: ${ error?.message ?? error }`;
   }
   phaseNs['arming eval (inside global leg)'] = (phaseNs['arming eval (inside global leg)'] ?? 0n) + (process.hrtime.bigint() - t0);
-  // a crash sentinel is a transient, not the snippet's key - cached, it would pin the snippet
-  // armed forever instead of being re-probed on the next run
-  if (!key.startsWith('WORKER-CRASH|')) newArmings[hash] = key;
   return key;
 }
 
@@ -161,11 +130,14 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
   let unpluginKey;
   const sameImports = EMITTER === 'both' && setEqual(importSet(babelOut), importSet(unpluginOut));
   if (sameImports && (babelOut === unpluginOut || residualBody(unpluginOut) === code.trim())) {
-    babelKey = unpluginKey = await runOutput(unpluginOut, ts);
+    // ONE cell, not two: the twin is never read while the collapse holds - only the split branch
+    // asks for `global-unplugin` - so recording it would add a copy per armed snippet that nothing
+    // consumes. A snippet that later starts splitting pays one worker spawn for the miss
+    babelKey = unpluginKey = await runOutput({ type: 'global-babel', code: unpluginOut, ts });
   } else {
     [babelKey, unpluginKey] = await Promise.all([
-      WANT_BABEL ? runOutput(babelOut, ts) : null,
-      WANT_UNPLUGIN ? runOutput(unpluginOut, ts) : null,
+      WANT_BABEL ? runOutput({ type: 'global-babel', code: babelOut, ts }) : null,
+      WANT_UNPLUGIN ? runOutput({ type: 'global-unplugin', code: unpluginOut, ts }) : null,
     ]);
   }
   if ((!WANT_BABEL || babelKey === native) && (!WANT_UNPLUGIN || unpluginKey === native)) {
