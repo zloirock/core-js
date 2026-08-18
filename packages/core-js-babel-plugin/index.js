@@ -572,15 +572,18 @@ export default function plugin(api, options) {
       function findInnerPolyChain(path) {
         if (!path.isOptionalMemberExpression()) return null;
         const outerCaller = unwrapTSExpressionParent(path);
-        const outerCall = outerCaller.parent;
-        if (!t.isCallExpression(outerCall) && !t.isOptionalCallExpression(outerCall)) return null;
-        if (outerCall.callee !== outerCaller.node) return null;
+        // a GET tail over the same chain (`recv.m?.().at`) combines too: the standalone emit
+        // memoizes the callee and rebuilds the optional call off it, which resolves the inner
+        // method-get on a bare `_ref` and so loses the receiver type the chain still carries
+        const parentCall = t.isCallExpression(outerCaller.parent) || t.isOptionalCallExpression(outerCaller.parent)
+          ? outerCaller.parent : null;
+        const outerCall = parentCall?.callee === outerCaller.node ? parentCall : null;
         // user parens on the callee END the chain: the outer call runs on whatever the chain
         // produced, so a short-circuited chain must make it THROW. combining folds that call's
         // arguments into the guard's alternate and returns void 0 instead - stand down and let the
         // paren-lookup emit, which keeps the call outside the ternary, take the shape. the text
         // emitter refuses on the same token, one descent step further in
-        if (isWrappedInParens(outerCaller)) return null;
+        if (outerCall && isWrappedInParens(outerCaller)) return null;
         // rare but possible wrappers: ParenthesizedExpression (babel's
         // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
         // peel both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
@@ -614,6 +617,14 @@ export default function plugin(api, options) {
           innerHintName: result.hintName,
           chainStartNode: current.node,
           hasHops: current.node !== outerObjectNode,
+          outerIsCall: !!outerCall,
+          // the combine SPLICES this call's memo into the hops above it, so their own dispatch
+          // later resolves a receiver that no longer spells the chain - carry the pre-splice type
+          // across, the way `annotateCallReturnType` does for a replaced callee. without it a hop
+          // degrades to the generic helper (`_at`) where the same chain WITHOUT the `?.` resolves
+          // the narrowed one (`_atMaybeArray`), and unplugin - which resolves hops off the
+          // original path - keeps the narrowed one either way
+          chainStartType: resolveNodeType(current),
         };
       }
 
@@ -1097,7 +1108,7 @@ export default function plugin(api, options) {
             // annotation; static rewrite only swaps the callee identifier so the parent
             // node persists. without this type-cache downstream `arr2.at(-1)` (where `arr2 =
             // arr.concat(x)`) falls back to generic `_at` because the rewritten init shape
-            // (`_concatMaybeArray(arr).call(arr, x)`) isn't recognized by `resolveNodeType`
+            // (`_concatMaybeArray(arr).call(arr, x)`) isn't recognized by `resolveNodeType`.
             const callerPath = unwrapTSExpressionParent(path);
             const callParent = callerPath.parentPath;
             const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
