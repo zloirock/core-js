@@ -29,6 +29,7 @@ import {
   paramsHaveInvisibleCallers,
   patternBindingCount,
   peelNestedSequenceExpressions,
+  isValidIdentifierName,
   propertyKeyName,
   peelParenAndTSParentPath,
   peelToExpressionStatement,
@@ -73,6 +74,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   maximalProxyGlobalHop, patternBindingName, proxyReceiverValueCanBeUndefined, resolveSynthKeys,
+  anchoredResidualSymbolKeyName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   globalProxyMemberName, maybeRegisterAssignmentAliasWrite, peelProxyGlobalObject,
@@ -1369,20 +1371,17 @@ export default function createDestructureEmitter({
   // a computed `Symbol.X` key cloned into an anchored residual is skip-seeded whole, so the
   // standalone key visitor never touches the CLONE: whether it fired on the ORIGINAL depends
   // on which sibling dispatched the flatten (a rewritten original clones as the injected
-  // identifier and needs nothing). a still-raw key re-keys directly, gated like that
-  // visitor: a scope-shadowed `Symbol` is the user's own object, a non-well-known name falls
-  // to the polyfilled CONSTRUCTOR read (`[_Symbol.foo]`) - raw `Symbol` throws
-  // ReferenceError on symbol-less engines. mirrors the unplugin text render
+  // identifier and needs nothing). a still-raw key re-keys directly - the DECISION is the shared
+  // canon (alias and proxy-global spellings of `Symbol` answer like the bare name, a shadowed or
+  // SLOT-MUTATED one refuses), only the render is local: a non-well-known name falls to the
+  // polyfilled CONSTRUCTOR read (`[_Symbol.foo]`) - raw `Symbol` throws on symbol-less engines
   function anchoredResidualPropKey(key, scope) {
-    if (key?.type !== 'MemberExpression' || key.computed) return null;
-    if (key.object?.type !== 'Identifier' || key.object.name !== 'Symbol') return null;
-    if (key.property?.type !== 'Identifier' || (scope && adapter.hasBinding(scope, 'Symbol', null))) return null;
-    const entry = symbolKeyToEntry(`Symbol.${ key.property.name }`);
-    if (entry && isEntryNeeded?.(entry)) {
-      return t.cloneNode(injectPureImport(entry, `Symbol$${ key.property.name }`));
-    }
+    const name = anchoredResidualSymbolKeyName({ key, computed: true, scope, adapter, path: null });
+    if (name === null) return null;
+    const entry = symbolKeyToEntry(`Symbol.${ name }`);
+    if (entry && isEntryNeeded?.(entry)) return t.cloneNode(injectPureImport(entry, `Symbol$${ name }`));
     if (isEntryNeeded?.('symbol/constructor')) {
-      return t.memberExpression(t.cloneNode(injectPureImport('symbol/constructor', 'Symbol')), t.identifier(key.property.name));
+      return t.memberExpression(t.cloneNode(injectPureImport('symbol/constructor', 'Symbol')), t.identifier(name));
     }
     return null;
   }
@@ -1991,16 +1990,23 @@ export default function createDestructureEmitter({
     if (throwProbe) return t.sequenceExpression([throwProbe.node, value]);
     // a BARE probed nav (`{ structuredClone } = (globalThis.window?.self)` - no member read
     // to seal): native throws reading the pattern key off the probe value, so re-emit that
-    // read as `(guard).<key>` ahead of the binding. static identifier keys only - a computed
-    // SE key keeps its residual channel; a nav the shared guard plan cannot collapse keeps
-    // today's render
-    const bareKey = !prop.node.computed && prop.node.key?.type === 'Identifier' ? prop.node.key.name : null;
+    // read as `(guard).<key>` ahead of the binding. the key comes from the canon, so a
+    // static-string / template spelling of the SAME slot re-emits the same read - read as
+    // Identifier-only, those spellings dropped the probe and answered where native throws. a
+    // computed SE key still keeps its residual channel (the canon does not fold one), and a
+    // nav the shared guard plan cannot collapse keeps today's render
+    const bareKey = propertyKeyName(prop.node);
     if (bareKey && sourceNode && probedNavGuardValueNode
       && proxyReceiverValueCanBeUndefined(sourceNode, ({ name }) => resolveGlobalPure(name),
         { scope: prop.scope, adapter, path: prop })) {
       const navNode = peelNestedSequenceExpressions(sourceNode).tail ?? sourceNode;
       const guarded = probedNavGuardValueNode(navNode, prop);
-      if (guarded) return t.sequenceExpression([t.memberExpression(guarded.node, t.identifier(bareKey)), value]);
+      // a slot name that is not spellable bare (`{ 'a-b': v }`) re-reads computed
+      if (guarded) {
+        return t.sequenceExpression([isValidIdentifierName(bareKey)
+          ? t.memberExpression(guarded.node, t.identifier(bareKey))
+          : t.memberExpression(guarded.node, t.stringLiteral(bareKey), true), value]);
+      }
     }
     return value;
   }
