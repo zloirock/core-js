@@ -6409,18 +6409,60 @@ function * generateKeptAssignHops() {
 // --- a polyfillable GET reading off a chain that already carries a polyfillable CALL ---
 // two channels render this shape and share one span. the guard test must keep the method-get as its
 // own claim; a stand-down in either channel leaves it native, which an emptied realm turns into a
-// throw. the three-level spellings are a known queue crash of the text emitter and stay out.
+// throw. at three levels the GET tail decides the OWNER: the standalone emit rebuilds the optional
+// call off a memoized callee, splitting the middle claim across two disjoint slots, so the tail
+// combines like a call tail does. the `-then-call` rows carry the `this` the rebuild must preserve.
 const CHAIN_TAIL_GETS = [
   { id: 'opt-call-then-get', code: 'arr.at?.(0).at' },
   { id: 'plain-call-then-get', code: 'arr.at(0).at' },
   { id: 'opt-call-then-plain-tail', code: 'arr.at?.(0).length' },
   { id: 'opt-call-then-call', code: 'arr.at?.(0).at(0)' },
+  { id: 'opt-opt-then-get', code: 'arr.at?.(0).at?.(0).at' },
+  { id: 'opt-plain-then-get', code: 'arr.at?.(0).at(0).at' },
+  { id: 'plain-opt-then-get', code: 'arr.at(0).at?.(0).at' },
+  { id: 'opt-opt-then-call', code: 'arr.at?.(0).at?.(0).at(0)' },
+  { id: 'opt-plain-then-call', code: 'arr.at?.(0).at(0).at(0)' },
+  // the guard must short-circuit the WHOLE chain on a nullish method, not read the tail off void 0
+  { id: 'nullish-method-then-get', code: 'box.at?.(0).at' },
   // NEGATIVE: a non-polyfillable call under the same tail keeps the native method-get
   { id: 'nonpoly-call-then-get', code: 'box.pick?.(0).at' },
 ];
+// --- an intermediate MEMBER hop inside a combined chain ---
+// the combine skips the hop's own dispatch, so a verbatim re-emission drops its polyfill with no
+// diagnostic. every level names a DIFFERENT method on purpose: with one method throughout, a missed
+// middle injection collapses into the import its neighbours already pull and no oracle sees it.
+// the tail is `.name` because a poly member hop yields a METHOD, and that is the only member of a
+// function pure backs at these targets - so these rows rest on the polyfill preserving the name of
+// the method it hands back (the dispatcher's own name is empty). a red row here is worth checking
+// against that before it is read as an emitter defect.
+const CHAIN_MEMBER_HOPS = [
+  { id: 'hop-under-get-tail', code: 'arr.at?.(0).flat.name' },
+  { id: 'hop-mirrored', code: 'arr.flat?.(0).at.name' },
+  { id: 'hops-under-call-tail', code: 'arr.at?.(0).flat.name.at(0)' },
+  { id: 'hop-const-bound-key', code: 'arr.at?.(0)[k].name' },
+  { id: 'two-hops', code: 'arr.at?.(0).flat.bind.name' },
+  // a folded computed key on the hop must fire AFTER the receiver it reads and BEFORE the hop above.
+  // ONE such key cannot show the order - it is the control; TWO stacked hops are what discriminate
+  { id: 'hop-key-se', code: "arr.at?.(0)[(log.push('k'), 'flat')].name" },
+  { id: 'hop-and-outer-key-se', code: "arr.at?.(0)[(log.push('k'), 'flat')][(log.push('o'), 'name')].at(0)" },
+  // CONTROL: a non-claim tail builds no combine, so the hop keeps its own dispatch
+  { id: 'non-claim-tail', code: 'arr.flat?.(0).at.call(arr, 0)' },
+  // CONTROL: an unresolvable key leaves the hop verbatim, and the tail still claims. the key names a
+  // property no polyfill backs - an unanalyzable key over a STRIPPABLE builtin is unfixable by
+  // construction (nothing to inject), so such a row would assert a gap no emitter can close
+  { id: 'hop-unresolved-key', code: 'arr.at?.(0)[dyn].name' },
+];
+function * generateChainMemberHops() {
+  for (const c of CHAIN_MEMBER_HOPS) {
+    const setup = 'const arr = [[[1]]]; const k = "flat"; const dyn = String(arr.length) === "1" ? "length" : "at";';
+    const body = `(() => { ${ setup } const v = ${ c.code }; return typeof v === "function" ? "fn" : String(v); })()`;
+    yield { ...snippet(`chain-member-hop/${ c.id }`, body), strip: true };
+  }
+}
+
 function * generateChainTailGets() {
   for (const c of CHAIN_TAIL_GETS) {
-    const body = `(() => { const arr = [[1]]; const box = { pick: i => arr[i] }; const v = ${ c.code }; return typeof v === "function" ? "fn" : String(v); })()`;
+    const body = `(() => { const arr = [[[1]]]; const box = { pick: i => arr[i], at: undefined }; const v = ${ c.code }; return typeof v === "function" ? "fn" : String(v); })()`;
     yield { ...snippet(`chain-tail-get/${ c.id }`, body), strip: true };
   }
 }
@@ -6431,6 +6473,7 @@ export function * generate() {
   yield * generateDeclinedInitClaims();
   yield * generateKeptAssignHops();
   yield * generateChainTailGets();
+  yield * generateChainMemberHops();
   yield * generateMemoStaticExtraction();
   yield * generateIndexSignatureUnknownKey();
   yield * generateTaggedTemplateCallArgs();
