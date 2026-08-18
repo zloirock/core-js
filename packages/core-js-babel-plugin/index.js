@@ -16,6 +16,7 @@ import {
   isTSTypeOnlyIdentifierPath,
   collectFileCensus,
   methodReadsUsageCensus,
+  memberKeyName,
   memberKeyNamesReducer,
   minifierShapesReducer,
   mutatedGlobalSlotNames,
@@ -905,19 +906,24 @@ export default function plugin(api, options) {
           // fallback silently rewrites to `_Promise.noSuchStatic` losing the `called++`.
           // receiver-only: the computed `[key]` property SURVIVES this swap and re-runs its own SE,
           // so prepend only the receiver-SE (dropping the trailing key-SE) to avoid double-eval.
-          // `protoCtorReceiverSE`: a SE-sequence buried in a prototype ctor sub-receiver
-          // (`(c++, globalThis.self).Map.prototype.has`) the receiver-SE collect couldn't reach - re-emit so
-          // the `_Map` swap keeps the `c++` (`(c++, _Map).prototype.has`)
+          // `protoCtorReceiverSE`: the effects buried in a prototype ctor sub-receiver the receiver-SE
+          // collect couldn't reach - a sequence prefix (`(c++, globalThis.self).Map.prototype.has`) or a
+          // hop's own computed KEY (`globalThis.self[(c++, 'Map')].prototype.has`) - re-emitted so the
+          // `_Map` swap keeps the `c++` (`(c++, _Map).prototype.has`)
           const seOnlyEffects = receiverSideEffectsOnly(meta.receiverEffectCount, meta.sideEffects) ?? [];
-          const baseEffects = prependChainAssignmentEffect(receiverPath.node, seOnlyEffects) ?? [];
-          const hadChainAssign = baseEffects.length > seOnlyEffects.length;
-          const allEffects = meta.protoCtorReceiverSE ? [...meta.protoCtorReceiverSE, ...baseEffects] : baseEffects;
+          // the sub-receiver's own effects sit DEEPER than this member's, so they lead; the chain-assign
+          // splices at the slot the harvest recorded inside them, not at the end - appending it ran the
+          // assignment after a folded key the source evaluates later
+          const ordered = meta.protoCtorReceiverSE ? [...meta.protoCtorReceiverSE, ...seOnlyEffects] : seOnlyEffects;
+          const allEffects = prependChainAssignmentEffect(receiverPath.node, ordered,
+            meta.protoCtorChainAssignAt ?? meta.chainAssignInsertAt ?? ordered.length) ?? [];
+          const hadChainAssign = allEffects.length > ordered.length;
           // an undefinable optional root may NOT fold into the kept sequence - the fold eats the
           // `?.` guard (native short-circuits to undefined where the folded read yields a value:
           // `(c = gw)?.self.Set.prototype.has.call(x)` returned true on an absent `window`). the
           // kept assign becomes the guard TEST, the swap plus its raw tail ride the alternate:
           // `null == (c = gw) ? void 0 : _Set.prototype.has.call(x)`. SE channels keep the fold
-          const guardAssigns = baseEffects.filter(effect => !seOnlyEffects.includes(effect));
+          const guardAssigns = allEffects.filter(effect => !ordered.includes(effect));
           // re-hang the swapped receiver + its raw tail INSIDE a `null == <test> ? void 0 : ...`
           // guard: the swap alone eats the `?.` short-circuit, so the guarded value rides the test
           function emitReceiverGuard(guardTest) {
@@ -1294,7 +1300,7 @@ export default function plugin(api, options) {
           // reader and the polyfill lookup stay dialect-local
           const chainEnd = keptNavChainEndPath({
             path,
-            keyOf: node => node.computed ? null : node.property?.name,
+            keyOf: memberKeyName,
             resolvesProperty: (key, endPath) => !!resolvePure({ kind: 'property', key }, endPath),
           });
           if (!chainEnd) return;

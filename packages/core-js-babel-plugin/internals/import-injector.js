@@ -2,7 +2,7 @@ import { entryToGlobalHint } from '@core-js/polyfill-provider';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
   isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike,
-  staticMemberFromEntrySegment,
+  memberKeyName, staticMemberFromEntrySegment,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import ImportInjectorState, {
   assignCanonicalRefSlots,
@@ -406,9 +406,7 @@ export default class ImportInjector extends ImportInjectorState {
       if (n.type === 'Identifier' && nameBySource.has(n.name)) counts.set(n.name, (counts.get(n.name) ?? 0) + 1);
       if ((n.type === 'MemberExpression' || n.type === 'OptionalMemberExpression')
         && n.object?.type === 'Identifier') {
-        const key = n.computed
-          ? (n.property?.type === 'StringLiteral' ? n.property.value : null)
-          : n.property?.name;
+        const key = memberKeyName(n);
         if (key) memberPairs.add(`${ n.object.name }.${ key }`);
       }
       for (const key of Object.keys(n)) {
