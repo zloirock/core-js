@@ -69,6 +69,7 @@
     "test-unplugin": "npm run zxi time cd tests/unplugin/index.mjs",
     "test-unplugin-unit": "npm run zxi time cd tests/unplugin/unit.mjs",
     "test-transpiler-differential": "npm run zxi time cd tests/transpiler-differential/index.mjs",
+    "test-transpiler-differential-cache": "npm run zxi time cd tests/transpiler-differential/cache.mjs",
     "test-transpiler-perf": "npm run zxi time cd tests/transpiler-perf/index.mjs",
     "test-transpiler-integration": "npm run zxi time cd tests/transpiler-integration/runner.mjs",
     "test-transpiling": "run-s test-polyfill-provider test-babel-plugin test-babel-plugin-unit test-babel-plugin-v7 test-babel-plugin-unit-v7 test-unplugin test-unplugin-unit test-e2e-usage-pure test-transpiler-differential test-transpiler-integration test-transpiler-perf",
