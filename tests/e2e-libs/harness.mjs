@@ -54,10 +54,7 @@ const RUN_TIMEOUT_MS = 20_000;
 export function bannerHarness(expectedLabels) {
   return `
     (function () {
-      // the sequence is baked as the joined STRING, not as an array to join here: this program may
-      // not call a method the bundle can replace, and joining at generation time needs none
-      var EXPECTED = ${ JSON.stringify(expectedLabels.join('|')) };
-      var EXPECTED_COUNT = ${ expectedLabels.length };
+      var EXPECTED = ${ JSON.stringify(expectedLabels) };
       var BANNER = ${ JSON.stringify(PAGE.banner) };
       var TABLE = ${ JSON.stringify(PAGE.table) };
       var PASS = ${ JSON.stringify(PAGE.pass) };
@@ -97,10 +94,13 @@ export function bannerHarness(expectedLabels) {
         tbody.appendChild(row);
       }
 
-      function labelsOf(checks) {
-        var out = '', i;
-        for (i = 0; i < checks.length; i++) out += (i ? '|' : '') + checks[i].label;
-        return out;
+      // element by element, never through a joined string: a separator can occur INSIDE a label, and
+      // then two different sequences of equal length join to the same text and read as a match
+      function sameLabels(checks) {
+        var i;
+        if (checks.length !== EXPECTED.length) return false;
+        for (i = 0; i < EXPECTED.length; i++) if (checks[i].label !== EXPECTED[i]) return false;
+        return true;
       }
 
       function render(res) {
@@ -116,12 +116,12 @@ export function bannerHarness(expectedLabels) {
           return;
         }
         var checks = (res && res.checks) || [];
-        if (labelsOf(checks) !== EXPECTED) {
+        if (!sameLabels(checks)) {
           // an equal count under different labels is its own sentence: reporting two identical
           // numbers reads as a runner that cannot tell what it is complaining about
-          paint(FAIL, checks.length === EXPECTED_COUNT
+          paint(FAIL, checks.length === EXPECTED.length
             ? 'FAIL - ' + checks.length + ' checks, as many as the node pre-flight, but not the same ones'
-            : 'FAIL - got ' + checks.length + ' checks, the node pre-flight recorded ' + EXPECTED_COUNT);
+            : 'FAIL - got ' + checks.length + ' checks, the node pre-flight recorded ' + EXPECTED.length);
           tableSays('the rows above are the node pre-flight, which this browser did not reproduce');
           return;
         }
@@ -208,13 +208,15 @@ export function qunitHarness(label, expectedLabels) {
           // result. (No backticks in this block - it lives inside a template literal.)
           assert.strictEqual(checks.length, EXPECTED.length, LABEL + ': check count differs from the node pre-flight');
           // and the same COUNT under different labels is a different run: a branch that stopped
-          // executing and another that started would cancel out in the count alone
-          // built by concatenation rather than with push and join, under rule 1 in the header: a
-          // harness computing its verdict with the code under test is measuring itself
-          var labels = '', expected = '', j;
-          for (i = 0; i < checks.length; i++) labels += (i ? '|' : '') + checks[i].label;
-          for (j = 0; j < EXPECTED.length; j++) expected += (j ? '|' : '') + EXPECTED[j];
-          assert.strictEqual(labels, expected, LABEL + ': check labels differ from the node pre-flight');
+          // executing and another that started would cancel out in the count alone. Element by
+          // element rather than through a joined string, which a label containing the separator
+          // would make ambiguous, and which could not say WHERE the two runs parted either
+          var drift = -1;
+          for (i = 0; i < checks.length && i < EXPECTED.length; i++) {
+            if (checks[i].label !== EXPECTED[i]) { drift = i; break; }
+          }
+          assert.strictEqual(drift, -1, drift === -1 ? LABEL + ': check labels match the node pre-flight'
+            : LABEL + ': check ' + drift + ' is "' + checks[drift].label + '" here, "' + EXPECTED[drift] + '" in the node pre-flight');
           for (i = 0; i < checks.length; i++) {
             var check = checks[i];
             assert.pushResult({ result: !!check.pass, actual: check.actual, expected: check.expected, message: LABEL + ' - ' + check.label });
