@@ -42,7 +42,7 @@ await writeJson(CACHE, PLANTED);
 process.env.DIFF_CACHE = CACHE;
 process.env.DIFF_AUDIT_EVERY = '0';
 const store = await import('./cache-store.mjs');
-const { applyRuntimeStamps, beginCase, cached, collectCases, discardCase, hashCode, mergeCases, mixedCase, nextRound } = store;
+const { applyRuntimeStamps, beginCase, cached, caseSrc, collectCases, discardCase, hashCode, mergeCases, mixedCase, nextRound } = store;
 
 check('hashCode separates the TS flag', hashCode('x', true) === hashCode('x', false), false);
 
@@ -50,7 +50,7 @@ check('hashCode separates the TS flag', hashCode('x', true) === hashCode('x', fa
 // them rather than from literals that would drift the moment the hashing changes
 const SRC = 'export const r = 1;';
 const OUT = 'import "core-js/modules/es.array.at";\nexport const r = 1;';
-const srcHash = hashCode(SRC);
+const srcHash = caseSrc({ code: SRC });
 const outHash = hashCode(OUT);
 await writeJson(CACHE, {
   round: 0,
@@ -82,6 +82,14 @@ checkDeep('both cells survive in the working set', [collectCases().live['pure-ba
 
 await beginCase({ name: 'moved', code: SRC });
 check('a cell whose code moved evaluates', (await evaluated('moved', 'pure-babel', OUT)).ran, true);
+
+// the chunk PREFIX is part of the address: snippets share one realm and the corpus mutates globals
+// deliberately, so the same code observes a different realm behind a different prefix. A stored group
+// must not answer across that shift
+await beginCase({ name: 'live', code: SRC, prefix: 'some-earlier-chunk-state' });
+check('a group behind a shifted prefix is void', (await evaluated('live', 'pure-babel', OUT)).ran, true);
+await beginCase({ name: 'live', code: SRC });
+check('  and the unshifted one still answers', (await evaluated('live', 'pure-babel', OUT)).ran, false);
 
 await beginCase({ name: 'rewritten', code: SRC });
 check('a group whose source moved is void', (await evaluated('rewritten', 'pure-babel', OUT)).ran, true);
@@ -133,7 +141,7 @@ async function auditedShare(rate, round) {
   const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const file = join(TMP, `sample-${ rate }-${ round }.json`);
   const cases = {};
-  for (const name of names) cases[name] = { src: hashCode(name), native: 'OK|planted' };
+  for (const name of names) cases[name] = { src: caseSrc({ code: name }), native: 'OK|planted' };
   await writeJson(file, { round, cases });
   process.env.DIFF_CACHE = file;
   process.env.DIFF_AUDIT_EVERY = String(rate);

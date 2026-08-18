@@ -81,6 +81,7 @@ import {
 import {
   classifyVariableDeclarationHost, isBodylessStatementSlot, isForInitDeclaration,
 } from '@core-js/polyfill-provider/destructure-host-shape';
+import { cloneReceiverForEmit } from './babel-compat.js';
 import {
   planDestructureEmission,
   STRATEGIES,
@@ -385,10 +386,23 @@ export default function createDestructureEmitter({
   // per-statement nested-instance overwrite tail: chains each overwrite off the previous one so a
   // multi-element pattern emits them in SOURCE order (last element wins, as native destructuring)
   const nestedOverwriteLastInsert = new WeakMap();
+  // the FIRST artifact each host emitted, by host node. the whole-init memo has to precede them:
+  // natively the init evaluates before the pattern binds anything, so a static extracted ahead of
+  // the memoizing prop must not be hoisted above the init's own effects - an effect that reads the
+  // binding sees TDZ in the source and would see it initialized here
+  const hostFirstInsert = new WeakMap();
+  function recordHostInsert(hostNode, inserted) {
+    if (hostNode && inserted && !hostFirstInsert.has(hostNode)) hostFirstInsert.set(hostNode, inserted);
+  }
   // declarator node -> its binding count, snapshotted on FIRST access (before a sibling prop's emission
   // mutates the pattern - a static-flatten sibling removes its own prop). keyed so `soleBindingInDeclaration`
   // is order-independent and matches unplugin (which never mutates the AST, so it always sees the original)
   const declOriginalBindingCount = new WeakMap();
+  // its sibling for the OTHER question the same mutation makes unanswerable. the count above is of
+  // BINDINGS, recursively through nested patterns, keyed by declarator; the receiver plan instead
+  // asks how many PROPS this one pattern has, and the two part company on a nested pattern
+  // (`{ a: { b, c } }` binds two through one prop), so neither can serve the other
+  const originalPatternSize = new WeakMap();
   function originalBindingCount(prop) {
     const declarator = prop.findParent(p => p.isVariableDeclarator());
     if (!declarator) return 0;
@@ -405,6 +419,13 @@ export default function createDestructureEmitter({
   // structural synth-eligibility of an ObjectPattern, judged on the shape it had when the FIRST of
   // its props reached the dispatch - later props see a spliced-down pattern
   const patternSynthEligibility = new WeakMap();
+  function patternSizeOf(objectPattern) {
+    const node = objectPattern?.node;
+    if (!node?.properties) return null;
+    if (!originalPatternSize.has(node)) originalPatternSize.set(node, node.properties.length);
+    return originalPatternSize.get(node);
+  }
+
   function patternSynthEligible(objectPattern, scope) {
     let verdict = patternSynthEligibility.get(objectPattern.node);
     if (verdict === undefined) {
@@ -1541,7 +1562,7 @@ export default function createDestructureEmitter({
     // host keeps the statement-level insert so later same-declaration emissions (an instance
     // residual-extract) anchor after it in dispatch order
     if (extracted.length) {
-      if (isForInit || declCount > 1) declarator.insertBefore(extracted);
+      if (isForInit || declCount > 1) recordHostInsert(declarator.node, declarator.insertBefore(extracted)[0]);
       else {
         const newDecls = extracted.map(d => wrapAsExportIf(t.variableDeclaration(declaration.node.kind, [d]), declIsExport));
         // `insertBefore` is the one insertion here that does NOT carry the declaration's leading
@@ -1552,7 +1573,8 @@ export default function createDestructureEmitter({
           newDecls[0].leadingComments = lead;
           declaration.node.leadingComments = null;
         }
-        (declIsExport ? declaration.parentPath : declaration).insertBefore(newDecls);
+        recordHostInsert(declaration.node,
+          (declIsExport ? declaration.parentPath : declaration).insertBefore(newDecls)[0]);
       }
     }
     if (patternEmpties) {
@@ -2025,6 +2047,9 @@ export default function createDestructureEmitter({
     // after the host rebuild requeues the pattern subtree): the natural computed-key
     // visitor owns the key-text, nothing to extract
     if (keySwapOwnedProps.has(prop.node)) return;
+    // the group's size is read HERE, at the first prop of it to dispatch - the emissions below
+    // splice props out, and the receiver plan must judge the group the source wrote
+    patternSizeOf(prop.parentPath);
     noteRetainedForInitHost(prop);
     // claim the whole enclosing pattern chain up front (before any branch can bail) - the
     // synth-swap proxy-hop collapse keys its defer on the ROOT pattern; an unclaimed pattern
@@ -2135,7 +2160,11 @@ export default function createDestructureEmitter({
     // the static native and undefined on engines without it ("polyfill always wins")
     let value;
     if (kind === 'instance') {
-      const objectNode = resolveDestructuringObject(prop, resolvePropertyObjectType(prop));
+      // a STATIC-placement meta names the constructor the receiver denotes (`Array` for both
+      // `(eff(), Array)` and a call whose return type is the ctor); a prototype/instance meta
+      // carries a lowercase TYPE HINT instead, which is not a global name and must not register
+      const objectNode = resolveDestructuringObject(prop, resolvePropertyObjectType(prop), false,
+        meta?.placement === 'static' ? meta.object : null);
       if (!objectNode) return;
       // collapse a SE-wrapped proxy-global source receiver (`(c++, globalThis.self).Array.prototype`) BEFORE
       // wrapping it in the instance polyfill: the wrap hides it from the post-statement collapseRetainedProxyReceiver
@@ -2146,7 +2175,11 @@ export default function createDestructureEmitter({
       // itself routes the dropped key SE through the call-rooted plan (`(e++, c++, _globalThis).Array.prototype`)
       const collapsedObj = instAliasCtx && maximalProxyGlobalHop(objectNode, instAliasCtx, { allowSideEffectKeys: true })
         ? synthSwap.collapseProxyGlobalReceiver(objectNode, { aliasCtx: instAliasCtx }) : null;
-      value = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(collapsedObj ?? objectNode)]));
+      // through the shared receiver copy: the kept-nav collapse of a chain-assign inside the
+      // receiver is deferred and matches by NODE, so the copy this emit hands the helper has to
+      // register for it in its own right (see the helper's own contract)
+      value = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName),
+        [cloneReceiverForEmit({ t, collapse: collapseKeptNavValueNode, node: collapsedObj ?? objectNode, path: prop })]));
       // a `X || fallback` logical source (`{flat} = (c++, globalThis.self).Array.prototype || {}`) keeps each
       // operand live; the single-member gate above misses it, so collapse the proxy hop in the WRAPPED operands
       // (collapseRetainedProxyReceiver recurses logical operands) - else an evaluated proxy operand reads raw `.self`
@@ -2261,9 +2294,15 @@ export default function createDestructureEmitter({
   // resolve the destructure receiver: the DECISION is the shared provider plan (one procedure
   // for both emitters); this function only RENDERS the whole-init-memo channel on the AST
   // substrate - every other channel returns the plan's node as-is
-  function resolveDestructuringObject(path, typeOfReceiver, allowSeFreeSingleRead = false) {
+  // `ctorName` - the constructor the receiver DENOTES, as the dispatching prop's own meta named it.
+  // this emitter mutates the host in place, so the memo REPLACES the init and every prop after the
+  // memoizing one resolves against a bare `_ref` instead of the original receiver; the text emitter
+  // keeps the source AST and never loses it. without the name, a sibling STATIC after the first
+  // instance prop (`const { name, of } = (eff(), Array)`) stays a native read - undefined on ie11
+  function resolveDestructuringObject(path, typeOfReceiver, allowSeFreeSingleRead = false, ctorName = null) {
     const plan = resolveDestructureReceiverPlan(path, {
       allowSeFreeSingleRead, adapter, resolvePureGlobal: resolveGlobalPure,
+      patternSize: patternSizeOf(path.parentPath),
     });
     if (plan.channel !== 'whole-init-memo') return plan.node;
     const parent = path.parentPath.parentPath;
@@ -2285,7 +2324,23 @@ export default function createDestructureEmitter({
     // only (nothing to reorder past); a later-declarator memo keeps the sibling slot
     const declarationPath = parent.isVariableDeclarator() ? parent.parentPath : null;
     const exportHost = declarationPath?.parentPath?.isExportNamedDeclaration() ? declarationPath.parentPath : null;
-    if (exportHost && parent.node === declarationPath.node.declarations[0]) {
+    // ahead of whatever this host already emitted: a static extracted BEFORE the memoizing prop
+    // was planted at the host, and the memo carries the init's effects, which the source runs
+    // first. the anchor is a live path (the drain re-renders it, it is never removed here)
+    const memoAnchor = hostFirstInsert.get(declarationPath?.node) ?? hostFirstInsert.get(parent.node) ?? null;
+    if (memoAnchor?.node) {
+      // the anchor is whatever slot that first artifact took: a sibling-declarator host recorded a
+      // DECLARATOR, and a declaration cannot go in a declarator list - the post-traverse split
+      // renders such a memo as its own `const` statement, which is why it registers as one
+      if (memoAnchor.isVariableDeclarator()) {
+        const memoDeclarator = t.variableDeclarator(ref, receiver);
+        memoDeclarators.add(memoDeclarator);
+        memoAnchor.insertBefore(memoDeclarator);
+      } else {
+        memoAnchor.insertBefore(t.variableDeclaration(declarationPath?.node.kind ?? 'const',
+          [t.variableDeclarator(ref, receiver)]));
+      }
+    } else if (exportHost && parent.node === declarationPath.node.declarations[0]) {
       exportHost.insertBefore(t.variableDeclaration(declarationPath.node.kind, [t.variableDeclarator(ref, receiver)]));
     } else if (parent.isVariableDeclarator()) {
       const memoDeclarator = t.variableDeclarator(ref, receiver);
@@ -2303,7 +2358,8 @@ export default function createDestructureEmitter({
     // inserted `_ref` is not scope-registered, leaving `from` native otherwise (undefined on ie:11).
     // `trusted`: `_ref` is plugin-generated (user code cannot rebind it), so the adapter's hint-only
     // fallback may trust it even without a scope binding
-    if (plan.proxyCtor) injector.registerGlobalAlias(ref.name, plan.proxyCtor, { trusted: true, minted: true });
+    const memoCtor = plan.proxyCtor ?? ctorName;
+    if (memoCtor) injector.registerGlobalAlias(ref.name, memoCtor, { trusted: true, minted: true });
     parent.node[initKey] = cloned;
     return ref;
   }
@@ -2720,12 +2776,20 @@ export default function createDestructureEmitter({
         // for-init in an arrow-IIFE and lose the loop-header shape
         const extractedDeclarator = t.variableDeclarator(localBinding, value);
         if (ctx.isForInit) forInitExtractionDecls.add(extractedDeclarator);
-        return parent.insertBefore(extractedDeclarator);
+        const insertedDeclarator = parent.insertBefore(extractedDeclarator);
+        recordHostInsert(parent.node, insertedDeclarator[0]);
+        return insertedDeclarator;
       }
-      case STRATEGIES.INSERT_BEFORE_EXPORT:
-        return declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
-      case STRATEGIES.INSERT_BEFORE_DECLARATION:
-        return declaration.insertBefore(extractedDeclaration);
+      case STRATEGIES.INSERT_BEFORE_EXPORT: {
+        const insertedExport = declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
+        recordHostInsert(declaration.node, insertedExport[0]);
+        return insertedExport;
+      }
+      case STRATEGIES.INSERT_BEFORE_DECLARATION: {
+        const insertedDeclaration = declaration.insertBefore(extractedDeclaration);
+        recordHostInsert(declaration.node, insertedDeclaration[0]);
+        return insertedDeclaration;
+      }
       default:
         throw new Error(`[core-js] destructure-emitter: unhandled destructure strategy ${ strategy }`);
     }
