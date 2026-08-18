@@ -23,6 +23,7 @@ import {
   markRenderedStoredValue,
   memberKeyName,
   memberProxyHopName,
+  staticMemberKeyName,
   POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
   reEvaluationObservable,
@@ -852,8 +853,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // a claim that IS the end (`(nav).Array`) has no such owner and stays with this render
     let belowEnd = memberPath.node.object;
     while (belowEnd && TS_EXPR_WRAPPERS.has(belowEnd.type)) belowEnd = belowEnd.expression;
+    // through the canon: a claim spelled with a FOLDED key (`(nav)[(c++, 'Map')].prototype`) owns the
+    // chain exactly like the dotted one, and a narrower reader answered null there - this render then
+    // took a chain the claim was going to swap, leaving the constructor read raw off the guarded nav
     const belowKey = belowEnd && (belowEnd.type === 'MemberExpression' || belowEnd.type === 'OptionalMemberExpression')
-      ? memberKeyName(belowEnd) : null;
+      ? staticMemberKeyName(belowEnd) : null;
     if (belowKey && !memberProxyHopName(belowEnd) && resolvePureGlobalEntry(belowKey, memberPath)) return false;
     // TS wrappers on the object erase in the render (`nav!.X`, `(nav as any).X`); the seal
     // distinction lives in the MEMBER's own node type - a paren boundary parses the member

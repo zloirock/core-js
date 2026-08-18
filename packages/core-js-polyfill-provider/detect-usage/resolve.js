@@ -41,6 +41,7 @@ import {
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
+  unwrapParens,
   unwrapRuntimeExpr,
   peelSequenceTail,
   peelZeroArgIifeReturn,
@@ -1591,8 +1592,11 @@ export function planProvenNavGuardCollapse({
   // one hop of the descent: record it and hand back the object below, or null when the key is not
   // a pristine proxy-global. both descents below take their steps through here
   function takeHop(node) {
-    if (!node.computed && !isPristineProxyGlobal(adapter, node.property?.name)) return null;
-    hops.unshift({ name: node.computed ? null : node.property.name, node, optional: !!node.optional, keySeExprs: null });
+    // the dotted key through the canon: a PRIVATE name carries `.name` too, and read raw it passed
+    // for the realm self-reference it can never be
+    const dottedKey = node.computed ? null : memberKeyName(node);
+    if (!node.computed && !isPristineProxyGlobal(adapter, dottedKey)) return null;
+    hops.unshift({ name: dottedKey, node, optional: !!node.optional, keySeExprs: null });
     return unwrap(node.object);
   }
   let n = core;
@@ -1980,6 +1984,27 @@ function resolvesToGlobalSymbol({ node, scope, adapter, seen, path }) {
     return resolveBindingToGlobal({ name: node.name, scope, adapter, seen, path }) === 'Symbol';
   }
   return globalProxyMemberName({ node, scope, adapter, path }) === 'Symbol';
+}
+
+// the re-key question BOTH destructure emitters ask of an anchored residual: does this key READ a
+// well-known symbol off the pristine global `Symbol`, and under which name? the residual is rendered
+// as a whole prop, so a key left raw leaks a `Symbol` read into it - a ReferenceError on the engines
+// this method targets. the RECEIVER half goes through `asSymbolRef`, so an alias (`const Sym = Symbol`)
+// and a proxy-global access (`globalThis.self.Symbol`) answer like the bare name, and a SLOT-mutated
+// `Symbol` refuses - the user's replacement does not carry the well-known symbols, and re-keying to the
+// ponyfill would swap their object for it. the NAME half folds through `resolveKey` like every other
+// key. null = not this shape; the caller renders the entry, which is all that stays plugin-local.
+// distinct from `destructuredGlobalKeyPathNamesSymbol`, which walks a PATTERN's key path against a
+// proxy-global init - here the subject is the key EXPRESSION's own receiver, not the init it destructures
+export function anchoredResidualSymbolKeyName({ key, computed, scope, adapter, path }) {
+  if (!computed) return null;
+  const prop = unwrapParens(key);
+  if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
+  if (!asSymbolRef({ node: prop.object, scope, adapter, path })) return null;
+  const name = prop.computed
+    ? resolveKey({ node: prop.property, computed: true, scope, adapter, path })
+    : prop.property?.type === 'Identifier' ? prop.property.name : null;
+  return typeof name === 'string' && name ? name : null;
 }
 
 // preserve pre-unwrap node so callers can seed both forms into handledObjects;
