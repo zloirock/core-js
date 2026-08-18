@@ -40,7 +40,7 @@ const libs = librariesMatching(libFilter);
 
 async function baseline(file) {
   try {
-    return (await readFile(file, 'utf8')).split('\n').map(l => l.trim()).filter(Boolean);
+    return (await readFile(file, 'utf8')).split('\n').map(line => line.trim()).filter(Boolean);
   } catch (err) {
     if (err.code === 'ENOENT') return null; // no baseline yet - first run
     throw err; // a real read error must not masquerade as "no baseline" and silently overwrite
@@ -61,8 +61,8 @@ function deltaLines(reference, injected) {
   const ref = new Set(reference);
   const now = new Set(injected);
   return [
-    ...reference.filter(s => !now.has(s)).sort().map(s => `-${ s }`),
-    ...injected.filter(s => !ref.has(s)).sort().map(s => `+${ s }`),
+    ...reference.filter(spec => !now.has(spec)).sort().map(spec => `-${ spec }`),
+    ...injected.filter(spec => !ref.has(spec)).sort().map(spec => `+${ spec }`),
   ];
 }
 
@@ -95,8 +95,8 @@ async function snapshot(file, lines, origins) {
   }
   const now = new Set(lines);
   const old = new Set(base);
-  const added = lines.filter(s => !old.has(s));
-  const removed = base.filter(s => !now.has(s));
+  const added = lines.filter(spec => !old.has(spec));
+  const removed = base.filter(spec => !now.has(spec));
   if (!added.length && !removed.length) return 'ok';
   // quoted because a delta line carries its own leading `-`/`+`, which would otherwise read as part
   // of the drift marker: `+ -core-js/modules/web.self` is two signs meaning different things
@@ -105,12 +105,12 @@ async function snapshot(file, lines, origins) {
   // exactly the question. A specifier can land in several modules; all of them are candidates for
   // the decision that changed. Strip the delta sign first - `origins` is keyed by the bare specifier,
   // and a line that this build did not inject simply has none.
-  function withOrigins(mark, s) {
-    echo(chalk.red(`    ${ mark } "${ chalk.cyan(s) }"`));
-    for (const where of origins.get(s.replace(/^[+-]/, '')) ?? []) echo(chalk.red(`        injected into ${ chalk.cyan(where) }`));
+  function withOrigins(mark, spec) {
+    echo(chalk.red(`    ${ mark } "${ chalk.cyan(spec) }"`));
+    for (const where of origins.get(spec.replace(/^[+-]/, '')) ?? []) echo(chalk.red(`        injected into ${ chalk.cyan(where) }`));
   }
-  for (const s of added) withOrigins('+', s);
-  for (const s of removed) withOrigins('-', s);
+  for (const spec of added) withOrigins('+', spec);
+  for (const spec of removed) withOrigins('-', spec);
   return 'drift';
 }
 
@@ -121,13 +121,13 @@ async function snapshot(file, lines, origins) {
 // here: this is where a check's `actual` crosses a process boundary, and plain `JSON.stringify` would
 // turn a NaN from a broken `Math.sign`, or the `undefined` a guard produced, into `null` before any
 // renderer on the far side could say otherwise. Functions and symbols go the same way.
-const PREFLIGHT = 'const m = require(require("node:path").resolve(process.argv[1]));'
-  + ' const run = m.run || (m.default && m.default.run) || m.default;'
-  + ' Promise.resolve(run()).then(function (r) { process.stdout.write(JSON.stringify(r.checks,'
-  + ' function (k, v) { if (typeof v === "number" && !isFinite(v)) return String(v);'
-  + ' if (v === undefined || typeof v === "symbol") return String(v);'
-  + ' return typeof v === "function" ? "[function " + (v.name || "anonymous") + "]" : v; })); })'
-  + ' .catch(function (e) { process.stderr.write(String((e && e.stack) || e)); process.exit(1); });';
+const PREFLIGHT = 'const exercise = require(require("node:path").resolve(process.argv[1]));'
+  + ' const run = exercise.run || (exercise.default && exercise.default.run) || exercise.default;'
+  + ' Promise.resolve(run()).then(function (result) { process.stdout.write(JSON.stringify(result.checks,'
+  + ' function (key, value) { if (typeof value === "number" && !isFinite(value)) return String(value);'
+  + ' if (value === undefined || typeof value === "symbol") return String(value);'
+  + ' return typeof value === "function" ? "[function " + (value.name || "anonymous") + "]" : value; })); })'
+  + ' .catch(function (err) { process.stderr.write(String((err && err.stack) || err)); process.exit(1); });';
 
 // Run a UMD bundle in a fresh node process (full realm, isolated) and return its `run()` checks.
 // Isolation is required, not tidiness: core-js mode:full permanently patches globals, so running two
@@ -136,12 +136,12 @@ async function preflight(code) {
   await mkdir(TMP, { recursive: true });
   // pid as well as hrtime: hrtime reads the same monotonic clock in every process, so two concurrent
   // runs sharing this checkout could land on one path - and this file is executed, not just read
-  const f = join(TMP, `preflight-${ process.pid }-${ process.hrtime.bigint() }.cjs`);
-  await writeFile(f, code);
+  const file = join(TMP, `preflight-${ process.pid }-${ process.hrtime.bigint() }.cjs`);
+  await writeFile(file, code);
   try {
     // `node` by name and a relative path: on windows `$` runs through bash, which cannot execute an
     // absolute `C:\...`. An unsettled `run()` exits 0 with empty stdout, hence the guard below.
-    const { stdout } = await $({ quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ toPosix(relative(HERE, f)) }`;
+    const { stdout } = await $({ quiet: true, timeout: '120s' })`node -e ${ PREFLIGHT } ${ toPosix(relative(HERE, file)) }`;
     if (!stdout.trim()) throw new Error('preflight child produced no output - run() likely never settled');
     try {
       return JSON.parse(stdout);
@@ -152,22 +152,22 @@ async function preflight(code) {
     // through `discard` like every other cleanup here: this one wraps the call that PRODUCES the
     // cell's verdict, and `force` covers only ENOENT - a `.cjs` a just-exited child still holds open
     // on the windows leg raises EPERM, which would replace that verdict or redden a cell that passed
-    await discard(() => rm(f, { force: true }), relative(HERE, f));
+    await discard(() => rm(file, { force: true }), relative(HERE, file));
   }
 }
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const HTML_ESCAPE_RE = /["&'<>]/g;
-function esc(s) {
-  return String(s).replaceAll(HTML_ESCAPE_RE, c => HTML_ESCAPES[c]);
+function esc(value) {
+  return String(value).replaceAll(HTML_ESCAPE_RE, char => HTML_ESCAPES[char]);
 }
 
 // The in-page harness (banner target) lives in harness.mjs, shared with the Karma driver and parsed
 // as ES5 at that module's load. `bannerHarness` bakes the pre-flight's label SEQUENCE in, so a page
 // whose in-browser run reproduces neither those checks nor their number cannot paint itself green.
 function html(title, subtitle, checks) {
-  const rows = checks.map(c => `<tr class="${ c.pass ? 'ok' : 'bad' }"><td>${ esc(c.label) }</td><td>${ c.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
-  const failing = checks.filter(c => !c.pass).length;
+  const rows = checks.map(check => `<tr class="${ check.pass ? 'ok' : 'bad' }"><td>${ esc(check.label) }</td><td>${ check.pass ? 'PASS' : 'FAIL' }</td></tr>`).join('');
+  const failing = checks.filter(check => !check.pass).length;
   // ids and state classes come from `PAGE`, the same object the harness addresses - a literal here and
   // a literal there have nothing tying them together. The banner carries its own background rather
   // than taking it from a state class alone: the text is white unconditionally, so a class this
@@ -191,7 +191,7 @@ function html(title, subtitle, checks) {
   <p>Pre-flight in node recorded ${ checks.length - failing }/${ checks.length } passing. This page reruns the same checks in <em>this</em> browser.</p>
   <table id="${ PAGE.table }"><thead><tr><th>check</th><th>result</th></tr></thead><tbody>${ rows }</tbody></table>
   <script src="bundle.js"></script>
-  <script>${ bannerHarness(checks.map(c => c.label)) }  </script>
+  <script>${ bannerHarness(checks.map(check => check.label)) }  </script>
 </body></html>
 `;
 }
@@ -199,7 +199,7 @@ function html(title, subtitle, checks) {
 // -------- the single pass --------
 
 // what this run is about to rebuild, and so what it may not keep from the file below
-const rebuilt = new Set(libs.map(l => l.name));
+const rebuilt = new Set(libs.map(lib => lib.name));
 // Derived rather than curated - see `describeInput` - so a package that turns out to be the sole
 // origin of a baseline line is named without anyone having noticed. Read before the manifest is, since
 // the merge below keeps only cells built against the same one.
@@ -236,7 +236,7 @@ async function otherLibrariesInManifest() {
       echo(chalk.yellow(`  ${ chalk.cyan(relative(HERE, MANIFEST)) } was built against another input - keeping only this run's cells`));
       return null;
     }
-    return parsed.cells.filter(e => !rebuilt.has(e.lib));
+    return parsed.cells.filter(cell => !rebuilt.has(cell.lib));
   } catch (err) {
     if (err.code !== 'ENOENT') throw err; // a corrupt manifest must not be silently discarded
     return [];
@@ -300,9 +300,9 @@ echo(chalk.green(`environment: ${ chalk.cyan(input.environment) } | lockfile ${ 
 // are consumed as SOURCE, so they move the htmlparser2 baselines through a path none of the others do
 const tsPackages = [...TS_SOURCE_PACKAGES];
 echo(chalk.green(`TS sources: ${ tsPackages
-  .map(p => chalk.cyan(`${ p } ${ input.packages[p] ?? '?' }`)).join(' | ') }`));
+  .map(name => chalk.cyan(`${ name } ${ input.packages[name] ?? '?' }`)).join(' | ') }`));
 echo(chalk.green(`packages: ${ Object.entries(input.packages)
-  .map(([name, v]) => chalk.cyan(`${ name } ${ v }`)).join(' | ') }`));
+  .map(([name, version]) => chalk.cyan(`${ name } ${ version }`)).join(' | ') }`));
 
 // PROVIDERS is ordered babel-plugin first, and the loop nests provider INSIDE method, so every
 // unplugin cell runs after the reference it is diffed against - no second pass, no cross-library
@@ -323,7 +323,7 @@ for (const lib of libs) {
 // the program files directory. PATH is not among them and never mentions Internet Explorer.
 // Answered HERE rather than at the leg itself, minutes later: whether the run ends in a browser is
 // half of what it is about to do, and the header below is where that has to be readable.
-const ie = findInternetExplorer();
+const iePath = findInternetExplorer();
 
 // What this run is about to spend those minutes on. A matrix this size is otherwise a silent wait
 // with no way to tell a full run from a filtered one, or a run that will end in IE11 from one whose
@@ -331,7 +331,7 @@ const ie = findInternetExplorer();
 echo(chalk.green(`\nruntime tier: ${ chalk.cyan(libs.length) } librar${ libs.length === 1 ? 'y' : 'ies' }`
   + ` x ${ chalk.cyan(METHODS.length) } method(s) x ${ chalk.cyan(PROVIDERS.length) } provider(s), phases expanded`
   + ` - ${ chalk.cyan(cells.length) } cell(s)${ libFilter ? ` filtered by ${ chalk.cyan(libFilter) }` : '' }`));
-const ie11Leg = process.env.CI || ie
+const ie11Leg = process.env.CI || iePath
   ? `then ${ chalk.cyan('one page per cell') } runs in real IE11`
   : `the IE11 leg is ${ chalk.cyan('skipped') } - no IE11 here and not CI`;
 echo(chalk.green(`each cell is built once, then gated, snapshotted, pre-flighted in node and written as a page; ${ ie11Leg }`));
@@ -403,7 +403,7 @@ for (const { lib, method, provider, phase } of cells) {
 
     const checks = await preflight(code);
     if (!checks.length) throw new Error('exercise produced 0 checks - nothing verified');
-    const bad = checks.filter(c => !c.pass);
+    const bad = checks.filter(check => !check.pass);
 
     const bytes = Buffer.byteLength(code);
     const { min, gz } = await wireSize(code, label);
@@ -419,7 +419,7 @@ for (const { lib, method, provider, phase } of cells) {
     // UMD exposes global `E2E`; each bundle gets its OWN Karma page (one file per run below), so the
     // shared global name cannot make one cell's test execute another cell's bundle.
     const karmaFile = join(KARMA_OUT, `e2e-libs-${ lib.name }-${ provider }-${ method }-${ phase ?? 'noph' }.js`);
-    await writeFile(karmaFile, `${ code }\n${ qunitHarness(label, checks.map(c => c.label)) }`);
+    await writeFile(karmaFile, `${ code }\n${ qunitHarness(label, checks.map(check => check.label)) }`);
     // `pre` is unplugin's known-incomplete phase and stays advisory (see the header). Every
     // babel-plugin cell gates: it has no phase axis, so it has no expected-to-fail configuration.
     karmaFiles.push({ file: karmaFile, label, gating: phase !== 'pre' });
@@ -469,7 +469,7 @@ echo(chalk.green(`${ chalk.cyan('bundle.js') } beside it - to BrowserStack/Sauce
 
 // -------- real IE11, where one exists --------
 
-// `ie` is resolved up at the header, which states whether this leg is going to run at all. Elsewhere
+// `iePath` is resolved up at the header, which states whether this leg is going to run at all. Elsewhere
 // every gate above has already run; the browser leg is the CI-only part.
 const ATTEMPTS = 3;
 // a browser that never starts, never reaches the karma page or drops the connection says nothing
@@ -520,7 +520,7 @@ async function runKarmaPage(bundle, label) {
     // then exits at once as `Cannot start IE`. The sweep is blind - it takes every IE on the machine
     // - so it is limited to a CI runner, where nothing else runs one and the pages here start
     // strictly one at a time, and never touches a developer's own browser
-    if (process.env.CI && ie) await $({ nothrow: true, quiet: true, timeout: SWEEP_DEADLINE })`taskkill /F /IM iexplore.exe`;
+    if (process.env.CI && iePath) await $({ nothrow: true, quiet: true, timeout: SWEEP_DEADLINE })`taskkill /F /IM iexplore.exe`;
 
     const child = $({ nothrow: true })`karma start karma.conf.cjs -f=${ bundle }`;
     let timedOut = false;
@@ -566,7 +566,7 @@ async function runKarmaPage(bundle, label) {
     // verdict on the cell nor a browser that deserves another chance. So does our own deadline, once
     // the check above has ruled out a verdict it printed before hanging. Tracked rather than read off
     // the exit, because zx leaves no signal there on the one platform this leg runs on
-    const infrastructure = !timedOut && !signal && !failed && INFRASTRUCTURE_FAILURES.some(it => it.test(output));
+    const infrastructure = !timedOut && !signal && !failed && INFRASTRUCTURE_FAILURES.some(pattern => pattern.test(output));
     if (timedOut || !infrastructure || attempt === ATTEMPTS) return { exitCode, infrastructure, timedOut };
     echo(chalk.yellow(`  ${ chalk.cyan(label) }: the browser failed to run it, retrying (${ chalk.cyan(attempt + 1) } of ${ chalk.cyan(ATTEMPTS) })`));
   }
@@ -576,7 +576,7 @@ async function runKarmaPage(bundle, label) {
 // exactly this reason: the leg that decides the real floor has to be in the artifact, not absent
 // from it because the file was already on disk when the browser started.
 const karmaOutcome = new Map();
-if (!(process.env.CI || ie)) {
+if (!(process.env.CI || iePath)) {
   echo(chalk.green(`\n${ chalk.cyan(karmaFiles.length) } bundle(s) also written to ${ chalk.cyan(KARMA_OUT) }.`
     + ' No IE11 here and not CI - skipping Karma. A windows box with IE11 in its usual place runs this leg'
     + ` by itself; ${ chalk.cyan('IE_BIN') } names it anywhere else.`));
@@ -655,10 +655,10 @@ echo(chalk.green(`\nmanifest -> ${ chalk.cyan(MANIFEST) }`));
 // invisible to everything above: nothing reads it, so nothing notices, and it sits in git looking
 // like coverage. Derived from the REGISTRY rather than from this run, so a filtered run does not
 // accuse the libraries it skipped.
-const expectedSnapshots = new Set(libraries.flatMap(lib => METHODS.filter(m => m !== 'entry-global')
+const expectedSnapshots = new Set(libraries.flatMap(lib => METHODS.filter(method => method !== 'entry-global')
   .flatMap(method => PROVIDERS.flatMap(provider => phasesFor(method, provider)
     .map(phase => snapPath(lib, provider, method, phase))))));
-const orphans = (await fs.readdir(SNAP)).map(f => join(SNAP, f)).filter(f => !expectedSnapshots.has(f));
+const orphans = (await fs.readdir(SNAP)).map(name => join(SNAP, name)).filter(path => !expectedSnapshots.has(path));
 for (const file of orphans) {
   if (OVERWRITE) await rm(file);
   echo((OVERWRITE ? chalk.yellow : chalk.red)(`${ OVERWRITE ? 'removed orphan' : 'FAIL orphan' } snapshot ${ chalk.cyan(relative(HERE, file)) }`
