@@ -27,6 +27,18 @@ export const libraries = [
   },
 ];
 
+// A name is one path segment. `cellLabel` joins a cell's identity on `/` and `runtime.mjs` splits it
+// back into the artifact directory, so a name carrying a separator - a scoped package is the shape
+// that would - nests the pages a level below what the manifest says, and hands the karma file a
+// directory that does not exist. Checked here because this is the one place every runner reads.
+const PLAIN_SEGMENT = /^[\w\-.]+$/;
+for (const { name } of libraries) {
+  if (!PLAIN_SEGMENT.test(name)) {
+    throw new Error(`library name '${ name }' is not a plain path segment - a cell's identity is joined `
+      + 'on `/` and split back into a directory, which a name carrying one would silently nest');
+  }
+}
+
 // The libraries, optionally narrowed to one by name. A typo'd filter that matches nothing must fail
 // loudly here rather than let a runner write a green empty report.
 //
