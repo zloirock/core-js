@@ -34,7 +34,7 @@ export const libraries = [
 // under `!filter` either returns the WHOLE registry past the gate below, which fires on an empty
 // result. `cli.mjs` guarantees the argument arrives as a string or not at all.
 export function librariesMatching(filter) {
-  const found = libraries.filter(l => filter === undefined || l.name === filter);
+  const found = libraries.filter(lib => filter === undefined || lib.name === filter);
   if (!found.length) throw new Error(`no library matches filter '${ filter }'`);
   return found;
 }

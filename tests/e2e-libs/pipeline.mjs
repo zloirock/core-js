@@ -14,7 +14,7 @@ import { rollup } from 'rollup';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import {
-  makeBabelPlugin, makeTsStripPlugin, tsSources, u, withEntry, recorder, isLibraryModule, describeInput,
+  makeBabelPlugin, makeTsStripPlugin, tsSources, unpluginFor, withEntry, recorder, isLibraryModule, describeInput,
   assertNoExternals, assertPayload, strictWarn, wireSize, METHODS, TS_EXTENSION, UMD_OUTPUT, HERE,
 } from './build.mjs';
 import { positionals } from './cli.mjs';
@@ -93,9 +93,9 @@ async function baseStages(lib) {
   const label = `${ lib.name }/usage-*`;
   const stages = await withEntry(lib.exercise, 'usage-global', 'pipe-base', async entry => {
     let src = 0;
-    // `ts` changes what `src` MEANS: this counter sits before type erasure, so a TS-source library is
+    // `typescript` changes what `src` MEANS: this counter sits before type erasure, so a TS-source library is
     // counted with its annotations and does not compare with the JS rows. The report labels it.
-    let ts = false;
+    let typescript = false;
     const counter = {
       name: 'src-count',
       // never rewrites anything - `transform` is only how a plugin gets shown every module
@@ -104,14 +104,14 @@ async function baseStages(lib) {
         // proxies are the bundler's own code, and counting them here reports them as library source
         if (isLibraryModule(id)) {
           src += Buffer.byteLength(code);
-          if (TS_EXTENSION.test(id)) ts = true;
+          if (TS_EXTENSION.test(id)) typescript = true;
         }
         return null;
       },
     };
-    const a = await timedBuild(entry, [tsSources(), counter, makeTsStripPlugin(), nodeResolve(), commonjs()], `${ label } [A]`);
-    const b = await timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs()], `${ label } [B]`);
-    return { src, ts, A: { bytes: a.bytes, ms: +a.ms.toFixed(0) }, B: { bytes: b.bytes, ms: +b.ms.toFixed(0) } };
+    const stageA = await timedBuild(entry, [tsSources(), counter, makeTsStripPlugin(), nodeResolve(), commonjs()], `${ label } [A]`);
+    const stageB = await timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs()], `${ label } [B]`);
+    return { src, typescript, A: { bytes: stageA.bytes, ms: +stageA.ms.toFixed(0) }, B: { bytes: stageB.bytes, ms: +stageB.ms.toFixed(0) } };
   });
   stagesByLib.set(lib.name, stages);
   return stages;
@@ -125,9 +125,9 @@ async function measure(lib, method) {
     const cellC = `${ cell0 } [C]`;
 
     if (method !== 'entry-global') {
-      const { src, ts, A, B } = await baseStages(lib);
+      const { src, typescript, A, B } = await baseStages(lib);
       cell.src = src;
-      cell.ts = ts;
+      cell.typescript = typescript;
       cell.A = A;
       cell.B = B;
     }
@@ -138,20 +138,20 @@ async function measure(lib, method) {
     let unpluginBusyMs = 0;
     const sink = new Set();
     const babel = timeTransform(makeBabelPlugin(), ms => { babelBusyMs += ms; });
-    const up = timeTransform(u('rollup', method, effPhase), ms => { unpluginBusyMs += ms; });
-    const c = await timedBuild(entry, [tsSources(), babel, nodeResolve(), commonjs(), up, recorder(sink)], cellC);
+    const unpluginStage = timeTransform(unpluginFor('rollup', method, effPhase), ms => { unpluginBusyMs += ms; });
+    const stageC = await timedBuild(entry, [tsSources(), babel, nodeResolve(), commonjs(), unpluginStage, recorder(sink)], cellC);
     cell.injections = sink.size;
     // the count alone is a text proxy - see build.mjs::assertPayload for what it misses
-    assertPayload(c.chunk, cellC);
+    assertPayload(stageC.chunk, cellC);
     // runtime.mjs refuses this shape for EVERY method, so this must too - an entry-global carve-out
     // would be both weaker than it is there and pointless, since entry-global injects the most of all.
     if (!sink.size) throw new Error(`${ cell0 }: unplugin injected 0 polyfills into [C]`);
     // [B] == [A] with babelBusyMs ~ 0 is the silent shape of a Babel stage that did nothing, so the
     // ES5 premise is asserted directly rather than inferred from the numbers - `wireSize` parses
     // exactly what it is about to measure, which is this stage's output.
-    const { min, gz } = await wireSize(c.code, cellC);
+    const { min, gz } = await wireSize(stageC.code, cellC);
     cell.C = {
-      bytes: c.bytes, ms: +c.ms.toFixed(0), babelBusyMs: +babelBusyMs.toFixed(0), unpluginBusyMs: +unpluginBusyMs.toFixed(0),
+      bytes: stageC.bytes, ms: +stageC.ms.toFixed(0), babelBusyMs: +babelBusyMs.toFixed(0), unpluginBusyMs: +unpluginBusyMs.toFixed(0),
       min, gz,
     };
     return cell;
@@ -172,7 +172,7 @@ echo(chalk.green(`pipeline report: ${ chalk.cyan(libs.length) } librar${ libs.le
 
 process.stdout.write(chalk.green('warming the toolchain ... '));
 await withEntry(libs[0].exercise, 'usage-global', 'warmup',
-  entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), u('rollup', 'usage-global', 'post')]));
+  entry => timedBuild(entry, [tsSources(), makeBabelPlugin(), nodeResolve(), commonjs(), unpluginFor('rollup', 'usage-global', 'post')]));
 echo(chalk.green('done'));
 
 const rows = [];
@@ -189,15 +189,15 @@ for (const lib of libs) {
 if (!rows.length) throw new Error(`no (library x method) cell matches '${ libFilter ?? '' }' '${ methodFilter ?? '' }'`);
 
 // -------- report --------
-function kb(b) {
-  return `${ (b / 1024).toFixed(0) } KB`;
+function toKB(bytes) {
+  return `${ (bytes / 1024).toFixed(0) } KB`;
 }
 // A filtered run must not be mistakable for a full one: it overwrites the same report file, and the
 // method filter in particular just makes sections vanish.
 const scope = libFilter || methodFilter
   ? `Filtered run (${ libFilter ?? '*' } x ${ methodFilter ?? '*' }): ${ rows.length } cell(s)`
   : `Full matrix: ${ rows.length } cell(s)`;
-let md = '# Pipeline: size and time per stage\n\n'
+let markdown = '# Pipeline: size and time per stage\n\n'
   + `${ scope }. `
   + 'Rollup + Babel (syntax down-compile) + unplugin, single run. The usage-* cells are measured at '
   + 'the `post` phase, the one the runtime tier gates on; `entry-global` carries no phase at all. '
@@ -211,32 +211,32 @@ let md = '# Pipeline: size and time per stage\n\n'
   + 'the same build. Identical [A]/[B] figures across those two rows are one measurement printed '
   + 'twice, not two that agree. Only [C] is per cell.\n\n';
 for (const lib of libs) {
-  const cells = rows.filter(r => r.lib === lib.name);
+  const cells = rows.filter(row => row.lib === lib.name);
   if (!cells.length) continue;
-  md += `## ${ lib.name }\n\n`;
-  for (const c of cells) {
-    md += `### ${ c.method } - injections: ${ c.injections }\n\n`;
-    md += '| stage | size (raw) | time |\n| --- | --- | --- |\n';
-    if (c.A) {
-      md += `| source loaded (pre-tree-shaking${ c.ts ? ', TypeScript' : '' }) | ${ kb(c.src) } | - |\n`;
-      md += `| [A] ${ c.ts ? 'types erased' : 'no transforms' } (modern) | ${ kb(c.A.bytes) } | ${ c.A.ms } ms |\n`;
-      md += `| [B] + Babel (ES5, no polyfills) | ${ kb(c.B.bytes) } | ${ c.B.ms } ms |\n`;
+  markdown += `## ${ lib.name }\n\n`;
+  for (const cell of cells) {
+    markdown += `### ${ cell.method } - injections: ${ cell.injections }\n\n`;
+    markdown += '| stage | size (raw) | time |\n| --- | --- | --- |\n';
+    if (cell.A) {
+      markdown += `| source loaded (pre-tree-shaking${ cell.typescript ? ', TypeScript' : '' }) | ${ toKB(cell.src) } | - |\n`;
+      markdown += `| [A] ${ cell.typescript ? 'types erased' : 'no transforms' } (modern) | ${ toKB(cell.A.bytes) } | ${ cell.A.ms } ms |\n`;
+      markdown += `| [B] + Babel (ES5, no polyfills) | ${ toKB(cell.B.bytes) } | ${ cell.B.ms } ms |\n`;
     }
-    md += `| [C] + unplugin (IE11) | ${ kb(c.C.bytes) } | ${ c.C.ms } ms |\n\n`;
+    markdown += `| [C] + unplugin (IE11) | ${ toKB(cell.C.bytes) } | ${ cell.C.ms } ms |\n\n`;
     // NOT printed as `total (Babel x / unplugin y)`: that form promises a partition, and these two
     // are overlapping windows - modules transform concurrently, both hooks are async, so the clocks
     // run at the same time and their sum may exceed the row above.
-    md += `**Hooks busy during [C]:** Babel ${ c.C.babelBusyMs } ms, unplugin ${ c.C.unpluginBusyMs } ms`
+    markdown += `**Hooks busy during [C]:** Babel ${ cell.C.babelBusyMs } ms, unplugin ${ cell.C.unpluginBusyMs } ms`
       + ' - each is the span in which that hook had work in flight, so the two overlap and neither'
       + ' divides the [C] time above.\n\n';
-    md += `**Wire size of [C]:** minified ${ kb(c.C.min) } / gzip **${ kb(c.C.gz) }**`;
-    if (c.A) md += ` - size delta: Babel ${ (c.B.bytes >= c.A.bytes ? '+' : '') + kb(c.B.bytes - c.A.bytes) } / polyfills +${ kb(c.C.bytes - c.B.bytes) }`;
-    md += '\n\n';
+    markdown += `**Wire size of [C]:** minified ${ toKB(cell.C.min) } / gzip **${ toKB(cell.C.gz) }**`;
+    if (cell.A) markdown += ` - size delta: Babel ${ (cell.B.bytes >= cell.A.bytes ? '+' : '') + toKB(cell.B.bytes - cell.A.bytes) } / polyfills +${ toKB(cell.C.bytes - cell.B.bytes) }`;
+    markdown += '\n\n';
   }
 }
 const REPORT = join(HERE, 'report');
 await mkdir(REPORT, { recursive: true });
-await writeFile(join(REPORT, 'pipeline.md'), md);
+await writeFile(join(REPORT, 'pipeline.md'), markdown);
 // the report is what outlives the run, and `scope` describes the REQUEST rather than the input - two
 // reports with the same scope can be measurements of different trees. `input` is the same derived
 // identity the gating tier prints, so the two products answer "was this the same input?" alike
