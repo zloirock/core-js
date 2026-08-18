@@ -23,7 +23,7 @@
 //    sequence, a time budget. The banner is what CI publishes as an artifact when the job fails,
 //    which is exactly when someone opens it, so it may not be the weaker of the two.
 
-import { assertES5 } from './build.mjs';
+import { assertDeclared, assertES5 } from './build.mjs';
 import { ES5_REASON_SOURCE } from './diagnostics.mjs';
 
 // The markup the page targets address, in ONE place. The page is rendered by `runtime.mjs` and
@@ -238,7 +238,10 @@ ${ ES5_REASON_SOURCE }
 `;
 }
 
-// Parse both targets as ES5 at load - one representative instantiation each is enough, since the only
-// per-instance variation is a baked-in literal, which this parse still covers.
-assertES5(bannerHarness(['a']), 'banner harness');
-assertES5(qunitHarness('x', ['a']), 'qunit harness');
+// Both targets are parsed as ES5 and checked for a name nothing declares, at load - one
+// representative instantiation each is enough, since the only per-instance variation is a baked-in
+// literal, which both gates still cover.
+for (const [label, code] of [['banner harness', bannerHarness(['a'])], ['qunit harness', qunitHarness('x', ['a'])]]) {
+  assertES5(code, label);
+  assertDeclared(code, label);
+}

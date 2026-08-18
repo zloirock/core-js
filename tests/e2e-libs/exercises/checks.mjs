@@ -48,9 +48,15 @@ export function deepEqual(rawA, rawB) {
 // so a red cell names what it got rather than only that it was wrong.
 export function checker() {
   const checks = [];
+  const labels = new Set();
   return {
     checks,
     check(label, actual, expected) {
+      // A label is the check's identity - it is what a red cell prints, what the browser leg compares
+      // against the pre-flight, and all a reader gets. Two checks sharing one leave a failure naming
+      // something that appears twice, and a `pushResult` line that could belong to either.
+      if (labels.has(label)) throw new Error(`duplicate check label '${ label }' - a label names one check`);
+      labels.add(label);
       checks.push({ label, actual, expected, pass: deepEqual(actual, expected) });
     },
   };
