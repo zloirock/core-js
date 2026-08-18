@@ -278,3 +278,18 @@ QUnit.test('chain: a side-effecting hop key under a live optional runs once', as
   /* eslint-enable no-sequences -- back to the ordinary rule below */
   assert.same(aboveTheGuard, hasWindow ? Set : undefined);
 });
+
+// a polyfillable GET reading off a chain that already carries a polyfillable CALL: two channels
+// render this shape and share one span, so a stand-down in either leaves the guard test reading the
+// method natively - invisible where the native exists, a missed polyfill in a stripped realm
+QUnit.test('chaining: a poly GET over a poly call keeps both claims', assert => {
+  const arr = [[1, 2]];
+  const box = { pick: i => arr[i] };
+  assert.same(typeof arr.at?.(0).at, 'function', 'the tail GET resolves off the memoized call result');
+  assert.same(typeof arr.at(0).at, 'function', 'and so does its non-optional spelling');
+  assert.same(arr.at?.(0).length, 2, 'a non-polyfillable tail is unaffected');
+  assert.same(arr.at?.(0).at(0), 1, 'a call tail - the shape the chain combine owns - still calls');
+  assert.same(typeof box.pick?.(0).at, 'function', 'a non-polyfillable call under the same tail keeps it');
+  const empty = [];
+  assert.same(empty.at?.(9)?.at, undefined, 'a short-circuited chain yields undefined, not a throw');
+});

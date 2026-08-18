@@ -8,7 +8,7 @@
 // context the rest of tests/ is written in. The workers are pointedly NOT in this branch: they are
 // spawned per evaluation and run under the builtin strip, where this import would cost both dearly.
 import 'zx/globals';
-import { auditFailures, beginCase, cacheStats, collectCases, collectEvicted, discardCase, mixedCase } from './cache-store.mjs';
+import { auditFailures, beginCase, cacheStats, collectCases, collectEvicted, discardCase, hashCode, mixedCase } from './cache-store.mjs';
 import { generate } from './generate.mjs';
 import { checkGlobalSnippet } from './global-leg.mjs';
 import { checkSnippet, closeStrippedWorker, phaseNs, summarizeVerdict } from './harness.mjs';
@@ -34,7 +34,7 @@ let globalArmed = 0;
 const failures = [];
 // run both oracles over one snippet. `live` opens its cache group with every cell forced to run
 async function judge(snippet, live) {
-  await beginCase({ name: snippet.name, code: snippet.code, ts: snippet.ts, live });
+  await beginCase({ name: snippet.name, code: snippet.code, ts: snippet.ts, live, prefix });
   const verdict = await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip);
   const { failed, detail } = summarizeVerdict(verdict);
   const lines = failed ? [`${ snippet.name } :: ${ detail }`] : [];
@@ -57,6 +57,9 @@ async function judge(snippet, live) {
   }
   return { lines, armed, checked };
 }
+// running hash of every snippet that already ran in THIS chunk - see beginCase for why a cell is
+// addressed by it. folded before the snippet runs, so it describes the realm the snippet meets
+let prefix = '';
 for (const snippet of subset) {
   // a harness-level throw (e.g. the TS-strip of a plugin output failing, outside checkSnippet's own
   // transform/eval guards) must NOT crash the shard - that discards every divergence accumulated so
@@ -78,6 +81,7 @@ for (const snippet of subset) {
     failures.push(`${ snippet.name } :: HARNESS CRASH ${ error?.message ?? error }`);
     discardCase(snippet.name);
   }
+  prefix = hashCode(`${ prefix }\u0000${ snippet.code }`, snippet.ts);
   if (++processed % PROGRESS_EVERY === 0 || processed === subset.length) {
     process.stderr.write(`[differential ${ shard + 1 }/${ total }] ${ processed }/${ subset.length }`
       + ` | pure ${ passed } ok | global-leg ${ globalArmed } armed${ failures.length ? ` | FAILURES ${ failures.length }` : '' }\n`);
