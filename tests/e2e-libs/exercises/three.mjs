@@ -32,9 +32,9 @@ import { checker } from './checks.mjs';
 function round(n, d = 3) {
   return +n.toFixed(d);
 }
-function arr(v, d = 3) {
-  const parts = v.toArray(); // Vector3/Quaternion#toArray - not an iterator helper
-  return parts.map(n => round(n, d));
+function arr(vector, digits = 3) {
+  const parts = vector.toArray(); // Vector3/Quaternion#toArray - not an iterator helper
+  return parts.map(part => round(part, digits));
 }
 
 // A 4x4 square with a 1x1 square hole, for the Earcut / ExtrudeGeometry path. Attributing each call
@@ -171,8 +171,8 @@ export function run() {
   check('raycast_dist', [round(hits[0].distance), round(hits[1].distance)], [16, 18]);
 
   // --- matrix4: translate(5,0,0) * scale(2) applied to (1,1,1) -> (7,2,2) ---
-  const m = new THREE.Matrix4().makeTranslation(5, 0, 0).multiply(new THREE.Matrix4().makeScale(2, 2, 2));
-  check('matrix_apply', arr(new THREE.Vector3(1, 1, 1).applyMatrix4(m)), [7, 2, 2]);
+  const matrix = new THREE.Matrix4().makeTranslation(5, 0, 0).multiply(new THREE.Matrix4().makeScale(2, 2, 2));
+  check('matrix_apply', arr(new THREE.Vector3(1, 1, 1).applyMatrix4(matrix)), [7, 2, 2]);
 
   // --- Box3 from points ---
   const box = new THREE.Box3().setFromPoints([new THREE.Vector3(-3, 0, 1), new THREE.Vector3(2, 5, -4)]);
@@ -361,12 +361,13 @@ export function run() {
   const [woven] = interleavedAttrs;
   check('addon_interleave_roundtrip', [
     woven?.data?.stride,
-    interleavedAttrs.map(a => a.offset),
+    interleavedAttrs.map(attribute => attribute.offset),
     woven?.data ? deinterleaveAttribute(woven).count === indexedBox.getAttribute('position').count : undefined,
   ], [6, [0, 3], true]);
   // traverseGenerator is a recursive `yield*` - the delegation machinery that runs is the addon's
   check('addon_traverse_generator', [...traverseGenerator(scene)].length, 3);
-  check('addon_reduce_vertices', round(reduceVertices(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()), (max, v) => Math.max(max, v.x), 0)), 0.5);
+  const reduceMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+  check('addon_reduce_vertices', round(reduceVertices(reduceMesh, (max, vertex) => Math.max(max, vertex.x), 0)), 0.5);
   const skeletonSource = buildSkinned();
   const skeletonClone = cloneSkinned(skeletonSource);
   // that it is a CLONE: new bone objects, with the parent link rebuilt among THEM. The bone count is
@@ -395,8 +396,8 @@ export function run() {
   let exactCorners = 0;
   const roundedPosition = rounded.getAttribute('position');
   for (let i = 0; i < roundedPosition.count; i++) {
-    const v = new THREE.Vector3().fromBufferAttribute(roundedPosition, i);
-    if (Math.abs(v.x) === 0.5 && Math.abs(v.y) === 0.5 && Math.abs(v.z) === 0.5) exactCorners++;
+    const vertex = new THREE.Vector3().fromBufferAttribute(roundedPosition, i);
+    if (Math.abs(vertex.x) === 0.5 && Math.abs(vertex.y) === 0.5 && Math.abs(vertex.z) === 0.5) exactCorners++;
   }
   check('addon_rounded_box_bounds',
     [arr(rounded.boundingBox.min), arr(rounded.boundingBox.max), exactCorners],
