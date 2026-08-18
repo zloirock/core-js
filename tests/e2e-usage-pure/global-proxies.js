@@ -1308,3 +1308,91 @@ testUnlessDetectLowered('global-proxy: an all-proxy destructure source keeps its
   assert.same(typeof Plain, 'function', 'an all-plain deep nav still collapses to the root');
   /* eslint-enable no-unsafe-optional-chaining -- end of the source forms */
 });
+
+// a receiver the emit RE-EMITS keeps its own proxy-global substitution. the marking that tells the
+// text emitter "no second rewrite inside my span" was read as "my render consumes this global", and
+// an instance claim's render does not: it hands the receiver to the helper as an argument. every
+// shape that memoizes such a receiver then froze a raw `globalThis` (ReferenceError in the stripped
+// realm) - and a `delete` target, which renders nothing at all, froze one with no render to blame
+QUnit.test('global-proxy: a re-emitted sequence receiver keeps its own substitution', assert => {
+  let effects = 0;
+  const arr = [7, 8];
+  // the DIRECT call is the shape that memoizes the receiver; `.call` on the same claim wraps it
+  // plainly and never did leak - both are here so the pair stays discriminating
+  assert.same((effects++, globalThis).Array.prototype.at(0), undefined, 'instance call through a sequence receiver');
+  assert.same((effects++, globalThis).String.prototype.at(0), undefined, 'the same shape on another family');
+  assert.same((effects++, globalThis).Array.prototype.at?.(0), undefined, 'optional call form');
+  assert.same((effects++, globalThis).Array.prototype.at.call(arr, -1), 8, 'and the plainly-wrapped `.call` beside it');
+  assert.same(typeof (effects++, globalThis).Array.prototype.at, 'function', 'the receiver without a call');
+  assert.same(effects, 5, 'every sequence prefix ran exactly once');
+});
+
+// the kept guard memo substitutes its probe root through the canonical chain-root descent, which
+// peels a sequence tail at EVERY hop. a hand-rolled walk stopped at a NESTED sequence and froze the
+// raw global inside `null == (_ref = (d++, c++, globalThis)) ? ...`
+QUnit.test('global-proxy: a nested-sequence probe root substitutes in the guard memo', assert => {
+  let outer = 0;
+  let inner = 0;
+  const arr = [4, 5];
+  /* eslint-disable @stylistic/no-extra-parens -- the NESTED sequence is the form under test */
+  assert.same(typeof (outer++, (inner++, globalThis))?.Array.prototype.at, 'function', 'nested sequence under an optional receiver');
+  assert.same((outer++, (inner++, globalThis))?.Array.prototype.at.call(arr, -1), 5, 'and its call form');
+  assert.same((outer++, (inner++, (outer++, globalThis)))?.Array.prototype.at.call(arr, 0), 4, 'three levels deep');
+  /* eslint-enable @stylistic/no-extra-parens -- end of the nested-sequence forms */
+  assert.same(inner, 3, 'the inner prefixes ran once each');
+  assert.same(outer, 4, 'and so did the outer ones');
+});
+
+// an effect the source wrote AHEAD of a guarded claim's root has a home of its own: it runs before
+// the guard test, wrapping the whole claim. the SE classifier knew only two regions - inside the
+// test and between the root and the claim - so a sequence prefix left the claim standing down RAW,
+// shipping both an unpolyfilled static and a raw global read
+testUnlessDetectLowered('global-proxy: a leading effect keeps its guarded claim', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  let effects = 0;
+  const staticClaim = (effects++, globalThis.window?.self)?.Array.of(5);
+  const ctorClaim = (effects++, globalThis.window?.self)?.Map;
+  const navClaim = (effects++, globalThis.window?.self)?.window.Array.of(6);
+  if (WINDOW_PRESENT) {
+    assert.deepEqual(staticClaim, [5], 'the claim answers through its polyfill where the host is present');
+    assert.same(typeof ctorClaim, 'function', 'and a constructor claim resolves too');
+    assert.deepEqual(navClaim, [6], 'a hop above the probe rides the same guard');
+  } else {
+    assert.same(staticClaim, undefined, 'an absent host short-circuits the claim, as the source does');
+    assert.same(ctorClaim, undefined, 'the constructor claim short-circuits with it');
+    assert.same(navClaim, undefined, 'and so does the one behind an extra hop');
+  }
+  assert.same(effects, 3, 'each leading effect ran exactly once, on either branch');
+});
+
+// a KEPT chain-assign VALUE collapses its pony hops whatever claim stands above it - the spelling
+// the static claim beside it already read through. an instance claim used to leave the hop raw, so
+// the stored value and the read went through a native `self` off the global instead of its ponyfill
+testUnlessDetectLowered('global-proxy: a kept chain-assign value collapses under every claim', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  let stored;
+  function instanceCall() {
+    return (stored = globalThis.self.window).Array.prototype.at.call([1, 2], -1);
+  }
+  function instanceGet() {
+    return typeof (stored = globalThis.self.window).Array.prototype.at;
+  }
+  function staticClaim() {
+    return (stored = globalThis.self.window).Array.of(3);
+  }
+  if (WINDOW_PRESENT) {
+    assert.same(instanceCall(), 2, 'the instance claim reads through the collapsed value');
+    assert.same(instanceGet(), 'function', 'and so does its get form');
+    assert.deepEqual(staticClaim(), [3], 'the static claim beside them is unchanged');
+    // compared by IDENTITY through a boolean: the realm global itself is not a value the reporter
+    // can serialize when an assertion around it fails
+    assert.true(stored === globalThis, 'the assignment stored the realm global');
+  } else {
+    assert.throws(instanceCall, TypeError, 'off-window the collapsed value is undefined and the read throws');
+    assert.throws(instanceGet, TypeError, 'the get form throws with it');
+    // the STATIC claim is receiver-less by canon: its read erases, so it answers on either host -
+    // the accepted divergence this suite already records, kept here as the pair's boundary
+    assert.deepEqual(staticClaim(), [3], 'the static claim erases its receiver read and still answers');
+    assert.same(typeof stored, 'undefined', 'the assignment stored the short-circuited value');
+  }
+});

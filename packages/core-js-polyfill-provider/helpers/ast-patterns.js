@@ -2808,23 +2808,41 @@ export function reassignBailApplies({ binding, adapter, path, usageNode = null }
 // otherwise delegates to the method-aware `reassignBailApplies`. (resolveVariableBindingToGlobal
 // uses isReassignedBeyondDeclarator + reassignBailApplies instead - it excludes the loop-reinit
 // declarator-self for BOTH methods, where these sites keep the conservative flat bail off-global)
-// claim-SE migration canon: an SE INSIDE the guarded root runs once in the test; an SE BETWEEN
-// the root and the claim (a dropped hop's computed-key effect - `window?.[(e++, 'self')].Array`)
-// migrates into the guarded branch as a sequence prefix, in native order (test -> key effect ->
-// leaf read). returns the migratable set (empty when no SE channel fires), or null when any
-// effect has no slot (position-less synthesized nodes, an SE outside the claim span) - the
-// caller keeps the raw stand-down there
+// claim-SE migration canon, by POSITION against the guarded root. three homes, one per region:
+// an SE INSIDE the root runs once in the test; an SE BEFORE it (a sequence prefix - `(e++,
+// globalThis.window?.self)?.Array.of`) evaluates before the test does, so it `leading`s the whole
+// guarded claim; an SE BETWEEN the root and the claim (a dropped hop's computed-key effect -
+// `window?.[(e++, 'self')].Array`) `migrated`s into the guarded branch, in native order (test ->
+// key effect -> leaf read). null only when an effect has no region at all - a position-less
+// synthesized node, one straddling the root, one outside the claim span - and the caller keeps the
+// raw stand-down there. a stand-down on a POLYFILLABLE static is a missed polyfill, not a formatting
+// choice, so the regions are enumerated rather than defaulted
 export function migratableClaimSe({ sideEffects, receiverEffectCount = 0, rootNode, end }) {
-  if (!sideEffects?.length && !receiverEffectCount) return [];
-  if (!sideEffects?.length || rootNode?.start === undefined || end === undefined) return null;
-  const out = [];
+  if (!sideEffects?.length && !receiverEffectCount) return { leading: [], migrated: [] };
+  const root = nodeSpan(rootNode);
+  if (!sideEffects?.length || !root || end === undefined) return null;
+  const leading = [];
+  const migrated = [];
   for (const se of sideEffects) {
-    if (se?.start === undefined) return null;
-    if (se.start >= rootNode.start && se.end <= rootNode.end) continue;
-    if (se.start >= rootNode.end && se.end <= end) out.push(se);
+    const span = nodeSpan(se);
+    if (!span) return null;
+    if (span.start >= root.start && span.end <= root.end) continue;
+    if (span.start >= root.end && span.end <= end) migrated.push(se);
+    else if (span.end <= root.start) leading.push(se);
     else return null;
   }
-  return out;
+  return { leading, migrated };
+}
+
+// a node's source span, through BOTH spellings its dialects use. babel's `cloneNode` keeps `loc`
+// and drops the numeric `start` / `end`, and every AST-emitter re-dispatch runs on clones - a
+// positional canon reading `node.start` alone sees a rebuilt host as position-less and stands the
+// whole decision down there. oxc carries the numbers and no `loc`, so the numeric pair leads.
+// null when neither spelling answers - the caller's own unknown-position branch
+export function nodeSpan(node) {
+  const start = node?.start ?? node?.loc?.start?.index;
+  const end = node?.end ?? node?.loc?.end?.index;
+  return typeof start === 'number' && typeof end === 'number' ? { start, end } : null;
 }
 
 export function reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode = null }) {
