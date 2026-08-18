@@ -6278,7 +6278,160 @@ function * generateTaggedTemplateCallArgs() {
 }
 /* eslint-enable no-template-curly-in-string -- restore the rule after the tagged-template family */
 
+// --- a RE-EMITTED receiver keeps its own proxy-global substitution ---
+// the detector marks a sequence-buried `globalThis` handled so no second rewrite lands inside the
+// claim's span. only a receiver-LESS claim really consumes it: an instance claim hands the receiver
+// to its helper, so the global stays a LIVE read there and every memoizing emit shape froze it raw.
+// both halves of the oracle are stripped - the global itself (a raw read is a ReferenceError) and
+// the instance method (a missed injection leaves a native call that is gone)
+const REEMITTED_RECV = [
+  { id: 'direct-call', code: '(log.push("r"), globalThis).Array.prototype.at(0)' },
+  { id: 'optional-call', code: '(log.push("r"), globalThis).Array.prototype.at?.(0)' },
+  { id: 'paren-lookup', code: '((log.push("r"), globalThis).Array.prototype?.at)(0)' },
+  { id: 'other-family', code: '(log.push("r"), globalThis).String.prototype.at(0)' },
+  { id: 'combined-chain', code: '(log.push("r"), globalThis).Array.prototype.at?.(0)?.at(0)' },
+  // the probe root under a NESTED sequence: the kept guard memo descends to it through a tail peel
+  // at every hop, and a walk that stopped at the inner sequence froze the raw global in the test
+  { id: 'nested-seq-probe', code: '(log.push("r"), (log.push("i"), globalThis))?.Array.prototype.at(0)' },
+  { id: 'nested-seq-probe-deep', code: '(log.push("r"), (log.push("i"), (log.push("d"), globalThis)))?.Array.prototype.at(0)' },
+  // controls: the plainly-wrapped `.call` never memoized, and a COLLAPSING constructor really does
+  // consume the whole receiver - neither may change
+  { id: 'plain-call-control', code: '(log.push("r"), globalThis).Array.prototype.at.call(arr, -1)' },
+  { id: 'collapsing-ctor-control', code: 'typeof (log.push("r"), globalThis).Map.prototype.has' },
+];
+function * generateReEmittedReceiver() {
+  for (const c of REEMITTED_RECV) {
+    yield { ...snippet(`re-emitted-receiver/${ c.id }`, c.code), strip: true };
+  }
+}
+
+// --- STATIC props behind an INSTANCE one, off a MEMOIZED destructure init ---
+// an AST emitter replaces the init with its memo, so every prop after the memoizing one resolves
+// against a bare ref: without the constructor's name riding along, the first instance prop ended
+// static extraction and the statics behind it shipped as native reads (stripped -> `undefined`).
+// its OWN family rather than a `D_PATTERNS` row, because the memo is the channel under test - the
+// param-default and flatten-sibling hosts route the same pattern through the synth literal instead
+const MEMO_STATIC_PATTERNS = [
+  { id: 'after-instance', lhs: '{ name, of, from }', recv: '(log.push("r"), Array)',
+    observe: '[typeof name, typeof of, typeof from]' },
+  { id: 'around-instance', lhs: '{ of, name, from }', recv: '(() => { log.push("call"); return Array; })()',
+    observe: '[typeof of, typeof name, typeof from]' },
+  { id: 'two-instances-then-static', lhs: '{ name, length, of }', recv: '(log.push("r"), Array)',
+    observe: '[typeof name, typeof length, typeof of]' },
+  // NEGATIVE: an un-memoized bare constructor never lost them, and a proxy-global member receiver
+  // already registered its constructor through the other arm of the same registration
+  { id: 'bare-ctor-control', lhs: '{ name, of, from }', recv: 'Array',
+    observe: '[typeof name, typeof of, typeof from]' },
+  { id: 'proxy-member-control', lhs: '{ name, of, from }', recv: 'globalThis.Array',
+    observe: '[typeof name, typeof of, typeof from]' },
+];
+const MEMO_STATIC_HOSTS = [
+  { id: 'decl', build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
+  { id: 'decl-sibling', build: p => `(() => { var zLead = 1, ${ p.lhs } = ${ p.recv }; return [zLead, ${ p.observe }]; })()` },
+  { id: 'assign', build: p => `(() => { let name, length, of, from; (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+];
+function * generateMemoStaticExtraction() {
+  for (const pat of MEMO_STATIC_PATTERNS) {
+    for (const host of MEMO_STATIC_HOSTS) {
+      yield { ...snippet(`memo-static-extraction/${ pat.id }/${ host.id }`, host.build(pat)), strip: true };
+    }
+  }
+}
+
+// --- an effect AHEAD of a guarded claim's root ---
+// the claim-SE classifier places each effect by region against the guarded root: inside the test,
+// between the root and the claim, or - the region it lacked - BEFORE the root, where the effect runs
+// ahead of the test and wraps the whole claim. missing that region, a sequence prefix made the claim
+// stand down raw: an unpolyfilled static AND a raw global read, both caught by the stripped realm
+const LEADING_EFFECT_CLAIMS = [
+  { id: 'static', code: '(log.push("r"), globalThis.window?.self)?.Array.of(5)' },
+  { id: 'static-call-arg', code: '(log.push("r"), globalThis.window?.self)?.Array.from([6])' },
+  { id: 'ctor', code: 'typeof (log.push("r"), globalThis.window?.self)?.Map' },
+  { id: 'nav-above-probe', code: '(log.push("r"), globalThis.window?.self)?.window.Array.of(7)' },
+  { id: 'two-effects', code: '(log.push("r"), log.push("s"), globalThis.window?.self)?.Array.of(8)' },
+  // the between-region effect still migrates INTO the guarded branch, in native order
+  { id: 'key-effect-migrates', code: 'globalThis.window?.[(log.push("k"), "self")].Array.of(9)' },
+  // controls: an effect-free prefix renders bare, and the plain claim keeps its probe spelling
+  { id: 'effect-free-prefix-control', code: '(1, globalThis.window?.self)?.Array.of(10)' },
+  { id: 'plain-claim-control', code: '(log.push("r"), globalThis.window?.self).Array.of(11)' },
+];
+function * generateLeadingEffectClaims() {
+  for (const c of LEADING_EFFECT_CLAIMS) {
+    yield { ...snippet(`leading-effect-claim/${ c.id }`, c.code), strip: true };
+  }
+}
+
+// --- a DECLINED init still owes its claim a render ---
+// the init channels of a destructure decline two shapes on purpose - a PROBED nav (an always-defined
+// ponyfill would erase the source's short-circuit) and a claim whose host rebuild left it
+// position-less - and defer to the claim channel. each deferral used to land on nobody: one because
+// the ownership bound had suppressed that very visitor, the other because a clone keeps `loc` and
+// not the numeric span. observed through a try/catch so the off-window throw is a value, not a bail
+const DECLINED_INIT_CLAIMS = [
+  { id: 'probed-ctor', lhs: '{ name }', recv: 'globalThis.window?.self.Map' },
+  { id: 'probed-static', lhs: '{ name }', recv: 'globalThis.window?.self.Array.of' },
+  { id: 'probed-instance', lhs: '{ name }', recv: 'globalThis.window?.self.Array.prototype.at' },
+  { id: 'leading-effect', lhs: '{ name }', recv: '(log.push("r"), (log.push("i"), globalThis.window?.self))?.Array.of' },
+  { id: 'leading-effect-ctor', lhs: '{ name }', recv: '(log.push("r"), globalThis.window?.self)?.Map' },
+  // NEGATIVE: an always-defined nav is owned by the destructure rewrite and collapses as before
+  { id: 'plain-nav-control', lhs: '{ name }', recv: 'globalThis.self.Array.of' },
+];
+function * generateDeclinedInitClaims() {
+  for (const c of DECLINED_INIT_CLAIMS) {
+    const body = `(() => { try { const ${ c.lhs } = ${ c.recv }; return typeof name; } catch (e) { return "throw"; } })()`;
+    yield { ...snippet(`declined-init-claim/${ c.id }`, body), strip: true };
+  }
+}
+
+// --- a KEPT chain-assign value collapses its pony hops, whatever claim stands above it ---
+// the value canon (`(k = globalThis.self.window)` stores `_self.window`) is what the STATIC claim
+// beside these already reads through; an instance claim used to leave the hop raw instead, each
+// emitter for its own reason - one had no visitor left for the assignment, the other deferred the
+// collapse and then emitted a COPY the deferred flush could not match
+const KEPT_ASSIGN_HOPS = [
+  { id: 'instance-call', code: '(k = globalThis.self.window).Array.prototype.at(0)' },
+  { id: 'instance-get', code: 'typeof (k = globalThis.self.window).Array.prototype.at' },
+  { id: 'vestigial-optional', code: '(k = globalThis.self?.window).Array.prototype.at(0)' },
+  { id: 'nested-seq', code: '(log.push("r"), (log.push("i"), k = globalThis.self?.window)).Array.prototype.at(0)' },
+  { id: 'destructure-host', code: '(() => { const { name } = (k = globalThis.self?.window).Array.prototype.at(0); return typeof name; })()' },
+  // NEGATIVE: the static claim above the same value - the spelling both emitters already agreed on.
+  // through a hop that is DEFINED off-window, because the static erase is an accepted divergence
+  // this oracle cannot express (native throws on the read the claim erases); the fixture and the
+  // e2e boundary carry that half
+  { id: 'static-claim-control', code: '(k = globalThis.globalThis).Array.of(3)' },
+];
+function * generateKeptAssignHops() {
+  for (const c of KEPT_ASSIGN_HOPS) {
+    yield { ...snippet(`kept-assign-hop-collapse/${ c.id }`, `(() => { let k; return ${ c.code }; })()`), strip: true };
+  }
+}
+
+// --- a polyfillable GET reading off a chain that already carries a polyfillable CALL ---
+// two channels render this shape and share one span. the guard test must keep the method-get as its
+// own claim; a stand-down in either channel leaves it native, which an emptied realm turns into a
+// throw. the three-level spellings are a known queue crash of the text emitter and stay out.
+const CHAIN_TAIL_GETS = [
+  { id: 'opt-call-then-get', code: 'arr.at?.(0).at' },
+  { id: 'plain-call-then-get', code: 'arr.at(0).at' },
+  { id: 'opt-call-then-plain-tail', code: 'arr.at?.(0).length' },
+  { id: 'opt-call-then-call', code: 'arr.at?.(0).at(0)' },
+  // NEGATIVE: a non-polyfillable call under the same tail keeps the native method-get
+  { id: 'nonpoly-call-then-get', code: 'box.pick?.(0).at' },
+];
+function * generateChainTailGets() {
+  for (const c of CHAIN_TAIL_GETS) {
+    const body = `(() => { const arr = [[1]]; const box = { pick: i => arr[i] }; const v = ${ c.code }; return typeof v === "function" ? "fn" : String(v); })()`;
+    yield { ...snippet(`chain-tail-get/${ c.id }`, body), strip: true };
+  }
+}
+
 export function * generate() {
+  yield * generateReEmittedReceiver();
+  yield * generateLeadingEffectClaims();
+  yield * generateDeclinedInitClaims();
+  yield * generateKeptAssignHops();
+  yield * generateChainTailGets();
+  yield * generateMemoStaticExtraction();
   yield * generateIndexSignatureUnknownKey();
   yield * generateTaggedTemplateCallArgs();
   yield * generateSpreadArgumentIteration();

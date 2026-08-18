@@ -12,7 +12,8 @@
 // with its whole group; and the type set is finite, so even a stale cell inside a live group is
 // bounded rather than growing. Three invalidation levels fall out of the shape: the group is gone
 // when the name left the corpus, the group is void when `src` moved (the generator rewrote that case
-// under the same name), and a cell is void when its own `h` moved.
+// under the same name, OR the chunk prefix ahead of it did - see `beginCase`), and a cell is void
+// when its own `h` moved.
 //
 // The cache never decides a verdict on its own. `native` is the reference the other legs are
 // compared against, and the AUDIT re-runs a sampled share of the hits: a cached key that disagrees
@@ -52,6 +53,12 @@ export function hashCode(code, ts = false) {
   return createHash('sha256').update(ts ? '1' : '0').update(code).digest('hex').slice(0, 16);
 }
 
+// a group's address: the snippet's own bytes AND the chunk prefix it runs behind (see `beginCase`).
+// exported so nothing has to re-derive the formula - a second spelling of it would drift silently
+export function caseSrc({ code, ts = false, prefix = '' }) {
+  return hashCode(`${ prefix }\u0000${ code }`, ts);
+}
+
 // --- shard side ---
 
 let loaded = null;
@@ -65,6 +72,10 @@ const evicted = new Set();
 let currentName = null;
 let currentTs = false;
 let currentSrc = '';
+// the snippet's own bytes, WITHOUT the prefix: the prefix gates the whole group through `src`, so a
+// cell inside a live group is addressed by its own code alone - and a compact cell is one whose code
+// IS this
+let currentSourceHash = '';
 let currentStored = null;
 let currentSet = null;
 let currentAuditing = false;
@@ -91,9 +102,10 @@ function loadedCases() {
 }
 
 // a cell is either `{ h, r }` or a bare string, which means "this code IS the snippet source" -
-// `native` and `arming` evaluate the raw source, so storing their hash again would duplicate `src`
-function cellHash(cell, src) {
-  return typeof cell === 'string' ? src : cell?.h;
+// `native` and `arming` evaluate the raw source, so storing their hash again would repeat what the
+// group already implies
+function cellHash(cell, sourceHash) {
+  return typeof cell === 'string' ? sourceHash : cell?.h;
 }
 function cellValue(cell) {
   return typeof cell === 'string' ? cell : cell?.r;
@@ -109,11 +121,18 @@ function cellValue(cell) {
 // depends on more than its own code (the corpus has shapes that read how many properties `globalThis`
 // carries, which grows as modules load) would otherwise be judged by mixing a value recorded in one
 // run with one produced in another, and diverge for a reason the product had nothing to do with.
-export async function beginCase({ name, code, ts = false, live = false }) {
+export async function beginCase({ name, code, ts = false, live = false, prefix = '' }) {
   const cases = await loadedCases();
   currentName = name;
   currentTs = ts;
-  currentSrc = hashCode(code, ts);
+  // the PREFIX is part of the address, not decoration: snippets run sequentially in one realm and
+  // the corpus mutates globals on purpose (`Array.of = patched`, `globalThis.Map = shim`), so what a
+  // snippet observes depends on which ones ran before it in its chunk. Fold it into `src` and a
+  // shifted prefix voids the whole group, which is exactly right - the recorded values described a
+  // realm that no longer exists. A plugin edit leaves the prefix untouched and keeps the cache warm;
+  // a corpus edit invalidates what follows it, which is the work that genuinely has to be redone
+  currentSrc = caseSrc({ code, ts, prefix });
+  currentSourceHash = hashCode(code, ts);
   const stored = cases[name];
   currentStored = !live && stored?.src === currentSrc ? stored : null;
   // the audit keeps the stored group for COMPARISON while running every cell of it: sampling one
@@ -136,7 +155,7 @@ export function mixedCase() {
 // the object this writes into, so every later cell of that group lands nowhere observable
 function store(type, hash, value) {
   if (value.startsWith('WORKER-CRASH|') || value.startsWith('stripped-worker-died:')) return;
-  currentSet[type] = hash === currentSrc ? value : { h: hash, r: value };
+  currentSet[type] = hash === currentSourceHash ? value : { h: hash, r: value };
 }
 
 function auditDue(hash) {
@@ -147,7 +166,7 @@ function auditDue(hash) {
 export async function cached({ type, code, evaluate }) {
   const hash = hashCode(code, currentTs);
   const stored = currentStored?.[type];
-  const hit = cellHash(stored, currentStored?.src) === hash ? cellValue(stored) : undefined;
+  const hit = cellHash(stored, currentSourceHash) === hash ? cellValue(stored) : undefined;
   if (hit !== undefined && !currentAuditing) {
     cacheStats.hits++;
     currentHits++;

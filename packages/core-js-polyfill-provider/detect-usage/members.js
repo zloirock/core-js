@@ -883,6 +883,15 @@ export function handleMemberExpressionNode({
     const subsumesReceiver = (!POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
         && !!resolveMeta?.({ kind: 'global', name: meta.object }, path))
       || !resolveMeta || !!resolveMeta(meta, path);
+    // the LEAF at the bottom of a SEQUENCE receiver asks a narrower question than the hops above
+    // it: a hop is swallowed by whichever render owns the span, but the proxy global itself only
+    // disappears when the chain really collapses - at a pure-resolvable ctor hop (`(e(), globalThis)
+    // .Map.prototype.has` -> `_Map.prototype.has`) or into a receiver-less static (`(e(), globalThis
+    // .Array).from` -> `_Array$from`). an INSTANCE claim re-emits its receiver as the helper's
+    // argument, so the leaf is still a live read there: marking it handled strands a raw
+    // `globalThis` / `self` (ie11 ReferenceError) in every render that keeps node identity
+    const collapsesReceiver = subsumesReceiver && (!resolveMeta || meta.placement === 'static'
+      || !!resolveMeta({ kind: 'global', name: meta.object }, path));
     // a hop suppressed under a meta whose own OBJECT is an ordinary name (`bx.arr`) belongs to the
     // receiver PATH, not to the claim - it survives into the output and an emitter that can rewrite
     // it without colliding with the outer span records it. a SUBSUMING meta rooted at a proxy
@@ -893,6 +902,7 @@ export function handleMemberExpressionNode({
     // emitter's own channels re-render the rebuilt subtree and keeping them would detach
     // nodes its destructure plans still read
     markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure, subsumesReceiver,
+      collapsesReceiver,
       keptProxyHops: !subsumesReceiver && (keptDeclinedProxyMetaHops || !POSSIBLE_GLOBAL_OBJECTS.has(meta.object))
         ? keptProxyHops : null });
     // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
@@ -1287,8 +1297,11 @@ function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
 // key resolved). even when `meta.object === null` (receiver Identifier didn't match
 // `isStaticPlacement` - bound local variable), marking the receiver is correct: a local binding
 // shouldn't produce a polyfill import via the identifier visitor, so suppression is the right behaviour
+// `collapsesReceiver` narrows `subsumesReceiver` for the LEAF alone: the hops are swallowed by
+// whichever render owns the span, but the proxy global at the bottom only disappears when the
+// chain really collapses - see the leaf-marking arm below and the invariant in AGENTS.md
 function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure = null, subsumesReceiver = true,
-  keptProxyHops = null }) {
+  collapsesReceiver = subsumesReceiver, keptProxyHops = null }) {
   let obj = unwrapTransparentSeq(node.object);
   // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
   // prefix expressions survive in the output (their own polyfills must still fire), so descend to
@@ -1354,7 +1367,7 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
   // gated on `subsumesReceiver` (like the IIFE path below): when the static does NOT resolve to a collapse
   // (`(eff(), globalThis.self).Array` - Array native, `.foo` non-global, a class-extends superclass), the SE
   // receiver survives and its proxy-global leaf keeps its own substitution - marking it strands a raw global
-  if ((wasSequence || buriedSequence) && current !== obj && subsumesReceiver) {
+  if ((wasSequence || buriedSequence) && current !== obj && collapsesReceiver) {
     markProxyGlobalLeaf({ node: current, handledObjects, scope, adapter, path });
   }
   // IIFE-rooted chain (`(() => globalThis)().self.Map.prototype.has`): the chain bottoms

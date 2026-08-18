@@ -75,6 +75,7 @@ import {
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
   peelChainAssignment,
+  peelReceiverSequenceTail,
   PROXY_HOP_VALUE_CARRIERS,
   proxyGlobalMemberCtorPure,
   proxyGlobalMemberCtorPureSwap,
@@ -1300,7 +1301,7 @@ export function createDestructureEmitter({
         if (!skippedNodes.has(tail)) return null;
         // a PROBED bare nav as the whole init (`(globalThis.window?.self)` under a rest /
         // partial consume) takes the `probedNav` decline in the residual renders instead of
-        // this swap: deferring (null) leaves the nav visible and the natural visitor's guard
+        // this swap: deferring (null) leaves the nav visible and the claim channel's guard
         // canon reproduces the source read - an always-defined ponyfill here would erase it
         if (proxyReceiverValueCanBeUndefined(tail, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) return null;
         return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
@@ -4207,9 +4208,25 @@ export function createDestructureEmitter({
   // skipped, so identifier-visitor polyfill emits don't duplicate destructure rewrite.
   // logical/sequence/conditional branches walked recursively; instance methods on init
   // (arr.slice) intentionally unmarked - they compose correctly with destructure
+  // the ownership BOUND is the navigation itself plus the whole-ctor member directly above it
+  // (`globalThis.self.Map` -> `_Map`). `findProxyGlobal` alone answers about the chain's ROOT, so
+  // it claimed every member however far above the navigation - and this init is RE-EMITTED, not
+  // replaced, so a claim up there (`self.Array.prototype.at`) lost its own rewrite and shipped a
+  // native read the target may not have
   function markInitGlobals(node) {
     for (const skipNode of subsume(node, {
-      form: 'init-globals', isProxyGlobal: findProxyGlobal, tsWrappers: TS_EXPR_WRAPPERS,
+      form: 'init-globals', tsWrappers: TS_EXPR_WRAPPERS,
+      isProxyGlobal: member => {
+        const object = peelReceiverSequenceTail(member.object);
+        // ... and only while the rewrite really OWNS it. over a PROBED nav (one whose value can
+        // short-circuit) every init channel here declines and defers to the claim channel's guard
+        // render, so claiming the member suppresses the very visitor the deferral counts on
+        if (maximalProxyGlobalPrefix(object) !== object
+          || proxyReceiverValueCanBeUndefined(object, ({ name }) => resolveGlobalPolyfill(name))) {
+          return null;
+        }
+        return findProxyGlobal(member);
+      },
     })) skippedNodes.add(skipNode);
   }
 
