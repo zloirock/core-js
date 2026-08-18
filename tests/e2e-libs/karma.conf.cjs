@@ -17,7 +17,7 @@ const customLaunchers = {
 
 // Named here rather than inlined below: without it the `.slice` of `undefined` is the whole error
 // message, and this config is normally started by runtime.mjs rather than by hand.
-const bundle = process.argv.find(it => it.startsWith('-f='));
+const bundle = process.argv.find(arg => arg.startsWith('-f='));
 if (!bundle) throw new Error('karma.conf.cjs needs the bundle to load: karma start karma.conf.cjs -f=<file>');
 
 module.exports = config => config.set({

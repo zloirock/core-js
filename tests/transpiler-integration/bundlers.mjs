@@ -106,7 +106,7 @@ export function makeBundlers({
       try {
         const stats = await promisify(instance.run.bind(instance))();
         if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
-        if (stats.hasWarnings()) reportWarnings(name, stats.compilation.warnings.map(w => w.message));
+        if (stats.hasWarnings()) reportWarnings(name, stats.compilation.warnings.map(warning => warning.message));
       } finally {
         await promisify(instance.close.bind(instance))();
       }
@@ -134,7 +134,7 @@ export function makeBundlers({
         format: 'cjs',
         platform: 'node',
       });
-      reportWarnings('esbuild', result.warnings.map(w => w.text));
+      reportWarnings('esbuild', result.warnings.map(warning => warning.text));
       return { code: result.outputFiles[0].text, ext: '.cjs' };
     },
 
