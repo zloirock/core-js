@@ -25,7 +25,8 @@ import createPlugin, {
   formatParseErrorMessage,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
-import { createTopLevelStatementRemover } from '../../packages/core-js-unplugin/internals/detect-entry.js';
+import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
+import { createTopLevelStatementRewriter } from '../../packages/core-js-unplugin/internals/detect-entry.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
   canFuseWithOpenParen,
@@ -37,19 +38,25 @@ import {
   isBodylessStatementBody,
   dropRedundantRootParens,
   isChunkLoaderBundler,
-  isLineTerminator,
   isTopLevelImportLike,
   lastUserImportEnd,
   liftSfcLangSuffix,
-  prevSignificantPos,
-  skipBlockComment,
   skipDirectivePrologue,
-  skipGap,
   statementOverwriteFusesLeft,
   stripLeadingBOMs,
   varScopeAnchor,
   walkAstNodes,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import {
+  isLineTerminator,
+  isOptionalChainAt,
+  literalRegionsOf,
+  prevSignificantPos,
+  scanTokens,
+  setLexDialect,
+  skipBlockComment,
+  skipGap,
+} from '../../packages/core-js-unplugin/internals/text-scan.js';
 import {
   isCallee,
   isCalleeWrappedInParens,
@@ -3481,10 +3488,23 @@ checkDeclared('orphan-only', 'null == (_ref = foo()) ? void 0 : _ref;', [], ['_r
 checkDeclared('user var', 'var _ref; null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 // user catch param declares
 checkDeclared('user catch', 'try {} catch (_ref) {} null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
+// a local export names a binding of THIS module; a re-export names one of the other module
+checkDeclared('local export', 'var _ref; export { _ref as foo };', ['_ref']);
+checkDeclared('re-export', "export { _ref as foo } from './m'; export { _ref2 } from './n';", [], ['_ref', '_ref2']);
+// source-text names the AST emitter's scope never claims either: an import attribute's key, a
+// private name - the census must not reserve them, or the two emitters number apart
+check('collectBindings/import attribute key not reserved',
+  collectBindings("import j from './j.json' with { _ref: 'json' };").names.has('_ref'), false);
+check('collectBindings/private name not reserved',
+  collectBindings('class K { #_ref = 1; m() { return this.#_ref; } }').names.has('_ref'), false);
 // plugin-shaped: nested `_ref = X` inside a ConditionalExpression (guard emission)
 checkOrphan('nested call', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 checkOrphan('nested member', 'null == (_ref = foo.bar) ? void 0 : _ref;', ['_ref']);
 checkOrphan('nested new', 'null == (_ref = new Foo()) ? void 0 : _ref;', ['_ref']);
+// plugin-shaped: the combined chain's raw member get over a memoized receiver - the write is the
+// OBJECT of a member read (`(_ref = recv).method`), the third emit position
+checkOrphan('member-get receiver memo', 'null == (_ref = foo()).m ? void 0 : _ref;', ['_ref']);
+checkOrphan('member-get receiver memo, computed', '_f((_ref = foo())[k], _ref);', ['_ref']);
 // user sloppy-mode: stand-alone `_ref = X;` - never plugin's shape regardless of RHS
 checkOrphan('top-level call', '_ref = foo();', [], ['_ref']);
 checkOrphan('top-level member', '_ref = window.data;', [], ['_ref']);
@@ -4046,13 +4066,43 @@ function checkPostAdoptsUnusedSentinels() {
     bothPre?.code?.includes('_unused') && bothPre?.code?.includes('var _ref'), true);
   const bothPost = createPlugin(opts).transform(bothPre.code, '/x30b.mjs', 'post');
   check('post-adopt-unused/both channels post is idempotent', bothPost?.code ?? null, null);
-  // accepted ambiguity (same class as user `_ref` in a plugin emit position): a USER binding
-  // named `_unused` inside a rest-destructure in a post-only pass is indistinguishable from
-  // pre's own sentinel output, so it adopts and the destructure stays untouched - the safe
-  // under-polyfill direction for usage-pure (native `from` on the taken engine, no corruption)
+  // adoption is by POSITION and by ORIGIN, not by name shape: a USER binding named `_unused` in
+  // the sentinel position that the file READS is the user's (our sentinel is read by nothing),
+  // so it is not adopted and the rest-destructure keeps its rewrite - the read gets the
+  // polyfilled `from` instead of the native slot the taken engine lacks. a binding read by
+  // nothing adopts only where OUR extraction of the key stands beside it (the shape pre leaves:
+  // `const from = _Array$from;` in the same statement list) - an unread alias with no such
+  // sibling is the user's too, whatever the file imports, and its importers may read it
   const shadow = 'import "@core-js/pure/actual/array/from";\nconst { from: _unused, ...rest } = Array;\nexport const r = [_unused, rest];';
   const shadowPost = createPlugin(opts).transform(shadow, '/x30s.mjs', 'post');
-  check('post-adopt-unused/user-shaped sentinel adopts (bail-safe)', shadowPost?.code ?? null, null);
+  check('post-adopt-unused/read user binding in the sentinel position keeps its rewrite',
+    /const _unused = _Array\$from;\s*const \{ from: _unused2, \.\.\.rest \} = Array;/.test(shadowPost?.code ?? ''), true);
+  const unread = 'import "@core-js/pure/actual/array/from";\nexport const { from: _unused, ...rest } = Array;';
+  const unreadPost = createPlugin(opts).transform(unread, '/x30u.mjs', 'post');
+  check('post-adopt-unused/unread alias without our extraction beside it keeps its rewrite',
+    /export const _unused = _Array\$from;\s*export const \{ from: _unused2, \.\.\.rest \} = Array;/.test(unreadPost?.code ?? ''), true);
+  const ours = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const from = _Array$from;\nexport const { from: _unused, ...rest } = Array;';
+  const oursPost = createPlugin(opts).transform(ours, '/x30o.mjs', 'post');
+  check('post-adopt-unused/our exported sentinel beside its extraction adopts', oursPost?.code ?? null, null);
+  // the extraction must be of the SAME key: a pure import of another member in the same list is
+  // not our sibling
+  const other = 'import _Array$from from "@core-js/pure/actual/array/from";\nexport const y = _Array$from([1]);\nexport const { at: _unused, ...rest } = [2];';
+  const otherPost = createPlugin(opts).transform(other, '/x30k.mjs', 'post');
+  check('post-adopt-unused/an extraction of another key is no sibling', /export const _unused = _atMaybeArray\(_ref\);/.test(otherPost?.code ?? ''), true);
+  // a READ binding never adopts even when an extraction-lookalike of the same key stands beside it
+  // (a user aliasing the ponyfill AND naming their rest-consumed key `_unusedN`): our sentinel is
+  // read by nothing, so the read alone proves the name is the user's - the position filter, not
+  // the sibling fingerprint, is what keeps this rewrite
+  const readBeside = 'import _at from "@core-js/pure/actual/array/instance/at";\nconst arr = [1];\nconst at = _at(arr);\n'
+    + 'export const { at: _unused2, ...rest } = arr;\nexport const r = [_unused2, at];';
+  const readBesidePost = createPlugin(opts).transform(readBeside, '/x30r.mjs', 'post');
+  check('post-adopt-unused/a read binding beside a same-key extraction keeps its rewrite',
+    /export const _unused2 = /.test(readBesidePost?.code ?? ''), true);
+  // a slot-shaped name OUTSIDE the sentinel position is never a sentinel, whatever the file imports
+  const plain = 'import "@core-js/pure/actual/array/from";\nvar _unused = 1;\nexport const { at: _unused2, ...rest } = [2];\nexport const r = [_unused, _unused2];';
+  const plainPost = createPlugin(opts).transform(plain, '/x30p.mjs', 'post');
+  check('post-adopt-unused/a plain var of the shape does not arm the skip',
+    /export const _unused2 = _atMaybeArray\(_ref\);/.test(plainPost?.code ?? ''), true);
 }
 checkPostAdoptsUnusedSentinels();
 
@@ -4733,7 +4783,7 @@ check('canFuseWithOpenParen/asterisk-slash with /* in earlier string',
 check('canFuseWithOpenParen/nested template in expression',
   // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
   canFuseWithOpenParen('var t = `a${`b`}c`', 18), true);
-// triple-nested template (`${`${`x`}`}`) - exercises depth-N recursion in tryScanLiteralAt
+// triple-nested template (`${`${`x`}`}`) - the hole-mode stack must nest to depth N
 check('canFuseWithOpenParen/triple-nested template',
   // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
   canFuseWithOpenParen('var t = `a${`b${`c`}b`}a`', 25), true);
@@ -5359,7 +5409,7 @@ check('consumeOneLineEnding/EOF', consumeOneLineEnding('foo', 3), 3);
 // non-zero starting pos: relative to that pos, not absolute
 check('consumeOneLineEnding/non-zero start', consumeOneLineEnding('abc\nfoo', 3), 4);
 
-// --- createTopLevelStatementRemover ---
+// --- createTopLevelStatementRewriter ---
 const IMPORT_X = "import 'x';";
 
 // stub-node driver: caller passes source + byte length of the leading `import ...;`
@@ -5367,8 +5417,18 @@ const IMPORT_X = "import 'x';";
 // trailing-LT consumption and ASI guard injection without spinning up a full AST
 function applyRemove(source, importEnd) {
   const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  remove({ start: 0, end: importEnd });
+  const rewriter = createTopLevelStatementRewriter(ms);
+  rewriter.remove({ start: 0, end: importEnd });
+  rewriter.apply();
+  return ms.toString();
+}
+
+// remove every stub node of `source` in the given order, then apply the batch
+function applyBatch(source, nodes) {
+  const ms = new MagicString(source);
+  const rewriter = createTopLevelStatementRewriter(ms);
+  for (const node of nodes) rewriter.remove(node);
+  rewriter.apply();
   return ms.toString();
 }
 
@@ -5402,136 +5462,66 @@ check('remove/double LF preserves blank line',
 // ASI hazard: TS TypeAssertion `<MyType>foo` after a no-semi prev statement needs a `;`
 // injection on removal. previously `<` was NOT in ASI_HAZARD_STARTS so the fuse risk
 // `prev < MyType > foo` slipped through silently
-function checkRemoveAsiGuardTypeAssertion() {
-  const source = `var x = 1\n${ IMPORT_X }\n<MyType>raw`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  remove({ start: 10, end: 10 + IMPORT_X.length });
-  check('remove/TS type assertion triggers ASI guard',
-    ms.toString(), 'var x = 1\n;<MyType>raw');
-}
-checkRemoveAsiGuardTypeAssertion();
+check('remove/TS type assertion triggers ASI guard',
+  applyBatch(`var x = 1\n${ IMPORT_X }\n<MyType>raw`, [{ start: 10, end: 10 + IMPORT_X.length }]),
+  'var x = 1\n;<MyType>raw');
 
 // ASI hazard hidden behind a line comment terminated by U+2028. the comment scan must
 // stop AT the separator, then continue past it as whitespace, landing on the hazard
 // char `(`. previously the scan only stopped at LF / CR and ran to EOF, missing the
 // hazard and skipping the `;` injection
-function checkRemoveAsiGuardLineCommentLsTerminator() {
-  const source = `var x = 1\n${ IMPORT_X }//c${ LS }(foo)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  remove({ start: 10, end: 10 + IMPORT_X.length });
-  check('remove/line-comment U+2028 terminator surfaces hazard',
-    ms.toString(), `var x = 1\n;//c${ LS }(foo)();`);
-}
-checkRemoveAsiGuardLineCommentLsTerminator();
+check('remove/line-comment U+2028 terminator surfaces hazard',
+  applyBatch(`var x = 1\n${ IMPORT_X }//c${ LS }(foo)();`, [{ start: 10, end: 10 + IMPORT_X.length }]),
+  `var x = 1\n;//c${ LS }(foo)();`);
 
-// batch removal: two adjacent imports between a no-semi prev and a hazard char. each
-// closure instance owns a `removedRanges` log; the second `remove()` call's backward
-// ASI scan must SKIP past the first removed range, else the prev statement's `;` (now
-// gone with the imports) appears to still be there and `;` injection gets suppressed.
-// regression lock on the `findPrevSignificantChar` loop that re-enters when
-// `prevSignificantPos` lands inside an earlier removed range
-function checkRemoveBatchSkipsPriorRange() {
+// batch removal: two adjacent imports between a no-semi prev and a hazard char. the seam is
+// read through the batch's disposition map, in EITHER request order: the prev `;` of the
+// earlier import is gone with it, the next surviving char is the `(`, and the two removals
+// share the one seam - exactly one `;`
+{
   const a = "import 'a';";
   const b = "import 'b';";
   const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  // first import starts after `var x = 1\n` (10 bytes); second after first + LT (11+1)
-  remove({ start: 10, end: 10 + a.length });
-  remove({ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length });
-  // semicolon must appear ONCE at the second removal's boundary (the first removal had
-  // a non-hazard next char, the second sees `(`)
-  check('remove/batch skips prior removed range',
-    ms.toString(), 'var x = 1\n;(foo)();');
-}
-checkRemoveBatchSkipsPriorRange();
-
-// SEEDED batch removal, ascending call order (the usage-mode caller iterates removals in
-// ascending source position and pre-seeds every range so each boundary scan treats the whole
-// batch as already gone). two adjacent removed statements sit between a no-semi prev and a
-// hazard char, so BOTH boundary scans jump the seeded neighbour and reach the `(`. the leftmost
-// removal injects `;` first; the rightmost's guard must see that `;` across the (prev, next)
-// span - a check limited to (this-end, next) misses the leftward `;` and injects a second,
-// fusing the seam into `;;`. the descending entry caller never hit this (it injects rightmost
-// first, which the leftward scan's (end, next) window did cover)
-function checkRemoveSeededAscendingSingleSemi() {
-  const a = "import 'a';";
-  const b = "import 'b';";
-  const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
   const aRange = { start: 10, end: 10 + a.length };
   const bRange = { start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length };
-  remove.seed([aRange, bRange]);
-  remove(aRange);
-  remove(bRange);
-  check('remove/seeded ascending batch injects one semi, not two',
-    ms.toString(), 'var x = 1\n;(foo)();');
+  check('remove/batch ascending injects one semi', applyBatch(source, [aRange, bRange]), 'var x = 1\n;(foo)();');
+  check('remove/batch descending injects one semi', applyBatch(source, [bRange, aRange]), 'var x = 1\n;(foo)();');
 }
-checkRemoveSeededAscendingSingleSemi();
 
-// two INDEPENDENT removal groups, each followed by its own hazard: the (prev, next) span of the
-// second group's seam must not see the first group's injected `;` (different seam, different prev),
-// so BOTH seams get exactly one `;` each
-function checkRemoveSeededTwoSeams() {
+// two INDEPENDENT removal seams, each followed by its own hazard: the second seam must not see
+// the first seam's `;` (different prev), so BOTH seams get exactly one `;` each
+{
   const a = "import 'a';";
   const b = "import 'b';";
   const source = `var x = 1\n${ a }\n(foo)();\nvar y = 2\n${ b }\n(bar)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  const aRange = { start: 10, end: 10 + a.length };
   const bStart = source.indexOf(b);
-  const bRange = { start: bStart, end: bStart + b.length };
-  remove.seed([aRange, bRange]);
-  remove(aRange);
-  remove(bRange);
   check('remove/two independent seams each get one semi',
-    ms.toString(), 'var x = 1\n;(foo)();\nvar y = 2\n;(bar)();');
+    applyBatch(source, [{ start: 10, end: 10 + a.length }, { start: bStart, end: bStart + b.length }]),
+    'var x = 1\n;(foo)();\nvar y = 2\n;(bar)();');
 }
-checkRemoveSeededTwoSeams();
 
-// CRLF line endings through the seeded-batch walk: the removal range consumes the `\r\n` pair, and
-// the seam still gets exactly one `;` before the hazard
-function checkRemoveSeededBatchCrlf() {
+// CRLF line endings through the batch: the removal range consumes the `\r\n` pair, and the
+// seam still gets exactly one `;` before the hazard
+{
   const a = "import 'a';";
   const b = "import 'b';";
   const source = `var x = 1\r\n${ a }\r\n${ b }\r\n(foo)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  const aRange = { start: 11, end: 11 + a.length };
-  const bRange = { start: 11 + a.length + 2, end: 11 + a.length + 2 + b.length };
-  remove.seed([aRange, bRange]);
-  remove(aRange);
-  remove(bRange);
-  check('remove/seeded CRLF batch injects one semi',
-    ms.toString(), 'var x = 1\r\n;(foo)();');
+  check('remove/CRLF batch injects one semi',
+    applyBatch(source, [{ start: 11, end: 11 + a.length }, { start: 11 + a.length + 2, end: 11 + a.length + 2 + b.length }]),
+    'var x = 1\r\n;(foo)();');
 }
-checkRemoveSeededBatchCrlf();
 
 // removal ending FLUSH against the hazard char (no trailing space or line ending to consume):
 // the injected `;` position coincides with the hazard index and must still land once
-function checkRemoveFlushAgainstHazard() {
+{
   const a = "import 'a';";
-  const single = new MagicString(`var x = 1\n${ a }(foo)();`);
-  const removeSingle = createTopLevelStatementRemover(single);
-  removeSingle({ start: 10, end: 10 + a.length });
-  check('remove/flush single against hazard',
-    single.toString(), 'var x = 1\n;(foo)();');
-
   const b = "import 'b';";
-  const double = new MagicString(`var x = 1\n${ a }${ b }(foo)();`);
-  const removeDouble = createTopLevelStatementRemover(double);
-  const aRange = { start: 10, end: 10 + a.length };
-  const bRange = { start: 10 + a.length, end: 10 + a.length + b.length };
-  removeDouble.seed([aRange, bRange]);
-  removeDouble(aRange);
-  removeDouble(bRange);
+  check('remove/flush single against hazard',
+    applyBatch(`var x = 1\n${ a }(foo)();`, [{ start: 10, end: 10 + a.length }]), 'var x = 1\n;(foo)();');
   check('remove/flush double against hazard still one semi',
-    double.toString(), 'var x = 1\n;(foo)();');
+    applyBatch(`var x = 1\n${ a }${ b }(foo)();`, [{ start: 10, end: 10 + a.length }, { start: 10 + a.length, end: 10 + a.length + b.length }]),
+    'var x = 1\n;(foo)();');
 }
-checkRemoveFlushAgainstHazard();
 
 // a U+2028 / U+2029 separator is a valid connector gap before `?.` too: the root-boundary read
 // must treat it like any whitespace, keep the guardRef needle, and the transform must not throw
@@ -5545,75 +5535,44 @@ checkRemoveFlushAgainstHazard();
   }
 }
 
-// reverse processing order (right-to-left) matches the real caller's loop over
-// `resolveBatchDirectivePromotionPolicy({...}).toRemove`, which is filled in descending
-// body position. forward `skipGap` from the LEFTMOST removal must be range-aware about
-// the already-removed RIGHTMOST sibling - else it lands on the soon-to-be-erased
-// neighbour's text, mis-reads it as non-hazard, and skips the `;` injection. without
-// the guard fix, both removals decline injection and `var x = 1` fuses with `(foo)()`
-function checkRemoveBatchRightToLeftForwardScansRangeAware() {
-  const a = "import 'a';";
-  const b = "import 'b';";
-  const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  // process RIGHTMOST first (mirrors `for (node of toRemove)` over descending-order list)
-  remove({ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length });
-  remove({ start: 10, end: 10 + a.length });
-  // expected: `;` injection at the leftmost removal's boundary, which is where the survivor
-  // `(foo)()` starts after both imports drain. without range-aware forward scan, both
-  // removals see non-hazard next and decline injection, producing `var x = 1\n(foo)();`
-  // (which JS parses as a call to `1`)
-  check('remove/batch reverse-order forward scan is range-aware',
-    ms.toString(), 'var x = 1\n;(foo)();');
-}
-checkRemoveBatchRightToLeftForwardScansRangeAware();
-
-// triple-removal batch: the range-aware walker must compose across multiple chained
-// `removedRanges`, jumping each in turn. without sequential composition the middle range
-// would block the walk and the leftmost removal would land inside a stale-source region
-function checkRemoveBatchTripleRemovalForwardScan() {
+// triple-removal batch: the survivor walk hops every removed neighbour in turn, so the leftmost
+// removal sees the `(` three statements down and the `1` of `var x = 1` before it
+{
   const a = "import 'a';";
   const b = "import 'b';";
   const c = "import 'c';";
   const source = `var x = 1\n${ a }\n${ b }\n${ c }\n(foo)();`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
   const aStart = 10;
   const bStart = aStart + a.length + 1;
   const cStart = bStart + b.length + 1;
-  // descending order: c -> b -> a
-  remove({ start: cStart, end: cStart + c.length });
-  remove({ start: bStart, end: bStart + b.length });
-  remove({ start: aStart, end: aStart + a.length });
-  // c sees `(` -> hazard, prev `;` of b -> no inject
-  // b sees `i` of c-source under raw scan; range-aware jumps c-range, lands on `(` -> hazard,
-  //   prev `;` of a -> no inject. PLUS `hasInjectedSemiBetween` is false (no `;` between)
-  // a sees `i` of b-source under raw scan; range-aware jumps b-range then c-range, lands
-  //   on `(` -> hazard, prev `1` of `var x = 1` -> INJECT
-  // single `;` at a's boundary
-  check('remove/batch triple removal forward scan composes ranges',
-    ms.toString(), 'var x = 1\n;(foo)();');
+  check('remove/batch triple removal composes ranges',
+    applyBatch(source, [{ start: cStart, end: cStart + c.length }, { start: bStart, end: bStart + b.length }, { start: aStart, end: aStart + a.length }]),
+    'var x = 1\n;(foo)();');
 }
-checkRemoveBatchTripleRemovalForwardScan();
 
-// no survivor after a batch (all removed up to EOF): forward scan returns src.length,
-// guard short-circuits without inject. previously raw skipGap would still see in-range
-// `i` characters as non-hazard which happened to behave correctly; with range-aware scan
-// we must reach src.length and bail explicitly
-function checkRemoveBatchEofNoSurvivorBails() {
+// no survivor after a batch (all removed up to EOF): nothing follows the seam, so no `;`
+{
   const a = "import 'a';";
   const b = "import 'b';";
-  const source = `var x = 1\n${ a }\n${ b }\n`;
-  const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  remove({ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length });
-  remove({ start: 10, end: 10 + a.length });
-  // both removals reach EOF (no hazard char), so no `;` should be injected
   check('remove/batch EOF survivor bails without injection',
-    ms.toString(), 'var x = 1\n');
+    applyBatch(`var x = 1\n${ a }\n${ b }\n`, [{ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length }, { start: 10, end: 10 + a.length }]),
+    'var x = 1\n');
 }
-checkRemoveBatchEofNoSurvivorBails();
+
+// a `0;` placeholder is a survivor that ENDS in a terminator: a removal right after it needs no
+// `;` even when the original statement there had none (the map reads the replacement, not the
+// source text it overwrote)
+{
+  const a = "import 'a'";
+  const b = "import 'b'";
+  const source = `'use strict'\n${ a }\n${ b }\n(foo)();`;
+  const ms = new MagicString(source);
+  const rewriter = createTopLevelStatementRewriter(ms);
+  rewriter.replaceWithNoop({ start: 13, end: 13 + a.length });
+  rewriter.remove({ start: 13 + a.length + 1, end: 13 + a.length + 1 + b.length });
+  rewriter.apply();
+  check('remove/noop survivor is a terminator - no extra semi', ms.toString(), "'use strict'\n0;\n(foo)();");
+}
 
 // --- injectionFusesLeft (shared left-boundary fusion predicate) ---
 // hazard-start firstChar fuses leftward into a value / postfix-update / `}` prev, but NOT into a `;`
@@ -5629,6 +5588,12 @@ check('injectionFusesLeft/( after : case-label is safe', injectionFusesLeft('(',
 // identifier / numeric / unary-bang starts ASI-split on their own - never in the hazard set
 check('injectionFusesLeft/identifier start never fuses', injectionFusesLeft('x', ')'), false);
 check('injectionFusesLeft/bang start never fuses', injectionFusesLeft('!', ')'), false);
+// the prev alphabet is the open one: a TS non-null `!`, an instantiation's `>`, a `?.`'s `.` all end
+// a statement a `(` continues - the deny-list reads them as fusing, where an allow-list of value
+// ends was caught short
+check('injectionFusesLeft/( after TS non-null ! fuses', injectionFusesLeft('(', '!'), true);
+check('injectionFusesLeft/( after instantiation > fuses', injectionFusesLeft('(', '>'), true);
+check('injectionFusesLeft/( after optional-call . fuses', injectionFusesLeft('(', '.'), true);
 
 // statementOverwriteFusesLeft pairs the comment/whitespace-aware prev-char scan with the predicate -
 // used where an in-place statement overwrite re-roots a line (minifier split, destructure lifted-SE)
@@ -5649,59 +5614,87 @@ check('prevSignificantPos/string trailing backslash at EOF stays in bounds', pre
 check('prevSignificantPos/regex trailing backslash at EOF stays in bounds', prevSignificantPos('y=/re\\', 6), 5);
 check('prevSignificantPos/template trailing backslash at EOF stays in bounds', prevSignificantPos('z=`t\\', 5), 4);
 
-// --- guardInjectionLeftBoundary (indirect-require SE-prefix rewrite) ---
-// the SE-prefix rewrite OVERWRITES a detected `(prefix, require)('core-js/...')` node in place. unlike a
-// removal (where the NEXT surviving char fuses with the prev), here the INJECTED text's FIRST char meets
+// --- the kept SE prefix of an indirect-require entry ---
+// the rewriter keeps the observable prefix of `(prefix, require)('core-js/...')` as statements. unlike
+// a removal (where the NEXT surviving char fuses with the prev), here the kept text's FIRST char meets
 // the prev surviving char - and the node-was-detected-separate guarantee does NOT carry over: a postfix
 // `++` / `--` prev ASI-splits from the node's ORIGINAL leading `(` (spec bans `UpdateExpression
-// Arguments`) yet a rewritten `+spy()` / `[spy()]` / `/re/...` prefix re-roots the line and fuses in.
-// `NODE` stands for the node region the rewrite replaces with `injected`
-function applySePrefixRewrite(prevSrc, injected) {
-  const source = `${ prevSrc }\nNODE`;
-  const start = prevSrc.length + 1;
+// Arguments`) yet a kept `+spy()` / `[spy()]` / `/re/...` prefix re-roots the line and fuses in.
+// the driver parses a real statement so the prefix elements carry source spans
+function applySePrefixRewrite(prevSrc, stmtSrc, { alsoRemove = null } = {}) {
+  const source = `${ prevSrc }\n${ alsoRemove ? `${ alsoRemove }\n` : '' }${ stmtSrc }`;
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const { program } = parseSync('/p.js', source, { sourceType: 'module' });
+  const node = program.body.at(-1);
   const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  remove.guardInjectionLeftBoundary(start, injected);
-  ms.overwrite(start, source.length, injected);
-  return ms.toString();
+  const rewriter = createTopLevelStatementRewriter(ms);
+  if (alsoRemove) rewriter.remove(program.body.at(-2));
+  const prefix = rewriter.remove(node);
+  rewriter.apply();
+  return { out: ms.toString(), kept: prefix.length };
 }
 
 // `+spy()` re-roots the line on `+`: `i++ + spy()` fuses silently (a valid but wrong single statement)
 check('inject/plus-rooted prefix after postfix ++ injects ;',
-  applySePrefixRewrite('i++', '+spy();'), 'i++\n;+spy();');
+  applySePrefixRewrite('i++', "(+spy(), require)('core-js/x')").out, 'i++\n;+spy();');
 // `[spy()]` -> `i++[spy()]` member-access fusion
 check('inject/bracket-rooted prefix after postfix ++ injects ;',
-  applySePrefixRewrite('i++', '[spy()];'), 'i++\n;[spy()];');
+  applySePrefixRewrite('i++', "([spy()], require)('core-js/x')").out, 'i++\n;[spy()];');
 // `/re/.test(spy())` -> `i++ / re / .test(...)` is a hard parse error
 check('inject/regex-rooted prefix after postfix ++ injects ;',
-  applySePrefixRewrite('i++', '/re/.test(spy());'), 'i++\n;/re/.test(spy());');
+  applySePrefixRewrite('i++', "(/re/.test(spy()), require)('core-js/x')").out, 'i++\n;/re/.test(spy());');
 // `-spy()` -> `i-- - spy()` fusion
 check('inject/minus-rooted prefix after postfix -- injects ;',
-  applySePrefixRewrite('i--', '-spy();'), 'i--\n;-spy();');
+  applySePrefixRewrite('i--', "(-spy(), require)('core-js/x')").out, 'i--\n;-spy();');
 // a `;`-terminated prev is provably safe - no spurious injection
 check('inject/semicolon-terminated prev needs no guard',
-  applySePrefixRewrite('i++;', '+spy();'), 'i++;\n+spy();');
+  applySePrefixRewrite('i++;', "(+spy(), require)('core-js/x')").out, 'i++;\n+spy();');
 // an identifier-rooted prefix ASI-splits from `i++` on its own (`++ spy` is illegal); ID-start chars are
 // not in the hazard set, so no spurious `;`
 check('inject/identifier-rooted prefix needs no guard',
-  applySePrefixRewrite('i++', 'spy();'), 'i++\nspy();');
-
-// a removed sibling sits between the postfix-++ prev and the SE-prefix node. the removal's OWN guard
-// already injects a `;` (it sees the node's original leading `(` hazard), so the rewrite must DEFER to it
-// via the shared injected-`;` ledger instead of stacking a second `;` at the same boundary
-function checkInjectGuardDefersToRemovalSemi() {
-  const imp = "import 'a';";
-  const source = `i++\n${ imp }\n(N)`;
-  const nodeStart = `i++\n${ imp }\n`.length;
+  applySePrefixRewrite('i++', "(spy(), require)('core-js/x')").out, 'i++\nspy();');
+// several prefix elements, at two nesting levels (outer sequence AND callee), each its own statement
+check('inject/every prefix element is kept, in source order',
+  applySePrefixRewrite('i++;', "0, (a(), (b(), require))('core-js/x')").out, 'i++;\na();\nb();');
+// a `{`-led element is parenthesized so it stays an expression statement
+check('inject/object-led element is parenthesized',
+  applySePrefixRewrite('i++;', "({ k: spy() }, require)('core-js/x')").out, 'i++;\n({ k: spy() });');
+// the kept elements keep their SOURCE spans unedited: a later rewrite inside one (the usage sweep
+// polyfills `arr.at(0)` there) must not meet an already-edited chunk
+{
+  const source = "i++;\n(arr.at(0), require)('core-js/x')";
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const { program } = parseSync('/p.js', source, { sourceType: 'module' });
   const ms = new MagicString(source);
-  const remove = createTopLevelStatementRemover(ms);
-  remove({ start: 4, end: 4 + imp.length });
-  remove.guardInjectionLeftBoundary(nodeStart, '+spy();');
-  ms.overwrite(nodeStart, source.length, '+spy();');
-  check('inject/defers to a removal-injected ; in the gap (no double ;)',
-    ms.toString(), 'i++\n;+spy();');
+  const rewriter = createTopLevelStatementRewriter(ms);
+  const [element] = rewriter.remove(program.body[1]);
+  rewriter.apply();
+  let threw = false;
+  try {
+    ms.overwrite(element.start, element.end, '_at(arr).call(arr, 0)');
+  } catch {
+    threw = true;
+  }
+  check('inject/kept element span stays editable', threw, false);
+  check('inject/kept element rewrite composes', ms.toString(), 'i++;\n_at(arr).call(arr, 0);');
 }
-checkInjectGuardDefersToRemovalSemi();
+// a removed sibling sits between the postfix-++ prev and the SE-prefix node, in EITHER request
+// order: the two dispositions share one seam, so exactly one `;` lands - the removal's `;` is no
+// longer a separate edit a later `remove()` can erase
+check('inject/removed left neighbour and kept prefix share one seam',
+  applySePrefixRewrite('i++', "(+spy(), require)('core-js/x')", { alsoRemove: "import 'a';" }).out, 'i++\n;+spy();');
+{
+  const source = "var x = obj\nimport 'a'\n((0, spy)(), require)('core-js/x')";
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const { program } = parseSync('/p.js', source, { sourceType: 'module' });
+  const ms = new MagicString(source);
+  const rewriter = createTopLevelStatementRewriter(ms);
+  // the entry pass hands the batch over in DESCENDING position
+  rewriter.remove(program.body[2]);
+  rewriter.remove(program.body[1]);
+  rewriter.apply();
+  check('inject/descending order: kept prefix after a removed import keeps its ;', ms.toString(), 'var x = obj\n;(0, spy)();');
+}
 
 // --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
 // bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
@@ -6061,6 +6054,316 @@ function checkRefCanonForeignSlots() {
 }
 checkRefCanonForeignSlots();
 
+// --- scope-tracker: the claim window of a drained range ---
+// a block's var slot sits one past its `{`; a drained node that STARTS right there is the block's
+// first statement, and the slot belongs to the enclosing block, not to the range - the window is
+// strict at the low end. a slot one further in (a block nested inside the range) is claimed
+function checkScopedVarClaimWindow() {
+  const code = '{const { at } = [1]; return [2].at(0);}';
+  const injector = { generateLocalRef: () => '_ref', generateDeclaredRef: () => '_ref' };
+  function claimed(scope, start, end) {
+    const tracker = new ScopeTracker({ code, injector });
+    tracker.scope = scope;
+    tracker.genRef();
+    return tracker.consumeRefBindingsInRange(start, end).map(s => s.start).join(',');
+  }
+  check('scope-tracker/slot at the range start belongs to the enclosing block', claimed(1, 1, 20), '');
+  check('scope-tracker/slot inside the range is claimed', claimed(1, 0, 20), '1');
+  check('scope-tracker/slot past the range is not claimed', claimed(25, 0, 20), '');
+}
+checkScopedVarClaimWindow();
+
+// --- import-injector: every generated-name registry follows a rename / drop ---
+// the final canonicalization renames by a map that can be SWAP-shaped (`_ref -> _ref2`,
+// `_ref2 -> _ref`): a registry rebuilt by sequential delete / add funnels into its last target,
+// and a registry left out keeps a spelling the text no longer has. five registries, one rename
+function checkInjectorRegistriesFollowRename() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  const a = inj.generateDeclaredRef();
+  const b = inj.generateDeclaredRef();
+  const u = inj.generateUnusedName();
+  const u2 = inj.generateUnusedName();
+  check('registries/allocation', [a, b, u, u2].join(','), '_ref,_ref2,_unused,_unused2');
+  inj.registerGlobalAlias(a, 'Map', { minted: true });
+  // pretend pre flushed `_ref` already
+  inj.snapshot();
+  inj.canonicalizeRefs(new Map([[a, b], [b, a], [u, u2], [u2, u]]));
+  const snap = inj.snapshot();
+  check('registries/declared refs keep both members', [...snap.refs].sort().join(','), '_ref,_ref2');
+  check('registries/taken names keep both members', ['_ref', '_ref2', '_unused', '_unused2'].every(n => snap.usedNames.has(n)), true);
+  check('registries/sentinels keep both members', [...snap.unusedNames].sort().join(','), '_unused,_unused2');
+  check('registries/generated families follow', [...inj.generatedRefFamilies().get('_ref')].sort().join(','), '_ref,_ref2');
+  check('registries/minted alias follows its ref', inj.getBindingInfo('_ref2')?.hint, 'Map');
+  check('registries/old minted key is gone', inj.getBindingInfo('_ref'), null);
+  // a dropped ref leaves every registry, the minted alias included
+  inj.dropRefs(['_ref2']);
+  const after = inj.snapshot();
+  check('registries/drop leaves declared refs', [...after.refs].join(','), '_ref');
+  check('registries/drop leaves taken names', after.usedNames.has('_ref2'), false);
+  check('registries/drop leaves minted aliases', inj.getBindingInfo('_ref2'), null);
+  check('registries/drop frees the slot for the renumber', inj.isRefSlotForeign('_ref2'), false);
+  // the flushed set follows too: a flush, a swap-shaped rename, a second flush - the renamed
+  // names are the flushed ones under their new spellings, so nothing is declared twice
+  const ms = new MagicString('code();');
+  const inj2 = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
+  const r1 = inj2.generateDeclaredRef();
+  const r2 = inj2.generateDeclaredRef();
+  inj2.flush();
+  inj2.canonicalizeRefs(new Map([[r1, r2], [r2, r1]]));
+  inj2.flush();
+  check('registries/flushed refs follow a rename', (ms.toString().match(/var _ref/g) ?? []).length, 1);
+}
+checkInjectorRegistriesFollowRename();
+
+// the dead-memo strip is applied even when no rename follows it: an early exit on an empty rename
+// map once discarded the strip's own edits AFTER the injector had dropped the ref - `_refN = ...`
+// stayed in the text with no declaration to print. here the nested memo holds the higher slot, so
+// the survivor is already canonical and the map is empty
+function checkRefCanonStripWithoutRename() {
+  const splices = [{ start: 0, end: 9, content: 'null == (_ref = null == (_ref2 = w) ? void 0 : _f(1)) ? void 0 : _g(_ref)' }];
+  const inserts = [{ pos: 0, content: '\n  var _ref, _ref2;' }];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+  injector.dropRefs = names => injector.calls.push({ dropped: [...names].sort() });
+  canonicalizeRefNumbering({ splices, inserts, injector });
+  check('ref-canon/strip applies without a rename', splices[0].content, 'null == (_ref = null == w ? void 0 : _f(1)) ? void 0 : _g(_ref)');
+  check('ref-canon/strip excises the dead declarator', inserts[0].content, '\n  var _ref;');
+  check('ref-canon/strip drops the ref from the injector', JSON.stringify(injector.calls[0]), '{"dropped":["_ref2"]}');
+}
+checkRefCanonStripWithoutRename();
+
+// the unwrapped memo value keeps its group only when it needs one: an assignment (`w = root`) does,
+// a member chain or a call does not - the AST emitter prints those bare
+function checkRefCanonStripGroup() {
+  function run(test) {
+    const splices = [{ start: 0, end: 9, content: `null == (_ref = null == (_ref2 = ${ test }) ? void 0 : _f(1)) ? void 0 : _g(_ref)` }];
+    const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+    injector.dropRefs = () => null;
+    canonicalizeRefNumbering({ splices, inserts: [], injector });
+    return splices[0].content;
+  }
+  check('ref-canon/strip keeps the group of an assignment value', run('w = g.window'), 'null == (_ref = null == (w = g.window) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
+  check('ref-canon/strip drops the group of a member chain', run('g.window'), 'null == (_ref = null == g.window ? void 0 : _f(1)) ? void 0 : _g(_ref)');
+  check('ref-canon/strip drops the group of a call', run('h(x)'), 'null == (_ref = null == h(x) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
+  check('ref-canon/strip keeps the group of an operator value', run('a || b'), 'null == (_ref = null == (a || b) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
+}
+checkRefCanonStripGroup();
+
+// a declaration list losing SEVERAL declarators is rebuilt once, so neighbouring excisions cannot
+// overlap; a list losing all of them loses the whole statement. all three keywords are lists
+function checkRefCanonDeclarationExcision() {
+  function run(declaration) {
+    const splices = [
+      { start: 10, end: 20, content: 'null == (_ref3 = null == (_ref = w) ? void 0 : _f(1)) ? void 0 : _g(_ref3)' },
+      { start: 30, end: 40, content: 'null == (_ref4 = null == (_ref2 = v) ? void 0 : _f(2)) ? void 0 : _g(_ref4)' },
+    ];
+    const inserts = [{ pos: 0, content: declaration }];
+    const injector = makeCanonInjector([['_ref', ['_ref', '_ref2', '_ref3', '_ref4']]]);
+    injector.dropRefs = names => injector.calls.push({ dropped: [...names] });
+    canonicalizeRefNumbering({ splices, inserts, injector });
+    return inserts[0].content;
+  }
+  check('ref-canon/adjacent dead declarators leave a clean list', run('\n  var _ref, _ref2, _ref3, _ref4;'), '\n  var _ref, _ref2;');
+  check('ref-canon/dead tail run takes the separator before it', run('\n  var _ref3, _ref4, _ref, _ref2;'), '\n  var _ref, _ref2;');
+  check('ref-canon/dead declarators around a survivor', run('\n  var _ref, _ref3, _ref2;\n  var _ref4;'), '\n  var _ref;\n  var _ref2;');
+  check('ref-canon/a list losing every declarator loses the statement', run('\n  var _ref, _ref2;\n  var _ref3, _ref4;'), '\n  var _ref, _ref2;');
+  check('ref-canon/let and const lists are lists too', run('\n  let _ref, _ref2;\n  const _ref3 = 1, _ref4 = 2;'), '\n  const _ref = 1, _ref2 = 2;');
+}
+checkRefCanonDeclarationExcision();
+
+// a declarator that carries an INITIALIZER keeps its ref alive whatever the single write looks
+// like (the AST emitter's rule - an init-bearing declarator is a survivor): no strip, no excision
+function checkRefCanonInitSurvives() {
+  const splices = [{ start: 10, end: 20, content: 'null == (_ref2 = null == (_ref = w) ? void 0 : _f(1)) ? void 0 : _g(_ref2)' }];
+  const inserts = [{ pos: 0, content: '\n  var _ref = seed(), _ref2;' }];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+  let dropped = null;
+  injector.dropRefs = names => { dropped = [...names]; };
+  canonicalizeRefNumbering({ splices, inserts, injector });
+  check('ref-canon/init-bearing declarator is not stripped', splices[0].content,
+    'null == (_ref = null == (_ref2 = w) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
+  check('ref-canon/init-bearing declarator is not excised', inserts[0].content, '\n  var _ref2 = seed(), _ref;');
+  check('ref-canon/init-bearing declarator is not dropped', dropped, null);
+}
+checkRefCanonInitSurvives();
+
+// a declarator after an INITIALIZED neighbour is still a declarator (`const from = x, _unused = y`):
+// it never ranks, so the canonical slot goes to the names the text actually reads first - the
+// AST emitter numbers the same way. a back-scan that expected `name ,` pairs stopped at the `=`
+function checkRefCanonDeclaratorAfterInit() {
+  const splices = [{ start: 0, end: 9, content: 'const from = _Array$from, _unused = (eff(), g); use(_unused2)' }];
+  const injector = makeCanonInjector([['_unused', ['_unused', '_unused2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/declarator after an initialized neighbour ranks last', splices[0].content,
+    'const from = _Array$from, _unused2 = (eff(), g); use(_unused)');
+}
+checkRefCanonDeclaratorAfterInit();
+
+// spellings that are not our binding, inside a user slice the emitted text carries: a private name
+// (`#_ref2` is not `_ref2`), a label with its `break` / `continue`. renaming them breaks the code
+// they belong to - the class no longer declares the private name, the label no longer exists
+function checkRefCanonNonReferenceSpellings() {
+  const splices = [{ start: 0, end: 9, content: 'h(_ref2, this.#_ref2); _ref2: for (;;) { break _ref2; continue _ref2; } use(_ref)' }];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/private name and label spellings stay', splices[0].content,
+    'h(_ref, this.#_ref2); _ref2: for (;;) { break _ref2; continue _ref2; } use(_ref2)');
+}
+checkRefCanonNonReferenceSpellings();
+
+// member KEYS inside a user slice: a class field / method / accessor key, an object-literal
+// method key, an enum member, an interface member - all source-text names of the member, not our
+// binding; the SAME spelling in a method body, an initializer or a computed key is a reference
+function checkRefCanonMemberKeys() {
+  const splices = [{ start: 0, end: 9, content: [
+    'class K extends B { _ref2 = _ref2; static _ref2() {} get _ref2() { return this._ref2 + _ref2; } [_ref2] = 1; static { use(_ref2); } }',
+    'const o = { _ref2() {}, async _ref2() {}, get _ref2() {}, _ref2: 1, [_ref2]: 2, k: _ref2 };',
+    'enum E { _ref2, _ref3 = _ref2 } interface I { _ref2: T; _ref2(): void }',
+    'use(_ref)',
+  ].join(' ') }];
+  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+  canonicalizeRefNumbering({ splices, inserts: [], injector });
+  check('ref-canon/member keys stay, references rename', splices[0].content, [
+    'class K extends B { _ref2 = _ref; static _ref2() {} get _ref2() { return this._ref2 + _ref; } [_ref] = 1; static { use(_ref); } }',
+    'const o = { _ref2() {}, async _ref2() {}, get _ref2() {}, _ref2: 1, [_ref]: 2, k: _ref };',
+    'enum E { _ref2, _ref3 = _ref } interface I { _ref2: T; _ref2(): void }',
+    'use(_ref2)',
+  ].join(' '));
+}
+checkRefCanonMemberKeys();
+
+// JSX text inside emitted content (a `.jsx` file's slice) is text: the apostrophe in `Don't` does
+// not open a string that hides the refs after it. lexed in the file's dialect
+function checkRefCanonJsxText() {
+  const previous = setLexDialect({ jsx: true });
+  try {
+    const splices = [{ start: 0, end: 9, content: "_f(_ref2 = g(<li>Don't</li>)).call(_ref2, <a title=\"it's\">x</a>); use(_ref)" }];
+    const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
+    canonicalizeRefNumbering({ splices, inserts: [], injector });
+    check('ref-canon/jsx text is not a string opener', splices[0].content,
+      "_f(_ref = g(<li>Don't</li>)).call(_ref, <a title=\"it's\">x</a>); use(_ref2)");
+  } finally {
+    setLexDialect(previous);
+  }
+}
+checkRefCanonJsxText();
+
+// --- text-scan: the tokenizer ---
+// the region map every lexer-aware walk reads. each case states the ONE classification that a
+// previous-token heuristic gets wrong and this one gets right
+function regionsOf(src, dialect = { jsx: false, script: false }) {
+  const previous = setLexDialect(dialect);
+  try {
+    return literalRegionsOf(src).map(r => `${ r.kind }:${ src.slice(r.start, r.end) }`).join(' | ');
+  } finally {
+    setLexDialect(previous);
+  }
+}
+function tokensOf(src, dialect = { jsx: false, script: false }) {
+  const out = [];
+  scanTokens(src, (type, start, end) => {
+    if (type !== 'ws' && type !== 'lt') out.push(`${ type }:${ src.slice(start, end) }`);
+  }, dialect);
+  return out.join(' ');
+}
+// a head paren's closer (`if` / `while` / `for` / `with`) and a block's `}` end a HEAD, not a value:
+// the `/` after them opens a regex, whose quote is then regex text - not a string swallowing the line
+check('lexer/regex after an if head', regionsOf("if (a) /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
+check('lexer/regex after a while head', regionsOf("while (a) /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
+check('lexer/regex after a function body', regionsOf("function f() {} /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
+check('lexer/regex after an async function declaration', regionsOf("async function f() {} /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
+check('lexer/regex after an exported default function', regionsOf("export default function () {} /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
+// a function EXPRESSION's body and an arrow's body end a VALUE - the `/` after them divides
+check('lexer/division after a function expression body', regionsOf("x = function () {} / 2 / 'x'"), "string:'x'");
+check('lexer/division after an async function expression body', regionsOf("x = async function named() {} / 2 / 'x'"), "string:'x'");
+check('lexer/division after an arrow body', regionsOf("x = () => {} / 2 / 'x'"), "string:'x'");
+check('lexer/division after a function expression argument', regionsOf("f(function () {} / 2, 'x')"), "string:'x'");
+// accepted heuristic limits, pinned so a drift is a decision: a label's `:` reads as a ternary /
+// case `:` (an object literal follows those), so a labeled block's `}` reads as a value; a `>`
+// reads as a comparison end, so a `/` after `y<z>` reads as a regex - both match js-tokens
+check('lexer/accepted: labeled block reads as an object', regionsOf("label: { } /re'/; x = 'y'"), "string:'/; x = ' | string:'");
+check('lexer/accepted: comparison end reads as regex position', regionsOf("x = y<z> /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
+// class bodies carry the same decl-vs-expression split as function bodies: a declaration's `}`
+// ends a statement (a `/` after it is a regex), an expression's ends a value (it divides) - and
+// an `extends` clause's operand between the keyword and the body does not claim the body's `{`
+check('lexer/regex after a class declaration body', regionsOf("class B {} /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
+check('lexer/regex after a class declaration with extends', regionsOf("class B extends mix(A) {} /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
+check('lexer/division after a class expression body', regionsOf("x = class {} / 2 / 'x'"), "string:'x'");
+check('lexer/division after a named class expression with extends', regionsOf("x = class B extends A {} / 2 / 'x'"), "string:'x'");
+check('lexer/class member keys lex inside the body', regionsOf("x = class { m() { return 're' } } / 2 / 'x'"), "string:'re' | string:'x'");
+// a class in an `extends` operand opens ITS body first - the pending bodies stack
+check('lexer/division after a class expression extending a class', regionsOf("x = class extends class B {} {} / 2 / 'x'"), "string:'x'");
+check('lexer/regex after a class declaration extending a class', regionsOf("class A extends class B {} {} /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
+// the tokenizer TILES its input: every emitted token starts where the previous ended and the last
+// ends at the input's end - no gaps, no overlaps, on valid and malformed fragments alike (the
+// region map and every offset-consumer build on this)
+{
+  const fragments = ['\\', '"a', '`x${', '/re', '#!', '#', '@', '\uD800', 'a?.', '<', '<!--', '${}', '}',
+    // eslint-disable-next-line no-template-curly-in-string -- template-hole SPELLINGS are the fragments under test
+    'x=/', '`${`${', 'class', 'for await (', "x = <a>don't</a>; `t${ {k:1} }`"];
+  let tiled = true;
+  for (const frag of fragments) {
+    let cursor = 0;
+    scanTokens(frag, (type, start, end) => {
+      if (start !== cursor || end < start) tiled = false;
+      cursor = end;
+    }, { jsx: true, script: false });
+    if (cursor !== frag.length) tiled = false;
+  }
+  check('lexer/tokens tile the input', tiled, true);
+}
+// the region memo keys on the dialect too: the SAME string re-asked under another dialect re-lexes
+{
+  const src = "x = <a>don't</a>";
+  const asJs = regionsOf(src);
+  const asJsx = regionsOf(src, { jsx: true });
+  check('lexer/memo keyed by dialect', asJs !== asJsx && asJsx.includes('jsx-text'), true);
+}
+check('lexer/regex after a block', regionsOf("if (a) { } /re'/.test(b)"), "regex:/re'/");
+check('lexer/regex after else', regionsOf("if (a) b; else /re'/.test(c)"), "regex:/re'/");
+check('lexer/regex after return and a line break', regionsOf("return\n/re'/"), "regex:/re'/");
+// a value end - a call's `)`, an object literal's `}`, a postfix `++`, a TS non-null `!`, a
+// trailing-dot number, a name, a string - makes the `/` a division
+check('lexer/division after a call', regionsOf("f(a) / 2 / 'x'"), "string:'x'");
+check('lexer/division after an object literal', regionsOf("x = {} / 2 / 'x'"), "string:'x'");
+check('lexer/division after postfix ++', regionsOf("i++ / 2 / 'x'"), "string:'x'");
+check('lexer/division after TS non-null', regionsOf("a! / 2 / 'x'"), "string:'x'");
+check('lexer/division after a trailing-dot number', regionsOf("5. / 2 / 'x'"), "string:'x'");
+check('lexer/division after a property named like a keyword', regionsOf("a.return / 2 / 'x'"), "string:'x'");
+// an unterminated regex candidate is a division operator after all
+check('lexer/unterminated regex candidate is division', regionsOf("a = /re\n'x'"), "string:'x'");
+// the tokens the old character walk could not see: a hashbang, a private name (NOT an identifier
+// occurrence of `_ref`), a line separator inside a string, HTML-like comments of a script
+check('lexer/hashbang is a comment', regionsOf("#!/usr/bin/env node\nx = 'y'"), "comment:#!/usr/bin/env node | string:'y'");
+check('lexer/private name is its own token', tokensOf('this.#_ref / 2'), 'ident:this punct:. private:#_ref punct:/ number:2');
+check('lexer/LS inside a string does not end it', regionsOf("'a\u2028b' / 2 / 'x'"), "string:'a\u2028b' | string:'x'");
+check('lexer/html comments in a script', regionsOf('<!-- c\nx = 1\n--> c', { script: true }), 'comment:<!-- c | comment:--> c');
+check('lexer/html comments are operators in a module', regionsOf('<!-- c\nx = 1\n--> c'), '');
+// template chunks around holes; the hole's code is code (its `//` is a comment, its `}` closes nothing)
+// eslint-disable-next-line no-template-curly-in-string -- the template-hole SPELLING inside a plain string is the scan subject
+check('lexer/template chunks around a hole', regionsOf('`a${ b // c\n }d${ `e` }f`'), 'template:`a${ | comment:// c | template:}d${ | template:`e` | template:}f`');
+// `?.` is the optional-chaining punctuator only without a digit after it
+check('lexer/optional chain vs conditional over .5', tokensOf('a?.b; c?.5:1'), 'ident:a punct:?. ident:b punct:; ident:c punct:? number:.5 punct:: number:1');
+check('lexer/isOptionalChainAt', [isOptionalChainAt('a?.b', 1), isOptionalChainAt('c?.5:1', 1), isOptionalChainAt('a?.[0]', 1)].join(','), 'true,false,true');
+// JSX, in the dialect of the file only: text and attribute strings are regions, a generic arrow's
+// type parameter list is not a tag, and a comparison is not a tag
+check('lexer/jsx text and attribute string', regionsOf('x = <a title="it\'s">Don\'t {f("q")}</a>', { jsx: true }), 'jsx-string:"it\'s" | jsx-text:Don\'t  | string:"q"');
+check('lexer/jsx off by dialect', regionsOf('x = <a>don\'t</a>; y = \'z\''), 'string:\'t</a>; y = \' | string:\'');
+check('lexer/tsx generic arrow is not a tag', regionsOf("const f = <T,>(x: T) => x; y = 'z'", { jsx: true }), "string:'z'");
+check('lexer/tsx constrained generic arrow is not a tag', regionsOf("const f = <T extends U>(x: T) => x; y = 'z'", { jsx: true }), "string:'z'");
+check('lexer/type arguments after ?. are not a tag', regionsOf("foo?.<Map<number>>(); y = 'z'", { jsx: true }), "string:'z'");
+check('lexer/comparison is not a tag', regionsOf("x = a <b> c; y = 'z'", { jsx: true }), "string:'z'");
+check('lexer/jsx fragment', regionsOf("x = <>a'b</>", { jsx: true }), "jsx-text:a'b");
+// the backward significant-char scan reads JSX text as a value (its last char), a comment as nothing
+{
+  const previous = setLexDialect({ jsx: true });
+  try {
+    const src = "x = <li>Don't</li>\n(y)";
+    check('lexer/prevSignificantPos over jsx', src[prevSignificantPos(src, src.indexOf('(y)'))], '>');
+  } finally {
+    setLexDialect(previous);
+  }
+}
+
 // --- file strictness: which id / body combination makes the Program a script ---
 // Annex-B block-function hoisting exists only in a script, so the strictness answer decides whether
 // a block-nested `function Promise(){}` shadows the global. the answer has to be the SAME one that
@@ -6278,6 +6581,18 @@ function checkRetransformStability() {
       'export const { at, flat, ...rest } = [1, [2]];\nexport const r = [at, flat, rest];\n'],
     ['rest sentinel beside a plain sibling',
       'export const { at, ...rest } = [1, 2];\nexport const { length } = [3];\nexport const r = [at, rest, length];\n'],
+    // every sentinel SHAPE the rebuild prints - the origin test reads our extraction beside the
+    // sentinel, so each shape has to be recognised: a nested proxy key (the extraction hangs off the
+    // NAMESPACE the key names), a symbol iterator key (read through get-iterator-method), a `for`
+    // head (the extraction is a sibling declarator), a catch param (relocated into the body), an
+    // assignment cascade (the extraction follows the pattern), an effectful computed key
+    ['nested proxy rest sentinel', 'export const { Array: { from }, ...rest } = globalThis;\nexport const r = [from, rest];\n'],
+    ['symbol iterator rest sentinel', 'const arr = [1];\nexport const { [Symbol.iterator]: it, ...rest } = arr;\nexport const r = [it, rest];\n'],
+    ['for-head rest sentinel', 'export let r;\nfor (const { from, ...rest } = Array; !r;) r = [from, rest];\n'],
+    ['catch rest sentinel', 'export let r;\ntry { throw [1]; } catch ({ at, ...rest }) { r = [at, rest]; }\n'],
+    ['assignment cascade rest sentinel', 'let fa;\nlet rest;\n({ Array: { fromAsync: fa }, ...rest } = globalThis);\nexport const r = [fa, rest];\n'],
+    ['effectful computed key rest sentinel', 'let n = 0;\nconst arr = [1];\nexport const { [(n++, "at")]: a, ...rest } = arr;\nexport const r = [a, rest, n];\n'],
+    ['for-await-head rest sentinel', 'export async function g(iter) {\n  for await (const { at, ...rest } of iter) return [at, rest];\n}\n'],
   ]) {
     let code = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
     const first = code;
