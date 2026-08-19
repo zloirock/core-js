@@ -1164,6 +1164,22 @@ export default class TransformQueue {
   // true when any already-queued transform sits fully within [start, end]. used before
   // appending a raw source tail to a synthetic body, so a nested transform inside that tail
   // is not duplicated (the tail would carry both the raw text and the composed rewrite)
+  // the MIRROR of `ownedWithoutSlot`, asked by the channel about to claim an OUTER span: does the
+  // queue already hold a rewrite inside it that this content would orphan? an inner entry survives
+  // only inside a range the render re-emits VERBATIM - anywhere else it has no needle to compose
+  // into, which `apply` reports as a build error rather than dropping it silently. zero-length
+  // inserts are not the question (they relocate through `drainInsertsInRange`), and an entry at
+  // exactly this range is `hasRange`'s
+  orphansTransformWithin(start, end, keptRanges = null) {
+    for (const entry of this.#transforms) {
+      const eStart = entryLogicalStart(entry);
+      const eEnd = entryLogicalEnd(entry);
+      if (eEnd === eStart || eStart < start || eEnd > end || (eStart === start && eEnd === end)) continue;
+      if ((keptRanges ?? []).every(range => eStart < range.start || eEnd > range.end)) return true;
+    }
+    return false;
+  }
+
   hasTransformWithin(start, end) {
     for (const entry of this.#transforms) {
       if (entryLogicalWithin(entry, start, end)) return true;
@@ -1796,6 +1812,13 @@ export default class TransformQueue {
       // puts the enclosing range first, so the common nested-chain hit resolves in O(1)
       if (rangesEnclose(verbatimAbsorbing, inner.start, innerEndLogical)) continue;
       const needle = this.#code.slice(inner.start, innerEndLogical);
+      // an inner that lies INSIDE a slot the outer REWROTE has no source left to compose into: the
+      // slot's rendered text stands where its own source did. the ordinal arm below already models
+      // the halfway case (a slot re-emitting SOME of the needles it swallowed); this is the same
+      // fact for one that re-emits none, and without it a receiver claim queued before the flatten
+      // turned an ordinary `const [{ of }] = [globalThis.self.Array]` into a build error
+      if ((rewriteHint?.rewrittenRanges ?? []).some(range => range.start <= inner.start
+        && range.end >= innerEndLogical && !hasStandaloneOccurrence(range.text, needle))) continue;
       // split inners expose their prefix-half text (the polyfill-helper invocation
       // `_polyfill(receiver)` emitted by addInstanceTransform). compose hands this to
       // substituteInner so the rootRaw-alone substitution path can swap in just the

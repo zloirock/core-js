@@ -24,7 +24,7 @@ export function writes() {
   } = {
     k: 6
   });
-  delete ((null == _globalThis.window ? void 0 : _self)?.writeBox).n;
+  delete _globalThis.writeBox.n;
   for ((null == _globalThis.window ? void 0 : _self.writeBox).n of [1]) break;
   return null == _globalThis.window ? void 0 : _self.writeBox.n;
 }
@@ -37,7 +37,7 @@ export function layeredWrites() {
   ('x', null == _globalThis.window ? void 0 : _self.writeBox).n += 3;
   ('x', null == (held = _globalThis).window ? void 0 : _self.writeBox).n = 5;
   [('x', null == _globalThis.window ? void 0 : _self.writeBox).n] = [6];
-  delete ('x', null == _globalThis.window ? void 0 : _self.writeBox).n;
+  delete ('x', _globalThis.writeBox).n;
   ('x', null == _globalThis.window ? void 0 : _self.writeBox).list = null == (_ref = null == _globalThis.window ? void 0 : _self.writeBox.list) ? void 0 : _at(_ref).call(_ref, 0);
   return held;
 }

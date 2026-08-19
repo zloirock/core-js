@@ -37,7 +37,7 @@ export const sealedNavEndingAtClaim = ((null == _globalThis.window ? void 0 : _P
 export function writeHost(v) {
   (null == _self.window ? void 0 : _self).Box = v;
 }
-export const deleteHost = () => delete (null == _self.window ? void 0 : _self).Box;
+export const deleteHost = () => delete _globalThis.Box;
 
 // a leaf core-js ponyfills no constructor for has no binding to stand in as the always-defined
 // alternate, so the guard reads off the global's own name - the claim beside it still polyfills

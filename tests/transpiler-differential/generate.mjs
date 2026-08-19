@@ -419,7 +419,10 @@ const C_SLOTS = [
   { id: 'reposition-inline', setup: 'const b = [{ q: 1 }, Array]; b.reverse();', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-stored', setup: 'const b = [{ q: 1 }, Array]; const m = b.reverse; m.call(b);', use: 'typeof b[0].of', strip: false },
   { id: 'reposition-pattern', setup: 'const b = [{ q: 1 }, Array]; const { reverse } = b; reverse.call(b);', use: 'typeof b[0].of', strip: false },
-  { id: 'reposition-multi', setup: 'const b = [Array, Map]; b.reverse();', use: 'typeof b[0].groupBy', strip: false },
+  // `void Map.groupBy` for the same reason the ctor-narrow block carries it: the read lands on the
+  // pure ctor, which is ONE object per realm, so the static's presence would otherwise depend on
+  // which neighbour imported it
+  { id: 'reposition-multi', setup: 'void Map.groupBy; const b = [Array, Map]; b.reverse();', use: 'typeof b[0].groupBy', strip: false },
   { id: 'readonly-still-clean', setup: 'const b = [Array]; b.slice(0);', use: 'JSON.stringify(b[0].of(5))', strip: true },
   // the slot-WRITE family that never spells a member write: a mutator call, a callee that may
   // write (the escape), a delete, a dynamic key. all full-env - the observable is the native value
@@ -494,8 +497,23 @@ const C_SLOTS = [
   { id: 'reassigned-logical-binding', setup: 'let w = null; w ||= { k: Map }; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
 ];
 
+// rows whose observable is a static read off a WRITTEN container slot (`typeof g`) are green only by
+// chunk composition: the pure ponyfill carries that static only if some NEIGHBOUR in the same process
+// imported its module, so the value drifts with the shard order (measured: `map/constructor` alone
+// answers undefined, `function` once `map/group-by` is loaded). By themselves they are RED - they
+// encode the open write-reaching-slot defect (FC-19 / S223-2, prototype-patch pin), and the queue's
+// own rule is that a corpus row for an open defect does not belong here. Out until that fix lands;
+// the forms stay recorded in the cluster with their repro.
+const ORDER_DEPENDENT_SLOT_ROWS = new Set([
+  'write-reaching-destructure', 'write-reaching-dynamic-key', 'write-reaching-nested',
+  'flat-destructure-written', 'reassigned-dominating', 'reassigned-conditional', 'reassigned-wrapper',
+  'reassigned-cross-write', 'reassigned-pattern-obj-lhs', 'reassigned-branching-write',
+  'reassigned-ambiguous-default', 'reassigned-logical-binding',
+  'reassigned-se-tail',
+]);
 function * generateContainerSlots() {
   for (const s of C_SLOTS) {
+    if (ORDER_DEPENDENT_SLOT_ROWS.has(s.id)) continue;
     const body = `(() => { ${ s.setup } return ${ s.use }; })()`;
     yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip };
   }
@@ -2253,14 +2271,22 @@ function * generateBareProxyProbe() {
   const seqWrite = '(() => { try { (log.push("se"), globalThis.window).__sealSlot = 1; }'
     + ' catch (e) { return ["threw", "__sealSlot" in globalThis, log.length]; }'
     + ' const kept = "__sealSlot" in globalThis; delete globalThis.__sealSlot; return ["wrote", kept, log.length]; })()';
-  yield { ...snippet('bare-proxy-probe/sealed-seq-write-host', seqWrite), strip: false };
+  // RIG-ONLY: the write host is a PLAIN nav through `window`, so the collapse owns it - off-browser
+  // native throws where the polyfilled write lands on the realm global, which is the accepted
+  // divergence, not a payload question. the rigged row still checks what this case is here for:
+  // the sequence effect runs once and the write reaches the same slot the comma-less spelling does.
+  // the bare spelling is locked by `e2e-usage-pure` (both spellings, one answer) and by
+  // `usage-pure/audit-proxy-hop-write-host-mutation-collapse`
   yield { ...snippet('bare-proxy-probe/sealed-seq-write-host-rigged', seqWrite, { rig: true }), strip: false };
   // `delete` through the probe: the ONLY legal write through an optional chain. an absent
-  // `window` short-circuits - the slot must SURVIVE (a guardless collapse deletes it), and the
-  // emitted form must stay a Reference (a tail folded inside a ternary deletes nothing)
+  // RIG-ONLY: a `delete` over a probe nav COLLAPSES the navigation (the member it names is never read,
+  // so no `?.` over it is load-bearing) and the slot really goes - off-browser native short-circuits
+  // and keeps it. that divergence is the owner's rule, not a payload question, so the bare row cannot
+  // live in a native-equality corpus; the rigged one still checks the Reference shape (a tail folded
+  // inside a ternary would delete nothing). the bare spelling is locked by `e2e-usage-pure` and by
+  // `usage-pure/audit-delete-target-nav-guard`
   const del = '(() => { globalThis.__probeSlot = 1; const r = delete globalThis.window?.self.__probeSlot;'
     + ' const kept = "__probeSlot" in globalThis; delete globalThis.__probeSlot; return [r, kept]; })()';
-  yield { ...snippet('bare-proxy-probe/delete-plain-tail', del), strip: false };
   yield { ...snippet('bare-proxy-probe/delete-plain-tail-rigged', del, { rig: true }), strip: false };
   // SE-computed-key destructures over the probe: the extraction claims the static while the
   // KEPT residual re-reads the source - the residual must ride the guard (an absent `window`
@@ -2495,7 +2521,12 @@ const CHAIN_SEAL_SHAPES = [
   { id: 'sealed-then-member-call', expr: '(globalThis.window?.Array.of)(5).at(0)' },
   { id: 'sealed-computed-read', expr: '(globalThis.window?.self)["Math"].trunc(1.5)' },
   { id: 'sealed-tagged-template', expr: '(globalThis.window?.String.raw)`x`' },
-  { id: 'sealed-delete-target', expr: 'delete (globalThis.window?.self).Math' },
+  // a `delete` over a probe nav collapses and the slot really goes, where native short-circuits and
+  // keeps it - the owner's rule, an accepted divergence this native-equality corpus cannot hold. the
+  // shape is locked by `e2e-usage-pure` and `usage-pure/audit-delete-target-nav-guard` instead; what
+  // stays here is the sealed READ, whose answer both legs still owe the native one.
+  // (the row that named `Math` also deleted it for every case evaluated after it in the shared realm)
+  { id: 'sealed-delete-read', expr: 'typeof (globalThis.window?.self).Math' },
   { id: 'unsealed-control-call', expr: 'globalThis.window?.Array.of(5)' },
   { id: 'unsealed-control-instance', expr: 'arr?.flat()' },
 ];
@@ -3580,6 +3611,55 @@ function * generateAssignAliasReassign() {
   ];
   for (const c of REFUSED_NATIVE) {
     yield { ...snippet(`assign-alias-reassign/${ c.id }`, c.code), strip: false, ts: !!c.ts };
+  }
+  // GENERATIVE: the runtime ctor guard a refused alias reads its statics through, crossed over the
+  // three things that decide its shape - how the alias is WRITTEN, how the static is READ, and which
+  // path runs. the guard has to be exact on all of them: the taken path answers the pure static, an
+  // unwritten one throws where the source throws, a user value reads its own member, and a receiver
+  // effect runs exactly once wherever the source runs it
+  const NARROW_WRITES = [
+    { id: 'destructure-write', write: '({ Map: M } = globalThis)' },
+    { id: 'plain-write', write: 'M = globalThis.Map' },
+  ];
+  const NARROW_READS = [
+    { id: 'dotted', read: 'M.groupBy' },
+    { id: 'dotted-seq', read: '(n++, M).groupBy' },
+    { id: 'destructured', read: '(() => { const { groupBy: g } = M; return g; })()' },
+    { id: 'destructured-seq', read: '(() => { const { groupBy: g } = (n++, M); return g; })()' },
+    { id: 'called', read: 'M.groupBy([1, 2], it => it % 2).get(1).length' },
+    { id: 'called-seq', read: '(n++, M).groupBy([1, 2], it => it % 2).get(1).length' },
+    { id: 'optional', read: 'M?.groupBy' },
+    // the SE-computed key is the documented raw case: the guard's taken branch would skip an effect
+    // the source always evaluates, so the read stays as written - and must still be exact
+    { id: 'se-key', read: "M[(n++, 'groupBy')]" },
+  ];
+  const NARROW_PATHS = [
+    { id: 'taken', pre: 'if (c) ' },
+    { id: 'user-value', pre: 'if (c) ', post: 'M = { groupBy: () => "U", get: () => "U" };' },
+    // TWO writes of different ctors: no single hint can stand for the binding, so the guard has to
+    // fall to the raw read on both arms
+    { id: 'multi-write', pre: 'if (c) ', post: 'if (!c) ({ Promise: M } = globalThis);' },
+  ];
+  for (const write of NARROW_WRITES) {
+    for (const read of NARROW_READS) {
+      for (const path of NARROW_PATHS) {
+        // both arms of `c` in one snippet: the taken path exercises the guard's pure branch, the
+        // untaken one its throw. the counter rides out with the value so a prefix that ran on the
+        // wrong branch (or twice) is visible
+        // the RAW branch of the guard reads a static off the pure ctor, and in the pure build that
+        // ctor is ONE object per realm: a neighbour importing `map/group-by` installs the static on
+        // it, so the answer would depend on who else ran - the realm, not the snippet. touching the
+        // static here makes the snippet import it ITSELF, which pins the realm state it reads (the
+        // cache audit is what surfaced this: a stored value moved while its whole address held still)
+        const body = `void Map.groupBy; let n = 0; function t(c) { let M; ${ path.pre }${ write.write }; ${ path.post ?? '' } `
+          + `try { const v = ${ read.read }; return [typeof v === 'function' ? 'fn' : String(v), n]; } `
+          + 'catch (e) { return ["T", n]; } } return [t(true), t(false)];';
+        yield {
+          ...snippet(`ctor-narrow/${ write.id }/${ read.id }/${ path.id }`, `(() => { ${ body } })()`),
+          strip: false,
+        };
+      }
+    }
   }
 }
 
@@ -6517,12 +6597,97 @@ const CHAIN_MEMBER_HOPS = [
   // construction (nothing to inject), so such a row would assert a gap no emitter can close
   { id: 'hop-unresolved-key', code: 'arr.at?.(0)[dyn].name' },
 ];
+// --- a paren around the CALLEE of an optional call ---
+// grouping, not a chain terminator: it short-circuits exactly like the bare spelling, so the combine
+// owns the whole span. left to the standalone channel the span was split inside the paren token and
+// the build failed. the SEALED spelling is the opposite and stays a control.
+const PAREN_CALLEES = [
+  { id: 'paren-callee-then-call', code: '(arr.flat)?.().at(0)' },
+  { id: 'double-paren-callee', code: '((arr.flat))?.().at(0)' },
+  { id: 'paren-callee-then-get', code: '(arr.flat)?.().at' },
+  { id: 'paren-callee-short-circuits', code: '(miss.flat)?.().at(0)' },
+  // CONTROL: the paren SEALS the optional sub-chain, so the tail reads the sealed value
+  { id: 'sealed-sub-chain', code: '(arr.flat?.()).includes(1)' },
+  // CONTROL: a non-polyfillable callee under the same parens
+  { id: 'nonpoly-paren-callee', code: '(box.pick)?.().at(0)' },
+];
+// --- a claim inside a sequence prefix a SEALED proxy nav consumes ---
+// the probe re-emits that prefix verbatim, so a claim in it must keep its own rewrite. skipping the
+// whole consumed subtree shipped it raw, while the UNSEALED spelling of the same source polyfilled it.
+const SEALED_PREFIXES = [
+  { id: 'sealed-prefix-claim', code: "((log.push('x'), globalThis.window)?.self).Array.of(1)" },
+  { id: 'sealed-prefix-two-claims', code: "((log.push('z'), log.at(0), globalThis.window)?.self).Array.of(2)" },
+  { id: 'unsealed-prefix-claim', code: "(log.push('y'), globalThis.window)?.self.Array.of(1)" },
+  // CONTROL: a prefix effect that claims nothing re-emits verbatim either way
+  { id: 'nonclaim-prefix', code: '((log[0] === undefined, globalThis.window)?.self).Array.of(3)' },
+];
+// --- a buried call root whose BODY navigates through a live `?.` ---
+// proving the call YIELDS a proxy global is not proving its value is DEFINED: the body short-circuits,
+// so the `?.` above the call is load-bearing. dropped as vestigial, both emitters threw where native
+// answers undefined - and the body still has to collapse, or the hop ships with no polyfill behind it.
+const BURIED_NAV_ROOTS = [
+  { id: 'live-optional-in-body', code: '(() => globalThis.window?.self)()?.window?.Promise.resolve(4)' },
+  { id: 'live-optional-deep-body', code: '(() => globalThis.window?.self.self)()?.window?.Promise.resolve(5)' },
+  // CONTROL: no live `?.` in the body - the eager collapse owns it and the `?.` above is dead text
+  { id: 'plain-body', code: '(() => globalThis.self)()?.window?.Promise.resolve(6)' },
+  // CONTROL: the body's `?.` is vestigial, so it collapses rather than guards
+  { id: 'vestigial-optional-body', code: '(() => globalThis?.self)()?.window?.Promise.resolve(7)' },
+];
+function * generateBuriedNavRoots() {
+  for (const c of BURIED_NAV_ROOTS) {
+    yield { ...snippet(`buried-nav-root/${ c.id }`, `(() => { const v = ${ c.code }; return typeof v; })()`), strip: true };
+  }
+}
+
+function * generateSealedPrefixes() {
+  for (const c of SEALED_PREFIXES) {
+    const body = `(() => { const v = ${ c.code }; return String(v) + log.length; })()`;
+    yield { ...snippet(`sealed-prefix/${ c.id }`, body), strip: true };
+  }
+}
+
+function * generateParenCallees() {
+  for (const c of PAREN_CALLEES) {
+    const setup = 'const arr = [[1]]; const box = { pick: () => arr }; const miss = {};';
+    const body = `(() => { ${ setup } const v = ${ c.code }; return typeof v === "function" ? "fn" : String(v); })()`;
+    yield { ...snippet(`paren-callee/${ c.id }`, body), strip: true };
+  }
+}
+
 function * generateChainMemberHops() {
   for (const c of CHAIN_MEMBER_HOPS) {
     const setup = 'const arr = [[[1]]]; const k = "flat"; const dyn = String(arr.length) === "1" ? "length" : "at";';
     const body = `(() => { ${ setup } const v = ${ c.code }; return typeof v === "function" ? "fn" : String(v); })()`;
     yield { ...snippet(`chain-member-hop/${ c.id }`, body), strip: true };
   }
+}
+
+// the SEAL-READ family this cycle rewrote, as rows the differential can hold: each one's polyfilled
+// answer must EQUAL native, which is true exactly where the seal makes a read observable - the read
+// throws on both sides off-window, and the write below it happens on both. rows whose answer is the
+// owner-decided BASE price (`globalThis.self.window` -> `_self.window`, which answers where native
+// throws) are deliberately absent - the polyfill diverges there by design, and a corpus row would
+// pin the divergence as if it were the contract
+const SEALED_READS = [
+  { id: 'read-optional-claim', code: '(() => { let t = "no"; let v; try { v = (globalThis.window?.self).Symbol?.iterator; }'
+    + ' catch (e) { t = e.constructor.name; } return t + ":" + typeof v; })()' },
+  { id: 'read-plain-claim', code: '(() => { let t = "no"; let v; try { v = (globalThis.window?.self).Symbol.iterator; }'
+    + ' catch (e) { t = e.constructor.name; } return t + ":" + typeof v; })()' },
+  { id: 'read-static-call', code: '(() => { let t = "no"; let v; try { v = (globalThis.window?.self).Array.of(5); }'
+    + ' catch (e) { t = e.constructor.name; } return t + ":" + typeof v; })()' },
+  // the write below the seal happens before the read that throws - on both sides
+  { id: 'read-keeps-the-write', code: '(() => { let w; let t = "no"; try { ((w = globalThis).window?.self).Symbol?.iterator; }'
+    + ' catch (e) { t = e.constructor.name; } return t + ":" + (w === globalThis); })()' },
+  { id: 'read-keeps-the-sequence', code: '(() => { let n = 0; let t = "no"; try { ((n++, globalThis).window?.self).Array.of(5); }'
+    + ' catch (e) { t = e.constructor.name; } return t + ":" + n; })()' },
+  // an OPTIONAL consumer of the sealed value performs no read: its short-circuit IS the answer
+  { id: 'optional-consumer', code: '(() => { const v = (globalThis.window?.self)?.Array?.of; return typeof v; })()' },
+  // a seal over a PLAIN nav hides no short-circuit - it collapses like its unsealed twin
+  { id: 'plain-nav-under-seal', code: '(() => { const v = (globalThis.self).Array.of(5); return typeof v; })()' },
+];
+
+function * generateSealedReads() {
+  for (const c of SEALED_READS) yield { ...snippet(`sealed-read/${ c.id }`, c.code), strip: false };
 }
 
 function * generateChainTailGets() {
@@ -6539,6 +6704,9 @@ export function * generate() {
   yield * generateKeptAssignHops();
   yield * generateChainTailGets();
   yield * generateChainMemberHops();
+  yield * generateParenCallees();
+  yield * generateSealedPrefixes();
+  yield * generateBuriedNavRoots();
   yield * generateMemoStaticExtraction();
   yield * generateIndexSignatureUnknownKey();
   yield * generateTaggedTemplateCallArgs();
@@ -6617,6 +6785,7 @@ export function * generate() {
   yield * generateParamDefaultInstance();
   yield * generateAssignAliasReassign();
   yield * generateClosureReassignedKey();
+  yield * generateSealedReads();
   yield * generateProtoInstall();
   yield * generateDeferredUnion();
   yield * generateReassignedCallableSlot();

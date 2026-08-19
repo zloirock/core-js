@@ -1,3 +1,4 @@
+import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map from "@core-js/pure/actual/map/constructor";
@@ -19,7 +20,7 @@ for (const {
 } of []) {
   void z;
 }
-export const y = loopHeld.of(1);
+export const y = (loopHeld === Array ? _Array$of : loopHeld.of.bind(loopHeld))(1);
 let src = _globalThis.cond ? _Iterator : _Set;
 const captured = src;
 src = {};
