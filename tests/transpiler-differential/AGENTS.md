@@ -22,21 +22,39 @@ Run it with `npm run test-transpiler-differential`. The corpus is large and ever
 
 ## The evaluation cache
 
-An evaluation is a pure function of the code bytes, the realm they run in and the core-js runtime they import, so unchanged ones are memoized across runs under `~/.cache/core-js-differential/`. This is what makes the bare run cheap: a repeat re-executes only what the edit moved.
+Results are remembered under `~/.cache/core-js-differential/`, one entry per (snippet, evaluation) -
+up to eight per snippet, kept together in a group under its name. A changed result overwrites its own
+entry, so nothing accumulates.
 
-The file is grouped per snippet (`cases[name] = { src, <type>: cell }`), one cell per (snippet, type), so nothing accumulates - a changed result rewrites its cell in place. Invalidation is layered, each level as local as it can be:
+An entry may only answer a question identical to the one it answered before, so its address names
+everything the answer depends on:
 
-- the name left the corpus - the group goes with it
-- `src` moved - the whole group is void. `src` covers the snippet's own bytes AND the chunk prefix ahead of it: snippets share one realm and the corpus mutates globals on purpose, so what a snippet observes depends on which ones ran before it. A plugin edit leaves the prefix alone and keeps the cache warm; a corpus edit invalidates what follows it, which is the work that genuinely has to be redone
-- a cell's own `h` moved - only that cell, which is the usual case after a plugin edit
-- a `runtime` stamp moved - only the cells under that tree; `native` / `arming` read the raw source and depend on no runtime, the usage-pure cells on `@core-js/pure`, the usage-global ones on `core-js/modules`
-- the machinery hash in the FILE NAME changed (both legs, their workers, the manifest, serializer, harness, shard, alias rig, the babel packages doing the TS strip, the node binary) - branches and machinery edits get their own file rather than poisoning each other
+- **its own code**, hashed per entry - an emitter edit voids exactly the entries whose output changed,
+  which is what makes a run cost what the edit cost. The plugins are deliberately absent: they act
+  through the output, and the output is already here
+- **what ran before it in the chunk**, as a running hash. Snippets share a realm and the corpus writes
+  onto globals on purpose, so a snippet can observe its predecessors. A plugin edit leaves this alone
+  and the cache stays warm; a corpus edit re-runs what follows it
+- **the core-js under it** - an output is a list of imports, so a polyfill edit moves the result
+  without moving a byte of the output. The header stamps both runtime trees; `native` and `arming`
+  read the raw source and depend on neither
+- **the harness**, hashed into the FILE NAME, so a different harness or branch gets its own file
 
-Two things are never cached: a failing snippet (an `ERR` from a dying worker is indistinguishable from a real one, and cached it would pin the case red forever) and a result the audit proved unreproducible.
+Never stored: a failed snippet (a worker that died mid-import is indistinguishable from a snippet
+that threw, and storing it would pin the case red forever), and a result the audit could not
+reproduce.
 
-The cache never decides a verdict on its own, and the AUDIT is what keeps that true: a rotating sample of the hits is re-evaluated and compared. A reproducible disagreement fails the run loudly - a key lost a dimension, so every other hit that run is suspect. An unreproducible one means the snippet is not a function of its code alone; it is evicted instead of reported. Hit / evaluated / audited counts print in the summary, and `cache.mjs` is the suite for all of this (`npm run test-transpiler-differential-cache`, seconds).
+The cache decides no verdict - it skips work whose answer is known, and the AUDIT keeps that honest
+by re-computing a rotating slice each run and comparing. A silent audit is the normal case; a
+`CACHE AUDIT` line is a bug in the ADDRESS, not the data - a value moved while everything the address
+names held still, so one of the four items above is missing something. Usually the snippet observes
+the realm rather than itself (a key count over a shared object, a builtin a neighbour rewrote) and the
+fix belongs in the corpus. To re-check one result, re-run its chunk (`DIFF_SHARD="k/N"`) or the run
+itself - both re-compute what you doubt.
 
-`INVALIDATE_CACHE=1` discards the stored contents by hand. **A last resort, not a habit** - the layers above already cover every ordinary reason, so reach for it only when a run is suspect in a way none of them can express, and say why. A routine run does not need it.
+`INVALIDATE_CACHE=1` throws everything away and re-executes the corpus. **A last resort, not a
+habit**: it makes the audit's message disappear and leaves the hole for the next person. Use it only
+when a run is suspect in a way none of the four items can express, and say which way.
 
 ## Rules
 
