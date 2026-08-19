@@ -16,7 +16,7 @@ export const bareNonNullHop = null == _globalThis.window ? void 0 : (c++, _self)
 export const bareNonNullMidChain = null == (_ref = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref2 = _Array$of(2)).call(_ref2);
 export const castSealValueUse = (null == _globalThis.window ? void 0 : _self).Math;
 export const parenSealPlainRead = (null == _globalThis.window ? void 0 : _self).JSON;
-export const castSealDelete = delete ((null == _globalThis.window ? void 0 : _self)?.customProp as any);
+export const castSealDelete = delete (_globalThis.customProp as any);
 
 // the cast-seal probes ride the CLAIM, DESTRUCTURE and SYNTH channels too (erasure keeps
 // the paren seal; the throw probe re-emits the sealed read, the key SE runs on it once)

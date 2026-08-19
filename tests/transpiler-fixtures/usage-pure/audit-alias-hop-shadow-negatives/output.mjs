@@ -1,4 +1,7 @@
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // the mirror of the resolving rows: every alias here reads a shadow that legitimately WINS, so the
 // receiver is not the built-in and no static may fold onto it. distinct static per row - a regression
@@ -63,9 +66,7 @@ export function viaMultiDeclLastShadowed() {
     var multiHeld = multiRoot;
   }
   {
-    const {
-      allSettled
-    } = multiHeld;
+    const allSettled = multiHeld === _Promise ? _Promise$allSettled : multiHeld.allSettled;
     return allSettled([]);
   }
 }
@@ -78,9 +79,7 @@ export function viaForInitVarShadow() {
     for (var forHeld = forRoot; false;) break;
   }
   {
-    const {
-      groupBy
-    } = forHeld;
+    const groupBy = forHeld === _Map ? _Map$groupBy : forHeld.groupBy;
     return groupBy([], v => v);
   }
 }
@@ -108,9 +107,7 @@ export function viaVarReassignedInBlock() {
     reassignHeld = {};
   }
   {
-    const {
-      fromEntries
-    } = reassignHeld;
+    const fromEntries = reassignHeld === Object ? _Object$fromEntries : reassignHeld.fromEntries;
     return fromEntries([]);
   }
 }

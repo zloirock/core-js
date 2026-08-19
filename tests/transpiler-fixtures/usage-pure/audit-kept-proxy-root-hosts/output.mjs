@@ -28,7 +28,7 @@ export const templateHole = `${null == (_ref2 = t = _globalThis.window) ? void 0
 let s;
 export const spreadArg = Math.max(...((null == (s = _globalThis.window) ? void 0 : _Array$from)?.([1, 2]) ?? [0]));
 let d;
-delete (null == (d = _globalThis.window) ? void 0 : _self)?.someUserKey;
+delete (d = _globalThis.window, _self).someUserKey;
 export { w };
 
 // an IIFE-arg SYNTH over a kept+SE-key chain: the swap renders the whole receiver (its own harvest),
@@ -107,12 +107,12 @@ export const {
 // probed delete edges locked verbatim: a DOUBLE undefinable hop stands down (no single test
 // spells the union), an OPAQUE call root keeps its raw guard, a nested value context rides
 // the same canon as the statement form
-export const delDoubleHop = delete _globalThis.window?.frames?.customZ;
+export const delDoubleHop = delete _globalThis.frames?.customZ;
 function opaqueRoot() {
   return _globalThis;
 }
 export const delOpaque = delete opaqueRoot()?.window?.customW;
-export const delNested = [delete (null == _globalThis.window ? void 0 : _self)?.customV];
+export const delNested = [delete _globalThis.customV];
 
 // the `?.` over the HOST of the navigation is not load-bearing - the host is assumed present, and
 // the navigation only NAMES the global - so a collapse that replaces the whole thing may drop the

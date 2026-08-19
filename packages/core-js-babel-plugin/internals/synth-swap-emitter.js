@@ -20,6 +20,8 @@ import {
   findIifeArgPath,
   getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
+  deleteHostAboveChain,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
@@ -40,6 +42,7 @@ import {
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop, navValueCanShortCircuit, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
   proxyGlobalMemberCtorPureSwap, resolveSynthKeys,
+  peelChainAssignment,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
 
@@ -387,7 +390,13 @@ export default function createSynthSwapEmitter({
     // `?.` with the hops and runs the member where native short-circuits. the guard channels own
     // the shape. the seal-aware canon keeps a PLAIN read over the same sealed nav collapsing
     // (`(nav).X` - the locked erase) and an all-plain span deopting as before
-    if (navValueCanShortCircuit(recPath.node, resolvePure, aliasCtx)) return false;
+    // a `delete` consumer is the exception: the member it names is never READ, so no `?.` over the nav
+    // is load-bearing and the navigation collapses whole (the text leg's twin gate)
+    // the walk peels transparent wrappers: under `createParenthesizedExpressions` a paren NODE sits
+    // between the chain and the `delete`, and an identity peel read it as an opaque consumer - the rule
+    // then fired in one paren spelling and not the other, which the area allows only cosmetically
+    if (!deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
+      && navValueCanShortCircuit(recPath.node, resolvePure, aliasCtx)) return false;
     // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
     // it CLAIMED (named props feed a synth literal `{ from: _Array$from }`); collapsing here too
     // double-injects a dead `_globalThis`, even when the source sits under value carriers (`{from} =
@@ -441,7 +450,24 @@ export default function createSynthSwapEmitter({
     // `_globalThis.window` slot is undefined off-engine -> crash). without it babel would always collapse to
     // `_globalThis`, diverging from unplugin (whose `_self` resolution is embedded too deep to re-route cheaply)
     const isWriteTarget = isMemberWriteHost(recPath);
-    if (isWriteTarget && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure)) return false;
+    // a `delete` host is the exception: its navigation collapses whole, and the natural per-hop rewrite
+    // would land on the LEAF ponyfill (`_self.X`) where the same nav READ collapses to the root
+    // (`_globalThis.X`) - one source, two import sets, decided by the consumer
+    // ... EXCEPT over a kept chain-assign: there the store is the observable (`(d = gw).X` keeps what
+    // the source wrote into `d`), and collapsing through it read the tail off the STORE instead of the
+    // ponyfill - `delete (d = _globalThis.window)?.X`, which deletes nothing off-window
+    function navCarriesChainAssign(node) {
+      for (let cur = unwrapRuntimeExpr(node); cur;) {
+        if (peelChainAssignment(cur).outer) return true;
+        if (cur.type !== 'MemberExpression' && cur.type !== 'OptionalMemberExpression') return false;
+        cur = unwrapRuntimeExpr(cur.object);
+      }
+      return false;
+    }
+    const deleteHost = deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
+      && !navCarriesChainAssign(recPath.node);
+    if (isWriteTarget && !deleteHost
+      && !navHasUnresolvableProxyHop(recPath.node.object, resolvePure)) return false;
     const collapsed = collapseProxyGlobalReceiver(recPath.node, { aliasCtx, isWriteTarget, throughChainAssign: true });
     if (!collapsed) return false;
     recPath.replaceWith(collapsed);
