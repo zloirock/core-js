@@ -48,6 +48,7 @@ import {
   walkPatternIdentifiers,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
+import { pushMultimap } from '../helpers/pattern-matching.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 
 // eslint-disable-next-line max-statements -- factory of the escape / closure analysis
@@ -1075,11 +1076,6 @@ export function createClosureAnalysis({
   function moduleFieldCensusCollector() {
     const writesByField = new Map();
     const subclassesBySuper = new Map();
-    function pushMultimap(map, key, value) {
-      const list = map.get(key);
-      if (list) list.push(value);
-      else map.set(key, [value]);
-    }
     // index member-write targets reachable through a destructuring-assignment LHS
     // (`({ k: o.field } = src)`) or a for-of/for-in head (`for (o.field of iter)`). these
     // rebind `o.field` to a destructuring-source / iteration value of indeterminate type, but
