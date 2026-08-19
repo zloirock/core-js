@@ -4,14 +4,8 @@ import {
   extractIndirectRequireSEPrefix,
   resolveBatchDirectivePromotionPolicy,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import {
-  ASI_HAZARD_STARTS,
-  consumeOneLineEnding,
-  injectionFusesLeft,
-  parenthesizeExprStmtHazard,
-  prevSignificantPos,
-  skipGap,
-} from './plugin-helpers.js';
+import { consumeOneLineEnding, injectionFusesLeft, isExprStmtHazardStart } from './plugin-helpers.js';
+import { prevSignificantPos, skipGap } from './text-scan.js';
 
 // entry-global mode: rewrite top-level `import 'core-js/...'` / `require('core-js/...')`
 // statements into the resolved per-feature module set. partitioned in two passes so the
@@ -45,193 +39,171 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
     injectedImportsBreakPrologue: injectedModules > 0,
   });
 
-  const removeStatement = createTopLevelStatementRemover(ms);
-  // indirect-require SE prefix preservation: `(spy(), require)('core-js/...')` passes entry
-  // detection via the SequenceExpression tail peel, but raw removal would silently drop the
-  // observable prefix slots. emit the prefix as standalone statements (sliced verbatim from
-  // ms.original so formatting / comments survive). returns true when SE prefix consumed the
-  // slot. checked in BOTH buckets defensively: a future hasPriorDirective propagation could
-  // classify an SE entry as `toReplaceWithNoop`, and the prefix replacement already breaks
-  // the prologue so `0;` placeholder is never needed when SE prefix is present
-  function writeSEPrefixIfAny(node) {
-    const sePrefix = extractIndirectRequireSEPrefix(node);
-    if (!sePrefix.length) return false;
-    writeIndirectRequireSEPrefix({ node, sePrefix, ms, removeStatement });
-    return true;
-  }
-  // pre-seed the plain removals (SE-prefix entries are rewritten in place, not removed) so the ASI
-  // boundary scan treats the whole batch as gone and does not read a not-yet-removed leftward entry
-  removeStatement.seed(toRemove.filter(node => !extractIndirectRequireSEPrefix(node).length));
-  for (const node of toRemove) {
-    if (!writeSEPrefixIfAny(node)) removeStatement(node);
-  }
-  for (const node of toReplaceWithNoop) {
-    if (!writeSEPrefixIfAny(node)) ms.overwrite(node.start, node.end, '0;');
-  }
+  const rewriter = createTopLevelStatementRewriter(ms);
+  for (const node of toRemove) rewriter.remove(node);
+  for (const node of toReplaceWithNoop) rewriter.replaceWithNoop(node);
+  rewriter.apply();
   return toRemove.length + toReplaceWithNoop.length > 0;
 }
 
-// factory: `remove(node)` closure that drops a top-level statement plus its trailing
-// newline AND injects `;` when the resulting boundary would fuse the next statement into
-// the previous one. each closure owns `removedRanges` so the backward scan can skip past
-// siblings removed earlier in the same batch - their trailing `;` would otherwise look
-// like the active terminator. oxc extends ImportDeclaration.end past the trailing `;`,
-// so removing a guarded import (`import 'x';\n(fn)()`) can fuse without our injection
-// build + write the SE-prefix replacement for an indirect-require entry statement: the
-// observable prefix slots re-emit as standalone statements (sliced verbatim from ms.original
-// so formatting / comments survive). the rewritten prefix can START with a fusion char
-// (`+spy()` / `[spy()]` / a parenthesised `({ ... })`) that fuses into the prev `;`-less
-// statement - the node parsed AS-DETECTED separate because its original leading `(` ASI-split
-// a postfix `++` / `--` prev (`UpdateExpression Arguments` is a SyntaxError), but the
-// rewritten first char carries no such guarantee - guard it like a removal. shared by the
-// entry-global pass and the usage-mode post sweep so the seam cannot silently diverge
-export function writeIndirectRequireSEPrefix({ node, sePrefix, ms, removeStatement }) {
-  const text = sePrefix.map(e => `${ parenthesizeExprStmtHazard(ms.original.slice(e.start, e.end)) };`).join('\n');
-  removeStatement.guardInjectionLeftBoundary(node.start, text);
-  ms.overwrite(node.start, node.end, text);
-}
-
-export function createTopLevelStatementRemover(ms) {
+// the batch rewriter of top-level statement slots, shared by the entry-global pass and the
+// usage-mode sweep over user core-js imports so the seam cannot diverge. two requests, one
+// of which may turn into a third disposition:
+//   `remove(node)`          - the statement goes, with its trailing horizontal space and ONE line
+//                             ending (the user's blank-line layout survives)
+//   `replaceWithNoop(node)` - the statement becomes the `0;` directive terminator
+//   an indirect-require entry (`(spy(), require)('core-js/...')`) handed to either KEEPS its
+//   observable prefix as standalone statements instead; both return that prefix (`[]` when the
+//   statement carried none - the caller learns which disposition the node got)
+// the prefix is kept by POINT edits around the prefix elements, never by overwriting the
+// statement's whole span: the AST nodes of those elements stay live - the usage sweep re-points
+// the statement at them and the visitors may still rewrite inside (`(arr.at(0), require)(...)`
+// gets its `at` polyfilled) - and an edit inside an overwritten chunk is one MagicString
+// refuses ("cannot split a chunk that has already been edited"). the element's own span is
+// never written: the terminators, the gap removals and the hazard parens all attach outside it
+// `apply()` writes the batch: the removals and overwrites first, then the ASI guards, decided
+// over the FINAL surviving text. a removal makes two formerly separated statements neighbours,
+// and a kept prefix re-roots its line on a char the parser never saw there; when the first
+// surviving char after the seam is a hazard start and the last surviving char before it is not
+// a terminator, a `;` lands at the seam. "surviving" is read through the batch's own
+// disposition map - a neighbour removed in the same batch is skipped over, a `0;` counts as its
+// `0` and its `;`, a kept prefix as its first and last chars - so the guards neither miss a seam
+// (the prev `;` was on a removed import) nor double it (two adjacent removals share one seam),
+// and every `;` is written AFTER every removal: a `;` attached to a boundary and a later
+// `remove()` ending there once erased each other. each disposition maps by statement start /
+// last char, so a batch of K statements costs O(K), not a scan of K ranges per boundary
+export function createTopLevelStatementRewriter(ms) {
   const src = ms.original;
-  const removedRanges = [];
-  // positions where this batch has already injected `;` at a removal boundary. forward
-  // hazard-scan from a later removal that jumps over an injected range sees the `;` as
-  // an effective terminator at the right boundary and skips its own injection - else two
-  // adjacent removals would both inject (`;;` at the leftmost boundary)
-  const injectedSemiAt = new Set();
+  // node.start -> disposition; the index of a statement's last source char -> disposition
+  // (the backward walk lands there); dispositions in request order
+  const byStart = new Map();
+  const byLastChar = new Map();
+  const order = [];
 
-  // skip past any removed range covering `p`; returns the first position outside the
-  // range in the walk direction (negative = backward, positive = forward), or `p`
-  // unchanged when no range covers it. shared between the prev / next significant-char
-  // walkers so both stay in sync about what "already-removed" means
-  function skipPastRemovedRange(p, direction) {
-    const range = findRangeContaining(removedRanges, p);
-    if (!range) return p;
-    return direction > 0 ? range[1] : range[0] - 1;
+  function dispose(node, disposition) {
+    byStart.set(node.start, disposition);
+    byLastChar.set(node.end - 1, disposition);
+    order.push(disposition);
   }
 
-  // backward walk over whitespace + comments + already-removed ranges; returns the first
-  // SURVIVING source char index (-1 = start-of-file). re-entry on a hit inside a range
-  // is necessary: `prevSignificantPos` returns a comment-aware position that may itself
-  // land inside an earlier batch removal
-  function findPrevSignificantChar(fromIdx) {
-    let p = fromIdx;
-    while (p >= 0) {
-      const skipped = skipPastRemovedRange(p, -1);
-      if (skipped !== p) {
-        p = skipped;
-        continue;
-      }
-      const sig = prevSignificantPos(src, p + 1);
-      if (sig < 0) return -1;
-      const sigSkipped = skipPastRemovedRange(sig, -1);
-      if (sigSkipped !== sig) {
-        p = sigSkipped;
-        continue;
-      }
-      return sig;
-    }
-    return -1;
-  }
-
-  // forward walk over whitespace + comments + already-removed ranges. symmetric to
-  // `findPrevSignificantChar` - the real caller iterates `toRemove` in descending body
-  // position so by the time we process the leftmost sibling, the rightmost is already in
-  // `removedRanges`. without the range-aware jump, raw `skipGap` lands on the soon-to-be
-  // erased neighbour's text and reads it as non-hazard, silently skipping the `;` guard
-  function findNextSignificantChar(fromIdx) {
-    let p = fromIdx;
-    while (p < src.length) {
-      const skipped = skipPastRemovedRange(p, 1);
-      if (skipped !== p) {
-        p = skipped;
-        continue;
-      }
-      const sig = skipGap(src, p);
-      if (sig >= src.length) return src.length;
-      const sigSkipped = skipPastRemovedRange(sig, 1);
-      if (sigSkipped !== sig) {
-        p = sigSkipped;
-        continue;
-      }
-      return sig;
-    }
-    return src.length;
-  }
-
-  // any `;` injection at a removed-range boundary inside (from, to) acts as the new
-  // effective terminator at the right edge - no need to re-inject a duplicate on the
-  // outer boundary. checks all known injection points, narrow to-range walk only
-  function hasInjectedSemiBetween(from, to) {
-    for (const pos of injectedSemiAt) if (pos > from && pos <= to) return true;
-    return false;
-  }
-
-  // `skipGap` is comment-aware so a leading `//` on the next line isn't mis-classified
-  // as the regex/division ASI hazard char `/`. prev ending in `;` is the only cheaply-
-  // provable-safe case; `}` can close a function/class expr that fuses with a tag call
-  // (`function(){}`hello``) so we conservatively guard there too
-  function guardAsiAtBoundary(start, end) {
-    const nextIdx = findNextSignificantChar(end);
-    if (nextIdx >= src.length || !ASI_HAZARD_STARTS.has(src[nextIdx])) return;
-    const prevIdx = findPrevSignificantChar(start - 1);
-    if (prevIdx < 0 || src[prevIdx] === ';') return;
-    // an injected `;` ANYWHERE between the surviving prev char and the hazard already
-    // terminates the statement - regardless of which sibling removal placed it. checking
-    // only (end, nextIdx) sees a `;` injected by a RIGHTWARD sibling (the descending caller
-    // processes it first) but misses one from a LEFTWARD sibling (the ascending caller does),
-    // so both siblings inject and the leftmost boundary gets `;;`. the (prev, next) span is
-    // order-independent and catches either side
-    if (hasInjectedSemiBetween(prevIdx, nextIdx)) return;
-    ms.prependLeft(end, ';');
-    injectedSemiAt.add(end);
-  }
-
-  // guard the LEFT boundary of an in-place text injection (the SE-prefix rewrite overwrites a detected
-  // `(prefix, require)('core-js/...')` node with its prefix statements). where a removal fuses the NEXT
-  // surviving char with the prev, here the INJECTED text's FIRST char meets the prev surviving char, and
-  // the node-detected-as-separate guarantee does NOT carry over: a postfix `++` / `--` prev ASI-splits
-  // from the node's original leading `(` (spec bans `UpdateExpression Arguments`) yet a rewritten
-  // `+spy()` / `[spy()]` prefix fuses into `prev + ...` / `prev[...]`. range-aware so a removed sibling
-  // between the prev statement and this node is skipped to the real surviving prev char
-  function guardInjectionLeftBoundary(start, text) {
-    const prevIdx = findPrevSignificantChar(start - 1);
-    if (prevIdx < 0 || !injectionFusesLeft(text[0], src[prevIdx])) return;
-    // a left-neighbour removal in this batch may already have injected a `;` into the gap
-    if (hasInjectedSemiBetween(prevIdx, start)) return;
-    ms.prependLeft(start, ';');
-    injectedSemiAt.add(start);
-  }
-
-  // [start, consumed-end] a removal covers: the node plus trailing horizontal space and one
-  // line ending. shared by `seed` (pre-population) and `remove` so both agree on the range
+  // [start, consumed-end] a removal covers: the node plus trailing horizontal space and one line ending
   function removalRange(node) {
     let { end } = node;
     while (end < src.length && (src[end] === ' ' || src[end] === '\t')) end++;
     return [node.start, consumeOneLineEnding(src, end)];
   }
 
-  // pre-populate removedRanges for the whole removal batch so the prev / next significant-char
-  // walkers skip a sibling that is ALSO being removed but has not been processed yet (the caller
-  // walks rightmost-first, so leftward siblings are not in removedRanges when their right neighbour
-  // injects). without seeding, the backward scan reads a leftward to-be-removed entry's text and
-  // injects a spurious `;`. duplicate ranges (remove re-pushes) are harmless for containment checks
-  function seed(nodes) {
-    for (const node of nodes) removedRanges.push(removalRange(node));
+  // `first` / `last`: the chars a disposition contributes at its two ends (a removal contributes
+  // none). a prefix element that starts with `{` / `function` / `class` would reparse as a
+  // block / declaration at statement position - it is parenthesized, so it starts on `(`
+  function keepSEPrefix(node) {
+    const sePrefix = extractIndirectRequireSEPrefix(node);
+    if (sePrefix.length) {
+      const elements = sePrefix.map(e => ({ start: e.start, end: e.end, wrapped: isExprStmtHazardStart(src.slice(e.start, e.end)) }));
+      dispose(node, { kind: 'prefix', node, elements, first: elements[0].wrapped ? '(' : src[elements[0].start], last: ';' });
+    }
+    return sePrefix;
   }
 
   function remove(node) {
-    const [start, end] = removalRange(node);
-    ms.remove(start, end);
-    guardAsiAtBoundary(start, end);
-    removedRanges.push([start, end]);
+    const sePrefix = keepSEPrefix(node);
+    if (!sePrefix.length) dispose(node, { kind: 'remove', node, range: removalRange(node) });
+    return sePrefix;
   }
-  remove.seed = seed;
-  remove.guardInjectionLeftBoundary = guardInjectionLeftBoundary;
-  return remove;
-}
 
-function findRangeContaining(removedRanges, pos) {
-  for (const range of removedRanges) if (pos >= range[0] && pos < range[1]) return range;
-  return null;
+  function replaceWithNoop(node) {
+    const sePrefix = keepSEPrefix(node);
+    if (!sePrefix.length) dispose(node, { kind: 'noop', node, first: '0', last: ';' });
+    return sePrefix;
+  }
+
+  // the next surviving statement at or after `pos`, skipping gaps and the batch's own removals:
+  // the char it starts with (`''` at the end of the file) and the boundary it starts after - the
+  // end of the last removed range before it, where a seam's `;` lands
+  function nextSurviving(pos) {
+    let boundary = pos;
+    for (let p = skipGap(src, pos); p < src.length; p = skipGap(src, p)) {
+      const disposition = byStart.get(p);
+      if (!disposition) return { char: src[p], boundary };
+      if (disposition.kind !== 'remove') return { char: disposition.first, boundary };
+      [, boundary] = disposition.range;
+      p = boundary;
+    }
+    return { char: '', boundary };
+  }
+
+  // the seams `apply()` put a `;` on, by boundary
+  const guardedBoundaries = new Set();
+
+  // the previous surviving statement's last char before `pos`, as `{ pos, char }`; `pos` -1 and
+  // `''` at the start of the file. for a replacement the char is what the replacement ends with,
+  // at the statement's own last position; for a removed run whose seam already carries a `;`
+  // the char is that terminator
+  function prevSurviving(pos) {
+    for (let p = prevSignificantPos(src, pos); p >= 0; p = prevSignificantPos(src, p)) {
+      const disposition = byLastChar.get(p);
+      if (!disposition) return { pos: p, char: src[p] };
+      if (disposition.kind !== 'remove') return { pos: p, char: disposition.last };
+      if (guardedBoundaries.has(nextSurviving(disposition.range[1]).boundary)) return { pos: p, char: ';' };
+      p = disposition.node.start;
+    }
+    return { pos: -1, char: '' };
+  }
+
+  function apply() {
+    for (const disposition of order) {
+      const { kind, node } = disposition;
+      if (kind === 'remove') ms.remove(...disposition.range);
+      else if (kind === 'noop') ms.overwrite(node.start, node.end, '0;');
+      else {
+        // everything between the kept elements goes; each element ends its own statement. the
+        // terminator rides the gap overwrite, or attaches to the following chunk when no gap exists
+        const { elements } = disposition;
+        if (node.start < elements[0].start) ms.remove(node.start, elements[0].start);
+        for (let i = 0; i < elements.length; i++) {
+          const nextStart = i + 1 < elements.length ? elements[i + 1].start : node.end;
+          const terminator = i + 1 < elements.length ? ';\n' : ';';
+          if (elements[i].end < nextStart) ms.overwrite(elements[i].end, nextStart, terminator);
+          else ms.appendRight(elements[i].end, terminator);
+        }
+      }
+    }
+    // the hazard parens and the ASI guards, over the final text - all attached OUTSIDE the
+    // kept elements (a later in-element rewrite keeps them). a seam is identified by its previous
+    // surviving char's position: every removal sharing it shares the one `;`, placed at the run's
+    // right edge (the boundary the next survivor starts after)
+    const guardedSeams = new Set();
+    for (const disposition of order) {
+      const { kind, node } = disposition;
+      if (kind === 'noop') continue;
+      let boundary;
+      let first;
+      if (kind === 'prefix') {
+        for (const element of disposition.elements) {
+          if (!element.wrapped) continue;
+          ms.prependLeft(element.start, '(');
+          ms.appendRight(element.end, ')');
+        }
+        boundary = node.start;
+        first = disposition.first;
+      } else ({ char: first, boundary } = nextSurviving(disposition.range[1]));
+      const prev = prevSurviving(node.start);
+      if (prev.pos < 0 || guardedSeams.has(prev.pos) || !injectionFusesLeft(first, prev.char)) continue;
+      guardedSeams.add(prev.pos);
+      guardedBoundaries.add(boundary);
+      ms.prependLeft(boundary, ';');
+    }
+  }
+
+  // the previous surviving statement's last char before `pos`, for the channels that put text at a
+  // statement head AFTER this batch (the queue's `(`-leading renders, the lifted destructure SE):
+  // their ASI question is the same one `apply()` asks, and its answer has to see through the
+  // removals too - a `;`-terminated import between an unterminated statement and a `(`-leading
+  // render is gone by the time that render prints, and the two fuse. a seam `apply()` already
+  // guarded reads as terminated, so the later channel does not double the `;`
+  function prevSurvivingChar(pos) {
+    return prevSurviving(pos).char;
+  }
+
+  return { remove, replaceWithNoop, apply, prevSurvivingChar };
 }
