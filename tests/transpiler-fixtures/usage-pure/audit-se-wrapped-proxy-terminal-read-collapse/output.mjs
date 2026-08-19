@@ -11,6 +11,6 @@ function eff(tag) {
 }
 const bareStatic = (eff('a'), _globalThis).Array;
 const nonGlobal = (eff('b'), _globalThis).customProp;
-const windowHop = (eff('c'), _globalThis.window).String;
+const windowHop = (eff('c'), _globalThis).String;
 class Extended extends (eff('d'), _globalThis).Error {}
 export { bareStatic, nonGlobal, windowHop, Extended, log };
