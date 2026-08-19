@@ -1,34 +1,12 @@
-// the same seals with REAL paren nodes in the AST: under `createParenthesizedExpressions` the
-// grouping is a node rather than a flag, and every walk that reads only the flag stops seeing the
-// seal. the guard a claim renders must stay INSIDE the helper that consumes it either way
-// the sidecar here is COSMETIC and nothing more: both legs render the read the seal makes
-// observable, and differ only in printer parens and blank lines around the spliced spans
-export const sealedCtorLeaf = (globalThis.window?.Map).name;
-
-export const sealedDeepCtorLeaf = (globalThis.window?.self.Map).name;
-
-export const sealedAbsorbedHop = delete (globalThis.window?.self).self.box.at;
-
-const host = {};
-export const sealedStartParen = (host.box?.missing).flat?.().at(0);
-
-// a DEEP sealed nav reaches the guard channel only if the plan peels this spelling of the seal
-// too: stopping at the paren node routed the same source through the erase instead, and the guard
-// the flag spelling keeps was dropped - a write host then targeted the live realm global
-export let assigned;
-
-export function deepSealedWrite(v) {
-  (globalThis.self.window?.self).Box = v;
-}
-export const deepSealedRead = (globalThis.self.window?.self).Box;
-
-// a sealed CALLEE ends the chain, so the call applies to the guard's VALUE and must stay OUTSIDE
-// the ternary: folded into the alternate it would answer `undefined` where the source calls an
-// undefined value and throws. the seal is this very node here, not a layer above it
-export const sealedCallee = (globalThis.window?.self)(1);
-export const sealedCalleeAssignRoot = ((assigned = globalThis.window)?.self)(1);
-export const sealedTag = (globalThis.window?.self)`x`;
-export const sealedNew = new (globalThis.window?.self)();
-
-// NEGATIVE: the seal consumed by a live `?.` has no plain read above it, so the claim proceeds
-export const optionalConsumer = (globalThis.window?.self)?.Array.of(1);
+// the SAME sealed-claim family as its default-parser twins, parsed with parens as NODES. a predicate
+// that switches on the node type owes both spellings one answer, and the whole family reached this
+// dialect only through a probe until now: every defect below showed as a difference between the two.
+// what may still differ here is the printer's redundant parens - never the import set.
+let n = 0;
+export const optionalClaimThroughSeal = (globalThis.window.self)?.Promise?.resolve(1);
+export const twoOptionalsOneSeal = ((globalThis.window)).self?.Promise?.resolve(1);
+export const optionalCallThroughSeal = (globalThis.window).self.Array?.of(5);
+export const erasableHopUnderSeal = (globalThis.self).window?.Array.of(5);
+export const sealedNavSeqPrefix = ((n++, globalThis.window)).self?.Array?.of(5);
+// NEGATIVE: no seal - the collapse erases the whole navigation, as it does under either parser
+export const unsealed = globalThis.window.self?.Promise?.resolve(1);

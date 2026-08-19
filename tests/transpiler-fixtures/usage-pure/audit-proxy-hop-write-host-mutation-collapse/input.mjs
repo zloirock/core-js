@@ -9,7 +9,8 @@ for (globalThis.window.WeakSet of [function () {}]) {}
 delete globalThis[(e++, 'window')].WeakMap;
 // a SEQUENCE-wrapped write host (`(se, globalThis.window).X = v`) has no read-side SE-tail owner:
 // the write-target plan peels the sequence tail and collapses the raw hop too, keeping the prefix
-// effects ahead of the pure root (a pure discard is droppable)
+// effects ahead of the pure root. a pure discard is droppable, and only the AST leg drops it - the
+// text leg re-emits the source prefix it kept, which is the same write to the same slot
 (0, globalThis.window).Promise = function () {};
 let f = 0;
 (f++, globalThis.window).Symbol = function () {};

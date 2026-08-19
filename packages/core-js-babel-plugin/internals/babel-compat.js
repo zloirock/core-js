@@ -11,6 +11,8 @@ import {
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
   peelChainAssignment, peelReceiverSequenceTail, inlineCallProxyGlobalRoot, planProvenNavGuardCollapse,
+  inlineCallHasObservableEffects,
+  navHopSequencePrefixes,
   storedNavHopClaimSuppressed,
   navGuardTestBase,
   proxyReceiverValueCanBeUndefined, sealedChainBoundary, sealedClaimLeafGuardPlan,
@@ -18,7 +20,9 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
+  unwrapRuntimeExpr,
   createTypeAnnotationChecker,
+  deleteHostAboveChain,
   isReusableReceiver,
   markRenderedStoredValue,
   memberKeyName,
@@ -116,6 +120,89 @@ function reparenthesizeTaggedTag(t, fromPath) {
   }
 }
 
+// the nav-collapse descent reached the environment PROBE itself (`globalThis.self.window?.X` - the nav
+// ENDS at the hop pure cannot back, so there is no ponyfilled LEAF for a plan to collapse onto). the hops
+// BELOW it still collapse: substitute their ponyfill and leave the probe read - and its `?.` - exactly as
+// written, which is what the text emitter spells. without it the emit keeps `_globalThis.self.window`, a
+// NATIVE `self` read off the ponyfill that throws in Node where the same source, spelled by the other
+// leg, short-circuits. effect-free plans with nothing above their collapse only - everything else is the
+// guarded render's business
+// the VALUE a nav-collapse plan answers - its ponyfill leaf plus the hops above it, with no test around
+// it. the guarded render is the other half of the same plan (`renderNavCollapseAst`); this one is what a
+// slot holding the nav's VALUE takes when nothing about that value short-circuits
+// the plan's VALUE spelling carries everything its guarded render does only when the plan has no
+// effects to re-emit: a key SE, a sequence prefix and an effectful call root all live INSIDE the
+// rendered prefix, and the value form has no slot for any of them
+function navPlanValueSpells(plan) {
+  return !!plan && !plan.keySeExprs.length && !plan.seqAroundPrefix?.length && !plan.rootEffectCall
+    && unwrapRuntimeExpr(plan.rootValueNode)?.type === 'Identifier';
+}
+
+function navPlanValueAst(t, plan, pureId, renderedPlanTails) {
+  let out = t.cloneNode(pureId);
+  for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
+    out = t.memberExpression(out, t.identifier(hop.name));
+    renderedPlanTails.add(out);
+  }
+  return out;
+}
+
+// a CLAIMLESS proxy nav rooted in an inline-resolvable CALL (`(() => globalThis)().window.self
+// .userSlot`): every claim channel here is driven by a claim, and there is none, so nothing
+// rendered the hops and they rode raw - a native `self` read where the ponyfill is the point,
+// while the text leg collapses the same source through its own suppressed-hop callback. climb to
+// the chain END and hand it to the collapse a claimed nav takes. an IDENTIFIER root is not this:
+// its own visitor substitutes the root and the hop drive owns the rest
+function collapseClaimlessCallRootedNav({ endPath, adapter, resolvePureGlobalEntry, injectPureGlobal, collapseNav }) {
+  if (!adapter || !endPath?.scope || !injectPureGlobal || !resolvePureGlobalEntry) return false;
+  // a MEMBER consumer only - the same callback also fires for a destructure property, whose node
+  // has no navigation at all
+  if (!endPath.isMemberExpression?.() && !endPath.isOptionalMemberExpression?.()) return false;
+  // every step down to the call must be a PLAIN dotted proxy hop: a `?.` anywhere is the guard
+  // channel's (its render owns the short-circuit) and a computed or non-hop key is a claim's
+  let root = unwrapRuntimeExpr(endPath.node.object);
+  if (root?.type !== 'MemberExpression' && root?.type !== 'OptionalMemberExpression') return false;
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    if (root.optional || root.computed || !memberProxyHopName(root)) return false;
+    root = unwrapRuntimeExpr(root.object);
+  }
+  if (root?.type !== 'CallExpression' && root?.type !== 'OptionalCallExpression' || root.optional) return false;
+  const ctx = { scope: endPath.scope, adapter, path: endPath };
+  if (!inlineCallProxyGlobalRoot({ callNode: root, ...ctx, rejectConditional: true })) return false;
+  // the collapse drops the call with the nav and has no slot to replay what it DID on the way
+  if (inlineCallHasObservableEffects({ callNode: root, ...ctx })) return false;
+  function resolvePure({ name }) {
+    return resolvePureGlobalEntry(name, endPath);
+  }
+  // a call yielding a DEFINED global collapses onto the ROOT ponyfill, the canon every other
+  // spelling of that source takes. one yielding the PROBE (`() => globalThis.window`) does not:
+  // its root names a global the value never reached, so the nav collapses onto the ponyfill of
+  // what it NAVIGATES instead - the leaf, which is what the text leg spells for this shape
+  if (!proxyReceiverValueCanBeUndefined(root, resolvePure, ctx)) return collapseNav(endPath);
+  const navPath = endPath.get('object');
+  const name = resolveObjectName({ objectNode: navPath.node, ...ctx });
+  const pure = name && POSSIBLE_GLOBAL_OBJECTS.has(name) && resolvePureGlobalEntry(name, endPath);
+  if (!pure) return false;
+  navPath.replaceWith(injectPureGlobal(pure.entry, pure.hintName));
+  return true;
+}
+
+function collapseHopsBelowProbe({ probePath, anchorPath, adapter, resolvePure, injectPure }) {
+  let below = probePath.node.object;
+  while (below && (TS_EXPR_WRAPPERS.has(below.type) || below.type === 'ParenthesizedExpression')) {
+    below = below.expression;
+  }
+  if (below?.type !== 'MemberExpression' && below?.type !== 'OptionalMemberExpression') return false;
+  const plan = planProvenNavGuardCollapse({
+    rootNode: below, scope: anchorPath.scope, adapter, path: anchorPath, resolvePure,
+  });
+  if (!plan || plan.topAssign || !navPlanValueSpells(plan)
+    || plan.hops.length !== plan.collapseIdx + 1) return false;
+  const { leafPure: pure } = plan;
+  probePath.get('object').replaceWith(injectPure(pure.entry, pure.hintName));
+  return true;
+}
+
 export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry, injectPureGlobal,
   collapseReceiverHops = null } = {}) {
   const { resolveNodeType, resolvedType } = typeResolvers ?? {},
@@ -199,6 +286,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // lift that re-creates a short-circuit would swallow the throw the source performs
   const taggedTemplateTails = new WeakSet(),
         renderedPlanTails = new WeakSet(),
+        renderedGuardTests = new WeakSet(),
         guardedClaims = new WeakSet(),
         pluginSeqWraps = new WeakSet(),
         parenTerminated = new WeakSet(),
@@ -352,24 +440,29 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return null;
   }
 
+  // re-hangs a claim inside the guard its receiver's `?.` provides. FALSE when no guard of this
+  // shape expresses the source - the caller owns what happens then, and its plain arm spells the
+  // claim behind a throw probe, so a stand-down here never costs the polyfill
   function emitGuardedClaim({ path, replacePath, id, sideEffects, receiverEffectCount, guardObject, substituteGlobal = null }) {
-    if (!guardObject) return;
+    if (!guardObject) return false;
     // a kept chain-assign VALUE with collapsible pony hops spells through the shared plan
     // (`v = _globalThis.self.window` -> `v = _self.window`) before the test freezes it
     collapseKeptNavValueNode(guardObject, path);
     const claimSe = migratableClaimSe({
       sideEffects, receiverEffectCount, rootNode: guardObject, end: nodeSpan(path.node)?.end,
     });
-    if (!claimSe) return;
+    if (!claimSe) return false;
     const { leading: leadingSe, migrated: migratedSe } = claimSe;
     // user parens on a mid-chain node TERMINATE the chain there: a PLAIN read above the seal
-    // throws natively where the sealed chain would short-circuit, so a whole-chain guarded
-    // claim would swallow that throw. the shared predicate answers for both dialects and
-    // through the wrapper layers a raw `.object` walk stops at. with no resolver wired the
-    // value verdict is unavailable, and standing down is the answer that cannot swallow
-    if (!resolvePureGlobalEntry || !getAdapter?.()
-      || chainReadsThroughSeal(path.node, ({ name }) => resolvePureGlobalEntry(name, path),
-        { scope: path.scope, adapter: getAdapter(), path })) return;
+    // throws natively where the sealed chain would short-circuit, so a guarded claim spanning it
+    // would swallow that throw. only ABOVE the guard object though: the test spells that object,
+    // so a seal inside it is re-read there and still throws (`(seq, gw).self` rides the test).
+    // the shared predicate answers for both dialects and through the wrapper layers a raw
+    // `.object` walk stops at. with no resolver wired the value verdict is unavailable, and
+    // standing down is the answer that cannot swallow.
+    // FALSE, not silence: the caller's own next arm spells the claim behind a THROW PROBE, which
+    // reproduces the read this shape would swallow - returning nothing left it raw, unpolyfilled
+    if (!resolvePureGlobalEntry || !getAdapter?.()) return false;
     // the guard tests the OBJECT of the `?.` hop that guards the undefinable value (resolved by the
     // caller via `undefinableOptionalGuard`): `globalThis.window?.self.X` -> `globalThis.window`, a
     // hop the always-defined descended root does not cover. left in the AST so the identifier visitor
@@ -393,7 +486,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         if (sub) buried.name = sub.name;
       }
     }
-    rootNode = navGuardTestNode(rootNode, path);
+    rootNode = navGuardTestNode(rootNode, path, null, guardObject);
+    // the test is a RENDER, and which of the two shapes it takes is the seal question the text
+    // emitter asks: under a seal keep the navigation (its read throws where the source does) and
+    // mark it so nothing re-reads it; without one take the plan's BASE, or the test keeps a native
+    // `self` read (`_globalThis.self.window`) where its ponyfill is the point
     // a transparent wrapper on the ROOT gets explicit parens in the guard test: babel prints
     // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the text emitter keeps
     // the wrapped root grouped - `null == ((c = gw) as any) ? ...`
@@ -445,7 +542,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       && (claimBody.type === 'MemberExpression' || claimBody.type === 'OptionalMemberExpression');
     // the `delete` shape re-hangs the tail OUTSIDE the guard, and a sequence prefix around a
     // delete target deletes nothing - keep the raw stand-down for a leading effect there
-    if (deleteTail && leadingSe.length) return;
+    if (deleteTail && leadingSe.length) return false;
     if (deleteTail) {
       const guard = markGuardedClaim(t.conditionalExpression(
         t.binaryExpression('==', t.nullLiteral(), test),
@@ -454,7 +551,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       ));
       target.replaceWith(t.optionalMemberExpression(
         guard, t.cloneNode(claimBody.property), claimBody.computed, true));
-      return;
+      return true;
     }
     const claimResult = markGuardedClaim(t.conditionalExpression(
       t.binaryExpression('==', t.nullLiteral(), test),
@@ -465,6 +562,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // effects the source wrote AHEAD of the guarded root run before the test, so they wrap the
     // whole claim rather than riding in either of its branches
     target.replaceWith(withSideEffects(claimResult, leadingSe));
+    return true;
   }
 
   function wrapConditional(check, result) {
@@ -615,24 +713,108 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // THE guard-test spelling, shared by every channel that builds a `null == <test>` guard: the
   // vestigial-`?.` verdict of the provider (a `?.` over the proven root is dead text the text
   // emitter drops too; one over a genuine probe is load-bearing and stays). deopts a CLONE - the
-  // source node may still be read by another channel - and keeps node identity when nothing is
-  // dead, so channels relying on the live subtree are untouched
+  // source node may still be read by another channel - and keeps node identity when nothing is dead
+  // AND nothing inside still owes its own render, so channels relying on the live subtree are
+  // untouched; a nav buried in a call root owes one, and the original is already marked handled
   // channels holding a PATH pass it (the resolve context is rebuilt from it); the plan's own
   // render passes the context the plan resolved with
-  function navGuardTestNode(node, anchorPath, plan = null) {
+  function navGuardTestNode(node, anchorPath, plan = null, guardObject = null) {
+    // the member chain of a test this emit spelled ITSELF: `keptNavHopClaimSuppressed` answers for
+    // these, so a claim cannot collapse the render to its leaf ponyfill and erase the read the guard
+    // exists to reproduce. identifier substitution inside stays live - that is what re-entry is for
+    function markGuardTestRendered(rendered) {
+      // peel the transparent wrappers on the way down: with parens as NODES the walk stopped at the
+      // first one and left the nav under it unowned, so another channel rendered THAT as a guarded
+      // value inside this test - one source, two import sets between the two paren spellings
+      for (let hop = unwrapRuntimeExpr(rendered); hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression';
+        hop = unwrapRuntimeExpr(hop.object)) {
+        renderedGuardTests.add(hop);
+      }
+      return rendered;
+    }
     const adapter = getAdapter?.();
     if (!node || !adapter || !resolvePureGlobalEntry) return node;
     const resolvePure = plan ? plan.resolvePure : ({ name }) => resolvePureGlobalEntry(name, anchorPath);
     const ctx = plan ? plan.ctx : { scope: anchorPath?.scope, adapter, path: anchorPath };
     if (!ctx?.scope) return node;
+    // the test takes the PLAN's own value: a read no deeper than the environment probe off the
+    // ponyfill. spelling the source instead dereferences a value that is undefined off-window and
+    // throws THERE - inside the polyfilled output, which the ponyfill exists to keep working - so a
+    // seal is no reason to keep it: the seal decides where a `?.` guards, not whether hops collapse.
+    // a hop-object SEQUENCE still rides the source spelling: the plan renders the VALUE and its
+    // prefix has no slot there, so taking it dropped the effect entirely (`(n++, gw).self?.X`)
+    const testPrefix = guardObject
+      ? navHopSequencePrefixes(guardObject, { unwrap: unwrapRuntimeExpr }).all : [];
+    // ... with ONE exception, and it is the seal canon, not a spelling preference: a chain that READS
+    // THROUGH a seal over a short-circuit performs that read itself (`((w = gw).window?.self).Symbol`
+    // throws off-window), and collapsing the test both erases the throw and drops the write the
+    // source performs on the way. keep the source spelling there - what the text leg spells too
+    if (guardObject && injectPureGlobal
+      && !chainReadsThroughSeal(guardObject, resolvePure, ctx)) {
+      // the plan models PROXY hops, so a guard object ending in a claim hop (`(gw).self.Array`) has
+      // none - peel those keys off, plan the navigation under them, and hang them back on the
+      // collapsed value. left unpeeled the test spelled the source chain and threw off-window
+      let testRoot = guardObject;
+      const rehang = [];
+      // this caller re-emits the peeled prefix itself (below), so it may ask the plan to own a
+      // sequence root and descend past its tail - the opt-in the probe channels use for the same reason
+      function planFor(root) {
+        return planProvenNavGuardCollapse({ rootNode: root, ...ctx, resolvePure,
+          allowSequenceRoot: true, descendSequenceTail: true });
+      }
+      let testPlan = planFor(testRoot);
+      while (!testPlan && !rehang.length
+        && (testRoot.type === 'MemberExpression' || testRoot.type === 'OptionalMemberExpression')
+        && !testRoot.computed && testRoot.property?.type === 'Identifier') {
+        rehang.unshift({ name: testRoot.property.name, optional: !!testRoot.optional });
+        testRoot = unwrapRuntimeExpr(testRoot.object);
+        testPlan = planFor(testRoot);
+      }
+      // an OBSERVABLE root below the hops - a write, a sequence prefix, an effect-bearing call - is
+      // spelled by nothing here: this collapse replaces the whole prefix and has no slot for it, so
+      // taking it deletes an assignment the source performs (`((w = globalThis).self.window?.self)
+      // ?.Array.of` left `w` unwritten) or reorders an effect past a read that throws. keep the
+      // source spelling there - the owner-decided base price buys an always-defined base, not this
+      if (testPlan && !testPlan.topAssign && testPlan.leafPure) {
+        // the WRITE below the hops is what the collapse replaces along with them, and it is the
+        // source's own first act: it rides INSIDE the collapsed value, ahead of the leaf, so the
+        // hops above read off the ponyfill and the store still happens where the source performs it
+        // (`(u = _globalThis, _self).window` - the text leg's own spelling). declining the collapse
+        // for it instead left `_globalThis.self` standing: a host read off the ponyfill, undefined
+        // in exactly the realms the polyfill exists for
+        let spelled = injectPureGlobal(testPlan.leafPure.entry, testPlan.leafPure.hintName);
+        // the prefix wraps the LEAF, not the whole read: `(dh(), _self).window` is the spelling both
+        // emitters keep for a collapsed sequence root, and hanging the hops outside it is what makes
+        // the two legs print the same bytes
+        if (testPlan.rootAssign || testPrefix.length) {
+          spelled = t.sequenceExpression([...testPrefix.map(expr => t.cloneNode(expr)),
+            ...testPlan.rootAssign ? [t.cloneNode(testPlan.rootAssign, true)] : [], spelled]);
+        }
+        for (const hop of [...testPlan.hops.slice(testPlan.collapseIdx + 1), ...rehang]) {
+          spelled = hop.liveOptional
+            ? t.optionalMemberExpression(spelled, t.identifier(hop.name), false, true)
+            : t.memberExpression(spelled, t.identifier(hop.name));
+        }
+        markGuardTestRendered(spelled);
+        return spelled;
+      }
+    }
     const clone = t.cloneNode(node, true);
     const dead = vestigialNavOptionals(clone, resolvePure, ctx);
-    if (!dead.length) return node;
+    // a nav BURIED in a call root still owes its own collapse, and the claim's walk already marked
+    // the original subtree handled - handing that back freezes it raw while the text emitter renders
+    // it. the clone resets identity, so the visitors re-enter and spell the same guard there
+    if (!dead.length) {
+      const { root } = descendToChainRoot(node, true);
+      const buriedCall = (root?.type === 'CallExpression' || root?.type === 'OptionalCallExpression')
+        && inlineCallProxyGlobalRoot({ callNode: root, ...ctx });
+      return markGuardTestRendered(buriedCall ? clone : node);
+    }
     for (const hop of dead) {
       hop.type = 'MemberExpression';
       delete hop.optional;
     }
-    return clone;
+    return markGuardTestRendered(clone);
   }
 
   // the AST spelling of a nav-collapse plan (mirrors the text emitter's forms byte-for-byte)
@@ -657,10 +839,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     }
     function collapsedTestNode() {
       const base = navGuardTestBase(plan);
-      return base
-        ? t.memberExpression(injectPureGlobal(base.basePure.entry, base.basePure.hintName),
-          t.identifier(base.probeName))
-        : null;
+      if (!base) return null;
+      const pure = injectPureGlobal(base.basePure.entry, base.basePure.hintName);
+      // the WRITE below the hops is replaced along with them, and it is the source's own first act:
+      // it rides INSIDE the collapsed value, ahead of the base, so the probe reads off the ponyfill
+      // and the store still happens where the source performs it (`(w = _globalThis, _self).window`)
+      return t.memberExpression(plan.rootAssign
+        ? t.sequenceExpression([t.cloneNode(plan.rootAssign, true), pure]) : pure,
+      t.identifier(base.probeName));
     }
     function keptPrefix(node) {
       return navGuardTestNode(node, null, plan);
@@ -677,9 +863,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // a DEEP CLONE resets node identity: the original prefix members were marked handled by
       // the claim's own walk, so the flush requeue would skip their subtree and freeze a prefix
       // effect's polyfill raw (`arr.at(0)` in the test); fresh nodes re-enter the visitors
+      const probeTest = collapsedTestNode()
+        ?? t.cloneNode(keptPrefix(plan.hops[plan.lastUnresolvableIdx].node), true);
+      const wrapAssign = plan.assignWrap;
       return t.conditionalExpression(
-        t.binaryExpression('==', t.nullLiteral(), collapsedTestNode()
-          ?? t.cloneNode(keptPrefix(plan.hops[plan.lastUnresolvableIdx].node), true)),
+        t.binaryExpression('==', t.nullLiteral(), wrapAssign
+          ? t.assignmentExpression(wrapAssign.operator, t.cloneNode(wrapAssign.left), probeTest) : probeTest),
         t.unaryExpression('void', t.numericLiteral(0)), withTail(leaf),
       );
     }
@@ -734,6 +923,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     });
     if (!plan?.topAssign) return;
     const { leafPure: pure } = plan;
+    // a stored nav that cannot SHORT-CIRCUIT is the proxy global it navigates, so the value slot takes
+    // the plan's VALUE, not its guarded render: spelled as a guard the store read `window` off the
+    // ponyfill and handed the user's variable `void 0` off-window, where the same nav read bare answers
+    // the ponyfill leaf. effect-free, identifier-rooted plans only - a sequence prefix, a key SE and an
+    // effectful root all re-emit INSIDE the guarded render, and the claims living in them go with it
+    const storedValueSpells = plan.kind === 'nested' && navPlanValueSpells(plan)
+      && !navValueCanShortCircuit(plan.topAssignSteps.at(-1).right,
+        ({ name }) => resolvePureGlobalEntry(name, anchorPath),
+        { scope: anchorPath.scope, adapter, path: anchorPath });
     // a channel that OWNS the assignment's emission (the unguarded static claim re-emits it as a
     // side effect, possibly on a REBUILT receiver whose nodes the deferred flush can never match
     // by identity) collapses in place: the caller replaceWith-inserts the host right after, so
@@ -745,7 +943,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the stored-canon render is MARKED: for classification it IS the navigation it
       // replaced, so the provider's alias follows bypass the guarded-read gate on it (a
       // user-written conditional never gets the mark and keeps the gate)
-      plan.topAssignSteps.at(-1).right = markRenderedStoredValue(renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)));
+      plan.topAssignSteps.at(-1).right = markRenderedStoredValue(storedValueSpells
+        ? navPlanValueAst(t, plan, injectPureGlobal(pure.entry, pure.hintName), renderedPlanTails)
+        : renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)));
       return true;
     }
     // snapshot a render source NOW (pre-lowering) by deep-cloning it: the flush lands at program
@@ -805,6 +1005,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // shared stored-value canon refuses a CLAIMLESS hop collapse over an undefinable receiver
   // ('stored') - the caller renders the kept-nav canon there instead of the plain collapse
   function keptNavHopClaimSuppressed(path) {
+    // a guard TEST this emit spelled itself: re-entered by the member visitor it reads as a fresh
+    // claim and collapses against a receiver no plan chose - erasing the environment-probe read a
+    // seal makes observable. the render owns those nodes exactly like a queued kept-nav plan owns
+    // the assignment it will spell
+    if (renderedGuardTests.has(path.node)) return 'guard-test';
     if (pendingKeptNavCollapses.length && memberProxyHopName(path.node)) {
       for (let p = path; p; p = p.parentPath) {
         const { node } = p;
@@ -821,14 +1026,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     });
   }
 
-  // a CLAIM-LESS kept nav whose VALUE can short-circuit, in a chain-END value-use position
-  // (`globalThis.window?.[(c++, 'self')]?.Array` as a class-field / export init): no claim
-  // channel owns it and the hop collapse refuses the erase - but leaving it RAW reads the
-  // polyfillable hop key raw off a defined receiver (`window['self']`, undefined on the
-  // web.self target class where the ponyfill must serve it). render the shared kept-nav plan
-  // in place: guard on the probe, key SE migrated once, ponyfill leaf. immediate (not the
-  // deferred flush): the chain-end gate means no later claim resolver reads this chain, and
-  // the replacement re-enters traversal so the root substitutes and the ES5 lowering sees it
   function collapseShortCircuitNavInPlace(memberPath) {
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return false;
@@ -988,7 +1185,17 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const objPath = peelWrappers(target.get('object'));
       if (!objPath?.isMemberExpression() && !objPath?.isOptionalMemberExpression()) return false;
       target = objPath;
-      if (memberProxyHopName(target.node)) return false;
+      // the descent reached the environment PROBE itself (`globalThis.self.window?.X` - the nav ENDS at
+      // the hop pure cannot back, so there is no ponyfilled LEAF for a plan to collapse onto). the hops
+      // BELOW it still collapse: substitute their ponyfill and leave the probe read - and its `?.` -
+      // exactly as written, which is what the text leg emits. without it the emit keeps
+      // `_globalThis.self.window`, a NATIVE `self` read off the ponyfill that throws in Node where the
+      // same source, spelled by the other leg, short-circuits. effect-free plans with nothing above
+      // their collapse only: everything else is the guarded render's business
+      if (memberProxyHopName(target.node)) {
+        return collapseHopsBelowProbe({ probePath: target, anchorPath: memberPath, adapter, injectPure: injectPureGlobal,
+          resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath) });
+      }
       plan = planFor(target.node.object);
     }
     // the plan calls a hop a PROBE when its name resolves to no ponyfill, but the boundary is
@@ -997,7 +1204,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // the discriminator lives ABOVE it - a seal over the chain makes every short-circuit below
     // observable, and only this caller can see one. unsealed and deep: no probe to guard, so the
     // redundant hops go to the shared collapse instead, which is where the text emitter takes them
-    if (plan.lastUnresolvableIdx > 0 && collapseReceiverHops
+    // a nav with NO live `?.` has no short-circuit for a guard to reproduce, so it collapses - what
+    // the bare-root spelling of the same source already does through the earlier hop-collapse drive.
+    // that drive declines a proven-CALL root, and this render was answering for it with a guard
+    const plainNav = plan.hops.every(hop => !hop.optional && !hop.liveOptional);
+    if ((plan.lastUnresolvableIdx > 0 || plainNav && !plan.rootId && plan.call) && collapseReceiverHops
       && !chainReadsThroughSeal(memberPath.node, ({ name }) => resolvePureGlobalEntry(name, memberPath),
         { scope: memberPath.scope, adapter, path: memberPath })) {
       const collapsed = collapseReceiverHops(memberPath.node.object, memberPath);
@@ -1006,7 +1217,27 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         return true;
       }
     }
+    // a PLAIN navigation on a proven-CALL root that the hop drive could not take (an all-proxy
+    // receiver under a non-global key): nothing short-circuits, so the doctrine collapses it - onto
+    // the ROOT ponyfill, the same answer the bare-root spelling of this source gives
+    if (plainNav && !plan.rootId && plan.call && plan.rootName && !plan.topAssign
+      && !plan.keySeExprs.length && !plan.seqAroundPrefix?.length && !plan.rootEffectCall) {
+      const rootPure = plan.resolvePure({ kind: 'global', name: plan.rootName });
+      if (rootPure) {
+        target.get('object').replaceWith(injectPureGlobal(rootPure.entry, rootPure.hintName));
+        return true;
+      }
+    }
     const { leafPure: pure } = plan;
+    // a `delete` hosting the chain collapses the navigation WHOLE: the probe guard would make the
+    // deletion conditional on the host environment where the source deletes unconditionally, and
+    // the member `delete` needs is the one the guard's `void 0` branch never has. the text leg
+    // spells it the same way. plans whose value carries their effects only
+    if (deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr) && navPlanValueSpells(plan)) {
+      target.get('object').replaceWith(navPlanValueAst(t, plan,
+        injectPureGlobal(pure.entry, pure.hintName), renderedPlanTails));
+      return true;
+    }
     const rendered = renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName));
     if (pullUnplannedTail(target, plan, rendered)) return true;
     // parens directly around the RENDERED nav end the chain there, so the read above them is the
@@ -1085,10 +1316,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (key === null) return null;
     const aliasCtx = { scope: memberPath.scope, adapter, path: memberPath };
     if (!proxyReceiverValueCanBeUndefined(boundary.inner,
-      ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx)) return null;
+      ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx, { throughChainAssign: true })) return null;
     const plan = planProvenNavGuardCollapse({
       rootNode: boundary.inner, scope: memberPath.scope, adapter, path: memberPath,
-      resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath),
+      resolvePure: ({ name }) => resolvePureGlobalEntry(name, memberPath), throughKeptAssign: true,
+      allowSequenceRoot: true, descendSequenceTail: true,
     });
     // the plan renders a guard whose LEAF is a proxy hop; a sealed nav that ends AT the claim
     // (`(globalThis.window?.Array).of`) has none, and the read the seal makes observable would be
@@ -1100,16 +1332,32 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!rendered) return null;
     // the probe CARRIES the nav's key SE (native order: test, key effect, read) - hand the
     // plan's SE nodes back so the claim's own SE channel does not re-run them
+    // a SEQUENCE prefix inside the nav is dropped by the plan's transparent unwrap, and the effect
+    // channel replays it AFTER the probe - where the probe's own throw never reaches it. the source
+    // runs it BEFORE the read, so it is spelled here, ahead of the probe, and reported so no other
+    // channel repeats it. only the prefix a hop OBJECT carries: the key effects the render already
+    // spells inside its own alternate are not ours to repeat - nor is one the RENDERED test carries:
+    // babel builds that test by cloning the source subtree, so a sequence inside its span comes along
+    const bareRead = boundary.member.computed
+      ? t.memberExpression(rendered, t.stringLiteral(key), true)
+      : t.memberExpression(rendered, t.identifier(key));
+    // a test synthesized from resolved names carries no source span - and no effects - so
+    // everything is spelled ahead of it
+    const testNode = rendered?.type === 'ConditionalExpression' ? rendered.test?.right : null;
+    const navPrefix = navHopSequencePrefixes(boundary.inner,
+      { unwrap: unwrapRuntimeExpr, renderedSpans: [nodeSpan(testNode)].filter(Boolean) });
+    const probeRead = navPrefix.spell.length
+      ? t.sequenceExpression([...navPrefix.spell.map(expr => t.cloneNode(expr)), bareRead]) : bareRead;
     return {
       // the guard test runs an effect-bearing CALL root exactly once - carry it like a key
       // SE so every consumer's identity filter keeps other channels from re-running it
-      keySeExprs: plan?.rootEffectCall ? [...plan.keySeExprs, plan.rootEffectCall] : plan?.keySeExprs ?? [],
+      keySeExprs: [...plan?.keySeExprs ?? [], ...plan?.rootEffectCall ? [plan.rootEffectCall] : [],
+        ...plan?.assignWrap ? [plan.assignWrap] : [], ...plan?.rootAssign ? [plan.rootAssign] : [],
+        ...navPrefix.all],
       // the probe RENDERS the nav, so an effect the source wrote BEFORE it (a sequence prefix on
       // the receiver) still runs first - consumers split their residual effects on this position
       navStart: boundary.inner.start,
-      node: boundary.member.computed
-        ? t.memberExpression(rendered, t.stringLiteral(key), true)
-        : t.memberExpression(rendered, t.identifier(key)),
+      node: probeRead,
     };
   }
 
@@ -1123,7 +1371,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       : t.isValidIdentifier(plan.leafName) ? t.identifier(plan.leafName) : null;
     if (!alternate) return null;
     return t.conditionalExpression(
-      t.binaryExpression('==', t.nullLiteral(), navGuardTestNode(plan.guardObject, anchorPath)),
+      // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
+      // shared spelling only clones the source, and a write below the hops kept `_globalThis.self`
+      // standing there - a host read off the ponyfill, undefined in the realms the polyfill is for
+      t.binaryExpression('==', t.nullLiteral(),
+        navGuardTestNode(plan.guardObject, anchorPath, null, plan.guardObject)),
       t.unaryExpression('void', t.numericLiteral(0)),
       alternate,
     );
@@ -1681,7 +1933,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // unplugin emits one flat OR-chain in a single pass; semantically identical, and where the
   // textual shape diverges the unplugin fixture carries an output-unplugin.mjs sidecar
   function replaceInstanceChainCombined(outerPath, outerId,
-    { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType }) {
+    { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType,
+      outerReturnType = null }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     // a GET tail has no call to fold: the emit ends at the member itself, and the outer dispatch
     // is the bare helper read (`_at(recv)`) instead of `_at(recv).call(recv, args)`
@@ -1739,6 +1992,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       id: outerId, object: outerRecv, scope, args: outerCall.arguments, optionalCall: outerCall.optional,
       anchorNode: outerPath.node,
     }) : t.callExpression(t.cloneNode(outerId), [outerRecv]), foldedSE);
+    // the OUTER call's own return type, the twin of `chainStartType` above: this node is what a
+    // member ABOVE the chain reads off, and the caller's annotation cannot reach it (the render
+    // replaces a different path). untyped there, the next claim resolved generic - `.name` off an
+    // array value pulled the function-name ponyfill on this leg and on no other
+    if (outerReturnType) resolvedType?.set(replacement, outerReturnType);
     // trailing NON-optional in-chain continuations (`...flat?.()?.at(0).length`) ride the
     // SUCCESS branch: native short-circuit skips them, while links left outside would apply
     // to the ternary result and throw on the void 0 path where native yields undefined. a
@@ -1795,6 +2053,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     collapseKeptNavValueNode,
     keptNavHopClaimSuppressed,
     isRenderedPlanTail: node => renderedPlanTails.has(node),
+    collapseClaimlessCallRootedNav: endPath => collapseClaimlessCallRootedNav({ endPath, adapter: getAdapter?.(),
+      resolvePureGlobalEntry, injectPureGlobal, collapseNav: collapseShortCircuitNavInPlace }),
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     sealedClaimThrowProbeNode,

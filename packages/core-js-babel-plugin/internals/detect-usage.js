@@ -264,6 +264,11 @@ export function createBabelAdapter(options = {}) {
           // the RUNTIME ctor guard; the guard reads the live value, so it self-corrects
           guardedAliasHint: (identityInfo ?? replacedDeclSlotInfo(b.path.node, info)) && !polyfillHint
             ? (identityInfo ?? info).hint : null,
+          // every ctor the slot was written with: a read whose key lives on an earlier write's ctor
+          // needs that candidate, and the guard tests identity, so a candidate that never matches
+          // only adds a branch that never fires
+          guardedAliasHints: (identityInfo ?? replacedDeclSlotInfo(b.path.node, info)) && !polyfillHint
+            ? (identityInfo ?? info).hints ?? null : null,
         };
       }
       if (!info) return null;

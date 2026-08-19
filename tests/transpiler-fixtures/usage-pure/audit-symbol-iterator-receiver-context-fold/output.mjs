@@ -18,7 +18,7 @@ export function bump() {
   return _self[_Symbol$iterator]++;
 }
 export function drop() {
-  delete _self[_Symbol$toStringTag];
+  delete _globalThis[_Symbol$toStringTag];
 }
 export function loop(xs) {
   for (_self[_Symbol$iterator] of xs) {

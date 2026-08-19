@@ -54,4 +54,4 @@ export const valueArgSelf = keepValue((va = _globalThis, _self));
 // user parens between the hop and the leaf: the anchor-edge peel sees through them, the
 // collapse still owns the span (the wrapper survives as source cosmetics)
 let pa;
-export const parenBetween = ((pa = _globalThis, _globalThis))[0];
+export const parenBetween = (pa = _globalThis, _globalThis)[0];
