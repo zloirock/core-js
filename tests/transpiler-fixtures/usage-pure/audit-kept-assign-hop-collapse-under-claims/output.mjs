@@ -1,7 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
-import _globalThis from "@core-js/pure/actual/global-this";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3;
 // a KEPT chain-assign VALUE collapses its pony hops whatever claim stands above it: the spelling is
@@ -19,4 +18,4 @@ export const name = _nameMaybeFunction(_atMaybeArray(_ref3 = (k = _self.window).
 export const staticClaim = (k = _self.window, _Array$of);
 // NEGATIVE: a value navigating a hop with NO ponyfill is not the global - target and value stay as
 // written, only the value's own root substitutes
-export const unponyfilledHop = (k = null == _globalThis.window ? void 0 : _self).Headers;
+export const unponyfilledHop = (k = _self).Headers;

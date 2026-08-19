@@ -2,6 +2,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Set from "@core-js/pure/actual/set/constructor";
 var _ref;
 // a spread BEFORE an array-wrap slot shifts every later runtime position, so the pattern slot
@@ -37,7 +39,7 @@ export const viaSpreadAt = P.allSettled([]);
 // pairing folds (paren drop around the pattern statement is the babel reprint)
 let ax, AM, AS;
 ([ax, { Promise: AM }] = [...tail, _globalThis]);
-export const viaAssignSpread = AM.try(task);
+export const viaAssignSpread = (AM === _Promise ? _Promise$try : AM.try.bind(AM))(task);
 AS = _Set;
 export const viaAssignSound = new AS(soundSeed);
 

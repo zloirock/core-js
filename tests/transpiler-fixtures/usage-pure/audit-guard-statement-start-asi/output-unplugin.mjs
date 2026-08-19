@@ -25,7 +25,7 @@ export let claimUnderOperator = 5
 export let foldedClaim = 6
 null == (_ref = _globalThis.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(1)).call(_ref2, 0)
 export let deleteOperand = 7
-delete (null == _globalThis.window ? void 0 : _self)?.hostBox.gone
+delete _globalThis.hostBox.gone
 export let protoPlacement = 8
 null == _globalThis.window ? void 0 : _Map.prototype.has.call(new _Map([[1, 1]]), 1)
 

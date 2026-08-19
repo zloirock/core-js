@@ -8,7 +8,7 @@ import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24, _ref25, _ref26, _ref27, _ref28, _ref29, _ref30, _ref31, _ref32, _ref33, _ref34, _ref35, _ref36, _ref37, _ref38, _ref39, _ref40, _ref41, _ref42, _ref43, _ref44, _ref45, _ref46, _ref49, _ref50, _ref51, _ref52, _ref53, _ref54, _ref59, _ref60;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24, _ref25, _ref26, _ref27, _ref28, _ref29, _ref30, _ref31, _ref32, _ref33, _ref34, _ref35, _ref36, _ref37, _ref38, _ref39, _ref40, _ref41, _ref42, _ref43, _ref44, _ref45, _ref48, _ref49, _ref50, _ref51, _ref52, _ref53, _ref58, _ref59;
 // a static reached through an OPAQUE inline-call proxy-nav root under an OUTER instance
 // dispatch: the guard memoizes the raw root once (its SE + short-circuit), and the guarded
 // branch collapses the static onto the ponyfill - call and FIELD spellings alike, in BOTH
@@ -82,7 +82,7 @@ export const viaHopOrderSwap = null == (_ref19 = null == dw().window ? void 0 : 
 // an OPTIONAL call root of a proven const-bound callee guards like the plain call - the
 // callee cannot be undefined, so the call adds no source of undefined
 const oc = () => _globalThis;
-export const viaOptionalCallRoot = null == (_ref21 = null == oc?.()?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref22 = _Array$of(13)).call(_ref22, 0);
+export const viaOptionalCallRoot = oc == null ? void 0 : _atMaybeArray(_ref21 = null == oc?.()?.window ? void 0 : _Array$of(13)).call(_ref21, 0);
 
 // a SECOND unresolvable hop past the ponyfillable one stays raw on the guarded ref (two
 // sources of undefined: the nested test covers the window prefix, the outer memo test the
@@ -90,53 +90,53 @@ export const viaOptionalCallRoot = null == (_ref21 = null == oc?.()?.window ? vo
 // the unplanned `chrome` tail ATTACHES differently per emitter (on the guard result vs inside
 // the branch) - runtime-equal, sidecar-locked
 const upu = () => _globalThis;
-export const viaUnresPonyUnres = null == (_ref23 = null == upu().window ? void 0 : _self.chrome) ? void 0 : _at(_ref24 = _ref23.Array.of(14)).call(_ref24, 0);
+export const viaUnresPonyUnres = null == (_ref22 = null == upu().window ? void 0 : _self.chrome) ? void 0 : _at(_ref23 = _ref22.Array.of(14)).call(_ref23, 0);
 
 // a CHAIN-ASSIGN wrapper around the proven call root rides the nested test verbatim - the
 // write runs exactly once, the branch reads the ponyfill leaf
 let heldRoot;
 const ca2 = () => _globalThis;
-export const viaChainAssignSwap = null == (_ref25 = null == (heldRoot = ca2()).window ? void 0 : _self) ? void 0 : _at(_ref26 = _Array$of(15)).call(_ref26, 0);
+export const viaChainAssignSwap = null == (_ref24 = null == (heldRoot = ca2()).window ? void 0 : _self) ? void 0 : _at(_ref25 = _Array$of(15)).call(_ref25, 0);
 
 // a CONST-bound computed hop key resolves like the dotted spelling - the nested test guards
 // the window prefix and the branch reads the ponyfill leaf
 const ck = () => _globalThis;
 const hopKey = 'self';
-export const viaComputedMidHop = null == (_ref27 = null == ck().window ? void 0 : _self) ? void 0 : _at(_ref28 = _Array$of(16)).call(_ref28, 0);
+export const viaComputedMidHop = null == (_ref26 = null == ck().window ? void 0 : _self) ? void 0 : _at(_ref27 = _Array$of(16)).call(_ref27, 0);
 
 // NEGATIVE: a MAYBE-undefined callee (conditional assignment) is not provable - the chain
 // keeps the raw guarded read off the ref
 let mf;
 if (_globalThis.setTimeout) mf = () => _globalThis;
-export const viaMaybeUndefinedFn = null == (_ref29 = null == mf?.()?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref30 = _Array$of(17)).call(_ref30, 0);
+export const viaMaybeUndefinedFn = null == (_ref28 = null == mf?.()?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref29 = _Array$of(17)).call(_ref29, 0);
 
 // a CHAIN-ASSIGN root with an SE-carrying provable body folds BOTH effects (the write and the
 // body) into the sequence prefix, exactly once, and the branch reads the ponyfill leaf
 let heldSe, seBodyCount = 0;
 const cse = () => { seBodyCount++; return _globalThis; };
-export const viaChainAssignSeBody = null == (_ref31 = (heldSe = cse(), _self).window) ? void 0 : _at(_ref32 = _Array$of(18)).call(_ref32, 0);
+export const viaChainAssignSeBody = null == (_ref30 = (heldSe = cse(), _self).window) ? void 0 : _at(_ref31 = _Array$of(18)).call(_ref31, 0);
 
 // an SE-PREFIXED computed hop key still RESOLVES for the guard count (the effect stays live in
 // the kept test text, in source order after the window test) - the branch reads the ponyfill
 // leaf
 let keyEff = 0;
 const sk = () => _globalThis;
-export const viaSeComputedOwnKey = null == (_ref33 = null == sk().window ? void 0 : (keyEff++, _self)) ? void 0 : _atMaybeArray(_ref34 = _Array$of(19)).call(_ref34, 0);
+export const viaSeComputedOwnKey = null == (_ref32 = null == sk().window ? void 0 : (keyEff++, _self)) ? void 0 : _atMaybeArray(_ref33 = _Array$of(19)).call(_ref33, 0);
 
 // a TEMPLATE-literal hop key resolves like the dotted spelling through the canonical key fold
 const tk = () => _globalThis;
-export const viaTemplateKey = null == (_ref35 = null == tk().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref36 = _Array$of(20)).call(_ref36, 0);
+export const viaTemplateKey = null == (_ref34 = null == tk().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref35 = _Array$of(20)).call(_ref35, 0);
 
 // a NESTED provable wrapper (`f` returns `g()` which returns the global) proves through the
 // same inline canon, layer by layer
 const ng = () => _globalThis;
 const nf = () => ng();
-export const viaNestedCallRoot = null == (_ref37 = null == nf().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref38 = _Array$of(21)).call(_ref38, 0);
+export const viaNestedCallRoot = null == (_ref36 = null == nf().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref37 = _Array$of(21)).call(_ref37, 0);
 
 // a PLAIN (non-optional) ponyfillable tail hop collapses with the branch - only the optional
 // window hop is a source of undefined
 const pt = () => _globalThis;
-export const viaPlainTailStatic = null == (_ref39 = pt()?.window) ? void 0 : _atMaybeArray(_ref40 = _Array$of(22)).call(_ref40, 0);
+export const viaPlainTailStatic = null == (_ref38 = pt()?.window) ? void 0 : _atMaybeArray(_ref39 = _Array$of(22)).call(_ref39, 0);
 
 // a DESTRUCTURE over the swapped-hop chain: the guard tests the SHORTEST object carrying the
 // unresolvable hop (the window prefix), never a raw ponyfillable hop read; the helper receives
@@ -148,11 +148,11 @@ export const viaDestructureOverSwap = pickedSwapAt;
 // an IDENTITY-IIFE root (`((x) => x)(globalThis)`) proves through the identity-param inline
 // canon: the buried global substitutes, the live window test guards the chain, the branch
 // reads the ponyfill leaf (only the arrow reprint differs between emitters)
-export const viaIdentityRoot = null == (_ref41 = null == ((x) => x)(_globalThis).window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref42 = _Array$of(24)).call(_ref42, 0);
+export const viaIdentityRoot = null == (_ref40 = null == ((x) => x)(_globalThis).window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref41 = _Array$of(24)).call(_ref41, 0);
 
 // an SE-carrying ARG of the identity root rides the kept test, exactly once, in source order
 let idEff = 0;
-export const viaIdentitySeArg = null == (_ref43 = null == ((x) => x)((idEff++, _globalThis)).window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref44 = _Array$of(25)).call(_ref44, 0);
+export const viaIdentitySeArg = null == (_ref42 = null == ((x) => x)((idEff++, _globalThis)).window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref43 = _Array$of(25)).call(_ref43, 0);
 
 // the plain (no-optional-chain) identity spelling folds the receiver into a sequence with the
 // collapsed static - the arg effect and the buried-global substitution both survive
@@ -163,13 +163,13 @@ export const viaIdentitySeqStatic = (((x) => x)((seqEff++, _globalThis)), _Array
 // the chain keeps the raw guarded read off the ref
 const cyc1 = () => cyc2();
 const cyc2 = () => cyc1();
-export const viaCyclicAliasKeepsRef = null == (_ref45 = cyc1()?.window?.self) ? void 0 : _at(_ref46 = _ref45.Array.of(27)).call(_ref46, 0);
+export const viaCyclicAliasKeepsRef = null == (_ref44 = cyc1()?.window?.self) ? void 0 : _at(_ref45 = _ref44.Array.of(27)).call(_ref45, 0);
 
 // NEGATIVE: a binding SHADOWING the global name (a parameter) keeps the raw identifier - the
 // buried-global proof and the substitution both respect scope
 function shadowWrap(globalThis) {
-  var _ref47, _ref48;
-  return null == (_ref47 = ((x) => x)(globalThis)?.window?.self) ? void 0 : _at(_ref48 = _ref47.Array.of(28)).call(_ref48, 0);
+  var _ref46, _ref47;
+  return null == (_ref46 = ((x) => x)(globalThis)?.window?.self) ? void 0 : _at(_ref47 = _ref46.Array.of(28)).call(_ref47, 0);
 }
 export const viaShadowedGlobal = shadowWrap;
 
@@ -177,12 +177,12 @@ export const viaShadowedGlobal = shadowWrap;
 // the carrier RESULT (the fallback object may own the key) - no collapse past the carrier; the
 // root SE runs once inside the kept test
 const nc = () => _globalThis;
-export const viaNullishCarrier = _at(_ref49 = ((null == nc().window ? void 0 : _self) ?? { Array }).Array.of(29)).call(_ref49, 0);
+export const viaNullishCarrier = _at(_ref48 = ((null == nc().window ? void 0 : _self) ?? { Array }).Array.of(29)).call(_ref48, 0);
 
 // a LOGICAL retest spells each leg through the same nested canon - the left leg keeps its own
 // guarded read, the right leg guards the dispatch
 const lg = () => _globalThis;
-export const viaLogicalRetest = (null == lg().window ? void 0 : _self) && (null == (_ref50 = null == lg().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref51 = _Array$of(30)).call(_ref51, 0));
+export const viaLogicalRetest = (null == lg().window ? void 0 : _self) && (null == (_ref49 = null == lg().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref50 = _Array$of(30)).call(_ref50, 0));
 
 // a CTOR read through the guarded identity chain: the guard tests the window prefix, both
 // legs construct the ponyfill (`new _Map`) - the arrow-paren reprint differs cosmetically
@@ -194,27 +194,27 @@ export const viaIdentityCtorNew = (null == ((x) => x)(_globalThis).window ? void
 // claim composes PLAIN into the single outer test
 let navAlias;
 navAlias = null == _globalThis.window ? void 0 : _self.window;
-export const viaAliasNavRead = navAlias == null ? void 0 : _atMaybeArray(_ref52 = _Array$of(31)).call(_ref52, 0);
+export const viaAliasNavRead = navAlias == null ? void 0 : _atMaybeArray(_ref51 = _Array$of(31)).call(_ref51, 0);
 
 // an ALIAS of the provable callee follows transitively (identifier hops re-anchor at their
 // own declaration scope), so the aliased call proves like the direct one
 const mkRoot = () => _globalThis;
 const aliasedMk = mkRoot;
-export const viaCalleeAlias = null == (_ref53 = null == aliasedMk().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref54 = _Array$of(32)).call(_ref54, 0);
+export const viaCalleeAlias = null == (_ref52 = null == aliasedMk().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref53 = _Array$of(32)).call(_ref53, 0);
 
 // NEGATIVE: an alias of a PARAM-bound callee is an arbitrary caller value - the chain keeps
 // the raw guarded read
 export function viaCalleeParamAlias(mkRoot) {
-  var _ref55, _ref56;
+  var _ref54, _ref55;
   const inner = mkRoot;
-  return null == (_ref55 = inner()?.window?.self) ? void 0 : _at(_ref56 = _ref55.Array.of(33)).call(_ref56, 0);
+  return null == (_ref54 = inner()?.window?.self) ? void 0 : _at(_ref55 = _ref54.Array.of(33)).call(_ref55, 0);
 }
 
 // the callee alias still proves under a same-name param SHADOW of the source binding - the
 // alias holds the module-level arrow, the shadow never feeds it
 export function viaCalleeAliasShadowed(mkRoot) {
-  var _ref57, _ref58;
-  return null == (_ref57 = null == aliasedMk().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref58 = _Array$of(34)).call(_ref58, 0);
+  var _ref56, _ref57;
+  return null == (_ref56 = null == aliasedMk().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref57 = _Array$of(34)).call(_ref57, 0);
 }
 
 // NEGATIVE: the callee alias captured the SOURCE before its reassignment - the reassigned
@@ -223,4 +223,4 @@ export function viaCalleeAliasShadowed(mkRoot) {
 let swapMk = () => ({ window: null });
 const heldMk = swapMk;
 swapMk = () => _globalThis;
-export const viaReassignedSourceCallee = null == (_ref59 = heldMk()?.window?.self) ? void 0 : _at(_ref60 = _ref59.Array.of(35)).call(_ref60, 0);
+export const viaReassignedSourceCallee = null == (_ref58 = heldMk()?.window?.self) ? void 0 : _at(_ref59 = _ref58.Array.of(35)).call(_ref59, 0);

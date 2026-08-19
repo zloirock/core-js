@@ -4,4 +4,4 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // Works for `Symbol` too, not only `Map`/`Set`/`Promise`. `Symbol.iterator in obj`
 // still receives its specialized polyfill.
 var Symbol = _Symbol;
-_Symbol$iterator in obj;
+(Symbol === _Symbol ? _Symbol$iterator : Symbol.iterator) in obj;

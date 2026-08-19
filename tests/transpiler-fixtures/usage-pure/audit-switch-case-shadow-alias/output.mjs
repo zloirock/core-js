@@ -1,9 +1,13 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
+import _Number$parseFloat from "@core-js/pure/actual/number/parse-float";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 // a case-level lexical rebind (`case 1: let name`) lives in the switch's SINGLE case-block
 // env: writes in EVERY case target that inner binding, so the outer alias keeps resolving -
@@ -58,7 +62,7 @@ export function noShadowRealWrite(cond, mk) {
     case 1:
       Q = mk();
   }
-  return Q.allSettled([1]);
+  return (Q === _Promise ? _Promise$allSettled : Q.allSettled.bind(Q))([1]);
 }
 export function discriminantWrite(mk) {
   let D = Number;
@@ -67,7 +71,7 @@ export function discriminantWrite(mk) {
       let D = 0;
       mk(D);
   }
-  return D.parseFloat("1.5");
+  return (D === Number ? _Number$parseFloat : D.parseFloat.bind(D))("1.5");
 }
 export function caseVarOverwrite(cond, mk) {
   var R = _Reflect;
@@ -75,7 +79,7 @@ export function caseVarOverwrite(cond, mk) {
     case 1:
       var R = mk();
   }
-  return R.ownKeys({
+  return (R === _Reflect ? _Reflect$ownKeys : R.ownKeys.bind(R))({
     a: 1
   });
 }
@@ -90,5 +94,5 @@ export function discriminantClosureWrite(mk) {
       let W = 0;
       mk(W);
   }
-  return W.groupBy([1, 2], x => x % 2);
+  return (W === _Map ? _Map$groupBy : W.groupBy.bind(W))([1, 2], x => x % 2);
 }

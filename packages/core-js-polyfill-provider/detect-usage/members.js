@@ -17,6 +17,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   POSSIBLE_GLOBAL_OBJECTS,
+  deleteHostAboveChain,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
@@ -25,7 +26,7 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
   symbolKeyToEntry,
 } from '../helpers/class-walk.js';
-import { attachMemberUnionExtras, staticContainerReceiverName } from './destructure.js';
+import { aliasWriteCtorNames, attachMemberUnionExtras, staticContainerReceiverName } from './destructure.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
@@ -53,8 +54,24 @@ import {
   resolveObjectName,
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
-  chainReadsThroughSeal, chainSealedObjects, ownChainOptionalObjects, proxyReceiverValueCanBeUndefined,
+  chainReadsThroughSeal, chainSealsAShortCircuit, ownChainOptionalObjects, proxyReceiverValueCanBeUndefined,
 } from './resolve.js';
+
+// is this read the RAW branch of a ctor-identity guard this plugin already emitted (`M === _Map ?
+// _Map$groupBy : M.groupBy`)? a second pass over its own output sees the alternate as an ordinary
+// read off a written binding and would guard it again, twice per read
+function insideEmittedCtorGuardBranch(path, adapter) {
+  for (let up = path?.parentPath, child = path?.node; up?.node; child = up.node, up = up.parentPath) {
+    const { node } = up;
+    if (node.type !== 'ConditionalExpression' || node.alternate !== child) continue;
+    const { test } = node;
+    if (test?.type !== 'BinaryExpression' || test.operator !== '===') continue;
+    for (const side of [test.left, test.right]) {
+      if (side?.type === 'Identifier' && adapter.getBinding?.(up.scope, side.name, up)?.polyfillHint) return true;
+    }
+  }
+  return false;
+}
 
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
 // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
@@ -226,14 +243,20 @@ export function planProxyReceiver(receiver, {
   // pony-backed hops keep collapsing. a WRITE target bails the same way: the only legal
   // write through an optional chain is `delete`, and no write canon builds the guard - a
   // collapse would delete the slot on the very branch native short-circuits past
-  if (!keptAssignRoot && aliasCtx
+  // a `delete` consumer names a member that is never READ: no `?.` over the navigation below it is
+  // load-bearing, so the collapse takes it whole and the slot is reached off the ponyfill - the owner's
+  // rule for this family. asked of the CONSUMER, not of `isWriteTarget`: an assignment host under a
+  // seal keeps its read, and `delete` is the only write legal past a `?.` anyway
+  const deleteConsumer = !!aliasCtx?.path
+    && deleteHostAboveChain(aliasCtx.path, receiver, unwrapRuntimeExpr);
+  if (!deleteConsumer && !keptAssignRoot && aliasCtx
     && (ownChainOptionalObjects(receiver)
       .some(object => proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx))
-      // a SEALED probe under the chain (`(c++, globalThis.window).X` - the paren'd sequence
-      // hides the probe from the own-chain walk) may not collapse either: the read/write host
-      // is the probe VALUE, and dropping the hop erases the source throw
-      || chainSealedObjects(receiver)
-        .some(inner => proxyReceiverValueCanBeUndefined(inner, resolvePure, aliasCtx)))) return null;
+      // a SEALED SHORT-CIRCUIT under the chain (`((c++, globalThis.window)?.self).X` - the paren'd
+      // sequence hides the `?.` from the own-chain walk) may not collapse either: the read/write host
+      // is the short-circuited value, and dropping the hop erases the source throw. a seal over a
+      // PLAIN nav is not that shape - it collapses like its unsealed twin (the value canon says why)
+      || chainSealsAShortCircuit(receiver, resolvePure, aliasCtx, { throughChainAssign }))) return null;
   // collapsible only when the whole `.object` is the proxy-nav prefix; else try call/IIFE-rooted, then a deeper
   // nav stacked under a non-proxy leaf chain (`(c++, globalThis.self).Array.prototype`). compare against the
   // WRAPPER-peeled object - the prefix walker returns the peeled member while the raw `.object` may be a
@@ -619,12 +642,26 @@ function buildMemberMeta({ node, scope, adapter, path }) {
 // its raw global name when the ctor does not polyfill for the targets)
 export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolvePure }) {
   if (memberNode.type !== 'MemberExpression' && memberNode.type !== 'OptionalMemberExpression') return null;
-  const recvIdent = unwrapTransparentSeq(memberNode.object);
+  // an EFFECTFUL sequence prefix on the receiver (`(n++, M).groupBy`) keeps the guard: the value
+  // tested is the sequence's tail, and the prefix runs once ahead of the whole render (the emitters
+  // re-emit it there). the transparent peel stops at such a prefix by design - it answers "what is
+  // this value", and the effect is the caller's to place
+  const objCore = unwrapTransparentSeq(memberNode.object);
+  const seqPrefix = objCore?.type === 'SequenceExpression' ? objCore.expressions.slice(0, -1) : [];
+  const recvIdent = seqPrefix.length ? unwrapTransparentSeq(objCore.expressions.at(-1)) : objCore;
   if (recvIdent?.type !== 'Identifier') return null;
-  const staticPure = resolvePure({
-    kind: 'property', object: meta.guardedAliasHint, key: meta.key, placement: 'static',
-  }, path);
-  if (staticPure?.kind !== 'static') return meta.guardOnly ? { bail: true } : null;
+  // every ctor this slot was written with is a candidate: the key may live on an EARLIER write's
+  // ctor than the one the registration kept (`if (c) M = Map; if (!c) M = Promise` - `groupBy` is
+  // Map's). the guard tests identity, so each candidate is one more branch that either matches at
+  // runtime or falls through - never a wrong answer. ordered: the kept hint first, then the rest
+  const candidates = [];
+  for (const name of [meta.guardedAliasHint, ...meta.guardedAliasHints ?? [], ...meta.guardedWriteObjects ?? []]) {
+    if (!name || candidates.some(candidate => candidate.ctorName === name)) continue;
+    const pure = resolvePure({ kind: 'property', object: name, key: meta.key, placement: 'static' }, path);
+    if (pure?.kind === 'static') candidates.push({ ctorName: name, staticPure: pure });
+  }
+  if (!candidates.length) return meta.guardOnly ? { bail: true } : null;
+  const [{ staticPure }] = candidates;
   // the callee slot may hold a this-PRESERVING wrapper over the member (`(M.groupBy as any)(...)`,
   // `(M.groupBy)(...)` - oxc keeps the paren node, babel only marks `extra.parenthesized`): peel
   // parens / TS / chain so the raw branch still binds `this`. sequences are NOT peeled - a
@@ -639,13 +676,20 @@ export function planGuardedStaticNarrow({ memberNode, parent, meta, path, resolv
     || memberNode.type === 'OptionalMemberExpression' || memberNode.optional)) {
     return { bail: true };
   }
-  const ctorPure = resolvePure({ kind: 'global', name: meta.guardedAliasHint }, path);
+  // each candidate carries its own ctor reference - the guard chains them, innermost-last
+  const branches = candidates.map(candidate => {
+    const pure = resolvePure({ kind: 'global', name: candidate.ctorName }, path);
+    return { ...candidate, ctorPure: pure && pure.kind !== 'instance' ? pure : null };
+  });
+  const [primary] = branches;
   return {
     recvIdent,
+    seqPrefix,
     staticPure,
     isCallee,
-    ctorPure: ctorPure && ctorPure.kind !== 'instance' ? ctorPure : null,
-    ctorName: meta.guardedAliasHint,
+    branches,
+    ctorPure: primary.ctorPure,
+    ctorName: primary.ctorName,
   };
 }
 
@@ -820,25 +864,52 @@ export function handleMemberExpressionNode({
   // the taken alias path reads the pure static, a user value (or an ambiguous multi-write) falls
   // to the raw read, and an unassigned binding throws exactly like native
   {
-    const recvIdent = unwrapTransparentSeq(node.object);
+    // an EFFECTFUL sequence prefix is the caller's to place, not a reason to lose the guard: the
+    // value read is the sequence's tail, and the render re-emits the prefix once ahead of the test.
+    // the transparent peel stops there by design, so peel the tail explicitly (the plan does the same)
+    const recvCore = unwrapTransparentSeq(node.object),
+          recvIdent = recvCore?.type === 'SequenceExpression'
+            ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore;
     // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
     // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
     // are guard candidates; a receiver resolved to a real global keeps its normal dispatch
-    const unresolvedReceiver = !meta || !meta.object || meta.object === recvIdent?.name;
-    if (unresolvedReceiver && recvIdent?.type === 'Identifier') {
-      const guardedHint = adapter.getBinding(scope, recvIdent.name, path)?.guardedAliasHint;
-      // a SIDE-EFFECTING computed key stays raw: the guard's consequent replaces the whole
-      // member and would skip the key's effect on the taken path (native always evaluates it)
-      if (guardedHint && !meta?.sideEffects?.length) {
+    if ((!meta || !meta.object || meta.object === recvIdent?.name) && recvIdent?.type === 'Identifier') {
+      // a write whose RHS is itself a resolvable global (`M = globalThis.Map`) is swapped by the
+      // member channel and registers NO alias, so the registry cannot name its ctor. the binding's
+      // own write enumeration can - and the guard tests identity, so a name that never matches at
+      // runtime costs nothing
+      const guardedBinding = adapter.getBinding(scope, recvIdent.name, path),
+            writeObjects = aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path }),
+            // ... and when NOTHING registered an alias at all (`let M; if (c) M = globalThis.Map` -
+            // the write's RHS resolves on its own, so the member channel swaps it and the registry
+            // never sees the binding), the enumeration IS the hint: without it the read went out raw
+            // off a binding already swapped to the pure ctor, answering `undefined` where native has
+            // the static - the miss usage-pure may never ship. NOT inside a guard this plugin already
+            // emitted, where the same read is the raw branch and a second pass would guard it twice
+            guardedHint = guardedBinding?.guardedAliasHint
+              ?? (insideEmittedCtorGuardBranch(path, adapter) ? null : writeObjects[0] ?? null);
+      // a SIDE-EFFECTING computed KEY stays raw: the guard's consequent replaces the whole member
+      // and would skip the key's effect on the taken path (native always evaluates it). a RECEIVER
+      // effect is not that - it runs once ahead of the test, where the source runs it, so the count
+      // that matters is what is left once the receiver's share is taken out
+      if (guardedHint && (meta?.sideEffects?.length ?? 0) === (meta?.receiverEffectCount ?? 0)) {
         // an OPTIONAL member on an unknown receiver builds no meta at all - synthesize a
         // guard-only one so the pure callbacks still see the read (they render and return).
         // `bailOnSideEffectKey` keeps the same raw canon for the synthesized shape
         const key = meta?.key ?? resolveKey({
           node: node.property, computed: node.computed, scope, adapter, path, bailOnSideEffectKey: true,
         });
-        if (key && meta) meta.guardedAliasHint = guardedHint;
-        else if (key) {
-          return { kind: 'property', object: null, key, placement: 'static', guardedAliasHint: guardedHint, guardOnly: true };
+        if (key && meta) {
+          Object.assign(meta, {
+            guardedAliasHint: guardedHint, guardedAliasHints: guardedBinding?.guardedAliasHints ?? null,
+            guardedWriteObjects: writeObjects,
+          });
+        } else if (key) {
+          return {
+            kind: 'property', object: null, key, placement: 'static', guardedAliasHint: guardedHint,
+            guardedAliasHints: guardedBinding?.guardedAliasHints ?? null, guardedWriteObjects: writeObjects,
+            guardOnly: true,
+          };
         }
       }
     }

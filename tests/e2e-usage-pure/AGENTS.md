@@ -6,6 +6,8 @@ End to end: source is transformed with the `usage-pure` method, bundled, and exe
 
 Tests are written in modern syntax and transpiled to ES5. They run both in Node (`npm run test-e2e-usage-pure`) and in browsers via Karma (`npm run test-e2e-usage-pure-karma`), so assertions that depend on `window` - and the side-effect counters around them - must branch on the environment instead of assuming a browser.
 
+A browser is not a modern browser: the karma matrix floor is IE11, where `window` is present and `WeakSet`, `WeakRef`, `Promise` and `Symbol` are not. So a window-present branch may not assume a slot the floor lacks - read such a leaf only where the value comes from a ponyfill, or pick one every matrix cell has. The combination is unreachable in Node, so only the karma run says no.
+
 The suite rebuilds its bundles itself; only the inner `*-run` scripts reuse prebuilt ones.
 
 ## Coverage axis
@@ -22,9 +24,9 @@ TypedArrays are not polyfilled in pure at all and need no coverage here.
 
 ## Stripped realms
 
-The babel bundle and unplugin's `pre+post` are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. The remaining legs stay full-environment on purpose.
+The babel bundle and unplugin's `pre+post` are also run in realms with the native built-ins removed. That leg is the primary guard against vacuous tests, the ones that pass on the native implementation without any polyfill being involved. The remaining legs stay full-environment on purpose. It models an engine with nothing, never a browser with old natives - which is why the strip set carries the constructors the karma floor is missing, and why a wrong expectation about a window-present host still shows up in karma alone.
 
-What the manifest cannot strip - `Object.assign`, which the lowered outputs call themselves - stays native in every local run, and the pure module hands that native back, so an assertion resting on its absence agrees here and fails only under Karma.
+`Object.assign` is the static the lowered outputs call themselves, so a bundle carrying that lowering cannot lose it - the `pre`-only leg. Neither stripped bundle does, so the broad legs strip it too (`E2E_STRIP_STATIC`), and an expectation resting on its absence is answered here rather than by the karma floor alone.
 
 What may be stripped is decided by the manifest in `tests/transpiler-differential/`, and the rule is pairing rather than a per-feature verdict: a global and the prototype helpers that ship with it are stripped together, because removing only the global leaves a half-state no real engine has, where a surviving native still serves pure calls. `Symbol` is deliberately never stripped for the same reason. Realm-sensitive work is verified across the Node versions CI runs, not on your local one alone.
 
