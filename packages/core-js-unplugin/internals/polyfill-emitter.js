@@ -78,7 +78,7 @@ import {
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { globalProxyMemberName } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolveSymbolIteratorEntry, symbolIteratorHint } from '@core-js/polyfill-provider/detect-usage/members';
-import { createRewriteHint, deoptionalizeNeedleAtPositions, hasStandaloneOccurrence } from './transform-queue.js';
+import { createRewriteHint, deoptionalizeNeedleAtPositions, hasOptionalChainToken, hasStandaloneOccurrence } from './transform-queue.js';
 import {
   calleeKind,
   isCalleeWrappedInParens,
@@ -86,7 +86,8 @@ import {
   unwrapNode,
   withSeSrcs,
 } from './emit-utils.js';
-import { dropRedundantRootParens, groupedGuardTest, scanParens, skipGap, walkAstNodes } from './plugin-helpers.js';
+import { dropRedundantRootParens, groupedGuardTest, scanParens, walkAstNodes } from './plugin-helpers.js';
+import { isOptionalChainAt, skipGap } from './text-scan.js';
 
 // true when the chain from `outerObject` down to `innerCall` is made of plain (non-call)
 // member hops only - the `.x.y[0]` between an optional call and the outer member in
@@ -1853,7 +1854,7 @@ export function createPolyfillEmitter({
       return { needsParens: true, tipEnd: end };
     }
     const p = skipGap(code, end);
-    if (code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end)) {
+    if (isOptionalChainAt(code, p) && !transforms.containsRange(start, end)) {
       return { needsParens: true, tipEnd: end };
     }
     // fifth case: step past Chain / TS wrappers AND member / call tails sharing the chain start
@@ -4793,7 +4794,7 @@ export function createPolyfillEmitter({
     const innerSrc = substitute(inner);
     // a LIVE `?.` surviving the deopt is what the seal makes observable: without the parens the
     // chain continues and short-circuits where the source dereferences the sealed value and throws
-    return innerSrc.includes('?.') ? substitute(rootNode)
+    return hasOptionalChainToken(innerSrc) ? substitute(rootNode)
       : `${ innerSrc }${ code.slice(objRaw.end, rootNode.end) }`;
   }
 

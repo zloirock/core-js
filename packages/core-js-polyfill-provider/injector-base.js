@@ -539,6 +539,22 @@ export default class ImportInjectorState {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
   }
 
+  // the MINTED blind entries are keyed by a generated ref's name: when the emitter's final
+  // canonicalization renames or drops that ref, the entry follows it - a registry that kept the
+  // old spelling would answer for a name the text no longer has (or, worse, for a DIFFERENT ref
+  // the rename handed the old spelling to)
+  renameMintedAliases(renameMap) {
+    const renamed = [];
+    for (const [name, alias] of this.#globalAliases) {
+      if (alias.minted && renameMap.has(name)) renamed.push([name, alias]);
+    }
+    for (const [name] of renamed) this.#globalAliases.delete(name);
+    for (const [name, alias] of renamed) this.#globalAliases.set(renameMap.get(name), alias);
+  }
+  dropMintedAliases(names) {
+    for (const name of names) if (this.#globalAliases.get(name)?.minted) this.#globalAliases.delete(name);
+  }
+
   // symmetric handoff for `#globalAliases`: pre registers ctor aliases (decl flatten, checked
   // assignment writes); post needs the same table so alias member reads keep narrowing on the
   // re-parsed source - without it the alias hint (and its trusted write span) is fresh-empty
