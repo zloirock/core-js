@@ -74,13 +74,21 @@ export const STRIP_GLOBALS = ['Iterator', 'globalThis'];
 export const E2E_STRIP_GLOBALS = [
   'Promise',
   'AggregateError',
-  // no native engine ships the AsyncIterator global yet, so this delete is a no-op today;
-  // once one does, the Iterator pairing rule above applies to it the same way
+  'WeakSet',
+  'WeakRef',
   'AsyncIterator',
   'DisposableStack',
   'AsyncDisposableStack',
   'SuppressedError',
 ];
+
+// statics the BROAD legs strip on top of the shared set. `Object.assign` is the one every local
+// realm otherwise keeps: babel's lowered object-spread calls it directly, so a bundle carrying that
+// lowering cannot lose it - but neither stripped-realm bundle does (the `pre`-only leg, which does,
+// runs full-env), and an expectation resting on its absence would otherwise be answered by karma's
+// IE11 cell alone. the differential is deliberately NOT given this set: its snippets DO ship the
+// lowered spread
+export const E2E_STRIP_STATIC = { Object: ['assign'] };
 
 // the composed global-strip set for the broad stripped-realm legs (e2e / unit-pure bundles)
 export const E2E_STRIP_REALM_GLOBALS = [...STRIP_GLOBALS, ...E2E_STRIP_GLOBALS];
@@ -97,10 +105,12 @@ export const ITERATOR_PROTO_HELPERS = [
 // ES5 source (lists embedded as JSON) so a realm boundary never has to import anything; ends
 // with a CANARY - a consumer realm where the strip silently failed to apply must die loudly,
 // not run a vacuous full-env pass under a stripped-realm label
-export function buildStripScript(globalNames, iteratorProtoHelpers = []) {
+export function buildStripScript(globalNames, iteratorProtoHelpers = [], extraStatics = {}) {
+  const statics = { ...STRIP_STATIC };
+  for (const [name, keys] of Object.entries(extraStatics)) statics[name] = [...statics[name] ?? [], ...keys];
   return `
   var STRIP_PROTO = ${ JSON.stringify(STRIP_PROTO) };
-  var STRIP_STATIC = ${ JSON.stringify(STRIP_STATIC) };
+  var STRIP_STATIC = ${ JSON.stringify(statics) };
   var GLOBAL_NAMES = ${ JSON.stringify(globalNames) };
   var ITER_HELPERS = ${ JSON.stringify(iteratorProtoHelpers) };
   var ITER_PROTO = Object.getPrototypeOf(Object.getPrototypeOf([].values()));

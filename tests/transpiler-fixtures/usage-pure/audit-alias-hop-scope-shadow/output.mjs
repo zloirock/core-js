@@ -3,6 +3,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise$race from "@core-js/pure/actual/promise/race";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 // a const-alias chain resolves each hop in ITS OWN declaration scope, not the receiver-use
 // scope - an inner binding shadowing an intermediate hop (or the winning IIFE call-arg) name
@@ -81,9 +82,7 @@ export function viaShadowedInitVar() {
     var heldRace = raceRoot;
   }
   {
-    const {
-      race
-    } = heldRace;
+    const race = heldRace === _Promise ? _Promise$race : heldRace.race;
     return race([]);
   }
 }

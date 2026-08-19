@@ -591,6 +591,8 @@ export function createEstreeAdapter(options = {}) {
         // RUNTIME ctor guard on member reads of known separate statics - the guard compares
         // the live value against the swapped ctor, so it self-corrects on any actual flow
         guardedAliasHint: identityInfo && !polyfillHint ? identityInfo.hint : null,
+        // every ctor the slot was written with - the AST leg's twin carries the same list
+        guardedAliasHints: identityInfo && !polyfillHint ? identityInfo.hints ?? null : null,
       };
     },
     // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):

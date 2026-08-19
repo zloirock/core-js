@@ -15,3 +15,6 @@ export const plainNav = (() => globalThis.self)()?.window?.Number.parseFloat('1.
 
 // NEGATIVE: the optional guards an unponyfilled hop, so it is load-bearing and the nav stays whole
 export const liveOptional = (() => globalThis.window?.self)()?.window?.Promise.resolve(4).finally(() => {});
+// the same root read PLAINLY: proving the call yields a proxy global does not prove its value is
+// defined, so the `?.` above it is load-bearing - dropped, this threw where native answers undefined
+export const liveOptionalObserved = typeof ((() => globalThis.window?.self)()?.window?.Promise.resolve(4));

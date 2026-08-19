@@ -4,7 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24, _ref25;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24;
 // a SECOND unresolvable hop below the collapse (`window?.window` - the realm self-reference
 // past the environment probe): the guard tests the DEEPER prefix, so the `?.` inside that test
 // guards the probe itself and is LOAD-BEARING. spelling the test with the whole spine plain
@@ -52,19 +52,19 @@ export const conditionalCalleeKeepsGuards = null == (_ref16 = null == maybeFn?.(
 // NEGATIVE: an OPTIONAL call is a chain LINK, not a plain value - dropping the `?.` above it
 // re-groups the chain, so the source spelling stays even though the callee is proven
 const provenFn = () => _globalThis;
-export const optionalCallLinkKeepsGuard = null == (_ref18 = null == provenFn?.()?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref19 = _Array$of(11)).call(_ref19, 0);
+export const optionalCallLinkKeepsGuard = provenFn == null ? void 0 : _atMaybeArray(_ref18 = null == provenFn?.()?.window ? void 0 : _Array$of(11)).call(_ref18, 0);
 
 // NEGATIVE: an OPAQUE call root is a genuine source of undefined - its `?.` is load-bearing and
 // the chain keeps the raw guarded read off the memo
 const opaque = () => ({ window: { self: { Array } } });
-export const opaqueRootKeepsGuard = null == (_ref20 = opaque()?.window?.self) ? void 0 : _at(_ref21 = _ref20.Array.of(12)).call(_ref21, 0);
+export const opaqueRootKeepsGuard = null == (_ref19 = opaque()?.window?.self) ? void 0 : _at(_ref20 = _ref19.Array.of(12)).call(_ref20, 0);
 
 // hops the plan does NOT cover (a non-proxy name) read off the value the render produces:
 // while that value is provably defined they belong INSIDE the guarded alternate, so no `?.`
 // survives for the ES5 lowering to memoize. the FIRST one pulls whatever its spelling, PLAIN
 // ones keep pulling, and the first LIVE `?.` stays outside where the ternary already guards
 const ut = () => _globalThis;
-export const unplannedOptionalTail = null == (_ref22 = null == ut().window ? void 0 : _self.chrome) ? void 0 : _at(_ref23 = _ref22.Array.of(13)).call(_ref23, 0);
+export const unplannedOptionalTail = null == (_ref21 = null == ut().window ? void 0 : _self.chrome) ? void 0 : _at(_ref22 = _ref21.Array.of(13)).call(_ref22, 0);
 export const unplannedPlainTail = null == ut().window ? void 0 : _self.chrome.Array;
 export const unplannedComputedTail = null == ut().window ? void 0 : _self['chrome'];
 export const unplannedTwoTails = (null == ut().window ? void 0 : _self.chrome)?.foo?.Array;
@@ -80,7 +80,7 @@ export const unplannedDeepCallChain = null == ut().window ? void 0 : _self.foo(1
 
 // NEGATIVE: `delete` needs the MEMBER itself - pulled into the alternate the ternary evaluates
 // and deletes nothing, so the tail rides outside behind `?.`
-export const unplannedDelete = delete (null == ut().window ? void 0 : _self)?.chrome;
+export const unplannedDelete = delete _self.chrome;
 
 // a `new` callee reads only the VALUE (no receiver binding), so it pulls like a plain tail
 export function unplannedNewCallee() { return new (null == ut().window ? void 0 : _self.CustomCtor)(1); }
@@ -125,15 +125,15 @@ export function pulledNewCallee() { return new (null == oc2().window ? void 0 : 
 // the alternate the ternary deletes nothing, and a tail left outside reads off the guard's
 // `void 0` (a throw where the source short-circuits to a no-op `true`)
 const dl = () => _globalThis;
-export const deleteOverPulledTail = delete (null == dl().window ? void 0 : _self)?.chrome.missing;
-export const deleteDirectTail = delete (null == dl().window ? void 0 : _self)?.missing;
-export const deleteOptionalTail = delete (null == dl().window ? void 0 : _self)?.chrome?.missing;
+export const deleteOverPulledTail = delete _self.chrome.missing;
+export const deleteDirectTail = delete _self.missing;
+export const deleteOptionalTail = delete _self.chrome?.missing;
 
 // the same `delete` rule on a BARE proxy root (no call around it): the operand keeps its `?.`
 // whatever number of tail steps sit between the guard and the operator
 _globalThis.deleteNest = { key: 1 };
-export const deleteBareRootDeepTail = delete (null == _globalThis.window ? void 0 : _self)?.deleteNest.key;
-export const deleteBareRootDirect = delete (null == _globalThis.window ? void 0 : _self)?.deleteNest;
+export const deleteBareRootDeepTail = delete _globalThis.deleteNest.key;
+export const deleteBareRootDirect = delete _globalThis.deleteNest;
 
 // a consumer that PARENTHESIZES the guard (`await`, an operator) wraps the WHOLE folded value,
 // so the tail rides inside it entire - no step is stranded outside, and no `?.` the source never
@@ -160,7 +160,7 @@ export const whileConsumer = () => { while ((null == cs().window ? void 0 : _sel
 export const sequenceConsumer = (0, null == cs().window ? void 0 : _self.consumerHost.n);
 class ConsumerHost {
   static field = null == cs().window ? void 0 : _self.consumerHost.n;
-  inst = null == (_ref24 = cs()?.window) ? void 0 : _at(_ref25 = _ref24.consumerHost.list).call(_ref25, 0);
+  inst = null == (_ref23 = cs()?.window) ? void 0 : _at(_ref24 = _ref23.consumerHost.list).call(_ref24, 0);
 }
 export const consumerHost = ConsumerHost;
 
@@ -187,7 +187,7 @@ let seK = 0;
 _globalThis.seKeyHost = { w: { c: 1 } };
 const sk2 = () => _globalThis;
 export const seKeyThenPlainTail = null == sk2().window ? void 0 : (seK++, _self).seKeyHost.w.c;
-export const seKeyDeleteTail = delete (null == sk2().window ? void 0 : (seK++, _self))?.seKeyHost.w.c;
+export const seKeyDeleteTail = delete (seK++, _self).seKeyHost.w.c;
 export { seK };
 
 // an OPAQUE computed key carries its own effects and migration canon: the fold stops there in

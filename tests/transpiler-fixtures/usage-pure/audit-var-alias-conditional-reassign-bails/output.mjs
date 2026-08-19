@@ -1,3 +1,4 @@
+import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // usage-pure counterpart of the conditional reassignment: pure would rewrite `P.allSettled(...)` to
 // a receiver-less `_Promise$allSettled(...)`, wrong on the branch where P was reassigned - so it
@@ -8,5 +9,5 @@ function f(c, other) {
   if (c) {
     P = other;
   }
-  P.allSettled([]);
+  (P === _Promise ? _Promise$allSettled : P.allSettled.bind(P))([]);
 }

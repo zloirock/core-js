@@ -16,7 +16,7 @@ export const a = _Map$groupBy(items, keyFn);
 let M2;
 const HopBefore = M2;
 M2 = _Map;
-export const b = HopBefore.groupBy(items, keyFn);
+export const b = (HopBefore === _Map ? _Map$groupBy : HopBefore.groupBy.bind(HopBefore))(items, keyFn);
 
 // the same hop AFTER the write reads the live constructor - narrows like the direct form
 let M3;

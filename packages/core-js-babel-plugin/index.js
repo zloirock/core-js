@@ -275,6 +275,7 @@ export default function plugin(api, options) {
     isRenderedPlanTail,
     navGuardTestNode,
     collapseKeptNavValueNode,
+    collapseClaimlessCallRootedNav,
     collapseShortCircuitNavInPlace,
     probedNavGuardValueNode,
     sealedClaimThrowProbeNode,
@@ -343,6 +344,24 @@ export default function plugin(api, options) {
     }
     for (let d = path.node.object; d && isOptionalNode(d) && !d.optional; d = d.object ?? d.callee) {
       deoptionalizeAstNode(d);
+    }
+  }
+
+  // is this member the OPERAND of a `delete`? transparent wrappers (parens as a NODE, TS casts) sit
+  // between them in one paren spelling and not the other, so the climb peels them - the same rule the
+  // shared write-host predicate applies to its own hosts
+  function isDeleteOperand(path) {
+    let step = path;
+    for (;;) {
+      const up = step?.parentPath;
+      if (!up?.node) return false;
+      // a guard this emit already rendered sits BETWEEN the member and its consumer by the time the
+      // claim is visited (`delete (null == t ? void 0 : X.name)`): on the defined branch the member
+      // still IS the delete operand, so the climb steps through the branch it fills
+      const throughBranch = up.node.type === 'ConditionalExpression'
+        && (up.node.alternate === step.node || up.node.consequent === step.node);
+      if (!throughBranch && unwrapRuntimeExpr(up.node) !== step.node) return isDeleteTarget(up.node);
+      step = up;
     }
   }
 
@@ -720,6 +739,23 @@ export default function plugin(api, options) {
         path.replaceWith(withLhsSe(t.booleanLiteral(true)));
       }
 
+      // the instance rewrite REPLACES the parent call (`arr.at(0)` -> `_atMaybeArray(arr).call(arr, 0)`),
+      // so the type it resolved to is gone from the tree the next member above reads: capture it
+      // BEFORE the rewrite and hand it back after. the COMBINED render replaces a different path
+      // than the one held here, so it takes the type as an argument and stamps its own replacement
+      function captureInstanceCallType(path) {
+        const callerPath = unwrapTSExpressionParent(path);
+        const callParent = callerPath.parentPath;
+        const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+          && callParent.node.callee === callerPath.node;
+        const type = isCallParent ? resolveNodeType(callParent) : null;
+        return type ? { callParent, type } : null;
+      }
+
+      function reattachInstanceCallType(captured) {
+        if (captured?.callParent?.node) resolvedType.set(captured.callParent.node, captured.type);
+      }
+
       // stash return type on CallExpression before callee replacement so downstream
       // resolveNodeType can still determine e.g. Promise.all -> Array
       function annotateCallReturnType(path) {
@@ -746,19 +782,36 @@ export default function plugin(api, options) {
         });
         if (!plan) return false;
         if (plan.bail) return true;
-        const ctorRef = plan.ctorPure
-          ? injectPureImport(plan.ctorPure.entry, plan.ctorPure.hintName)
-          : t.identifier(plan.ctorName);
-        const staticBinding = injectPureImport(plan.staticPure.entry, plan.staticPure.hintName);
-        const rawBranch = plan.isCallee
-          ? t.callExpression(t.memberExpression(t.cloneNode(memberNode), t.identifier('bind')), [t.cloneNode(plan.recvIdent)])
+        // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
+        // the source runs it - so the raw branch reads off the bare identifier instead of re-running
+        // the sequence (`(n++, M === _Map ? _Map$groupBy : M.groupBy)`)
+        const readNode = plan.seqPrefix.length
+          ? t.memberExpression(t.cloneNode(plan.recvIdent),
+            memberNode.computed ? t.cloneNode(memberNode.property) : t.identifier(memberNode.property.name),
+            memberNode.computed)
           : memberNode;
+        const rawBranch = plan.isCallee
+          ? t.callExpression(t.memberExpression(t.cloneNode(readNode), t.identifier('bind')), [t.cloneNode(plan.recvIdent)])
+          : readNode;
         guardedNarrowRendered.add(memberNode);
-        const guard = t.conditionalExpression(
-          t.binaryExpression('===', t.cloneNode(plan.recvIdent), t.cloneNode(ctorRef)),
-          t.cloneNode(staticBinding),
-          rawBranch,
-        );
+        // one branch per candidate ctor, innermost-last: whichever the binding actually holds at
+        // runtime answers with ITS pure static, and a value that is none of them keeps the raw read
+        const narrow = plan.branches.reduceRight((alternate, branch) => {
+          // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
+          // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
+          // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
+          const testRecv = t.cloneNode(plan.recvIdent);
+          skippedNodes.add(testRecv);
+          return t.conditionalExpression(
+            t.binaryExpression('===', testRecv, branch.ctorPure
+              ? t.cloneNode(injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName))
+              : t.identifier(branch.ctorName)),
+            t.cloneNode(injectPureImport(branch.staticPure.entry, branch.staticPure.hintName)),
+            alternate,
+          );
+        }, rawBranch);
+        const guard = plan.seqPrefix.length
+          ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
         t.traverseFast(rawBranch, n => skippedNodes.add(n));
         // the generator prints the `expr<T>` instantiation slot without the parens its precedence
         // needs (`c ? a : b<T>(x)` re-parses the call into the alternate, leaving the consequent
@@ -789,6 +842,40 @@ export default function plugin(api, options) {
         return true;
       }
 
+      // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders as
+      // the declarator's value, which is equivalent down to the throw - on a nullish receiver the raw
+      // branch dereferences it exactly as the pattern would. sole-prop declarator shapes only; a
+      // multi-prop pattern would need splitting, and a default / computed key has its own canon
+      function emitGuardedDestructureNarrow(meta, prop) {
+        const pattern = prop.parentPath;
+        if (!pattern?.isObjectPattern() || pattern.node.properties.length !== 1) return false;
+        if (prop.node.computed || prop.node.shorthand && prop.node.value?.type !== 'Identifier') return false;
+        const binding = prop.node.value;
+        if (binding?.type !== 'Identifier') return false;
+        const declarator = pattern.parentPath;
+        if (!declarator?.isVariableDeclarator() || !declarator.node.init) return false;
+        const plan = planGuardedStaticNarrow({
+          memberNode: t.memberExpression(t.cloneNode(declarator.node.init), t.identifier(meta.key)),
+          parent: null, meta, path: prop, resolvePure,
+        });
+        if (!plan || plan.bail) return false;
+        // the raw branch is a member read this very rule would narrow again on re-entry - mark it
+        // handled, exactly as the member render does with the node it keeps
+        const rawBranch = t.memberExpression(t.cloneNode(plan.recvIdent), t.identifier(meta.key));
+        t.traverseFast(rawBranch, node => skippedNodes.add(node));
+        const narrow = plan.branches.reduceRight((alternate, branch) => t.conditionalExpression(
+          t.binaryExpression('===', t.cloneNode(plan.recvIdent), branch.ctorPure
+            ? t.cloneNode(injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName))
+            : t.identifier(branch.ctorName)),
+          t.cloneNode(injectPureImport(branch.staticPure.entry, branch.staticPure.hintName)),
+          alternate,
+        ), rawBranch);
+        declarator.node.id = t.cloneNode(binding);
+        declarator.node.init = plan.seqPrefix.length
+          ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
+        return true;
+      }
+
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
         // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
@@ -800,7 +887,8 @@ export default function plugin(api, options) {
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
         if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
 
-        if (meta.guardedAliasHint && emitGuardedStaticNarrow(meta, path)) return;
+        if (meta.guardedAliasHint && (path.isObjectProperty()
+          ? emitGuardedDestructureNarrow(meta, path) : emitGuardedStaticNarrow(meta, path))) return;
 
         let inheritedStatic = false;
         if (meta.kind === 'property') {
@@ -1012,6 +1100,12 @@ export default function plugin(api, options) {
           // undefined hop off the alias off-engine (ie:11 / Node). `isAliasProxyHopChain` is the shared
           // provider detection; peel to the root path and collapse (which self-gates on the hop again)
           const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
+          // the CALL-rooted twin of the alias arm below: a proxy nav rooted in an inline-resolvable
+          // call whose leaf polyfills nothing (`(() => globalThis)().window.self.userSlot`) has no
+          // claim to drive any channel here, so the hops rode raw - a native `self` read where the
+          // ponyfill is the point, and the text leg collapsed the same source through its own
+          // suppressed-hop callback (its visitor reaches the hops this leg's subtree-skip hides)
+          if (collapseClaimlessCallRootedNav(path)) return;
           if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
             let rootPath = path;
             while (rootPath.isMemberExpression() || rootPath.isOptionalMemberExpression()) rootPath = rootPath.get('object');
@@ -1077,6 +1171,16 @@ export default function plugin(api, options) {
             : null;
           if (staticEraseGuard?.kind === 'standdown') return;
           const id = injectPureImport(entry, hintName);
+          // a WRITE host is never a read: the member is being assigned, updated or DELETED, so swapping
+          // it changes what the statement acts on - `delete X.flat.name` became `delete _nameMaybeFunction(...)`,
+          // whose operand is a CALL, so the delete stopped deleting anything at all. the property-meta
+          // branch has carried this bail from the start; the instance one never did
+          // the member that IS the delete OPERAND is never read - swapping it changed what the statement
+          // acts on (`delete X.flat.name` became `delete _nameMaybeFunction(...)`, whose operand is a
+          // CALL, so the delete stopped deleting anything). only the target: the members BELOW it are
+          // read on the way there and keep their claims (`flat` above still swaps)
+          if (kind === 'instance' && (isForXWriteTarget(path) || isMemberWriteHost(path)
+            || isDeleteOperand(path))) return;
           if (kind === 'instance') {
             // a SE-wrapped proxy-global RECEIVER (`(c++, globalThis.self).Array.prototype.flat`) is skipped by
             // the natural visitors: the provider marks the wrapped root handled (expecting a collapse), but the
@@ -1104,7 +1208,8 @@ export default function plugin(api, options) {
               // `(arr?.at?.(0))[(fn(), 'map')](x => x)`) was captured by detect-usage but
               // dropped when the inner-chain rewrite replaced the parent expression with a
               // conditional. SequenceExpression wrap preserves the SE in source order
-              replaceInstanceChainCombined(path, id, { ...innerChain, innerId, sideEffects: meta.sideEffects });
+              replaceInstanceChainCombined(path, id, { ...innerChain, innerId, sideEffects: meta.sideEffects,
+                outerReturnType: captureInstanceCallType(path)?.type });
               return;
             }
             // capture pre-mutation Type object for the parent CallExpression and re-attach
@@ -1115,16 +1220,12 @@ export default function plugin(api, options) {
             // node persists. without this type-cache downstream `arr2.at(-1)` (where `arr2 =
             // arr.concat(x)`) falls back to generic `_at` because the rewritten init shape
             // (`_concatMaybeArray(arr).call(arr, x)`) isn't recognized by `resolveNodeType`.
-            const callerPath = unwrapTSExpressionParent(path);
-            const callParent = callerPath.parentPath;
-            const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
-              && callParent.node.callee === callerPath.node;
-            const callType = isCallParent ? resolveNodeType(callParent) : null;
+            const captured = captureInstanceCallType(path);
             replaceInstanceLike({
               path, id, skipOptional: skipPolyfillableOptional,
               sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
             });
-            if (callType && callParent.node) resolvedType.set(callParent.node, callType);
+            reattachInstanceCallType(captured);
           } else if (inheritedStatic) {
             // super.X and unshadowed this.X in static ctx (this = subclass ctor): emit
             // id.call(this, ...) so the receiver is preserved, else the result downgrades to base
@@ -1151,17 +1252,19 @@ export default function plugin(api, options) {
             // reuse the pre-import decision. `standdown` already returned above and the verdict is
             // non-null on this branch, so the only non-erase kind left is 'guard': exactly one
             // undefinable `?.` - re-hang the claim inside its guard test
-            if (staticEraseGuard.kind === 'guard') {
-              emitGuardedClaim({
-                path, replacePath, id, guardObject: staticEraseGuard.object,
-                sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
-                substituteGlobal(name) {
-                  const resolved = resolvePure({ kind: 'global', name }, path);
-                  return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
-                },
-              });
-              return;
-            }
+            // the guard is the PREFERRED shape, not the only one: where no single test expresses
+            // the source (a seal above the guard object, a `delete` tail with a leading effect)
+            // the emit stands down and the plain arm below takes it - claim plus THROW PROBE,
+            // which reproduces the read the guard would have swallowed. returning here on a
+            // stand-down left the claim raw, unpolyfilled, where the text emitter renders one
+            if (staticEraseGuard.kind === 'guard' && emitGuardedClaim({
+              path, replacePath, id, guardObject: staticEraseGuard.object,
+              sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
+              substituteGlobal(name) {
+                const resolved = resolvePure({ kind: 'global', name }, path);
+                return resolved ? injectPureImport(resolved.entry, resolved.hintName) : null;
+              },
+            })) return;
             // the KEPT chain-assign value beside the claim collapses through the same canon the
             // guarded twin reads (`(q = globalThis.self.window).Map` stores `_self.window`, a
             // nested unresolvable prefix keeps its guard) - a kept raw `.self` hop reads an
