@@ -50,6 +50,7 @@ import {
   unwrapParens,
   walkPatternIdentifiers,
   POSSIBLE_GLOBAL_OBJECTS,
+  deleteHostAboveChain,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   globalProxyMemberName,
@@ -66,6 +67,7 @@ import {
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
+  claimlessGuardedObjectUndefinable,
   claimlessOptionalNavGuardsUndefinable,
   descendToChainRoot,
   discardRescueNodes,
@@ -145,6 +147,7 @@ import {
   skipGap,
   statementOverwriteFusesLeft,
   walkAstNodes,
+  dropRedundantRootParens,
 } from './plugin-helpers.js';
 
 // scope-walker constants for `polyfillSiblingReceiverRefs`. hoisted module-level so each
@@ -687,8 +690,15 @@ export function createDestructureEmitter({
       bakeResidualIntoSlot(entry.result);
       const drainedRefs = consumeRefsAndInserts(entry.stmtNode.start, entry.stmtNode.end);
       const segments = renderCascadeSegments(entry, drainedRefs);
-      transforms.add(entry.stmtNode.start, entry.stmtNode.end, guardOverwriteLeftFusion(entry.stmtNode.start,
-        wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, entry.stmtPath), entry.stmtPath));
+      const cascadeSrc = guardOverwriteLeftFusion(entry.stmtNode.start,
+        wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, entry.stmtPath), entry.stmtPath);
+      // the segments REPLACE the statement: an overwrite queued inside it composes only where the
+      // render re-emits its source, and is obsolete everywhere else (a receiver collapse the claim
+      // already resolved - `[{ of }] = [globalThis.self.Array]` queued `_globalThis.Array` while the
+      // cascade spells `of = _Array$of`). declared as the rewritten range so the composer decides
+      // per entry, the way the flatten's per-declarator hint already does
+      transforms.add(entry.stmtNode.start, entry.stmtNode.end, cascadeSrc, null,
+        { rewrittenRanges: [{ start: entry.stmtNode.start, end: entry.stmtNode.end, text: cascadeSrc }] });
     }
     pendingCascade.length = 0;
   }
@@ -4793,7 +4803,10 @@ export function createDestructureEmitter({
       // invariant realm global this drop assumes: dropping every hop to the root answers a DEFINED
       // object where the source destructures `undefined` and throws. the AST emitter asks the same
       // canon on its own drive; an all-plain deep nav still collapses (the accepted proxy boundary)
-      if (navValueCanShortCircuit(recv, resolvePure, aliasCtx)) return false;
+      // a `delete` consumer names a member that is never READ, so the navigation collapses whole
+      // there (the AST leg's twin gate)
+      if (!deleteHostAboveChain(recPath, recv, unwrapNode)
+        && navValueCanShortCircuit(recv, resolvePure, aliasCtx)) return false;
       const rootIdent = findProxyGlobal(recv, aliasCtx, true);
       const rootPure = rootIdent && resolveGlobalPolyfill(rootIdent.name);
       if (!rootPure) return false;
@@ -4834,9 +4847,16 @@ export function createDestructureEmitter({
     // (`globalThis.window.self.window?.BigInt` with BigInt declined folded to
     // `_globalThis.BigInt` - a defined value where native answers undefined). a `?.` INSIDE
     // the erased prefix stays foldable - the plan-driven render rehangs its guard itself
+    // a DELETE target reads the same shape with no claim to hand the guard to: the leaf name stays a
+    // native slot (the swap would delete the ponyfill's), so the chain-scan early-out of the
+    // claimless verdict - "a claimable static is here, its channel owns the connector" - is not true
+    // there and the per-object question is asked directly
     if (recv.optional
-      && claimlessOptionalNavGuardsUndefinable(recv, ({ name }) => resolveGlobalPolyfill(name), aliasCtx,
-        { widenDeep: true })) return false;
+      && (isWriteTarget
+        ? claimlessGuardedObjectUndefinable(unwrapNode(recv.object), ({ name }) => resolveGlobalPolyfill(name),
+          aliasCtx, { widenDeep: true })
+        : claimlessOptionalNavGuardsUndefinable(recv, ({ name }) => resolveGlobalPolyfill(name), aliasCtx,
+          { widenDeep: true }))) return false;
     const collapsedSpan = { end: recv.end };
     const collapsed = substituteProxyGlobalRoot({
       node: recv, src: nodeSrc(recv), baseStart: recv.start, aliasCtx, isWriteTarget, throughChainAssign: true,
@@ -4851,7 +4871,7 @@ export function createDestructureEmitter({
     // the anti-collision probe above measured the RECEIVER span, but the collapse routinely ends
     // PAST it (`spanOut`) - `claim` asks about the range actually being queued, so an owner of the
     // grown range cannot meet a second equal-range entry and abort the merge
-    if (!transforms.claim(recv.start, collapsedSpan.end, collapsed)) return anchorOnHop;
+    if (!transforms.claim(recv.start, collapsedSpan.end, dropRedundantRootParens(collapsed))) return anchorOnHop;
     const root = findProxyGlobal(recv, aliasCtx);
     if (root) skippedNodes.add(root); // suppress the parallel natural identifier rewrite
     // the collapse consumed the PROXY hops in the span - mark them so a swallowed hop's own

@@ -16,7 +16,7 @@ import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
+import { E2E_STRIP_REALM_GLOBALS, E2E_STRIP_STATIC, ITERATOR_PROTO_HELPERS, buildStripScript } from '../transpiler-differential/strip-manifest.mjs';
 import QUnit from 'qunit';
 import quietReporter from './quiet-reporter.js';
 
@@ -47,7 +47,7 @@ runInContext('Function("return this")().global = Function("return this")();', co
 // harness realm. `globalThis` (in STRIP_GLOBALS) goes too - the realm global stays reachable
 // inside via `Function('return this')()`. the applier's tail CANARY throws if the strip
 // silently failed to apply - a vacuous full-env pass must never wear the stripped label
-runInContext(buildStripScript(E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS), context);
+runInContext(buildStripScript(E2E_STRIP_REALM_GLOBALS, ITERATOR_PROTO_HELPERS, E2E_STRIP_STATIC), context);
 
 QUnit.config.autostart = false;
 quietReporter.init(QUnit);
