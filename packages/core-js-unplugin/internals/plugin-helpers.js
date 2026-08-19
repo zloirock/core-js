@@ -9,10 +9,10 @@ import {
   tsRuntimeBindingName,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
 import {
-  codePointEndingAt, IDENT_PART_RE, IDENT_START_RE, isInlineWhitespace, isLineTerminator, skipBlockComment, skipGap,
+  codePointEndingAt, findRegionContaining, isLineTerminator, isOptionalChainAt, literalRegionsOf, prevSignificantPos, skipGap,
 } from './text-scan.js';
 
 // re-export the shared `isDirectiveStatement` so existing unplugin consumers
@@ -24,9 +24,13 @@ export { isDirectiveStatement };
 // stable; canonical impl lives in `sfc-shapes.js` alongside the regexes it consumes
 export { liftSfcLangSuffix };
 
-// re-export the lexical scanners so sibling modules (`detect-entry`, `import-injector`) keep
-// importing them from here; canonical impls live in `text-scan.js`
-export { isInlineWhitespace, isLineTerminator, skipBlockComment, skipGap };
+// what the parser makes of a (query-stripped, SFC-lifted) module id, and with it what the
+// lexer must make of the file's text: `.jsx` / `.tsx` admit JSX (`.js` does NOT - oxc rejects
+// an element there), `.cjs` / `.cts` parse as a Script. the ONE spelling of both rules - the
+// parse options, the import-style default and the lexer dialect all read it
+export function sourceDialectOf(cleanId) {
+  return { jsx: /\.[jt]sx$/.test(cleanId), script: /\.c[jt]s$/.test(cleanId) };
+}
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
 // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
@@ -90,29 +94,55 @@ export function lastUserImportEnd(ast) {
   return end;
 }
 
-// chars that, as the previous statement's last token, fuse with a leading `(` on the
-// next line into a call expression (parser continues without ASI). this is the
-// inverse-direction predicate to `ASI_HAZARD_STARTS` in `detect-entry.js`: that one
-// lists STARTING chars (`(`, `[`, `/`, `+`, `-`, ``, `<`) that fuse with any
-// fusion-capable prev; this one lists ENDING chars that fuse with `(` specifically
-// (the broadest single hazard - covers all the IIFE-wrapped emission shapes the
-// usage-* pipelines emit). the two sets are deliberately asymmetric: usage-* paths
-// emit `(...)` wrappers around polyfilled receivers and only need to guard against
-// the prev-char direction; entry-* paths remove arbitrary statements and need to
-// guard against the next-char direction (broader, since the next statement's first
-// char is unconstrained by emission shape).
-// `}` included conservatively: FunctionDeclaration / BlockStatement terminate without ASI
-// concern, but FunctionExpression in an incomplete statement (`let x = function(){}\n(1,2)`
-// - parser treats as `x = (function(){})(1,2)`) fuses. we can't distinguish the two from
-// a single char; over-fusing adds a spurious `;` guard but doesn't break output.
-// `/` covers both regex-literal closer (`let r = /foo/\n(...)` -> `(/foo/)(...)` - regex
-// invoked as fn, TypeError) and division operator (`a / b\n(c)` -> `a / (b(c))` - silent
-// arithmetic shift). postfix `++` / `--` deliberately omitted: spec disallows
-// `UpdateExpression Arguments`, so the parser ASIs the boundary unconditionally
-// Unicode-aware: `\w` matches only ASCII `[A-Za-z0-9_]`, missing ID_Continue chars in
-// identifiers ending the previous statement (`Mapα\n(x)` would skip the ASI guard).
-// `$` already listed explicitly because it's not in ID_Continue but IS a valid ident char
-const FUSES_WITH_OPEN_PAREN = /[\p{ID_Continue}"$')/\]`}]/u;
+// --- ASI at a statement boundary ---
+// ONE question, asked by every channel that puts text at the head of a statement slot - the queue's
+// `(`-leading replacements, the entry remover, the SE-prefix rewrite, the minifier-sequence split,
+// the destructure lifted-SE emit: "would the FIRST char of what now stands here fuse LEFTWARD into
+// the previous surviving statement?". two closed alphabets answer it, both on the FINAL text (the
+// previous surviving char, after every removal around it, and the emitted first char):
+//
+// statement-START chars that fuse LEFTWARD into a fusion-capable prev statement: `(` (call), `[`
+// (index), `/` (regex or division), `+` / `-` (binary), `` ` `` (tagged template), `<` (TS
+// TypeAssertion / JSX). `<` over-fires on a real `a < b`, but a statement can START with `<` only as
+// a TS type-assertion (`<T>x`) or JSX element - never a less-than continuation (`a; <b` is a
+// SyntaxError, not `a<b`) - so a spurious `;` only ever precedes those, harmless
+export const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
+
+// prev SURVIVING chars at a statement boundary that CANNOT fuse with a following hazard-start: `;`
+// (terminator) and the statement-list openers `{` (block / static block) and `:` (switch-case /
+// label) - after them the injection is the FIRST statement of a list, so there is no prev value to
+// fuse into. every other boundary char may fuse and is guarded conservatively: a value end, the
+// `}` of a function-or-class EXPRESSION (a block's `}` cannot be told apart by the char, and the
+// AST-side `asiFusableStatementStarts` already drops the statements a block closes), a postfix
+// `++` / `--` (the spec ASIs `x++ (y)` and `x++ [k]` itself - the `;` there is a harmless extra),
+// a TS non-null `!`, a `>` closing an instantiation expression. a deny-list because the fusing
+// set is the open one: every character class that can end a value fuses, and an allow-list of
+// those was caught short three times (`!`, `>`, the `.` of `?.`)
+const NON_FUSING_PREV = new Set([';', '{', ':']);
+
+// would emitting `firstChar` at statement position fuse LEFTWARD into the prev surviving char
+// `prevChar`? callers pass the prev SURVIVING char (they bail on start-of-file themselves)
+export function injectionFusesLeft(firstChar, prevChar) {
+  return !NON_FUSING_PREV.has(prevChar) && ASI_HAZARD_STARTS.has(firstChar);
+}
+
+// does text beginning `firstChar`, put at statement position `start` in `src`, fuse LEFTWARD into the
+// prev surviving statement? pairs the lexer-aware prev-significant-char scan with
+// `injectionFusesLeft`. start-of-file (no prev) is safe. this is the predicate for an in-place
+// statement overwrite; a removal batch asks the same question over its own survivor map in
+// `detect-entry`, because there the prev surviving char is not the one in `src`
+export function statementOverwriteFusesLeft(src, start, firstChar) {
+  const prevIdx = prevSignificantPos(src, start);
+  return prevIdx >= 0 && injectionFusesLeft(firstChar, src[prevIdx]);
+}
+
+// the chars that END A VALUE: a `(` right after one continues it into a call, a `(` after anything
+// else opens a grouping layer. this is NOT the ASI question above (which is about a statement
+// boundary, where the deny-list decides): it is asked mid-expression, where a `=` or `,` before
+// the paren is normal and means "grouping". `}` included conservatively: a block's `}` and an
+// object / function expression's `}` are one char, and only the latter ends a value. Unicode-aware:
+// `\w` matches only ASCII, missing ID_Continue chars in identifiers (`Mapα(x)` is a call)
+const VALUE_END_RE = /[\p{ID_Continue}"$')/\]`}]/u;
 
 // an expression emitted at STATEMENT position parses as a block / declaration (not an expression)
 // when its first token is `{` (ObjectExpression -> block), `function` / `function*` (-> function
@@ -122,43 +152,11 @@ const FUSES_WITH_OPEN_PAREN = /[\p{ID_Continue}"$')/\]`}]/u;
 // guard explicitly, else the slice reparses as a block / nameless declaration (SyntaxError or
 // silently dropped pass)
 const EXPR_STMT_HAZARD_START = /^\s*(?:\{|class\b|(?:async\s+)?function\b)/;
+export function isExprStmtHazardStart(text) {
+  return EXPR_STMT_HAZARD_START.test(text);
+}
 export function parenthesizeExprStmtHazard(text) {
-  return EXPR_STMT_HAZARD_START.test(text) ? `(${ text })` : text;
-}
-
-// statement-START chars that fuse LEFTWARD into a fusion-capable prev statement: `(` (call), `[` (index),
-// `/` (regex or division), `+` / `-` (binary), `` ` `` (tagged template), `<` (TS TypeAssertion / JSX).
-// complementary to FUSES_WITH_OPEN_PAREN (ENDING chars that fuse only with a following `(`). `<` over-
-// fires on a real `a < b`, but a statement can START with `<` only as a TS type-assertion (`<T>x`) or JSX
-// element - never a less-than continuation (`a; <b` is a SyntaxError, not `a<b`) - so a spurious `;` only
-// ever precedes those, harmless. a postfix `++` / `--` prev never reaches `[` here (`x++[k]` is itself a
-// SyntaxError that ASI already split), so the `[` guard there is a harmless over-inject
-export const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`', '<']);
-
-// prev SURVIVING chars at a statement boundary that CANNOT fuse with a following hazard-start: `;`
-// (terminator) and the statement-list openers `{` (block / static block) and `:` (switch-case / label) -
-// after them the injection is the FIRST statement of a list, so there is no prev value to fuse into.
-// every other boundary char (value end / `}` of a fn-or-class EXPRESSION / postfix `++`) may fuse, so we
-// guard conservatively. NOT object-literal `{` / ternary-or-type `:` - those are mid-expression, never a
-// statement-boundary prev char (the only contexts the two callers below inject at)
-const NON_FUSING_PREV = new Set([';', '{', ':']);
-
-// would emitting `firstChar` at statement position fuse LEFTWARD into the prev surviving char `prevChar`?
-// used where the unplugin OVERWRITES a statement in place (entry SE-prefix rewrite, minifier-sequence
-// split) with text whose FIRST char may differ from the original node's: the node was proven statement-
-// separate against its ORIGINAL leading token, but a rewritten hazard-start char carries no such
-// guarantee. callers pass the prev SURVIVING char (they bail on start-of-file themselves)
-export function injectionFusesLeft(firstChar, prevChar) {
-  return !NON_FUSING_PREV.has(prevChar) && ASI_HAZARD_STARTS.has(firstChar);
-}
-
-// does overwriting a statement at `start` in `src` with text beginning `firstChar` fuse LEFTWARD into the
-// prev surviving statement? pairs the prev-significant-char scan with `injectionFusesLeft`. shared by the
-// in-place statement overwrites that re-root a line on a possibly-hazardous first char: the minifier-
-// sequence split and the destructure lifted-SE emit. start-of-file (no prev) is safe
-export function statementOverwriteFusesLeft(src, start, firstChar) {
-  const prevIdx = prevSignificantPos(src, start);
-  return prevIdx >= 0 && injectionFusesLeft(firstChar, src[prevIdx]);
+  return isExprStmtHazardStart(text) ? `(${ text })` : text;
 }
 
 // consume ONE logical line ending starting at `pos`: a CRLF or LFCR pair (2 chars), or
@@ -175,12 +173,6 @@ export function consumeOneLineEnding(src, pos) {
   if (isLineTerminator(src[pos])) return pos + 1;
   return pos;
 }
-
-// JS WhiteSpace + LineTerminator - `\s` covers space / tab / NBSP / FF / VT / BOM / ogham /
-// Mongolian / EM / ideographic separators / LF / CR / LS (U+2028) / PS (U+2029). used by
-// `prevSignificantPos` (backward scan) - a 6-char explicit allowlist would miss NBSP / BOM /
-// FF / VT etc, treating them as significant
-const WS_OR_LT_RE = /\s/;
 
 // anchor for `var _ref;` as { statements, insertPos }, or null. `var` hoists to the
 // enclosing function regardless of placement, so we pick the innermost braced block
@@ -205,293 +197,6 @@ export function varScopeAnchor(node, code) {
     return { statements: body.body, insertPos: body.start + 1 };
   }
   return null;
-}
-
-// keywords after which a `/` opens a regex literal (expression position), not division
-const REGEX_PRECEDING_KEYWORDS = new Set([
-  'await',
-  'case',
-  'default',
-  'delete',
-  'do',
-  'else',
-  'in',
-  'instanceof',
-  'new',
-  'of',
-  'return',
-  'throw',
-  'typeof',
-  'void',
-  'yield',
-]);
-
-// one-pass lexer-like scan: classify every char of `src` into literal regions (strings,
-// templates, comments, regexes) so backward walks (`prevSignificantPos`) can skip past them
-// with a single binary-search lookup instead of re-scanning per char. each region is a half-
-// open `[start, end)` range carrying `kind`:
-//   - 'string'        - `'...'` / `"..."` (with `\` escapes + `\<LineTerminator>` continuation)
-//   - 'template'      - `` `...` `` text-content portions (split around `${...}` expressions
-//     so expression bodies remain JS context where `//` IS a real line comment)
-//   - 'block-comment' - `/* ... */`
-//   - 'line-comment'  - `// ...` up to (not including) line terminator
-//   - 'regex'         - `/.../flags` in expression position
-// regex tracking is needed because a `` ` `` / quote inside a pattern would otherwise open a
-// phantom template / string region spanning newlines, swallowing the next statement boundary
-// and defeating the ASI guard. regex-vs-division is decided by the previous significant token
-// (conservative: an unterminated candidate or a `}` is treated as division, never tracked, so
-// a misread mostly LEAVES a `/` untracked - the existing escape hatch. a quote inside such an
-// untracked regex can still open a phantom literal region, but the sole consumer
-// `canFuseWithOpenParen` is bias-safe - it can only over-insert a `;`, never drop one).
-// `${...}` bodies use the SAME regex-aware classification (the body is
-// JS context), so a quote or `}` inside an interpolation regex can't fabricate a phantom region
-// or close the interpolation early
-
-// advance ONE token from `p`, recording any literal / regex / comment region, and return the
-// next position plus the updated regex-vs-division state (`regexAllowed`, `prevSignificant`).
-// comments are transparent to that state; a regex is tracked only in expression position;
-// identifiers re-enable regex iff they're an expression keyword; any other punctuator follows
-// the value-ending rule (`)` `]` `}` digit -> division next, else regex next). shared by the
-// top-level scan AND the template `${...}` body so both classify identically
-function advanceToken({ src, p, regexAllowed, prevSignificant, regions }) {
-  const ch = src[p];
-  if (ch === '/' && (src[p + 1] === '/' || src[p + 1] === '*')) {
-    return { next: tryScanLiteralAt(src, p, regions), regexAllowed, prevSignificant };
-  }
-  if (ch === '/' && regexAllowed) {
-    const end = scanRegexRegion(src, p, regions);
-    if (end !== null) return { next: end, regexAllowed: false, prevSignificant: src[end - 1] };
-  }
-  if (ch === '"' || ch === "'" || ch === '`') {
-    const end = tryScanLiteralAt(src, p, regions);
-    return { next: end, regexAllowed: false, prevSignificant: src[end - 1] };
-  }
-  if (WS_OR_LT_RE.test(ch)) return { next: p + 1, regexAllowed, prevSignificant };
-  if (IDENT_START_RE.test(ch)) {
-    let j = p + 1;
-    while (j < src.length && IDENT_PART_RE.test(src[j])) j++;
-    // a name after `.` / `?.` is a property access (a value), never the bare keyword
-    return {
-      next: j,
-      regexAllowed: prevSignificant !== '.' && REGEX_PRECEDING_KEYWORDS.has(src.slice(p, j)),
-      prevSignificant: src[j - 1],
-    };
-  }
-  return {
-    next: p + 1,
-    regexAllowed: !(ch === ')' || ch === ']' || ch === '}' || (ch >= '0' && ch <= '9')),
-    prevSignificant: ch,
-  };
-}
-
-function scanLiteralRegions(src) {
-  const regions = [];
-  let i = 0;
-  // whether a `/` here opens a regex (expression position) vs division. true at input start
-  // and after operators / opening punctuators / `,` `;` `:` / expression keywords
-  let regexAllowed = true;
-  let prevSignificant = null;
-  while (i < src.length) {
-    ({ next: i, regexAllowed, prevSignificant } = advanceToken({ src, p: i, regexAllowed, prevSignificant, regions }));
-  }
-  return regions;
-}
-
-// advance past a `\X` escape at `p`: 2 chars normally, but only 1 when `\` is the last char (EOF)
-// so a malformed literal ending on a lone backslash never overshoots src.length and pushes a region
-// end past the input. the `\r\n` string continuation (3 chars) is handled by its caller before this
-function advancePastEscape(src, p) {
-  return p + (p + 1 < src.length ? 2 : 1);
-}
-
-// scan a regex literal from its opening `/` at `start`; push a 'regex' region and return the
-// position after the closing `/` and flags. returns null when the candidate isn't a regex
-// (unescaped LineTerminator or EOF before the closer -> the `/` was division). `[...]` char
-// classes are tracked so a `/` inside them stays literal
-function scanRegexRegion(src, start, regions) {
-  let p = start + 1;
-  let inClass = false;
-  while (p < src.length) {
-    const c = src[p];
-    if (isLineTerminator(c)) return null;
-    if (c === '\\') {
-      p = advancePastEscape(src, p);
-      continue;
-    }
-    if (c === '[') inClass = true;
-    else if (c === ']') inClass = false;
-    else if (c === '/' && !inClass) {
-      p++;
-      while (p < src.length && IDENT_PART_RE.test(src[p])) p++;
-      regions.push({ start, end: p, kind: 'regex' });
-      return p;
-    }
-    p++;
-  }
-  return null;
-}
-
-// scan ONE literal starting at `p` - string, template, block comment, line comment - and
-// push its region(s) to `regions`. returns the position past the literal, or null when `p`
-// isn't a literal opener (caller advances by 1). shared by the top-level scan and the
-// template `${...}` expression body so both apply identical literal classification
-function tryScanLiteralAt(src, p, regions) {
-  const ch = src[p];
-  if (ch === '"' || ch === "'") return scanStringRegion(src, p, ch, regions);
-  if (ch === '`') return scanTemplateRegion(src, p, regions);
-  if (ch === '/' && src[p + 1] === '*') {
-    const end = skipBlockComment(src, p);
-    regions.push({ start: p, end, kind: 'block-comment' });
-    return end;
-  }
-  if (ch === '/' && src[p + 1] === '/') {
-    let q = p;
-    while (q < src.length && !isLineTerminator(src[q])) q++;
-    regions.push({ start: p, end: q, kind: 'line-comment' });
-    return q;
-  }
-  return null;
-}
-
-function scanStringRegion(src, start, quote, regions) {
-  let p = start + 1;
-  while (p < src.length) {
-    const c = src[p];
-    if (c === '\\') {
-      // line continuation `\<LineTerminator>` extends the string. `\r\n` consumes both
-      // chars. any other `\X` escape consumes 2 chars
-      if (p + 1 < src.length && src[p + 1] === '\r' && src[p + 2] === '\n') {
-        p += 3;
-        continue;
-      }
-      p = advancePastEscape(src, p);
-      continue;
-    }
-    if (c === quote) {
-      p++;
-      break;
-    }
-    // unescaped line terminator ends the string (spec: SyntaxError, but we bail at the
-    // line break to keep the scanner robust against malformed input)
-    if (isLineTerminator(c)) break;
-    p++;
-  }
-  regions.push({ start, end: p, kind: 'string' });
-  return p;
-}
-
-function scanTemplateRegion(src, start, regions) {
-  let chunkStart = start;
-  let p = start + 1;
-  while (p < src.length) {
-    const c = src[p];
-    if (c === '\\') {
-      p = advancePastEscape(src, p);
-      continue;
-    }
-    if (c === '`') {
-      p++;
-      regions.push({ start: chunkStart, end: p, kind: 'template' });
-      return p;
-    }
-    if (c === '$' && src[p + 1] === '{') {
-      // close current text-content chunk; the `${...}` body is JS context (not a region here)
-      regions.push({ start: chunkStart, end: p, kind: 'template' });
-      p += 2;
-      // classify the body via `advanceToken` (the same regex-aware scan as top level) while
-      // tracking brace depth for the matching `}`. a regex / string / comment inside the body
-      // is recorded as its own region, so a quote or `}` buried in one can't fabricate a phantom
-      // region or decrement `depth` to close the interpolation early. `${` opens expression position
-      let depth = 1;
-      let regexAllowed = true;
-      let prevSignificant = null;
-      while (p < src.length && depth > 0) {
-        const ec = src[p];
-        if (ec === '{') {
-          depth++;
-          regexAllowed = true;
-          prevSignificant = '{';
-          p++;
-          continue;
-        }
-        if (ec === '}') {
-          depth--;
-          if (depth === 0) {
-            p++;
-            break;
-          }
-          regexAllowed = false;
-          prevSignificant = '}';
-          p++;
-          continue;
-        }
-        ({ next: p, regexAllowed, prevSignificant } = advanceToken({ src, p, regexAllowed, prevSignificant, regions }));
-      }
-      chunkStart = p;
-      continue;
-    }
-    p++;
-  }
-  // unterminated template - record final chunk extending to end of source
-  regions.push({ start: chunkStart, end: p, kind: 'template' });
-  return p;
-}
-
-// single-entry memoization keyed on source-string identity. each transform processes one
-// source; helper functions on that source share the same `src` reference, so reads after
-// the first hit the cache. between transforms `src` changes - cache miss invalidates the
-// stale region map. string keys can't go in WeakMap; identity-equality + 1-slot bound
-// avoids unbounded growth without LRU bookkeeping
-let cachedRegionsSrc = null;
-let cachedRegions = null;
-export function literalRegionsOf(src) {
-  if (src === cachedRegionsSrc) return cachedRegions;
-  cachedRegions = scanLiteralRegions(src);
-  cachedRegionsSrc = src;
-  return cachedRegions;
-}
-
-// binary search for the region containing `pos` (start <= pos < end). null when no region
-// matches - pos is in JS context. exported so every lexer-aware walk over emitted text asks the
-// SAME question of the SAME map instead of re-scanning the region list linearly
-export function findRegionContaining(regions, pos) {
-  let lo = 0;
-  let hi = regions.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if (regions[mid].start <= pos) lo = mid + 1;
-    else hi = mid;
-  }
-  if (lo === 0) return null;
-  const cand = regions[lo - 1];
-  return pos >= cand.start && pos < cand.end ? cand : null;
-}
-
-// scan backwards past whitespace and comments; -1 if we walked off the start. queries the
-// pre-computed literal-region map: positions inside string / template / regex literals
-// return the closing char (significant - all fuse with `(`: closing quote / backtick, or
-// regex closer / flag); positions inside comments skip to before the opener and continue
-export function prevSignificantPos(src, pos) {
-  const regions = literalRegionsOf(src);
-  let i = pos - 1;
-  while (i >= 0) {
-    const region = findRegionContaining(regions, i);
-    if (region) {
-      if (region.kind === 'string' || region.kind === 'template' || region.kind === 'regex') {
-        // closing quote / backtick / regex-closer IS the significant boundary - fuses with `(`
-        return region.end - 1;
-      }
-      // block/line comment - skip past the opener
-      i = region.start - 1;
-      continue;
-    }
-    if (WS_OR_LT_RE.test(src[i])) {
-      i--;
-      continue;
-    }
-    return i;
-  }
-  return -1;
 }
 
 // ONE paren pass over a slice, answering everything its consumers ask: how many
@@ -549,19 +254,19 @@ export function groupedGuardTest(src) {
     if (ch === '(' || ch === '[' || ch === '{') depth += 1;
     else if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
     // `?.` binds tighter than `==`; a bare `?` opens a ternary
-    else if (depth === 0 && !(/[\w$.]/.test(ch) || (ch === '?' && src[i + 1] === '.'))) return `(${ src })`;
+    else if (depth === 0 && !(/[\w$.]/.test(ch) || isOptionalChainAt(src, i))) return `(${ src })`;
     i += 1;
   }
   return src;
 }
 
-// the previous significant position may land on the trailing low surrogate of an astral
-// identifier char; `codePointEndingAt` pairs it with the leading high surrogate so the
-// fuse test sees the whole code point instead of a lone surrogate (which matches nothing,
-// skipping the ASI guard and letting a leading `(` fuse into the prior identifier)
+// does a `(` at `pos` continue the value before it into a CALL? (else it opens a grouping layer -
+// see `VALUE_END_RE`). the previous significant position may land on the trailing low surrogate
+// of an astral identifier char; `codePointEndingAt` pairs it with the leading high surrogate so
+// the test sees the whole code point instead of a lone surrogate (which matches nothing)
 export function canFuseWithOpenParen(src, pos) {
   const i = prevSignificantPos(src, pos);
-  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(codePointEndingAt(src, i));
+  return i >= 0 && VALUE_END_RE.test(codePointEndingAt(src, i));
 }
 
 // offsets where a `(`-leading replacement would fuse with an unterminated previous statement:
@@ -604,20 +309,6 @@ function statementEndsInOwnBlock(stmt) {
   return false;
 }
 
-// walk up to the nearest enclosing ExpressionStatement path (null when a function / program
-// boundary is hit first). consumers test `.node.start` for statement-leading position and
-// the slot shape (unbraced control body) to decide ASI `;` injection vs verbatim emission
-export function enclosingExpressionStatementPath(path) {
-  let p = path;
-  while (p && p.node?.type !== 'ExpressionStatement') {
-    const { type } = p.node ?? {};
-    if (type === 'FunctionDeclaration' || type === 'FunctionExpression'
-      || type === 'ArrowFunctionExpression' || type === 'Program') return null;
-    p = p.parentPath;
-  }
-  return p ?? null;
-}
-
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare
 // `_ref = X` assignment as plugin leftover vs user sloppy-mode code.
 // plugin can also emit array/object literal shapes (destructure-init extraction for proxy-
@@ -639,20 +330,22 @@ const PLUGIN_EMIT_RHS_TYPES = new Set([
 // the shared census driver in ast-patterns - the orphan classifier here reads the flag
 // off the census frame
 
-// the plugin only ever emits `_ref = X` in two parent positions: inside a `null == (...)`
-// memo test (a BinaryExpression - parens / TS wrappers between them are forwarded as
-// transparent by the walker below) and as a call argument. the classifier admits exactly
-// those emit positions; ANY other parent is user-authored sloppy-mode code, so the name is
-// reserved (stays the user's) instead of being adopted into a rehydrated module-level
-// `var _ref;` that would share state with the user's binding. enumerating the emit set
-// instead of the user set keeps unknown / future positions failing SAFE: an unlisted parent
-// reserves the name and the plugin allocates `_ref2` around it.
-// sequence memo trims (`(se(), X)`) place a ref assignment under a SequenceExpression - those
-// refs are declared by the pre-pass flush (snapshot path), never orphan-adopted, so
+// the parent positions the plugin emits a `_ref = X` memo write in: a `null == (...)` /
+// `(...) === void 0` test (a BinaryExpression - parens / TS wrappers between them are
+// forwarded as transparent by the walker below), a call argument (`_f(_ref = X)`), and the
+// object of a member read (`(_ref = X).method` - the combined chain's raw member get over a
+// memoized receiver). the classifier admits exactly those emit positions; ANY other parent is
+// user-authored sloppy-mode code, so the name is reserved (stays the user's) instead of being
+// adopted into a rehydrated module-level `var _ref;` that would share state with the user's
+// binding. enumerating the emit set instead of the user set keeps unknown / future positions
+// failing SAFE: an unlisted parent reserves the name and the plugin allocates `_ref2` around
+// it. sequence memo trims (`(se(), X)`) place a ref assignment under a SequenceExpression -
+// those refs are declared by the pre-pass flush (snapshot path), never orphan-adopted, so
 // SequenceExpression stays out of the emit set on purpose
 const PLUGIN_ASSIGN_PARENT_TYPES = new Set([
   'BinaryExpression',
   'CallExpression',
+  'MemberExpression',
 ]);
 
 // orphan-ref heuristic: an assignment is adoptable only in a plugin emit position (above)
@@ -682,6 +375,13 @@ export function bindingNamesReducer() {
   const names = new Set();
   const declaredNames = new Set();
   const orphanRefs = new Set();
+  // the rest-destructure sentinel position: a non-shorthand property VALUE of an ObjectPattern
+  // that carries a RestElement (`{ polyKey: _unusedN, ...rest }`) - the ONE place the emitter
+  // prints a `_unusedN`. a name bound there AND read nowhere else is what post adopts as its own
+  // sentinel when the pre snapshot is gone; a user binding in that position that IS read
+  // somewhere keeps its rewrite (its polyfill would be dropped by a skip)
+  const sentinelCandidates = new Set();
+  const sentinelShapedReads = new Map();
 
   // declaredNames is the strict subset; pair the writes so the invariant holds at the source
   function addDecl(name) {
@@ -697,6 +397,15 @@ export function bindingNamesReducer() {
     switch (node.type) {
       case 'VariableDeclarator':
         addPattern(node.id);
+        break;
+      case 'ObjectPattern':
+        if (node.properties.some(p => p.type === 'RestElement')) {
+          for (const p of node.properties) {
+            if (p.type === 'Property' && !p.shorthand && p.value?.type === 'Identifier' && UNUSED_NAME_PATTERN.test(p.value.name)) {
+              sentinelCandidates.add(p.value.name);
+            }
+          }
+        }
         break;
       case 'FunctionDeclaration':
       case 'FunctionExpression':
@@ -725,9 +434,11 @@ export function bindingNamesReducer() {
         break;
       // `export { _ref as foo }` - `local` is the in-module binding our UID generator must
       // not collide with. Identifier visitor catches the `_ref` reference too, but adding
-      // it here as a binding (not just name) keeps the declaredNames invariant honest
+      // it here as a binding (not just name) keeps the declaredNames invariant honest. a
+      // RE-export (`export { _ref as foo } from './m'`) names a binding of the OTHER module:
+      // nothing in this one to collide with, and the AST emitter's scope claims none either
       case 'ExportSpecifier':
-        if (node.local?.name) addDecl(node.local.name);
+        if (node.local?.name && !parentNode?.source) addDecl(node.local.name);
         break;
       case 'AssignmentExpression':
         // plugin-shaped nested `_ref = foo()` - candidate for orphan adoption, NOT reserved
@@ -753,16 +464,24 @@ export function bindingNamesReducer() {
       // undeclared reads in user code still land here referentially and stay reserved (a plugin
       // `_ref` must not shadow a `ReferenceError`-throwing reference with a silent `undefined`)
       case 'Identifier':
-        if (!underTypeAnnotation && blocksUidSlot(parentNode, node)) names.add(node.name);
+        if (!underTypeAnnotation && blocksUidSlot(parentNode, node)) {
+          names.add(node.name);
+          if (UNUSED_NAME_PATTERN.test(node.name)) sentinelShapedReads.set(node.name, (sentinelShapedReads.get(node.name) ?? 0) + 1);
+        }
         break;
     }
   }
-  return { visit, result: () => ({ names, declaredNames, orphanRefs }) };
+  function result() {
+    // a candidate's own pattern binding is one occurrence; any second one is a read
+    const restSentinelNames = new Set([...sentinelCandidates].filter(name => sentinelShapedReads.get(name) === 1));
+    return { names, declaredNames, orphanRefs, restSentinelNames };
+  }
+  return { visit, result };
 }
 
 export function collectAllBindingNames(ast) {
-  const { names, declaredNames, orphanRefs } = collectFileCensus(ast, [bindingNamesReducer()]);
-  return { names, declaredNames, orphanRefs };
+  const { names, declaredNames, orphanRefs, restSentinelNames } = collectFileCensus(ast, [bindingNamesReducer()]);
+  return { names, declaredNames, orphanRefs, restSentinelNames };
 }
 
 // source string (lowercased) of `require('@pkg/...')`, or null. covers both bare
