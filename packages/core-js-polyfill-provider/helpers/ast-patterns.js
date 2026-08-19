@@ -338,6 +338,11 @@ export function isNonReferencePosition(parent, identifierNode) {
   // (bare-tag / member-root) are recognised by the tag-reference walker, not here
   if (type === 'JSXAttribute' && parent.name === identifierNode) return true;
   if (type === 'JSXMemberExpression' && parent.property === identifierNode) return true;
+  // the name of a private member (`#_ref` - babel spells it `PrivateName { id }`), both halves of a
+  // meta property (`import.meta`, `new.target`), an import attribute's key (`with { type: "json" }`),
+  // a Flow object-type key: source-text names, never a binding a UID could be confused with
+  if (type === 'PrivateName' || type === 'MetaProperty') return true;
+  if ((type === 'ImportAttribute' || type === 'ObjectTypeProperty') && parent.key === identifierNode) return true;
   return false;
 }
 

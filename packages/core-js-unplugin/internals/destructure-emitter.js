@@ -29,6 +29,7 @@ import {
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
   isValidIdentifierName,
+  kebabToCamel,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   memberProxyHopName,
@@ -44,10 +45,12 @@ import {
   propBindingIdentifier,
   receiverCarriesLiveOptional,
   resolveFallbackReceiver,
+  STATEMENT_LIST_HOST_TYPES,
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapParens,
+  unwrapRuntimeExpr,
   walkPatternIdentifiers,
   POSSIBLE_GLOBAL_OBJECTS,
   deleteHostAboveChain,
@@ -65,7 +68,7 @@ import {
   unwrapInitForResolution,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
-import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
+import { entryToGlobalHint, resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   claimlessGuardedObjectUndefinable,
   claimlessOptionalNavGuardsUndefinable,
@@ -140,15 +143,12 @@ import {
 import { unwrapNode, withSeSrcs } from './emit-utils.js';
 import { inlineCallNavGuardRootSrc, skipCollapsedChainExceptRootCall, subsumeDiscardedRegion } from './polyfill-emitter.js';
 import {
-  findRegionContaining,
-  literalRegionsOf,
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
-  skipGap,
-  statementOverwriteFusesLeft,
   walkAstNodes,
   dropRedundantRootParens,
 } from './plugin-helpers.js';
+import { findRegionContaining, literalRegionsOf, skipGap } from './text-scan.js';
 
 // scope-walker constants for `polyfillSiblingReceiverRefs`. hoisted module-level so each
 // call doesn't re-allocate the Sets. SwitchStatement creates one shared block scope per
@@ -284,9 +284,58 @@ export function createDestructureEmitter({
   // control HEADER's `)` / `do` keyword, NOT a fusion-capable prev statement - a single-statement body
   // (`if (c) /x/`) cannot fuse, and a multi-statement body is already `{ }`-wrapped, so a `;` there would only
   // empty the slot and run the body unconditionally. a `{`-wrapped or keyword-led overwrite is a no-op anyway
+  // an ADOPTED sentinel - a `_unusedN` the census found in the sentinel position of a source that
+  // already imports core-js (a re-parse of our own output, or a user file written against the
+  // pure imports) - is ours only where our extraction of THIS KEY stands with it: every rest
+  // rebuild leaves the extracted value in the same statement list, as a declarator init or an
+  // assignment read through the key's pure-import binding (`at = _atMaybeArray(_ref)`,
+  // `from = _Array$from`, a `for` head's `from = _Array$from, _unused = ...`; a nested proxy key
+  // names the NAMESPACE the import hangs off - `Array: _unused` beside `_Array$from`; a symbol
+  // iterator key reads through `get-iterator-method`). a user's unread alias in that position has
+  // no such sibling and keeps its rewrite - its importers may read it
+  function hasExtractionSibling(path, { key, symbolIterator }) {
+    let p = path;
+    while (p?.parentPath && !STATEMENT_LIST_HOST_TYPES.has(p.parentPath.node?.type)
+      && p.parentPath.node?.type !== 'SwitchCase') p = p.parentPath;
+    const host = p?.parentPath?.node;
+    const list = host?.type === 'SwitchCase' ? host.consequent : host?.body;
+    if (!Array.isArray(list)) return false;
+    function extractsKey(name) {
+      const info = injector.getPureImport(name);
+      if (!info) return false;
+      const segments = info.entry.split('/');
+      if (symbolIterator) return info.entry === 'get-iterator-method';
+      if (typeof key !== 'string') return false;
+      return kebabToCamel(segments.at(-1)).toLowerCase() === key.toLowerCase()
+        || (segments.length > 1 && entryToGlobalHint(segments[0]) === key);
+    }
+    function readsPureImport(expr) {
+      const e = unwrapRuntimeExpr(expr);
+      const callee = e?.type === 'CallExpression' ? unwrapRuntimeExpr(e.callee) : e;
+      return callee?.type === 'Identifier' && extractsKey(callee.name);
+    }
+    function * inits(stmt) {
+      const node = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
+      switch (node?.type) {
+        case 'VariableDeclaration':
+          for (const d of node.declarations) yield d.init;
+          break;
+        case 'ForStatement':
+          yield * inits(node.init);
+          break;
+        case 'ExpressionStatement': {
+          const expressions = node.expression?.type === 'SequenceExpression' ? node.expression.expressions : [node.expression];
+          for (const e of expressions) if (e?.type === 'AssignmentExpression') yield e.right;
+        }
+      }
+    }
+    for (const stmt of list) for (const init of inits(stmt)) if (init && readsPureImport(init)) return true;
+    return false;
+  }
+
   function guardOverwriteLeftFusion(start, text, hostPath) {
     if (!text || isBodylessStatementBody(hostPath)) return text;
-    return statementOverwriteFusesLeft(source, start, text[0]) ? `;${ text }` : text;
+    return transforms.fusesLeftAtStatement(start, text[0]) ? `;${ text }` : text;
   }
 
   // emit a polyfill-extract statement that must precede a destructure declaration's surviving residual.
@@ -670,7 +719,7 @@ export function createDestructureEmitter({
     // body-wrap splices (start < end, e.g. an arrow body-wrap around an instance-method call)
     // can cover the SAME range as a queue overwrite on that call; flat-splicing both would have
     // them overlap and corrupt output. re-queue them as overwrites FIRST so composeAndDrainRange
-    // folds them via the same equal-range/nesting logic apply() uses (mirrors how applyTransforms
+    // folds them via the same equal-range/nesting logic apply() uses (mirrors how drainInto
     // re-adds body-wraps to the queue). zero-length inserts (scoped-var / catch-prelude) can't be
     // overwrites - they stay as splices the caller bakes after composition
     const inserts = [];
@@ -1154,7 +1203,7 @@ export function createDestructureEmitter({
 
   // drain scope-tracker `var _ref;` inserts once per declarator. attaches to
   // `perDecl[i].drainedRefs` so all three consumers (inject / bake / lift) read from a
-  // single channel. draining BEFORE the render also keeps applyTransforms from queueing
+  // single channel. draining BEFORE the render also keeps drainInto from queueing
   // an insert INSIDE the parent overwrite range (MagicString would split-an-edited-chunk)
   function drainRefBindingsByDeclarator(declaration, perDecl) {
     for (let i = 0; i < perDecl.length; i++) {
@@ -1498,7 +1547,7 @@ export function createDestructureEmitter({
     // left in the queue either lands inside our overwrite and MagicString rejects the
     // chunk split. the bake applies ONLY to RAW source (position-aligned spliceInRange);
     // COMPOSED split text no longer aligns with original coords - its splices stay queued
-    // so applyTransforms re-adds body-wraps as range overwrites that fold into our
+    // so drainInto re-adds body-wraps as range overwrites that fold into our
     // statement overwrite by needle (the split text embeds the raw arg)
     let initTransformed;
     if (initStart === undefined || initEnd === undefined) {
@@ -3625,26 +3674,12 @@ export function createDestructureEmitter({
     return true;
   }
 
-  // absolute source position just past a trailing comma following `end` (skipping whitespace), or
-  // `end` unchanged when the next non-space character is not a comma
+  // absolute source position just past a trailing comma following `end`, or `end` unchanged when the
+  // next significant char is not a comma. a comment can sit between the removed prop and its comma
+  // (`{ x: f /* c */, }`, `{ x: f // c\n, }`) - the canonical gap scan steps over either, so the comma
+  // is still found; the removed prop's trailing comment goes with it, as babel's AST reprint drops it too
   function consumeTrailingComma(end) {
-    let i = end;
-    while (i < source.length) {
-      if (/\s/.test(source[i])) {
-        i += 1;
-        continue;
-      }
-      // a block comment can sit between the removed prop and its comma (`{ x: f /* c */, }`) - skip
-      // it so the comma is still found; the removed prop's trailing comment goes with it, as babel's
-      // AST reprint drops it too
-      if (source[i] === '/' && source[i + 1] === '*') {
-        const close = source.indexOf('*/', i + 2);
-        if (close === -1) break;
-        i = close + 2;
-        continue;
-      }
-      break;
-    }
+    const i = skipGap(source, end);
     return source[i] === ',' ? i + 1 : end;
   }
 
@@ -3795,6 +3830,14 @@ export function createDestructureEmitter({
         claimedDestructurePatterns.add(pattern);
       }
     }
+    // a prop whose value is OUR rest sentinel is a prop we already processed (a re-parse of our
+    // own output): nothing routes it again - ahead of EVERY route, the effectful computed key's
+    // included, or a pass over the output re-extracts the sentinel as a live binding and mints
+    // a fresh one, and the file grows per pass
+    if (propNode.value?.type === 'Identifier' && injector.hasGeneratedUnusedName(propNode.value.name)
+        && (!injector.isAdoptedUnusedName(propNode.value.name) || hasExtractionSibling(metaPath, {
+          key: typeof meta.key === 'string' ? meta.key : propertyKeyName(propNode), symbolIterator: isSourcedSymbolIteratorMeta(meta),
+        }))) return;
     if (isFunctionParamDestructureParent(metaPath.parentPath)) {
       return handleParameterDestructurePure(meta, metaPath, propNode, pureRaw);
     }
@@ -3879,8 +3922,6 @@ export function createDestructureEmitter({
       if (tryFlattenAssignmentExpression(metaPath)) return;
       return;
     }
-    if (propNode.value?.type === 'Identifier'
-        && injector.hasGeneratedUnusedName(propNode.value.name)) return;
     if (!canTransformDestructuring(metaPath)) return;
     if (meta.fromFallback) return tryFromFallbackPerBranchSynth(meta, metaPath, propNode);
     const patternHasRest = metaPath.parent?.properties?.some(
@@ -4358,7 +4399,7 @@ export function createDestructureEmitter({
     transforms.add(catchNode.param.start, catchNode.param.end, ref);
     // declare the prelude's own temp vars (memo refs from polyfills baked into the keys / defaults
     // above) at the TOP of the relocated prelude. they were genRef'd into the catch BODY scope, so
-    // applyTransforms would otherwise insert `var _ref;` AFTER this prelude - valid via hoisting
+    // drainInto would otherwise insert `var _ref;` AFTER this prelude - valid via hoisting
     // but reads as use-before-declare. claiming them here mirrors babel's temps-at-top layout
     const hoistedVars = scopeTracker.claimBlockScopedVars(catchNode.body);
     const prelude = hoistedVars.length ? [`var ${ hoistedVars.join(', ') };`, ...lines] : lines;
@@ -5274,7 +5315,7 @@ export function createDestructureEmitter({
 
     // drain deferred flatten / cascade payloads - they consume scope-tracker bindings AND the
     // catch inserts above within each preserved declarator / statement range, so subsequent
-    // `scopeTracker.applyTransforms` won't queue inserts that fall inside the overwrite
+    // `scopeTracker.drainInto` won't queue inserts that fall inside the overwrite
     // (MagicString chunk-split throw)
     flushPendingFlatten();
     flushPendingCascade();
@@ -5282,7 +5323,7 @@ export function createDestructureEmitter({
     // emit innermost-first: a declaration nested inside another's init (an inner destructure in a
     // lifted SE-prefix IIFE body - `const { from } = ((() => { const { at } = o; return Array })(),
     // X)`) must emit BEFORE its container, so the container's `consumeRefsAndInserts` over its init
-    // range drains the inner's genRef'd scoped-var. left un-drained, `scopeTracker.applyTransforms`
+    // range drains the inner's genRef'd scoped-var. left un-drained, `scopeTracker.drainInto`
     // re-wraps the inner scope's block over a range overlapping the container overwrite, tripping
     // "could not locate inner needle". statement ranges are laminar (properly nested or disjoint)
     // and distinct keys never co-terminate, so ascending END is a total order that delivers both

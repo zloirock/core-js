@@ -3,7 +3,7 @@
 // emitters spell the same way. no file-scope deps - callers pass their nodes, paths or
 // rendered fragments directly
 import { unwrapRuntimeExpr, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { skipGap } from './text-scan.js';
+import { isOptionalChainAt, skipGap } from './text-scan.js';
 
 // peel parens, chain expressions, AND TS wrappers - for AST identity checks (e.g. matching
 // `node` against `parent.callee` through `arr.includes!(1)`). delegates to shared
@@ -59,7 +59,7 @@ export function optionalCallTypeArgumentEdits(node, code) {
   // the `?.` token is the first thing PAST the gap after the callee, and the gap can hold comments
   // - a comment carrying `?.` of its own would swallow a scan that just searched for the characters
   const optionalAt = skipGap(code, node.callee.end);
-  if (!code.startsWith('?.', optionalAt)) return null;
+  if (!isOptionalChainAt(code, optionalAt)) return null;
   return {
     remove: { start: typeArgs.start, end: typeArgs.end },
     insert: { pos: optionalAt + 2, content: code.slice(typeArgs.start, typeArgs.end) },
