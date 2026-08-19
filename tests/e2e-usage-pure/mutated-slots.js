@@ -59,33 +59,25 @@ QUnit.test('mutated-slots: mirror passthrough keeps the slot-mutated ctor', asse
   }
 });
 
-// a SEQUENCE-wrapped write host over a raw `.window` hop with a POLYFILLABLE ctor leaf keeps
-// the source semantics: with `window` present the patch lands on the realm global; without it
-// the host is undefined and the write THROWS exactly as the untranspiled source does
-QUnit.test('mutated-slots: SE-tail write host ctor slot keeps the source throw', assert => {
-  const WINDOW_PRESENT = typeof window != 'undefined';
+// a SEQUENCE-wrapped write host over a raw `.window` hop with a POLYFILLABLE ctor leaf collapses
+// like every other write host: the patch lands on the realm global on either host, because an
+// uncollapsed `.window` read is undefined exactly where the ponyfill is supposed to serve
+QUnit.test('mutated-slots: SE-tail write host ctor slot lands on the realm global', assert => {
   // opaque key: substituted reads yield the pure ctor by the pure-flavor contract, so the REAL
   // global slot a landed write reaches is observed through a non-resolvable computed key
   const key = ['Weak', 'Set'].join('');
   const had = key in globalThis;
   const original = globalThis[key];
   let c = 0;
-  if (WINDOW_PRESENT) {
-    (c++, globalThis.window).WeakSet = function patched() { return null; };
-    try {
-      assert.same(c, 1);
-      assert.same(globalThis[key].name, 'patched');
-    } finally {
-      if (had) (0, globalThis.window).WeakSet = original;
-      else delete (0, globalThis.window).WeakSet;
-    }
-  } else {
-    assert.throws(() => {
-      (c++, globalThis.window).WeakSet = function patched() { return null; };
-    }, TypeError);
-    assert.same(c, 1);
-    assert.same(globalThis[key], original);
+  (c++, globalThis.window).WeakSet = function patched() { return null; };
+  try {
+    assert.same(c, 1, 'the sequence effect ran once');
+    assert.same(globalThis[key].name, 'patched', 'and the patch reached the realm slot');
+  } finally {
+    if (had) (0, globalThis.window).WeakSet = original;
+    else delete (0, globalThis.window).WeakSet;
   }
+  assert.same(globalThis[key], original, 'the restore reaches the same slot');
 });
 
 // a ctor-slot mutation through ONE global-proxy alias must win for value reads through ANY
@@ -357,17 +349,39 @@ QUnit.test('mutated-slots: dynamic-key static patch wins over the ponyfill', ass
   assert.same(observed, 'patched');
 });
 
-// `delete` through the environment probe - the only legal WRITE through an optional chain.
-// past an absent `window` the source short-circuits, so the slot must SURVIVE; past a
-// present one the emitted form must stay a REFERENCE (a tail folded inside a guard ternary
-// evaluates and deletes nothing) and actually clear the slot
-QUnit.test('mutated-slots: delete through a probe chain keeps the short-circuit', assert => {
-  const WINDOW_PRESENT = typeof window != 'undefined';
+// `delete` through the environment probe - the only legal WRITE through an optional chain. the member
+// it names is never READ, so no `?.` over the navigation is load-bearing: the nav collapses whole and
+// the slot is reached off the ponyfill on either host. the emitted form must still be a REFERENCE - a
+// tail folded inside a guard ternary evaluates and deletes nothing.
+// LOWERED legs are excluded by the second-pass class the area's AGENTS.md records
+const testUnlessDetectLowered = typeof E2E_DETECT_LOWERED === 'undefined' ? QUnit.test : QUnit.skip;
+testUnlessDetectLowered('mutated-slots: delete through a probe chain reaches the realm slot', assert => {
   globalThis.probeDeleteSlot = 1;
   try {
     assert.true(delete globalThis.window?.self.probeDeleteSlot);
-    assert.same('probeDeleteSlot' in globalThis, !WINDOW_PRESENT);
+    assert.false('probeDeleteSlot' in globalThis, 'the delete reaches the realm slot');
   } finally {
     delete globalThis.probeDeleteSlot;
+  }
+});
+
+// the same delete through a probe nav with a CLAIM NAME as its target: the member is never READ, so
+// the nav collapses whole, and the delete itself must still reach the REALM slot - a delete landing on
+// the ponyfill object would answer true and leave the global untouched. it belongs to THIS module
+// because deleting a claim slot writes that name, and the write deopts the name file-wide
+testUnlessDetectLowered('mutated-slots: a delete through a probe nav reaches the claim realm slot', assert => {
+  const had = 'WeakSet' in globalThis;
+  const original = globalThis.WeakSet;
+  // engines with no native get a stand-in first: with nothing in the slot to begin with, the `in`
+  // assertion below would hold without the delete having reached anything
+  if (!had) globalThis.WeakSet = function WeakSetStub() { return null; };
+  try {
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the parens carrying the `?.` under the delete ARE the form under test
+    const removed = delete (globalThis.window.self?.WeakSet);
+    assert.true(removed, 'the delete answers true');
+    assert.false('WeakSet' in globalThis, 'and it reaches the realm slot on either host');
+  } finally {
+    if (had) globalThis.WeakSet = original;
+    else delete globalThis.WeakSet;
   }
 });

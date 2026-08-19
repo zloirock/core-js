@@ -76,7 +76,7 @@ import {
   createSyntaxVisitors,
 } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
-import { isCallee, optionalCallTypeArgumentEdits, outerGuardOwnedRoot } from './emit-utils.js';
+import { isCallee, optionalCallTypeArgumentEdits, outerGuardOwnedRoot, unwrapNode } from './emit-utils.js';
 import { collapseStandownRoot, createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
@@ -1068,6 +1068,8 @@ export default function createPlugin(options) {
           replaceGlobalOrStatic,
           replaceInstance,
           renderKeptNavValue,
+          collapseDeleteTargetNav,
+          collapsePlainCallRootedNav,
           replaceStaticFallback,
           resolveReceiverSource,
           sealedNavReceiverSrc,
@@ -1228,15 +1230,67 @@ export default function createPlugin(options) {
           const plan = planGuardedStaticNarrow({ memberNode, parent, meta, path: metaPath, resolvePure });
           if (!plan) return false;
           if (plan.bail) return true;
-          const ctorRef = plan.ctorPure
-            ? injectPureImport(plan.ctorPure.entry, plan.ctorPure.hintName)
-            : plan.ctorName;
-          const staticBinding = injectPureImport(plan.staticPure.entry, plan.staticPure.hintName);
-          const memberSrc = code.slice(memberNode.start, memberNode.end);
+          // an effectful sequence prefix on the receiver runs ONCE, ahead of the test, exactly where
+          // the source runs it - so the raw branch reads off the bare identifier instead of carrying
+          // the sequence into a branch that only sometimes runs
+          const memberSrc = plan.seqPrefix.length
+            ? `${ plan.recvIdent.name }${ code.slice(memberNode.object.end, memberNode.end) }`
+            : code.slice(memberNode.start, memberNode.end);
           const rawBranch = plan.isCallee ? `${ memberSrc }.bind(${ plan.recvIdent.name })` : memberSrc;
+          const prefixSrc = plan.seqPrefix.map(expr => `${ code.slice(expr.start, expr.end) }, `).join('');
           walkAstNodes({ root: memberNode, visit: n => skippedNodes.add(n) });
+          // one branch per candidate ctor, innermost-last - the AST leg chains the same list
+          const chain = plan.branches.reduceRight((alternate, branch) => `${ plan.recvIdent.name } === ${
+            branch.ctorPure ? injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName
+          } ? ${ injectPureImport(branch.staticPure.entry, branch.staticPure.hintName) } : ${ alternate }`, rawBranch);
+          // the chain carries its own parens only where the slot cannot hold a bare conditional: a
+          // CALLEE needs them, so does a sequence prefix, and so does every operator position. the
+          // slots below take one bare, and the AST leg's printer prints none there
+          const bareSlot = !plan.isCallee && !prefixSrc && (parent?.type === 'VariableDeclarator'
+            || parent?.type === 'ReturnStatement' || parent?.type === 'Property'
+            || parent?.type === 'ArrayExpression' || parent?.type === 'CallExpression'
+            || (parent?.type === 'AssignmentExpression' && parent.right === memberNode));
           transforms.add(memberNode.start, memberNode.end,
-            `(${ plan.recvIdent.name } === ${ ctorRef } ? ${ staticBinding } : ${ rawBranch })`);
+            bareSlot ? `${ prefixSrc }${ chain }` : `(${ prefixSrc }${ chain })`);
+          return true;
+        }
+
+        // the DESTRUCTURED spelling of the same read (`const { groupBy: g } = M`): the guard renders as
+        // the declarator's value, equivalent down to the throw - on a nullish receiver the raw branch
+        // dereferences it exactly as the pattern would. spelled as TWO span edits (the pattern becomes
+        // the binding, the receiver identifier becomes the guard) so a prefix keeps its own claims
+        // instead of being frozen inside one replacement
+        function emitGuardedDestructureNarrow(meta, metaPath) {
+          const prop = metaPath.node;
+          const pattern = metaPath.parent;
+          if (pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1 || prop.computed) return false;
+          const binding = prop.value;
+          if (binding?.type !== 'Identifier') return false;
+          const declarator = metaPath.parentPath?.parent;
+          if (declarator?.type !== 'VariableDeclarator' || !declarator.init) return false;
+          const plan = planGuardedStaticNarrow({
+            memberNode: { type: 'MemberExpression', object: declarator.init, property: { type: 'Identifier', name: meta.key },
+              computed: false, optional: false },
+            parent: null, meta, path: metaPath, resolvePure,
+          });
+          if (!plan || plan.bail) return false;
+          const recv = plan.recvIdent.name;
+          walkAstNodes({ root: pattern, visit: n => skippedNodes.add(n) });
+          skippedNodes.add(plan.recvIdent);
+          const chain = plan.branches.reduceRight((alternate, branch) => `${ recv } === ${
+            branch.ctorPure ? injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName
+          } ? ${ injectPureImport(branch.staticPure.entry, branch.staticPure.hintName) } : ${ alternate }`,
+          `${ recv }.${ meta.key }`);
+          transforms.add(pattern.start, pattern.end, binding.name);
+          // the chain needs its own parens only where the slot cannot hold a bare conditional; a
+          // declarator INIT can, and the AST leg's printer spells it bare there
+          // ... and the TAIL of a sequence init is such a slot too: the source's own comma parens
+          // group it already, so the chain's would only double them (`(n++, (M === _Map ? ...))`)
+          const initCore = unwrapNode(declarator.init);
+          const seqTail = initCore?.type === 'SequenceExpression' ? initCore.expressions.at(-1) : null;
+          const bareSlot = [declarator.init, ...seqTail ? [seqTail] : []]
+            .some(slot => slot.start === plan.recvIdent.start && slot.end === plan.recvIdent.end);
+          transforms.add(plan.recvIdent.start, plan.recvIdent.end, bareSlot ? chain : `(${ chain })`);
           return true;
         }
 
@@ -1279,7 +1333,9 @@ export default function createPlugin(options) {
           // parent is already unwrapped past parens/chain/TS above
           if (isDeleteTarget(parent)) return;
 
-          if (meta.guardedAliasHint && !nonInstanceSpanOwned(node) && emitGuardedStaticNarrow(meta, metaPath, parent)) return;
+          if (meta.guardedAliasHint && (node.type === 'Property'
+            ? emitGuardedDestructureNarrow(meta, metaPath)
+            : !nonInstanceSpanOwned(node) && emitGuardedStaticNarrow(meta, metaPath, parent))) return;
 
           let inheritedStatic = false;
           if (meta.kind === 'property') {
@@ -1448,6 +1504,27 @@ export default function createPlugin(options) {
           if (kind === 'global'
             && (node.type === 'Identifier' || node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
             && collapseProxyHopRoot(metaPath)) return;
+          // the OTHER half of that pair, the one the AST emitter runs at its own twin of this site: a
+          // nav the collapse refuses because its VALUE short-circuits still needs its guard SPELLED,
+          // or the bare swap below drops the `?.` along with the hops - `delete (globalThis.window
+          // .self?.WeakSet)` then deleted the realm's slot on the branch the source short-circuits
+          // past. gated on a DELETE consumer: there no claim above can own the connector, while a
+          // READ consumer's claim channel owns the span and is visited after this meta. the meta of a
+          // deleted member resolves at the chain ROOT, so an Identifier meta climbs to the member
+          // that reads off it - the render's own anchor
+          const navAnchor = kind === 'global' && node.type === 'Identifier'
+            && (metaPath.parentPath?.node?.type === 'MemberExpression'
+              || metaPath.parentPath?.node?.type === 'OptionalMemberExpression')
+            && metaPath.parentPath.node.object === node ? metaPath.parentPath : metaPath;
+          if (kind === 'global'
+            && (navAnchor.node.type === 'MemberExpression' || navAnchor.node.type === 'OptionalMemberExpression')
+            && renderKeptNavValue(navAnchor, { onlyDeleteConsumer: true })) return;
+          // the one shape no channel above reaches: a delete over a SEQUENCE-rooted nav whose tail is
+          // an instance dispatch. the anchor climb past the sequence lives with the channel itself
+          if (kind === 'global' && collapseDeleteTargetNav(navAnchor)) return;
+          // a plain nav on a proven-call root: the hop channels decline it, and the doctrine says a
+          // navigation with nothing to short-circuit collapses onto the ROOT ponyfill
+          if (kind === 'global' && collapsePlainCallRootedNav(navAnchor)) return;
           const binding = injectPureImport(importEntry, hintName);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
@@ -1603,11 +1680,16 @@ export default function createPlugin(options) {
             // and leaf), so none of them is the reprint compensation that has to run regardless;
             // the whole-file directive bails earlier, a line-scoped one only reaches here
             if (isDisabled(metaPath.node)) return;
+            // a DECLINED stored render is not an answer: it means this write has no collapse of its
+            // own, and the nav below it still needs one. falling out here left the hops raw whenever
+            // the nav sat on an assignment's right side (`v = (w = globalThis).window.self.X`) - the
+            // same source collapses in every other consumer, and on the AST leg in this one too
             const stored = storedUserAssignmentOf(metaPath);
-            if (stored) {
-              collapseStoredKeptAssign(stored, metaPath);
-              return;
-            }
+            if (stored && collapseStoredKeptAssign(stored, metaPath)) return;
+            // a PATTERN target belongs to the destructure pipeline whatever the stored render decided:
+            // its claims live in the pattern, so a hop collapse queued below would land inside a span
+            // that render replaces wholesale (the queue reports it as a missing inner needle)
+            if (stored?.left?.type === 'ObjectPattern' || stored?.left?.type === 'ArrayPattern') return;
             if (!collapseProxyHopRoot(metaPath)) renderKeptNavValue(metaPath);
           },
           // the stored canon from the nav's proxy-global ROOT visit (shared core tail): the

@@ -332,7 +332,11 @@ export default class ImportInjectorState {
     // never collide with - keep them
     const staleBlind = this.#globalAliases.get(name);
     if (staleBlind && !staleBlind.minted) this.#globalAliases.delete(name);
-    const entry = { name, hint: globalName, trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
+    // every ctor this slot was registered with, in registration order. the surviving entry keeps ONE
+    // hint (the last write - the guard keys on it), but a read whose key lives on an EARLIER write's
+    // ctor needs that one too: the guard tests identity at runtime, so an extra candidate can only
+    // add a branch that never fires, never a wrong answer
+    const entry = { name, hint: globalName, hints: [globalName], trusted, write, guarded, declSpan, scopeSpan, verified, srcPos };
     // ONE runtime slot may register through SEVERAL nodes (a `var` redeclaration's declarators,
     // an assignment-form write's binding vs a decl-form's pattern declarator): resolve the
     // existing entry across every candidate key so the judgments MERGE into one entry instead
@@ -352,6 +356,9 @@ export default class ImportInjectorState {
     if (existing) {
       // key every candidate to the surviving entry so later lookups converge by identity
       for (const node of candidateNodes) keyEntry(node, existing);
+      // the candidate list grows BEFORE the judgment returns below: a write whose judgment loses
+      // still contributes the ctor it stored, which is exactly what a later read may need
+      if (globalName && !existing.hints?.includes(globalName)) existing.hints = [...existing.hints ?? [], globalName];
       // same binding judged by more than one path (plan gate + standalone site): keep the
       // strongest judgment - a trusted/write registration wins over a refused one
       if ((existing.trusted || existing.write) && guarded) return;
@@ -360,7 +367,8 @@ export default class ImportInjectorState {
       // their own traversal order, and the runtime ctor guard keys on the LAST swap's hint
       if (existing.guarded && guarded && existing.srcPos !== null && srcPos !== null
         && srcPos < existing.srcPos) return;
-      Object.assign(existing, entry);
+      const { hints } = existing;
+      Object.assign(existing, entry, { hints });
       return;
     }
     for (const node of candidateNodes) keyEntry(node, entry);
@@ -404,7 +412,7 @@ export default class ImportInjectorState {
     } else if (list.length === 1) [alias] = list;
     if (!alias) return null;
     return {
-      hint: alias.hint, source: null, entry: null,
+      hint: alias.hint, hints: this.#candidateHints(name ?? alias.name, alias), source: null, entry: null,
       aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
       aliasDeclSpan: alias.declSpan, aliasVerified: alias.verified,
     };
@@ -434,6 +442,18 @@ export default class ImportInjectorState {
   // object destructure - `const [{ Set: A }, { Map: M }] = ...` keys both A and M off the same
   // declarator): the entry belongs to exactly one bound name, so a mismatched query (A reading
   // M's registration) must miss rather than inherit the wrong global hint. omitted -> no check
+  // every ctor any registration of this NAME was written with. one slot can register through several
+  // nodes (a decl-form pattern vs an assignment-form write), and those do not merge into one entry -
+  // but they are the same runtime binding, so a read off it may hold any of their ctors. the guard
+  // tests identity, so an extra candidate is a branch that never fires, never a wrong answer
+  #candidateHints(name, alias) {
+    const hints = [...alias.hints ?? [alias.hint]];
+    for (const entry of this.#aliasEntriesByName.get(name) ?? []) {
+      for (const hint of entry.hints ?? [entry.hint]) if (hint && !hints.includes(hint)) hints.push(hint);
+    }
+    return hints;
+  }
+
   getBindingAliasInfo(bindingNode, name = null) {
     const perNode = bindingNode ? this.#bindingAliases.get(bindingNode) : null;
     const alias = !perNode ? null
@@ -441,7 +461,7 @@ export default class ImportInjectorState {
       : perNode.size === 1 ? perNode.values().next().value : null;
     if (!alias) return null;
     return {
-      hint: alias.hint, source: null, entry: null,
+      hint: alias.hint, hints: this.#candidateHints(name, alias), source: null, entry: null,
       aliasTrusted: false, aliasWrite: alias.write, aliasGuarded: alias.guarded,
       aliasDeclSpan: alias.declSpan, aliasVerified: alias.verified,
     };

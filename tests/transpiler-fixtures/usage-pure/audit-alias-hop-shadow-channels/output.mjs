@@ -1,6 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
+import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // the alias-hop scope rule holds across every RESOLUTION CHANNEL, not just the plain static
@@ -23,9 +24,7 @@ export function viaSymbolVarShadow() {
     var symHeld = symVarRoot;
   }
   {
-    const {
-      asyncIterator
-    } = symHeld;
+    const asyncIterator = symHeld === _Symbol ? _Symbol$asyncIterator : symHeld.asyncIterator;
     return [1][asyncIterator];
   }
 }
