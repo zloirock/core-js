@@ -129,3 +129,10 @@ export function findUniqueName(prefix, startSuffix, isTaken) {
   }
   return name;
 }
+
+// append `value` to the bucket `map[key]` of a Map<K, V[]>, creating the bucket on first insert
+export function pushMultimap(map, key, value) {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}

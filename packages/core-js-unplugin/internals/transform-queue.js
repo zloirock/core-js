@@ -1,6 +1,15 @@
-import { canFuseWithOpenParen, findRegionContaining, literalRegionsOf, prevSignificantPos,
-  scanParens } from './plugin-helpers.js';
-import { codePointEndingAt, IDENT_PART_RE, skipGap } from './text-scan.js';
+import { pushMultimap } from '@core-js/polyfill-provider/helpers/pattern-matching';
+import { canFuseWithOpenParen, injectionFusesLeft, scanParens, statementOverwriteFusesLeft } from './plugin-helpers.js';
+import {
+  codePointEndingAt,
+  codePointStartingAt,
+  findRegionContaining,
+  IDENT_PART_RE,
+  isOptionalChainAt,
+  literalRegionsOf,
+  prevSignificantPos,
+  skipGap,
+} from './text-scan.js';
 
 // single source of the `transform-queue: ` subsystem prefix, for EVERY throw this module raises.
 // module-level and constructor-parameterized on purpose: the validation sites throw `TypeError` /
@@ -154,9 +163,7 @@ function createNeedleScanner(haystack) {
 // match buried inside a wider identifier would be accepted as standalone
 function isIdentifierEdge(needle, edge) {
   if (!needle?.length) return false;
-  return IDENT_PART_RE.test(edge === 'start'
-    ? String.fromCodePoint(needle.codePointAt(0))
-    : codePointEndingAt(needle, needle.length - 1));
+  return IDENT_PART_RE.test(edge === 'start' ? codePointStartingAt(needle, 0) : codePointEndingAt(needle, needle.length - 1));
 }
 
 // the slot of a needle whose identifiers the outer already substituted: the outer builds its text
@@ -172,7 +179,7 @@ function matchRenamedFrom(content, needle, at, bindingHintOf, lenient) {
     if (!IDENT_PART_RE.test(needle[ni])) {
       // the outer also DEOPTIONALIZES what it proved defined (`(nt = g)?.window` -> `.window`),
       // so a `?.` the needle still carries may be a plain `.` there
-      if (lenient && needle[ni] === '?' && needle[ni + 1] === '.' && content[ci] === '.') {
+      if (lenient && isOptionalChainAt(needle, ni) && content[ci] === '.') {
         ni += 1;
         continue;
       }
@@ -286,6 +293,14 @@ export function replaceNthOccurrence({ str, needle, replacement, n }) {
   return spliceNthOccurrence({ str, needle, replacement, n }) ?? str;
 }
 
+// does the text carry an optional-chaining punctuator? (`c?.5:1` carries none - see `isOptionalChainAt`)
+export function hasOptionalChainToken(text) {
+  for (let i = text.indexOf('?.'); i !== -1; i = text.indexOf('?.', i + 1)) {
+    if (isOptionalChainAt(text, i)) return true;
+  }
+  return false;
+}
+
 // `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` - naive `replaceAll('?.', '.')`
 // produces `.(` that never matches the `(` emitted by the inner transform.
 // raw text transform - not AST-aware. `?.` inside a template literal (`` `a?.b` ``) or a
@@ -293,10 +308,17 @@ export function replaceNthOccurrence({ str, needle, replacement, n }) {
 // AST MemberExpression / CallExpression range where strings can't appear in the optional
 // position - the malformed-needle risk is bounded by the caller supplying correct ranges
 export function deoptionalizeNeedle(needle) {
-  return needle.replaceAll('?.', (_, offset) => {
-    const next = needle[skipGap(needle, offset + 2)];
-    return next === '(' || next === '[' ? '' : '.';
-  });
+  let out = '';
+  for (let i = 0; i < needle.length; i++) {
+    if (!isOptionalChainAt(needle, i)) {
+      out += needle[i];
+      continue;
+    }
+    const next = needle[skipGap(needle, i + 2)];
+    out += next === '(' || next === '[' ? '' : '.';
+    i += 1;
+  }
+  return out;
 }
 
 // strip `?.` at SELECTED absolute positions only (the emitter's per-hop deopt). mirrors
@@ -314,7 +336,7 @@ export function deoptionalizeNeedleAtPositions(needle, baseOffset, positions) {
     let rel = absPos - baseOffset;
     if (rel < 0 || rel >= needle.length) continue;
     rel = skipGap(needle, rel);
-    if (rel >= needle.length || needle[rel] !== '?' || needle[rel + 1] !== '.') continue;
+    if (rel >= needle.length || !isOptionalChainAt(needle, rel)) continue;
     result += needle.slice(prev, rel);
     const afterQ = skipGap(needle, rel + 2);
     prev = needle[afterQ] === '[' || needle[afterQ] === '(' ? rel + 2 : rel + 1;
@@ -386,7 +408,7 @@ function buildNeedleCandidates({ needle, needleStart, outerHint }) {
     && outerHint.subTailStart > needleStart && outerHint.subTailStart - needleStart <= needle.length) {
     candidates.push(outerHint.subPrefix + needle.slice(outerHint.subTailStart - needleStart));
   }
-  const hasOptionalChain = needle.includes('?.');
+  const hasOptionalChain = hasOptionalChainToken(needle);
   // partial-deopt: the outer collapsed only SOME of the chain's `?.` (the hops it folded
   // into its receiver) and kept the rest verbatim. replay that exact per-position strip so
   // the inner needle matches the partially-collapsed text before the blanket full-deopt
@@ -725,13 +747,6 @@ function updatePrefixMaxOnRemove({ sorted, prefixMaxEnd, si, removedEnd }) {
   }
 }
 
-// append to a Map<K, V[]>, creating the bucket on first insert
-function pushOrInit(map, key, value) {
-  const list = map.get(key);
-  if (list) list.push(value);
-  else map.set(key, [value]);
-}
-
 // remove `value` from `map[key]`; drop the key if the bucket goes empty
 function removeFrom(map, key, value) {
   const list = map.get(key);
@@ -820,7 +835,13 @@ export default class TransformQueue {
     this.#bindingHintOf = resolve;
   }
 
-  constructor(code, ms, asiFusableStarts = null) {
+  // the previous SURVIVING significant char before a statement head: the file's top-level
+  // statement rewriter knows which statements the usage sweep removed, so a `;`-terminated
+  // import that stood between an unterminated statement and a render is not read as the
+  // terminator it no longer is. null = read the source text as it stands
+  #prevSurvivingChar = null;
+
+  constructor(code, ms, asiFusableStarts = null, prevSurvivingChar = null) {
     // `add`/`insert`/`addSplit` validate every argument at the gate so a slot mismatch is
     // attributed to the caller; the constructor is the one entry that did not, and it is also
     // the one whose third slot changed MEANING (a `fileId` string once lived here). an unchecked
@@ -829,9 +850,23 @@ export default class TransformQueue {
     if (asiFusableStarts !== null && typeof asiFusableStarts !== 'function') {
       throw queueError(`asiFusableStarts must be a function or null (received ${ typeof asiFusableStarts })`, TypeError);
     }
+    if (prevSurvivingChar !== null && typeof prevSurvivingChar !== 'function') {
+      throw queueError(`prevSurvivingChar must be a function or null (received ${ typeof prevSurvivingChar })`, TypeError);
+    }
     this.#code = code;
     this.#ms = ms;
     this.#asiFusableStarts = asiFusableStarts;
+    this.#prevSurvivingChar = prevSurvivingChar;
+  }
+
+  // would text beginning `firstChar`, put at the statement head `start`, fuse LEFTWARD into the
+  // previous SURVIVING statement? the one ASI question of every statement-head channel that
+  // writes after the top-level sweep - the `(`-leading renders below and the destructure
+  // emitter's lifted statements - answered over the survivor map when the sweep left one
+  fusesLeftAtStatement(start, firstChar) {
+    if (!this.#prevSurvivingChar) return statementOverwriteFusesLeft(this.#code, start, firstChar);
+    const prev = this.#prevSurvivingChar(start);
+    return prev !== '' && injectionFusesLeft(firstChar, prev);
   }
 
   // ASI: a `(`-leading replacement at the head of an ExpressionStatement fuses with an
@@ -842,7 +877,7 @@ export default class TransformQueue {
   #asiStarts = null;
   #asiGuarded(start, content) {
     if (typeof content !== 'string' || content[0] !== '(' || !this.#asiFusableStarts) return content;
-    if (!canFuseWithOpenParen(this.#code, start)) return content;
+    if (!this.fusesLeftAtStatement(start, '(')) return content;
     // the slot has two typed surfaces and the constructor can only check the first: the callable
     // is validated there, its RESULT only exists here. an offset Set is what the guard reads, and
     // a wrong one surfaces as `.has is not a function` at whichever `(`-leading add happens to be
@@ -920,9 +955,9 @@ export default class TransformQueue {
     }
     const entry = { start, end, content, guardedRoot, rewriteHint, splitInfo };
     this.#transforms.add(entry);
-    pushOrInit(this.#byRange, rangeKey(start, end), entry);
+    pushMultimap(this.#byRange, rangeKey(start, end), entry);
     if (guardedRoot) {
-      pushOrInit(this.#byGuardedRoot, guardedRoot, entry);
+      pushMultimap(this.#byGuardedRoot, guardedRoot, entry);
       const prevMax = this.#maxEndByGuardedRoot.get(guardedRoot);
       const logicalEnd = entryLogicalEnd(entry);
       if (prevMax === undefined || logicalEnd > prevMax) this.#maxEndByGuardedRoot.set(guardedRoot, logicalEnd);
@@ -1259,8 +1294,13 @@ export default class TransformQueue {
         } else if (typeof slotHint.rootRaw === 'string') {
           continue;
         } else {
-          this.#pendingGuardPrefixes.push({ anchor, prefix: entry.content.slice(0, own.prefixEnd) });
-          entry.content = entry.content.slice(own.prefixEnd);
+          // the owner's inners compose into it FIRST, then the prefix is cut: an inner claim
+          // under the owner's test (the root's own polyfill) has its needle in that test, and a
+          // prefix cut before the composition would carry the raw needle away into the slot,
+          // leaving the inner nothing to land in
+          const prefixEnd = this.#composeOwnerInPlace(entry, own.prefixEnd);
+          this.#pendingGuardPrefixes.push({ anchor, prefix: entry.content.slice(0, prefixEnd) });
+          entry.content = entry.content.slice(prefixEnd);
           entry.rewriteHint = { ...entry.rewriteHint, guardOwn: undefined };
         }
         slot.rewriteHint = { ...slotHint, guardSlot: undefined };
@@ -1269,26 +1309,72 @@ export default class TransformQueue {
     }
   }
 
+  // compose every queued entry inside a guard owner's range into the owner's content, drain them,
+  // and return where the owner's guard prefix now ends. the prefix ends at the owner's own
+  // `? void 0 : ` - the first one at paren depth 0 (a nested guard's sits inside the memo's
+  // group) - and the composition moves it by whatever the inners' renders changed in the test.
+  // a split owner, an owner with no inners, or a prefix the marker cannot be read back from
+  // (nothing the emitters print today) leaves the content and the offset as they are
+  #composeOwnerInPlace(entry, prefixEnd) {
+    const GUARD_ALTERNATE = '? void 0 : ';
+    if (entry.splitInfo || !entry.content.slice(0, prefixEnd).endsWith(GUARD_ALTERNATE)) return prefixEnd;
+    const entryEnd = entryLogicalEnd(entry);
+    const inners = [...this.#transforms].filter(e => e !== entry && entryLogicalWithin(e, entry.start, entryEnd));
+    if (!inners.length) return prefixEnd;
+    const { composedContent } = this.#composeEntries([entry, ...inners]);
+    const content = composedContent.get(entry);
+    if (typeof content !== 'string') return prefixEnd;
+    const regions = literalRegionsOf(content);
+    let depth = 0;
+    let marker = -1;
+    for (let i = 0; i < content.length && marker === -1;) {
+      const region = findRegionContaining(regions, i);
+      if (region) {
+        i = region.end;
+        continue;
+      }
+      const ch = content[i];
+      if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+      else if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
+      else if (depth === 0 && content.startsWith(GUARD_ALTERNATE, i)) marker = i + GUARD_ALTERNATE.length;
+      i += 1;
+    }
+    if (marker === -1) return prefixEnd;
+    entry.content = content;
+    for (const inner of inners) this.#dropEntryAndPeer(inner);
+    return marker;
+  }
+
   // splice every pending hoisted guard prefix / root-slot rewrite whose anchor lands in
   // this final content; called on each outgoing overwrite chunk - the anchor's ref name is
-  // allocator-unique, so at most one chunk matches each pending entry
+  // allocator-unique, so at most one chunk matches each pending entry. to a FIXPOINT: an owner
+  // that was itself a slot (an inner guard already migrated into its memo, so its content
+  // carries that guard's anchor) may be claimed whole into an outer slot - its content then
+  // reaches the chunk only as a root-slot rewrite's text, and the inner guard's anchor with it.
+  // one pass in a fixed order stranded that inner guard: its anchor was not in the chunk yet
+  // when the prefixes were placed, and the rewrite that brought it in came after
   #injectPendingGuardPrefixes(content) {
-    for (let i = 0; i < this.#pendingGuardPrefixes.length; i++) {
-      const { anchor, prefix } = this.#pendingGuardPrefixes[i];
-      const idx = content.indexOf(anchor);
-      if (idx === -1) continue;
-      content = content.slice(0, idx + anchor.length) + prefix + content.slice(idx + anchor.length);
-      this.#pendingGuardPrefixes.splice(i--, 1);
-    }
-    for (let i = 0; i < this.#pendingRootRewrites.length; i++) {
-      const { anchor, text } = this.#pendingRootRewrites[i];
-      // the slot's value ends at the `)` closing the group its anchor sits in - one shared
-      // lexer-aware walk with the memo-value rewrite above, so a paren inside a string or a
-      // comment stays text in both. these anchors carry their own `(` (`(_ref = `)
-      const range = memoValueRange(content, anchor);
-      if (!range) continue;
-      content = content.slice(0, range.start) + text + content.slice(range.end);
-      this.#pendingRootRewrites.splice(i--, 1);
+    for (let placed = true; placed;) {
+      placed = false;
+      for (let i = 0; i < this.#pendingRootRewrites.length; i++) {
+        const { anchor, text } = this.#pendingRootRewrites[i];
+        // the slot's value ends at the `)` closing the group its anchor sits in - one shared
+        // lexer-aware walk with the memo-value rewrite above, so a paren inside a string or a
+        // comment stays text in both. these anchors carry their own `(` (`(_ref = `)
+        const range = memoValueRange(content, anchor);
+        if (!range) continue;
+        content = content.slice(0, range.start) + text + content.slice(range.end);
+        this.#pendingRootRewrites.splice(i--, 1);
+        placed = true;
+      }
+      for (let i = 0; i < this.#pendingGuardPrefixes.length; i++) {
+        const { anchor, prefix } = this.#pendingGuardPrefixes[i];
+        const idx = content.indexOf(anchor);
+        if (idx === -1) continue;
+        content = content.slice(0, idx + anchor.length) + prefix + content.slice(idx + anchor.length);
+        this.#pendingGuardPrefixes.splice(i--, 1);
+        placed = true;
+      }
     }
     return content;
   }

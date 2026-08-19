@@ -6,5 +6,6 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 // residue. the per-declarator ref drain must span the full declarator so that var lands in the
 // IIFE body, never as a dangling insert inside the split-declarator overwrite
 const from = _Array$from;
-const { x = (function () { var _ref; return _atMaybeArray(_ref = [1]).call(_ref, 0); })() } = Array;
+const { x = (function () {
+var _ref; return _atMaybeArray(_ref = [1]).call(_ref, 0); })() } = Array;
 from([1]);

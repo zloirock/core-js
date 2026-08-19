@@ -18,12 +18,13 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 - `detect-entry.js`, `detect-usage.js` - the unplugin side of detection, on top of the provider
 - `polyfill-emitter.js`, `destructure-emitter.js`, `destructure-emit-utils.js` - the rewrites themselves
 - `import-injector.js` - import insertion
-- `transform-queue.js`, `text-scan.js`, `emit-utils.js` - the text-transform layer: queued edits, lexical primitives, AST helpers
+- `transform-queue.js`, `text-scan.js`, `emit-utils.js` - the text-transform layer: queued edits, the lexer (the one tokenizer every lexer-aware walk over source or emitted text rides - the literal / comment region map, the backward significant-char scan, the gap scans; it lexes in the file's dialect, JSX and script goal included), AST helpers
 - `scope-tracker.js`, `ref-canon.js` - generated refs: per-traversal scope state, then canonical print-order naming
 - `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
 - `sfc-shapes.js` - module ids of SFC virtual modules (Vue, Svelte, Astro), whose metadata lives in query params
 - `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`
-- `plugin-helpers.js` - directive prologues, ASI hazards, injection anchors, and the memoized literal / comment region map every lexer-aware walk over emitted text shares
+- `plugin-helpers.js` - directive prologues, the ASI predicates, injection anchors, the census reducers
+- `detect-entry.js` also holds the top-level statement rewriter both the entry pass and the usage sweep remove user core-js imports through: removals, `0;` placeholders and kept indirect-require prefixes in one batch, with the ASI guards of the seams decided over what survives
 
 ## Emitter model
 
