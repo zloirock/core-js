@@ -223,6 +223,13 @@ QUnit.test('chain: proto-fallback and combined chains keep the root guard', asse
   let w2;
   assert.same((w2 = globalThis.window)?.self.Array.of(5).flat?.().map?.(x => x).at?.(0), hasWindow ? 5 : undefined);
   assert.same(w2, win);
+  // three guarded producers nested in one chain: the innermost claim's guard hoists through two
+  // owners' tests, and the root's own polyfill has to land in the test it belongs to (the text leg
+  // once aborted the build on this shape). every tail is LIVE on the window-present branch - a tail
+  // sitting on a scalar short-circuits to undefined there and the assert stops discriminating
+  assert.same(globalThis.window?.Array.of([6]).flat?.().map?.(x => x).at?.(0).toFixed?.(0), hasWindow ? '6' : undefined);
+  assert.same(globalThis.window?.self?.self.Array.of([6]).flat?.().map?.(x => [[x].at(0)]).at?.(0).flat?.().at?.(0), hasWindow ? 6 : undefined);
+  assert.deepEqual(globalThis.window?.Array.from([1, [2]]).flat?.().map?.(x => x * 2).at?.(-1).toString?.(), hasWindow ? '4' : undefined);
 });
 
 // a polyfillable claim nested in a FOREIGN optional chain - an argument, a computed key, the
