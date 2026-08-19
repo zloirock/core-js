@@ -5,12 +5,12 @@ import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-norma
 import ImportInjectorState, {
   CANONICAL_REF_PREFIXES,
   ORPHAN_REF_PATTERN,
-  refSlotNumber,
+  refDeclarationOrder,
   renameNamesSet,
   UNUSED_NAME_PATTERN,
 } from '@core-js/polyfill-provider/injector-base';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { isInlineWhitespace, isLineTerminator, skipBlockComment } from './plugin-helpers.js';
+import { isLineTerminator, skipInlineGap } from './text-scan.js';
 
 function blockify(lines) {
   return `${ lines.join('\n') }\n`;
@@ -43,6 +43,10 @@ export default class ImportInjector extends ImportInjectorState {
   // `_unusedN` sentinels left by pre's rest-destructure rebuild - post recognises them via
   // hasGeneratedUnusedName() and skips re-processing the same `{ key: _unusedN, ...rest }`
   #unusedNames = new Set();
+  // the subset of `#unusedNames` that came from ADOPTION (a census position in a re-parsed
+  // source, not a mint of ours nor a snapshot): the emitter's skip asks one more question of
+  // those - is our extraction standing with the sentinel? - before treating them as its own
+  #adoptedUnusedNames = new Set();
 
   constructor({
     absoluteImports,
@@ -119,6 +123,10 @@ export default class ImportInjector extends ImportInjectorState {
 
   set rootScope(scope) { this.#rootScope = scope; }
 
+  // the anchor moves when the usage sweep rewrites the import region (a user core-js import
+  // removed, an indirect require reduced to its prefix): the caller re-reads it off the body
+  set userImportEnd(pos) { this.#userImportEnd = pos; }
+
   isNameTaken(name) {
     return this.usedNames.has(name) || (this.#rootScope?.hasBinding(name) ?? false);
   }
@@ -152,26 +160,47 @@ export default class ImportInjector extends ImportInjectorState {
     return this.isNameTaken(name);
   }
 
-  // a composed-out ref (its only surviving occurrence was stripped by the ref-canon dead-memo
-  // pass) leaves the declaration sets entirely - flush() must not print a dead `var _refX;`
-  dropRefs(names) {
-    for (const name of names) {
-      this.#refs.delete(name);
-      for (const [, set] of this.#generatedByPrefix) set.delete(name);
-      this.usedNames.delete(name);
+  // the registries keyed by a GENERATED name - the one list both the drop and the rename walk, so
+  // no registry keeps a spelling the text no longer has: the declared refs, the flushed refs,
+  // the rest sentinels, the taken-name set, and the per-family generated sets
+  #generatedNameSets() {
+    return [
+      ['refs', this.#refs],
+      ['flushedRefs', this.#flushedRefs],
+      ['unusedNames', this.#unusedNames],
+      ['adoptedUnusedNames', this.#adoptedUnusedNames],
+      ['usedNames', this.usedNames],
+      ...[...this.#generatedByPrefix].map(([prefix, names]) => [prefix, names]),
+    ];
+  }
+
+  #setGeneratedNameSet(key, set) {
+    switch (key) {
+      case 'refs': this.#refs = set; break;
+      case 'flushedRefs': this.#flushedRefs = set; break;
+      case 'unusedNames': this.#unusedNames = set; break;
+      case 'adoptedUnusedNames': this.#adoptedUnusedNames = set; break;
+      case 'usedNames': this.usedNames = set; break;
+      default: this.#generatedByPrefix.set(key, set);
     }
   }
 
-  // final print-order canonicalization (see ref-canon.js). flush() then declares the
-  // renamed refs under their canonical names in slot order
+  // a composed-out ref (its only surviving occurrence was stripped by the ref-canon dead-memo
+  // pass) leaves every registry - flush() must not print a dead `var _refX;`, and the slot is
+  // free again for the canonical renumber
+  dropRefs(names) {
+    for (const [, set] of this.#generatedNameSets()) for (const name of names) set.delete(name);
+    this.dropMintedAliases(names);
+  }
+
+  // final print-order canonicalization (see ref-canon.js). flush() then declares the renamed
+  // refs under their canonical names in slot order. every registry is rebuilt through
+  // `renameNamesSet` - a sequential delete / add over a swap-shaped map (`_ref -> _ref2`,
+  // `_ref2 -> _ref`) funnels a set into its last target
   canonicalizeRefs(renameMap) {
     if (!renameMap.size) return;
-    this.#refs = renameNamesSet(this.#refs, renameMap);
-    for (const [prefix, names] of this.#generatedByPrefix) this.#generatedByPrefix.set(prefix, renameNamesSet(names, renameMap));
-    for (const [from, to] of renameMap) {
-      this.usedNames.delete(from);
-      this.usedNames.add(to);
-    }
+    for (const [key, set] of this.#generatedNameSets()) this.#setGeneratedNameSet(key, renameNamesSet(set, renameMap));
+    this.renameMintedAliases(renameMap);
   }
 
   // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments.
@@ -214,7 +243,11 @@ export default class ImportInjector extends ImportInjectorState {
   // in place. re-registering them re-arms `hasGeneratedUnusedName`, whose skip is the
   // idempotency guard - without it post re-processes the rebuilt destructure (a dead
   // body-extract binding + a re-keyed `_unusedN+1` per re-pass). no flush concern: sentinels
-  // are bound by the pattern itself, never declared separately
+  // are bound by the pattern itself, never declared separately. the caller hands over only the
+  // names in the ONE position the emitter prints a sentinel in (the census' `restSentinelNames`:
+  // a rest-bearing pattern's property value that nothing reads) - the name shape alone is not
+  // origin, and a user's `{ at: _unused2, ...rest }` whose `_unused2` IS read must keep its
+  // polyfill. the generator-shape check here is the second half of the same gate
   adoptUnusedNames(names) {
     let maxSuffix = 1;
     for (const name of names) {
@@ -223,6 +256,7 @@ export default class ImportInjector extends ImportInjectorState {
       const match = UNUSED_NAME_PATTERN.exec(name);
       if (!match) continue;
       this.#unusedNames.add(name);
+      this.#adoptedUnusedNames.add(name);
       this.usedNames.add(name);
       const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
       if (n > maxSuffix) maxSuffix = n;
@@ -239,6 +273,10 @@ export default class ImportInjector extends ImportInjectorState {
 
   hasGeneratedUnusedName(name) {
     return this.#unusedNames.has(name);
+  }
+
+  isAdoptedUnusedName(name) {
+    return this.#adoptedUnusedNames.has(name);
   }
 
   #resolvePath(subpath) {
@@ -262,7 +300,7 @@ export default class ImportInjector extends ImportInjectorState {
     // `#userImportEnd` (oxc's stmt.end stops at the source token, before the comment), so anchoring
     // `var _ref;` there would split the comment off its import onto a line below the ref block.
     // skip the trailing comment chain so the ref block lands after it - the comment stays attached
-    const refPos = typeof this.#userImportEnd === 'number' ? skipTrailingComments(src, this.#userImportEnd) : importPos;
+    const refPos = typeof this.#userImportEnd === 'number' ? skipInlineGap(src, this.#userImportEnd) : importPos;
     const lead = needsLeadingNewlineAt(src, importPos) ? '\n' : '';
     // when imports and refs share the same anchor, combine into one block so MagicString
     // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
@@ -428,10 +466,10 @@ export default class ImportInjector extends ImportInjectorState {
   #collectRefLines() {
     const newRefs = [...this.#refs.difference(this.#flushedRefs)];
     if (!newRefs.length) return [];
-    // canonical declaration order: ascending slot number. insertion order equals it until
-    // the print-order canonicalization renames refs; the AST emitter's merged declaration
-    // sorts the same way, so the two emitters print one declarator sequence
-    newRefs.sort((a, b) => refSlotNumber('_ref', a) - refSlotNumber('_ref', b));
+    // canonical declaration order - the one both emitters print (the AST emitter sorts its
+    // merged declaration through the same comparator): insertion order equals it until the
+    // print-order canonicalization renames refs
+    newRefs.sort(refDeclarationOrder);
     for (const r of newRefs) this.#flushedRefs.add(r);
     return [`var ${ newRefs.join(', ') };`];
   }
@@ -479,36 +517,12 @@ function needsLeadingNewlineAt(src, pos) {
   return pos > 0 && !isLineTerminator(src[pos - 1]);
 }
 
-// skip trailing whitespace + any chain of inline comments from `pos`, returning the position
-// where the chain ends (at the line terminator, or the first real-code char), WITHOUT consuming
-// the terminator. shared by `skipLineEnd` (which then advances past the LT) and the ref-block
-// anchor (which keeps a trailing same-line comment attached to its user import rather than
-// splitting `var _ref;` between the import and its comment)
-function skipTrailingComments(src, pos) {
-  let p = pos;
-  for (;;) {
-    while (isInlineWhitespace(src[p])) p++;
-    if (src[p] === '/' && src[p + 1] === '/') {
-      // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). `isLineTerminator`
-      // covers all four; literal `\n`/`\r` check misses LS/PS mid-source
-      while (p < src.length && !isLineTerminator(src[p])) p++;
-      return p;
-    }
-    if (src[p] === '/' && src[p + 1] === '*') {
-      p = skipBlockComment(src, p);
-      if (p === src.length) return p;
-      continue;
-    }
-    return p;
-  }
-}
-
 // land insertion on the next line: skip trailing whitespace and any chain of inline
 // comments, then advance past the line terminator. without multi-comment handling,
 // `"use strict"; /*a*/ //b\nfoo()` would land between `/*a*/` and `//b`, shredding `//b`
 // (or injecting import INTO the line comment so it gets commented out at runtime)
 function skipLineEnd(src, pos) {
-  const p = skipTrailingComments(src, pos);
+  const p = skipInlineGap(src, pos);
   if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
   if (isLineTerminator(src[p])) return p + 1;
   return p;

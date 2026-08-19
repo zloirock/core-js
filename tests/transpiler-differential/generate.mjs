@@ -1692,6 +1692,11 @@ const KPR_SHAPES = [
   { id: 'blind-double-hop-combined', value: 'globalThis.window', tail: '?.self?.self.Array.of(1).flat?.().at?.(0)' },
   { id: 'blind-double-hop-opt-access', value: 'globalThis.window', tail: '?.self?.self.Array.of(2)?.flat?.()' },
   { id: 'blind-double-hop-nested-combined', value: 'globalThis.window', tail: '?.self?.self.Array.of(5).flat?.().map?.(x => x).at?.(0)' },
+  // THREE guarded producers in one chain (a combined tail past the nested combined): the innermost
+  // claim's guard hoists through two owners' tests, and each owner's inners must compose into it
+  // BEFORE its prefix hoists - cut raw, the claim's needle leaves with the prefix (build-abort class)
+  { id: 'blind-triple-combined', value: 'globalThis.window', tail: '?.self?.self.Array.of(6).flat?.().map?.(x => x).at?.(0).flat?.()' },
+  { id: 'blind-triple-combined-callback-claim', value: 'globalThis.window', tail: '?.Array.of(6).flat?.().map?.(x => [x].at(0)).at?.(0).flat?.().at?.(0)' },
   { id: 'blind-double-hop-nested-kept-arg', value: 'globalThis.window', tail: '?.self?.self.Array.of((log.push("inner"), globalThis.window)?.self.Set.name).flat?.()' },
   // chain-assign root into a KEYLESS computed leaf over a redundant hop: the hop-root collapse
   // owns the whole span; a swallowed hop firing its own value claim crashed the compose (build

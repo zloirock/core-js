@@ -10,7 +10,6 @@ import {
   sequenceHeadDirectiveHazard,
   createTypeAnnotationChecker,
   detectCommonJS,
-  extractIndirectRequireSEPrefix,
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
@@ -66,7 +65,7 @@ import { isForInitDeclaration } from '@core-js/polyfill-provider/destructure-hos
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
-import detectEntries, { createTopLevelStatementRemover, writeIndirectRequireSEPrefix } from './detect-entry.js';
+import detectEntries, { createTopLevelStatementRewriter } from './detect-entry.js';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -92,10 +91,12 @@ import {
   lastUserImportEnd,
   liftSfcLangSuffix,
   parenthesizeExprStmtHazard,
+  sourceDialectOf,
   statementOverwriteFusesLeft,
   stripLeadingBOMs,
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
+import { setLexDialect } from './text-scan.js';
 
 // estree-toolkit consumes a binding pattern in exactly ONE place - `findVisiblePathsInPattern`,
 // which its scope crawler reaches only from the slots it models: the `params` of the three node
@@ -432,6 +433,10 @@ export default function createPlugin(options) {
   const isWebpack = isChunkLoaderBundler(bundler);
 
   function runTransform(code, id, pass = 'single') {
+    // every lexer-aware walk over this file's text - and over the text composed from it -
+    // lexes in the file's dialect: JSX where the parser admits it, the Annex B HTML-like
+    // comments where the parse goal is a script. one file, one dialect, held for the transform
+    const previousDialect = setLexDialect(sourceDialectOf(liftSfcLangSuffix(id)));
     try {
       // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
       // to runTransformInner so internal warnings reach the bundler's diagnostic channel.
@@ -441,6 +446,8 @@ export default function createPlugin(options) {
     } catch (error) {
       tagError(error, id);
       throw error;
+    } finally {
+      setLexDialect(previousDialect);
     }
   }
 
@@ -485,8 +492,9 @@ export default function createPlugin(options) {
     // INSIDE the query (`?vue&type=script&lang=ts`); `liftSfcLangSuffix` recovers it onto
     // the post-strip id so the right parser fires
     const cleanId = liftSfcLangSuffix(id);
-    // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
-    const isCJSFile = /\.c[jt]s$/.test(cleanId);
+    // CJS files (.cjs, .cts) parse as scripts and, like files that look like CommonJS, get the
+    // 'require' import style by default
+    const isCJSFile = sourceDialectOf(cleanId).script;
     // strip leading BOM(s) before parsing AND from the MagicString source - oxc rejects
     // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
     // a single BOM is re-prepended to the final output. Reassign `code` so the rest of
@@ -687,7 +695,7 @@ export default function createPlugin(options) {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
-      const { names: bindingNames, declaredNames, orphanRefs } = fileCensus;
+      const { names: bindingNames, declaredNames, orphanRefs, restSentinelNames } = fileCensus;
       if (readsCensus) injector.seedReservedNames(bindingNames);
       // user-owned global-object slot names the raw identifier scan above misses: computed
       // STRING-key member spellings (`globalThis['_ref']`) and string-key mutator writes
@@ -719,12 +727,15 @@ export default function createPlugin(options) {
         injector.adoptOrphanRefs(adoptable);
       }
       // a rest-destructure sentinel is DECLARED by the rewritten pattern itself
-      // (`{ polyKey: _unusedN, ...rest }`), so it comes from `declaredNames` and the injector
-      // validates the generator shape before re-arming its idempotency skip. that question -
-      // "did WE emit this sentinel" - has nothing to do with the phase: gated on `post`, a
-      // re-transform of our own output (the ordinary pass is `single`) re-extracted the previous
-      // sentinel as a live binding and minted a fresh one, growing the file on every pass
-      if (readsCensus && hasCoreJSImport(ast, packages)) injector.adoptUnusedNames(declaredNames);
+      // (`{ polyKey: _unusedN, ...rest }`), so it comes from the census' sentinel-position names
+      // (bound there, read nowhere) and the injector validates the generator shape before
+      // re-arming its idempotency skip. that question - "did WE emit this sentinel" - has
+      // nothing to do with the phase: gated on `post`, a re-transform of our own output (the
+      // ordinary pass is `single`) re-extracted the previous sentinel as a live binding and
+      // minted a fresh one, growing the file on every pass. and it is a question of POSITION,
+      // not of name shape: a user's `var _unused = 1`, or a `{ at: _unused2, ...rest }` whose
+      // `_unused2` is read, adopted on the shape alone, silenced a rest-destructure rewrite
+      if (readsCensus && hasCoreJSImport(ast, packages)) injector.adoptUnusedNames(restSentinelNames);
       // entry-global handles re-emit via detectEntries - skip there. otherwise scan
       // unconditionally: post-with-inherit ALSO needs this because a sibling plugin
       // may have INJECTED new core-js imports between our pre and post (sibling preset
@@ -732,6 +743,10 @@ export default function createPlugin(options) {
       // captured user imports as of pre-time; sibling-inserted ones arrive AFTER and
       // would slip past dedup if we trusted inherit alone. re-running scan re-registers
       // them safely - the injector's dedup filter ignores already-registered entries
+      // the top-level statement rewriter of this file: the usage sweep hands it the user core-js
+      // imports it removes, and every later channel that writes at a statement head asks it (through
+      // the queue) what the previous SURVIVING char is - the removals are not in the source text
+      const statementRewriter = createTopLevelStatementRewriter(ms);
       if (method !== 'entry-global') {
         const removed = new Set();
         scanExistingCoreJSImports(ast, {
@@ -752,27 +767,25 @@ export default function createPlugin(options) {
           pkg,
         });
         if (removed.size) {
-        // a plain import / require splices from the AST too - `await import(...)` would otherwise drag
-        // Promise polyfills via the syntax visitor after its statement is gone from output. an indirect-
-        // require (`0, (spy(), require)('core-js/X')`) keeps its side-effect prefix (outer sequence AND
-        // callee) as bare statements via the same helper the entry path uses; the node STAYS in the AST
-        // re-pointed at that prefix, so the syntax visitor still polyfills any usage inside the kept prefix
-        // (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
-          const keptPrefixes = new Map();
+          // a plain import / require splices from the AST too - `await import(...)` would otherwise drag
+          // Promise polyfills via the syntax visitor after its statement is gone from output. an indirect-
+          // require (`0, (spy(), require)('core-js/X')`) keeps its side-effect prefix (outer sequence AND
+          // callee) as bare statements via the same rewriter the entry path uses; the node STAYS in the
+          // AST re-pointed at that prefix, so the syntax visitor still polyfills any usage inside the kept
+          // prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
+          const kept = new Set();
           for (const node of removed) {
-            const sePrefix = extractIndirectRequireSEPrefix(node);
-            if (sePrefix.length) keptPrefixes.set(node, sePrefix);
+            const sePrefix = statementRewriter.remove(node);
+            if (!sePrefix.length) continue;
+            kept.add(node);
+            node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
           }
-          ast.body = ast.body.filter(n => !removed.has(n) || keptPrefixes.has(n));
-          const removeStatement = createTopLevelStatementRemover(ms);
-          removeStatement.seed([...removed].filter(n => !keptPrefixes.has(n)));
-          for (const node of removed) {
-            const sePrefix = keptPrefixes.get(node);
-            if (sePrefix) {
-              writeIndirectRequireSEPrefix({ node, sePrefix, ms, removeStatement });
-              node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
-            } else removeStatement(node);
-          }
+          statementRewriter.apply();
+          ast.body = ast.body.filter(n => !removed.has(n) || kept.has(n));
+          // the ref block anchors after the trailing user import - of the body as it now stands: a
+          // removed import is no anchor, and a kept prefix is a plain statement, not an import-like
+          // one the refs should land behind
+          injector.userImportEnd = lastUserImportEnd(ast);
         }
       }
       // post drops pure imports whose binding isn't referenced - sibling may have deleted
@@ -1007,13 +1020,13 @@ export default function createPlugin(options) {
         const rebindTailMembers = new WeakSet();
         // no fileId arg: transform-queue throws are unbranded (`transform-queue: <msg>`); the outer
         // catch's `tagError(error, id)` owns the single `[core-js] [<id>] ` brand + file tag
-        const transforms = new TransformQueue(code, ms, () => asiFusableStatementStarts(ast));
+        const transforms = new TransformQueue(code, ms, () => asiFusableStatementStarts(ast), statementRewriter.prevSurvivingChar);
         // composition locates an inner rewrite whose head the outer already resolved; only names
         // the injector minted count as that resolution, never a user identifier of the same shape
         transforms.useBindingHints(name => injector.getPureImport(name)?.hint ?? null);
 
         // per-traversal scope state for `var _ref;`-style refs. setScope() runs before each
-        // callback; genRef() reads the current scope. applyTransforms() drains accumulated
+        // callback; genRef() reads the current scope. drainInto() drains accumulated
         // arrow / scoped vars after the traverse pass. instance + destructure emitters both
         // read scope position + allocate refs through this single tracker
         const scopeTracker = new ScopeTracker({ code, injector });
@@ -1719,8 +1732,8 @@ export default function createPlugin(options) {
         }) : usageVisitors);
         applySynthSwaps();
         applyDestructuringTransforms();
-        scopeTracker.applyTransforms(transforms, refCanonEligible
-          ? (splices, inserts) => canonicalizeRefNumbering({ splices, inserts, injector }) : null);
+        scopeTracker.drainInto(transforms);
+        transforms.apply(refCanonEligible ? (splices, inserts) => canonicalizeRefNumbering({ splices, inserts, injector }) : null);
         return finalize();
       }
       if (method === 'usage-pure') return runUsagePure();

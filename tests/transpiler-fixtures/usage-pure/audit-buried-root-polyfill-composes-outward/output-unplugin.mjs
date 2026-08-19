@@ -19,7 +19,8 @@ export const inBody = null == (_ref = (() => (_Array$from([1]), _globalThis))()?
 export const inArgument = null == ((x) => _globalThis)(_Object$entries({ a: 1 })).window ? void 0 : _Set.prototype.has.call(new _Set([1]), 1);
 // a POLYFILLED prefix statement in the body forces a scoped `var` into it, and that injection must
 // not put the body back as SOURCE - the render had already resolved the returned global there
-export const inEffectfulBody = null == (_ref3 = (() => { var _ref4;
+export const inEffectfulBody = null == (_ref3 = (() => {
+  var _ref4;
   _includesMaybeArray(_ref4 = _Object$values({ b: 2 })).call(_ref4, 2);
   return _globalThis;
 })()?.window) ? void 0 : _toFixedMaybeNumber(_ref5 = _Number$MAX_SAFE_INTEGER).call(_ref5, 2);
