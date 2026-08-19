@@ -11,9 +11,9 @@ var _ref;
 // guard conditional (the defined branch names the surface), so its own claims and guards
 // survive the collapse and no raw proxy hop ever escapes into what the binding stores
 let k1, k2;
-export const storedExported = (k1 = null == _globalThis.window ? void 0 : _self)?.Object.getPrototypeOf({});
+export const storedExported = (k1 = _self)?.Object.getPrototypeOf({});
 export { k1 };
-export const storedUnread = (k2 = null == _globalThis.window ? void 0 : _self)?.Object.getPrototypeOf({});
+export const storedUnread = (k2 = _self)?.Object.getPrototypeOf({});
 
 // a READ target with a claiming read: the write collapses AND the read still resolves the
 // static through the stored conditional, typed dispatch included
@@ -37,7 +37,7 @@ export function viaFunctionBodyRead() {
 // a claim ABSENT from the definitions (`BigInt` has no pure entry) rides the stored canon
 // like the target-declined twin, and the plain-nav ride without an assignment guards the same
 let k10;
-export const viaAbsentClaimRide = (k10 = null == _globalThis.window ? void 0 : _self.window)?.BigInt;
+export const viaAbsentClaimRide = (k10 = _self.window)?.BigInt;
 export const viaPlainAbsentRide = (null == _globalThis.window ? void 0 : _self.window)?.BigInt;
 
 // the RIDELESS init spelling stores through the same root-hook channel as the statement form
@@ -47,7 +47,7 @@ export const viaInitStored = k14 = _self.window;
 // an ALIAS-rooted stored value collapses off the root's visit like the ident-rooted twin
 const galias = _globalThis;
 let k11;
-export const viaAliasRootStored = (k11 = null == galias.window ? void 0 : _self)?.Object.isExtensible({});
+export const viaAliasRootStored = (k11 = _self)?.Object.isExtensible({});
 
 // a destructure HOST over the stored value: the lift replays the kept assignment through the
 // same canon instead of freezing raw hops into what the binding stores

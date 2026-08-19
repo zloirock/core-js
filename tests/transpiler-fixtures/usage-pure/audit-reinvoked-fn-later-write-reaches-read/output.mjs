@@ -1,9 +1,11 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Number$isInteger from "@core-js/pure/actual/number/is-integer";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
+import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _Set from "@core-js/pure/actual/set/constructor";
 // a write textually after the read only proves the init survives for ONE activation of the
 // function holding both: call it again and the previous activation's write already landed. the
@@ -14,14 +16,12 @@ let R = _Reflect;
 let P = _Promise;
 let N = _globalThis.Number;
 export function sameFn() {
-  const g = M.groupBy;
+  const g = M === _Map ? _Map$groupBy : M.groupBy;
   M = _Set;
   return g;
 }
 export function nestedWrite() {
-  const {
-    ownKeys: o
-  } = R;
+  const o = R === _Reflect ? _Reflect$ownKeys : R.ownKeys;
   if (o) {
     R = Math;
   }

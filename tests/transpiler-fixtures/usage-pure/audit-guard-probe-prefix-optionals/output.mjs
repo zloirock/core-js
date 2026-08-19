@@ -144,8 +144,8 @@ export const deleteOptionalTail = delete (null == dl().window ? void 0 : _self)?
 _globalThis.deleteNest = {
   key: 1
 };
-export const deleteBareRootDeepTail = delete (null == _globalThis.window ? void 0 : _self)?.deleteNest.key;
-export const deleteBareRootDirect = delete (null == _globalThis.window ? void 0 : _self)?.deleteNest;
+export const deleteBareRootDeepTail = delete _globalThis.deleteNest.key;
+export const deleteBareRootDirect = delete _globalThis.deleteNest;
 
 // a consumer that PARENTHESIZES the guard (`await`, an operator) wraps the WHOLE folded value,
 // so the tail rides inside it entire - no step is stranded outside, and no `?.` the source never

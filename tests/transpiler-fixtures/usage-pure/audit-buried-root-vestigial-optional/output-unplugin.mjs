@@ -28,4 +28,7 @@ export const deadOptionalParen = null == (_ref7 = (() => (_self))()?.window) ? v
 export const plainNav = null == (_ref9 = (() => _self)()?.window) ? void 0 : _toFixedMaybeNumber(_ref10 = _Number$parseFloat('1.5')).call(_ref10, 1);
 
 // NEGATIVE: the optional guards an unponyfilled hop, so it is load-bearing and the nav stays whole
-export const liveOptional = null == (() => _globalThis.window?.self)().window ? void 0 : _Promise$resolve(4).finally(() => {});
+export const liveOptional = null == (() => null == _globalThis.window ? void 0 : _self)() ? void 0 : _Promise$resolve(4).finally(() => {});
+// the same root read PLAINLY: proving the call yields a proxy global does not prove its value is
+// defined, so the `?.` above it is load-bearing - dropped, this threw where native answers undefined
+export const liveOptionalObserved = typeof (null == (() => null == _globalThis.window ? void 0 : _self)() ? void 0 : _Promise$resolve(4));

@@ -1,5 +1,7 @@
 import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // a receiver alias's init resolves that receiver in the alias's OWN declaration scope. the use-site
 // walk can descend into a nested function, and estree hoists that function's `var` of the receiver
 // name to its own scope - invisible from the module-level alias. resolving there would bind the
@@ -11,7 +13,7 @@ var recvA = userLibrary;
 var mapAlias = recvA.Map;
 function shadowed() {
   var recvA = _globalThis;
-  return mapAlias.groupBy([], key => key);
+  return (mapAlias === _Map ? _Map$groupBy : mapAlias.groupBy.bind(mapAlias))([], key => key);
 }
 
 // the receiver is the global at the declaration, so the destructured static DOES resolve - the inner

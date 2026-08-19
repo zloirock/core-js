@@ -45,3 +45,16 @@ export const castSealedCallee = (globalThis.window?.self as any)(1);
 export const castSealedCalleeAssignRoot = ((held = globalThis.window)?.self as any)(1);
 export const castSealedCalleeComputed = (globalThis.window?.['self'] as any)(1);
 export const castSealedTag = (globalThis.window?.self as any)`x`;
+
+// a SEAL under a TS wrapper: `(nav)!` and `(nav as any)` both parenthesize the nav, and the read
+// above them performs the source's own read - it throws off-window. babel hangs the paren on the
+// nav NODE (under the wrapper), so a predicate that stops one step short of it reads the seal as
+// absent and erases that throw; oxc gives the same shape a ParenthesizedExpression node
+export const sealedNonNullRead = (globalThis.window?.self)!.Symbol?.iterator;
+export const sealedCastRead = (globalThis.window?.self as any).Symbol?.iterator;
+export const sealedNonNullWriteRoot = ((held2 = globalThis).window?.self)!.Symbol?.iterator;
+export const sealedNonNullStaticCall = (globalThis.window?.self)!.Array.of(5);
+// NEGATIVE: no parens, so the `!` is chain-transparent and the whole chain short-circuits
+export const unsealedNonNull = globalThis.window?.self!.Symbol?.iterator;
+let held2: unknown;
+export { held2 };

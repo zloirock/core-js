@@ -25,6 +25,7 @@ import {
   destructureReceiverSlot,
   getFallbackBranchSlots,
   reassignmentValueEnumeration,
+  reassignmentValueNodes,
   isChainAssignment,
   unwrapCollectingSePrefixes,
   findObjectKeyBeforeSpread,
@@ -80,6 +81,23 @@ import {
 // `receiverHint` lets resolveHint reject `const { includes } = Array` (instance method
 // that doesn't exist on the constructor) while accepting `Array.from` and inherited
 // Function/Object prototype methods like `name`/`toString`.
+// the ctor names a dirty binding is WRITTEN with, read off its own reassignment enumeration. the
+// alias registry sees only writes that registered an alias; a write whose RHS resolves on its own
+// (`M = globalThis.Map`) never does, and its ctor is exactly the one a later read may need. lives
+// here (not beside the plan it feeds) because members.js already imports this module
+export function aliasWriteCtorNames({ name, scope, adapter, path }) {
+  const binding = adapter.getBinding(scope, name, path);
+  if (!binding) return [];
+  const declarator = binding.node ?? binding.path?.node;
+  const names = [];
+  const written = reassignmentValueNodes({ binding, usagePath: path, name, ctx: { scope, adapter, path } });
+  for (const node of [...declarator?.type === 'VariableDeclarator' && declarator.init ? [declarator.init] : [], ...written]) {
+    const objectName = resolveObjectName({ objectNode: node, scope, adapter, path });
+    if (objectName && !names.includes(objectName)) names.push(objectName);
+  }
+  return names;
+}
+
 export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path = null, unionSink = null }) {
   const meta = buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path, unionSink });
   // a static the user monkey-patches is NOT a polyfillable destructure source: the prop
@@ -153,6 +171,31 @@ function buildDestructuringInitMetaCore({ initNode, key, scope, adapter, path = 
     const objectName = resolveObjectName({ objectNode: unwrapped, scope, adapter, path })
       ?? staticContainerReceiverName({ node: unwrapped, scope, adapter, path, unionSink });
     const placement = objectName ? isStaticPlacement(objectName) : null;
+    // an alias whose ctor-hint could not drive a STATIC narrow (a REFUSED registration - a
+    // conditional write, an SE-carrying init) resolves to NOTHING here, and the key then drops
+    // entirely: the destructured read goes out raw off a binding the emit already swapped to the
+    // pure ctor, so the static is `undefined` where native answers the method. carry the hint like
+    // the member channel does - the emitters render the same runtime ctor guard for it
+    if (!objectName && unwrapped.type === 'Identifier') {
+      const guardedBinding = adapter.getBinding?.(scope, unwrapped.name, path),
+            // ... and when NOTHING registered an alias (`let M; if (c) M = globalThis.Map` - the
+            // write's RHS resolves on its own, so no alias is ever registered), the write
+            // enumeration IS the hint, exactly as the member channel reads it
+            writeCtors = aliasWriteCtorNames({ name: unwrapped.name, scope, adapter, path }),
+            hint = guardedBinding?.guardedAliasHint ?? writeCtors[0] ?? null;
+      if (hint) {
+        return {
+          kind: 'property', object: null, key, placement: 'static', receiverHint: null,
+          guardedAliasHint: hint,
+          // every ctor the slot was written with - the key may live on an EARLIER write's one, and a
+          // write whose RHS resolves on its own (`M = globalThis.Map`) registers no alias at all, so
+          // the binding's write enumeration is asked too
+          guardedAliasHints: guardedBinding?.guardedAliasHints ?? null,
+          guardedWriteObjects: writeCtors,
+          guardOnly: true,
+        };
+      }
+    }
     return { kind: 'property', object: objectName, key, placement, receiverHint: staticReceiverHint(placement, objectName) };
   }
   if (adapter.isStringLiteral(unwrapped)) {
@@ -607,8 +650,14 @@ export function collectMemberUnionCandidates(options) {
     let aliasIdent = unwrapTransparentSeq(objectNode);
     if (aliasIdent?.type === 'SequenceExpression') aliasIdent = unwrapTransparentSeq(aliasIdent.expressions.at(-1));
     if (aliasIdent?.type === 'Identifier') {
-      const guardedHint = adapter.getBinding(scope, aliasIdent.name, path)?.guardedAliasHint;
-      if (guardedHint && !objects.includes(guardedHint)) objects.push(guardedHint);
+      // EVERY ctor the slot was written with, not just the one the registration kept: the key may
+      // live on an earlier write's ctor (`if (c) M = Map; if (!c) M = Promise` - `groupBy` is Map's),
+      // and in usage-global the axis IS the injection - a candidate that never matches at runtime
+      // only costs a module the file already loads for its own constructor
+      const guardedBinding = adapter.getBinding(scope, aliasIdent.name, path);
+      for (const hint of [guardedBinding?.guardedAliasHint, ...guardedBinding?.guardedAliasHints ?? []]) {
+        if (hint && !objects.includes(hint)) objects.push(hint);
+      }
     }
   }
   for (const candidate of containerRepositionCandidates({
@@ -761,11 +810,21 @@ export function collectDestructureUnionCandidates({
   let primaryObject = meta.object ?? null;
   if (primaryObject === null && meta.key === null) {
     primaryObject = resolveArrayWrapperedDestructureReceiver(path?.parentPath, adapter)
-      ?? (hostInitNode ? resolveObjectName({ objectNode: hostInitNode, scope: unionScope, adapter, path: unionPath }) : null)
+      ?? (hostInitNode ? resolveObjectName({
+        objectNode: peelSequenceTail(unwrapRuntimeExpr(hostInitNode)), scope: unionScope, adapter, path: unionPath,
+      }) : null)
       ?? null;
   }
+  // the value of a SEQUENCE is its last expression, and the prefix contributes nothing to the object
+  // axis: passed raw, the write-enumerating walk below sees a SequenceExpression instead of the
+  // binding and finds only the registration's own ctor (`{ groupBy } = (n++, M)` lost Map's module
+  // where the member spelling of the same read, which peels before it asks, kept it)
+  // oxc keeps the source parens, so the wrapper peel comes FIRST - asked of a
+  // ParenthesizedExpression the sequence peel is a no-op and the text leg kept losing the module
+  // the AST leg had already found
+  const unionInitNode = hostInitNode ? peelSequenceTail(unwrapRuntimeExpr(hostInitNode)) : hostInitNode;
   const unionOptions = {
-    objectNode: hostInitNode,
+    objectNode: unionInitNode,
     computedKeyNode: computed ? keyNode : null,
     primaryObject,
     primaryKey: meta.key,

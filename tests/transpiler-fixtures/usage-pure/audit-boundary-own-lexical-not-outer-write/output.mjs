@@ -1,4 +1,5 @@
 import _Map from "@core-js/pure/actual/map/constructor";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Number$parseFloat from "@core-js/pure/actual/number/parse-float";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
@@ -35,7 +36,5 @@ class Writes {
     M = _Set;
   }
 }
-const {
-  groupBy: d
-} = M;
+const d = M === _Map ? _Map$groupBy : M.groupBy;
 export { a, b, c, d, WithLet, WithFn, named, Writes };
