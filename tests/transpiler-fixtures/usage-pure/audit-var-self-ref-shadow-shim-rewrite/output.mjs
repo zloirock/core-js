@@ -4,4 +4,4 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // binding, so both the constructor assignment and the subsequent `Map.groupBy(...)` call
 // must be rewritten to their polyfill counterparts
 var Map = _Map;
-_Map$groupBy([1], x => x);
+(Map === _Map ? _Map$groupBy : Map.groupBy.bind(Map))([1], x => x);

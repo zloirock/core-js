@@ -1,3 +1,4 @@
+import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // distinct resolution path from the globalThis-proxy alias: a `var O = Object` aliases the
 // constructor DIRECTLY (via direct-alias resolution, not the proxy-global root walk). assigned only in
 // `if (c)` and used OUTSIDE the branch, so usage-pure BAILS - rewriting `O.fromEntries` to a
@@ -7,5 +8,5 @@ function f() {
   if (c) {
     var O = Object;
   }
-  O.fromEntries([['a', 1]]);
+  (O === Object ? _Object$fromEntries : O.fromEntries.bind(O))([['a', 1]]);
 }

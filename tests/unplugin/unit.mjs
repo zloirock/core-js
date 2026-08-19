@@ -35,6 +35,7 @@ import {
   hasCoreJSImport,
   injectionFusesLeft,
   isBodylessStatementBody,
+  dropRedundantRootParens,
   isChunkLoaderBundler,
   isLineTerminator,
   isTopLevelImportLike,
@@ -5861,13 +5862,48 @@ function checkPhantomViolationFilter() {
 }
 checkPhantomViolationFilter();
 
+// the paren normalizer element-wise over its whole domain: what it must strip (a redundant pair
+// around an injected path, with or without an effect-free literal ahead of it, and a doubled layer
+// whatever it holds) and what it must NOT (a paren the grouping needs, a non-injected identifier, a
+// pair not in an object position, and text that only LOOKS like one inside a string)
+function checkDropRedundantRootParens() {
+  const strip = [
+    ['bare path', '(_globalThis).Box', '_globalThis.Box'],
+    ['dotted path', '(_globalThis.writeBox).n', '_globalThis.writeBox.n'],
+    ['computed consumer', '(_globalThis)[k]', '_globalThis[k]'],
+    ['literal prefix', '(0, _globalThis).Promise', '_globalThis.Promise'],
+    ['string prefix', "('x', _globalThis).Promise", '_globalThis.Promise'],
+    ['doubled layer', '((n++, _globalThis)).Box', '(n++, _globalThis).Box'],
+    ['doubled bare', '((_globalThis)).Box', '_globalThis.Box'],
+  ];
+  for (const [label, input, want] of strip) check(`paren strip: ${ label }`, dropRedundantRootParens(input), want);
+  const keep = [
+    ['effectful prefix', '(eff(), _globalThis).Promise'],
+    ['sequence of two paths', '(_self, _globalThis).Promise'],
+    ['user identifier', '(userRoot).Box'],
+    ['not an object position', '(_globalThis) + 1'],
+    ['call of the group', '(_globalThis)(1)'],
+    ['paren inside a string', '"(_globalThis).Box"'],
+    ['assignment needs its parens', '(w = _globalThis).Box'],
+  ];
+  for (const [label, input] of keep) check(`paren keep: ${ label }`, dropRedundantRootParens(input), input);
+  // non-string input rides through untouched - the callers hand it whatever their render produced
+  check('paren strip: non-string passes through', dropRedundantRootParens(null), null);
+}
+checkDropRedundantRootParens();
+
 // a REFUSED alias's member reads stay RAW across passes: pre+post must not re-detect the
 // pre-transformed swap (`M = _Map`) into a narrow on the later pass
 async function checkRefusedAliasRawPassIdempotent() {
   const src = 'function t(c) { let M; if (c) ({ Map: M } = globalThis); '
     + 'try { return typeof M.groupBy; } catch (e) { return "T"; } }\n'
     + 'function u(c) { let P; if (c) ({ Promise: P } = globalThis); return P.try(() => 1); }\n'
-    + 'export const r = [t(true), t(false)];\n';
+    // the DESTRUCTURE channel of the same guard, and the write-ENUMERATED hint that feeds it (`M2 =
+    // globalThis.Map` registers no alias, so the binding's own writes are the hint): both render the
+    // guard on the first pass, and the second must not guard the raw branch it left behind
+    + 'function d(c) { let M2; if (c) M2 = globalThis.Map; '
+    + 'try { const { groupBy: g } = M2; return typeof g; } catch (e) { return "T"; } }\n'
+    + 'export const r = [t(true), t(false), d(true), d(false)];\n';
   const plugins = unplugin.rollup({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, phase: 'pre+post' });
   let code = src;
   for (const p of plugins) {
@@ -5882,6 +5918,8 @@ async function checkRefusedAliasRawPassIdempotent() {
   check('refused alias callee guard binds the raw branch', /P\.try\.bind\(P\)/.test(code), true);
   check('member guard emitted exactly once across pre+post', code.split('M === _Map ?').length - 1, 1);
   check('callee guard emitted exactly once across pre+post', code.split('P === _Promise ?').length - 1, 1);
+  check('destructure guard emitted exactly once across pre+post', code.split('M2 === _Map ?').length - 1, 1);
+  check('destructure guard keeps the raw member branch', /M2\.groupBy/.test(code), true);
 }
 await checkRefusedAliasRawPassIdempotent();
 

@@ -1,9 +1,11 @@
+import _Array$fromAsync from "@core-js/pure/actual/array/from-async";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Reflect$has from "@core-js/pure/actual/reflect/has";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
@@ -188,7 +190,7 @@ const {
 // bare branching writes bail pure as ever
 let bBr = Object;
 bBr = Math.random() > 0.5 ? _Reflect : Object;
-export const bareBranching = typeof bBr.has;
+export const bareBranching = typeof (bBr === _Reflect ? _Reflect$has : bBr.has);
 
 // logical binding assigns are real reassignments - pure bails all spellings
 let wLg = null;
@@ -269,5 +271,5 @@ bm2 = bm1;
 export const bareCrossWrite = typeof bm1.any;
 let bq1 = Object;
 bq1 = (eff9(), Array);
-export const bareSeWrite = typeof bq1.fromAsync;
+export const bareSeWrite = typeof (bq1 === Array ? _Array$fromAsync : bq1.fromAsync);
 export { viaDominating, viaConditionalWrite, viaLiveInit, beforeWrite, viaWrapper, viaClassReassign, viaSelfAssign, viaSeWrite, viaCrossWrite, viaIdentityThenReal, viaPatternObjLhs, viaBranchingWrite, viaAmbiguousDefault, viaLogicalBinding, viaNullishBinding, viaAndBinding, viaAndInit, viaForInLiteralOnly, viaShadowClean, viaClosureWrite };
