@@ -478,6 +478,42 @@ export function climbTransparentWrapperPath(path) {
   return target;
 }
 
+// is a `delete` the consumer anywhere above this chain? the operator may sit several tail steps up
+// (`delete nav.Ctor.prototype.method`), and every step between is a member or a call. THE question both
+// emitters ask before deciding what a proxy nav owes: under a delete the navigation collapses whole -
+// the deleted member is never read, so no `?.` over it is load-bearing and no probe guard is built.
+// path-shaped and dialect-neutral: the caller passes its own wrapper peel
+// nodes a chain's VALUE flows THROUGH on its way to a consumer: a sequence hands on its last
+// expression, a `=` its right side, and a chain LOWERED to its guard scaffold (`null == (_ref = nav)
+// ? void 0 : _ref.x`) reaches the consumer through the memo write, the null test and the
+// conditional's slots. asked of the slot the child fills, so a consumer sitting BESIDE the chain
+// (a sequence prefix, the other operand) cannot claim it
+function chainValueCarrier(node, child) {
+  switch (node.type) {
+    case 'SequenceExpression': return node.expressions.at(-1) === child;
+    case 'AssignmentExpression': return node.operator === '=' && node.right === child;
+    case 'BinaryExpression': return (node.operator === '==' || node.operator === '!=')
+      && (node.left === child || node.right === child)
+      && (node.left.type === 'NullLiteral' || node.right.type === 'NullLiteral');
+    case 'ConditionalExpression': return node.test === child
+      || node.consequent === child || node.alternate === child;
+    default: return false;
+  }
+}
+
+export function deleteHostAboveChain(startPath, chainNode, unwrap) {
+  let step = startPath;
+  while (step?.node && unwrap(step.node) !== chainNode) step = step.parentPath;
+  for (let up = step?.parentPath; up?.node; step = up, up = up.parentPath) {
+    const { node } = up;
+    if (node.type === 'UnaryExpression') return node.operator === 'delete';
+    const stepsOn = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
+      || node.type === 'CallExpression' || node.type === 'OptionalCallExpression';
+    if (!stepsOn && unwrap(node) === node && !chainValueCarrier(node, step.node)) return false;
+  }
+  return false;
+}
+
 export function isMemberWriteHost(memberPath) {
   if (!memberPath?.node) return false;
   // wrapped write target - `(m as any) = v`, `(m) = v` - the host's `.left`/`.argument` points

@@ -2585,6 +2585,50 @@ QUnit.test('destructuring: conditional ctor alias member stays raw on the untake
   assert.same(probe(false), 'undefined');
 });
 
+// a SEQUENCE prefix on that same receiver keeps the guard, and runs exactly ONCE - ahead of the
+// test, where the source runs it. carried into the raw branch instead, it fired only on the path
+// the guard did not take, and the read answered `undefined` on the taken one
+QUnit.test('destructuring: a sequence-prefixed refused alias keeps its guard and runs the prefix once', assert => {
+  let n = 0;
+  function taken(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    return (n++, M).groupBy;
+  }
+  const groupBy = taken(true);
+  assert.same(typeof groupBy, 'function', 'the taken path reads the pure static');
+  assert.same(n, 1, 'and the prefix ran exactly once');
+  assert.same(groupBy([1, 2, 3], it => it % 2).get(1).length, 2, 'the static is the working one');
+  // the call form binds `this` on the raw branch and needs none on the pure one
+  function called(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    return (n++, M).groupBy([4, 5], it => it % 2);
+  }
+  assert.same(called(true).get(1).length, 1, 'the invoked form answers through the same guard');
+  assert.same(n, 2, 'and its prefix ran once too');
+});
+
+// the DESTRUCTURED spelling of that read renders the same guard as the declarator's value: the taken
+// path answers the pure static, and a receiver that never got the write still THROWS, exactly as
+// destructuring `undefined` does. left raw it read off the binding the emit had already swapped to
+// the pure ctor, so the static was `undefined` on the very path the alias was written
+QUnit.test('destructuring: a refused alias destructure reads the pure static through the same guard', assert => {
+  let n = 0;
+  function taken(c) {
+    let M;
+    if (c) ({ Map: M } = globalThis);
+    const { groupBy } = (n++, M);
+    return groupBy;
+  }
+  const groupBy = taken(true);
+  assert.same(typeof groupBy, 'function', 'the taken path reads the pure static');
+  assert.same(groupBy([1, 2, 3], it => it % 2).get(1).length, 2, 'and it is the working one');
+  assert.same(n, 1, 'the sequence prefix ran once');
+  assert.throws(() => taken(false), TypeError, 'the unwritten path throws like the pattern does');
+  assert.same(n, 2, 'and its prefix ran too, before the throw');
+});
+
 // the TAKEN path of a REFUSED alias reads the pure static through the RUNTIME ctor guard
 // (`M === _Map ? _Map$groupBy : M.groupBy`), so the member works instead of `undefined`
 QUnit.test('destructuring: refused alias taken path reads the pure static via the runtime guard', assert => {
@@ -3443,18 +3487,26 @@ QUnit.test('destructuring: a for-head sibling declarator keeps its side effect o
   assert.deepEqual(seen, [[1], 2, [1], 2], 'both head bindings stay usable across rounds');
 });
 
-// the VALUE of a destructuring assignment is its right side, so a receiver replaced by a synth
-// mirror literal changes what the capturing binding holds. the statement-position twin discards
-// that value and keeps mirroring - that is where the polyfill still lands
+// the VALUE of a destructuring assignment is its right side, so a receiver replaced by a synth mirror
+// literal changes what the capturing binding holds: the site stands down WHOLE instead, and the
+// binding then reads the receiver's own slot. the statement-position twin discards that value and
+// keeps mirroring - that is where the polyfill still lands.
+// the legs whose EMISSION runs on babel-lowered text see the same site as a plain alias-binding read
+// (`_ref = shim || Object, assign = _ref.assign`) and polyfill it through an identity dispatch, so
+// there the binding IS the pure export. both answers agree on any host that HAS the static, which is
+// every local leg for `Object.assign` - the karma floor is the only one that tells them apart
+const POST_LOWERED = typeof E2E_POST_LOWERED !== 'undefined';
+
 QUnit.test('destructuring: a captured assignment value stays the receiver', assert => {
   const shim = null;
   let assign;
   const host = { assign } = shim || Object;
   assert.same(host, Object, 'the captured value is the branch object, not a mirror literal');
   // the binding is the captured receiver's OWN slot, so `undefined` where the engine lacks the
-  // static; comparing it against `Object.assign` would put that slot against the pure module's
-  // export, and those agree only where the native exists
-  assert.same(assign, host.assign, 'the binding reads off the captured receiver, not a mirror');
+  // static; comparing it against `Object.assign` unconditionally would put that slot against the
+  // pure module's export, and those agree only where the native exists
+  assert.same(assign, POST_LOWERED ? Object.assign : host.assign,
+    'the binding reads off the captured receiver, not a mirror');
   let statementAssign;
   // eslint-disable-next-line prefer-const -- a destructuring-assignment target cannot be `const`
   ({ assign: statementAssign } = shim || Object);

@@ -1,3 +1,4 @@
+import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 // usage-pure counterpart of the logical-guard reassignment: `c && (P = other)` can reach the use, so
 // P is Promise OR other at `P.allSettled(...)` - the receiver-dropping rewrite would be wrong on the
@@ -6,5 +7,5 @@ import _Promise from "@core-js/pure/actual/promise/constructor";
 function f(c, other) {
   var P = _Promise;
   c && (P = other);
-  P.allSettled([]);
+  (P === _Promise ? _Promise$allSettled : P.allSettled.bind(P))([]);
 }

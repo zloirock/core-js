@@ -51,7 +51,7 @@ export const tailFallback = (q = _self.window, _Promise).noSuchStatic;
 // an unresolvable hop BELOW the collapse point keeps its guard - the value the source computes can
 // be undefined, and an unguarded leaf would report the global where native short-circuits or throws.
 // the sequence prefix rides INSIDE the test with its own polyfills alive, an alias root keeps its name
-export const nestedBelowValue = _nameMaybeFunction((q = null == _globalThis.window ? void 0 : _self, _Map));
+export const nestedBelowValue = _nameMaybeFunction((q = _self, _Map));
 export const nestedBelowSeq = _nameMaybeFunction((q = null == (_atMaybeArray(arr).call(arr, 0), _globalThis).window ? void 0 : _self, _Map));
 const alias = _globalThis;
 export const nestedBelowAliasSeq = _nameMaybeFunction((q = null == (_atMaybeArray(arr).call(arr, 0), alias).window ? void 0 : _self, _Map));

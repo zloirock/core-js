@@ -528,6 +528,33 @@ export function scanParens(src, collectPairs = false) {
   return { unmatched, open: depth, closesEarly, pairs };
 }
 
+// the TEST operand of a composed `null == <test> ? void 0 : ...` guard. the test is emitted text, and
+// one carrying a top-level operator binds LOOSER than `==`: a nested guard's own ternary spliced bare
+// re-associated into `null == null == x ? void 0 : y ? void 0 : z`, which is not the same expression
+// at all. atomic spellings (an identifier, a member chain, one paren group) are left exactly as they
+// were, so nothing already correct grows a token.
+// WHICH renders hand a non-atomic test here is not stable: the guard-root ladder decides it, and a
+// change one rung up both introduced and removed the shape inside one day. this is a spelling rule
+// over emitted text, not a render decision - it stays whether or not a caller currently reaches it
+export function groupedGuardTest(src) {
+  const regions = literalRegionsOf(src);
+  let depth = 0;
+  for (let i = 0; i < src.length;) {
+    const region = findRegionContaining(regions, i);
+    if (region) {
+      i = region.end;
+      continue;
+    }
+    const ch = src[i];
+    if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+    else if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
+    // `?.` binds tighter than `==`; a bare `?` opens a ternary
+    else if (depth === 0 && !(/[\w$.]/.test(ch) || (ch === '?' && src[i + 1] === '.'))) return `(${ src })`;
+    i += 1;
+  }
+  return src;
+}
+
 // the previous significant position may land on the trailing low surrogate of an astral
 // identifier char; `codePointEndingAt` pairs it with the leading high surrogate so the
 // fuse test sees the whole code point instead of a lone surrogate (which matches nothing,
@@ -546,10 +573,35 @@ export function asiFusableStatementStarts(ast) {
   const starts = new Set();
   forEachStatementPosition(ast, {
     onList(statements) {
-      for (const stmt of statements) if (stmt.type === 'ExpressionStatement') starts.add(stmt.start);
+      for (const [i, stmt] of statements.entries()) {
+        // a statement whose own BODY closes the previous one ends unambiguously: nothing can fuse
+        // into `if (c) { ... }` or a `try` / `switch` / declaration block, so a `;` ahead of the
+        // replacement is noise the AST leg never prints. NOT decided on the closing `}` alone - an
+        // expression can end in one too (`var f = function () {}`), and there a `(` DOES fuse
+        if (stmt.type === 'ExpressionStatement' && !statementEndsInOwnBlock(statements[i - 1])) {
+          starts.add(stmt.start);
+        }
+      }
     },
   });
   return starts;
+}
+
+// does this statement END with a brace of its OWN body - the shape a following `(` cannot fuse into?
+// recurses where the tail is another statement (`if`'s branch, a loop body, a label)
+function statementEndsInOwnBlock(stmt) {
+  // walk the TAIL down: an `if` ends where its last branch does, a loop / label where its body does
+  for (let cur = stmt; cur;) {
+    switch (cur.type) {
+      case 'BlockStatement': case 'ClassDeclaration': case 'FunctionDeclaration':
+      case 'SwitchStatement': case 'TryStatement': return true;
+      case 'IfStatement': cur = cur.alternate ?? cur.consequent; break;
+      case 'ForStatement': case 'ForInStatement': case 'ForOfStatement':
+      case 'WhileStatement': case 'WithStatement': case 'LabeledStatement': cur = cur.body; break;
+      default: return false;
+    }
+  }
+  return false;
 }
 
 // walk up to the nearest enclosing ExpressionStatement path (null when a function / program
@@ -816,3 +868,36 @@ export function stripLeadingBOMs(code) {
 export function isBodylessStatementBody(path) {
   return isBodylessStatementSlot(path.parentPath?.node, path.node);
 }
+
+// a paren pair the source wrote around a navigation a collapse REPLACED is redundant text once only
+// the substituted root stands there (`delete (_globalThis).Box`): the AST leg's printer re-derives
+// parens from precedence and prints none. an effect-free LITERAL prefix inside them goes too
+// (`(0, globalThis.window).Promise = f`) - it evaluates to nothing observable and a member OBJECT
+// reads the same with or without it. only around a dotted path of plain names: every other content
+// may need the grouping it was written with
+export function dropRedundantRootParens(src) {
+  if (typeof src !== 'string') return src;
+  // layer by layer: the source may have written more than one around the navigation the collapse
+  // replaced (`delete ((n++, globalThis).self.window?.self).Box`), and each is redundant in turn
+  for (let prev = null, cur = src; ; prev = cur, cur = dropOneRootParenLayer(cur)) {
+    if (cur === prev) return cur;
+  }
+}
+
+// an outer pair whose CONTENT is itself one parenthesized group is doubled, and doubled parens are
+// redundant whatever they hold - the AST leg's printer never emits them. found by the shared paren
+// walk, which is lexer-aware: a `(` inside a string or a template is text, not a group
+function dropOneRootParenLayer(src) {
+  if (src[0] !== '(') return src;
+  const { pairs } = scanParens(src, true);
+  const outer = pairs?.find(([open]) => open === 0);
+  const inner = outer && pairs.find(([open, close]) => open === 1 && close === outer[1] - 1);
+  return inner ? `${ src.slice(1, outer[1]) }${ src.slice(outer[1] + 1) }` : dropRedundantRootParenText(src);
+}
+
+function dropRedundantRootParenText(src) {
+  return src.replace(ROOT_PAREN_RE, '$<path>');
+}
+
+// `(<injected path>)` in an object position, with or without an effect-free LITERAL ahead of it
+const ROOT_PAREN_RE = /^\((?:(?:-?\d+(?:\.\d+)?|"[^"\\]*"|'[^'\\]*'|false|null|true|void 0)\s*,\s*)?(?<path>_[\w$]+(?:\.[\w$]+)*)\)(?=[.[])/;

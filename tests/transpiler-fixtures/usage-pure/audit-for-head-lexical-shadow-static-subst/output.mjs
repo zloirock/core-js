@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Array$of from "@core-js/pure/actual/array/of";
 // a for-head `let`/`const` binding shadows the outer constructor alias for the whole loop, so a
 // reassignment inside the loop body retargets the inner binding, never the outer one. the outer
 // alias stays pinned to the constructor and the static read must still substitute the receiver-less
@@ -13,4 +14,4 @@ _Array$from([1]);
 // constructor and the static read must stay native (no substitution).
 let B = Array;
 for (B of [Array]) {}
-B.of(1, 2);
+(B === Array ? _Array$of : B.of.bind(B))(1, 2);

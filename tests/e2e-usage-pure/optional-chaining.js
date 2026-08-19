@@ -628,17 +628,17 @@ QUnit.test('optional chaining: an unplanned tail keeps its receiver through the 
 });
 
 // `delete` needs the MEMBER, not its value: folded into the alternate the ternary evaluates and
-// deletes nothing. the present-window branch deletes for real, the absent one yields true
-// without touching anything (native `delete undefined?.x` is a no-op true)
-QUnit.test('optional chaining: delete over a guarded nav still removes the property', assert => {
+// deletes nothing. and the navigation under it COLLAPSES - the named member is never read, so no `?.`
+// over the nav is load-bearing and the slot is reached on either host.
+// LOWERED legs are excluded by the second-pass class the area's AGENTS.md records
+QUnit[typeof E2E_DETECT_LOWERED === 'undefined' ? 'test' : 'skip']('optional chaining: delete over a probe nav removes the property', assert => {
   globalThis.e2eGuardProbe = 'present';
   assert.same(delete globalThis.window?.self?.e2eGuardProbe, true);
-  assert.same(globalThis.e2eGuardProbe, WINDOW_PRESENT ? undefined : 'present');
-  // a deeper tail under `delete` keeps the short-circuit too: past an absent probe the whole
-  // chain is a no-op `true`, never a read off the guarded `void 0`
+  assert.same(globalThis.e2eGuardProbe, undefined, 'the slot is gone on either host');
+  // a deeper tail deletes through the same collapse, and still as a REFERENCE
   globalThis.e2eGuardNest = { key: 'present' };
   assert.same(delete globalThis.window?.self.e2eGuardNest.key, true);
-  assert.same(globalThis.e2eGuardNest.key, WINDOW_PRESENT ? undefined : 'present');
+  assert.same(globalThis.e2eGuardNest.key, undefined, 'and so does a deeper tail');
   delete globalThis.e2eGuardNest;
   delete globalThis.e2eGuardProbe;
 });
