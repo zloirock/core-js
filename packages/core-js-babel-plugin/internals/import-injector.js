@@ -551,11 +551,15 @@ export default class ImportInjector extends ImportInjectorState {
     // name, which a swap-shaped map maps BACK (observed as `var _ref, _ref;` + a split
     // write/read pair). collect every node against its ORIGINAL name first (Map identity
     // de-dups shared nodes), then mutate once per node object
+    // a NON-REFERENCE spelling of the name (an object-literal key, a class field key, a member
+    // property, a label, a private name) is source text, not our binding - the scope lookup
+    // answers with our binding for it all the same, so the position is what tells them apart,
+    // exactly as the census above ranks by it
     const renameNodes = new Map();
     this.#programPath.traverse({
       Identifier(p) {
         const to = renameMap.get(p.node.name);
-        if (!to || !ownedBindings.has(p.scope.getBinding(p.node.name))) return;
+        if (!to || isNonReferencePosition(p.parentPath?.node, p.node) || !ownedBindings.has(p.scope.getBinding(p.node.name))) return;
         renameNodes.set(p.node, to);
       },
     });
