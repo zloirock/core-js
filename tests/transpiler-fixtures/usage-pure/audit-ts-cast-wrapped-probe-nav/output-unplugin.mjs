@@ -4,6 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
 // a TS cast layer sits BETWEEN the probe nav and its tail. the render replaces the nav span, which
 // starts after the cast's opening paren, while the sliced tail still carries its closing one - the
@@ -52,3 +53,16 @@ export const castSealedCallee = ((null == _globalThis.window ? void 0 : _self) a
 export const castSealedCalleeAssignRoot = ((null == (held = _globalThis.window) ? void 0 : _self) as any)(1);
 export const castSealedCalleeComputed = ((null == _globalThis.window ? void 0 : _self) as any)(1);
 export const castSealedTag = ((null == _globalThis.window ? void 0 : _self) as any)`x`;
+
+// a SEAL under a TS wrapper: `(nav)!` and `(nav as any)` both parenthesize the nav, and the read
+// above them performs the source's own read - it throws off-window. babel hangs the paren on the
+// nav NODE (under the wrapper), so a predicate that stops one step short of it reads the seal as
+// absent and erases that throw; oxc gives the same shape a ParenthesizedExpression node
+export const sealedNonNullRead = ((null == _globalThis.window ? void 0 : _self).Symbol, _Symbol$iterator);
+export const sealedCastRead = ((null == _globalThis.window ? void 0 : _self).Symbol, _Symbol$iterator);
+export const sealedNonNullWriteRoot = ((null == (held2 = _globalThis).window ? void 0 : _self).Symbol, _Symbol$iterator);
+export const sealedNonNullStaticCall = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of)(5);
+// NEGATIVE: no parens, so the `!` is chain-transparent and the whole chain short-circuits
+export const unsealedNonNull = null == _globalThis.window ? void 0 : _Symbol$iterator;
+let held2: unknown;
+export { held2 };

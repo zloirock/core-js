@@ -438,27 +438,22 @@ QUnit.test('global-proxy: for-init destructure over pure-call-rooted proxy chain
   assert.same(typeof out2, 'function');
 });
 
-// a SEQUENCE-wrapped write host over a raw `.window` hop: the write-target collapse must peel the
-// sequence tail and drop the hop - `window` does not exist in Node, so an uncollapsed host is an
-// undefined write target (TypeError at the assignment)
-// the SE-tail write host reads `.window` RAW - source-faithful: with `window` present the
-// write lands on the realm global; without it the host is undefined and the write THROWS
-// exactly as the untranspiled source does. the sequence SE runs first either way
-QUnit.test('global-proxy: SE-tail write host .window hop keeps the source throw', assert => {
-  const WINDOW_PRESENT = typeof window != 'undefined';
+// a SEQUENCE-wrapped write host over a raw `.window` hop: the write-target collapse peels the
+// sequence tail and drops the hop, exactly as the comma-less spelling does - `window` does not exist
+// in Node, so an uncollapsed host is an undefined write target (TypeError at the assignment) where
+// the plain spelling silently wrote to the global. one source, one answer, whatever the comma says.
+// the sequence SE runs first either way, and exactly once
+QUnit.test('global-proxy: SE-tail write host collapses like its comma-less twin', assert => {
   let c = 0;
-  if (WINDOW_PRESENT) {
-    (c++, globalThis.window).seTailWriteProbeKey = 42;
-    assert.same(globalThis.seTailWriteProbeKey, 42);
-    assert.same(c, 1);
-    delete (0, globalThis.window).seTailWriteProbeKey;
-  } else {
-    assert.throws(() => {
-      (c++, globalThis.window).seTailWriteProbeKey = 42;
-    }, TypeError);
-    assert.same(c, 1);
-  }
-  assert.false('seTailWriteProbeKey' in globalThis);
+  (c++, globalThis.window).seTailWriteProbeKey = 42;
+  assert.same(globalThis.seTailWriteProbeKey, 42, 'the write lands on the realm global');
+  assert.same(c, 1, 'the sequence effect ran once');
+  globalThis.window.seTailWritePlainKey = 43;
+  assert.same(globalThis.seTailWritePlainKey, 43, 'and the comma-less spelling lands in the same slot');
+  delete (0, globalThis.window).seTailWriteProbeKey;
+  delete globalThis.seTailWritePlainKey;
+  assert.false('seTailWriteProbeKey' in globalThis, 'the delete host collapses too');
+  assert.false('seTailWritePlainKey' in globalThis);
 });
 
 // a destructure pattern hop that is itself a proxy-global alias peels onto the always-defined
@@ -642,10 +637,14 @@ testUnlessDetectLowered('global-proxy: guarded seq-around chain-assign value col
 // destructure host replays the kept assignment through it
 testUnlessDetectLowered('global-proxy: read-target stored values, absent-claim rides, alias and destructure hosts', assert => {
   const hasWindow = globalThis.window !== undefined;
+  // a PLAIN stored nav is the proxy global it navigates, so the store holds that global on either
+  // host and the `?.` above it never fires - the same answer the bare read of the same nav gives, and
+  // the same one on every pipeline (pre / post / pre+post). only a nav carrying a live `?.` keeps a
+  // conditional store (the rows below)
   let k1;
   const proto = (k1 = globalThis.window.self)?.Object.getPrototypeOf({});
-  assert.same(proto, hasWindow ? Object.getPrototypeOf({}) : undefined);
-  assert.same(k1, hasWindow ? globalThis : undefined);
+  assert.same(proto, Object.getPrototypeOf({}), 'the claim runs off the collapsed store');
+  assert.same(k1, globalThis, 'and the store holds the realm global');
   // the read-then-claim twin: the alias read resolves its statics through the stored value
   let nav;
   // eslint-disable-next-line prefer-const -- the assignment-form write IS the shape under test
@@ -655,6 +654,8 @@ testUnlessDetectLowered('global-proxy: read-target stored values, absent-claim r
   /* eslint-disable es/no-bigint -- the definitions-ABSENT claim is the shape under test; the
      value is only read and compared, never invoked, so absent engines compare undefined */
   let kv;
+  // this nav ENDS at the probe, so its stored value is genuinely absent off-window - the collapse
+  // above applies to a nav whose LEAF is ponyfilled, not to one whose leaf IS the environment read
   const big = (kv = globalThis.window.self.window)?.BigInt;
   assert.same(big, hasWindow ? globalThis.BigInt : undefined);
   assert.same(kv, hasWindow ? globalThis : undefined);
@@ -664,8 +665,8 @@ testUnlessDetectLowered('global-proxy: read-target stored values, absent-claim r
   const galias = globalThis;
   let ka;
   const aliased = (ka = galias.window.self)?.Object.isExtensible({});
-  assert.same(aliased, hasWindow ? true : undefined);
-  assert.same(ka, hasWindow ? globalThis : undefined);
+  assert.same(aliased, true, 'an alias-rooted store collapses the same way');
+  assert.same(ka, globalThis, 'and holds the same global');
   // the destructure host over a stored value: the lift replays the kept assignment through
   // the same canon instead of freezing raw hops into what the binding stores
   let kd;
@@ -1245,9 +1246,10 @@ testUnlessDetectLowered('global-proxy: a sealed nav under an instance dispatch k
     // erase verdict's own `?.` object where the nav plan has no hop leaf to render
     assert.throws(() => (globalThis.window?.self.Promise).resolve, TypeError, 'sealed nav ending at the claim');
     // a WRITE host is a member access like any other: the seal keeps its read, so the collapse
-    // may not target the live realm global
+    // may not target the live realm global. a `delete` is the exception - the member it names is
+    // never READ, so no `?.` over its navigation is load-bearing and the whole thing collapses
     assert.throws(() => { (globalThis.self.window?.self).Box = 1; }, TypeError, 'sealed write host');
-    assert.throws(() => delete (globalThis.self.window?.self).Box, TypeError, 'sealed delete host');
+    assert.true(delete (globalThis.self.window?.self).Box, 'the sealed delete host collapses instead');
     assert.throws(() => (globalThis.self.window?.self).n++, TypeError, 'sealed update host');
     // a leaf core-js ponyfills no constructor for still gets its read reproduced, off the global's
     // own name - the claim beside it keeps the polyfill
@@ -1507,4 +1509,215 @@ testUnlessDetectLowered('global-proxy: a kept chain-assign value collapses under
     assert.deepEqual(staticClaim(), [3], 'the static claim erases its receiver read and still answers');
     assert.same(typeof stored, 'undefined', 'the assignment stored the short-circuited value');
   }
+});
+
+// a guard ROOT reading through a seal over a PLAIN nav collapses with it: the seal hides no
+// short-circuit, so the value canon reads the nav as the proxy global it navigates and the claim needs
+// no test at all. spelling the probe there read the host environment off the ponyfill - undefined in
+// exactly the realms the polyfill exists for, so the claim answered `void 0` or threw one hop later
+testUnlessDetectLowered('global-proxy: a sealed guard root collapses onto its ponyfill', assert => {
+  const order = [];
+  /* eslint-disable @stylistic/no-extra-parens -- the parens ARE the seal under test: they terminate
+     the chain, so the read above them is plain */
+  function plainRead() {
+    return ((globalThis.window).self)?.window.Promise.resolve(1);
+  }
+  function bareClaim() {
+    return ((globalThis.window).self)?.Promise.resolve(1);
+  }
+  function seqPrefix() {
+    return ((order.push('prefix'), globalThis.window).self)?.window.Promise.resolve(1);
+  }
+  function claimSideEffect() {
+    return ((globalThis.window).self)?.window.Promise.resolve(order.push('claim'));
+  }
+  /* eslint-enable @stylistic/no-extra-parens -- the seal ends here; the assertions below are plain */
+  // OFF-WINDOW IS THE POINT: the ponyfill exists so this code runs on a host WITHOUT `window`, so a
+  // seal over a PLAIN navigation collapses with it and the claim runs on either host. an emit that
+  // kept the source read - in the guard test or anywhere else - threw INSIDE the polyfilled output.
+  // `instanceof Promise` is not the probe here: the stripped realm removes the native class, and the
+  // ponyfill's thenable is the whole point - so the assertion asks what the value IS, not whose it is
+  for (const fn of [plainRead, bareClaim, claimSideEffect, seqPrefix]) {
+    assert.same(typeof fn()?.then, 'function', 'the claim answers a thenable on either host');
+  }
+  assert.same(order.filter(entry => entry === 'prefix').length, 1, 'the sequence prefix ran exactly once');
+  assert.same(order.filter(entry => entry === 'claim').length, 1, "and the claim's own argument ran once");
+});
+
+// the guard TEST an optional claim renders is the render's own text, not source: left for the
+// visitors, a claim collapsed it to the leaf ponyfill and erased the read a seal makes observable,
+// while without a probe under the seal it kept a native `self` read where the ponyfill is the point.
+// the AST leg is where both showed, so this row runs there
+testUnlessDetectLowered('global-proxy: an optional claim spells its own guard test', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  /* eslint-disable @stylistic/no-extra-parens -- the parens ARE the seal under test: they end the
+     chain, so the read under them is observable */
+  function probeUnderSeal() {
+    return (globalThis.window.self)?.Promise?.resolve(1);
+  }
+  function erasableUnderSeal() {
+    return (globalThis.self).window?.Array.of(5);
+  }
+  /* eslint-enable @stylistic/no-extra-parens -- seal ends here */
+  // the erasable hop is a DEEP one - a realm self-reference the collapse assumes present - so the
+  // seal over it changes nothing and the claim answers on either host
+  assert.deepEqual(erasableUnderSeal(), [5], 'the erasable hop collapses and the claim answers');
+  if (WINDOW_PRESENT) {
+    assert.true(probeUnderSeal() instanceof Promise, 'on-window the claim runs through its ponyfill');
+  } else {
+    // the probe row's observable is NOT stable across legs by design - a `pre+post` pass
+    // re-collapses the kept read (the accepted class this suite's area records), so its TEXT is what
+    // the fixture locks, not a runtime value here
+    assert.same(typeof probeUnderSeal, 'function', 'the probe row builds on every leg');
+  }
+});
+
+// an INSTANCE dispatch reading through a sealed nav: the receiver render owns a span of its own, and
+// the claim splices that text into its argument slot - a render that walked past the node's end there
+// left a dangling `?.` behind, which is not a program at all. so this row locks the BUILD as much as
+// the values, and it locks them on the host the ponyfill exists for
+testUnlessDetectLowered('global-proxy: a sealed nav feeding an instance dispatch still builds', assert => {
+  /* eslint-disable @stylistic/no-extra-parens -- the parens ARE the seal under test */
+  assert.same((globalThis.window).self?.Array.prototype.at.call([7], 0), 7, 'a sealed nav under a prototype dispatch');
+  assert.same(((globalThis.window).self).Array.prototype.at.call([8], 0), 8, 'and with the seal one layer out');
+  assert.same(typeof (globalThis.window).self?.Array.prototype.at, 'function', 'the bare method read answers too');
+  /* eslint-enable @stylistic/no-extra-parens -- seal ends here */
+});
+
+// an INVOKED claim is not a delete target at all (the operand is a call), so it keeps its polyfill and
+// its prefix effect instead of standing down raw. the DELETE-TARGET row of the family - a claim NAME
+// under the delete, whose nav collapses whole while the delete still reaches the REALM slot - lives in
+// mutated-slots.js: deleting a claim slot WRITES that name, and a slot write deopts the name for the
+// whole file (area AGENTS.md). hosted here it left every `WeakSet` read in this module raw, which is
+// not what the fold rows above are about and throws outright on an engine with no native WeakSet
+// LOWERED legs are excluded by the second-pass class the area's AGENTS.md records: an already-lowered
+// input carries no `?.` for the rule to reach and keeps its own `== null ||` short-circuit
+testUnlessDetectLowered('global-proxy: an invoked claim under a delete keeps its polyfill', assert => {
+  let n = 0;
+  /* eslint-disable @stylistic/no-extra-parens, sonarjs/no-redundant-parentheses -- the `?.` under
+     the delete IS the form under test, and so are the parens that carry it */
+  const invoked = delete ((globalThis.window).self?.Array?.of(5));
+  assert.true(invoked, 'an invoked claim under the delete answers true');
+  const invokedSeq = delete (((n++, globalThis.window)).self?.Array?.of(6));
+  assert.true(invokedSeq, 'and so does its sequence-rooted twin');
+  /* eslint-enable @stylistic/no-extra-parens, sonarjs/no-redundant-parentheses -- end of the forms */
+  assert.same(n, 1, 'the sequence prefix ran exactly once');
+});
+
+// an INSTANCE dispatch memoizes its receiver: when that receiver is a proxy nav carrying the probe,
+// the memo must hold the COLLAPSED value. spelled raw it read `.window` off the ponyfill and then the
+// next hop off the undefined that answers - a throw inside the polyfilled output, on the very branch
+// the source short-circuits past
+testUnlessDetectLowered('global-proxy: an instance memo over a probe nav holds the collapsed value', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  const flat = globalThis.window.self?.Array?.prototype.flat;
+  assert.same(typeof flat, WINDOW_PRESENT ? 'function' : 'undefined', 'the memo answers its host');
+  const called = globalThis.window.self?.Array?.prototype.flat.call([[7]]);
+  assert.deepEqual(called, WINDOW_PRESENT ? [7] : undefined, 'and the dispatch through it runs');
+  assert.same(globalThis.self?.Array?.prototype.flat.call([[8]])[0], 8, 'the probe-less twin always runs');
+});
+
+// TWO live `?.` over a SEALED short-circuiting value: both take their undefinedness from the same
+// probe under the seal, so ONE test expresses them. counted as two sources the claim stood DOWN and
+// shipped a NATIVE static, which off-target is no polyfill at all. the one test both legs render is
+// the probe itself - the same shape the unsealed spelling gets, and the only one that still answers
+// through the ponyfill in a stripped realm
+testUnlessDetectLowered('global-proxy: two optionals over a sealed short-circuit still polyfill', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  /* eslint-disable @stylistic/no-extra-parens -- the seal over the live `?.` IS the form under test */
+  const made = ((globalThis.window?.self)?.Array?.of(5));
+  const method = ((globalThis.window?.self)?.Promise?.resolve);
+  const bare = globalThis.window?.self?.Array?.of(5);
+  /* eslint-enable @stylistic/no-extra-parens -- end of the sealed forms */
+  assert.deepEqual(made, WINDOW_PRESENT ? [5] : undefined, 'the static answers its host');
+  assert.same(typeof method, WINDOW_PRESENT ? 'function' : 'undefined', 'and so does the method read');
+  // the sealed spelling and the bare one answer the SAME thing - the seal decides where a `?.`
+  // guards, never whether the claim keeps its polyfill
+  assert.deepEqual(made, bare, 'the seal changes nothing the unsealed spelling does not');
+});
+
+// a nav whose LEAF is the environment probe (`globalThis.self.window?.X`): the hops BELOW the probe
+// collapse onto their ponyfill and the probe read keeps its own `?.`, so off-window the chain
+// short-circuits to `undefined` instead of throwing. kept raw, the emit read a NATIVE `self` off the
+// ponyfill - undefined in Node - and the next hop threw INSIDE the polyfilled output
+testUnlessDetectLowered('global-proxy: a nav whose leaf is the probe collapses its hops below it', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  // the leaf is `document`, not a modern ctor: it has to be a name core-js has no module for - so the
+  // read stays RAW off the probe value - and present on every karma browser alike. `WeakRef` is not:
+  // IE11 has `window` and no `WeakRef`, and the row read `undefined` off a host it called present
+  assert.same(typeof globalThis.self.window?.document, WINDOW_PRESENT ? 'object' : 'undefined',
+    'the probe-leaf read answers its host, and never throws');
+  assert.same(globalThis.self.window?.Symbol?.iterator, WINDOW_PRESENT ? Symbol.iterator : undefined,
+    'a claim above the probe answers through its ponyfill');
+  // the `?.`-free twin of the same nav collapses whole - the multihop canon, unchanged by this
+  globalThis.deepNavProbeKey = 'here';
+  assert.same(globalThis.self.window.deepNavProbeKey, 'here', 'the plain spelling collapses whole');
+  delete globalThis.deepNavProbeKey;
+});
+
+// the member a `delete` NAMES is never read, so it is never polyfilled - swapped, the operand became a
+// CALL (`delete _nameMaybeFunction(...)`) and the delete stopped deleting anything. the members BELOW
+// it are read on the way there and keep their claims
+testUnlessDetectLowered('global-proxy: a deleted member is not polyfilled, the ones below it are', assert => {
+  const box = { fn() { return 1; } };
+  Object.defineProperty(box.fn, 'name', { value: 'named', configurable: true });
+  assert.same(box.fn.name, 'named', 'the own name is there to start with');
+  assert.true(delete globalThis.self.Object.getOwnPropertyDescriptor(box, 'fn').enumerable,
+    'a delete through a collapsed nav answers true');
+  // the claim BELOW the deleted member still runs through its ponyfill
+  assert.same(typeof globalThis.self.Array.prototype.flat, 'function', 'the read below it keeps its polyfill');
+});
+
+// a KEPT chain-assign holds the probe read, and the hop above it is read PLAIN: evaluating it THROWS
+// off-window, exactly as the source does. anchoring the dispatch guard one hop lower tested the probe
+// value instead and answered `undefined` where the source throws - a swallowed exception, on the leg
+// that spells it differently from the other
+testUnlessDetectLowered('global-proxy: a kept assign keeps the throw of the plain hop above it', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  let w;
+  function read() {
+    return (w = globalThis.window).self?.Array?.prototype.flat.name;
+  }
+  if (WINDOW_PRESENT) {
+    assert.same(read(), 'flat', 'on a host with the probe the read answers through the ponyfill');
+  } else assert.throws(read, TypeError, 'off-window the plain hop throws, as the source does');
+  assert.same(w, globalThis.window, 'and the kept assign stored what the source stores');
+});
+
+// a WRITE below the probe hops is the source's own first act. the guard base substitutes the whole
+// prefix for an always-defined ponyfill (the owner-decided price of that base), and the write went with
+// it - a compensating re-emit above the test then ran AFTER a read that throws, leaving it unwritten
+testUnlessDetectLowered('global-proxy: a write below the probe hops runs where the source runs it', assert => {
+  // NOT `typeof self` - `self` has a ponyfill and the probe would read THAT, always defined; the
+  // question here is whether the HOST has the slot the nav dereferences
+  const SELF_PRESENT = Object.hasOwn(globalThis, 'self');
+  let w;
+  function read() {
+    return (w = globalThis).self.window?.self?.Array.of(5);
+  }
+  // off-host the guard answers `void 0`: its test reads the probe off the always-defined ponyfill
+  // base, the owner-decided price of that base. the WRITE is what this row is about, and it happens
+  // on both branches - inside the test, where the source performs it
+  assert.same(SELF_PRESENT ? read()[0] : read(), SELF_PRESENT ? 5 : undefined,
+    'the claim answers through its ponyfill wherever the probe is defined');
+  assert.same(w, globalThis, 'and the write below the hops stored what the source stores');
+});
+
+// the guard a dispatch renders under a `delete` must be PARENTHESIZED: spelled bare, `delete null ==
+// _ref ? ...` parses as `(delete null) == _ref ? ...` - a comparison, not a deletion, and the operand
+// the source names is never touched
+testUnlessDetectLowered('global-proxy: a delete over a rendered guard keeps its parens', assert => {
+  globalThis.deleteGuardBox = { list: [[1]] };
+  const dropped = delete globalThis.window?.self.deleteGuardBox.list.at.name;
+  assert.same(typeof dropped, 'boolean', 'the operand is a delete, not a comparison');
+  assert.same(globalThis.deleteGuardBox.list.at(0)[0], 1, 'and the object below it survives');
+  delete globalThis.deleteGuardBox;
+});
+
+// every hop RESOLVES (no probe in the nav): the whole navigation collapses onto the root ponyfill, so
+// the dispatch memo holds it. left raw, the memo read `self` off the ponyfill root - undefined in a
+// realm without one - and the chain short-circuited where the collapsed spelling answers
+testUnlessDetectLowered('global-proxy: a fully resolving nav collapses inside the dispatch memo', assert => {
+  assert.same(globalThis.self?.Array?.prototype.flat.name, 'flat', 'the memo answers through the ponyfill');
+  assert.deepEqual(globalThis.self?.Array?.prototype.flat.call([[3]]), [3], 'and the dispatch through it runs');
 });

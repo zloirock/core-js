@@ -12,7 +12,7 @@ export function viaParamDefault({
 }
 export let stored;
 export const viaChainAssign = _at(_ref = stored = (null == _globalThis.window ? void 0 : _self).box).call(_ref, 0);
-export const viaDelete = delete (null == _globalThis.window ? void 0 : _self).box.at;
+export const viaDelete = delete _globalThis.box.at;
 
 // NEGATIVE, opposite polarity: the `?.` sits OUTSIDE the seal, so the sealed value is what the
 // short-circuit produced and the plain read above it observes that - a throw either way, and the
