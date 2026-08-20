@@ -67,8 +67,10 @@ import {
   inlineCallReturnExpression,
   isCallShape,
   isStaticPlacement,
+  chainSealsAShortCircuit,
   isUndefinedNode,
   peelChainAssignmentDeep,
+  proxyReceiverValueCanBeUndefined,
   resolveKey as sharedResolveKey,
   reachableAliasValues,
   resolveObjectName,
@@ -243,9 +245,37 @@ function resolveAndDestructureMeta({ node, key, scope, adapter, path }) {
 function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
   // null meta = monkey-patched static branch; null-guard before `.object` (build crash otherwise)
   const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
-  if (primaryMeta?.object && resolveBuiltIn(primaryMeta)) return primaryMeta;
+  if (primaryMeta?.object && resolveBuiltIn(primaryMeta)) {
+    // the left is the unconditional value only while it cannot be nullish: an undefinable
+    // probe nav (`globalThis.window?.Array ?? {}`) selects the FALLBACK exactly off-env, so
+    // the runtime value depends on the environment like a differing-branch `&&` - flag it
+    // for the per-branch machinery instead of binding the polyfill to the left
+    return fallbackValueCanBeNullish(node.left, { scope, adapter, path })
+      ? { ...primaryMeta, fromFallback: true } : primaryMeta;
+  }
   const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path });
   return fallbackMeta?.object ? { ...fallbackMeta, fromFallback: true } : fallbackMeta;
+}
+
+// may a fallback BRANCH be synth-swapped to a polyfill literal? a logical LEFT operand
+// selects by its OWN value (`||` / `??` take the right exactly when the left is falsy /
+// nullish): an undefinable branch is nullish precisely where the always-defined synth
+// literal is not, so the swap flips which branch runs - that branch stays raw, its nav
+// route keeps the value semantics. test-selected branches (ternary arms, a logical RIGHT)
+// swap freely. shared by both emitters' per-branch synth walks
+export function fallbackBranchSwapKeepsSelection({ hostNode, slot, branchNode, scope, adapter, path }) {
+  if (hostNode?.type !== 'LogicalExpression' || slot !== 'left') return true;
+  return !fallbackValueCanBeNullish(branchNode, { scope, adapter, path });
+}
+
+// can this fallback OPERAND evaluate to nullish - the value question exactly as `||` / `??`
+// see it? a short-circuit hidden under a SEAL never hands nullish on: the read above the
+// seal THROWS instead (and the probe channel owns that throw), so only a top-reaching
+// short-circuit or a bare environment probe counts
+function fallbackValueCanBeNullish(node, aliasCtx) {
+  const core = unwrapTransparentSeq(node);
+  return proxyReceiverValueCanBeUndefined(core, ({ name }) => resolveBuiltIn({ kind: 'global', name }), aliasCtx)
+    && !chainSealsAShortCircuit(core, ({ name }) => resolveBuiltIn({ kind: 'global', name }), aliasCtx);
 }
 
 // `cond ? Array : Set`: try both branches; flag fromFallback so destructure replacement
@@ -1547,6 +1577,19 @@ export function staticContainerReceiverName({ node, scope, adapter, path, unionS
     keys.unshift(key);
     root = unwrapRuntimeExpr(root.object);
   }
+  // a zero-arg call FORWARDING a container (`const plain = () => ({ window: { Array } });
+  // plain()?.window?.Array.of(13)`): the callee's single return expression IS the container -
+  // descend it like a const-bound literal. a shorthand `Array` there is the real global (an
+  // unbound leaf name), while a user literal (`{ of: fn }`) still resolves to nothing. the
+  // proof is the strict one - a conditionally-assigned forwarder proves no value
+  if (isCallShape(root) && keys.length) {
+    const returned = inlineCallReturnExpression({
+      callNode: root, scope, adapter, path, seen: new Set(), rejectConditional: true,
+    });
+    return returned ? walkStaticReceiverStep({
+      node: returned, walkPath: keys, scope, adapter, depth: 0, path, readNode: root, unionSink,
+    }) : null;
+  }
   if (root?.type !== 'Identifier' || !keys.length) return null;
   const binding = adapter.getBinding(scope, root.name, path);
   const declaratorNode = binding?.path?.node ?? binding?.node;
@@ -1750,6 +1793,13 @@ function walkStaticReceiverTerminal({
     || current?.type === 'ObjectExpression'
     ? findNamespaceMemberValue(current, walkPath[0], currentScope, adapter, sharedResolveKey)
     : (canHoldBuiltIn(arraySlot) ? arraySlot : null);
+  // a slot holding an UNDEFINABLE probe nav (`{ a: globalThis.window?.Array }`) hands on a value
+  // that is absent exactly off-env: the read a pure claim would erase throws there, so the walk
+  // names no defined constructor - the source stays native. method-aware like the written-slot
+  // consult above: global keeps resolving and over-injects, the safe direction there
+  if (value && adapter.method === 'usage-pure' && proxyReceiverValueCanBeUndefined(
+    unwrapTransparentSeq(value), ({ name }) => resolveBuiltIn({ kind: 'global', name }),
+    { scope: currentScope, adapter, path })) return null;
   return value ? walkStaticReceiverStep({
     node: value, walkPath: walkPath.slice(1), scope: currentScope, adapter, depth: depth + 1, path,
     seen: visited, readNode, ignoreWrittenSlots, unionSink,
@@ -2211,12 +2261,16 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   const targetLeaves = [];
   // arrows whose WHOLE expression body becomes a target: a text replacement with an object
   // literal there needs wrapping parens (block ambiguity); AST printers add them automatically
-  const expressionBodyLeaves = new Set();
+  // ... and leaves whose OWN value picks a `||` / `??` branch (a logical LEFT, and everything
+  // whose value flows into one): swapping such a leaf to an always-defined literal flips which
+  // branch runs when the leaf can be nullish, so the mirror skips those below
+  const expressionBodyLeaves = new Set(),
+        valueSelectingLeaves = new Set();
   // `atBodyStart` tracks whether the current node sits at an arrow's expression-body START, where a
   // spliced object literal would make `=> {...}` read as a block body. it only matters for the
   // unplugin text splice (babel's printer parenthesises on its own); the leaf that finally lands
   // there is marked so the renderer wraps it in parens
-  function collectValueLeaves(node, atBodyStart = false) {
+  function collectValueLeaves(node, atBodyStart = false, selects = false) {
     while (true) {
       const { tail } = peelNestedSequenceExpressions(node);
       if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
@@ -2236,25 +2290,29 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
       if (tail?.type === 'ConditionalExpression') {
         // both branches are reachable - the runtime test picks per call and stays native. the test
         // occupies body-start (never a value leaf), so the branch values are never at body-start
-        const consequentFalsy = collectValueLeaves(tail.consequent);
-        return collectValueLeaves(tail.alternate) || consequentFalsy;
+        const consequentFalsy = collectValueLeaves(tail.consequent, false, selects);
+        return collectValueLeaves(tail.alternate, false, selects) || consequentFalsy;
       }
       if (tail?.type !== 'LogicalExpression') {
         targetLeaves.push(tail);
         if (atBodyStart) expressionBodyLeaves.add(tail);
-        // a proxy operand is truthy, so a `||` / `??` right beside it is dead; any other value may
-        // be falsy, so its fallback IS reachable and the caller must collect it for the mirror
-        return rootContext(tail)?.kind !== 'proxy';
+        if (selects) valueSelectingLeaves.add(tail);
+        // a DEFINED proxy operand is truthy, so a `||` / `??` right beside it is dead; an
+        // UNDEFINABLE probe nav (`globalThis.window ?? {}` - nullish exactly off-env) reaches
+        // its fallback, and any other value may be falsy - both keep the fallback collected
+        return rootContext(tail)?.kind !== 'proxy'
+          || fallbackValueCanBeNullish(tail, { scope: leafPatternPath.scope, adapter, path: leafPatternPath });
       }
       if (tail.operator === '&&') {
         // only the RIGHT operand is a value leaf; the left is a truthiness gate that stays verbatim,
         // so no collected leaf lands at body-start
-        collectValueLeaves(tail.right);
+        collectValueLeaves(tail.right, false, selects);
         return true;
       }
       // `||` / `??`: the LEFT operand occupies body-start, so the flag rides into it; the right is
-      // past the operator and never at body-start
-      return collectValueLeaves(tail.left, atBodyStart) ? collectValueLeaves(tail.right) : false;
+      // past the operator and never at body-start. the LEFT's own value picks the branch, and the
+      // RIGHT hands the expression's value on, so it keeps the caller's selection position
+      return collectValueLeaves(tail.left, atBodyStart, true) ? collectValueLeaves(tail.right, false, selects) : false;
     }
   }
   const rootCanBeFalsy = collectValueLeaves(receiverNode);
@@ -2366,6 +2424,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
     const out = [];
     for (const leaf of targetLeaves) {
       if (!leaf || mayHaveSideEffects(leaf)) continue;
+      // a value-SELECTING leaf that can be nullish must not become an always-defined literal:
+      // the swap would flip which `||` / `??` branch runs (`globalThis.window ?? {}` - native
+      // takes the fallback exactly off-env). the leaf stays raw, native semantics preserved
+      if (valueSelectingLeaves.has(leaf)
+        && fallbackValueCanBeNullish(leaf, { scope: leafPatternPath.scope, adapter, path: leafPatternPath })) continue;
       // a whole-collapse target is the full logical - its context is the LEFTMOST value leaf
       let ctxNode = leaf;
       while (ctxNode?.type === 'LogicalExpression') ctxNode = peelNestedSequenceExpressions(ctxNode.left).tail;

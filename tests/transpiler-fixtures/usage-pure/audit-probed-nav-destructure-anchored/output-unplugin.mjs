@@ -28,62 +28,44 @@ import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // key effect and the throw both live in the residual read)
 let f1 = 0;
 export const viaAnchoredSealedSeKey = _Object$freeze;
-export const {
-  [(f1++, 'freeze')]: _unused
-} = (null == _globalThis.window ? void 0 : _self).Object;
+export const { [(f1++, 'freeze')]: _unused } = (null == _globalThis.window ? void 0 : _self).Object;
 export { f1 };
 
 // unresolvable custom leaf under a resolvable ctor hop: the residual re-anchors onto the
 // guarded member read, not the always-defined ctor binding
-export const {
-  customY: viaAnchoredSealedCustom
-} = (null == _globalThis.window ? void 0 : _self).Map;
+export const { customY: viaAnchoredSealedCustom } = (null == _globalThis.window ? void 0 : _self).Map;
 
 // member-read anchor (no whole-ctor pure entry) over a LIVE probe
-export const {
-  floor: viaAnchoredLiveFloor
-} = (null == _globalThis.window ? void 0 : _self).Math;
+export const { floor: viaAnchoredLiveFloor } = (null == _globalThis.window ? void 0 : _self).Math;
 
 // FULL consume: the extraction carries the guarded anchor read as a throw probe, once per
 // pattern (native throws before any prop read)
-export const viaAnchoredSealedFull = ((null == _globalThis.window ? void 0 : _self).JSON, _JSON$stringify); // DEFINED navs keep the plain anchored collapses - no guard, no probe
+export const viaAnchoredSealedFull = ((null == _globalThis.window ? void 0 : _self).JSON, _JSON$stringify);
+
+// DEFINED navs keep the plain anchored collapses - no guard, no probe
 export const viaDefinedAnchoredTrunc = _Math$trunc;
-export const viaDefinedAnchoredOwnKeys = _Reflect$ownKeys; // for-init hosts ride the same guard renders (member-read anchor in the for-head, SE-key
+export const viaDefinedAnchoredOwnKeys = _Reflect$ownKeys;
+
+// for-init hosts ride the same guard renders (member-read anchor in the for-head, SE-key
 // leaf via the trailing sink declarator)
 let f2 = 0;
-for (const {
-  floor: viaForInitAnchor
-} = (null == _globalThis.window ? void 0 : _self).Math; f2 < 1; f2++) {
-  void viaForInitAnchor;
-}
+for (const { floor: viaForInitAnchor } = (null == _globalThis.window ? void 0 : _self).Math; f2 < 1; f2++) { void viaForInitAnchor; }
 let f3 = 0;
-for (const {
-    [(f3++, 'keys')]: _unused2
-  } = (null == _globalThis.window ? void 0 : _self).Object, viaForInitSeKey = _Object$keys; f3 < 2;) {
-  void viaForInitSeKey;
-  break;
-}
+for (const { [(f3++, 'keys')]: _unused2 } = (null == _globalThis.window ? void 0 : _self).Object, viaForInitSeKey = _Object$keys; f3 < 2;) { void viaForInitSeKey; break; }
 export { f2, f3 };
 
 // a slot-MUTATED anchor ctor keeps the RAW member read through the guard (the user's
 // replacement stays visible at a present probe; the throw survives at an absent one)
 _globalThis.Map = function PatchedMap() {};
-export const {
-  customY: viaMutatedAnchor
-} = (null == _globalThis.window ? void 0 : _self).Map;
+export const { customY: viaMutatedAnchor } = (null == _globalThis.window ? void 0 : _self).Map;
 
 // a REST sibling declines the single-prop anchor: the flat residual keeps the guard-value
 // init (an always-defined receiver binding would erase the probe's throw AND hand rest the
 // realm global); a flat PARTIAL consume off a probed member nav rides the same guard
 export const viaRestDeclinedAnchor = _Math$trunc;
-export const {
-  Math: _unused3,
-  ...viaRestRest
-} = null == _globalThis.window ? void 0 : _self;
+export const { Math: _unused3, ...viaRestRest } = null == _globalThis.window ? void 0 : _self;
 export const viaPartialProbed = _Number$isInteger;
-export const {
-  customZ: viaPartialCustom
-} = null == _globalThis.window ? void 0 : _self.Number;
+export const { customZ: viaPartialCustom } = null == _globalThis.window ? void 0 : _self.Number;
 
 // FULL consumes outside the anchor gate carry the same once-per-pattern probe: multi-prop
 // nested, single-level flat (the probe read is the pattern key itself), array-wrapped
@@ -102,10 +84,7 @@ export { viaAssignFull };
 const dhPure = () => _globalThis;
 export const viaCallRootPure = ((null == dhPure().window ? void 0 : _self).Math, _Math$expm1);
 let callRootEff = 0;
-const dhSe = () => {
-  callRootEff++;
-  return _globalThis;
-};
+const dhSe = () => { callRootEff++; return _globalThis; };
 export const viaCallRootSe = ((null == dhSe().window ? void 0 : _self).JSON, _JSON$parse);
 export const viaCallRootIife = ((null == (x => x)(_globalThis).window ? void 0 : _self).Object, _Object$values);
 export { callRootEff };
@@ -123,28 +102,16 @@ export const viaCtorLeafWrapped = ((null == _globalThis.window ? void 0 : Array)
 const heldCtorNav = _globalThis.window;
 export const viaCtorLeafAlias = ((null == heldCtorNav ? void 0 : Array).of, _Array$of);
 export const viaCtorLeafSealed = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
-export const {
-  a: {
-    of: viaCtorLeafLiteral
-  }
-} = {
-  a: _globalThis.window?.Array
-};
+export const { a: { of: viaCtorLeafLiteral } } = { a: _globalThis.window?.Array };
 
 // the probe key is POSITION-INDEPENDENT: both property orders reproduce the source's throw,
 // and a string-literal / computed `[Symbol.iterator]` first key probes like the dotted one
-export const {
-  union: viaAnchoredFirstA
-} = ((null == _globalThis.window ? void 0 : _self).Set, _Set);
+export const { union: viaAnchoredFirstA } = ((null == _globalThis.window ? void 0 : _self).Set, _Set);
 export const viaAnchoredFirstB = _Array$of;
 export const viaConsumedFirstA = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
-export const {
-  union: viaConsumedFirstB
-} = _Set;
+export const { union: viaConsumedFirstB } = _Set;
 export const viaStringKeyFirst = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
-export const {
-  union: viaStringKeySibling
-} = _Set;
+export const { union: viaStringKeySibling } = _Set;
 export const viaSymbolFirst = ((null == _globalThis.window ? void 0 : _self)[_Symbol$iterator], _getIteratorMethod(_self));
 export const viaSymbolSibling = _Array$of;
 export const viaSymbolOnly = _getIteratorMethod(null == _globalThis.window ? void 0 : _self.Array.prototype);
@@ -152,35 +119,18 @@ export const viaSymbolOnly = _getIteratorMethod(null == _globalThis.window ? voi
 // a `||` / `??` FALLBACK rescues the nullish path: a reachable diverging fallback keeps the
 // source native, an agreeing ctor fallback keeps the per-branch machinery, and a SEALED left
 // THROWS instead of selecting - its dead fallback drops while the probe stays
-export const {
-  of: viaFallbackObject
-} = _globalThis.window?.Array ?? {};
-export const {
-  of: viaFallbackOr
-} = _globalThis.window?.Array || {};
-export const {
-  of: viaFallbackAgree
-} = _globalThis.window?.Array ?? {
-  of: _Array$of
-};
-export const viaFallbackSealed = ((null == _globalThis.window ? void 0 : _self).Array.of, _Array$of);
-export const {
-  self: {
-    Array: {
-      of: viaFallbackNested
-    }
-  }
-} = _globalThis.window ?? {};
+export const { of: viaFallbackObject } = _globalThis.window?.Array ?? {};
+export const { of: viaFallbackOr } = _globalThis.window?.Array || {};
+export const { of: viaFallbackAgree } = _globalThis.window?.Array ?? { of: _Array$of };
+export const viaFallbackSealed = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of);
+export const { self: { Array: { of: viaFallbackNested } } } = _globalThis.window ?? {};
 
 // NEGATIVES: resolvable roots/hops keep the collapse, a PARTIAL consume keeps its residual
 export const viaDefinedRoot = _Array$of;
 export const viaResolvableHop = _Array$of;
 export const viaAllPlainNav = _Array$of;
 export const viaPartialConsume = _Array$of;
-export const {
-  of: _unused4,
-  ...viaPartialRest
-} = _globalThis.window?.Array;
+export const { of: _unused4, ...viaPartialRest } = _globalThis.window?.Array;
 
 // the value that IS the environment probe: a bare one-hop init (`= globalThis.window`), its
 // sealed twin, an agreeing-proxy ternary collapse and an alias HOLDING the probe all consume
