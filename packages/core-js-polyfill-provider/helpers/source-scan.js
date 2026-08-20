@@ -30,6 +30,18 @@ export function buildOffsetToLine(code) {
   return offset => lineIndexFor(lineStarts ??= collectLineStarts(code), offset) + 1;
 }
 
+// ESTree/sourcemap `loc` positions: 1-based line, 0-BASED column (the two consumers of the
+// diagnostics builder below want 1-based columns instead). eager and unguarded - the AST
+// printer locates every node of every file, so the lazy build and the range check of the
+// diagnostics twin would only add per-call cost
+export function buildOffsetToLoc(code) {
+  const lineStarts = collectLineStarts(code);
+  return offset => {
+    const lineIndex = lineIndexFor(lineStarts, offset);
+    return { line: lineIndex + 1, column: offset - lineStarts[lineIndex] };
+  };
+}
+
 // 1-based line + column; returns null when offset is not an in-range non-negative integer.
 // shared lineStarts table lets column = offset - lineStarts[lineIndex] + 1 in O(log n).
 // accepts offset === code.length so an EOF-anchored diagnostic still reports a valid position
@@ -90,6 +102,13 @@ export function mergeVisitors(base, extra) {
     }
   }
   return merged;
+}
+
+// a `-line` / `-next-line` directive pins its LINE association; consumers that reflow
+// text (the AST printer's roundtrip gate) need to know which comments carry one
+export function isLineBoundDisableDirective(value) {
+  const found = DIRECTIVE.exec(value);
+  return found ? found.groups.kind !== 'file' : false;
 }
 
 // `firstStmtStart`: `disable-file` fires only above all code (eslint-style scope).

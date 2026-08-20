@@ -383,11 +383,23 @@ export default function createPlugin(options) {
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
   // (`isWebpack = false`) instead of hard-crashing every transform
-  const { bundler, ...providerOptions } = options;
+  const { bundler, engine: engineOption, ...providerOptions } = options;
   if (bundler !== undefined && bundler !== null && !KNOWN_BUNDLERS.has(bundler)) {
     const list = [...KNOWN_BUNDLERS].map(b => `'${ b }'`).join(', ');
     // eslint-disable-next-line no-console -- first-run diagnostic
     console.warn(`[core-js] unknown \`bundler\` ${ JSON.stringify(bundler) } - falling back to generic handling (expected one of ${ list })`);
+  }
+  // the transform-engine flag of the staged AST-engine migration. per-instance, so the
+  // snapshot cache below can never mix engines - no key extension needed. `'ast'` is landed
+  // method by method and rejected here at configuration time until its first method ships:
+  // silently skipping polyfill work would be the one wrong answer
+  const engine = engineOption ?? 'text';
+  if (engine !== 'text' && engine !== 'ast') {
+    const got = typeof engineOption === 'string' ? `'${ engineOption }'` : typeof engineOption;
+    throw new TypeError(`[core-js] invalid \`engine\` option: ${ got } - expected 'text' or 'ast'`);
+  }
+  if (engine === 'ast') {
+    throw new TypeError(`[core-js] \`engine: 'ast'\` does not support method '${ options.method }' yet`);
   }
 
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
