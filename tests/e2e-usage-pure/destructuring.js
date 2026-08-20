@@ -495,7 +495,7 @@ QUnit.test('destructuring: nested-proxy assignment value is the proxy object', a
 // the polyfilled Symbol.iterator binding so the kept sentinel stays a valid computed key. (was
 // unplugin-only: the inner sentinel leaked the native [Symbol.iterator], a ReferenceError on ie:11)
 // NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
-if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: nested-proxy inner rest beside consumed Symbol.iterator', assert => {
+if (!Symbol.sham) QUnit.test('destructuring: nested-proxy inner rest beside consumed Symbol.iterator', assert => {
   const src = { inner: { [Symbol.iterator]: [1, 2, 3][Symbol.iterator], extra: 'kept' } };
   const { inner: { [Symbol.iterator]: it, ...rest } } = src;
   assert.same(typeof it, 'function');
@@ -535,7 +535,7 @@ QUnit.test('destructuring: proxy-global single property under a non-identifier k
 // source itself throws reading the nested pattern. reading `Symbol.iterator` off the proxy instead
 // (the pre-fix spelling) would bind `undefined` and erase that throw
 // NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
-if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: proxy-global single property under a folded symbol key', assert => {
+if (!Symbol.sham) QUnit.test('destructuring: proxy-global single property under a folded symbol key', assert => {
   assert.throws(() => {
     const { [Symbol.iterator]: { description } } = globalThis;
     return description;
@@ -553,7 +553,7 @@ if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: prox
 // runtime contract around it - the extraction still yields a working iterator method, a user
 // default still fires, and a two-leaf pattern still binds both names
 // NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
-if (typeof Symbol == 'function' && !Symbol.sham) QUnit.test('destructuring: instance member off a symbol-key extraction', assert => {
+if (!Symbol.sham) QUnit.test('destructuring: instance member off a symbol-key extraction', assert => {
   const { [Symbol.iterator]: { name } } = [1, 2];
   assert.same(typeof name, 'string', 'a Function instance member resolves off the extracted method');
   // a DEFAULTED leaf keeps its default - binding the dispatcher result directly would drop it
@@ -3586,4 +3586,175 @@ QUnit.test('destructuring: a declined init still gets its claim rendered', asser
     assert.throws(leadingEffect, TypeError, 'and so does the leading-effect form');
   }
   assert.same(seq, 2, 'the leading effects ran exactly once each');
+});
+
+// a FULL-consume extraction over an undefinable probe nav rides a THROW probe on every
+// receiver shape and first-key spelling: the ctor leaf, both property orders, the string /
+// symbol first keys. the `??` fallback rescues the nullish path, and the resolvable roots
+// keep the collapse. host decides which half runs
+QUnit.test('destructuring: a probed init throws for every consuming position', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  /* eslint-disable no-unsafe-optional-chaining -- the throw on the short-circuit IS the
+     asserted semantics */
+  function ctorLeaf() {
+    const { of } = globalThis.window?.Array;
+    return typeof of;
+  }
+  function anchoredFirst() {
+    const { Set: { union }, Array: { of } } = globalThis.window?.self;
+    return [typeof union, typeof of];
+  }
+  function consumedFirst() {
+    const { Array: { of }, Set: { union } } = globalThis.window?.self;
+    return [typeof of, typeof union];
+  }
+  function stringKeyFirst() {
+    // eslint-disable-next-line @stylistic/quote-props -- the string spelling IS the form under test
+    const { 'Array': { of }, Set: { union } } = globalThis.window?.self;
+    return [typeof of, typeof union];
+  }
+  function arrayWrapped() {
+    const [{ of }] = [globalThis.window?.Array];
+    return typeof of;
+  }
+  function aliasHeld() {
+    const w = globalThis.window;
+    const { of } = w?.Array;
+    return typeof of;
+  }
+  function fallbackRescued() {
+    const { of } = globalThis.window?.Array ?? {};
+    return typeof of;
+  }
+  /* eslint-enable no-unsafe-optional-chaining -- end of the forms */
+  if (WINDOW_PRESENT) {
+    assert.same(ctorLeaf(), 'function', 'the ctor-leaf extraction resolves on a present host');
+    assert.deepEqual(anchoredFirst(), ['function', 'function'], 'the anchored-first order resolves');
+    assert.deepEqual(consumedFirst(), ['function', 'function'], 'the consumed-first order resolves');
+    assert.deepEqual(stringKeyFirst(), ['function', 'function'], 'the string-key order resolves');
+    assert.same(arrayWrapped(), 'function', 'the array-wrapped extraction resolves');
+    assert.same(aliasHeld(), 'function', 'the alias-held extraction resolves');
+    // the `??` row is a DECLINE (swapping a value-selecting nullish-able left would flip the
+    // branch), so the read stays native and answers the host's own slot - absent on the karma
+    // floor, where the probe below reads the real constructor rather than a rewritten member
+    const hostArrayHasOf = Object.hasOwn(Array, 'of');
+    assert.same(fallbackRescued(), hostArrayHasOf ? 'function' : 'undefined',
+      'a present host never reads the fallback - the declined row answers the host slot');
+  } else {
+    assert.throws(ctorLeaf, TypeError, 'the ctor-leaf extraction throws, as the source does');
+    assert.throws(anchoredFirst, TypeError, 'the anchored-first order throws');
+    assert.throws(consumedFirst, TypeError, 'the consumed-first order throws');
+    assert.throws(stringKeyFirst, TypeError, 'the string-key order throws');
+    assert.throws(arrayWrapped, TypeError, 'the array-wrapped extraction throws');
+    assert.throws(aliasHeld, TypeError, 'the alias-held extraction throws');
+    assert.same(fallbackRescued(), 'undefined', 'the `??` fallback rescues the nullish path silently');
+  }
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the defined-root control mirrors the guarded forms
+  const { of: definedOf } = globalThis?.Array;
+  assert.same(typeof definedOf, 'function', 'control: a defined root keeps its extraction');
+});
+
+// the symbol-first spelling asks the same probe through the synth extraction channel
+if (!Symbol.sham) {
+  QUnit.test('destructuring: a symbol-first probed init throws like its dotted twin', assert => {
+    const WINDOW_PRESENT = typeof window != 'undefined';
+    /* eslint-disable no-unsafe-optional-chaining -- the throw on the short-circuit IS the
+       asserted semantics */
+    function symbolFirst() {
+      const { [Symbol.iterator]: it, Array: { of } } = globalThis.window?.self;
+      return [typeof it, typeof of];
+    }
+    function symbolOnly() {
+      const { [Symbol.iterator]: it } = globalThis.window?.self.Array.prototype;
+      return typeof it;
+    }
+    /* eslint-enable no-unsafe-optional-chaining -- end of the forms */
+    if (WINDOW_PRESENT) {
+      // the symbol leaf reads the host's REAL slot (globalThis is not iterable natively, so the
+      // extraction answers undefined exactly as the source does); the dotted leaf resolves its ponyfill
+      assert.deepEqual(symbolFirst(), ['undefined', 'function'], 'a present host answers the real symbol slot');
+      assert.same(symbolOnly(), 'function', 'the single-symbol pattern resolves');
+    } else {
+      assert.throws(symbolFirst, TypeError, 'the symbol-first pattern throws, as the source does');
+      assert.throws(symbolOnly, TypeError, 'the single-symbol pattern throws too');
+    }
+  });
+}
+
+// a value that IS the environment probe: the bare one-hop init, its sealed twin, the
+// agreeing-proxy ternary and the alias holding it all throw on a full consume exactly
+// where the probe is absent; defined roots keep their extraction. the standalone-post leg
+// sees the LOWERED text, where these destructures are already plain member reads with no
+// `?.` for the probe rules to reach - there the all-plain collapse legitimately answers
+// the ponyfill instead of the throw (the accepted second-pass boundary), so it skips
+testUnlessDetectLowered('destructuring: a bare environment-probe init throws on a full consume', assert => {
+  const WINDOW_PRESENT = typeof window != 'undefined';
+  function bareProbe() {
+    const { Array: { of } } = globalThis.window;
+    return typeof of;
+  }
+  function sealedProbe() {
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the seal IS the form under test
+    const { Array: { of } } = (globalThis.window);
+    return typeof of;
+  }
+  function ternaryProbe() {
+    const { Array: { of } } = globalThis.setTimeout ? globalThis.window : globalThis.window;
+    return typeof of;
+  }
+  function aliasProbe() {
+    const held = globalThis.window;
+    const { Array: { of } } = held;
+    return typeof of;
+  }
+  if (WINDOW_PRESENT) {
+    assert.same(bareProbe(), 'function', 'a present host resolves the bare-probe extraction');
+    assert.same(sealedProbe(), 'function', 'the sealed twin resolves');
+    assert.same(ternaryProbe(), 'function', 'the ternary collapse resolves');
+    assert.same(aliasProbe(), 'function', 'the alias-held probe resolves');
+  } else {
+    assert.throws(bareProbe, TypeError, 'the bare-probe extraction throws, as the source does');
+    assert.throws(sealedProbe, TypeError, 'the sealed twin throws');
+    assert.throws(ternaryProbe, TypeError, 'the ternary collapse throws');
+    assert.throws(aliasProbe, TypeError, 'the alias-held probe throws');
+  }
+  const { Array: { of: definedOf } } = globalThis;
+  assert.same(typeof definedOf, 'function', 'control: the defined root keeps its extraction');
+});
+
+// a synth-swap / nested-mirror host over a PLAIN undefinable receiver keeps the always-defined
+// literal: the caller-correct fallback slot fires only when nothing was passed, and the ponyfill
+// resolves where native would throw on the absent host - the accepted divergence the provider
+// AGENTS.md spells (a SEALED receiver read still probes there, by the seal rule; the fixture
+// family locks that contrast). the standalone-post leg sees the LOWERED
+// text, where the default is already a guarded expression whose reads keep the source throw - the
+// accepted second-pass boundary answers differently there, so it skips
+testUnlessDetectLowered('destructuring: a param-default synth-swap over an undefinable receiver resolves the ponyfill', assert => {
+  /* eslint-disable no-unsafe-optional-chaining -- the undefinable receiver IS the case under
+     test (the transform supplants it with the always-defined literal) */
+  function paramFlat({ of } = globalThis.window?.Array) { return typeof of; }
+  function paramMirror({ Array: { of } } = globalThis.window?.self) { return typeof of; }
+  function iifeArg() {
+    return (({ of }) => typeof of)(globalThis.window?.Array);
+  }
+  function innerDefault() {
+    const { propQ: { of } = globalThis.window?.Array } = {};
+    return typeof of;
+  }
+  /* eslint-enable no-unsafe-optional-chaining -- end of the forms */
+  assert.same(paramFlat(), 'function', 'the flat param default resolves the ponyfill on any host');
+  assert.same(paramMirror(), 'function', 'the nested mirror resolves the ponyfill on any host');
+  assert.same(iifeArg(), 'function', 'the IIFE argument resolves the ponyfill on any host');
+  assert.same(innerDefault(), 'function', 'the inner default resolves the ponyfill on any host');
+  assert.same(paramFlat({ of: () => [] }), 'function', 'control: a passed argument destructures natively');
+  function definedParam({ of } = globalThis.self.Array) { return typeof of; }
+  assert.same(definedParam(), 'function', 'control: the defined receiver keeps its synth');
+  // the boundary's one exception: a SEALED receiver read re-emits as a throw probe (seal rule)
+  // eslint-disable-next-line no-unsafe-optional-chaining -- the sealed read over the short-circuit IS the form under test
+  function sealedParam({ of } = (globalThis.window?.self).Array) { return typeof of; }
+  if (typeof window == 'undefined') {
+    assert.throws(sealedParam, TypeError, 'the sealed receiver read throws on the absent host, as the source does');
+  } else {
+    assert.same(sealedParam(), 'function', 'a present host resolves the sealed receiver');
+  }
 });

@@ -42,3 +42,15 @@ export const nonProxyRoot = plain()?.window?.Math.trunc(6.7).at(0);
 // NEGATIVE: no live optional over the hop - the emit SWALLOWS the receiver instead of keeping it
 // in a test, and the buried global goes with it
 export const swallowedReceiver = (() => globalThis)().Map.groupBy([1], x => x);
+
+// a call root FORWARDING the real global through an object literal: the shorthand binding IS
+// the global constructor (the container walk descends the returned literal like a const-bound
+// one), so the claim resolves and the polyfill lands; the user-object negative above stays raw,
+// and a CONDITIONALLY-assigned forwarder proves no value
+const forwards = () => ({ window: { Array } });
+export const literalForwardedRoot = forwards()?.window?.Array.of(13);
+const forwardsExplicit = () => ({ window: { Array: Array } });
+export const literalForwardedExplicit = forwardsExplicit()?.window?.Array.of(14);
+let maybeForwards;
+if (globalThis.setTimeout) maybeForwards = () => ({ window: { Array } });
+export const conditionalForwarder = maybeForwards?.()?.window?.Array.of(15);
