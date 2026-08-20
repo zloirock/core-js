@@ -31,8 +31,8 @@ import {
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import {
-  discardRescueNodes, isStaticPlacement, isUndefinedNode, proxyReceiverValueCanBeUndefined,
-  resolveKey as sharedResolveKey, resolveObjectName,
+  chainSealsAShortCircuit, discardRescueNodes, isStaticPlacement, isUndefinedNode,
+  proxyReceiverValueCanBeUndefined, resolveKey as sharedResolveKey, resolveObjectName,
 } from './resolve.js';
 import {
   destructureRightIsReceiver, fallbackInitWhollyDiscardable, resolveBranchProxyName, walkStaticReceiverChain,
@@ -41,6 +41,67 @@ import {
 // object-prop node across parsers: estree `Property`, babel `ObjectProperty`
 function isPropertyNode(node) {
   return node?.type === 'Property' || node?.type === 'ObjectProperty';
+}
+
+// collapse a fallback init (logical / ternary / chain-assignment / transparent IIFE) to the
+// operand the flatten binds to, exactly like the flat meta - see the call site's contract
+// comments. `fallbackDropped` reports a REACHABLE branch was discarded: the fallback rescues
+// the nullish path there, so the full-consume throw probe stays off
+function collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfill }) {
+  let fallbackDropped = false;
+  if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
+    || isChainAssignment(init)
+    || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
+    if (!fallbackInitWhollyDiscardable(init)) init = null;
+    else for (let guard = 0; guard < 8 && init; guard++) {
+      const inlined = peelZeroArgIifeReturn(init);
+      if (inlined) init = unwrapExpressionChain(inlined);
+      // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
+      else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
+      // a ternary collapses to its consequent ONLY when the alternate agrees on a global proxy
+      // (the shared predicate the identification resolver uses); a diverging alternate means
+      // the runtime may pick a receiver the polyfill is wrong for, so bail and stay native
+      else if (init.type === 'ConditionalExpression') {
+        // NO `fallbackDropped` here: the agreement gate admits only branches naming the SAME
+        // proxy, so the dropped alternate is exactly as (un)definable as the kept consequent -
+        // it rescues nothing, and the probe question stays with the collapsed operand
+        // (`c ? globalThis.window : globalThis.window` still throws on a full consume)
+        init = resolveBranchProxyName({ branchNode: init.consequent, scope, adapter, path })
+          && resolveBranchProxyName({ branchNode: init.alternate, scope, adapter, path })
+          ? unwrapExpressionChain(init.consequent) : null;
+      } else if (init.type === 'LogicalExpression') {
+        const collapsed = collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalPolyfill });
+        fallbackDropped ||= collapsed.dropped;
+        init = collapsed.value;
+      } else break;
+    }
+  }
+  return { init, fallbackDropped };
+}
+
+// one step of the fallback-init collapse over a `||` / `??`: those select their RIGHT operand
+// exactly when the left value is nullish / falsy - and a short-circuit hidden under a SEAL
+// never hands nullish on (the read above the seal THROWS instead), so a sealed-read left keeps
+// its fallback DEAD and collapses like a plain init. a genuinely nullish-able left makes the
+// fallback reachable: the flatten may bind the polyfill to the left only when the fallback
+// agrees on the same receiver (`nav ?? Array`); a diverging fallback (`nav ?? {}`) keeps the
+// source native - its legitimate value must not become the polyfill. `&&` never reaches this
+// arm: `fallbackInitWhollyDiscardable` refuses it. `dropped` reports a REACHABLE fallback was
+// discarded - the probe question stays off there, the fallback rescues the nullish path
+function collapseLogicalInitOperand({ init, scope, adapter, path, resolveGlobalPolyfill }) {
+  const left = unwrapExpressionChain(init.left);
+  const aliasCtx = { scope, adapter, path };
+  if (!proxyReceiverValueCanBeUndefined(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)
+    || chainSealsAShortCircuit(left, ({ name }) => resolveGlobalPolyfill(name), aliasCtx)) {
+    return { value: left, dropped: false };
+  }
+  const leftName = resolveObjectName({ objectNode: left, scope, adapter, path });
+  return {
+    value: leftName && leftName === resolveObjectName({
+      objectNode: unwrapExpressionChain(init.right), scope, adapter, path,
+    }) ? left : null,
+    dropped: true,
+  };
 }
 
 // an SE-bearing init joins the ANCHORED family only when every effect rides a channel the
@@ -264,16 +325,20 @@ export function symbolIteratorInstanceLeaf({ value, resolvePure, isDisabled, key
 // re-entry on the same object must read THAT plan (the cascade also neutralizes
 // `plan.discardSe` on the shared object before rendering)
 // the KEY a full-consume throw probe re-reads off the guarded PROBED value: native
-// destructuring of the probe value throws reading its FIRST key, so `(guard).<key>`
-// reproduces the source TypeError ahead of the extractions. the anchored hop IS that first
-// key; a flat plan reads its first consumed prop's static identifier name. null (no probe)
-// for computed / non-identifier first keys - those keep their own residual channels
+// destructuring of the probe value throws BEFORE any key read (CoerceToObject), so a read of
+// the source's own first key off the guard reproduces the TypeError ahead of the extractions.
+// the anchored hop IS that first key; a flat plan reads its first prop's recorded scoped key
+// name - which KIND the prop planned as ('consumed' extraction, 'anchored' re-homed residual)
+// is a render concern, not a probe one, and a plan that keeps a residual never asks. returns
+// `{ name }` for a nameable key, `{ symbolIterator: true }` for a computed `[Symbol.iterator]`
+// first key (the probe reads through the polyfilled symbol binding), or null (no probe)
 export function probedNavProbeKey(plan) {
   if (!plan?.probedNav) return null;
-  if (plan.anchor) return plan.anchor;
+  if (plan.anchor) return { name: plan.anchor };
   const first = plan.outerProps?.[0];
-  if (!first || first.kind !== 'consumed' || !first.prop || first.prop.computed) return null;
-  return first.prop.key?.type === 'Identifier' ? first.prop.key.name : null;
+  if (!first || (first.kind !== 'consumed' && first.kind !== 'anchored')) return null;
+  if (first.keyName) return { name: first.keyName };
+  return first.extractions?.[0]?.synth === 'symbol-iterator' ? { symbolIterator: true } : null;
 }
 
 const planCache = new WeakMap();
@@ -330,12 +395,13 @@ export function buildNestedDestructurePlan({
   }
 
   function planInnerProp(prop, receiverName) {
+    const keyName = propKeyNameScoped(prop);
     const resolved = resolvePolyfillableStaticProp({
-      prop, receiverName, resolvePure, isDisabled: leafDisabled, keyName: propKeyNameScoped(prop),
+      prop, receiverName, resolvePure, isDisabled: leafDisabled, keyName,
     });
     if (!resolved) return { kind: 'verbatim', prop };
     return {
-      kind: 'consumed', prop,
+      kind: 'consumed', prop, keyName,
       extractions: [{ entry: resolved.pure.entry, hint: resolved.pure.hintName, localName: resolved.localName }],
     };
   }
@@ -350,7 +416,7 @@ export function buildNestedDestructurePlan({
     const extractions = children.flatMap(c => c.extractions ?? []);
     if (!extractions.length) return { kind: 'verbatim', prop: outerProp };
     if (children.every(c => c.kind === 'consumed')) {
-      return { kind: 'consumed', prop: outerProp, extractions };
+      return { kind: 'consumed', prop: outerProp, keyName: propKeyNameScoped(outerProp), extractions };
     }
     return { kind: 'rebuilt', prop: outerProp, pattern, extractions, children };
   }
@@ -424,7 +490,7 @@ export function buildNestedDestructurePlan({
       const pure = resolveGlobalPolyfill(name);
       if (!pure) return { kind: 'verbatim', prop: outerProp };
       return {
-        kind: 'consumed', prop: outerProp,
+        kind: 'consumed', prop: outerProp, keyName: name,
         // `kind: 'global'` lets renderers register the binding as a GLOBAL alias (member
         // reads through the local must keep resolving: `const { Symbol } = globalThis;
         // Symbol.iterator` -> `_Symbol$iterator`), unlike static-method extractions which
@@ -464,7 +530,7 @@ export function buildNestedDestructurePlan({
     // a DISABLED leaf likewise stays native. the native residual (current behavior) keeps the default's
     // polyfill reachable by the natural visitor and both emitters consistent
     if (residualProps.some(p => patternHasAnyDefault(p.value) || leafDisabled(p))) return planned;
-    return { kind: 'anchored', prop: planned.prop, anchorPure, residualProps, extractions: planned.extractions ?? [] };
+    return { kind: 'anchored', prop: planned.prop, keyName: name, anchorPure, residualProps, extractions: planned.extractions ?? [] };
   }
 
   // static-object descent. given an outer prop `key: ObjectPattern` at depth N (walkPath =
@@ -528,27 +594,9 @@ export function buildNestedDestructurePlan({
     // no `&&` guard - a guard can select its falsy LEFT and that path's native short-circuit /
     // TypeError must survive). this holds for the cascade too - keeping the RHS tail verbatim
     // does not make a conditionally-evaluated receiver safe to bind unconditionally
-    if (init?.type === 'LogicalExpression' || init?.type === 'ConditionalExpression'
-      || isChainAssignment(init)
-      || ((init?.type === 'CallExpression' || init?.type === 'OptionalCallExpression') && peelZeroArgIifeReturn(init))) {
-      if (!fallbackInitWhollyDiscardable(init)) init = null;
-      else for (let guard = 0; guard < 8 && init; guard++) {
-        const inlined = peelZeroArgIifeReturn(init);
-        if (inlined) init = unwrapExpressionChain(inlined);
-        // a chain assignment evaluates to its RHS; the harvest rescues it WHOLE
-        else if (isChainAssignment(init)) init = unwrapExpressionChain(init.right);
-        // a ternary collapses to its consequent ONLY when the alternate agrees on a global proxy
-        // (the shared predicate the identification resolver uses); a diverging alternate means
-        // the runtime may pick a receiver the polyfill is wrong for, so bail and stay native
-        else if (init.type === 'ConditionalExpression') {
-          init = resolveBranchProxyName({ branchNode: init.consequent, scope, adapter, path })
-            && resolveBranchProxyName({ branchNode: init.alternate, scope, adapter, path })
-            ? unwrapExpressionChain(init.consequent) : null;
-        } else if (init.type === 'LogicalExpression') {
-          init = unwrapExpressionChain(init.operator === '&&' ? init.right : init.left);
-        } else break;
-      }
-    }
+    const fallback = collapseFallbackInit({ init, scope, adapter, path, resolveGlobalPolyfill });
+    init = fallback.init;
+    const { fallbackDropped } = fallback;
     // observable node in the init the flatten DISCARDS: a chain-assignment (rescued WHOLE - it
     // updates a binding and may contain an SE-bearing call) or an SE-bearing chain-root call.
     // harvested into the plan so the emit re-runs it once ahead of the extraction (full consume)
@@ -562,14 +610,20 @@ export function buildNestedDestructurePlan({
           discardSe = inSlot.length ? inSlot : null;
     const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
     planReceiverName = receiver;
+    // an UNDEFINABLE probe nav as the init (`globalThis.window?.self`, `globalThis.window?.Array`,
+    // their sealed paren spellings): destructuring THROWS where the probe yields undefined, so an
+    // anchored / flattened render reading an always-defined binding would erase that throw (and
+    // run computed-key effects the source never reaches). asked of the init's VALUE - not its leaf
+    // NAME - so every receiver shape (proxy global, constructor leaf, static object) carries the
+    // verdict. a collapse that dropped a `||` / `??` / ternary fallback rescues the nullish path
+    // by construction - the fallback IS the value there - so the probe stays off
+    const probedNav = !!init && !fallbackDropped && proxyReceiverValueCanBeUndefined(init,
+      ({ name }) => resolveGlobalPolyfill(name), { scope, adapter, path });
+    // the PROBED value is the collapsed init - a fallback logical hands its selected operand
+    // on (`(nav).Array ?? {}` probes `(nav).Array`), and the renders must not re-derive the
+    // nav from the raw declarator slot, whose logical shape no guard render owns
+    const probedNavNode = probedNav ? init : null;
     if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
-      // an UNDEFINABLE probe nav as the init (`globalThis.window?.self`, its sealed paren
-      // spelling): destructuring THROWS where the probe yields undefined, so an anchored /
-      // flattened render reading the always-defined receiver binding would erase that throw
-      // (and run computed-key effects the source never reaches). the flag routes those
-      // renders back through the guard-value spelling of the source read
-      const probedNav = proxyReceiverValueCanBeUndefined(init,
-        ({ name }) => resolveGlobalPolyfill(name), { scope, adapter, path });
       // single-key proxy-hop ANCHOR: `{ K: <pattern> } = <proxy>` on a value-discarded host
       // (the callers' contract - declarator inits are never read, the cascade gates on
       // statement context) plans like its flat twin `<pattern> = <proxy>.K`: inner props are
@@ -609,7 +663,7 @@ export function buildNestedDestructurePlan({
         const outerProps = inner.properties.map(p => planSymbolIteratorProp(p)
           ?? (anchorSlotMutated ? { kind: 'verbatim', prop: p } : planInnerProp(p, key)));
         return {
-          receiver, anchor: key, probedNav,
+          receiver, anchor: key, probedNav, probedNavNode,
           anchorPure: anchorSlotMutated ? null : resolveGlobalPolyfill(key),
           outerProps, pattern: inner, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
@@ -635,7 +689,7 @@ export function buildNestedDestructurePlan({
           && reanchored.some(p => p.kind === 'anchored') && reanchored.some(p => p.kind === 'consumed')
           ? reanchored : planned;
         if (outerProps.some(hasExtractions)) {
-          plan = { receiver, probedNav, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+          plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
         }
       }
       // a pattern hop that is ITSELF a proxy-global alias (`{ self: { x } } = globalThis`, deeper
@@ -665,7 +719,7 @@ export function buildNestedDestructurePlan({
         }
         if (!lastHop) return null;
         return planCtorKeyAnchor(effPattern) ?? {
-          receiver, anchor: lastHop, anchorPure: receiverPure, probedNav,
+          receiver, anchor: lastHop, anchorPure: receiverPure, probedNav, probedNavNode,
           outerProps: effPattern.properties.map(planOuterProp),
           pattern: effPattern, discardSe, anchorSe, initElement: null, consumedLevelStrips,
         };
@@ -677,10 +731,14 @@ export function buildNestedDestructurePlan({
       // sibling) survives the residual render - the rebuilt pattern is spliced back into
       // the original LHS text
       const outerProps = pattern.properties.map(p => planInnerProp(p, receiver));
-      if (outerProps.some(hasExtractions)) plan = { receiver, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+      if (outerProps.some(hasExtractions)) {
+        plan = { receiver, probedNav, probedNavNode, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+      }
     } else if (init) {
       const outerProps = pattern.properties.map(p => planOuterPropStatic(p, init, []));
-      if (outerProps.some(hasExtractions)) plan = { receiver: null, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+      if (outerProps.some(hasExtractions)) {
+        plan = { receiver: null, probedNav, probedNavNode, outerProps, pattern, discardSe, initElement, consumedLevelStrips };
+      }
     }
   }
   planCache.set(declarator, plan);
