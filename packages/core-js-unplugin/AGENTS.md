@@ -15,6 +15,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 `internals/` holds the pipeline:
 
 - `plugin.js` - the core: parse with oxc-parser, walk with estree-toolkit, edit through MagicString
+- `ast/print.js` - the AST engine's esrap printer adapter (the staged migration off the text layer): loc synthesis, paren normalization to the minimal structural set, and the corpus-measured esrap gap overrides. The `engine` option selects the engine; `'ast'` is rejected until its first method lands. Nothing under `ast/` imports the text-transform layer - lint-enforced, so that layer can one day be deleted out from under it
 - `detect-entry.js`, `detect-usage.js` - the unplugin side of detection, on top of the provider
 - `polyfill-emitter.js`, `destructure-emitter.js`, `destructure-emit-utils.js` - the rewrites themselves
 - `import-injector.js` - import insertion
@@ -42,6 +43,7 @@ Before writing a helper or a branch, check the canon - `npm run canon -- find "<
 
 - `npm run test-unplugin` - shared fixtures from `tests/transpiler-fixtures/`
 - `npm run test-unplugin-unit` - internals, in `tests/unplugin/unit.mjs`
+- `npm run test-unplugin-roundtrip` - the AST engine's no-op print gate: every fixture input reprints through `ast/print.js` with zero mutations, and the reparse must be structurally identical, keep every comment with its directive line association, and reach a print fixed point
 
 A divergence from babel-plugin is recorded in a sidecar `output-unplugin.mjs` next to the fixture. A sidecar is a proof obligation: show what the difference actually is before accepting it.
 

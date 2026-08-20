@@ -43,6 +43,9 @@ interface BaseOptions {
   ignoreBrowserslistConfig?: boolean | null;
   /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from sourceType */
   importStyle?: 'import' | 'require' | null;
+  /** transform engine, by default 'text'. `'ast'` belongs to the staged AST-engine migration
+   *  and is rejected until its first method ships */
+  engine?: 'text' | 'ast' | null;
 }
 
 interface EntryGlobalOptions extends BaseOptions {
