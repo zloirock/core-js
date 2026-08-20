@@ -80,6 +80,31 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npm run test-e2e-usage-pure-karma
 
+  # the whole tests/e2e-libs suite, covering BOTH polyfill providers (@core-js/babel-plugin and
+  # @core-js/unplugin) on the same libraries: the exercises run raw, then each cell of the runtime
+  # matrix is built once and gated, snapshotted, pre-flighted in node and emitted as an artifact.
+  # windows-2022 is the runner because its last leg needs real IE11, and the same build feeds it - a
+  # separate job would repeat every build to reach it. Separate from `karma` so the heavy e2e-libs
+  # install does not slow the core browser job. Documented in tests/e2e-libs/AGENTS.md.
+  e2e-libs:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.0.0
+          cache: npm
+      - run: npm run prepare-monorepo
+      - run: npm run test-e2e-libs
+      # the per-cell pages are the node pre-flight's table, re-runnable in a browser, and
+      # manifest.json carries what real IE11 made of each cell - the verdict only this job produces.
+      # A cell that died before its page was written has neither, and its reason is in the log
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-libs-artifacts
+          path: tests/e2e-libs/artifacts
+
   bun:
     runs-on: ubuntu-latest
     steps:

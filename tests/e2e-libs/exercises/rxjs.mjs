@@ -1,0 +1,417 @@
+// A headless RxJS pipeline: interop, operators, schedulers, subjects and error classes, self-checked
+// by the values and the side-effect order they produce.
+//
+// The centrepiece is `innerFrom`, rxjs's interop hub: an Observable, an interop observable, an
+// array-like, a promise, a sync iterable and an async iterable all reach it, so the well-known-symbol
+// lookups and the iteration that follows happen inside rxjs rather than here. Its two remaining
+// branches stay out on purpose - a ReadableStream is not something core-js puts on the target, and
+// the invalid-input branch would assert rxjs's own error text rather than a polyfill.
+//
+// No CHECK here may depend on spread, `for-of`, `async` or a generator: those compile to Babel
+// helpers that reach for the stdlib from THIS module, which proves nothing about rxjs. `from(new
+// Set(...))` puts the same protocol where it belongs, and the regenerator machinery that does run is
+// the one tslib ships inside the rxjs bundle. The file is not helper-free either way - the array
+// destructuring below emits one that asks for `Symbol.iterator` - and that is harmless exactly
+// because no assertion rides on it.
+//
+// Accepted deliberately: the `usage-pure/pre` cell is green on IE11 while the phase gap it stands for
+// is still open - nothing here walks into the unrewritten `Array.from` that sits in that bundle. rxjs
+// ships an ES5 build, so the signal would be about this file's syntax rather than about the library;
+// `three` carries the phase diagnostic instead. Do not add spread or `for-of` to make this cell red.
+import {
+  of, from, range, merge, concat, zip, combineLatest, forkJoin, throwError, defer, generate,
+  EMPTY, scheduled, pairs, partition, connectable, observable as symbolObservable,
+  BehaviorSubject, ReplaySubject, AsyncSubject, Subject, Subscription, Notification,
+  firstValueFrom, lastValueFrom, queueScheduler, asapScheduler, asyncScheduler,
+  EmptyError, ArgumentOutOfRangeError, NotFoundError, SequenceError, ObjectUnsubscribedError,
+  map, filter, reduce, scan, toArray, mergeMap, switchMap, concatMap, exhaustMap, expand, mergeScan,
+  groupBy, bufferCount, pairwise, distinctUntilChanged, distinct, distinctUntilKeyChanged,
+  catchError, debounceTime, throttleTime, withLatestFrom, zipWith, raceWith, concatWith, mergeWith,
+  count, min, max, every, find, findIndex, elementAt, isEmpty, defaultIfEmpty, sequenceEqual,
+  single, last, first, startWith, endWith, materialize, dematerialize, shareReplay,
+  observeOn, subscribeOn, windowCount, ignoreElements, finalize, tap, retry, repeat, throwIfEmpty,
+} from 'rxjs';
+import { TestScheduler } from 'rxjs/testing';
+import { checker, deepEqual } from './checks.mjs';
+
+function collect(obs) {
+  return firstValueFrom(obs.pipe(toArray()));
+}
+// Awaiting the block below through `Promise.all` would put `es.promise.all` in the baselines with THIS
+// file as its only origin - rxjs never calls it - which is the sole-origin trap exercises/checks.mjs
+// describes: a line that documents the harness, and that would stand over rxjs if it ever did call it.
+// Everything below is already in flight by the time this runs, so joining them in order costs nothing
+// and reaches only for `then` and `catch`, both of which rxjs itself drives from a dozen modules.
+/* eslint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- .then and .catch
+   rather than await: keeps this module regenerator-free, the same reason the header gives for banning
+   `async` (see the sibling disable below). The rejection handler is a handler, not a callback - await
+   is what this block may not use */
+function joinAll(list) {
+  const out = [];
+  let chain = Promise.resolve();
+  for (let i = 0; i < list.length; i++) {
+    // Claimed here, where it arrives, rather than where the chain gets to it. Every entry is already
+    // in flight by the time this runs, so entry N rejecting is an event that happens whether or not
+    // anyone is listening - and the chain below does not listen to N until N-1 has settled. In that
+    // window the rejection is unhandled, which takes the whole process down: no failing check, no
+    // total, no line naming this exercise, and the three exercises queued after it never run.
+    // Recording the outcome and re-throwing it in its own turn keeps the order and loses nothing.
+    const settled = Promise.resolve(list[i]).then(value => ({ value })).catch(error => ({ error }));
+    chain = chain.then(() => settled).then(result => {
+      if ('error' in result) throw result.error;
+      out.push(result.value);
+    });
+  }
+  return chain.then(() => out);
+}
+/* eslint-enable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- back to the
+   default for the rest of the file */
+// Inputs for rxjs's interop hub (`innerFrom`). Built by hand rather than with generator syntax so
+// the machinery that runs is rxjs's, not a regenerator runtime of ours.
+function customIterable(values) {
+  const iterable = {};
+  iterable[Symbol.iterator] = function () {
+    let i = 0;
+    return { next() { return i < values.length ? { value: values[i++], done: false } : { value: undefined, done: true }; } };
+  };
+  return iterable;
+}
+function customAsyncIterable(values) {
+  const iterable = {};
+  iterable[Symbol.asyncIterator] = function () {
+    let i = 0;
+    return { next() { return Promise.resolve(i < values.length ? { value: values[i++], done: false } : { value: undefined, done: true }); } };
+  };
+  return iterable;
+}
+// `symbolObservable` is rxjs's OWN interop symbol export, so this agrees with it by construction
+// whether or not the engine/polyfill has `Symbol.observable`.
+function interopObservable(values) {
+  const interop = {};
+  interop[symbolObservable] = function () {
+    return {
+      subscribe(subscriber) {
+        values.forEach(value => subscriber.next(value));
+        subscriber.complete();
+        return { unsubscribe() { /* nothing to release */ } };
+      },
+    };
+  };
+  return interop;
+}
+
+export function run() {
+  const { checks, check } = checker();
+
+  // --- subjects ---
+  const behavior = new BehaviorSubject(0);
+  const behaviorSeen = [];
+  behavior.subscribe(value => behaviorSeen.push(value));
+  behavior.next(1);
+  behavior.next(2);
+  check('BehaviorSubject', behaviorSeen, [0, 1, 2]);
+
+  const replay = new ReplaySubject(2);
+  replay.next(1);
+  replay.next(2);
+  replay.next(3);
+  const replaySeen = [];
+  replay.subscribe(value => replaySeen.push(value));
+  replay.complete();
+  check('ReplaySubject_2', replaySeen, [2, 3]);
+
+  // multi-observer Subject: `Subject#next` snapshots its observers with Array.from
+  const multi = new Subject();
+  const seenA = [];
+  const seenB = [];
+  multi.subscribe(value => seenA.push(value));
+  multi.subscribe(value => seenB.push(value));
+  multi.next('x');
+  check('subject_multicast', [seenA, seenB], [['x'], ['x']]);
+
+  const asyncSubject = new AsyncSubject();
+  const asyncSeen = [];
+  asyncSubject.subscribe(value => asyncSeen.push(value));
+  asyncSubject.next(1);
+  asyncSubject.next(2);
+  asyncSubject.complete();
+  check('AsyncSubject_lastOnly', asyncSeen, [2]);
+
+  // ObjectUnsubscribedError
+  const dead = new Subject();
+  dead.unsubscribe();
+  let unsubErr = null;
+  try {
+    dead.next(1);
+  } catch (err) {
+    unsubErr = err instanceof ObjectUnsubscribedError;
+  }
+  check('ObjectUnsubscribedError', unsubErr, true);
+
+  // Subscription with TWO parents -> `_hasParent` takes the Array#includes branch
+  const child = new Subscription();
+  const p1 = new Subscription();
+  const p2 = new Subscription();
+  p1.add(child);
+  p2.add(child);
+  p1.add(child); // the second add from the same parent is what makes `_hasParent` matter
+  check('subscription_two_parents', child.closed, false);
+  p1.unsubscribe();
+  p2.unsubscribe();
+  check('subscription_closed_after_parents', child.closed, true);
+
+  // --- virtual time ---
+  const debounced = [];
+  new TestScheduler(() => { /* value-level checks below */ }).run(({ cold }) => {
+    cold('a-b-c-d|', { a: 1, b: 2, c: 3, d: 4 }).pipe(debounceTime(10)).subscribe(value => debounced.push(value));
+  });
+  check('debounceTime_keepsLast', debounced, [4]);
+
+  const throttled = [];
+  new TestScheduler(() => { /* value-level checks below */ }).run(({ cold }) => {
+    cold('a-b-c-d|', { a: 1, b: 2, c: 3, d: 4 }).pipe(throttleTime(10)).subscribe(value => throttled.push(value));
+  });
+  check('throttleTime_keepsFirst', throttled, [1]);
+
+  // exhaustMap only means something with an inner that outlives the next source emission
+  const exhaustOut = [];
+  const exhaustSrc = new Subject();
+  const exhaustInner = new Subject();
+  exhaustSrc.pipe(exhaustMap(x => x === 1 ? exhaustInner : of(x * 100))).subscribe(value => exhaustOut.push(value));
+  exhaustSrc.next(1); // opens the inner
+  exhaustSrc.next(2); // dropped - the inner is still active
+  exhaustInner.next('inner');
+  exhaustInner.complete();
+  exhaustSrc.next(3); // accepted again
+  check('exhaustMap_drops_while_active', exhaustOut, ['inner', 300]);
+
+  // rxjs builds its error classes by hand (`createErrorClass` -> `Object.create(Error.prototype)`),
+  // so `instanceof` here is checking a prototype chain assembled at runtime, not a native subclass
+  const errs = [];
+  function catchInto(label, obs, Klass) {
+    obs.subscribe({ next() { /* not expected to emit */ }, error(err) { errs.push([label, err instanceof Klass]); } });
+  }
+  catchInto('elementAt', of('a').pipe(elementAt(10)), ArgumentOutOfRangeError);
+  catchInto('throwIfEmpty', EMPTY.pipe(throwIfEmpty()), EmptyError);
+  catchInto('single_none', of(1, 2).pipe(single(x => x > 5)), NotFoundError);
+  catchInto('single_many', of(1, 2).pipe(single(x => x > 0)), SequenceError);
+  check('error_classes', errs, [['elementAt', true], ['throwIfEmpty', true], ['single_none', true], ['single_many', true]]);
+
+  // multicasting: one subscription to the source shared by two consumers
+  let sourceSubscribes = 0;
+  function countedSource() {
+    sourceSubscribes++;
+    return of(1, 2);
+  }
+  const shared = defer(countedSource).pipe(shareReplay({ bufferSize: 2, refCount: false }));
+  const sharedA = [];
+  const sharedB = [];
+  shared.subscribe(value => sharedA.push(value));
+  shared.subscribe(value => sharedB.push(value));
+  check('shareReplay_one_source', [sourceSubscribes, sharedA, sharedB], [1, [1, 2], [1, 2]]);
+
+  const conn = connectable(of('c1', 'c2'));
+  const connSeen = [];
+  conn.subscribe(value => connSeen.push(value));
+  check('connectable_before_connect', connSeen, []);
+  conn.connect();
+  check('connectable_after_connect', connSeen, ['c1', 'c2']);
+
+  const [evens, odds] = partition(of(1, 2, 3, 4), x => x % 2 === 0);
+  const evenSeen = [];
+  const oddSeen = [];
+  evens.subscribe(value => evenSeen.push(value));
+  odds.subscribe(value => oddSeen.push(value));
+  check('partition', [evenSeen, oddSeen], [[2, 4], [1, 3]]);
+
+  // lifecycle side effects, plus resubscription
+  const trace = [];
+  of('t').pipe(tap({ next: value => trace.push(`next:${ value }`), complete: () => trace.push('complete') }), finalize(() => trace.push('finalize'))).subscribe();
+  check('tap_finalize_order', trace, ['next:t', 'complete', 'finalize']);
+
+  let attempts = 0;
+  const retried = [];
+  function failsTwice() {
+    attempts++;
+    return attempts < 3 ? throwError(() => new Error('again')) : of('ok');
+  }
+  defer(failsTwice).pipe(retry(5)).subscribe(value => retried.push(value));
+  check('retry', [attempts, retried], [3, ['ok']]);
+
+  const repeated = [];
+  of('r').pipe(repeat(3)).subscribe(value => repeated.push(value));
+  check('repeat', repeated, ['r', 'r', 'r']);
+
+  // Notification round-trip
+  const notified = [];
+  Notification.createNext('n').observe({ next: value => notified.push(value), error() { /* unused */ }, complete() { /* unused */ } });
+  check('notification_observe', notified, ['n']);
+
+  // full marble assertion: expectObservable drives TestScheduler's own Map/Array.from/trim path.
+  // Every verdict is COLLECTED, not assigned: `flush()` invokes the comparator once per registered
+  // expectation, so an assignment would let the second (subscription) verdict overwrite the first
+  // (value) one - and the value comparison is the whole point of the check. Pinning the ARRAY also
+  // reddens if an expectation silently stops running.
+  const marbleVerdicts = [];
+  new TestScheduler((actual, expected) => marbleVerdicts.push(deepEqual(actual, expected))).run(({ cold, expectObservable, expectSubscriptions }) => {
+    const source = cold(' -a--b--c|', { a: 1, b: 2, c: 3 });
+    const subs = '       ^-------!';
+    expectObservable(source.pipe(map(x => x * 10))).toBe('-a--b--c|', { a: 10, b: 20, c: 30 });
+    expectSubscriptions(source.subscriptions).toBe(subs);
+  });
+  check('marble_assertion', marbleVerdicts, [true, true]);
+
+  // via a var: the Set dedups at runtime, without tripping a literal-duplicate lint rule
+  const setInput = [3, 1, 3, 2, 1];
+
+  return joinAll([
+    // --- innerFrom: every branch of rxjs's interop hub ---
+    collect(from(new Set(setInput))),
+    collect(from(new Map([['a', 1], ['b', 2]]))),
+    collect(from(customIterable([4, 5, 6]))),
+    collect(from(customAsyncIterable([7, 8]))),
+    collect(from(interopObservable([9, 10]))),
+    collect(from(Promise.resolve('promised'))),
+    collect(from({ length: 3, 0: 'l0', 1: 'l1', 2: 'l2' })),
+    collect(scheduled(new Set(['s1', 's2']), queueScheduler)),
+    collect(scheduled(customAsyncIterable(['a1']), asyncScheduler)),
+    // Merged with a SYNCHRONOUS emission in both cases. A scheduler decides when a value arrives, and
+    // a single value collected into an array cannot show that - both operators could be deleted from
+    // these pipes and the checks below stayed green. Against a synchronous neighbour the order is the
+    // answer: through asap and through async, the scheduled value arrives second.
+    //
+    // `subscribeOn` is on the ASYNC scheduler for that reason and not on queue: queue is trampolined,
+    // so deferring a subscription to it changes nothing anything here can observe. Queue keeps its
+    // coverage two lines up, where `scheduled` drives it.
+    collect(merge(of('asap').pipe(observeOn(asapScheduler)), of('sync'))),
+    collect(merge(of('queued').pipe(subscribeOn(asyncScheduler)), of('sync'))),
+    collect(pairs({ p: 1, q: 2 })),
+
+    // --- transformation / filtering ---
+    firstValueFrom(of(1, 2, 3, 4, 5).pipe(reduce((a, b) => a + b, 0))),
+    collect(of(1, 2, 3).pipe(scan((a, b) => a + b, 0))),
+    collect(range(1, 5).pipe(filter(x => x % 2 === 0))),
+    collect(of(1, 2, 2, 3, 1).pipe(distinct())),
+    collect(of({ k: 1 }, { k: 1 }, { k: 2 }).pipe(distinctUntilKeyChanged('k'), map(entry => entry.k))),
+    collect(of(1, 2, 3, 4, 5, 6).pipe(groupBy(x => x % 2), mergeMap(group => group.pipe(toArray())))),
+    collect(range(1, 6).pipe(bufferCount(2))),
+    collect(of(1, 2, 3).pipe(pairwise())),
+    collect(of(1, 1, 2, 2, 3, 1).pipe(distinctUntilChanged())),
+    collect(range(1, 5).pipe(windowCount(2), mergeMap(windowed => windowed.pipe(toArray())))),
+
+    // --- combination ---
+    collect(merge(of(1), of(2), of(3))),
+    collect(concat(of(1, 2), of(3, 4))),
+    collect(zip(of(1, 2, 3), of('a', 'b', 'c')).pipe(map(([n, s]) => `${ n }${ s }`))),
+    collect(combineLatest([of(1), of(2)])),
+    collect(forkJoin([of(1, 2), of(3, 4)])),
+    collect(of(1, 2).pipe(mergeMap(x => of(x, x * 10)))),
+    collect(of(1, 2, 3).pipe(switchMap(x => of(x * 10)))),
+    collect(of(1, 2).pipe(concatMap(x => of(x, x)))),
+    collect(of(1).pipe(expand(x => x < 8 ? of(x * 2) : EMPTY))),
+    collect(of(1, 2, 3).pipe(mergeScan((acc, x) => of(acc + x), 0))),
+    collect(of('w').pipe(withLatestFrom(of('L')))),
+    collect(of(1).pipe(zipWith(of('z')))),
+    // the receiver is deferred so that the racer is the one that can win: raced against NEVER, a
+    // synchronous receiver emits the same value whether or not `raceWith` is in the pipe at all, and
+    // the check could not tell the operator from its absence. Deferred, dropping it yields 'slow'
+    collect(of('slow').pipe(observeOn(asyncScheduler), raceWith(of('fast')))),
+    collect(of(1).pipe(concatWith(of(2)), mergeWith(of(3)))),
+    collect(of(2, 3).pipe(startWith(1), endWith(4))),
+
+    // --- aggregates & assertions ---
+    firstValueFrom(of(1, 2, 3).pipe(count())),
+    firstValueFrom(of(5, 2, 9).pipe(min())),
+    firstValueFrom(of(5, 2, 9).pipe(max())),
+    firstValueFrom(of(2, 4).pipe(every(x => x % 2 === 0))),
+    firstValueFrom(of(1, 5, 8).pipe(find(x => x > 4))),
+    firstValueFrom(of(1, 5, 8).pipe(findIndex(x => x > 4))),
+    firstValueFrom(of('a', 'b', 'c').pipe(elementAt(1))),
+    firstValueFrom(EMPTY.pipe(isEmpty())),
+    firstValueFrom(EMPTY.pipe(defaultIfEmpty('fallback'))),
+    firstValueFrom(of(1, 2).pipe(sequenceEqual(of(1, 2)))),
+    firstValueFrom(of('only').pipe(single())),
+    firstValueFrom(of(1, 2, 3).pipe(last())),
+    firstValueFrom(of(1, 2, 3).pipe(first(x => x > 1))),
+
+    // --- notifications, errors, multicasting, lifecycle ---
+    collect(of(1, 2).pipe(materialize(), map(notification => notification.kind))),
+    collect(of(1).pipe(materialize(), dematerialize())),
+    collect(throwError(() => new Error('boom')).pipe(catchError(() => of('recovered')))),
+    collect(defer(() => of('deferred'))),
+    collect(generate(0, x => x < 3, x => x + 1)),
+    collect(of(1, 2, 3).pipe(ignoreElements(), defaultIfEmpty('ignored'))),
+
+    firstValueFrom(of(42)),
+    lastValueFrom(from([7, 8, 9])),
+    // eslint-disable-next-line promise/prefer-await-to-then -- keeps this module regenerator-free
+  ]).then(results => {
+    let i = 0;
+    function take() {
+      return results[i++];
+    }
+    check('from_set', take(), [3, 1, 2]);
+    check('from_map', take(), [['a', 1], ['b', 2]]);
+    check('from_custom_iterable', take(), [4, 5, 6]);
+    check('from_async_iterable', take(), [7, 8]);
+    check('from_interop_observable', take(), [9, 10]);
+    check('from_promise', take(), ['promised']);
+    check('from_array_like', take(), ['l0', 'l1', 'l2']);
+    check('scheduled_iterable_queue', take(), ['s1', 's2']);
+    check('scheduled_async_iterable', take(), ['a1']);
+    check('observeOn_asap', take(), ['sync', 'asap']);
+    check('subscribeOn_async', take(), ['sync', 'queued']);
+    check('pairs_object_entries', take(), [['p', 1], ['q', 2]]);
+
+    check('reduce_sum', take(), 15);
+    check('scan_running', take(), [1, 3, 6]);
+    check('filter_evens', take(), [2, 4]);
+    check('distinct', take(), [1, 2, 3]);
+    check('distinctUntilKeyChanged', take(), [1, 2]);
+    check('groupBy', take(), [[1, 3, 5], [2, 4, 6]]);
+    check('bufferCount', take(), [[1, 2], [3, 4], [5, 6]]);
+    check('pairwise', take(), [[1, 2], [2, 3]]);
+    check('distinctUntilChanged', take(), [1, 2, 3, 1]);
+    check('windowCount', take(), [[1, 2], [3, 4], [5]]);
+
+    check('merge_sync', take(), [1, 2, 3]);
+    check('concat', take(), [1, 2, 3, 4]);
+    check('zip_map', take(), ['1a', '2b', '3c']);
+    check('combineLatest', take(), [[1, 2]]);
+    check('forkJoin', take(), [[2, 4]]);
+    check('mergeMap', take(), [1, 10, 2, 20]);
+    check('switchMap', take(), [10, 20, 30]);
+    check('concatMap', take(), [1, 1, 2, 2]);
+    check('expand', take(), [1, 2, 4, 8]);
+    check('mergeScan', take(), [1, 3, 6]);
+    check('withLatestFrom', take(), [['w', 'L']]);
+    check('zipWith', take(), [[1, 'z']]);
+    check('raceWith', take(), ['fast']);
+    check('concatWith_mergeWith', take(), [1, 2, 3]);
+    check('startWith_endWith', take(), [1, 2, 3, 4]);
+
+    check('count', take(), 3);
+    check('min', take(), 2);
+    check('max', take(), 9);
+    check('every', take(), true);
+    check('find', take(), 5);
+    check('findIndex', take(), 1);
+    check('elementAt', take(), 'b');
+    check('isEmpty', take(), true);
+    check('defaultIfEmpty', take(), 'fallback');
+    check('sequenceEqual', take(), true);
+    check('single', take(), 'only');
+    check('last', take(), 3);
+    check('first_predicate', take(), 2);
+
+    check('materialize_kinds', take(), ['N', 'N', 'C']);
+    check('dematerialize', take(), [1]);
+    check('catchError', take(), ['recovered']);
+    check('defer', take(), ['deferred']);
+    check('generate', take(), [0, 1, 2]);
+    check('ignoreElements', take(), ['ignored']);
+    check('firstValueFrom', take(), 42);
+    check('lastValueFrom', take(), 9);
+    return { checks };
+  });
+}
