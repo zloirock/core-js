@@ -1,0 +1,12 @@
+import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+// SE prefix on LHS of `in` with a symbol key: `(count++, Symbol.iterator) in obj`. the `in`
+// handler must peel the parens and the SequenceExpression prefix so Symbol.iterator surfaces
+// as the polyfill anchor; the prefix stays in the AST so `count++` still runs at runtime.
+let count = 0;
+const obj = {};
+const has = (count++, Symbol.iterator) in obj;
+console.log(has, count);

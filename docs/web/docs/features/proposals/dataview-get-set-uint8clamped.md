@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)
 
 ## Modules
-[`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
+[`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
 
 ## Built-ins signatures
 ```ts
@@ -19,6 +19,9 @@ core-js/proposals/data-view-get-set-uint8-clamped
 core-js/full/dataview/get-uint8-clamped
 core-js/full/dataview/set-uint8-clamped
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/data-view-get-set-uint8-clamped`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/data-view-get-set-uint8-clamped.d.ts)
 
 ## Examples
 ```js

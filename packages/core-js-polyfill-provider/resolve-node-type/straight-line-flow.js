@@ -1,0 +1,442 @@
+// Straight-line predecessor-assignment finder. given a binding + usage position, returns
+// the last `<binding> = <value>` / destructure / compound / `var` redecl whose execution
+// is GUARANTEED to precede the usage in the same var-scope (possibly nested through plain
+// blocks / synchronous IIFEs). consumers use the captured value to type-narrow `let`
+// mutated in a deterministic prefix.
+//
+// O(V) cache build per binding (sorted by source position), O(log V) per query.
+import { ASSIGN_LEFT_TYPES, MAX_DEPTH } from './base.js';
+import { nodeAlwaysHardExits } from './exit-analysis.js';
+import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
+import {
+  IIFE_CALL_CALLEE_WRAPPERS,
+  NESTED_BINDING_INTRODUCERS,
+  TS_EXPR_WRAPPERS,
+  isIifeCallNode,
+  isDeferredContextStep,
+  readRunsDeferredWithin,
+} from '../helpers/ast-patterns.js';
+import { isLoopStatement } from '../destructure-host-shape.js';
+
+// always-evaluated wrappers between assignment and its enclosing statement. spelled out from
+// THAT question rather than borrowed from the IIFE call-path table: the two sets look alike but
+// answer different things, and `ChainExpression` - a member of that table - short-circuits, so it
+// does not belong here. conditional-evaluation forms (Logical / Conditional / OptionalCall /
+// short-circuit AssignmentExpression) excluded by omission - their non-default branches do not
+// unconditionally run the inner assignment
+const STRAIGHT_LINE_WRAPPER_TYPES = new Set([
+  'UnaryExpression',
+  'SequenceExpression',
+  'ParenthesizedExpression',
+  ...TS_EXPR_WRAPPERS,
+]);
+
+// statement wrappers `reachesStraightLine` treats as forward-transparent.
+// LabeledStatement included - targeted break / continue caught by sibling scan
+const STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES = new Set([
+  'BlockStatement',
+  'Program',
+  'StaticBlock',
+  'LabeledStatement',
+]);
+
+// shadows an unlabeled `break` / `continue` - the subtree walker tracks whether we are inside one.
+// composed on the canonical loop set rather than re-listing it: this asks a DIFFERENT question,
+// and `switch` is exactly the one non-loop member that answers it too
+function shadowsUnlabeledExit(node) {
+  return isLoopStatement(node) || node.type === 'SwitchStatement';
+}
+
+function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return false;
+  if (node.type === 'BreakStatement' || node.type === 'ContinueStatement') {
+    // unlabeled inside loop/switch is local; labeled targets a scope above - local
+    // when the label is in our descent path (LabeledStatement we walked through)
+    if (!node.label) return !inLoopOrSwitch;
+    return !labels?.has(node.label.name);
+  }
+  if (node.type === 'ReturnStatement' || node.type === 'ThrowStatement') return true;
+  if (NESTED_BINDING_INTRODUCERS.has(node.type)) return false;
+  const nextInLoop = inLoopOrSwitch || shadowsUnlabeledExit(node);
+  let nextLabels = labels;
+  if (node.type === 'LabeledStatement' && node.label) {
+    nextLabels = new Set(labels);
+    nextLabels.add(node.label.name);
+  }
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      if (value.some(v => subtreeContainsExit(v, nextInLoop, nextLabels))) return true;
+    } else if (subtreeContainsExit(value, nextInLoop, nextLabels)) return true;
+  }
+  return false;
+}
+
+// default-entry memo: the sibling scans below re-ask the same statements across queries, and
+// the top-level answer depends only on the node (the loop / label parameters vary only INSIDE
+// the recursion). same per-node staleness contract as the resolver caches
+const subtreeExitCache = new WeakMap();
+function cachedSubtreeContainsExit(node) {
+  let result = subtreeExitCache.get(node);
+  if (result === undefined) subtreeExitCache.set(node, result = subtreeContainsExit(node));
+  return result;
+}
+
+// per-BODY position + first-exit index, built once per statement list: the per-query scan
+// this replaces re-ran `indexOf` plus a linear exit sweep over the same list for every query -
+// O(statements) each, quadratic across a large flat scope. same per-node staleness contract
+const bodyFlowIndexCache = new WeakMap();
+function bodyFlowIndex(body) {
+  let index = bodyFlowIndexCache.get(body);
+  if (index) return index;
+  const positions = new Map();
+  let firstExit = Infinity;
+  for (let i = 0; i < body.length; i++) {
+    positions.set(body[i], i);
+    if (firstExit === Infinity && cachedSubtreeContainsExit(body[i])) firstExit = i;
+  }
+  index = { positions, firstExit };
+  bodyFlowIndexCache.set(body, index);
+  return index;
+}
+
+// no preceding sibling at any statement-list level exits before reaching `endNode`.
+// catches `if (c) return; x = 1` shapes that an ancestor-only check would miss
+function precedingSiblingsExitFree(startStmt, endNode) {
+  for (let cur = startStmt; cur && cur.node !== endNode; cur = cur.parentPath) {
+    const parentNode = cur.parentPath?.node;
+    if (!parentNode || !Array.isArray(parentNode.body)) continue;
+    const { positions, firstExit } = bodyFlowIndex(parentNode.body);
+    const idx = positions.get(cur.node) ?? -1;
+    if (firstExit < idx) return false;
+  }
+  return true;
+}
+
+// `||=` / `&&=` / `??=` conditionally evaluate RHS. `=` + arithmetic compounds are
+// unconditional. inverse-list since the safe set has 10+ entries, the unsafe set 3
+const SHORT_CIRCUITING_ASSIGN_OPS = new Set(['||=', '&&=', '??=']);
+
+function isAlwaysEvaluatingWrapper(node) {
+  if (STRAIGHT_LINE_WRAPPER_TYPES.has(node.type)) return true;
+  if (node.type === 'AssignmentExpression') return !SHORT_CIRCUITING_ASSIGN_OPS.has(node.operator);
+  return false;
+}
+
+// AssignmentExpression vs VariableDeclarator slot adapters; reused on the returned node
+// by `findLastStraightLineAssignment` callers to read LHS / RHS without re-switching
+export function assignLeft(n) {
+  return n.type === 'VariableDeclarator' ? n.id : n.left;
+}
+export function assignRightKey(n) {
+  return n.type === 'VariableDeclarator' ? 'init' : 'right';
+}
+// scope-anchor AST node: babel exposes `.block`, estree-toolkit `.path.node`
+export function scopeNode(s) {
+  return s.block ?? s.path?.node;
+}
+
+// loop back-edge anchor for a binding: its declaration identifier node + kind. position (which loop
+// slot the decl sits in) plus kind (`var` is function-scoped and carries; `let`/`const` are
+// block-scoped and re-created in a body) is the parser-robust signal - estree-toolkit attaches both a
+// for-body `var` and a for-body `let` to the ForStatement scope, so the scope node cannot tell them apart
+export function bindingLoopAnchor(binding) {
+  return {
+    decl: binding?.identifier ?? binding?.identifierPath?.node ?? null,
+    kind: binding?.kind ?? null,
+  };
+}
+
+// `usageCrossesLoopBackEdgeReassign` adapted to a binding: derives its reassignment nodes from
+// `constantViolations` and its loop anchor. shared by the value-flow finders to bail a source-position
+// narrow that a loop-carried reassignment makes stale from iteration 2
+export function bindingCrossesLoopBackEdge(t, usagePath, binding) {
+  return usageCrossesLoopBackEdgeReassign(t, usagePath, binding?.constantViolations?.map(v => v.node), bindingLoopAnchor(binding));
+}
+
+// nearest ancestor (inclusive) of `stmtType`; shared by inner/outer checks. a DETACHED node
+// (`.node` null - a stale constantViolation path into an in-place-rewritten subtree) ends the
+// climb with no match, so the caller conservatively degrades instead of dereferencing null
+function findEnclosingStatement(path, stmtType) {
+  let p = path;
+  while (p && p.node && p.node.type !== stmtType) p = p.parentPath;
+  return p?.node ? p : null;
+}
+
+// every wrapping statement from startPath up to endNode is in the passthrough set -
+// rejects if / switch / loop / try / etc. endNode is the binding's var-scope body (outer)
+// or an IIFE function body (inner during lift). a detached ancestor (stale path) rejects -
+// the straight-line reach cannot be proven through a dead chain.
+// ONE conditional shape stays straight-line: climbing out of an if-BRANCH whose OTHER
+// branch unconditionally HARD-exits (return / throw). statements after such an if run
+// only via the fall-through branch, so its trailing assignment dominates every later
+// position (`if (typeof x === "string") { x = 5; } else throw 0; x.at(0)` - the use
+// always sees 5). climbs from the test slot or from the EXITING branch stay conditional;
+// `else if` chains compose - each level requires its own sibling branch to hard-exit
+function reachesStraightLine(startPath, endNode) {
+  for (let prev = null, p = startPath; p; prev = p, p = p.parentPath) {
+    if (p.node === endNode) return true;
+    if (!p.node) return false;
+    if (STRAIGHT_LINE_PASSTHROUGH_STMT_TYPES.has(p.node.type)) continue;
+    if (p.node.type === 'IfStatement' && prev
+      && (prev.node === p.node.consequent || prev.node === p.node.alternate)) {
+      const other = prev.node === p.node.consequent ? p.node.alternate : p.node.consequent;
+      if (other && nodeAlwaysHardExits(other)) continue;
+    }
+    return false;
+  }
+  return false;
+}
+
+export function createStraightLineFlow({ t, babelNodeType }) {
+  // walk constant-violation up to AssignmentExpression / VariableDeclarator.
+  // babel: violation IS the AE / VD. estree-toolkit: violation is LHS Identifier,
+  // walk up through Property / ObjectPattern - depth scales with destructure nesting
+  function violationToAssignment(v) {
+    // a canonically-recovered extra carries no parent chain - it can never serve as a narrow
+    // SOURCE (only as dirt); the positional gap-scan still sees it through `.node`
+    if (v.canonicalRecovered) return null;
+    let p = v;
+    for (let i = 0; i < MAX_DEPTH && p; i++) {
+      const type = babelNodeType(p.node);
+      if (type === 'AssignmentExpression' || type === 'VariableDeclarator') return p;
+      if (type === 'ExpressionStatement' || type === 'Program') return null;
+      p = p.parentPath;
+    }
+    return null;
+  }
+
+  // synchronous IIFE wrapping `path` within `targetScope` -> { call, fnBody }.
+  // matches `(() => {x=1})()`, `(() => {x=1})?.()`, `new function () { x = 1 }()`.
+  // body peeled through ParenthesizedExpression / TS wrappers so the identity check
+  // `effectiveAp.node === fnBody` works under oxc which keeps `() => (expr)` parens
+  function findEnclosingIIFE(path, targetScope) {
+    for (let cur = path; cur; cur = cur.parentPath) {
+      if (cur.scope === targetScope) return null;
+      if (!t.isFunction(cur.node)) continue;
+      if (cur.node.async || cur.node.generator) return null;
+      let callee = cur;
+      // walk only through wrappers that don't change the invoked value. UnaryExpression on
+      // the callee path (`(!fn)(...)`) invokes the BOOLEAN, not fn - body writes never run,
+      // narrowing against them is unsound. IIFE_CALL_CALLEE_WRAPPERS excludes UnaryExpression;
+      // the broader IIFE_CALL_PATH_WRAPPERS still applies to wrappers ABOVE the call
+      while (callee.parentPath?.node
+        && (IIFE_CALL_CALLEE_WRAPPERS.has(callee.parentPath.node.type)
+          || TS_EXPR_WRAPPERS.has(callee.parentPath.node.type))) {
+        // SequenceExpression peels only when callee is the TAIL - preceding elements are
+        // side-effect slots that don't carry the invoked value
+        if (callee.parentPath.node.type === 'SequenceExpression'
+          && callee.node !== callee.parentPath.node.expressions.at(-1)) break;
+        callee = callee.parentPath;
+      }
+      const call = callee.parentPath;
+      if (!call || call.node.callee !== callee.node) return null;
+      if (!isIifeCallNode(call.node)) return null;
+      // `new (() => {})()` throws TypeError at runtime - arrow body never runs,
+      // writes aren't reachable from post-call usage. require constructible callee
+      if (call.node.type === 'NewExpression' && cur.node.type !== 'FunctionExpression') return null;
+      // body-side peel mirrors callee-side: `() => ((x = 1) as any)` parses as TSAsExpression
+      // wrapping the assignment; without peel, the assignment-is-body trivial case misses
+      let fnBody = cur.node.body;
+      while (fnBody && (fnBody.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(fnBody.type))) {
+        fnBody = fnBody.expression;
+      }
+      return { call, fnBody };
+    }
+    return null;
+  }
+
+  // scope is inside bindingScope's var-scope - same object, or nested through plain blocks
+  // without crossing a function / StaticBlock boundary. so `var` writes in inner blocks
+  // count as writes to the hoisted function-scope binding
+  // walks the PATH, not the scope chain: estree-toolkit paths carry no `.scope`, so a
+  // scope-object walk silently answered `false` for every estree query - the IIFE lift then
+  // never terminated and every IIFE-hosted write looked deferred. the AST walk answers both
+  // dialects: stop at the binding's var-scope node (true) or at the first function /
+  // static-block boundary crossed on the way (false)
+  function isInBindingVarScope(path, bindingScope) {
+    const targetNode = scopeNode(bindingScope);
+    for (let p = path; p?.node; p = p.parentPath) {
+      if (p.node === targetNode) return true;
+      if (p === path) continue;
+      // a static block is its own var-scope, but the two dialects disagree on which node
+      // OWNS a `let` declared inside one: babel names the block, estree-toolkit the class.
+      // treat the block as reached-target when the class it belongs to IS the target, so the
+      // same source classifies identically either way
+      if (t.isStaticBlock?.(p.node)) {
+        const owner = p.parentPath?.parentPath;
+        return owner?.node === targetNode;
+      }
+      if (t.isFunction(p.node)) return false;
+    }
+    return false;
+  }
+
+  // every wrapper from `path` up to `stmt` (exclusive) is always-evaluating.
+  // catches `false && (x = 'hi')`, `cond ? (x = 'hi') : 0`, `flag ||= (x = 'hi', flag)`
+  function isStraightLineExpressionChain(path, stmt) {
+    for (let cur = path.parentPath; cur && cur.node !== stmt.node; cur = cur.parentPath) {
+      if (!isAlwaysEvaluatingWrapper(cur.node)) return false;
+    }
+    return true;
+  }
+
+  // reachability from `effectiveAp` to `endNode`: ancestor chain passthrough, expression
+  // chain always-evaluating, and no preceding sibling at any block level exits before
+  // the enclosing statement. sibling layer catches labeled break / continue at outer
+  // var-scope and return / throw / break / continue inside IIFE body
+  function passesStraightLineCheck(effectiveAp, endNode, wrapStmtType) {
+    const stmt = findEnclosingStatement(effectiveAp, wrapStmtType);
+    if (!stmt || !reachesStraightLine(stmt.parentPath, endNode)) return false;
+    if (!precedingSiblingsExitFree(stmt, endNode)) return false;
+    return isStraightLineExpressionChain(effectiveAp, stmt);
+  }
+
+  // lift `ap` through nested synchronous IIFE wrappers until it lands in binding's
+  // var-scope. arrow-with-expression-body short-circuits when the assignment IS the body
+  function liftThroughIIFEs(ap, wrapStmtType, bindingScope) {
+    let effectiveAp = ap;
+    while (effectiveAp && !isInBindingVarScope(effectiveAp, bindingScope)) {
+      const { call, fnBody } = findEnclosingIIFE(effectiveAp, bindingScope) ?? {};
+      if (!call) return null;
+      if (effectiveAp.node !== fnBody
+        && !passesStraightLineCheck(effectiveAp, fnBody, wrapStmtType)) return null;
+      effectiveAp = call;
+    }
+    return effectiveAp;
+  }
+
+  // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched
+  let sortedAssignmentCache = new WeakMap();
+
+  function buildSortedAssignments(binding) {
+    const { scope: bindingScope, constantViolations } = binding;
+    const bindingScopeNode = scopeNode(bindingScope);
+    // Program / Block / StaticBlock host statements at `.body` directly; functions wrap in
+    // BlockStatement. ancestor walk compares `p.node === endNode` - array-bodied scopes
+    // must compare against the scope node itself, not its `.body` array
+    const varScopeBody = Array.isArray(bindingScopeNode.body) ? bindingScopeNode : bindingScopeNode.body;
+    const out = [];
+    for (const v of constantViolations) {
+      const ap = violationToAssignment(v);
+      if (!ap) continue;
+      const isVarDecl = ap.node.type === 'VariableDeclarator';
+      // `var x;` without init is a runtime no-op - binding keeps its previous value
+      if (isVarDecl && !ap.node.init) continue;
+      if (!ASSIGN_LEFT_TYPES.has(assignLeft(ap.node)?.type)) continue;
+
+      const wrapStmtType = isVarDecl ? 'VariableDeclaration' : 'ExpressionStatement';
+      const effectiveAp = liftThroughIIFEs(ap, wrapStmtType, bindingScope);
+      if (!effectiveAp) continue;
+      const pos = effectiveAp.node.start;
+      if (pos === undefined || pos === null) continue;
+
+      // lifted effectiveAp is the IIFE call - sits inside an ExpressionStatement
+      const outerWrapType = effectiveAp === ap ? wrapStmtType : 'ExpressionStatement';
+      if (!passesStraightLineCheck(effectiveAp, varScopeBody, outerWrapType)) continue;
+      out.push({ ap, pos, end: effectiveAp.node.end });
+    }
+    out.sort((a, b) => a.pos - b.pos);
+    return out;
+  }
+
+  // a reassignment whose home is a DEFERRED context (a function called at an unknown time, or an
+  // INSTANCE class-field initializer run at construction) can fire before the use even when textually
+  // after it - so any positional narrow is unsound. an IIFE-body reassignment lifts to a straight-line
+  // position (it lands in sortedAssigns and is bounded positionally instead), so `liftThroughIIFEs`
+  // succeeding means it is NOT deferred. distinguishing the two is why the blanket
+  // `violationInCapturedFunction` gate (which findPrecedingBlockAssignment can use only because it
+  // never narrows to a function value) is wrong here - it would also drop the legitimate
+  // IIFE-reassigned narrows. the deferral predicate is shared with closure / class-field analysis
+  function violationRunsDeferred(v, bindingScope) {
+    const stop = scopeNode(bindingScope);
+    let deferred = false;
+    for (let p = v.parentPath, child = v; p?.node && p.node !== stop && !deferred; child = p, p = p.parentPath) {
+      if (isDeferredContextStep(t, p.node, child)) deferred = true;
+    }
+    if (!deferred) return false;
+    const ap = violationToAssignment(v);
+    if (!ap) return false;
+    const wrapStmtType = ap.node.type === 'VariableDeclarator' ? 'VariableDeclaration' : 'ExpressionStatement';
+    return !liftThroughIIFEs(ap, wrapStmtType, bindingScope);
+  }
+
+  // the READ-side mirror: a use captured in a closure BELOW the binding's scope re-runs on every
+  // invocation, so a write textually AFTER it is still observable on a later call (`let O = null;
+  // const f = () => O.at(0); O = []; f()` reads the array). the positional "every write follows the
+  // use" test then no longer proves the declarator init describes the receiver. bounded at the
+  // binding's own scope - a use in the SAME activation as the writes stays positionally ordered -
+  // and an IIFE body is excluded for the same reason the write side excludes it: it runs at its
+  // definition position, so it stays straight-line
+  function usageRunsDeferred(usagePath, bindingScope) {
+    return readRunsDeferredWithin(usagePath, scopeNode(bindingScope));
+  }
+
+  // last straight-line assignment before usagePath: `x = v`, `x += v`, `({x} = v)`, or a
+  // `var x = v` redecl in the same var-scope (possibly through plain blocks / sync IIFEs).
+  // O(V) build per binding (cached), O(log V) per query.
+  // `extraViolations` are write paths the parser did NOT record on the binding (the stale-redecl
+  // race feeds its gap declarators in this way). they arrive as a SEPARATE list rather than
+  // spliced into a synthesized `{ ...binding }`: the cache keys on binding IDENTITY, so a fresh
+  // object per query missed it every time and rebuilt the whole sorted list per query
+  function findLastStraightLineAssignment(binding, usagePath, extraViolations = null) {
+    const beforePos = usagePath.node.start;
+    if (beforePos === undefined || beforePos === null) return null;
+    const violations = extraViolations?.length
+      ? [...binding.constantViolations ?? [], ...extraViolations] : binding.constantViolations;
+    if (!violations?.length) return null;
+    // a reassignment in a deferred (non-IIFE) function runs at an unknown time - possibly before the
+    // use even when textually later - so the positional narrow below cannot be trusted
+    // a recovered extra has no parent chain to prove it is NOT deferred - bail like one
+    if (violations.some(v => v.canonicalRecovered || violationRunsDeferred(v, binding.scope))) return null;
+    if (!isInBindingVarScope(usagePath, binding.scope)) return null;
+    // loop back-edge: a reassignment inside an enclosing loop body re-runs before the next-iteration
+    // use, so the positional "last assignment before use" is stale from iteration 2 - degrade to generic
+    if (bindingCrossesLoopBackEdge(t, usagePath, binding)) return null;
+
+    let sortedAssigns = sortedAssignmentCache.get(binding);
+    if (!sortedAssigns) {
+      sortedAssigns = buildSortedAssignments(binding);
+      sortedAssignmentCache.set(binding, sortedAssigns);
+    }
+    // the extras are per-query, so they build fresh and merge into the cached base by position
+    if (extraViolations?.length) {
+      sortedAssigns = [...sortedAssigns, ...buildSortedAssignments({ ...binding, constantViolations: extraViolations })]
+        .sort((a, b) => a.pos - b.pos);
+    }
+    if (!sortedAssigns.length) return null;
+
+    // largest entry with pos < beforePos
+    let lo = 0;
+    let hi = sortedAssigns.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sortedAssigns[mid].pos < beforePos) lo = mid + 1;
+      else hi = mid;
+    }
+    // skip any assignment whose own RHS textually ENCLOSES the use (`x = ("" + x.at(-1))`): its start
+    // precedes the use but it has not executed yet, so the receiver must come from the prior value
+    let idx = lo - 1;
+    while (idx >= 0 && sortedAssigns[idx].end > beforePos) idx--;
+    if (idx < 0) return null;
+    const chosen = sortedAssigns[idx];
+    // a CONDITIONAL reassignment (not straight-line, so absent from sortedAssigns) positioned between
+    // the chosen assignment and the use can overwrite it at runtime - degrade to the generic / union
+    // path rather than committing to the chosen value's single type
+    for (const v of violations) {
+      const vStart = v.node?.start;
+      if (vStart !== undefined && vStart >= chosen.end && vStart < beforePos) return null;
+    }
+    return chosen.ap;
+  }
+
+  function reset() {
+    sortedAssignmentCache = new WeakMap();
+  }
+
+  return {
+    findLastStraightLineAssignment,
+    violationRunsDeferred,
+    usageRunsDeferred,
+    reset,
+  };
+}

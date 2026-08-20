@@ -11,5 +11,5 @@ $({ target: 'Math', stat: true }, {
   clz32: function clz32(x) {
     var n = x >>> 0;
     return n ? 31 - floor(log(n + 0.5) * LOG2E) : 32;
-  }
+  },
 });

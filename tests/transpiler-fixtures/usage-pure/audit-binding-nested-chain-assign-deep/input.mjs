@@ -1,0 +1,5 @@
+// nested chain-assign with intermediate parens: oxc preserves ParenthesizedExpression
+// around the inner `(b = Array)`, so a flat one-pass peel exits after the outer `=`.
+// receiver-name resolution must alternate paren-peel + chain-assign-peel to a fixpoint
+const X = (a = (b = Array));
+X.from([]);

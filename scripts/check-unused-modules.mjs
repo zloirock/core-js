@@ -1,5 +1,5 @@
 import konan from 'konan';
-import { modules, ignored } from 'core-js-compat/src/data.mjs';
+import { modules, ignored } from '../packages/core-js-compat/src/data.mjs';
 
 async function jsModulesFrom(path) {
   const directory = await fs.readdir(path);
@@ -13,17 +13,14 @@ function log(set, kind) {
   } else echo(chalk.green(`unused ${ kind } not found`));
 }
 
-const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
   ...ignored,
-  // TODO: Drop from core-js@4
-  'esnext.string.at-alternative',
 ]);
 
-globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
+const unusedGlobalModules = (await jsModulesFrom('packages/core-js/modules')).difference(definedModules);
 
-log(globalModules, 'modules');
+log(unusedGlobalModules, 'modules');
 
 const [internalModules, allModules] = await Promise.all([
   jsModulesFrom('packages/core-js/internals'),

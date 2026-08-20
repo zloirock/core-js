@@ -1,0 +1,12 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "4.0",
+        "ignoreBrowserslistConfig": true
+      }
+    ]
+  ]
+}

@@ -1,5 +1,5 @@
 import semver from 'semver';
-import mapping from 'core-js-compat/src/mapping.mjs';
+import mapping from '../packages/core-js-compat/src/mapping.mjs';
 
 const { coerce, cmp } = semver;
 let updated = true;
@@ -12,6 +12,7 @@ async function getJSON(path, ...slice) {
 
 async function getFromMDN(name, branch = 'mdn/browser-compat-data/main') {
   const {
+    // eslint-disable-next-line unicorn/no-unreadable-object-destructuring -- ok
     browsers: { [name]: { releases } },
   } = await getJSON(`https://raw.githubusercontent.com/${ branch }/browsers/${ name }.json`);
   return releases;

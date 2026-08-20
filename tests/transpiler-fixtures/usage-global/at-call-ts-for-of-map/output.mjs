@@ -1,0 +1,15 @@
+import "core-js/modules/es.symbol.iterator";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.map.constructor";
+import "core-js/modules/es.map.species";
+import "core-js/modules/es.map.get-or-insert";
+import "core-js/modules/es.map.get-or-insert-computed";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+function foo(map: Map<string, number>) {
+  for (const entry of map) {
+    entry.at(-1);
+  }
+}

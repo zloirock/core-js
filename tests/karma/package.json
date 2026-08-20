@@ -1,0 +1,10 @@
+{
+  "name": "tests/karma",
+  "devDependencies": {
+    "karma": "^6.4.4",
+    "karma-ie-launcher": "^1.0.0",
+    "karma-qunit": "^4.2.1",
+    "playwright": "^1.62.1",
+    "qunit": "^2.26.0"
+  }
+}

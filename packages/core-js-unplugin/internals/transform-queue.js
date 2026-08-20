@@ -1,0 +1,2112 @@
+import { pushMultimap } from '@core-js/polyfill-provider/helpers/pattern-matching';
+import { canFuseWithOpenParen, injectionFusesLeft, scanParens, statementOverwriteFusesLeft } from './plugin-helpers.js';
+import {
+  codePointEndingAt,
+  codePointStartingAt,
+  findRegionContaining,
+  IDENT_PART_RE,
+  isOptionalChainAt,
+  literalRegionsOf,
+  prevSignificantPos,
+  skipGap,
+} from './text-scan.js';
+
+// single source of the `transform-queue: ` subsystem prefix, for EVERY throw this module raises.
+// module-level and constructor-parameterized on purpose: the validation sites throw `TypeError` /
+// `RangeError` and `mergeEqualRange` sits outside the class, so a private `Error`-only method
+// cannot reach them and the prefix drifts into hand-written copies that no longer share a source.
+// the `[core-js] [<fileId>] ` brand + file tag are added once by the outer `tagError`
+// (runTransform's catch), NOT self-prefixed here - matching the parse-error throw-path convention
+// (`formatParseErrorForThrow`) and avoiding the doubled brand/id `tagError` would otherwise stamp
+function queueError(message, Ctor = Error) {
+  return new Ctor(`transform-queue: ${ message }`);
+}
+
+// how much of any text a diagnostic quotes - replacement content, source slice, needle alike.
+// the point of quoting is to name the culprit channel and its head carries that; a claim or a
+// slice can be the size of a statement, and an unbounded dump buries the ranges printed alongside
+const DIAGNOSTIC_TEXT_LIMIT = 200;
+
+function describeText(text) {
+  return JSON.stringify(text.length > DIAGNOSTIC_TEXT_LIMIT
+    ? `${ text.slice(0, DIAGNOSTIC_TEXT_LIMIT) }...`
+    : text);
+}
+
+// a rejected argument echoed back: its text when it is one (bounded like every other quoted
+// text here), its type otherwise - `typeof` is the only useful thing to say about a non-string
+function describeArgument(value) {
+  return typeof value === 'string' ? describeText(value) : typeof value;
+}
+
+// compose reaches its locate failure with the discriminator between the two possible causes
+// already computed, so spend it on the message instead of blaming the queue for both. the
+// container's CONTENT is the datum that names the culprit channel - the ranges alone never did
+function locateFailureError({ hasStandaloneMatch, content, needle, start, logicalEnd, inner }) {
+  const where = `outer=[${ start },${ logicalEnd }) outerContent=${ describeText(content) } `
+    + `inner=[${ inner.start },${ inner.end }) needle=${ describeText(needle) }.`;
+  // a standalone occurrence is sitting right there and the ordinal walk still missed it.
+  // `findRenamedSlot` runs first and accepts every standalone occurrence (its literal token
+  // match is a superset of the boundary scan), so this branch is defensive: reaching it means
+  // the two enumerations disagree, which is the queue's own bug
+  if (hasStandaloneMatch) {
+    return queueError(`could not locate inner needle in outer content. ${ where } `
+      + 'a standalone occurrence exists but the ordinal walk missed it - '
+      + 'this is a composition bug, please report with a reproducer.');
+  }
+  // no occurrence at all: the container replaced this range with text that does not carry the
+  // source slice, so the inner's slot never made it into the output. that is a CALLER contract
+  // violation - the queue cannot invent a slot - and the only cause this branch can have
+  return queueError(`could not locate inner needle in outer content. ${ where } `
+    + 'the transform owning the outer range replaced it with content that does not carry '
+    + 'the source text; the channel that queued the inner range must skip-mark it or stand down.');
+}
+
+// is [start, end] strictly contained within any range in the start-sorted array?
+// (equal ranges are not considered contained - both transforms must be applied).
+// binary search + prefix maxEnd resolves in O(log n); falls through to a linear scan only
+// when the max end exactly equals query.end (strictness then reduces to r.start < query.start).
+// split entries are owned through `splitInfo.logicalEnd` (prefix-only `.end` = mid stops
+// short of the suffix tail) - prefixMaxEnd is built on logical ends, linear-scan check
+// also queries via the helper
+function isStrictlyContained({ ranges, start, end, prefixMaxEnd }) {
+  let lo = 0;
+  let hi = ranges.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (ranges[mid].start <= start) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  if (lo === 0) return false;
+  const maxEnd = prefixMaxEnd[lo - 1];
+  if (maxEnd > end) return true;
+  if (maxEnd < end) return false;
+  for (let i = lo - 1; i >= 0; i--) {
+    const r = ranges[i];
+    if (entryLogicalEnd(r) >= end && r.start < start) return true;
+  }
+  return false;
+}
+
+// non-overlapping needle scan - polyfill needles embed syntactic delimiters (`.`, `(`,
+// identifiers) that cannot self-overlap. empty needle is a caller bug - guard so
+// indexOf('', ...) doesn't infinite-loop (pos never advances). identifier-boundary filter
+// here keeps the position list aligned with `replaceNthOccurrence`'s match acceptance -
+// without it, `countInRange` for needle `Array` would tally `_Array$from` substring matches
+// that the replacer rejects, drifting `nth` and silently dropping legitimate substitutions
+// a REJECTED match is not a match, so it may not consume the text it covered: the next
+// occurrence can begin inside it, and skipping the whole width drops it from the list - every
+// later ordinal then points one slot short. only an ACCEPTED match advances by its own width
+function collectOccurrencePositions(haystack, needle) {
+  if (!needle.length) return [];
+  const positions = [];
+  for (let p = haystack.indexOf(needle); p !== -1;) {
+    const accepted = hasIdentifierBoundary(haystack, p, needle);
+    if (accepted) positions.push(p);
+    p = haystack.indexOf(needle, p + (accepted ? needle.length : 1));
+  }
+  return positions;
+}
+
+function lowerBoundNumber(arr, target) {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid] < target) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+
+// factory: per-haystack memoized lookup of `(needle) -> { positions, countInRange }`.
+// the inner-substitution loop calls countInRange once per inner plus once per
+// processedRange-per-inner pair; without memoization that yields O(N^2 L) for N inners
+// over a slice of length L. caching positions arrays per unique needle reduces it to
+// O(unique * L) precompute + O(N^2 log positions) range queries via binary search
+function createNeedleScanner(haystack) {
+  const cache = new Map();
+  function positionsFor(needle) {
+    let positions = cache.get(needle);
+    if (!positions) {
+      positions = collectOccurrencePositions(haystack, needle);
+      cache.set(needle, positions);
+    }
+    return positions;
+  }
+  // count occurrences that fit entirely in [rangeStart, rangeEnd) - p satisfies
+  // `p >= rangeStart AND p + needle.length <= rangeEnd`. binary search on the cached
+  // positions array; degenerate ranges (negative span or shorter than needle) short-circuit
+  function countInRange(needle, rangeStart, rangeEnd) {
+    const len = needle.length;
+    if (!len || rangeEnd - rangeStart < len) return 0;
+    const positions = positionsFor(needle);
+    const lo = lowerBoundNumber(positions, rangeStart);
+    const hi = lowerBoundNumber(positions, rangeEnd - len + 1);
+    return hi - lo;
+  }
+  return { countInRange };
+}
+
+// replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found.
+// negative `n` (possible if count math underflows - defensive) yields no replacement rather than
+// a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop.
+// empty needle: `indexOf('', 0)` returns 0 on any string, so without a guard we'd splice
+// `replacement` in at position 0 repeatedly - silent corruption. bail early instead
+// JS identifier-boundary check: when `needle` starts or ends with an identifier char, require
+// the neighbour chars to be non-identifier (or absent at string boundaries), so the inner needle
+// `Promise` doesn't match the SUBSTRING inside an already-substituted `_Promise` (that double-
+// substitution would emit `__Promise` - an extra underscore, ReferenceError). `IDENT_PART_RE` is
+// Unicode-aware (ID_Continue) so a non-ASCII letter suffix can't slip the boundary as standalone
+// the needle's own edges are read as CODE POINTS, like the neighbour chars below: a lone
+// surrogate never matches `IDENT_PART_RE`, so a needle beginning or ending with an astral
+// identifier char would report NO identifier edge, the boundary check would be skipped, and a
+// match buried inside a wider identifier would be accepted as standalone
+function isIdentifierEdge(needle, edge) {
+  if (!needle?.length) return false;
+  return IDENT_PART_RE.test(edge === 'start' ? codePointStartingAt(needle, 0) : codePointEndingAt(needle, needle.length - 1));
+}
+
+// the slot of a needle whose identifiers the outer already substituted: the outer builds its text
+// with the chain root resolved (`globalThis` -> `_globalThis`, deduped as `_globalThis2`), so the
+// raw source needle no longer occurs verbatim - at the head (`globalThis.window...`) or buried in a
+// root effect (`(nt = globalThis)?.window...`). match token-wise instead: identifier tokens accept
+// the emitter's binding SHAPE for the same name, everything else must be literal. requiring that
+// shape keeps a genuine phantom (`Map` inside `_MapPrime`) and a coincidental longer identifier out.
+// a `?.` the outer proved redundant is matched by the plain `.` it left behind
+function matchRenamedFrom(content, needle, at, bindingHintOf, lenient) {
+  let ci = at;
+  for (let ni = 0; ni < needle.length;) {
+    if (!IDENT_PART_RE.test(needle[ni])) {
+      // the outer also DEOPTIONALIZES what it proved defined (`(nt = g)?.window` -> `.window`),
+      // so a `?.` the needle still carries may be a plain `.` there
+      if (lenient && isOptionalChainAt(needle, ni) && content[ci] === '.') {
+        ni += 1;
+        continue;
+      }
+      if (content[ci] !== needle[ni]) return -1;
+      ni += 1;
+      ci += 1;
+      continue;
+    }
+    let ne = ni;
+    while (ne < needle.length && IDENT_PART_RE.test(needle[ne])) ne += 1;
+    let ce = ci;
+    while (ce < content.length && IDENT_PART_RE.test(content[ce])) ce += 1;
+    const want = needle.slice(ni, ne);
+    const got = content.slice(ci, ce);
+    if (got !== want && bindingHintOf?.(got) !== want) return -1;
+    ni = ne;
+    ci = ce;
+  }
+  return ci;
+}
+
+// the outer renders its spans off PEELED nodes, so a grouping paren the SOURCE wrote around part of
+// this needle has no place in the content it emitted. try the needle without such a pair - dropped
+// as a PAIR, never as a lone token, and accepted only when exactly one variant lands on exactly one
+// standalone slot. char-by-char tolerance was measured instead and it matched slots that differed by
+// a real token, turning locate failures into unparsable output
+function unwrappedNeedleSlot(content, needle) {
+  const { pairs } = scanParens(needle, true);
+  if (!pairs.length) return null;
+  const variants = new Set();
+  function dropPair([from, to]) {
+    return `${ needle.slice(0, from) }${ needle.slice(from + 1, to) }${ needle.slice(to + 1) }`;
+  }
+  for (const pair of pairs) variants.add(dropPair(pair));
+  if (pairs.length > 1) {
+    const cut = new Set(pairs.flat());
+    variants.add([...needle].filter((_, i) => !cut.has(i)).join(''));
+  }
+  const hits = [];
+  for (const variant of variants) {
+    if (!variant || variant === needle) continue;
+    let only = -1;
+    for (let i = content.indexOf(variant); i !== -1; i = content.indexOf(variant, i + 1)) {
+      if (!hasIdentifierBoundary(content, i, variant)) continue;
+      if (only !== -1) {
+        only = -1;
+        break;
+      }
+      only = i;
+    }
+    if (only !== -1) hits.push({ start: only, end: only + variant.length });
+  }
+  return hits.length === 1 ? hits[0] : null;
+}
+
+// scan for a renamed slot on token boundaries; returns its range, or null when none qualifies
+function findRenamedSlot(content, needle, bindingHintOf) {
+  // a slot that still spells every `?.` the needle carries is the inner's OWN; only when no such
+  // slot exists may a deoptionalized one answer. searching leniently from the start put an optional
+  // nav's render on a PLAIN sibling that differed by exactly that token
+  for (const lenient of [false, true]) {
+    for (let at = 0; at < content.length; at++) {
+      if (at > 0 && IDENT_PART_RE.test(content[at - 1]) && IDENT_PART_RE.test(content[at])) continue;
+      const end = matchRenamedFrom(content, needle, at, bindingHintOf, lenient);
+      if (end !== -1 && !(end < content.length && IDENT_PART_RE.test(content[end]) && IDENT_PART_RE.test(content[end - 1]))) {
+        return { start: at, end };
+      }
+    }
+  }
+  return null;
+}
+
+export function hasIdentifierBoundary(str, idx, needle) {
+  // adjacent chars may be astral (surrogate-pair) identifier chars - test the WHOLE code point.
+  // `codePointEndingAt` handles the char BEFORE the needle (trailing low surrogate); the built-in
+  // `codePointAt` handles the char AFTER (leading high surrogate). a lone surrogate would test as
+  // a boundary and mis-classify the needle as standalone
+  if (isIdentifierEdge(needle, 'start') && idx > 0 && IDENT_PART_RE.test(codePointEndingAt(str, idx - 1))) return false;
+  const tail = idx + needle.length;
+  return !isIdentifierEdge(needle, 'end')
+    || tail >= str.length
+    || !IDENT_PART_RE.test(String.fromCodePoint(str.codePointAt(tail)));
+}
+
+// does `haystack` carry `needle` as a token of its own, rather than only inside a wider identifier?
+// the composition layer's phantom test, exported because the PRODUCERS need the same answer before
+// they queue: a rewrite left standing inside a region its emit re-spelled has no slot to compose
+// into, and the queue can only abort the build once it gets there
+export function hasStandaloneOccurrence(haystack, needle) {
+  for (let idx = haystack.indexOf(needle); idx !== -1; idx = haystack.indexOf(needle, idx + 1)) {
+    if (hasIdentifierBoundary(haystack, idx, needle)) return true;
+  }
+  return false;
+}
+
+// the nth-occurrence index MUST come from the same enumeration the counter uses
+// (`collectOccurrencePositions`: non-overlapping advance + boundary filter) - a private
+// overlapping scan here would disagree with the counted `nth` on a self-bordered needle
+// (`a.a` in `a.a.a`) and silently replace a different physical occurrence
+// the splice and its VERDICT in one answer (null = no such occurrence). comparing the output to the
+// input cannot tell "no occurrence" from "replaced with identical text", and an identity replacement
+// then reads as a miss: the caller drops into ordinal recovery and can land the emit on another slot
+function spliceNthOccurrence({ str, needle, replacement, n }) {
+  if (n < 0 || !needle.length) return null;
+  const idx = collectOccurrencePositions(str, needle)[n];
+  if (idx === undefined) return null;
+  return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
+}
+
+export function replaceNthOccurrence({ str, needle, replacement, n }) {
+  return spliceNthOccurrence({ str, needle, replacement, n }) ?? str;
+}
+
+// does the text carry an optional-chaining punctuator? (`c?.5:1` carries none - see `isOptionalChainAt`)
+export function hasOptionalChainToken(text) {
+  for (let i = text.indexOf('?.'); i !== -1; i = text.indexOf('?.', i + 1)) {
+    if (isOptionalChainAt(text, i)) return true;
+  }
+  return false;
+}
+
+// `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` - naive `replaceAll('?.', '.')`
+// produces `.(` that never matches the `(` emitted by the inner transform.
+// raw text transform - not AST-aware. `?.` inside a template literal (`` `a?.b` ``) or a
+// regular string would also be rewritten. in practice the needle is always a slice of an
+// AST MemberExpression / CallExpression range where strings can't appear in the optional
+// position - the malformed-needle risk is bounded by the caller supplying correct ranges
+export function deoptionalizeNeedle(needle) {
+  let out = '';
+  for (let i = 0; i < needle.length; i++) {
+    if (!isOptionalChainAt(needle, i)) {
+      out += needle[i];
+      continue;
+    }
+    const next = needle[skipGap(needle, i + 2)];
+    out += next === '(' || next === '[' ? '' : '.';
+    i += 1;
+  }
+  return out;
+}
+
+// strip `?.` at SELECTED absolute positions only (the emitter's per-hop deopt). mirrors
+// polyfill-emitter's `stripOptionalDots`: positions are absolute source offsets, `baseOffset`
+// is the needle's source start. `?.(` / `?.[` drop both chars, `?.prop` keeps `.`. out-of-range
+// positions are skipped, so an outer's full deopt list applied to a sub-slice needle only
+// touches the markers that fall inside it - matching how an outer transform left some `?.`
+// collapsed and others verbatim when it folded a partial receiver chain
+export function deoptionalizeNeedleAtPositions(needle, baseOffset, positions) {
+  if (!positions?.length) return needle;
+  const sorted = [...positions].sort((a, b) => a - b);
+  let result = '';
+  let prev = 0;
+  for (const absPos of sorted) {
+    let rel = absPos - baseOffset;
+    if (rel < 0 || rel >= needle.length) continue;
+    rel = skipGap(needle, rel);
+    if (rel >= needle.length || !isOptionalChainAt(needle, rel)) continue;
+    result += needle.slice(prev, rel);
+    const afterQ = skipGap(needle, rel + 2);
+    prev = needle[afterQ] === '[' || needle[afterQ] === '(' ? rel + 2 : rel + 1;
+  }
+  return result + needle.slice(prev);
+}
+
+const WHITESPACE_RE = /\s/;
+
+// the needle without the optional token an erase claim swallowed off the hop above it, or the needle
+// unchanged when it carries none. a dotted survivor keeps its `.` (`x?` leaves `.y`), a computed one
+// takes both characters (`x?.` leaves `[k]`); the gap the source spelled before the token goes with
+// it. `??` is the nullish operator, never an optional token
+export function trimTrailingOptional(needle) {
+  let end = needle.length;
+  if (needle[end - 1] === '.') end -= 1;
+  if (needle[end - 1] !== '?' || needle[end - 2] === '?') return needle;
+  end -= 1;
+  while (end > 0 && WHITESPACE_RE.test(needle[end - 1])) end -= 1;
+  return needle.slice(0, end);
+}
+
+// try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
+// (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
+// after-char gate: only consider `needle.startsWith(rootRaw)` valid when the char after
+// `rootRaw` is a structural token delimiter (`.`, `?`, `[`, `(`), not an identifier
+// continuation. prevents `foo.barBaz` being treated as a `foo.bar` root match
+function hasRootBoundary(needle, rootLength) {
+  if (needle.length === rootLength) return true;
+  // a valid connector may carry a gap (whitespace / comment) before the delimiter
+  // (`a.b /* c */ ?.c`), so skip it before reading - a bare index sees the space, calls
+  // this no boundary, and the guardRef candidate is never built (the needle then fails to
+  // locate and the whole file transform throws). the deoptionalize helpers already skipGap here
+  const next = needle[skipGap(needle, rootLength)];
+  return next === '.' || next === '?' || next === '[' || next === '(';
+}
+
+// does the outer hint carry a guardRef-backed root that this needle is rooted in?
+// shared gate for both the prefix-rewrite path and the guardRef-tail candidate: outer
+// memoized `rootRaw` as `guardRef`, and `needle` starts with `rootRaw` at a structural
+// boundary (not a mid-identifier prefix match)
+// TEXT alone cannot answer it: a needle elsewhere in the span that merely BEGINS with the
+// same source text is a look-alike twin, and answering yes hands it the memo slot - the guard
+// then memoizes the twin's emit while the real root keeps its raw, unpolyfilled text
+// (`this.items?.at(this.items.findLastIndex(fn))`). the hint carries the root's own source
+// offset, so the question is positional: is this needle AT the memoized root
+function needleRootedInGuard(needle, outerHint, needleStart) {
+  return !!outerHint?.rootRaw && !!outerHint.guardRef
+    && (typeof outerHint.rootStart !== 'number' || needleStart === outerHint.rootStart)
+    && needle.startsWith(outerHint.rootRaw) && hasRootBoundary(needle, outerHint.rootRaw.length);
+}
+
+// ordered needle shapes to try against `content`, MOST-SPECIFIC -> LEAST-SPECIFIC, first
+// match wins. ordering is load-bearing: a guardRef shape ALSO matches as the raw needle
+// (the `rootRaw` prefix exists verbatim inside `_ref = rootRaw`), so a less specific shape
+// tried first would emit at the wrong slot. each entry below is appended only when its
+// precondition holds, so the raw needle always sits at index 0
+function buildNeedleCandidates({ needle, needleStart, outerHint }) {
+  // [0] raw slice - matches when the outer neither deoptionalized nor guarded the chain
+  const candidates = [needle];
+  // prefix-substitution rebuild: the outer collapsed its receiver span [subStart, subTailStart)
+  // into `subPrefix` (root binding, dropped hops, folded SE) and kept the tail verbatim. an inner
+  // needle that is a source slice anchored at the same chain start rebuilds EXACTLY by offset math:
+  // substituted prefix + the needle's own verbatim tail. most specific after raw - no text sniffing
+  // `subTailStart - needleStart === needle.length` degenerates to the whole-prefix rebuild (empty
+  // verbatim tail): the needle spans exactly the substituted span, so the candidate is `subPrefix`
+  // itself - the wrapper-rebuilt receivers encode themselves this way (tail folded into the prefix)
+  if (typeof outerHint?.subPrefix === 'string' && needleStart === outerHint.subStart
+    && outerHint.subTailStart > needleStart && outerHint.subTailStart - needleStart <= needle.length) {
+    candidates.push(outerHint.subPrefix + needle.slice(outerHint.subTailStart - needleStart));
+  }
+  const hasOptionalChain = hasOptionalChainToken(needle);
+  // partial-deopt: the outer collapsed only SOME of the chain's `?.` (the hops it folded
+  // into its receiver) and kept the rest verbatim. replay that exact per-position strip so
+  // the inner needle matches the partially-collapsed text before the blanket full-deopt
+  // below would over-strip the `?.` the outer left intact. needs the needle's source start
+  // to map the outer's absolute `deoptPositions` onto this slice
+  if (hasOptionalChain && needleStart !== undefined && outerHint?.deoptPositions?.length) {
+    const partial = deoptionalizeNeedleAtPositions(needle, needleStart, outerHint.deoptPositions);
+    if (partial !== needle) candidates.push(partial);
+  }
+  // full-deopt: matches when the outer's compose stripped every `?.` marker in the chain
+  if (hasOptionalChain) candidates.push(deoptionalizeNeedle(needle));
+  // guardRef + boundary-stitched tail: the outer's rebind advanced past dropped proxy hops and
+  // stitched its body tail from `guardTailStart` with per-position deopt - rebuild the needle
+  // against the SAME boundary so a dropped `.self` hop does not desync the tail (more specific
+  // than the plain rootRaw slice below, so it goes first)
+  if (needleRootedInGuard(needle, outerHint, needleStart) && typeof outerHint.guardTailStart === 'number' && needleStart !== undefined
+    && outerHint.guardTailStart > needleStart && outerHint.guardTailStart - needleStart <= needle.length) {
+    candidates.push(outerHint.guardRef + deoptionalizeNeedleAtPositions(
+      needle.slice(outerHint.guardTailStart - needleStart), outerHint.guardTailStart, outerHint.deoptPositions));
+  }
+  // guardRef + deopt-tail: outer memoized `rootRaw` as `guardRef`, so the inner needle's
+  // root now reads `guardRef` and only the tail beyond `rootRaw` survives in the text.
+  // per-position strip first: a NESTED chain in an argument keeps its own live `?.` (the
+  // outer deoptionalized only the hops it folded), and the blanket full-deopt below would
+  // over-strip it and miss
+  // ...but only while a TAIL survives past the root: with the needle spanning the whole root the
+  // shape degenerates to the bare ref, which matches the memo's own LHS - an assignment TO the
+  // inner's emit. that case is recovered by the memo-value fallback instead
+  if (needleRootedInGuard(needle, outerHint, needleStart) && needle.length > outerHint.rootRaw.length) {
+    if (needleStart !== undefined && outerHint.deoptPositions?.length) {
+      candidates.push(outerHint.guardRef + deoptionalizeNeedleAtPositions(
+        needle.slice(outerHint.rootRaw.length), needleStart + outerHint.rootRaw.length, outerHint.deoptPositions));
+    }
+    candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
+  }
+  // an erase claim swallows the optional token of the hop ABOVE it so the survivor reads plainly
+  // (`x?.y` - the claim owns `x?`, leaving `.y`), which ends its needle in a lone `?`. an enclosing
+  // render that deoptionalized the same hop dropped that token, so the source only occurs there
+  // without it - retry every shape above on the trimmed spelling. the recursion terminates because
+  // a trim that changes anything strictly shortens the needle
+  const trimmed = trimTrailingOptional(needle);
+  if (trimmed !== needle && trimmed) candidates.push(...buildNeedleCandidates({ needle: trimmed, needleStart, outerHint }));
+  return candidates;
+}
+
+// the outer memoized the WHOLE inner as its root (`_ref = <inner source>`), so the guardRef
+// candidate below degenerates to the bare ref - which matches the memo's own LHS and spells an
+// assignment TO the inner's emit. target the memo's VALUE slot instead, whatever nested rewrites
+// have already made of it (they are why the raw needle no longer matches)
+// the memo VALUE behind `anchor` in emitted content: from the anchor's end to the `)` closing the
+// group the anchor stands in. every anchor reaching here is built as `(<ref> = `, so the value
+// always starts one group deep - the walk needs no depth parameter, and the callers that spell the
+// anchor WITHOUT its leading paren check that paren themselves. the walk is LEXER-AWARE: a paren
+// inside a string, a template or a comment is text, and counting it ran the region off the end of
+// the content, so the rewrite that followed swallowed everything after the anchor.
+// null when the anchor is absent or the group never closes - the caller decides what that means
+function memoValueRange(content, anchor) {
+  const at = content.indexOf(anchor);
+  if (at === -1) return null;
+  const regions = literalRegionsOf(content);
+  let depth = 1;
+  for (let i = at + anchor.length; i < content.length;) {
+    const region = findRegionContaining(regions, i);
+    if (region) {
+      i = region.end;
+      continue;
+    }
+    if (content[i] === '(') depth += 1;
+    else if (content[i] === ')' && --depth === 0) return { start: at + anchor.length, end: i };
+    i += 1;
+  }
+  return null;
+}
+
+function replaceMemoValue(content, guardRef, replacement) {
+  const anchor = `${ guardRef } = `;
+  // this spelling omits the group's `(` - confirm it before walking, so the depth the walk assumes
+  // is the depth the text actually has
+  const at = content.indexOf(anchor);
+  if (at === -1 || content[at - 1] !== '(') return null;
+  const range = memoValueRange(content, anchor);
+  return range && `${ content.slice(0, range.start) }${ replacement }${ content.slice(range.end) }`;
+}
+
+function substituteInner({ content, needle, needleStart, replacement, nth, outerHint, innerPrefix }) {
+  // mirror babel-plugin's AST-mutation flow for `new (chain.method)(args)`: the outer
+  // memoizes `chainRoot` (e.g. `arr.flat`) as `_ref`, then the inner visit replaces
+  // `arr.flat` with `_flatMaybeArray(arr)` INSIDE the assignment. result: outer guard
+  // becomes `_ref = _flatMaybeArray(arr)` and body uses `_ref()` (proper memoize, no
+  // dead code). text-rewrite equivalent: when outer has guardRef + rootRaw AND the
+  // inner is a split with a prefix (polyfill-helper invocation `_polyfill(receiver)`),
+  // AND the inner needle extends BEYOND rootRaw (i.e. rootRaw is the inner's callee /
+  // member-access prefix, not the full inner call), substitute the rootRaw inside the
+  // guard's `_ref = rootRaw` slot with `innerPrefix`. needle.length === rootRaw.length
+  // means rootRaw IS the full inner call (e.g. `this.at(0)?.includes` - rootRaw equals
+  // inner) - in that case the existing guardRef-rewrite candidate (which substitutes the
+  // full inner emit at `_ref` placeholder) is correct, so we fall through. try the prefix
+  // path BEFORE the regular candidates - if we hit the body's `_ref()` first, the prefix
+  // path is wasted (and we'd leave `_ref = rootRaw` dead code in the guard)
+  if (innerPrefix && needleRootedInGuard(needle, outerHint, needleStart) && needle.length > outerHint.rootRaw.length) {
+    const rootRawResult = spliceNthOccurrence({ str: content, needle: outerHint.rootRaw, replacement: innerPrefix, n: 0 });
+    if (rootRawResult !== null) return { content: rootRawResult, found: true, verbatim: false };
+  }
+  const candidates = buildNeedleCandidates({ needle, needleStart, outerHint });
+  for (let i = 0; i < candidates.length; i++) {
+    const result = spliceNthOccurrence({ str: content, needle: candidates[i], replacement, n: nth });
+    // candidate[0] is the raw source slice: a hit there means the inner's source text sits
+    // unmodified in `content`, so every transform nested inside this inner's source range
+    // was replaced wholesale and its own needle is now gone. non-raw candidates (deopt /
+    // guardRef shapes) rewrote the text, so a nested range may survive and still need its
+    // own substitution - `verbatim` stays false for them so compose keeps scanning
+    if (result !== null) return { content: result, found: true, verbatim: i === 0 };
+  }
+  // the outer memoized the WHOLE inner as its root and a nested rewrite already reshaped that
+  // slot, so no source-derived needle survives there - substitute the memo's VALUE directly
+  if (needleRootedInGuard(needle, outerHint, needleStart) && needle.length === outerHint.rootRaw.length) {
+    const memoValue = replaceMemoValue(content, outerHint.guardRef, replacement);
+    if (memoValue) return { content: memoValue, found: true, verbatim: false };
+  }
+  return { content, found: false, verbatim: false };
+}
+
+// binary search: first index with ranges[i].start >= target
+function lowerBound(ranges, target) {
+  let lo = 0;
+  let hi = ranges.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ranges[mid].start < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// binary search: first index with ranges[i].start > target
+// used by `add` to append new equal-start entries AFTER existing ones so #sorted
+// preserves insertion order within each start - matters for the compose loop where
+// later-added duplicate-range transforms (arrow wrappers) must run after their base
+function upperBound(ranges, target) {
+  let lo = 0;
+  let hi = ranges.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ranges[mid].start <= target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// equal-range merge: arrow body wrapper + inner polyfill share the same [start, end].
+// the "wrapper" contains the original source as substring; the "inner" doesn't.
+// function-form replace bypasses `$&` / `$1` / `$'` / `` $` `` interpretation if `inner`
+// happens to contain those tokens (e.g. user source with `$&` or polyfill names with `$`).
+// invariant: outer transforms emit at most one verbatim copy of the inner needle (the
+// arrow-wrapper / synth-swap shapes preserve the source slice exactly once). a wrapper
+// containing the needle multiple times would silently ignore later occurrences here -
+// no caller currently produces that shape, but watch this if a new outer transform shape
+// emits the original needle in two slots
+function mergeEqualRange({ a, b, originalNeedle, range = null, aInner = false, bInner = false }) {
+  // locate the needle through the boundary-aware `collectOccurrencePositions`, not raw indexOf /
+  // includes: a raw substring scan can match the needle MID-IDENTIFIER (`Array` inside `ArrayBuffer`,
+  // `at` inside `flat`), which would splice at a wrong offset or false-throw the single-occurrence
+  // asserts on a substring hit. the helper applies the same JS identifier-boundary filter used to
+  // resolve every other needle in the queue
+  const aPositions = collectOccurrencePositions(a, originalNeedle);
+  const bPositions = collectOccurrencePositions(b, originalNeedle);
+  // contract: exactly one side (the "wrapper") contains the original source slice as a standalone
+  // occurrence; the other (the "inner" polyfill) does not
+  // TWO wrappers can legitimately claim one range - a statement-level wrap (an arrow body gaining
+  // `{ var _ref; return ... }`) and an expression wrap around the same node. text alone cannot say
+  // which nests inside which, so the caller DECLARES it: a transform marked `innerWrapper` always
+  // goes in the outer's needle slot. without the marker the old rule stands - the side holding the
+  // source slice wraps the side that does not
+  const declared = aInner !== bInner && aPositions.length && bPositions.length;
+  const [wrapper, inner, wrapperPositions, innerPositions] = declared
+    ? (aInner ? [b, a, bPositions, aPositions] : [a, b, aPositions, bPositions])
+    : aPositions.length
+      ? [a, b, aPositions, bPositions]
+      : [b, a, bPositions, aPositions];
+  const rangeStr = range ? ` at [${ range.start },${ range.end })` : '';
+  // both claiming texts, not just the needle: the reader's next question on any of these is
+  // WHICH two channels collapsed the range, and the needle alone cannot say. built on demand -
+  // merges that succeed are the common case and must not pay to stringify both sides
+  function invariant(reason) {
+    return queueError(`mergeEqualRange invariant${ rangeStr }: ${ reason } `
+      + `(needle=${ describeText(originalNeedle) }) transforms=${ describeText(a) }, ${ describeText(b) }`);
+  }
+  // contract: at least one side wraps the original source. a regression that breaks this
+  // invariant would silently drop the wrapper text and emit only the inner replacement.
+  // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
+  // one slot - the throw makes a future callsite that drops both copies fail loudly.
+  // compose settles the whole claim multiset before folding and reports two needle-less
+  // claimants itself, so this one guards the helper's precondition for any other caller
+  if (!wrapperPositions.length) {
+    throw invariant('needle missing from both transforms');
+  }
+  // assert single-occurrence invariant on BOTH sides:
+  //   - wrapper-side: if a new outer-transform shape emits the needle twice, only the
+  //     first slot would be swapped in silently; flag the regression loudly
+  //   - inner-side: contract is "exactly one side wraps the original source". if inner
+  //     also contains the needle, both sides are wrappers - picking `a` as wrapper is
+  //     arbitrary and produces asymmetric output. fail loudly, UNLESS the caller declared
+  //     which one nests inside (`innerWrapper`), which is exactly that ambiguity resolved
+  if (wrapperPositions.length > 1) {
+    throw invariant('wrapper contains needle >1 times');
+  }
+  if (innerPositions.length && !declared) {
+    throw invariant('both sides contain needle - ambiguous wrapper');
+  }
+  // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
+  // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
+  // names with `$`). also one fewer scan of `wrapper` than a non-regex replace would cost
+  const [first] = wrapperPositions;
+  return wrapper.slice(0, first) + inner + wrapper.slice(first + originalNeedle.length);
+}
+
+// does an entry spanning [outerStart, outerEnd) PROPERLY contain [start, end)? boundaries are
+// inclusive - a claim anchored at the same offset still owns the nested range - and only the
+// exactly-equal range is excluded, because that one is the entry itself. one spelling for the
+// question three ownership probes were each writing out by hand
+function properlyContains(outerStart, outerEnd, start, end) {
+  return outerStart <= start && outerEnd >= end && (outerStart < start || outerEnd > end);
+}
+
+// composite key for the (start, end) range index
+function rangeKey(start, end) {
+  return `${ start }|${ end }`;
+}
+
+// split entries store [start, mid) / [mid, end) physically but logically own [start, end).
+// these helpers paper over the prefix/suffix duality so callers can treat split + non-split
+// uniformly via logical-range queries
+function entryLogicalEnd(entry) {
+  return entry.splitInfo ? entry.splitInfo.logicalEnd : entry.end;
+}
+
+// a split suffix physically starts at `mid` but the pair logically begins at the prefix's
+// start. selection/containment by logical range must use this so a suffix is never admitted
+// without its prefix (which would orphan the pair when the prefix sits outside the range)
+function entryLogicalStart(entry) {
+  return composeKeyOf(entry).start;
+}
+
+function entryLogicalSpan(entry) {
+  return entryLogicalEnd(entry) - entry.start;
+}
+
+// is the entry's FULL logical range within [start, end]? split-aware on BOTH ends, so a
+// split half qualifies only together with its peer - the single predicate every range-drain
+// / range-membership site shares (a physical-start test would admit a suffix whose prefix
+// lies outside the range and orphan it)
+function entryLogicalWithin(entry, start, end) {
+  return entryLogicalStart(entry) >= start && entryLogicalEnd(entry) <= end;
+}
+
+// sort key putting `innerWrapper`-declared claims first: they nest INSIDE the unmarked ones
+function innerWrapperRank(entry) {
+  return entry.rewriteHint?.innerWrapper ? 0 : 1;
+}
+
+// the entry whose compose view speaks for the logical pair - the prefix half of a split, the
+// entry itself otherwise. `composedContent` is keyed on it, never on a suffix
+function composeKeyOf(entry) {
+  return entry.splitInfo?.role === 'suffix' ? entry.splitInfo.peer : entry;
+}
+
+// the entry's LOGICAL replacement text: a split pair's two halves assembled, everything else
+// as-is; the composed view when the caller has one, the raw text otherwise. after the prefix's
+// own outer iteration `composedContent` already holds the combined halves with nested-inner
+// substitutions baked in - the raw fallback is for entries no pass has reached yet.
+// every consumer that pairs an entry's text with its LOGICAL range needs this: a bare
+// `.content` on a split prefix describes half of the range printed next to it
+function entryLogicalContent(entry, composedContent = null) {
+  const key = composeKeyOf(entry);
+  return composedContent?.get(key)
+    ?? (entry.splitInfo ? key.content + key.splitInfo.peer.content : entry.content);
+}
+
+// inner content + logical end + whether that content is already-composed (the inner's own
+// nested inners folded in) rather than the raw fallback - derives all three in one place.
+// `composed` gates the verbatim phantom-skip: only composed content safely absorbs the inners
+// nested in it - a not-yet-composed equal-range split sibling (sorted after the current outer)
+// still carries its un-substituted inners in the raw fallback
+function innerSubstitution(inner, composedContent) {
+  return {
+    end: entryLogicalEnd(inner),
+    content: entryLogicalContent(inner, composedContent),
+    composed: composedContent.has(composeKeyOf(inner)),
+  };
+}
+
+// does any range in `ranges` enclose [start, end] inclusively? the lists are short per-outer
+// accumulators (processed / verbatim-absorbed ranges), so a linear scan is fine
+function rangesEnclose(ranges, start, end) {
+  return ranges.some(r => r.start <= start && r.end >= end);
+}
+
+// widest LOGICAL first so nested inners (where inner2 is contained in inner1) are handled by inner1's
+// substitution before inner2 would be skipped. same-width ties: non-split before split
+// (split entries are leaves; non-split equal-span entries are wrappers that semantically
+// own the range, e.g. arrow-body wrap). then right-to-left for stable ordering
+function sortInnersInnermostLast(inners) {
+  function splitWeight(inner) {
+    return inner.splitInfo ? 1 : 0;
+  }
+
+  inners.sort((a, b) => entryLogicalSpan(b) - entryLogicalSpan(a)
+    || splitWeight(a) - splitWeight(b)
+    || b.start - a.start);
+}
+
+// incremental prefix-max maintenance after splice. prefix max is monotonic non-decreasing:
+// once the walk hits a stale slot that already covers the change, trailing slots stay correct.
+// uses logical-end so split prefixes contribute their full [start, splitInfo.logicalEnd) span
+function updatePrefixMaxOnInsert(sorted, prefixMaxEnd, pos) {
+  const prev = pos > 0 ? prefixMaxEnd[pos - 1] : -1;
+  const newEnd = entryLogicalEnd(sorted[pos]);
+  prefixMaxEnd.splice(pos, 0, Math.max(newEnd, prev));
+  if (newEnd > prev) for (let i = pos + 1; i < prefixMaxEnd.length; i++) {
+    if (prefixMaxEnd[i] >= newEnd) return;
+    prefixMaxEnd[i] = newEnd;
+  }
+}
+
+function updatePrefixMaxOnRemove({ sorted, prefixMaxEnd, si, removedEnd }) {
+  prefixMaxEnd.splice(si, 1);
+  const prev = si > 0 ? prefixMaxEnd[si - 1] : -1;
+  // removed end wasn't the contributor -> shifted-left stale values are already correct
+  if (removedEnd <= prev) return;
+  let running = prev;
+  for (let i = si; i < sorted.length; i++) {
+    const eEnd = entryLogicalEnd(sorted[i]);
+    if (eEnd > running) running = eEnd;
+    if (prefixMaxEnd[i] === running) return;
+    prefixMaxEnd[i] = running;
+  }
+}
+
+// remove `value` from `map[key]`; drop the key if the bucket goes empty
+function removeFrom(map, key, value) {
+  const list = map.get(key);
+  const idx = list?.indexOf(value) ?? -1;
+  if (idx === -1) return;
+  if (list.length === 1) map.delete(key);
+  else list.splice(idx, 1);
+}
+
+// rewriteHint factory: packages the composition data that `substituteInner` needs to
+// reconstruct inner needles when an outer transform rewrote the chain root. caller passes
+// non-null `rootRaw` + `guardRef` together (guard guarantees `rootRaw` was replaced);
+// `deoptPositions` / `objectStart` aid `deoptionalizeNeedle` in aligning offsets after
+// optional-chain stripping.
+// `absorbsRoot` boolean: set when the transform reused an outer's guardRef rather than
+// installing its own guard. compose skips substitution of any inner contained within the
+// root span (derived from `objectStart` + `rootRaw.length`) - inner's value is already
+// threaded through the outer guard's `_ref = ...` slot. returns null when the outer
+// didn't install a guard and didn't reuse one
+export function createRewriteHint({
+  rootRaw, rootStart, guardRef, deoptPositions, objectStart, absorbsRoot, subPrefix, subTailStart, subStart,
+  guardTailStart, guardSlot, guardOwn,
+}) {
+  // prefix-substitution record: the emitter collapsed the receiver span [subStart, subTailStart)
+  // into the `subPrefix` text and kept the tail verbatim. compose rebuilds an overlapping inner
+  // needle anchored at the same chain start as `subPrefix + verbatim tail`. all three fields or none
+  const sub = typeof subPrefix === 'string' && typeof subTailStart === 'number' && typeof subStart === 'number'
+    ? { subPrefix, subTailStart, subStart } : null;
+  // no guard installed, but the emitter still stripped `?.` at hop boundaries (`deoptPositions`)
+  // when collapsing a receiver chain, and/or substituted the chain prefix. compose needs those to
+  // rebuild the needle an outer left behind. emit a guardless hint (no rootRaw/guardRef checks
+  // downstream gate on `guardRef`, so this stays inert there)
+  // a bare-ident-rooted guard allocates NO ref, but its guard prefix still participates in
+  // the ownership migration (`guardOwn`) and its test can still host one (`guardSlot`) - a
+  // null hint here silently dropped the guard from the pass, leaving a nested dispatch's
+  // ternary inside an outer helper-GET ARGUMENT (`_flat(_ref = x == null ? void 0 : ...)`),
+  // which hands void 0 to a nullish-intolerant maybe-helper where native short-circuits
+  if (!guardRef) {
+    return deoptPositions?.length || sub || guardOwn || guardSlot !== undefined
+      ? { rootRaw: null, guardRef: null, deoptPositions, objectStart, absorbsRoot: false, guardSlot, guardOwn, ...sub } : null;
+  }
+  // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
+  // needle.startsWith checks. fail fast rather than silently produce a hint that
+  // misroutes downstream composition
+  if (!rootRaw) throw queueError('createRewriteHint: guardRef requires rootRaw');
+  return {
+    rootRaw, rootStart: typeof rootStart === 'number' ? rootStart : null,
+    guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot,
+    guardTailStart: guardTailStart ?? null, guardSlot, guardOwn, ...sub,
+  };
+}
+
+// deferred transform queue for usage-pure: collects text replacements during traversal,
+// composes nested transforms, applies after traversal
+export default class TransformQueue {
+  #code;
+  #ms;
+  // Set gives O(1) delete + insertion-order iteration (vs O(N) findIndex/splice on an array)
+  #transforms = new Set();
+  // sorted snapshot + prefix max maintained incrementally for O(log n) containsRange
+  #asiFusableStarts = null;
+  #sorted = [];
+  #prefixMaxEnd = [];
+  // guardedRoot -> entries. linear scan per query, M typically <= 2-3 in practice
+  #byGuardedRoot = new Map();
+  // per-root widest `.end` - fast-reject for `hasGuardFor` when `query.end > max`.
+  // not decremented on extract: an overstated cache falls through to the linear scan
+  // (still correct), understated would drop valid matches
+  #maxEndByGuardedRoot = new Map();
+  // `start|end` -> entries (equal-range dups share a key) for O(1) extractContent lookup
+  #byRange = new Map();
+  // pure point-inserts (zero-length, no composition). drained after overwrites in apply().
+  // entry shape: { pos, content }. preserves insertion order via Set
+  #inserts = new Set();
+  // per-container needle scanner for the nested-survival gate. the haystack must START at the
+  // container (a scan of the whole file aligns its greedy non-overlapping walk differently -
+  // `x.x` inside `x.x.x` counts once from 0 and not at all from 2), so one scanner per entry,
+  // rebuilt if the entry's logical end moves under it
+  #containerScanners = new WeakMap();
+
+  // resolves an identifier to the source name the injector minted it FOR (`_globalThis` ->
+  // `globalThis`), or null. left unset the renamed-slot recovery only accepts literal matches
+  #bindingHintOf = null;
+
+  useBindingHints(resolve) {
+    this.#bindingHintOf = resolve;
+  }
+
+  // the previous SURVIVING significant char before a statement head: the file's top-level
+  // statement rewriter knows which statements the usage sweep removed, so a `;`-terminated
+  // import that stood between an unterminated statement and a render is not read as the
+  // terminator it no longer is. null = read the source text as it stands
+  #prevSurvivingChar = null;
+
+  constructor(code, ms, asiFusableStarts = null, prevSurvivingChar = null) {
+    // `add`/`insert`/`addSplit` validate every argument at the gate so a slot mismatch is
+    // attributed to the caller; the constructor is the one entry that did not, and it is also
+    // the one whose third slot changed MEANING (a `fileId` string once lived here). an unchecked
+    // wrong-typed value stays inert until a replacement happens to lead with `(`, then surfaces
+    // as a `not a function` deep inside `#asiGuarded` at an unrelated later `add()`
+    if (asiFusableStarts !== null && typeof asiFusableStarts !== 'function') {
+      throw queueError(`asiFusableStarts must be a function or null (received ${ typeof asiFusableStarts })`, TypeError);
+    }
+    if (prevSurvivingChar !== null && typeof prevSurvivingChar !== 'function') {
+      throw queueError(`prevSurvivingChar must be a function or null (received ${ typeof prevSurvivingChar })`, TypeError);
+    }
+    this.#code = code;
+    this.#ms = ms;
+    this.#asiFusableStarts = asiFusableStarts;
+    this.#prevSurvivingChar = prevSurvivingChar;
+  }
+
+  // would text beginning `firstChar`, put at the statement head `start`, fuse LEFTWARD into the
+  // previous SURVIVING statement? the one ASI question of every statement-head channel that
+  // writes after the top-level sweep - the `(`-leading renders below and the destructure
+  // emitter's lifted statements - answered over the survivor map when the sweep left one
+  fusesLeftAtStatement(start, firstChar) {
+    if (!this.#prevSurvivingChar) return statementOverwriteFusesLeft(this.#code, start, firstChar);
+    const prev = this.#prevSurvivingChar(start);
+    return prev !== '' && injectionFusesLeft(firstChar, prev);
+  }
+
+  // ASI: a `(`-leading replacement at the head of an ExpressionStatement fuses with an
+  // unterminated previous statement and turns it into a CALL. every channel that can spell a
+  // parenthesized guard passes through here, so the `;` is owned once instead of per emitter.
+  // the offsets are asked for lazily - a file whose replacements never lead with `(` (the
+  // common case) never walks its AST for them
+  #asiStarts = null;
+  #asiGuarded(start, content) {
+    if (typeof content !== 'string' || content[0] !== '(' || !this.#asiFusableStarts) return content;
+    if (!this.fusesLeftAtStatement(start, '(')) return content;
+    // the slot has two typed surfaces and the constructor can only check the first: the callable
+    // is validated there, its RESULT only exists here. an offset Set is what the guard reads, and
+    // a wrong one surfaces as `.has is not a function` at whichever `(`-leading add happens to be
+    // first - arbitrarily far from the provider that returned it
+    if (this.#asiStarts === null) {
+      const starts = this.#asiFusableStarts();
+      if (!(starts instanceof Set)) {
+        throw queueError(`asiFusableStarts must return a Set of offsets (received ${ describeArgument(starts) })`, TypeError);
+      }
+      this.#asiStarts = starts;
+    }
+    return this.#asiStarts.has(start) ? `;${ content }` : content;
+  }
+
+  // a range whose two ends come from DIFFERENT nodes can straddle a wrapper: every span here is
+  // taken from a PEELED node, so an inner node's start sits PAST an opener whose closer lies inside
+  // the outer node's end (the wrapper has a node of its own, but nothing walks it by then).
+  // replacing that range drops the closer and strands the opener, and the module stops parsing.
+  // extend it left over the opener each borrowed closer was paired with - only a paren standing
+  // DIRECTLY before the range, and a GROUPING one at that, since anything else means the
+  // closer belongs to a construct this replacement was never meant to swallow. a balanced range
+  // borrows nothing and comes back untouched, so every well-formed caller is unaffected
+  #wrapperBalancedStart(start, end) {
+    // the adjacency test comes FIRST because it is the cheap one: it reads the whole-file region
+    // map every lexer-aware walk here shares, while the paren scan builds a fresh map over the
+    // range's own text. almost no range has a grouping paren before it, so this keeps the scan -
+    // and with it a quadratic pass over long ranges - off every range that cannot straddle one
+    let prev = prevSignificantPos(this.#code, start);
+    if (!this.#groupingParenAt(prev)) return start;
+    let at = start;
+    for (let borrowed = scanParens(this.#code.slice(at, end)).unmatched; borrowed > 0; borrowed -= 1) {
+      if (!this.#groupingParenAt(prev)) return start;
+      at = prev;
+      prev = prevSignificantPos(this.#code, at);
+    }
+    return at;
+  }
+
+  // a paren that FUSES with the token before it opens an argument list, not a grouping layer: its
+  // closer belongs to the call, and extending a range there would swap the callee away too
+  #groupingParenAt(pos) {
+    return this.#code[pos] === '(' && !canFuseWithOpenParen(this.#code, pos);
+  }
+
+  add(start, end, content, guardedRoot, rewriteHint, splitInfo = null) {
+    if (Number.isInteger(start) && Number.isInteger(end) && start < end
+      && start >= 0 && end <= this.#code.length) start = this.#wrapperBalancedStart(start, end);
+    content = this.#asiGuarded(start, content);
+    // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
+    // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
+    // (and any `start > end`) as a caller bug immediately rather than corrupting silently.
+    // out-of-bounds ranges are also caller bugs (offset arithmetic slipped past source bounds) -
+    // catching them here pinpoints the bad callsite; MagicString would throw a less specific error.
+    // non-integer offsets (NaN / undefined / string) silently pass the inequality checks because
+    // numeric coercion + NaN comparisons are always false - reject them upfront
+    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      throw queueError(`start/end must be integers (received ${ String(start) }, ${ String(end) })`, TypeError);
+    }
+    // split diagnostics so the caller sees which class of misuse fired:
+    //   start === end -> caller meant insert (use `insert(pos, content)`);
+    //   start > end   -> inverted range (caller's offset arithmetic is reversed)
+    if (start === end) {
+      throw queueError(`zero-length range [${ start },${ end }) - use insert() for insertions`, RangeError);
+    }
+    if (start > end) {
+      throw queueError(`inverted range [${ start },${ end }) - start must be < end`, RangeError);
+    }
+    if (start < 0 || end > this.#code.length) {
+      throw queueError(`range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`, RangeError);
+    }
+    // content must be a string: undefined/null/object would silently corrupt via
+    // MagicString.overwrite stringification. surface mismatch at caller, not mid-render
+    if (typeof content !== 'string') {
+      throw queueError(`content must be a string (received ${ typeof content })`, TypeError);
+    }
+    const entry = { start, end, content, guardedRoot, rewriteHint, splitInfo };
+    this.#transforms.add(entry);
+    pushMultimap(this.#byRange, rangeKey(start, end), entry);
+    if (guardedRoot) {
+      pushMultimap(this.#byGuardedRoot, guardedRoot, entry);
+      const prevMax = this.#maxEndByGuardedRoot.get(guardedRoot);
+      const logicalEnd = entryLogicalEnd(entry);
+      if (prevMax === undefined || logicalEnd > prevMax) this.#maxEndByGuardedRoot.set(guardedRoot, logicalEnd);
+    }
+    const pos = upperBound(this.#sorted, start);
+    this.#sorted.splice(pos, 0, entry);
+    updatePrefixMaxOnInsert(this.#sorted, this.#prefixMaxEnd, pos);
+    return entry;
+  }
+
+  // record a pure point-insert at `pos` (zero-length, no composition). use this for
+  // boundary-anchored emissions like `var _ref;` at block start, parameter-default
+  // backfill (`{ p } = {}` -> `{ p } = (...).p`), or catch-clause prelude. drained
+  // after overwrites in `apply()` via `ms.appendRight`. multiple inserts at the same
+  // pos preserve registration order. inserts MUST NOT land inside an overwrite range -
+  // MagicString anchors to chunk identity, so insert content would survive into the
+  // replaced output unpredictably (caller bug; not asserted here)
+  insert(pos, content) {
+    if (!Number.isInteger(pos)) {
+      throw queueError(`insert pos must be an integer (received ${ String(pos) })`, TypeError);
+    }
+    if (pos < 0 || pos > this.#code.length) {
+      throw queueError(`insert pos ${ pos } out of bounds (source length ${ this.#code.length })`, RangeError);
+    }
+    if (typeof content !== 'string') {
+      throw queueError(`insert content must be a string (received ${ typeof content })`, TypeError);
+    }
+    this.#inserts.add({ pos, content });
+  }
+
+  // emit a split instance-method rewrite as two adjacent transforms: prefix `[start, mid)`
+  // covers receiver column, suffix `[mid, end)` covers method-tail column. MagicString
+  // assigns distinct source positions to each chunk, fixing the "all output chars map to
+  // receiver's source col" sourcemap collapse. compose layer treats the pair as ONE logical
+  // inner via shared splitInfo metadata so outer transforms still substitute via single
+  // [start, end] needle (not two halves)
+  addSplit(start, mid, end, prefixContent, suffixContent, guardedRoot, rewriteHint) {
+    // validate the FULL range up front - before the first `add` - so a bad range fails atomically.
+    // integrality + in-bounds checks otherwise live inside `add`, which runs them per-call: an
+    // out-of-bounds or non-integer `end` would pass the prefix `add(start, mid)` and only throw in
+    // the suffix `add(mid, end)`, leaving an orphaned prefix entry that corrupts the next apply().
+    // integer check first so NaN / non-integer offsets surface a clear cause (a non-integer mid also
+    // slips the `start < mid < end` ordering check below via numeric coercion)
+    if (!Number.isInteger(start) || !Number.isInteger(mid) || !Number.isInteger(end)) {
+      throw queueError(`addSplit offsets must be integers (received [${ String(start) },${ String(mid) },${ String(end) }))`, TypeError);
+    }
+    // up-front invariant: zero-length halves throw with cryptic [X,X) error inside
+    // the second `add` call without indicating which side is bad. callers (polyfill-emitter
+    // split-eligible branch) already gate on this; diagnostic exists for future call sites
+    if (!(start < mid && mid < end)) {
+      throw queueError(`addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`, RangeError);
+    }
+    // bounds: start < mid < end already orders the offsets, so checking the outer pair covers both
+    // halves ([start, mid) and [mid, end) sit within [start, end))
+    if (start < 0 || end > this.#code.length) {
+      throw queueError(`addSplit range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`, RangeError);
+    }
+    // validate BOTH content args upfront - throwing inside the second `add` call after
+    // the first succeeded would leave an orphan prefix entry in the queue. typeof check
+    // mirrors `add`'s implicit string requirement (RawTransformContent template); also
+    // reject empty strings - a split represents one logical rewrite emitted as two halves,
+    // each must carry non-empty replacement text. empty halves indicate caller bug
+    // (would emit zero-length chunk at sourcemap-distinct position)
+    if (typeof prefixContent !== 'string' || typeof suffixContent !== 'string'
+        || prefixContent.length === 0 || suffixContent.length === 0) {
+      throw queueError('addSplit content args must be non-empty strings; '
+        + `received prefix=${ describeArgument(prefixContent) }, suffix=${ describeArgument(suffixContent) }`, TypeError);
+    }
+    const groupId = Symbol('split');
+    const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
+      { groupId, role: 'prefix', logicalEnd: end });
+    // suffix carries the same groupId + the prefix entry reference for compose-time
+    // logical-inner assembly. no guardedRoot/hint - composition queries land on prefix.
+    // WARNING: prefix.splitInfo.peer <-> suffix.splitInfo.peer form a cyclic reference -
+    // `JSON.stringify(entry)` on either side throws on the cycle. transforms are not
+    // serialized in the current pipeline (no JSON.stringify call sites against entries),
+    // so the cycle is benign here; if a future debug / snapshot pathway needs serialization
+    // it must walk via `groupId` lookup instead of dereferencing `.peer`
+    const suffixEntry = this.add(mid, end, suffixContent, null, null,
+      { groupId, role: 'suffix', logicalEnd: end, peer: prefixEntry });
+    prefixEntry.splitInfo.peer = suffixEntry;
+    return prefixEntry;
+  }
+
+  // strict containment only - equal range isn't "guarded" (both transforms must apply)
+  hasGuardFor(start, end, root) {
+    if (!root) return false;
+    const maxEnd = this.#maxEndByGuardedRoot.get(root);
+    if (maxEnd === undefined || maxEnd < end) return false;
+    // `#removeEntry` drops the maxEnd entry exactly when the root's bucket empties, so a
+    // surviving maxEnd implies a non-empty bucket
+    const list = this.#byGuardedRoot.get(root);
+    for (const t of list) {
+      const tEnd = entryLogicalEnd(t);
+      if (properlyContains(t.start, tEnd, start, end)) return true;
+    }
+    return false;
+  }
+
+  // guardRef of the outer that memoized `root` - lets nested polyfills reuse it.
+  // pick the OUTERMOST guarded transform (largest span) for stability: insertion order
+  // depends on visitor traversal which can drift between runs / parser variants. the
+  // outermost transform's guardRef is the one whose memoization should dominate. uses
+  // `entryLogicalSpan` so split-entry prefixes (physical end = mid, logicalEnd = end)
+  // contribute their FULL [start, logicalEnd) span - currently call sites pass `null`
+  // guardedRoot for split entries so this is latent, but the API allows split entries
+  // here and physical span would understate their reach
+  // is ANY guard-bearing transform queued over `root`? a bare-Identifier guard (`n == null ?
+  // void 0 : ...`) needs no memo, so it carries no guardRef - but a claim composing into its
+  // body must still emit PLAIN (a second guard would double-wrap the alternate)
+  hasOuterGuard(root) {
+    return !!root && !!this.#byGuardedRoot.get(root)?.length;
+  }
+
+  findOuterGuardRef(root) {
+    if (!root) return null;
+    const list = this.#byGuardedRoot.get(root);
+    if (!list) return null;
+    let best = null;
+    let bestSpan = -1;
+    for (const t of list) {
+      if (!t.rewriteHint?.guardRef) continue;
+      const span = entryLogicalSpan(t);
+      if (span > bestSpan) {
+        best = t;
+        bestSpan = span;
+      }
+    }
+    return best?.rewriteHint?.guardRef ?? null;
+  }
+
+  // O(log n) PROPER containment: some queued transform covers [start, end] with at least one
+  // boundary strictly outside, so a wider claim anchored at the SAME start counts and the exact
+  // range does not (that would be the transform itself - `hasRange` answers for it). the linear
+  // `#properContainerOf` decides the same predicate on its way to the NEAREST such container;
+  // measured across the fixture and differential corpora, the two never disagreed, so ownership
+  // asks this one and the walk stays for the callers that need the entry rather than the verdict
+  containsRange(start, end) {
+    return isStrictlyContained({ ranges: this.#sorted, start, end, prefixMaxEnd: this.#prefixMaxEnd });
+  }
+
+  // NEAREST queued transform PROPERLY containing [start, end]: inclusive boundaries, so a
+  // whole-span claim anchored at the SAME chain start still owns the nested range; only the
+  // exact-equal range is excluded (that is the transform itself). nearest = smallest logical
+  // span - compose folds a nested transform into its innermost container, so that is the
+  // content a nested needle must survive in. suffix split-halves defer to their prefix,
+  // which owns the pair's logical span
+  #properContainerOf(start, end) {
+    let best = null;
+    let bestSpan = Infinity;
+    for (const entry of this.#transforms) {
+      if (entry.splitInfo?.role === 'suffix') continue;
+      const entryEnd = entryLogicalEnd(entry);
+      if (properlyContains(entry.start, entryEnd, start, end) && entryEnd - entry.start < bestSpan) {
+        best = entry;
+        bestSpan = entryEnd - entry.start;
+      }
+    }
+    return best;
+  }
+
+  // the ONE way a channel takes a span OUTRIGHT: an entry already sitting at exactly this range
+  // owns it, and a second equal-range entry with different content aborts the merge and the build.
+  // check and add are the same call because they must see the SAME range - every site that spelled
+  // them apart probed the receiver span and then added the span the render actually grew to, and
+  // had to remember to re-probe by hand. false = somebody owns it, stand down
+  claim(start, end, content, guardedRoot, rewriteHint, splitInfo = null) {
+    // probe the range `add` will actually take, not the one the caller spelled
+    if (Number.isInteger(start) && Number.isInteger(end) && start < end
+      && start >= 0 && end <= this.#code.length) start = this.#wrapperBalancedStart(start, end);
+    if (this.hasRange(start, end)) return false;
+    this.add(start, end, content, guardedRoot, rewriteHint, splitInfo);
+    return true;
+  }
+
+  // the ownership verdict a channel about to queue a nested rewrite needs, as ONE question:
+  // somebody else owns this span AND their content does not carry its source text, so there is
+  // no slot for the rewrite to compose into and this channel must stand down. asked as two
+  // separate probes it read as two independent facts, and every call site had to remember that
+  // only their CONJUNCTION means "stand down" - the containment alone means the opposite
+  ownedWithoutSlot(start, end) {
+    return this.containsRange(start, end) && !this.containingContentIncludes(start, end);
+  }
+
+  // content-survival probe for a NESTED rewrite: compose can fold a nested transform into a
+  // containing one only when the containing content still carries the nested range's SOURCE
+  // text. true = the claiming transform re-emits the text verbatim (a raw receiver slice);
+  // false = a DROPPING consumer (e.g. a static dispatch discarding the chain) - nesting there
+  // has no needle left to compose into.
+  // the probe is POSITIONAL, exactly like the splice it predicts: compose locates a nested
+  // range by its ORDINAL among identical needles (how many of them precede it in the source),
+  // so the question is whether the container kept an occurrence at THAT ordinal - not merely
+  // whether some occurrence survived. an existence-only answer let look-alike twins each
+  // believe a slot was theirs: the second to ask died on the compose invariant, and asking in
+  // the reverse order silently spliced the WRONG twin into the surviving slot
+  // does `entry`'s emitted content still carry the source range [start, end) AT ITS OWN ORDINAL?
+  // the one positional answer every ownership question in this file asks - "is there an occurrence
+  // of MY needle at MY slot", never "does some occurrence survive". `content` overrides the entry's
+  // own text for callers holding a physical half rather than the composed pair
+  #contentCarriesRangeAtOrdinal(entry, start, end, content = entryLogicalContent(entry)) {
+    const needle = this.#code.slice(start, end);
+    if (!needle.length) return false;
+    // occurrences fully inside the container's PREFIX - the same count the prefix slice yields,
+    // read off one memoized scan of the container instead of re-slicing and re-scanning per call
+    const ordinal = this.#containerScanner(entry).countInRange(needle, 0, start - entry.start);
+    return collectOccurrencePositions(content, needle).length > ordinal;
+  }
+
+  containingContentIncludes(start, end) {
+    if (start >= end) return false;
+    const entry = this.#properContainerOf(start, end);
+    return !!entry && this.#contentCarriesRangeAtOrdinal(entry, start, end);
+  }
+
+  #containerScanner(entry) {
+    const end = entryLogicalEnd(entry);
+    let cached = this.#containerScanners.get(entry);
+    if (cached?.end !== end) {
+      cached = { end, scanner: createNeedleScanner(this.#code.slice(entry.start, end)) };
+      this.#containerScanners.set(entry, cached);
+    }
+    return cached.scanner;
+  }
+
+  // an entry already queued at EXACTLY [start, end): a later whole-span claimant (the proxy
+  // hop-root collapse) must yield - the earlier owner's content composes this span itself,
+  // and a second equal-range entry with different content crashes the equal-range merge
+  // the range asked about is LOGICAL, like every other membership predicate here: a split pair
+  // is indexed under its two physical halves and never under `start|end`, so a physical lookup
+  // reported the very range the pair owns as FREE and the late claimant never stood down
+  hasRange(start, end) {
+    if (this.#byRange.get(rangeKey(start, end))?.length) return true;
+    for (const entry of this.#transforms) {
+      if (entry.splitInfo?.role === 'prefix' && entry.start === start && entryLogicalEnd(entry) === end) return true;
+    }
+    return false;
+  }
+
+  // true when any already-queued transform sits fully within [start, end]. used before
+  // appending a raw source tail to a synthetic body, so a nested transform inside that tail
+  // is not duplicated (the tail would carry both the raw text and the composed rewrite)
+  // the MIRROR of `ownedWithoutSlot`, asked by the channel about to claim an OUTER span: does the
+  // queue already hold a rewrite inside it that this content would orphan? an inner entry survives
+  // only inside a range the render re-emits VERBATIM - anywhere else it has no needle to compose
+  // into, which `apply` reports as a build error rather than dropping it silently. zero-length
+  // inserts are not the question (they relocate through `drainInsertsInRange`), and an entry at
+  // exactly this range is `hasRange`'s
+  orphansTransformWithin(start, end, keptRanges = null) {
+    for (const entry of this.#transforms) {
+      const eStart = entryLogicalStart(entry);
+      const eEnd = entryLogicalEnd(entry);
+      if (eEnd === eStart || eStart < start || eEnd > end || (eStart === start && eEnd === end)) continue;
+      if ((keptRanges ?? []).every(range => eStart < range.start || eEnd > range.end)) return true;
+    }
+    return false;
+  }
+
+  hasTransformWithin(start, end) {
+    for (const entry of this.#transforms) {
+      if (entryLogicalWithin(entry, start, end)) return true;
+    }
+    return false;
+  }
+
+  // guard splices deferred to apply(): the owning entry's content still goes through
+  // inner-needle composition, and an eager in-place insert would shift the positions its
+  // substitution hint describes - the anchor is relocated in the FINAL composed chunk
+  #pendingGuardPrefixes = [];
+
+  #pendingRootRewrites = [];
+
+  // guard-ownership pass: a guard emitted over span S belongs to the OUTERMOST optional-chain
+  // consumer containing S. every renderer that emits a guarded expression marks its entry
+  // (`guardOwn.prefixEnd` - where the guard prefix ends in its content); every renderer whose
+  // test can host a hoisted guard publishes a slot (`guardSlot` anchor). the pass walks owners
+  // innermost-first and migrates each contained guard into the nearest enclosing slot:
+  //   - claim spanning the slot owner's WHOLE memoized root: the guarded content replaces the
+  //     root expression in the memo slot (paren-balance from the anchor) and the entry leaves
+  //     the queue - needle composition against the substituted root text has no reliable slot
+  //   - otherwise: the guard prefix splices into the slot, the entry keeps its plain body
+  // both splices resolve on apply() against the FINAL composed chunk (anchors are allocator-
+  // unique ref names); transitive nesting works because a parent's own guardOwn migrates on
+  // its own iteration and its slot anchor survives composition into the grandparent's chunk
+  #resolveGuardOwnership() {
+    const owners = [...this.#transforms].filter(e => e.rewriteHint?.guardOwn);
+    owners.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b));
+    for (const entry of owners) {
+      const own = entry.rewriteHint?.guardOwn;
+      if (!own) continue;
+      const entryEnd = entryLogicalEnd(entry);
+      // candidate slots, innermost-first. slot APPLICABILITY depends on the slot's shape:
+      //   - an instance-guard slot (has `rootRaw`) memoizes its root BARE, so a guarded inner
+      //     composing into the memo value is already the canonical nested-guard emission - it
+      //     accepts ONLY the whole-root claim replacement (needle composition against the
+      //     substituted root text has no reliable slot there)
+      //   - a combined-chain slot wraps its receiver in a helper-GET inside the test - a
+      //     guarded inner there would hand the helper `void 0` on the short-circuit path, so
+      //     the guard prefix migrates above the helper
+      const slots = [];
+      for (const cand of this.#transforms) {
+        if (cand.rewriteHint?.guardSlot === undefined) continue;
+        const candEnd = entryLogicalEnd(cand);
+        if (!properlyContains(cand.start, candEnd, entry.start, entryEnd)) continue;
+        // the slot hosts guards of its RECEIVER region only: a guarded dispatch inside the
+        // slot owner's ARGUMENTS (a callback body, an outer-call argument) must keep its
+        // guard local - hoisting it into the test would evaluate the argument's receiver
+        // outside its callback and short-circuit the whole chain on an unrelated nullish
+        const { receiverStart, receiverEnd } = cand.rewriteHint;
+        if (receiverStart !== undefined && receiverEnd !== undefined
+          && !(entry.start >= receiverStart && entryEnd <= receiverEnd)) continue;
+        slots.push(cand);
+      }
+      slots.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b));
+      for (const slot of slots) {
+        const slotHint = slot.rewriteHint;
+        const anchor = slotHint.guardSlot;
+        // whole-span claim replacement fires ONLY when needle composition cannot: the slot's
+        // content holds a SUBSTITUTED root / receiver text (an inner rescue rewrote the proxy
+        // globals), so the raw-slice needle has no slot. a verbatim span composes normally -
+        // the inner guarded content lands in the bare memo value, the nested-guard canon
+        // deliberately an EXISTENCE test, not the positional one compose asks: this producer decides
+        // whether needle composition is possible AT ALL, and compose may still land the needle a slot
+        // lower through its ordinal recovery. asking positionally here was measured - it fires the
+        // whole-span replacement for a shape that composes, and the queued rewrite finds no anchor
+        const rootMatch = slotHint.objectStart === entry.start && typeof slotHint.rootRaw === 'string'
+          && entry.start + slotHint.rootRaw.length === entryEnd
+          && !slot.content.includes(slotHint.rootRaw);
+        const recvRaw = slotHint.recvAnchor !== undefined && slotHint.receiverStart === entry.start
+          && slotHint.receiverEnd === entryEnd ? this.#code.slice(entry.start, entryEnd) : null;
+        const recvMatch = recvRaw !== null && !slot.content.includes(recvRaw);
+        if (rootMatch || recvMatch) {
+          this.#pendingRootRewrites.push({ anchor: recvMatch ? slotHint.recvAnchor : anchor, text: entry.content });
+          this.#removeEntry(entry);
+        } else if (typeof slotHint.rootRaw === 'string') {
+          continue;
+        } else {
+          // the owner's inners compose into it FIRST, then the prefix is cut: an inner claim
+          // under the owner's test (the root's own polyfill) has its needle in that test, and a
+          // prefix cut before the composition would carry the raw needle away into the slot,
+          // leaving the inner nothing to land in
+          const prefixEnd = this.#composeOwnerInPlace(entry, own.prefixEnd);
+          this.#pendingGuardPrefixes.push({ anchor, prefix: entry.content.slice(0, prefixEnd) });
+          entry.content = entry.content.slice(prefixEnd);
+          entry.rewriteHint = { ...entry.rewriteHint, guardOwn: undefined };
+        }
+        slot.rewriteHint = { ...slotHint, guardSlot: undefined };
+        break;
+      }
+    }
+  }
+
+  // compose every queued entry inside a guard owner's range into the owner's content, drain them,
+  // and return where the owner's guard prefix now ends. the prefix ends at the owner's own
+  // `? void 0 : ` - the first one at paren depth 0 (a nested guard's sits inside the memo's
+  // group) - and the composition moves it by whatever the inners' renders changed in the test.
+  // a split owner, an owner with no inners, or a prefix the marker cannot be read back from
+  // (nothing the emitters print today) leaves the content and the offset as they are
+  #composeOwnerInPlace(entry, prefixEnd) {
+    const GUARD_ALTERNATE = '? void 0 : ';
+    if (entry.splitInfo || !entry.content.slice(0, prefixEnd).endsWith(GUARD_ALTERNATE)) return prefixEnd;
+    const entryEnd = entryLogicalEnd(entry);
+    const inners = [...this.#transforms].filter(e => e !== entry && entryLogicalWithin(e, entry.start, entryEnd));
+    if (!inners.length) return prefixEnd;
+    const { composedContent } = this.#composeEntries([entry, ...inners]);
+    const content = composedContent.get(entry);
+    if (typeof content !== 'string') return prefixEnd;
+    const regions = literalRegionsOf(content);
+    let depth = 0;
+    let marker = -1;
+    for (let i = 0; i < content.length && marker === -1;) {
+      const region = findRegionContaining(regions, i);
+      if (region) {
+        i = region.end;
+        continue;
+      }
+      const ch = content[i];
+      if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+      else if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
+      else if (depth === 0 && content.startsWith(GUARD_ALTERNATE, i)) marker = i + GUARD_ALTERNATE.length;
+      i += 1;
+    }
+    if (marker === -1) return prefixEnd;
+    entry.content = content;
+    for (const inner of inners) this.#dropEntryAndPeer(inner);
+    return marker;
+  }
+
+  // splice every pending hoisted guard prefix / root-slot rewrite whose anchor lands in
+  // this final content; called on each outgoing overwrite chunk - the anchor's ref name is
+  // allocator-unique, so at most one chunk matches each pending entry. to a FIXPOINT: an owner
+  // that was itself a slot (an inner guard already migrated into its memo, so its content
+  // carries that guard's anchor) may be claimed whole into an outer slot - its content then
+  // reaches the chunk only as a root-slot rewrite's text, and the inner guard's anchor with it.
+  // one pass in a fixed order stranded that inner guard: its anchor was not in the chunk yet
+  // when the prefixes were placed, and the rewrite that brought it in came after
+  #injectPendingGuardPrefixes(content) {
+    for (let placed = true; placed;) {
+      placed = false;
+      for (let i = 0; i < this.#pendingRootRewrites.length; i++) {
+        const { anchor, text } = this.#pendingRootRewrites[i];
+        // the slot's value ends at the `)` closing the group its anchor sits in - one shared
+        // lexer-aware walk with the memo-value rewrite above, so a paren inside a string or a
+        // comment stays text in both. these anchors carry their own `(` (`(_ref = `)
+        const range = memoValueRange(content, anchor);
+        if (!range) continue;
+        content = content.slice(0, range.start) + text + content.slice(range.end);
+        this.#pendingRootRewrites.splice(i--, 1);
+        placed = true;
+      }
+      for (let i = 0; i < this.#pendingGuardPrefixes.length; i++) {
+        const { anchor, prefix } = this.#pendingGuardPrefixes[i];
+        const idx = content.indexOf(anchor);
+        if (idx === -1) continue;
+        content = content.slice(0, idx + anchor.length) + prefix + content.slice(idx + anchor.length);
+        this.#pendingGuardPrefixes.splice(i--, 1);
+        placed = true;
+      }
+    }
+    return content;
+  }
+
+  // extract the LOGICAL transform covering [start, end] and return its full content, dropping
+  // every physical piece. O(log n) via indexed lookup + sorted binary search.
+  // a split pair is keyed in #byRange by its PHYSICAL halves (start|mid, mid|end), never its
+  // logical start|end - so a #byRange hit on a split half means the caller passed a half-range,
+  // which has no logical owner: the half-content alone is meaningless and emitting it would
+  // desync the still-queued peer. accept ONLY a non-split whole-range entry from the bucket;
+  // otherwise fall through to logical assembly (which returns the assembled pair for the logical
+  // range, or null for a half-range so the caller bakes the raw slice instead)
+  extractContent(start, end) {
+    const rList = this.#byRange.get(rangeKey(start, end));
+    const whole = rList?.find(entry => !entry.splitInfo);
+    if (whole) {
+      this.#dropEntryAndPeer(whole);
+      return whole.content;
+    }
+    // no whole-range entry: assemble the split pair whose two physical halves logically span
+    // [start, end] (extracting either half alone would orphan the peer), and drop both
+    const prefix = this.#splitPrefixByLogicalRange(start, end);
+    if (!prefix) return null;
+    const content = entryLogicalContent(prefix);
+    this.#dropEntryAndPeer(prefix);
+    return content;
+  }
+
+  // the split prefix half starting at `start` whose two physical halves logically span [start, end],
+  // or null. split halves live in `#sorted` by physical start; the prefix carries `splitInfo.logicalEnd`
+  #splitPrefixByLogicalRange(start, end) {
+    const sorted = this.#sorted;
+    for (let i = lowerBound(sorted, start); i < sorted.length && sorted[i].start === start; i++) {
+      const e = sorted[i];
+      if (e.splitInfo?.role === 'prefix' && e.splitInfo.logicalEnd === end) return e;
+    }
+    return null;
+  }
+
+  // remove an entry and, when it is one half of a split pair, its peer - extracting either half
+  // alone would leave the other an orphan covering only part of the logical range
+  #dropEntryAndPeer(entry) {
+    this.#removeEntry(entry);
+    if (entry.splitInfo?.peer) this.#removeEntry(entry.splitInfo.peer);
+  }
+
+  // drain every point-insert whose pos falls within [start, end] and return them as
+  // zero-length splices ({ start: pos, end: pos, content }). the destructure flatten calls
+  // this when it relocates an SE-prefix whose inner inserts (catch-clause prelude emitted
+  // during a sibling visit, etc.) were queued at their original positions: left in the queue
+  // they'd land inside the flatten's own overwrite range and trip the insert-inside-overwrite
+  // invariant (MagicString can't fold an appendRight into an overwritten chunk). overwrites
+  // inside the range still compose normally; only inserts need relocating. the caller bakes
+  // the returned splices into the lifted text via its own spliceInRange
+  drainInsertsInRange(start, end) {
+    const splices = [];
+    for (const ins of this.#inserts) {
+      if (ins.pos >= start && ins.pos <= end) {
+        splices.push({ start: ins.pos, end: ins.pos, content: ins.content });
+        this.#inserts.delete(ins);
+      }
+    }
+    return splices;
+  }
+
+  // compose every overwrite/split entry fully contained in [start, end] using the SAME nesting +
+  // equal-range-dup folding apply() performs, then return the OUTERMOST composed transforms as
+  // non-overlapping splices ({ start, end, content }) and drain ALL consumed entries. counterpart
+  // to `drainInsertsInRange` for the case where an outer rewrite replaces [start, end] with text
+  // NOT derived from the original source (e.g. a catch param overwritten to bare `_ref`): inner
+  // polyfill transforms can't compose via `#substituteInners` (their needle is absent from the
+  // replacement) and would orphan, so the caller bakes the returned splices into the relocated
+  // text via its own `spliceInRange`. composing FIRST is essential: a flat drain of nested entries
+  // (e.g. `[9].flat().at(0)` - inner `.flat` inside outer `.at`) would have spliceInRange overlay
+  // the inner over its enclosing outer and corrupt output; folding inners into their outer here
+  // yields disjoint outermost splices spliceInRange can apply safely
+  composeAndDrainRange(start, end) {
+    const inRange = [];
+    for (const entry of this.#transforms) {
+      if (entryLogicalWithin(entry, start, end)) inRange.push(entry);
+    }
+    if (!inRange.length) return [];
+    // run the SAME sort+partial-overlap guard apply() does (otherwise reached only via
+    // #materializeOverwrites). this drain path bakes the returned splices into relocated text via the
+    // caller's spliceInRange, which - unlike compose - cannot detect a partial overlap and would
+    // silently corrupt the output (and the entries are drained, so the final apply() never sees
+    // them). the sort is for the guard; #composeEntries re-sorts inRange by logical span below
+    this.#sortAndAssertNoPartialOverlap(inRange);
+    const { composed, composedContent } = this.#composeEntries(inRange);
+    // no `emitSegments`: this drain path bakes splices into a relocated STRING (`spliceInRange`), which has
+    // no per-character sourcemap for split halves to refine - segments would be computed then discarded
+    const splices = this.#outermostComposed(composed, composedContent);
+    // peer-aware drain: logical-within membership already admits split halves only in pairs,
+    // and #dropEntryAndPeer is idempotent on an already-removed entry, so dropping via the peer
+    // path leaves no orphaned half even if a future caller hands an unpaired half
+    for (const entry of inRange) this.#dropEntryAndPeer(entry);
+    return splices;
+  }
+
+  #removeEntry(entry) {
+    this.#transforms.delete(entry);
+    const rKey = rangeKey(entry.start, entry.end);
+    const rList = this.#byRange.get(rKey);
+    if (rList) {
+      const idx = rList.indexOf(entry);
+      if (idx !== -1) rList.splice(idx, 1);
+      if (!rList.length) this.#byRange.delete(rKey);
+    }
+    if (entry.guardedRoot) {
+      removeFrom(this.#byGuardedRoot, entry.guardedRoot, entry);
+      // drop the maxEnd cache entry when the guarded root is fully drained - otherwise
+      // `hasGuardFor` keeps consulting a stale upper bound and falls through to linear scan
+      if (!this.#byGuardedRoot.has(entry.guardedRoot)) this.#maxEndByGuardedRoot.delete(entry.guardedRoot);
+    }
+    const sorted = this.#sorted;
+    // binary search by start, then walk the equal-start run for entry identity
+    let si = lowerBound(sorted, entry.start);
+    while (si < sorted.length && sorted[si].start === entry.start && sorted[si] !== entry) si++;
+    if (si < sorted.length && sorted[si] === entry) {
+      sorted.splice(si, 1);
+      updatePrefixMaxOnRemove({ sorted, prefixMaxEnd: this.#prefixMaxEnd, si, removedEnd: entryLogicalEnd(entry) });
+    }
+  }
+
+  // compose nested transforms and apply to magic-string. inserts MUST drain AFTER overwrites:
+  // `appendRight(pos)` cached against a chunk that a later `overwrite(pos, end, ...)` replaces
+  // is silently dropped (MagicString folds the insert into the overwritten chunk's pre-edit
+  // intro, which `overwrite` discards). running inserts last means each `appendRight(pos)`
+  // lands on the post-overwrite chunk's intro - preserved regardless of `pos`/overwrite
+  // collision. reproducer: minified `function f(){arr.at?.(0).map(x=>x)}` - the polyfill
+  // overwrites at the byte right after `{` AND scope-tracker inserts `var _ref, _ref2, _ref3;`
+  // at that same byte; without inserts-last the var decl is lost, yielding ReferenceError in strict mode
+  apply(refCanon = null) {
+    // defensive invariant: inserts MUST NOT land strictly inside any overwrite range -
+    // MagicString anchors `appendRight` to chunk identity; an insert pos that falls inside
+    // a chunk later replaced by `overwrite` is folded into the discarded pre-edit intro
+    // and silently lost (caller bug; manifests as missing-output without a thrown error).
+    // assert at the gate so the source of the bug is the insert call, not a vague absent-
+    // var-decl symptom downstream. `pos === start` and `pos === end` are legitimate boundary
+    // anchors (insert immediately before/after an overwrite chunk) - only strictly-inside is
+    // the violation
+    if (this.#inserts.size && this.#transforms.size) this.#assertNoInsertInsideOverwrite();
+    this.#resolveGuardOwnership();
+    // materialize the final composed splices BEFORE any magic-string write so the ref-canon
+    // hook can rewrite replacement contents in place: sourcemaps treat replacement text as
+    // opaque, so a rename inside it never moves original positions. splice order preserves
+    // the previous direct-write order exactly (fast path right-to-left, composed outermost)
+    const splices = this.#materializeOverwrites();
+    if (refCanon && (splices.length || this.#inserts.size)) refCanon(splices, [...this.#inserts]);
+    for (const s of splices) this.#ms.overwrite(s.start, s.end, s.content);
+    for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
+    // a hoisted guard prefix / root-slot rewrite that found no anchor would silently drop
+    // the root null-check or the claim itself - fail loudly instead (the claim was already
+    // emitted PLAIN or suppressed on the slot's promise)
+    if (this.#pendingGuardPrefixes.length || this.#pendingRootRewrites.length) {
+      // the unplaced anchors ARE the diagnostic: each names the ref the owning slot promised to
+      // publish, so an absent one points straight at the renderer that dropped or renamed it.
+      // a bare count says only that something was lost
+      const stranded = [
+        ...this.#pendingGuardPrefixes.map(({ anchor, prefix }) => `guard-prefix anchor=${ JSON.stringify(anchor) } text=${ describeText(prefix) }`),
+        ...this.#pendingRootRewrites.map(({ anchor, text }) => `root-rewrite anchor=${ JSON.stringify(anchor) } text=${ describeText(text) }`),
+      ];
+      throw queueError(`${ stranded.length } hoisted guard rewrite(s) found no anchor in the final content: `
+        + `${ stranded.join('; ') }. this is a composition bug - please report with a reproducer.`);
+    }
+  }
+
+  // binary-searching for just the largest-start range with start <= pos misses ENCLOSING
+  // ranges with smaller starts (outer [0,10) containing inner [5,7) - search for pos=8
+  // returns [5,7) and passes). reuse the already-maintained `#sorted` + `#prefixMaxEnd`
+  // (incrementally updated by add/remove) instead of re-sorting per apply. `entryLogicalEnd`
+  // is the correct upper bound: split prefix physically ends at mid but its logicalEnd
+  // covers the full [start, end] that apply() composes/overwrites as a single chunk
+  // the overwrite entry strictly enclosing `pos` (start < pos < logicalEnd), or null. binary
+  // search by start + the prefix-max gate short-circuits the common no-overlap case before the
+  // linear back-scan. shared by the insert-inside-overwrite invariant and the scoped-var
+  // compose gate
+  #enclosingOverwrite(pos) {
+    const sorted = this.#sorted;
+    const prefMax = this.#prefixMaxEnd;
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (sorted[mid].start <= pos) lo = mid + 1; else hi = mid;
+    }
+    if (lo === 0 || prefMax[lo - 1] <= pos) return null;
+    for (let i = lo - 1; i >= 0; i--) {
+      if (pos > sorted[i].start && pos < entryLogicalEnd(sorted[i])) return sorted[i];
+    }
+    return null;
+  }
+
+  // splice `text` into the OWNER's content at the slot a source range occupies there. the owner's
+  // content is its RENDER, which may already carry substitutions the source does not (a guard test
+  // with its chain root resolved), so re-emitting that range from source instead would put the raw
+  // spelling back and drop them. the slot is positional - the occurrence at this range's own ordinal
+  // - with the renamed-slot walk as the fallback for a render that rewrote the identifiers in it.
+  // `offset` is measured from the range start and must sit before any identifier, which is what the
+  // one caller (a scoped `var` after a block's `{`) supplies. false when no owner carries the range,
+  // and the caller re-emits from source
+  // the NEAREST owner only. walking outward to an enclosing entry was tried and reverted by
+  // measurement: it let the insert land in a copy that still-queued transforms search by raw source
+  // needle, and an insert cutting one of those needles aborts the build on real input (two scoped
+  // `var`s in nested bodies did exactly that to the call between them). deferring the splice past
+  // composition was tried too - the slot is then gone and the DECLARATION is dropped, which emits
+  // an undeclared `_refN`. both were worse than the caller's own fallback, which re-emits the block
+  insertIntoOwnerContent({ start, end, offset, text }) {
+    const entry = this.#properContainerOf(start, end);
+    const at = this.#ownerSlotFor(entry, start, end);
+    if (at === undefined) return false;
+    entry.content = entry.content.slice(0, at + offset) + text + entry.content.slice(at + offset);
+    return true;
+  }
+
+  // where [start, end) sits inside `entry`'s emitted content: the raw source occurrence at this
+  // range's own ordinal, or a renamed twin of it. a third address - the ordinal of the range's
+  // opening structural token, for a render that rewrote it end to end - was implemented and REMOVED
+  // by measurement: with the owner search narrowed to the nearest container it never fired on either
+  // corpus, and dead machinery on this path is what the cycle keeps paying for
+  #ownerSlotFor(entry, start, end) {
+    if (!entry || entry.splitInfo) return undefined;
+    const needle = this.#code.slice(start, end);
+    if (!needle.length) return undefined;
+    const content = entryLogicalContent(entry);
+    const ordinal = this.#containerScanner(entry).countInRange(needle, 0, start - entry.start);
+    return collectOccurrencePositions(content, needle)[ordinal]
+      ?? findRenamedSlot(content, needle, this.#bindingHintOf)?.start;
+  }
+
+  // true when a point-insert at `pos` would land strictly inside an overwrite (the condition
+  // apply() rejects). scope-tracker consults this to re-emit a scoped `var` as a composing
+  // body-overwrite instead of a doomed raw insert
+  insertLandsInsideOverwrite(pos) {
+    return this.#enclosingOverwrite(pos) !== null;
+  }
+
+  #assertNoInsertInsideOverwrite() {
+    for (const { pos, content } of this.#inserts) {
+      const entry = this.#enclosingOverwrite(pos);
+      if (entry) {
+        // both texts, not just the offsets: the insert's own content is what identifies the
+        // channel that queued it, and the overwrite's content the one that swallowed the anchor
+        throw queueError(`insert at ${ pos } lands inside overwrite [${ entryLogicalStart(entry) },${ entryLogicalEnd(entry) })`
+          + `. insert=${ describeText(content) } overwrite=${ describeText(entryLogicalContent(entry)) }`, RangeError);
+      }
+    }
+  }
+
+  #materializeOverwrites() {
+    if (!this.#transforms.size) return [];
+    // single snapshot, sorted asc by start (+ overlap-checked); fast path reverses in place, slow
+    // path re-sorts in place. `#hasNesting` guarantees distinct starts on the fast-path branch so
+    // `reverse()` produces a safe right-to-left application order without losing tie-break information
+    const transforms = [...this.#transforms];
+    this.#sortAndAssertNoPartialOverlap(transforms);
+    const splices = [];
+
+    // fast path: no nesting - apply right-to-left
+    if (!this.#hasNesting(transforms)) {
+      transforms.reverse();
+      for (const t of transforms) splices.push({ start: t.start, end: t.end, content: this.#injectPendingGuardPrefixes(t.content) });
+      return splices;
+    }
+
+    this.#materializeComposed(transforms, splices);
+    return splices;
+  }
+
+  // slow path: compose nested transforms then apply outermost-first.
+  // innermost first: smaller LOGICAL ranges before larger, right-to-left for same-level.
+  // split prefix's physical end = mid (small) but it logically owns full [start, logicalEnd]
+  // - sort by logical span so split's outer-iteration runs AFTER inners contained in its
+  // logical range, matching the wrap order non-split entries naturally produce
+  #materializeComposed(transforms, splices) {
+    const { composed, composedContent } = this.#composeEntries(transforms);
+    // phase 2: overwrite outermost transforms only (split prefix owns its full logical range;
+    // its suffix peer was excluded from `composed` via the role==='suffix' skip in phase 1)
+    for (const splice of this.#outermostComposed(composed, composedContent, true)) {
+      const { start, end, content, segments } = splice;
+      if (segments) {
+        // each segment is a source-adjacent run, so every split's suffix maps to its own columns (the
+        // `?.call` to the `.at?.(` site, not the receiver) - the nested generalization of addSplit's
+        // fast-path two-overwrite, also restoring folded inner splits in double-nested optional chains
+        for (const seg of segments) {
+          splices.push({ start: seg.srcStart, end: seg.srcEnd, content: this.#injectPendingGuardPrefixes(seg.content) });
+        }
+      } else {
+        splices.push({ start, end, content: this.#injectPendingGuardPrefixes(content) });
+      }
+    }
+  }
+
+  // phase 1 of composition: fold each transform's inners + equal-range dups into its content.
+  // returns the OUTER transforms (dups that ceded their merge to a sibling are dropped) plus a
+  // transform -> composed-content map. shared by `#materializeComposed` (splices outermost onto the
+  // magic-string) and `composeAndDrainRange` (returns outermost as splices for relocated text).
+  // sorts ascending by LOGICAL span so inners compose before the outer that contains them.
+  // note on double-guard: if an outer's content ALREADY holds a formatted guard from a prior
+  // compose pass, a second fold could re-detect the inner needle - bounded by `rewriteHint` shape
+  // (guardRef-bearing hints rebuild the guard-prefixed needle rather than the bare root)
+  #composeEntries(transforms) {
+    // at an EQUAL logical range the NON-split sibling composes first - it is the wrapper around the
+    // split, and the split's two halves stay assembled-but-uncomposed until their own turn. the
+    // order was previously whatever the channels queued in (18 such ties on the fixture corpus
+    // alone), and the reverse order was measured: it moves 15 fixtures and 3 queue invariants
+    transforms.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b) || b.start - a.start
+      || (a.splitInfo ? 1 : 0) - (b.splitInfo ? 1 : 0));
+    const byStart = this.#sorted;
+    const composedContent = new Map(); // transform -> composed content string
+    const composed = [];
+    for (const t of transforms) {
+      // suffix-half of a split pair: composed via prefix (`composedContent` will hold the
+      // logical inner against the prefix entry). skip outer-iteration here since suffix's
+      // [mid, end) range never independently nests other transforms (it's source bytes
+      // owned by prefix's logical [start, end])
+      if (t.splitInfo?.role === 'suffix') continue;
+      const result = this.#composeOne(t, byStart, composedContent);
+      if (result === null) continue;  // dup already merged by sibling
+      composedContent.set(t, result);
+      composed.push(t);
+    }
+    return { composed, composedContent };
+  }
+
+  // phase 2 of composition: from the `composed` set keep only the OUTERMOST transforms (drop any
+  // whose logical range is swallowed by an earlier-starting wider sibling) as ordered, disjoint
+  // { start, end, content } splices. shared by `#materializeComposed` (splices each onto the
+  // magic-string) and `composeAndDrainRange` (bakes them into relocated text). a split prefix
+  // overwrites its FULL logical range; its suffix peer was already excluded in phase 1.
+  // `emitSegments` is set only by the overwrite path - the relocated-string path has no per-character map
+  #outermostComposed(composed, composedContent, emitSegments = false) {
+    // tiebreak by LOGICAL end - the swallow check below compares logical spans, and a split
+    // prefix's physical end understates its range: sorting it after a same-start non-split
+    // sibling would emit BOTH splices (overlapping) instead of swallowing the narrower one
+    composed.sort((a, b) => a.start - b.start || entryLogicalEnd(b) - entryLogicalEnd(a));
+    const splices = [];
+    let maxEnd = -1;
+    for (const t of composed) {
+      const tEnd = entryLogicalEnd(t);
+      if (tEnd > maxEnd) {
+        const content = entryLogicalContent(t, composedContent);
+        const splice = { start: t.start, end: tEnd, content };
+        // per-half sourcemap precision: EVERY split whose logical range sits within [t.start, tEnd) -
+        // the outermost split AND any folded inner ones (double-nested optional chains) - has a verbatim
+        // suffix that must map to its OWN `[mid, end)` source range, not the receiver's. `#splitSegments`
+        // locates each suffix in the composed string and partitions it into source-adjacent segments so
+        // `#materializeComposed` splices each half against its real columns (like addSplit's fast path).
+        // null on any unmet assumption -> the single overwrite (correct output, coarse map). skipped on the
+        // relocated-string path, which bakes the splice whole and has no per-character map to refine
+        if (emitSegments) {
+          const segments = this.#splitSegments(t, tEnd, content);
+          if (segments) splice.segments = segments;
+        }
+        splices.push(splice);
+        maxEnd = tEnd;
+      }
+    }
+    return splices;
+  }
+
+  // partition a composed split string into source-adjacent `{ srcStart, srcEnd, content }` segments so
+  // each split's suffix maps to its OWN `[mid, end)` columns instead of the receiver's. collects every
+  // split (the outermost `t` plus any folded inner ones) whose logical range sits within `[t.start, tEnd)`
+  // and locates each suffix by its raw `peer.content` via `indexOf` - NOT guaranteed unique (a
+  // bare-receiver suffix like `.call(arr)` carries no per-split memo `_ref`); a first-match
+  // mis-location is caught by the monotonicity gate (source mid / content offset must advance) or
+  // the final reconstruct check, both -> null -> coarse overwrite.
+  // a suffix is verbatim only when its `[mid, end)` source carries no transforms; a suffix
+  // whose ARG got composed (an optional call on a polyfilled argument) no longer matches its raw content,
+  // so `indexOf` misses and the whole partition returns null - the caller falls back to one overwrite
+  // (correct output, coarse map for that rarer transformed-suffix shape). same null on overlap or segments
+  // that do not reconstruct the content. when all suffixes are verbatim they sort by source mid into
+  // adjacent prefix/suffix runs that tile the composed string exactly
+  #splitSegments(t, tEnd, content) {
+    const suffixes = [];
+    for (const e of this.#sorted) {
+      if (e.splitInfo?.role !== 'prefix' || e.start < t.start || entryLogicalEnd(e) > tEnd) continue;
+      suffixes.push({ srcMid: e.end, srcEnd: entryLogicalEnd(e), text: e.splitInfo.peer.content });
+    }
+    if (!suffixes.length) return null;
+    suffixes.sort((a, b) => a.srcMid - b.srcMid);
+    const segments = [];
+    let srcCur = t.start;
+    let contentCur = 0;
+    for (const s of suffixes) {
+      // located FROM the walk's own cursor, not from the start of the content: the suffixes are
+      // already ordered by their source mid, and each one's text sits past its predecessor's. a
+      // first-match search answered about an earlier slot instead, and the monotonicity gate below
+      // then rejected a partition that was only mis-located - a coarse map for a shape that maps
+      const pos = content.indexOf(s.text, contentCur);
+      if (pos === -1) return null;
+      const contentStart = pos;
+      const contentEnd = pos + s.text.length;
+      if (s.srcMid < srcCur || contentStart < contentCur) return null;
+      if (s.srcMid > srcCur) segments.push({ srcStart: srcCur, srcEnd: s.srcMid, content: content.slice(contentCur, contentStart) });
+      segments.push({ srcStart: s.srcMid, srcEnd: s.srcEnd, content: content.slice(contentStart, contentEnd) });
+      srcCur = s.srcEnd;
+      contentCur = contentEnd;
+    }
+    if (srcCur < tEnd) segments.push({ srcStart: srcCur, srcEnd: tEnd, content: content.slice(contentCur) });
+    // a mis-located / partial suffix would corrupt output - require the segments to reconstruct it exactly
+    if (segments.reduce((acc, s) => acc + s.content, '') !== content) return null;
+    return segments;
+  }
+
+  // compose a single transform `t` with its inners + dups. returns the composed content
+  // string, or null when a sibling dup already owns the merge (caller skips this iteration).
+  #composeOne(t, byStart, composedContent) {
+    const { start } = t;
+    const logicalEnd = entryLogicalEnd(t);
+    let content = entryLogicalContent(t, composedContent);
+    const { inners, dups } = this.#scanInners(t, byStart, logicalEnd);
+    const originalSlice = this.#code.slice(start, logicalEnd);
+    if (dups.length) {
+      if (dups.some(d => composedContent.has(d))) return null;  // sibling owns merge
+      // the claimants of this range, as TEXT and deduplicated: byte-identical rewrites are
+      // idempotent, so a repeat is dropped rather than folded (a redundant collapse drive queues
+      // the same replacement twice - `(SE, globalThis).self.Ctor` collapsed once per firing meta,
+      // the proxy-hop global read AND the bailed static both dropping the same `.self`). the
+      // whole multiset is settled BEFORE folding: everything below is a property of the claims,
+      // not of the order the channels queued them in
+      const byText = new Map();
+      for (const dup of dups) {
+        const text = entryLogicalContent(dup, composedContent);
+        if (text !== content && !byText.has(text)) byText.set(text, dup);
+      }
+      // a WRAPPER keeps the source slice, so it nests around the next claim and any number of
+      // them folds; a needle-less COLLAPSE spends the slot, so a second distinct one has nowhere
+      // to go. `mergeEqualRange`'s own message is written for a binary call ("needle missing from
+      // both transforms") and blames one broken caller, which two competing channels are not
+      const collapses = [content, ...byText.keys()].filter(text => !collectOccurrencePositions(text, originalSlice).length);
+      if (collapses.length > 1) {
+        throw queueError(`equal-range conflict at [${ start },${ logicalEnd }): `
+          + `more than one transform replaces the source slice ${ describeText(originalSlice) } outright, `
+          + 'so there is no slot left to nest them in. '
+          + `claims=${ [content, ...byText.keys()].map(describeText).join(', ') }`);
+      }
+      // `innerWrapper` declares a partial order - the marked claim nests INSIDE an unmarked one.
+      // `mergeEqualRange` can only honour it while BOTH sides still carry the needle, and a fold
+      // against a collapse leaves the accumulator without one, so a marked claim arriving after
+      // that lost its declaration and ended up outermost. folding the marked ones first is what
+      // makes the nesting a property of the declarations rather than of the queueing order
+      const ordered = [...byText].sort(([, a], [, b]) => innerWrapperRank(a) - innerWrapperRank(b));
+      for (const [dupContent, dup] of ordered) {
+        content = mergeEqualRange({
+          a: content, b: dupContent, originalNeedle: originalSlice,
+          range: { start, end: logicalEnd },
+          aInner: !!t.rewriteHint?.innerWrapper, bInner: !!dup.rewriteHint?.innerWrapper,
+        });
+      }
+    }
+    sortInnersInnermostLast(inners);
+    return this.#substituteInners({ content, inners, originalSlice, start, logicalEnd, rewriteHint: t.rewriteHint, composedContent });
+  }
+
+  // collect inner / dup transforms within `[t.start, logicalEnd]` from `byStart`. split
+  // pairs deduplicated via groupId so logical inner appears once. when iter t is itself
+  // a split, non-split cands at logical-equal range are inners (split is leaf in compose
+  // tree, no equal-range dup partnership). non-split t with non-split cand at exact same
+  // range is a real dup (multiple wrappers at the same offsets)
+  #scanInners(t, byStart, logicalEnd) {
+    const { start, splitInfo } = t;
+    const lo = lowerBound(byStart, start);
+    const inners = [];
+    const dups = [];
+    const seenSplitGroups = new Set();
+    if (splitInfo) seenSplitGroups.add(splitInfo.groupId);
+    for (let i = lo; i < byStart.length && byStart[i].start <= logicalEnd; i++) {
+      const cand = byStart[i];
+      if (cand === t) continue;
+      if (cand.splitInfo) {
+        if (seenSplitGroups.has(cand.splitInfo.groupId)) continue;
+        seenSplitGroups.add(cand.splitInfo.groupId);
+        // the shared membership predicate, split-aware on BOTH ends: a suffix reached by the
+        // physical-start walk while its prefix sits OUTSIDE this range would enter as the pair -
+        // half a needle against the whole pair's content, which fails in the locator instead of
+        // saying what went wrong
+        if (entryLogicalWithin(cand, start, logicalEnd)) inners.push(cand);
+        continue;
+      }
+      if (cand.end > logicalEnd || cand.start < start) continue;
+      const exactRangeMatch = cand.start === start && cand.end === logicalEnd;
+      // split outers can never be dup partners with anyone (split is leaf - it pretends
+      // to span the logical range only for inner-substitution purposes; non-split same-
+      // range entries are wrappers above the split, not equal-range dup partners)
+      if (exactRangeMatch && !splitInfo) dups.push(cand);
+      else if (!exactRangeMatch) inners.push(cand);
+    }
+    return { inners, dups };
+  }
+
+  // apply substituteInner per inner, tracking processedRanges for nth adjustment and
+  // for skipping inners already swallowed by a wider sibling. throws on locate failure.
+  // `createNeedleScanner` memoizes per-needle position arrays for the originalSlice so
+  // the loop runs in O(N L_unique + N^2 log L) instead of O(N^2 L) for N inners.
+  // `verbatimAbsorbing` short-circuits the dominant cost on deeply-nested receiver chains
+  // (`a.flat().flat()...`): once a wider inner matches via its raw source slice, every
+  // narrower inner nested in its source range is a phantom and is skipped before the
+  // per-candidate `content` scans - without it those scans make compose cubic in chain depth
+  #substituteInners({ content, inners, originalSlice, start, logicalEnd, rewriteHint, composedContent }) {
+    const processedRanges = [];
+    const verbatimAbsorbing = [];
+    const { countInRange } = createNeedleScanner(originalSlice);
+    for (const inner of inners) {
+      const { end: innerEndLogical, content: rawInnerContent, composed: innerComposed } = innerSubstitution(inner, composedContent);
+      // the ASI guard is decided by POSITION when the entry is queued: a `(`-leading replacement at
+      // a statement start gets a `;` so it cannot fuse with the previous statement. composing that
+      // entry into another entry's content moves it off statement position, where the `;` is no
+      // longer a separator but a token in the middle of an expression - the emitted module stops
+      // parsing. the outer's own content already carries whatever guard ITS position needs
+      const innerContent = this.#asiStarts?.has(inner.start) && rawInnerContent.startsWith(';')
+        ? rawInnerContent.slice(1) : rawInnerContent;
+      const innerRange = { start: inner.start, end: innerEndLogical };
+      // phantom fast-path: a wider inner already substituted via its raw source slice, and
+      // this inner's source range nests inside it - its needle was replaced wholesale and is
+      // gone from `content`. skip before the per-candidate scans below, which would each scan
+      // `content` only to fail and reach the same conclusion at the loop's tail. gated on RAW
+      // matches only (`verbatimAbsorbing`): deopt / guardRef substitutions rewrote the text,
+      // so a nested range can survive there and must stay on the slow path. widest-first order
+      // puts the enclosing range first, so the common nested-chain hit resolves in O(1)
+      if (rangesEnclose(verbatimAbsorbing, inner.start, innerEndLogical)) continue;
+      const needle = this.#code.slice(inner.start, innerEndLogical);
+      // an inner that lies INSIDE a slot the outer REWROTE has no source left to compose into: the
+      // slot's rendered text stands where its own source did. the ordinal arm below already models
+      // the halfway case (a slot re-emitting SOME of the needles it swallowed); this is the same
+      // fact for one that re-emits none, and without it a receiver claim queued before the flatten
+      // turned an ordinary `const [{ of }] = [globalThis.self.Array]` into a build error
+      if ((rewriteHint?.rewrittenRanges ?? []).some(range => range.start <= inner.start
+        && range.end >= innerEndLogical && !hasStandaloneOccurrence(range.text, needle))) continue;
+      // split inners expose their prefix-half text (the polyfill-helper invocation
+      // `_polyfill(receiver)` emitted by addInstanceTransform). compose hands this to
+      // substituteInner so the rootRaw-alone substitution path can swap in just the
+      // helper call (matching babel's mutated-AST shape) instead of the full inner
+      const innerPrefix = inner.splitInfo?.role === 'prefix' ? inner.content
+        : inner.splitInfo?.role === 'suffix' ? inner.splitInfo.peer.content
+        : null;
+      // needle position in originalSlice: count from start up to innerOffset, then subtract
+      // same-needle occurrences already replaced by strictly-preceding processedRanges.
+      // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
+      // during composition, so the rightmost inner's nth must point to the sole remaining slot
+      let nth = countInRange(needle, 0, inner.start - start);
+      // outer-slot rewrites (the multi-decl flatten's per-declarator hint): a consumed slot
+      // drops its source needle occurrences from the content while its rendered text may
+      // re-emit some - adjust the ordinal by the delta so an inner in a LATER (verbatim)
+      // sibling still lands on its own occurrence. without this, a preceding consumed
+      // receiver shifts the count and the substitution renames an unrelated occurrence
+      for (const r of rewriteHint?.rewrittenRanges ?? []) {
+        if (r.end <= inner.start) {
+          nth -= countInRange(needle, r.start - start, r.end - start);
+          nth += collectOccurrencePositions(r.text, needle).length;
+        }
+      }
+      for (const r of processedRanges) {
+        if (r.end <= inner.start) nth -= countInRange(needle, r.start - start, r.end - start);
+      }
+      let result = substituteInner({
+        content, needle, needleStart: inner.start, replacement: innerContent, nth, outerHint: rewriteHint, innerPrefix,
+      });
+      // raw-slice hit at the original nth, on an inner whose replacement is its already-
+      // composed text: the inner's source was present verbatim and got replaced wholesale by
+      // content that already folded the inner's OWN nested inners, so this range now absorbs
+      // any inner nested in it. all three gates matter: non-raw / recovered hits may land on
+      // a slot that doesn't line up with the source range, and a not-yet-composed inner
+      // (equal-range split sibling sorted later) still carries its un-substituted inners in
+      // the raw fallback - absorbing then would drop those nested substitutions. captured
+      // before the recovery loop below reassigns `result`
+      const cleanRawMatch = result.found && result.verbatim && innerComposed;
+
+      // rebuild-outer recovery: source-position nth assumes outer's content preserves every
+      // source needle match. multi-decl flatten REWRITES earlier declarators (`{X:{m}}=globalThis`
+      // -> `const m = _polyfill`), stripping some source-level needle matches from content
+      // entirely. when source-nth overshoots the surviving matches in content, decrement and
+      // retry - each strip-only-before-inner case reduces the effective ordinal by one.
+      // bounded by `nth` (worst case scans down to 0); first successful nth wins so a hit at
+      // nth-1 is the correct slot when outer dropped one preceding match
+      if (!result.found && nth > 0) {
+        for (let tryNth = nth - 1; tryNth >= 0 && !result.found; tryNth--) {
+          result = substituteInner({
+            content, needle, needleStart: inner.start, replacement: innerContent, nth: tryNth, outerHint: rewriteHint, innerPrefix,
+          });
+        }
+      }
+      if (!result.found) {
+        // LOCATE first, in both spellings, before any absorption verdict below: the outer builds
+        // its text with the chain root resolved (`globalThis` -> `_globalThis`) and may drop a `?.`
+        // it proved redundant, so the raw source needle can be absent while the inner's own slot is
+        // right there. concluding absorption from enclosure alone left those reads native
+        const renamed = findRenamedSlot(content, needle, this.#bindingHintOf)
+          ?? unwrappedNeedleSlot(content, needle);
+        if (renamed) {
+          content = `${ content.slice(0, renamed.start) }${ innerContent }${ content.slice(renamed.end) }`;
+          processedRanges.push(innerRange);
+          continue;
+        }
+        // swallowed by an enclosing inner processed earlier: its slot is gone from content
+        if (rangesEnclose(processedRanges, inner.start, innerEndLogical)) continue;
+        // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`): the
+        // inner's value is threaded through that memo, so substituting would leave a stale `_ref`
+        // or re-inline it (double-evaluate)
+        if (rewriteHint?.absorbsRoot
+          && rewriteHint.objectStart <= inner.start
+          && innerEndLogical <= rewriteHint.objectStart + rewriteHint.rootRaw.length) {
+          processedRanges.push(innerRange);
+          continue;
+        }
+        // identifier-boundary rejection: scan ALL occurrences of needle in content. if a
+        // STANDALONE one exists (identifier boundary on both sides), the inner SHOULD have
+        // matched it - nth count is off, this is a real bug. if all occurrences sit inside
+        // larger identifier tokens (e.g. needle `Map` finds only `_MapPrime`-style substring),
+        // outer already substituted at every reachable position and inner's transform is a
+        // phantom (its effect is already encoded by outer). skip phantoms silently
+        // the drop looks like an existence-only verdict, but "no STANDALONE occurrence" is the
+        // positional answer in full: no ordinal has a slot, so there is nothing for a positional
+        // resolver to choose between. tightening it to "the outer must carry this inner's emit"
+        // was measured and is WRONG - a wider identifier the outer itself produced (`Mapα`) is a
+        // legitimate phantom whose emit never appears, and the unit invariants pin exactly that
+        const hasStandaloneMatch = hasStandaloneOccurrence(content, needle);
+        if (!hasStandaloneMatch && content.includes(needle)) {
+          processedRanges.push(innerRange);
+          continue;
+        }
+        // the needle may belong to an ANCESTOR's copy of this range rather than to this content: a
+        // guard re-emits its chain root as rendered text while the claim between them replaces the
+        // span outright, so the inner has no slot HERE and a perfectly good one one level up. leave
+        // it queued - the ancestor composes later and takes it. throwing here blamed the inner for
+        // a nesting choice it never made, and the build failed on a shape that composes
+        if (this.#ancestorCarriesNeedle(start, logicalEnd, needle)) continue;
+        // ...or the copy that holds this range may have re-emitted it ALREADY SUBSTITUTED: a guard
+        // spelling its chain root as rendered text runs after the inner was queued, so what stands
+        // there is the inner's own REPLACEMENT, not the source needle. that is the same phantom the
+        // identifier-boundary arm above drops - the effect is already encoded - and the only
+        // difference is which copy encodes it: THIS content when the guard is the composing entry,
+        // an ancestor's when a discarding claim sits between them. asked as a STANDALONE occurrence,
+        // like every other emit-recognition here, so a binding name appearing inside a wider one
+        // cannot pass for it
+        if (hasStandaloneOccurrence(content, innerContent)
+          || this.#ancestorCarriesNeedle(start, logicalEnd, innerContent)) {
+          processedRanges.push(innerRange);
+          continue;
+        }
+        throw locateFailureError({
+          hasStandaloneMatch, content, needle, start, logicalEnd, inner: innerRange,
+        });
+      }
+      content = result.content;
+      // record verbatim raw matches so deeper nested inners short-circuit at the fast-path
+      // above. entries stay mutually disjoint: a nested inner that would fall inside one is
+      // skipped before it can substitute, so it never reaches here to be recorded
+      if (cleanRawMatch) verbatimAbsorbing.push(innerRange);
+      // drop any already-processed ranges enclosed by this new range. without pruning,
+      // a later inner whose nth subtraction loops over processedRanges would count needles
+      // in the enclosed-range positions TWICE - once via the enclosed inner's own range,
+      // once via this enclosing range. processed ranges must stay non-overlapping for
+      // `countInRange` accumulation across `r.end <= inner.start` filter to be correct
+      for (let i = processedRanges.length - 1; i >= 0; i--) {
+        const r = processedRanges[i];
+        if (r.start >= innerRange.start && r.end <= innerRange.end) processedRanges.splice(i, 1);
+      }
+      processedRanges.push(innerRange);
+    }
+    return content;
+  }
+
+  // does a transform ENCLOSING [start, end) still carry `needle` in its own content? walks the
+  // container chain outward, so an inner whose slot lives in a grandparent's copy is recognized
+  // as deferrable rather than as a broken claim
+  #ancestorCarriesNeedle(start, end, needle) {
+    for (let outer = this.#properContainerOf(start, end); outer;) {
+      const outerEnd = entryLogicalEnd(outer);
+      if (collectOccurrencePositions(entryLogicalContent(outer), needle).length) return true;
+      const next = this.#properContainerOf(outer.start, outerEnd);
+      if (next === outer) return false;
+      outer = next;
+    }
+    return false;
+  }
+
+  // true on full containment or equal range (slow compose path handles both - equal-range
+  // merge folds into the wrapper); false on no overlap (fast path, right-to-left apply)
+  #hasNesting(sorted) {
+    if (sorted.length < 2) return false;
+    for (let i = 1; i < sorted.length; i++) {
+      // LOGICAL ends, like every other membership question: on the physical end a transform
+      // crossing a split's mid reads as disjoint, the fast path hands MagicString three
+      // overlapping overwrites, and the failure surfaces as "cannot split a chunk that has
+      // already been edited" instead of this queue's own diagnostic
+      if (entryLogicalEnd(sorted[i]) <= entryLogicalEnd(sorted[i - 1])) return true;
+    }
+    return false;
+  }
+
+  // sort `entries` by start (widest-end first on ties) IN PLACE, then run the partial-overlap
+  // guard. both the apply() path (#materializeOverwrites) and the relocated-text drain path
+  // (composeAndDrainRange) must surface a partial overlap before composing/applying, and
+  // #assertNoPartialOverlap requires start-sorted input - so the sort+assert pair lives here once.
+  // callers reuse the now-sorted array (apply for its fast-path reverse; drain hands it to compose)
+  #sortAndAssertNoPartialOverlap(entries) {
+    entries.sort((a, b) => a.start - b.start || b.end - a.end);
+    this.#assertNoPartialOverlap(entries);
+  }
+
+  // partial overlap (`[10,20) intersect [15,25)`) would trip MagicString.overwrite with a
+  // generic "already edited" error; surface ranges here for diagnostic. track running
+  // max-end so non-consecutive shapes like `[0,10), [3,5), [7,14)` still flag the `[0,10)
+  // vs [7,14)` partial overlap that consecutive-only iteration would miss.
+  // split entries own [start, logicalEnd) logically even though physical halves stop at the
+  // mid - represent each split pair by its prefix only (suffix carries no new logical info),
+  // and use `entryLogicalEnd` so an inner contained within the full logical span doesn't trip
+  // a false partial-overlap when it crosses the physical mid
+  #assertNoPartialOverlap(sorted) {
+    if (sorted.length < 2) return;
+    let open = [];
+    for (const curr of sorted) {
+      // suffix half adds no new logical info beyond its prefix peer - skip the walk for it.
+      // any inner that genuinely partial-overlaps the split's logical span has already been
+      // surfaced against the prefix
+      if (curr.splitInfo?.role === 'suffix') continue;
+      const currEnd = entryLogicalEnd(curr);
+      open = open.filter(o => entryLogicalEnd(o) > curr.start);
+      const conflict = open.find(o => curr.start > o.start && currEnd > entryLogicalEnd(o));
+      if (conflict) {
+        // every range in the queue was handed to `add` / `addSplit` by a channel; the queue never
+        // widens one, so a crossing pair is always two channels disagreeing about who owns the
+        // text - naming it a queue bug sent past reports at the wrong layer. the contents say
+        // WHICH channels, which the ranges alone never did
+        throw queueError('partial overlap between transforms '
+          + `[${ conflict.start },${ entryLogicalEnd(conflict) }) content=${ describeText(entryLogicalContent(conflict)) } and `
+          + `[${ curr.start },${ currEnd }) content=${ describeText(entryLogicalContent(curr)) }. ranges queued by different `
+          + 'channels must nest or stay disjoint - one of the two must claim the whole span or stand down.');
+      }
+      open.push(curr);
+    }
+  }
+}

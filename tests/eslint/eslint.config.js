@@ -1,6 +1,7 @@
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import * as parserJSONC from 'jsonc-eslint-parser';
+import parserTypeScript from '@typescript-eslint/parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
@@ -22,11 +23,13 @@ import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
+import pluginTypeScript from '@typescript-eslint/eslint-plugin';
+import pluginTSDoc from 'eslint-plugin-tsdoc';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
-const PACKAGES_NODE_VERSIONS = '8.9.0';
-const DEV_NODE_VERSIONS = '^20.19';
+const PACKAGES_NODE_VERSIONS = '^22.18.0 || >=24.11.0';
+const DEV_NODE_VERSIONS = '^22.22.2 || >=24.15.0';
 
 const ERROR = 'error';
 const OFF = 'off';
@@ -39,111 +42,10 @@ function disable(rules) {
   return Object.fromEntries(Object.keys(rules).map(key => [key, OFF]));
 }
 
-const base = {
-  // possible problems:
-  // enforces return statements in callbacks of array's methods
-  'array-callback-return': ERROR,
-  // require `super()` calls in constructors
-  'constructor-super': ERROR,
-  // enforce 'for' loop update clause moving the counter in the right direction
-  'for-direction': ERROR,
-  // disallow using an async function as a `Promise` executor
-  'no-async-promise-executor': ERROR,
-  // disallow reassigning class members
-  'no-class-assign': ERROR,
-  // disallow comparing against -0
-  'no-compare-neg-zero': ERROR,
-  // disallow reassigning `const` variables
-  'no-const-assign': ERROR,
-  // disallows expressions where the operation doesn't affect the value
-  'no-constant-binary-expression': ERROR,
-  // disallow constant expressions in conditions
-  'no-constant-condition': [ERROR, { checkLoops: false }],
-  // disallow returning value from constructor
-  'no-constructor-return': ERROR,
-  // disallow use of debugger
-  'no-debugger': ERROR,
-  // disallow duplicate arguments in functions
-  'no-dupe-args': ERROR,
-  // disallow duplicate class members
-  'no-dupe-class-members': ERROR,
-  // disallow duplicate conditions in if-else-if chains
-  'no-dupe-else-if': ERROR,
-  // disallow duplicate keys when creating object literals
-  'no-dupe-keys': ERROR,
-  // disallow a duplicate case label
-  'no-duplicate-case': ERROR,
-  // disallow duplicate module imports
-  'no-duplicate-imports': ERROR,
-  // disallow empty destructuring patterns
-  'no-empty-pattern': ERROR,
-  // disallow assigning to the exception in a catch block
-  'no-ex-assign': ERROR,
-  // disallow fallthrough of case statements
-  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
-  // disallow overwriting functions written as function declarations
-  'no-func-assign': ERROR,
-  // disallow assigning to imported bindings
-  'no-import-assign': ERROR,
-  // disallow irregular whitespace outside of strings and comments
-  'no-irregular-whitespace': ERROR,
-  // disallow literal numbers that lose precision
-  'no-loss-of-precision': ERROR,
-  // disallow `new` operators with global non-constructor functions
-  'no-new-native-nonconstructor': ERROR,
-  // disallow the use of object properties of the global object (Math and JSON) as functions
-  'no-obj-calls': ERROR,
-  // disallow use of Object.prototypes builtins directly
-  'no-prototype-builtins': ERROR,
-  // disallow self assignment
-  'no-self-assign': ERROR,
-  // disallow comparisons where both sides are exactly the same
-  'no-self-compare': ERROR,
-  // disallow sparse arrays
-  'no-sparse-arrays': ERROR,
-  // disallow template literal placeholder syntax in regular strings
-  'no-template-curly-in-string': ERROR,
-  // disallow `this` / `super` before calling `super()` in constructors
-  'no-this-before-super': ERROR,
-  // disallow `let` or `var` variables that are read but never assigned
-  'no-unassigned-vars': ERROR,
-  // disallow use of undeclared variables unless mentioned in a /*global */ block
-  'no-undef': [ERROR, { typeof: false }],
-  // avoid code that looks like two expressions but is actually one
-  'no-unexpected-multiline': ERROR,
-  // disallow unmodified loop conditions
-  'no-unmodified-loop-condition': ERROR,
-  // disallow unreachable statements after a return, throw, continue, or break statement
-  'no-unreachable': ERROR,
-  // disallow loops with a body that allows only one iteration
-  'no-unreachable-loop': ERROR,
-  // disallow control flow statements in `finally` blocks
-  'no-unsafe-finally': ERROR,
-  // disallow negation of the left operand of an in expression
-  'no-unsafe-negation': ERROR,
-  // disallow use of optional chaining in contexts where the `undefined` value is not allowed
-  'no-unsafe-optional-chaining': ERROR,
-  // disallow unused private class members
-  'no-unused-private-class-members': ERROR,
-  // disallow declaration of variables that are not used in the code
-  'no-unused-vars': [ERROR, {
-    vars: 'all',
-    args: 'after-used',
-    caughtErrors: 'none',
-    ignoreRestSiblings: true,
-  }],
-  // disallow variable assignments when the value is not used
-  'no-useless-assignment': ERROR,
+// layout & formatting:
+const baseStyle = {
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
-  // disallow comparisons with the value NaN
-  'use-isnan': ERROR,
-  // ensure that the results of typeof are compared against a valid string
-  'valid-typeof': ERROR,
-
-  // suggestions:
-  // enforce the use of variables within the scope they are defined
-  'block-scoped-var': ERROR,
   // require camel case names
   camelcase: [ERROR, {
     properties: NEVER,
@@ -151,200 +53,8 @@ const base = {
     ignoreImports: true,
     ignoreGlobals: true,
   }],
-  // enforce default clauses in switch statements to be last
-  'default-case-last': ERROR,
-  // enforce default parameters to be last
-  'default-param-last': ERROR,
-  // encourages use of dot notation whenever possible
-  'dot-notation': [ERROR, { allowKeywords: true }],
-  // require the use of === and !==
-  eqeqeq: [ERROR, 'smart'],
-  // require grouped accessor pairs in object literals and classes
-  'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
-  // require identifiers to match a specified regular expression
-  'id-match': [ERROR, '^[$A-Za-z]|(?:[A-Z][A-Z\\d_]*[A-Z\\d])|(?:[$A-Za-z]\\w*[A-Za-z\\d])$', {
-    onlyDeclarations: true,
-    ignoreDestructuring: true,
-  }],
-  // require logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, ALWAYS],
-  // enforce a maximum depth that blocks can be nested
-  'max-depth': [ERROR, { max: 5 }],
-  // enforce a maximum depth that callbacks can be nested
-  'max-nested-callbacks': [ERROR, { max: 4 }],
-  // specify the maximum number of statement allowed in a function
-  'max-statements': [ERROR, { max: 50 }],
-  // require a capital letter for constructors
-  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
-  // disallow window alert / confirm / prompt calls
-  'no-alert': ERROR,
-  // disallow use of arguments.caller or arguments.callee
-  'no-caller': ERROR,
-  // disallow lexical declarations in case/default clauses
-  'no-case-declarations': ERROR,
-  // disallow use of console
-  'no-console': ERROR,
-  // disallow deletion of variables
-  'no-delete-var': ERROR,
-  // disallow else after a return in an if
-  'no-else-return': [ERROR, { allowElseIf: false }],
-  // disallow empty statements
-  'no-empty': ERROR,
-  // disallow empty functions, except for standalone funcs/arrows
-  'no-empty-function': ERROR,
-  // disallow empty static blocks
-  'no-empty-static-block': ERROR,
-  // disallow `null` comparisons without type-checking operators
-  'no-eq-null': ERROR,
-  // disallow use of eval()
-  'no-eval': ERROR,
-  // disallow adding to native types
-  'no-extend-native': ERROR,
-  // disallow unnecessary function binding
-  'no-extra-bind': ERROR,
-  // disallow unnecessary boolean casts
-  'no-extra-boolean-cast': [ERROR, { enforceForInnerExpressions: true }],
-  // disallow unnecessary labels
-  'no-extra-label': ERROR,
-  // disallow reassignments of native objects
-  'no-global-assign': ERROR,
-  // disallow use of eval()-like methods
-  'no-implied-eval': ERROR,
-  // disallow usage of __iterator__ property
-  'no-iterator': ERROR,
-  // disallow labels that share a name with a variable
-  'no-label-var': ERROR,
-  // disallow use of labels for anything other then loops and switches
-  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
-  // disallow unnecessary nested blocks
-  'no-lone-blocks': ERROR,
-  // disallow `if` as the only statement in an `else` block
-  'no-lonely-if': ERROR,
-  // disallow function declarations and expressions inside loop statements
-  'no-loop-func': OFF,
   // disallow use of multiline strings
   'no-multi-str': ERROR,
-  // disallow use of new operator when not part of the assignment or comparison
-  'no-new': ERROR,
-  // disallow use of new operator for Function object
-  'no-new-func': ERROR,
-  // disallows creating new instances of String, Number, and Boolean
-  'no-new-wrappers': ERROR,
-  // disallow `\8` and `\9` escape sequences in string literals
-  'no-nonoctal-decimal-escape': ERROR,
-  // disallow calls to the `Object` constructor without an argument
-  'no-object-constructor': ERROR,
-  // disallow use of (old style) octal literals
-  'no-octal': ERROR,
-  // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
-  'no-octal-escape': ERROR,
-  // disallow usage of __proto__ property
-  'no-proto': ERROR,
-  // disallow declaring the same variable more then once
-  'no-redeclare': [ERROR, { builtinGlobals: false }],
-  // disallow specific global variables
-  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
-  // disallow specified syntax
-  'no-restricted-syntax': [ERROR,
-    {
-      selector: 'ForInStatement',
-      message: '`for-in` loops are disallowed since iterate over the prototype chain',
-    },
-  ],
-  // disallow use of `javascript:` urls.
-  'no-script-url': ERROR,
-  // disallow use of comma operator
-  'no-sequences': ERROR,
-  // disallow declaration of variables already declared in the outer scope
-  'no-shadow': ERROR,
-  // disallow shadowing of names such as arguments
-  'no-shadow-restricted-names': [ERROR, { reportGlobalThis: false }],
-  // restrict what can be thrown as an exception
-  'no-throw-literal': ERROR,
-  // disallow initializing variables to `undefined`
-  'no-undef-init': ERROR,
-  // disallow dangling underscores in identifiers
-  'no-underscore-dangle': ERROR,
-  // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
-  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
-  // disallow usage of expressions in statement position
-  'no-unused-expressions': [ERROR, {
-    allowShortCircuit: true,
-    allowTernary: true,
-    allowTaggedTemplates: true,
-    ignoreDirectives: true,
-  }],
-  // disallow unused labels
-  'no-unused-labels': ERROR,
-  // disallow unnecessary calls to `.call()` and `.apply()`
-  'no-useless-call': ERROR,
-  // disallow unnecessary catch clauses
-  'no-useless-catch': ERROR,
-  // disallow unnecessary computed property keys in object literals
-  'no-useless-computed-key': ERROR,
-  // disallow useless string concatenation
-  'no-useless-concat': ERROR,
-  // disallow unnecessary constructors
-  'no-useless-constructor': ERROR,
-  // disallow unnecessary escape characters
-  'no-useless-escape': ERROR,
-  // disallow renaming import, export, and destructured assignments to the same name
-  'no-useless-rename': ERROR,
-  // disallow redundant return statements
-  'no-useless-return': ERROR,
-  // require let or const instead of var
-  'no-var': ERROR,
-  // disallow void operators
-  'no-void': ERROR,
-  // disallow use of the with statement
-  'no-with': ERROR,
-  // require or disallow method and property shorthand syntax for object literals
-  'object-shorthand': ERROR,
-  // require assignment operator shorthand where possible
-  'operator-assignment': [ERROR, 'always'],
-  // require using arrow functions for callbacks
-  'prefer-arrow-callback': ERROR,
-  // require const declarations for variables that are never reassigned after declared
-  'prefer-const': [ERROR, { destructuring: 'all' }],
-  // require destructuring from arrays and/or objects
-  'prefer-destructuring': [ERROR, {
-    VariableDeclarator: {
-      array: true,
-      object: true,
-    },
-    AssignmentExpression: {
-      array: true,
-      object: false,
-    },
-  }, {
-    enforceForRenamedProperties: false,
-  }],
-  // prefer the exponentiation operator over `Math.pow()`
-  'prefer-exponentiation-operator': ERROR,
-  // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
-  'prefer-numeric-literals': ERROR,
-  // prefer `Object.hasOwn`
-  'prefer-object-has-own': ERROR,
-  // disallow use of the `RegExp` constructor in favor of regular expression literals
-  'prefer-regex-literals': [ERROR, { disallowRedundantWrapping: true }],
-  // require rest parameters instead of `arguments`
-  'prefer-rest-params': ERROR,
-  // require spread operators instead of `.apply()`
-  'prefer-spread': ERROR,
-  // require template literals instead of string concatenation
-  'prefer-template': ERROR,
-  // require use of the second argument for parseInt()
-  radix: ERROR,
-  // disallow generator functions that do not have `yield`
-  'require-yield': ERROR,
-  // require strict mode directives
-  strict: [ERROR, 'global'],
-  // require symbol descriptions
-  'symbol-description': ERROR,
-  // disallow "Yoda" conditions
-  yoda: [ERROR, NEVER],
-
-  // layout & formatting:
   // enforce spacing inside array brackets
   '@stylistic/array-bracket-spacing': [ERROR, NEVER],
   // require parentheses around arrow function arguments
@@ -469,6 +179,306 @@ const base = {
   '@stylistic/template-tag-spacing': [ERROR, NEVER],
   // require spacing around the `*` in `yield *` expressions
   '@stylistic/yield-star-spacing': [ERROR, 'both'],
+  // enforce lowercase identifier and uppercase value for number literals
+  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
+  // enforce the style of numeric separators by correctly grouping digits
+  'unicorn/numeric-separators-style': [ERROR, {
+    onlyIfContainsSeparator: true,
+    number: { minimumDigits: 0, groupLength: 3 },
+    binary: { minimumDigits: 0, groupLength: 4 },
+    octal: { minimumDigits: 0, groupLength: 4 },
+    hexadecimal: { minimumDigits: 0, groupLength: 2 },
+  }],
+};
+
+const base = {
+  ...baseStyle,
+  // possible problems:
+  // enforces return statements in callbacks of array's methods
+  'array-callback-return': ERROR,
+  // require `super()` calls in constructors
+  'constructor-super': ERROR,
+  // enforce 'for' loop update clause moving the counter in the right direction
+  'for-direction': ERROR,
+  // disallow using an async function as a `Promise` executor
+  'no-async-promise-executor': ERROR,
+  // disallow reassigning class members
+  'no-class-assign': ERROR,
+  // disallow comparing against -0
+  'no-compare-neg-zero': ERROR,
+  // disallow reassigning `const` variables
+  'no-const-assign': ERROR,
+  // disallows expressions where the operation doesn't affect the value
+  'no-constant-binary-expression': ERROR,
+  // disallow constant expressions in conditions
+  'no-constant-condition': [ERROR, { checkLoops: false }],
+  // disallow returning value from constructor
+  'no-constructor-return': ERROR,
+  // disallow use of debugger
+  'no-debugger': ERROR,
+  // disallow duplicate arguments in functions
+  'no-dupe-args': ERROR,
+  // disallow duplicate class members
+  'no-dupe-class-members': ERROR,
+  // disallow duplicate conditions in if-else-if chains
+  'no-dupe-else-if': ERROR,
+  // disallow duplicate keys when creating object literals
+  'no-dupe-keys': ERROR,
+  // disallow a duplicate case label
+  'no-duplicate-case': ERROR,
+  // disallow empty destructuring patterns
+  'no-empty-pattern': ERROR,
+  // disallow assigning to the exception in a catch block
+  'no-ex-assign': ERROR,
+  // disallow fallthrough of case statements
+  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
+  // disallow overwriting functions written as function declarations
+  'no-func-assign': ERROR,
+  // disallow assigning to imported bindings
+  'no-import-assign': ERROR,
+  // disallow irregular whitespace outside of strings and comments
+  'no-irregular-whitespace': ERROR,
+  // disallow literal numbers that lose precision
+  'no-loss-of-precision': ERROR,
+  // disallow `new` operators with global non-constructor functions
+  'no-new-native-nonconstructor': ERROR,
+  // disallow the use of object properties of the global object (Math and JSON) as functions
+  'no-obj-calls': ERROR,
+  // disallow use of Object.prototypes builtins directly
+  'no-prototype-builtins': ERROR,
+  // disallow self assignment
+  'no-self-assign': ERROR,
+  // disallow comparisons where both sides are exactly the same
+  'no-self-compare': ERROR,
+  // disallow sparse arrays
+  'no-sparse-arrays': ERROR,
+  // disallow template literal placeholder syntax in regular strings
+  'no-template-curly-in-string': ERROR,
+  // disallow `this` / `super` before calling `super()` in constructors
+  'no-this-before-super': ERROR,
+  // disallow `let` or `var` variables that are read but never assigned
+  'no-unassigned-vars': ERROR,
+  // disallow use of undeclared variables unless mentioned in a /*global */ block
+  'no-undef': [ERROR, { typeof: false }],
+  // avoid code that looks like two expressions but is actually one
+  'no-unexpected-multiline': ERROR,
+  // disallow unmodified loop conditions
+  'no-unmodified-loop-condition': ERROR,
+  // disallow unreachable statements after a return, throw, continue, or break statement
+  'no-unreachable': ERROR,
+  // disallow loops with a body that allows only one iteration
+  'no-unreachable-loop': ERROR,
+  // disallow control flow statements in `finally` blocks
+  'no-unsafe-finally': ERROR,
+  // disallow negation of the left operand of an in expression
+  'no-unsafe-negation': ERROR,
+  // disallow use of optional chaining in contexts where the `undefined` value is not allowed
+  'no-unsafe-optional-chaining': ERROR,
+  // disallow unused private class members
+  'no-unused-private-class-members': ERROR,
+  // disallow declaration of variables that are not used in the code
+  'no-unused-vars': [ERROR, {
+    vars: 'all',
+    args: 'after-used',
+    caughtErrors: 'none',
+    ignoreRestSiblings: true,
+  }],
+  // disallow variable assignments when the value is not used
+  'no-useless-assignment': ERROR,
+  // disallow comparisons with the value NaN
+  'use-isnan': ERROR,
+  // ensure that the results of typeof are compared against a valid string
+  'valid-typeof': ERROR,
+
+  // suggestions:
+  // enforce the use of variables within the scope they are defined
+  'block-scoped-var': ERROR,
+  // enforce default clauses in switch statements to be last
+  'default-case-last': ERROR,
+  // enforce default parameters to be last
+  'default-param-last': ERROR,
+  // encourages use of dot notation whenever possible
+  'dot-notation': [ERROR, { allowKeywords: true }],
+  // require the use of === and !==
+  eqeqeq: [ERROR, 'smart'],
+  // require grouped accessor pairs in object literals and classes
+  'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
+  // require identifiers to match a specified regular expression
+  'id-match': [ERROR, '^[$A-Za-z]|(?:[A-Z][A-Z\\d_]*[A-Z\\d])|(?:[$A-Za-z]\\w*[A-Za-z\\d])$', {
+    onlyDeclarations: true,
+    ignoreDestructuring: true,
+  }],
+  // enforce a maximum depth that blocks can be nested
+  'max-depth': [ERROR, { max: 5 }],
+  // enforce a maximum depth that callbacks can be nested
+  'max-nested-callbacks': [ERROR, { max: 4 }],
+  // specify the maximum number of statement allowed in a function
+  'max-statements': [ERROR, { max: 50 }],
+  // require a capital letter for constructors
+  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
+  // disallow window alert / confirm / prompt calls
+  'no-alert': ERROR,
+  // disallow use of arguments.caller or arguments.callee
+  'no-caller': ERROR,
+  // disallow lexical declarations in case/default clauses
+  'no-case-declarations': ERROR,
+  // disallow use of console
+  'no-console': ERROR,
+  // disallow deletion of variables
+  'no-delete-var': ERROR,
+  // disallow empty statements
+  'no-empty': ERROR,
+  // disallow empty functions, except for standalone funcs/arrows
+  'no-empty-function': ERROR,
+  // disallow empty static blocks
+  'no-empty-static-block': ERROR,
+  // disallow `null` comparisons without type-checking operators
+  'no-eq-null': ERROR,
+  // disallow use of eval()
+  'no-eval': ERROR,
+  // disallow adding to native types
+  'no-extend-native': ERROR,
+  // disallow unnecessary function binding
+  'no-extra-bind': ERROR,
+  // disallow unnecessary boolean casts
+  'no-extra-boolean-cast': [ERROR, { enforceForInnerExpressions: true }],
+  // disallow unnecessary labels
+  'no-extra-label': ERROR,
+  // disallow reassignments of native objects
+  'no-global-assign': ERROR,
+  // disallow use of eval()-like methods
+  'no-implied-eval': ERROR,
+  // disallow usage of __iterator__ property
+  'no-iterator': ERROR,
+  // disallow labels that share a name with a variable
+  'no-label-var': ERROR,
+  // disallow use of labels for anything other then loops and switches
+  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
+  // disallow unnecessary nested blocks
+  'no-lone-blocks': ERROR,
+  // disallow `if` as the only statement in an `else` block
+  'no-lonely-if': ERROR,
+  // disallow function declarations and expressions inside loop statements
+  'no-loop-func': OFF,
+  // disallow use of new operator when not part of the assignment or comparison
+  'no-new': ERROR,
+  // disallow use of new operator for Function object
+  'no-new-func': ERROR,
+  // disallows creating new instances of String, Number, and Boolean
+  'no-new-wrappers': ERROR,
+  // disallow `\8` and `\9` escape sequences in string literals
+  'no-nonoctal-decimal-escape': ERROR,
+  // disallow calls to the `Object` constructor without an argument
+  'no-object-constructor': ERROR,
+  // disallow use of (old style) octal literals
+  'no-octal': ERROR,
+  // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
+  'no-octal-escape': ERROR,
+  // disallow usage of __proto__ property
+  'no-proto': ERROR,
+  // disallow declaring the same variable more then once
+  'no-redeclare': [ERROR, { builtinGlobals: false }],
+  // disallow specific global variables
+  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
+  // disallow specified syntax
+  'no-restricted-syntax': [ERROR,
+    {
+      selector: 'ForInStatement',
+      message: '`for-in` loops are disallowed since iterate over the prototype chain',
+    },
+  ],
+  // disallow use of `javascript:` urls.
+  'no-script-url': ERROR,
+  // disallow use of comma operator
+  'no-sequences': ERROR,
+  // disallow declaration of variables already declared in the outer scope
+  'no-shadow': ERROR,
+  // disallow shadowing of names such as arguments
+  'no-shadow-restricted-names': [ERROR, { reportGlobalThis: false }],
+  // restrict what can be thrown as an exception
+  'no-throw-literal': ERROR,
+  // disallow initializing variables to `undefined`
+  'no-undef-init': ERROR,
+  // disallow dangling underscores in identifiers
+  'no-underscore-dangle': ERROR,
+  // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
+  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
+  // disallow usage of expressions in statement position
+  'no-unused-expressions': [ERROR, {
+    allowShortCircuit: true,
+    allowTernary: true,
+    allowTaggedTemplates: true,
+    ignoreDirectives: true,
+  }],
+  // disallow unused labels
+  'no-unused-labels': ERROR,
+  // disallow unnecessary calls to `.call()` and `.apply()`
+  'no-useless-call': ERROR,
+  // disallow unnecessary catch clauses
+  'no-useless-catch': ERROR,
+  // disallow unnecessary computed property keys in object literals
+  'no-useless-computed-key': ERROR,
+  // disallow useless string concatenation
+  'no-useless-concat': ERROR,
+  // disallow unnecessary constructors
+  'no-useless-constructor': ERROR,
+  // disallow unnecessary escape characters
+  'no-useless-escape': ERROR,
+  // disallow renaming import, export, and destructured assignments to the same name
+  'no-useless-rename': ERROR,
+  // disallow redundant return statements
+  'no-useless-return': ERROR,
+  // require let or const instead of var
+  'no-var': ERROR,
+  // disallow void operators
+  'no-void': ERROR,
+  // disallow use of the with statement
+  'no-with': ERROR,
+  // require or disallow method and property shorthand syntax for object literals
+  'object-shorthand': ERROR,
+  // require assignment operator shorthand where possible
+  'operator-assignment': [ERROR, 'always'],
+  // require using arrow functions for callbacks
+  'prefer-arrow-callback': ERROR,
+  // require const declarations for variables that are never reassigned after declared
+  'prefer-const': [ERROR, { destructuring: 'all' }],
+  // require destructuring from arrays and/or objects
+  'prefer-destructuring': [ERROR, {
+    VariableDeclarator: {
+      array: true,
+      object: true,
+    },
+    AssignmentExpression: {
+      array: true,
+      object: false,
+    },
+  }, {
+    enforceForRenamedProperties: false,
+  }],
+  // prefer the exponentiation operator over `Math.pow()`
+  'prefer-exponentiation-operator': ERROR,
+  // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
+  'prefer-numeric-literals': ERROR,
+  // prefer `Object.hasOwn`
+  'prefer-object-has-own': ERROR,
+  // disallow use of the `RegExp` constructor in favor of regular expression literals
+  'prefer-regex-literals': [ERROR, { disallowRedundantWrapping: true }],
+  // require rest parameters instead of `arguments`
+  'prefer-rest-params': ERROR,
+  // require spread operators instead of `.apply()`
+  'prefer-spread': ERROR,
+  // require template literals instead of string concatenation
+  'prefer-template': ERROR,
+  // require use of the second argument for parseInt()
+  radix: ERROR,
+  // disallow generator functions that do not have `yield`
+  'require-yield': ERROR,
+  // require strict mode directives
+  strict: [ERROR, 'global'],
+  // require symbol descriptions
+  'symbol-description': ERROR,
+  // disallow "Yoda" conditions
+  yoda: [ERROR, NEVER],
 
   // ascii
   // forbid non-ascii chars in ast node names
@@ -535,6 +545,10 @@ const base = {
   'node/prefer-global/timers': [ERROR, ALWAYS],
   'node/prefer-global/url-search-params': [ERROR, ALWAYS],
   'node/prefer-global/url': [ERROR, ALWAYS],
+  // prefer-import
+  'node/prefer-import/assert-strict': ERROR,
+  // enforce using `process.getBuiltinModule()` to load Node built-in modules
+  'node/prefer-process-get-builtin-module': ERROR,
   // prefer promises
   'node/prefer-promises/dns': ERROR,
   'node/prefer-promises/fs': ERROR,
@@ -579,16 +593,36 @@ const base = {
   'promise/valid-params': ERROR,
 
   // unicorn
+  // prefer better DOM traversal APIs
+  'unicorn/better-dom-traversing': ERROR,
   // enforce a specific parameter name in `catch` clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
   // enforce consistent assertion style with `node:assert`
   'unicorn/consistent-assert': ERROR,
+  // enforce consistent spelling of compound words in identifiers
+  'unicorn/consistent-compound-words': ERROR,
   // prefer passing `Date` directly to the constructor when cloning
   'unicorn/consistent-date-clone': ERROR,
   // prefer consistent types when spreading a ternary in an array literal
   'unicorn/consistent-empty-array-spread': ERROR,
   // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
   'unicorn/consistent-existence-index-check': ERROR,
+  // enforce consistent decorator position on exported classes
+  'unicorn/consistent-export-decorator-position': [ERROR, 'above'],
+  // enforce function syntax by role
+  'unicorn/consistent-function-style': [ERROR, {
+    default: 'ignore',
+    namedFunctions: 'declaration',
+    namedExports: 'ignore',
+    callbacks: 'ignore',
+    objectProperties: 'ignore',
+    reassignedVariables: 'ignore',
+    typedVariables: 'ignore',
+  }],
+  // enforce consistent optional chaining for same-base member access
+  'unicorn/consistent-optional-chaining': ERROR,
+  // enforce consistent JSON file reads before `JSON.parse()`
+  'unicorn/consistent-json-file-read': [ERROR, 'buffer'],
   // enforce consistent style for escaping ${ in template literals
   'unicorn/consistent-template-literal-escape': ERROR,
   // enforce correct `Error` subclassing
@@ -597,18 +631,66 @@ const base = {
   'unicorn/error-message': ERROR,
   // require escape sequences to use uppercase values
   'unicorn/escape-case': [ERROR, 'uppercase'],
+  // enforce or disallow explicit delay argument for `setTimeout()` and `setInterval()`
+  'unicorn/explicit-timer-delay': [ERROR, 'always'],
   // enforce a case style for filenames
   'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
+  // require or disallow logical assignment operator shorthand
+  'unicorn/logical-assignment-operators': [ERROR, ALWAYS],
+  // limit the depth of nested calls
+  'unicorn/max-nested-calls': [ERROR, { max: 5 }],
   // enforce specifying rules to disable in `eslint-disable` comments
   'unicorn/no-abusive-eslint-disable': ERROR,
   // disallow recursive access to `this` within getters and setters
   'unicorn/no-accessor-recursion': ERROR,
+  // disallow bitwise operators where a logical operator was likely intended
+  'unicorn/no-accidental-bitwise-operator': ERROR,
+  // disallow array accumulation with `Array#concat()` in loops
+  'unicorn/no-array-concat-in-loop': ERROR,
+  // disallow using reference values as `Array#fill()` values
+  'unicorn/no-array-fill-with-reference-type': ERROR,
+  // disallow `.fill()` after `Array.from`
+  'unicorn/no-array-from-fill': ERROR,
   // prefer `Array#toReversed()` over `Array#reverse()`
   'unicorn/no-array-reverse': ERROR,
+  // disallow sorting arrays to get the minimum or maximum value
+  'unicorn/no-array-sort-for-min-max': ERROR,
+  // disallow async functions as `Promise#finally()` callbacks
+  'unicorn/no-async-promise-finally': ERROR,
   // disallow using `await` in `Promise` method parameters
   'unicorn/no-await-in-promise-methods': ERROR,
+  // disallow unnecessary `Blob` to `File` conversion
+  'unicorn/no-blob-to-file': ERROR,
+  // disallow boolean-returning sort comparators
+  'unicorn/no-boolean-sort-comparator': ERROR,
+  // prefer drawing canvases directly instead of converting them to images
+  'unicorn/no-canvas-to-image': ERROR,
+  // disallow chained comparisons such as `a < b < c`
+  'unicorn/no-chained-comparison': ERROR,
+  // disallow accessing `Map`, `Set`, `WeakMap`, and `WeakSet` entries with bracket notation
+  'unicorn/no-collection-bracket-access': ERROR,
+  // disallow confusing uses of `Array#{ splice, toSpliced }()`
+  'unicorn/no-confusing-array-splice': ERROR,
+  // disallow confusing uses of `Array#with()`
+  'unicorn/no-confusing-array-with': ERROR,
   // do not use leading/trailing space between `console.log` parameters
   'unicorn/no-console-spaces': ERROR,
+  // disallow arithmetic and bitwise operations that always evaluate to 0
+  'unicorn/no-constant-zero-expression': ERROR,
+  // disallow two comparisons of the same operands that can be combined into one
+  'unicorn/no-double-comparison': ERROR,
+  // disallow duplicate adjacent branches in if chains
+  'unicorn/no-duplicate-if-branches': ERROR,
+  // disallow adjacent duplicate operands in logical expressions
+  'unicorn/no-duplicate-logical-operands': ERROR,
+  // disallow `.map()` and `.filter()` in `for...of` and for `await...of` loop headers
+  'unicorn/no-duplicate-loops': ERROR,
+  // disallow duplicate values in `Set` constructor array literals
+  'unicorn/no-duplicate-set-values': ERROR,
+  // disallow empty files
+  'unicorn/no-empty-file': [ERROR, { allowComments: true }],
+  // disallow exports in scripts
+  'unicorn/no-exports-in-scripts': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
   // disallow immediate mutation after variable assignment
@@ -616,44 +698,113 @@ const base = {
   // don't wanna add an option to allow it, manually disable this rule in such problem cases
   // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/2796
   'unicorn/no-immediate-mutation': ERROR,
+  // disallow impossible comparisons against `.length` or `.size`
+  'unicorn/no-impossible-length-comparison': ERROR,
+  // disallow incorrect `querySelector()` and `querySelectorAll()` usage
+  'unicorn/no-incorrect-query-selector': ERROR,
+  // disallow incorrect template literal interpolation syntax
+  'unicorn/no-incorrect-template-string-interpolation': ERROR,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': [ERROR, { strategy: 'loose' }],
+  // disallow comparing a single character from a string to a multi-character string
+  'unicorn/no-invalid-character-comparison': ERROR,
   // disallow invalid options in `fetch` and `Request`
   'unicorn/no-invalid-fetch-options': ERROR,
+  // disallow invalid `accept` values on file inputs
+  'unicorn/no-invalid-file-input-accept': ERROR,
   // prevent calling `EventTarget#removeEventListener()` with the result of an expression
   'unicorn/no-invalid-remove-event-listener': ERROR,
+  // disallow invalid implementations of well-known symbol methods
+  'unicorn/no-invalid-well-known-symbol-methods': ERROR,
+  // disallow event-control method calls after the synchronous event dispatch has finished
+  'unicorn/no-late-event-control': ERROR,
+  // disallow accessing `event.currentTarget` after the synchronous event dispatch has finished
+  'unicorn/no-late-current-target-access': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
+  // disallow calling `Promise` executor resolver functions more than once on the same execution path
+  'unicorn/no-multiple-promise-resolver-calls': ERROR,
   // disallow named usage of default import and export
   'unicorn/no-named-default': ERROR,
+  // disallow negated array predicate calls
+  'unicorn/no-negated-array-predicate': ERROR,
+  // disallow negated comparisons
+  // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/3510
+  'unicorn/no-negated-comparison': OFF,
   // disallow negated expression in equality check
   'unicorn/no-negation-in-equality-check': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
   'unicorn/no-new-buffer': ERROR,
+  // disallow non-function values with function-style verb prefixes
+  'unicorn/no-non-function-verb-prefix': ERROR,
+  // disallow `Object` methods with `Map` or `Set`
+  'unicorn/no-object-methods-with-collections': ERROR,
+  // disallow optional chaining on undeclared variables
+  'unicorn/no-optional-chaining-on-undeclared-variable': ERROR,
+  // disallow comparisons made redundant by an equality check in the same logical AND
+  'unicorn/no-redundant-comparison': ERROR,
   // disallow passing single-element arrays to `Promise` methods
   'unicorn/no-single-promise-in-promise-methods': ERROR,
   // forbid classes that only have static members
   'unicorn/no-static-only-class': ERROR,
+  // prefer comparing values directly over subtracting and comparing to 0
+  'unicorn/no-subtraction-comparison': ERROR,
   // disallow `then` property
   'unicorn/no-thenable': ERROR,
   // disallow comparing `undefined` using `typeof` when it's not required
   'unicorn/no-typeof-undefined': ERROR,
+  // disallow referencing methods without calling them
+  'unicorn/no-uncalled-method': ERROR,
+  // require class members to be declared
+  'unicorn/no-undeclared-class-members': ERROR,
   // disallow using 1 as the depth argument of `Array#flat()`
   'unicorn/no-unnecessary-array-flat-depth': ERROR,
   // disallow using `.length` or `Infinity` as the `deleteCount` or `skipCount` argument of `Array#{ splice, toSpliced }()`
   'unicorn/no-unnecessary-array-splice-count': ERROR,
   // disallow awaiting non-promise values
   'unicorn/no-unnecessary-await': ERROR,
+  // disallow unnecessary comparisons against boolean literals
+  'unicorn/no-unnecessary-boolean-comparison': ERROR,
+  // disallow unnecessary options in `fetch()` and `new Request()`
+  'unicorn/no-unnecessary-fetch-options': ERROR,
+  // disallow unnecessary nested ternary expressions
+  'unicorn/no-unnecessary-nested-ternary': ERROR,
   // disallow using `.length` or `Infinity` as the end argument of `{ Array, String, %TypedArray% }#slice()`
   'unicorn/no-unnecessary-slice-end': ERROR,
+  // disallow `Array#splice()` when simpler alternatives exist
+  'unicorn/no-unnecessary-splice': ERROR,
+  // disallow `String#trim()` before `String#startsWith()` or `String#endsWith()`
+  'unicorn/no-unnecessary-string-trim': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
   'unicorn/no-unreadable-iife': ERROR,
+  // disallow unreadable object destructuring
+  'unicorn/no-unreadable-object-destructuring': ERROR,
+  // disallow unsafe values as property keys
+  'unicorn/no-unsafe-promise-all-settled-values': ERROR,
+  // disallow reading `.value` from `Promise.allSettled()` results without a fulfilled status guard
+  'unicorn/no-unsafe-property-key': ERROR,
+  // disallow ignoring the return value of selected array methods
+  'unicorn/no-unused-array-method-return': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
+  // disallow unnecessary `Boolean()` casts in array predicate callbacks
+  'unicorn/no-useless-boolean-cast': ERROR,
+  // disallow useless type coercions of values that are already of the target type
+  'unicorn/no-useless-coercion': ERROR,
   // disallow useless values or fallbacks in `Set`, `Map`, `WeakSet`, or `WeakMap`
   'unicorn/no-useless-collection-argument': ERROR,
+  // disallow useless compound assignments such as `x += 0`
+  'unicorn/no-useless-compound-assignment': ERROR,
+  // disallow useless concatenation of literals
+  'unicorn/no-useless-concat': ERROR,
+  // disallow useless `continue` statements
+  'unicorn/no-useless-continue': ERROR,
+  // disallow unnecessary existence checks before deletion
+  'unicorn/no-useless-delete-check': ERROR,
+  // disallow `else` after a statement that exits
+  'unicorn/no-useless-else': ERROR,
   // disallow unnecessary `Error.captureStackTrace()`
   'unicorn/no-useless-error-capture-stack-trace': ERROR,
   // forbid useless fallback when spreading in object literals
@@ -662,38 +813,56 @@ const base = {
   'unicorn/no-useless-iterator-to-array': ERROR,
   // disallow useless array length check
   'unicorn/no-useless-length-check': ERROR,
+  // disallow unnecessary operands in logical expressions involving boolean literals
+  'unicorn/no-useless-logical-operand': ERROR,
+  // disallow useless overrides of class methods
+  'unicorn/no-useless-override': ERROR,
   // disallow returning / yielding `Promise.{ resolve, reject }` in async functions or promise callbacks
   'unicorn/no-useless-promise-resolve-reject': ERROR,
+  // disallow simple recursive function calls that can be replaced with a loop
+  'unicorn/no-useless-recursion': ERROR,
+  // disallow redundant re-exports
+  'unicorn/no-useless-re-export': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements
   'unicorn/no-useless-switch-case': ERROR,
-  // enforce lowercase identifier and uppercase value for number literals
-  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
-  // enforce the style of numeric separators by correctly grouping digits
-  'unicorn/numeric-separators-style': [ERROR, {
-    onlyIfContainsSeparator: true,
-    number: { minimumDigits: 0, groupLength: 3 },
-    binary: { minimumDigits: 0, groupLength: 4 },
-    octal: { minimumDigits: 0, groupLength: 4 },
-    hexadecimal: { minimumDigits: 0, groupLength: 2 },
-  }],
+  // disallow the bitwise XOR operator where exponentiation was likely intended
+  'unicorn/no-xor-as-exponentiation': ERROR,
+  // require assignment operator shorthand where possible
+  'unicorn/operator-assignment': [ERROR, ALWAYS],
+  // prefer `AggregateError` when throwing collected errors
+  'unicorn/prefer-aggregate-error': ERROR,
   // prefer `.find()` over the first element from `.filter()`
   'unicorn/prefer-array-find': [ERROR, { checkFromLast: true }],
   // use `.flat()` to flatten an array of arrays
   'unicorn/prefer-array-flat': ERROR,
   // use `.flatMap()` to map and then flatten an array instead of using `.map().flat()`
   'unicorn/prefer-array-flat-map': ERROR,
+  // prefer `Array.fromAsync()` over for await-of array accumulation
+  'unicorn/prefer-array-from-async': ERROR,
+  // use using the `Array.from()` mapping function argument
+  'unicorn/prefer-array-from-map': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
   'unicorn/prefer-array-index-of': ERROR,
+  // prefer iterating an array directly or with `Array#keys()` over `Array#entries()` when the index or value is unused
+  'unicorn/prefer-array-iterable-methods': ERROR,
+  // prefer last-oriented array methods over `Array#reverse()` or `Array#toReversed()` followed by a method
+  'unicorn/prefer-array-last-methods': ERROR,
+  // prefer `Array#slice()` over `Array#splice()` when reading from the returned array
+  'unicorn/prefer-array-slice': ERROR,
   // prefer `.some()` over `.filter().length` check and `.find()`
   'unicorn/prefer-array-some': ERROR,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': [ERROR, { checkAllIndexAccess: false }],
   // prefer `BigInt` literals over the constructor
   'unicorn/prefer-bigint-literals': ERROR,
+  // prefer block statements over IIFEs used only for scoping
+  'unicorn/prefer-block-statement-over-iife': ERROR,
   // prefer `Blob#{ arrayBuffer, text }` over `FileReader#{ readAsArrayBuffer, readAsText }`
   'unicorn/prefer-blob-reading-methods': ERROR,
+  // prefer directly returning boolean expressions over `if` statements
+  'unicorn/prefer-boolean-return': ERROR,
   // prefer class field declarations over this assignments in constructors
   'unicorn/prefer-class-fields': ERROR,
   // prefer using `Element#classList.toggle()` to toggle class names
@@ -702,16 +871,42 @@ const base = {
   'unicorn/prefer-date-now': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
+  // prefer direct iteration over default iterator method calls
+  'unicorn/prefer-direct-iteration': ERROR,
+  // prefer `else if` over adjacent `if` statements with related conditions
+  'unicorn/prefer-else-if': ERROR,
+  // prefer `Error.isError()` when checking for errors
+  'unicorn/prefer-error-is-error': ERROR,
   // prefer `EventTarget` over `EventEmitter`
   'unicorn/prefer-event-target': ERROR,
+  // prefer flat `Math.min()` and `Math.max()` calls over nested calls
+  'unicorn/prefer-flat-math-min-max': ERROR,
+  // prefer `.getOrInsertComputed()` when the default value has side effects
+  'unicorn/prefer-get-or-insert-computed': ERROR,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': ERROR,
+  // prefer `Object.groupBy()` or `Map.groupBy()` over reduce-based grouping
+  'unicorn/prefer-group-by': ERROR,
+  // prefer moving code shared by all branches of an `if` statement out of the branches
+  'unicorn/prefer-hoisting-branch-code': ERROR,
+  // prefer identifiers over string literals in import and export specifiers.
+  'unicorn/prefer-identifier-import-export-specifiers': ERROR,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
   'unicorn/prefer-includes': ERROR,
+  // prefer iterator helpers over temporary arrays from iterators
+  'unicorn/prefer-iterator-helpers': ERROR,
+  // prefer passing iterables directly to constructors instead of filling empty collections
+  'unicorn/prefer-iterable-in-constructor': ERROR,
+  // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
+  'unicorn/prefer-iterator-to-array': ERROR,
+  // prefer moving `.toArray()` to the end of iterator helper chains
+  'unicorn/prefer-iterator-to-array-at-end': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': ERROR,
+  // prefer `new Map()` over `Object.fromEntries()` when using the result as a map
+  'unicorn/prefer-map-from-entries': ERROR,
   // prefer `Math.min()` and `Math.max()` over ternaries for simple comparisons
   'unicorn/prefer-math-min-max': ERROR,
   // prefer modern `Math` APIs over legacy patterns
@@ -724,24 +919,70 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer `Object.defineProperties()` over multiple `Object.defineProperty()` calls
+  'unicorn/prefer-object-define-properties': ERROR,
+  // prefer object destructuring defaults over default object literals with spread
+  'unicorn/prefer-object-destructuring-defaults': ERROR,
+  // prefer the most specific `Object` iterable method
+  'unicorn/prefer-object-iterable-methods': ERROR,
+  // prefer `Promise.try()` over promise-wrapping boilerplate
+  'unicorn/prefer-promise-try': ERROR,
+  // prefer `Promise.withResolvers()` when extracting resolver functions from `new Promise()`
+  'unicorn/prefer-promise-with-resolvers': ERROR,
+  // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(..., 0)`
+  'unicorn/prefer-queue-microtask': ERROR,
+  // prefer `RegExp.escape()` for escaping strings to use in regular expressions
+  'unicorn/prefer-regexp-escape': ERROR,
   // prefer `Response.json()` over `new Response(JSON.stringify())`
   'unicorn/prefer-response-static-json': ERROR,
-  // prefer simple conditions first in logical expressions
-  // 'unicorn/prefer-simple-condition-first': ERROR,
-  // prefer using `structuredClone` to create a deep clone
-  'unicorn/prefer-structured-clone': ERROR,
+  // prefer `Set#has()` over `Array#includes()` when checking for existence or non-existence
+  'unicorn/prefer-set-has': ERROR,
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
+  // prefer `Set` methods for `Set` operations
+  'unicorn/prefer-set-methods': ERROR,
+  // prefer simplified conditions
+  'unicorn/prefer-simplified-conditions': ERROR,
+  // prefer simple conditions first in logical expressions
+  // 'unicorn/prefer-simple-condition-first': ERROR,
+  // prefer a simple comparison function for `Array#sort()`
+  'unicorn/prefer-simple-sort-comparator': ERROR,
+  // prefer a single `Array#some()` or `Array#every()` with a combined predicate
+  'unicorn/prefer-single-array-predicate': ERROR,
   // enforce combining multiple `Array#push`, `Element#classList.{ add, remove }()` or `importScripts` into one call
   'unicorn/prefer-single-call': ERROR,
+  // prefer a single object destructuring declaration per local const source
+  'unicorn/prefer-single-object-destructuring': ERROR,
+  // уnforce combining multiple single-character replacements into a single `String#replaceAll()` with a regular expression
+  'unicorn/prefer-single-replace': ERROR,
+  // prefer declaring variables in the smallest possible scope
+  'unicorn/prefer-smaller-scope': ERROR,
+  // prefer `String#split()` with a limit
+  'unicorn/prefer-split-limit': ERROR,
+  // prefer String#matchAll() over RegExp#exec() loops
+  'unicorn/prefer-string-match-all': ERROR,
+  // prefer `String#padStart()` and `String#padEnd()` over manual string padding
+  'unicorn/prefer-string-pad-start-end': ERROR,
   // prefer `String#replaceAll()` over regex searches with the global flag
   'unicorn/prefer-string-replace-all': ERROR,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
   'unicorn/prefer-string-starts-ends-with': ERROR,
   // prefer `String#{ trimStart, trimEnd }()` over `String#{ trimLeft, trimRight }()`
   'unicorn/prefer-string-trim-start-end': ERROR,
+  // prefer using `structuredClone` to create a deep clone
+  'unicorn/prefer-structured-clone': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
+  // prefer the unary minus operator over multiplying or dividing by `-1`
+  'unicorn/prefer-unary-minus': ERROR,
+  // prefer `URL.canParse()` over constructing a `URL` in a try/catch for validation
+  'unicorn/prefer-url-can-parse': ERROR,
+  // prefer `URL#href` over stringifying a `URL`
+  'unicorn/prefer-url-href': ERROR,
+  // prefer `URLSearchParams` over manually splitting query strings
+  'unicorn/prefer-url-search-parameters': ERROR,
+  // prefer putting the condition in the while statement
+  'unicorn/prefer-while-loop-condition': ERROR,
   // enforce consistent relative `URL` style
   'unicorn/relative-url-style': [ERROR, ALWAYS],
   // enforce using the separator argument with `Array#join()`
@@ -752,6 +993,8 @@ const base = {
   'unicorn/require-number-to-fixed-digits-argument': ERROR,
   // enforce using the `targetOrigin`` argument with `window.postMessage()`
   'unicorn/require-post-message-target-origin': ERROR,
+  // require boolean-returning Proxy traps to return booleans
+  'unicorn/require-proxy-trap-boolean-return': ERROR,
   // forbid braces for case clauses
   'unicorn/switch-case-braces': [ERROR, 'avoid'],
   // fix whitespace-insensitive template indentation
@@ -1111,7 +1354,7 @@ const base = {
 
   // suggest better alternatives to some dependencies
   'depend/ban-dependencies': [ERROR, { allowed: [
-    'mkdirp', // TODO: drop from `core-js@4`
+    // empty
   ] }],
 };
 
@@ -1122,12 +1365,8 @@ const noAsyncAwait = {
   'promise/prefer-await-to-then': OFF,
 };
 
-const useES3Syntax = {
+const useES5Syntax = {
   ...noAsyncAwait,
-  // encourages use of dot notation whenever possible
-  'dot-notation': [ERROR, { allowKeywords: false }],
-  // disallow logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': ERROR,
   // disallow specified syntax
@@ -1150,16 +1389,16 @@ const useES3Syntax = {
   'prefer-spread': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
-  // disallow trailing commas in multiline object literals
-  '@stylistic/comma-dangle': [ERROR, NEVER],
-  // require or disallow use of quotes around object literal property names
-  '@stylistic/quote-props': [ERROR, 'as-needed', { keywords: true }],
   // enforce the use of exponentiation (`**`) operator instead of other calculations
   'math/prefer-exponentiation-operator': OFF,
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // require or disallow logical assignment operator shorthand
+  'unicorn/logical-assignment-operators': OFF,
+  // prefer block statements over IIFEs used only for scoping
+  'unicorn/prefer-block-statement-over-iife': OFF,
   // prefer class field declarations over this assignments in constructors
   'unicorn/prefer-class-fields': OFF,
   // prefer default parameters over reassignment
@@ -1269,31 +1508,20 @@ const forbidCompletelyNonExistentBuiltIns = {
   ...forbidNonStandardBuiltIns,
   // disallow non-standard built-in methods
   'es/no-nonstandard-array-properties': [ERROR, { allow: [
-    'isTemplateObject',
+    // empty
   ] }],
   'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
-    'filterReject',
-    'uniqueBy',
-    // TODO: drop from `core-js@4`
-    'filterOut',
-    'group',
-    'groupBy',
-    'groupByToMap',
-    'groupToMap',
-    'lastIndex',
-    'lastItem',
+    // empty
   ] }],
   'es/no-nonstandard-bigint-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'range',
+    // empty
   ] }],
   'es/no-nonstandard-dataview-prototype-properties': [ERROR, { allow: [
     'getUint8Clamped',
     'setUint8Clamped',
   ] }],
   'es/no-nonstandard-function-properties': [ERROR, { allow: [
-    'isCallable',
-    'isConstructor',
+    // empty
   ] }],
   'es/no-nonstandard-iterator-properties': [ERROR, { allow: [
     'range',
@@ -1302,107 +1530,46 @@ const forbidCompletelyNonExistentBuiltIns = {
     'chunks',
     'includes',
     'join',
-    'sliding',
     'toAsync',
     'windows',
-    // TODO: drop from `core-js@4`
-    'asIndexedPairs',
-    'indexed',
   ] }],
   'es/no-nonstandard-map-properties': [ERROR, { allow: [
-    'from',
-    'of',
-    // TODO: drop from `core-js@4`
-    'keyBy',
+    // empty
   ] }],
   'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'deleteAll',
-    'emplace',
-    'every',
-    'filter',
-    'find',
-    'findKey',
-    'includes',
-    'keyOf',
-    'mapKeys',
-    'mapValues',
-    'merge',
-    'reduce',
-    'some',
-    'update',
-    'updateOrInsert',
-    'upsert',
+    // empty
   ] }],
   'es/no-nonstandard-math-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'DEG_PER_RAD',
-    'RAD_PER_DEG',
-    'clamp',
-    'degrees',
-    'fscale',
-    'iaddh',
-    'imulh',
-    'isubh',
-    'radians',
-    'scale',
-    'seededPRNG',
-    'signbit',
-    'umulh',
+    // empty
   ] }],
   'es/no-nonstandard-number-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'fromString',
-    'range',
+    // empty
   ] }],
   'es/no-nonstandard-number-prototype-properties': [ERROR, { allow: [
     'clamp',
   ] }],
   'es/no-nonstandard-object-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'iterateEntries',
-    'iterateKeys',
-    'iterateValues',
+    'keysLength',
   ] }],
   'es/no-nonstandard-promise-properties': [ERROR, { allow: [
     'allKeyed',
     'allSettledKeyed',
   ] }],
   'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'defineMetadata',
-    'deleteMetadata',
-    'getMetadata',
-    'getMetadataKeys',
-    'getOwnMetadata',
-    'getOwnMetadataKeys',
-    'hasMetadata',
-    'hasOwnMetadata',
-    'metadata',
+    // empty
   ] }],
   'es/no-nonstandard-set-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-set-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'addAll',
-    'deleteAll',
-    'every',
-    'filter',
-    'find',
-    'join',
-    'map',
-    'reduce',
-    'some',
+    // empty
   ] }],
   'es/no-nonstandard-string-properties': [ERROR, { allow: [
     'cooked',
     'dedent',
   ] }],
   'es/no-nonstandard-string-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'codePoints',
+    // empty
   ] }],
   'es/no-nonstandard-symbol-properties': [ERROR, { allow: [
     'customMatcher',
@@ -1410,46 +1577,24 @@ const forbidCompletelyNonExistentBuiltIns = {
     'isWellKnownSymbol',
     'metadata',
     'sham', // non-standard flag
-    // TODO: drop from `core-js@4`
-    'isRegistered',
-    'isWellKnown',
-    'matcher',
-    'metadataKey',
-    'observable',
-    'patternMatch',
-    'replaceAll',
-    'useSetter',
-    'useSimple',
   ] }],
   'es/no-nonstandard-typed-array-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'fromAsync',
+    // empty
   ] }],
   'es/no-nonstandard-typed-array-prototype-properties': [ERROR, { allow: [
-    'filterReject',
-    'uniqueBy',
-    // TODO: drop from `core-js@4`
-    'filterOut',
-    'groupBy',
+    // empty
   ] }],
   'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'deleteAll',
-    'emplace',
-    'upsert',
+    // empty
   ] }],
   'es/no-nonstandard-weakset-properties': [ERROR, { allow: [
-    'from',
-    'of',
+    // empty
   ] }],
   'es/no-nonstandard-weakset-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'addAll',
-    'deleteAll',
+    // empty
   ] }],
 };
 
@@ -1465,35 +1610,15 @@ const forbidESAnnexBBuiltIns = {
 };
 
 const forbidES5BuiltIns = {
-  'es/no-array-isarray': ERROR,
-  'es/no-array-prototype-every': ERROR,
   'es/no-array-prototype-filter': ERROR,
-  'es/no-array-prototype-foreach': ERROR,
   'es/no-array-prototype-indexof': ERROR,
   'es/no-array-prototype-lastindexof': ERROR,
-  'es/no-array-prototype-map': ERROR,
   'es/no-array-prototype-reduce': ERROR,
   'es/no-array-prototype-reduceright': ERROR,
-  'es/no-array-prototype-some': ERROR,
-  'es/no-date-now': ERROR,
-  'es/no-function-prototype-bind': ERROR,
-  'es/no-json': ERROR,
-  'es/no-object-create': ERROR,
-  'es/no-object-defineproperties': ERROR,
-  'es/no-object-defineproperty': ERROR,
-  'es/no-object-freeze': ERROR,
-  'es/no-object-getownpropertydescriptor': ERROR,
-  'es/no-object-getownpropertynames': ERROR,
-  'es/no-object-getprototypeof': ERROR,
   'es/no-object-isextensible': ERROR,
   'es/no-object-isfrozen': ERROR,
   'es/no-object-issealed': ERROR,
-  'es/no-object-keys': ERROR,
-  'es/no-object-preventextensions': ERROR,
-  'es/no-object-seal': ERROR,
   'es/no-string-prototype-trim': ERROR,
-  // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
-  'unicorn/prefer-date-now': OFF,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': OFF,
 };
@@ -1508,7 +1633,6 @@ const forbidES2015BuiltIns = {
   'es/no-array-prototype-findindex': ERROR,
   'es/no-array-prototype-keys': ERROR,
   'es/no-array-prototype-values': ERROR,
-  'es/no-map': ERROR,
   'es/no-math-acosh': ERROR,
   'es/no-math-asinh': ERROR,
   'es/no-math-atanh': ERROR,
@@ -1543,7 +1667,6 @@ const forbidES2015BuiltIns = {
   'es/no-proxy': ERROR,
   'es/no-reflect': ERROR,
   'es/no-regexp-prototype-flags': ERROR,
-  'es/no-set': ERROR,
   'es/no-string-fromcodepoint': ERROR,
   'es/no-string-prototype-codepointat': ERROR,
   'es/no-string-prototype-endswith': ERROR,
@@ -1553,8 +1676,6 @@ const forbidES2015BuiltIns = {
   'es/no-string-prototype-startswith': ERROR,
   'es/no-string-raw': ERROR,
   'es/no-symbol': ERROR,
-  'es/no-typed-arrays': ERROR,
-  'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
   // enforce the use of `Math.cbrt()` instead of other cube root calculations
   'math/prefer-math-cbrt': OFF,
@@ -1580,8 +1701,12 @@ const forbidES2015BuiltIns = {
   'math/prefer-number-max-safe-integer': OFF,
   // enforce the use of `Number.MIN_SAFE_INTEGER` instead of other ways
   'math/prefer-number-min-safe-integer': OFF,
+  // prefer iterating an array directly or with `Array#keys()` over `Array#entries()` when the index or value is unused
+  'unicorn/prefer-array-iterable-methods': OFF,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': OFF,
+  // prefer `Set#has()` over `Array#includes()` when checking for existence or non-existence
+  'unicorn/prefer-set-has': OFF,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
   'unicorn/prefer-string-starts-ends-with': OFF,
 };
@@ -1599,6 +1724,10 @@ const forbidES2017BuiltIns = {
   'es/no-object-values': ERROR,
   'es/no-shared-array-buffer': ERROR,
   'es/no-string-prototype-padstart-padend': ERROR,
+  // prefer the most specific `Object` iterable method.
+  'unicorn/prefer-object-iterable-methods': OFF,
+  // prefer `String#padStart()` and `String#padEnd()` over manual string padding
+  'unicorn/prefer-string-pad-start-end': OFF,
 };
 
 const forbidES2018BuiltIns = {
@@ -1610,6 +1739,8 @@ const forbidES2019BuiltIns = {
   'es/no-object-fromentries': ERROR,
   'es/no-string-prototype-trimstart-trimend': ERROR,
   'es/no-symbol-prototype-description': ERROR,
+  // disallow `String#trim()` before `String#startsWith()` or `String#endsWith()`
+  'unicorn/no-unnecessary-string-trim': OFF,
   // use `.flat()` to flatten an array of arrays
   'unicorn/prefer-array-flat': OFF,
   // prefer using `Object.fromEntries()` to transform a list of key-value pairs into an object
@@ -1627,6 +1758,8 @@ const forbidES2020BuiltIns = {
   'es/no-symbol-matchall': ERROR,
   // prefer `BigInt` literals over the constructor
   'unicorn/prefer-bigint-literals': OFF,
+  // prefer String#matchAll() over RegExp#exec() loops
+  'unicorn/prefer-string-match-all': OFF,
 };
 
 const forbidES2021BuiltIns = {
@@ -1660,6 +1793,8 @@ const forbidES2023BuiltIns = {
   'es/no-regexp-unicode-property-escapes-2023': ERROR,
   // prefer `Array#toReversed()` over `Array#reverse()`
   'unicorn/no-array-reverse': OFF,
+  // prefer last-oriented array methods over `Array#reverse()` or `Array#toReversed()` followed by a method
+  'unicorn/prefer-array-last-methods': OFF,
 };
 
 const forbidES2024BuiltIns = {
@@ -1672,6 +1807,10 @@ const forbidES2024BuiltIns = {
   'es/no-resizable-and-growable-arraybuffers': ERROR,
   'es/no-string-prototype-iswellformed': ERROR,
   'es/no-string-prototype-towellformed': ERROR,
+  // prefer `Object.groupBy()` or `Map.groupBy()` over reduce-based grouping
+  'unicorn/prefer-group-by': OFF,
+  // prefer `Promise.withResolvers()` when extracting resolver functions from `new Promise()`
+  'unicorn/prefer-promise-with-resolvers': OFF,
 };
 
 const forbidES2025BuiltIns = {
@@ -1691,6 +1830,7 @@ const forbidES2025BuiltIns = {
   'es/no-iterator-prototype-toarray': ERROR,
   'es/no-math-f16round': ERROR,
   'es/no-promise-try': ERROR,
+  'es/no-regexp-escape': ERROR,
   'es/no-set-prototype-difference': ERROR,
   'es/no-set-prototype-intersection': ERROR,
   'es/no-set-prototype-isdisjointfrom': ERROR,
@@ -1698,6 +1838,14 @@ const forbidES2025BuiltIns = {
   'es/no-set-prototype-issupersetof': ERROR,
   'es/no-set-prototype-symmetricdifference': ERROR,
   'es/no-set-prototype-union': ERROR,
+  // prefer `Iterator#toArray()` over temporary arrays from iterator spreads
+  'unicorn/prefer-iterator-to-array': OFF,
+  // prefer `Promise.try()` over promise-wrapping boilerplate
+  'unicorn/prefer-promise-try': OFF,
+  // prefer `RegExp.escape()` for escaping strings to use in regular expressions
+  'unicorn/prefer-regexp-escape': OFF,
+  // prefer `Set` methods for `Set` operations
+  'unicorn/prefer-set-methods': OFF,
 };
 
 const forbidES2026BuiltIns = {
@@ -1724,6 +1872,12 @@ const forbidES2026BuiltIns = {
   'es/no-uint8array-prototype-tohex': ERROR,
   'es/no-weakmap-prototype-getorinsert': ERROR,
   'es/no-weakmap-prototype-getorinsertcomputed': ERROR,
+  // prefer `Array.fromAsync()` over for await-of array accumulation
+  'unicorn/prefer-array-from-async': OFF,
+  // prefer `Error.isError()` when checking for errors
+  'unicorn/prefer-error-is-error': OFF,
+  // prefer `.getOrInsertComputed()` when the default value has side effects
+  'unicorn/prefer-get-or-insert-computed': OFF,
   // enforce the use of `Math.sumPrecise` instead of other summation methods
   'math/prefer-math-sum-precise': OFF,
 };
@@ -1817,6 +1971,8 @@ const forbidModernBuiltIns = {
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
+  // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(…, 0)`
+  'unicorn/prefer-queue-microtask': OFF,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
 };
@@ -1835,8 +1991,22 @@ const polyfills = {
   'regexp/prefer-regexp-test': OFF,
   // shorthand promises should be used
   'sonarjs/prefer-promise-shorthand': OFF,
+  // enforce function syntax by role
+  'unicorn/consistent-function-style': [ERROR, {
+    default: 'ignore',
+    namedFunctions: 'function-expression',
+    namedExports: 'ignore',
+    callbacks: 'ignore',
+    objectProperties: 'ignore',
+    reassignedVariables: 'ignore',
+    typedVariables: 'ignore',
+  }],
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
+  // disallow referencing methods without calling them
+  'unicorn/no-uncalled-method': OFF,
+  // prefer `URL.canParse()` over constructing a `URL` in a try/catch for validation
+  'unicorn/prefer-url-can-parse': OFF,
 };
 
 const transpiledAndPolyfilled = {
@@ -1872,62 +2042,8 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
-  // disallow logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, NEVER],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
-  // prefer `node:` protocol
-  'node/prefer-node-protocol': OFF,
-  // prefer promises
-  'node/prefer-promises/dns': OFF,
-  'node/prefer-promises/fs': OFF,
-  // prefer lookarounds over capturing group that do not replace
-  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
-  // enforce using named capture group in regular expression
-  'regexp/prefer-named-capture-group': OFF,
-  // prefer class field declarations over this assignments in constructors
-  'unicorn/prefer-class-fields': OFF,
-  // prefer using a logical operator over a ternary
-  'unicorn/prefer-logical-operator-over-ternary': OFF,
-  // prefer using the `node:` protocol when importing Node builtin modules
-  'unicorn/prefer-node-protocol': OFF,
-  // prefer omitting the `catch` binding parameter
-  'unicorn/prefer-optional-catch-binding': OFF,
-  // prefer using `structuredClone` to create a deep clone
-  'unicorn/prefer-structured-clone': OFF,
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
-  'es/no-atomics': ERROR,
-  'es/no-shared-array-buffer': ERROR,
-  // disallow top-level `await`
-  'es/no-top-level-await': ERROR,
-  ...forbidES2018BuiltIns,
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
-  ...forbidES2021BuiltIns,
-  ...forbidES2022BuiltIns,
-  ...forbidES2023BuiltIns,
-  ...forbidES2024BuiltIns,
-  ...forbidES2025BuiltIns,
-  ...forbidES2026BuiltIns,
-  ...forbidES2027BuiltIns,
-  ...disable(forbidES2016IntlBuiltIns),
-  ...disable(forbidES2017IntlBuiltIns),
-  ...forbidES2018IntlBuiltIns,
-  ...forbidES2020IntlBuiltIns,
-  ...forbidES2021IntlBuiltIns,
-  ...forbidES2022IntlBuiltIns,
-  ...forbidES2023IntlBuiltIns,
-  ...forbidES2025IntlBuiltIns,
-  ...forbidES2026IntlBuiltIns,
-  ...forbidSomeES2025Syntax,
-};
-
-const nodeDev = {
-  // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
   ...disable(forbidModernBuiltIns),
   ...forbidES2024BuiltIns,
   'es/no-regexp-v-flag': OFF,
@@ -1943,6 +2059,14 @@ const nodeDev = {
   // prefer top-level await
   'unicorn/prefer-top-level-await': ERROR,
   ...forbidSomeES2025Syntax,
+  'es/no-import-attributes': OFF,
+  'es/no-json-modules': OFF,
+};
+
+const nodeDev = {
+  ...nodePackages,
+  // disallow unsupported ECMAScript built-ins on the specified version
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
 };
 
 const tests = {
@@ -1990,14 +2114,39 @@ const tests = {
   'unicorn/no-immediate-mutation': OFF,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
+  // disallow referencing methods without calling them
+  'unicorn/no-uncalled-method': OFF,
+  // disallow ignoring the return value of selected array methods
+  'unicorn/no-unused-array-method-return': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': OFF,
+  // prefer `Error.isError()` when checking for errors
+  'unicorn/prefer-error-is-error': OFF,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
   'unicorn/prefer-includes': OFF,
+  // prefer `URL.canParse()` over constructing a `URL` in a try/catch for validation
+  'unicorn/prefer-url-can-parse': OFF,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
   ...disable(forbidESAnnexBBuiltIns),
+};
+
+const e2eUsagePure = {
+  // require or disallow logical assignment operator shorthand
+  'unicorn/logical-assignment-operators': OFF,
+  // disallow unreadable object destructuring
+  'unicorn/no-unreadable-object-destructuring': OFF,
+  // disallow useless overrides of class methods
+  'unicorn/no-useless-override': OFF,
+  // use using the `Array.from()` mapping function argument
+  'unicorn/prefer-array-from-map': OFF,
+  // prefer direct iteration over default iterator method calls
+  'unicorn/prefer-direct-iteration': OFF,
+  // prefer object destructuring defaults over default object literals with spread
+  'unicorn/prefer-object-destructuring-defaults': OFF,
+  // prefer a single object destructuring declaration per local const source.
+  'unicorn/prefer-single-object-destructuring': OFF,
 };
 
 const qunit = {
@@ -2084,6 +2233,45 @@ const playwright = {
   'playwright/no-useless-await': ERROR,
   // require a timeout option for `toPass()`
   'playwright/require-to-pass-timeout': ERROR,
+};
+
+const ts = {
+  ...disable(base),
+  ...baseStyle,
+  // validating that TypeScript doc comments conform to the TSDoc specification
+  'tsdoc/syntax': ERROR,
+  // specify the maximum length of a line in your program
+  '@stylistic/max-len': [OFF, { ...base['@stylistic/max-len'][1], code: 180 }],
+  // require consistent spacing around type annotations
+  '@stylistic/type-annotation-spacing': ERROR,
+  // enforces consistent spacing inside TypeScript type generics
+  '@stylistic/type-generic-spacing': ERROR,
+  // expect space before the type declaration in the named tuple
+  '@stylistic/type-named-tuple-spacing': ERROR,
+  // require that function overload signatures be consecutive
+  '@typescript-eslint/adjacent-overload-signatures': ERROR,
+  // enforce type definitions to consistently use either `interface` or `type`
+  '@typescript-eslint/consistent-type-definitions': [ERROR, 'interface'],
+  // disallow extra non-null assertions
+  '@typescript-eslint/no-extra-non-null-assertion': ERROR,
+  // enforce the use of top-level import type qualifier when an import only has specifiers with inline type qualifiers
+  '@typescript-eslint/no-import-type-side-effects': ERROR,
+  // disallow explicit type declarations for variables or parameters initialized to a number, string, or boolean
+  '@typescript-eslint/no-inferrable-types': ERROR,
+  // disallow unnecessary constraints on generic types
+  '@typescript-eslint/no-unnecessary-type-constraint': ERROR,
+  // disallow unsafe declaration merging
+  '@typescript-eslint/no-unsafe-declaration-merging': ERROR,
+  // disallow empty exports that don't change anything in a module file
+  '@typescript-eslint/no-useless-empty-export': ERROR,
+  // enforce using function types instead of interfaces with call signatures
+  '@typescript-eslint/prefer-function-type': ERROR,
+  // require using namespace keyword over module keyword to declare custom TypeScript modules
+  '@typescript-eslint/prefer-namespace-keyword': ERROR,
+};
+
+const typeDefinitionsTests = {
+  ...disable(forbidNonStandardBuiltIns),
 };
 
 const yaml = {
@@ -2177,6 +2365,8 @@ const packageJSON = {
   'package-json/exports-subpaths-style': [ERROR, { prefer: 'explicit' }],
   // reports on unnecessary empty arrays and objects
   'package-json/no-empty-fields': ERROR,
+  // requires that dependencies do not use local file paths, which will likely result in errors when installing from a registry
+  'package-json/no-local-dependencies': ERROR,
   // prevents adding unnecessary / redundant files
   'package-json/no-redundant-files': ERROR,
   // warns when `publishConfig.access` is used in unscoped packages
@@ -2250,6 +2440,8 @@ const packageJSON = {
 };
 
 const packagesPackageJSON = {
+  // requires that dependencies do not use local file paths
+  'package-json/no-local-dependencies': ERROR,
   // enforce either object or shorthand declaration for repository
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
   // ensures that proper attribution is included, requiring that either `author` or `contributors` is defined,
@@ -2261,12 +2453,8 @@ const packagesPackageJSON = {
   'package-json/require-bugs': ERROR,
   // requires the `description` property to be present
   'package-json/require-description': ERROR,
-  // requires the `engines` property to be present
-  // TODO: core-js@4
-  // 'package-json/require-engines': ERROR,
   // requires the `exports` property to be present
-  // TODO: core-js@4
-  // 'package-json/require-exports': ERROR,
+  'package-json/require-exports': ERROR,
   // requires the `funding` property to be present
   'package-json/require-funding': ERROR,
   // requires the `homepage` property to be present
@@ -2279,9 +2467,6 @@ const packagesPackageJSON = {
   'package-json/require-repository': ERROR,
   // requires the `sideEffects` property to be present
   'package-json/require-sideEffects': ERROR,
-  // requires the `types` property to be present
-  // TODO: core-js@4
-  // 'package-json/require-types': ERROR,
   // requires the `version` property to be present
   'package-json/require-version': ERROR,
   // enforce that package names are valid npm package names
@@ -2321,6 +2506,10 @@ const markdown = {
   'prefer-regex-literals': OFF,
   // disallow top-level `await`
   'es/no-top-level-await': OFF,
+  // import used for tasks
+  'import/first': OFF,
+  // enforce a newline after import statements
+  'import/newline-after-import': OFF,
   // ensure imports point to files / modules that can be resolved
   'import/no-unresolved': OFF,
   // enforces the use of `catch()` on un-returned promises
@@ -2329,6 +2518,10 @@ const markdown = {
   'regexp/prefer-regexp-exec': OFF,
   // variables should be defined before being used
   'sonarjs/no-reference-error': OFF,
+  // disallow duplicate values in `Set` constructor array literals
+  'unicorn/no-duplicate-set-values': OFF,
+  // disallow ignoring the return value of selected array methods
+  'unicorn/no-unused-array-method-return': OFF,
   // specify the maximum length of a line in your program
   '@stylistic/max-len': [ERROR, { ...base['@stylistic/max-len'][1], code: 200 }],
 };
@@ -2380,14 +2573,16 @@ export default [
   {
     ignores: [
       '.work/**',
-      'deno/corejs/**',
       'docs/**',
       'packages/core-js-bundle/!(package.json)',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
+      'tests/transpiler-fixtures/**/*.mjs',
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
-      'tests/unit-@(global|pure)/index.js',
+      'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
+      'tests/transpiler-differential/tmp/**',
+      'tests/type-definitions/tmp/**',
       'website/dist/**',
       'website/src/public/*',
       'website/templates/**',
@@ -2410,6 +2605,7 @@ export default [
     },
     plugins: {
       '@stylistic': pluginStylistic,
+      '@typescript-eslint': pluginTypeScript,
       'array-func': pluginArrayFunc,
       ascii: pluginASCII,
       depend: pluginDepend,
@@ -2429,6 +2625,7 @@ export default [
       redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
+      tsdoc: pluginTSDoc,
       unicorn: pluginUnicorn,
       yaml: pluginYaml,
     },
@@ -2445,6 +2642,11 @@ export default [
   {
     files: [
       '**/*.mjs',
+      'packages/core-js-babel-plugin/**',
+      'packages/core-js-polyfill-provider/**',
+      'packages/core-js-unplugin/**',
+      'packages/core-js-builder/**',
+      'packages/core-js-compat/**',
       'tests/eslint/**',
     ],
     languageOptions: {
@@ -2453,13 +2655,33 @@ export default [
   },
   {
     files: [
+      'packages/core-js-unplugin/internals/ast/**',
+    ],
+    rules: {
+      // the AST engine's boundary: it prints through esrap and never touches the text-transform
+      // layer, so the layer can be deleted out from under it when the staged migration lands
+      'no-restricted-imports': [ERROR, {
+        paths: [
+          { name: 'magic-string', message: 'the AST engine prints through esrap, never splices text' },
+        ],
+        patterns: [
+          {
+            group: ['*/transform-queue.js', '*/text-scan.js', '*/ref-canon.js', '*/emit-utils.js', '*/detect-entry.js'],
+            message: 'text-transform layer - off limits for the AST engine',
+          },
+        ],
+      }],
+    },
+  },
+  {
+    files: [
       'packages/core-js?(-pure)/**',
       'tests/compat/*.js',
     ],
     languageOptions: {
-      ecmaVersion: 3,
+      ecmaVersion: 5,
     },
-    rules: useES3Syntax,
+    rules: useES5Syntax,
   },
   {
     files: [
@@ -2477,12 +2699,6 @@ export default [
   },
   {
     files: [
-      '**/postinstall.js',
-    ],
-    rules: disable(forbidES5BuiltIns),
-  },
-  {
-    files: [
       'packages/core-js?(-pure)/**/instance/**',
     ],
     rules: {
@@ -2492,7 +2708,8 @@ export default [
   },
   {
     files: [
-      'tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**',
+      'tests/@(helpers|unit-@(global|pure)|e2e-usage-pure|wpt-url-resources)/**',
+      'tests/transpiler-integration/*.js',
     ],
     languageOptions: {
       sourceType: 'module',
@@ -2513,7 +2730,7 @@ export default [
   },
   {
     files: [
-      'tests/@(helpers|unit-@(global|pure))/**',
+      'tests/@(helpers|unit-@(global|pure)|e2e-usage-pure)/**',
     ],
     languageOptions: {
       globals: globals.qunit,
@@ -2528,7 +2745,7 @@ export default [
   },
   {
     files: [
-      'packages/core-js-@(builder|compat)/**',
+      'packages/core-js-@(babel-plugin|builder|compat)/**',
     ],
     rules: nodePackages,
   },
@@ -2538,7 +2755,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises|unit-@(karma|node))/**',
+      'tests/@(compat-@(data|tools)|eslint|entries|karma|promises|unit-node)/**',
       'website/scripts/runner.mjs',
       'website/scripts/helpers.mjs',
     ],
@@ -2546,11 +2763,17 @@ export default [
   },
   {
     files: [
-      'tests/@(compat|unit-global)/**',
+      'tests/@(compat|unit-global|e2e-usage-pure)/**',
     ],
     languageOptions: {
       globals: globalsESNext,
     },
+  },
+  {
+    files: [
+      'tests/e2e-usage-pure/**',
+    ],
+    rules: e2eUsagePure,
   },
   {
     files: [
@@ -2578,6 +2801,22 @@ export default [
       // import used for tasks
       'import/first': OFF,
     },
+  },
+  {
+    files: [
+      'packages/core-js-types/src/**/*.d.ts',
+      'tests/type-definitions/**/*.ts',
+    ],
+    languageOptions: {
+      parser: parserTypeScript,
+    },
+    rules: ts,
+  },
+  {
+    files: [
+      'tests/type-definitions/**/*.ts',
+    ],
+    rules: typeDefinitionsTests,
   },
   {
     rules: {
@@ -2629,6 +2868,10 @@ export default [
   {
     files: ['**/*.md'],
     processor: 'markdown/markdown',
+    rules: {
+      // disallow references to missing local resources
+      'unicorn/no-missing-local-resource': ERROR,
+    },
   },
   {
     files: ['**/*.md/*.js'],

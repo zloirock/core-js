@@ -1,0 +1,8 @@
+node_modules/
+package.tpl.json
+/src/
+*.log
+.*
+
+/AGENTS.md
+/CLAUDE.md

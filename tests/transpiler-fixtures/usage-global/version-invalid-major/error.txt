@@ -1,0 +1,1 @@
+[BABEL] unknown file: This version of `@core-js/compat` works only with `core-js@4` (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

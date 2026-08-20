@@ -1,6 +1,4 @@
 'use strict';
-// TODO: Remove from `core-js@4` since it's moved to entry points
-require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
@@ -25,11 +23,12 @@ $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
   test: function (S) {
     var R = anObject(this);
     var string = toString(S);
+    // @dependency: es.regexp.exec
     var exec = R.exec;
     if (!isCallable(exec)) return call(nativeTest, R, string);
     var result = call(exec, R, string);
     if (result === null) return false;
     anObject(result);
     return true;
-  }
+  },
 });

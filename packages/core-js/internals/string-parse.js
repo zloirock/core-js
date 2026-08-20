@@ -1,11 +1,11 @@
 'use strict';
 // adapted from https://github.com/jridgewell/string-dedent
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
-var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
-var charAt = uncurryThis(''.charAt);
+// @dependency: es.string.from-code-point
+var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var charCodeAt = uncurryThis(''.charCodeAt);
 var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
@@ -52,7 +52,7 @@ module.exports = function (raw) {
     // This can't actually happen in a tagged template literal, but could happen if you manually
     // invoked the tag with an array.
     if (++i === raw.length) return;
-    var next = charAt(raw, i++);
+    var next = raw[i++];
     switch (next) {
       // Escaped control codes need to be individually processed.
       case 'b':
@@ -76,7 +76,7 @@ module.exports = function (raw) {
       // Escaped line terminators just skip the char.
       case '\r':
         // Treat `\r\n` as a single terminator.
-        if (i < raw.length && charAt(raw, i) === '\n') ++i;
+        if (raw[i] === '\n') ++i;
       // break omitted
       case '\n':
       case '\u2028':
@@ -97,7 +97,7 @@ module.exports = function (raw) {
       // Unicode escapes contain either 4 chars, or an unlimited number between `{` and `}`.
       // The hex value must not overflow 0x10FFFF.
       case 'u':
-        if (i < raw.length && charAt(raw, i) === '{') {
+        if (raw[i] === '{') {
           var end = stringIndexOf(raw, '}', ++i);
           if (end === -1) return;
           n = parseHex(raw, i, end);

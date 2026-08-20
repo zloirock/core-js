@@ -1,0 +1,232 @@
+// Complex expressions: nested calls, method calls on results, IIFE, ternary
+QUnit.test('complex: Array.from on Set result', assert => {
+  // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
+  assert.deepEqual(Array.from(new Set([3, 1, 2, 1])), [3, 1, 2]);
+});
+
+QUnit.test('complex: Object.entries + Object.fromEntries roundtrip', assert => {
+  const obj = { a: 1, b: 2, c: 3 };
+  const filtered = Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v > 1),
+  );
+  assert.deepEqual(filtered, { b: 2, c: 3 });
+});
+
+QUnit.test('complex: Promise.all with map', assert => {
+  const async = assert.async();
+  Promise.all([1, 2, 3].map(x => Promise.resolve(x * 2))).then(r => {
+    assert.deepEqual(r, [2, 4, 6]);
+    async();
+  });
+});
+
+QUnit.test('complex: nested Array.from + flat', assert => {
+  assert.deepEqual(
+    Array.from(new Map([['a', [1, 2]], ['b', [3, 4]]])).flatMap(([, v]) => v),
+    [1, 2, 3, 4],
+  );
+});
+
+QUnit.test('complex: Object.assign with spread-like usage', assert => {
+  const defaults = { color: 'red', size: 10 };
+  const overrides = { size: 20, weight: 5 };
+  const result = Object.assign({}, defaults, overrides);
+  assert.deepEqual(result, { color: 'red', size: 20, weight: 5 });
+});
+
+QUnit.test('complex: Array.from with generator-like iterable', assert => {
+  const range = {
+    [Symbol.iterator]() {
+      let i = 0;
+      return { next() { return i < 3 ? { value: i++, done: false } : { done: true }; } };
+    },
+  };
+  assert.deepEqual(Array.from(range), [0, 1, 2]);
+});
+
+QUnit.test('complex: structuredClone preserves Map/Set', assert => {
+  const original = { map: new Map([['k', 'v']]), set: new Set([1, 2]) };
+  const clone = structuredClone(original);
+  assert.true(clone.map instanceof Map);
+  assert.same(clone.map.get('k'), 'v');
+  assert.true(clone.set instanceof Set);
+  assert.true(clone.set.has(1));
+  assert.notSame(clone.map, original.map);
+});
+
+QUnit.test('complex: Number.isFinite + parseFloat', assert => {
+  assert.true(Number.isFinite(parseFloat('3.14')));
+  assert.true(Number.isFinite(parseFloat('100')));
+});
+
+QUnit.test('complex: chained string transforms', assert => {
+  assert.same(
+    '  Hello, World!  '
+      .trim()
+      .replaceAll('!', '?')
+      .padEnd(20, '.'),
+    'Hello, World?.......',
+  );
+});
+QUnit.test('complex: polyfill in default parameter', assert => {
+  function process(items = Array.from([1, 2, 3])) {
+    return items.filter(x => x > 1);
+  }
+  assert.deepEqual(process(), [2, 3]);
+  assert.deepEqual(process([5, 6]), [5, 6]);
+});
+
+QUnit.test('complex: Promise.all with Array.from', assert => {
+  const async = assert.async();
+  Promise.all(Array.from([1, 2, 3], x => Promise.resolve(x * 10))).then(r => {
+    assert.deepEqual(r, [10, 20, 30]);
+    async();
+  });
+});
+
+QUnit.test('complex: structuredClone preserves polyfilled result', assert => {
+  const original = { items: Array.from([1, 2, 3]) };
+  const cloned = structuredClone(original);
+  assert.deepEqual(cloned.items, [1, 2, 3]);
+  assert.true(cloned.items.includes(2));
+});
+
+QUnit.test('complex: Iterator.from chained with instance method', assert => {
+  const result = Iterator.from([1, 2, 3, 4]).filter(x => x > 2).toArray();
+  assert.deepEqual(result, [3, 4]);
+});
+
+QUnit.test('complex: structuredClone preserves Map', assert => {
+  const map = new Map([['a', 1]]);
+  const clone = structuredClone(map);
+  assert.same(clone.get('a'), 1);
+  assert.true(clone instanceof Map);
+});
+
+QUnit.test('complex: queueMicrotask with polyfill inside', assert => {
+  const async = assert.async();
+  queueMicrotask(() => {
+    assert.deepEqual(Array.from([1, 2, 3]).filter(x => x > 1), [2, 3]);
+    async();
+  });
+});
+
+QUnit.test('complex: polyfill in array destructuring', assert => {
+  const [first, ...rest] = Array.from([10, 20, 30]);
+  assert.same(first, 10);
+  assert.deepEqual(rest, [20, 30]);
+});
+
+QUnit.test('complex: polyfill in object shorthand', assert => {
+  const keys = Object.keys({ x: 1, y: 2 });
+  const entries = Object.entries({ x: 1 });
+  const result = { keys, entries };
+  assert.deepEqual(result.keys, ['x', 'y']);
+  assert.deepEqual(result.entries, [['x', 1]]);
+});
+
+QUnit.test('complex: Object.defineProperty with getters calling polyfilled .at', assert => {
+  const target = [10, 20, 30];
+  const wrapped = {};
+  // eslint-disable-next-line unicorn/prefer-object-define-properties -- testing
+  Object.defineProperty(wrapped, 'first', { get() { return target.at(0); } });
+  Object.defineProperty(wrapped, 'last', { get() { return target.at(-1); } });
+  assert.same(wrapped.first, 10);
+  assert.same(wrapped.last, 30);
+});
+
+QUnit.test('complex: recursive tree flattened via flat(Infinity) after map', assert => {
+  const tree = { v: 1, children: [{ v: 2, children: [{ v: 3, children: [] }] }, { v: 4, children: [] }] };
+  function collect(node) {
+    return [node.v, ...node.children.map(collect)];
+  }
+  assert.deepEqual(collect(tree).flat(Infinity), [1, 2, 3, 4]);
+});
+
+// A side-effecting array literal is both the polyfill argument and the `.call(...)` this-arg, so the
+// emitters memoize it into a single `_ref` rather than re-emitting it. these lock that the receiver runs
+// EXACTLY once across the injection forms - a regression to re-emitting would fire the effect twice
+QUnit.test('complex: side-effecting literal receiver evaluated once in a direct call', assert => {
+  let calls = 0;
+  function make() {
+    calls += 1;
+    return calls;
+  }
+  const result = [make()].at(0);
+  assert.same(calls, 1);
+  assert.same(result, 1);
+});
+
+QUnit.test('complex: side-effecting literal receiver evaluated once across a method chain', assert => {
+  let calls = 0;
+  function make() {
+    calls += 1;
+    return calls;
+  }
+  const result = [make(), [99]].flat().at(-1);
+  assert.same(calls, 1);
+  assert.same(result, 99);
+});
+
+QUnit.test('complex: side-effecting literal receiver evaluated once in an optional call', assert => {
+  let calls = 0;
+  function make() {
+    calls += 1;
+    return calls;
+  }
+  const result = [make(), 8, 9]?.at(-1);
+  assert.same(calls, 1);
+  assert.same(result, 9);
+});
+
+QUnit.test('complex: polyfillable member reads in new-expression argument slots', assert => {
+  function base() { /* empty */ }
+  function Tag(name, s, b, m) {
+    this.parts = [name, s, b, m];
+  }
+  const set = 'set';
+  const mods = ['m'];
+  // the constructor callee is user code and its arguments carry the polyfillable reads: an
+  // accessor read and bare method extracts must fold as PLAIN arguments - never as the callee
+  const tag = new Tag(base.name, set, base, mods);
+  assert.deepEqual(tag.parts, ['base', 'set', base, ['m']]);
+  const arr = [3, 1, 2];
+  const extracted = new Tag(arr.at, Array.from, base, mods);
+  assert.same(typeof extracted.parts[0], 'function');
+  assert.same(typeof extracted.parts[1], 'function');
+  const called = new Tag(arr.at(0), [4, [5]].flat(), base, mods);
+  assert.same(called.parts[0], 3);
+  assert.deepEqual(called.parts[1], [4, 5]);
+  const effects = [];
+  const seTag = new Tag((effects.push('e'), arr).at, set, base, mods);
+  assert.same(effects.length, 1);
+  assert.same(typeof seTag.parts[0], 'function');
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the SE-prefixed computed key IS the case under test
+  const keyTag = new Tag(arr[(effects.push('k'), 'includes')], set, base, mods);
+  assert.deepEqual(effects, ['e', 'k']);
+  assert.same(typeof keyTag.parts[0], 'function');
+});
+
+QUnit.test('complex: instance method dispatched through a zero-arg IIFE computed key', assert => {
+  // the method name comes from a side-effect-free IIFE - usage-pure folds it and collapses to the
+  // polyfill, so the dispatch survives a realm with the native method stripped. direct key,
+  // const-init alias, and a nested IIFE all resolve
+  const arr = [1, [2, 3]];
+  assert.deepEqual(arr[(() => 'flat')()](), [1, 2, 3]);
+  const key = (() => 'at')();
+  assert.same([10, 20, 30][key](-1), 30);
+  assert.same([5, 6, 7][(() => (() => 'at')())()](0), 5);
+});
+
+// an inline-resolvable identity-param IIFE receiver folds to its returned static and the call is
+// dropped - the call's PREFIX side effect must still run once (re-emitted ahead of the polyfill),
+// not be silently discarded by the receiver fold
+QUnit.test('complex: inline IIFE receiver prefix side effect runs once', assert => {
+  let log = 0;
+  const fromResult = (x => {
+    log++;
+    return x;
+  })(Array).from([9]);
+  assert.deepEqual(fromResult, [9], 'identity-param IIFE receiver still dispatches the static');
+  assert.same(log, 1, 'its prefix effect runs exactly once (not dropped by the fold)');
+});

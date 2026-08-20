@@ -1,3 +1,4 @@
+// @types: proposals/async-iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -39,6 +40,8 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
                 var handler = function (mapped) {
                   try {
+                    // @dependency: es.array.iterator
+                    // @dependency: web.dom-collections.iterator
                     state.inner = getAsyncIteratorFlattenable(mapped);
                     innerLoop();
                   } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
@@ -75,13 +78,14 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.flatMap` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
     aCallable(mapper);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

@@ -1,0 +1,21 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ],
+    ["@babel/plugin-syntax-decorators", { "version": "legacy" }]
+  ],
+  "parserOpts": {
+    "plugins": [
+      "typescript",
+      ["decorators-legacy"]
+    ]
+  }
+}
