@@ -82,8 +82,15 @@ export function shouldSkip(dirName, babelOptions) {
   return plugins.some(p => (typeof p === 'string' ? p : p?.[0]) === 'flow');
 }
 
-// machine paths as the baselines store them; ROOT is the repo checkout the runners live in
-const ROOT = resolve(import.meta.dirname, '../..').replaceAll('\\', '/');
+// machine paths as the baselines store them. TWO DISTINCT escaping domains, confused twice
+// already - once each way: `slashifyPath` walks a FILESYSTEM string, where a Windows
+// separator is ONE backslash; the code-side matcher below targets the ESCAPED separator
+// spelling inside emitted string literals, which is TWO - and touching single backslashes
+// in code would mangle every regex and String.raw escape
+export function slashifyPath(machinePath) {
+  return machinePath.replaceAll('\\', '/');
+}
+const ROOT = slashifyPath(resolve(import.meta.dirname, '../..'));
 export function normalizeMachinePaths(code) {
-  return code.replaceAll('\\', '/').replaceAll(ROOT, '<CWD>');
+  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }

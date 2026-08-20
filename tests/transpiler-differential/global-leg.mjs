@@ -19,7 +19,7 @@
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { cached } from './cache-store.mjs';
-import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, writeModule } from './harness.mjs';
+import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, transformUnpluginAst, writeModule } from './harness.mjs';
 
 const { dirname, join } = path;
 const WORKER = join(dirname(fileURLToPath(import.meta.url)), 'global-leg-worker.mjs');
@@ -139,6 +139,28 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
       WANT_BABEL ? runOutput({ type: 'global-babel', code: babelOut, ts }) : null,
       WANT_UNPLUGIN ? runOutput({ type: 'global-unplugin', code: unpluginOut, ts }) : null,
     ]);
+  }
+  // the AST engine's leg: same import set as the text leg (one detection, one plan), and
+  // the REPRINTED body must reproduce native with the injections installed in the stripped
+  // realm - the full-env print-through leg cannot see a print that breaks only polyfilled paths
+  if (WANT_UNPLUGIN) {
+    let astOut;
+    try {
+      astOut = transformUnpluginAst(code, options, ts);
+    } catch (error) {
+      return { armed: true, failed: true, detail: `unplugin-ast threw: ${ error?.message ?? error }` };
+    }
+    if (!setEqual(importSet(astOut), importSet(unpluginOut))) {
+      return {
+        armed: true,
+        failed: true,
+        detail: `unplugin-ast import set diverges from text: ast={ ${ [...importSet(astOut)].join(', ') } } text={ ${ [...importSet(unpluginOut)].join(', ') } }`,
+      };
+    }
+    const astKey = await runOutput({ type: 'global-ast', code: astOut, ts });
+    if (astKey !== native) {
+      return { armed: true, failed: true, detail: `stripped-realm (ast engine) native=${ native } ast=${ astKey }` };
+    }
   }
   if ((!WANT_BABEL || babelKey === native) && (!WANT_UNPLUGIN || unpluginKey === native)) {
     return { armed: true, failed: false, detail: '' };
