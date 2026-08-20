@@ -1721,3 +1721,74 @@ testUnlessDetectLowered('global-proxy: a fully resolving nav collapses inside th
   assert.same(globalThis.self?.Array?.prototype.flat.name, 'flat', 'the memo answers through the ponyfill');
   assert.deepEqual(globalThis.self?.Array?.prototype.flat.call([[3]]), [3], 'and the dispatch through it runs');
 });
+
+// a CONDITIONALLY-assigned optional callee short-circuits through its own `?.()` - the yield
+// is a source of undefined nothing above re-tests. host-independent: the flag is never set
+QUnit.test('global-proxy: an optional call on a conditionally-assigned callee keeps its guard', assert => {
+  /* eslint-disable no-unsafe-optional-chaining -- the short-circuited yield IS the form under test */
+  let unsetFn;
+  if (globalThis.thisFlagIsNeverSet) unsetFn = () => globalThis;
+  assert.same(unsetFn?.()?.Array.of(1), undefined, 'the static call short-circuits');
+  assert.same(unsetFn?.()?.Array.of, undefined, 'the static read short-circuits');
+  assert.same(unsetFn?.()?.Number.MAX_SAFE_INTEGER, undefined, 'the static field short-circuits');
+  assert.same(typeof unsetFn?.()?.Array.of, 'undefined', 'typeof reads the short-circuit');
+  assert.same(unsetFn?.()?.self.Array.of(2), undefined, 'a deep hop short-circuits');
+  assert.throws(() => new (unsetFn?.()?.Map)(), TypeError, 'new on the short-circuited value throws');
+  assert.throws(() => unsetFn()?.Array.of(3), TypeError, 'the plain call throws on the unassigned binding');
+  const { of } = unsetFn?.()?.Array ?? {};
+  assert.same(of, undefined, 'the destructured static reads the fallback');
+  function definedFn() {
+    return globalThis;
+  }
+  assert.deepEqual(definedFn?.()?.Array.of(4), [4], 'control: a proven callee keeps the collapse');
+  /* eslint-enable no-unsafe-optional-chaining -- end of the short-circuited forms */
+});
+
+// an ALIAS holding an absent-able value: the PLAIN member read is the source's own throw and
+// must survive the claim; the OPTIONAL twin short-circuits. host decides which half runs
+QUnit.test('global-proxy: a plain read off an alias holding a probe nav', assert => {
+  const held = globalThis.window?.Array;
+  if (typeof window == 'undefined') {
+    assert.throws(() => held.of(1), TypeError, 'the plain read throws where the alias is undefined');
+    assert.throws(() => held.from, TypeError, 'the plain property read throws the same way');
+    assert.same(held?.of(2), undefined, 'the optional twin short-circuits');
+  } else {
+    assert.deepEqual(held.of(1), [1], 'a present host runs the claim');
+    assert.same(held?.of(2).length, 1, 'the optional twin runs too');
+  }
+  const allPlain = globalThis.globalThis.Array;
+  assert.deepEqual(allPlain.of(3), [3], 'control: a defined held value keeps the collapse');
+});
+
+// a call root FORWARDING the real global through an object literal: the shorthand binding IS
+// the constructor, so the claim polyfills; a user object with its own method stays untouched
+QUnit.test('global-proxy: a literal-forwarded global keeps its polyfill', assert => {
+  function forwards() {
+    return { window: { Array } };
+  }
+  assert.deepEqual(forwards()?.window?.Array.of(13), [13], 'the forwarded constructor answers the static');
+  function custom() {
+    return { Array: { of: x => [x, 'custom'] } };
+  }
+  assert.deepEqual(custom()?.Array.of(14), [14, 'custom'], "control: the user's own method runs");
+});
+
+// wrapped twins of the plain alias read: a paren seal over the bare alias hides no
+// short-circuit, and an SE sequence peels to the tail with its prefix running BEFORE the
+// probe - native order on both hosts
+QUnit.test('global-proxy: wrapped twins of the alias probe read', assert => {
+  const held = globalThis.window?.Array;
+
+  let effects = 0;
+  if (typeof window == 'undefined') {
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the seal IS the form under test
+    assert.throws(() => (held).of(1), TypeError, 'the paren-sealed read throws');
+    assert.throws(() => (effects++, held).of(2), TypeError, 'the sequence-wrapped read throws');
+    assert.same(effects, 1, 'the sequence prefix ran before the throw, as native does');
+  } else {
+    // eslint-disable-next-line @stylistic/no-extra-parens -- the seal IS the form under test
+    assert.deepEqual((held).of(1), [1], 'the paren-sealed read runs');
+    assert.deepEqual((effects++, held).of(2), [2], 'the sequence-wrapped read runs');
+    assert.same(effects, 1, 'the sequence prefix ran exactly once');
+  }
+});
