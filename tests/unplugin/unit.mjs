@@ -1,5 +1,5 @@
 import { parseSync } from 'oxc-parser';
-import { traverse } from 'estree-toolkit';
+import { builders, traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
@@ -7,6 +7,7 @@ import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js
 import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { collectMutationPrePass, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
+import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import TransformQueue, {
   createRewriteHint,
@@ -26,6 +27,7 @@ import createPlugin, {
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
+import { printProgram } from '../../packages/core-js-unplugin/internals/ast/print.js';
 import { createTopLevelStatementRewriter } from '../../packages/core-js-unplugin/internals/detect-entry.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
@@ -7040,6 +7042,171 @@ function checkParamPatternHostsAreEnumerated() {
   check('the corpus reaches bodyless signatures', seen.has('TSDeclareFunction') && seen.has('TSMethodSignature'), true);
 }
 checkParamPatternHostsAreEnumerated();
+
+// --- offset-to-loc canon (the AST printer rides it) ---
+
+function checkAstPrintLocator() {
+  const at = buildOffsetToLoc('a\nb\r\nc\rd\u2028e\u2029f');
+  check('locator: LF breaks a line', JSON.stringify(at(2)), '{"line":2,"column":0}');
+  check('locator: CRLF is one ending', JSON.stringify(at(5)), '{"line":3,"column":0}');
+  check('locator: lone CR breaks a line', JSON.stringify(at(7)), '{"line":4,"column":0}');
+  check('locator: LS breaks a line', JSON.stringify(at(9)), '{"line":5,"column":0}');
+  check('locator: PS breaks a line', JSON.stringify(at(11)), '{"line":6,"column":0}');
+  check('locator: column counts from the line start', JSON.stringify(at(1)), '{"line":1,"column":1}');
+}
+checkAstPrintLocator();
+
+// --- ast-print: printer quirks ---
+
+function astPrint(source, file = 'input.ts', options = {}) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync(file, source, { sourceType: 'module' });
+  return printProgram({ program: parsed.program, comments: parsed.comments, source, id: file, jsx: /\.[jt]sx$/.test(file), ...options });
+}
+
+function checkAstPrintQuirks() {
+  check('user parens survive the print', astPrint('(a + b) * c;').code, '(a + b) * c;');
+  check('type instantiation prints', astPrint('const g = f<number>;').code, 'const g = f<number>;');
+  // oxc admits the bare spelling, tsc/babel do not - the printed form must hold to the
+  // strict grammar (the differential's ast print-through leg executes through babel)
+  check('a cast assignment target keeps its parens', astPrint('(w as any) = [1];').code, '(w as any) = [1];');
+  // the workaround widening `Program.loc.end` - without it esrap's strictly-before flush
+  // moves the comment onto its own line, off the statement a disable-line directive covers
+  check('EOF trailing comment stays inline without a final newline',
+    astPrint('console.log(1); // keep me').code, 'console.log(1); // keep me');
+  check('CR-only line table keeps a trailing comment inline',
+    astPrint('let a = 1;\rlet b = 2; // tail\r').code, 'let a = 1;\nlet b = 2; // tail');
+  // esrap's statement-pad space would land INSIDE the comment token and grow it per reprint
+  check('a comment-only file does not accrete the pad space', astPrint('// alone').code, '// alone');
+  check('the pad trim reaches a fixed point', astPrint(astPrint('// alone').code).code, '// alone');
+  // the Property concise-method branch prints `key(` directly - the synthetic key node
+  // carries the type parameters through; the computed spelling has no seam after `]` and
+  // degrades to the equivalent function-expression property
+  check('an object concise method keeps its type parameters',
+    astPrint('const o = { m<T>(x: T): T { return x; } };').code, 'const o = {\n\tm<T>(x: T): T {\n\t\treturn x;\n\t}\n};');
+  check('an async generator concise method keeps its type parameters',
+    astPrint('const o = { async *g<T>(x: T) { yield x; } };').code, 'const o = {\n\tasync *g<T>(x: T) {\n\t\tyield x;\n\t}\n};');
+  check('a computed generic concise method degrades to a typed function property',
+    astPrint('const o = { [k]<T>(x: T): T { return x; } };').code, 'const o = {\n\t[k]: function <T>(x: T): T {\n\t\treturn x;\n\t}\n};');
+  check('a postfix JSDoc-nullable annotation prints', astPrint('function f(a: string?) {}').code, 'function f(a: string?) {}');
+  check('hashbang is re-emitted', astPrint('#!/usr/bin/env node\nlet x = 1;').code, '#!/usr/bin/env node\nlet x = 1;');
+  check('jsx prints under the tsx language',
+    astPrint('const el = <div a={1}>hi</div>;', 'input.tsx').code, 'const el = <div a={1}>hi</div>;');
+}
+checkAstPrintQuirks();
+
+// --- ast-print: sourcemap contract ---
+
+function checkAstPrintMapContract() {
+  const plain = astPrint('let x = 1;', 'dir/app.vue?vue&type=script');
+  check('map sources keep the full id (SFC sub-block identity)', JSON.stringify(plain.map.sources), '["dir/app.vue?vue&type=script"]');
+  check('map file is the query-stripped basename', plain.map.file, 'app.vue');
+  check('content rides by default', JSON.stringify(plain.map.sourcesContent), '["let x = 1;"]');
+  check('includeContent: false drops the content', JSON.stringify(astPrint('let x = 1;', 'input.ts', { includeContent: false }).map.sourcesContent), '[null]');
+  const banged = astPrint('#!/usr/bin/env node\nlet x = 1;');
+  check('hashbang shifts the mappings one generated line down', banged.map.mappings.startsWith(';'), true);
+  const traced = new TraceMap({ ...banged.map, version: 3 });
+  check('a mapped token resolves through the hashbang shift',
+    JSON.stringify(originalPositionFor(traced, { line: 2, column: 4 }).line), '2');
+}
+checkAstPrintMapContract();
+
+// --- engine option ---
+
+function checkEngineOption() {
+  function creationError(options) {
+    try {
+      createPlugin(options);
+      return null;
+    } catch (error) {
+      return error.message;
+    }
+  }
+  check('unknown engine is rejected',
+    creationError({ method: 'usage-pure', engine: 'quantum' }),
+    "[core-js] invalid `engine` option: 'quantum' - expected 'text' or 'ast'");
+  check('non-string engine reports its type',
+    creationError({ method: 'usage-pure', engine: 42 }),
+    '[core-js] invalid `engine` option: number - expected \'text\' or \'ast\'');
+  check("engine 'ast' is staged - rejected until its first method ships",
+    creationError({ method: 'usage-pure', engine: 'ast' }),
+    "[core-js] `engine: 'ast'` does not support method 'usage-pure' yet");
+  const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
+  const viaText = createPlugin({ method: 'usage-pure', engine: 'text' }).transform('[1].at(0);', 'input.mjs')?.code;
+  check("explicit engine 'text' is the default engine", viaText, viaDefault);
+  check('explicit null falls back to the default engine',
+    createPlugin({ method: 'usage-pure', engine: null }).transform('[1].at(0);', 'input.mjs')?.code, viaDefault);
+}
+checkEngineOption();
+
+// --- ast-engine: walker mutation contract ---
+
+// the AST emitters' port recipes lean on these traversal semantics; a dependency bump that
+// flips one must fail here, not deep inside an emitter
+function checkWalkerMutationContract() {
+  function names(source, visitors) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    const ast = parseSync('t.mjs', source, { sourceType: 'module' }).program;
+    const visited = [];
+    traverse(ast, visitors(visited));
+    return visited.join(',');
+  }
+  check('replaceWith re-visits the replacement', names('a; b;', visited => ({
+    Identifier(path) {
+      visited.push(path.node.name);
+      if (path.node.name === 'a') path.replaceWith(builders.identifier('z'));
+    },
+  })), 'a,z,b');
+  check('replaceWith visits the replacement subtree', names('a;', visited => ({
+    Identifier(path) {
+      visited.push(path.node.name);
+      if (path.node.name === 'a') path.replaceWith(builders.callExpression(builders.identifier('f'), [builders.identifier('g')]));
+    },
+  })), 'a,f,g');
+  check('insertBefore / insertAfter products are visited', names('a; b;', visited => ({
+    ExpressionStatement(path) {
+      visited.push(path.node.expression.name);
+      if (path.node.expression.name === 'a') {
+        path.insertBefore([builders.expressionStatement(builders.identifier('pre'))]);
+        path.insertAfter([builders.expressionStatement(builders.identifier('post'))]);
+      }
+    },
+  })), 'a,pre,post,b');
+  check('remove keeps later siblings in the walk', names('a; b; c;', visited => ({
+    ExpressionStatement(path) {
+      visited.push(path.node.expression.name);
+      if (path.node.expression.name === 'a') path.remove();
+    },
+  })), 'a,b,c');
+  check('unshift/pushContainer products are visited', names('a;', visited => ({
+    Program(path) {
+      path.unshiftContainer('body', [builders.expressionStatement(builders.identifier('head'))]);
+      path.pushContainer('body', [builders.expressionStatement(builders.identifier('tail'))]);
+    },
+    ExpressionStatement(path) { visited.push(path.node.expression.name); },
+  })), 'head,a,tail');
+  check('skip prunes the subtree', names('f(g(h));', visited => ({
+    CallExpression(path) {
+      visited.push(path.node.callee.name);
+      if (path.node.callee.name === 'f') path.skip();
+    },
+  })), 'f');
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const scoped = parseSync('t.mjs', 'use(x);', { sourceType: 'module' }).program;
+  let bindingBeforeCrawl = null;
+  let bindingAfterCrawl = null;
+  traverse(scoped, {
+    $: { scope: true },
+    Program(path) {
+      path.unshiftContainer('body', [builders.variableDeclaration('const', [builders.variableDeclarator(builders.identifier('x'), builders.literal(1))])]);
+      bindingBeforeCrawl = !!path.scope.getBinding('x');
+      path.scope.crawl();
+      bindingAfterCrawl = !!path.scope.getBinding('x');
+    },
+  });
+  check('an inserted declaration binds only after scope.crawl', `${ bindingBeforeCrawl },${ bindingAfterCrawl }`, 'false,true');
+}
+checkWalkerMutationContract();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;

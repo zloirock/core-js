@@ -11,11 +11,13 @@
 import { transformAsync } from '@babel/core';
 import { fork } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseSync } from 'oxc-parser';
 import tsStrip from '@babel/plugin-transform-typescript';
 import decoratorsPlugin from '@babel/plugin-proposal-decorators';
 import classPropsPlugin from '@babel/plugin-transform-class-properties';
 import babelPlugin from '../../packages/core-js-babel-plugin/index.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { printProgram } from '../../packages/core-js-unplugin/internals/ast/print.js';
 import { cached } from './cache-store.mjs';
 import { runtimeKey } from './serialize.mjs';
 
@@ -62,6 +64,23 @@ export async function transformBabel(src, options, ts = false) {
 
 export function transformUnplugin(src, options, ts = false) {
   return createPlugin(options).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
+}
+
+// the AST-engine print-through leg: the esrap printer alone over the SOURCE, no mutations.
+// the corpus then EXECUTES what the roundtrip gate can only structurally compare - a paren
+// the printer failed to re-derive is a runtime divergence here. returns null when oxc
+// cannot parse the snippet (the leg abstains; the emitters' own transform is the verdict there)
+export function printThroughAst(src, ts = false) {
+  const file = ts ? 'input.ts' : 'input.mjs';
+  let parsed;
+  try {
+    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+    parsed = parseSync(file, src, { sourceType: 'module' });
+  } catch {
+    return null;
+  }
+  if (parsed.errors?.some(error => error.severity === 'Error')) return null;
+  return printProgram({ program: parsed.program, comments: parsed.comments, source: src, id: file }).code;
 }
 
 // run the active emitters over one source, capturing a transform crash as a message instead of
@@ -250,6 +269,32 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     },
   });
   mark('eval native', t0);
+  // AST-engine print-through leg: printed source must reproduce the native reference in the
+  // full env. runs under the same `self` aliasing as native - it IS native semantics, only
+  // re-printed. gated on native producing a value for the same reason the stripped leg is:
+  // ERR == ERR would pass vacuously on error-name collapse
+  let astPrintMismatch = false;
+  let astPrintRun = null;
+  if (!native.startsWith('ERR')) {
+    t0 = process.hrtime.bigint();
+    const astPrinted = printThroughAst(src, ts);
+    if (astPrinted !== null) {
+      astPrintRun = await cached({
+        type: 'ast-print',
+        code: astPrinted,
+        evaluate: async () => {
+          Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true, enumerable: false, writable: true });
+          try {
+            return await evalInRealm(lazyModule(astPrinted, ts));
+          } finally {
+            delete globalThis.self;
+          }
+        },
+      });
+      astPrintMismatch = astPrintRun !== native;
+    }
+    mark('ast print-through', t0);
+  }
   t0 = process.hrtime.bigint();
   // the two files are shared with the stripped legs below: same bytes, written at most once, and
   // not written at all when both realms answer from the cache
@@ -291,6 +336,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     runtimeMismatch: (WANT_BABEL && native !== babelRun) || (WANT_UNPLUGIN && native !== unpluginRun),
     pluginRuntimeDiverge: EMITTER === 'both' && babelRun !== unpluginRun,
     strippedMismatch,
+    astPrintMismatch,
     babelImports,
     unpluginImports,
     native,
@@ -298,6 +344,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     unpluginRun,
     babelStripped,
     unpluginStripped,
+    astPrintRun,
   };
 }
 
@@ -305,7 +352,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
 // checkSnippet so the verdict's shape and its meaning stay in one place - a runner shouldn't decode
 // the verdict's internals itself. `detail` is empty when not failed
 export function summarizeVerdict(v) {
-  if (!(v.transformCrash || v.importMismatch || v.runtimeMismatch || v.strippedMismatch)) {
+  if (!(v.transformCrash || v.importMismatch || v.runtimeMismatch || v.strippedMismatch || v.astPrintMismatch)) {
     return { failed: false, detail: '' };
   }
   const details = [];
@@ -320,6 +367,9 @@ export function summarizeVerdict(v) {
   }
   if (v.strippedMismatch) {
     details.push(`stripped-realm native=${ v.native } babel=${ v.babelStripped } unplugin=${ v.unpluginStripped }`);
+  }
+  if (v.astPrintMismatch) {
+    details.push(`ast print-through native=${ v.native } printed=${ v.astPrintRun }`);
   }
   return { failed: true, detail: details.join('; ') };
 }
