@@ -3,7 +3,7 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
-import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
+import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   FIXTURE_SHARD, defaultShardCount, emitShardSummary, runShards, shardSlice,
@@ -16,7 +16,6 @@ const { cyan, green, red, yellow } = chalk;
 const { OVERWRITE } = process.env;
 const { _: args } = argv;
 const UTF8 = { encoding: 'utf8' };
-const ROOT = path.resolve('../..').replaceAll('\\', '/');
 const fixturesDir = path.resolve('../transpiler-fixtures');
 
 const counts = { passed: 0, failed: 0, skipped: 0 };
@@ -33,7 +32,7 @@ async function writeIfChanged(directory, file, content) {
 }
 
 function normalize(code) {
-  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>').trim();
+  return normalizeMachinePaths(code).trim();
 }
 
 // collapse the debug `Using targets: { ... }` block to a placeholder - mirrors the babel-plugin
@@ -88,18 +87,6 @@ function firstDiff(actual, expected) {
     }
   }
   return '';
-}
-
-function extractPluginOptions(babelOptions) {
-  for (const plugin of babelOptions.plugins ?? []) {
-    if (Array.isArray(plugin) && plugin[0] === '@core-js') {
-      const opts = { ...plugin[1] };
-      if (!opts.targets && babelOptions.targets) opts.targets = babelOptions.targets;
-      if (babelOptions.caller?.name === 'babel-loader') opts.bundler = 'webpack';
-      return opts;
-    }
-  }
-  return null;
 }
 
 // max lines to probe in mappings before giving up. 200 covers typed-array bundles (30+
@@ -234,37 +221,6 @@ function captureTransform(source, pluginOptions, testId) {
   } finally {
     restore();
   }
-}
-
-const SKIP_DIRS = new Set([
-  'source-script',
-  'cjs-transform-export',
-  // babel-only: regression depends on `transform-destructuring` rewriting the param's
-  // ObjectPattern to `_ref` Identifier between core-js's pre-traversal and programExit
-  // emission. unplugin extracts only `@core-js` from `babelOptions.plugins` and runs it
-  // standalone, so the AST shape that triggered the bug never appears here
-  'audit-synth-swap-survives-transform-destructuring',
-  // babel-only: late-CJS detection diagnostic depends on a sibling babel plugin
-  // (`@babel/plugin-transform-modules-commonjs`) running after our programExit. unplugin
-  // doesn't have a babel plugin chain - it parses with oxc and runs core-js standalone,
-  // so the markersGone trigger never fires here. SKIP_DIRS matches by basename so the
-  // single entry covers both usage-pure and usage-global copies of the fixture
-  'audit-late-cjs-rewriter-warning',
-  // babel-only: depends on `transform-object-rest-spread` inlining `Object.assign` for the spread
-  // under setSpreadProperties, which our post-pass then polyfills. unplugin runs core-js standalone
-  // (no babel plugin chain), so the spread is never lowered to an Object.assign here
-  'audit-object-spread-introduced-assign-polyfills',
-]);
-
-// flow language fixtures: oxc-parser doesn't support Flow syntax, so unplugin can't run
-// them. detection routes through the explicit `flow` parser plugin in options.json -
-// earlier name-based heuristic (`dirName.includes('-flow-')`) over-skipped unrelated
-// audit fixtures whose names merely mention `flow` (e.g. `*-control-flow-bail`,
-// `*-flow-multi-hop`, `*-flow-segments`), all of which actually parse as TS or vanilla JS
-function shouldSkip(dirName, babelOptions) {
-  if (SKIP_DIRS.has(dirName)) return true;
-  const plugins = babelOptions?.parserOpts?.plugins ?? [];
-  return plugins.some(p => (typeof p === 'string' ? p : p?.[0]) === 'flow');
 }
 
 async function runErrorFixture(directory, pluginOptions, errorFile) {
