@@ -49,6 +49,7 @@ import {
   sideEffectsPastOffset,
   maximalProxyGlobalHop,
   maximalProxyGlobalPrefix,
+  aliasHeldClaimProbe,
   claimReceiverEvaluationMayThrow,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
@@ -882,6 +883,43 @@ export function navGuardRootWithStaticTail({
     }
     core = below;
   }
+}
+
+// the guarded VALUE of a nav that ends AT a claim (`globalThis.window?.Array`, its sealed
+// spelling): such a nav has no ponyfillable proxy hop for the collapse plan to key on, so the
+// guard is built from its two halves - the erase verdict's `?.` object as the test, the
+// claim's own leaf (ctor ponyfill / plain global name) as the always-defined alternate.
+// `probeLeaf` opts in the bare-probe arm (the plan's contract carries the rule). shaped like
+// the collapse plan's own result so probe consumers cannot tell the two apart
+export function sealedClaimLeafGuardSrc({ nav, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill, probeLeaf = false }) {
+  const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolveGlobalPolyfill(name),
+    { scope: metaPath.scope, adapter, path: metaPath }, { probeLeaf });
+  if (!plan) return null;
+  const guardCore = unwrapNode(plan.guardObject);
+  const test = proxyNavGuardRootSrc({
+    rootNode: plan.guardObject, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill,
+  })
+    // a bare-Identifier guard object (a user alias holding the probe - `const w = globalThis
+    // .window; w?.Array`) is its own test: the binding spells the nullable value verbatim
+    ?? (guardCore?.type === 'Identifier' ? code.slice(guardCore.start, guardCore.end) : null)
+    // a CALL-rooted guard object has no identifier for that render to walk to, and declining left
+    // the seal-read erased: its own source IS the test, with the proxy globals inside substituted.
+    // only for a call root - every other shape has a render that spells its own root, and taking
+    // this rung there put a RAW global in the test
+    ?? (isCallShape(unwrapNode(descendToChainRoot(guardCore, true).root ?? plan.guardObject))
+      ? substituteSpanProxyGlobals({
+        rootNode: plan.guardObject, metaPath, code, adapter, injectPureImport, resolveGlobalPolyfill,
+      }).src : null);
+  if (!test) return null;
+  const alternate = plan.leafPure
+    ? injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)
+    // the value IS the probe: the test operand doubles as the alternate (a second read of
+    // the same slot, benign on the proxy globals every render here already reads freely)
+    : plan.leafIsProbe ? test
+    : isValidIdentifierName(plan.leafName) ? plan.leafName : null;
+  return alternate
+    ? { src: `null == ${ groupedGuardTest(test) } ? void 0 : ${ alternate }`, keySeExprs: [], srcRanges: [nodeSpan(plan.guardObject)].filter(Boolean) }
+    : null;
 }
 
 export function inlineCallNavGuardRootSrc({
@@ -4996,16 +5034,33 @@ export function createPolyfillEmitter({
     return true;
   }
 
-  // the throw-probe source for a SEALED undefinable receiver: `(<guarded nav>).<key>`, or
-  // null when no sealed boundary / an SE computed key / a defined sealed value / no plan
+  // RENDER half of the alias-held claim probe (the decision is the shared
+  // `aliasHeldClaimProbe`): the claim's own member read spelled verbatim - the alias binding
+  // IS the test, no guard render needed. reached with NO sealed boundary and as the FALLBACK
+  // of a sealed path that renders nothing (a value-transparent seal over the bare alias,
+  // `(a as any).of` - it hides no short-circuit, so the alias question stands)
+  function aliasHeldClaimProbeSrc(member, metaPath) {
+    const probe = aliasHeldClaimProbe(member,
+      ({ name }) => resolveGlobalPolyfill(name),
+      { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath });
+    if (!probe) return null;
+    const keyRead = probe.computed && member.property?.type !== 'Identifier'
+      ? `[${ JSON.stringify(probe.key) }]` : `.${ probe.key }`;
+    return { keySeExprs: [], navStart: probe.navStart, key: probe.key, src: `${ probe.object.name }${ keyRead }` };
+  }
+
+  // the throw-probe source for a receiver whose erased READ the source performs: a SEALED
+  // undefinable nav (`(<guarded nav>).<key>`) or - with no sealed boundary - a plain member
+  // read off an ALIAS holding an absent-able value (`held.<key>`, spelled verbatim). null
+  // when neither applies / an SE computed key / a defined sealed value / no plan
   // `spellKeptAssign`: only a consumer that REPLACES the claim may let the probe spell a kept write
   // riding the nav - there the write has no other printer. a consumer that keeps the receiver text
   // (the receiver collapse) already re-emits the write, and spelling it here ran it twice
   function sealedThrowProbePrefix(node, metaPath, { spellKeptAssign = false } = {}) {
     const boundary = sealedChainBoundary(node);
-    if (!boundary) return null;
+    if (!boundary) return aliasHeldClaimProbeSrc(node, metaPath);
     const key = memberKeyName(boundary.member);
-    if (key === null) return null;
+    if (key === null) return aliasHeldClaimProbeSrc(boundary.member, metaPath);
     const aliasCtx = { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath };
     if (!proxyReceiverValueCanBeUndefined(boundary.inner,
       ({ name }) => resolveGlobalPolyfill(name), aliasCtx, { throughChainAssign: true })) return null;
@@ -5017,7 +5072,9 @@ export function createPolyfillEmitter({
       rootNode: boundary.inner, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
       spellKeptAssign, allowSequenceRoot: true, descendSequenceTail: true,
     }) ?? sealedClaimLeafGuard(boundary.inner, metaPath);
-    if (!navGuard) return null;
+    // a seal the guard renders cannot own (a value-transparent layer over a bare alias -
+    // `(a as any).of`) hides no short-circuit: the alias question stands, fall through to it
+    if (!navGuard) return aliasHeldClaimProbeSrc(boundary.member, metaPath);
     skipCollapsedChainExceptRootCall(boundary.inner, skippedNodes, { keepSe: navGuard.keySeExprs });
     // a SEQUENCE prefix inside the nav is dropped by the plan's transparent unwrap, and the effect
     // channel replays it AFTER the probe - where the probe's own throw never reaches it. the source
@@ -5046,27 +5103,9 @@ export function createPolyfillEmitter({
   // to test, the chain resolver spells the always-defined collapse. shaped like the plan's own
   // result so the probe consumer cannot tell the two apart
   function sealedClaimLeafGuard(nav, metaPath) {
-    const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolveGlobalPolyfill(name),
-      { scope: metaPath.scope, adapter: estreeAdapter, path: metaPath });
-    if (!plan) return null;
-    const test = proxyNavGuardRootSrc({
-      rootNode: plan.guardObject, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
-    })
-      // a CALL-rooted guard object has no identifier for that render to walk to, and declining left
-      // the seal-read erased: its own source IS the test, with the proxy globals inside substituted.
-      // only for a call root - every other shape has a render that spells its own root, and taking
-      // this rung there put a RAW global in the test
-      ?? (isCallShape(unwrapNode(descendToChainRoot(unwrapNode(plan.guardObject), true).root ?? plan.guardObject))
-        ? substituteSpanProxyGlobals({
-          rootNode: plan.guardObject, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
-        }).src : null);
-    if (!test) return null;
-    const alternate = plan.leafPure
-      ? injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)
-      : isBareIdentifier(plan.leafName) ? plan.leafName : null;
-    return alternate
-      ? { src: `null == ${ groupedGuardTest(test) } ? void 0 : ${ alternate }`, keySeExprs: [], srcRanges: [nodeSpan(plan.guardObject)].filter(Boolean) }
-      : null;
+    return sealedClaimLeafGuardSrc({
+      nav, metaPath, code, adapter: estreeAdapter, injectPureImport, resolveGlobalPolyfill,
+    });
   }
 
   // compose the binding's text replacement with receiver-side effects + ASI guard.
