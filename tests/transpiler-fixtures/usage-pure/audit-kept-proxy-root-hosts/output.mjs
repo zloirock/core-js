@@ -114,12 +114,11 @@ function opaqueRoot() {
 export const delOpaque = delete opaqueRoot()?.window?.customW;
 export const delNested = [delete _globalThis.customV];
 
-// the `?.` over the HOST of the navigation is not load-bearing - the host is assumed present, and
-// the navigation only NAMES the global - so a collapse that replaces the whole thing may drop the
-// guard with it. that is position-dependent by construction and accepted: extracting a SINGLE
-// property drops the guard, while a member read, an object read and an array pattern keep it.
-// where the host really is absent, the extraction throws natively and this output does not
-export const trunc = _Math$trunc;
+// a full-consume extraction discards the read the source performs, so an UNDEFINABLE probe nav
+// init re-emits that read as a THROW probe off the guard value: every consuming position - the
+// single-property extraction included - throws exactly where native does. the member read, the
+// object read and the array pattern keep their guards as before
+export const trunc = ((null == _globalThis.window ? void 0 : Math).trunc, _Math$trunc);
 export const truncRead = null == _globalThis.window ? void 0 : _Math$trunc;
 export const mathRead = null == _globalThis.window ? void 0 : _self.Math;
 export const [firstOf] = null == _globalThis.window ? void 0 : _Array$of(1);

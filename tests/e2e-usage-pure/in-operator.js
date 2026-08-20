@@ -186,7 +186,7 @@ QUnit.test("(globalThis, 'from') in Array -> proxy-global prefix drops, folds tr
 // a Symbol.iterator membership rewrites to a get-iterator call; a sequence prefix on its receiver
 // lexically PRECEDES the chain-root receiver call, so it must run first - source order [p, r], not
 // the reverse. gated off sham Symbol (the get-iterator path is unreliable there)
-if (typeof Symbol == 'function' && !Symbol.sham) {
+if (!Symbol.sham) {
   QUnit.test('(eff(), IIFE()).Symbol.iterator in [] -> prefix before receiver call', assert => {
     const log = [];
     const r = (log.push('p'), (() => {
@@ -289,7 +289,7 @@ QUnit.test('non-table key on a typed receiver stays a live probe', assert => {
 // `?.` inside it short-circuits only that operand - the helper still runs and throws on the nullish
 // value, exactly as `in` does. a guard hoisted around the helper would answer undefined instead, and
 // only a COLLAPSIBLE proxy nav reaches that hoist (its `?.` is rendered by the collapse itself)
-if (typeof Symbol == 'function' && !Symbol.sham) {
+if (!Symbol.sham) {
   QUnit.test('Symbol.iterator in <short-circuited proxy nav> -> the helper still runs', assert => {
     /* eslint-disable no-unsafe-optional-chaining -- the short-circuited operand IS the form under test */
     if (typeof window == 'undefined') {
@@ -305,5 +305,23 @@ if (typeof Symbol == 'function' && !Symbol.sham) {
       'control: a non-proxy short-circuited operand throws in every host');
     assert.true(Symbol.iterator in [], 'control: a defined operand answers the test');
     /* eslint-enable no-unsafe-optional-chaining -- end of the short-circuited operands */
+  });
+}
+
+// a live `?.` on the LHS chain TO the symbol: the value the source hands `in` is undefined
+// exactly off-host, so the membership answers for the key `"undefined"` - swapping the LHS for
+// an always-defined symbol binding would silently flip that answer. chains that cannot
+// short-circuit keep the rewrite
+if (!Symbol.sham) {
+  QUnit.test('a short-circuiting LHS symbol chain keeps its membership answer', assert => {
+    if (typeof window == 'undefined') {
+      assert.false(globalThis.window?.Symbol.iterator in [], 'the guarded LHS is undefined off-host');
+      assert.false(globalThis.window?.Symbol.asyncIterator in {}, 'every well-known symbol spelling guards');
+    } else {
+      assert.true(globalThis.window?.Symbol.iterator in [], 'a present host answers the real test');
+      assert.false(globalThis.window?.Symbol.asyncIterator in {}, 'a plain object holds no async iterator');
+    }
+    assert.true(globalThis.Symbol.iterator in [], 'control: a plain chain keeps the rewrite');
+    assert.true(globalThis.self?.Symbol.iterator in [], 'control: a resolvable hop keeps the rewrite');
   });
 }

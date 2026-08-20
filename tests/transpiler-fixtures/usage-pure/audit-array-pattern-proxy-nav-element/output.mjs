@@ -19,7 +19,7 @@ let getPrototypeOf;
 export const of = _Array$of;
 export const trunc = _Math$trunc;
 export const from = _Array$from;
-export const keys = _Object$keys;
+export const keys = ((null == _globalThis.window ? void 0 : Object).keys, _Object$keys);
 export const entries = (n++, _Object$entries);
 export const values = (w = _self, _Object$values); // the ASSIGNMENT form takes the CASCADE render instead of the flatten's - and only when the
 // destructured name resolves to a static, which is what makes that render replace the statement
