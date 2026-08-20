@@ -27,6 +27,7 @@ import {
   symbolKeyToEntry,
 } from '../helpers/class-walk.js';
 import { aliasWriteCtorNames, attachMemberUnionExtras, staticContainerReceiverName } from './destructure.js';
+import { resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
   asSymbolRef,
@@ -54,7 +55,8 @@ import {
   resolveObjectName,
   unwrapTransparentSeq,
   unwrapParensCollectingEffects,
-  chainReadsThroughSeal, chainSealsAShortCircuit, ownChainOptionalObjects, proxyReceiverValueCanBeUndefined,
+  chainReadsThroughSeal, chainSealsAShortCircuit, navValueCanShortCircuit, ownChainOptionalObjects,
+  proxyReceiverValueCanBeUndefined,
 } from './resolve.js';
 
 // is this read the RAW branch of a ctor-identity guard this plugin already emitted (`M === _Map ?
@@ -1064,6 +1066,12 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
   // doesn't drop side-effects
   const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
     ? asSymbolRef({ node: peelReceiverSequenceTail(left.object), scope, adapter, path }) : null;
+  // the LHS chain to the symbol can SHORT-CIRCUIT (`globalThis.window?.Symbol.iterator in x`):
+  // the rewrite would replace the LHS with an always-defined binding, silently flipping the
+  // membership answer where native tests the key `"undefined"`. no meta - the `in` stays live
+  // text, and the LHS read keeps its own guarded substitution through the member machinery
+  if (ref && navValueCanShortCircuit(left,
+    ({ name }) => resolveBuiltIn({ kind: 'global', name }), { scope, adapter, path })) return null;
   if (ref) {
     const name = resolveKey({ node: left.property, computed: left.computed, scope, adapter, path });
     // nested `Symbol[Symbol.X]` - `resolveKey` already returns `Symbol.X`; double-prefixing

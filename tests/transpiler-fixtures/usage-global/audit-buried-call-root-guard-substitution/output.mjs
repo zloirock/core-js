@@ -44,3 +44,18 @@ export const declaredCallee = above()?.window?.Reflect.ownKeys({
   c: 3
 }).flatMap(key => [key]);
 export const shadowedRoot = (globalThis => globalThis)(null)?.window?.Promise.resolve(4).finally(() => {});
+
+// a call root FORWARDING the real global through an object literal: the shorthand binding IS
+// the global constructor, so the method's module still injects - the source text stays verbatim
+const forwards = () => ({
+  window: {
+    Array
+  }
+});
+export const literalForwardedRoot = forwards()?.window?.Array.of(13);
+const nonProxyForward = () => ({
+  Array: {
+    of: x => [x, 'custom']
+  }
+});
+export const userObjectForward = nonProxyForward()?.Array.of(14);

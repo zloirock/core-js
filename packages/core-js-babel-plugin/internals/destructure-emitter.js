@@ -73,7 +73,7 @@ import {
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  maximalProxyGlobalHop, patternBindingName, proxyReceiverValueCanBeUndefined, resolveSynthKeys,
+  maximalProxyGlobalHop, patternBindingName, probedDestructureInitValue, resolveSynthKeys,
   anchoredResidualSymbolKeyName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
@@ -884,17 +884,21 @@ export default function createDestructureEmitter({
     // host is the emission). both require no SE prefixes / rest sentinels around them
     const fullyConsumed = plan.outerProps.every(o => o.kind === 'consumed')
       && !plan.pattern.properties.some(isRestProperty);
+    // an ANCHORED prop discards the init too (its residual reads the ctor binding), so the
+    // probe question is "does this render discard the init", not "is every prop consumed"
+    const discardsInit = fullyConsumed || (plan.outerProps.every(o => o.kind === 'consumed' || o.kind === 'anchored')
+      && !plan.pattern.properties.some(isRestProperty));
     // an UNDEFINABLE probe nav under a full-consume assignment host: ride the guarded
     // first-key read ahead of the first extraction assign - same canon as the declarator host
-    if (fullyConsumed && assigns.length) {
+    if (discardsInit && assigns.length) {
       const cascadeProbeKey = probedNavProbeKey(plan);
       if (cascadeProbeKey) {
-        const navBase = plan.initElement ?? assignPath.node.right;
+        const navBase = plan.probedNavNode ?? plan.initElement ?? assignPath.node.right;
         const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
         const guarded = probedNavGuardValueNode?.(probedNavNode, assignPath);
         if (guarded) {
           assigns[0].expression.right = t.sequenceExpression([
-            t.memberExpression(guarded.node, t.identifier(cascadeProbeKey)), assigns[0].expression.right,
+            probeKeyReadNode(guarded.node, cascadeProbeKey), assigns[0].expression.right,
           ]);
         }
       }
@@ -1342,12 +1346,12 @@ export default function createDestructureEmitter({
       // read ahead of the first assign, once per pattern - same canon as the declarator host
       const cascadeProbeKey = assignExprs.length ? probedNavProbeKey(plan) : null;
       if (cascadeProbeKey) {
-        const navBase = plan.initElement ?? assignPath.node.right;
+        const navBase = plan.probedNavNode ?? plan.initElement ?? assignPath.node.right;
         const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
         const guarded = probedNavGuardValueNode?.(probedNavNode, assignPath);
         if (guarded) {
           assignExprs[0].right = t.sequenceExpression([
-            t.memberExpression(guarded.node, t.identifier(cascadeProbeKey)), assignExprs[0].right,
+            probeKeyReadNode(guarded.node, cascadeProbeKey), assignExprs[0].right,
           ]);
         }
       }
@@ -1439,6 +1443,22 @@ export default function createDestructureEmitter({
     return extracted;
   }
 
+  // the probe's member read off the guard value: dotted for identifier-valid names, computed
+  // string otherwise, and the polyfilled symbol binding for a `[Symbol.iterator]` first key
+  // (old runtimes without native Symbol still evaluate the read). the read NODE is skip-seeded -
+  // the probe is an already-decided render, and a key naming an instance method (`keys`) would
+  // otherwise be re-claimed into a dispatcher call on insertion - while everything INSIDE stays
+  // live: the guard test relies on re-entry for its proxy-root substitution
+  function probeKeyReadNode(guardNode, probeKey) {
+    const read = probeKey.symbolIterator
+      ? t.memberExpression(guardNode, t.cloneNode(injectPureImport('symbol/iterator', 'Symbol$iterator')), true)
+      : isValidIdentifierName(probeKey.name)
+        ? t.memberExpression(guardNode, t.identifier(probeKey.name))
+        : t.memberExpression(guardNode, t.stringLiteral(probeKey.name), true);
+    skippedNodes.add(read);
+    return read;
+  }
+
   // init-side rebuilds of the flatten render, shared ordering-sensitive channels:
   // - ANCHORED residual: rebuild the declarator as `<innerPattern> = <ctorBinding>` - the hop
   //   wrapper and the proxy read are dead (every surviving read goes through the constructor);
@@ -1466,12 +1486,12 @@ export default function createDestructureEmitter({
     let probeOwnedCall = null;
     if (fullConsumeProbeKey) {
       // an array-wrapped init's probe value is the DESCENDED element, not the wrapper array
-      const navBase = plan.initElement ?? declarator.node.init;
+      const navBase = plan.probedNavNode ?? plan.initElement ?? declarator.node.init;
       const probedNavNode = peelNestedSequenceExpressions(navBase).tail ?? navBase;
       const guarded = probedNavGuardValueNode?.(probedNavNode, declarator);
       if (guarded) {
         const [first] = extracted;
-        first.init = t.sequenceExpression([t.memberExpression(guarded.node, t.identifier(fullConsumeProbeKey)), first.init]);
+        first.init = t.sequenceExpression([probeKeyReadNode(guarded.node, fullConsumeProbeKey), first.init]);
         probeOwnedCall = guarded.rootEffectCall;
       }
     }
@@ -1987,7 +2007,13 @@ export default function createDestructureEmitter({
     if (!props || props.length !== 1 || props[0] !== prop.node) return value;
     const sourceNode = destructureSourceNode(prop);
     const throwProbe = sourceNode && sealedClaimThrowProbeNode?.(prop, sourceNode);
-    if (throwProbe) return t.sequenceExpression([throwProbe.node, value]);
+    // the probe READ is an already-decided render - the alias arm spells it from a RAW source
+    // read the member visitor would otherwise re-claim on insertion. NODE-level seed only:
+    // everything inside the probe stays live for re-entry (a key-SE claim, the guard test)
+    if (throwProbe) {
+      skippedNodes.add(throwProbe.node);
+      return t.sequenceExpression([throwProbe.node, value]);
+    }
     // a BARE probed nav (`{ structuredClone } = (globalThis.window?.self)` - no member read
     // to seal): native throws reading the pattern key off the probe value, so re-emit that
     // read as `(guard).<key>` ahead of the binding. the key comes from the canon, so a
@@ -1996,16 +2022,21 @@ export default function createDestructureEmitter({
     // computed SE key still keeps its residual channel (the canon does not fold one), and a
     // nav the shared guard plan cannot collapse keeps today's render
     const bareKey = propertyKeyName(prop.node);
-    if (bareKey && sourceNode && probedNavGuardValueNode
-      && proxyReceiverValueCanBeUndefined(sourceNode, ({ name }) => resolveGlobalPure(name),
-        { scope: prop.scope, adapter, path: prop })) {
-      const navNode = peelNestedSequenceExpressions(sourceNode).tail ?? sourceNode;
+    const probedInit = bareKey && sourceNode && probedNavGuardValueNode
+      ? probedDestructureInitValue(sourceNode, ({ name }) => resolveGlobalPure(name),
+        { scope: prop.scope, adapter, path: prop }) : null;
+    if (probedInit) {
+      const navNode = peelNestedSequenceExpressions(probedInit).tail ?? probedInit;
       const guarded = probedNavGuardValueNode(navNode, prop);
       // a slot name that is not spellable bare (`{ 'a-b': v }`) re-reads computed
       if (guarded) {
-        return t.sequenceExpression([isValidIdentifierName(bareKey)
+        // same node-level skip seeding as `probeKeyReadNode`: the probe read is an already-
+        // decided render, its guard test stays live for the re-entry root substitution
+        const read = isValidIdentifierName(bareKey)
           ? t.memberExpression(guarded.node, t.identifier(bareKey))
-          : t.memberExpression(guarded.node, t.stringLiteral(bareKey), true), value]);
+          : t.memberExpression(guarded.node, t.stringLiteral(bareKey), true);
+        skippedNodes.add(read);
+        return t.sequenceExpression([read, value]);
       }
     }
     return value;
