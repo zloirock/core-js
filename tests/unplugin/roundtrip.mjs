@@ -10,6 +10,7 @@ import { printProgram } from '../../packages/core-js-unplugin/internals/ast/prin
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
+import { strip } from './structural.mjs';
 
 const { readdir, readFile, stat } = fs;
 const { join } = path;
@@ -26,27 +27,7 @@ function fail(directory, detail) {
   if (failures.length < 20) failures.push(`${ directory }: ${ detail }`);
 }
 
-// structural identity modulo what a reprint legitimately normalizes away: positions, the
-// literal `raw` spelling, paren nodes (esrap adds precedence parens of its own), and
-// statement-list `EmptyStatement`s (esrap drops them; bare `;` in a statement LIST is
-// semantics-free, while a loop's empty BODY sits in a single node field and survives).
-// `directive` stays compared - a re-quoted directive prologue with escapes would change
-// which directives the block carries. `shorthand` is spelling (`{ n: n }` == `{ n }`) and
-// the printer derives it from the key/value pair
-function strip(node) {
-  while (node?.type === 'ParenthesizedExpression') node = node.expression;
-  if (Array.isArray(node)) return node.filter(item => item?.type !== 'EmptyStatement').map(item => strip(item));
-  if (node && typeof node === 'object') {
-    const out = {};
-    for (const key of Object.keys(node).sort()) {
-      if (key === 'start' || key === 'end' || key === 'loc' || key === 'range' || key === 'raw' || key === 'hashbang' || key === 'shorthand') continue;
-      out[key] = strip(node[key]);
-    }
-    return out;
-  }
-  if (typeof node === 'bigint') return `${ node }n`;
-  return node;
-}
+// structural identity: the shared comparator (`structural.mjs`)
 
 // a comment is "own-line" when nothing but whitespace precedes it on its line. only
 // LINE-BOUND DIRECTIVES pin that association - a plain comment may legally re-flow with
