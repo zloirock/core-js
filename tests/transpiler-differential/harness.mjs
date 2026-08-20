@@ -66,6 +66,12 @@ export function transformUnplugin(src, options, ts = false) {
   return createPlugin(options).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
 }
 
+// the AST engine's transform of the same snippet - the usage-global leg holds it to the
+// text leg's import set and to the native reference in the stripped realm
+export function transformUnpluginAst(src, options, ts = false) {
+  return createPlugin({ ...options, engine: 'ast' }).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
+}
+
 // the AST-engine print-through leg: the esrap printer alone over the SOURCE, no mutations.
 // the corpus then EXECUTES what the roundtrip gate can only structurally compare - a paren
 // the printer failed to re-derive is a runtime divergence here. returns null when oxc
