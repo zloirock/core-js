@@ -523,14 +523,17 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         // it keys by WHAT makes it undefinable, not by the call: the hop above it usually reads the
         // same probe (`(() => globalThis.window?.self)()?.window`), and two names there stand the
         // whole claim down - raw output with a bare `globalThis` in it
-        // an OPTIONAL call link is not this source: its `?.` is a chain link the guard renders
-        // together with the hops above it (one test on the whole prefix covers both), and counting
-        // it separately stood the claim down and left the nav raw off the ponyfill
+        // a PROVEN-defined OPTIONAL call link is not this source: its `?.` is a chain link the
+        // guard renders together with the hops above it (one test on the whole prefix covers
+        // both), and counting it separately stood the claim down and left the nav raw off the
+        // ponyfill. but a link whose YIELD can be absent - a conditionally-proven callee, an
+        // undefinable returned nav - is exactly the source the `?.` above it guards, so the arm
+        // asks the yield question, not the optional-link print rule
         // ... and only while nothing READS the call value plainly on the way up: `(call).self.X?.y`
         // throws at `.self` off-window before the `?.` is reached, so that guard is not this source
-        if (!source && proven === 'call' && !root.optional
+        if (!source && proven === 'call'
           && (hopsInfo.length === 0 || hopsInfo.at(-1).node.optional)
-          && callValueCanBeUndefined(root, aliasCtx, resolvePure)) {
+          && callYieldCanBeUndefined(root, aliasCtx, resolvePure)) {
           source = root;
           sourceNames.add(callSourceName(root, aliasCtx, resolvePure));
         }
@@ -539,10 +542,14 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
         // hop names look (the AST emitter reaches the same verdict on its post-deopt tree).
         // a CHAIN-ASSIGN object keeps its own locked rule: the captured value's undefinedness
         // is hop-based (`(v = globalThis.self.window)?.x` guards - the write observes the raw
-        // read), matching the deopt gate's chain-assign arm
+        // read), matching the deopt gate's chain-assign arm. a CALL object answers the call
+        // canon's yield question (the nav canon owns only nav/Identifier cores) - a
+        // conditionally-proven callee's yield is absent-able even though the alias walk keeps
+        // its stricter proof for the deopt renders
         if (!(source && (!ownKey || source.optional)
           && (sealedSource ? undefinableProxyRootValue(value, resolvePure, aliasCtx)
             : objAssign ? navHasUnresolvableProxyHop(value, resolvePure)
+            : isCallShape(value) ? callYieldCanBeUndefined(value, aliasCtx, resolvePure)
             : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx, { throughChainAssign: !!crossedAssign })))) {
           continue;
         }
@@ -574,6 +581,10 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     }
     if (!ownKey && undefinableProxyRootValue(value, resolvePure, aliasCtx)) undefinable.push(obj);
   }
+  // a guard for any DEEPER source spells the whole prefix - the root call's own `?.()` link
+  // included - so the call's undefinedness rides that same test: the opaque call key stands as
+  // a source only while nothing deeper guards the chain
+  if (provenSources.size > 1) provenSources.delete('<call>');
   for (const entry of provenSources.values()) undefinable.push(entry.obj);
   if (undefinable.length === 0) return { kind: 'erase' };
   if (undefinable.length > 1) return { kind: 'standdown' };
@@ -637,7 +648,10 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     // a PROVEN inline call yields what its body navigates, and that is not the same as yielding a
     // DEFINED value: a body reaching the environment probe (`() => globalThis.window`) is undefined
     // off-window, so a `?.` over the call is load-bearing - erased, the collapse read the ponyfill
-    // where the source short-circuits. an OPAQUE call keeps the older answer (its own canon owns it)
+    // where the source short-circuits. the proof stays STRICT here: the deopt renders key their
+    // routing on this walk, and widening it to conditional proofs re-rooted their guards (the
+    // guard-source arm asks the conditional-yield question itself, through the call canon).
+    // an OPAQUE call keeps the older answer (its own canon owns it)
     if (aliasCtx && resolvePure && (value?.type === 'CallExpression' || value?.type === 'OptionalCallExpression')
       && inlineCallProxyGlobalRoot({ callNode: value, ...aliasCtx, rejectConditional: true })
       && callValueCanBeUndefined(value, aliasCtx, resolvePure)) return true;
@@ -655,20 +669,88 @@ export function undefinableProxyRootValue(value, resolvePure, aliasCtx = null) {
     // the VALUE read at runtime is the nav's - eating the alias guard ran the branch where
     // native short-circuits
     seen.add(value.name);
-    const binding = aliasCtx.adapter?.getBinding?.(aliasCtx.scope, value.name, aliasCtx.path);
-    const bindingNode = binding?.node ?? binding?.path?.node;
-    let held = bindingNode?.type === 'VariableDeclarator' ? bindingNode.init : null;
-    if (!held && binding?.constantViolations?.length === 1) {
-      const write = unwrapTransparentSeq(binding.constantViolations[0]?.node ?? binding.constantViolations[0]);
-      if (write?.type === 'AssignmentExpression' && write.operator === '='
-        && write.left?.type === 'Identifier' && write.left.name === value.name) held = write.right;
-    }
-    if (!held) return false;
-    value = unwrapTransparentSeq(held);
-    // the held value's identifiers resolve in the alias's own declaration scope (same
-    // per-hop advance as the key/global alias walks)
-    if (binding?.scope && binding.scope !== aliasCtx.scope) aliasCtx = { ...aliasCtx, scope: binding.scope };
+    const step = aliasHeldValueStep(value, aliasCtx);
+    if (!step) return false;
+    ({ value, aliasCtx } = step);
   }
+}
+
+// the PROBED value of a flat destructure init, dead `||` / `??` fallbacks dropped: a left
+// that can never hand nullish on (a SEALED read THROWS instead of short-circuiting; a defined
+// value selects itself) keeps its fallback dead, so the probe question descends to it. a
+// genuinely nullish-able left reaches its fallback - the fallback machinery owns that init,
+// no probe here. null when the final value cannot be undefined (nothing to probe). `&&` and
+// the other init shapes stay with their own channels
+export function probedDestructureInitValue(initNode, resolvePure, aliasCtx) {
+  let value = initNode;
+  for (let guard = 0; guard < 8; guard++) {
+    const core = unwrapRuntimeExpr(peelReceiverSequenceTail(value));
+    if (core?.type !== 'LogicalExpression' || core.operator === '&&') break;
+    if (proxyReceiverValueCanBeUndefined(core.left, resolvePure, aliasCtx)
+      && !chainSealsAShortCircuit(core.left, resolvePure, aliasCtx)) return null;
+    value = core.left;
+  }
+  return proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx) ? value : null;
+}
+
+// the DECISION half of the alias-held claim probe, shared by both emitters' probe channels:
+// a PLAIN member read off an ALIAS holding an absent-able value (`const a = globalThis
+// .window?.Array; a.of(1)` - native throws reading the key where the erase just runs) is
+// re-emitted verbatim as a throw probe. an SE-bearing sequence around the alias peels to the
+// tail (the prefix rides the claim's own SE channel; `navStart` at the tail keeps it AHEAD of
+// the probe, native order), an optional spelling keeps its guard channel, an SE computed key
+// keeps its migration canon. returns `{ object, key, computed, navStart }` for the emitters'
+// renders, or null
+export function aliasHeldClaimProbe(member, resolvePure, aliasCtx) {
+  if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') return null;
+  if (member.optional) return null;
+  const objectRaw = peelReceiverSequenceTail(member.object);
+  const object = unwrapRuntimeExpr(objectRaw);
+  if (object?.type !== 'Identifier') return null;
+  const key = memberKeyName(member);
+  if (key === null) return null;
+  if (!aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return null;
+  return { object, key, computed: member.computed, navStart: objectRaw.start ?? member.object.start ?? null };
+}
+
+// the VALUE canon asked THROUGH an Identifier alias: follow the binding to what it holds and
+// ask `proxyReceiverValueCanBeUndefined` of THAT. distinct from the hop-based alias walk
+// (`undefinableProxyRootValue`): an all-plain held nav stays the declared environment under
+// the proxy-collapse assumption, so only a held value the VALUE canon calls absent-able
+// counts - the wider hop-based answer belongs to the alias's own `?.`, not to its value
+export function aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx) {
+  if (!aliasCtx) return false;
+  const seen = new Set();
+  let cur = object;
+  let ctx = aliasCtx;
+  while (cur?.type === 'Identifier' && !seen.has(cur.name)) {
+    seen.add(cur.name);
+    const step = aliasHeldValueStep(cur, ctx);
+    if (!step) return false;
+    ({ value: cur, aliasCtx: ctx } = step);
+  }
+  return cur !== object && cur?.type !== 'Identifier'
+    && proxyReceiverValueCanBeUndefined(cur, resolvePure, ctx);
+}
+
+// one alias-follow step shared by the undefinability walks: the declarator init or the
+// binding's single `=` write, transparently unwrapped, plus the scope the held value's own
+// identifiers resolve in (same per-hop advance as the key/global alias walks). null for an
+// opaque binding - a param, multiple writes, no init
+function aliasHeldValueStep(node, aliasCtx) {
+  const binding = aliasCtx.adapter?.getBinding?.(aliasCtx.scope, node.name, aliasCtx.path);
+  const bindingNode = binding?.node ?? binding?.path?.node;
+  let held = bindingNode?.type === 'VariableDeclarator' ? bindingNode.init : null;
+  if (!held && binding?.constantViolations?.length === 1) {
+    const write = unwrapTransparentSeq(binding.constantViolations[0]?.node ?? binding.constantViolations[0]);
+    if (write?.type === 'AssignmentExpression' && write.operator === '='
+      && write.left?.type === 'Identifier' && write.left.name === node.name) held = write.right;
+  }
+  if (!held) return null;
+  return {
+    value: unwrapTransparentSeq(held),
+    aliasCtx: binding?.scope && binding.scope !== aliasCtx.scope ? { ...aliasCtx, scope: binding.scope } : aliasCtx,
+  };
 }
 
 // callers pass either a receiver identifier or a FOLDED property key, and a key folds to any
@@ -2527,9 +2609,26 @@ export function partitionEffectsAtProbe(effects, navStart) {
 // the source's own global name, which IS that value (the probe reads a property off it exactly as
 // written, and the claim beside it still carries the polyfill). null when no single `?.` expresses
 // the short-circuit, or the leaf is neither ponyfilled nor a plain name
-export function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null) {
+export function sealedClaimLeafGuardPlan(nav, resolvePure, aliasCtx = null, { probeLeaf = false } = {}) {
   const verdict = undefinableOptionalGuard(nav, resolvePure, aliasCtx);
-  if (verdict.kind !== 'guard') return null;
+  if (verdict.kind !== 'guard') {
+    // a value that IS the environment probe carries no `?.` for the verdict to key on - the
+    // bare one-hop read (`globalThis.window`) and an alias HOLDING an absent-able value are
+    // undefinable by the value canon alone. the leaf to read off the guard is the probe
+    // itself (`null == _globalThis.window ? void 0 : _globalThis.window` - the test operand
+    // doubles as the alternate), which `leafIsProbe` tells the renders to spell. OPT-IN
+    // (`probeLeaf`): only the direct guard-value consumers (a full consume of the probe
+    // itself) ask this - a SEALED path's inner probe keeps the accepted plain-seal collapse
+    // (`(globalThis.window).self` reads off the realm global like its unsealed twin)
+    if (probeLeaf && verdict.kind === 'erase' && ownChainOptionalObjects(nav).length === 0
+      && !chainSealsAShortCircuit(nav, resolvePure, aliasCtx)
+      && (nav?.type === 'Identifier'
+        ? aliasHeldValueCanBeUndefined(nav, resolvePure, aliasCtx)
+        : proxyReceiverValueCanBeUndefined(nav, resolvePure, aliasCtx))) {
+      return { guardObject: nav, leafPure: null, leafName: null, leafIsProbe: true };
+    }
+    return null;
+  }
   const leafPure = proxyGlobalMemberCtorPure({ receiver: nav, aliasCtx, resolvePure });
   if (leafPure) return { guardObject: verdict.object, leafPure, leafName: null };
   const leafName = staticMemberKeyName(nav);
@@ -2627,6 +2726,10 @@ export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null, {
       // it and flipping that globally strands a raw root in a guard memo
       if (navHasUnresolvableProxyHop(throughChainAssign
         ? peelChainAssignment(object).value ?? object : object, resolvePure)) return true;
+      // an alias HOLDING a value that can be absent (`const w = globalThis.window; w?.Array`)
+      // short-circuits like the value it hides
+      if (object?.type === 'Identifier'
+        && aliasHeldValueCanBeUndefined(object, resolvePure, aliasCtx)) return true;
     }
     // a PARENTHESIZED layer (source parens or a paren'd cast - `(nav).X`, `(nav as any).X`) stops
     // the OUTER chain's short-circuit but not this walk: what the seal HIDES is the question, and a
@@ -2703,6 +2806,16 @@ function callValueCanBeUndefined(callNode, aliasCtx, resolvePure = null) {
   // emitter's `oc?.().window` reads as one chain). the source spelling is the only one both
   // emitters can print, so the optional above such a link is never dead text
   if (callNode.optional) return true;
+  return callYieldCanBeUndefined(callNode, aliasCtx, resolvePure);
+}
+
+// the value-definedness half of the call canon, without the optional-LINK print rule above: can
+// what the call YIELDS be absent - an unproven / CONDITIONALLY-proven callee (`let f; if (c)
+// f = () => globalThis;` - the unassigned path short-circuits through the call's own `?.()`,
+// which nothing above re-tests), or a proven body whose returned navigation is itself
+// undefinable. the guard-SOURCE arm asks this of an optional call: the print rule answers true
+// for every optional link, but a const-bound callee yields a proven value whose collapse is sound
+function callYieldCanBeUndefined(callNode, aliasCtx, resolvePure) {
   if (!aliasCtx || !inlineCallProxyGlobalRoot({ callNode, ...aliasCtx, rejectConditional: true })) return true;
   // proving the call YIELDS a proxy global is not proving its value is DEFINED: an inlined body that
   // navigates through a live `?.` (`() => globalThis.window?.self`) short-circuits to undefined, and
