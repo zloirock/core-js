@@ -31,6 +31,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   classifyCallBranchForSynth,
+  fallbackBranchSwapKeepsSelection,
   isViableBranchForKey,
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -270,6 +271,11 @@ export default function createSynthSwapEmitter({
     if (slots) {
       let any = false;
       for (const slot of slots) {
+        // a value-selecting operand that can be nullish must not become an always-defined
+        // literal - the swap would flip which branch runs (the shared predicate's contract)
+        if (!fallbackBranchSwapKeepsSelection({
+          hostNode: peeled.node, slot, branchNode: peeled.node[slot], scope: peeled.scope, adapter, path: peeled,
+        })) continue;
         if (registerBranchTreeForKey({ branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey })) any = true;
       }
       return any;
