@@ -683,7 +683,12 @@ export default function plugin(api, options) {
 
       // the probe node between the effect halves the shared rule splits
       function probeOrderedEffects(throwProbe, effects) {
+        // the probe READ is an already-decided render - the alias arm spells it from a RAW
+        // source read the member visitor would otherwise re-claim on insertion. the seed is
+        // NODE-level only: everything inside the probe stays live for re-entry (a key-SE
+        // claim, the guard test's root substitution)
         const { ahead, after } = partitionEffectsAtProbe(effects, throwProbe.navStart);
+        skippedNodes.add(throwProbe.node);
         return [...ahead, throwProbe.node, ...after];
       }
 

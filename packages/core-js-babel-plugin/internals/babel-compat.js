@@ -3,6 +3,7 @@
 // peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
+  aliasHeldClaimProbe,
   claimReceiverEvaluationMayThrow,
   classifyReceiverSE, descendToChainRoot, keySideEffectsOnly, maximalProxyGlobalPrefix,
   chainReadsThroughSeal,
@@ -187,6 +188,50 @@ function collapseClaimlessCallRootedNav({ endPath, adapter, resolvePureGlobalEnt
   return true;
 }
 
+// CLONE a guard-test operand and PRE-substitute its proxy root: guard renders may be
+// inserted where no natural identifier rewrite runs again (a deferred destructure probe, a
+// post-traversal splice), and a raw `globalThis` in the test is a ReferenceError on exactly
+// the engines the ponyfill serves. an ALIAS root is the user's own binding, kept verbatim
+function cloneWithSubstitutedProxyRoot(node, anchorPath, { t, resolvePureGlobalEntry, injectPureGlobal }) {
+  const cloned = t.cloneNode(node, true);
+  if (cloned?.type === 'Identifier') {
+    const rootPure = POSSIBLE_GLOBAL_OBJECTS.has(cloned.name) ? resolvePureGlobalEntry(cloned.name, anchorPath) : null;
+    return rootPure ? t.cloneNode(injectPureGlobal(rootPure.entry, rootPure.hintName)) : cloned;
+  }
+  for (let spine = cloned; spine?.type === 'MemberExpression' || spine?.type === 'OptionalMemberExpression';) {
+    let obj = spine.object;
+    while (obj && TS_EXPR_WRAPPERS.has(obj.type)) obj = obj.expression;
+    if (obj?.type === 'Identifier') {
+      const rootPure = POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? resolvePureGlobalEntry(obj.name, anchorPath) : null;
+      if (rootPure) spine.object = t.cloneNode(injectPureGlobal(rootPure.entry, rootPure.hintName));
+      break;
+    }
+    spine = obj;
+  }
+  return cloned;
+}
+
+// RENDER half of the alias-held claim probe (the decision is the shared
+// `aliasHeldClaimProbe`): the claim's own member read spelled verbatim - the alias binding
+// IS the test, no guard render needed. reached with NO sealed boundary and as the FALLBACK
+// of a sealed path that renders nothing (a value-transparent seal over the bare alias,
+// `(a as any).of` - it hides no short-circuit, so the alias question stands)
+function aliasHeldClaimProbeNode(memberPath, member, { t, adapter, resolvePureGlobalEntry, mintedEffectNodes }) {
+  // a SYNTHETIC member (no source span) is a render, not a source read - the probes this
+  // arm spells are themselves such members (re-cloned by the SE wrap), and probing one
+  // would loop the visitor
+  if (!Number.isInteger(member?.start)) return null;
+  const probe = aliasHeldClaimProbe(member,
+    ({ name }) => resolvePureGlobalEntry(name, memberPath),
+    { scope: memberPath.scope, adapter, path: memberPath });
+  if (!probe) return null;
+  const read = probe.computed
+    ? t.memberExpression(t.cloneNode(probe.object), t.stringLiteral(probe.key), true)
+    : t.memberExpression(t.cloneNode(probe.object), t.identifier(probe.key));
+  mintedEffectNodes.add(read);
+  return { keySeExprs: [], navStart: probe.navStart, node: read };
+}
+
 function collapseHopsBelowProbe({ probePath, anchorPath, adapter, resolvePure, injectPure }) {
   let below = probePath.node.object;
   while (below && (TS_EXPR_WRAPPERS.has(below.type) || below.type === 'ParenthesizedExpression')) {
@@ -288,6 +333,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         renderedPlanTails = new WeakSet(),
         renderedGuardTests = new WeakSet(),
         guardedClaims = new WeakSet(),
+        // render-minted effect nodes (alias throw probes): inserted AS-IS by the SE wrap, so
+        // the consumer's skip seeding survives to the visitor that would otherwise re-claim
+        mintedEffectNodes = new WeakSet(),
         pluginSeqWraps = new WeakSet(),
         parenTerminated = new WeakSet(),
         pendingKeptNavCollapses = [],
@@ -1275,33 +1323,41 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       rootNode, scope: anchorPath.scope, adapter, path: anchorPath,
       resolvePure: ({ name }) => resolvePureGlobalEntry(name, anchorPath),
     });
-    if (!plan || plan.topAssign || plan.kind !== 'nested' || plan.keySeExprs.length) return null;
+    // a nav the collapse plan does not own AT ALL (its explicit declines - kept assign /
+    // sequence root / SE key - keep their reasons) still has two guarded spellings:
+    //   - a SEALED read (`(globalThis.window?.self).Array` - the seal makes the read
+    //     observable): the boundary probe IS the guarded value, `(null == ... ? void 0 :
+    //     _self).Array` throws exactly where the source does;
+    //   - a leaf that is a claimable constructor (`globalThis.window?.Array`): the two-halves
+    //     guard - the erase verdict's `?.` object as the test, the ctor ponyfill alternate
+    if (!plan) {
+      const boundaryProbe = sealedChainBoundary(rootNode)
+        ? sealedClaimThrowProbeNode(anchorPath, rootNode) : null;
+      if (boundaryProbe && !boundaryProbe.keySeExprs.length) {
+        return { node: boundaryProbe.node, rootEffectCall: null };
+      }
+      const leafGuard = sealedClaimLeafGuardNode(rootNode, anchorPath,
+        { scope: anchorPath.scope, adapter, path: anchorPath }, { probeLeaf: true });
+      return leafGuard ? { node: leafGuard, rootEffectCall: null } : null;
+    }
+    if (plan.topAssign || plan.kind !== 'nested' || plan.keySeExprs.length) return null;
     const { leafPure: pure } = plan;
     // CLONE the guard-test prefix and PRE-substitute its proxy root: the caller discards
     // (skip-seeds) the original init subtree and may insert this render only at program
     // exit, so neither the live node nor the clone ever meets the natural identifier
-    // rewrite - a raw `globalThis` would ride into the test (ie11 ReferenceError). an
-    // ALIAS root is the user's own binding and stays verbatim
+    // rewrite - a raw `globalThis` would ride into the test (ie11 ReferenceError)
     const hop = plan.hops[plan.lastUnresolvableIdx];
-    const cloned = t.cloneNode(hop.node, true);
-    for (let spine = cloned; spine?.type === 'MemberExpression' || spine?.type === 'OptionalMemberExpression';) {
-      let obj = spine.object;
-      while (obj && TS_EXPR_WRAPPERS.has(obj.type)) obj = obj.expression;
-      if (obj?.type === 'Identifier') {
-        const rootPure = POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? resolvePureGlobalEntry(obj.name, anchorPath) : null;
-        if (rootPure) spine.object = t.cloneNode(injectPureGlobal(rootPure.entry, rootPure.hintName));
-        break;
-      }
-      spine = obj;
-    }
-    plan.hops[plan.lastUnresolvableIdx] = { ...hop, node: cloned };
+    plan.hops[plan.lastUnresolvableIdx] = {
+      ...hop,
+      node: cloneWithSubstitutedProxyRoot(hop.node, anchorPath, { t, resolvePureGlobalEntry, injectPureGlobal }),
+    };
     // the render runs an effect-bearing CALL root exactly once inside the test - report it
     // so destructure replay channels filter it out instead of re-running it
     return { node: renderNavCollapseAst(plan, injectPureGlobal(pure.entry, pure.hintName)), rootEffectCall: plan.rootEffectCall ?? null };
   }
 
-  // a RECEIVERLESS static erase over a SEALED probe nav loses the read the source performs
-  // on the sealed VALUE (`(globalThis.window?.self.window).Array.of(6)` - an absent `window`
+  // a RECEIVERLESS static erase loses the read the source performs on a value that can be
+  // absent - through a SEAL (`(globalThis.window?.self.window).Array.of(6)` - an absent `window`
   // throws at `.Array` where the erased claim just runs). build that read back as a THROW
   // PROBE the erase re-emits ahead of the claim: the sealed value renders through the shared
   // guard plan (probe test, ponyfill leaf), the member key re-spells the source read. an
@@ -1311,9 +1367,15 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const adapter = getAdapter?.();
     if (!adapter || !memberPath?.scope || !resolvePureGlobalEntry || !injectPureGlobal) return null;
     const boundary = sealedChainBoundary(probeNode ?? memberPath.node);
-    if (!boundary) return null;
+    if (!boundary) {
+      return aliasHeldClaimProbeNode(memberPath, probeNode ?? memberPath.node,
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+    }
     const key = memberKeyName(boundary.member);
-    if (key === null) return null;
+    if (key === null) {
+      return aliasHeldClaimProbeNode(memberPath, boundary.member,
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+    }
     const aliasCtx = { scope: memberPath.scope, adapter, path: memberPath };
     if (!proxyReceiverValueCanBeUndefined(boundary.inner,
       ({ name }) => resolvePureGlobalEntry(name, memberPath), aliasCtx, { throughChainAssign: true })) return null;
@@ -1329,7 +1391,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const rendered = plan && !plan.topAssign && plan.kind === 'nested'
       ? renderNavCollapseAst(plan, injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName))
       : sealedClaimLeafGuardNode(boundary.inner, memberPath, aliasCtx);
-    if (!rendered) return null;
+    // a seal the guard renders cannot own (a value-transparent layer over a bare alias -
+    // `(a as any).of`) hides no short-circuit: the alias question stands, fall through to it
+    if (!rendered) {
+      return aliasHeldClaimProbeNode(memberPath, boundary.member,
+        { t, adapter, resolvePureGlobalEntry, mintedEffectNodes });
+    }
     // the probe CARRIES the nav's key SE (native order: test, key effect, read) - hand the
     // plan's SE nodes back so the claim's own SE channel does not re-run them
     // a SEQUENCE prefix inside the nav is dropped by the plan's transparent unwrap, and the effect
@@ -1364,18 +1431,26 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // the guarded VALUE of a sealed nav that ends AT a claim, as a NODE: the erase verdict names the
   // `?.` object to test, the claim's own ponyfill is the always-defined alternate. null when no
   // single `?.` expresses the short-circuit or the leaf resolves to no pure entry
-  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx) {
-    const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolvePureGlobalEntry(name, anchorPath), aliasCtx);
+  function sealedClaimLeafGuardNode(nav, anchorPath, aliasCtx, { probeLeaf = false } = {}) {
+    const plan = sealedClaimLeafGuardPlan(nav, ({ name }) => resolvePureGlobalEntry(name, anchorPath), aliasCtx, { probeLeaf });
     const alternate = !plan ? null
       : plan.leafPure ? injectPureGlobal(plan.leafPure.entry, plan.leafPure.hintName)
+      // the value IS the probe: the test operand doubles as the alternate (a second read of
+      // the same slot, benign on the proxy globals every render here already reads freely)
+      : plan.leafIsProbe ? cloneWithSubstitutedProxyRoot(plan.guardObject, anchorPath,
+        { t, resolvePureGlobalEntry, injectPureGlobal })
       : t.isValidIdentifier(plan.leafName) ? t.identifier(plan.leafName) : null;
     if (!alternate) return null;
+    // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
+    // shared spelling only clones the source, and a write below the hops kept `_globalThis.self`
+    // standing there - a host read off the ponyfill, undefined in the realms the polyfill is for.
+    // the operand is CLONED with its proxy root pre-substituted - consumers may insert this
+    // render where no identifier rewrite runs again
+    const testObject = cloneWithSubstitutedProxyRoot(plan.guardObject, anchorPath,
+      { t, resolvePureGlobalEntry, injectPureGlobal });
     return t.conditionalExpression(
-      // the guard OBJECT is what the test spells, so it is handed over as one too: without it the
-      // shared spelling only clones the source, and a write below the hops kept `_globalThis.self`
-      // standing there - a host read off the ponyfill, undefined in the realms the polyfill is for
       t.binaryExpression('==', t.nullLiteral(),
-        navGuardTestNode(plan.guardObject, anchorPath, null, plan.guardObject)),
+        navGuardTestNode(testObject, anchorPath, null, testObject)),
       t.unaryExpression('void', t.numericLiteral(0)),
       alternate,
     );
@@ -1701,8 +1776,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     if (!sideEffects?.length) return result;
     // marked so the erase-refusal's guard climb can lift THROUGH a plugin-built SE wrap (its
     // leading memo assign + harvested key SE legally move into the guard's non-null branch);
-    // a user-written sequence must never lift
-    const seq = t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), result]);
+    // a user-written sequence must never lift. a MINTED node (an alias throw probe) inserts
+    // AS-IS - cloning one would shed the skip seeding that keeps it from being re-claimed
+    const seq = t.sequenceExpression([...sideEffects.map(e => mintedEffectNodes.has(e) ? e : t.cloneNode(e)), result]);
     pluginSeqWraps.add(seq);
     return seq;
   }
