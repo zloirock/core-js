@@ -8,6 +8,7 @@ import { ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/inj
 import { collectMutationPrePass, createEstreeAdapter, withoutPhantomDeclarationViolations } from '../../packages/core-js-unplugin/internals/detect-usage.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
+import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
 import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
 import TransformQueue, {
   createRewriteHint,
@@ -7043,6 +7044,20 @@ function checkParamPatternHostsAreEnumerated() {
 }
 checkParamPatternHostsAreEnumerated();
 
+// --- machine-path normalization (two escaping domains) ---
+
+// the runners' ROOT collapse broke on Windows once and regex escapes once - each time by
+// unifying the two domains; these lock them apart
+function checkMachinePathDomains() {
+  check('slashifyPath walks single-backslash filesystem separators',
+    slashifyPath('D:\\a\\core-js\\core-js'), 'D:/a/core-js/core-js');
+  check('normalizeMachinePaths rewrites the ESCAPED separator spelling',
+    normalizeMachinePaths('import "D:\\\\a\\\\x.js";'), 'import "D:/a/x.js";');
+  check('normalizeMachinePaths leaves regex and String.raw escapes alone',
+    normalizeMachinePaths('const re = /[\\v\\t]/;'), 'const re = /[\\v\\t]/;');
+}
+checkMachinePathDomains();
+
 // --- offset-to-loc canon (the AST printer rides it) ---
 
 function checkAstPrintLocator() {
@@ -7146,6 +7161,25 @@ function checkEngineOption() {
   check('the ast engine renders require-style entries',
     createPlugin({ ...entryOptions, engine: 'ast', importStyle: 'require' })
       .transform("require('core-js/actual/array/from');", 'input.mjs').code.startsWith('require("core-js/modules/'), true);
+  // usage-global on the ast engine: injection, the user-import sweep, the one normalization
+  const usageOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  const astUsage = createPlugin({ ...usageOptions, engine: 'ast' })
+    .transform('import "core-js/modules/es.array.at";\narr.at(0);', 'input.mjs');
+  check("engine 'ast' transforms usage-global", astUsage?.code.startsWith('import "core-js/modules/es.array.at";'), true);
+  check('the swept user module import is not doubled', astUsage.code.match(/es\.array\.at/g).length, 1);
+  check('the ast engine normalizes instantiation before optional call',
+    createPlugin({ ...usageOptions, engine: 'ast' }).transform('const r = ((f)<string>)?.(1);\narr.at(0);', 'input.ts')
+      .code.includes('f?.<string>(1)'), true);
+  function phasedAstError() {
+    try {
+      createPlugin({ ...usageOptions, engine: 'ast' }).transform('arr.at(0);', 'input.mjs', 'post');
+      return null;
+    } catch (error) {
+      return error.message;
+    }
+  }
+  check('the ast engine rejects phased usage-global at the plugin layer',
+    phasedAstError(), "[core-js] [input.mjs] `engine: 'ast'` does not support the 'post' pass yet");
   const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
   const viaText = createPlugin({ method: 'usage-pure', engine: 'text' }).transform('[1].at(0);', 'input.mjs')?.code;
   check("explicit engine 'text' is the default engine", viaText, viaDefault);
