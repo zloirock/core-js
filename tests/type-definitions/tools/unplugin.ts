@@ -22,8 +22,13 @@ vite({
   browserslistEnv: null,
   ignoreBrowserslistConfig: null,
   importStyle: null,
+  engine: null,
   phase: null,
 });
+
+// the staged AST-engine flag types both values even while 'ast' is rejected at runtime
+vite({ method: 'usage-global', engine: 'text' });
+vite({ method: 'usage-pure', engine: 'ast' });
 
 // readonly arrays accepted for additionalPackages / include / exclude
 const unpAdditional = ['@x/y'] as const;
@@ -151,6 +156,8 @@ vite({});
 vite({ method: 'invalid' });
 // @ts-expect-error — invalid mode
 vite({ method: 'usage-global', mode: 'invalid' });
+// @ts-expect-error — invalid engine
+vite({ method: 'usage-global', engine: 'quantum' });
 // @ts-expect-error — version must be a string
 vite({ method: 'usage-global', version: 4 });
 // @ts-expect-error — debug must be a boolean
