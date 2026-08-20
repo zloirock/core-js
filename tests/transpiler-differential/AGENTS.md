@@ -1,6 +1,6 @@
 # transpiler-differential
 
-A differential oracle over generated inputs. A snippet passes when the two emitters agree on the injected import set and when native, babel and unplugin all produce the same runtime result - and, for grammar snippets, when the polyfilled output still reproduces native in a realm without the built-in.
+A differential oracle over generated inputs. A snippet passes when the two emitters agree on the injected import set and when native, babel and unplugin all produce the same runtime result - and, for grammar snippets, when the polyfilled output still reproduces native in a realm without the built-in. A fourth leg reprints the SOURCE through the AST engine's printer with zero mutations and executes it: the printed form must reproduce native, which puts a runtime oracle behind what the roundtrip gate can only compare structurally.
 
 Body shape is deliberately not compared: an AST codegen and a text rewrite differ there by construction, and that difference is what the fixture sidecars record.
 

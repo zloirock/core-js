@@ -2655,6 +2655,26 @@ export default [
   },
   {
     files: [
+      'packages/core-js-unplugin/internals/ast/**',
+    ],
+    rules: {
+      // the AST engine's boundary: it prints through esrap and never touches the text-transform
+      // layer, so the layer can be deleted out from under it when the staged migration lands
+      'no-restricted-imports': [ERROR, {
+        paths: [
+          { name: 'magic-string', message: 'the AST engine prints through esrap, never splices text' },
+        ],
+        patterns: [
+          {
+            group: ['*/transform-queue.js', '*/text-scan.js', '*/ref-canon.js', '*/emit-utils.js', '*/detect-entry.js'],
+            message: 'text-transform layer - off limits for the AST engine',
+          },
+        ],
+      }],
+    },
+  },
+  {
+    files: [
       'packages/core-js?(-pure)/**',
       'tests/compat/*.js',
     ],

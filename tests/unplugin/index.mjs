@@ -3,12 +3,13 @@ import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
+import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
   FIXTURE_SHARD, defaultShardCount, emitShardSummary, runShards, shardSlice,
 } from '../babel-plugin/fixture-shards.mjs';
 
-const { readdir, pathExists, readFile, readJson, rm, stat, writeFile } = fs;
+const { readdir, pathExists, readFile, rm, stat, writeFile } = fs;
 const { basename, join } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -99,30 +100,6 @@ function extractPluginOptions(babelOptions) {
     }
   }
   return null;
-}
-
-async function loadBabelOptions(directory) {
-  for (const file of ['options.json', 'options.mjs']) {
-    const full = join(directory, file);
-    if (!await pathExists(full)) continue;
-    if (file.endsWith('.json')) return readJson(full, UTF8);
-    const { pathToFileURL } = await import('node:url');
-    return (await import(pathToFileURL(path.resolve(full)).href)).default;
-  }
-  return null;
-}
-
-// oxc-parser auto-enables JSX/TS based on file extension. `.ts` covers the typescript
-// plugin (default fallback), `.jsx` for JSX-only without TS, `.tsx` when both. matrix
-// of the 4 filds: (jsx, ts) → '.tsx'; (jsx, !ts) → '.jsx'; (!jsx, ts) → '.ts';
-// (!jsx, !ts) → '.ts' (default — typescript-friendly is the safe default)
-function inferTestId(babelOptions) {
-  if (babelOptions.filename) return babelOptions.filename;
-  const parserPlugins = babelOptions.parserOpts?.plugins ?? [];
-  const hasJsx = parserPlugins.includes('jsx');
-  const hasTs = parserPlugins.includes('typescript');
-  if (hasJsx) return hasTs ? 'input.tsx' : 'input.jsx';
-  return 'input.ts';
 }
 
 // max lines to probe in mappings before giving up. 200 covers typed-array bundles (30+
