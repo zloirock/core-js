@@ -7,11 +7,13 @@ import {
 import { consumeOneLineEnding, injectionFusesLeft, isExprStmtHazardStart } from './plugin-helpers.js';
 import { prevSignificantPos, skipGap } from './text-scan.js';
 
-// entry-global mode: rewrite top-level `import 'core-js/...'` / `require('core-js/...')`
-// statements into the resolved per-feature module set. partitioned in two passes so the
-// batch sees every candidate before any commit (mirrors babel-plugin's traversal where
-// programExit alters the live body per visitor - the simulation here closes that gap)
-export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
+// entry-global mode, the ENGINE-NEUTRAL half: which top-level `import 'core-js/...'` /
+// `require('core-js/...')` statements resolve to module sets, and what disposition each
+// slot gets. partitioned in two passes so the batch sees every candidate before any commit
+// (mirrors babel-plugin's traversal where programExit alters the live body per visitor -
+// the simulation here closes that gap). both engines apply the returned plan: the text
+// engine through the batch rewriter below, the AST engine by splicing the body
+export function planEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled }) {
   // getEntrySource only consults `hasBinding('require')`; stub-scope is enough
   const shadowScope = declaresRequireBinding(ast.body) ? { hasBinding: () => true } : null;
 
@@ -38,12 +40,17 @@ export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModu
     // for every removed entry - the `0;` placeholder matters only for zero-module files
     injectedImportsBreakPrologue: injectedModules > 0,
   });
+  return { toRemove, toReplaceWithNoop, found: toRemove.length + toReplaceWithNoop.length > 0 };
+}
 
+// the text engine's application of the plan
+export default function detectEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
+  const { toRemove, toReplaceWithNoop, found } = planEntries(ast, { adapter, getCoreJSEntry, injectModulesForEntry, isDisabled });
   const rewriter = createTopLevelStatementRewriter(ms);
   for (const node of toRemove) rewriter.remove(node);
   for (const node of toReplaceWithNoop) rewriter.replaceWithNoop(node);
   rewriter.apply();
-  return toRemove.length + toReplaceWithNoop.length > 0;
+  return found;
 }
 
 // the batch rewriter of top-level statement slots, shared by the entry-global pass and the

@@ -7131,6 +7131,21 @@ function checkEngineOption() {
   check("engine 'ast' is staged - rejected until its first method ships",
     creationError({ method: 'usage-pure', engine: 'ast' }),
     "[core-js] `engine: 'ast'` does not support method 'usage-pure' yet");
+  // the one method the staged engine has landed transforms; the rest keep the guard above
+  const entryOptions = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
+  const astEntry = createPlugin({ ...entryOptions, engine: 'ast' }).transform("import 'core-js/actual/array/from';\nuse();", 'input.mjs');
+  check("engine 'ast' transforms entry-global",
+    astEntry !== null && astEntry.code.includes('import "core-js/modules/es.array.from";'), true);
+  check('the ast entry output drops the entry statement', astEntry.code.includes('core-js/actual'), false);
+  check('the ast engine abstains on entry-less files',
+    createPlugin({ ...entryOptions, engine: 'ast' }).transform('use();', 'input.mjs'), null);
+  // a module-import input re-expands to itself: babel reprints it, the text leg nulls out
+  // only by byte-accident - the ast engine follows babel and re-emits the same statements
+  check('a module-import re-transform re-emits the same imports (babel parity)',
+    createPlugin({ ...entryOptions, engine: 'ast' }).transform(astEntry.code, 'input.mjs')?.code.includes('import "core-js/modules/es.array.from";'), true);
+  check('the ast engine renders require-style entries',
+    createPlugin({ ...entryOptions, engine: 'ast', importStyle: 'require' })
+      .transform("require('core-js/actual/array/from');", 'input.mjs').code.startsWith('require("core-js/modules/'), true);
   const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
   const viaText = createPlugin({ method: 'usage-pure', engine: 'text' }).transform('[1].at(0);', 'input.mjs')?.code;
   check("explicit engine 'text' is the default engine", viaText, viaDefault);
