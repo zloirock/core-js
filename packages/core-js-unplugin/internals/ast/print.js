@@ -1,6 +1,7 @@
 import { print } from 'esrap';
 import ts, { EXPRESSIONS_PRECEDENCE } from 'esrap/languages/ts';
 import tsx from 'esrap/languages/tsx';
+import { decode, encode } from '@jridgewell/sourcemap-codec';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { buildOffsetToLoc } from '@core-js/polyfill-provider/helpers/source-scan';
 
@@ -211,6 +212,15 @@ function synthesizeLocs(program, comments, source) {
     program.loc.end.column += 1;
   }
   return comments.map(comment => ({ ...comment, loc: { start: locate(comment.start), end: locate(comment.end) } }));
+}
+
+// re-prepending a stripped BOM shifts every generated column on the FIRST output line by
+// one char while deeper lines stay put - the deltas are VLQ, so decode/patch/encode rather
+// than string surgery (the text engine gets this for free from MagicString's `prepend`)
+export function shiftFirstLineColumns(map, delta) {
+  const decoded = decode(map.mappings);
+  if (decoded[0]) for (const segment of decoded[0]) segment[0] += delta;
+  map.mappings = encode(decoded);
 }
 
 // print a parsed program back to source. `jsx` picks the tsx language - the caller owns
