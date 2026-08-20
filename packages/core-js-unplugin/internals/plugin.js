@@ -3,6 +3,7 @@ import { canonicalizeRefNumbering } from './ref-canon.js';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
+  extractIndirectRequireSEPrefix,
   namespaceScopedBindingBlock,
   staticFallbackSwapRedundant,
   forEachStatementPosition,
@@ -66,7 +67,7 @@ import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRewriter, planEntries } from './detect-entry.js';
-import applyEntryProgram from './ast/entry.js';
+import applyEntryProgram, { injectImportStatements } from './ast/entry.js';
 import { printProgram, shiftFirstLineColumns } from './ast/print.js';
 import {
   closestVisibleNativeBinding,
@@ -147,11 +148,21 @@ function blankPatternInterior(node) {
 // exported for the cross-parser test harness: any consumer that builds estree-toolkit SCOPES over a
 // TS AST needs this same pass first, or a bodyless signature with a pattern parameter aborts the
 // crawl before its own visitors run
-export function neutralizeUnwalkedParamPatterns(node) {
+// `restorations` (AST engine only): the neutralization is a DETECTION convenience - the text
+// engine never prints the tree, but the AST engine does, and a blanked rest argument or an
+// unwrapped parameter-property would print corrupted TS. every mutation pushes its undo;
+// `finalizeAst` replays them in reverse right before the print
+export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
   if (!node || typeof node !== 'object') return;
   if (Array.isArray(node.params) && !PARAM_PATTERN_SCOPE_OWNERS.has(node.type)) {
     for (let i = 0; i < node.params.length; i++) {
-      node.params[i] = blankPatternInterior(node.params[i]);
+      const original = node.params[i];
+      const blanked = blankPatternInterior(original);
+      if (blanked === original) continue;
+      restorations?.push(() => {
+        node.params[i] = original;
+      });
+      node.params[i] = blanked;
     }
     // fall through: `returnType` and `typeParameters` of the same node carry their own
     // type-level signatures, and a defaulted type parameter is reached by the crawler too
@@ -170,17 +181,22 @@ export function neutralizeUnwalkedParamPatterns(node) {
   if (node.type === 'TSParameterProperty' && node.parameter?.type === 'AssignmentPattern') {
     const { decorators } = node;
     const inner = node.parameter;
+    const saved = { ...node };
+    restorations?.push(() => {
+      for (const key of Object.keys(node)) delete node[key];
+      Object.assign(node, saved);
+    });
     for (const key of Object.keys(node)) delete node[key];
     Object.assign(node, inner);
     if (decorators?.length) node.decorators = decorators;
-    neutralizeUnwalkedParamPatterns(node);
+    neutralizeUnwalkedParamPatterns(node, restorations);
     return;
   }
   if (Array.isArray(node)) {
-    for (const child of node) neutralizeUnwalkedParamPatterns(child);
+    for (const child of node) neutralizeUnwalkedParamPatterns(child, restorations);
     return;
   }
-  for (const value of Object.values(node)) neutralizeUnwalkedParamPatterns(value);
+  for (const value of Object.values(node)) neutralizeUnwalkedParamPatterns(value, restorations);
 }
 
 // 1-based `line:col` from oxc's first label via shared offset->line+column helper.
@@ -400,7 +416,7 @@ export default function createPlugin(options) {
     const got = typeof engineOption === 'string' ? `'${ engineOption }'` : typeof engineOption;
     throw new TypeError(`[core-js] invalid \`engine\` option: ${ got } - expected 'text' or 'ast'`);
   }
-  if (engine === 'ast' && options.method !== 'entry-global') {
+  if (engine === 'ast' && options.method !== 'entry-global' && options.method !== 'usage-global') {
     throw new TypeError(`[core-js] \`engine: 'ast'\` does not support method '${ options.method }' yet`);
   }
 
@@ -598,7 +614,8 @@ export default function createPlugin(options) {
     // and the crawler is about to walk again, so gating it on a TS extension buys nothing measurable
     // and costs a code path resting on a subtle assumption - oxc enables TS on `.ts`/`.mts`/`.cts`/
     // `.tsx`, lowercase only, so a `.TS` file would silently lose the pass
-    neutralizeUnwalkedParamPatterns(ast);
+    const patternRestorations = engine === 'ast' ? [] : null;
+    neutralizeUnwalkedParamPatterns(ast, patternRestorations);
 
     // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
     // must emit `import`, or bundlers reject the mixed output
@@ -762,6 +779,10 @@ export default function createPlugin(options) {
       // imports it removes, and every later channel that writes at a statement head asks it (through
       // the queue) what the previous SURVIVING char is - the removals are not in the source text
       const statementRewriter = createTopLevelStatementRewriter(ms);
+      // the AST engine's change tracker - its `ms.hasChanged()` twin: body surgery and node
+      // normalization leave no text trace, so the abstain decision reads these
+      let astSweptImports = false;
+      let astNormalized = false;
       if (method !== 'entry-global') {
         const removed = new Set();
         scanExistingCoreJSImports(ast, {
@@ -790,12 +811,14 @@ export default function createPlugin(options) {
           // prefix (`(arr.includes(1), require)(...)` -> `es.array.includes` injected)
           const kept = new Set();
           for (const node of removed) {
-            const sePrefix = statementRewriter.remove(node);
+            // the AST engine takes only the DECISION half - the text batch renders nothing here
+            const sePrefix = engine === 'ast' ? extractIndirectRequireSEPrefix(node) : statementRewriter.remove(node);
             if (!sePrefix.length) continue;
             kept.add(node);
             node.expression = sePrefix.length === 1 ? sePrefix[0] : { type: 'SequenceExpression', expressions: sePrefix };
           }
-          statementRewriter.apply();
+          if (engine === 'text') statementRewriter.apply();
+          else astSweptImports = true;
           ast.body = ast.body.filter(n => !removed.has(n) || kept.has(n));
           // the ref block anchors after the trailing user import - of the body as it now stands: a
           // removed import is no anchor, and a kept prefix is a plain statement, not an import-like
@@ -955,6 +978,14 @@ export default function createPlugin(options) {
             if (isDisabled(path.node)) return;
             const edits = optionalCallTypeArgumentEdits(path.node, code);
             if (!edits) return;
+            if (engine === 'ast') {
+              // the same decision, applied as node surgery: the instantiation dissolves into
+              // the call's own type arguments and its operand becomes the callee
+              path.node.typeArguments = edits.instantiation.typeArguments ?? edits.instantiation.typeParameters;
+              path.node.callee = edits.instantiation.expression;
+              astNormalized = true;
+              return;
+            }
             ms.remove(edits.remove.start, edits.remove.end);
             ms.appendLeft(edits.insert.pos, edits.insert.content);
           },
@@ -994,12 +1025,21 @@ export default function createPlugin(options) {
           pkg: injector.pkg,
           absoluteImports: injector.absoluteImports,
         });
+        return finalizeAst();
+      }
+
+      // the AST engine's print tail - `finalize`'s MagicString twin: re-prepend the BOM
+      // (shifting the first output line's columns by the one char), and keep
+      // `sourcesContent` the user's ORIGINAL bytes when the minifier split rewrote the input
+      function finalizeAst() {
+        // undo the detection-convenience pattern neutralization (reverse order - the
+        // parameter-property unwrap nests blanking inside itself) so the print sees the
+        // author's tree
+        for (let i = patternRestorations.length - 1; i >= 0; i--) patternRestorations[i]();
+        patternRestorations.length = 0;
         const printed = printProgram({ program: ast, comments, source: code, id, jsx: sourceDialect.jsx });
         const { map } = printed;
         let outCode = printed.code;
-        // the BOM/split tail the text engine gets from MagicString: re-prepend the BOM
-        // (shifting the first output line's columns by the one char), and keep
-        // `sourcesContent` the user's ORIGINAL bytes when the minifier split rewrote the input
         if (hasBOM) {
           outCode = `\uFEFF${ outCode }`;
           shiftFirstLineColumns(map, 1);
@@ -1021,7 +1061,7 @@ export default function createPlugin(options) {
       } = createClassHelpers({ t: types, adapter: estreeAdapter, resolveKey: sharedResolveKey, getInjector: () => injector });
 
       // usage-global mode
-      function runUsageGlobal() {
+      function collectUsageGlobal() {
         const usageGlobalCallback = createUsageGlobalCallback({
           resolveUsage,
           injectModulesForModeEntry,
@@ -1049,10 +1089,32 @@ export default function createPlugin(options) {
           Program(path) { injector.rootScope = path.scope; },
           ...usageVisitors,
         }, syntaxVisitors));
+      }
 
+      function runUsageGlobal() {
+        collectUsageGlobal();
         return finalize();
       }
-      if (method === 'usage-global') return runUsageGlobal();
+
+      // the AST engine's usage-global, SINGLE pass only until the pre/post snapshot lands
+      // (the staged migration's next station): the same engine-neutral collection, the
+      // sweep's body surgery already applied above, imports spliced in and printed
+      function runUsageGlobalAst() {
+        // unbranded like every inner throw - the outer catch's `tagError` owns the brand
+        if (pass !== 'single') throw new TypeError(`\`engine: 'ast'\` does not support the '${ pass }' pass yet`);
+        collectUsageGlobal();
+        outputDebug();
+        if (!injector.globalImports.size && !astSweptImports && !astNormalized) return null;
+        injectImportStatements({
+          program: ast,
+          modules: injector.globalImports,
+          importStyle,
+          pkg: injector.pkg,
+          absoluteImports: injector.absoluteImports,
+        });
+        return finalizeAst();
+      }
+      if (method === 'usage-global') return engine === 'ast' ? runUsageGlobalAst() : runUsageGlobal();
 
       // usage-pure mode
       function runUsagePure() {
