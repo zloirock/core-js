@@ -13,9 +13,17 @@ function inputOf(method) {
   return resolve(testDir, `input-${ method }.js`);
 }
 
+// the AST-engine axis: methods the staged engine already supports build and run under BOTH
+// engines. the options factory reads the matrix loop's current selection - threading a
+// fourth parameter through every builder would touch each tool for one field
+let currentEngine;
+function enginesFor(method) {
+  return method === 'entry-global' ? [undefined, 'ast'] : [undefined];
+}
 function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full' };
   if (phase) opts.phase = phase;
+  if (currentEngine) opts.engine = currentEngine;
   return opts;
 }
 
@@ -406,8 +414,9 @@ for (const [name, build] of Object.entries(builders)) {
   for (const method of methods) {
     // babel-plugin ignores `phase`; other builders exercise the full range
     const phases = name === 'babel' ? [undefined] : phasesFor(method);
-    for (const phase of phases) {
-      const label = phase ? `${ name }/${ method }/${ phase }` : `${ name }/${ method }`;
+    async function runCell(phase, engine) {
+      currentEngine = engine;
+      const label = [name, method, phase, engine && `engine:${ engine }`].filter(Boolean).join('/');
       try {
         const { code, ext, map, verifier } = await build(inputOf(method), method, phase);
         if (verifier === 'bun') await verifyInBun(code, label, method);
@@ -417,7 +426,13 @@ for (const [name, build] of Object.entries(builders)) {
       } catch (error) {
         echo(chalk.red(`${ label } failed: ${ error.message }`));
         failures++;
+      } finally {
+        currentEngine = undefined;
       }
+    }
+    for (const phase of phases) {
+      // babel-plugin has no engine option; every other builder exercises the axis
+      for (const engine of name === 'babel' ? [undefined] : enginesFor(method)) await runCell(phase, engine);
     }
   }
 }
