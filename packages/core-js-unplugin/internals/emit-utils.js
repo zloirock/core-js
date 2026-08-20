@@ -63,6 +63,9 @@ export function optionalCallTypeArgumentEdits(node, code) {
   return {
     remove: { start: typeArgs.start, end: typeArgs.end },
     insert: { pos: optionalAt + 2, content: code.slice(typeArgs.start, typeArgs.end) },
+    // the recognized instantiation node itself - the AST engine applies the same decision
+    // as node surgery instead of the two point edits
+    instantiation: callee,
   };
 }
 
