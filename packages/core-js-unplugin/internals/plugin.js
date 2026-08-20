@@ -65,7 +65,9 @@ import { isForInitDeclaration } from '@core-js/polyfill-provider/destructure-hos
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
-import detectEntries, { createTopLevelStatementRewriter } from './detect-entry.js';
+import detectEntries, { createTopLevelStatementRewriter, planEntries } from './detect-entry.js';
+import applyEntryProgram from './ast/entry.js';
+import { printProgram, shiftFirstLineColumns } from './ast/print.js';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -398,7 +400,7 @@ export default function createPlugin(options) {
     const got = typeof engineOption === 'string' ? `'${ engineOption }'` : typeof engineOption;
     throw new TypeError(`[core-js] invalid \`engine\` option: ${ got } - expected 'text' or 'ast'`);
   }
-  if (engine === 'ast') {
+  if (engine === 'ast' && options.method !== 'entry-global') {
     throw new TypeError(`[core-js] \`engine: 'ast'\` does not support method '${ options.method }' yet`);
   }
 
@@ -506,7 +508,8 @@ export default function createPlugin(options) {
     const cleanId = liftSfcLangSuffix(id);
     // CJS files (.cjs, .cts) parse as scripts and, like files that look like CommonJS, get the
     // 'require' import style by default
-    const isCJSFile = sourceDialectOf(cleanId).script;
+    const sourceDialect = sourceDialectOf(cleanId);
+    const isCJSFile = sourceDialect.script;
     // strip leading BOM(s) before parsing AND from the MagicString source - oxc rejects
     // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
     // a single BOM is re-prepended to the final output. Reassign `code` so the rest of
@@ -970,7 +973,45 @@ export default function createPlugin(options) {
         if (entryFound) debugOutput?.markEntryFound();
         return finalize();
       }
-      if (method === 'entry-global') return runEntryGlobal();
+
+      // the AST engine's entry-global: the same detection and disposition policy
+      // (`planEntries`), applied as body surgery and printed - the text finalize with its
+      // MagicString tail never runs here. debug parity mirrors `finalize` (single pass)
+      function runEntryGlobalAst() {
+        const plan = planEntries(ast, { adapter: estreeAdapter, getCoreJSEntry, injectModulesForEntry, isDisabled });
+        if (plan.found) debugOutput?.markEntryFound();
+        outputDebug();
+        // `found` mirrors babel's answer, not the text engine's: a module-import input
+        // re-expands to itself, and the text leg then returns null only because its net
+        // edits happen to be byte-identical (MagicString's hasChanged). this engine reprints
+        // like babel does - the structural gate holds it to that baseline
+        if (!plan.found) return null;
+        applyEntryProgram({
+          program: ast,
+          plan,
+          modules: injector.globalImports,
+          importStyle,
+          pkg: injector.pkg,
+          absoluteImports: injector.absoluteImports,
+        });
+        const printed = printProgram({ program: ast, comments, source: code, id, jsx: sourceDialect.jsx });
+        const { map } = printed;
+        let outCode = printed.code;
+        // the BOM/split tail the text engine gets from MagicString: re-prepend the BOM
+        // (shifting the first output line's columns by the one char), and keep
+        // `sourcesContent` the user's ORIGINAL bytes when the minifier split rewrote the input
+        if (hasBOM) {
+          outCode = `\uFEFF${ outCode }`;
+          shiftFirstLineColumns(map, 1);
+        }
+        const content = map?.sourcesContent?.[0];
+        if (content !== null && content !== undefined) {
+          const original = preSplitCode ?? content;
+          map.sourcesContent[0] = hasBOM ? `\uFEFF${ original }` : original;
+        }
+        return { code: outCode, map };
+      }
+      if (method === 'entry-global') return engine === 'ast' ? runEntryGlobalAst() : runEntryGlobal();
 
       const {
         resolveStaticInheritedMember,
