@@ -9,7 +9,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | Directory | Command | Covers |
 |---|---|---|
 | `unit-global/`, `unit-pure/` | `npm run test-unit-node`, `test-unit-karma`, `test-unit-bun` | QUnit tests, one file per polyfill module |
-| `unit-node/`, `karma/`, `unit-bun/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, and static HTML pages for manual runs |
+| `unit-node/`, `karma/`, `unit-bun/`, `unit-browser/` | the runners above | environments the bundles run in: Node, browsers via Karma and Playwright, Bun, and static HTML pages for manual runs. `karma/` holds the browser stack every browser leg in the repo shares - the config, the Playwright launcher, the retry policy and the install behind them - and one runner per suite beside them |
 | `e2e-usage-pure/` | `npm run test-e2e-usage-pure`, `test-e2e-usage-pure-karma` | runtime behavior of polyfilled code after transformation |
 | `transpiler-fixtures/` | the two plugin runners below | shared input/output fixtures for both emitters |
 | `babel-plugin/`, `babel-plugin-v7/` | `npm run test-babel-plugin`, `-unit`, `-v7`, `-unit-v7` | `@core-js/babel-plugin` against `@babel/core` 8 and 7 |
@@ -18,7 +18,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `transpiler-differential/` | `npm run test-transpiler-differential [pure] [babel\|unplugin]` | a generated corpus checked three ways: native == babel == unplugin at runtime, matching import sets, and the stripped-realm oracle; edit loops scope it with the tokens, gates run it bare |
 | `transpiler-integration/` | `npm run test-transpiler-integration` | real bundlers x methods x phases, runtime-verified |
 | `transpiler-perf/` | `npm run test-transpiler-perf` | transpiler perf gates and complexity-class discriminators |
-| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-check-exercise`, `test-e2e-libs-runtime`, `e2e-libs-pipeline` | real libraries taken to the ES5 floor through both providers, executed in Node and in real IE11 |
+| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-check-exercise`, `test-e2e-libs-runtime`, `test-e2e-libs-karma-run` | real libraries taken to the ES5 floor through both providers, executed in Node and in the browsers, real IE11 among them |
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
 | `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; and the query API |
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |

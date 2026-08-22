@@ -140,9 +140,8 @@ export function run() {
   // Cursors, not `for...of`: the loop would emit `_createForOfIteratorHelper` here, and at `pre`
   // unplugin cannot see Babel's helpers, so the cell would report this file's syntax.
   //
-  // `Text.prototype[Symbol.iterator]` stays undriven in any spelling - the call rewrites to core-js's
-  // `getIterator`, the read to `getIteratorMethod`, and at `pre` no library module produces either,
-  // which makes this frame their only origin. It returns `this.iter()`, driven by the next check.
+  // `Text.prototype[Symbol.iterator]` stays undriven in any spelling, and no coverage rides on it: it
+  // returns `this.iter()`, which the next check drives directly.
   function drain(textCursor) {
     const seen = [];
     while (!textCursor.next().done) seen.push(textCursor.value);
