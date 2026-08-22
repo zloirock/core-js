@@ -1,9 +1,9 @@
 // process-level sharding for the transpiler-fixture runners (babel-plugin / unplugin),
 // mirroring the transpiler-differential parent/shard protocol: the parent re-forks its own
 // zx script N times with `FIXTURE_SHARD=k/N`, each child runs a deterministic slice and
-// reports its counters through a stdout marker; failure / rewrite lines stream through the
-// buffered child output. children run through the zx CLI so the runner scripts keep their
-// zx globals without a zxi round-trip (deps are already installed by the parent's zxi)
+// reports what it has to hand back through a stdout marker; failure / rewrite lines stream
+// through the buffered child output. children run through the zx CLI so the runner scripts
+// keep their zx globals without a zxi round-trip (deps are already installed by the parent's zxi)
 import { fork } from 'node:child_process';
 import { createRequire } from 'node:module';
 
@@ -20,9 +20,11 @@ export function shardSlice(list) {
   return list.filter((_, i) => i % total === index);
 }
 
-// the child's final line: counters for the parent, machine-parseable and colorless
-export function emitShardSummary(counts) {
-  process.stdout.write(`@@FIXTURE-SHARD@@${ JSON.stringify(counts) }@@\n`);
+// the child's final line: what it has to hand back, machine-parseable and colorless. `@` goes out in
+// its own JSON escape so the payload can never hold the terminator - a shard that reports a failure
+// reason names packages, and `@rollup/...` would end the match early. `JSON.parse` gives it straight back
+export function emitShardSummary(payload) {
+  process.stdout.write(`@@FIXTURE-SHARD@@${ JSON.stringify(payload).replaceAll('@', '\\u0040') }@@\n`);
 }
 
 function zxCliPath() {
@@ -39,7 +41,8 @@ export function defaultShardCount(fixtureCount) {
   return Math.max(1, Math.min(wanted, Math.ceil(fixtureCount / 200)));
 }
 
-// fork one child per shard through the zx CLI, aggregate counters, replay each child's
+// fork one child per shard through the zx CLI, merge what they report - counters add up, lists
+// concatenate in shard order, anything else is refused by name - replay each child's
 // buffered output (only failures and real rewrites are printed by the runners). a child
 // that dies without reporting fails the run loudly instead of vanishing from the totals.
 // runner parameters travel via `extraEnv`, not CLI args - the zx CLI keeps the script name
@@ -64,13 +67,17 @@ export async function runShards({ script, shards, extraEnv = {} }) {
         return reject(new Error(`fixture shard ${ index }/${ shards } produced no result `
           + `(code ${ code }, signal ${ signal })\n${ output }`));
       }
-      resolve({ counts: JSON.parse(found.groups.json), output });
+      resolve({ payload: JSON.parse(found.groups.json), output });
     });
   }));
   const results = await Promise.all(runs);
   const totals = {};
-  for (const { counts, output } of results) {
-    for (const [key, value] of Object.entries(counts)) totals[key] = (totals[key] ?? 0) + value;
+  for (const { payload, output } of results) {
+    for (const [key, value] of Object.entries(payload)) {
+      if (typeof value === 'number') totals[key] = (totals[key] ?? 0) + value;
+      else if (Array.isArray(value)) totals[key] = (totals[key] ?? []).concat(value);
+      else throw new Error(`shard reported \`${ key }\` as ${ typeof value } - only numbers and arrays merge`);
+    }
     const trimmed = output.trim();
     if (trimmed) echo(trimmed);
   }
