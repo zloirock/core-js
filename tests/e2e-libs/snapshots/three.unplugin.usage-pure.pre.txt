@@ -5,6 +5,7 @@
 -@core-js/pure/full/object/get-own-property-descriptors
 -@core-js/pure/full/object/get-own-property-symbols
 -@core-js/pure/full/object/get-prototype-of
+-@core-js/pure/full/object/set-prototype-of
 -@core-js/pure/full/promise/resolve
 -@core-js/pure/full/reflect/construct
 -@core-js/pure/full/reflect/get
