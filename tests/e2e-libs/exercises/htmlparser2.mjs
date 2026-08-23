@@ -2,26 +2,19 @@
 // CSS selectors, entity decoding - a wide graph of small modules across ten packages, all pure
 // computation, so it runs in node AND down-compiles to ES5.
 //
-// THIS IS THE SUITE'S TYPESCRIPT FIXTURE, and that is its reason to exist: the runtime tier builds
-// these libraries from their own `src/**/*.ts` (`TS_SOURCE_PACKAGES` in build.mjs), while the packages
-// that ship no sources stay JS - so the graph is deliberately mixed, the way a real project's
-// node_modules is.
-//
-// Feeding unplugin TypeScript is what gives the `phase` axis something to be about. On three and
-// codemirror `post` is a strict superset of `pre` - rxjs is bundled from an ES5 build, so Babel emits
-// nothing there for `post` to see and its phases agree exactly - while here they separate in BOTH
-// directions, so `pre+post` is strictly larger than `post` and its cells gate exactly that union.
-// `pre` reads type annotations no later phase can see - `es.error.cause` off `onerror(error: Error)`
-// - and resolves receivers from them, a `Node[]` picking the array-specific pure helper where `post`
-// falls back to the receiver-agnostic one.
+// THIS IS THE SUITE'S TYPESCRIPT FIXTURE and that is its reason to exist: the runtime tier builds
+// these libraries from their own `src/**/*.ts` (`TS_SOURCE_PACKAGES` in ts-sources.mjs) while the
+// packages shipping no sources stay JS, so the graph is deliberately mixed. Here alone the phases
+// separate in BOTH directions - `pre` resolves receivers from type annotations no later phase can
+// see, so `pre+post` is strictly larger than `post` and its cells gate exactly that union.
 //
 // The exercise imports BARE specifiers, so `check-exercise` runs against the published JS while the
 // runtime tier builds the sources: the redirect belongs to the bundler, and keeping it there is what
 // lets the self-check stay bundler-free.
 //
-// Name collisions: domutils exports module-level `find` and `filter`. Called bare they are ordinary
-// identifiers, so the block below reaches them as `DomUtils.find(...)` - a member expression that
-// `usage-pure` rewrites and whose helper has to hand back domutils' function.
+// domutils exports module-level `find` and `filter`. Called bare they are ordinary identifiers, so
+// the block below reaches them as `DomUtils.find(...)` - a member expression `usage-pure` rewrites,
+// whose helper has to hand back domutils' function.
 //
 // Typed arrays are present but only ever INDEXED, so the structural `usage-pure` hole that pruned
 // three's paths is never reached and these cells pass on IE11 - the contrast is the point.

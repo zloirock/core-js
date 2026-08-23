@@ -140,9 +140,8 @@ export function run() {
   // Cursors, not `for...of`: the loop would emit `_createForOfIteratorHelper` here, and at `pre`
   // unplugin cannot see Babel's helpers, so the cell would report this file's syntax.
   //
-  // `Text.prototype[Symbol.iterator]` stays undriven in any spelling - the call rewrites to core-js's
-  // `getIterator`, the read to `getIteratorMethod`, and at `pre` no library module produces either,
-  // which makes this frame their only origin. It returns `this.iter()`, driven by the next check.
+  // `Text.prototype[Symbol.iterator]` stays undriven in any spelling, and no coverage rides on it: it
+  // returns `this.iter()`, which the next check drives directly.
   function drain(textCursor) {
     const seen = [];
     while (!textCursor.next().done) seen.push(textCursor.value);
@@ -284,13 +283,10 @@ export function run() {
   // FragmentCursor when `stream.end - from > parser.bufferLength * 4`, i.e. above 4096 chars, not
   // above 1024. Below that it reuses nothing, the "incremental" parse silently degrades to a full
   // one, and every check below passes just as happily with `fragments = []`. `doc` sits well under
-  // that bar, so the block below repeats it enough times to clear the threshold with room to spare -
-  // a repeat count that only just clears it would put the whole leg one edit away from silently
-  // degrading. The doc-layer checks above stay on the small `doc`, whose line count and depth they
-  // are calibrated to.
-  // built with a loop rather than `SRC.repeat(24)`: `String#repeat` appears nowhere in the
-  // codemirror/lezer graph, so calling it here would inject a polyfill that only THIS file needs -
-  // the opposite of what the fixture is for.
+  // that bar, so the block below repeats it with room to spare; the doc-layer checks above stay on
+  // the small `doc` they are calibrated to.
+  // a loop rather than `SRC.repeat(24)`: `String#repeat` appears nowhere in the codemirror/lezer
+  // graph, so calling it here would inject a polyfill only THIS file needs.
   let padding = '';
   for (let i = 0; i < 24; i++) padding += SRC;
   const bigDoc = doc + padding;

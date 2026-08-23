@@ -19,6 +19,7 @@
 @core-js/pure/full/iterator/constructor
 @core-js/pure/full/map/constructor
 @core-js/pure/full/number/is-finite
+@core-js/pure/full/number/is-nan
 @core-js/pure/full/object/assign
 @core-js/pure/full/object/create
 @core-js/pure/full/object/define-property
@@ -27,7 +28,9 @@
 @core-js/pure/full/object/get-own-property-names
 @core-js/pure/full/object/get-own-property-symbols
 @core-js/pure/full/object/get-prototype-of
+@core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
+@core-js/pure/full/promise/all
 @core-js/pure/full/promise/constructor
 @core-js/pure/full/promise/reject
 @core-js/pure/full/promise/resolve
