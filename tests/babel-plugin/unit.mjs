@@ -12,3 +12,4 @@ import './transform-idempotence-pure.mjs';
 import './post-sweep-introduced-global.mjs';
 import './late-paren-compensation-gate.mjs';
 import './per-file-teardown.mjs';
+import './fixture-shard-protocol.mjs';
