@@ -8,7 +8,7 @@ Node `^22.18.0 || >=24.11.0`, with its own `package.json` and `tsconfig.json`. E
 
 The matrix is a cross-product of five axes: the flavor, the ES target of the compilation, the TypeScript version, the ambient environment package, and the extra `lib`. The last two both include the case of having none at all, since a definition that only compiles because `@types/node` or the DOM lib supplied something is exactly the bug these runs look for. Only the environment and TypeScript axes grow with the mode; the rest are the same in every run.
 
-`npm run test-type-definitions-smoke` is the default and takes one point of each: the newest TypeScript and the newest `@types/node`. `-ci` widens both to a few versions each, `-all` to everything the definitions claim to support, which is the only run where the declared floors are exercised at all. A change that depends on a newer TypeScript, or on a newer `@types/node`, is therefore green by default and red in CI.
+`npm run test-type-definitions` is the default and takes one point of each: the newest TypeScript and the newest `@types/node`. `-all` widens both to everything the definitions claim to support - the only run where the declared floors are exercised at all, and the one CI uses. A change that depends on a newer TypeScript, or on a newer `@types/node`, is therefore green by default and red in CI.
 
 ## Layout
 
