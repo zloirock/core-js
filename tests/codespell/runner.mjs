@@ -9,9 +9,7 @@ const skip = [
   './tests/bundles/**',
   './tests/**/bundles/**',
   // Generated e2e-libs output contains third-party identifiers.
-  './tests/e2e-libs/.tmp/**',
   './tests/e2e-libs/artifacts/**',
-  './tests/e2e-libs/report/**',
   './packages/core-js-bundle/*.js',
   './website/dist/**',
   './website/templates/**',
@@ -25,8 +23,6 @@ const ignoreWords = [
   'forIn',
   'importEnd',
   'larg',
-  // htmlparser2's streaming-handler callback name, spelled by the library - the e2e-libs fixture
-  // passes `{ onopentag, ontext, onclosetag }` to `new Parser(...)` and cannot rename any of them
   'ontext',
   'outLow',
   'prevEnd',
