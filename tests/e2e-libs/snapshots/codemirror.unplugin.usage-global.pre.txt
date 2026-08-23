@@ -3,6 +3,7 @@
 -core-js/modules/es.number.constructor
 -core-js/modules/es.object.get-own-property-descriptor
 -core-js/modules/es.object.get-prototype-of
+-core-js/modules/es.object.set-prototype-of
 -core-js/modules/es.reflect.construct
 -core-js/modules/es.reflect.get
 -core-js/modules/es.reflect.namespace
