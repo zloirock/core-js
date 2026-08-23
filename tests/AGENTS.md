@@ -21,7 +21,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
 | `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; and the query API |
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |
-| `type-definitions/` | `npm run test-type-definitions-smoke`, `-ci`, `-all`, `npm run types-coverage` | `.d.ts` behavior and coverage |
+| `type-definitions/` | `npm run test-type-definitions`, `-all`, `npm run types-coverage` | `.d.ts` behavior and coverage |
 | `builder/` | `npm run test-builder` | `@core-js/builder` |
 | `promises/` | `npm run test-promises` | the Promises/A+ and ES6 promise conformance suites, in both flavors |
 | `test262/` | `npm run test262` | the official ECMAScript test suite |
