@@ -18,6 +18,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { makeStrictWarn } from './warning-policy.mjs';
 
 export async function withTmpDir(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'core-js-bundlers-'));
@@ -32,31 +33,6 @@ export async function withTmpDir(fn) {
       console.warn(`could not remove ${ dir } - ${ error.message } (left behind on purpose)`);
     }
   }
-}
-
-// An injected specifier a tool cannot resolve does not fail the build: it becomes an external import,
-// the bundle comes back whole and every assertion downstream runs against a bundle the polyfill never
-// reached. Measured: rollup and rolldown both return that bundle, and rolldown says nothing at all.
-// The same two codes `strictWarn` escalates in tests/e2e-libs/build.mjs, for the same reason - this is
-// the one question both suites have to answer identically, since it is the same failure of the same
-// plugins. Whatever is not escalated is handed BACK: installing a handler replaces a tool's own
-// printing rather than adding to it, so a warning nobody chose to ignore would otherwise be destroyed.
-// `PLUGIN_WARNING` from unplugin is the third: it is the only channel by which the plugin reports its
-// OWN failure - a module its parser could not read is handed back untransformed - and a suite that
-// drops it tests a build the plugin quietly gave up on
-//
-// The plugin's name comes from the caller, which reads it off a live instance: a literal here would
-// be a second place to keep it, and the one whose drift is silent - a rename in the plugin turns the
-// escalation below into a no-op while every leg stays green.
-const FATAL_WARNINGS = new Set(['UNRESOLVED_IMPORT', 'MISSING_EXPORT']);
-function makeStrictWarn(unpluginName) {
-  return function strictWarn(warning, warn) {
-    if (FATAL_WARNINGS.has(warning.code)) throw new Error(`${ warning.code }: ${ warning.message }`);
-    if (warning.code === 'PLUGIN_WARNING' && warning.plugin?.startsWith(unpluginName)) {
-      throw new Error(`${ warning.plugin }: ${ warning.message }`);
-    }
-    warn(warning);
-  };
 }
 
 // The tools with no code to classify by. esbuild and the webpack family already ERROR on an import
