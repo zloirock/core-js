@@ -1,15 +1,14 @@
-const { mkdir, rm, writeJson } = fs;
-const { join } = path;
+const { mkdir, readJson, rm, writeJson } = fs;
+const { join, resolve } = path;
 const { cyan, green, grey, red } = chalk;
 
 const { TYPE_DEFINITIONS_TESTS = 'SMOKE' } = process.env;
 
-if (!['ALL', 'CI', 'SMOKE'].includes(TYPE_DEFINITIONS_TESTS)) {
+if (!['ALL', 'SMOKE'].includes(TYPE_DEFINITIONS_TESTS)) {
   throw new Error('Incorrect or lack of TYPE_DEFINITIONS_TESTS');
 }
 
 const ALL_TESTS = TYPE_DEFINITIONS_TESTS === 'ALL';
-const CI_TESTS = TYPE_DEFINITIONS_TESTS === 'CI';
 const NUM_CPUS = os.cpus().length;
 const TMP_DIR = './tmp/';
 
@@ -31,10 +30,6 @@ const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
   // '5.4',
   // '5.3',
   // '5.2',
-] : CI_TESTS ? [
-  '6.0',
-  '5.9',
-  '5.6',
 ] : [
   // empty
 ]];
@@ -50,11 +45,6 @@ const ENVIRONMENTS = ALL_TESTS ? [
   // '@types/node@15', // fails
   // '@types/bun@latest', // ArrayBuffer.resize signature incorrect. Return type ArrayBuffer instead of void.
   // '@types/deno@latest', // fails
-] : CI_TESTS ? [
-  '@types/node@26',
-  '@types/node@24',
-  '@types/node@22',
-  '@types/node@16',
 ] : [
   '@types/node@26',
 ];
@@ -84,6 +74,15 @@ function getTmpEnvDir(env) {
   return join(TMP_DIR, env.replaceAll('/', '-').replaceAll('@', ''));
 }
 
+function getTmpTsDir(ts) {
+  return join(TMP_DIR, `ts-${ ts }`);
+}
+
+// absolute: the environment tasks run from tmp/<env>, a relative compiler path would resolve against it
+function getTscBin(ts) {
+  return resolve(getTmpTsDir(ts), 'node_modules', 'typescript', 'bin', 'tsc');
+}
+
 async function runTasksInParallel() {
   const limit = Math.max(NUM_CPUS - 1, 1);
   let i = 0;
@@ -94,17 +93,15 @@ async function runTasksInParallel() {
 }
 
 async function runTask({ cwd, ts = DEFAULT_TYPE_SCRIPT_VERSION, config, args = [] }) {
-  const task = $({ cwd, verbose: false })`npx --package typescript@${ ts } tsc --project ${ config } ${ args }`;
-  // eslint-disable-next-line no-underscore-dangle -- third-party code
-  const { cmd } = task._snapshot;
-  echo`run ${ cyan(cmd) }`;
+  const label = [`tsc@${ ts }`, '--project', config, ...args].join(' ');
+  echo`run ${ cyan(label) }`;
   tested++;
   try {
-    await task;
-    echo(green(`success ${ cyan(cmd) }`));
+    await $({ cwd, verbose: false })`node ${ getTscBin(ts) } --project ${ config } ${ args }`;
+    echo(green(`success ${ cyan(label) }`));
   } catch (error) {
     failed++;
-    echo(red(`fail ${ cyan(cmd) }:\n${ grey(error) }`));
+    echo(red(`fail ${ cyan(label) }:\n${ grey(error) }`));
   }
 }
 
@@ -137,36 +134,58 @@ async function clearTmpDir() {
   await rm(TMP_DIR, { recursive: true, force: true });
 }
 
+async function installInto(directory, spec) {
+  await mkdir(directory, { recursive: true });
+  await $({ cwd: directory, verbose: false })`npm init --yes`;
+  await $({ cwd: directory, verbose: false })`npm install ${ spec }`;
+}
+
+async function installEnvironment(env) {
+  const tmpEnvDir = getTmpEnvDir(env);
+  await installInto(tmpEnvDir, env);
+  for (const mode of CORE_JS_MODES) {
+    await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.json`), {
+      extends: '../../tsconfig.json',
+      include: [`../../${ mode }/**/*.ts`],
+      exclude: [`../../${ mode }/**/${ LIB_RULES.dom }`],
+    });
+    await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.dom.json`), {
+      extends: '../../tsconfig.json',
+      include: [`../../${ mode }/**/*.ts`],
+    });
+    await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.es6.json`), {
+      extends: '../../tsconfig.json',
+      include: [`../../${ mode }/**/*.ts`],
+      exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`, `../../${ mode }/${ LIB_RULES.dom }`],
+    });
+    await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.es6.dom.json`), {
+      extends: '../../tsconfig.json',
+      include: [`../../${ mode }/**/*.ts`],
+      exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`],
+    });
+  }
+  echo`installed ${ cyan(env) }`;
+}
+
+// a version like `7.0` is a range: resolving it here, once per run, gives every task of the
+// leg the same compiler build - and skips the npx resolution that cost more than the compile
+async function installCompiler(ts) {
+  const directory = getTmpTsDir(ts);
+  await installInto(directory, `typescript@${ ts }`);
+  const { version } = await readJson(join(directory, 'node_modules', 'typescript', 'package.json'));
+  echo`installed ${ cyan(`typescript@${ ts }`) } as ${ cyan(version) }`;
+}
+
 async function prepareEnvironments() {
   await clearTmpDir();
-  for (const env of ENVIRONMENTS) {
-    if (!env) continue;
-    const tmpEnvDir = getTmpEnvDir(env);
-    await mkdir(tmpEnvDir, { recursive: true });
-    await $({ cwd: tmpEnvDir, verbose: false })`npm init --yes`;
-    await $({ cwd: tmpEnvDir })`npm install ${ env }`;
-    for (const mode of CORE_JS_MODES) {
-      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.json`), {
-        extends: '../../tsconfig.json',
-        include: [`../../${ mode }/**/*.ts`],
-        exclude: [`../../${ mode }/**/${ LIB_RULES.dom }`],
-      });
-      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.dom.json`), {
-        extends: '../../tsconfig.json',
-        include: [`../../${ mode }/**/*.ts`],
-      });
-      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.es6.json`), {
-        extends: '../../tsconfig.json',
-        include: [`../../${ mode }/**/*.ts`],
-        exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`, `../../${ mode }/${ LIB_RULES.dom }`],
-      });
-      await writeJson(join(tmpEnvDir, `tsconfig.${ mode }.es6.dom.json`), {
-        extends: '../../tsconfig.json',
-        include: [`../../${ mode }/**/*.ts`],
-        exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`],
-      });
-    }
-  }
+  // allSettled, not all: a rejected install must not leave its siblings running orphaned past
+  // the process death - they keep writing into tmp/ and race the next run's clearTmpDir
+  const installations = await Promise.allSettled([
+    ...ENVIRONMENTS.map(installEnvironment),
+    ...TYPE_SCRIPT_VERSIONS.map(installCompiler),
+  ]);
+  const rejected = installations.filter(result => result.status === 'rejected');
+  if (rejected.length) throw new AggregateError(rejected.map(result => result.reason), 'environment preparation failed');
 }
 
 const tasks = [
