@@ -25,6 +25,6 @@ A feature counts as typed only when both flavors have their declaration; either 
 
 ## Tests
 
-- `npm run test-type-definitions-smoke` - fast smoke check, part of the default suite
-- `npm run test-type-definitions-ci`, `npm run test-type-definitions-all` - wider matrices
+- `npm run test-type-definitions` - fast smoke check, part of the default suite
+- `npm run test-type-definitions-all` - the full matrix, the run CI uses
 - `npm run types-coverage` - every `esnext.` and `web.` module in `packages/core-js/modules/` must carry a `// @types:` or `// @no-types` comment, and the build fails without one
