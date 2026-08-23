@@ -1,3 +1,4 @@
+import { assertES5 } from '../assert-es5.mjs';
 import { generateTestsIndex } from './generate-tests-index.mjs';
 
 // the e2e leg also picks up `.ts` files: TS-type-driven dispatch (class-field narrowing,
@@ -21,15 +22,9 @@ await Promise.all([
 // content behind the lowering passes (a Program-exit slot mutation once froze a raw arrow
 // out of a kept call argument) breaks these bundles ONLY on the legacy browser itself -
 // parse each with an ES5 parser so the class fails right here instead of in a karma run
-// nobody has an IE11 for
-const { parse } = await import('acorn');
+// nobody has an IE11 for. The gate itself is shared with tests/e2e-libs
 for (const bundle of ['e2e-usage-pure-babel', 'e2e-usage-pure-unplugin-pre',
   'e2e-usage-pure-unplugin-pre-post', 'e2e-usage-pure-unplugin-post']) {
-  const source = await fs.readFile(`../../tests/bundles/${ bundle }.js`, 'utf8');
-  try {
-    parse(source, { ecmaVersion: 5 });
-  } catch (error) {
-    throw new Error(`${ bundle }.js is not ES5: ${ error.message }`);
-  }
+  assertES5(await fs.readFile(`../../tests/bundles/${ bundle }.js`, 'utf8'), `${ bundle }.js`);
 }
 echo(chalk.green('e2e-usage-pure bundled, bundles parse as ES5'));
