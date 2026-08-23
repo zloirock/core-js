@@ -9,7 +9,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | Directory | Command | Covers |
 |---|---|---|
 | `unit-global/`, `unit-pure/` | `npm run test-unit-node`, `test-unit-karma`, `test-unit-bun`, `test-unit-deno` | QUnit tests, one file per polyfill module |
-| `unit-node/`, `karma/`, `unit-bun/`, `unit-deno/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, Deno, and static HTML pages for manual runs |
+| `unit-node/`, `karma/`, `unit-bun/`, `unit-deno/`, `unit-browser/` | the runners above | environments the unit bundles run in: Node, browsers via Karma and Playwright, Bun, Deno, and static HTML pages for manual runs. `karma/` holds the browser stack every browser leg in the repo shares - the config, the Playwright launcher, the retry policy and the install behind them - and one runner per suite beside them |
 | `saucelabs/` | `npm run test-saucelabs -- <URL of a branch directory> [commit]`, `test-saucelabs-runner` | the `unit-browser` pages in the Sauce Labs browsers that CI lacks, run by the Pages workflow after the deploy; the runner's own tests run without a session |
 | `e2e-usage-pure/` | `npm run test-e2e-usage-pure`, `test-e2e-usage-pure-karma` | runtime behavior of polyfilled code after transformation |
 | `transpiler-fixtures/` | the two plugin runners below | shared input/output fixtures for both emitters |
@@ -19,7 +19,7 @@ Runners, harnesses and fixture tooling are Node `^22.18.0 || >=24.11.0`, mostly 
 | `transpiler-differential/` | `npm run test-transpiler-differential`, `test-transpiler-differential-cache` | a generated corpus checked four ways: native == babel == unplugin at runtime, matching import sets, the stripped-realm oracle, and the print-through leg (printed source must reproduce native). Evaluations are cached across runs, so a repeat costs what the edit changed - run it bare, the `pure` / `babel` / `unplugin` tokens narrow what is under test, not the runtime. Run the second command separately after changing the cache or its replay logic; the differential matrix alone does not exercise these cases |
 | `transpiler-integration/` | `npm run test-transpiler-integration` | real bundlers x methods x phases, runtime-verified |
 | `transpiler-perf/` | `npm run test-transpiler-perf`, `test-transpiler-perf-smoke` | transpiler perf gates and complexity-class discriminators |
-| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-check-exercise`, `test-e2e-libs-runtime`, `e2e-libs-pipeline` | real libraries taken to the ES5 floor through both providers, executed in Node and in real IE11 |
+| `e2e-libs/` | `npm run test-e2e-libs`, `test-e2e-libs-check-exercise`, `test-e2e-libs-runtime`, `test-e2e-libs-karma-run` | real libraries taken to the ES5 floor through both providers, executed in Node and in the browsers, real IE11 among them |
 | `compat/` | `npm run compat-node`, `compat-bun`, `compat-deno`, `compat-hermes`, `compat-rhino` | runtime feature probes, one runner per engine |
 | `compat-data/`, `compat-tools/` | `npm run test-compat-data`, `test-compat-tools` | that every module in the data has a probe and vice versa; the query API; and the return-type registry - its shape, and what it says a static does with its arguments, held to the engine's implementation and to core-js's |
 | `entries/` | `npm run test-entries` | that every entry point loads and pulls exactly the modules the compat data claims |

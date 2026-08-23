@@ -49,12 +49,14 @@ core-js/modules/es.math.trunc
 core-js/modules/es.number.constructor
 core-js/modules/es.number.epsilon
 core-js/modules/es.number.is-integer
+core-js/modules/es.number.is-nan
 core-js/modules/es.number.to-fixed
 core-js/modules/es.object.assign
 core-js/modules/es.object.get-own-property-descriptor
 core-js/modules/es.object.get-own-property-descriptors
 core-js/modules/es.object.get-own-property-symbols
 core-js/modules/es.object.get-prototype-of
+core-js/modules/es.object.has-own
 core-js/modules/es.object.keys
 core-js/modules/es.object.to-string
 core-js/modules/es.object.values
