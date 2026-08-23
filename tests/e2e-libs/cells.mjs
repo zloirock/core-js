@@ -5,7 +5,7 @@ import { METHODS, PROVIDERS, phasesFor, pluginOpts as matrixOpts } from '../tran
 
 export { METHODS, PROVIDERS, phasesFor };
 
-export const SUPPORTED_ENGINES = { ie: 11 };
+export const SUPPORTED_ENGINES = 'IE 11, Chrome>=38, Safari>=7.1, FF>=15';
 
 // a cell carries a phase its (method, provider) pair supports, so an unsupported one is a defect here
 // rather than a value to drop
