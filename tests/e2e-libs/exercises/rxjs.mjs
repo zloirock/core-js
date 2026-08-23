@@ -10,9 +10,7 @@
 // No CHECK here may depend on spread, `for-of`, `async` or a generator: those compile to Babel
 // helpers that reach for the stdlib from THIS module, which proves nothing about rxjs. `from(new
 // Set(...))` puts the same protocol where it belongs, and the regenerator machinery that does run is
-// the one tslib ships inside the rxjs bundle. The file is not helper-free either way - the array
-// destructuring below emits one that asks for `Symbol.iterator` - and that is harmless exactly
-// because no assertion rides on it.
+// the one tslib ships inside the rxjs bundle.
 //
 // Accepted deliberately: the `usage-pure/pre` cell is green on IE11 while the phase gap it stands for
 // is still open - nothing here walks into the unrewritten `Array.from` that sits in that bundle. rxjs
@@ -37,35 +35,6 @@ import { checker, deepEqual } from './checks.mjs';
 function collect(obs) {
   return firstValueFrom(obs.pipe(toArray()));
 }
-// Awaiting the block below through `Promise.all` would put `es.promise.all` in the baselines with THIS
-// file as its only origin - rxjs never calls it - which is the sole-origin trap exercises/checks.mjs
-// describes: a line that documents the harness, and that would stand over rxjs if it ever did call it.
-// Everything below is already in flight by the time this runs, so joining them in order costs nothing
-// and reaches only for `then` and `catch`, both of which rxjs itself drives from a dozen modules.
-/* eslint-disable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- .then and .catch
-   rather than await: keeps this module regenerator-free, the same reason the header gives for banning
-   `async` (see the sibling disable below). The rejection handler is a handler, not a callback - await
-   is what this block may not use */
-function joinAll(list) {
-  const out = [];
-  let chain = Promise.resolve();
-  for (let i = 0; i < list.length; i++) {
-    // Claimed here, where it arrives, rather than where the chain gets to it. Every entry is already
-    // in flight by the time this runs, so entry N rejecting is an event that happens whether or not
-    // anyone is listening - and the chain below does not listen to N until N-1 has settled. In that
-    // window the rejection is unhandled, which takes the whole process down: no failing check, no
-    // total, no line naming this exercise, and the three exercises queued after it never run.
-    // Recording the outcome and re-throwing it in its own turn keeps the order and loses nothing.
-    const settled = Promise.resolve(list[i]).then(value => ({ value })).catch(error => ({ error }));
-    chain = chain.then(() => settled).then(result => {
-      if ('error' in result) throw result.error;
-      out.push(result.value);
-    });
-  }
-  return chain.then(() => out);
-}
-/* eslint-enable promise/prefer-await-to-then, promise/prefer-await-to-callbacks -- back to the
-   default for the rest of the file */
 // Inputs for rxjs's interop hub (`innerFrom`). Built by hand rather than with generator syntax so
 // the machinery that runs is rxjs's, not a regenerator runtime of ours.
 function customIterable(values) {
@@ -264,7 +233,7 @@ export function run() {
   // via a var: the Set dedups at runtime, without tripping a literal-duplicate lint rule
   const setInput = [3, 1, 3, 2, 1];
 
-  return joinAll([
+  return Promise.all([
     // --- innerFrom: every branch of rxjs's interop hub ---
     collect(from(new Set(setInput))),
     collect(from(new Map([['a', 1], ['b', 2]]))),
