@@ -189,7 +189,7 @@ You can run parts of the test case separately:
   ```sh
   npm run test-transpiler-perf
   ```
-- Real-library end-to-end suite — both polyfill providers (`@core-js/babel-plugin` and `@core-js/unplugin`) + Babel down-compile to IE11 across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). babel-plugin has no phase axis, so its injected set is the reference and each unplugin phase is snapshotted as a delta against it. The browser leg runs Chromium, Firefox and WebKit anywhere, and adds real IE11 on CI or on a machine that has it:
+- Real-library end-to-end suite — both polyfill providers (`@core-js/babel-plugin` and `@core-js/unplugin`) + Babel down-compile to the ES5 floor across RxJS, three.js, CodeMirror and the htmlparser2 stack (the TypeScript fixture: built from its own `src/**/*.ts`). babel-plugin has no phase axis, so its injected set is the reference and each unplugin phase is snapshotted as a delta against it. The browser leg runs Chromium, Firefox and WebKit anywhere, and adds real IE11 on CI or on a machine that has it:
   ```sh
   npm run test-e2e-libs                # the whole chain: check-exercise -> runtime -> karma
   npm run test-e2e-libs-check-exercise # run every exercise raw (no bundler, no polyfills)
