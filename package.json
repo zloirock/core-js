@@ -134,6 +134,7 @@
     "@babel/plugin-transform-template-literals": "^8.0.1",
     "@babel/plugin-transform-typescript": "^8.0.1",
     "@babel/plugin-transform-unicode-regex": "^8.0.1",
+    "acorn": "^8.18.0",
     "konan": "^2.1.1",
     "npm-run-all2": "^9.0.3",
     "semver": "^7.8.5",
