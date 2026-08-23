@@ -4,12 +4,16 @@
 @core-js/pure/full/array/instance/fill
 @core-js/pure/full/array/instance/filter
 @core-js/pure/full/array/instance/find
+@core-js/pure/full/array/instance/index-of
 @core-js/pure/full/array/instance/join
+@core-js/pure/full/array/instance/last-index-of
 @core-js/pure/full/array/instance/map
 @core-js/pure/full/array/instance/push
+@core-js/pure/full/array/instance/reverse
 @core-js/pure/full/array/instance/slice
 @core-js/pure/full/array/instance/sort
 @core-js/pure/full/array/instance/splice
+@core-js/pure/full/array/instance/unshift
 @core-js/pure/full/function/instance/name
 @core-js/pure/full/get-iterator-method
 @core-js/pure/full/instance/for-each
@@ -38,7 +42,9 @@
 @core-js/pure/full/object/get-prototype-of
 @core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
+@core-js/pure/full/object/set-prototype-of
 @core-js/pure/full/object/values
+@core-js/pure/full/parse-int
 @core-js/pure/full/promise/constructor
 @core-js/pure/full/promise/resolve
 @core-js/pure/full/reflect/construct
