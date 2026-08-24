@@ -76,7 +76,6 @@
     "@core-js/polyfill-provider": "4.0.0-alpha.1",
     "esrap": "^2.3.6",
     "estree-toolkit": "^1.7.14",
-    "magic-string": "^1.2.2",
     "oxc-parser": "^0.147.0",
     "unplugin": "^3.3.0"
   },

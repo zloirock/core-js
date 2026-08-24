@@ -61,8 +61,8 @@ export function createUsageHandlerCore({
   }
 
   // the handled/suppressed head both member visitors run BEFORE their host-specific write
-  // gates: a hop marked handled emits no meta - the marking keeps the text emitter from
-  // queueing a rewrite overlapping the outer span, while a hop recorded as still-live gets
+  // gates: a hop marked handled emits no meta - the marking keeps a rewrite from landing
+  // inside the outer span, while a hop recorded as still-live gets
   // its render driven through `onSuppressedProxyHop`
   function memberAlreadyHandled(path) {
     if (!handledObjects.has(path.node)) return false;

@@ -5,10 +5,9 @@ import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 // a SEQUENCE evaluates to its last element, so a probe nav sitting there is the receiver's value
-// and owes the guard render. the text emitter builds such a receiver with the chain ROOT already
-// substituted, which leaves the nav's own rewrite looking for a needle whose head token was
-// renamed - locating it by that token rather than skipping it as a phantom is what keeps the
-// ponyfillable hop off a native read here
+// and owes the guard render. by the time the nav's own rewrite runs, the chain ROOT is already
+// substituted - the rewrite must still claim the nav under the renamed head rather than skip
+// it as a phantom, which is what keeps the ponyfillable hop off a native read here
 _globalThis.seqBox = {
   list: ['ab', 'cd'],
   n: 7

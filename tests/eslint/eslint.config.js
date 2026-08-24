@@ -953,7 +953,7 @@ const base = {
   'unicorn/prefer-single-call': ERROR,
   // prefer a single object destructuring declaration per local const source
   'unicorn/prefer-single-object-destructuring': ERROR,
-  // уnforce combining multiple single-character replacements into a single `String#replaceAll()` with a regular expression
+  // enforce combining multiple single-character replacements into a single `String#replaceAll()` with a regular expression
   'unicorn/prefer-single-replace': ERROR,
   // prefer declaring variables in the smallest possible scope
   'unicorn/prefer-smaller-scope': ERROR,
@@ -1971,7 +1971,7 @@ const forbidModernBuiltIns = {
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
-  // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(…, 0)`
+  // prefer `queueMicrotask()` over `process.nextTick()`, `setImmediate()`, and `setTimeout(..., 0)`
   'unicorn/prefer-queue-microtask': OFF,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
@@ -2651,26 +2651,6 @@ export default [
     ],
     languageOptions: {
       sourceType: 'module',
-    },
-  },
-  {
-    files: [
-      'packages/core-js-unplugin/internals/ast/**',
-    ],
-    rules: {
-      // the AST engine's boundary: it prints through esrap and never touches the text-transform
-      // layer, so the layer can be deleted out from under it when the staged migration lands
-      'no-restricted-imports': [ERROR, {
-        paths: [
-          { name: 'magic-string', message: 'the AST engine prints through esrap, never splices text' },
-        ],
-        patterns: [
-          {
-            group: ['*/transform-queue.js', '*/text-scan.js', '*/ref-canon.js', '*/emit-utils.js', '*/detect-entry.js'],
-            message: 'text-transform layer - off limits for the AST engine',
-          },
-        ],
-      }],
     },
   },
   {
