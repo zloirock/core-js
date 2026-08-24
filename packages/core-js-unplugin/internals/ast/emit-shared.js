@@ -71,6 +71,17 @@ export function renderProxyReceiverPlan(plan, injectPureImport) {
 
 // swap `target` for `next` wherever it sits - the emit plans hand NODES, not paths, so the
 // parent slot is found by identity from the given root
+// a rebuilt spelling STANDS where its source stood: hand the printer that span through a
+// side channel, so the sourcemap keeps the region a text splice would have kept. `start` /
+// `end` themselves stay absent on minted nodes - `spellsSameSource` tells a clone from a
+// mint by exactly that absence
+export function stampReplacementSpan(next, source) {
+  if (Number.isInteger(source?.start) && next && typeof next === 'object' && !Number.isInteger(next.start)) {
+    next.replacedSpan ??= { start: source.start, end: source.end };
+  }
+  return next;
+}
+
 export function replaceNodeInTree(root, target, next) {
   if (Array.isArray(root)) {
     const at = root.indexOf(target);
@@ -81,6 +92,7 @@ export function replaceNodeInTree(root, target, next) {
     return root.some(item => replaceNodeInTree(item, target, next));
   }
   if (!root || typeof root !== 'object' || !root.type) return false;
+  stampReplacementSpan(next, target);
   // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
   for (const key in root) {
     const value = root[key];

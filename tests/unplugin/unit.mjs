@@ -2365,7 +2365,9 @@ checkSourceMapFileField();
 // to emit one overwrite over the whole logical range, mapping the suffix to the receiver column (coarse)
 function checkSplitSuffixSourcemapPrecision() {
   const source = 'const arr = [1, 2, 3];\nexport const r = (arr.flat()).at?.(0);';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  // token-precise splice mapping is the TEXT engine's contract - the AST reprint maps
+  // minted spellings to region anchors instead; retires with the text layer
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'text' });
   const result = plugin.transform(source, 'split-precision.js');
   // the output reads `_atMaybeArray(_ref = _flatMaybeArray(arr).call(arr))?.call(_ref, 0)`
   const lines = result.code.split('\n');
@@ -2392,7 +2394,8 @@ checkSplitSuffixSourcemapPrecision();
 // the outer receiver - `#splitSegments` partitions the composed string by every split, not just the outer
 function checkNestedSplitSuffixSourcemapPrecision() {
   const source = 'const arr = [1, 2, 3];\nexport const r = ((arr.flat()).at?.(0)).flat?.();';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  // token-precise splice mapping - TEXT engine contract, see above
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'text' });
   const result = plugin.transform(source, 'nested-split-precision.js');
   const lines = result.code.split('\n');
   let genLine = -1;
@@ -2536,7 +2539,8 @@ checkSuperCallArgColPrecision();
 // transform covers `super.foo(` and the original `)` stays verbatim at its source col
 function checkSuperCallNoArgsClosingParen() {
   const source = 'class C extends Promise {\n  static m() {\n    return super.race();\n  }\n}\n';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  // token-precise splice mapping - TEXT engine contract, see above
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'text' });
   const result = plugin.transform(source, '/src/super-noargs.js');
   if (!result?.map) {
     check('superCall/no-args transform emitted map', false, true);
@@ -7592,8 +7596,8 @@ function checkEngineOption() {
     createPlugin({ ...usageOptions, engine: 'ast' }).transform('arr.at(0);', 'input.mjs', 'post')
       ?.code.includes('import "core-js/modules/es.array.at";'), true);
   const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
-  const viaText = createPlugin({ method: 'usage-pure', engine: 'text' }).transform('[1].at(0);', 'input.mjs')?.code;
-  check("explicit engine 'text' is the default engine", viaText, viaDefault);
+  const viaAst = createPlugin({ method: 'usage-pure', engine: 'ast' }).transform('[1].at(0);', 'input.mjs')?.code;
+  check("explicit engine 'ast' is the default engine", viaAst, viaDefault);
   check('explicit null falls back to the default engine',
     createPlugin({ method: 'usage-pure', engine: null }).transform('[1].at(0);', 'input.mjs')?.code, viaDefault);
 }

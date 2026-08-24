@@ -233,28 +233,48 @@ function withCorpusGapOverrides(language) {
 function synthesizeLocs(program, comments, source) {
   const locate = buildOffsetToLoc(source);
   let hasChainExpression = false;
-  (function walk(node) {
+  (function walk(node, anchor) {
     if (Array.isArray(node)) {
-      for (const item of node) walk(item);
+      for (const item of node) walk(item, anchor);
       return;
     }
     if (!node || typeof node !== 'object') return;
     // the flag feeds the dead-chain gate, and a SYNTHESIZED chain (no source positions,
     // so the loc branch below never sees it) must arm it too
     if (node.type === 'ChainExpression') hasChainExpression = true;
-    if (typeof node.type === 'string' && typeof node.start === 'number' && typeof node.end === 'number') {
-      node.loc = { start: locate(node.start), end: locate(node.end) };
+    if (typeof node.type === 'string') {
+      if (typeof node.start === 'number' && typeof node.end === 'number') {
+        node.loc = { start: locate(node.start), end: locate(node.end) };
+        anchor = node.loc;
+      } else if (node.replacedSpan) {
+        // a drain REPLACEMENT carries the replaced host's span in the side channel - it maps
+        // (and anchors its minted innards) exactly where the host stood
+        node.loc = { start: locate(node.replacedSpan.start), end: locate(node.replacedSpan.end) };
+        anchor = node.loc;
+      } else if (/(?:Declaration|Statement)$/.test(node.type)) {
+        // an INJECTED statement is fully synthetic - nothing under it derives from a user
+        // region, and its own loc would drive esrap's blank-line margins besides
+        anchor = null;
+      } else if (anchor) {
+        // a SYNTHESIZED expression stands where the node it replaced stood: map it to the
+        // nearest positioned ancestor's START, the way a text splice keeps the spelled
+        // bytes mapped - without this a file whose every mapped token was rewritten (a bare
+        // `globalThis;`) prints a VACUOUS map. a zero-width point, not the region: esrap
+        // also reads loc SPANS for line-break decisions, and a borrowed span must not
+        // reformat the minted spelling
+        node.loc = { start: anchor.start, end: anchor.start };
+      }
     }
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
-      if (key === 'loc') continue;
+      if (key === 'loc' || key === 'replacedSpan') continue;
       const value = node[key];
       if (Array.isArray(value)) {
         for (let i = 0; i < value.length; i++) value[i] = peelParens(value[i], node);
       } else node[key] = peelParens(value, node);
-      walk(node[key]);
+      walk(node[key], anchor);
     }
-  })(program);
+  })(program, null);
   // esrap flushes a trailing comment inline only while it ends strictly BEFORE the
   // enclosing body's end - with no line terminator at EOF the last comment ends exactly
   // AT `Program.loc.end` and gets moved onto its own line, off the statement a
