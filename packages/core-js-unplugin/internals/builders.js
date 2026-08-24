@@ -11,10 +11,23 @@ export function identifier(name) {
 // with `'` by default and babel prints `"`, so a path / key spells its own. every other value the
 // printer derives itself, correctly - `JSON.stringify` would not: it THROWS on a bigint and
 // answers `null` for NaN / Infinity, which would print a different value than the node holds
+// only a string needs a `raw` from us (esrap quotes with `'`, babel prints `"`); every other
+// value the printer derives itself. the domain is what a PARSER can put in a `Literal`:
+// negatives never parse into one (`-5` is a unary minus over `5`) and are spelled by
+// composition, never smuggled through a Literal - and `-0` both printers would derive from
+// the value as `"0"`, a wrong VALUE, so minting any of them throws
 export function literal(value) {
-  return typeof value === 'string'
-    ? { type: 'Literal', value, raw: JSON.stringify(value) }
-    : { type: 'Literal', value };
+  if (typeof value === 'string') return { type: 'Literal', value, raw: JSON.stringify(value) };
+  if (typeof value === 'number' && (value < 0 || Object.is(value, -0))) {
+    throw new TypeError(`[builders] negative number outside the canonical Literal domain: ${ value }`);
+  }
+  if (typeof value === 'bigint' && value < 0n) {
+    throw new TypeError(`[builders] negative bigint outside the canonical Literal domain: ${ value }n`);
+  }
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean' || value === null) {
+    return { type: 'Literal', value };
+  }
+  throw new TypeError(`[builders] value outside the canonical Literal domain: ${ typeof value }`);
 }
 
 export function expressionStatement(expression) {
