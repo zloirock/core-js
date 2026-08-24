@@ -2,7 +2,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24;
 // a SECOND unresolvable hop below the collapse (`window?.window` - the realm self-reference
@@ -80,7 +80,7 @@ export const unplannedDeepCallChain = null == ut().window ? void 0 : _self.foo(1
 
 // NEGATIVE: `delete` needs the MEMBER itself - pulled into the alternate the ternary evaluates
 // and deletes nothing, so the tail rides outside behind `?.`
-export const unplannedDelete = delete _self.chrome;
+export const unplannedDelete = delete (null == ut().window ? void 0 : _self)?.chrome;
 
 // a `new` callee reads only the VALUE (no receiver binding), so it pulls like a plain tail
 export function unplannedNewCallee() { return new (null == ut().window ? void 0 : _self.CustomCtor)(1); }
@@ -125,9 +125,9 @@ export function pulledNewCallee() { return new (null == oc2().window ? void 0 : 
 // the alternate the ternary deletes nothing, and a tail left outside reads off the guard's
 // `void 0` (a throw where the source short-circuits to a no-op `true`)
 const dl = () => _globalThis;
-export const deleteOverPulledTail = delete _self.chrome.missing;
-export const deleteDirectTail = delete _self.missing;
-export const deleteOptionalTail = delete _self.chrome?.missing;
+export const deleteOverPulledTail = delete (null == dl().window ? void 0 : _self)?.chrome.missing;
+export const deleteDirectTail = delete (null == dl().window ? void 0 : _self)?.missing;
+export const deleteOptionalTail = delete (null == dl().window ? void 0 : _self)?.chrome?.missing;
 
 // the same `delete` rule on a BARE proxy root (no call around it): the operand keeps its `?.`
 // whatever number of tail steps sit between the guard and the operator
@@ -187,7 +187,7 @@ let seK = 0;
 _globalThis.seKeyHost = { w: { c: 1 } };
 const sk2 = () => _globalThis;
 export const seKeyThenPlainTail = null == sk2().window ? void 0 : (seK++, _self).seKeyHost.w.c;
-export const seKeyDeleteTail = delete (seK++, _self).seKeyHost.w.c;
+export const seKeyDeleteTail = delete (null == sk2().window ? void 0 : (seK++, _self))?.seKeyHost.w.c;
 export { seK };
 
 // an OPAQUE computed key carries its own effects and migration canon: the fold stops there in

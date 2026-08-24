@@ -7,7 +7,8 @@ import _sortMaybeArray from "@core-js/pure/actual/array/instance/sort";
 import _spliceMaybeArray from "@core-js/pure/actual/array/instance/splice";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Map2 from "@core-js/pure/actual/map/constructor";
 import _Object$assign from "@core-js/pure/actual/object/assign";
 import _Object$defineProperty from "@core-js/pure/actual/object/define-property";
 import _Object$entries from "@core-js/pure/actual/object/entries";
@@ -167,7 +168,7 @@ const repositionedBySplice = (function () {
   return entries;
 })();
 const repositionedByReverse = (function () {
-  const reversed = [Object, _Map];
+  const reversed = [Object, _Map2];
   reversed.reverse();
   const { 0: { keys } } = reversed;
   return keys;
@@ -196,7 +197,7 @@ const detachedReadOnlyStillResolves = (function () {
 // once the method ESCAPES (stored, passed, returned), its invocation is not statically visible at
 // all - the one member read that detaches it is what marks the receiver
 const repositionedByStoredMethod = (function () {
-  const storedBox = [Object, _Map];
+  const storedBox = [Object, _Map2];
   const m = storedBox.reverse;
   m.call(storedBox);
   const { 0: { groupBy } } = storedBox;
@@ -204,7 +205,7 @@ const repositionedByStoredMethod = (function () {
 })();
 // an object PATTERN detaches the method the same way, just without a member node
 const repositionedByDestructuredMethod = (function () {
-  const patternBox = [Object, _Map];
+  const patternBox = [Object, _Map2];
   const { reverse } = patternBox;
   reverse.call(patternBox);
   const { 0: { getOwnPropertyDescriptor } } = patternBox;
@@ -215,14 +216,14 @@ const repositionedByDestructuredMethod = (function () {
 // admits the possibility. a numeric key is a plain slot read and detaches nothing (locked above by
 // every resolving slot cell)
 const repositionedByConcatKey = (function () {
-  const concatBox = [Object, _Map];
+  const concatBox = [Object, _Map2];
   // eslint-disable-next-line no-useless-concat -- the folded spelling is the shape under test
   concatBox['rev' + 'erse']();
   const { 0: { isFrozen } } = concatBox;
   return isFrozen;
 })();
 const repositionedByDynamicKey = (function () {
-  const dynBox = [Object, _Map];
+  const dynBox = [Object, _Map2];
   dynBox[_globalThis.pick]();
   const { 0: { isSealed } } = dynBox;
   return isSealed;
@@ -240,7 +241,7 @@ const foldedReadOnlyKeyStillResolves = (function () {
 // unfoldable computed key detaches an unknown member. every resolving slot cell above is already the
 // numeric-pattern negative
 const patternConcatDetaches = (function () {
-  const patternConcatBox = [Object, _Map];
+  const patternConcatBox = [Object, _Map2];
   // eslint-disable-next-line no-useless-concat -- the folded spelling is the shape under test
   const { ['rev' + 'erse']: pm } = patternConcatBox;
   pm.call(patternConcatBox);
@@ -248,7 +249,7 @@ const patternConcatDetaches = (function () {
   return preventExtensions;
 })();
 const patternDynamicDetaches = (function () {
-  const patternDynamicBox = [Object, _Map];
+  const patternDynamicBox = [Object, _Map2];
   const { [_globalThis.pick]: pd } = patternDynamicBox;
   pd?.call?.(patternDynamicBox);
   const { 0: { isExtensible } } = patternDynamicBox;
@@ -359,7 +360,7 @@ const escapedByWrapperLiteral = (function () {
 // the member-read leak is a PAIR, not a wildcard: aliasing one slot leaves the owner's other
 // slots resolving; and a BRANCHING value escapes both arms - either may take the write
 const aliasLeakIsPairPrecise = (function () {
-  const twoSlots = { M: _Map, P: Object };
+  const twoSlots = { M: _Map2, P: Object };
   const aliasM = twoSlots.M;
   void aliasM;
   const keys = _Object$keys;
@@ -430,7 +431,7 @@ const nestedSeSlotKeepsEffect = (function () {
 // the container REASSIGNED wholly before the read bails (the binding canon, not the slot record)
 const containerWhollyReassigned = (function () {
   let swapped = { k: Object };
-  swapped = { k: _Map };
+  swapped = { k: _Map2 };
   const { k: { groupBy } } = swapped;
   return groupBy;
 })();
@@ -455,7 +456,7 @@ const repositionedByFill = (function () {
   return isFrozen;
 })();
 const repositionedBySort = (function () {
-  const sorted = [Object, _Map];
+  const sorted = [Object, _Map2];
   _sortMaybeArray(sorted).call(sorted);
   const { 0: { isSealed } } = sorted;
   return isSealed;
@@ -463,7 +464,7 @@ const repositionedBySort = (function () {
 // a computed IDENTIFIER key reads the slot named by its VALUE - unreadable to the scope-less
 // census, so it admits any mutator; a const-bound spelling is the everyday shape of that
 const repositionedByBoundKey = (function () {
-  const boundKeyBox = [Object, _Map];
+  const boundKeyBox = [Object, _Map2];
   const methodName = 'reverse';
   boundKeyBox[methodName]();
   const { 0: { groupBy } } = boundKeyBox;
@@ -529,7 +530,7 @@ const escapedThroughPromiseResolve = (function () {
   return entries;
 })();
 const repositionedByOptionalCall = (function () {
-  const optionalMutated = [Object, _Map];
+  const optionalMutated = [Object, _Map2];
   optionalMutated?.reverse();
   const { 0: { isExtensible } } = optionalMutated;
   return isExtensible;

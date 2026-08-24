@@ -8,6 +8,12 @@
 // That run must still reproduce the full-env native reference - which catches a MISSED injection (the
 // leftover native call now throws instead of being masked by the present builtin) and proves the
 // polyfill stands alone. See strip-builtins.mjs / stripped-worker.mjs.
+//
+// The unplugin's AST engine rides both oracles as a leg of its own: one detection feeds both engines,
+// so its import set must equal the text leg's exactly, while the BODY is its own rewrite - the thing
+// the text leg cannot vouch for and the fixture corpus can only compare as text. Running it is what
+// turns a wrong rewrite (a dropped effect, a receiver read twice, a guard that flipped a branch) from
+// a shape difference into a runtime divergence.
 import { transformAsync } from '@babel/core';
 import { fork } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -243,8 +249,11 @@ export function setEqual(a, b) {
 }
 
 // run both oracles on one snippet; returns the verdict + raw materials for reporting. a transform
-// that THROWS (e.g. an unplugin composition invariant) is itself a bug - captured, not propagated
-export async function checkSnippet(src, options, ts = false, stripCheck = false) {
+// that THROWS (e.g. an unplugin composition invariant) is itself a bug - captured, not propagated.
+// `textLags` marks a row where the TEXT emitter is known to lag a fixed babel (a claim it does not
+// inject yet, accepted because that layer is slated for deletion): babel-vs-text parity relaxes to
+// "text is a subset of babel", and the AST leg's import set anchors to BABEL instead of the text leg
+export async function checkSnippet(src, options, ts = false, stripCheck = false, textLags = false) {
   const { babelOut, unpluginOut, babelError, unpluginError } = await transformBoth({ src, options, ts, timed: true });
   if (babelError || unpluginError) return { transformCrash: true, babelError, unpluginError };
 
@@ -337,8 +346,56 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     mark('stripped worker x2', t0);
   }
 
+  // the AST engine's leg. its import set is held to the TEXT leg's, not to babel's: one detection
+  // feeds both engines, so any difference there is an emission bug rather than a detection one -
+  // babel parity is the pure oracle above. the BODY is a different body, so nothing above answers
+  // for it: it runs in both realms the text leg uses, under the same gates - the full env for a
+  // wrong rewrite, the stripped one for a missed injection or a mis-substituted root of its own
+  let astOut = null;
+  let astError = null;
+  let astRun = null;
+  let astStripped = null;
+  let astImportMismatch = false;
+  let astRuntimeMismatch = false;
+  let astStrippedMismatch = false;
+  if (WANT_UNPLUGIN) {
+    t0 = process.hrtime.bigint();
+    try {
+      astOut = transformUnpluginAst(src, options, ts);
+    } catch (error) {
+      astError = error?.message ?? String(error);
+    }
+    if (astOut !== null) {
+      const astImportAnchor = textLags && WANT_BABEL ? babelImports : unpluginImports;
+      astImportMismatch = !setEqual(importSet(astOut), astImportAnchor);
+      // an ABSTAIN leaves the source untouched on both engines, and identical bytes are the same
+      // module: the text leg's keys answer for this one instead of paying two more evaluations
+      const sameBytes = astOut === unpluginOut;
+      const astFile = sameBytes ? unpluginFile : lazyModule(astOut, ts);
+      astRun = sameBytes ? unpluginRun
+        : await cached({ type: 'pure-ast', code: astOut, evaluate: () => evalInRealm(astFile) });
+      astRuntimeMismatch = astRun !== native;
+      if (stripCheck && !native.startsWith('ERR')) {
+        astStripped = sameBytes ? unpluginStripped
+          : await cached({ type: 'strip-ast', code: astOut, evaluate: async () => evalStripped(await astFile()) });
+        astStrippedMismatch = astStripped !== native;
+      }
+    }
+    mark('ast pure leg', t0);
+  }
+
   return {
-    importMismatch: EMITTER === 'both' && !setEqual(babelImports, unpluginImports),
+    astChecked: WANT_UNPLUGIN && astOut !== null,
+    astError,
+    astImportMismatch,
+    astRuntimeMismatch,
+    astStrippedMismatch,
+    astImports: astOut === null ? new Set() : importSet(astOut),
+    astRun,
+    astStripped,
+    importMismatch: EMITTER === 'both' && (textLags
+      ? [...unpluginImports].some(x => !babelImports.has(x))
+      : !setEqual(babelImports, unpluginImports)),
     runtimeMismatch: (WANT_BABEL && native !== babelRun) || (WANT_UNPLUGIN && native !== unpluginRun),
     pluginRuntimeDiverge: EMITTER === 'both' && babelRun !== unpluginRun,
     strippedMismatch,
@@ -358,7 +415,8 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
 // checkSnippet so the verdict's shape and its meaning stay in one place - a runner shouldn't decode
 // the verdict's internals itself. `detail` is empty when not failed
 export function summarizeVerdict(v) {
-  if (!(v.transformCrash || v.importMismatch || v.runtimeMismatch || v.strippedMismatch || v.astPrintMismatch)) {
+  if (!(v.transformCrash || v.importMismatch || v.runtimeMismatch || v.strippedMismatch || v.astPrintMismatch
+    || v.astError || v.astImportMismatch || v.astRuntimeMismatch || v.astStrippedMismatch)) {
     return { failed: false, detail: '' };
   }
   const details = [];
@@ -377,5 +435,11 @@ export function summarizeVerdict(v) {
   if (v.astPrintMismatch) {
     details.push(`ast print-through native=${ v.native } printed=${ v.astPrintRun }`);
   }
+  if (v.astError) details.push(`ast engine threw: ${ v.astError }`);
+  if (v.astImportMismatch) {
+    details.push(`ast import-set ast={ ${ [...v.astImports].join(', ') } } text={ ${ [...v.unpluginImports].join(', ') } }`);
+  }
+  if (v.astRuntimeMismatch) details.push(`ast engine runtime native=${ v.native } ast=${ v.astRun }`);
+  if (v.astStrippedMismatch) details.push(`ast engine stripped-realm native=${ v.native } ast=${ v.astStripped }`);
   return { failed: true, detail: details.join('; ') };
 }

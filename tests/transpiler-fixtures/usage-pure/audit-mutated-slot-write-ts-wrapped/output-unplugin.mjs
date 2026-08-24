@@ -1,4 +1,5 @@
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _WeakSet from "@core-js/pure/actual/weak-set";
+import _WeakSet2 from "@core-js/pure/actual/weak-set/constructor";
 // bare slot writes reached through TS expression wrappers: the wrapper fills the pattern slot,
 // so both the write-target reject (the leaf stays verbatim - a substituted frozen import would
 // TypeError at the assignment) and the slot recording must peel it. each recorded name DEOPTS -
@@ -18,4 +19,4 @@ function boundLeaf(Iterator) {
   [Iterator!] = arr;
   use(Iterator.range(0, 2));
 }
-use({ q: _WeakSet }, new _WeakSet());
+use({ q: _WeakSet }, new _WeakSet2());
