@@ -68,8 +68,10 @@ export async function transformBabel(src, options, ts = false) {
   return out.code;
 }
 
+// the TEXT engine's leg, explicitly: the plugin default is `ast`, and this leg is the
+// escape hatch's runtime coverage until phase 5 removes the text layer
 export function transformUnplugin(src, options, ts = false) {
-  return createPlugin(options).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
+  return createPlugin({ ...options, engine: 'text' }).transform(src, ts ? 'input.ts' : 'input.mjs')?.code ?? src;
 }
 
 // the AST engine's transform of the same snippet - the usage-global leg holds it to the

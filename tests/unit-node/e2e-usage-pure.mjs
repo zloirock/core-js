@@ -5,7 +5,7 @@ await Promise.all([
   ['tests/bundles/e2e-usage-pure-unplugin-pre'],
   ['tests/bundles/e2e-usage-pure-unplugin-pre-post'],
   ['tests/bundles/e2e-usage-pure-unplugin-post'],
-  ['tests/bundles/e2e-usage-pure-unplugin-ast-pre-post'],
+  ['tests/bundles/e2e-usage-pure-unplugin-text-pre-post'],
 ].map(files => $`qunit --reporter ./tests/unit-node/quiet-reporter.js ${ files.map(file => `${ file }.js`) }`).concat(
   // the stripped-realm legs COMPLEMENT the full-env qunit runs of the same bundles above
   // (both environments matter - full-env stays the primary): the same prebuilt bundle inside
@@ -24,5 +24,5 @@ await Promise.all([
   $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-unplugin-pre-post`,
   // the AST engine's leg rides the same primary phase and the same stripped realm: its body
   // is a different rewrite from the text leg's, so neither run answers for it
-  $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-unplugin-ast-pre-post`,
+  $`node tests/unit-node/stripped-realm.mjs e2e-usage-pure-unplugin-text-pre-post`,
 ));

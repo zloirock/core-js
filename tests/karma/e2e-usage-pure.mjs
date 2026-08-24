@@ -5,5 +5,5 @@ for (const files of [
   // the unplugin pre+post e2e legs, one per engine (the `-pre` / `-post` legs stay
   // node-only to bound browser time)
   ['tests/bundles/e2e-usage-pure-unplugin-pre-post'],
-  ['tests/bundles/e2e-usage-pure-unplugin-ast-pre-post'],
+  ['tests/bundles/e2e-usage-pure-unplugin-text-pre-post'],
 ]) await start(files);
