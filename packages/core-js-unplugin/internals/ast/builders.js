@@ -105,6 +105,7 @@ export function cloneNode(node) {
   if (Array.isArray(node)) return node.map(item => cloneNode(item));
   if (!node || typeof node !== 'object') return node;
   const out = {};
-  for (const [key, value] of Object.entries(node)) out[key] = cloneNode(value);
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) out[key] = cloneNode(node[key]);
   return out;
 }
