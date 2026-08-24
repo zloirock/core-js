@@ -41,12 +41,11 @@ Before writing a helper or a branch, check the canon - `npm run canon -- find "<
 
 ## Tests
 
-- `npm run test-unplugin` - shared fixtures from `tests/transpiler-fixtures/`
+- `npm run test-unplugin` - shared fixtures from `tests/transpiler-fixtures/`, on the default (AST) engine: the output must be STRUCTURALLY identical to the babel baseline (`tests/unplugin/structural.mjs` owns what counts as formatting) - both are AST renderers, so a difference is a defect, never formatting
 - `npm run test-unplugin-unit` - internals, in `tests/unplugin/unit.mjs`
 - `npm run test-unplugin-roundtrip` - the AST engine's no-op print gate: every fixture input reprints through `ast/print.js` with zero mutations, and the reparse must be structurally identical, keep every comment with its directive line association, and reach a print fixed point
-- `npm run test-unplugin-ast` - the AST engine's fixture gate: every fixture of a landed method transforms with `engine: 'ast'` and must be STRUCTURALLY identical to the babel baseline (an `output-unplugin.mjs` sidecar overrides where the divergence is environmental, not an engine artifact) - both are AST renderers, so a difference is a defect, never formatting
 
-A divergence from babel-plugin is recorded in a sidecar `output-unplugin.mjs` next to the fixture. A sidecar is a proof obligation: show what the difference actually is before accepting it.
+A divergence from babel-plugin is recorded in a sidecar `output-unplugin.mjs` next to the fixture. A sidecar is a proof obligation: show what the difference actually is before accepting it - and under the structural contract it is never formatting: it records an ENVIRONMENTAL divergence (targets resolution babel@8 does differently, the `require` dialect on SFC virtuals, an abstain where babel reprints).
 
 Those runners only compare text, which settles cosmetic work; a change in BEHAVIOR is verified while you work by the correctness suite nearest to it, scoped to what changed:
 

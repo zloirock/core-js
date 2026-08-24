@@ -1,7 +1,7 @@
 import {
   callYieldCanBeUndefined, discardRescueNodes, inlineCallHasObservableEffects, inlineCallProxyGlobalRoot,
   aliasHeldClaimProbe,
-  navGuardTestBase, navHasUnresolvableProxyHop, peelChainAssignmentDeep, storedNavHopClaimSuppressed,
+  navGuardTestBase, navHasUnresolvableProxyHop, peelChainAssignmentDeep, storedNavHopClaimSuppressed, storedUserAssignmentOf,
   planProvenNavGuardCollapse, prependChainAssignmentEffect, proxyGlobalMemberCtorPureSwap,
   proxyHopLacksPureEntry, proxyReceiverValueCanBeUndefined,
   resolveKey, resolveObjectName, sealedChainBoundary, sealedClaimLeafGuardPlan, vestigialNavOptionals,
@@ -17,9 +17,9 @@ import {
   claimDeleteOperand,
   isMutatedGlobalSlot, isPristineProxyGlobal, isReusableReceiver,
   isDeoptedGlobalSlotRead,
-  isTaggedTemplateTag, markRenderedStoredValue, mayHaveSideEffects, memberKeyName,
+  isTaggedTemplateTag, markRenderedStoredValue, mayHaveSideEffects, memberKeyName, memberProxyHopName,
   mutatedSlotLeftNativeWarning,
-  parenSealedCalleeAbove, peelParenAndTSParentPath, receiverCarriesLiveOptional,
+  parenSealedCalleeAbove, peelParenAndTSParentPath, receiverCarriesLiveOptional, staticMemberKeyName,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { bindingPolyfillHint, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -201,6 +201,51 @@ function emitNestedGuardNavValue(metaPath, node, {
   return true;
 }
 
+// a kept-tail hop's respelling: dotted for a plain name, a computed SE-carrying key for
+// the seq-keyed spelling - the one member shape every tail consumer spells
+function respellKeptHop(spelling, { keyName, keySe }) {
+  return keySe.length
+    ? memberExpression(spelling,
+      sequenceExpression([...keySe.map(expr => cloneNode(expr)), literal(keyName)]), { computed: true })
+    : memberFromKeyName(spelling, keyName);
+}
+
+// does a TERMINAL run of unbacked pristine hops ride ABOVE the claim - `window` reads
+// that end the spine without another backed hop or claimable member folding them. the
+// reference emitters keep the WHOLE spine spelled there (`(v = globalThis.self.window)`
+// stays `_globalThis.self.window`): substituting the claim would erase the throw a
+// hop-less realm owes the read. a backed hop above RESETS the run (deep-nav folds), and
+// a claimable member above collapses the receiver through its own plan either way
+function unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill) {
+  let sawUnbacked = false;
+  let cur = metaPath;
+  for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
+    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type) || up.node.type === 'ChainExpression') {
+      cur = up;
+      continue;
+    }
+    if (up.node.type !== 'MemberExpression' || up.node.object !== cur.node) {
+      // a NULL-PROBE test reading the run (`null == <run>`, a rendered guard or the
+      // source's own lowered spelling) is an environment probe: the below-probe collapse
+      // owns it (the owner-decided price - `undefined` where the raw read throws)
+      if (up.node.type === 'BinaryExpression' && (up.node.operator === '==' || up.node.operator === '!=')
+        && [up.node.left, up.node.right].some(side => side?.type === 'Literal' && side.value === null)) return false;
+      break;
+    }
+    // a LIVE `?.` anywhere in the run is the source's own environment probe - the guarded
+    // collapse channel owns that spine, not this stand-down
+    if (up.node.optional) return false;
+    const key = memberProxyHopName(up.node);
+    // a real member READ above NAVIGATES the run - the deep-nav collapse owns it
+    // (`globalThis.self.window.k` collapses whole); the stand-down is for a run whose
+    // VALUE flows out (a store, a bare read) with the unbacked hop terminal
+    if (key === null) return false;
+    sawUnbacked = !resolveGlobalPolyfill(key);
+    cur = up;
+  }
+  return sawUnbacked;
+}
+
 // pristine possible-global hops navigate into the SAME surface - they drop, and the root
 // binding stands for the read (`globalThis.self` tests `_globalThis`, not the `self` ponyfill
 // the hop's own claim would substitute)
@@ -272,9 +317,12 @@ function instanceTailMemoTest(test, metaPath, node, ctx) {
 }
 
 // a hop READ the pure package cannot back (`window` - there is no `_window`): a value past one
-// is no longer the always-defined ponyfill. the key question is the canon's own
+// is no longer the always-defined ponyfill. both questions are the canon's own -
+// `staticMemberKeyName` folds the dotted, static-computed and SE-seq-keyed spellings alike
+// (a hand-rolled `!computed` read left the seq-keyed `[eff(), 'window']` hop looking backed,
+// and the value collapse rode one hop past what the realm can prove)
 function unbackedProxyHopKey(node, resolveHere) {
-  const key = node?.type === 'MemberExpression' && !node.computed ? node.property?.name : null;
+  const key = node?.type === 'MemberExpression' ? staticMemberKeyName(node) : null;
   return !!key && proxyHopLacksPureEntry(key, resolveHere);
 }
 
@@ -4411,13 +4459,13 @@ export default function createAstUsagePureCallback({
     target, consumed, writeStep, innerKeptTail, keptTail, outerHopName, outerEffects,
     collapsed, entry, hintName, navigated,
   }) {
-    const innerBase = innerKeptTail.reduce((spelling, keyName) => memberFromKeyName(spelling, keyName),
-      identifier(injectPureImport(entry, hintName)));
+    // a NAVIGATED render folds the tail away - its key effects still run, joining the outer set
+    if (navigated) for (const kept of keptTail) outerEffects.push(...kept.keySe);
+    const innerBase = innerKeptTail.reduce(respellKeptHop, identifier(injectPureImport(entry, hintName)));
     const outerPure = resolveGlobalPolyfill(navigated || !outerHopName ? collapsed.hintName : outerHopName);
     // an unresolvable tail respells over the base only in VALUE position - a navigation
     // folds it away, exactly as the plain (write-less) collapse does
-    const base = (navigated ? [] : keptTail).reduce(
-      (spelling, keyName) => memberFromKeyName(spelling, keyName),
+    const base = (navigated ? [] : keptTail).reduce(respellKeptHop,
       identifier(injectPureImport(outerPure.entry, outerPure.hintName)));
     const write = assignmentExpression('=', cloneNode(writeStep.left), withSideEffects(innerBase, collapsed.effects));
     // an unbacked TAIL in VALUE position reads off the WRITE itself: re-reading it off the
@@ -4425,7 +4473,7 @@ export default function createAstUsagePureCallback({
     // yields is the one the write stored (`(k = globalThis.self).window` -> `(k = _self).window`)
     const readsOffWrite = !navigated && keptTail.length && !outerEffects.length;
     target.replaceWith(readsOffWrite
-      ? keptTail.reduce((spelling, keyName) => memberFromKeyName(spelling, keyName), write)
+      ? keptTail.reduce(respellKeptHop, write)
       : sequenceExpression([write, ...outerEffects.map(effect => cloneNode(effect)), base]));
     markSubtreeSkipped(skippedNodes, consumed);
     skippedNodes.add(target.node);
@@ -4492,10 +4540,20 @@ export default function createAstUsagePureCallback({
       // unresolvable hop sits below, the base is undefinable and the `?.` stands
       const hop = proxyHopKey(up.node, { allowOptional: allowOptional || !keptTail.length });
       if (!hop) break;
-      if (!hop.effects.length && !resolveGlobalPolyfill(hop.keyName)) keptTail.push(hop.keyName);
-      else keptTail = [];
-      if (writeStep && resolveGlobalPolyfill(hop.keyName)) outerHopName = hop.keyName;
-      outerEffects.push(...hop.effects);
+      if (!resolveGlobalPolyfill(hop.keyName)) {
+        // an UNBACKED hop (`window` - no `_window`) joins the kept tail WITH its own key
+        // effects: a backed hop above clears it (the deep-nav realm collapse folds the hop,
+        // effects and all), and a tail that survives TERMINAL respells over the base with
+        // the effects in its key (`globalThis[eff(), 'window']` -> `_globalThis[eff(),
+        // 'window']`, babel's spelling) - folding it would hand the read an always-defined
+        // ponyfill where the source discriminates the realm
+        keptTail.push({ keyName: hop.keyName, keySe: hop.effects });
+      } else {
+        for (const kept of keptTail) outerEffects.push(...kept.keySe);
+        keptTail = [];
+        outerEffects.push(...hop.effects);
+        if (writeStep) outerHopName = hop.keyName;
+      }
       target = up;
     }
     return { target, outerEffects, seqPrefixEffects, keptTail, writeStep, innerKeptTail, outerHopName };
@@ -4510,8 +4568,6 @@ export default function createAstUsagePureCallback({
     const { navigated, mutatedAbove, writeTargetAbove, patternHost } = spineIsNavigated(
       target, keptTail, collapsed.keptWrite ?? writeStep, { deadOptional: allowOptional });
 
-    markRewrite();
-    const consumed = target.node;
     // a NAVIGATION rebuilds from the root, so a dead prefix has nothing to carry and drops
     // (`(0, globalThis.window).Promise = f` -> `_globalThis.Promise = f`); a VALUE keeps the
     // source spelling whole (`(0, globalThis.self).Map = f` -> `(0, _self).Map = f`)
@@ -4524,6 +4580,27 @@ export default function createAstUsagePureCallback({
     // not a key effect and keeps the positional verdict (`(q = (eff(), globalThis).self)`
     // -> `q = (eff(), _self)`)
     const foldedKeyEffects = [...collapsed.keyEffects, ...outerEffects];
+    const valuePosition = !navigated && (!foldedKeyEffects.length || writeTargetAbove || patternHost);
+    // an UN-NAVIGATED spine whose kept tail SURVIVES declines the collapse WHOLE: the
+    // reference emitters keep every hop below an unbacked terminal spelled
+    // (`(v = globalThis.self.window)` stays `_globalThis.self.window`) - folding the backed
+    // run under it would erase the throw a self-less realm owes the read. the ordinary
+    // root swap takes the claim instead; the kept-root canon keeps only BACKED-terminal
+    // spines (`globalThis[(eff(), 'self')]` -> `(eff(), _globalThis)`, its tail empty)
+    // ... and never over a KEPT WRITE: the store canon deliberately lands the ponyfill in
+    // the assignment (`(k = globalThis.self).window` -> `(k = _self).window`, runtime-locked
+    // in a self-less Node) - the tail there reads off the STORE, not the realm
+    if (!writeStep && !collapsed.keptWrite && !navigated && keptTail.length) return false;
+    markRewrite();
+    const consumed = target.node;
+    // a tail the render DROPS (navigation, a key-folded read) still owes its key effects -
+    // they join both folds, after the outer run they climbed past
+    if (!valuePosition) {
+      for (const kept of keptTail) {
+        collectedEffects.push(...kept.keySe);
+        foldedKeyEffects.push(...kept.keySe);
+      }
+    }
     const foldedEffects = navigated
       ? collectedEffects.filter(effect => mayHaveSideEffects(effect)) : collectedEffects;
     // an ALIAS root follows the same positional canon: a NAVIGATION keeps the local
@@ -4533,7 +4610,6 @@ export default function createAstUsagePureCallback({
     // the surface it named (`globalThis[(e++, 'self')].Set = f` -> `(e++, _self).Set = f`)
     // ... and a DESTRUCTURE PATTERN addresses slots on the surface it named exactly as a write
     // target does (`const { other } = globalThis[(d++, 'self')]` reads `(d++, _self)`)
-    const valuePosition = !navigated && (!foldedKeyEffects.length || writeTargetAbove || patternHost);
     if (writeStep) {
       return renderCollapseOverKeptWrite({
         target, consumed, writeStep, innerKeptTail, keptTail, outerHopName, outerEffects,
@@ -4577,7 +4653,7 @@ export default function createAstUsagePureCallback({
     // happens past the effects either way, and this is the spelling babel prints
     let replacement = withSideEffects(rootSpelling, foldedEffects);
     if (valuePosition) {
-      for (const keyName of keptTail) replacement = memberFromKeyName(replacement, keyName);
+      for (const kept of keptTail) replacement = respellKeptHop(replacement, kept);
     }
     const replaceAt = navigated && !collapsed.aliasRoot ? swallowDeadSeqWrapper(target) : target;
     replaceAt.replaceWith(replacement);
@@ -4701,7 +4777,9 @@ export default function createAstUsagePureCallback({
     if (!collapsed.effects.length && !collapsed.keyEffects.length
       && valueObservingDestructureSource(metaPath, destructureEmit)) return true;
     const aboveScope = metaPath.scope;
-    renderProxySpineCollapse({ metaPath, collapsed, entry, hintName, allowOptional: deleteHost });
+    if (renderProxySpineCollapse({ metaPath, collapsed, entry, hintName, allowOptional: deleteHost }) === false) {
+      return false;
+    }
     // the collapse lands the root's own binding, so a `?.` left standing on the SURVIVING
     // connector is vestigial - the root rewrite spells the `.` itself (`globalThis?.self
     // ?.Array` -> `_globalThis.Array`). the canonical judge decides per hop, so a probe
@@ -4717,6 +4795,13 @@ export default function createAstUsagePureCallback({
   }
 
   function emitStaticGlobalClaim({ meta, metaPath, node, kind, entry, hintName }) {
+    // a POSSIBLE-GLOBAL hop claim under a TERMINAL unbacked tail stands down whole - the
+    // root identifier's own swap spells the base, every hop stays a real read. NOT inside a
+    // kept-write VALUE though: the store canon deliberately lands the ponyfill there
+    // (`(k = globalThis.self.window)` stores `_self.window`, runtime-locked without self)
+    if (node.type === 'MemberExpression' && kind === 'global' && POSSIBLE_GLOBAL_OBJECTS.has(hintName)
+      && !storedUserAssignmentOf(metaPath)
+      && unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill)) return;
     // a POSSIBLE-GLOBAL hop claim over a pristine proxy spine collapses to the spine's
     // ROOT binding, the hops' computed-key effects folding in evaluation order - the
     // kept-root canon (`globalThis[(eff(), 'self')]` -> `(eff(), _globalThis)`)
@@ -4760,9 +4845,9 @@ export default function createAstUsagePureCallback({
       const proxyRun = plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional: rootDeleteHost });
       // ... and the same stand-down as the hop claim's: a value-observing carrier over a
       // destructure source keeps every hop the source wrote
-      if (proxyRun && !valueObservingDestructureSource(metaPath, destructureEmit)) {
-        renderProxySpineCollapse({ metaPath, collapsed: { entry, hintName, effects: [], keyEffects: [] },
-          entry, hintName, allowOptional: rootDeleteHost });
+      if (proxyRun && !valueObservingDestructureSource(metaPath, destructureEmit)
+        && renderProxySpineCollapse({ metaPath, collapsed: { entry, hintName, effects: [], keyEffects: [] },
+          entry, hintName, allowOptional: rootDeleteHost }) !== false) {
         // ... and no `?.` on the read ABOVE the run is load-bearing either - but only where the
         // collapse landed the ROOT BINDING itself. an UNBACKED hop left spelled off it
         // (`_globalThis.window`, a sealed run's stop) is still the environment probe, and the
