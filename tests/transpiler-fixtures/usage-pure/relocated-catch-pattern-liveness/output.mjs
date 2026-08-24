@@ -2,7 +2,7 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includes from "@core-js/pure/actual/instance/includes";
 // a catch pattern the emitters MOVE off the clause reaches a re-parse as an ordinary declarator -
-// written that way by a sibling, by the text emitter's earlier phase, or by hand. its bindings stay
+// written that way by a sibling, by an earlier tool in the pipeline, or by hand. its bindings stay
 // block-scoped to that catch, so the same per-prop liveness rule applies: unread stays a native
 // read. the boundaries are a declaration off ANY OTHER value, a nested block, and a read binding
 let unread, read, foreign, nested;

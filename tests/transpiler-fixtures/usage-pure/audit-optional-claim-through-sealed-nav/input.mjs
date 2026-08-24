@@ -9,7 +9,7 @@ export const optionalCallThroughSeal = (globalThis.window).self.Array?.of(5);
 export const optionalCallDeeperSeal = ((globalThis.window).self).Array?.of(5);
 export const optionalMemberThroughSeal = (globalThis.window).self.Array?.prototype;
 export const optionalCallSeqSeal = ((n++, globalThis.window)).self.Array?.of(5);
-// the TEST is a render, and the AST leg used to leave it in the tree for the visitors: a claim then
+// the TEST is a render, and the engine used to leave it in the tree for the visitors: a claim then
 // collapsed it to the leaf ponyfill (`null == _Promise`), erasing the read the seal makes observable
 export const sealedNavUnderOptionalClaim = (globalThis.window.self)?.Promise?.resolve(1);
 // and without a probe under the seal the test takes the plan's own VALUE - `self` is an erasable

@@ -70,8 +70,7 @@ QUnit.test('globalThis.WeakMap', assert => {
 
 // === IIFE-rooted proxy chains: side-effect preservation ===
 // the receiver chain folds to the polyfilled global, but an IIFE chain root carries observable
-// setup that must survive the fold (and the inner globalThis must keep its own polyfill without
-// crashing the text-transform queue)
+// setup that must survive the fold (and the inner globalThis must keep its own polyfill)
 QUnit.test('IIFE-proxy Symbol.iterator value-ref: side effect runs once', assert => {
   let calls = 0;
   const it = (() => {
@@ -1311,8 +1310,8 @@ testUnlessDetectLowered('global-proxy: an all-proxy destructure source keeps its
   /* eslint-enable no-unsafe-optional-chaining -- end of the source forms */
 });
 
-// a receiver the emit RE-EMITS keeps its own proxy-global substitution. the marking that tells the
-// text emitter "no second rewrite inside my span" was read as "my render consumes this global", and
+// a receiver the emit RE-EMITS keeps its own proxy-global substitution. the marking that says
+// "no second rewrite inside my span" was read as "my render consumes this global", and
 // an instance claim's render does not: it hands the receiver to the helper as an argument. every
 // shape that memoizes such a receiver then froze a raw `globalThis` (ReferenceError in the stripped
 // realm) - and a `delete` target, which renders nothing at all, froze one with no render to blame
@@ -1370,7 +1369,7 @@ testUnlessDetectLowered('global-proxy: a leading effect keeps its guarded claim'
 // the hop that NAMES the polyfilled constructor decides one claim, and the claim has to answer the
 // same however that key is written. the folded spellings under-resolved: the swap read the ctor raw
 // off the global (`_globalThis[(keys++, 'Set')]` - the method's target engines have no `Set` there),
-// and on the text emitter the swap that did fire DROPPED the key's own effect. `.add` is deliberately
+// and where the swap did fire it DROPPED the key's own effect. `.add` is deliberately
 // a prototype method with no pure entry of its own - one WITH an entry resolves as an instance claim
 // and never reaches the constructor swap this locks. `.globalThis.` spells the redundant hop, so the
 // chain runs in Node too, where `self` / `window` do not exist
@@ -1448,8 +1447,8 @@ testUnlessDetectLowered('global-proxy: a bare probed nav throws in every spellin
 });
 
 // a chain-assign root is the OBJECT being read, so the source evaluates it before any key above it.
-// three channels used to place the key first: the provider withheld the slot from a static READ, the
-// text emitter's fallback never received it, and its claim render took over only the effects sitting
+// three channels used to place the key first: the provider withheld the slot from a static READ,
+// an emitter fallback never received it, and a claim render took over only the effects sitting
 // BEFORE the assignment - a key from a hop the collapse had already dropped got wrapped around the
 // whole render. the key reads what the assignment stored, which is what makes the order observable
 testUnlessDetectLowered('global-proxy: a chain-assign root evaluates before every key above it', assert => {
@@ -1544,10 +1543,9 @@ testUnlessDetectLowered('global-proxy: a sealed guard root collapses onto its po
   assert.same(order.filter(entry => entry === 'claim').length, 1, "and the claim's own argument ran once");
 });
 
-// the guard TEST an optional claim renders is the render's own text, not source: left for the
+// the guard TEST an optional claim renders is the render's own spelling, not source: left for the
 // visitors, a claim collapsed it to the leaf ponyfill and erased the read a seal makes observable,
-// while without a probe under the seal it kept a native `self` read where the ponyfill is the point.
-// the AST leg is where both showed, so this row runs there
+// while without a probe under the seal it kept a native `self` read where the ponyfill is the point
 testUnlessDetectLowered('global-proxy: an optional claim spells its own guard test', assert => {
   const WINDOW_PRESENT = typeof window != 'undefined';
   /* eslint-disable @stylistic/no-extra-parens -- the parens ARE the seal under test: they end the

@@ -1688,12 +1688,9 @@ const KPR_SHAPES = [
   { id: 'blind-triple-instance', value: 'globalThis.window', tail: '?.self.Array.prototype.at.name.at?.(0)' },
   // instance dispatch OVER a blind call tail: the static claim inside the tail dies at enter
   // (a late drop strands a dead import), and the memo re-reads the call verbatim
-  // `textLags` on the two ctor-memo rows: babel now tags the memoized ctor receiver (`_ref =
-  // ...Array` serves `_ref?.from` -> `_Array$from`), the text leg leaves the read unresolved -
-  // accepted lag, that layer is slated for deletion
-  { id: 'blind-call-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([1]).at?.(0)', textLags: true },
+  { id: 'blind-call-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([1]).at?.(0)' },
   // claimable ctor under a blind kept tail: the blocked claim keeps the tail verbatim including
-  // the `.self` hop (dropping the hop desyncs from the AST emitter)
+  // the `.self` hop (dropping the hop desyncs from babel)
   { id: 'blind-ctor-leaf', value: 'globalThis.window', tail: '?.self.Set.name.at?.(0)' },
   // claims THROUGH the kept assignment: non-optional (collapse assumption reads the ponyfill
   // through an unresolvable value nav) and value-resolvable optional (deopt-dead guard), plus
@@ -1724,7 +1721,7 @@ const KPR_SHAPES = [
   { id: 'chain-assign-symbol-iter-leaf', value: 'globalThis', tail: '.globalThis[Symbol.iterator]' },
   { id: 'claim-nonoptional', value: 'globalThis.window', tail: '.self.Map.name.at?.(0)' },
   { id: 'claim-resolvable-assign', value: 'globalThis', tail: '?.self.Set.name.includes?.("S")' },
-  { id: 'claim-resolvable-call', value: 'globalThis', tail: '?.self.Array.from?.([3]).at?.(-1)', textLags: true },
+  { id: 'claim-resolvable-call', value: 'globalThis', tail: '?.self.Array.from?.([3]).at?.(-1)' },
   // the READ form over a kept write with an SE computed key: the arm rendering it was a
   // mutation-tested blind spot of every other gate
   { id: 'claim-se-key-read-form', value: 'globalThis.window', tail: '?.self[(log.push("k"), "Array")].name' },
@@ -1832,7 +1829,7 @@ function * generateKeptProxyRoot() {
     const assign = shape.se ? `(log.push("se"), t = ${ shape.value })` : `(t = ${ shape.value })`;
     const expr = shape.seal ? `(${ assign }${ shape.tail })` : `${ assign }${ shape.tail }`;
     const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis.window); return v; })()`;
-    yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false, textLags: !!shape.textLags };
+    yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false };
   }
 }
 
@@ -1857,14 +1854,11 @@ const BARE_PROBE_SHAPES = [
   // yields undefined (the unrigged rows are the oracle)
   { id: 'second-unresolvable-hop', tail: '?.window?.self.Array.of(5).at(0)' },
   { id: 'second-unresolvable-hop-optional', tail: '?.window?.self?.Array.of(6).at(0)' },
-  // `textLags`: babel polyfills the kept key's own claim (`log.push` -> `_pushMaybeArray`, the
-  // claim lands on the live spelling before the deferred flush clones it); the text leg still
-  // re-emits the pre-claim key raw - accepted lag, that layer is slated for deletion
-  { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)", textLags: true },
+  { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)" },
   // the OPTIONAL-root twins: the inner `?.`'s defined probe must not erase the deeper
   // environment probe's guard (the fixed optionalMemberStaysGuarded early-return)
   { id: 'optional-root-value', tail: '?.self.Array.of(8).at(0)', optRoot: true },
-  { id: 'optional-root-se-key', tail: "?.[(log.push('k'), 'self')]?.Array.of(9).at(0)", optRoot: true, textLags: true },
+  { id: 'optional-root-se-key', tail: "?.[(log.push('k'), 'self')]?.Array.of(9).at(0)", optRoot: true },
   // the declined-leaf connector over a DEEP plain nav: the hop fold must not erase the `?.`
   // (it read a defined `_globalThis.BigInt` where the guarded canon answers undefined).
   // rig-only: the unrigged twin throws NATIVELY at the plain `.self` read (the accepted
@@ -1875,8 +1869,8 @@ function * generateBareProxyProbe() {
   for (const shape of BARE_PROBE_SHAPES) {
     const root = shape.optRoot ? 'globalThis?.window' : 'globalThis.window';
     const inner = `(() => { const v = ${ root }${ shape.tail }; return typeof v; })()`;
-    if (!shape.rigOnly) yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false, textLags: !!shape.textLags };
-    yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false, textLags: !!shape.textLags };
+    if (!shape.rigOnly) yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false };
+    yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false };
   }
   // a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
   // it must keep the probe hop - binding the bare write tested an always-defined global and ran
@@ -2636,8 +2630,8 @@ function * generateOpaqueCallRootGuard() {
 
 // --- Symbol receiver context fold ---
 // the well-known-symbol GET folds an unresolvable chain ROOT (`window.self`) to the nav's
-// resolvable VALUE - the text emitter used to strand the raw nav (import-set desync, off-realm
-// ReferenceError); a WRITE HOST (`++`, the cleanup `delete`) folds its receiver like the
+// resolvable VALUE - an emitter that misses the fold strands the raw nav (import-set desync,
+// off-realm ReferenceError); a WRITE HOST (`++`, the cleanup `delete`) folds its receiver like the
 // plain-key member channel; a for-x aliased body read deopts to the raw slot read where the
 // collapse would throw on the non-callable value the head just wrote
 const SRC_SHAPES = [
@@ -2692,11 +2686,11 @@ function * generateLoweredOptionalAlias() {
     '(() => { var _a; return (_a = globalThis) == null ? void 0 : _a.self.WeakMap.name; })()', { rig: true }), strip: false };
 }
 
-// --- Discarded computed-key prefix proxy-global (text-emitter compose crash) ---
+// --- Discarded computed-key prefix proxy-global (stranded-rewrite crash) ---
 // a PURE proxy-global (`globalThis`) buried in a DISCARDED computed-key sequence prefix
 // (`x[(globalThis, 'flat')]`) is peeled to the tail key, and the polyfill swap drops the whole `[...]`
-// text. the dropped proxy-global must not strand a `globalThis -> _globalThis` rewrite against eliminated
-// source (a text emitter crashes composing it, an AST emitter drops the subtree). the comma discards the
+// text. the dropped proxy-global must not strand a `globalThis -> _globalThis` rewrite against
+// eliminated source (the swap discards the subtree that rewrite would land in). the comma discards the
 // real `globalThis` so each shape runs natively - the three-way value AND the transform-crash oracle both
 // fire on a regression. distinct dispatch + method per shape: instance drop, static collapse, symbol-iter,
 // nested-paren prefix, and a multi-proxy-global prefix
@@ -3189,10 +3183,10 @@ const AW_SYMBOL_ITER = [
   // count proves single vs double read (native evaluates the element exactly once too)
   { id: 'getter-element-read-once', pre: 'let n = 0; const h = { get g() { n++; return [1]; } }; const [{ [Symbol.iterator]: it }] = [h.g];', obs: '[typeof it, n]' },
   // a proxy-global NEST sibling hands the symbol prop to the flatten plan (single owner) in
-  // EITHER prop order - a per-prop route racing the rebuild crashed the transform queue or
+  // EITHER prop order - a per-prop route racing the rebuild crashed the transform or
   // captured the receiver without its polyfill rewrite
-  // pattern-VALUED symbol prop on a constant-literal receiver: the extraction text must drain
-  // at flush - the eager visit-time compose hard-aborted the whole transform on this shape
+  // pattern-VALUED symbol prop on a constant-literal receiver: the extraction must drain
+  // at flush - an eager visit-time emit hard-aborted the whole transform on this shape
   { id: 'pattern-value-literal-default', pre: 'const { [Symbol.iterator]: { next = [1].flat() }, other } = [1, 2, 3];', obs: '[typeof next, other]' },
   // the rest is observed by its SHAPE, never by its size: a key count over `globalThis` measures the
   // realm rather than the emitter, and snippets share a realm with the 475 corpus cases that write
@@ -3310,7 +3304,7 @@ function * generateParamDefaultInstance() {
 // a member read after the reassignment must see the USER value (native last-write-wins), never a
 // blind hint-narrowed polyfill. babel's hint-only fallback (no scope binding after the cascade
 // mutation) used to trust the user-alias hint past the write, narrowing `M.groupBy` over the
-// user's own method - a runtime divergence from native AND from the text emitter.
+// user's own method - a runtime divergence from native AND from the other leg.
 const ASSIGN_ALIAS_REASSIGN = [
   { id: 'flat', decl: 'let M; ({ Map: M } = globalThis); M = { groupBy: () => "U" };' },
   { id: 'array-wrapped', decl: 'let M; [{ Map: M }] = [globalThis]; M = { groupBy: () => "U" };' },
@@ -3974,15 +3968,15 @@ function * generateDeferredWriteNarrow() {
   for (const c of CHANNELS) yield { ...snippet(`deferred-write-narrow/${ c.id }`, `(() => { ${ c.code } })()`), strip: true };
 }
 
-// --- Unplugin destructure text-emit: the rewrite must stay valid, non-crashing, and leak-free ---
-// the unplugin emitter splices text rather than mutating an AST, so its destructure rewrites have
-// failure modes the babel twin cannot have: an orphaned trailing comma or dropped paren (a PARSE
-// error), a sibling-walk double-claim (a compose CRASH), or a symbol-iterator default whose
-// instance call leaks native (a strip-realm THROW). all run natively and are compared three-way
-function * generateUnpluginDestructureTextEmit() {
+// --- Unplugin destructure emit: the rewrite must stay valid, non-crashing, and leak-free ---
+// the corpus here grew from destructure-rewrite failure modes: an orphaned trailing comma or
+// dropped paren (a PARSE error), a sibling-walk double-claim (a transform CRASH), or a
+// symbol-iterator default whose instance call leaks native (a strip-realm THROW). all run
+// natively and are compared three-way
+function * generateUnpluginDestructureEmit() {
   const CASES = [
-    // a preserved sibling holding an ArrayPattern-wrapped nested proxy destructure - a sibling-walk
-    // double-claim crashes text compose (parse/run failure the three-way run surfaces)
+    // a preserved sibling holding an ArrayPattern-wrapped nested proxy destructure - a
+    // sibling-walk double-claim crashed the transform (parse/run failure the three-way run surfaces)
     { id: 'sibling-array-pattern',
       code: '(() => { const { Array: { from } } = globalThis, val = (function () {'
         + ' const [{ Array: { of } }] = [globalThis]; return of; })(); return [typeof from, typeof val]; })()' },
@@ -3992,7 +3986,7 @@ function * generateUnpluginDestructureTextEmit() {
     { id: 'symbol-iterator-default',
       code: '(() => { const { Array: { from }, [Symbol.iterator]: it = [10, 20].at(-1) } = globalThis; return [typeof from, it]; })()' },
   ];
-  for (const c of CASES) yield { ...snippet(`unplugin-destructure-text-emit/${ c.id }`, c.code), strip: true };
+  for (const c of CASES) yield { ...snippet(`unplugin-destructure-emit/${ c.id }`, c.code), strip: true };
 }
 
 // --- Union hop fold: the branch a VALUE actually matches, not the first branch that resolves ---
@@ -5189,8 +5183,8 @@ const EXPR_FAMILIES = {
     // an OWN static shadowing the inherited name dispatches to the user method through the guard
     '(() => { class Co extends Array { static from(x) { return [9].concat(x); } static m() { return this.from?.([1, 2]).flat().at(0); } } return Co.m(); })()',
     // an SE-prefixed computed key folding to an inherited / bare-global static deopts the
-    // optional with the effect running ONCE ahead of the injected static (the text emitter
-    // previously emitted overlapping rewrites - unparsable output - or left the callee raw)
+    // optional with the effect running ONCE ahead of the injected static (the regression class
+    // here: overlapping rewrites - unparsable output - or a raw callee)
     '(() => { let n = 0; class Ck extends Array { static m() { return this[(n++, "from")]?.([[1], [2]]).flat().at(-1); } } return [Ck.m(), n]; })()',
     '(() => { let n = 0; return [Array[(n++, "of")]?.(1, 2).flat().at(0), n]; })()',
     // a shadowed inherited static keeps the guard, so a rebound `this` short-circuits like native
@@ -6001,8 +5995,8 @@ const TS_FAMILIES = {
     '(<number[]>arr).flat()',
   ],
   // the `expr<T>` instantiation slot takes a LeftHandSideExpression, so every looser shape reaches
-  // it parenthesized. babel reprints the slot and unplugin splices around it, so only this leg sees
-  // a dropped paren: it re-associates the call into the arrow body / the ternary alternate / the
+  // it parenthesized. both emitters reprint the slot, and a dropped paren re-associates the call
+  // into the arrow body / the ternary alternate / the
   // optional chain, or turns the type arguments into a relational chain. each row is written so the
   // re-association changes the VALUE - a shape whose two readings agree proves nothing here
   'ts-instantiation-slot': [
@@ -6180,7 +6174,7 @@ function * generateAsiFusion() {
 
 // --- Branch-valued computed keys: the union axis must reach every literal arm ---
 // member call / in probe / flat + nested destructure; a paren-wrapped arm covers the
-// text-parser shape (oxc keeps the node). pure legitimately bails on a multi-valued key, so
+// estree parser shape (oxc keeps the node). pure legitimately bails on a multi-valued key, so
 // the cells stay strip:false for its leg; the usage-global leg arms them empirically and
 // proves the injected arm modules stand alone
 const BRANCH_KEY = [
@@ -6882,7 +6876,7 @@ export function * generate() {
   yield * generateTypeParamBindingTs();
   yield * generateCallableIntersectionTs();
   yield * generateDeferredWriteNarrow();
-  yield * generateUnpluginDestructureTextEmit();
+  yield * generateUnpluginDestructureEmit();
   yield * generateSynthSwapPureCtorReRead();
   yield * generateFlattenRebuiltInit();
   yield * generateThisStaticDestructure();

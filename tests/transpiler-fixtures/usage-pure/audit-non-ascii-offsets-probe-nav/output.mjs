@@ -2,8 +2,8 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4;
-// the text emitter slices source by PARSER offsets, so anything that moves bytes, UTF-16 units and
-// code points apart is a direct risk to every span the guard render computes. an astral character
+// anything that moves bytes, UTF-16 units and code points apart stresses every PARSER offset
+// the pipeline consumes (spans, source maps). an astral character
 // before the nav, inside a comment, in an identifier and INSIDE the rewritten region each shift a
 // different one of those counts
 // comment with an astral pair: 😀 𝒜

@@ -16,7 +16,7 @@ const babelConfig = require('../../babel.config.js');
 
 const e2eUsagePure = resolve(import.meta.dirname, '../../tests/e2e-usage-pure');
 
-export default function buildConfig(phase, { engine } = {}) {
+export default function buildConfig(phase) {
   return {
     ...baseConfig,
     resolve: {
@@ -37,7 +37,6 @@ export default function buildConfig(phase, { engine } = {}) {
         // `__WEBPACK_IMPORTED_MODULE_n___default()` wrappers in the post bundle alone
         importStyle: 'require',
         ...phase ? { phase } : {},
-        ...engine ? { engine } : {},
       }),
       // phase-conditional test-expectation flags; legs without a flag leave the identifier
       // undefined and the in-test `typeof` guards hold:
@@ -54,7 +53,7 @@ export default function buildConfig(phase, { engine } = {}) {
     ],
     module: {
       rules: [{
-        // test files — same babel pipeline as the babel leg minus `@core-js`
+        // test files - same babel pipeline as the babel leg minus `@core-js`
         test: /\.(?:js|ts)$/,
         include: e2eUsagePure,
         use: {

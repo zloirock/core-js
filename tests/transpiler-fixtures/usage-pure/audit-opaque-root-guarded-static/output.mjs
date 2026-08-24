@@ -41,10 +41,8 @@ const keySe = () => keyCount++;
 const m = () => _globalThis;
 export const viaComputedTrailing = null == (_ref9 = m()?.window) ? void 0 : (_ref10 = _Array$from([3]), keySe(), _atMaybeArray(_ref10).call(_ref10, 0));
 
-// optional spellings on the TRAILING dispatch keep their own guards over the collapsed static.
-// the guard-paren seam differs cosmetically on a NON-polyfillable trailing member (babel keeps
-// the tail inside the guarded branch, the text emitter parenthesizes the guard) - runtime-equal,
-// sidecar-locked
+// optional spellings on the TRAILING dispatch keep their own guards over the collapsed static;
+// a NON-polyfillable trailing member rides inside the guarded branch
 const p = () => _globalThis;
 export const viaOptionalTrailing = null == p().window ? void 0 : _Promise$resolve(4)?.then?.(x => x);
 
@@ -96,8 +94,7 @@ export const viaOptionalCallRoot = null == (_ref21 = null == oc?.()?.window ? vo
 // a SECOND unresolvable hop past the ponyfillable one stays raw on the guarded ref (two
 // sources of undefined: the nested test covers the window prefix, the outer memo test the
 // chrome value). the static reads off the opaque chrome value, not a global - no collapse.
-// the unplanned `chrome` tail ATTACHES differently per emitter (on the guard result vs inside
-// the branch) - runtime-equal, sidecar-locked
+// the unplanned `chrome` tail rides inside the guarded branch
 const upu = () => _globalThis;
 export const viaUnresPonyUnres = null == (_ref23 = null == upu().window ? void 0 : _self.chrome) ? void 0 : _at(_ref24 = _ref23.Array.of(14)).call(_ref24, 0);
 

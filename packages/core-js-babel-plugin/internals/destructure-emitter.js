@@ -123,8 +123,8 @@ function collapseRetainedProxyReceiver(synthSwap, hostNode, key, aliasCtx = null
   // ie:11 / Node, which throws BEFORE the `||` short-circuit can save it). recursion also covers
   // nested logicals and SE/wrapper-wrapped operands via the same slot peel, forwarding the same
   // aliasCtx, which makes the operand recursion alias-AWARE (a `const g = globalThis` root
-  // follows to the global and collapses). matches the unplugin `polyfillLogicalInitOperands`
-  // per-operand collapse; an operand that is itself a pure ctor is handled by
+  // follows to the global and collapses). matches the unplugin's per-operand collapse of
+  // logical inits; an operand that is itself a pure ctor is handled by
   // `collapseProxyGlobalReceiver`'s own plan
   if (receiver?.type === 'LogicalExpression') {
     collapseRetainedProxyReceiver(synthSwap, receiver, 'left', aliasCtx);
@@ -160,7 +160,7 @@ function descendArrayWrapperToSE(declaratorNode) {
 }
 
 // build per-SE-expr ExpressionStatements (one per peeled prefix expr) for `insertBefore`.
-// matches unplugin's `cascadeAssignmentExpression` which emits each SE as a standalone
+// matches the unplugin drain, which emits each SE as a standalone
 // `se();` segment - multi-SE chains land as `se1(); se2(); ...` in both pipelines.
 // cloning preserves sibling visitors' path references through AST sub-tree relocation
 function buildSEPrefixStatements(t, prefix) {
@@ -190,7 +190,7 @@ function liftSEPrefixSwap(t, node, key, hostPath) {
 // them), so an SE-bearing init becomes a dedicated sink declarator. covers a top-level
 // sequence init AND an SE hidden under a transparent array wrapper (`[(se(), R)]`,
 // `(o(), [(i(), R)])`) - the descent is preferred so both shapes flatten to the one canonical
-// sink sequence the text emitter renders too. unwrapRuntimeExpr peels Paren / Chain / TS
+// sink sequence the unplugin emitter renders too. unwrapRuntimeExpr peels Paren / Chain / TS
 // wrappers so `((se(), R) as any)` still trips the branch. null = not a for-init SE shape
 function forInitSESinkParts(declaratorNode, isForInit) {
   if (!isForInit) return null;
@@ -267,7 +267,7 @@ function renderNestedParamSynth({ prop, meta, deps }) {
       // (`globalThis.Set.union`, or `Set.union` off a ctor receiver) and leave it for the natural visitor
       // to re-resolve EXACTLY as usage-pure resolves any source access (`-> _Set.union`, `-> _globalThis
       // .Array.isArray`). delegating to the normal injection means there is no resolution to keep in sync:
-      // parity with the unplugin's explicit text-resolver is enforced structurally (the fixture compares
+      // parity with the unplugin's explicit resolver is enforced structurally (the fixture compares
       // both emitters, so a unplugin-side divergence from the visitor fails)
       passthrough: keyPath => keyPath.reduce(
         (obj, key) => t.memberExpression(obj, t.identifier(key)), t.identifier(recv.receiverName)),
@@ -463,7 +463,7 @@ export default function createDestructureEmitter({
     if (parent?.isAssignmentExpression()) {
       // walk past Paren / TS wrappers between Assignment and its ExpressionStatement host.
       // without TS peel `({from} = Array) as any;` parses as ExprStmt > TSAsExpression >
-      // Assignment and the rewrite silently bails; mirror of unplugin's emit-utils peel.
+      // Assignment and the rewrite silently bails; mirror of unplugin's transparent peel.
       // transparent-only is deliberate here, unlike the file's `peelToExpressionStatement` canon:
       // an SE prefix around the assignment is lifted to sibling statements BEFORE this gate, so a
       // sequence wrapper survives only in a non-statement position, where the bare twin bails too
@@ -533,8 +533,8 @@ export default function createDestructureEmitter({
     // gates the whole pattern (duplicate keys, a computed key that reads a SIBLING binding)
     const synthKey = isReplayableSynthKey(prop.node);
     // the pattern SHRINKS as siblings emit (a body-extract splices its prop out), so asking the
-    // structural gate again on a later prop would judge a different shape than the first one saw -
-    // and the text emitter, which never mutates, would judge the original. decide once per pattern
+    // structural gate again on a later prop would judge a different shape than the first one
+    // saw. decide once per pattern
     const targetPath = synthKey && patternSynthEligible(objectPattern, prop.scope)
       ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
     if (!targetPath) {
@@ -727,7 +727,7 @@ export default function createDestructureEmitter({
   // positional flow gates (mutation intervals, guard dominance) see the write where the
   // source wrote it. the estree emitter keeps the original node, so span parity keeps the
   // narrowing decisions aligned across substrates - a span-less minted write fails every
-  // positional interval and conservatively drops narrows the text emitter keeps
+  // positional interval and conservatively drops narrows the unplugin emitter keeps
   function inheritSpan(node, from) {
     if (typeof from?.start === 'number') {
       node.start = from.start;
@@ -750,7 +750,7 @@ export default function createDestructureEmitter({
   // hoist `_unused` sentinel names into a shared `var _unused, _unused2;` declaration ahead
   // of the destructure host. first call creates the declaration via `insertBefore`, subsequent
   // calls APPEND to the same VariableDeclaration node (single combined statement, not split).
-  // matches unplugin's single `var ...;` segment in `cascadeAssignmentExpression`
+  // matches the unplugin drain's single `var ...;` segment
   function appendUnusedVarDeclarators(bk, exprStmt, names) {
     if (!names.length) return;
     if (!bk.unusedVarDecl) {
@@ -1122,7 +1122,7 @@ export default function createDestructureEmitter({
   // and defaults run on raw-read semantics off the rebuilt ctor - an anchored constructor
   // gains nothing from the helper's fallbacks, and extracting would flip a default's side
   // where the helper result is defined and the raw read is not. plain receivers keep the
-  // established extraction / default-guard pair (matches the text emitter on both sides).
+  // established extraction / default-guard pair (matches the unplugin emitter on both sides).
   // marks the prop key-swap-owned: revisits after the anchored rebuild re-enter the
   // dispatch with the REBUILT host (whose re-plan no longer anchors) and would extract
   function sekeySymbolKeepsKeySwap(prop, meta, entry) {
@@ -1356,7 +1356,7 @@ export default function createDestructureEmitter({
           ]);
         }
       }
-      // an SE-free init drops whole (its pure prefixes too - the text emitter's collapse
+      // an SE-free init drops whole (its pure prefixes too - the unplugin emitter's collapse
       // replaces the full operand, so keeping a dead literal here would desync the shape)
       const kept = mayHaveSideEffects(assignPath.node.right)
         ? [...prefix, ...isChainAssignment(tail) ? [tail] : []]
@@ -1513,7 +1513,7 @@ export default function createDestructureEmitter({
 
   // declaration-host renderer for the shared nested-flatten plan: ONE batch render on the
   // first dispatched leaf replaces the old per-prop incremental cascade. extraction order =
-  // plan order = source order, matching both the old visit order and unplugin's text render.
+  // plan order = source order, matching both the old visit order and unplugin's render.
   // hosts handled here ALWAYS win polyfill - native fallback would produce wrong runtime in
   // usage-pure mode (`from = globalThis.Array.from` picks native on modern engines)
   function renderDeclaratorFlattenPlan(declarator, prop) {
@@ -1730,8 +1730,8 @@ export default function createDestructureEmitter({
     // Maybe-dispatch helper returns a dispatcher, not the native method). every memoize arm is
     // pattern-compatible (the memo reads the receiver ONCE into `_ref`; extraction and residual
     // both read the ref), so only SOURCE-level sibling-declarator hosts keep the key-swap bail -
-    // parity with the text emitter, whose deferred-compose channels cover the memo and duplicate
-    // paths but not the visit-time sibling emit. a memo-created sibling is fine: the trailing
+    // parity with the unplugin emitter, whose drain covers the memo and duplicate paths but
+    // not the visit-time sibling emit. a memo-created sibling is fine: the trailing
     // branch hosts a pattern declarator like any binding
     const patternValue = !valueNode && entry === SYMBOL_ITERATOR_PURE_RESULT.entry
       && isSymbolIteratorPatternProp(prop.node)
@@ -1741,7 +1741,7 @@ export default function createDestructureEmitter({
     // instance call) are re-visited on insertion and rewritten like any source pattern.
     // its PROPERTY nodes are claimed, though: the re-visit must not re-enter the destructure
     // pipeline on the extracted pattern (`{ name } = _getIteratorMethod(x)` would re-extract
-    // `name` through the whole-init memo, diverging from the text emitter's composed copy) -
+    // `name` through the whole-init memo, diverging from the unplugin emitter's rendered copy) -
     // value subtrees stay live, so defaults keep polyfilling
     // the SAME question the plan asks for a proxy receiver, asked here for the receivers the plan
     // never sees (`= Array` / a plain object reach the synth through this route). one helper, so the
@@ -1771,7 +1771,7 @@ export default function createDestructureEmitter({
       // (`planSideEffectKeyStrategy`) already admitted only re-referenceable receivers, so clone directly -
       // no local re-check (a duplicate gate here once drifted from the planner and left a literal native)
       polyfillValue = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverArg)]));
-      // the clone is skip-seeded: the text emitter re-emits the default AS WRITTEN (its
+      // the clone is skip-seeded: the unplugin emitter re-emits the default AS WRITTEN (its
       // sentinel rename owns the original span), so inner rewrites stay symmetric-raw
       if (!patternValue && prop.node.value?.type === 'AssignmentPattern') {
         instanceDefaultLive = true;
@@ -1833,7 +1833,7 @@ export default function createDestructureEmitter({
       if (instanceDefaultLive) splitResidualAfterDefaultProp({ prop, guardPath: inserted });
     } else if (instanceDefaultLive) {
       // catch-born host: the separate `let _ref2, i = ...` line lands AFTER the relocated
-      // residual (the kept key's effect runs first) - the catch-canon shape the text emitter emits
+      // residual (the kept key's effect runs first) - the catch-canon shape the unplugin emitter emits
       const extracted = t.variableDeclaration(residualDecl.node.kind, [
         t.variableDeclarator(t.cloneNode(foldedTestRef)),
         t.variableDeclarator(bindingLhs(), instanceLeafCall(instanceLeaf, polyfillValue)),
@@ -1918,7 +1918,7 @@ export default function createDestructureEmitter({
     // the in-place effect there.
     // `meta` MUST thread through: the nested-mirror plan gates on `meta.object`, and dropping it here
     // demotes a wrapped-pattern SE key from the caller-correct receiver synth (key text + effect stay in
-    // the pattern) to the native-wins inline default - diverging from the text emitter
+    // the pattern) to the native-wins inline default - diverging from the unplugin emitter
     const paramHost = !!synthHost?.isAssignmentPattern() || !!synthHost?.isFunction();
     if ((kind !== 'instance' || paramHost) && !synthHost?.isVariableDeclarator() && !synthHost?.isObjectProperty()) {
       handleParameterDestructure({ prop, kind, entry, hintName, meta });
@@ -1937,8 +1937,8 @@ export default function createDestructureEmitter({
     // SOURCE-host sibling shape: a whole-init pre-memo INSERTS a sibling declarator, and an
     // earlier prop's emission on the SAME declaration may have planted a memo and/or a trailing
     // pair already - the pattern-value gate must not mistake those synthesized siblings for a
-    // source-level multi-declarator host (the text emitter sees the unmutated source, so its
-    // gate naturally measures the same thing). count only declarators this pipeline did not mint
+    // source-level multi-declarator host - the gate must measure only SOURCE declarators.
+    // count only declarators this pipeline did not mint
     const sourceSiblingHost = isForInit || declaration.node.declarations
       .filter(d => !memoDeclarators.has(d) && !attachToPrevDeclarator.has(d)).length > 1;
     // resolve the instance receiver once: the planner needs its kind, `keepKeyInResidual` the node. for the
@@ -2066,7 +2066,7 @@ export default function createDestructureEmitter({
     // the same value-capture gate the provider's whole-receiver synth plan applies: replacing a
     // branch of `host = ({ k } = shim || Object)` with a mirror literal hands `host` the literal
     // instead of the branch object. the receiver's own value wins over the leaf here - the same
-    // trade the text emitter makes, whose gate sits ahead of the registration
+    // trade the unplugin emitter makes, whose gate sits ahead of the registration
     const rhsPath = destructureAssignmentValueIsCaptured(prop)
       ? null : resolveFallbackReceiverPath(prop.parentPath?.parentPath, prop.parentPath?.node);
     const registered = rhsPath && synthSwap.tryRegisterPerBranchSynth(rhsPath, prop);
@@ -2117,7 +2117,7 @@ export default function createDestructureEmitter({
     // polyfill-always-wins canon: a multi-element ArrayPattern wrapper extracts the static even
     // when the consumed key carries a SE (the residual keeps the raw key, its effect runs once in
     // source order) - the SE-key dispatch below would otherwise preempt into the weaker
-    // native-wins inline default, diverging from the non-SE shape and from the text emitter.
+    // native-wins inline default, diverging from the non-SE shape and from the unplugin emitter.
     // the shared plan self-gates (declarator host only, no conditional receiver, non-instance)
     if (!meta?.fromFallback && tryExtractArrayWrappedStatic({ prop, entry, hintName, kind })) return;
     if (sekeySymbolKeepsKeySwap(prop, meta, entry)) return;
@@ -2134,7 +2134,7 @@ export default function createDestructureEmitter({
     if (meta && isSourcedSymbolIteratorMeta(meta) && flattenPlanConsumesProp(prop)
       && (tryFlattenNestedProxyDestructure(prop) || keySwapOwnedProps.has(prop.node))) return;
     // a RELOCATED catch pattern reaches here as an ordinary declarator - written that way by a
-    // sibling, by the text emitter's earlier phase, or by hand. its bindings are block-scoped to the
+    // sibling, by the unplugin emitter's earlier phase, or by hand. its bindings are block-scoped to the
     // catch, so the same per-prop liveness rule the clause form gets applies: a binding the body
     // never reads is not worth an import and a dispatcher call. the clause form itself never gets
     // here twice - `extractCatchClause` already dropped its unobservable props before relocating
@@ -2336,7 +2336,7 @@ export default function createDestructureEmitter({
   // substrate - every other channel returns the plan's node as-is
   // `ctorName` - the constructor the receiver DENOTES, as the dispatching prop's own meta named it.
   // this emitter mutates the host in place, so the memo REPLACES the init and every prop after the
-  // memoizing one resolves against a bare `_ref` instead of the original receiver; the text emitter
+  // memoizing one resolves against a bare `_ref` instead of the original receiver; the unplugin emitter
   // keeps the source AST and never loses it. without the name, a sibling STATIC after the first
   // instance prop (`const { name, of } = (eff(), Array)`) stays a native read - undefined on ie11
   function resolveDestructuringObject(path, typeOfReceiver, allowSeFreeSingleRead = false, ctorName = null) {
@@ -2613,7 +2613,7 @@ export default function createDestructureEmitter({
     return renderDeclaratorFlattenPlan(declarator, prop);
   }
 
-  // babel-plugin's destructure emission counterpart of unplugin's `handleDestructuringPure`.
+  // babel-plugin's destructure emission counterpart of the unplugin's destructure pipeline.
   // dispatches on the parser-agnostic `planDestructureEmission` strategy enum, then
   // executes the strategy-specific AST mutation. planning logic lives in
   // `./destructure-emission-plan.js` so it stays parser-agnostic and unit-testable;

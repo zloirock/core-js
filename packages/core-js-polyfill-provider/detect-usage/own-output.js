@@ -73,7 +73,7 @@ export function ownOutputTests(injector) {
 // channels write the package's own specifier, and a PRIOR config's output (another package
 // alias or `mode` flavor) still reads as pure by its flavor segment - the same rule the
 // provider's binding resolution uses
-export function pureImportSourceTest(pkg) {
+function pureImportSourceTest(pkg) {
   return function isPureImportSource(source) {
     // the package match stops at a segment boundary - `${pkg}-extras/...` is a foreign name
     return source === pkg || source.startsWith(`${ pkg }/`) || pureImportSourceEntry(source) !== null;
@@ -83,7 +83,7 @@ export function pureImportSourceTest(pkg) {
 // is `name` bound by a DEFAULT import (or require binding) of the pure package at the
 // program root - the one spelling our own channels write. shared by the overwrite-rebind
 // and substituted-default censuses
-export function pureDefaultImportBinding(path, name, { isPureImportSource, isOwnPassBinding }) {
+function pureDefaultImportBinding(path, name, { isPureImportSource, isOwnPassBinding }) {
   const rootNode = rootProgramOf(path);
   for (const decl of rootNode?.body ?? []) {
     if (decl.type === 'ImportDeclaration'
@@ -108,7 +108,7 @@ export function pureDefaultImportBinding(path, name, { isPureImportSource, isOwn
 // the prop's default IS the pure import): re-claiming it re-extracts a sentinel and a
 // degenerate guard per pass. constrained to COMPUTED keys - the one position our
 // SE-key-assign route leaves this spelling in
-export function defaultHoldsPureImport(path, tests) {
+function defaultHoldsPureImport(path, tests) {
   const prop = path.node;
   if (!prop?.computed || prop.value?.type !== 'AssignmentPattern') return false;
   const right = unwrapRuntimeExpr(prop.value.right);
@@ -119,7 +119,7 @@ export function defaultHoldsPureImport(path, tests) {
 // the raw read OUR shadow-alias guard deliberately keeps (`h === Ctor ? _X : h.of` - the
 // alternate reads the shadowed value): a pass over our own output must not claim it again,
 // or the guard nests one level per pass
-export function guardedAliasAlternateRead(path, tests) {
+function guardedAliasAlternateRead(path, tests) {
   // the read may sit DEEPER in the alternate (`h === Ctor ? _X : h.from.bind(h)` claims
   // `h.from`): climb the expression composition to the guard, then ask whose arm we rode
   let cur = path;
@@ -140,7 +140,7 @@ export function guardedAliasAlternateRead(path, tests) {
 // an INSTANCE claim over an adopted GENERATED REF (`_ref.slice(1)` where `_ref` memoizes a
 // value the first pass already typed and adjudicated): the raw spelling IS the verdict -
 // re-claiming through the ref's unknown type would upgrade it to a maybe-dispatch
-export function adoptedRefReceiverClaim(node, path, tests = null) {
+function adoptedRefReceiverClaim(node, path, tests = null) {
   const receiver = unwrapRuntimeExpr(node?.object);
   if (receiver?.type !== 'Identifier' || !ORPHAN_REF_PATTERN.test(receiver.name)) return false;
   // a `_refN` THIS pass minted is a sibling emission's memo, not an adopted prior verdict
@@ -157,7 +157,7 @@ export function adoptedRefReceiverClaim(node, path, tests = null) {
 // the PATTERN default a prior pass substituted (`function f({ P } = _globalThis)` - the
 // root swapped in place, the props deliberately left reading through it): a pass over our
 // own output must not re-decide the pattern's claims - the ownership verdict already stood
-export function patternDefaultHoldsPureImport(path, tests) {
+function patternDefaultHoldsPureImport(path, tests) {
   const pattern = path.parentPath?.node;
   const wrapper = path.parentPath?.parentPath;
   if (pattern?.type !== 'ObjectPattern' || wrapper?.node?.type !== 'AssignmentPattern'
@@ -178,7 +178,7 @@ export function patternDefaultHoldsPureImport(path, tests) {
 // a COMPUTED member whose key is a minted pure import (`[1, 2][_Symbol$iterator]` - the
 // symbol read our pass left through its own binding): re-claiming it re-resolves the alias
 // and upgrades the kept spelling (`_getIteratorMethod([1, 2])`) on a pass over our output
-export function computedKeyIsMintedImport(node, path, tests) {
+function computedKeyIsMintedImport(node, path, tests) {
   if (!node?.computed) return false;
   // a MemberExpression spells its key as `.property`, a destructure Property as `.key` -
   // and an SE-bearing key reads its VALUE from the sequence tail (`[(se, _Symbol$iterator)]`)
@@ -187,7 +187,7 @@ export function computedKeyIsMintedImport(node, path, tests) {
   return key?.type === 'Identifier' && pureDefaultImportBinding(path, key.name, tests);
 }
 
-export function navHoldsRenderedGuard(objectNode, path, tests) {
+function navHoldsRenderedGuard(objectNode, path, tests) {
   const stack = [objectNode];
   while (stack.length) {
     const cur = unwrapRuntimeExpr(stack.pop());
@@ -271,7 +271,7 @@ export function navHoldsMintedSeCall(objectNode, path, tests) {
 // the pure package - the spelling only our own overwrite channel writes there. a user
 // hand-writing that exact sandwich forfeits the claim with it (the sentinel census's
 // accepted adoption risk)
-export function overwriteRebindSibling(path, { localName, ...tests }) {
+function overwriteRebindSibling(path, { localName, ...tests }) {
   if (typeof localName !== 'string') return false;
   let stmt = path;
   while (stmt?.parentPath?.node && stmt.node.type !== 'ExpressionStatement') stmt = stmt.parentPath;
@@ -374,7 +374,7 @@ export function restSentinelExtractionSibling(path, { key, symbolIterator, injec
 // deliberately leaves the fallback's claims raw - re-claiming them re-spells dead code on
 // every pass. recognized by the guard's OWN spelling: the compared read's callee (or the
 // read itself) is a pure default-import binding
-export function ownDefaultedGuardFallbackClaim(path, tests) {
+function ownDefaultedGuardFallbackClaim(path, tests) {
   function guardReadsPureImport(testNode) {
     const test = unwrapRuntimeExpr(testNode);
     if (test?.type !== 'BinaryExpression' || test.operator !== '===') return false;
@@ -401,7 +401,7 @@ export function ownDefaultedGuardFallbackClaim(path, tests) {
 // <claims here>` where the probed read's leaf is a pure binding): the render deliberately
 // kept the alternate's spellings - the collapse already adjudicated them, and a fresh
 // claim (a proxy-hop fold included) re-decides a settled verdict on every pass
-export function ownRenderedGuardAlternateClaim(path, tests) {
+function ownRenderedGuardAlternateClaim(path, tests) {
   function isNullLiteral(node) {
     const literal = unwrapRuntimeExpr(node);
     return literal?.value === null || literal?.type === 'NullLiteral';
@@ -433,7 +433,7 @@ export function rootProgramOf(path) {
   return root?.node ?? null;
 }
 
-// the member funnel: every nav-position census in one gate, ahead of both engines' member
+// the member funnel: every nav-position census in one gate, ahead of both emitters' member
 // claim routes. `node` is the MemberExpression, `metaPath` its path
 export function ownEmittedNavClaim(node, metaPath, tests) {
   if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;
@@ -446,7 +446,7 @@ export function ownEmittedNavClaim(node, metaPath, tests) {
     || navHoldsRenderedGuard(node.object, metaPath, tests);
 }
 
-// the pattern funnel: every destructure-prop census in one gate, ahead of both engines'
+// the pattern funnel: every destructure-prop census in one gate, ahead of both emitters'
 // destructure routes. `metaPath` is the prop's path
 export function ownEmittedPatternClaim(metaPath, tests) {
   if (tests.programMayHoldOwnOutput && !tests.programMayHoldOwnOutput(rootProgramOf(metaPath))) return false;

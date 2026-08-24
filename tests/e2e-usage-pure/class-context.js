@@ -99,7 +99,7 @@ QUnit.test('class: mixin factory producing class with polyfilled methods', asser
     constructor(items) { this.items = Array.from(items); }
   }
   class SortedBasket extends Sorted(Basket) {}
-  // Set dedupes [3,1,4,1,5] → {3,1,4,5}; Array.from preserves insertion order
+  // Set dedupes [3,1,4,1,5] -> {3,1,4,5}; Array.from preserves insertion order
   // eslint-disable-next-line unicorn/no-duplicate-set-values -- testing
   const b = new SortedBasket(new Set([3, 1, 4, 1, 5]));
   assert.deepEqual(b.asSorted(), [1, 3, 4, 5]);
@@ -292,7 +292,7 @@ QUnit.test('class: optional call of own static shadowing an inherited name', ass
 
 // an SE-prefixed computed key folding to an inherited static deopts the optional call: the
 // key effect must run EXACTLY once ahead of the injected static (the overlapping-rewrite shape
-// this locks against ran it twice and emitted unparsable text in the text emitter)
+// this locks against ran it twice and emitted unparsable output)
 QUnit.test('class: SE-computed-key optional inherited static runs the key effect once', assert => {
   let effects = 0;
   class C extends Array {
