@@ -17,10 +17,10 @@ function inputOf(method) {
 // engines. the options factory reads the matrix loop's current selection - threading a
 // fourth parameter through every builder would touch each tool for one field
 let currentEngine;
-// every method and phase runs on both engines - the pre/post snapshot landed with MIG-15,
-// so the axis has no staged exclusions left
+// every method and phase runs on both engines - the default (undefined) is the AST engine,
+// and the explicit `text` cell keeps the escape hatch covered until phase 5 removes it
 function enginesFor() {
-  return [undefined, 'ast'];
+  return [undefined, 'text'];
 }
 function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full' };

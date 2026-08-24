@@ -496,7 +496,7 @@ export default function createPlugin(options) {
   // snapshot cache below can never mix engines - no key extension needed. every method is
   // landed on `'ast'` - each was rejected here at configuration time until its two gates
   // (the fixture gate and the differential's AST leg) went green
-  const engine = engineOption ?? 'text';
+  const engine = engineOption ?? 'ast';
   if (engine !== 'text' && engine !== 'ast') {
     const got = typeof engineOption === 'string' ? `'${ engineOption }'` : typeof engineOption;
     throw new TypeError(`[core-js] invalid \`engine\` option: ${ got } - expected 'text' or 'ast'`);
