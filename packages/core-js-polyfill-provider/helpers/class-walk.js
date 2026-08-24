@@ -214,7 +214,9 @@ function containsWriteTo(root, name) {
   // `isASTNode` on BOTH sides: the array arm used to admit any object, so a non-node array member
   // (`loc` / `range` shapes, a plugin's own stamp) was descended into while the object arm rejected
   // it. the descent short-circuits on the first hit, so it stays a hand-written loop
-  for (const value of Object.values(root)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in root) {
+    const value = root[key];
     if (Array.isArray(value)) {
       for (const el of value) if (isASTNode(el) && containsWriteTo(el, name)) return true;
     } else if (isASTNode(value) && containsWriteTo(value, name)) return true;
