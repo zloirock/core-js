@@ -1,4 +1,4 @@
-// multi-line ObjectPattern with mid-line newlines and varying indentation. text-rewrite
+// multi-line ObjectPattern with mid-line newlines and varying indentation. the rewrite
 // must produce valid output regardless of source-formatting whitespace
 const {
   from,

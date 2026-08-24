@@ -6,9 +6,9 @@ import _Number$parseInt from "@core-js/pure/actual/number/parse-int";
 import _self from "@core-js/pure/actual/self";
 var _ref, _ref2;
 // a guard render that leads with `(` at the head of an ExpressionStatement fuses with an
-// unterminated previous statement and turns it into a CALL (`sink = 1(...)`). the AST emitter
-// reprints statements with their own semicolons, the text one edits the source in place - so it
-// owes the `;` itself, on every channel that can spell a parenthesized guard
+// unterminated previous statement and turns it into a CALL (`sink = 1(...)`). the reprint
+// owes every statement its own semicolon,
+// on every channel that can spell a parenthesized guard
 export let liftedNav = 1;
 null == _globalThis.window ? void 0 : _self.hostBox.run();
 export let liftedMember = 2;

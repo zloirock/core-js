@@ -11,6 +11,6 @@ export const sealedPlainCall = _at(_ref5 = _flatMaybeArray(_ref6 = host.box?.mis
 export const doubledWrapper = _flatMaybeArray(_ref7 = host.box?.missing)?.call(_ref7);
 
 // NEGATIVE: unsealed, the same `?.` guards the whole chain and the dispatch rides inside it.
-// the doubled wrapper carries a sidecar: the inner parens ride along in a text splice and are
-// reprinted away by the AST emitter - grouping only, the same value either way
+// the doubled wrapper's inner parens are grouping only and reprint away - the same value
+// either way
 export const unsealed = null == (_ref8 = host.box?.missing) || null == (_ref9 = _flatMaybeArray(_ref8)) ? void 0 : _at(_ref10 = _ref9.call(_ref8)).call(_ref10, 0);

@@ -250,7 +250,7 @@ QUnit.test('params: fallback default side-effect prefix runs when default fires'
 
 // a flat (non-fallback) param default that is a member chain rooted at a side-effecting IIFE: the
 // synth literal discards the chain, so the IIFE setup must be rescued (run exactly once) when the
-// default fires - it was being dropped entirely (and crashed the text emitter)
+// default fires - it was being dropped entirely (or crashed the transform)
 QUnit.test('params: call-rooted member default rescues the IIFE setup once', assert => {
   let calls = 0;
   function fn({ from } = (() => {

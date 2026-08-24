@@ -1,17 +1,16 @@
 import { extractIndirectRequireSEPrefix } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { isDirectiveStatement } from '../plugin-helpers.js';
+import { isDirectiveStatement } from './plugin-helpers.js';
 import { bareImport, bareRequire, expressionStatement } from './builders.js';
 
-// the AST engine's application of the entry plan `planEntries` produced: the text twin is
-// `detectEntries`' rewriter batch. dispositions become body surgery - a removed entry
-// vanishes (its observable indirect-require prefix survives as standalone statements), a
-// promotion-hazard slot becomes the `0;` terminator - and the whole ASI machinery of the
-// text engine has no counterpart here: the printer derives separators from structure
+// the application of the entry plan `planEntries` produced: dispositions become body
+// surgery - a removed entry vanishes (its observable indirect-require prefix survives as
+// standalone statements), a promotion-hazard slot becomes the `0;` terminator. seam ASI
+// needs no machinery here: the printer derives separators from structure
 
 // the injected side-effect module block, canonically ordered; nodes carry no source span,
-// so the printer maps them nowhere - same contract as the text engine's inserted lines
+// so the printer maps them nowhere
 function buildImportNodes({ modules, importStyle, pkg, absoluteImports }) {
   const isRequire = importStyle === 'require';
   return sortByPolyfillOrder(modules).map(moduleName => {
@@ -20,8 +19,7 @@ function buildImportNodes({ modules, importStyle, pkg, absoluteImports }) {
   });
 }
 
-// anchored after the CURRENT prologue's end as a body INDEX (the text engine's
-// `skipDirectivePrologue` answers in offsets)
+// anchored after the CURRENT prologue's end as a body INDEX
 export function injectImportStatements({ program, modules, importStyle, pkg, absoluteImports }) {
   let prologueEnd = 0;
   while (prologueEnd < program.body.length && isDirectiveStatement(program.body[prologueEnd])) prologueEnd++;

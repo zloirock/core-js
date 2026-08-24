@@ -8,7 +8,7 @@ import { computedKeysAllBound } from '@core-js/polyfill-provider/helpers/ast-pat
 //     this half is the provider rule (`computedKeysAllBound`) shared with unplugin's gate
 //   - its binding is a polyfill-rewritten well-known symbol. babel mutates `[Symbol.iterator]` to
 //     `[_Symbol$iterator]` (a core-js pure import) BEFORE this gate runs, so it reads as an
-//     Identifier; unplugin's deferred text-transform still sees the original `Symbol.iterator`
+//     Identifier; unplugin's later-ordered claim still sees the original `Symbol.iterator`
 //     MemberExpression and bails via isSynthSimpleObjectPattern. bailing the injected pure-import
 //     reference keeps the two pipelines aligned, while a genuine user import does NOT bail
 // `t` is babel-types (passed in so this stays a pure module-level helper, no factory state).

@@ -136,7 +136,7 @@ function hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }) {
 // the emitter substitutes for the dropped hop (resolved by inlining a call root) plus that harvest, so
 // the rewrite is `(callSe, _root).leaf`. null unless the receiver is `<root>.<proxy-hop>.<leaf>` - a
 // single hop (`(() => globalThis)().Array`) has no undefined intermediate to drop
-export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
+function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
   const hop = receiver.object;
   // the immediate hop is normally a proxy-nav MEMBER (`<call>.self` / `.window`); a SE-wrapping
@@ -179,7 +179,7 @@ export function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path 
 // the root-collapse twin (`planCallRootedProxyReceiver` below) BAILS on a pure-ctor leaf because
 // a LIVE receiver's leaf is whole-swapped elsewhere; a discarded receiver has no elsewhere, so
 // this plan IS that swap. babel needs no explicit call site - its lifted residual re-enters the
-// natural member detection, which routes through the same shared pieces; the text emitter
+// natural member detection, which routes through the same shared pieces; the unplugin emitter
 // substitutes enter-time and renders this plan
 export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path, resolvePure }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
@@ -197,11 +197,11 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
   return { leafPure, harvestedSE };
 }
 
-// substrate-neutral proxy-global receiver collapse DECISION. the three emitter collapsers (babel
-// `collapseProxyGlobalReceiver`, unplugin `resolveProxyGlobalChainSrc` / `substituteProxyGlobalRoot`)
-// re-implemented this same decision (drop redundant `.self`/`.window` hops, swap the root to its pure import
-// or keep an alias, harvest buried SE in eval order, recurse a deeper nav) against different substrates. this
-// is the single source; each emitter RENDERS the result (babel builds AST, unplugin slices text). null when
+// substrate-neutral proxy-global receiver collapse DECISION. the emitter collapsers (babel
+// `collapseProxyGlobalReceiver`, unplugin `renderProxyReceiverPlan`)
+// once re-implemented this same decision (drop redundant `.self`/`.window` hops, swap the root to its pure
+// import or keep an alias, harvest buried SE in eval order, recurse a deeper nav) against their own
+// substrates. this is the single source; each emitter RENDERS the result. null when
 // not collapsible. uses only shared provider primitives + the passed `resolvePure`. shapes:
 //   { kind: 'collapse', rootBinding: { alias: node } | { keep: node } | { pure: { entry, hintName } },
 //     harvestedSE: node[], keyPrefixSE: node[], property: node, computed: bool, optional: bool }
@@ -209,7 +209,7 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // the root (the assignment evaluates first; under a live guard the key never evaluates at all when the
 // guard fires), so the renderer folds them into the surviving leaf key as a sequence prefix -
 // `X?.[(c++, 'self')].Array` -> `X?.[(c++, 'Array')]` - reproducing the native order by construction
-//   { kind: 'member', inner: <plan>, innerNode: node, property: node, computed: bool }  // deeper nav under a kept leaf chain
+//   { kind: 'member', inner: <plan>, property: node, computed: bool }  // deeper nav under a kept leaf chain
 // the three root kinds differ in what the renderer owes them. `alias` is an identifier whose OWN declaration
 // the pass already rewrote, so it is emitted verbatim. `pure` is swapped for an injected binding. `keep` is
 // an expression that must stay (a chain-assign the plan may not root through), and unlike `alias` its own
@@ -220,7 +220,7 @@ export function planCallRootDiscardedProxySwap({ receiver, scope, adapter, path,
 // guard is dead and never travels
 export function planProxyReceiver(receiver, {
   aliasCtx = null, isWriteTarget = false, throughChainAssign = false,
-  ownerlessReceiver = false, resolvePure,
+  resolvePure,
 }) {
   if (receiver?.type !== 'MemberExpression' && receiver?.type !== 'OptionalMemberExpression') return null;
   // a chain-assignment whose assigned VALUE navigates a hop with no ponyfill entry (`(n = globalThis.window)
@@ -240,7 +240,7 @@ export function planProxyReceiver(receiver, {
   // .window?.[(c++, 'self')]?.X`) may not collapse: the erase runs the key SE and reads the
   // leaf where native short-circuits. a kept-assign root keeps its own canon (the
   // guard-building rewrite owns it); the refusal leaves the chain raw with the root
-  // substituted in place - the standdown shape, the AST emitter's spelling. per-link via
+  // substituted in place - the standdown shape both emitters spell. per-link via
   // the shared value canon, so declared all-plain navs (`globalThis.self.window?.X`) and
   // pony-backed hops keep collapsing. a WRITE target bails the same way: the only legal
   // write through an optional chain is `delete`, and no write canon builds the guard - a
@@ -273,22 +273,10 @@ export function planProxyReceiver(receiver, {
   while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(objectCore?.type) || objectCore?.type === 'ChainExpression') {
     objectCore = objectCore.expression;
   }
-  // an OWNERLESS receiver (no dispatched-call consumer whose own SE-tail rewrite a whole-span claim would crash
-  // the transform queue against) peels its sequence tail when the natural per-id rewrite does NOT reach the root
-  // directly: an ALIAS (`(c++, g.self).X`) or a root buried behind a chain-assign (`(c++, (a = globalThis).self).X`)
-  // - both skip the shared resolver / natural rewrite, so the SE-buried-tail hop off them strands a raw `.self`
-  // off-engine. a DIRECT literal root (`(c++, globalThis.self).X`) keeps the natural rewrite / shared resolver;
-  // peeling would overlap it. a write target peels for the same ownerless reason (leaf is the assignment slot)
+  // a write target peels its sequence tail: the leaf is the assignment slot, and the
+  // per-id rewrite does not reach it there
   const throughRoot = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
-  // the direct-literal probe is read ONLY by the ownerless peel, and `findProxyGlobal` is a full
-  // chain descent plus a binding-resolving root classification - so it rides behind that gate
-  // instead of running on every level of every dispatch (no caller sets `ownerlessReceiver` on the
-  // babel side at all). with `throughChainAssign` false it is also the same call as `throughRoot`
-  const directLiteralRoot = ownerlessReceiver && throughRoot
-    ? (throughChainAssign ? findProxyGlobal(receiver, aliasCtx, false) : throughRoot) : null;
-  const peelReadTail = ownerlessReceiver && !!throughRoot
-    && !(directLiteralRoot && POSSIBLE_GLOBAL_OBJECTS.has(directLiteralRoot.name));
-  if (isWriteTarget || peelReadTail) objectCore = peelReceiverSequenceTail(objectCore);
+  if (isWriteTarget) objectCore = peelReceiverSequenceTail(objectCore);
   // a KEPT root admits SE-BEARING hop keys into the prefix: their effects cannot ride ahead of the root
   // (the pre-root harvest every other root uses) because the kept root is an assignment evaluated FIRST -
   // and, under a live guard, the key natively evaluates only PAST it. instead each dropped hop's key
@@ -300,10 +288,7 @@ export function planProxyReceiver(receiver, {
     if (callRooted) return callRooted;
     if (!throughRoot) return null;
     const inner = planProxyReceiver(objectCore, { aliasCtx, throughChainAssign, resolvePure });
-    // `innerNode` is the node `inner` describes. an AST renderer rebuilds this level around the inner
-    // render and never needs it; a TEXT renderer slices the surviving tail off the leaf's own end, and
-    // deriving that end from the OUTER node drops every member above the leaf
-    return inner ? { kind: 'member', inner, innerNode: objectCore, property: receiver.property, computed: receiver.computed } : null;
+    return inner ? { kind: 'member', inner, property: receiver.property, computed: receiver.computed } : null;
   }
   // a pure-ctor leaf (`globalThis.self.Map`) is whole-swapped to `_Map` elsewhere, so bail here (a
   // root-collapse would emit native `_globalThis.Map` + a dead import). asked through the canon, so a
@@ -399,7 +384,7 @@ function collectChainRootCallEffect({ node, sideEffects, scope, adapter, path })
 // seed a `rescue` Set with the chain-root call so an object-first fold walk emits it at the chain's source
 // TERMINUS (deepest object, evaluated first) - interleaved ahead of shallower hop-key SE in a single pass.
 // a two-step harvest-then-append would put the deep call LAST, reversing source `(call, key)` to `(key, call)`
-export function seedChainRootCallRescue({ node, scope, adapter, path }) {
+function seedChainRootCallRescue({ node, scope, adapter, path }) {
   const rescue = new Set();
   const rootCall = seBearingChainRootCall({ node, scope, adapter, path });
   if (rootCall) rescue.add(rootCall);
@@ -409,7 +394,7 @@ export function seedChainRootCallRescue({ node, scope, adapter, path }) {
 // resolve the ROOT proxy-global NAME of a member chain - the collapse substitutes the ROOT (`_globalThis`),
 // not the leaf hop. descend to the root (call roots are kept so `resolveObjectName` can inline a chain-root
 // IIFE), then resolve its name through the canonical resolver. returns null when the root isn't a proxy global
-export function proxyGlobalChainRootName({ node, scope, adapter, path }) {
+function proxyGlobalChainRootName({ node, scope, adapter, path }) {
   const { root } = descendToChainRoot(node);
   if (!root) return null;
   return asProxyGlobalName(resolveObjectName({ objectNode: root, scope, adapter, path }));
@@ -417,7 +402,7 @@ export function proxyGlobalChainRootName({ node, scope, adapter, path }) {
 
 // a rescued synth-swap receiver whose VALUE is discarded but whose verbatim re-emit would read an
 // undefined INTERMEDIATE proxy hop off-browser (`globalThis[(eff(), 'self')].Array` ->
-// `_globalThis.self...` / the AST emitter's `_self`, undefined on ie:11 / Node) must be DROPPED - re-emit
+// `_globalThis.self...` or a collapsed leaf `_self`, undefined on ie:11 / Node) must be DROPPED - re-emit
 // ONLY the harvested side effects, the value is unused. true for a MULTI-hop member receiver (its
 // `.object` is itself a member). the CALLER has already confirmed a rescue node exists (`rescueSe`: a
 // folded-key effect OR an SE-bearing chain-root CALL / chain-assignment), so the drop keys on the SHAPE
@@ -425,7 +410,7 @@ export function proxyGlobalChainRootName({ node, scope, adapter, path }) {
 // and so re-EXCLUDED a chain-root-CALL receiver the caller's `rescueSe` already covered, leaving the
 // `.self` hop verbatim (babel kept raw `.self`->throw, unplugin re-rooted `_self` + extra import).
 // single-hop (`globalThis[(eff(), 'Array')]`) has no undefined intermediate -> keep the verbatim re-emit.
-// shared so the AST and text emitters make the SAME drop decision (else they desync)
+// shared so both emitters make the SAME drop decision (else they desync)
 export function shouldDropRescueReceiver(inner) {
   if (!inner) return false;
   // unwrap the object through transparent wrappers / a SE-sequence tail before the type check - parsers
@@ -724,8 +709,8 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
   }
   let rootName = proxyGlobalChainRootName({ node: receiverChain, scope, adapter, path });
   // the chain ROOT may be a proxy global with no ponyfill entry (`window.self[Symbol.iterator]`):
-  // an unvalidated name stranded each emitter in its own fallback (the AST emitter's re-visit kept
-  // a leaf `_self`, the text emitter a raw `window.self` - undefined off-browser). fold to the
+  // an unvalidated name stranded each emitter in its own fallback (one kept a leaf `_self`,
+  // the other a raw `window.self` - undefined off-browser). fold to the
   // nav's resolvable VALUE instead, the same fold the plain member channel applies; neither the
   // root nor the value resolvable (`window.window`) -> null, the receiver is the genuine argument
   if (rootName && (!resolvePure || !resolvePure({ kind: 'global', name: rootName }))) {
@@ -743,6 +728,7 @@ function resolveSymbolReceiverProxyRoot({ node, receiverChain, receiverValueName
   return { rootName, droppedSe: collectFoldedReceiverSideEffects(node.object, [], rescue), isOptionalAccess };
 }
 
+// eslint-disable-next-line max-statements -- per-form member dispatch sequence
 export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
   resolvePure = null, keptProxyHops = null, keptDeclinedProxyMetaHops = false,
@@ -797,8 +783,8 @@ export function handleMemberExpressionNode({
       // no renderer left (off-engine ReferenceError)
       // peel a SEQUENCE / paren wrapper to the receiver's actual proxy chain (`(n++, globalThis.self)` ->
       // `globalThis.self`) before resolving + subsuming it. its proxy tail MUST be subsumed too - else the
-      // member visitor's `globalThis.self -> _self` rewrite collides with the collapsed receiver and the
-      // text compose throws ("could not locate inner needle")
+      // member visitor's `globalThis.self -> _self` rewrite collides with the collapsed receiver
+      // and renders inside a span the collapse already replaced
       const receiverObj = unwrapTransparentSeq(node.object);
       const receiverChain = peelReceiverSequenceTail(receiverObj);
       const receiverName = resolveObjectName({ objectNode: receiverChain, scope, adapter, path });
@@ -822,8 +808,8 @@ export function handleMemberExpressionNode({
         // in the output, and its redundant hop collapses through the ROOT identifier's hop-collapse
         // drive like every other continued navigation (`globalThis.self[Symbol.toStringTag]` ->
         // `_globalThis[...]`). subsume the HOP MEMBERS only - the leaf-static rewrite
-        // (`globalThis.self` -> `_self`) would otherwise win the text emitter's race and desync
-        // from the AST emitter's root collapse - while the ROOT identifier stays live to fire
+        // (`globalThis.self` -> `_self`) would otherwise land its own leaf swap inside the
+        // root collapse's span - while the ROOT identifier stays live to fire
         // the drive (a whole-chain subsume stranded the raw proxy-global)
         let hop = receiverChain;
         while (hop && (hop.type === 'MemberExpression' || hop.type === 'OptionalMemberExpression')) {
@@ -872,13 +858,13 @@ export function handleMemberExpressionNode({
     // an EFFECTFUL sequence prefix is the caller's to place, not a reason to lose the guard: the
     // value read is the sequence's tail, and the render re-emits the prefix once ahead of the test.
     // the transparent peel stops there by design, so peel the tail explicitly (the plan does the same)
-    const recvCore = unwrapTransparentSeq(node.object),
-          recvIdent = recvCore?.type === 'SequenceExpression'
-            ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore,
-          // a local whose name COINCIDES with the global it aliases (`const { Map } = globalThis`)
-          // only LOOKS like an echo: the object came from the registered alias, and the binding
-          // proves it by hinting that very ctor. guarding there loses the resolved static
-          echoesLocalName = meta?.object && meta.object === recvIdent?.name
+    const recvCore = unwrapTransparentSeq(node.object);
+    const recvIdent = recvCore?.type === 'SequenceExpression'
+            ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore;
+    // a local whose name COINCIDES with the global it aliases (`const { Map } = globalThis`)
+    // only LOOKS like an echo: the object came from the registered alias, and the binding
+    // proves it by hinting that very ctor. guarding there loses the resolved static
+    const echoesLocalName = meta?.object && meta.object === recvIdent?.name
             && adapter.getBinding(scope, recvIdent.name, path)?.polyfillHint !== meta.object;
     // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
     // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
@@ -888,15 +874,15 @@ export function handleMemberExpressionNode({
       // member channel and registers NO alias, so the registry cannot name its ctor. the binding's
       // own write enumeration can - and the guard tests identity, so a name that never matches at
       // runtime costs nothing
-      const guardedBinding = adapter.getBinding(scope, recvIdent.name, path),
-            writeObjects = aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path }),
-            // ... and when NOTHING registered an alias at all (`let M; if (c) M = globalThis.Map` -
-            // the write's RHS resolves on its own, so the member channel swaps it and the registry
-            // never sees the binding), the enumeration IS the hint: without it the read went out raw
-            // off a binding already swapped to the pure ctor, answering `undefined` where native has
-            // the static - the miss usage-pure may never ship. NOT inside a guard this plugin already
-            // emitted, where the same read is the raw branch and a second pass would guard it twice
-            guardedHint = guardedBinding?.guardedAliasHint
+      const guardedBinding = adapter.getBinding(scope, recvIdent.name, path);
+      const writeObjects = aliasWriteCtorNames({ name: recvIdent.name, scope, adapter, path });
+      // ... and when NOTHING registered an alias at all (`let M; if (c) M = globalThis.Map` -
+      // the write's RHS resolves on its own, so the member channel swaps it and the registry
+      // never sees the binding), the enumeration IS the hint: without it the read went out raw
+      // off a binding already swapped to the pure ctor, answering `undefined` where native has
+      // the static - the miss usage-pure may never ship. NOT inside a guard this plugin already
+      // emitted, where the same read is the raw branch and a second pass would guard it twice
+      const guardedHint = guardedBinding?.guardedAliasHint
               ?? (insideEmittedCtorGuardBranch(path, adapter) ? null : writeObjects[0] ?? null);
       // a SIDE-EFFECTING computed KEY stays raw: the guard's consequent replaces the whole member
       // and would skip the key's effect on the taken path (native always evaluates it). a RECEIVER
@@ -954,11 +940,10 @@ export function handleMemberExpressionNode({
     // receiver PATH, not to the claim - it survives into the output and an emitter that can rewrite
     // it without colliding with the outer span records it. a SUBSUMING meta rooted at a proxy
     // global (`self.Array`) IS the chain's claim, and its render owns the hop. a DECLINED
-    // claim (`(kv = nav)?.BigInt`, no BigInt pure) leaves no render owning them: the TEXT
-    // emitter records them as still-live for its suppressed-hop callback
-    // (`keptDeclinedProxyMetaHops` - it has no re-visit to recover them), while the AST
-    // emitter's own channels re-render the rebuilt subtree and keeping them would detach
-    // nodes its destructure plans still read
+    // claim (`(kv = nav)?.BigInt`, no BigInt pure) leaves no render owning them: the unplugin
+    // records them as still-live for its suppressed-hop callback
+    // (`keptDeclinedProxyMetaHops`), while babel's own channels re-render the rebuilt
+    // subtree and keeping them would detach nodes its destructure plans still read
     markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure, subsumesReceiver,
       collapsesReceiver,
       keptProxyHops: !subsumesReceiver && (keptDeclinedProxyMetaHops || !POSSIBLE_GLOBAL_OBJECTS.has(meta.object))
@@ -969,8 +954,8 @@ export function handleMemberExpressionNode({
     // single source of the receiver replacement. when the chain roots in an inline-resolvable call
     // (`(() => globalThis)().self.Symbol.iterator`, `(a = IIFE()).Promise.resolve(1)`), the hops are
     // invisible to `markHandledObjects` (its predicates only recognise Identifier-rooted chains), so
-    // each hop would queue its own rewrite overlapping the outer collapse and crash unplugin's text
-    // queue. delegate to the same chain subsumption the symbol-key / `in` paths use: it marks every
+    // each hop would fire its own rewrite overlapping the outer collapse (a crash
+    // before). delegate to the same chain subsumption the symbol-key / `in` paths use: it marks every
     // hop + wrapper, and its root marking skips the inner proxy-global leaf when the call carries
     // observable effects (the re-emitted body keeps a live reference that still needs `_globalThis`)
     if (suppressProxyGlobals && subsumesReceiver && meta.placement === 'static'
@@ -1018,7 +1003,7 @@ export { HELPER_CANON_ENTRIES, SYMBOL_ITERATOR_PURE_RESULT } from '../helpers/cl
 // the extraction shape keeps the effect running exactly once). a plain string spelling
 // ('Symbol.iterator' literal), an unresolvable fold, or a dynamic key hosts nothing - the
 // pattern can stay verbatim, key evaluation stays in place. drives the babel emitter's
-// pattern-level CatchClause extraction gate; the text emitter reaches the same per-prop
+// pattern-level CatchClause extraction gate; the unplugin emitter reaches the same per-prop
 // decision through its claim flow (resolved / symbol-provenance / passthrough), so the two
 // restructure the same patterns
 export function computedPropKeyHostsMachinery({ propNode, scope, adapter, path, resolvePure }) {
@@ -1103,9 +1088,9 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
         handledObjects.add(ref.unwrapped);
         // proxy-global LHS (`globalThis.Symbol.iterator in x`): usage-pure rewrites the whole
         // BinaryExpression to `_isIterable(x)`, subsuming the chain, so the leaf `globalThis`
-        // identifier must not trigger its own polyfill - else unplugin's transform-queue can't
-        // compose the inner `globalThis`-replacement into the outer's eliminated-needle content.
-        // usage-global keeps the `in` text verbatim, so the proxy-global leaf survives at runtime
+        // identifier must not trigger its own polyfill - the outer rewrite already consumed
+        // the span it would land in. usage-global keeps the `in` spelling verbatim, so the
+        // proxy-global leaf survives at runtime
         // and must still earn its own polyfill (`es.global-this` / `web.self` / `web.window`);
         // suppressing it there would UNDER-inject and ReferenceError in strict-env / IE11. same
         // mode split as `handleMemberExpressionNode`
@@ -1228,8 +1213,7 @@ function resolveComputedSymbolKey({ node, scope, adapter, path }) {
 // walk the proxy-global chain at `node`, seeding every intermediate MemberExpression AND the
 // leaf `globalThis`/`self`/`window` Identifier. used when an outer rewrite fully subsumes the
 // chain (`handleBinaryIn`'s Symbol.X case) - without the leaf, the identifier visitor fires a
-// parallel polyfill for `globalThis` that the text-transform queue can't compose into the
-// outer's eliminated-needle replacement
+// parallel polyfill for `globalThis` inside a span the outer rewrite already replaced
 // peel transparent wrappers (TS casts, parens) on the way down. the wrappers themselves are NOT
 // recorded: every `handledObjects` reader is a visitor that asks about an Identifier or a member
 // node, so a wrapper entry can never be consulted. a buried SequenceExpression is peeled to its
@@ -1279,14 +1263,14 @@ function markSubsumedProxyChain({ node, handledObjects, scope, adapter, path, ke
     // chain bottoms on a CallExpression that inlines to a proxy global. mark the call + its
     // inner identifier so the inner visitor doesn't queue a parallel `globalThis -> _globalThis`
     // rewrite overlapping the outer subsumption, the same way markHandledObjects treats an
-    // IIFE-rooted constructor chain. without it unplugin's text-emit crashes the compose.
+    // IIFE-rooted constructor chain. without it the parallel rewrite lands inside the outer one.
     // `keepCallInner`: the call is held LIVE by an optional `?.` guard, so leave its inner alone
     markInlinedProxyGlobalRoot({ callNode: current, scope, adapter, path, handledObjects, keepCallInner });
   }
 }
 
 // walk a proxy-global MemberExpression chain down to its leaf identifier, marking every
-// link AND the leaf so unplugin's text-emit doesn't queue parallel rewrites that overlap
+// link AND the leaf so no parallel rewrites fire inside
 // an outer polyfill replacement. returns the unwalked node (typically a CallExpression
 // for IIFE-rooted chains, terminator otherwise) so callers can chain further marking
 function markChainLinksAndProxyLeaf(node, handledObjects) {
@@ -1300,10 +1284,9 @@ function markChainLinksAndProxyLeaf(node, handledObjects) {
 }
 
 // IIFE-rooted receiver - mark the call node and the inner proxy-global identifier so
-// unplugin's text-emit doesn't queue a parallel `globalThis -> _globalThis` rewrite that
-// overlaps the outer polyfill replacement (`_Array$from([...])`). babel-plugin's AST
-// mutation tolerates the overlap; the symmetric fix suppresses the inner visit on both
-// adapters. fresh `seen` Set is required by `resolveInlineCalleeFunction` for cycle
+// the inner visit doesn't fire a parallel `globalThis -> _globalThis` rewrite inside
+// the outer polyfill replacement (`_Array$from([...])`); the suppression is symmetric
+// on both adapters. fresh `seen` Set is required by `resolveInlineCalleeFunction` for cycle
 // protection even though no recursion is possible at this call site.
 // observable-SE bail: when the IIFE has prefix statements (`() => { setup++; return X; }`),
 // `buildMemberMeta` pushes the IIFE call into `meta.sideEffects` and the outer polyfill
@@ -1331,8 +1314,8 @@ function markInlinedProxyGlobalRoot({ callNode, scope, adapter, path, handledObj
 
 // findProxyGlobal only matches a LITERAL proxy-global root (`globalThis.Map`). a root bound to a
 // proxy-global through an alias (`var g = globalThis; g.Map`) is NOT matched, so the intermediate
-// `g.Map` constructor member stays unmarked and unplugin queues a `g.Map -> _Map` rewrite that
-// overlaps the outer `_Map$groupBy` substitution -> transform-queue composition crash. resolve the
+// `g.Map` constructor member stays unmarked and unplugin lands a `g.Map -> _Map` rewrite that
+// overlaps the outer `_Map$groupBy` substitution. resolve the
 // chain root's binding so an aliased proxy-global root is recognised like a literal one
 function chainRootResolvesToProxyGlobal({ node, scope, adapter, path }) {
   if (!scope || !adapter) return false;
@@ -1370,8 +1353,8 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
   // a sequence receiver `(eff(), globalThis.Array).from` resolves through its LAST element; the
   // prefix expressions survive in the output (their own polyfills must still fire), so descend to
   // the tail without marking the prefix. without this the proxy-global leaf stays unmarked and
-  // unplugin queues a parallel `globalThis -> _globalThis` rewrite overlapping the outer subsumption
-  // (`_Array$from`) - the text-transform queue can't compose the eliminated needle and throws
+  // unplugin lands a parallel `globalThis -> _globalThis` rewrite overlapping the outer
+  // subsumption (`_Array$from`)
   const wasSequence = obj.type === 'SequenceExpression';
   obj = peelSequenceTail(obj, { step: unwrapTransparentSeq });
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
@@ -1405,13 +1388,13 @@ function markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope,
     // the kept-nav render would race the claim's own receiver spelling
     const freshlyMarked = !handledObjects.has(current);
     handledObjects.add(current);
-    // the marking itself always stays - a text emitter must never queue a second rewrite over the
-    // span that swallowed this hop; the set only tells an AST emitter the hop is still live
+    // the marking itself always stays - no emitter may land a second rewrite inside the
+    // span that swallowed this hop; the set only records that the hop is still live
     if (freshlyMarked && keptProxyHops && POSSIBLE_GLOBAL_OBJECTS.has(staticMemberKeyName(current))) keptProxyHops.add(current);
     // descend into an SE-BEARING sequence buried below a static hop (`(eff(), globalThis.self).Array`,
     // where the top-level receiver is NOT itself a sequence): `unwrapTransparentSeq` stops at such a
-    // sequence, leaving its inner proxy leaf unmarked -> the member visitor queued a parallel rewrite the
-    // outer collapse couldn't compose -> crash. an SE-FREE buried sequence never reaches here as a
+    // sequence, leaving its inner proxy leaf unmarked -> the member visitor landed a parallel
+    // rewrite inside the outer collapse's span. an SE-FREE buried sequence never reaches here as a
     // sequence at all - the same peel walks straight through it - so the detector is SE-shaped by
     // construction, not by choice. a TOP-LEVEL sequence (wasSequence) is already peeled to its tail, and
     // its OWN nested sequence stays SE-blind here: peeling it would over-suppress a forwarder's inner

@@ -19,7 +19,7 @@
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { cached } from './cache-store.mjs';
-import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, transformUnpluginAst, writeModule } from './harness.mjs';
+import { EMITTER, WANT_BABEL, WANT_UNPLUGIN, importSet, phaseNs, setEqual, transformBoth, writeModule } from './harness.mjs';
 
 const { dirname, join } = path;
 const WORKER = join(dirname(fileURLToPath(import.meta.url)), 'global-leg-worker.mjs');
@@ -86,13 +86,6 @@ async function armingEval(code, ts) {
   return key;
 }
 
-// the output minus the injected core-js import lines - equal to the source iff the emitter
-// only prepended imports and left the body bytes alone
-const INJECTED_IMPORT_LINE = /^\s*(?:import\s+["']@?core-js|(?:const|var)\s+\w+\s*=\s*require\(["']@?core-js)/u;
-function residualBody(code) {
-  return code.split('\n').filter(line => !INJECTED_IMPORT_LINE.test(line)).join('\n').trim();
-}
-
 // the usage-global verdict for one snippet. `native` is the full-env reference key the pure leg
 // already computed; a throwing native is vacuous-by-throw (ERR == ERR regardless of injection),
 // same gate as the pure stripped leg. returns { armed, failed, detail }
@@ -119,17 +112,13 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
   }
   if (armingKey && await armingKey === native) return { armed: false, failed: false, detail: '' };
 
-  // collapse two evaluations into ONE when the outputs are semantically the same module: equal
-  // injected import sets AND an untouched unplugin body. byte-equality almost never fires here
-  // (babel is an AST reprint, unplugin a text insertion), while the semantic pair holds on
-  // nearly the whole corpus. the residual guard keeps a corrupted unplugin insertion - its
-  // usage-global output runs nowhere else - out of the collapse: any body change forces both
-  // evaluations. the collapsed run evaluates the UNPLUGIN output (its body is the literal source
-  // bytes); babel's reprint fidelity is @babel/generator's contract, not this leg's
+  // collapse two evaluations into ONE when the outputs are byte-identical: both emitters are
+  // AST reprints now, so agreeing trees usually print the same bytes. any difference - imports
+  // or body - forces both evaluations
   let babelKey;
   let unpluginKey;
   const sameImports = EMITTER === 'both' && setEqual(importSet(babelOut), importSet(unpluginOut));
-  if (sameImports && (babelOut === unpluginOut || residualBody(unpluginOut) === code.trim())) {
+  if (sameImports && babelOut === unpluginOut) {
     // ONE cell, not two: the twin is never read while the collapse holds - only the split branch
     // asks for `global-unplugin` - so recording it would add a copy per armed snippet that nothing
     // consumes. A snippet that later starts splitting pays one worker spawn for the miss
@@ -139,28 +128,6 @@ export async function checkGlobalSnippet({ code, ts = false, native, options, pr
       WANT_BABEL ? runOutput({ type: 'global-babel', code: babelOut, ts }) : null,
       WANT_UNPLUGIN ? runOutput({ type: 'global-unplugin', code: unpluginOut, ts }) : null,
     ]);
-  }
-  // the AST engine's leg: same import set as the text leg (one detection, one plan), and
-  // the REPRINTED body must reproduce native with the injections installed in the stripped
-  // realm - the full-env print-through leg cannot see a print that breaks only polyfilled paths
-  if (WANT_UNPLUGIN) {
-    let astOut;
-    try {
-      astOut = transformUnpluginAst(code, options, ts);
-    } catch (error) {
-      return { armed: true, failed: true, detail: `unplugin-ast threw: ${ error?.message ?? error }` };
-    }
-    if (!setEqual(importSet(astOut), importSet(unpluginOut))) {
-      return {
-        armed: true,
-        failed: true,
-        detail: `unplugin-ast import set diverges from text: ast={ ${ [...importSet(astOut)].join(', ') } } text={ ${ [...importSet(unpluginOut)].join(', ') } }`,
-      };
-    }
-    const astKey = await runOutput({ type: 'global-ast', code: astOut, ts });
-    if (astKey !== native) {
-      return { armed: true, failed: true, detail: `stripped-realm (ast engine) native=${ native } ast=${ astKey }` };
-    }
   }
   if ((!WANT_BABEL || babelKey === native) && (!WANT_UNPLUGIN || unpluginKey === native)) {
     return { armed: true, failed: false, detail: '' };

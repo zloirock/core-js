@@ -674,7 +674,7 @@ function conditionalTestHost(path) {
 // the fold as a VISITOR, and the wrapper is load-bearing: `path.traverse` throws on any truthy
 // return from a visitor method, and the fold answers whether it folded. mounting it bare passes
 // every fixture that reaches no instantiation and throws on every one that does
-export function foldInstantiationTypeArguments(path) {
+function foldInstantiationTypeArguments(path) {
   foldInstantiationIntoTypeArgumentHost(path);
 }
 
@@ -687,7 +687,7 @@ export function foldInstantiationTypeArguments(path) {
 // and the generator still prints them. when a TS strip DID run in the same pass there is no TS node
 // left here to compensate, and babel's own precedence table already covers the plain result.
 // the pure guard-narrow emit restores the same slot from its own side, through the same predicate
-export function restoreInstantiationParens(path) {
+function restoreInstantiationParens(path) {
   // the fold runs here TOO, and it is not a leftover: the parens below cover only the shapes that
   // survive it, so a node the early pass never saw - one a later-ordered sibling inserted - would
   // otherwise be handed straight to a restoration that declines it (`((c ? f : g)<T>)(a)` reprints
@@ -729,7 +729,7 @@ const OPTIONAL_CHAIN_TAG_TYPES = new Set([
 // round-trip with no plugin, so restore the paren node wherever this plugin forces the reprint.
 // a tag that IS an optional chain can only have come from parenthesized source (the bare form
 // does not parse), so the restoration is unconditional on the shape
-export function restoreOptionalTagParens(path) {
+function restoreOptionalTagParens(path) {
   const { tag } = path.node;
   if (OPTIONAL_CHAIN_TAG_TYPES.has(tag.type)) {
     path.get('tag').replaceWith({ type: 'ParenthesizedExpression', expression: tag });

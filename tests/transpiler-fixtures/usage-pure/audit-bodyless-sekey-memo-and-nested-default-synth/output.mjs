@@ -4,7 +4,7 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
-// four more claims the differential's AST leg caught the engine DROPPING, all with the fixture
+// four more claims the differential caught the engine DROPPING, all with the fixture
 // gate green: a bodyless SE-key sentinel over a receiver only a memo can re-read, the same over
 // an EFFECTFUL init the memo evaluates once, an instance synth slot whose receiver is spelled
 // exactly once, and a receiver-bearing default one level in - in a declarator, an assignment

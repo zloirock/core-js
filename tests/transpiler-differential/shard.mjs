@@ -36,7 +36,7 @@ const failures = [];
 // run both oracles over one snippet. `live` opens its cache group with every cell forced to run
 async function judge(snippet, live) {
   await beginCase({ name: snippet.name, code: snippet.code, ts: snippet.ts, live, prefix });
-  const verdict = await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip, snippet.textLags === true);
+  const verdict = await checkSnippet(snippet.code, OPTIONS, snippet.ts, snippet.strip);
   const { failed, detail } = summarizeVerdict(verdict);
   const lines = failed ? [`${ snippet.name } :: ${ detail }`] : [];
   // the usage-global leg: skipped for by-design full-env shapes (their stripped divergence is

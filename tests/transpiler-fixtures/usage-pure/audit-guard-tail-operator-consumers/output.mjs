@@ -43,7 +43,7 @@ export const shiftRight = 4 >> (null == _globalThis.window ? void 0 : _Array$fro
 
 // the same slots over a CALL root, whose guard test carries the root effect. a claim's MEMBER
 // tail grows through the same shared walk an invoked one does - spelling it by a rule of its own
-// folded a different number of steps than the AST emitter for the same source
+// folded a different number of steps than babel for the same source
 const cr = () => _globalThis;
 export const eqRightCall = 1 === (null == cr().window ? void 0 : _Set.prototype.constructor.length);
 export const gtRightCall = 2 > (null == cr().window ? void 0 : _Math$fround(1.5));

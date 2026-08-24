@@ -4,9 +4,6 @@
 // depth its anchor sits at - a chain-assign anchor IS an assignment, so a descent that peels through
 // assignments walks past it and the climb dies on the first wrapper, leaving the hop raw.
 // a cast around the root, a non-null assertion, plain parens, and a wrapper mid-chain. distinct methods.
-// the sidecar discharges the same claim in the text emitter's own spelling: it splices source and so
-// keeps the type-only operators (`as any`, `!`) and a `?.` the AST emitter drops as dead - erased and
-// short-circuit-free respectively, so both sides run the bare twin's semantics
 let a;
 export const throughCast = ((a = globalThis.window) as any)?.self.Array.prototype.flat.call([1, [2]]);
 

@@ -24,10 +24,8 @@ const keySe = () => keyCount++;
 const m = () => globalThis;
 export const viaComputedTrailing = m()?.window?.Array.from([3])[(keySe(), 'at')](0);
 
-// optional spellings on the TRAILING dispatch keep their own guards over the collapsed static.
-// the guard-paren seam differs cosmetically on a NON-polyfillable trailing member (babel keeps
-// the tail inside the guarded branch, the text emitter parenthesizes the guard) - runtime-equal,
-// sidecar-locked
+// optional spellings on the TRAILING dispatch keep their own guards over the collapsed static;
+// a NON-polyfillable trailing member rides inside the guarded branch
 const p = () => globalThis;
 export const viaOptionalTrailing = p()?.window?.Promise.resolve(4)?.then?.(x => x);
 
@@ -76,8 +74,7 @@ export const viaOptionalCallRoot = oc?.()?.window?.self?.Array.of(13).at(0);
 // a SECOND unresolvable hop past the ponyfillable one stays raw on the guarded ref (two
 // sources of undefined: the nested test covers the window prefix, the outer memo test the
 // chrome value). the static reads off the opaque chrome value, not a global - no collapse.
-// the unplanned `chrome` tail ATTACHES differently per emitter (on the guard result vs inside
-// the branch) - runtime-equal, sidecar-locked
+// the unplanned `chrome` tail rides inside the guarded branch
 const upu = () => globalThis;
 export const viaUnresPonyUnres = upu()?.window?.self?.chrome?.Array.of(14).at(0);
 

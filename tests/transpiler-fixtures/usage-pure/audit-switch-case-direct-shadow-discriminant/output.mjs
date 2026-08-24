@@ -56,7 +56,7 @@ export { n };
 // an ALIAS of the proxy-global buried in a sequence tail: the case-direct shadow of the
 // alias name must not stop the alias-follow at the discriminant - the redundant proxy hop
 // still collapses (a kept `.self` hop reads undefined off-engine). the emitters agree on
-// dropping the hop; the alias root itself keeps its own name on the text emitter (its
+// dropping the hop; the alias root itself keeps its own name on the unplugin (its
 // declaration is already rewritten), while babel folds the whole receiver - cosmetic
 const g = _globalThis;
 let ya = {};

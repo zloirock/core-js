@@ -2,7 +2,7 @@
 // the tail proxy hop must collapse to the ROOT `_globalThis` (the prefix SE re-emits through the collapse
 // sequence `(n, _root)`) the SAME way both emitters collapse a sequence-tail hop for other dispatch
 // (`(n, globalThis.self).Map` -> `(n, _Map)`). before: unplugin CRASHED (the tail's `globalThis.self -> _self`
-// rewrite double-composed with the collapsed receiver - "could not locate inner needle"); babel kept a leaf
+// rewrite double-fired against the collapsed receiver); babel kept a leaf
 // `_self` only here. distinct prefix SE + hop depth per line: single hop, deep `.self.window`, a get-call.
 // usage-global keeps the source verbatim and only injects imports - the rewrite described above is the PURE twin's.
 let n = 0;

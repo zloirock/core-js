@@ -6,8 +6,8 @@ import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
 // a probe nav whose ROOT is a chain assignment. the hop `.self` is SUPPRESSED by the detector's
-// marking - which exists so the text emitter never queues a rewrite overlapping the span that
-// swallowed it - and with it went the meta that drives the AST emitter's kept-nav render, leaving
+// marking - which exists so no emitter lands a rewrite inside the span that swallowed it -
+// and with it went the meta that drives the kept-nav render, leaving
 // a native `self` read. the marking stays; the hop is recorded as still-live instead, and only a
 // meta whose own object is an ordinary name (a receiver PATH, not the chain's claim) records it
 _globalThis.assignBox = {
@@ -33,8 +33,8 @@ export const unknownDeepTail = null == (_ref4 = null == (heldUnknownDeep = _glob
 export { heldUnknown, heldUnknownDeep };
 
 // a claimless VALUE use over the same root: the hop collapse refuses a short-circuitable nav by
-// canon, so both emitters fall through to the kept-nav render there - the text one needed that
-// fallback built (it had one only for receiver positions)
+// canon, so both emitters fall through to the kept-nav render there - value positions
+// need that fallback no less than receiver positions
 let heldValue;
 export const plainValueTail = null == (heldValue = _globalThis).window ? void 0 : _self.unknownBox.n;
 let heldValueDeep;
