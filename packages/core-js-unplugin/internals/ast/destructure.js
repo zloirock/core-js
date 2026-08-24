@@ -937,7 +937,9 @@ function substituteProxyRootsInClone(root, metaPath, { adapter, resolveGlobalPol
   }
   (function walk(node) {
     if (!node || typeof node !== 'object' || !node.type) return;
-    for (const [key, value] of Object.entries(node)) {
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
       if (Array.isArray(value)) {
         value.forEach((item, at) => {
           if (item?.type === 'Identifier' && !isNonReferencePosition(node, item)) {

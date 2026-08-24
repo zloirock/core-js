@@ -4474,7 +4474,9 @@ export function createPolyfillEmitter({
     while (step?.node && step.node !== node) {
       if (!nodeEncloses(step.node, node)) return null;
       let next = null;
-      for (const [key, value] of Object.entries(step.node)) {
+      // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+      for (const key in step.node) {
+        const value = step.node[key];
         if (Array.isArray(value)) {
           const index = value.findIndex(item => nodeEncloses(item, node));
           if (index !== -1) next = step.get(key)[index];
