@@ -1,8 +1,7 @@
 // Normalized decision for a polyfillable `key in obj` expression, shared by both emitters so the
 // branch selection and side-effect harvest live in one place and cannot diverge. The caller
-// renders the returned node references its own way (babel cloneNode / unplugin nodeSrc); a text
-// emitter additionally marks the discarded operand skipped, while an AST emitter drops it
-// implicitly by replacing the node.
+// renders the returned node references its own way; the unplugin marks the discarded
+// operands skipped, babel drops them implicitly by replacing the node.
 import {
   collectFoldedReceiverSideEffects,
   unwrapRuntimeExpr,
@@ -51,7 +50,7 @@ function foldPlan({ meta, left, right }) {
 }
 
 export function planInExpression({ meta, left, right, isEntryNeeded, resolveFallback, receiverHint = null, parent = null }) {
-  // the kept-test spelling re-enters on a SECOND pass - the text emitter runs before AND after babel
+  // the kept-test spelling re-enters on a SECOND pass - the unplugin emitter runs before AND after babel
   // in the sandwich, and the test it keeps still reads as a foldable probe. recognising our own
   // output by shape is what stops the wrap from wrapping itself. a hand-written `(k in o, true)`
   // matches too: it folds to itself, so declining is the same answer
@@ -78,7 +77,7 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
     const leadingSe = collectFoldedReceiverSideEffects(unwrapRuntimeExpr(left), [], rescue);
     for (const e of meta.sideEffects ?? []) if (rescue.has(e)) leadingSe.push(e);
     // the rewrite REPLACES the LHS value (`Symbol.iterator in x` -> `_isIterable(x)`), so the LHS is
-    // discarded whole - a text emitter must mark it (and any polyfillable subtree it buries, e.g. a
+    // discarded whole - the unplugin emitter must mark it (and any polyfillable subtree it buries, e.g. a
     // sequence-prefix proxy-global `(globalThis, Symbol.iterator) in x`) skipped or that rewrite has no
     // target in the replacement. the RHS survives, re-emitted verbatim, so it is NOT in `skip`
     return {
@@ -97,11 +96,11 @@ export function planInExpression({ meta, left, right, isEntryNeeded, resolveFall
   // call); it is threaded into the RHS harvest as `rescue` so it INTERLEAVES at its true source
   // position (the object terminus) - `'k' in mk()[(eff(), 'K')]` runs `mk()` before the key effect,
   // which a fixed append/prepend slot could not reproduce when the object also has its own SE prefix.
-  // `skip` names the discarded operand a text emitter marks skipped (an AST emitter drops it by
-  // replacing the node); the rescued SE subtrees stay visitable, re-emitted by the replacement
-  // the fold replaces the WHOLE node with `true`, so BOTH operands are discarded - a text emitter must
-  // mark each skipped or a polyfillable subtree left in the LHS key (`(globalThis, 'from') in Array`)
-  // stays visitable and its rewrite overlaps the spliced-out region (an AST emitter drops both by
+  // `skip` names the discarded operand the emitters mark skipped; the rescued SE subtrees
+  // stay visitable, re-emitted by the replacement
+  // the fold replaces the WHOLE node with `true`, so BOTH operands are discarded - each must
+  // be marked skipped or a polyfillable subtree left in the LHS key (`(globalThis, 'from') in Array`)
+  // stays visitable and its rewrite lands inside the replaced region (the replacement drops both by
   // replacing the node). rescued leadingSe subtrees are excluded from the skip - they are re-emitted
   if (meta.object) {
     if (!resolveFallback(meta).result) return { kind: 'noop' };

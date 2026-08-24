@@ -13,7 +13,7 @@ import _Set from "@core-js/pure/actual/set/constructor";
 var _ref, _ref2, _ref3, _ref5, _ref6, _ref7;
 // a polyfill BURIED inside a kept chain root: the claim between them replaces the whole chain, so
 // the buried rewrite has no slot there - it has one in the GUARD, which re-emits that root as its
-// test. the fold has to reach past the claim to the transform that actually kept the text; blaming
+// test. the fold has to reach past the claim to the rewrite that actually kept the root; blaming
 // the inner instead aborted the build on a shape that composes. one method per row keeps it readable.
 export const inBody = null == (_ref = (() => (_Array$from([1]), _globalThis))()?.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(5)).call(_ref2, 0);
 export const inArgument = null == (x => _globalThis)(_Object$entries({

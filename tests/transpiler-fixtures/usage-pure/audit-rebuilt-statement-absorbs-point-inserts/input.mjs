@@ -1,5 +1,5 @@
-// a whole-statement rebuild overwrites the range its own siblings anchored point-inserts in, and
-// MagicString drops an insert that lands inside an overwritten chunk. both channels that place one
+// a whole-statement rebuild replaces the subtree its own siblings anchored insertions in,
+// and an insertion aimed at the replaced subtree is lost. both channels that place one
 // have to route into the rebuild instead: the SE-computed-key inline default lands in the residual
 // prop it rewrites, the receiver memo becomes a LEADING declarator of its slot
 const obj = { recv: [1] };

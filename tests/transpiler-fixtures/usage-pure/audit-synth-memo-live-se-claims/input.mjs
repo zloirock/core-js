@@ -2,9 +2,7 @@
 // the DRAIN re-harvests the live container: a registration-captured ref goes stale the
 // moment the in-place claim REPLACES its node, and the frozen clone re-emitted the raw
 // spelling (`getObj().at(0)` reached the memo arg unpolyfilled). the sibling locks the
-// param-ref numbering around the same channel. the text sidecar differs in spelling only:
-// the splice parenthesizes the IIFE callee where the reprinters rely on the default-value
-// position needing none
+// param-ref numbering around the same channel.
 let tick = 0;
 function keyClaim({ groupBy: gb, more } = globalThis[(getObj().at(0), "self")].Map) { return [gb, more]; }
 keyClaim();

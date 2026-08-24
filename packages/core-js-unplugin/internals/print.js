@@ -291,7 +291,7 @@ function synthesizeLocs(program, comments, source) {
 
 // re-prepending a stripped BOM shifts every generated column on the FIRST output line by
 // one char while deeper lines stay put - the deltas are VLQ, so decode/patch/encode rather
-// than string surgery (the text engine gets this for free from MagicString's `prepend`)
+// than string surgery
 export function shiftFirstLineColumns(map, delta) {
   const decoded = decode(map.mappings);
   if (decoded[0]) for (const segment of decoded[0]) segment[0] += delta;
@@ -299,8 +299,8 @@ export function shiftFirstLineColumns(map, delta) {
 }
 
 // print a parsed program back to source. `jsx` picks the tsx language - the caller owns
-// the id-to-dialect decision, same as it owns it for the parse. the returned map follows
-// the plugin's text-engine contract: `sources[0]` keeps the full id (SFC sub-block
+// the id-to-dialect decision, same as it owns it for the parse. the returned map keeps
+// the plugin's map contract: `sources[0]` keeps the full id (SFC sub-block
 // identity), `file` is the query-stripped basename, content rides only when requested
 export function printProgram({ program, comments, source, id, jsx = false, includeContent = true, anchoredComments = null }) {
   // for a `.mjs`/`.cjs` parse oxc reports the hashbang BOTH as `program.hashbang` and as a

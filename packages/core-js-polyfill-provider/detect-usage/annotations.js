@@ -302,7 +302,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
 // member key is the static (`.of`). a MUTATED landing cancels the always-defined claim the
 // proxy-prefix deopt relies on - the substitution bails and the raw navigation really reads
 // through the guarded value, so the `?.` must keep its guard (the emit then memoizes the
-// chain ROOT, the text emitter's canon). a chain that never reaches a second member has no
+// chain ROOT, the unplugin emitter's canon). a chain that never reaches a second member has no
 // static landing to be mutated - the deopt stays
 export function chainNavigatesIntoMutatedStatic({ path, node = path?.node, scope, adapter, mutatedSet }) {
   if (!mutatedSet?.size || !path) return false;
@@ -311,7 +311,7 @@ export function chainNavigatesIntoMutatedStatic({ path, node = path?.node, scope
   // the walk may START at the landing's own member (`(v = gw)?.self?.Set` as an optional
   // chainStart): seed the global from the starting member's OWN key - a parent-only walk
   // read the tail key (`name`) as the global and missed the mutated `Set` entirely.
-  // `node` may sit BELOW the anchoring path (the text emitter anchors at the trailing
+  // `node` may sit BELOW the anchoring path (the unplugin emitter anchors at the trailing
   // instance member while deciding an inner optional): the seed comes from the node, the
   // parent walk from the path - the ctor-slot clause answers even when the walked keys
   // belong to members above the landing
@@ -441,8 +441,8 @@ export function isPolyfillableOptional({
       { allowSideEffectKeys: true, throughChainAssign: true }) === objCore
     // MUTATED landing over an undefinable root: the claim this deopt leans on is cancelled,
     // the raw nav reads through a value that can be undefined - the guard must survive.
-    // OPT-IN (`mutatedKeptRootAware`): only the AST emitter's skip-check arms its guard off
-    // this answer; the text emitter's guard-root locator walks past dead hops to the kept
+    // OPT-IN (`mutatedKeptRootAware`): only the babel emitter's skip-check arms its guard off
+    // this answer; the unplugin's guard-root locator walks past dead hops to the kept
     // root its own machinery guards - flipping its answer stacked a SECOND guard with a
     // re-evaluated root assignment
     && !(mutatedKeptRootAware && proxyNavRootCanBeUndefined(objCore, resolve, { scope, adapter, path })
@@ -461,8 +461,8 @@ export function isPolyfillableOptional({
     const { value, outer } = peelChainAssignment(objCore);
     // definedness of a sequence value is decided by its TAIL (`(e++, globalThis.self)` is exactly as
     // defined as `globalThis.self`), so peel SE-bearing tails too - the SE-bailing unwrap left such a
-    // value unclassified and the guard stayed, while the AST emitter's collapse dropped it: same object
-    // at runtime, drifting emit shapes and import sets
+    // value unclassified and the guard stayed, while the other side's collapse dropped it: same
+    // object at runtime, drifting emit shapes and import sets
     const valueCore = unwrapRuntimeExpr(peelReceiverSequenceTail(value ?? objCore));
     // a call value that inline-resolves to a proxy-global (`(w = f())?.self.X`, `f = () =>
     // globalThis`) is as always-defined as a bare `globalThis`, and the receiver collapse ALREADY

@@ -8,6 +8,6 @@ export const sealedPlainCall = (host.box?.missing).flat().at(0);
 export const doubledWrapper = ((host.box?.missing)).flat?.();
 
 // NEGATIVE: unsealed, the same `?.` guards the whole chain and the dispatch rides inside it.
-// the doubled wrapper carries a sidecar: the inner parens ride along in a text splice and are
-// reprinted away by the AST emitter - grouping only, the same value either way
+// the doubled wrapper's inner parens are grouping only and reprint away - the same value
+// either way
 export const unsealed = host.box?.missing.flat?.().at(0);
