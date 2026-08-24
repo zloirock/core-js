@@ -9,7 +9,7 @@ var _atMaybeArray = require("@core-js/pure/actual/array/instance/at");
 var _globalThis = require("@core-js/pure/actual/global-this");
 var _at = require("@core-js/pure/actual/instance/at");
 var _forEach = require("@core-js/pure/actual/instance/for-each");
-var _Promise = require("@core-js/pure/actual/promise/constructor");
+var _Promise = require("@core-js/pure/actual/promise");
 var _self = require("@core-js/pure/actual/self");
 var _includesMaybeString = require("@core-js/pure/actual/string/instance/includes");
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10;

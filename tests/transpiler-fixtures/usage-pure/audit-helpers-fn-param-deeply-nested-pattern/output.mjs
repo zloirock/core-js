@@ -1,5 +1,6 @@
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
+import _Set2 from "@core-js/pure/actual/set/constructor";
 // the destructure-param walk must reach a function-like owner through deeply-nested
 // AssignmentPattern / ArrayPattern / RestElement / ObjectProperty wrappers:
 // (1) ArrayPattern > ObjectProperty > ObjectPattern > AssignmentPattern > ObjectPattern
@@ -22,10 +23,10 @@ function h({
   wrap: {
     mid: [{
       deep = _Set
-    }] = [_Set]
+    }] = [_Set2]
   }
 }) {
-  return deep.union(new _Set([1]));
+  return deep.union(new _Set2([1]));
 }
 f([{
   outer: {

@@ -1,4 +1,4 @@
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // Arrow assigned to a variable then called multiple times: the function's parent is a
 // VariableDeclarator, not a CallExpression, so there is no IIFE call site and synth-swap
 // bails. Body-extract becomes the path forward
