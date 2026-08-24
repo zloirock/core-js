@@ -1,6 +1,5 @@
 import { parseSync } from 'oxc-parser';
 import { builders, traverse } from 'estree-toolkit';
-import MagicString from 'magic-string';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext, entryToGlobalHint } from '../../packages/core-js-polyfill-provider/index.js';
@@ -9,17 +8,7 @@ import { collectMutationPrePass, createEstreeAdapter, withoutPhantomDeclarationV
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import { buildOffsetToLoc } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { normalizeMachinePaths, slashifyPath } from './fixture-lang.mjs';
-import { tagError } from '../../packages/core-js-polyfill-provider/helpers/error-tag.js';
-import TransformQueue, {
-  createRewriteHint,
-  deoptionalizeNeedle,
-  deoptionalizeNeedleAtPositions,
-  hasIdentifierBoundary,
-  replaceNthOccurrence,
-  trimTrailingOptional,
-} from '../../packages/core-js-unplugin/internals/transform-queue.js';
-import ImportInjector, { shebangFallbackAnchor } from '../../packages/core-js-unplugin/internals/import-injector.js';
-import { canonicalizeRefNumbering } from '../../packages/core-js-unplugin/internals/ref-canon.js';
+import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin, {
   formatLabelLocation,
   formatParseErrorForThrow,
@@ -27,46 +16,26 @@ import createPlugin, {
   formatParseErrorMessage,
 } from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
-import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
-import { printProgram } from '../../packages/core-js-unplugin/internals/ast/print.js';
-import { expressionStatement as mintStatement, literal as mintLiteral } from '../../packages/core-js-unplugin/internals/ast/builders.js';
-import { createTopLevelStatementRewriter } from '../../packages/core-js-unplugin/internals/detect-entry.js';
+import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
+import { expressionStatement as mintStatement, literal as mintLiteral } from '../../packages/core-js-unplugin/internals/builders.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
-  canFuseWithOpenParen,
-  collectAllBindingNames,
-  consumeOneLineEnding,
-  directivePrologueEnd,
   hasCoreJSImport,
   injectionFusesLeft,
-  isBodylessStatementBody,
-  dropRedundantRootParens,
+  isCallee,
   isChunkLoaderBundler,
   isTopLevelImportLike,
-  lastUserImportEnd,
   liftSfcLangSuffix,
   skipDirectivePrologue,
-  statementOverwriteFusesLeft,
   stripLeadingBOMs,
-  varScopeAnchor,
   walkAstNodes,
 } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
-import {
-  isLineTerminator,
-  isOptionalChainAt,
-  literalRegionsOf,
-  prevSignificantPos,
-  scanTokens,
-  setLexDialect,
-  skipBlockComment,
-  skipGap,
-} from '../../packages/core-js-unplugin/internals/text-scan.js';
-import {
-  isCallee,
-  isCalleeWrappedInParens,
-  outerGuardOwnedRoot,
-  unwrapNode,
-} from '../../packages/core-js-unplugin/internals/emit-utils.js';
+import { unwrapRuntimeExpr as unwrapNode } from '@core-js/polyfill-provider/helpers/ast-patterns';
+
+function programOf(src, sourceType = 'module') {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return parseSync('/x.mjs', src, { sourceType }).program;
+}
 
 const { cyan, green, red } = chalk;
 
@@ -141,12 +110,12 @@ const shouldTransformCases = [
   // `slang=` no longer match it as a substring and drop the block
   ['/src/App.vue?vue&type=script&clang=gcc', true, 'clang= param does not block default-JS SFC'],
   ['/src/App.vue?vue&type=script&slang=en', true, 'slang= param does not block default-JS SFC'],
-  // `.js`/`.ts` token appears only inside the query — strip query before extension-check
+  // `.js`/`.ts` token appears only inside the query - strip query before extension-check
   ['/virtual:foo?output=main.js', false, '.js inside query only'],
   ['/virtual:foo?output=main.ts#bar', false, '.ts inside query only'],
   // SFC with a `.js`-like token in the query: `stripQueryHash` leaves `.vue`, SFC path wins
   ['/src/foo.vue?lang=ts&suffix=.js', true, 'SFC with .js token in query'],
-  // SFC + `#hash` suffix (sourcemap line markers, plugin-wrapper artifacts) — `lang=` token
+  // SFC + `#hash` suffix (sourcemap line markers, plugin-wrapper artifacts) - `lang=` token
   // closes on `#` as well as `&`/EOL; without the `#` alternative the SFC dispatch silently
   // falls through to extension-only detection
   ['/src/App.vue?vue&type=script&lang=ts#L10', true, 'SFC lang=ts followed by #hash'],
@@ -386,7 +355,7 @@ check('entryToGlobalHint/kebab single word', entryToGlobalHint('weak-map'), 'Wea
 // filter through `KNOWN_GLOBAL_NAMES` (globals + statics in built-in-definitions)
 check('entryToGlobalHint/non-class helper bails', entryToGlobalHint('is-iterable'), null);
 check('entryToGlobalHint/empty string', entryToGlobalHint(''), null);
-// method / instance entries: user's pure import is a function, not the class — no hint
+// method / instance entries: user's pure import is a function, not the class - no hint
 check('entryToGlobalHint/static method', entryToGlobalHint('promise/try'), null);
 check('entryToGlobalHint/instance subpath', entryToGlobalHint('array/instance/at'), null);
 check('entryToGlobalHint/kebab subpath', entryToGlobalHint('array-buffer/is-view'), null);
@@ -394,1571 +363,11 @@ check('entryToGlobalHint/deep kebab subpath', entryToGlobalHint('typed-array/ins
 // edge cases
 check('entryToGlobalHint/leading slash', entryToGlobalHint('/promise'), null);
 check('entryToGlobalHint/trailing slash', entryToGlobalHint('promise/'), null);
-// numeric-leading / underscore-leading heads can never match a real global identifier —
+// numeric-leading / underscore-leading heads can never match a real global identifier -
 // filtered up front so downstream consumers don't carry a junk hint through to the lookup
 check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42'), null);
 check('entryToGlobalHint/underscore prefix', entryToGlobalHint('_foo'), null);
 check('entryToGlobalHint/null', entryToGlobalHint(null), null);
-
-// --- TransformQueue ---
-// partial overlap between two outer transforms — phase 2 must throw with diagnostic
-// instead of letting MagicString.overwrite trip on a generic "already edited" error
-function checkPartialOverlapThrows() {
-  const code = '0123456789abcdef';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 5, 'AAA');
-  q.add(3, 8, 'BBB'); // partial overlap on [3, 5)
-  try {
-    q.apply();
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/partial overlap throws') } :: expected throw`;
-  } catch (error) {
-    if (/partial overlap/.test(error.message)) counts.passed++;
-    else {
-      counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/partial overlap throws') } :: got ${ error.message }`;
-    }
-  }
-}
-checkPartialOverlapThrows();
-
-// the nesting gate is POSITIONAL: compose locates a nested range by its ORDINAL among
-// identical needles, so the gate must ask whether the container kept an occurrence at THAT
-// ordinal. an existence-only answer made the verdict depend on ARRIVAL ORDER - look-alike
-// twins each believed the surviving slot was theirs, so the second to ask died on the compose
-// invariant, and asking in reverse silently spliced the WRONG twin into it
-function checkNestingGateIsPositional() {
-  const code = 'wrap( pick(x) , pick(x) )';
-  const first = code.indexOf('pick(x)');
-  const second = code.lastIndexOf('pick(x)');
-  const span = 'pick(x)'.length;
-  function gatesFor(containerContent) {
-    const q = new TransformQueue(code, new MagicString(code));
-    q.add(0, code.length, containerContent);
-    return {
-      first: q.containingContentIncludes(first, first + span),
-      second: q.containingContentIncludes(second, second + span),
-    };
-  }
-  // container kept ONLY the first occurrence: its slot belongs to the first range
-  const keptFirst = gatesFor('KEEP( pick(x) )');
-  check('nesting gate/kept twin admitted', keptFirst.first, true);
-  check('nesting gate/dropped twin rejected', keptFirst.second, false);
-  // both kept - both compose, each into its own ordinal
-  const keptBoth = gatesFor('KEEP( pick(x) , pick(x) )');
-  check('nesting gate/both twins admitted when both kept', keptBoth.first && keptBoth.second, true);
-  // a DROPPING consumer keeps nothing
-  const dropped = gatesFor('DROPPED');
-  check('nesting gate/dropping consumer rejects', dropped.first || dropped.second, false);
-  // the verdict must not depend on which range asks first
-  function applyInOrder(order) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    q.add(0, code.length, 'KEEP( pick(x) )');
-    for (const [name, at] of order) {
-      if (q.containingContentIncludes(at, at + span)) q.add(at, at + span, `INNER_${ name }`);
-    }
-    q.apply();
-    return ms.toString();
-  }
-  check('nesting gate/natural order splices the kept twin',
-    applyInOrder([['A', first], ['B', second]]), 'KEEP( INNER_A )');
-  check('nesting gate/reverse order splices the same twin',
-    applyInOrder([['B', second], ['A', first]]), 'KEEP( INNER_A )');
-  // a SPLIT container answers from its joined halves, per ordinal on each side
-  function splitGates(prefix, suffix) {
-    const q = new TransformQueue(code, new MagicString(code));
-    q.addSplit(0, 14, code.length, prefix, suffix);
-    return {
-      first: q.containingContentIncludes(first, first + span),
-      second: q.containingContentIncludes(second, second + span),
-    };
-  }
-  const splitKeptBoth = splitGates('KEEP( pick(x) ', ' , pick(x) )');
-  check('nesting gate/split container keeps both ordinals',
-    splitKeptBoth.first && splitKeptBoth.second, true);
-  const splitDropped = splitGates('KEEP( pick(x) ', ' )');
-  check('nesting gate/split container drops the second ordinal', splitDropped.second, false);
-}
-checkNestingGateIsPositional();
-
-// addSplit type-checks both content args upfront. without the upfront guard, the prefix
-// `add` succeeds and changes #transforms / #byRange / #sorted state before suffix's `add`
-// throws on bad content - leaving an orphan half in the queue
-function checkAddSplitContentTypeGuard() {
-  const code = '0123456789abcdef';
-  const q = new TransformQueue(code, new MagicString(code));
-  try {
-    q.addSplit(2, 5, 8, 'PREFIX', undefined);
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit suffix type guard') } :: expected throw`;
-  } catch (error) {
-    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
-  }
-  try {
-    q.addSplit(2, 5, 8, 42, 'SUFFIX');
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit prefix type guard') } :: expected throw`;
-  } catch (error) {
-    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
-  }
-  // empty-string content is a caller bug too - a split represents one logical rewrite emitted
-  // as two halves, each must carry non-empty replacement text
-  try {
-    q.addSplit(2, 5, 8, '', 'SUFFIX');
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit empty prefix guard') } :: expected throw`;
-  } catch (error) {
-    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
-  }
-  try {
-    q.addSplit(2, 5, 8, 'PREFIX', '');
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/addSplit empty suffix guard') } :: expected throw`;
-  } catch (error) {
-    /content args must be non-empty strings/.test(error.message) ? counts.passed++ : counts.failed++;
-  }
-  // valid call should still work after rejected ones - no orphan state from earlier throws
-  q.addSplit(2, 5, 8, 'PREFIX', 'SUFFIX');
-  counts.passed++;
-}
-checkAddSplitContentTypeGuard();
-
-// out-of-bounds ranges are caller bugs - range check catches offset arithmetic slipping
-// past source bounds with a specific error instead of letting MagicString produce opaque output
-function checkOutOfBoundsThrows() {
-  const code = '0123456789';
-  const q = new TransformQueue(code, new MagicString(code));
-  try {
-    q.add(-1, 5, 'X');
-    counts.failed++;
-  } catch (error) {
-    /out of bounds/.test(error.message) ? counts.passed++ : counts.failed++;
-  }
-  try {
-    q.add(5, 20, 'X');
-    counts.failed++;
-  } catch (error) {
-    /out of bounds/.test(error.message) ? counts.passed++ : counts.failed++;
-  }
-}
-checkOutOfBoundsThrows();
-
-// zero-length vs inverted range: distinct diagnostics so the caller sees which misuse fired.
-// `start === end` -> caller meant insert(); `start > end` -> inverted offset arithmetic
-function checkRangeDiagnosticSplit() {
-  const code = '0123456789';
-  const q = new TransformQueue(code, new MagicString(code));
-  try {
-    q.add(5, 5, 'X');
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('range-diag/zero-length') } :: expected throw`;
-  } catch (error) {
-    check('range-diag/zero-length names the misuse',
-      /zero-length range \[5,5\) - use insert\(\)/.test(error.message), true);
-  }
-  try {
-    q.add(7, 3, 'X');
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('range-diag/inverted') } :: expected throw`;
-  } catch (error) {
-    check('range-diag/inverted names the misuse',
-      /inverted range \[7,3\) - start must be < end/.test(error.message), true);
-  }
-}
-checkRangeDiagnosticSplit();
-
-// non-integer start/end (NaN / undefined / string) silently pass the `>=` / `<` checks
-// because NaN comparisons are always false - integer check surfaces the caller bug upfront
-function checkNonIntegerRangeThrows() {
-  const code = '0123456789';
-  function make() {
-    return new TransformQueue(code, new MagicString(code));
-  }
-  for (const bad of [[NaN, 5], [undefined, 5], [null, 5], ['5', 8], [5, NaN], [0.5, 5], [5, 5.5]]) {
-    try {
-      make().add(bad[0], bad[1], 'X');
-      counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/integer check') } :: accepted ${ JSON.stringify(bad) }`;
-    } catch (error) {
-      /must be integers/.test(error.message) ? counts.passed++ : counts.failed++;
-    }
-  }
-}
-checkNonIntegerRangeThrows();
-
-// split entries own [start, logicalEnd) logically even though their physical halves stop
-// at the mid. an inner [3, 8) contained within a split [0, 10) (prefix [0,5) + suffix [5,10))
-// crosses the physical mid but stays within the logical span - assertNoPartialOverlap must
-// not trip on it. before the fix, physical .end comparison flagged inner vs prefix as
-// partial overlap and threw spuriously. apply() may still throw downstream on the actual
-// MagicString overwrite (touching chunks); only the assertion's diagnostic is verified here
-function expectNoPartialOverlapAssertion(label, code, build) {
-  const q = new TransformQueue(code, new MagicString(code));
-  build(q);
-  let assertionThrew = false;
-  try { q.apply(); } catch (error) {
-    if (/partial overlap/.test(error.message)) assertionThrew = true;
-  }
-  if (assertionThrew) {
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan(label) } :: false partial overlap`;
-  } else counts.passed++;
-}
-
-function expectPartialOverlapAssertion(label, code, build) {
-  const q = new TransformQueue(code, new MagicString(code));
-  build(q);
-  try { q.apply(); } catch (error) {
-    if (/partial overlap/.test(error.message)) {
-      counts.passed++;
-      return;
-    }
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan(label) } :: unexpected error ${ error.message }`;
-    return;
-  }
-  counts.failed++;
-  echo`${ red('FAIL') } ${ cyan(label) } :: expected partial-overlap throw`;
-}
-
-// inner contained within a split's logical span crosses the physical mid - must not throw
-expectNoPartialOverlapAssertion('TransformQueue/split logical end contains inner',
-  '0123456789abcdef', q => { q.addSplit(0, 5, 10, 'PRE', 'SUF', null, null); q.add(3, 8, 'INNER'); });
-
-// inner starting inside a split's logical span and ending past its logical end is a
-// genuine partial overlap (e.g. inner [7,14) vs split [5,11) gives the [7,11) overlap).
-// entryLogicalEnd still detects this; the suffix-skip doesn't mask it because the prefix
-// (the only walked half) is the entry whose logical span is overrun
-expectPartialOverlapAssertion('TransformQueue/inner crossing split logical end throws',
-  '0123456789abcdef', q => { q.addSplit(5, 8, 11, 'PRE', 'SUF', null, null); q.add(7, 14, 'TAIL'); });
-
-// two splits sharing the same groupId (prefix + suffix pair from a single addSplit call)
-// must not trip the assertion against each other. the same-groupId exclusion still gates
-// the suffix-walk path through the prefix-only entry
-expectNoPartialOverlapAssertion('TransformQueue/split pair same groupId pass',
-  '0123456789', q => { q.addSplit(0, 5, 10, 'PRE', 'SUF', null, null); });
-
-// two independent splits placed side-by-side (different groupIds) with no overlap pass
-expectNoPartialOverlapAssertion('TransformQueue/two adjacent splits pass',
-  '0123456789abcdef', q => {
-    q.addSplit(0, 2, 4, 'A', 'B', null, null);
-    q.addSplit(8, 10, 12, 'C', 'D', null, null);
-  });
-
-// non-consecutive partial overlap: sorted by start gives [A=[0,10), B=[3,5), C=[7,14)].
-// consecutive-pair iteration wouldn't flag A vs C (B sits between, neither pair is partial);
-// running max-end catches it. this is the shape agent audit 4 flagged as TQ-13-4
-function checkNonConsecutivePartialOverlapThrows() {
-  const code = '0123456789abcdef';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, 10, 'A');
-  q.add(3, 5, 'B');
-  q.add(7, 14, 'C');
-  try {
-    q.apply();
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/non-consecutive partial overlap') } :: expected throw`;
-  } catch (error) {
-    if (/partial overlap/.test(error.message)) counts.passed++;
-    else {
-      counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/non-consecutive partial overlap') } :: got ${ error.message }`;
-    }
-  }
-}
-checkNonConsecutivePartialOverlapThrows();
-
-// `#assertNoInsertInsideOverwrite` must catch inserts that land inside ANY enclosing
-// overwrite range, not just the largest-start one. binary search alone returned the
-// inner [5,7) for pos=8 (whose end < pos), missing outer [0,10) - MagicString then
-// threw an opaque "Cannot split a chunk that has already been edited" instead of our
-// clear assertion. prefix-max-end scan picks up the enclosing range
-function checkInsertInsideEnclosingOuterThrows() {
-  const code = '0123456789';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 10, 'PRE23456POST'); // outer with valid needle for compose
-  q.add(2, 7, 'YY'); // inner with smaller-end than insert pos
-  q.insert(8, 'X'); // pos=8 is inside outer [0,10) but past inner [2,7)
-  try {
-    q.apply();
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside enclosing outer') } :: expected throw`;
-  } catch (error) {
-    if (/insert at 8 lands inside overwrite \[0,10\)/.test(error.message)) counts.passed++;
-    else {
-      counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside enclosing outer') } :: got ${ error.message }`;
-    }
-  }
-}
-checkInsertInsideEnclosingOuterThrows();
-
-// an insert landing in the SUFFIX half of a split overwrite must report the split's logical
-// range - the suffix entry's raw start points mid-rewrite and misdirects the diagnostic
-function checkInsertInsideSplitSuffixReportsLogicalRange() {
-  const code = '0123456789ABCDEF';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.addSplit(0, 5, 10, 'PRE', 'SUF');
-  q.insert(8, 'X'); // pos=8 sits in the suffix half [5,10) of the logical rewrite [0,10)
-  try {
-    q.apply();
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside split suffix') } :: expected throw`;
-  } catch (error) {
-    if (/insert at 8 lands inside overwrite \[0,10\)/.test(error.message)) counts.passed++;
-    else {
-      counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/insert inside split suffix') } :: got ${ error.message }`;
-    }
-  }
-}
-checkInsertInsideSplitSuffixReportsLogicalRange();
-
-// Unicode-aware identifier-boundary check: ASCII `\w` misses `α` and other ID_Continue
-// chars, so `Map` substring inside `Mapα` slipped past the boundary check and got
-// substituted, corrupting the source identifier. fix: `/[\p{ID_Continue}$]/u`
-function checkUnicodeIdentifierBoundary() {
-  const code = 'Mapα()';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  // outer wraps the whole call; inner uses raw "Map" as needle (would substitute substring
-  // inside Mapα without Unicode-aware boundary). simulate via guard'd compose path
-  q.add(0, 6, 'Mapα()'); // outer (identical to source — degenerate but valid)
-  q.add(0, 3, '_Map'); // inner needle = "Map", substr of "Mapα" - must NOT substitute
-  // expect throw on "needle missing" (or substitute happens correctly with boundary check)
-  try {
-    q.apply();
-    // with proper boundary check, the inner can't find a standalone "Map" in outer content
-    // -> hits phantom-skip path (substring exists but only inside identifier).
-    // result: outer content emitted as-is, "Map" inside "Mapα" stays intact
-    check('TransformQueue/unicode ident-boundary phantom-skip', ms.toString(), 'Mapα()');
-  } catch (error) {
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/unicode ident-boundary') } :: ${ error.message }`;
-  }
-}
-checkUnicodeIdentifierBoundary();
-
-// phantom-skip with identifier-boundary check: `content.includes(needle)` alone could
-// mask legitimate misses where needle appears as a TRUE standalone token in content (a
-// real bug that should throw). fix scans all occurrences and only skips when every
-// match sits inside a larger identifier
-function checkPhantomSkipBoundaryGuard() {
-  const code = 'Map foo';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  // outer wraps the whole code, content keeps a STANDALONE `Map` (not inside another ident).
-  // inner has range [4,7) which is `foo` - its needle is `foo`. compose substitutes
-  // `foo` -> `bar` inside outer's content. since `Map` is standalone in outer's content,
-  // the phantom-skip path doesn't trigger for an unrelated needle. sanity: succeeds
-  q.add(0, 7, 'Map foo');
-  q.add(4, 7, 'bar');
-  q.apply();
-  check('TransformQueue/phantom-skip sanity', ms.toString(), 'Map bar');
-}
-checkPhantomSkipBoundaryGuard();
-
-// verbatim-skip fast-path: a deeply-nested receiver chain (`r.a().b().c()`) where each hop's
-// content preserves the source slice of the hop below it. once `.b` substitutes via its raw
-// source slice, the narrower `.a` nested in `.b`'s source range is a phantom and is skipped
-// before its own `content` scan - the short-circuit that keeps compose quadratic (not cubic)
-// in chain depth. asserts the skip still produces the fully-composed nesting
-function checkVerbatimSkipNestedChain() {
-  const code = 'r.a().b().c()';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 5, 'A(r)');          // .a  - innermost, receiver `r` carries no polyfill
-  q.add(0, 9, 'B(r.a())');      // .b  - preserves `r.a()` so .a can fold into it
-  q.add(0, 13, 'C(r.a().b())'); // .c - preserves `r.a().b()` so .b can fold into it
-  q.apply();
-  check('TransformQueue/verbatim-skip nested chain', ms.toString(), 'C(B(A(r)))');
-}
-checkVerbatimSkipNestedChain();
-
-// verbatim-skip must NOT absorb across an equal-range split sibling that hasn't composed yet.
-// the arrow-body wrap (non-split, [0,9]) and the outermost instance method `.b` (split, equal
-// [0,9]) are siblings; `#scanInners` lists the split as an inner of the wrap, and the wrap
-// composes first. when the wrap substitutes `.b` it gets `.b`'s RAW (un-composed) content,
-// where the inner `.a` is still un-substituted - so `.a` must NOT be skipped. the
-// `innerWasComposed` gate enforces this; without it `.a` is dropped (output `{B(r.a())}`)
-function checkVerbatimSkipUncomposedSiblingNotAbsorbed() {
-  const code = 'r.a().b()';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 9, '{r.a().b()}');          // arrow-body-wrap analogue: non-split, preserves source
-  q.addSplit(0, 2, 9, 'B(', 'r.a())'); // .b - split, EQUAL range, raw content preserves `r.a()`
-  q.add(0, 5, 'A(r)');                 // .a - strict inner, must still substitute
-  q.apply();
-  check('TransformQueue/verbatim-skip uncomposed sibling not absorbed', ms.toString(), '{B(A(r))}');
-}
-checkVerbatimSkipUncomposedSiblingNotAbsorbed();
-
-// compose-complexity regression guard for finding 46-1. wall-clock is too machine-dependent
-// for CI, so this counts a DETERMINISTIC proxy: total chars scanned by String.prototype.indexOf
-// during one compose pass (the substitution scans dominate). the pathological shape is a nested
-// chain `r.f().f()...f()` where every hop's content preserves the receiver slice below it. the
-// pre-fix code scanned each narrower phantom hop -> ~8x more work per depth-doubling (cubic);
-// the verbatim phantom-skip keeps it ~4x (quadratic). assert the doubling ratio stays under 5.5,
-// which sits between the two regimes with wide margin (measured 3.95 quadratic vs 7.9 cubic) -
-// noise can only dilute the ratio downward, so a cubic regression (ratio -> 8) always trips it
-function checkComposeStaysSubCubic() {
-  function composeNestedChain(depth) {
-    let code = 'r';
-    const ends = [];
-    for (let i = 0; i < depth; i++) {
-      code += '.f()';
-      ends.push(code.length);
-    }
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    for (let i = 0; i < depth; i++) {
-      // hop i wraps the verbatim receiver slice [0, ends[i-1]], mirroring the instance-method
-      // emitter preserving its receiver text so the hop below can fold into it
-      const receiver = i === 0 ? 'r' : code.slice(0, ends[i - 1]);
-      q.add(0, ends[i], `F(${ receiver })`);
-    }
-    const realIndexOf = String.prototype.indexOf;
-    let scanned = 0;
-    // test-only scan-cost probe: tally haystack length per indexOf, restored in finally
-    /* eslint-disable no-extend-native -- transient indexOf counter, removed in the finally below */
-    String.prototype.indexOf = function indexOfProbe(...args) {
-      scanned += this.length;
-      return realIndexOf.apply(this, args);
-    };
-    try {
-      q.apply();
-    } finally {
-      String.prototype.indexOf = realIndexOf;
-    }
-    /* eslint-enable no-extend-native -- probe removed, native restored */
-    return { scanned, out: ms.toString() };
-  }
-  // correctness at depth: the deepest hop must fully fold, no phantom-skip corruption
-  check('TransformQueue/compose nested-chain output', composeNestedChain(3).out, 'F(F(F(r)))');
-  const ratio = composeNestedChain(80).scanned / composeNestedChain(40).scanned;
-  if (ratio < 5.5) counts.passed++;
-  else {
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/compose stays sub-cubic') } :: depth-doubling scan ratio ${ ratio.toFixed(2) } >= 5.5 (cubic regression?)`;
-  }
-}
-checkComposeStaysSubCubic();
-
-// verbatim-skip must NOT cross disjoint sibling inners, and identical needles at sibling
-// positions must each resolve to their own slot via nth-accounting. `f(a.m(),a.m())` has two
-// `a.m()` inners at disjoint ranges under one outer; neither nests in the other, so the
-// rightmost absorbs nothing the leftmost needs and both substitute (rightmost nth=1, leftmost
-// nth=0). a buggy absorb that keyed on needle-equality instead of range would drop one
-function checkSiblingIdenticalNeedles() {
-  const code = 'f(a.m(),a.m())';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 14, 'F(a.m(),a.m())'); // outer wrapper preserves both siblings verbatim
-  q.add(2, 7, 'M(a)');            // first  a.m()
-  q.add(8, 13, 'M(a)');           // second a.m()
-  q.apply();
-  check('TransformQueue/sibling identical needles', ms.toString(), 'F(M(a),M(a))');
-}
-checkSiblingIdenticalNeedles();
-
-// nested chain `r.f().f()...` with a DISTINCT content wrapper per hop must fold to the exact
-// nesting order `F{d-1}(...F0(r))` at every depth - distinct wrappers make the assertion
-// sensitive to any hop mis-routing into the wrong slot. sweeps depth 1..10 to catch
-// depth-dependent off-by-one in the verbatim-skip / nth bookkeeping
-function checkNestedChainDepthSweep() {
-  for (let depth = 1; depth <= 10; depth++) {
-    let code = 'r';
-    const ends = [];
-    for (let i = 0; i < depth; i++) {
-      code += '.f()';
-      ends.push(code.length);
-    }
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    for (let i = 0; i < depth; i++) {
-      const receiver = i === 0 ? 'r' : code.slice(0, ends[i - 1]);
-      q.add(0, ends[i], `F${ i }(${ receiver })`);
-    }
-    q.apply();
-    let expected = 'r';
-    for (let i = 0; i < depth; i++) expected = `F${ i }(${ expected })`;
-    check(`TransformQueue/nested chain depth=${ depth }`, ms.toString(), expected);
-  }
-}
-checkNestedChainDepthSweep();
-
-// compose invariant errors carry the bare `transform-queue: ` subsystem prefix - NOT a
-// self-applied `[core-js] [<fileId>] ` brand. the brand + file tag are owned by the outer `tagError`
-// (runTransform's catch), matching the parse-error throw-path convention; self-prefixing here would
-// make tagError double-stamp the brand and id (X10-1). the message head must be `transform-queue: `
-// with no leading `[core-js]`
-function checkComposeInvariantPrefix() {
-  const code = 'abcdef';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  // two equal-range transforms where neither contains the original needle (`abcdef`) - compose
-  // should throw with the unbranded subsystem prefix
-  q.add(0, 6, 'XX');
-  q.add(0, 6, 'YY');
-  try {
-    q.apply();
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/compose invariant prefix') } :: expected throw`;
-  } catch (error) {
-    if (error.message.startsWith('transform-queue: equal-range conflict')) counts.passed++;
-    else {
-      counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/compose invariant prefix') } :: got ${ error.message }`;
-    }
-  }
-}
-checkComposeInvariantPrefix();
-
-// `mergeEqualRange` locates the needle through the boundary-aware occurrence scan, not a raw
-// indexOf: the needle (`at`) appears MID-IDENTIFIER inside the wrapper (`flat`) before its standalone
-// occurrence. a raw scan would splice at the `flat` offset, corrupting the output to `flX(at)`; the
-// identifier-boundary filter skips the embedded hit and splices the inner at the real `(at)` slot
-function checkMergeEqualRangeBoundaryNeedle() {
-  const code = 'at';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 2, 'flat(at)'); // wrapper preserves the original `at`, but `flat` embeds it first
-  q.add(0, 2, 'X');        // inner polyfill replacement
-  q.apply();
-  check('TransformQueue/mergeEqualRange boundary-aware needle', ms.toString(), 'flat(X)');
-}
-checkMergeEqualRangeBoundaryNeedle();
-
-// addSplit must validate the FULL range up front (before the first add) so ANY bad offset
-// fails ATOMICALLY with an addSplit-specific diagnostic. a bad `end` is the orphan-critical case
-// (it would pass the prefix add() and throw only in the suffix add(), orphaning the prefix half and
-// corrupting the next apply()); a bad start/mid is caught by the first add() but the upfront check
-// gives the clear addSplit message and validates uniformly. assert the message is addSplit-owned
-// (not add()'s fall-through) AND that no orphan remains
-function checkAddSplitAtomicRange() {
-  const code = '0123456789';
-  for (const [start, mid, end, pattern, label] of [
-    [2, 5, 15, /addSplit range \[2,15\) out of bounds/, 'out-of-bounds end'],
-    [2, 5, 8.5, /addSplit offsets must be integers/, 'non-integer end'],
-    [2, 5.5, 8, /addSplit offsets must be integers/, 'non-integer mid'],
-    [-1, 5, 8, /addSplit range \[-1,8\) out of bounds/, 'out-of-bounds start'],
-  ]) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    let message = null;
-    try {
-      q.addSplit(start, mid, end, 'PRE', 'SUF', null, null);
-    } catch (error) {
-      message = error.message;
-    }
-    check(`TransformQueue/addSplit atomic ${ label } throws addSplit-specific`, !!message && pattern.test(message), true);
-    q.apply();
-    check(`TransformQueue/addSplit atomic ${ label } leaves no orphan`, ms.toString(), code);
-  }
-}
-checkAddSplitAtomicRange();
-
-// a SPLIT prefix's physical end understates its logical range: with a same-start non-split
-// sibling the outermost filter must swallow the narrower one (tiebreak by LOGICAL end), or
-// two overlapping splices reach the caller and silently corrupt relocated text
-function checkSameStartSplitTiebreak() {
-  const code = '0123456789abcdef';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.addSplit(0, 4, 10, '[012345]', '+S');
-  q.add(0, 6, 'XYZ');
-  const splices = q.composeAndDrainRange(0, 16);
-  let disjoint = splices.length > 0;
-  for (let i = 1; i < splices.length; i++) {
-    if (splices[i].start < splices[i - 1].end) disjoint = false;
-  }
-  check('TransformQueue/same-start split-prefix tiebreak yields disjoint splices', disjoint, true);
-}
-checkSameStartSplitTiebreak();
-
-// compose drops an inner when an ANCESTOR's copy already carries its emit - the guard rendered the
-// receiver before the inner reached composition, so the source needle is gone and the replacement
-// stands in its place. the drop must stay tied to an ancestor that really encloses the inner: a
-// coincidence elsewhere in an unrelated entry may not silently swallow a live rewrite
-function checkAncestorReplacementDrop() {
-  const code = 'pre(aaa.bbb) + zzz';
-  function compose(outerContent, innerContent) {
-    const q = new TransformQueue(code, new MagicString(code));
-    q.add(0, 12, outerContent);
-    q.add(4, 7, innerContent);
-    return q.composeAndDrainRange(0, code.length).map(s => s.content).join('|');
-  }
-  // the outer carries the inner's SOURCE: ordinary composition
-  check('compose/outer carrying the source composes the inner', compose('pre(aaa.bbb)', 'XXX'), 'pre(XXX.bbb)');
-  // the outer already carries the inner's EMIT: the inner is a phantom and is dropped, not thrown on
-  let threw = null;
-  try {
-    check('compose/outer carrying the emit drops the inner', compose('pre(XXX.bbb)', 'XXX'), 'pre(XXX.bbb)');
-  } catch (error) {
-    threw = error.message;
-  }
-  check('compose/carrying the emit does not abort the build', threw, null);
-}
-checkAncestorReplacementDrop();
-
-// the deferred insert is RECORDED at the call and spliced once the owner's inners are composed, so
-// two of them in nested blocks no longer make each other's search space unrecognisable. one that
-// finds no slot after composition must not vanish quietly - the declaration would go with it
-function checkDeferredOwnerInserts() {
-  const code = 'a(() => { b(() => { c; }); }, 0)';
-  const outer = { start: code.indexOf('{'), end: code.lastIndexOf('}') + 1 };
-  const inner = { start: code.indexOf('{', outer.start + 1), end: code.indexOf('}') + 1 };
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, code.length, code);
-  check('deferred insert/outer block accepted',
-    q.insertIntoOwnerContent({ start: outer.start, end: outer.end, offset: 1, text: ' var _o;' }), true);
-  check('deferred insert/nested block accepted',
-    q.insertIntoOwnerContent({ start: inner.start, end: inner.end, offset: 1, text: ' var _i;' }), true);
-  const [splice] = q.composeAndDrainRange(0, code.length);
-  check('deferred insert/both land in the composed content',
-    splice.content.includes('{ var _o;') && splice.content.includes('{ var _i;'), true);
-  // an insert whose owner never carries it must be REFUSED at the call, not lost later
-  const q2 = new TransformQueue(code, new MagicString(code));
-  q2.add(0, code.length, 'REPLACED()');
-  check('deferred insert/an owner that carries nothing is refused',
-    q2.insertIntoOwnerContent({ start: outer.start, end: outer.end, offset: 1, text: ' var _x;' }), false);
-}
-checkDeferredOwnerInserts();
-
-// a range whose two ends come from DIFFERENT nodes can straddle a wrapper paren: the emitter takes
-// its spans from PEELED nodes, so an inner start sits past an opener whose closer lies inside the
-// outer end. queuing that range verbatim drops the closer, strands the opener and the emitted
-// module stops parsing - the queue extends such a range left over the opener instead
-function checkWrapperStraddlingRanges() {
-  const code = 'const v = (a.b.c)(1);';
-  const inner = code.indexOf('a.b.c');
-  const outerEnd = code.indexOf(';');
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(inner, outerEnd, 'X');
-  const [entry] = q.composeAndDrainRange(0, code.length);
-  check('straddling range/extends left over the stranded opener', entry.start, inner - 1);
-  check('straddling range/the swapped span is balanced', code.slice(entry.start, entry.end), '(a.b.c)(1)');
-
-  // a BALANCED range is the common case and must come back exactly as the caller spelled it
-  const q2 = new TransformQueue(code, new MagicString(code));
-  q2.add(inner, code.indexOf(')'), 'Y');
-  check('straddling range/a balanced range is untouched', q2.composeAndDrainRange(0, code.length)[0].start, inner);
-
-  // the closer may belong to a construct the replacement was never meant to swallow: only a paren
-  // standing DIRECTLY before the range is the wrapper this range broke
-  const other = 'const v = f(a.b) + 1;';
-  const q3 = new TransformQueue(other, new MagicString(other));
-  const from = other.indexOf('a.b');
-  q3.add(from, other.indexOf('+') - 1, 'Z');
-  check('straddling range/refuses when the opener is not adjacent',
-    q3.composeAndDrainRange(0, other.length)[0].start, from);
-
-  // `claim` probes ownership at the range `add` will actually take, not the one the caller spelled
-  const q4 = new TransformQueue(code, new MagicString(code));
-  q4.add(inner - 1, outerEnd, 'OWNED');
-  check('straddling range/claim probes the balanced range', q4.claim(inner, outerEnd, 'W'), false);
-}
-checkWrapperStraddlingRanges();
-
-// an outer entry renders its spans off PEELED nodes, so a grouping paren the source wrote around
-// part of an inner's needle has no place in the outer's content. the inner still has a slot there -
-// the same text without that pair - and the queue must find it rather than abort the build. dropped
-// as a PAIR and only on a UNIQUE standalone hit: a lone-token tolerance was measured and it matched
-// slots differing by a real token, turning locate failures into unparsable output
-function checkWrapperSpelledSlots() {
-  const code = 'const v = (a.b)(1);';
-  const at = code.indexOf('(a.b)');
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(at, code.indexOf(';'), 'W(a.b, 1)');
-  q.add(at, at + 5, 'INNER');
-  check('wrapper spelling/inner composes into the peeled slot',
-    q.composeAndDrainRange(0, code.length)[0].content, 'W(INNER, 1)');
-
-  // two candidate slots mean the queue cannot tell which one is the inner's own - it must abort
-  const q2 = new TransformQueue(code, new MagicString(code));
-  q2.add(at, code.indexOf(';'), 'W(a.b, a.b)');
-  q2.add(at, at + 5, 'INNER');
-  let threw = false;
-  try {
-    q2.composeAndDrainRange(0, code.length);
-  } catch {
-    threw = true;
-  }
-  check('wrapper spelling/an ambiguous peeled slot is refused', threw, true);
-}
-checkWrapperSpelledSlots();
-
-// the ASI guard is decided by POSITION when an entry is queued. composing that entry into another
-// entry's content moves it off statement position, where its `;` is no longer a separator but a
-// token in the middle of an expression
-function checkComposedAsiGuard() {
-  const code = 'x\na.b.c;';
-  const inner = 2;
-  function starts() {
-    return new Set([inner]);
-  }
-  const q = new TransformQueue(code, new MagicString(code), starts);
-  q.add(inner, code.indexOf(';'), '(OUT(a.b))');
-  q.add(inner, inner + 3, '(X)');
-  check('asi guard/a composed inner drops its statement-position separator',
-    q.composeAndDrainRange(0, code.length)[0].content, ';(OUT((X)))');
-
-  // standing alone at that position it still needs the separator
-  const q2 = new TransformQueue(code, new MagicString(code), starts);
-  q2.add(inner, inner + 3, '(X)');
-  check('asi guard/a standalone entry keeps it',
-    q2.composeAndDrainRange(0, code.length)[0].content, ';(X)');
-}
-checkComposedAsiGuard();
-
-// a deferred insert (a scoped `var` after a block's `{`) has to land in the OWNER's rendered copy of
-// that block. three ways to find the slot, and the last one is the only address a fully re-rendered
-// block still has: the ordinal of its opening brace. the ordinal is trustworthy only while the
-// render kept the brace COUNT - an owner that DISCARDED the block has fewer, and its brace 0 belongs
-// to something else entirely
-function checkInsertIntoOwnerContentSlots() {
-  const code = 'a(() => { b; }, 0)';
-  const block = { start: code.indexOf('{'), end: code.indexOf('}') + 1 };
-  function insertWith(ownerContent) {
-    const q = new TransformQueue(code, new MagicString(code));
-    q.add(0, code.length, ownerContent);
-    const ok = q.insertIntoOwnerContent({ start: block.start, end: block.end, offset: 1, text: ' var _r;' });
-    return { ok, content: q.composeAndDrainRange(0, code.length)[0].content };
-  }
-  // the raw block text survives in the owner's copy: plain positional hit
-  const verbatim = insertWith('X(() => { b; }, 0)');
-  check('insertIntoOwnerContent/verbatim owner takes the insert', verbatim.ok, true);
-  check('insertIntoOwnerContent/verbatim insert lands after the brace',
-    verbatim.content.includes('{ var _r; b; }'), true);
-  // an owner that REWROTE the block end to end has no address for it: a brace-ordinal fallback was
-  // implemented for exactly this and removed by measurement (it never fired on either corpus), so
-  // the caller re-emits the block instead
-  check('insertIntoOwnerContent/a fully rewritten owner is refused',
-    insertWith('X(() => { _b; }, 0)').ok, false);
-  // the owner DISCARDED the block: its remaining brace belongs to an object literal, and taking it
-  // would splice the declaration into somebody else's group
-  const discarded = insertWith('X({ q: 1 })');
-  check('insertIntoOwnerContent/discarding owner is refused', discarded.ok, false);
-  check('insertIntoOwnerContent/discarding owner is left untouched',
-    discarded.content, 'X({ q: 1 })');
-  // the NEAREST owner decides, even when a wider one still carries the block. walking outward was
-  // implemented and REVERTED by measurement: the insert then lands in a copy that still-queued
-  // transforms search by raw source needle, and cutting one of those needles aborts the build on
-  // real input. the caller's own fallback - re-emitting the block - is the answer here
-  const wide = 'z; a(() => { b; }, 0)';
-  const wideBlock = { start: wide.indexOf('{'), end: wide.indexOf('}') + 1 };
-  const q = new TransformQueue(wide, new MagicString(wide));
-  q.add(3, wide.length, 'X({ q: 1 })');
-  q.add(0, wide.length, 'Z; X(() => { _b; }, 0)');
-  check('insertIntoOwnerContent/a discarding nearest owner refuses, wider one is not consulted',
-    q.insertIntoOwnerContent({ start: wideBlock.start, end: wideBlock.end, offset: 1, text: ' var _r;' }), false);
-}
-checkInsertIntoOwnerContentSlots();
-
-// `claim` is check-and-add as one call, so a channel cannot probe one range and queue another. the
-// range it refuses is the LOGICAL one, which is what a split pair owns - a physical-only refusal
-// let a late whole-span claimant queue a rival entry over the pair and abort the merge
-function checkClaimIsCheckAndAdd() {
-  const code = '0123456789abcdef';
-  const q = new TransformQueue(code, new MagicString(code));
-  check('TransformQueue/claim takes a free range', q.claim(0, 4, 'A'), true);
-  check('TransformQueue/claim refuses an owned range', q.claim(0, 4, 'B'), false);
-  check('TransformQueue/claim leaves the owner untouched', q.composeAndDrainRange(0, 4)[0].content, 'A');
-  const split = new TransformQueue(code, new MagicString(code));
-  split.addSplit(2, 5, 9, '[', ']');
-  check('TransformQueue/claim refuses a split pair by its logical range', split.claim(2, 9, 'X'), false);
-  check('TransformQueue/claim takes a range no pair owns', split.claim(10, 14, 'Y'), true);
-}
-checkClaimIsCheckAndAdd();
-
-// `containsRange` is the ownership verdict every channel asks before claiming a span outright, so
-// which boundaries it treats as strict is a contract, not an implementation detail: PROPER
-// containment, i.e. a container anchored at the same start (or ending at the same end) still owns
-// the span, and only the exact range does not - that one is the asking transform itself
-function checkContainsRangeIsProperNotStrict() {
-  const code = 'aaa.bbb.ccc.ddd';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, 11, 'OWNER'); // aaa.bbb.ccc: same start as the queried span, wider end
-  check('TransformQueue/containsRange sees a same-start wider owner', q.containsRange(0, 7), true);
-  check('TransformQueue/containsRange sees a same-end wider owner', q.containsRange(4, 11), true);
-  check('TransformQueue/containsRange excludes the exact range', q.containsRange(0, 11), false);
-  check('TransformQueue/containsRange leaves an unowned span free', q.containsRange(12, 15), false);
-}
-checkContainsRangeIsProperNotStrict();
-
-// composeAndDrainRange drains entries and returns splices the caller bakes into relocated
-// text via spliceInRange, which cannot detect a partial overlap. it must run the same partial-overlap
-// guard apply() does, surfacing the composition bug instead of silently corrupting the relocated text
-function checkComposeAndDrainRangeOverlapThrows() {
-  const code = '0123456789abcdefghij';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 10, 'XXX');
-  q.add(5, 15, 'YYY'); // partial overlap with [0,10)
-  try {
-    q.composeAndDrainRange(0, 20);
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/composeAndDrainRange overlap') } :: expected throw`;
-  } catch (error) {
-    check('TransformQueue/composeAndDrainRange surfaces partial overlap',
-      /partial overlap/.test(error.message), true);
-  }
-}
-checkComposeAndDrainRangeOverlapThrows();
-
-// the new overlap guard must NOT false-throw on VALID (non-partial-overlapping) entries - disjoint
-// ranges compose/relocate fine and return one splice each, draining from the queue
-function checkComposeAndDrainRangeValid() {
-  const code = '0123456789';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 3, 'A');
-  q.add(5, 8, 'B'); // disjoint from [0,3) - no overlap
-  let splices = null;
-  try {
-    splices = q.composeAndDrainRange(0, 10);
-  } catch (error) {
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('TransformQueue/composeAndDrainRange valid') } :: false throw ${ error.message }`;
-  }
-  if (splices) check('TransformQueue/composeAndDrainRange valid returns disjoint splices', splices.length, 2);
-}
-checkComposeAndDrainRangeValid();
-
-// X10-1: a transform-queue throw routed through runTransform's `tagError(error, id)` must carry
-// EXACTLY one `[core-js]` brand and one file id. the queue throws an unbranded `transform-queue: `
-// message (no self-applied `[core-js] [<id>] `), so tagError stamps the brand + id exactly once -
-// matching the parse-error throw-path convention
-function checkSingleBrandAfterTagError() {
-  const id = '/src/app.js';
-  const code = 'aaaaaaaaaa';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  let message = '';
-  try {
-    q.add(0, 6, 'X');
-    q.add(3, 9, 'Y'); // partial overlap -> composition invariant throw
-    q.apply();
-  } catch (error) {
-    tagError(error, id); // exactly what runTransform's catch does
-    message = error.message;
-  }
-  check('TransformQueue/tagError single [core-js] brand', (message.match(/\[core-js\]/g) || []).length, 1);
-  check('TransformQueue/tagError single file id', message.split(id).length - 1, 1);
-  check('TransformQueue/tagError keeps unbranded subsystem prefix',
-    /^\[core-js\] \[\/src\/app\.js\] transform-queue: /.test(message), true);
-}
-checkSingleBrandAfterTagError();
-
-// --- queue diagnostics ---
-
-// helper for the diagnostics locks: run `fn`, return the thrown error (or null)
-function caught(fn) {
-  try {
-    fn();
-    return null;
-  } catch (error) {
-    return error;
-  }
-}
-
-function checkThrow(label, fn, { Ctor, includes = [], excludes = [] }) {
-  const error = caught(fn);
-  if (!error) {
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan(label) } :: expected throw`;
-    return;
-  }
-  check(`${ label }: error class`, error.constructor, Ctor);
-  check(`${ label }: single subsystem prefix`, error.message.split('transform-queue: ').length - 1, 1);
-  check(`${ label }: prefix leads`, error.message.startsWith('transform-queue: '), true);
-  for (const part of includes) check(`${ label }: names ${ JSON.stringify(part) }`, error.message.includes(part), true);
-  for (const part of excludes) check(`${ label }: omits ${ JSON.stringify(part) }`, error.message.includes(part), false);
-}
-
-// EVERY throw this module raises goes through the one `queueError` factory, so all of them
-// carry exactly one `transform-queue: ` prefix AND keep the error class their misuse deserves
-// (`TypeError` for a wrong-typed argument, `RangeError` for a bad offset, `Error` for a
-// composition invariant). every throw reachable through the public API is driven here, not a
-// sample: a new one that spells its own prefix, or an existing one that loses its class to a
-// factory refactor, must fail. two are deliberately absent because nothing can drive them -
-// `locateFailureError`'s standalone-occurrence branch (the renamed-slot recovery accepts every
-// standalone occurrence first) and `mergeEqualRange`'s needle-missing-from-both precondition
-// (compose settles the claim multiset first and reports that shape as an equal-range conflict)
-function checkQueueErrorCanon() {
-  const code = '0123456789';
-  function freshMagicString() {
-    return new MagicString(code);
-  }
-  function fresh() {
-    return new TransformQueue(code, freshMagicString());
-  }
-  const sites = [
-    ['constructor/asiFusableStarts type', () => new TransformQueue(code, freshMagicString(), 'fixture-file'), TypeError, 'asiFusableStarts must be a function or null'],
-    ['add/non-integer offsets', () => fresh().add('0', 5, 'X'), TypeError, 'start/end must be integers'],
-    ['add/zero-length range', () => fresh().add(5, 5, 'X'), RangeError, 'zero-length range'],
-    ['add/inverted range', () => fresh().add(5, 2, 'X'), RangeError, 'inverted range'],
-    ['add/out of bounds', () => fresh().add(0, 99, 'X'), RangeError, 'range [0,99) out of bounds'],
-    ['add/non-string content', () => fresh().add(0, 5, null), TypeError, 'content must be a string'],
-    ['insert/non-integer pos', () => fresh().insert(1.5, 'X'), TypeError, 'insert pos must be an integer'],
-    ['insert/out of bounds', () => fresh().insert(99, 'X'), RangeError, 'insert pos 99 out of bounds'],
-    ['insert/non-string content', () => fresh().insert(1, null), TypeError, 'insert content must be a string'],
-    ['addSplit/non-integer offsets', () => fresh().addSplit(0, '2', 5, 'A', 'B'), TypeError, 'addSplit offsets must be integers'],
-    ['addSplit/ordering', () => fresh().addSplit(0, 5, 2, 'A', 'B'), RangeError, 'addSplit invariant violated'],
-    ['addSplit/out of bounds', () => fresh().addSplit(0, 5, 99, 'A', 'B'), RangeError, 'addSplit range [0,99) out of bounds'],
-    ['addSplit/empty content half', () => fresh().addSplit(0, 2, 5, 'A', ''), TypeError, 'addSplit content args must be non-empty strings'],
-    ['createRewriteHint/guardRef without rootRaw', () => createRewriteHint({ guardRef: '_r' }), Error, 'createRewriteHint: guardRef requires rootRaw'],
-    ['apply/insert inside overwrite', () => {
-      const q = fresh();
-      q.add(0, 10, 'PRE23456POST');
-      q.insert(8, 'X');
-      q.apply();
-    }, RangeError, 'insert at 8 lands inside overwrite'],
-    ['apply/partial overlap', () => {
-      const q = fresh();
-      q.add(0, 6, 'X');
-      q.add(3, 9, 'Y');
-      q.apply();
-    }, Error, 'partial overlap between transforms'],
-    ['apply/locate failure', () => {
-      const q = fresh();
-      q.add(0, 10, 'REPLACED');
-      q.add(2, 5, 'INNER');
-      q.apply();
-    }, Error, 'could not locate inner needle in outer content'],
-    ['compose/equal-range conflict', () => {
-      const q = fresh();
-      q.add(0, 10, 'W(0123456789)');
-      q.add(0, 10, 'AAA');
-      q.add(0, 10, 'BBB');
-      q.apply();
-    }, Error, 'equal-range conflict'],
-    ['compose/mergeEqualRange doubled needle', () => {
-      const q = fresh();
-      q.add(0, 10, 'W(0123456789)(0123456789)');
-      q.add(0, 10, 'P');
-      q.apply();
-    }, Error, 'wrapper contains needle >1 times'],
-    ['compose/mergeEqualRange ambiguous wrapper', () => {
-      const q = fresh();
-      q.add(0, 10, 'O(0123456789)');
-      q.add(0, 10, 'I(0123456789)');
-      q.apply();
-    }, Error, 'both sides contain needle - ambiguous wrapper'],
-    ['apply/hoisted guard found no anchor', () => {
-      const q = fresh();
-      q.add(0, 10, 'SLOT(234)', null, createRewriteHint({ guardSlot: '_absentAnchor' }));
-      q.add(2, 5, 'GRD:BODY', null, createRewriteHint({ guardOwn: { prefixEnd: 4 } }));
-      q.apply();
-    }, Error, 'hoisted guard rewrite(s) found no anchor'],
-    ['asiFusableStarts result type', () => {
-      new TransformQueue(code, freshMagicString(), () => ['nope']).add(2, 5, '(x)');
-    }, TypeError, 'asiFusableStarts must return a Set of offsets'],
-  ];
-  // each row pins the throw it drives, not just its class: without that a future change could
-  // collapse two entries onto one throw and the enumeration would silently stop being complete
-  for (const [label, fn, Ctor, includes] of sites) {
-    checkThrow(`TransformQueue/${ label }`, fn, { Ctor, includes: [includes] });
-  }
-  check('TransformQueue/queueError canon drives distinct throws', new Set(sites.map(site => site[3])).size, sites.length);
-}
-checkQueueErrorCanon();
-
-// the locate-failure throw computes the discriminator that tells its two possible causes apart
-// (no occurrence at all = the container dropped the range, a CALLER contract violation; a
-// standalone occurrence the ordinal walk missed = the queue's own bug) one line before throwing.
-// it must spend it: blaming the queue for a dropped range sent every past report chasing the
-// wrong layer. the container's CONTENT is the datum that names the culprit channel
-function checkLocateFailureAttribution() {
-  const code = '0123456789';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, 10, 'REPLACED');
-  q.add(2, 5, 'INNER');
-  checkThrow('TransformQueue/locate failure attributes the caller', () => q.apply(), {
-    Ctor: Error,
-    includes: [
-      'could not locate inner needle in outer content.',
-      'outer=[0,10)',
-      'outerContent="REPLACED"',
-      'inner=[2,5)',
-      'needle="234"',
-      'must skip-mark it or stand down',
-    ],
-    // the wording reserved for a genuine queue bug must NOT appear on the caller-side cause
-    excludes: ['please report with a reproducer'],
-  });
-}
-checkLocateFailureAttribution();
-
-// the same needle scan drives a third state that must stay SILENT: every occurrence buried
-// inside a longer identifier means the outer already substituted at every reachable position
-// and the inner is a phantom. locking it keeps the attribution split from turning a phantom
-// into a crash - the direction that costs a working build
-function checkLocateFailurePhantomStaysSilent() {
-  const code = 'Map()';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.add(0, 5, '_MapPrime()');   // outer spells the needle only inside a longer identifier
-  q.add(0, 3, '_polyfillMap');  // inner whose effect the outer already encoded
-  const error = caught(() => q.apply());
-  check('TransformQueue/phantom inner does not throw', error, null);
-  check('TransformQueue/phantom inner keeps outer content', ms.toString(), '_MapPrime()');
-}
-checkLocateFailurePhantomStaysSilent();
-
-// a hoisted guard prefix / root rewrite that finds no anchor loses a null-check or a whole
-// claim. the pending entries name the ref their slot promised to publish, so the throw must
-// print them - a bare count says only that something was lost
-function checkNoAnchorNamesPendingEntries() {
-  const code = '0123456789';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  // slot publishes an anchor its content never spells, so the migrated prefix never lands
-  q.add(0, 10, 'SLOT(234)', null, createRewriteHint({ guardSlot: '_absentAnchor' }));
-  q.add(2, 5, 'GRD:BODY', null, createRewriteHint({ guardOwn: { prefixEnd: 4 } }));
-  checkThrow('TransformQueue/no-anchor names the stranded rewrite', () => q.apply(), {
-    Ctor: Error,
-    includes: ['1 hoisted guard rewrite(s) found no anchor', 'guard-prefix anchor="_absentAnchor"', 'text="GRD:"'],
-  });
-}
-checkNoAnchorNamesPendingEntries();
-
-// every range in the queue came from a channel's `add` / `addSplit`; the queue never widens one,
-// so a crossing pair is two channels disagreeing about who owns the text - a caller contract
-// violation, not a queue bug. the contents are what say WHICH channels
-function checkPartialOverlapAttribution() {
-  const code = '0123456789';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, 6, 'FIRST');
-  q.add(3, 9, 'SECOND');
-  checkThrow('TransformQueue/partial overlap attributes the channels', () => q.apply(), {
-    Ctor: Error,
-    includes: ['partial overlap between transforms', '[0,6) content="FIRST"', '[3,9) content="SECOND"', 'must nest or stay disjoint'],
-    excludes: ['this is a composition bug'],
-  });
-}
-checkPartialOverlapAttribution();
-
-// the insert-inside-overwrite assertion named the offsets but not the two texts, so the report
-// could say WHERE the anchor was swallowed and never WHICH channels did it
-function checkInsertInsideOverwriteNamesContents() {
-  const code = '0123456789';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, 10, 'PRE23456POST');
-  q.insert(8, 'var _ref;');
-  checkThrow('TransformQueue/insert inside overwrite names both texts', () => q.apply(), {
-    Ctor: RangeError,
-    includes: ['insert at 8 lands inside overwrite [0,10)', 'insert="var _ref;"', 'overwrite="PRE23456POST"'],
-  });
-}
-checkInsertInsideOverwriteNamesContents();
-
-// `mergeEqualRange` is binary and each fold spends the accumulator's needle slot, so a SECOND
-// needle-less claimant on one range can never fold - in any order. reporting that as the binary
-// "needle missing from both transforms" describes a broken single caller, which is the one thing
-// it is not: it is two channels collapsing one range two different ways
-function checkEqualRangeConflictDiagnostic() {
-  const code = '0123456789';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, 10, 'W(0123456789)'); // wrapper: keeps the source slice
-  q.add(0, 10, 'AAA');           // first collapse
-  q.add(0, 10, 'BBB');           // second collapse - no slot left
-  checkThrow('TransformQueue/equal-range conflict names the claimants', () => q.apply(), {
-    Ctor: Error,
-    includes: ['equal-range conflict at [0,10)', 'more than one transform replaces the source slice "0123456789"',
-      'claims="W(0123456789)", "AAA", "BBB"'],
-    excludes: ['needle missing from both transforms'],
-  });
-}
-checkEqualRangeConflictDiagnostic();
-
-// every text a queue diagnostic quotes is bounded - the head names the culprit channel and an
-// unbounded dump buries the ranges printed beside it. the SOURCE SLICE is the same kind of text
-// as the replacement, and just as long: quoting one raw next to the other truncated defeats the
-// bound. checked on both, on the same throw
-function checkDiagnosticTextIsBounded() {
-  const long = `L${ 'x'.repeat(400) }R`;
-  const code = `${ long }.at(0)`;
-  const q = new TransformQueue(code, new MagicString(code));
-  q.add(0, code.length, 'REPLACED');
-  q.add(0, long.length, 'INNER');
-  const error = caught(() => q.apply());
-  check('TransformQueue/diagnostic quotes the slice truncated',
-    /needle="Lx{190,199}\.\.\."/.test(error?.message ?? ''), true);
-  check('TransformQueue/diagnostic drops the slice tail',
-    (error?.message ?? '').includes('R"'), false);
-
-  // and the claim texts, on the throw that quotes several of them at once
-  const wide = new TransformQueue(code, new MagicString(code));
-  wide.add(0, code.length, `W(${ code })${ 'y'.repeat(400) }`);
-  wide.add(0, code.length, `A${ 'z'.repeat(400) }`);
-  wide.add(0, code.length, 'B');
-  const conflict = caught(() => wide.apply());
-  check('TransformQueue/conflict quotes every claim truncated',
-    /"Az{190,199}\.\.\.", "B"/.test(conflict?.message ?? ''), true);
-
-  // `addSplit` rejects when EITHER half is empty, so the other half can be arbitrarily long and
-  // still be echoed. both halves go through the same bound, and a non-string still reports its type
-  const halves = new TransformQueue(code, new MagicString(code));
-  checkThrow('TransformQueue/addSplit echoes a long half bounded', () => halves.addSplit(0, 2, 5, long, ''), {
-    Ctor: TypeError,
-    includes: ['content args must be non-empty strings', 'suffix=""'],
-    excludes: [`prefix="${ long }"`],
-  });
-  checkThrow('TransformQueue/addSplit echoes a non-string half by type', () => halves.addSplit(0, 2, 5, 'A', 7), {
-    Ctor: TypeError,
-    includes: ['prefix="A"', 'suffix=number'],
-  });
-
-  // a short text is quoted whole - the bound must not clip what already fits
-  const short = new TransformQueue('abcdef', new MagicString('abcdef'));
-  short.add(0, 6, 'W(abcdef)(abcdef)');
-  short.add(0, 6, 'P');
-  checkThrow('TransformQueue/short texts are quoted whole', () => short.apply(), {
-    Ctor: Error,
-    includes: ['needle="abcdef"', 'transforms="W(abcdef)(abcdef)", "P"'],
-  });
-}
-checkDiagnosticTextIsBounded();
-
-// a split pair owns its LOGICAL range through two physical halves, so a diagnostic that prints
-// an entry's raw `.content` next to that range describes half of what it points at. every site
-// that pairs text with a logical range must assemble the pair - the halves are a symmetric pair,
-// and only one of them carries the range's head
-function checkDiagnosticsAssembleSplitHalves() {
-  const code = '0123456789ABCDEF';
-  const insideSplit = new TransformQueue(code, new MagicString(code));
-  insideSplit.addSplit(0, 5, 10, 'PRE', 'SUF');
-  insideSplit.insert(8, 'X');
-  checkThrow('TransformQueue/insert inside split names the assembled text', () => insideSplit.apply(), {
-    Ctor: RangeError,
-    includes: ['insert at 8 lands inside overwrite [0,10)', 'overwrite="PRESUF"'],
-  });
-
-  // partial overlap where the earlier claimant is the split: its logical [0,10) is printed, so
-  // its text must span [0,10) too
-  const overlapSplitFirst = new TransformQueue(code, new MagicString(code));
-  overlapSplitFirst.addSplit(0, 5, 10, 'PRE', 'SUF');
-  overlapSplitFirst.add(7, 14, 'LATER');
-  checkThrow('TransformQueue/partial overlap names the split as conflict', () => overlapSplitFirst.apply(), {
-    Ctor: Error,
-    includes: ['[0,10) content="PRESUF"', '[7,14) content="LATER"'],
-  });
-
-  // and the other side of the pair: the split as the LATER claimant
-  const overlapSplitSecond = new TransformQueue(code, new MagicString(code));
-  overlapSplitSecond.add(0, 8, 'EARLIER');
-  overlapSplitSecond.addSplit(5, 10, 14, 'P2', 'S2');
-  checkThrow('TransformQueue/partial overlap names the split as later claim', () => overlapSplitSecond.apply(), {
-    Ctor: Error,
-    includes: ['[0,8) content="EARLIER"', '[5,14) content="P2S2"'],
-  });
-}
-checkDiagnosticsAssembleSplitHalves();
-
-// `mergeEqualRange`'s invariants named the needle and the range but never the two texts, so the
-// reader's next question - WHICH channels collapsed the range - had no answer in the message.
-// each carries both sides now. the third (needle missing from BOTH sides) is unreachable through
-// compose, which settles the claim multiset first and reports that shape as an equal-range
-// conflict - it stays as the helper's own precondition guard
-function checkMergeEqualRangeNamesBothSides() {
-  const code = 'ab';
-  function queue() {
-    return new TransformQueue(code, new MagicString(code));
-  }
-  const doubledNeedle = queue();
-  doubledNeedle.add(0, 2, 'W(ab)(ab)');
-  doubledNeedle.add(0, 2, 'P');
-  checkThrow('TransformQueue/mergeEqualRange doubled needle names both sides', () => doubledNeedle.apply(), {
-    Ctor: Error,
-    includes: ['wrapper contains needle >1 times', 'transforms="W(ab)(ab)", "P"'],
-  });
-
-  const ambiguous = queue();
-  ambiguous.add(0, 2, 'O(ab)');
-  ambiguous.add(0, 2, 'I(ab)'); // no `innerWrapper` marker - the queue cannot pick a nesting
-  checkThrow('TransformQueue/mergeEqualRange ambiguous wrapper names both sides', () => ambiguous.apply(), {
-    Ctor: Error,
-    includes: ['both sides contain needle - ambiguous wrapper', 'transforms="O(ab)", "I(ab)"'],
-  });
-}
-checkMergeEqualRangeNamesBothSides();
-
-// negatives for the conflict gate - the shapes the fold DOES support must keep folding.
-// a wrapper nests around a needle slot, so any number of wrappers is fine; only needle-less
-// claimants compete for the single slot
-function checkEqualRangeFoldNegatives() {
-  const code = 'abcdefghij';
-  const oneWrapperOneInner = new MagicString(code);
-  const q1 = new TransformQueue(code, oneWrapperOneInner);
-  q1.add(0, 10, '(abcdefghij, 1)');
-  q1.add(0, 10, 'P');
-  check('TransformQueue/1 wrapper + 1 inner folds', caught(() => q1.apply()), null);
-  check('TransformQueue/1 wrapper + 1 inner output', oneWrapperOneInner.toString(), '(P, 1)');
-
-  // two wrappers + one inner: the `innerWrapper` marker resolves which nests inside, the
-  // merged wrapper still carries a needle slot, and the inner drops into it
-  const twoWrappers = new MagicString(code);
-  const q2 = new TransformQueue(code, twoWrappers);
-  q2.add(0, 10, 'OUT(abcdefghij)');
-  q2.add(0, 10, 'IN(abcdefghij)', null, { innerWrapper: true });
-  q2.add(0, 10, 'P');
-  check('TransformQueue/2 wrappers + 1 inner folds', caught(() => q2.apply()), null);
-  check('TransformQueue/2 wrappers + 1 inner output', twoWrappers.toString(), 'OUT(IN(P))');
-
-  // a repeat of a claim already taken is idempotent and dropped before the fold - the
-  // redundant-collapse shape (one range collapsed once per firing meta) never reaches the merge
-  const identical = new MagicString(code);
-  const q3 = new TransformQueue(code, identical);
-  q3.add(0, 10, 'P');
-  q3.add(0, 10, 'P');
-  q3.add(0, 10, 'P');
-  check('TransformQueue/identical collapses fold to one', caught(() => q3.apply()), null);
-  check('TransformQueue/identical collapses output', identical.toString(), 'P');
-}
-checkEqualRangeFoldNegatives();
-
-// the idempotent-repeat drop compares against the CLAIMS already taken, not the accumulator:
-// after one fold the accumulator is a merge product no raw claim can equal, so a repeat sitting
-// behind a wrapper stopped being recognized and became a spurious build failure. it is one
-// range, one text, however many channels re-queued it and in whatever order
-function checkIdempotentRepeatBehindWrapper() {
-  const code = 'abcdefghij';
-  const shapes = [
-    ['wrapper first', ['W(abcdefghij)', 'P', 'P']],
-    ['repeat straddling the wrapper', ['P', 'W(abcdefghij)', 'P']],
-    ['repeats first', ['P', 'P', 'W(abcdefghij)']],
-    ['three repeats', ['W(abcdefghij)', 'P', 'P', 'P']],
-  ];
-  for (const [label, contents] of shapes) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    for (const content of contents) q.add(0, 10, content);
-    check(`TransformQueue/idempotent repeat ${ label } folds`, caught(() => q.apply()), null);
-    check(`TransformQueue/idempotent repeat ${ label } output`, ms.toString(), 'W(P)');
-  }
-
-  // the drop is by TEXT identity, so two DIFFERENT collapses behind a wrapper stay a conflict -
-  // the queue still cannot pick which one wins, and that is the shape the diagnostic is for
-  const distinct = new TransformQueue(code, new MagicString(code));
-  distinct.add(0, 10, 'W(abcdefghij)');
-  distinct.add(0, 10, 'P');
-  distinct.add(0, 10, 'Q');
-  checkThrow('TransformQueue/distinct collapses behind a wrapper still conflict', () => distinct.apply(), {
-    Ctor: Error,
-    includes: ['equal-range conflict at [0,10)', 'claims="W(abcdefghij)", "P", "Q"'],
-  });
-}
-checkIdempotentRepeatBehindWrapper();
-
-// exhaustive sweep of the equal-range fold instead of hand-picked shapes: every arrangement of
-// up to four claims over one range, checked against the contract rather than against the
-// implementation. the fold nests WRAPPERS (they carry the source slice, so each keeps a slot for
-// the next) and places at most one needle-less COLLAPSE, since the first one spends that slot;
-// repeats of a claim already taken are idempotent and drop out. two consequences, both swept:
-// it fails exactly when two DISTINCT collapses compete, and the result never depends on the
-// order the channels queued their claims in
-function checkEqualRangeFoldSweep() {
-  const code = 'abcdefghij';
-  const CLAIMS = {
-    W: { content: `W(${ code })` },                            // wrapper: keeps the source slice
-    V: { content: `V(${ code })`, hint: { innerWrapper: true } }, // wrapper declaring it nests inside
-    P: { content: 'P' },                                       // collapse: replaces the slice
-    Q: { content: 'Q' },                                       // a different collapse
-  };
-  function run(names) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    for (const name of names) q.add(0, 10, CLAIMS[name].content, null, CLAIMS[name].hint);
-    const error = caught(() => q.apply());
-    return error ? { threw: true, message: error.message } : { threw: false, out: ms.toString() };
-  }
-  function permutations(names) {
-    if (names.length <= 1) return [names];
-    const out = [];
-    for (let i = 0; i < names.length; i++) {
-      for (const rest of permutations([...names.slice(0, i), ...names.slice(i + 1)])) out.push([names[i], ...rest]);
-    }
-    return out;
-  }
-  // every multiset of size 2..4 over the four claim kinds
-  const multisets = [];
-  const kinds = Object.keys(CLAIMS);
-  for (const a of kinds) {
-    for (const b of kinds) {
-      multisets.push([a, b]);
-      for (const c of kinds) {
-        multisets.push([a, b, c]);
-        for (const d of kinds) multisets.push([a, b, c, d]);
-      }
-    }
-  }
-  let orderDependent = 0;
-  let contractBreaks = 0;
-  let wrongDiagnosis = 0;
-  let swept = 0;
-  for (const multiset of multisets) {
-    // sorted so each multiset is visited once regardless of which permutation generated it
-    const key = [...multiset].sort().join('');
-    if (key !== multiset.join('')) continue;
-    const distinctCollapses = new Set(multiset.filter(name => name === 'P' || name === 'Q')).size;
-    const mustThrow = distinctCollapses > 1;
-    const results = permutations(multiset).map(run);
-    swept += results.length;
-    for (const result of results) {
-      if (result.threw !== mustThrow) contractBreaks++;
-      // the failure is diagnosed at the compose level, never by `mergeEqualRange`'s binary
-      // precondition guard - compose settles the claim multiset before folding, so the guard
-      // is unreachable from here and a sighting of it means that ordering broke
-      if (result.threw && !result.message.includes('equal-range conflict')) wrongDiagnosis++;
-    }
-    const [first] = results;
-    if (results.some(r => r.threw !== first.threw || r.out !== first.out)) orderDependent++;
-  }
-  check('TransformQueue/fold sweep covers every arrangement', swept >= 400, true);
-  check('TransformQueue/fold fails exactly on two distinct collapses', contractBreaks, 0);
-  check('TransformQueue/fold failure is always the compose-level diagnosis', wrongDiagnosis, 0);
-  check('TransformQueue/fold result is order-independent', orderDependent, 0);
-}
-checkEqualRangeFoldSweep();
-
-// `#outermostComposed` hands its composed text to the per-half sourcemap partition, so a split
-// sharing its logical range with an equal-range claim runs the fold and the partition against the
-// same string. neither the emitted text nor the mapping may shift when the claim joins
-function checkSplitMapSurvivesEqualRangeClaim() {
-  const code = '0123456789ABCDEF';
-  function build(withClaim) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    q.addSplit(0, 5, 10, '_poly(R)', '.call(R)');
-    if (withClaim) q.add(0, 10, `W(${ code.slice(0, 10) })`);
-    q.apply();
-    const [firstRow] = ms.generateMap({ hires: true }).mappings.split(';', 1);
-    return { text: ms.toString(), rowSegments: firstRow.split(',').length };
-  }
-  const plain = build(false);
-  check('TransformQueue/split alone emits both halves', plain.text, '_poly(R).call(R)ABCDEF');
-  check('TransformQueue/split alone maps per half', plain.rowSegments, 8);
-  const wrapped = build(true);
-  check('TransformQueue/split under an equal-range claim nests', wrapped.text, 'W(_poly(R).call(R))ABCDEF');
-  check('TransformQueue/split under an equal-range claim still maps', wrapped.rowSegments, 7);
-}
-checkSplitMapSurvivesEqualRangeClaim();
-
-// the fold has two consumers - `apply()` splicing onto the magic-string and
-// `composeAndDrainRange` baking into relocated text - and they share `#composeEntries`. the drain
-// path's own tests never queue equal-range claims, so a fold change could land correct on one
-// consumer and not the other. same multisets, both consumers, same verdict
-function checkFoldSameThroughDrain() {
-  const code = 'abcdefghij';
-  function build(contents) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    for (const content of contents) {
-      q.add(0, 10, content, null, content.startsWith('V(') ? { innerWrapper: true } : undefined);
-    }
-    return { ms, q };
-  }
-  const sets = [
-    [`W(${ code })`, 'P'],
-    [`W(${ code })`, 'P', 'P'],
-    ['P', `W(${ code })`, 'P'],
-    [`W(${ code })`, `V(${ code })`, 'P'],
-    ['P', 'P', 'P'],
-    [`W(${ code })`, 'P', 'Q'],
-  ];
-  for (const contents of sets) {
-    const applied = build(contents);
-    const viaApply = caught(() => applied.q.apply());
-    const drained = build(contents);
-    let viaDrain = null;
-    const drainError = caught(() => {
-      viaDrain = drained.q.composeAndDrainRange(0, 10).map(splice => splice.content).join('');
-    });
-    const label = contents.join('+');
-    check(`TransformQueue/drain matches apply on ${ label } (throws)`, !!drainError, !!viaApply);
-    if (!viaApply && !drainError) check(`TransformQueue/drain matches apply on ${ label }`, viaDrain, applied.ms.toString());
-    else check(`TransformQueue/drain matches apply on ${ label } (message)`, drainError?.message, viaApply?.message);
-  }
-}
-checkFoldSameThroughDrain();
-
-// the constructor's third slot has held two different meanings (a `fileId` string, now the
-// lazy ASI-offset provider). `add`/`insert`/`addSplit` validate at the gate precisely so a slot
-// mismatch is attributed to the caller; without the same check here a wrong-typed value stays
-// inert until some replacement happens to lead with `(`, then dies as `not a function` inside
-// `#asiGuarded` at an unrelated later call
-function checkConstructorAsiSlotContract() {
-  const code = 'a\nb.flat()';
-  const accepted = [null, undefined, () => new Set()];
-  for (const value of accepted) {
-    check(`TransformQueue/ctor accepts ${ typeof value } asiFusableStarts`,
-      caught(() => new TransformQueue(code, new MagicString(code), value)), null);
-  }
-  const rejected = [['string', 'fixture-file'], ['number', 0], ['plain object', {}], ['Set', new Set()]];
-  for (const [name, value] of rejected) {
-    checkThrow(`TransformQueue/ctor rejects ${ name } asiFusableStarts`,
-      () => new TransformQueue(code, new MagicString(code), value),
-      { Ctor: TypeError, includes: ['asiFusableStarts must be a function or null'] });
-  }
-  // the slot stays LIVE after the check: a `(`-leading replacement at a fusable statement
-  // start still gets its `;`, so the guard did not cost the channel it protects
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms, () => new Set([2]));
-  q.add(2, 10, '(x)');
-  q.apply();
-  check('TransformQueue/ctor keeps the ASI channel live', ms.toString(), 'a\n;(x)');
-}
-checkConstructorAsiSlotContract();
-
-// the ASI slot has TWO typed surfaces and the constructor can only reach the first: the callable
-// is checked there, its RESULT only exists inside the guard. an offset Set is what the guard
-// reads, and a wrong one used to surface as `.has is not a function` at whichever `(`-leading
-// add happened to be first - the same late, unattributed shape the argument check exists to stop
-function checkAsiProviderResultContract() {
-  const code = 'a\nb.flat()';
-  for (const [name, result] of [['array', ['not a set']], ['plain object', {}], ['null', null], ['undefined', undefined]]) {
-    checkThrow(`TransformQueue/asi provider returning ${ name } is rejected`,
-      () => new TransformQueue(code, new MagicString(code), () => result).add(2, 10, '(x)'),
-      { Ctor: TypeError, includes: ['asiFusableStarts must return a Set of offsets'] });
-  }
-
-  // a Map has `.has` too, so a `.has`-shaped duck check would let it through and then silently
-  // never match an offset key - the contract is a Set of offsets, not "something with .has"
-  checkThrow('TransformQueue/asi provider returning a Map is rejected',
-    () => new TransformQueue(code, new MagicString(code), () => new Map([[2, true]])).add(2, 10, '(x)'),
-    { Ctor: TypeError, includes: ['asiFusableStarts must return a Set of offsets'] });
-
-  // the provider's own throw belongs to the provider: the queue must not wrap it, or the real
-  // stack is buried under a queue frame that did nothing wrong
-  const raised = caught(() => new TransformQueue(code, new MagicString(code), () => {
-    throw new RangeError('provider blew up');
-  }).add(2, 10, '(x)'));
-  check('TransformQueue/asi provider throw propagates unwrapped class', raised?.constructor, RangeError);
-  check('TransformQueue/asi provider throw propagates unwrapped message', raised?.message, 'provider blew up');
-
-  // the guard runs BEFORE `add` validates its own arguments, so it must stay out of the way:
-  // a bad offset with `(`-leading content still gets the offset diagnostic, not an ASI failure
-  function badOffset(fn) {
-    return caught(() => fn(new TransformQueue(code, new MagicString(code), () => new Set([2]))));
-  }
-  const offsetCases = [
-    ['non-integer start', q => q.add('0', 5, '(x)'), 'start/end must be integers'],
-    ['NaN start', q => q.add(NaN, 5, '(x)'), 'start/end must be integers'],
-    ['out of bounds', q => q.add(9999, 10000, '(x)'), 'out of bounds'],
-    ['negative start', q => q.add(-5, 5, '(x)'), 'out of bounds'],
-  ];
-  for (const [label, fn, expected] of offsetCases) {
-    check(`TransformQueue/asi guard does not mask ${ label }`,
-      (badOffset(fn)?.message ?? '').includes(expected), true);
-  }
-}
-checkAsiProviderResultContract();
-
-// `extractContent` operates on LOGICAL ranges. a split pair is keyed in #byRange by its two
-// PHYSICAL halves, never its logical [start, end], so only the logical range resolves the
-// assembled pair AND removes both halves. a physical-half range has no logical owner: it returns
-// null and leaves the pair queued, so apply() still emits the whole rewrite. returning a lone half
-// (or orphaning a peer) would corrupt output - a half covers only part of the logical range
-function checkExtractSplitLogicalContract() {
-  const code = '0123456789';
-  // logical range -> assembled pair, both halves drained, apply leaves source untouched
-  {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
-    check('TransformQueue/extractContent logical range assembles pair', q.extractContent(0, 10), 'PREFIXSUFFIX');
-    q.apply();
-    check('TransformQueue/extractContent logical range drains both halves', ms.toString(), code);
-  }
-  // physical prefix half -> null, pair stays queued and applies whole
-  {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
-    check('TransformQueue/extractContent physical prefix half returns null', q.extractContent(0, 5), null);
-    q.apply();
-    check('TransformQueue/extractContent physical prefix half leaves pair intact', ms.toString(), 'PREFIXSUFFIX');
-  }
-  // physical suffix half -> null, pair intact
-  {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    q.addSplit(0, 5, 10, 'PREFIX', 'SUFFIX');
-    check('TransformQueue/extractContent physical suffix half returns null', q.extractContent(5, 10), null);
-    q.apply();
-    check('TransformQueue/extractContent physical suffix half leaves pair intact', ms.toString(), 'PREFIXSUFFIX');
-  }
-}
-checkExtractSplitLogicalContract();
-
-// composeAndDrainRange membership is by LOGICAL span: a split half qualifies only together with
-// its peer. a drain range beginning inside a split (covering the suffix's physical start but not
-// the prefix's) must NOT admit the suffix alone - draining it while leaving the prefix would emit
-// the receiver fragment by itself. nothing is drained; the pair survives and apply() emits it whole
-function checkComposeAndDrainRangePartialSplitLeavesPairIntact() {
-  const code = '0123456789';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.addSplit(2, 5, 10, 'PRE', 'SUF'); // logical [2,10); physical halves [2,5) + [5,10)
-  const splices = q.composeAndDrainRange(5, 10); // begins at the split mid - touches suffix half only
-  check('TransformQueue/composeAndDrainRange partial split drains nothing', splices.length, 0);
-  q.apply();
-  check('TransformQueue/composeAndDrainRange partial split leaves pair intact', ms.toString(), '01PRESUF');
-}
-checkComposeAndDrainRangePartialSplitLeavesPairIntact();
-
-// composeAndDrainRange covering a split's FULL logical range drains BOTH halves (peer-aware) and
-// returns one assembled splice - no half is left orphaned in the queue for apply() to emit alone
-function checkComposeAndDrainRangeWholeSplitDropsBothHalves() {
-  const code = '0123456789';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.addSplit(2, 5, 10, 'PRE', 'SUF');
-  const splices = q.composeAndDrainRange(0, 10);
-  check('TransformQueue/composeAndDrainRange whole split returns one splice', splices.length, 1);
-  if (splices.length) check('TransformQueue/composeAndDrainRange whole split assembles pair', splices[0].content, 'PRESUF');
-  q.apply(); // both halves drained -> source untouched, no orphan peer emitted
-  check('TransformQueue/composeAndDrainRange whole split drains both halves', ms.toString(), code);
-}
-checkComposeAndDrainRangeWholeSplitDropsBothHalves();
-
-// hasTransformWithin is split-aware on the logical START: a split that STRADDLES the queried range
-// (prefix outside, suffix inside) is NOT "within" - only a split whose full logical span fits counts.
-// a physical-start test would admit the suffix alone and wrongly report the straddling split as nested
-function checkHasTransformWithinSplitLogicalStart() {
-  const code = '0123456789abcdef';
-  const q = new TransformQueue(code, new MagicString(code));
-  q.addSplit(2, 5, 10, 'PRE', 'SUF'); // logical [2,10); physical halves [2,5) + [5,10)
-  // [3,10) begins inside the prefix half, so the split straddles it - prefix lies outside -> not within
-  check('TransformQueue/hasTransformWithin straddling split is not within', q.hasTransformWithin(3, 10), false);
-  // full logical span fits inside the query -> within
-  check('TransformQueue/hasTransformWithin enclosed split is within', q.hasTransformWithin(0, 12), true);
-  check('TransformQueue/hasTransformWithin exact logical range is within', q.hasTransformWithin(2, 10), true);
-}
-checkHasTransformWithinSplitLogicalStart();
-
-// the relocation path (composedRangeSrc) drains a node range through BOTH drainInsertsInRange (point
-// inserts) and composeAndDrainRange (overwrites/splits). a split + a point-insert in the same range
-// must each drain cleanly without corrupting the other: the split assembles as one logical splice and
-// both its halves leave the queue (peer-aware), the insert leaves as a zero-length splice
-function checkDrainSplitAndInsertSameRange() {
-  const code = '0123456789abcdef';
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.addSplit(2, 5, 10, 'PRE', 'SUF'); // logical [2,10)
-  q.insert(11, 'INS'); // point-insert outside the split, inside the drained range
-  const inserts = q.drainInsertsInRange(0, 16);
-  const splices = q.composeAndDrainRange(0, 16);
-  check('TransformQueue/drain split+insert: insert drained as zero-length splice', inserts.length, 1);
-  check('TransformQueue/drain split+insert: split assembled as one splice', splices.length === 1 && splices[0].content, 'PRESUF');
-  q.apply(); // queue fully drained (both split halves + insert) -> source untouched
-  check('TransformQueue/drain split+insert: queue empty, source untouched', ms.toString(), code);
-}
-checkDrainSplitAndInsertSameRange();
 
 // --- ref-block anchor vs a trailing comment separated by exotic whitespace ---
 
@@ -1993,733 +402,6 @@ checkDrainSplitAndInsertSameRange();
       out.indexOf('var _ref') < out.indexOf('// next line'), true);
   }
 }
-
-// --- ImportInjector.snapshot() ---
-// snapshot must hand the post-pass an immutable view; mutating the pre injector after
-// a snapshot was taken should NOT leak into the snapshot's collections
-function checkSnapshotDeepCopy() {
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
-  inj.globalImports.add('a');
-  inj.pureImports.set('p1', { source: 's1' });
-  inj.usedNames.add('u1');
-  const snap = inj.snapshot();
-  // mutate after snapshot
-  inj.globalImports.add('b');
-  inj.pureImports.set('p2', { source: 's2' });
-  inj.usedNames.add('u2');
-  check('snapshot/globals isolated', snap.globals.has('b'), false);
-  check('snapshot/pure isolated', snap.pure.has('p2'), false);
-  check('snapshot/usedNames isolated', snap.usedNames.has('u2'), false);
-  // pre-mutation contents preserved
-  check('snapshot/globals carried', snap.globals.has('a'), true);
-  check('snapshot/pure carried', snap.pure.has('p1'), true);
-  check('snapshot/usedNames carried', snap.usedNames.has('u1'), true);
-}
-checkSnapshotDeepCopy();
-
-// ctor-alias registrations (decl hints + checked assignment writes) must survive the pre->post
-// snapshot handoff: without the carry, post's re-parse loses the alias hint AND its trusted write
-// span, so member reads through the alias stop narrowing on the second pass
-function checkSnapshotCarriesGlobalAliases() {
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
-  // BLIND (binding-less) entries ride the snapshot; PER-BINDING entries intentionally do not -
-  // their work completes in the pass that registered them (post re-parses transformed text
-  // where nothing alias-shaped remains), and their spans would be stale against the new offsets
-  const declNode = { type: 'VariableDeclarator' };
-  inj.registerGlobalAlias('M', 'Map', {
-    bindingNode: declNode, write: { start: 10, end: 40 }, scopeSpan: { start: 0, end: 100 }, verified: true,
-  });
-  inj.registerGlobalAlias('S', 'Symbol');
-  const snap = inj.snapshot();
-  inj.registerGlobalAlias('L', 'Set');
-  const post = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  post.applySnapshot ? post.applySnapshot(snap) : post.rehydrateGlobalAliases(snap.globalAliases);
-  check('snapshot/blind alias carried', post.getBindingInfo('S')?.hint, 'Symbol');
-  check('snapshot/per-binding entry NOT carried', post.getBindingInfo('M'), null);
-  check('snapshot/aliases isolated', snap.globalAliases.has('L'), false);
-  // the live injector still resolves both views
-  check('live/binding view', inj.getBindingAliasInfo(declNode)?.aliasWrite?.start, 10);
-  check('live/name view unique fallback', inj.getBindingInfo('M', 50)?.hint, 'Map');
-}
-checkSnapshotCarriesGlobalAliases();
-
-// adoptOrphanRefs must not duplicate refs that pre already flushed; otherwise post
-// would emit a second `var _ref;` on top of pre's
-function checkAdoptOrphanRespectsFlushed() {
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms,
-    inherit: { globals: new Set(), pure: new Map(), usedNames: new Set(),
-      unusedNames: new Set(), existingPure: new Map(),
-      refs: ['_ref'], flushedRefs: ['_ref'] } });
-  inj.adoptOrphanRefs(['_ref', '_ref2']);
-  const snap = inj.snapshot();
-  // _ref was already flushed by pre — adoptOrphan should skip it (no double declaration)
-  // _ref2 is brand new — should be in refs but not flushedRefs
-  check('adoptOrphan/skips flushed', snap.refs.filter(r => r === '_ref').length, 1);
-  check('adoptOrphan/adds new', snap.refs.includes('_ref2'), true);
-  check('adoptOrphan/flushed carried', snap.flushedRefs.includes('_ref'), true);
-}
-checkAdoptOrphanRespectsFlushed();
-
-// adoptOrphanRefs must reject non-`ORPHAN_REF_PATTERN`-conforming names BEFORE mutating
-// refs / usedNames. without the upfront validation, a stale snapshot carrying a user-
-// written `_user_ref` or `myRef` slipped past the regex-only seed-cache check and joined
-// refs - flush later emits `var <bad-name>;` polluting output
-function checkAdoptOrphanRejectsNonConforming() {
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
-  inj.adoptOrphanRefs(['_ref', '_ref2', 'weirdName', '_user_var']);
-  const snap = inj.snapshot();
-  check('adoptOrphan/rejects non-conforming weirdName', snap.refs.includes('weirdName'), false);
-  check('adoptOrphan/rejects non-conforming _user_var', snap.refs.includes('_user_var'), false);
-  check('adoptOrphan/keeps conforming _ref', snap.refs.includes('_ref'), true);
-  check('adoptOrphan/keeps conforming _ref2', snap.refs.includes('_ref2'), true);
-  // usedNames mirror - same filter
-  check('adoptOrphan/usedNames excludes non-conforming',
-    snap.usedNames.has('weirdName') || snap.usedNames.has('_user_var'), false);
-}
-checkAdoptOrphanRejectsNonConforming();
-
-// the orphan pattern caps the numeric tail at 15 digits (< Number.MAX_SAFE_INTEGER). a user
-// `_ref` with a 16+-digit suffix would parseInt into a float-collapsed integer that seeds the
-// nextSuffix cache to a value `findUniqueName` can never increment past, hanging the allocator.
-// such an over-long suffix must NOT match the pattern (-> reserved as a user name, never adopted)
-function checkAdoptOrphanRejectsUnsafeSuffix() {
-  check('orphanPattern/accepts 15-digit suffix', ORPHAN_REF_PATTERN.test(`_ref${ '9'.repeat(15) }`), true);
-  check('orphanPattern/rejects 16-digit suffix', ORPHAN_REF_PATTERN.test(`_ref${ '9'.repeat(16) }`), false);
-  // regression: the canonical generator-shaped names still match, the user-only forms still do not
-  check('orphanPattern/accepts bare _ref', ORPHAN_REF_PATTERN.test('_ref'), true);
-  check('orphanPattern/accepts _ref2', ORPHAN_REF_PATTERN.test('_ref2'), true);
-  check('orphanPattern/accepts _ref100', ORPHAN_REF_PATTERN.test('_ref100'), true);
-  check('orphanPattern/rejects _ref1', ORPHAN_REF_PATTERN.test('_ref1'), false);
-  check('orphanPattern/rejects _ref0', ORPHAN_REF_PATTERN.test('_ref0'), false);
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
-  const giant = `_ref${ '9'.repeat(18) }`;
-  inj.adoptOrphanRefs([giant, '_ref2']);
-  const snap = inj.snapshot();
-  check('adoptOrphan/rejects unsafe-length suffix', snap.refs.includes(giant), false);
-  check('adoptOrphan/adopts safe suffix alongside', snap.refs.includes('_ref2'), true);
-}
-checkAdoptOrphanRejectsUnsafeSuffix();
-
-// `_unused` counterpart of orphan-ref adoption: post-without-pre must re-recognize pre's
-// rest-destructure sentinels via adoptUnusedNames, with the same generator-shape validation
-// and suffix seeding, so the idempotency skip re-arms and the allocator can't re-mint an
-// adopted name
-// shebang fallback anchor: just before the consumed line terminator - and when the shebang
-// runs to EOF with NO terminator, the anchor is the END (backing up one char would splice the
-// injected block mid-shebang: `#!/usr/bin/env nod<block>e`)
-function checkShebangFallbackAnchor() {
-  check('shebangAnchor/no shebang', shebangFallbackAnchor('const x = 1;'), 0);
-  check('shebangAnchor/terminator-less EOF', shebangFallbackAnchor('#!/usr/bin/env node'), '#!/usr/bin/env node'.length);
-  check('shebangAnchor/LF', shebangFallbackAnchor('#!x\ncode();'), 3);
-  check('shebangAnchor/CRLF', shebangFallbackAnchor('#!x\r\ncode();'), 3);
-  check('shebangAnchor/CR only', shebangFallbackAnchor('#!x\rcode();'), 3);
-  check('shebangAnchor/LS', shebangFallbackAnchor('#!x\u2028code();'), 3);
-  check('shebangAnchor/PS', shebangFallbackAnchor('#!x\u2029code();'), 3);
-}
-checkShebangFallbackAnchor();
-
-// a per-binding registration invalidates a pre-existing BLIND entry's "no binding" claim -
-// the stale blind entry must not shadow the per-binding judgment (a GUARDED write would
-// otherwise read as unconditionally trusted through the name view). minted allocator UIDs
-// are exempt: a user binding can never collide with them
-function checkPerBindingDropsStaleBlindAlias() {
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  inj.registerGlobalAlias('M', 'Map');
-  inj.registerGlobalAlias('M', 'Map', {
-    bindingNode: { type: 'Identifier', name: 'M' },
-    guarded: true, write: { start: 10 }, scopeSpan: { start: 0, end: 100 },
-  });
-  const info = inj.getBindingInfo('M', 50);
-  check('blindDrop/per-binding judgment wins', info?.aliasTrusted, false);
-  check('blindDrop/guard flag visible', info?.aliasGuarded, true);
-  // the drop is durable: a pre->post snapshot carries no stale blind entry to resurrect
-  check('blindDrop/snapshot carries no stale blind', inj.snapshot().globalAliases.has('M'), false);
-  // the existence view still reports the name bound through the per-binding list
-  check('blindDrop/hasAliasName still true via per-binding', inj.hasAliasName('M', 50), true);
-  // minted (allocator-owned) blind entries survive a same-name per-binding registration
-  const inj2 = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  inj2.registerGlobalAlias('_r', 'Map', { minted: true });
-  inj2.registerGlobalAlias('_r', 'Map', {
-    bindingNode: { type: 'Identifier', name: '_r' },
-    guarded: true, write: { start: 10 }, scopeSpan: { start: 0, end: 100 },
-  });
-  check('blindDrop/minted blind survives', inj2.getBindingInfo('_r', 50)?.aliasTrusted, true);
-}
-checkPerBindingDropsStaleBlindAlias();
-
-function checkAdoptUnusedNames() {
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
-  inj.adoptUnusedNames(['_unused', '_unused9', 'notASentinel', '_unused_user', '_ref']);
-  check('adoptUnused/arms the sentinel skip', inj.hasGeneratedUnusedName('_unused'), true);
-  check('adoptUnused/arms suffixed sentinel', inj.hasGeneratedUnusedName('_unused9'), true);
-  check('adoptUnused/rejects non-conforming', inj.hasGeneratedUnusedName('notASentinel'), false);
-  check('adoptUnused/rejects underscore tail', inj.hasGeneratedUnusedName('_unused_user'), false);
-  check('adoptUnused/rejects ref-shaped name', inj.hasGeneratedUnusedName('_ref'), false);
-  // suffix state seeded past the adopted maximum - a fresh allocation may not collide
-  check('adoptUnused/allocator resumes past adopted', inj.generateUnusedName(), '_unused10');
-  // unsafe-length numeric tail stays out of the allocator cache (same cap as orphan refs)
-  const inj2 = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  inj2.adoptUnusedNames([`_unused${ '9'.repeat(18) }`]);
-  check('adoptUnused/rejects unsafe-length suffix', inj2.hasGeneratedUnusedName(`_unused${ '9'.repeat(18) }`), false);
-}
-checkAdoptUnusedNames();
-
-// sequential transforms via one plugin instance must not bleed state between them.
-// runTransformInner installs `currentInjector` AFTER its early-return guards and the
-// try/finally restores the previous slot - a second transform sees a fresh tree and
-// the third must not be polluted by either. core-js-internal short-circuit between
-// real transforms confirms the early-return path doesn't touch the slot either
-function checkRunTransformStateIsolation() {
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const a = plugin.transform('Array.from([1]);', '/a.ts');
-  // core-js-internal early-return between real transforms must not corrupt state
-  plugin.transform('var x = 1;', '/some/path/core-js/internals/foo.js');
-  const b = plugin.transform('Promise.resolve(1);', '/b.ts');
-  // each transform emits its own polyfill family, neither pollutes the other
-  check('isolation/transform a emits Array.from', /array\/from/.test(a?.code ?? ''), true);
-  check('isolation/transform a has no Promise import', /promise\//.test(a?.code ?? ''), false);
-  check('isolation/transform b emits Promise.resolve', /promise\/resolve/.test(b?.code ?? ''), true);
-  check('isolation/transform b has no Array import', /array\/from/.test(b?.code ?? ''), false);
-  // `currentMutatedStatics` is the second per-transform slot (saved/restored together with
-  // `currentInjector`). a transform whose source monkey-patches a static suppresses that static's pure
-  // rewrite; a later transform using the same static UNMUTATED must still rewrite it - the suppression
-  // slot is per-transform, not instance-global. (true re-entrancy - an inner transform clobbering the
-  // outer's slot mid-scan - is bundler-specific and not reproducible via direct transform calls; the
-  // save/restore makes that case safe, this guards the per-transform set + that the slot does not bleed.)
-  const mutated = plugin.transform('Array.from = () => [];\nArray.from([1]);', '/m.ts');
-  const clean = plugin.transform('Array.from([1]);', '/n.ts');
-  check('isolation/mutated static suppresses its own rewrite', /array\/from/.test(mutated?.code ?? ''), false);
-  check('isolation/later clean transform still rewrites the static', /array\/from/.test(clean?.code ?? ''), true);
-}
-checkRunTransformStateIsolation();
-
-// orphan list missing bare `_ref` but containing `_ref2+` must not seed the suffix cache
-// past bare. snapshot loss after user-edited removal of `_ref` declaration means bare is
-// free again; allocator must reuse it before claiming a new numeric slot
-function checkBareSlotReclaim() {
-  function newInj() {
-    return new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  }
-  // baseline: only numbered orphan adopted -> bare reclaimed on first allocation
-  const a = newInj();
-  a.adoptOrphanRefs(['_ref2']);
-  check('reclaim/single numbered orphan', a.generateLocalRef(), '_ref');
-  // multi numbered orphans (`_ref2`, `_ref5`) -> bare still free, reclaim it.
-  // next call must skip past the highest numbered orphan, not back to `_ref2`
-  const b = newInj();
-  b.adoptOrphanRefs(['_ref2', '_ref5']);
-  check('reclaim/multi numbered orphans', b.generateLocalRef(), '_ref');
-  check('reclaim/post-reclaim advances past highest', b.generateLocalRef(), '_ref6');
-  // bare also taken -> reclaim must NOT pick bare; allocator falls through to next free slot
-  const c = newInj();
-  c.adoptOrphanRefs(['_ref', '_ref2']);
-  check('reclaim/bare-taken skips reclaim', c.generateLocalRef(), '_ref3');
-  // empty cache (no orphans, no prior calls) -> first allocation gets bare normally
-  const d = newInj();
-  check('reclaim/empty cache returns bare', d.generateLocalRef(), '_ref');
-  // sequential allocations after bare reclaim preserve monotonic numbering across the
-  // pre-existing cache ceiling - third call must produce `_ref7`, not loop back to `_ref3`
-  const e = newInj();
-  e.adoptOrphanRefs(['_ref2', '_ref5']);
-  check('reclaim/sequence step 1', e.generateLocalRef(), '_ref');
-  check('reclaim/sequence step 2', e.generateLocalRef(), '_ref6');
-  check('reclaim/sequence step 3', e.generateLocalRef(), '_ref7');
-}
-checkBareSlotReclaim();
-
-// --- generateDeclaredRef vs generateLocalRef contract ---
-// `generateDeclaredRef` is the unplugin counterpart of babel's `generateDeclaredRef(scope)`
-// abstract method declared in injector-base.js's docstring. it queues the ref for
-// hoisted `var _refN;` emission at flush, whereas `generateLocalRef` returns the name
-// only and leaves it up to the caller to emit a binding. parity check ensures the rename
-// from `generateHoistedRef` to `generateDeclaredRef` doesn't drift the
-// behavior: declared refs land in the flushed `var` line, local refs do not
-function checkGenerateDeclaredRefHoists() {
-  function freshInjector() {
-    const ms = new MagicString('');
-    return { ms, injector: new ImportInjector({ mode: 'actual', pkg: 'x', ms }) };
-  }
-  function flushOutput(injector, ms) {
-    injector.flush();
-    return ms.toString();
-  }
-
-  // both flavours allocate ref names; only declared lands in the hoisted `var` line
-  const { ms, injector } = freshInjector();
-  const declared = injector.generateDeclaredRef();
-  const local = injector.generateLocalRef();
-  const out = flushOutput(injector, ms);
-  check('declared/local return distinct names', declared !== local, true);
-  check('declaredRef in flushed var line', out.includes(`var ${ declared };`), true);
-  check('localRef NOT in flushed var line', out.includes(`var ${ local };`), false);
-
-  // localRef-only path emits no `var` at all - caller owns its own binding emission
-  const { ms: msLocal, injector: injLocal } = freshInjector();
-  injLocal.generateLocalRef();
-  check('localRef-only flush emits no var', flushOutput(injLocal, msLocal).includes('var _ref'), false);
-}
-checkGenerateDeclaredRefHoists();
-
-// registerBodyExtractAlias treats the aliasing destructure's OWN write as the aliasing event, not a
-// disqualifying reassignment: the assignment form `let x; ({ x } = Source)` is the binding's single
-// constantViolation with no declarator init. the gate counts writes + checks init, so it is parser-
-// agnostic (babel's violation node is the assignment, estree's the bound identifier - both count as one).
-// a real later reassignment, or a write alongside a declarator init, still poisons.
-function checkBodyExtractAliasCleanGate() {
-  function newInj() {
-    return new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  }
-  const queryBinding = { identifier: { start: 0 } };
-
-  // assignment form: exactly one write, no declarator init -> the aliasing event, not a reassignment
-  const assign = newInj();
-  assign.registerBodyExtractAlias('from', 'array/from',
-    { kind: 'let', identifier: { start: 0 }, path: { node: { init: null } }, constantViolations: [{}] });
-  check('single destructure write with no init does not poison the alias',
-    assign.isReassignedBinding('from', queryBinding), false);
-
-  // declarator form: the destructure IS the init, so there is no separate write -> clean
-  const decl = newInj();
-  decl.registerBodyExtractAlias('keys', 'object/keys',
-    { kind: 'let', identifier: { start: 0 }, path: { node: { init: {} } }, constantViolations: [] });
-  check('declarator-form alias with no writes does not poison',
-    decl.isReassignedBinding('keys', queryBinding), false);
-
-  // a real later reassignment is a second write -> poison
-  const reassigned = newInj();
-  reassigned.registerBodyExtractAlias('of', 'array/of',
-    { kind: 'let', identifier: { start: 0 }, path: { node: { init: null } }, constantViolations: [{}, {}] });
-  check('a second write poisons the alias',
-    reassigned.isReassignedBinding('of', queryBinding), true);
-
-  // a single write ALONGSIDE a declarator init is a reassignment of the init, not the aliasing event
-  const withInit = newInj();
-  withInit.registerBodyExtractAlias('entries', 'object/entries',
-    { kind: 'let', identifier: { start: 0 }, path: { node: { init: {} } }, constantViolations: [{}] });
-  check('a write alongside a declarator init poisons the alias',
-    withInit.isReassignedBinding('entries', queryBinding), true);
-}
-checkBodyExtractAliasCleanGate();
-
-// a leading `'use strict'` directive must survive the import-injector's appendRight-failure fallback:
-// a sibling plugin overwriting the prologue range leaves no chunk boundary for appendRight, and a
-// naive prepend at 0 lands the ref/import block ABOVE the directive, silently demoting strict mode
-function checkDirectiveSafeFallback() {
-  const src = '"use strict";\nfoo();';
-  const directiveEnd = directivePrologueEnd(programOf(src));
-  const ms = new MagicString(src);
-  // overwrite [directiveEnd, end] (same content) so the prologue-end appendRight target sits inside an
-  // overwritten chunk with no boundary - exactly the sibling-plugin conflict the fallback handles
-  ms.overwrite(directiveEnd, src.length, src.slice(directiveEnd));
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, directiveEnd });
-  inj.generateDeclaredRef();
-  inj.flush();
-  const out = ms.toString();
-  check('directive survives appendRight fallback (stays first)', out.startsWith('"use strict";'), true);
-  check('ref block lands after the directive, not above', out.indexOf('var _ref') > out.indexOf('use strict'), true);
-}
-checkDirectiveSafeFallback();
-
-// the same fallback must keep a leading `#!` hashbang at offset 0: a block prepended above it is a
-// SyntaxError (hashbangs are only legal as the first characters), worse than the directive's sloppy-
-// mode demotion. the fallback anchors after the shebang's last char with a leading newline
-function checkShebangSafeFallback() {
-  const src = '#!/usr/bin/env node\nfoo();';
-  const shebangContentEnd = src.indexOf('\n'); // offset the fallback anchors at (before the terminator)
-  const ms = new MagicString(src);
-  ms.overwrite(shebangContentEnd, src.length, src.slice(shebangContentEnd));
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, directiveEnd: 0 });
-  inj.generateDeclaredRef();
-  inj.flush();
-  const out = ms.toString();
-  check('hashbang survives appendRight fallback (stays at offset 0)', out.startsWith('#!/usr/bin/env node'), true);
-  check('ref block lands below the hashbang line', out.indexOf('var _ref') > out.indexOf('#!'), true);
-}
-checkShebangSafeFallback();
-
-// post-pass map must carry the `file` field so devtools and combineSourceMaps consumers
-// see the output filename hint. omitting it (spec-optional) makes the chained map
-// ambiguous when bundlers merge multiple plugin maps. MagicString basenames the hint
-// internally - presence + non-empty is what consumers rely on
-function checkSourceMapFileField() {
-  const source = 'const x = Array.from([1]);';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, '/src/sm-file.js');
-  check('sourceMap/file populated', typeof result?.map?.file === 'string' && result.map.file.length > 0, true);
-  check('sourceMap/file basename matches id', result?.map?.file, 'sm-file.js');
-  // sources[0] must be the FULL id - MagicString collapses to basename when source === file,
-  // losing dirname for every emitted map. devtools / bundler chain-merge can't distinguish
-  // files with the same basename in different dirs without the dirname
-  check('sourceMap/sources[0] preserves full id', result?.map?.sources?.[0], '/src/sm-file.js');
-}
-checkSourceMapFileField();
-
-// per-half sourcemap precision for a NESTED split reaching the compose path: the optional-chain suffix
-// (`?.call`) maps to its OWN source columns (the `.at?.(` site), not the receiver. the compose path used
-// to emit one overwrite over the whole logical range, mapping the suffix to the receiver column (coarse)
-function checkSplitSuffixSourcemapPrecision() {
-  const source = 'const arr = [1, 2, 3];\nexport const r = (arr.flat()).at?.(0);';
-  // token-precise splice mapping is the TEXT engine's contract - the AST reprint maps
-  // minted spellings to region anchors instead; retires with the text layer
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'text' });
-  const result = plugin.transform(source, 'split-precision.js');
-  // the output reads `_atMaybeArray(_ref = _flatMaybeArray(arr).call(arr))?.call(_ref, 0)`
-  const lines = result.code.split('\n');
-  let genLine = -1; let genCol = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const col = lines[i].indexOf('?.call');
-    if (col !== -1) {
-      genLine = i + 1;
-      genCol = col;
-      break;
-    }
-  }
-  const tm = new TraceMap(result.map);
-  const orig = originalPositionFor(tm, { line: genLine, column: genCol });
-  const [, srcLine] = source.split('\n', 2);
-  const atCol = srcLine.indexOf('.at?.');
-  const receiverCol = srcLine.indexOf('(arr.flat');
-  check('split-suffix-sourcemap/suffix maps to .at site not receiver',
-    orig.line === 2 && orig.column >= atCol && orig.column > receiverCol, true);
-}
-checkSplitSuffixSourcemapPrecision();
-
-// double-nested optional chain: the FOLDED inner split's suffix (`.at?.`) must map to its own site, not
-// the outer receiver - `#splitSegments` partitions the composed string by every split, not just the outer
-function checkNestedSplitSuffixSourcemapPrecision() {
-  const source = 'const arr = [1, 2, 3];\nexport const r = ((arr.flat()).at?.(0)).flat?.();';
-  // token-precise splice mapping - TEXT engine contract, see above
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'text' });
-  const result = plugin.transform(source, 'nested-split-precision.js');
-  const lines = result.code.split('\n');
-  let genLine = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('?.call')) {
-      genLine = i + 1;
-      break;
-    }
-  }
-  const line = lines[genLine - 1];
-  const tm = new TraceMap(result.map);
-  // first `?.call` is the inner `.at?.` suffix; last is the outer `.flat?.` suffix
-  const inner = originalPositionFor(tm, { line: genLine, column: line.indexOf('?.call') });
-  const outer = originalPositionFor(tm, { line: genLine, column: line.lastIndexOf('?.call') });
-  const [, srcLine] = source.split('\n', 2);
-  const atCol = srcLine.indexOf('.at?.');
-  const flatCol = srcLine.lastIndexOf('.flat?.');
-  check('split-suffix-sourcemap/folded inner suffix maps to .at site',
-    inner.line === 2 && inner.column >= atCol && inner.column < flatCol, true);
-  check('split-suffix-sourcemap/outer suffix maps to .flat site',
-    outer.line === 2 && outer.column >= flatCol, true);
-}
-checkNestedSplitSuffixSourcemapPrecision();
-
-// a namespace specifier-export (`function make() {}; export { make };`) attaches the
-// runtime static like the declaration form does; the merged-namespace shadow gate must
-// see it (oxc parses this shape; the babel parser rejects it, so this lock is text-side)
-function checkNamespaceSpecifierExportShadow() {
-  const source = 'class Base { static make(): number[] { return [1]; } }\n'
-    + 'class Sub extends Base { static go() { return this.make().at(0); } }\n'
-    + 'namespace Sub { function make(): string { return "s"; } export { make }; }\nSub.go();';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, '/src/ns-spec.ts');
-  check('nsMerge/specifier export bails to generic', result?.code?.includes('actual/instance/at'), true);
-  check('nsMerge/specifier export no array narrow', result?.code?.includes('array/instance/at'), false);
-}
-checkNamespaceSpecifierExportShadow();
-
-// the nth-replacement and the occurrence counter must share ONE enumeration: a
-// self-bordered needle (`a.a` in `a.a.a`) has an OVERLAPPING second match that the
-// non-overlap counter never tallies, so the replacer must not reach it either
-function checkReplaceNthEnumeration() {
-  check('replaceNth/self-bordered n=0', replaceNthOccurrence({ str: 'a.a.a', needle: 'a.a', replacement: 'X', n: 0 }), 'X.a');
-  check('replaceNth/self-bordered n=1 out of range', replaceNthOccurrence({ str: 'a.a.a', needle: 'a.a', replacement: 'X', n: 1 }), 'a.a.a');
-  check('replaceNth/plain n=1', replaceNthOccurrence({ str: 'b(c), b(c)', needle: 'b(c)', replacement: 'X', n: 1 }), 'b(c), X');
-  check('replaceNth/boundary reject', replaceNthOccurrence({ str: '_ab + ab', needle: 'ab', replacement: 'X', n: 0 }), '_ab + X');
-  // a REJECTED match consumed the text it covered, so a real occurrence STARTING inside it was
-  // skipped and every later ordinal pointed one slot short. `a.a` at index 1 is rejected (the `x`
-  // before it), and the valid one at index 3 begins inside that rejected width
-  check('replaceNth/rejected match does not consume the next', replaceNthOccurrence({
-    str: 'xa.a.a.b', needle: 'a.a', replacement: 'X', n: 0,
-  }), 'xa.X.b');
-  // the needle's own edges are read as CODE POINTS: an astral identifier char is a surrogate PAIR,
-  // and reading one unit reports no identifier edge, which skips the boundary check entirely and
-  // accepts a match buried in a wider identifier
-  check('replaceNth/astral needle edge keeps its boundary', replaceNthOccurrence({
-    str: 'a\u{1D465}.at + \u{1D465}.at', needle: '\u{1D465}.at', replacement: 'X', n: 0,
-  }), 'a\u{1D465}.at + X');
-  check('replaceNth/astral needle tail edge', replaceNthOccurrence({
-    str: 'at.\u{1D465}b + at.\u{1D465}', needle: 'at.\u{1D465}', replacement: 'X', n: 0,
-  }), 'at.\u{1D465}b + X');
-  // "replaced with identical text" is a HIT, not a miss: the public wrapper cannot say so (its
-  // answer is the string either way), which is why compose asks the splice itself. pinned here so
-  // a future caller reading `result !== input` as "found" fails against this row instead of
-  // dropping into ordinal recovery and landing the emit on another slot
-  check('replaceNth/identity replacement is a hit', replaceNthOccurrence({
-    str: 'b(c), b(c)', needle: 'b(c)', replacement: 'b(c)', n: 1,
-  }), 'b(c), b(c)');
-}
-checkReplaceNthEnumeration();
-
-// the proxy-hop normalization rides the text-rewrite + re-parse rails, which a CommonJS
-// script must traverse with `sourceType: 'script'` - the reshaped output keeps require-style
-// imports and the flat constructor receiver
-function checkProxyHopNormalizeCJS() {
-  const source = 'const { Map: { customJ } } = globalThis;\nmodule.exports = { customJ };';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, '/src/hop.cjs');
-  check('proxyHop/cjs flat receiver', result?.code?.includes('const { customJ } = _Map'), true);
-  check('proxyHop/cjs require import', result?.code?.includes('var _Map = require('), true);
-}
-checkProxyHopNormalizeCJS();
-
-// `storeName: true` on generateMap populates `map.names` with the original token text
-// for each overwrite that supplied an explicit name. without it the names array stays
-// empty and devtools can't reverse-resolve renamed bindings (`_Array$from` -> `Array.from`)
-// for stack traces / scope panels. tests that the option is actually set in plugin.js
-function checkSourceMapStoreName() {
-  const source = 'const x = Array.from([1]);';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, '/src/sm-names.js');
-  // names array must exist and be a (possibly empty) array - presence alone confirms
-  // storeName: true was passed; pre-fix this was undefined per MagicString defaults
-  check('sourceMap/names is array', Array.isArray(result?.map?.names), true);
-}
-checkSourceMapStoreName();
-
-// super.X(args) static-dispatch emits as a SPLIT transform: prefix replaces `super.X(`,
-// args stay verbatim at their source positions. test traces the source-map mapping for a
-// column INSIDE the arg range and confirms it resolves to the original arg's source
-// column - the single-chunk emission collapsed every col inside super.X(args) to super.start.
-// `Symbol.iterator` access on parent class hits the static-dispatch super branch since
-// `Symbol.iterator` is a polyfilled property accessor
-function checkSuperCallArgColPrecision() {
-  // `super.all(myArg)` -> `_Promise$all.call(this, myArg)`. with split-emit `myArg` keeps
-  // its source position (line 3 col 22); single-chunk emission would collapse to super's
-  // start (line 3 col 11). probes the OUTPUT `myArg` column and confirms reverse-mapping
-  const source = 'class C extends Promise {\n  static m(myArg) {\n    return super.all(myArg);\n  }\n}\n';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, '/src/super-col.js');
-  if (!result?.map) {
-    check('superCall/transform emitted map', false, true);
-    return;
-  }
-  const tm = new TraceMap(result.map);
-  const outLines = result.code.split('\n');
-  // find the ARGUMENT `myArg` occurrence (preceded by `, ` in `.call(this, myArg)`), NOT
-  // the parameter (preceded by `(` in `static m(myArg)`). substring `, myArg` is unique
-  let outLine = -1;
-  let outCol = -1;
-  for (let i = 0; i < outLines.length; i++) {
-    const idx = outLines[i].indexOf(', myArg');
-    if (idx !== -1) {
-      outLine = i + 1;
-      outCol = idx + 2;
-      break;
-    }
-  }
-  if (outLine === -1) {
-    check('superCall/myArg argument present', false, true);
-    return;
-  }
-  const probe = originalPositionFor(tm, { line: outLine, column: outCol });
-  // source `myArg` argument lives at line 3, col 21 (after `    return super.all(`).
-  // split-emit preserves col precision; single-chunk emission would land at col 11 (`super`)
-  check('superCall/arg col maps to original source pos', probe.line === 3 && probe.column === 21, true);
-}
-checkSuperCallArgColPrecision();
-
-// no-args super-call: `super.foo()`. split-point falls back to `closingParen`, the
-// transform covers `super.foo(` and the original `)` stays verbatim at its source col
-function checkSuperCallNoArgsClosingParen() {
-  const source = 'class C extends Promise {\n  static m() {\n    return super.race();\n  }\n}\n';
-  // token-precise splice mapping - TEXT engine contract, see above
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'text' });
-  const result = plugin.transform(source, '/src/super-noargs.js');
-  if (!result?.map) {
-    check('superCall/no-args transform emitted map', false, true);
-    return;
-  }
-  const tm = new TraceMap(result.map);
-  const outLines = result.code.split('\n');
-  // find the closing `)` of the polyfill call: `_Promise$race.call(this)` ends with `)`
-  let outLine = -1;
-  let outCol = -1;
-  for (let i = 0; i < outLines.length; i++) {
-    const idx = outLines[i].indexOf('.call(this)');
-    if (idx !== -1) {
-      outLine = i + 1;
-      outCol = idx + '.call(this'.length;
-      break;
-    }
-  }
-  if (outLine === -1) {
-    check('superCall/no-args output present', false, true);
-    return;
-  }
-  const probe = originalPositionFor(tm, { line: outLine, column: outCol });
-  // source closing `)` lives at line 3, col 22 (after `    return super.race(`)
-  check('superCall/no-args closing-paren col preserved', probe.line === 3 && probe.column === 22, true);
-}
-checkSuperCallNoArgsClosingParen();
-
-// multi-args super-call: `super.foo(a, b, c)`. each arg lives at its own source position;
-// split-emit preserves all of them. probes the THIRD argument to confirm the verbatim
-// range covers everything inside the call's parens (not just the first arg)
-function checkSuperCallMultiArgColPrecision() {
-  const source = 'class C extends Promise {\n  static m(a, b, c) {\n    return super.race(a, b, c);\n  }\n}\n';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, '/src/super-multi.js');
-  if (!result?.map) {
-    check('superCall/multi-arg transform emitted map', false, true);
-    return;
-  }
-  const tm = new TraceMap(result.map);
-  const outLines = result.code.split('\n');
-  // find the line containing the polyfill .call(this, ...) - the args are on THAT line.
-  // matching `.call(this, a` anchors to the polyfilled invocation (not the param list)
-  let outLine = -1;
-  let outCol = -1;
-  for (let i = 0; i < outLines.length; i++) {
-    const idx = outLines[i].indexOf('.call(this, a, b, c)');
-    if (idx !== -1) {
-      outLine = i + 1;
-      outCol = idx + '.call(this, a, b, '.length;
-      break;
-    }
-  }
-  if (outLine === -1) {
-    check('superCall/multi-arg third-arg present', false, true);
-    return;
-  }
-  const probe = originalPositionFor(tm, { line: outLine, column: outCol });
-  // source third arg `c` lives at line 3, col 28 (after `    return super.race(a, b, `)
-  check('superCall/multi-arg third-arg col preserved', probe.line === 3 && probe.column === 28, true);
-}
-checkSuperCallMultiArgColPrecision();
-
-// decorator double-walk: node types estree-toolkit does not define (no `is.<type>` predicate) take
-// the Object.keys traversal fallback, which auto-walks their `decorators`; the manual decorator walk
-// must skip such owners or it queues two colliding rewrites for the same span and crashes the whole
-// transform. covers the auto-accessor / abstract-member shapes and a TSParameterProperty constructor
-// param. assert: no crash + exactly one polyfill rewrite each. the accessor and TSParameterProperty
-// shapes also have shared transpiler fixtures; the abstract-FIELD shape is unit-only because babel@8's
-// parser rejects a decorator on an abstract field, so it cannot live in a cross-plugin fixture
-function checkDecoratorDoubleWalkNoCrash() {
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const cases = [
-    ['accessor field', 'class C { @(Array.from([1])) accessor x = 1; }'],
-    ['abstract accessor', 'abstract class C { @(Array.from([1])) abstract accessor x: number; }'],
-    ['abstract field', 'abstract class C { @(Array.from([1])) abstract x: number; }'],
-    ['TSParameterProperty', 'class Foo { constructor(@inject(Array.from([1])) private p: number) {} }'],
-  ];
-  for (const [label, source] of cases) {
-    let result;
-    let threw = false;
-    try {
-      result = plugin.transform(source, '/src/decorator-double-walk.ts');
-    } catch {
-      threw = true;
-    }
-    check(`decorator double-walk: ${ label } no crash`, threw, false);
-    // count the polyfill CALL (`_Array$from(`), not the default-import binding (`import _Array$from`)
-    const count = (result?.code?.match(/_Array\$from\(/g) ?? []).length;
-    check(`decorator double-walk: ${ label } single rewrite`, count, 1);
-  }
-}
-checkDecoratorDoubleWalkNoCrash();
-
-// per-branch synth-swap with a bare-global computed-key sibling (`[Set]`) must not emit the global
-// raw into a branch synth literal (`{ [Set]: Array[Set] }`) - a ReferenceError on the target engine.
-// it bails the per-branch synth; assert only the ABSENCE of the leak (the bare global is rewritten
-// to its import `[_Set]`). a conditional receiver has no body-extract fallback, so the `from` shorthand
-// is not synth-polyfilled here - that residual gap is the deeper per-branch-synth rework, not asserted
-function checkPerBranchBareGlobalComputedKeyNoLeak() {
-  const src = 'const { from, [Set]: y } = (1 > 0) ? Array : Object; use(from, y);';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const code = plugin.transform(src, '/src/per-branch-bare-global.ts')?.code ?? '';
-  check('per-branch bare-global computed key: no raw global leak', code.includes('[Set]'), false);
-  check('per-branch bare-global computed key: global rewritten to import', code.includes('_Set'), true);
-}
-checkPerBranchBareGlobalComputedKeyNoLeak();
-
-// --- directivePrologueEnd ---
-// scans leading directive-shaped statements ('use strict', 'use asm', etc.) and returns the
-// offset right after the last directive's source range. Inject point starts there so user
-// directives stay at the head of the file. Stops at the first non-directive statement
-function checkDirectivePrologueEnd() {
-  const empty = programOf('');
-  check('directivePrologueEnd/empty', directivePrologueEnd(empty), 0);
-  const noDirective = programOf('foo();');
-  check('directivePrologueEnd/no directive', directivePrologueEnd(noDirective), 0);
-  const single = programOf('"use strict";\nfoo();');
-  check('directivePrologueEnd/single directive', directivePrologueEnd(single), 13);
-  const multi = programOf('"use strict";\n"use asm";\nfoo();');
-  check('directivePrologueEnd/multi directive walks past last', directivePrologueEnd(multi), 24);
-  const directiveAfterStmt = programOf('foo();\n"use strict";');
-  check('directivePrologueEnd/directive after stmt stops at 0', directivePrologueEnd(directiveAfterStmt), 0);
-}
-checkDirectivePrologueEnd();
-
-// --- lastUserImportEnd: re-export and interleave shapes ---
-// `var _ref;` lands AFTER the trailing user import / re-export so the injected line
-// doesn't sit between two import statements (lint `import/first` would warn). re-exports
-// with a `.source` (`export { x } from 'mod'`, `export * as ns from 'mod'`, `export *
-// from 'mod'`, `export { default } from 'mod'`) count as imports because the module
-// record fetches them at evaluation entry. local re-exports without `.source` are NOT
-// imports and break the scan. interleaved shapes that mix declarations and code break
-// the scan at the first non-import statement, matching babel-plugin's reorderRefsAfterImports
-function checkLastUserImportEnd() {
-  function tsProgramOf(src) {
-    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-    return parseSync('/x.ts', src, { sourceType: 'module' }).program;
-  }
-  // empty body returns null (no anchor)
-  check('lastUserImportEnd/empty', lastUserImportEnd(programOf('')), null);
-  // single import: end at the import's `;`
-  const singleImport = 'import a from "a";\nfoo();';
-  check('lastUserImportEnd/single import', lastUserImportEnd(programOf(singleImport)), 18);
-  // re-export with source acts as import - scan continues past it
-  const reexportNamed = 'import a from "a";\nexport { y } from "m";\nfoo();';
-  check('lastUserImportEnd/re-export named extends region',
-    lastUserImportEnd(programOf(reexportNamed)), 41);
-  // `export { default } from 'mod'` - default re-export still has .source
-  const reexportDefault = 'import a from "a";\nexport { default } from "m";\nfoo();';
-  check('lastUserImportEnd/re-export default extends region',
-    lastUserImportEnd(programOf(reexportDefault)), 47);
-  // `export * as ns from 'mod'` - namespace re-export with .source
-  const reexportNs = 'import a from "a";\nexport * as ns from "m";\nfoo();';
-  check('lastUserImportEnd/re-export ns extends region',
-    lastUserImportEnd(programOf(reexportNs)), 43);
-  // `export * from 'mod'` - ExportAllDeclaration variant
-  const reexportAll = 'import a from "a";\nexport * from "m";\nfoo();';
-  check('lastUserImportEnd/re-export * extends region',
-    lastUserImportEnd(programOf(reexportAll)), 37);
-  // local re-export (no source) breaks the scan - it's a binding re-export, not an import
-  const localReexport = 'import a from "a";\nvar localVar = 1;\nexport { localVar };\nimport z from "z";';
-  check('lastUserImportEnd/local re-export (no source) breaks at code',
-    lastUserImportEnd(programOf(localReexport)), 18);
-  // interleave: import -> re-export -> import all run as one contiguous import region
-  const interleave = 'import a from "a";\nexport { y } from "m";\nimport z from "z";\nfoo();';
-  check('lastUserImportEnd/import + re-export + import contiguous region',
-    lastUserImportEnd(programOf(interleave)), 60);
-  // user code between imports breaks the scan immediately
-  const codeBreaks = 'import a from "a";\nfoo();\nimport z from "z";';
-  check('lastUserImportEnd/code statement breaks scan',
-    lastUserImportEnd(programOf(codeBreaks)), 18);
-  // type-only re-export `export type { X } from 'm'` - has .source, treated as import
-  // (TC39 spec fetches the module record even when the export is tsc-elided)
-  const typeReexport = 'import a from "a";\nexport type { X } from "m";\nfoo();';
-  check('lastUserImportEnd/type-only re-export extends region',
-    lastUserImportEnd(tsProgramOf(typeReexport)), 46);
-}
-checkLastUserImportEnd();
 
 // --- isTopLevelImportLike: paren / sequence-wrapped require ---
 // a top-level `require('m')` counts as an import-like statement so `var _ref;` lands after it.
@@ -2988,159 +670,6 @@ function checkTransformParseErrorEmptySource() {
 }
 checkTransformParseErrorEmptySource();
 
-// --- flush() skips through multi-comment directive tails ---
-// directiveEnd lands after `"use strict";`; skipLineEnd must walk past `/*a*/ //b` so the
-// injected import block appears on its own line, not shoved into the middle of the comment
-// chain (which would shred `//b` or comment-out the import itself at runtime)
-function checkFlushPastChainedComments() {
-  const src = '"use strict"; /*a*/ //b\nfoo();';
-  const ms = new MagicString(src);
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms, directiveEnd: 13 });
-  inj.globalImports.add('es.promise.try');
-  inj.flush();
-  const out = ms.toString();
-  // import block must land AFTER the newline following `//b`, not before it
-  const importIdx = out.indexOf('import "core-js/modules/es.promise.try"');
-  const commentIdx = out.indexOf('//b');
-  const newlineAfterComment = out.indexOf('\n', commentIdx);
-  check('skipLineEnd/imports after chained comments', importIdx > newlineAfterComment, true);
-}
-checkFlushPastChainedComments();
-
-// --- flush() lands imports on a fresh line when the directive line carries trailing code ---
-// `"use strict"; /*x*/ foo();` has real code after the block comment with no line terminator on
-// the directive's physical line, so skipLineEnd returns a mid-line position. the import block
-// must still land on its own line below the directive, not jam onto `"use strict"; /*x*/ <import>`
-function checkFlushPastDirectiveSameLineCode() {
-  const src = '"use strict"; /*x*/ foo();';
-  const ms = new MagicString(src);
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms, directiveEnd: 13 });
-  inj.globalImports.add('es.promise.try');
-  inj.flush();
-  const out = ms.toString();
-  const firstLine = out.slice(0, out.indexOf('\n'));
-  // the import must NOT be jammed onto the directive+comment line
-  check('skipLineEnd/import not jammed on directive+code line', firstLine.includes('import "core-js'), false);
-}
-checkFlushPastDirectiveSameLineCode();
-
-// --- flush() keeps a trailing same-line comment attached to the last user import ---
-// `import x from 'y' // trailing` ends (oxc stmt.end) before ` // trailing`, so anchoring
-// `var _ref;` at that offset would split the comment off its import onto a line below the ref.
-// the ref block must skip past the trailing comment so the comment stays on the import line
-function checkFlushRefAfterTrailingImportComment() {
-  const src = "import x from 'y' // trailing\nfoo();";
-  const ms = new MagicString(src);
-  // userImportEnd = closing-quote offset of `import x from 'y'`, before ` // trailing`
-  const userImportEnd = src.indexOf("'y'") + 3;
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, userImportEnd });
-  inj.generateDeclaredRef();
-  inj.flush();
-  const out = ms.toString();
-  const importLine = out.slice(0, out.indexOf('\n'));
-  check('refBlock/trailing comment stays on import line', importLine.includes('// trailing'), true);
-  check('refBlock/var _ref lands below the trailing comment', out.indexOf('var _ref') > out.indexOf('// trailing'), true);
-}
-checkFlushRefAfterTrailingImportComment();
-
-// --- flush() puts the ref block on its own line after a `;`-terminated import (no trailing newline) ---
-// `import x from "y";foo()` ends with `;` then code on the SAME line. a `;`-terminated prior
-// statement is syntactically safe to abut, but `import x from "y";var _ref;` jammed onto one line
-// is a cosmetic regression - the memo must drop onto its own line below the import
-function checkFlushRefAfterSemicolonSameLine() {
-  const src = 'import x from "y";foo();';
-  const ms = new MagicString(src);
-  // userImportEnd = just past the import's `;` (the next char is `f`, same line)
-  const userImportEnd = src.indexOf(';') + 1;
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms, userImportEnd });
-  inj.generateDeclaredRef();
-  inj.flush();
-  const out = ms.toString();
-  const firstLine = out.slice(0, out.indexOf('\n'));
-  check('refBlock/ref not jammed onto `;`-terminated import line', firstLine.includes('var _ref'), false);
-  check('refBlock/import preserved alone on first line', firstLine, 'import x from "y";');
-}
-checkFlushRefAfterSemicolonSameLine();
-
-// sibling plugin may overwrite a range that contains the prologueEnd insertion point.
-// `appendRight` then throws "Cannot split a chunk that has already been edited"; the build
-// dies with a stack pointing into MagicString rather than the import emission. fallback to
-// `prepend` lets the build continue with imports at the head (loses post-shebang/post-directive
-// position but that's strictly better than a hard crash)
-function checkFlushFallsBackOnEditedRange() {
-  const src = '/* large header comment that the sibling plugin overwrites */\nfoo();';
-  const ms = new MagicString(src);
-  // simulate sibling plugin overwriting a range that contains prologueEnd (index 62 here)
-  ms.overwrite(0, 62, '/* z */');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms });
-  inj.globalImports.add('es.promise.try');
-  // must not throw despite the overlap
-  inj.flush();
-  const out = ms.toString();
-  check('flush/falls back when prologueEnd inside overwritten range',
-    out.includes('import "core-js/modules/es.promise.try"'), true);
-}
-checkFlushFallsBackOnEditedRange();
-
-// asymmetric fallback: imports land at the prologue end (importPos) but a sibling overwrite straddles
-// the trailing-user-import anchor (refPos), so the refs' appendRight throws. the refs must FOLD BACK
-// to the import anchor (after the directive) - NOT prepend at position 0, which would land `var _ref;`
-// above the `'use strict';` directive prologue, silently demoting the module to sloppy mode and
-// violating import/first. assert the directive still leads and the ref sits after it
-function checkFlushAsymmetricFallbackKeepsDirective() {
-  const src = "'use strict';\nimport x from 'y';\nfoo;\n";
-  const ms = new MagicString(src);
-  const userImportEnd = "'use strict';\nimport x from 'y';".length;
-  // straddle refPos (end of the user import) so refs' appendRight fails while imports' succeeds
-  ms.overwrite(userImportEnd - 2, userImportEnd + 2, 'Q');
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms,
-    userImportEnd, directiveEnd: "'use strict';".length });
-  inj.addGlobalImport('es.array.at');
-  inj.generateDeclaredRef();
-  inj.flush();
-  const out = ms.toString();
-  check('flush/asymmetric fallback keeps directive leading', out.indexOf("'use strict'"), 0);
-  check('flush/asymmetric fallback keeps var after directive',
-    out.indexOf('var _ref') > out.indexOf("'use strict'"), true);
-}
-checkFlushAsymmetricFallbackKeepsDirective();
-
-// --- ImportInjector dedup behaviour ---
-// mixed `import Def, { default as Alt }` registers Def first (default specifier comes before
-// named in source order). last-write-wins on `existingPureImports` would pick `Alt` as dedup
-// target — asymmetric with `#importInfoByName` (first-write-wins) and counter to user intent
-// (Def is the canonical handle). first-write-wins on both maps keeps dedup stable
-function checkExistingImportFirstWriteWins() {
-  const ms = new MagicString('');
-  const inj = new ImportInjector({ mode: 'actual', pkg: '@core-js/pure', ms });
-  inj.registerUserPureImport('promise/try', '_Def');
-  inj.registerUserPureImport('promise/try', '_Alt');
-  // dedup target should be the FIRST registered name, not the second
-  check('existingPureImports/first-write-wins', inj.addPureImport('promise/try', 'Promise$try'), '_Def');
-}
-checkExistingImportFirstWriteWins();
-
-// --- BOM in sourcesContent ---
-// MagicString.prepend('\uFEFF') updates the output but the slice it captured for
-// `sourcesContent` is the BOM-stripped original. without restoration, devtools show the file
-// 1 byte short of its on-disk size and the source view doesn't match the file. plugin restores
-// the BOM in `map.sourcesContent[0]` after `generateMap`
-function checkBomSourcesContent() {
-  const id = '/src/with-bom.js';
-  // BOM + a polyfillable expression so plugin actually transforms (no-transform path skips map)
-  const source = '\uFEFFconst x = Array.from([1]);';
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  const result = plugin.transform(source, id);
-  if (!result?.map?.sourcesContent?.[0]) {
-    counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('sourceMap/BOM sourcesContent') } :: missing sourcesContent`;
-    return;
-  }
-  check('sourceMap/BOM length', result.map.sourcesContent[0].length, source.length);
-  check('sourceMap/BOM prefix', result.map.sourcesContent[0].charCodeAt(0), 0xFEFF);
-}
-checkBomSourcesContent();
-
 // --- pre+post: usage-global post map keeps sourcesContent ---
 // the post pass omits sourcesContent only when it CHAINS through a pre pass that already emitted
 // a content-bearing map. a usage-global pre is detection-only (no source rewrite -> no map), so
@@ -3249,6 +778,21 @@ check('ORPHAN_REF/_ref01', ORPHAN_REF_PATTERN.test('_ref01'), false);
 check('ORPHAN_REF/_ref09', ORPHAN_REF_PATTERN.test('_ref09'), false);
 check('ORPHAN_REF/_refX', ORPHAN_REF_PATTERN.test('_refX'), false);
 check('ORPHAN_REF/empty', ORPHAN_REF_PATTERN.test(''), false);
+
+// --- adoptOrphanRefs respects flushedRefs across the snapshot round-trip ---
+
+// pre already printed `var _ref;` into its output; post re-discovers the name as an orphan
+// and must NOT redeclare it - the `#flushedRefs` skip in `adoptOrphanRefs` is the only
+// dedup between pre's printed decl and post's flush
+function checkAdoptOrphanRespectsFlushed() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', inherit: { flushedRefs: ['_ref'] } });
+  inj.adoptOrphanRefs(['_ref', '_ref2']);
+  const snap = inj.snapshot();
+  check('adoptOrphan/skips flushed', snap.refs.includes('_ref'), false);
+  check('adoptOrphan/adds new', snap.refs.includes('_ref2'), true);
+  check('adoptOrphan/flushed carried', snap.flushedRefs.includes('_ref'), true);
+}
+checkAdoptOrphanRespectsFlushed();
 
 // --- SnapshotCache key normalization ---
 // pre/post pair must round-trip across query / hash / slash variants. without normalization
@@ -3466,285 +1010,6 @@ function checkSnapshotKeyNormalization() {
 }
 checkSnapshotKeyNormalization();
 
-// --- collectAllBindingNames orphan-ref heuristic ---
-// parent-tracking distinguishes plugin's nested `_ref = X` emission (inside a `null == (...)`
-// guard test or a call argument) from user's stand-alone sloppy-mode `_ref = X;` statement. without
-// parent context, user `_ref = window.data;` at top level matches the complex-RHS heuristic
-// and gets adopted - resulting `var _ref;` shadows the user's intended global assignment
-function collectBindings(src) {
-  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  return collectAllBindingNames(parseSync('unit.js', src).program);
-}
-function checkOrphan(label, src, orphans, names = null) {
-  const result = collectBindings(src);
-  check(`collectBindings/${ label }/orphans`, [...result.orphanRefs].sort().join(','), orphans.join(','));
-  if (names) check(`collectBindings/${ label }/names.has`, names.every(n => result.names.has(n)), true);
-}
-// `declaredNames` separates true bindings from Identifier-traversal reservations so the
-// orphan adopt-filter can distinguish "user wrote `var _ref;`" from "Identifier traversal
-// saw the orphan target itself in `(_ref = ...)`". without this, every plugin-shaped orphan
-// hits its own Identifier slot in `names` and gets filtered out as if user-declared
-function checkDeclared(label, src, declared, undeclared = []) {
-  const result = collectBindings(src);
-  for (const name of declared) check(`collectBindings/${ label }/declared/${ name }`, result.declaredNames.has(name), true);
-  for (const name of undeclared) check(`collectBindings/${ label }/not-declared/${ name }`, result.declaredNames.has(name), false);
-}
-// orphan-only: `_ref` appears only as the LHS of plugin-shaped assignment + recursive read
-// of itself. nothing in the AST `declares` it, so adoption gate must let it through
-checkDeclared('orphan-only', 'null == (_ref = foo()) ? void 0 : _ref;', [], ['_ref']);
-// user `var _ref;` declares - orphan-adoption must skip
-checkDeclared('user var', 'var _ref; null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
-// user catch param declares
-checkDeclared('user catch', 'try {} catch (_ref) {} null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
-// a local export names a binding of THIS module; a re-export names one of the other module
-checkDeclared('local export', 'var _ref; export { _ref as foo };', ['_ref']);
-checkDeclared('re-export', "export { _ref as foo } from './m'; export { _ref2 } from './n';", [], ['_ref', '_ref2']);
-// source-text names the AST emitter's scope never claims either: an import attribute's key, a
-// private name - the census must not reserve them, or the two emitters number apart
-check('collectBindings/import attribute key not reserved',
-  collectBindings("import j from './j.json' with { _ref: 'json' };").names.has('_ref'), false);
-check('collectBindings/private name not reserved',
-  collectBindings('class K { #_ref = 1; m() { return this.#_ref; } }').names.has('_ref'), false);
-// plugin-shaped: nested `_ref = X` inside a ConditionalExpression (guard emission)
-checkOrphan('nested call', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
-checkOrphan('nested member', 'null == (_ref = foo.bar) ? void 0 : _ref;', ['_ref']);
-checkOrphan('nested new', 'null == (_ref = new Foo()) ? void 0 : _ref;', ['_ref']);
-// plugin-shaped: the combined chain's raw member get over a memoized receiver - the write is the
-// OBJECT of a member read (`(_ref = recv).method`), the third emit position
-checkOrphan('member-get receiver memo', 'null == (_ref = foo()).m ? void 0 : _ref;', ['_ref']);
-checkOrphan('member-get receiver memo, computed', '_f((_ref = foo())[k], _ref);', ['_ref']);
-// user sloppy-mode: stand-alone `_ref = X;` - never plugin's shape regardless of RHS
-checkOrphan('top-level call', '_ref = foo();', [], ['_ref']);
-checkOrphan('top-level member', '_ref = window.data;', [], ['_ref']);
-checkOrphan('top-level new', '_ref = new Foo();', [], ['_ref']);
-checkOrphan('top-level literal', '_ref = 42;', [], ['_ref']);
-// user: `let _ref` reserves, never orphan
-checkOrphan('let decl', 'let _ref = foo();', [], ['_ref']);
-// mixed: user's top-level `_ref = X;` + plugin-style nested `_ref2 = foo()` in one file
-checkOrphan('mixed shapes', '_ref = window.x; null == (_ref2 = bar()) ? void 0 : _ref2;',
-  ['_ref2'], ['_ref']);
-// scope-depth gate: `_ref = foo()` inside a function is user code regardless of RHS.
-// plugin's orphan emission only happens at module top-level (post-pass rehydrate declares
-// `var _ref;` there), so nested-scope occurrences reserve the name instead of adopting it
-checkOrphan('nested in function body',
-  'function f() { null == (_ref = bar()) ? void 0 : _ref; }', [], ['_ref']);
-checkOrphan('nested in arrow body',
-  'const f = () => null == (_ref = bar()) ? void 0 : _ref;', [], ['_ref']);
-checkOrphan('nested in class method',
-  'class C { run() { null == (_ref = bar()) ? void 0 : _ref; } }', [], ['_ref']);
-
-// user-shape assignments in structural control positions: switch-case / switch discriminant /
-// with object / throw / loop / if / while / do-while / return heads. plugin never emits
-// `_ref = X` in any of these, so they are always user code and must NOT be adopted as
-// orphans (would shadow the user's intent)
-checkOrphan('switch case test',
-  'switch (x) { case (_ref = foo()): break; }', [], ['_ref']);
-checkOrphan('switch discriminant',
-  'switch (_ref = foo()) { default: }', [], ['_ref']);
-checkDeclared('switch discriminant reserves', 'switch (_ref = foo()) { default: }', ['_ref']);
-checkOrphan('with object',
-  'with (_ref = foo()) {}', [], ['_ref']);
-checkOrphan('throw argument',
-  'throw (_ref = foo());', [], ['_ref']);
-checkOrphan('for-init',
-  'for (_ref = foo(); false;) {}', [], ['_ref']);
-checkOrphan('if test',
-  'if (_ref = foo()) {}', [], ['_ref']);
-checkOrphan('while test',
-  'while (_ref = foo()) break;', [], ['_ref']);
-checkOrphan('do-while test',
-  'do {} while (_ref = foo());', [], ['_ref']);
-checkOrphan('return argument',
-  'function g() { return (_ref = foo()); }', [], ['_ref']);
-
-// user assignment as a direct ternary branch (`cond ? (_ref = X) : f()`). the plugin's own
-// memoize emit puts `_ref =` inside the `null == (...)` test (a BinaryExpression), never as a
-// bare branch - so a ConditionalExpression parent is user-only and must reserve, not adopt
-checkOrphan('conditional consequent',
-  'cond ? (_ref = foo()) : f();', [], ['_ref']);
-checkOrphan('conditional alternate',
-  'cond ? f() : (_ref = foo());', [], ['_ref']);
-checkDeclared('conditional consequent reserves', 'cond ? (_ref = foo()) : f();', ['_ref']);
-// user assignment chained as the RHS of another assignment (`x = _ref = X`). plugin only emits
-// memo refs inside `null == (...)` tests or call arguments, never a nested assignment RHS
-checkOrphan('nested assignment rhs',
-  'x = _ref = foo();', [], ['_ref']);
-checkDeclared('nested assignment rhs reserves', 'x = _ref = foo();', ['_ref']);
-// user assignment as a direct logical operand (`flag && (_ref = X)` / `||` / `??`). the plugin's
-// memoize emit lives inside a `null == (...)` test or a call arg, never as a bare `&&`/`||`/`??`
-// operand - so a LogicalExpression parent is user-only and must reserve, not adopt (else the
-// post-pass injects a module-level `var _ref;` that localizes the user's implicit-global `_ref`)
-checkOrphan('logical && operand', 'flag && (_ref = foo());', [], ['_ref']);
-checkOrphan('logical || operand', 'flag || (_ref = foo());', [], ['_ref']);
-checkOrphan('logical ?? operand', 'flag ?? (_ref = foo());', [], ['_ref']);
-checkDeclared('logical operand reserves', 'flag && (_ref = foo());', ['_ref']);
-// nested logical operand (`a && b && (_ref = c)`) - the direct parent is still a LogicalExpression
-checkOrphan('nested logical operand', 'a && b && (_ref = foo());', [], ['_ref']);
-// precision: a user logical-operand `_ref` + a real plugin binary-test `_ref2` in one file -> only
-// the plugin orphan is adopted (a user-position decline must not suppress real orphans)
-checkOrphan('mixed logical-user + plugin orphan',
-  'flag && (_ref = foo()); null == (_ref2 = bar()) ? void 0 : _ref2;', ['_ref2'], ['_ref']);
-// plugin's own emit shapes stay adopted: `_ref =` inside the `null == (...)` BinaryExpression
-// test and as a call argument are both still recognized as orphans (regression guard: the
-// emit-position set must keep admitting exactly these while user positions decline)
-checkOrphan('plugin binary-test emit still orphan',
-  'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
-checkOrphan('plugin call-arg emit still orphan',
-  'foo(_ref = bar());', ['_ref']);
-// deeper edges of the user-only positions: the same `_ref` written in BOTH ternary branches,
-// and chained through more than one `=` (`a = b = _ref = X`). still a single user binding the
-// plugin never emits, so it must reserve once and never adopt
-checkOrphan('conditional both branches',
-  'cond ? (_ref = foo()) : (_ref = bar());', [], ['_ref']);
-checkDeclared('conditional both branches reserves', 'cond ? (_ref = foo()) : (_ref = bar());', ['_ref']);
-checkOrphan('multi-level assignment chain',
-  'a = b = _ref = foo();', [], ['_ref']);
-checkDeclared('multi-level assignment chain reserves', 'a = b = _ref = foo();', ['_ref']);
-// nested-assignment parent also covers a user `_ref` written as the RHS of a member-target
-// assignment - the plugin never threads a memo write through `obj.x = _ref = ...`
-checkOrphan('assignment rhs of member target',
-  'obj.prop = _ref = foo();', [], ['_ref']);
-
-// the classifier admits ONLY the plugin's emit positions (`null == (...)` binary test, call
-// argument) - every expression-container position is user code and must reserve, not adopt:
-// declarator inits, literal elements / values, template interpolations, spread and new args.
-// unknown positions fail SAFE by construction (reserved; the plugin allocates `_ref2`)
-checkOrphan('declarator init', 'const x = (_ref = foo());', [], ['_ref']);
-checkDeclared('declarator init reserves', 'const x = (_ref = foo());', ['_ref']);
-checkOrphan('exported declarator init', 'export const x = (_ref = foo());', [], ['_ref']);
-checkOrphan('array element', '[_ref = foo()];', [], ['_ref']);
-checkOrphan('object property value', '({ a: _ref = foo() });', [], ['_ref']);
-// eslint-disable-next-line no-template-curly-in-string -- the SOURCE under test embeds an interpolation
-checkOrphan('template interpolation', 'use(`${ _ref = foo() }`);', [], ['_ref']);
-checkOrphan('spread argument', 'use(...(_ref = foo()));', [], ['_ref']);
-checkOrphan('new-expression argument', 'new Foo(_ref = bar());', [], ['_ref']);
-
-// TS expression wrappers (`as` / `!` / `satisfies`) are transparent to the orphan classifier's
-// parent check, exactly like parens: a top-level user `_ref = X` wrapped in a TS cast inside a
-// throw / case / if head is still user code and must NOT be adopted - a wrapper-blind parent walk
-// would see the TS node, miss the structural position check, and inject a module `var _ref;` that
-// localizes the user's implicit-global write. parsed as TS so the wrapper nodes are produced
-function collectBindingsTS(src) {
-  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  return collectAllBindingNames(parseSync('unit.ts', src).program);
-}
-function checkOrphanTS(label, src, orphans) {
-  const result = collectBindingsTS(src);
-  check(`collectBindings/${ label }/orphans`, [...result.orphanRefs].sort().join(','), orphans.join(','));
-}
-checkOrphanTS('throw + as-cast', 'throw ((_ref = foo()) as any);', []);
-checkOrphanTS('case + as-cast', 'switch (x) { case ((_ref = foo()) as any): break; }', []);
-checkOrphanTS('if + as-cast', 'if (((_ref = foo()) as any)) {}', []);
-checkOrphanTS('throw + non-null', 'throw ((_ref = foo())!);', []);
-checkOrphanTS('switch discriminant + as-cast', 'switch ((_ref = foo()) as any) { default: }', []);
-// TS namespaces and enums compile to IIFEs - their bodies are var-scopes, never the plugin's
-// module-top-level emission position, so even emit-shaped assignments inside them are user code
-checkOrphanTS('namespace body call-arg', 'namespace N { register(_ref = makeThing()); }', []);
-checkOrphanTS('namespace body binary-test', 'namespace N { null == (_ref = foo()) ? void 0 : _ref; }', []);
-checkOrphanTS('enum member initializer', 'enum E { A = (register(_ref = makeThing()), 1) }', []);
-// a namespace-scoped decline must not poison a REAL module-top-level orphan beside it
-checkOrphanTS('namespace decline + top-level orphan sibling',
-  'namespace N { register(_ref = makeThing()); }\nnull == (_ref2 = foo()) ? void 0 : _ref2;', ['_ref2']);
-// regression: a genuine plugin-shape `null == (...)` test is still adopted with TS in the file
-checkOrphanTS('plugin binary-test still orphan (ts)', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
-
-// a name written in type space claims a UID slot only up to the wrapper node a `:` slot introduces.
-// a type-alias RHS carries no wrapper and is walked at ANY depth, so nesting is NOT the criterion -
-// what matters is whether a `:` stands between. a real declaration is reserved either way: the
-// boundary gates only the bare-reference arm, never the structural declaration cases
-function checkNameTakenTS(label, src, taken) {
-  check(`collectBindings/annot/${ label }`, collectBindingsTS(src).names.has('_ref'), taken);
-}
-checkNameTakenTS('type-alias RHS member', 'type Flat = { _ref(): void };', true);
-checkNameTakenTS('type-alias RHS at depth 3', 'type Deep = Map<string, Set<{ _ref(): void }>>;', true);
-checkNameTakenTS('interface body member', 'interface I { _ref(): void }', true);
-checkNameTakenTS('past `:` on a declaration', 'declare const v: { _ref(): void };', false);
-checkNameTakenTS('past `:` on a parameter', 'export function f(p: { _ref(): void }) { return p; }', false);
-checkNameTakenTS('past `:` at depth 2', 'type T = { a: { _ref(): void } };', false);
-checkNameTakenTS('declared binding read in an annotation', 'const _ref = 1;\ndeclare const v: typeof _ref;', true);
-// the boundary gates the annotation subtree only - an ordinary read of the SAME name elsewhere in the
-// file still takes the slot, so a guard that swallowed a whole enclosing scope would be caught here
-checkNameTakenTS('bare read beside an annotation naming it',
-  'declare const v: { _ref(): void };\nexport const q = _ref;', true);
-// an interface body inside `declare global` carries no `:` wrapper, so it is walked like any other
-checkNameTakenTS('interface inside declare global',
-  'declare global { interface Window { _ref(): void } }\nexport {};', true);
-// the same holds for every other wrapper-less type host - a cast, a call type ARGUMENT and a
-// type-parameter constraint all keep the name taken. these pin the boundary's narrowness from the
-// census side: widening it to the general "is this type-space" test would free them and collide
-checkNameTakenTS('as-cast type literal', 'export const b = (mk() as { _ref(): void });', true);
-checkNameTakenTS('call type argument', 'export const b = mk<{ _ref(): void }>();', true);
-checkNameTakenTS('type-parameter constraint', 'export function f<T extends { _ref(): void }>(x: T) { return x; }', true);
-
-// --- trimTrailingOptional ---
-// an erase claim swallows the optional token of the hop above it, so the survivor's needle ends in a
-// lone `?`. enumerated over every way a needle can end rather than the two shapes that motivated it:
-// a wrong trim here does not crash, it matches a DIFFERENT occurrence and rewrites the wrong text
-check('trimOptional/dotted survivor drops the token', trimTrailingOptional('x?'), 'x');
-check('trimOptional/computed survivor drops token and dot', trimTrailingOptional('x?.'), 'x');
-check('trimOptional/member root', trimTrailingOptional('a.b?.'), 'a.b');
-check('trimOptional/the gap before the token goes with it', trimTrailingOptional('x ?.'), 'x');
-check('trimOptional/nullish operator is not an optional token', trimTrailingOptional('x??'), 'x??');
-check('trimOptional/nullish before a dot is not one either', trimTrailingOptional('x??.'), 'x??.');
-check('trimOptional/no token, unchanged', trimTrailingOptional('x'), 'x');
-check('trimOptional/a plain dot end is not a token', trimTrailingOptional('x.'), 'x.');
-// degenerate needles trim to empty rather than to a stray character - the caller drops those
-check('trimOptional/bare token', trimTrailingOptional('?'), '');
-check('trimOptional/bare token with dot', trimTrailingOptional('?.'), '');
-check('trimOptional/empty stays empty', trimTrailingOptional(''), '');
-
-// --- deoptionalizeNeedle ---
-// `?.(`/`?.[` drop both chars regardless of intervening whitespace - ECMAScript parsers
-// allow `obj ?. (args)` / `obj?.\n[i]`, so the source slice the queue sees may have
-// whitespace between the optional marker and the call/index token
-check('deopt/dot prop', deoptionalizeNeedle('obj?.foo'), 'obj.foo');
-check('deopt/call', deoptionalizeNeedle('obj?.(args)'), 'obj(args)');
-check('deopt/index', deoptionalizeNeedle('obj?.[i]'), 'obj[i]');
-check('deopt/newline before call', deoptionalizeNeedle('obj?.\n(args)'), 'obj\n(args)');
-check('deopt/space before call', deoptionalizeNeedle('obj?. (args)'), 'obj (args)');
-check('deopt/space before index', deoptionalizeNeedle('obj?. [i]'), 'obj [i]');
-check('deopt/at end', deoptionalizeNeedle('obj?.'), 'obj.');
-
-// --- deoptionalizeNeedleAtPositions ---
-// strip `?.` only at the SELECTED absolute positions an outer transform recorded, mirroring
-// the emitter's per-hop deopt. `arr?.at(0)?.flat()` lives at absolute [10,28); an outer that
-// folded only the `?.flat` hop kept the leading `?.at` verbatim and stripped the marker at 20
-check('deopt-at/single hop kept-leading', deoptionalizeNeedleAtPositions('arr?.at(0)?.flat()', 10, [20]), 'arr?.at(0).flat()');
-check('deopt-at/single hop kept-trailing', deoptionalizeNeedleAtPositions('arr?.at(0)?.flat()', 10, [13]), 'arr.at(0)?.flat()');
-check('deopt-at/both positions', deoptionalizeNeedleAtPositions('arr?.at(0)?.flat()', 10, [13, 20]), 'arr.at(0).flat()');
-// `?.(` / `?.[` drop both chars when targeted; `?.prop` keeps the dot. position is the offset
-// of the `?.` marker (the emitter records `object.end`), which is 3 for `obj?.` (`obj` ends at 3)
-check('deopt-at/call marker', deoptionalizeNeedleAtPositions('obj?.(a)', 0, [3]), 'obj(a)');
-check('deopt-at/index marker', deoptionalizeNeedleAtPositions('obj?.[i]', 0, [3]), 'obj[i]');
-// positions outside the slice are skipped, leaving the needle untouched - an outer's full
-// deopt list applied to a sub-slice only affects markers that fall inside it
-check('deopt-at/out-of-range skipped', deoptionalizeNeedleAtPositions('arr?.flat()', 100, [200]), 'arr?.flat()');
-check('deopt-at/empty positions', deoptionalizeNeedleAtPositions('arr?.flat()', 0, []), 'arr?.flat()');
-
-// --- hasIdentifierBoundary: astral-adjacent needle ---
-// the needle replacer only fires at standalone token boundaries. an astral (surrogate-pair)
-// identifier char immediately BEFORE the needle must suppress the boundary - testing only the
-// trailing low surrogate (not the whole code point) mis-classifies it as a non-identifier and
-// would wrongly treat the needle as standalone, replacing a fragment of a larger identifier
-check('boundary/astral ident char before needle suppresses boundary',
-  hasIdentifierBoundary(`${ String.fromCodePoint(0x1D400) }Promise`, 2, 'Promise'), false);
-// a plain non-identifier (space) before the needle is a genuine standalone boundary
-check('boundary/space before needle is a boundary',
-  hasIdentifierBoundary(' Promise', 1, 'Promise'), true);
-// astral ident char immediately AFTER the needle also suppresses (leading high surrogate)
-check('boundary/astral ident char after needle suppresses boundary',
-  hasIdentifierBoundary(`Promise${ String.fromCodePoint(0x1D400) }`, 0, 'Promise'), false);
-// an astral NON-identifier code point (emoji) before the needle is a GENUINE boundary - the fix
-// reads the whole code point and classifies it, it does not blindly suppress on any surrogate pair
-check('boundary/astral non-ident char before needle is a boundary',
-  hasIdentifierBoundary(`${ String.fromCodePoint(0x1F600) }Promise`, 2, 'Promise'), true);
-// a needle ending exactly at end-of-source has NO following char: the tail index must short-circuit
-// before the code-point read, otherwise `codePointAt(length)` is undefined and `fromCodePoint` throws
-check('boundary/needle at end of source is a boundary',
-  hasIdentifierBoundary('Promise', 0, 'Promise'), true);
-check('boundary/needle at end of source after a space is a boundary',
-  hasIdentifierBoundary(' Promise', 1, 'Promise'), true);
-
 // --- patternToRegExp: alternation grouping ---
 // `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b).
 // wrapping pattern in `(?:...)` non-capturing group binds alternation to anchors uniformly:
@@ -3760,32 +1025,6 @@ function checkPatternAlternation() {
 }
 checkPatternAlternation();
 
-// --- TransformQueue: partial-overlap detection picks the actually-intersecting pair ---
-// running-max approach reported `[outerMax]` even when the actual conflict was between
-// non-max intervals. open-list approach drops intervals fully behind, so `find` returns
-// the closest still-open interval that `curr` partially overlaps - the diagnostic now
-// names the pair the user can act on
-function checkPartialOverlapDiagnostic() {
-  const ms = new MagicString('xxxxxxxxxxxxxxxxxxxxxxxxxx');
-  const q = new TransformQueue(ms.original, ms);
-  // [0,10), [3,8), [5,12) - [0,10) is running-max, but actual partial overlap is
-  // ALSO between [3,8) and [5,12). closest-open should report [3,8) vs [5,12) since
-  // [0,10) was already closed in some scenarios. here the closest open at curr=[5,12)
-  // is the smaller [3,8) (filter keeps both since both end > 5)
-  q.add(0, 10, 'A');
-  q.add(3, 8, 'B');
-  let threw = false;
-  try {
-    q.add(5, 12, 'C');
-    q.apply();
-  } catch (error) {
-    threw = true;
-    check('partial-overlap message names true conflict', error.message.includes('[0,10)') || error.message.includes('[3,8)'), true);
-  }
-  check('partial-overlap throws', threw, true);
-}
-checkPartialOverlapDiagnostic();
-
 // --- SnapshotCache shared probe ---
 // per-test fresh cache: store under one id, query by another, report hit/miss. shared
 // helper across HMR / UNC / multi-timestamp / file-localhost suites so the normalization
@@ -3800,7 +1039,7 @@ function probeSnapshotHit(storeId, takeId) {
 // --- SnapshotCache: Vite HMR `&t=<timestamp>` stripping ---
 // Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
 // timestamp, but the logical module is the same. snapshot lookup keyed by normalized id
-// (timestamp stripped) so pre→post lookup survives HMR. without the strip, post-pass
+// (timestamp stripped) so pre->post lookup survives HMR. without the strip, post-pass
 // missed pre's snapshot and emitted duplicate `var _ref;` / re-allocated UIDs
 function checkSnapshotHMRTimestampStrip() {
   check('snapshot/HMR &t= different timestamp finds same entry',
@@ -3817,7 +1056,7 @@ checkSnapshotHMRTimestampStrip();
 // --- SnapshotCache: Windows UNC path normalization ---
 // `\\?\C:\src\App.vue` is Windows verbatim long-path prefix - same logical file as
 // `C:/src/App.vue` after path-mangling stages. without UNC strip, snapshot lookups
-// across pre→post (where mid-pipeline normalization may have run) miss
+// across pre->post (where mid-pipeline normalization may have run) miss
 function checkSnapshotWindowsUNC() {
   // backslash UNC paired with forward-slash POSIX path (after normalize stage)
   check('snapshot/UNC backslash matches forward-slash same path',
@@ -3965,8 +1204,9 @@ checkDeferPassKeepsUserImports();
 // result as single-pass because the state machine is idempotent given a stable input
 function checkPhasePipelinePassThrough() {
   const code = 'export var v = arr?.at?.(0);\nexport var x = "test".at(-1);\nexport var m = new Map();';
-  for (const engine of ['text', 'ast']) {
-    const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine };
+  {
+    const engine = 'ast';
+    const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
     const single = createPlugin(opts).transform(code, '/sm-phase.mjs');
     // pre+post share one plugin instance. internal `runTransform` accepts pass: 'pre'/'post'/'single'
     const twoPass = createPlugin(opts);
@@ -3989,8 +1229,9 @@ checkPhasePipelinePassThrough();
 // polyfillable code between passes (post must rewrite it, dedup imports against pre's inline
 // ones, and mint refs that do not collide with pre's - the suffix state rides the snapshot)
 function checkPhaseSnapshotFlow() {
-  for (const engine of ['text', 'ast']) {
-    const globalOpts = { method: 'usage-global', version: '4.0', targets: { ie: 11 }, engine };
+  const engine = 'ast';
+  {
+    const globalOpts = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
     const lowered = createPlugin(globalOpts);
     check(`phase/snapshot pre defers usage-global imports (${ engine })`,
       lowered.transform('[1].flat();', '/sm-lowered.mjs', 'pre'), null);
@@ -3998,7 +1239,7 @@ function checkPhaseSnapshotFlow() {
     check(`phase/snapshot carries pre-detected module past a lowering sibling (${ engine })`,
       loweredOut.includes('es.array.flat'), true);
 
-    const pureOpts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine };
+    const pureOpts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
     const injected = createPlugin(pureOpts);
     const pre = injected.transform('const v = getA().flat?.()?.at(0);\nuse(v);', '/sm-injected.mjs', 'pre');
     const post = injected.transform(`${ pre.code }\nconst w = getB().flat?.()?.at(0);\nuse(w);`, '/sm-injected.mjs', 'post');
@@ -4117,7 +1358,7 @@ function checkPhaseSnapshotFlow() {
         + '\n  (nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat()'
         + '\n    .concat((nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat() ?? [])\n);\nuse(r);'],
       ['optional-first string chain claims', 'export const r = "abcde"?.slice(1).padStart(8, "0");\nuse(r);'],
-      // exotic-but-valid module forms flow through both engines and settle
+      // exotic-but-valid module forms flow through the whole pipeline and settle
       ['import attributes on a sibling import', 'import data from "./d.json" with { type: "json" };\nexport const r = Array.from(data);\nuse(r);'],
       ['astral-plane identifier', 'const \u{1D4B6}b = [1];\nexport const r = \u{1D4B6}b.flat();\nuse(r);'],
       ['lone-surrogate string escape', 'export const r = "\\uD800".padStart(3, "x");\nuse(r);'],
@@ -4209,7 +1450,7 @@ function checkPhaseSnapshotFlow() {
       {
         const gSrc = 'export const r = [1, [2]].flat();\nuse(r);\n';
         function gOpts(extra) {
-          return { method: 'usage-global', version: '4.0', targets: { ie: 11 }, engine, ...extra };
+          return { method: 'usage-global', version: '4.0', targets: { ie: 11 }, ...extra };
         }
         const g1 = createPlugin(gOpts({ package: '@my/scoped-core' })).transform(gSrc, '/sm-xpkg-g.mjs')?.code ?? gSrc;
         const g2 = createPlugin(gOpts({ additionalPackages: ['@my/scoped-core'] })).transform(g1, '/sm-xpkg-g.mjs')?.code ?? g1;
@@ -4230,25 +1471,25 @@ checkPhaseSnapshotFlow();
 
 // --- AST-engine internals: builders and emit-shared contracts ---
 async function checkAstInternalsCore() {
-  const b = await import('../../packages/core-js-unplugin/internals/ast/builders.js');
-  check('ast/builders identifier shape', JSON.stringify(b.identifier('x')), '{"type":"Identifier","name":"x"}');
-  check('ast/builders string literal carries its raw quote', b.literal('a').raw, '"a"');
-  check('ast/builders non-string literal has NO raw (printer derives NaN/bigint itself)',
+  const b = await import('../../packages/core-js-unplugin/internals/builders.js');
+  check('builders identifier shape', JSON.stringify(b.identifier('x')), '{"type":"Identifier","name":"x"}');
+  check('builders string literal carries its raw quote', b.literal('a').raw, '"a"');
+  check('builders non-string literal has NO raw (printer derives NaN/bigint itself)',
     Object.hasOwn(b.literal(1), 'raw'), false);
-  check('ast/builders member defaults plain', JSON.stringify(b.memberExpression(b.identifier('a'), b.identifier('b'))),
+  check('builders member defaults plain', JSON.stringify(b.memberExpression(b.identifier('a'), b.identifier('b'))),
     '{"type":"MemberExpression","object":{"type":"Identifier","name":"a"},"property":{"type":"Identifier","name":"b"},"computed":false,"optional":false}');
-  check('ast/builders call keeps optional flag', b.callExpression(b.identifier('f'), [], { optional: true }).optional, true);
-  check('ast/builders voidZero is `void 0`',
+  check('builders call keeps optional flag', b.callExpression(b.identifier('f'), [], { optional: true }).optional, true);
+  check('builders voidZero is `void 0`',
     (() => { const v = b.voidZero(); return v.type === 'UnaryExpression' && v.operator === 'void' && v.argument.value === 0; })(), true);
   const seq = b.sequenceExpression([b.identifier('a'), b.identifier('b')]);
-  check('ast/builders sequence holds its expressions', seq.expressions.length, 2);
+  check('builders sequence holds its expressions', seq.expressions.length, 2);
   const clone = b.cloneNode(seq);
-  check('ast/builders cloneNode is deep and detached',
+  check('builders cloneNode is deep and detached',
     clone !== seq && clone.expressions[0] !== seq.expressions[0] && clone.expressions[0].name === 'a', true);
-  check('ast/builders bareImport has no specifiers', b.bareImport('core-js/modules/es.array.flat').specifiers.length, 0);
-  check('ast/builders defaultImport binds its local', b.defaultImport('_at', '@core-js/pure/actual/instance/at').specifiers[0].local.name, '_at');
+  check('builders bareImport has no specifiers', b.bareImport('core-js/modules/es.array.flat').specifiers.length, 0);
+  check('builders defaultImport binds its local', b.defaultImport('_at', '@core-js/pure/actual/instance/at').specifiers[0].local.name, '_at');
 
-  const es = await import('../../packages/core-js-unplugin/internals/ast/emit-shared.js');
+  const es = await import('../../packages/core-js-unplugin/internals/emit-shared.js');
   const optionalDeep = b.memberExpression(b.callExpression(b.identifier('g'), [], { optional: true }), b.identifier('k'));
   check('emit-shared receiverCarriesOptional sees a buried `?.()`', es.receiverCarriesOptional(optionalDeep), true);
   check('emit-shared receiverCarriesOptional clean spine answers false',
@@ -4278,7 +1519,7 @@ await checkAstInternalsCore();
 // --- AST-engine internals: printProgram contracts (the roundtrip gate holds the corpus;
 // these lock the specific promises the emitters lean on) ---
 async function checkAstPrintContracts() {
-  const { shiftFirstLineColumns } = await import('../../packages/core-js-unplugin/internals/ast/print.js');
+  const { shiftFirstLineColumns } = await import('../../packages/core-js-unplugin/internals/print.js');
   function reprint(src, anchoredComments = null) {
     // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
     const parsed = parseSync('/p.mjs', src, { sourceType: 'module' });
@@ -4316,7 +1557,7 @@ await checkAstPrintContracts();
 
 // --- AST-engine internals: flushIntoProgram placement contracts ---
 async function checkAstFlushContracts() {
-  const { flushIntoProgram } = await import('../../packages/core-js-unplugin/internals/ast/import-injector.js');
+  const { flushIntoProgram } = await import('../../packages/core-js-unplugin/internals/import-injector.js');
   function flushOver(src, injector, opts = {}) {
     // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
     const parsed = parseSync('/f.mjs', src, { sourceType: 'module' });
@@ -4342,12 +1583,12 @@ await checkAstFlushContracts();
 // --- AST-engine behavior locks the fixture corpus does not pin directly ---
 function checkAstEngineBehaviors() {
   for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
-    const opts = { method, version: '4.0', targets: { ie: 11 }, engine: 'ast' };
-    // a `core-js-disable-file` directive stands the whole engine down, ast leg included
+    const opts = { method, version: '4.0', targets: { ie: 11 } };
+    // a `core-js-disable-file` directive stands the whole engine down
     check(`ast engine honors disable-file (${ method })`,
       createPlugin(opts).transform('// core-js-disable-file\nimport "core-js";\n[1].flat();\n', '/df.mjs'), null);
   }
-  const entryOpts = { method: 'entry-global', version: '4.0', targets: { ie: 11 }, engine: 'ast' };
+  const entryOpts = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
   const entryOut = createPlugin(entryOpts).transform('import "core-js";\nuse();\n', '/e.mjs')?.code ?? '';
   check('ast entry-global expands the root entry to modules',
     entryOut.includes('core-js/modules/') && !entryOut.includes('import "core-js";'), true);
@@ -4355,13 +1596,13 @@ function checkAstEngineBehaviors() {
   check('ast entry-global emits a sourcemap with content', !!entryMap && Array.isArray(entryMap.sources), true);
   // pre+post map chaining: the post map of a pre-rewritten file omits sourcesContent (the
   // chain reads content from pre's map), a standalone post emits it
-  const sandwich = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'ast' });
+  const sandwich = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
   const preOut = sandwich.transform('const v = getA().flat?.();\nuse(v);\n', '/sw.mjs', 'pre');
   const postOut = sandwich.transform(`${ preOut.code }\nconst w = getB().at?.(0);\nuse(w);`, '/sw.mjs', 'post');
   check('ast pre emits a content-bearing map', Array.isArray(preOut?.map?.sourcesContent), true);
   check('ast post map omits sourcesContent when chaining a pre rewrite',
     postOut?.map ? !Array.isArray(postOut.map.sourcesContent) : false, true);
-  const standalonePost = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'ast' })
+  const standalonePost = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } })
     .transform('const v = getA().flat?.();\nuse(v);\n', '/sp.mjs', 'post');
   check('ast standalone post map keeps sourcesContent',
     Array.isArray(standalonePost?.map?.sourcesContent), true);
@@ -4371,7 +1612,7 @@ checkAstEngineBehaviors();
 // `additionalPackages` items must be non-empty non-slash-only strings. validateOptions
 // catches this for plugin-options-layer users; direct createPolyfillContext callers also
 // get a defensive throw. without it, `''` / `'/'` cascades through `packages` and would
-// false-positive every absolute path в `getCoreJSEntry`'s `startsWith('/')` check
+// false-positive every absolute path in `getCoreJSEntry`'s `startsWith('/')` check
 function checkAdditionalPackagesShapeGuard() {
   const cases = [
     { additionalPackages: [''], label: 'empty string' },
@@ -4732,12 +1973,11 @@ function checkLifecycleHookAttachment() {
 }
 checkLifecycleHookAttachment();
 
-// --- deeply-nested body-wraps compose correctly (iterative post-order) ---
-// regression lock for the scope-tracker body-wrap composition: `#composeBodyWrapText` walks the
-// wrap nesting iteratively (heap stack, no per-level re-filter, no recursion-depth footgun). the
-// input nests `depth` genuine body-wraps - the triply-nested flatten-sibling fixture shape scaled
-// up well past any handful. every level must emit exactly one `var _ref`; a composition that
-// truncated deep wraps (e.g. a re-introduced depth cap below `depth`) would emit fewer.
+// --- deeply-nested scoped refs emit correctly at every level ---
+// the input nests `depth` genuine function bodies each hosting its own instance claim - the
+// triply-nested flatten-sibling fixture shape scaled
+// up well past any handful. every level must emit exactly one `var _ref`; an emission that
+// truncated deep nesting (e.g. a depth cap below `depth`) would emit fewer.
 // `depth` is bounded by the RECURSIVE AST walk inside our parser dependency (estree-toolkit's
 // `Traverser.visitPath`), which overflows the call stack on far deeper nesting regardless of our
 // own iterative composition - that ceiling belongs to the traversal library, not the code under
@@ -4810,110 +2050,10 @@ function checkSnapshotPrePassTwiceWarn() {
 }
 checkSnapshotPrePassTwiceWarn();
 
-// --- TransformQueue.addSplit invariant diagnostic ---
-// regression lock for TQ-16-05: caller-side gate at polyfill-emitter:300 prevents
-// zero-length halves today, but the runtime invariant must surface a clear message
-// when a future caller forgets the gate. previously fell through to add()'s [X,X)
-// RangeError without indicating which side was bad
-function checkAddSplitInvariant() {
-  const tq = new TransformQueue('abcdefghij');
-  function tryCall(args) {
-    try {
-      tq.addSplit(...args);
-      return null;
-    } catch (error) {
-      return error?.message;
-    }
-  }
-  check('addSplit valid call: no throw', tryCall([0, 5, 10, 'p', 's', null, null]), null);
-  const zeroLeft = tryCall([5, 5, 8, 'p', 's', null, null]);
-  check('addSplit zero-left half: throws with positions', !!zeroLeft?.includes('[5,5,8)'), true);
-  const zeroRight = tryCall([0, 8, 8, 'p', 's', null, null]);
-  check('addSplit zero-right half: throws with positions', !!zeroRight?.includes('[0,8,8)'), true);
-  const inverted = tryCall([5, 3, 8, 'p', 's', null, null]);
-  check('addSplit inverted: throws (mid < start)', !!inverted?.includes('addSplit invariant'), true);
-}
-checkAddSplitInvariant();
-
-// --- TransformQueue.containsRange logical-end semantics for split entries ---
-// regression lock for TQ-16-02: containsRange / hasGuardFor previously used physical
-// `entry.end` (= mid for split prefix) instead of `splitInfo.logicalEnd`. queries inside
-// (mid, logicalEnd) on a split-bearing range were wrongly reported as not-contained
-function checkContainsRangeOnSplitEntries() {
-  const tq = new TransformQueue('abcdefghij');
-  // split [0, 5, 10): physical prefix end = 5, logical end = 10
-  tq.addSplit(0, 5, 10, 'p', 's', null, null);
-  check('split-prefix sub-range contained', tq.containsRange(1, 4), true);
-  check('split sub-range crossing mid is contained', tq.containsRange(2, 8), true);
-  check('split-suffix sub-range contained logically', tq.containsRange(6, 9), true);
-  // strict containment: equal range is NOT contained (both transforms must apply)
-  check('split exact logical match is not contained', tq.containsRange(0, 10), false);
-  check('split sub-range past logical end is not contained', tq.containsRange(5, 11), false);
-}
-checkContainsRangeOnSplitEntries();
-
-// `deoptionalizeNeedle` skips ASCII whitespace AND comments (line + block) between `?.`
-// and the next token. line-comment terminator covers all four ECMAScript line terminators
-// (LF / CR / U+2028 LS / U+2029 PS) - WS_RE alone matched all four but the LF-only scan
-// would walk past LS/PS into real code, then misclassify the next char. positive locks
-// for each terminator + block comment + mixed prefix so a future regression to indexOf('\n')
-// or a slot-position miscount fails here before it reaches a real fixture
-function checkDeoptWhitespaceSkip() {
-  check('deopt/tab before call', deoptionalizeNeedle('obj?.\t(args)'), 'obj\t(args)');
-  check('deopt/CR before call', deoptionalizeNeedle('obj?.\r\n(args)'), 'obj\r\n(args)');
-  check('deopt/line comment LF call', deoptionalizeNeedle('obj?.// c\n(args)'), 'obj// c\n(args)');
-  check('deopt/line comment LS call', deoptionalizeNeedle('obj?.// c\u2028(args)'), 'obj// c\u2028(args)');
-  check('deopt/line comment PS call', deoptionalizeNeedle('obj?.// c\u2029(args)'), 'obj// c\u2029(args)');
-  check('deopt/line comment LS prop', deoptionalizeNeedle('obj?.// c\u2028prop'), 'obj.// c\u2028prop');
-  check('deopt/block comment call', deoptionalizeNeedle('obj?./*c*/(args)'), 'obj/*c*/(args)');
-  check('deopt/block comment prop', deoptionalizeNeedle('obj?./*c*/prop'), 'obj./*c*/prop');
-}
-checkDeoptWhitespaceSkip();
-
-// the memo-value fallback rewrites the slot behind a `(<ref> = ` anchor, and the walk that finds
-// that slot's end counts parens in EMITTED text. a paren inside a string is text: counted, it ends
-// the range at the wrong token and the rewrite swallows whatever follows. the value's own balanced
-// groups must not end it either - only the `)` closing the group the anchor stands in
-function checkMemoValueRewriteIsLexerAware() {
-  const code = 'srcsrcsrc';
-  function composed(memoValue) {
-    const content = `null == (_g = ${ memoValue }) ? void 0 : _g.x`;
-    const tq = new TransformQueue(code, new MagicString(code));
-    const root = { id: 'memo-root' };
-    tq.add(0, 9, content, root, { rootRaw: 'src', guardRef: '_g', deoptPositions: [], objectStart: 0, absorbsRoot: false });
-    tq.add(0, 3, 'INNER');
-    return tq.composeAndDrainRange(0, 9)[0].content;
-  }
-  check('memo-value rewrite keeps the tail past a string-borne paren',
-    composed('f(")")').endsWith(') ? void 0 : _g.x'), true);
-  check('memo-value rewrite keeps the tail past a balanced inner group',
-    composed('f(a)').endsWith(') ? void 0 : _g.x'), true);
-  check('memo-value rewrite lands the inner emit in the slot',
-    composed('f(a)').includes('INNER'), true);
-}
-checkMemoValueRewriteIsLexerAware();
-
-// `findOuterGuardRef` tie-break: when two transforms share the SAME guardedRoot AND the
-// SAME range size, the strict-`>` comparator keeps the earliest registered. Production
-// shape is parent-first visit (outer always wider), so ties are rare; the lock catches
-// any accidental shift to LIFO ordering during refactor
-function checkFindOuterGuardRefTieBreak() {
-  const code = '0123456789abcdef';
-  const tq = new TransformQueue(code, new MagicString(code));
-  const root = { id: 'shared-root' };
-  tq.add(0, 10, 'AAA', root, { rootRaw: 'src', guardRef: '_first', deoptPositions: [],
-    objectStart: 0, absorbsRoot: false });
-  tq.add(0, 10, 'BBB', root, { rootRaw: 'src', guardRef: '_second', deoptPositions: [],
-    objectStart: 0, absorbsRoot: false });
-  check('findOuterGuardRef tie-break: earliest wins',
-    tq.findOuterGuardRef(root), '_first');
-}
-checkFindOuterGuardRefTieBreak();
-
 // --- bundler adapter named exports ---
 // supported bundlers per package.json description + exports map: 9 adapters with both
 // named export AND `./<name>` sub-entry. unloader is upstream-exposed but core-js does
-// not target it (no sub-entry, no docs, no test wiring) — intentionally not exported
+// not target it (no sub-entry, no docs, no test wiring) - intentionally not exported
 async function checkBundlerAdapterExports() {
   const exported = await import('../../packages/core-js-unplugin/index.js');
   for (const name of ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun']) {
@@ -5069,151 +2209,6 @@ checkPolyfillContextRejectsCleanly('createPolyfillContext/bigint in additionalPa
 checkPolyfillContextRejectsCleanly('createPolyfillContext/circular in additionalPackages',
   { method: 'usage-pure', package: 'foo', additionalPackages: [circular] });
 
-// --- isLineTerminator: ES spec LineTerminator set (LF / CR / LS / PS) ---
-check('isLineTerminator/LF', isLineTerminator('\n'), true);
-check('isLineTerminator/CR', isLineTerminator('\r'), true);
-check('isLineTerminator/LS U+2028', isLineTerminator('\u2028'), true);
-check('isLineTerminator/PS U+2029', isLineTerminator('\u2029'), true);
-check('isLineTerminator/space', isLineTerminator(' '), false);
-check('isLineTerminator/tab', isLineTerminator('\t'), false);
-check('isLineTerminator/empty rejects', isLineTerminator(''), false);
-check('isLineTerminator/NBSP not LT', isLineTerminator('\u00A0'), false);
-
-// --- skipBlockComment: forward-scan past `/* ... */`, returns position after `*/` ---
-// caller has verified `src[p]==='/' && src[p+1]==='*'`; unterminated comment falls back
-// to src.length so upstream raw-text scanners can't infinite-loop on broken source
-check('skipBlockComment/normal', skipBlockComment('/* x */y', 0), 7);
-check('skipBlockComment/empty body', skipBlockComment('/**/a', 0), 4);
-check('skipBlockComment/multi-line', skipBlockComment('/*\n*\n*/z', 0), 7);
-check('skipBlockComment/unterminated -> src.length',
-  skipBlockComment('/* no close', 0), 'no close'.length + '/* '.length);
-check('skipBlockComment/offset-relative scan', skipBlockComment('zz/* y */a', 2), 9);
-
-// --- skipGap: forward-scan past whitespace + line comments + block comments ---
-check('skipGap/no gap', skipGap('foo', 0), 0);
-check('skipGap/spaces only', skipGap('   foo', 0), 3);
-check('skipGap/tabs and newlines', skipGap('\t\n\r foo', 0), 4);
-check('skipGap/line comment', skipGap('// hi\nfoo', 0), 6);
-check('skipGap/line comment hits EOF', skipGap('// hi', 0), 5);
-check('skipGap/block comment', skipGap('/* x */ foo', 0), 8);
-check('skipGap/mixed gap chain', skipGap('  // a\n /* b */\t foo', 0), 17);
-check('skipGap/U+2028 inside gap', skipGap('\u2028foo', 0), 1);
-check('skipGap/U+2029 inside gap', skipGap('\u2029foo', 0), 1);
-check('skipGap/NBSP inside gap', skipGap('\u00A0foo', 0), 1);
-check('skipGap/unterminated block returns src.length',
-  skipGap('/* no close', 0), '/* no close'.length);
-check('skipGap/from offset', skipGap('xx  yy', 2), 4);
-
-// --- canFuseWithOpenParen: prev significant char fuses with `(` per ASI semantics ---
-// `\w` / `"` / `$` / `)` / `/` / `]` / `` ` `` / `}` form a callable / member-access /
-// computed-key / template-tag boundary; `(` after them parses as a CallExpression and
-// breaks any subsequent injection that expects to live on its own statement
-check('canFuseWithOpenParen/identifier end', canFuseWithOpenParen('foo (', 4), true);
-check('canFuseWithOpenParen/digit', canFuseWithOpenParen('a1 (', 3), true);
-check('canFuseWithOpenParen/closing paren', canFuseWithOpenParen('a() (', 4), true);
-check('canFuseWithOpenParen/closing bracket', canFuseWithOpenParen('a[1] (', 5), true);
-check('canFuseWithOpenParen/closing brace', canFuseWithOpenParen('{} (', 3), true);
-check('canFuseWithOpenParen/string end', canFuseWithOpenParen('"x" (', 4), true);
-check('canFuseWithOpenParen/template end', canFuseWithOpenParen('`x` (', 4), true);
-check('canFuseWithOpenParen/start of file', canFuseWithOpenParen('(', 0), false);
-check('canFuseWithOpenParen/only whitespace before', canFuseWithOpenParen('   (', 3), false);
-check('canFuseWithOpenParen/semicolon before', canFuseWithOpenParen('foo; (', 5), false);
-// astral (surrogate-pair) identifier char at the prev-significant position: the ASI guard must test
-// the WHOLE code point, not the lone trailing low surrogate (which matches nothing and would skip
-// the guard, fusing the `(` into the prior identifier). a non-identifier astral char does NOT fuse
-check('canFuseWithOpenParen/astral identifier end', canFuseWithOpenParen('\u{1D4CF} (', 3), true);
-check('canFuseWithOpenParen/astral non-identifier end', canFuseWithOpenParen('\u{1F600} (', 3), false);
-check('canFuseWithOpenParen/skips line comment',
-  canFuseWithOpenParen('foo // tail\n(', 12), true);
-check('canFuseWithOpenParen/skips block comment',
-  canFuseWithOpenParen('foo /* tail */(', 14), true);
-check('canFuseWithOpenParen/block comment hides fuse',
-  canFuseWithOpenParen('; /* foo */ (', 12), false);
-// regex literal `/a*/`: the `*/` looks like a block-comment closer at first glance,
-// but `lastIndexOf('/*')` from BEFORE the `*` returns -1 (no matching opener); the `/`
-// is then a regex literal terminator (fuses with `(`). without the fix, the backward
-// scan returned -1 and ASI guard was skipped, parsing `/a*/(arr)()` as a regex call
-check('canFuseWithOpenParen/regex closer not block comment',
-  canFuseWithOpenParen('var rx = /a*/\n(', 14), true);
-// apostrophe inside `/* don't */` previously flipped quote-state inside
-// `realLineCommentStart`, causing the real `//` after it to NOT be detected and the
-// backward walk to land inside the "comment" text. block-comment skip in the forward
-// scan fixes the quote-state contamination - prev significant = `)` of `x()`
-check('canFuseWithOpenParen/apostrophe in block comment',
-  canFuseWithOpenParen("x() /* don't */ // c\n", 21), true);
-// `//` INSIDE a block comment isn't a real line comment; without block-comment skip in
-// `realLineCommentStart`, the backward walk lands inside the block-comment body
-// (`a` of `/* a // b */`). with the skip, prev significant = `r` of `bar`
-check('canFuseWithOpenParen/double-slash inside block comment',
-  canFuseWithOpenParen('foo /* a // b */ bar\n', 20), true);
-// Unicode ID_Continue chars (`α`) end an identifier; ASCII `\w` missed them and the
-// `(` would fuse silently into a CallExpression
-check('canFuseWithOpenParen/unicode identifier end',
-  canFuseWithOpenParen('var Mapα\n(', 9), true);
-// NBSP / FF / VT / BOM / ogham / mongolian / em-quad - JS WhiteSpace beyond ASCII space
-// and tab. previous 6-char allowlist missed them, treating them as significant chars
-check('canFuseWithOpenParen/NBSP between token and paren',
-  canFuseWithOpenParen('foo() \n(', 7), true);
-check('canFuseWithOpenParen/BOM mid-file as whitespace',
-  canFuseWithOpenParen('foo()﻿\n(', 7), true);
-// multi-line string via `\<LineTerminator>` continuation: line 2 starts INSIDE the string,
-// so a `//` there is content, not a line comment. closing `"` IS the significant boundary
-check('canFuseWithOpenParen/line-continuation string',
-  canFuseWithOpenParen('var s = "foo\\\n//bar"\n', 20), true);
-// multi-line template literal: `\n` inside backticks doesn't break the template; `//`
-// inside is content. closing `` ` `` IS significant
-check('canFuseWithOpenParen/multi-line template',
-  canFuseWithOpenParen('var t = `a\n//b`\n', 15), true);
-// `${...}` template expression - chunk before and after `${...}` are template regions;
-// the expression body is JS context. closing `` ` `` IS significant
-check('canFuseWithOpenParen/template with expression',
-  // eslint-disable-next-line no-template-curly-in-string -- intentional template literal as plain string for the source-under-test
-  canFuseWithOpenParen('var t = `a${1}b`\n', 16), true);
-// `/*` substring inside a string literal - lastIndexOf-based block-comment back-scan
-// previously matched it as a real opener. with the literal-region scanner, the `/` at end
-// (an unrelated `*/` shape) is correctly significant since it sits OUTSIDE any region
-check('canFuseWithOpenParen/asterisk-slash with /* in earlier string',
-  canFuseWithOpenParen('var s = "/* x"; */', 18), true);
-// nested template inside `${...}` expression: scanner must recursively classify the inner
-// template's content too. inner closing `` ` `` is the significant boundary
-check('canFuseWithOpenParen/nested template in expression',
-  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
-  canFuseWithOpenParen('var t = `a${`b`}c`', 18), true);
-// triple-nested template (`${`${`x`}`}`) - the hole-mode stack must nest to depth N
-check('canFuseWithOpenParen/triple-nested template',
-  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
-  canFuseWithOpenParen('var t = `a${`b${`c`}b`}a`', 25), true);
-// string literal inside `${...}` body must classify as JS context's literal (not as
-// part of template). closing `` ` `` of outer template IS the significant boundary
-check('canFuseWithOpenParen/string in template expression',
-  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
-  canFuseWithOpenParen('var t = `${"hi"}`', 17), true);
-// block comment inside `${...}` body: `//` is a real comment in JS context, not template
-// content. tested via no-shadow case - presence of comment doesn't change classification
-check('canFuseWithOpenParen/block comment in template expression',
-  // eslint-disable-next-line no-template-curly-in-string -- intentional source-under-test
-  canFuseWithOpenParen('var t = `${/* c */1}`', 21), true);
-// escaped quote inside string - `\\"` doesn't close the string; closing `"` IS the one
-// after the escape
-check('canFuseWithOpenParen/escaped quote in string',
-  canFuseWithOpenParen('var s = "a\\"b"', 14), true);
-// unescaped line terminator ends a string (spec SyntaxError but scanner stays robust).
-// scanner bails at the LT; the LT itself is whitespace, the `'` opener is significant
-check('canFuseWithOpenParen/unterminated string at newline',
-  canFuseWithOpenParen("var s = 'foo\n", 13), true);
-// unterminated template extends to end of source. closing `` ` `` is missing; the LAST
-// char of the source (still inside the template region) is reported as significant
-check('canFuseWithOpenParen/unterminated template',
-  canFuseWithOpenParen('var t = `foo', 12), true);
-// CRLF inside `\<CR><LF>` line continuation - both chars consumed by the escape
-check('canFuseWithOpenParen/CRLF line continuation in string',
-  canFuseWithOpenParen('var s = "a\\\r\nb"', 16), true);
-// mixed quote styles - each closes only on its own opening char
-check('canFuseWithOpenParen/single quotes inside double',
-  canFuseWithOpenParen('var s = "a\'b\'c"', 15), true);
-check('canFuseWithOpenParen/double quotes inside single',
-  canFuseWithOpenParen('var s = \'a"b"c\'', 15), true);
-
 // --- hasCoreJSImport: fingerprint pre-pass against configured packages ---
 function checkHasPureImport(label, src, packages, expected) {
   // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
@@ -5319,73 +2314,7 @@ function checkWalkDepthCap() {
 }
 checkWalkDepthCap();
 
-// --- varScopeAnchor: anchor for `var _ref;` insertion at function/block scope ---
-function programOf(src, sourceType = 'module') {
-  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-  return parseSync('/x.mjs', src, { sourceType }).program;
-}
-function checkVarScopeAnchor() {
-  // BlockStatement: insertPos is `{` + 1 (open-brace position + 1)
-  const [block] = programOf('{ a; b; }').body;
-  const blockAnchor = varScopeAnchor(block, '{ a; b; }');
-  check('varScopeAnchor/BlockStatement statements ref', blockAnchor?.statements, block.body);
-  check('varScopeAnchor/BlockStatement insertPos after {', blockAnchor?.insertPos, block.start + 1);
-
-  // StaticBlock: insertPos skips `static` keyword + whitespace + comments before `{`
-  const [cls] = programOf('class C { static /* x */ { a; } }').body;
-  const [sb] = cls.body.body;
-  const code = 'class C { static /* x */ { a; } }';
-  const sbAnchor = varScopeAnchor(sb, code);
-  check('varScopeAnchor/StaticBlock statements', sbAnchor?.statements, sb.body);
-  check('varScopeAnchor/StaticBlock insertPos after { past comment',
-    code[sbAnchor.insertPos - 1], '{');
-
-  // non-anchor shapes return null - plugin walks past them
-  check('varScopeAnchor/Identifier returns null', varScopeAnchor({ type: 'Identifier', name: 'x' }, 'x'), null);
-  check('varScopeAnchor/IfStatement returns null',
-    varScopeAnchor({ type: 'IfStatement', body: null }, 'if (x);'), null);
-}
-checkVarScopeAnchor();
-
-// --- isBodylessStatementBody: is this path the body slot of an if/loop/arrow? ---
-// path stubs mirror the `node` / `parentPath.node` shape the helper uses. NOTE: the
-// helper passes the (parent.node, node) pair to `isBodylessStatementSlot` without an
-// extra BlockStatement gate - so a BlockStatement IN a body slot returns true. real
-// callers (destructure-emitter) pass declaration paths INSIDE the BlockStatement,
-// whose parent is the BlockStatement itself (not a body-slot host), so the false case
-// arises naturally there
-function checkIsBodylessStatementBody() {
-  // unbraced single-statement consequent: `if (cond) call();` - call is body slot of if
-  const [ifStmt] = programOf('if (cond) call();').body;
-  const callPath = { node: ifStmt.consequent, parentPath: { node: ifStmt } };
-  check('isBodylessStatementBody/unbraced if consequent', isBodylessStatementBody(callPath), true);
-
-  // a polyfill-target sitting INSIDE the BlockStatement has parent=BlockStatement (not
-  // IfStatement) - BlockStatement is not a body-slot host type, so returns false. this
-  // is the real usage path - destructure-emitter passes the declaration path inside the
-  // block, not the BlockStatement itself
-  const [ifBraced] = programOf('if (cond) { call(); }').body;
-  const [stmtInsideBlock] = ifBraced.consequent.body;
-  const insidePath = { node: stmtInsideBlock, parentPath: { node: ifBraced.consequent } };
-  check('isBodylessStatementBody/stmt inside BlockStatement', isBodylessStatementBody(insidePath), false);
-
-  // bodyless else clause: `if(c) a(); else b();` - else slot is also body-slot of IfStatement
-  const [ifElse] = programOf('if (c) a(); else b();').body;
-  const elsePath = { node: ifElse.alternate, parentPath: { node: ifElse } };
-  check('isBodylessStatementBody/unbraced else alternate', isBodylessStatementBody(elsePath), true);
-
-  // unbraced while body
-  const [whileStmt] = programOf('while (c) call();').body;
-  const whileBody = { node: whileStmt.body, parentPath: { node: whileStmt } };
-  check('isBodylessStatementBody/while body', isBodylessStatementBody(whileBody), true);
-
-  // null parent path returns false (defensive)
-  check('isBodylessStatementBody/no parentPath returns false',
-    isBodylessStatementBody({ node: ifStmt.consequent, parentPath: null }), false);
-}
-checkIsBodylessStatementBody();
-
-// --- emit-utils.unwrapNode: peel parens / chain / TS wrappers down to semantic core ---
+// --- unwrapNode: peel parens / chain / TS wrappers down to semantic core ---
 function checkUnwrapNode() {
   // bare node passes through
   const ident = { type: 'Identifier', name: 'x' };
@@ -5420,7 +2349,7 @@ function checkUnwrapNode() {
 }
 checkUnwrapNode();
 
-// --- emit-utils.isCallee: parent is Call/New with `node` as callee (through wrappers) ---
+// --- isCallee: parent is Call/New with `node` as callee (through wrappers) ---
 function checkIsCallee() {
   const ident = { type: 'Identifier', name: 'fn' };
   const callDirect = { type: 'CallExpression', callee: ident };
@@ -5447,70 +2376,6 @@ function checkIsCallee() {
   check('isCallee/null parent', isCallee(ident, null), false);
 }
 checkIsCallee();
-
-// --- emit-utils.isCalleeWrappedInParens: any paren between parent.callee and node ---
-function checkIsCalleeWrappedInParens() {
-  const node = { type: 'OptionalMemberExpression', name: 'leaf' };
-
-  // direct - no paren
-  const direct = { callee: node };
-  check('isCalleeWrappedInParens/direct callee no paren', isCalleeWrappedInParens(direct, node), false);
-
-  // paren wraps node
-  const paren = { callee: { type: 'ParenthesizedExpression', expression: node } };
-  check('isCalleeWrappedInParens/paren wraps node', isCalleeWrappedInParens(paren, node), true);
-
-  // TS wrapping paren wrapping node
-  const tsThenParen = { callee: { type: 'TSAsExpression',
-    expression: { type: 'ParenthesizedExpression', expression: node } } };
-  check('isCalleeWrappedInParens/TS then paren', isCalleeWrappedInParens(tsThenParen, node), true);
-
-  // TS only, no paren
-  const tsOnly = { callee: { type: 'TSNonNullExpression', expression: node } };
-  check('isCalleeWrappedInParens/TS only no paren', isCalleeWrappedInParens(tsOnly, node), false);
-
-  // null parent
-  check('isCalleeWrappedInParens/null parent', isCalleeWrappedInParens(null, node), false);
-
-  // node not callee at all
-  const unrelated = { callee: { type: 'Identifier', name: 'other' } };
-  check('isCalleeWrappedInParens/node not under callee', isCalleeWrappedInParens(unrelated, node), false);
-}
-checkIsCalleeWrappedInParens();
-
-// --- emit-utils.outerGuardOwnedRoot: the chain root a queued OUTER guard already memoized ---
-// the single descent both consumers share - the static emit needs the owned ROOT node to split
-// effects on, the standalone guard-bail only needs to know whether one exists. every hop is
-// probed, and the root reached past the last member is probed too
-function checkOuterGuardOwnedRoot() {
-  const ident = { type: 'Identifier', name: 'g' };
-  const midHop = { type: 'MemberExpression', object: ident };
-  const outerHop = { type: 'OptionalMemberExpression', object: midHop };
-  const node = { type: 'MemberExpression', object: outerHop };
-  function queue(owned) {
-    return { findOuterGuardRef: root => root === owned ? '_ref' : null };
-  }
-
-  // nothing queued anywhere on the spine
-  check('outerGuardOwnedRoot/no guard', outerGuardOwnedRoot(node, queue(null)), null);
-
-  // the guard sits on the receiver's outermost hop - returned as-is, not descended past
-  check('outerGuardOwnedRoot/outermost hop owned', outerGuardOwnedRoot(node, queue(outerHop)), outerHop);
-
-  // MID-chain ownership (a collapsed proxy-hop prefix): the descent must probe EVERY hop,
-  // not just the first and the terminal
-  check('outerGuardOwnedRoot/mid-chain hop owned', outerGuardOwnedRoot(node, queue(midHop)), midHop);
-
-  // the non-member root past the last hop is probed too (`call()?.hop` memoizes the call)
-  check('outerGuardOwnedRoot/non-member root owned', outerGuardOwnedRoot(node, queue(ident)), ident);
-
-  // `node` ITSELF is never the answer: the guard question is about the receiver's spine
-  check('outerGuardOwnedRoot/node itself is out of the spine', outerGuardOwnedRoot(node, queue(node)), null);
-
-  // a receiver-less node bottoms out on `undefined`, which the queue answers null for
-  check('outerGuardOwnedRoot/no receiver', outerGuardOwnedRoot({ type: 'Identifier' }, queue(null)), null);
-}
-checkOuterGuardOwnedRoot();
 
 // --- SnapshotCache lifecycle: store -> take chains, miss-after-take, invalidate cycles ---
 // take() consumes the entry (last-write-wins HMR semantic) and returns `entry ?? null`
@@ -5778,988 +2643,6 @@ function checkStripLeadingBOMs() {
 }
 checkStripLeadingBOMs();
 
-// --- consumeOneLineEnding ---
-// LS / PS via fromCharCode keeps file bytes pure ASCII: a literal LineTerminator in a
-// surrounding line comment would split the comment at the LT and crash the parser.
-// inside template-literal interpolation it's safe (string literals allow LS/PS since ES2019)
-const LS = String.fromCharCode(0x2028);
-const PS = String.fromCharCode(0x2029);
-
-// each case: starting position 0 in the input. helper consumes the leading LineTerminator
-// run (one logical pair OR one single char) and returns the new position. the spec-shaped
-// "one logical pair" is CRLF (Windows) or LFCR (mis-configured tool inverse). single LTs
-// covered: LF, CR, U+2028 LINE SEPARATOR, U+2029 PARAGRAPH SEPARATOR
-check('consumeOneLineEnding/no LT returns same pos', consumeOneLineEnding('abc', 0), 0);
-check('consumeOneLineEnding/single LF', consumeOneLineEnding('\nfoo', 0), 1);
-check('consumeOneLineEnding/single CR', consumeOneLineEnding('\rfoo', 0), 1);
-check('consumeOneLineEnding/CRLF pair', consumeOneLineEnding('\r\nfoo', 0), 2);
-check('consumeOneLineEnding/LFCR pair', consumeOneLineEnding('\n\rfoo', 0), 2);
-check('consumeOneLineEnding/U+2028', consumeOneLineEnding(`${ LS }foo`, 0), 1);
-check('consumeOneLineEnding/U+2029', consumeOneLineEnding(`${ PS }foo`, 0), 1);
-// multi-LT run beyond first logical pair: only one LT consumed (preserves blank gap)
-check('consumeOneLineEnding/double LF stops after one', consumeOneLineEnding('\n\nfoo', 0), 1);
-check('consumeOneLineEnding/CRLF + LF stops after pair',
-  consumeOneLineEnding('\r\n\nfoo', 0), 2);
-// pos at end of string: no-op
-check('consumeOneLineEnding/EOF', consumeOneLineEnding('foo', 3), 3);
-// non-zero starting pos: relative to that pos, not absolute
-check('consumeOneLineEnding/non-zero start', consumeOneLineEnding('abc\nfoo', 3), 4);
-
-// --- createTopLevelStatementRewriter ---
-const IMPORT_X = "import 'x';";
-
-// stub-node driver: caller passes source + byte length of the leading `import ...;`
-// segment; the stub node mirrors what oxc would emit (end at `;` byte + 1). exercises
-// trailing-LT consumption and ASI guard injection without spinning up a full AST
-function applyRemove(source, importEnd) {
-  const ms = new MagicString(source);
-  const rewriter = createTopLevelStatementRewriter(ms);
-  rewriter.remove({ start: 0, end: importEnd });
-  rewriter.apply();
-  return ms.toString();
-}
-
-// remove every stub node of `source` in the given order, then apply the batch
-function applyBatch(source, nodes) {
-  const ms = new MagicString(source);
-  const rewriter = createTopLevelStatementRewriter(ms);
-  for (const node of nodes) rewriter.remove(node);
-  rewriter.apply();
-  return ms.toString();
-}
-
-// single LF: consumed alongside the statement so the output joins cleanly
-check('remove/single LF consumed',
-  applyRemove(`${ IMPORT_X }\nfoo();`, IMPORT_X.length), 'foo();');
-
-// CRLF pair: both chars consumed as one logical line ending (no stray LF / CR left)
-check('remove/CRLF pair consumed',
-  applyRemove(`${ IMPORT_X }\r\nfoo();`, IMPORT_X.length), 'foo();');
-
-// LFCR pair: rare-but-valid inverse of CRLF that a mis-configured tool may emit. without
-// pair handling, only the LF would be consumed and the stray CR would print as an extra
-// blank line. pair handling parallels CRLF
-check('remove/LFCR pair consumed',
-  applyRemove(`${ IMPORT_X }\n\rfoo();`, IMPORT_X.length), 'foo();');
-
-// U+2028 LINE SEPARATOR: single LT char per ES spec, consumed via isLineTerminator
-check('remove/U+2028 consumed',
-  applyRemove(`${ IMPORT_X }${ LS }foo();`, IMPORT_X.length), 'foo();');
-
-// U+2029 PARAGRAPH SEPARATOR: same shape as U+2028
-check('remove/U+2029 consumed',
-  applyRemove(`${ IMPORT_X }${ PS }foo();`, IMPORT_X.length), 'foo();');
-
-// multi-LT run beyond the first logical pair: user's intentional blank line between
-// import block and code body MUST survive (only one LT belongs to the statement's row)
-check('remove/double LF preserves blank line',
-  applyRemove(`${ IMPORT_X }\n\nfoo();`, IMPORT_X.length), '\nfoo();');
-
-// ASI hazard: TS TypeAssertion `<MyType>foo` after a no-semi prev statement needs a `;`
-// injection on removal. previously `<` was NOT in ASI_HAZARD_STARTS so the fuse risk
-// `prev < MyType > foo` slipped through silently
-check('remove/TS type assertion triggers ASI guard',
-  applyBatch(`var x = 1\n${ IMPORT_X }\n<MyType>raw`, [{ start: 10, end: 10 + IMPORT_X.length }]),
-  'var x = 1\n;<MyType>raw');
-
-// ASI hazard hidden behind a line comment terminated by U+2028. the comment scan must
-// stop AT the separator, then continue past it as whitespace, landing on the hazard
-// char `(`. previously the scan only stopped at LF / CR and ran to EOF, missing the
-// hazard and skipping the `;` injection
-check('remove/line-comment U+2028 terminator surfaces hazard',
-  applyBatch(`var x = 1\n${ IMPORT_X }//c${ LS }(foo)();`, [{ start: 10, end: 10 + IMPORT_X.length }]),
-  `var x = 1\n;//c${ LS }(foo)();`);
-
-// batch removal: two adjacent imports between a no-semi prev and a hazard char. the seam is
-// read through the batch's disposition map, in EITHER request order: the prev `;` of the
-// earlier import is gone with it, the next surviving char is the `(`, and the two removals
-// share the one seam - exactly one `;`
-{
-  const a = "import 'a';";
-  const b = "import 'b';";
-  const source = `var x = 1\n${ a }\n${ b }\n(foo)();`;
-  const aRange = { start: 10, end: 10 + a.length };
-  const bRange = { start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length };
-  check('remove/batch ascending injects one semi', applyBatch(source, [aRange, bRange]), 'var x = 1\n;(foo)();');
-  check('remove/batch descending injects one semi', applyBatch(source, [bRange, aRange]), 'var x = 1\n;(foo)();');
-}
-
-// two INDEPENDENT removal seams, each followed by its own hazard: the second seam must not see
-// the first seam's `;` (different prev), so BOTH seams get exactly one `;` each
-{
-  const a = "import 'a';";
-  const b = "import 'b';";
-  const source = `var x = 1\n${ a }\n(foo)();\nvar y = 2\n${ b }\n(bar)();`;
-  const bStart = source.indexOf(b);
-  check('remove/two independent seams each get one semi',
-    applyBatch(source, [{ start: 10, end: 10 + a.length }, { start: bStart, end: bStart + b.length }]),
-    'var x = 1\n;(foo)();\nvar y = 2\n;(bar)();');
-}
-
-// CRLF line endings through the batch: the removal range consumes the `\r\n` pair, and the
-// seam still gets exactly one `;` before the hazard
-{
-  const a = "import 'a';";
-  const b = "import 'b';";
-  const source = `var x = 1\r\n${ a }\r\n${ b }\r\n(foo)();`;
-  check('remove/CRLF batch injects one semi',
-    applyBatch(source, [{ start: 11, end: 11 + a.length }, { start: 11 + a.length + 2, end: 11 + a.length + 2 + b.length }]),
-    'var x = 1\r\n;(foo)();');
-}
-
-// removal ending FLUSH against the hazard char (no trailing space or line ending to consume):
-// the injected `;` position coincides with the hazard index and must still land once
-{
-  const a = "import 'a';";
-  const b = "import 'b';";
-  check('remove/flush single against hazard',
-    applyBatch(`var x = 1\n${ a }(foo)();`, [{ start: 10, end: 10 + a.length }]), 'var x = 1\n;(foo)();');
-  check('remove/flush double against hazard still one semi',
-    applyBatch(`var x = 1\n${ a }${ b }(foo)();`, [{ start: 10, end: 10 + a.length }, { start: 10 + a.length, end: 10 + a.length + b.length }]),
-    'var x = 1\n;(foo)();');
-}
-
-// a U+2028 / U+2029 separator is a valid connector gap before `?.` too: the root-boundary read
-// must treat it like any whitespace, keep the guardRef needle, and the transform must not throw
-{
-  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
-  for (const [label, sep] of [['U+2028', '\u2028'], ['U+2029', '\u2029']]) {
-    const source = `const a = { b: { c: [[1], [2]] } };\na.b${ sep }?.c.slice(1).flat(2);`;
-    const out = plugin.transform(source, 'ls.mjs')?.code ?? '';
-    check(`transform/${ label } connector gap keeps the guard memo`,
-      out.includes('null == (_ref = a.b)') && out.includes('.call(_ref3, 1)'), true);
-  }
-}
-
-// triple-removal batch: the survivor walk hops every removed neighbour in turn, so the leftmost
-// removal sees the `(` three statements down and the `1` of `var x = 1` before it
-{
-  const a = "import 'a';";
-  const b = "import 'b';";
-  const c = "import 'c';";
-  const source = `var x = 1\n${ a }\n${ b }\n${ c }\n(foo)();`;
-  const aStart = 10;
-  const bStart = aStart + a.length + 1;
-  const cStart = bStart + b.length + 1;
-  check('remove/batch triple removal composes ranges',
-    applyBatch(source, [{ start: cStart, end: cStart + c.length }, { start: bStart, end: bStart + b.length }, { start: aStart, end: aStart + a.length }]),
-    'var x = 1\n;(foo)();');
-}
-
-// no survivor after a batch (all removed up to EOF): nothing follows the seam, so no `;`
-{
-  const a = "import 'a';";
-  const b = "import 'b';";
-  check('remove/batch EOF survivor bails without injection',
-    applyBatch(`var x = 1\n${ a }\n${ b }\n`, [{ start: 10 + a.length + 1, end: 10 + a.length + 1 + b.length }, { start: 10, end: 10 + a.length }]),
-    'var x = 1\n');
-}
-
-// a `0;` placeholder is a survivor that ENDS in a terminator: a removal right after it needs no
-// `;` even when the original statement there had none (the map reads the replacement, not the
-// source text it overwrote)
-{
-  const a = "import 'a'";
-  const b = "import 'b'";
-  const source = `'use strict'\n${ a }\n${ b }\n(foo)();`;
-  const ms = new MagicString(source);
-  const rewriter = createTopLevelStatementRewriter(ms);
-  rewriter.replaceWithNoop({ start: 13, end: 13 + a.length });
-  rewriter.remove({ start: 13 + a.length + 1, end: 13 + a.length + 1 + b.length });
-  rewriter.apply();
-  check('remove/noop survivor is a terminator - no extra semi', ms.toString(), "'use strict'\n0;\n(foo)();");
-}
-
-// --- injectionFusesLeft (shared left-boundary fusion predicate) ---
-// hazard-start firstChar fuses leftward into a value / postfix-update / `}` prev, but NOT into a `;`
-// terminator or a statement-list opener (`{` block, `:` switch-case / label - the injection is the first
-// statement of the list, so no prev value exists to fuse with)
-check('injectionFusesLeft/+ after a value (call close) fuses', injectionFusesLeft('+', ')'), true);
-check('injectionFusesLeft// after a value fuses', injectionFusesLeft('/', ']'), true);
-check('injectionFusesLeft/( after postfix-update tail fuses', injectionFusesLeft('(', '+'), true);
-check('injectionFusesLeft/` after a fn-or-class-expr } fuses', injectionFusesLeft('`', '}'), true);
-check('injectionFusesLeft/+ after ; terminator is safe', injectionFusesLeft('+', ';'), false);
-check('injectionFusesLeft/+ after { block-open is safe', injectionFusesLeft('+', '{'), false);
-check('injectionFusesLeft/( after : case-label is safe', injectionFusesLeft('(', ':'), false);
-// identifier / numeric / unary-bang starts ASI-split on their own - never in the hazard set
-check('injectionFusesLeft/identifier start never fuses', injectionFusesLeft('x', ')'), false);
-check('injectionFusesLeft/bang start never fuses', injectionFusesLeft('!', ')'), false);
-// the prev alphabet is the open one: a TS non-null `!`, an instantiation's `>`, a `?.`'s `.` all end
-// a statement a `(` continues - the deny-list reads them as fusing, where an allow-list of value
-// ends was caught short
-check('injectionFusesLeft/( after TS non-null ! fuses', injectionFusesLeft('(', '!'), true);
-check('injectionFusesLeft/( after instantiation > fuses', injectionFusesLeft('(', '>'), true);
-check('injectionFusesLeft/( after optional-call . fuses', injectionFusesLeft('(', '.'), true);
-
-// statementOverwriteFusesLeft pairs the comment/whitespace-aware prev-char scan with the predicate -
-// used where an in-place statement overwrite re-roots a line (minifier split, destructure lifted-SE)
-check('overwriteFuses/postfix ++ prev + hazard fuses', statementOverwriteFusesLeft('i++\n+x', 4, '+'), true);
-check('overwriteFuses/; prev is safe', statementOverwriteFusesLeft('i++;\n+x', 5, '+'), false);
-// start-of-file: no prev statement to fuse with
-check('overwriteFuses/start-of-file bails', statementOverwriteFusesLeft('+x', 0, '+'), false);
-// the scan skips an intervening block comment to reach the real prev significant char
-check('overwriteFuses/comment-aware prev', statementOverwriteFusesLeft('a\n/*c*/\n+x', 7, '+'), true);
-// block-open `{` / case-label `:` are list openers - the overwrite is the FIRST statement, no fusion
-check('overwriteFuses/block-open prev safe', statementOverwriteFusesLeft('{\n+x', 2, '+'), false);
-check('overwriteFuses/case-label prev safe', statementOverwriteFusesLeft('case 1:\n+x', 8, '+'), false);
-
-// a malformed literal ending on a lone backslash at EOF (unterminated string / regex / template): the
-// `\X` escape must not consume past src.length. an overshooting region end made prevSignificantPos report
-// a boundary one char BEYOND the input (a past-EOF position with an undefined char), corrupting fusion
-check('prevSignificantPos/string trailing backslash at EOF stays in bounds', prevSignificantPos('x="ab\\', 6), 5);
-check('prevSignificantPos/regex trailing backslash at EOF stays in bounds', prevSignificantPos('y=/re\\', 6), 5);
-check('prevSignificantPos/template trailing backslash at EOF stays in bounds', prevSignificantPos('z=`t\\', 5), 4);
-
-// --- the kept SE prefix of an indirect-require entry ---
-// the rewriter keeps the observable prefix of `(prefix, require)('core-js/...')` as statements. unlike
-// a removal (where the NEXT surviving char fuses with the prev), here the kept text's FIRST char meets
-// the prev surviving char - and the node-was-detected-separate guarantee does NOT carry over: a postfix
-// `++` / `--` prev ASI-splits from the node's ORIGINAL leading `(` (spec bans `UpdateExpression
-// Arguments`) yet a kept `+spy()` / `[spy()]` / `/re/...` prefix re-roots the line and fuses in.
-// the driver parses a real statement so the prefix elements carry source spans
-function applySePrefixRewrite(prevSrc, stmtSrc, { alsoRemove = null } = {}) {
-  const source = `${ prevSrc }\n${ alsoRemove ? `${ alsoRemove }\n` : '' }${ stmtSrc }`;
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const { program } = parseSync('/p.js', source, { sourceType: 'module' });
-  const node = program.body.at(-1);
-  const ms = new MagicString(source);
-  const rewriter = createTopLevelStatementRewriter(ms);
-  if (alsoRemove) rewriter.remove(program.body.at(-2));
-  const prefix = rewriter.remove(node);
-  rewriter.apply();
-  return { out: ms.toString(), kept: prefix.length };
-}
-
-// `+spy()` re-roots the line on `+`: `i++ + spy()` fuses silently (a valid but wrong single statement)
-check('inject/plus-rooted prefix after postfix ++ injects ;',
-  applySePrefixRewrite('i++', "(+spy(), require)('core-js/x')").out, 'i++\n;+spy();');
-// `[spy()]` -> `i++[spy()]` member-access fusion
-check('inject/bracket-rooted prefix after postfix ++ injects ;',
-  applySePrefixRewrite('i++', "([spy()], require)('core-js/x')").out, 'i++\n;[spy()];');
-// `/re/.test(spy())` -> `i++ / re / .test(...)` is a hard parse error
-check('inject/regex-rooted prefix after postfix ++ injects ;',
-  applySePrefixRewrite('i++', "(/re/.test(spy()), require)('core-js/x')").out, 'i++\n;/re/.test(spy());');
-// `-spy()` -> `i-- - spy()` fusion
-check('inject/minus-rooted prefix after postfix -- injects ;',
-  applySePrefixRewrite('i--', "(-spy(), require)('core-js/x')").out, 'i--\n;-spy();');
-// a `;`-terminated prev is provably safe - no spurious injection
-check('inject/semicolon-terminated prev needs no guard',
-  applySePrefixRewrite('i++;', "(+spy(), require)('core-js/x')").out, 'i++;\n+spy();');
-// an identifier-rooted prefix ASI-splits from `i++` on its own (`++ spy` is illegal); ID-start chars are
-// not in the hazard set, so no spurious `;`
-check('inject/identifier-rooted prefix needs no guard',
-  applySePrefixRewrite('i++', "(spy(), require)('core-js/x')").out, 'i++\nspy();');
-// several prefix elements, at two nesting levels (outer sequence AND callee), each its own statement
-check('inject/every prefix element is kept, in source order',
-  applySePrefixRewrite('i++;', "0, (a(), (b(), require))('core-js/x')").out, 'i++;\na();\nb();');
-// a `{`-led element is parenthesized so it stays an expression statement
-check('inject/object-led element is parenthesized',
-  applySePrefixRewrite('i++;', "({ k: spy() }, require)('core-js/x')").out, 'i++;\n({ k: spy() });');
-// the kept elements keep their SOURCE spans unedited: a later rewrite inside one (the usage sweep
-// polyfills `arr.at(0)` there) must not meet an already-edited chunk
-{
-  const source = "i++;\n(arr.at(0), require)('core-js/x')";
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const { program } = parseSync('/p.js', source, { sourceType: 'module' });
-  const ms = new MagicString(source);
-  const rewriter = createTopLevelStatementRewriter(ms);
-  const [element] = rewriter.remove(program.body[1]);
-  rewriter.apply();
-  let threw = false;
-  try {
-    ms.overwrite(element.start, element.end, '_at(arr).call(arr, 0)');
-  } catch {
-    threw = true;
-  }
-  check('inject/kept element span stays editable', threw, false);
-  check('inject/kept element rewrite composes', ms.toString(), 'i++;\n_at(arr).call(arr, 0);');
-}
-// a removed sibling sits between the postfix-++ prev and the SE-prefix node, in EITHER request
-// order: the two dispositions share one seam, so exactly one `;` lands - the removal's `;` is no
-// longer a separate edit a later `remove()` can erase
-check('inject/removed left neighbour and kept prefix share one seam',
-  applySePrefixRewrite('i++', "(+spy(), require)('core-js/x')", { alsoRemove: "import 'a';" }).out, 'i++\n;+spy();');
-{
-  const source = "var x = obj\nimport 'a'\n((0, spy)(), require)('core-js/x')";
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const { program } = parseSync('/p.js', source, { sourceType: 'module' });
-  const ms = new MagicString(source);
-  const rewriter = createTopLevelStatementRewriter(ms);
-  // the entry pass hands the batch over in DESCENDING position
-  rewriter.remove(program.body[2]);
-  rewriter.remove(program.body[1]);
-  rewriter.apply();
-  check('inject/descending order: kept prefix after a removed import keeps its ;', ms.toString(), 'var x = obj\n;(0, spy)();');
-}
-
-// --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
-// bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
-// first-wins onLoad runs only one of two sibling instances), so an explicit `phase: 'pre+post'`
-// downgrades to a single 'post' stage with a one-time warn. vite / webpack / farm keep both
-// stages (their enforce-to-priority mapping interleaves siblings correctly)
-function checkPrePostBundlerDowngrade() {
-  const opts = { method: 'usage-global', version: '4.0', phase: 'pre+post' };
-  const origWarn = console.warn;
-  const warned = [];
-  console.warn = (...a) => warned.push(a.join(' '));
-  try {
-    for (const fw of ['esbuild', 'bun']) {
-      const subs = unplugin.raw({ ...opts }, { framework: fw });
-      check(`phase pre+post downgrades to one stage on ${ fw }`, subs.length, 1);
-      check(`phase pre+post downgraded stage runs at post on ${ fw }`, subs[0].enforce, 'post');
-    }
-    // membership = EVERY known adapter minus the unsafe pair - a newly added safe bundler
-    // must keep both stages by default, and the stages must run pre-THEN-post (the enforce
-    // pair is the ordering contract the downgrade exists to protect)
-    const KNOWN_BUNDLERS = ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun'];
-    const PRE_POST_UNSAFE = new Set(['bun', 'esbuild']);
-    const keepBothBundlers = KNOWN_BUNDLERS.filter(name => !PRE_POST_UNSAFE.has(name));
-    for (const fw of keepBothBundlers) {
-      const subs = unplugin.raw({ ...opts }, { framework: fw });
-      check(`phase pre+post keeps both stages on ${ fw }`, subs.length, 2);
-      check(`phase pre+post first stage enforces 'pre' on ${ fw }`, subs[0].enforce, 'pre');
-      check(`phase pre+post second stage enforces 'post' on ${ fw }`, subs[1].enforce, 'post');
-    }
-  } finally {
-    console.warn = origWarn;
-  }
-  check('phase pre+post downgrade warns once per unsafe bundler', warned.filter(w => /pre\+post/.test(w)).length, 2);
-}
-checkPrePostBundlerDowngrade();
-
-// single-stage enforce values: the default phase runs at 'pre'; an explicit standalone `phase: 'post'`
-// runs at 'post'; `phase: 'pre'` stays 'pre'. only the pre+post downgrade case (above) had coverage
-function checkSingleStageEnforce() {
-  for (const fw of ['vite', 'webpack']) {
-    const def = unplugin.raw({ method: 'usage-global', version: '4.0' }, { framework: fw });
-    check(`default phase is a single stage on ${ fw }`, def.length, 1);
-    check(`default phase enforce is 'pre' on ${ fw }`, def[0].enforce, 'pre');
-    const post = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'post' }, { framework: fw });
-    check(`phase post is a single stage on ${ fw }`, post.length, 1);
-    check(`phase post enforce is 'post' on ${ fw }`, post[0].enforce, 'post');
-    const pre = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'pre' }, { framework: fw });
-    check(`phase pre enforce is 'pre' on ${ fw }`, pre[0].enforce, 'pre');
-  }
-}
-checkSingleStageEnforce();
-
-// the GENERAL invalid-phase throw (non-entry-global): a bad string is quoted, a non-string
-// value reports its `typeof` (the formatter deliberately avoids JSON.stringify - BigInt /
-// Symbol / circular options would blow up the diagnostic itself). the entry-global-specific
-// gate has its own test; this covers the shared VALID_PHASES gate
-function checkGeneralInvalidPhaseThrow() {
-  function throwMessage(phase) {
-    try {
-      unplugin.raw({ method: 'usage-global', version: '4.0', phase }, { framework: 'vite' });
-    } catch (error) {
-      return error.message;
-    }
-    return null;
-  }
-  check('invalid phase string throws quoted', /invalid `phase` option: 'lol'/.test(throwMessage('lol')), true);
-  check('invalid phase number reports typeof', /invalid `phase` option: number/.test(throwMessage(42)), true);
-  check('invalid phase symbol reports typeof', /invalid `phase` option: symbol/.test(throwMessage(Symbol('x'))), true);
-  check('invalid phase bigint reports typeof', /invalid `phase` option: bigint/.test(throwMessage(1n)), true);
-  check('null phase falls back to default (no throw)', throwMessage(null), null);
-}
-checkGeneralInvalidPhaseThrow();
-
-// createRewriteHint's four branches: (1) no guard + no deopt -> null; (2) no guard + deopt
-// positions -> inert deopt-only hint with absorbsRoot coerced false; (3) guardRef without rootRaw
-// -> throws (compose needs rootRaw); (4) guardRef + rootRaw -> full hint, absorbsRoot coerced boolean
-function checkCreateRewriteHint() {
-  check('createRewriteHint/no guard no deopt -> null',
-    createRewriteHint({ rootRaw: null, guardRef: null, deoptPositions: [] }), null);
-  const deoptOnly = createRewriteHint({ guardRef: null, deoptPositions: [3], objectStart: 5, absorbsRoot: true });
-  check('createRewriteHint/deopt-only keeps positions', deoptOnly?.deoptPositions?.[0], 3);
-  check('createRewriteHint/deopt-only nulls rootRaw', deoptOnly?.rootRaw, null);
-  check('createRewriteHint/deopt-only forces absorbsRoot false', deoptOnly?.absorbsRoot, false);
-  let threw = false;
-  try {
-    createRewriteHint({ guardRef: '_ref', rootRaw: null });
-  } catch (error) {
-    threw = /requires rootRaw/.test(error.message);
-  }
-  check('createRewriteHint/guardRef without rootRaw throws', threw, true);
-  const full = createRewriteHint({ rootRaw: 'a.b', guardRef: '_ref', deoptPositions: [1], objectStart: 0, absorbsRoot: 1 });
-  check('createRewriteHint/full keeps guardRef', full?.guardRef, '_ref');
-  check('createRewriteHint/full coerces absorbsRoot to boolean', full?.absorbsRoot, true);
-}
-checkCreateRewriteHint();
-
-// --- withoutPhantomDeclarationViolations ---
-// estree-toolkit FALSELY records a DECLARATION (over-hoisted `namespace N {}` twin, for-init self)
-// as a constant-violation; the filter drops exactly those while PRESERVING real reassignment paths
-// (the resolver's `findPrecedingBlockAssignment` consumes them) and the binding identity when there
-// is nothing to drop. broadening this to a wholesale recompute fed nodes to a path-consumer and
-// reordered every reassigned binding, so the narrow predicate + path-preservation are load-bearing
-function checkPhantomViolationFilter() {
-  function bindingFor(src, name) {
-    let result = null;
-    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
-      $: { scope: true },
-      Program(path) { result = path.scope.getBinding(name); },
-    });
-    return result;
-  }
-  function bindingInFn(src, fnName, name) {
-    let result = null;
-    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
-    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
-      $: { scope: true },
-      FunctionDeclaration(path) { if (path.node.id?.name === fnName) result = path.scope.getBinding(name); },
-    });
-    return result;
-  }
-  function filteredCount(src, name) {
-    return withoutPhantomDeclarationViolations(bindingFor(src, name)).constantViolations.length;
-  }
-
-  check('phantom namespace-twin declaration violation dropped',
-    filteredCount('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x'), 0);
-  check('real assignment violation preserved',
-    filteredCount('let x = 1; x = 2; x;', 'x'), 1);
-  check('var redeclaration records no violation (unchanged)',
-    filteredCount('var x = 1; { var x = 2; } x;', 'x'), 0);
-  // every over-hoisted namespace twin is phantom regardless of declaration kind (var/const/function/class)
-  check('const namespace-twin declaration violation dropped',
-    filteredCount('const K = 1; namespace N { const K = 2; } K;', 'K'), 0);
-  check('function namespace-twin declaration violation dropped',
-    filteredCount('function F() {} namespace N { function F() {} } F();', 'F'), 0);
-  check('class namespace-twin declaration violation dropped',
-    filteredCount('class C {} namespace N { class C {} } new C();', 'C'), 0);
-  // a same-scope function/class redeclaration is a REAL shadow (last wins), NOT phantom - must be KEPT
-  const redecl = bindingInFn('function outer() { function F() { return 1; } function F() { return 2; } F(); }', 'outer', 'F');
-  check('same-scope function redeclaration is recorded as a violation', redecl.constantViolations.length, 1);
-  check('same-scope function redeclaration violation kept (not phantom)',
-    withoutPhantomDeclarationViolations(redecl).constantViolations.length, 1);
-
-  // identity: nothing to drop returns the SAME binding object (no needless wrapping)
-  const realBinding = bindingFor('let x = 1; x = 2; x;', 'x');
-  check('no-phantom binding returned by identity', withoutPhantomDeclarationViolations(realBinding) === realBinding, true);
-  // path-preserving: the scrubbed wrapper keeps the original binding.path (findPrecedingBlockAssignment reads it)
-  const twinBinding = bindingFor('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x');
-  const scrubbed = withoutPhantomDeclarationViolations(twinBinding);
-  check('scrubbed wrapper preserves binding.path identity', scrubbed.path === twinBinding.path, true);
-  // a resolver consumer re-spreads the binding (`{ ...binding, constantViolations: combined }`),
-  // so own props (path/scope) must survive object-spread - not live on a prototype
-  check('scrubbed wrapper survives object-spread (path own-enumerable)', { ...scrubbed }.path === twinBinding.path, true);
-  // `constant` is a prototype getter on the estree Binding (not spread-copyable); the wrapper
-  // carries it explicitly, reflecting the filtered list (all-phantom -> effectively constant)
-  check('scrubbed wrapper exposes constant from filtered violations', scrubbed.constant, true);
-}
-checkPhantomViolationFilter();
-
-// the paren normalizer element-wise over its whole domain: what it must strip (a redundant pair
-// around an injected path, with or without an effect-free literal ahead of it, and a doubled layer
-// whatever it holds) and what it must NOT (a paren the grouping needs, a non-injected identifier, a
-// pair not in an object position, and text that only LOOKS like one inside a string)
-function checkDropRedundantRootParens() {
-  const strip = [
-    ['bare path', '(_globalThis).Box', '_globalThis.Box'],
-    ['dotted path', '(_globalThis.writeBox).n', '_globalThis.writeBox.n'],
-    ['computed consumer', '(_globalThis)[k]', '_globalThis[k]'],
-    ['literal prefix', '(0, _globalThis).Promise', '_globalThis.Promise'],
-    ['string prefix', "('x', _globalThis).Promise", '_globalThis.Promise'],
-    ['doubled layer', '((n++, _globalThis)).Box', '(n++, _globalThis).Box'],
-    ['doubled bare', '((_globalThis)).Box', '_globalThis.Box'],
-  ];
-  for (const [label, input, want] of strip) check(`paren strip: ${ label }`, dropRedundantRootParens(input), want);
-  const keep = [
-    ['effectful prefix', '(eff(), _globalThis).Promise'],
-    ['sequence of two paths', '(_self, _globalThis).Promise'],
-    ['user identifier', '(userRoot).Box'],
-    ['not an object position', '(_globalThis) + 1'],
-    ['call of the group', '(_globalThis)(1)'],
-    ['paren inside a string', '"(_globalThis).Box"'],
-    ['assignment needs its parens', '(w = _globalThis).Box'],
-  ];
-  for (const [label, input] of keep) check(`paren keep: ${ label }`, dropRedundantRootParens(input), input);
-  // non-string input rides through untouched - the callers hand it whatever their render produced
-  check('paren strip: non-string passes through', dropRedundantRootParens(null), null);
-}
-checkDropRedundantRootParens();
-
-// a REFUSED alias's member reads stay RAW across passes: pre+post must not re-detect the
-// pre-transformed swap (`M = _Map`) into a narrow on the later pass
-async function checkRefusedAliasRawPassIdempotent() {
-  const src = 'function t(c) { let M; if (c) ({ Map: M } = globalThis); '
-    + 'try { return typeof M.groupBy; } catch (e) { return "T"; } }\n'
-    + 'function u(c) { let P; if (c) ({ Promise: P } = globalThis); return P.try(() => 1); }\n'
-    // the DESTRUCTURE channel of the same guard, and the write-ENUMERATED hint that feeds it (`M2 =
-    // globalThis.Map` registers no alias, so the binding's own writes are the hint): both render the
-    // guard on the first pass, and the second must not guard the raw branch it left behind
-    + 'function d(c) { let M2; if (c) M2 = globalThis.Map; '
-    + 'try { const { groupBy: g } = M2; return typeof g; } catch (e) { return "T"; } }\n'
-    + 'export const r = [t(true), t(false), d(true), d(false)];\n';
-  const plugins = unplugin.rollup({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, phase: 'pre+post' });
-  let code = src;
-  for (const p of plugins) {
-    const transform = typeof p.transform === 'function' ? p.transform : p.transform?.handler;
-    const out = await transform.call({ error(e) { throw new Error(e); } }, code, '/x/probe.mjs');
-    if (out?.code) code = out.code;
-  }
-  // the refused reads get the RUNTIME ctor guard whose raw branch keeps the original member
-  // (a callee keeps `this` via `.bind`); the second pass must not re-guard the guard's own
-  // raw branch - exactly one guard per read survives pre+post
-  check('refused alias guard keeps the raw member branch', /M\.groupBy/.test(code), true);
-  check('refused alias callee guard binds the raw branch', /P\.try\.bind\(P\)/.test(code), true);
-  check('member guard emitted exactly once across pre+post', code.split('M === _Map ?').length - 1, 1);
-  check('callee guard emitted exactly once across pre+post', code.split('P === _Promise ?').length - 1, 1);
-  check('destructure guard emitted exactly once across pre+post', code.split('M2 === _Map ?').length - 1, 1);
-  check('destructure guard keeps the raw member branch', /M2\.groupBy/.test(code), true);
-}
-await checkRefusedAliasRawPassIdempotent();
-
-// usage-global indirect-require removal BODY: the fixture comparator for usage-global is
-// imports-only, so the extracted SE-prefix statements are never text-validated there - pin
-// them here. each removed `(se, require)('core-js/...')` leaves exactly its prefix as a
-// bare statement in source order (incl. the optional-call and outer-comma shapes), the
-// require call itself is gone, and a polyfillable usage INSIDE a kept prefix stays visited
-function checkUsageGlobalIndirectRequirePrefixBody() {
-  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
-  const source = [
-    'let loads = 0;',
-    '(loads++, require)("core-js/modules/es.array.from");',
-    'let arr = [1];',
-    '(arr.includes(1), require)("core-js/modules/es.array.includes");',
-    'let opt = 0;',
-    '(opt++, require)?.("core-js/modules/es.array.from");',
-    'let outer = 0;',
-    '0, (outer++, require)("core-js/modules/es.array.of");',
-    'Array.from([1]);',
-  ].join('\n');
-  const code = plugin.transform(source, '/indirect-require-prefix.js')?.code ?? '';
-  const body = code.split('\n').filter(line => !line.startsWith('import ')).join('\n');
-  check('indirect-require body/prefixes survive as statements in source order',
-    /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
-  check('indirect-require body/no require call survives', /require\(/.test(code), false);
-  check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
-}
-checkUsageGlobalIndirectRequirePrefixBody();
-
-// the phantom-violation filter returns ONE stable stand-in per native binding: identity
-// consumers (per-binding lookup caches, closure Sets, classification Maps) key by object
-// identity, and a fresh copy per call silently dropped their recorded writes
-function checkPhantomFilterIdentity() {
-  const src = 'for (let o = { data: [1, 2] }; cond;) { o.data = "s"; o.data.at(0); break; }';
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const parsed = parseSync('/pfi.js', src, { sourceType: 'module' });
-  let binding = null;
-  traverse(parsed.program, {
-    $: { scope: true },
-    Identifier(path) {
-      if (!binding && path.node.name === 'o') binding = path.scope.getBinding('o');
-    },
-  });
-  check('phantom-filter/binding found with violations', !!binding && !!binding.constantViolations?.length, true);
-  const a = withoutPhantomDeclarationViolations(binding);
-  const b = withoutPhantomDeclarationViolations(binding);
-  check('phantom-filter/stable identity across calls', a === b, true);
-}
-checkPhantomFilterIdentity();
-
-// --- ref-canon: final print-order renumber ---
-// a mock injector: the canon pass only consumes the registry views + the rename sink
-function makeCanonInjector(families, { foreign = [] } = {}) {
-  const familyMap = new Map(families.map(([prefix, names]) => [prefix, new Set(names)]));
-  const foreignSet = new Set(foreign);
-  const calls = [];
-  return {
-    calls,
-    generatedRefFamilies() { return familyMap; },
-    isRefSlotForeign(name) { return foreignSet.has(name); },
-    canonicalizeRefs(renameMap) { calls.push({ renameMap }); },
-  };
-}
-
-function checkRefCanonPrintOrderSwap() {
-  // allocation order inverted vs print order: the guard ref allocated second but printed
-  // first - the rename is a SWAP and must not corrupt either occurrence set
-  const splices = [{ start: 10, end: 20, content: 'null == (_ref2 = t = w) ? void 0 : _f(_ref = A(2))?.call(_ref)' }];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/print-order swap', splices[0].content,
-    'null == (_ref = t = w) ? void 0 : _f(_ref2 = A(2))?.call(_ref2)');
-}
-checkRefCanonPrintOrderSwap();
-
-function checkRefCanonProtectedSpans() {
-  // string literals, template CHUNK text, and comments never rename; a template HOLE is code
-  const splices = [
-    // eslint-disable-next-line no-template-curly-in-string -- the template-hole SPELLING inside a plain string is the scan subject
-    { start: 0, end: 5, content: 'log("_ref2 raw", `x${ _ref2 }y _ref2`, _ref2) // _ref2 trail' },
-    { start: 9, end: 12, content: 'use(_ref)' },
-  ];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/protected spans', splices[0].content,
-    // eslint-disable-next-line no-template-curly-in-string -- the template-hole SPELLING inside a plain string is the scan subject
-    'log("_ref2 raw", `x${ _ref }y _ref2`, _ref) // _ref2 trail');
-  check('ref-canon/second splice follows rank', splices[1].content, 'use(_ref2)');
-}
-checkRefCanonProtectedSpans();
-
-function checkRefCanonWriteOnlyMemoKept() {
-  // a write-only guard memo is deliberate canon (the AST emitter spells one in the same
-  // landing): it survives and renumbers like any ref - print-first takes the low slot
-  const splices = [{ start: 0, end: 9, content: 'null == (_ref3 = w = g.window) ? void 0 : _m(_ref = A(5))?.call(_ref)' }];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref3']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/write-only memo kept', splices[0].content,
-    'null == (_ref = w = g.window) ? void 0 : _m(_ref2 = A(5))?.call(_ref2)');
-}
-checkRefCanonWriteOnlyMemoKept();
-
-function checkRefCanonRegexLiteralProtection() {
-  // a regex literal is a protected span (the canonical region scanner disambiguates `/`):
-  // the slot-shaped text inside it stays, the real reference renames
-  const splices = [{ start: 0, end: 4, content: 'm(a / 2, / _ref2 /, _ref2)' }];
-  const injector = makeCanonInjector([['_ref', ['_ref2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/regex literal protected', splices[0].content, 'm(a / 2, / _ref2 /, _ref)');
-}
-checkRefCanonRegexLiteralProtection();
-
-function checkRefCanonObjectKeySkip() {
-  // a slot-shaped OBJECT KEY is a property spelling, not our binding - it stays; the
-  // computed-key and argument references rename
-  const splices = [{ start: 0, end: 4, content: 'f({ _ref2: 1, [_ref2]: 2 }, _ref2)' }];
-  const injector = makeCanonInjector([['_ref', ['_ref2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/object key stays', splices[0].content, 'f({ _ref2: 1, [_ref]: 2 }, _ref)');
-}
-checkRefCanonObjectKeySkip();
-
-function checkRefCanonFamilies() {
-  // `_unused` sentinels renumber inside their own family, sharing one print sweep
-  const splices = [{ start: 0, end: 6, content: 'h(_ref2, _unused3); var _unused3;' }];
-  const injector = makeCanonInjector([['_ref', ['_ref2']], ['_unused', ['_unused3']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/per-family slots', splices[0].content, 'h(_ref, _unused); var _unused;');
-}
-checkRefCanonFamilies();
-
-function checkRefCanonForeignSlots() {
-  // a foreign-owned slot (user binding) is never handed out - assignment skips over it
-  const splices = [{ start: 0, end: 3, content: 'q(_ref5)' }];
-  const injector = makeCanonInjector([['_ref', ['_ref5']]], { foreign: ['_ref', '_ref2'] });
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/foreign slots skipped', splices[0].content, 'q(_ref3)');
-}
-checkRefCanonForeignSlots();
-
-// --- scope-tracker: the claim window of a drained range ---
-// a block's var slot sits one past its `{`; a drained node that STARTS right there is the block's
-// first statement, and the slot belongs to the enclosing block, not to the range - the window is
-// strict at the low end. a slot one further in (a block nested inside the range) is claimed
-function checkScopedVarClaimWindow() {
-  const code = '{const { at } = [1]; return [2].at(0);}';
-  const injector = { generateLocalRef: () => '_ref', generateDeclaredRef: () => '_ref' };
-  function claimed(scope, start, end) {
-    const tracker = new ScopeTracker({ code, injector });
-    tracker.scope = scope;
-    tracker.genRef();
-    return tracker.consumeRefBindingsInRange(start, end).map(s => s.start).join(',');
-  }
-  check('scope-tracker/slot at the range start belongs to the enclosing block', claimed(1, 1, 20), '');
-  check('scope-tracker/slot inside the range is claimed', claimed(1, 0, 20), '1');
-  check('scope-tracker/slot past the range is not claimed', claimed(25, 0, 20), '');
-}
-checkScopedVarClaimWindow();
-
-// --- import-injector: every generated-name registry follows a rename / drop ---
-// the final canonicalization renames by a map that can be SWAP-shaped (`_ref -> _ref2`,
-// `_ref2 -> _ref`): a registry rebuilt by sequential delete / add funnels into its last target,
-// and a registry left out keeps a spelling the text no longer has. five registries, one rename
-function checkInjectorRegistriesFollowRename() {
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  const a = inj.generateDeclaredRef();
-  const b = inj.generateDeclaredRef();
-  const u = inj.generateUnusedName();
-  const u2 = inj.generateUnusedName();
-  check('registries/allocation', [a, b, u, u2].join(','), '_ref,_ref2,_unused,_unused2');
-  inj.registerGlobalAlias(a, 'Map', { minted: true });
-  // pretend pre flushed `_ref` already
-  inj.snapshot();
-  inj.canonicalizeRefs(new Map([[a, b], [b, a], [u, u2], [u2, u]]));
-  const snap = inj.snapshot();
-  check('registries/declared refs keep both members', [...snap.refs].sort().join(','), '_ref,_ref2');
-  check('registries/taken names keep both members', ['_ref', '_ref2', '_unused', '_unused2'].every(n => snap.usedNames.has(n)), true);
-  check('registries/sentinels keep both members', [...snap.unusedNames].sort().join(','), '_unused,_unused2');
-  check('registries/generated families follow', [...inj.generatedRefFamilies().get('_ref')].sort().join(','), '_ref,_ref2');
-  check('registries/minted alias follows its ref', inj.getBindingInfo('_ref2')?.hint, 'Map');
-  check('registries/old minted key is gone', inj.getBindingInfo('_ref'), null);
-  // a dropped ref leaves every registry, the minted alias included
-  inj.dropRefs(['_ref2']);
-  const after = inj.snapshot();
-  check('registries/drop leaves declared refs', [...after.refs].join(','), '_ref');
-  check('registries/drop leaves taken names', after.usedNames.has('_ref2'), false);
-  check('registries/drop leaves minted aliases', inj.getBindingInfo('_ref2'), null);
-  check('registries/drop frees the slot for the renumber', inj.isRefSlotForeign('_ref2'), false);
-  // the flushed set follows too: a flush, a swap-shaped rename, a second flush - the renamed
-  // names are the flushed ones under their new spellings, so nothing is declared twice
-  const ms = new MagicString('code();');
-  const inj2 = new ImportInjector({ mode: 'actual', pkg: 'x', ms });
-  const r1 = inj2.generateDeclaredRef();
-  const r2 = inj2.generateDeclaredRef();
-  inj2.flush();
-  inj2.canonicalizeRefs(new Map([[r1, r2], [r2, r1]]));
-  inj2.flush();
-  check('registries/flushed refs follow a rename', (ms.toString().match(/var _ref/g) ?? []).length, 1);
-}
-checkInjectorRegistriesFollowRename();
-
-// the dead-memo strip is applied even when no rename follows it: an early exit on an empty rename
-// map once discarded the strip's own edits AFTER the injector had dropped the ref - `_refN = ...`
-// stayed in the text with no declaration to print. here the nested memo holds the higher slot, so
-// the survivor is already canonical and the map is empty
-function checkRefCanonStripWithoutRename() {
-  const splices = [{ start: 0, end: 9, content: 'null == (_ref = null == (_ref2 = w) ? void 0 : _f(1)) ? void 0 : _g(_ref)' }];
-  const inserts = [{ pos: 0, content: '\n  var _ref, _ref2;' }];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-  injector.dropRefs = names => injector.calls.push({ dropped: [...names].sort() });
-  canonicalizeRefNumbering({ splices, inserts, injector });
-  check('ref-canon/strip applies without a rename', splices[0].content, 'null == (_ref = null == w ? void 0 : _f(1)) ? void 0 : _g(_ref)');
-  check('ref-canon/strip excises the dead declarator', inserts[0].content, '\n  var _ref;');
-  check('ref-canon/strip drops the ref from the injector', JSON.stringify(injector.calls[0]), '{"dropped":["_ref2"]}');
-}
-checkRefCanonStripWithoutRename();
-
-// the unwrapped memo value keeps its group only when it needs one: an assignment (`w = root`) does,
-// a member chain or a call does not - the AST emitter prints those bare
-function checkRefCanonStripGroup() {
-  function run(test) {
-    const splices = [{ start: 0, end: 9, content: `null == (_ref = null == (_ref2 = ${ test }) ? void 0 : _f(1)) ? void 0 : _g(_ref)` }];
-    const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-    injector.dropRefs = () => null;
-    canonicalizeRefNumbering({ splices, inserts: [], injector });
-    return splices[0].content;
-  }
-  check('ref-canon/strip keeps the group of an assignment value', run('w = g.window'), 'null == (_ref = null == (w = g.window) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
-  check('ref-canon/strip drops the group of a member chain', run('g.window'), 'null == (_ref = null == g.window ? void 0 : _f(1)) ? void 0 : _g(_ref)');
-  check('ref-canon/strip drops the group of a call', run('h(x)'), 'null == (_ref = null == h(x) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
-  check('ref-canon/strip keeps the group of an operator value', run('a || b'), 'null == (_ref = null == (a || b) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
-}
-checkRefCanonStripGroup();
-
-// a declaration list losing SEVERAL declarators is rebuilt once, so neighbouring excisions cannot
-// overlap; a list losing all of them loses the whole statement. all three keywords are lists
-function checkRefCanonDeclarationExcision() {
-  function run(declaration) {
-    const splices = [
-      { start: 10, end: 20, content: 'null == (_ref3 = null == (_ref = w) ? void 0 : _f(1)) ? void 0 : _g(_ref3)' },
-      { start: 30, end: 40, content: 'null == (_ref4 = null == (_ref2 = v) ? void 0 : _f(2)) ? void 0 : _g(_ref4)' },
-    ];
-    const inserts = [{ pos: 0, content: declaration }];
-    const injector = makeCanonInjector([['_ref', ['_ref', '_ref2', '_ref3', '_ref4']]]);
-    injector.dropRefs = names => injector.calls.push({ dropped: [...names] });
-    canonicalizeRefNumbering({ splices, inserts, injector });
-    return inserts[0].content;
-  }
-  check('ref-canon/adjacent dead declarators leave a clean list', run('\n  var _ref, _ref2, _ref3, _ref4;'), '\n  var _ref, _ref2;');
-  check('ref-canon/dead tail run takes the separator before it', run('\n  var _ref3, _ref4, _ref, _ref2;'), '\n  var _ref, _ref2;');
-  check('ref-canon/dead declarators around a survivor', run('\n  var _ref, _ref3, _ref2;\n  var _ref4;'), '\n  var _ref;\n  var _ref2;');
-  check('ref-canon/a list losing every declarator loses the statement', run('\n  var _ref, _ref2;\n  var _ref3, _ref4;'), '\n  var _ref, _ref2;');
-  check('ref-canon/let and const lists are lists too', run('\n  let _ref, _ref2;\n  const _ref3 = 1, _ref4 = 2;'), '\n  const _ref = 1, _ref2 = 2;');
-}
-checkRefCanonDeclarationExcision();
-
-// a declarator that carries an INITIALIZER keeps its ref alive whatever the single write looks
-// like (the AST emitter's rule - an init-bearing declarator is a survivor): no strip, no excision
-function checkRefCanonInitSurvives() {
-  const splices = [{ start: 10, end: 20, content: 'null == (_ref2 = null == (_ref = w) ? void 0 : _f(1)) ? void 0 : _g(_ref2)' }];
-  const inserts = [{ pos: 0, content: '\n  var _ref = seed(), _ref2;' }];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-  let dropped = null;
-  injector.dropRefs = names => { dropped = [...names]; };
-  canonicalizeRefNumbering({ splices, inserts, injector });
-  check('ref-canon/init-bearing declarator is not stripped', splices[0].content,
-    'null == (_ref = null == (_ref2 = w) ? void 0 : _f(1)) ? void 0 : _g(_ref)');
-  check('ref-canon/init-bearing declarator is not excised', inserts[0].content, '\n  var _ref2 = seed(), _ref;');
-  check('ref-canon/init-bearing declarator is not dropped', dropped, null);
-}
-checkRefCanonInitSurvives();
-
-// a declarator after an INITIALIZED neighbour is still a declarator (`const from = x, _unused = y`):
-// it never ranks, so the canonical slot goes to the names the text actually reads first - the
-// AST emitter numbers the same way. a back-scan that expected `name ,` pairs stopped at the `=`
-function checkRefCanonDeclaratorAfterInit() {
-  const splices = [{ start: 0, end: 9, content: 'const from = _Array$from, _unused = (eff(), g); use(_unused2)' }];
-  const injector = makeCanonInjector([['_unused', ['_unused', '_unused2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/declarator after an initialized neighbour ranks last', splices[0].content,
-    'const from = _Array$from, _unused2 = (eff(), g); use(_unused)');
-}
-checkRefCanonDeclaratorAfterInit();
-
-// spellings that are not our binding, inside a user slice the emitted text carries: a private name
-// (`#_ref2` is not `_ref2`), a label with its `break` / `continue`. renaming them breaks the code
-// they belong to - the class no longer declares the private name, the label no longer exists
-function checkRefCanonNonReferenceSpellings() {
-  const splices = [{ start: 0, end: 9, content: 'h(_ref2, this.#_ref2); _ref2: for (;;) { break _ref2; continue _ref2; } use(_ref)' }];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/private name and label spellings stay', splices[0].content,
-    'h(_ref, this.#_ref2); _ref2: for (;;) { break _ref2; continue _ref2; } use(_ref2)');
-}
-checkRefCanonNonReferenceSpellings();
-
-// member KEYS inside a user slice: a class field / method / accessor key, an object-literal
-// method key, an enum member, an interface member - all source-text names of the member, not our
-// binding; the SAME spelling in a method body, an initializer or a computed key is a reference
-function checkRefCanonMemberKeys() {
-  const splices = [{ start: 0, end: 9, content: [
-    'class K extends B { _ref2 = _ref2; static _ref2() {} get _ref2() { return this._ref2 + _ref2; } [_ref2] = 1; static { use(_ref2); } }',
-    'const o = { _ref2() {}, async _ref2() {}, get _ref2() {}, _ref2: 1, [_ref2]: 2, k: _ref2 };',
-    'enum E { _ref2, _ref3 = _ref2 } interface I { _ref2: T; _ref2(): void }',
-    'use(_ref)',
-  ].join(' ') }];
-  const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-  canonicalizeRefNumbering({ splices, inserts: [], injector });
-  check('ref-canon/member keys stay, references rename', splices[0].content, [
-    'class K extends B { _ref2 = _ref; static _ref2() {} get _ref2() { return this._ref2 + _ref; } [_ref] = 1; static { use(_ref); } }',
-    'const o = { _ref2() {}, async _ref2() {}, get _ref2() {}, _ref2: 1, [_ref]: 2, k: _ref };',
-    'enum E { _ref2, _ref3 = _ref } interface I { _ref2: T; _ref2(): void }',
-    'use(_ref2)',
-  ].join(' '));
-}
-checkRefCanonMemberKeys();
-
-// JSX text inside emitted content (a `.jsx` file's slice) is text: the apostrophe in `Don't` does
-// not open a string that hides the refs after it. lexed in the file's dialect
-function checkRefCanonJsxText() {
-  const previous = setLexDialect({ jsx: true });
-  try {
-    const splices = [{ start: 0, end: 9, content: "_f(_ref2 = g(<li>Don't</li>)).call(_ref2, <a title=\"it's\">x</a>); use(_ref)" }];
-    const injector = makeCanonInjector([['_ref', ['_ref', '_ref2']]]);
-    canonicalizeRefNumbering({ splices, inserts: [], injector });
-    check('ref-canon/jsx text is not a string opener', splices[0].content,
-      "_f(_ref = g(<li>Don't</li>)).call(_ref, <a title=\"it's\">x</a>); use(_ref2)");
-  } finally {
-    setLexDialect(previous);
-  }
-}
-checkRefCanonJsxText();
-
-// --- text-scan: the tokenizer ---
-// the region map every lexer-aware walk reads. each case states the ONE classification that a
-// previous-token heuristic gets wrong and this one gets right
-function regionsOf(src, dialect = { jsx: false, script: false }) {
-  const previous = setLexDialect(dialect);
-  try {
-    return literalRegionsOf(src).map(r => `${ r.kind }:${ src.slice(r.start, r.end) }`).join(' | ');
-  } finally {
-    setLexDialect(previous);
-  }
-}
-function tokensOf(src, dialect = { jsx: false, script: false }) {
-  const out = [];
-  scanTokens(src, (type, start, end) => {
-    if (type !== 'ws' && type !== 'lt') out.push(`${ type }:${ src.slice(start, end) }`);
-  }, dialect);
-  return out.join(' ');
-}
-// a head paren's closer (`if` / `while` / `for` / `with`) and a block's `}` end a HEAD, not a value:
-// the `/` after them opens a regex, whose quote is then regex text - not a string swallowing the line
-check('lexer/regex after an if head', regionsOf("if (a) /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
-check('lexer/regex after a while head', regionsOf("while (a) /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
-check('lexer/regex after a function body', regionsOf("function f() {} /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
-check('lexer/regex after an async function declaration', regionsOf("async function f() {} /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
-check('lexer/regex after an exported default function', regionsOf("export default function () {} /re'/.test(b); x = 'y'"), "regex:/re'/ | string:'y'");
-// a function EXPRESSION's body and an arrow's body end a VALUE - the `/` after them divides
-check('lexer/division after a function expression body', regionsOf("x = function () {} / 2 / 'x'"), "string:'x'");
-check('lexer/division after an async function expression body', regionsOf("x = async function named() {} / 2 / 'x'"), "string:'x'");
-check('lexer/division after an arrow body', regionsOf("x = () => {} / 2 / 'x'"), "string:'x'");
-check('lexer/division after a function expression argument', regionsOf("f(function () {} / 2, 'x')"), "string:'x'");
-// accepted heuristic limits, pinned so a drift is a decision: a label's `:` reads as a ternary /
-// case `:` (an object literal follows those), so a labeled block's `}` reads as a value; a `>`
-// reads as a comparison end, so a `/` after `y<z>` reads as a regex - both match js-tokens
-check('lexer/accepted: labeled block reads as an object', regionsOf("label: { } /re'/; x = 'y'"), "string:'/; x = ' | string:'");
-check('lexer/accepted: comparison end reads as regex position', regionsOf("x = y<z> /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
-// class bodies carry the same decl-vs-expression split as function bodies: a declaration's `}`
-// ends a statement (a `/` after it is a regex), an expression's ends a value (it divides) - and
-// an `extends` clause's operand between the keyword and the body does not claim the body's `{`
-check('lexer/regex after a class declaration body', regionsOf("class B {} /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
-check('lexer/regex after a class declaration with extends', regionsOf("class B extends mix(A) {} /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
-check('lexer/division after a class expression body', regionsOf("x = class {} / 2 / 'x'"), "string:'x'");
-check('lexer/division after a named class expression with extends', regionsOf("x = class B extends A {} / 2 / 'x'"), "string:'x'");
-check('lexer/class member keys lex inside the body', regionsOf("x = class { m() { return 're' } } / 2 / 'x'"), "string:'re' | string:'x'");
-// a class in an `extends` operand opens ITS body first - the pending bodies stack
-check('lexer/division after a class expression extending a class', regionsOf("x = class extends class B {} {} / 2 / 'x'"), "string:'x'");
-check('lexer/regex after a class declaration extending a class', regionsOf("class A extends class B {} {} /re'/; x = 'y'"), "regex:/re'/ | string:'y'");
-// the tokenizer TILES its input: every emitted token starts where the previous ended and the last
-// ends at the input's end - no gaps, no overlaps, on valid and malformed fragments alike (the
-// region map and every offset-consumer build on this)
-{
-  const fragments = ['\\', '"a', '`x${', '/re', '#!', '#', '@', '\uD800', 'a?.', '<', '<!--', '${}', '}',
-    // eslint-disable-next-line no-template-curly-in-string -- template-hole SPELLINGS are the fragments under test
-    'x=/', '`${`${', 'class', 'for await (', "x = <a>don't</a>; `t${ {k:1} }`"];
-  let tiled = true;
-  for (const frag of fragments) {
-    let cursor = 0;
-    scanTokens(frag, (type, start, end) => {
-      if (start !== cursor || end < start) tiled = false;
-      cursor = end;
-    }, { jsx: true, script: false });
-    if (cursor !== frag.length) tiled = false;
-  }
-  check('lexer/tokens tile the input', tiled, true);
-}
-// the region memo keys on the dialect too: the SAME string re-asked under another dialect re-lexes
-{
-  const src = "x = <a>don't</a>";
-  const asJs = regionsOf(src);
-  const asJsx = regionsOf(src, { jsx: true });
-  check('lexer/memo keyed by dialect', asJs !== asJsx && asJsx.includes('jsx-text'), true);
-}
-check('lexer/regex after a block', regionsOf("if (a) { } /re'/.test(b)"), "regex:/re'/");
-check('lexer/regex after else', regionsOf("if (a) b; else /re'/.test(c)"), "regex:/re'/");
-check('lexer/regex after return and a line break', regionsOf("return\n/re'/"), "regex:/re'/");
-// a value end - a call's `)`, an object literal's `}`, a postfix `++`, a TS non-null `!`, a
-// trailing-dot number, a name, a string - makes the `/` a division
-check('lexer/division after a call', regionsOf("f(a) / 2 / 'x'"), "string:'x'");
-check('lexer/division after an object literal', regionsOf("x = {} / 2 / 'x'"), "string:'x'");
-check('lexer/division after postfix ++', regionsOf("i++ / 2 / 'x'"), "string:'x'");
-check('lexer/division after TS non-null', regionsOf("a! / 2 / 'x'"), "string:'x'");
-check('lexer/division after a trailing-dot number', regionsOf("5. / 2 / 'x'"), "string:'x'");
-check('lexer/division after a property named like a keyword', regionsOf("a.return / 2 / 'x'"), "string:'x'");
-// an unterminated regex candidate is a division operator after all
-check('lexer/unterminated regex candidate is division', regionsOf("a = /re\n'x'"), "string:'x'");
-// the tokens the old character walk could not see: a hashbang, a private name (NOT an identifier
-// occurrence of `_ref`), a line separator inside a string, HTML-like comments of a script
-check('lexer/hashbang is a comment', regionsOf("#!/usr/bin/env node\nx = 'y'"), "comment:#!/usr/bin/env node | string:'y'");
-check('lexer/private name is its own token', tokensOf('this.#_ref / 2'), 'ident:this punct:. private:#_ref punct:/ number:2');
-check('lexer/LS inside a string does not end it', regionsOf("'a\u2028b' / 2 / 'x'"), "string:'a\u2028b' | string:'x'");
-check('lexer/html comments in a script', regionsOf('<!-- c\nx = 1\n--> c', { script: true }), 'comment:<!-- c | comment:--> c');
-check('lexer/html comments are operators in a module', regionsOf('<!-- c\nx = 1\n--> c'), '');
-// template chunks around holes; the hole's code is code (its `//` is a comment, its `}` closes nothing)
-// eslint-disable-next-line no-template-curly-in-string -- the template-hole SPELLING inside a plain string is the scan subject
-check('lexer/template chunks around a hole', regionsOf('`a${ b // c\n }d${ `e` }f`'), 'template:`a${ | comment:// c | template:}d${ | template:`e` | template:}f`');
-// `?.` is the optional-chaining punctuator only without a digit after it
-check('lexer/optional chain vs conditional over .5', tokensOf('a?.b; c?.5:1'), 'ident:a punct:?. ident:b punct:; ident:c punct:? number:.5 punct:: number:1');
-check('lexer/isOptionalChainAt', [isOptionalChainAt('a?.b', 1), isOptionalChainAt('c?.5:1', 1), isOptionalChainAt('a?.[0]', 1)].join(','), 'true,false,true');
-// JSX, in the dialect of the file only: text and attribute strings are regions, a generic arrow's
-// type parameter list is not a tag, and a comparison is not a tag
-check('lexer/jsx text and attribute string', regionsOf('x = <a title="it\'s">Don\'t {f("q")}</a>', { jsx: true }), 'jsx-string:"it\'s" | jsx-text:Don\'t  | string:"q"');
-check('lexer/jsx off by dialect', regionsOf('x = <a>don\'t</a>; y = \'z\''), 'string:\'t</a>; y = \' | string:\'');
-check('lexer/tsx generic arrow is not a tag', regionsOf("const f = <T,>(x: T) => x; y = 'z'", { jsx: true }), "string:'z'");
-check('lexer/tsx constrained generic arrow is not a tag', regionsOf("const f = <T extends U>(x: T) => x; y = 'z'", { jsx: true }), "string:'z'");
-check('lexer/type arguments after ?. are not a tag', regionsOf("foo?.<Map<number>>(); y = 'z'", { jsx: true }), "string:'z'");
-check('lexer/comparison is not a tag', regionsOf("x = a <b> c; y = 'z'", { jsx: true }), "string:'z'");
-check('lexer/jsx fragment', regionsOf("x = <>a'b</>", { jsx: true }), "jsx-text:a'b");
-// the backward significant-char scan reads JSX text as a value (its last char), a comment as nothing
-{
-  const previous = setLexDialect({ jsx: true });
-  try {
-    const src = "x = <li>Don't</li>\n(y)";
-    check('lexer/prevSignificantPos over jsx', src[prevSignificantPos(src, src.indexOf('(y)'))], '>');
-  } finally {
-    setLexDialect(previous);
-  }
-}
-
 // --- file strictness: which id / body combination makes the Program a script ---
 // Annex-B block-function hoisting exists only in a script, so the strictness answer decides whether
 // a block-nested `function Promise(){}` shadows the global. the answer has to be the SAME one that
@@ -6891,60 +2774,11 @@ function checkPerFileBindingIsolation() {
 }
 checkPerFileBindingIsolation();
 
-// --- renamed-slot recovery: only names the injector minted count as a resolved head ---
+// --- re-transform stability of the guard renders ---
 
-// an outer builds its text with the chain root already resolved, so an inner's raw source needle is
-// absent while its own slot sits right there under the minted name. the recovery must key on the
-// injector's registry, not on the name's shape: a user identifier of the same shape is DATA, and
-// treating it as the slot rewrote the user's expression and left the real one unrewritten
-function checkRenamedSlotRecovery() {
-  const code = 'F(_own.window.self.box, g.window.self.box);';
-  const inner = code.indexOf('g.window.self.box');
-  const outerContent = 'OUT(_own.window.self.box, _g.window.self.box)';
-  function compose(hint) {
-    const ms = new MagicString(code);
-    const q = new TransformQueue(code, ms);
-    if (hint) q.useBindingHints(name => name === '_g' ? 'g' : null);
-    q.add(0, code.length, outerContent);
-    q.add(inner, inner + 'g.window.self.box'.length, 'RENDER');
-    q.apply();
-    return ms.toString();
-  }
-  // with the registry the recovery lands on the minted slot and leaves the user's own alone
-  check('renamed slot/minted head is the slot', compose(true), 'OUT(_own.window.self.box, RENDER)');
-  // without it nothing is minted, so no token qualifies and the inner stays a phantom - never the
-  // user's expression
-  check('renamed slot/no registry leaves the user expression', compose(false), outerContent);
-}
-checkRenamedSlotRecovery();
-
-// --- split pairs are members by their LOGICAL range, on both ends ---
-
-// a split owns [start, end) as one logical rewrite while sitting in the queue as two physical
-// halves. every membership question must see the pair: asking for the logical range reported it
-// FREE (the index carries only the halves), so a later whole-span claimant never stood down, and
-// the inner scan admitted a suffix whose prefix lay outside the range - half a needle against the
-// whole pair's content
-function checkSplitLogicalMembership() {
-  const code = 'F(arr.flat(), 1);';
-  const inner = code.indexOf('arr.flat()');
-  const ms = new MagicString(code);
-  const q = new TransformQueue(code, ms);
-  q.addSplit(inner, inner + 'arr'.length, inner + 'arr.flat()'.length, '_flat(arr)', '.call(arr)', null, null);
-  check('split membership/logical range is owned', q.hasRange(inner, inner + 'arr.flat()'.length), true);
-  check('split membership/physical prefix half is owned', q.hasRange(inner, inner + 'arr'.length), true);
-  check('split membership/unclaimed range is free', q.hasRange(0, code.length), false);
-  q.apply();
-  check('split membership/pair still applies', ms.toString(), 'F(_flat(arr).call(arr), 1);');
-}
-checkSplitLogicalMembership();
-
-// --- re-transform stability of the guard renders (text emitter) ---
-
-// the text emitter builds its renders from source SPANS, so a second pass over its own output sees
-// a shape it never parsed before. every family this canon emits must be a fixed point in content -
-// a re-render would double the guard or re-memoize, and a composition that no longer locates its
-// needle would throw outright
+// a second pass over the plugin's own output parses a shape the first pass never saw. every
+// family this canon emits must be a fixed point in content - a re-render would double the
+// guard or re-memoize
 function checkRetransformStability() {
   const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
   const PRELUDE = 'globalThis.iBox = { n: 4, arr: [3, [1, 2]] };\nlet h;\n';
@@ -7014,196 +2848,6 @@ function checkRetransformStability() {
   }
 }
 checkRetransformStability();
-
-// --- call arity comes from the AST, not from the sliced argument text ---
-
-// every renderer that joins arguments after a dispatch receiver asks ONE helper for the leading
-// `, ` separator, and it must read arity off the call node: a zero-arg list holding a comment or a
-// line break slices to a NON-EMPTY string, and a separator ahead of it emits `.call(recv, )` - a
-// trailing comma, ES2017, which takes the whole module out on the ES5 baseline `usage-pure` targets.
-// stated as an invariant rather than an expected spelling: whatever a renderer prints for `m()`, it
-// must print for `m(/* c */)` too, so a new renderer joining the text raw fails here without anyone
-// having to predict its output
-function checkCallArityFromAst() {
-  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
-  const PRELUDE = 'const a = [[1]];\nconst o = { m: () => [[1]] };\nconst p = { m: () => ({ x: [[1]] }) };\n';
-  // `%s` is the argument list, and a row carries one per separator it renders. one row per renderer -
-  // the standalone dispatch and its paren-lookup / optional-call spellings, the guard body that
-  // invokes a memoized non-polyfilled callee (bare and with a hop tail), the threaded hops, the
-  // combined chain's inner and outer slots, the split emit of an inherited static - plus a second
-  // row wherever one renderer owns two spellings of the same primitive, as the split emit does
-  const SHAPES = [
-    ['standalone dispatch', 'export const r = a.flat(%s);'],
-    ['paren-lookup callee', 'export const r = (a?.at)(%s);'],
-    ['optional call', 'export const r = a.includes?.(%s);'],
-    ['guard body over a memoized callee', 'export const r = o.m?.(%s).flat();'],
-    ['guard body with a hop tail', 'export const r = p.m?.(%s).x.flat();'],
-    ['threaded hops', 'export const r = a.flat(%s).flat(%s);'],
-    ['combined chain, inner slot', 'export const r = a.flat?.(%s).at(0);'],
-    ['combined chain, outer slot', 'export const r = a.flat?.(%s)?.at(%s);'],
-    ['inherited static split', 'class A extends Array { static f() { return super.from(%s); } }\nexport const r = A.f();'],
-    // `this` in a static context resolves through the same inherited-static machinery, so the split
-    // emit owns both spellings of the primitive - the twin is what keeps the domain enumerated
-    ['inherited static via this', 'class A extends Array { static f() { return this.of(%s); } }\nexport const r = A.f();'],
-  ];
-  // trivia the parser drops but a source slice keeps
-  const TRIVIA = ['\n', ' ', '/* c */', '/* c */\n', '// c\n', '\t/* c */ '];
-  function emit(body) {
-    return createPlugin(OPTIONS).transform(`${ PRELUDE }${ body }\n`, '/p.mjs')?.code ?? body;
-  }
-  for (const [label, template] of SHAPES) {
-    const slots = template.split('%s').length - 1;
-    const zeroArg = emit(template.replaceAll('%s', ''));
-    for (const trivia of TRIVIA) {
-      // comments and layout may legitimately ride along in the emitted text; the token stream may
-      // not move. the comparator's own lexer decides what "token stream" means here - a hand-rolled
-      // comment stripper next to it drifted from that answer on the first comment holding a `*`
-      check(`arity/${ label } is unmoved by ${ JSON.stringify(trivia) }`,
-        collapseWhitespace(emit(template.replaceAll('%s', trivia))), collapseWhitespace(zeroArg));
-    }
-    // the same rows with a REAL argument, counted rather than matched: one separator per filled slot.
-    // this is both the negative (arguments still ride, and ride behind the separator) and the
-    // vacuity guard - a row the resolver declines to rewrite renders no separator and lands on 0
-    check(`arity/${ label } renders one separator per argument`,
-      collapseWhitespace(emit(template.replaceAll('%s', '/* n */ 7'))).split(',7').length - 1, slots);
-  }
-  // the slice is taken by OFFSET out of the original source, and the shapes below are the ones that
-  // move offsets away from a naive character count - a CRLF pair, a leading BOM, an astral character
-  // ahead of (and inside) the list. the arity gate has to hold there too, or the separator comes back
-  // on exactly the sources whose offsets are hardest to reason about
-  const OFFSET_SHAPES = [
-    ['CRLF', 'const a = [[1]];\r\nexport const r = a.flat(\r\n);\r\n'],
-    ['CRLF inside a comment argument', 'const a = [[1]];\r\nexport const r = a.flat(/* one\r\ntwo */);\r\n'],
-    ['BOM', '﻿const a = [[1]];\nexport const r = a.flat(/* c */);\n'],
-    ['astral ahead of the call', 'const s = "\u{1F600}\u{1F600}";\nconst a = [[1]];\nexport const r = s.length + a.flat(/* c */).length;'],
-    ['astral inside the trivia', 'const a = [[1]];\nexport const r = a.flat(/* \u{1F600} */);'],
-  ];
-  // both assertions read the emitted text, and a character class spanning the argument slot is the
-  // wrong tool for it - an argument may itself carry parens (`_ref = helper(a).call(a)`), so such a
-  // pattern answers about the SHAPE of the receiver rather than about the separator. ask the two
-  // questions directly instead: does a list end in a comma, and did a dispatch happen at all
-  function hasDanglingSeparator(out) {
-    return collapseWhitespace(out).includes(',)');
-  }
-  function dispatches(out, helper) {
-    return out.includes(`${ helper }(`) && out.includes('.call(');
-  }
-  // both predicates answer with a boolean, so a negative row of theirs is only worth as much as the
-  // proof that they light up at all - pin the fire condition on literals next to the rows using them
-  check('arity/the dangling-separator predicate fires', hasDanglingSeparator('_x(a).call(a, );'), true);
-  check('arity/the dispatch predicate fires', dispatches('_flatMaybeArray(a).call(a);', '_flatMaybeArray'), true);
-  check('arity/the dispatch predicate stays quiet on untransformed source', dispatches('a.flat();', '_flatMaybeArray'), false);
-  for (const [label, source] of OFFSET_SHAPES) {
-    const out = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
-    check(`arity/no separator survives ${ label }`, hasDanglingSeparator(out), false);
-    check(`arity/${ label } still dispatches`, dispatches(out, '_flatMaybeArray'), true);
-  }
-  // the post pass re-reads the emitter's OWN output, where the trivia the arity gate ignored is gone;
-  // a cadence that re-derived arity from that text would drift from the single-pass result
-  const CADENCE_SRC = 'const a = [[1]];\nexport const r = a.flat(/* c */).at(/* d */);\n';
-  const single = createPlugin(OPTIONS).transform(CADENCE_SRC, '/p.mjs')?.code ?? CADENCE_SRC;
-  // the cadence rows below compare against `single`, so they would agree vacuously on a source
-  // nothing rewrote - pin that the reference emission is a real one first
-  check('arity/the cadence reference is a real emission', dispatches(single, '_atMaybeArray'), true);
-  for (const passes of [['pre'], ['post'], ['pre', 'post'], ['pre', 'post', 'pre', 'post']]) {
-    let code = CADENCE_SRC;
-    for (const pass of passes) code = createPlugin(OPTIONS).transform(code, '/p.mjs', pass)?.code ?? code;
-    check(`arity/[${ passes.join('->') }] matches the single-pass emission`, code, single);
-  }
-}
-checkCallArityFromAst();
-
-// the bare-slot reclaim proves the bare prefix free before handing the allocation on. it must not
-// be probed AGAIN by the allocator it hands to - in the AST emitter that probe is a whole
-// scope-chain lookup, so a duplicate is a real per-allocation cost. counted through
-// `isNameTaken`, the single funnel every probe passes through
-function checkSingleBareProbePerAllocation() {
-  function countingInjector() {
-    const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-    const probes = [];
-    const original = inj.isNameTaken.bind(inj);
-    inj.isNameTaken = name => {
-      probes.push(name);
-      return original(name);
-    };
-    return { inj, probes };
-  }
-  // reclaim path: cache seeded past bare by an orphan, bare itself free -> exactly one bare probe
-  const reclaim = countingInjector();
-  reclaim.inj.adoptOrphanRefs(['_ref2']);
-  check('probe/reclaim returns bare', reclaim.inj.generateLocalRef(), '_ref');
-  check('probe/reclaim probes bare once', reclaim.probes.filter(name => name === '_ref').length, 1);
-  // bare taken as well: the reclaim probe fails and the allocator resumes from the cache, so bare
-  // is still asked exactly once and the answer skips past the orphan
-  const taken = countingInjector();
-  taken.inj.adoptOrphanRefs(['_ref', '_ref2']);
-  check('probe/bare-taken skips reclaim', taken.inj.generateLocalRef(), '_ref3');
-  check('probe/bare-taken probes bare once', taken.probes.filter(name => name === '_ref').length, 1);
-  // cold cache: no reclaim decision to make, the allocator's own try-bare-first is the only probe
-  const cold = countingInjector();
-  check('probe/cold cache returns bare', cold.inj.generateLocalRef(), '_ref');
-  check('probe/cold cache probes bare once', cold.probes.filter(name => name === '_ref').length, 1);
-}
-checkSingleBareProbePerAllocation();
-
-// `generateUnusedName` is a PROTOTYPE method; the cascade path patches it for the duration of one
-// plan walk and restores it in `finally`. the restored value has to be the method itself, not a
-// bound copy of it - a bound copy is an own property, so each walk would wrap the previous wrapper
-// and the chain would grow monotonically for the life of the file
-function checkUnusedNameRestoreIdentity() {
-  const inj = new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
-  const prototypeMethod = Object.getPrototypeOf(inj).generateUnusedName
-    ?? Object.getPrototypeOf(Object.getPrototypeOf(inj)).generateUnusedName;
-  // the emitter's wrapper, spelled exactly as `withTrackedUnusedNames` does
-  function withTracked(target, fn) {
-    const orig = inj.generateUnusedName;
-    inj.generateUnusedName = () => {
-      const name = orig.call(inj);
-      target.push(name);
-      return name;
-    };
-    try {
-      return fn();
-    } finally {
-      inj.generateUnusedName = orig;
-    }
-  }
-  check('tracked-unused/prototype method exists', typeof prototypeMethod, 'function');
-  const names = [];
-  withTracked(names, () => inj.generateUnusedName());
-  check('tracked-unused/restores the prototype method', inj.generateUnusedName === prototypeMethod, true);
-  // a second walk must restore to the SAME function object - reference equality is what rules the
-  // chain out; a bound copy would differ here even though the names still come out right
-  const restoredAfterFirst = inj.generateUnusedName;
-  withTracked(names, () => inj.generateUnusedName());
-  check('tracked-unused/restore is idempotent across walks', inj.generateUnusedName === restoredAfterFirst, true);
-  // nesting still composes: the inner walk restores the OUTER wrapper, so the outer keeps tracking
-  const outer = [];
-  const inner = [];
-  withTracked(outer, () => {
-    withTracked(inner, () => inj.generateUnusedName());
-    inj.generateUnusedName();
-  });
-  check('tracked-unused/inner walk collects its own name', inner.length, 1);
-  check('tracked-unused/outer walk sees both names', outer.length, 2);
-  check('tracked-unused/prototype method restored after nesting', inj.generateUnusedName === prototypeMethod, true);
-  // and the names themselves stay unique and well-formed through all of it
-  check('tracked-unused/names are distinct', new Set([...names, ...outer]).size, names.length + outer.length);
-}
-checkUnusedNameRestoreIdentity();
-
-// shared probe for the two param-pattern tables below: transform, then report whether the module
-// the row is keyed on came out. A throw is reported as its message rather than as `false` so a
-// crawler abort is distinguishable from a silently dropped binding
-function injectsModule(source, module) {
-  try {
-    const result = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
-      .transform(source, 'input.ts');
-    return new RegExp(`es\\.${ module }`).test(String(result?.code ?? ''));
-  } catch (error) {
-    return `threw: ${ error.message.split('\n', 1)[0] }`;
-  }
-}
 
 // --- params no scope owner walks: the whole crawler-hostile domain, not a list of type names ---
 // estree-toolkit consumes a binding pattern only where a scope owner puts one; a params list
@@ -7326,117 +2970,6 @@ function checkTypeArgumentListSurvives() {
 }
 checkTypeArgumentListSurvives();
 
-// --- the emitter factories publish exactly what the driver consumes ---
-// a returned key with no consumer reads as a supported entry point and survives every rename by
-// accident. the check is mechanical rather than a hand-kept list: the driver's own destructuring
-// block IS the expected set, so a key added on either side without the other fails here
-async function checkEmitterSurfacesHaveConsumers() {
-  const driver = await fs.readFile(
-    path.resolve('../../packages/core-js-unplugin/internals/plugin.js'), 'utf8');
-  function destructuredFrom(name) {
-    const block = driver.match(new RegExp(`const \\{([^}]*)\\} = ${ name };`));
-    return block[1].split(',').map(entry => entry.trim()).filter(Boolean).sort();
-  }
-  const { createPolyfillEmitter } = await import('../../packages/core-js-unplugin/internals/polyfill-emitter.js');
-  const { createDestructureEmitter } = await import('../../packages/core-js-unplugin/internals/destructure-emitter.js');
-  // the factories only capture their deps at construction time, so bare stubs are enough to read
-  // the shape of what they publish
-  function noop() {
-    return undefined;
-  }
-  const deps = new Proxy({ code: '', source: '', transforms: {}, skippedNodes: new Set() }, {
-    get: (target, key) => key in target ? target[key] : noop,
-    has: () => true,
-  });
-  // the dep object the driver BUILDS, against the parameter list the factory destructures: a key
-  // passed and never accepted reads as wiring that exists, and silently does nothing
-  function passedTo(call) {
-    const block = driver.match(new RegExp(`${ call }\\(\\{([^}]*)\\}`));
-    return block[1].split(',').map(entry => entry.trim().split(':', 1)[0].trim()).filter(Boolean).sort();
-  }
-  // `withDefaultOnly: false` narrows to the params with NO default - the ones whose absence is a
-  // TypeError rather than a documented opt-out
-  function acceptedBy(source, factoryName, { withDefaultOnly = true } = {}) {
-    const block = source.match(new RegExp(`export function ${ factoryName }\\(\\{([^}]*)\\}`));
-    return block[1].split(',').map(entry => entry.trim())
-      .filter(entry => entry && !entry.startsWith('//') && (withDefaultOnly || !entry.includes('=')))
-      .map(entry => entry.split(/[:=]/, 1)[0].trim()).sort();
-  }
-  const sources = {
-    'polyfill-emitter': await fs.readFile(
-      path.resolve('../../packages/core-js-unplugin/internals/polyfill-emitter.js'), 'utf8'),
-    'destructure-emitter': await fs.readFile(
-      path.resolve('../../packages/core-js-unplugin/internals/destructure-emitter.js'), 'utf8'),
-  };
-  for (const [label, factory, local, factoryName] of [
-    ['polyfill-emitter', createPolyfillEmitter, 'emitter', 'createPolyfillEmitter'],
-    ['destructure-emitter', createDestructureEmitter, 'destructureEmitter', 'createDestructureEmitter'],
-  ]) {
-    const published = Object.keys(factory(deps)).sort();
-    const consumed = destructuredFrom(local);
-    check(`${ label }/no published key without a consumer`,
-      published.filter(key => !consumed.includes(key)).join(',') || '(none)', '(none)');
-    check(`${ label }/no consumed key the factory does not publish`,
-      consumed.filter(key => !published.includes(key)).join(',') || '(none)', '(none)');
-    const accepted = acceptedBy(sources[label], factoryName);
-    check(`${ label }/no dep passed that the factory never accepts`,
-      passedTo(factoryName).filter(key => !accepted.includes(key)).join(',') || '(none)', '(none)');
-    // the symmetric half, and the one that makes an UNGUARDED call on a dep safe: a name the factory
-    // destructures without a default and the driver never passes arrives as `undefined`, and the call
-    // sites that dropped their defensive `?.` would throw instead of degrading
-    const undefaulted = acceptedBy(sources[label], factoryName, { withDefaultOnly: false });
-    check(`${ label }/every dep the factory requires is passed`,
-      undefaulted.filter(key => !passedTo(factoryName).includes(key)).join(',') || '(none)', '(none)');
-  }
-}
-await checkEmitterSurfacesHaveConsumers();
-
-// `checkUnscopedParamPatterns` above proves the BEHAVIOR - every one of those hosts still injects,
-// so the neutralisation covers them. What it cannot notice is a parameter-bearing node type that
-// did not exist when the allowlist was written: `PARAM_PATTERN_SCOPE_OWNERS` names the three types
-// that OWN a scope, and anything else has its parameter patterns blanked. A parser upgrade adding a
-// fourth scope owner would silently lose that scope's bindings, and a new bodyless shape would
-// crash a user build outright, because `runTransform` rethrows. So pin the SET itself
-function checkParamPatternHostsAreEnumerated() {
-  const SOURCES = [
-    'function f(...a) {}',
-    'const f = function (...a) {};',
-    'const f = (...a) => a;',
-    'class C { m(...a) {} get x() { return 1; } set x(v) {} }',
-    'const o = { m(...a) {} };',
-    'declare function f(...a: number[]): void;',
-    'function g(...a: number[]): void;\nfunction g(...a: any[]): any {}',
-    'interface I { (...a: number[]): void; new (...a: number[]): void; m(...a: number[]): void }',
-    'declare class C { m(...a: number[]): void; }',
-    'declare abstract class A { abstract m(...a: number[]): void; }',
-    'declare const f: (...a: number[]) => void;',
-    'declare const C2: new (...a: number[]) => void;',
-    'class D { constructor(public m = 1) {} }',
-  ];
-  const EXPECTED = [
-    'ArrowFunctionExpression', 'FunctionDeclaration', 'FunctionExpression', 'TSCallSignatureDeclaration',
-    'TSConstructSignatureDeclaration', 'TSConstructorType', 'TSDeclareFunction', 'TSEmptyBodyFunctionExpression',
-    'TSFunctionType', 'TSMethodSignature',
-  ];
-  const seen = new Set();
-  (function collect(node) {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (const child of node) collect(child);
-      return;
-    }
-    if (Array.isArray(node.params)) seen.add(node.type);
-    for (const value of Object.values(node)) collect(value);
-  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  })(SOURCES.map(code => parseSync('input.ts', code, { sourceType: 'module' }).program));
-  check('parameter-bearing node types are the ones the allowlist was written against',
-    [...seen].sort().join(','), EXPECTED.join(','));
-  // the corpus has to actually exercise the crashing half, or the set above could be pinned on a
-  // sample that never reaches a bodyless signature
-  check('the corpus reaches bodyless signatures', seen.has('TSDeclareFunction') && seen.has('TSMethodSignature'), true);
-}
-checkParamPatternHostsAreEnumerated();
-
 // --- machine-path normalization (two escaping domains) ---
 
 // the runners' ROOT collapse broke on Windows once and regex escapes once - each time by
@@ -7543,9 +3076,12 @@ function checkAstPrintMapContract() {
 }
 checkAstPrintMapContract();
 
-// --- engine option ---
+// --- the retired engine option ---
 
-function checkEngineOption() {
+// the flag died with the text layer (phase 5): the AST engine is the only engine, and a
+// leftover `engine` option in a user config surfaces as the ordinary unknown-option error
+// instead of silently selecting nothing
+function checkEngineOptionRetired() {
   function creationError(options) {
     try {
       createPlugin(options);
@@ -7554,58 +3090,43 @@ function checkEngineOption() {
       return error.message;
     }
   }
-  check('unknown engine is rejected',
-    creationError({ method: 'usage-pure', engine: 'quantum' }),
-    "[core-js] invalid `engine` option: 'quantum' - expected 'text' or 'ast'");
-  check('non-string engine reports its type',
-    creationError({ method: 'usage-pure', engine: 42 }),
-    '[core-js] invalid `engine` option: number - expected \'text\' or \'ast\'');
-  // usage-pure landed once its two gates (the fixture gate and the differential's AST leg)
-  // went green - the acceptance is the lock, mirroring the entry-global/usage-global checks
-  const astPure = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'ast' })
-    .transform('arr.at(0);\nuse(arr);', 'input.mjs');
-  check("engine 'ast' transforms usage-pure",
-    astPure !== null && astPure.code.includes('@core-js/pure/') && astPure.code.includes('.call(arr, 0)'), true);
-  // the landed methods transform; the rest keep the guard above
-  const entryOptions = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
-  const astEntry = createPlugin({ ...entryOptions, engine: 'ast' }).transform("import 'core-js/actual/array/from';\nuse();", 'input.mjs');
-  check("engine 'ast' transforms entry-global",
-    astEntry !== null && astEntry.code.includes('import "core-js/modules/es.array.from";'), true);
-  check('the ast entry output drops the entry statement', astEntry.code.includes('core-js/actual'), false);
-  check('the ast engine abstains on entry-less files',
-    createPlugin({ ...entryOptions, engine: 'ast' }).transform('use();', 'input.mjs'), null);
-  // a module-import input re-expands to itself: babel reprints it, the text leg nulls out
-  // only by byte-accident - the ast engine follows babel and re-emits the same statements
-  check('a module-import re-transform re-emits the same imports (babel parity)',
-    createPlugin({ ...entryOptions, engine: 'ast' }).transform(astEntry.code, 'input.mjs')?.code.includes('import "core-js/modules/es.array.from";'), true);
-  check('the ast engine renders require-style entries',
-    createPlugin({ ...entryOptions, engine: 'ast', importStyle: 'require' })
-      .transform("require('core-js/actual/array/from');", 'input.mjs').code.startsWith('require("core-js/modules/'), true);
-  // usage-global on the ast engine: injection, the user-import sweep, the one normalization
-  const usageOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
-  const astUsage = createPlugin({ ...usageOptions, engine: 'ast' })
-    .transform('import "core-js/modules/es.array.at";\narr.at(0);', 'input.mjs');
-  check("engine 'ast' transforms usage-global", astUsage?.code.startsWith('import "core-js/modules/es.array.at";'), true);
-  check('the swept user module import is not doubled', astUsage.code.match(/es\.array\.at/g).length, 1);
-  check('the ast engine normalizes instantiation before optional call',
-    createPlugin({ ...usageOptions, engine: 'ast' }).transform('const r = ((f)<string>)?.(1);\narr.at(0);', 'input.ts')
-      .code.includes('f?.<string>(1)'), true);
-  // phased passes landed with the pre/post snapshot (MIG-15) - the acceptance is the lock;
-  // standalone post (no pre snapshot) transforms exactly like the text engine's post
-  check('the ast engine transforms phased usage-global at the plugin layer',
-    createPlugin({ ...usageOptions, engine: 'ast' }).transform('arr.at(0);', 'input.mjs', 'post')
-      ?.code.includes('import "core-js/modules/es.array.at";'), true);
+  check('a leftover engine option is rejected as unknown',
+    creationError({ method: 'usage-pure', engine: 'ast' }),
+    '[core-js] Unknown plugin option: engine');
   const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
-  const viaAst = createPlugin({ method: 'usage-pure', engine: 'ast' }).transform('[1].at(0);', 'input.mjs')?.code;
-  check("explicit engine 'ast' is the default engine", viaAst, viaDefault);
-  check('explicit null falls back to the default engine',
-    createPlugin({ method: 'usage-pure', engine: null }).transform('[1].at(0);', 'input.mjs')?.code, viaDefault);
+  check('the engine-less default transforms usage-pure',
+    viaDefault?.includes('@core-js/pure/'), true);
+  // the checks the option section carried that are ENGINE behavior, not flag behavior
+  const entryOptions = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
+  const astEntry = createPlugin(entryOptions).transform("import 'core-js/actual/array/from';\nuse();", 'input.mjs');
+  check('entry-global transforms', astEntry !== null && astEntry.code.includes('import "core-js/modules/es.array.from";'), true);
+  check('the entry output drops the entry statement', astEntry.code.includes('core-js/actual'), false);
+  check('entry-global abstains on entry-less files',
+    createPlugin(entryOptions).transform('use();', 'input.mjs'), null);
+  // a module-import input re-expands to itself: babel reprints it, and this engine follows
+  check('a module-import re-transform re-emits the same imports (babel parity)',
+    createPlugin(entryOptions).transform(astEntry.code, 'input.mjs')?.code.includes('import "core-js/modules/es.array.from";'), true);
+  check('require-style entries render',
+    createPlugin({ ...entryOptions, importStyle: 'require' })
+      .transform("require('core-js/actual/array/from');", 'input.mjs').code.startsWith('require("core-js/modules/'), true);
+  const usageOptions = { method: 'usage-global', version: '4.0', targets: { ie: 11 } };
+  const astUsage = createPlugin(usageOptions)
+    .transform('import "core-js/modules/es.array.at";\narr.at(0);', 'input.mjs');
+  check('usage-global transforms', astUsage?.code.startsWith('import "core-js/modules/es.array.at";'), true);
+  check('the swept user module import is not doubled', astUsage.code.match(/es\.array\.at/g).length, 1);
+  check('instantiation normalizes before an optional call',
+    createPlugin(usageOptions).transform('const r = ((f)<string>)?.(1);\narr.at(0);', 'input.ts')
+      .code.includes('f?.<string>(1)'), true);
+  // standalone post (no pre snapshot) transforms like the single pass at the plugin layer
+  check('phased usage-global transforms at the plugin layer',
+    createPlugin(usageOptions).transform('arr.at(0);', 'input.mjs', 'post')
+      ?.code.includes('import "core-js/modules/es.array.at";'), true);
 }
-checkEngineOption();
+checkEngineOptionRetired();
 
 // --- ast-engine: walker mutation contract ---
 
-// the AST emitters' port recipes lean on these traversal semantics; a dependency bump that
+// the emitters' port recipes lean on these traversal semantics; a dependency bump that
 // flips one must fail here, not deep inside an emitter
 function checkWalkerMutationContract() {
   function names(source, visitors) {
@@ -7675,3 +3196,428 @@ checkWalkerMutationContract();
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
+
+// --- injectionFusesLeft (shared left-boundary fusion predicate) ---
+// hazard-start firstChar fuses leftward into a value / postfix-update / `}` prev, but NOT into a `;`
+// terminator or a statement-list opener (`{` block, `:` switch-case / label - the injection is the first
+// statement of the list, so no prev value exists to fuse with)
+check('injectionFusesLeft/+ after a value (call close) fuses', injectionFusesLeft('+', ')'), true);
+check('injectionFusesLeft// after a value fuses', injectionFusesLeft('/', ']'), true);
+check('injectionFusesLeft/( after postfix-update tail fuses', injectionFusesLeft('(', '+'), true);
+check('injectionFusesLeft/` after a fn-or-class-expr } fuses', injectionFusesLeft('`', '}'), true);
+check('injectionFusesLeft/+ after ; terminator is safe', injectionFusesLeft('+', ';'), false);
+check('injectionFusesLeft/+ after { block-open is safe', injectionFusesLeft('+', '{'), false);
+check('injectionFusesLeft/( after : case-label is safe', injectionFusesLeft('(', ':'), false);
+// identifier / numeric / unary-bang starts ASI-split on their own - never in the hazard set
+check('injectionFusesLeft/identifier start never fuses', injectionFusesLeft('x', ')'), false);
+check('injectionFusesLeft/bang start never fuses', injectionFusesLeft('!', ')'), false);
+// the prev alphabet is the open one: a TS non-null `!`, an instantiation's `>`, a `?.`'s `.` all end
+// a statement a `(` continues - the deny-list reads them as fusing, where an allow-list of value
+// ends was caught short
+check('injectionFusesLeft/( after TS non-null ! fuses', injectionFusesLeft('(', '!'), true);
+check('injectionFusesLeft/( after instantiation > fuses', injectionFusesLeft('(', '>'), true);
+check('injectionFusesLeft/( after optional-call . fuses', injectionFusesLeft('(', '.'), true);
+
+// --- phase: 'pre+post' bundler-specific downgrade (PRE_POST_UNSAFE_BUNDLERS) ---
+// bun and esbuild can't honor sibling pre-then-post ordering (bun drops `enforce`; esbuild's
+// first-wins onLoad runs only one of two sibling instances), so an explicit `phase: 'pre+post'`
+// downgrades to a single 'post' stage with a one-time warn. vite / webpack / farm keep both
+// stages (their enforce-to-priority mapping interleaves siblings correctly)
+function checkPrePostBundlerDowngrade() {
+  const opts = { method: 'usage-global', version: '4.0', phase: 'pre+post' };
+  const origWarn = console.warn;
+  const warned = [];
+  console.warn = (...a) => warned.push(a.join(' '));
+  try {
+    for (const fw of ['esbuild', 'bun']) {
+      const subs = unplugin.raw({ ...opts }, { framework: fw });
+      check(`phase pre+post downgrades to one stage on ${ fw }`, subs.length, 1);
+      check(`phase pre+post downgraded stage runs at post on ${ fw }`, subs[0].enforce, 'post');
+    }
+    // membership = EVERY known adapter minus the unsafe pair - a newly added safe bundler
+    // must keep both stages by default, and the stages must run pre-THEN-post (the enforce
+    // pair is the ordering contract the downgrade exists to protect)
+    const KNOWN_BUNDLERS = ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rsbuild', 'rolldown', 'farm', 'bun'];
+    const PRE_POST_UNSAFE = new Set(['bun', 'esbuild']);
+    const keepBothBundlers = KNOWN_BUNDLERS.filter(name => !PRE_POST_UNSAFE.has(name));
+    for (const fw of keepBothBundlers) {
+      const subs = unplugin.raw({ ...opts }, { framework: fw });
+      check(`phase pre+post keeps both stages on ${ fw }`, subs.length, 2);
+      check(`phase pre+post first stage enforces 'pre' on ${ fw }`, subs[0].enforce, 'pre');
+      check(`phase pre+post second stage enforces 'post' on ${ fw }`, subs[1].enforce, 'post');
+    }
+  } finally {
+    console.warn = origWarn;
+  }
+  check('phase pre+post downgrade warns once per unsafe bundler', warned.filter(w => /pre\+post/.test(w)).length, 2);
+}
+checkPrePostBundlerDowngrade();
+
+// single-stage enforce values: the default phase runs at 'pre'; an explicit standalone `phase: 'post'`
+// runs at 'post'; `phase: 'pre'` stays 'pre'. only the pre+post downgrade case (above) had coverage
+function checkSingleStageEnforce() {
+  for (const fw of ['vite', 'webpack']) {
+    const def = unplugin.raw({ method: 'usage-global', version: '4.0' }, { framework: fw });
+    check(`default phase is a single stage on ${ fw }`, def.length, 1);
+    check(`default phase enforce is 'pre' on ${ fw }`, def[0].enforce, 'pre');
+    const post = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'post' }, { framework: fw });
+    check(`phase post is a single stage on ${ fw }`, post.length, 1);
+    check(`phase post enforce is 'post' on ${ fw }`, post[0].enforce, 'post');
+    const pre = unplugin.raw({ method: 'usage-global', version: '4.0', phase: 'pre' }, { framework: fw });
+    check(`phase pre enforce is 'pre' on ${ fw }`, pre[0].enforce, 'pre');
+  }
+}
+checkSingleStageEnforce();
+
+// the GENERAL invalid-phase throw (non-entry-global): a bad string is quoted, a non-string
+// value reports its `typeof` (the formatter deliberately avoids JSON.stringify - BigInt /
+// Symbol / circular options would blow up the diagnostic itself). the entry-global-specific
+// gate has its own test; this covers the shared VALID_PHASES gate
+function checkGeneralInvalidPhaseThrow() {
+  function throwMessage(phase) {
+    try {
+      unplugin.raw({ method: 'usage-global', version: '4.0', phase }, { framework: 'vite' });
+    } catch (error) {
+      return error.message;
+    }
+    return null;
+  }
+  check('invalid phase string throws quoted', /invalid `phase` option: 'lol'/.test(throwMessage('lol')), true);
+  check('invalid phase number reports typeof', /invalid `phase` option: number/.test(throwMessage(42)), true);
+  check('invalid phase symbol reports typeof', /invalid `phase` option: symbol/.test(throwMessage(Symbol('x'))), true);
+  check('invalid phase bigint reports typeof', /invalid `phase` option: bigint/.test(throwMessage(1n)), true);
+  check('null phase falls back to default (no throw)', throwMessage(null), null);
+}
+checkGeneralInvalidPhaseThrow();
+
+// --- withoutPhantomDeclarationViolations ---
+// estree-toolkit FALSELY records a DECLARATION (over-hoisted `namespace N {}` twin, for-init self)
+// as a constant-violation; the filter drops exactly those while PRESERVING real reassignment paths
+// (the resolver's `findPrecedingBlockAssignment` consumes them) and the binding identity when there
+// is nothing to drop. broadening this to a wholesale recompute fed nodes to a path-consumer and
+// reordered every reassigned binding, so the narrow predicate + path-preservation are load-bearing
+function checkPhantomViolationFilter() {
+  function bindingFor(src, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      Program(path) { result = path.scope.getBinding(name); },
+    });
+    return result;
+  }
+  function bindingInFn(src, fnName, name) {
+    let result = null;
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    traverse(parseSync('unit.ts', src, { lang: 'ts' }).program, {
+      $: { scope: true },
+      FunctionDeclaration(path) { if (path.node.id?.name === fnName) result = path.scope.getBinding(name); },
+    });
+    return result;
+  }
+  function filteredCount(src, name) {
+    return withoutPhantomDeclarationViolations(bindingFor(src, name)).constantViolations.length;
+  }
+
+  check('phantom namespace-twin declaration violation dropped',
+    filteredCount('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x'), 0);
+  check('real assignment violation preserved',
+    filteredCount('let x = 1; x = 2; x;', 'x'), 1);
+  check('var redeclaration records no violation (unchanged)',
+    filteredCount('var x = 1; { var x = 2; } x;', 'x'), 0);
+  // every over-hoisted namespace twin is phantom regardless of declaration kind (var/const/function/class)
+  check('const namespace-twin declaration violation dropped',
+    filteredCount('const K = 1; namespace N { const K = 2; } K;', 'K'), 0);
+  check('function namespace-twin declaration violation dropped',
+    filteredCount('function F() {} namespace N { function F() {} } F();', 'F'), 0);
+  check('class namespace-twin declaration violation dropped',
+    filteredCount('class C {} namespace N { class C {} } new C();', 'C'), 0);
+  // a same-scope function/class redeclaration is a REAL shadow (last wins), NOT phantom - must be KEPT
+  const redecl = bindingInFn('function outer() { function F() { return 1; } function F() { return 2; } F(); }', 'outer', 'F');
+  check('same-scope function redeclaration is recorded as a violation', redecl.constantViolations.length, 1);
+  check('same-scope function redeclaration violation kept (not phantom)',
+    withoutPhantomDeclarationViolations(redecl).constantViolations.length, 1);
+
+  // identity: nothing to drop returns the SAME binding object (no needless wrapping)
+  const realBinding = bindingFor('let x = 1; x = 2; x;', 'x');
+  check('no-phantom binding returned by identity', withoutPhantomDeclarationViolations(realBinding) === realBinding, true);
+  // path-preserving: the scrubbed wrapper keeps the original binding.path (findPrecedingBlockAssignment reads it)
+  const twinBinding = bindingFor('var x = ({}); namespace N { export var x = [1, 2, 3]; } x.flat();', 'x');
+  const scrubbed = withoutPhantomDeclarationViolations(twinBinding);
+  check('scrubbed wrapper preserves binding.path identity', scrubbed.path === twinBinding.path, true);
+  // a resolver consumer re-spreads the binding (`{ ...binding, constantViolations: combined }`),
+  // so own props (path/scope) must survive object-spread - not live on a prototype
+  check('scrubbed wrapper survives object-spread (path own-enumerable)', { ...scrubbed }.path === twinBinding.path, true);
+  // `constant` is a prototype getter on the estree Binding (not spread-copyable); the wrapper
+  // carries it explicitly, reflecting the filtered list (all-phantom -> effectively constant)
+  check('scrubbed wrapper exposes constant from filtered violations', scrubbed.constant, true);
+}
+checkPhantomViolationFilter();
+// a REFUSED alias's member reads stay RAW across passes: pre+post must not re-detect the
+// pre-transformed swap (`M = _Map`) into a narrow on the later pass
+async function checkRefusedAliasRawPassIdempotent() {
+  const src = 'function t(c) { let M; if (c) ({ Map: M } = globalThis); '
+    + 'try { return typeof M.groupBy; } catch (e) { return "T"; } }\n'
+    + 'function u(c) { let P; if (c) ({ Promise: P } = globalThis); return P.try(() => 1); }\n'
+    // the DESTRUCTURE channel of the same guard, and the write-ENUMERATED hint that feeds it (`M2 =
+    // globalThis.Map` registers no alias, so the binding's own writes are the hint): both render the
+    // guard on the first pass, and the second must not guard the raw branch it left behind
+    + 'function d(c) { let M2; if (c) M2 = globalThis.Map; '
+    + 'try { const { groupBy: g } = M2; return typeof g; } catch (e) { return "T"; } }\n'
+    + 'export const r = [t(true), t(false), d(true), d(false)];\n';
+  const plugins = unplugin.rollup({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, phase: 'pre+post' });
+  let code = src;
+  for (const p of plugins) {
+    const transform = typeof p.transform === 'function' ? p.transform : p.transform?.handler;
+    const out = await transform.call({ error(e) { throw new Error(e); } }, code, '/x/probe.mjs');
+    if (out?.code) code = out.code;
+  }
+  // the refused reads get the RUNTIME ctor guard whose raw branch keeps the original member
+  // (a callee keeps `this` via `.bind`); the second pass must not re-guard the guard's own
+  // raw branch - exactly one guard per read survives pre+post
+  check('refused alias guard keeps the raw member branch', /M\.groupBy/.test(code), true);
+  check('refused alias callee guard binds the raw branch', /P\.try\.bind\(P\)/.test(code), true);
+  check('member guard emitted exactly once across pre+post', code.split('M === _Map ?').length - 1, 1);
+  check('callee guard emitted exactly once across pre+post', code.split('P === _Promise ?').length - 1, 1);
+  check('destructure guard emitted exactly once across pre+post', code.split('M2 === _Map ?').length - 1, 1);
+  check('destructure guard keeps the raw member branch', /M2\.groupBy/.test(code), true);
+}
+await checkRefusedAliasRawPassIdempotent();
+
+// usage-global indirect-require removal BODY: the fixture comparator for usage-global is
+// imports-only, so the extracted SE-prefix statements are never text-validated there - pin
+// them here. each removed `(se, require)('core-js/...')` leaves exactly its prefix as a
+// bare statement in source order (incl. the optional-call and outer-comma shapes), the
+// require call itself is gone, and a polyfillable usage INSIDE a kept prefix stays visited
+function checkUsageGlobalIndirectRequirePrefixBody() {
+  const plugin = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } });
+  const source = [
+    'let loads = 0;',
+    '(loads++, require)("core-js/modules/es.array.from");',
+    'let arr = [1];',
+    '(arr.includes(1), require)("core-js/modules/es.array.includes");',
+    'let opt = 0;',
+    '(opt++, require)?.("core-js/modules/es.array.from");',
+    'let outer = 0;',
+    '0, (outer++, require)("core-js/modules/es.array.of");',
+    'Array.from([1]);',
+  ].join('\n');
+  const code = plugin.transform(source, '/indirect-require-prefix.js')?.code ?? '';
+  const body = code.split('\n').filter(line => !line.startsWith('import ')).join('\n');
+  check('indirect-require body/prefixes survive as statements in source order',
+    /let loads = 0;\s*loads\+\+;\s*let arr = \[1\];\s*arr\.includes\(1\);\s*let opt = 0;\s*opt\+\+;\s*let outer = 0;\s*outer\+\+;\s*Array\.from\(\[1\]\);/.test(body), true);
+  check('indirect-require body/no require call survives', /require\(/.test(code), false);
+  check('indirect-require body/kept-prefix usage stays visited', /es\.array\.includes/.test(code), true);
+}
+checkUsageGlobalIndirectRequirePrefixBody();
+
+// the phantom-violation filter returns ONE stable stand-in per native binding: identity
+// consumers (per-binding lookup caches, closure Sets, classification Maps) key by object
+// identity, and a fresh copy per call silently dropped their recorded writes
+function checkPhantomFilterIdentity() {
+  const src = 'for (let o = { data: [1, 2] }; cond;) { o.data = "s"; o.data.at(0); break; }';
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync('/pfi.js', src, { sourceType: 'module' });
+  let binding = null;
+  traverse(parsed.program, {
+    $: { scope: true },
+    Identifier(path) {
+      if (!binding && path.node.name === 'o') binding = path.scope.getBinding('o');
+    },
+  });
+  check('phantom-filter/binding found with violations', !!binding && !!binding.constantViolations?.length, true);
+  const a = withoutPhantomDeclarationViolations(binding);
+  const b = withoutPhantomDeclarationViolations(binding);
+  check('phantom-filter/stable identity across calls', a === b, true);
+}
+checkPhantomFilterIdentity();
+
+// --- call arity comes from the AST, not from the sliced argument text ---
+
+// every renderer that joins arguments after a dispatch receiver asks ONE helper for the leading
+// `, ` separator, and it must read arity off the call node: a zero-arg list holding a comment or a
+// line break slices to a NON-EMPTY string, and a separator ahead of it emits `.call(recv, )` - a
+// trailing comma, ES2017, which takes the whole module out on the ES5 baseline `usage-pure` targets.
+// stated as an invariant rather than an expected spelling: whatever a renderer prints for `m()`, it
+// must print for `m(/* c */)` too, so a new renderer joining the text raw fails here without anyone
+// having to predict its output
+function checkCallArityFromAst() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const PRELUDE = 'const a = [[1]];\nconst o = { m: () => [[1]] };\nconst p = { m: () => ({ x: [[1]] }) };\n';
+  // `%s` is the argument list, and a row carries one per separator it renders. one row per renderer -
+  // the standalone dispatch and its paren-lookup / optional-call spellings, the guard body that
+  // invokes a memoized non-polyfilled callee (bare and with a hop tail), the threaded hops, the
+  // combined chain's inner and outer slots, the split emit of an inherited static - plus a second
+  // row wherever one renderer owns two spellings of the same primitive, as the split emit does
+  const SHAPES = [
+    ['standalone dispatch', 'export const r = a.flat(%s);'],
+    ['paren-lookup callee', 'export const r = (a?.at)(%s);'],
+    ['optional call', 'export const r = a.includes?.(%s);'],
+    ['guard body over a memoized callee', 'export const r = o.m?.(%s).flat();'],
+    ['guard body with a hop tail', 'export const r = p.m?.(%s).x.flat();'],
+    ['threaded hops', 'export const r = a.flat(%s).flat(%s);'],
+    ['combined chain, inner slot', 'export const r = a.flat?.(%s).at(0);'],
+    ['combined chain, outer slot', 'export const r = a.flat?.(%s)?.at(%s);'],
+    ['inherited static split', 'class A extends Array { static f() { return super.from(%s); } }\nexport const r = A.f();'],
+    // `this` in a static context resolves through the same inherited-static machinery, so the split
+    // emit owns both spellings of the primitive - the twin is what keeps the domain enumerated
+    ['inherited static via this', 'class A extends Array { static f() { return this.of(%s); } }\nexport const r = A.f();'],
+  ];
+  // trivia the parser drops but a source slice keeps
+  const TRIVIA = ['\n', ' ', '/* c */', '/* c */\n', '// c\n', '\t/* c */ '];
+  function emit(body) {
+    return createPlugin(OPTIONS).transform(`${ PRELUDE }${ body }\n`, '/p.mjs')?.code ?? body;
+  }
+  for (const [label, template] of SHAPES) {
+    const slots = template.split('%s').length - 1;
+    const zeroArg = emit(template.replaceAll('%s', ''));
+    for (const trivia of TRIVIA) {
+      // comments and layout may legitimately ride along in the emitted text; the token stream may
+      // not move. the comparator's own lexer decides what "token stream" means here - a hand-rolled
+      // comment stripper next to it drifted from that answer on the first comment holding a `*`
+      check(`arity/${ label } is unmoved by ${ JSON.stringify(trivia) }`,
+        collapseWhitespace(emit(template.replaceAll('%s', trivia))), collapseWhitespace(zeroArg));
+    }
+    // the same rows with a REAL argument, counted rather than matched: one separator per filled slot.
+    // this is both the negative (arguments still ride, and ride behind the separator) and the
+    // vacuity guard - a row the resolver declines to rewrite renders no separator and lands on 0
+    check(`arity/${ label } renders one separator per argument`,
+      collapseWhitespace(emit(template.replaceAll('%s', '/* n */ 7'))).split(',7').length - 1, slots);
+  }
+  // the slice is taken by OFFSET out of the original source, and the shapes below are the ones that
+  // move offsets away from a naive character count - a CRLF pair, a leading BOM, an astral character
+  // ahead of (and inside) the list. the arity gate has to hold there too, or the separator comes back
+  // on exactly the sources whose offsets are hardest to reason about
+  const OFFSET_SHAPES = [
+    ['CRLF', 'const a = [[1]];\r\nexport const r = a.flat(\r\n);\r\n'],
+    ['CRLF inside a comment argument', 'const a = [[1]];\r\nexport const r = a.flat(/* one\r\ntwo */);\r\n'],
+    ['BOM', '﻿const a = [[1]];\nexport const r = a.flat(/* c */);\n'],
+    ['astral ahead of the call', 'const s = "\u{1F600}\u{1F600}";\nconst a = [[1]];\nexport const r = s.length + a.flat(/* c */).length;'],
+    ['astral inside the trivia', 'const a = [[1]];\nexport const r = a.flat(/* \u{1F600} */);'],
+  ];
+  // both assertions read the emitted text, and a character class spanning the argument slot is the
+  // wrong tool for it - an argument may itself carry parens (`_ref = helper(a).call(a)`), so such a
+  // pattern answers about the SHAPE of the receiver rather than about the separator. ask the two
+  // questions directly instead: does a list end in a comma, and did a dispatch happen at all
+  function hasDanglingSeparator(out) {
+    return collapseWhitespace(out).includes(',)');
+  }
+  function dispatches(out, helper) {
+    return out.includes(`${ helper }(`) && out.includes('.call(');
+  }
+  // both predicates answer with a boolean, so a negative row of theirs is only worth as much as the
+  // proof that they light up at all - pin the fire condition on literals next to the rows using them
+  check('arity/the dangling-separator predicate fires', hasDanglingSeparator('_x(a).call(a, );'), true);
+  check('arity/the dispatch predicate fires', dispatches('_flatMaybeArray(a).call(a);', '_flatMaybeArray'), true);
+  check('arity/the dispatch predicate stays quiet on untransformed source', dispatches('a.flat();', '_flatMaybeArray'), false);
+  for (const [label, source] of OFFSET_SHAPES) {
+    const out = createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+    check(`arity/no separator survives ${ label }`, hasDanglingSeparator(out), false);
+    check(`arity/${ label } still dispatches`, dispatches(out, '_flatMaybeArray'), true);
+  }
+  // the post pass re-reads the emitter's OWN output, where the trivia the arity gate ignored is gone;
+  // a cadence that re-derived arity from that text would drift from the single-pass result
+  const CADENCE_SRC = 'const a = [[1]];\nexport const r = a.flat(/* c */).at(/* d */);\n';
+  const single = createPlugin(OPTIONS).transform(CADENCE_SRC, '/p.mjs')?.code ?? CADENCE_SRC;
+  // the cadence rows below compare against `single`, so they would agree vacuously on a source
+  // nothing rewrote - pin that the reference emission is a real one first
+  check('arity/the cadence reference is a real emission', dispatches(single, '_atMaybeArray'), true);
+  for (const passes of [['pre'], ['post'], ['pre', 'post'], ['pre', 'post', 'pre', 'post']]) {
+    let code = CADENCE_SRC;
+    for (const pass of passes) code = createPlugin(OPTIONS).transform(code, '/p.mjs', pass)?.code ?? code;
+    check(`arity/[${ passes.join('->') }] matches the single-pass emission`, code, single);
+  }
+}
+checkCallArityFromAst();
+
+// the bare-slot reclaim proves the bare prefix free before handing the allocation on. it must not
+// be probed AGAIN by the allocator it hands to - in the babel emitter that probe is a whole
+// scope-chain lookup, so a duplicate is a real per-allocation cost. counted through
+// `isNameTaken`, the single funnel every probe passes through
+function checkSingleBareProbePerAllocation() {
+  function countingInjector() {
+    const inj = new ImportInjector({ mode: 'actual', pkg: 'x' });
+    const probes = [];
+    const original = inj.isNameTaken.bind(inj);
+    inj.isNameTaken = name => {
+      probes.push(name);
+      return original(name);
+    };
+    return { inj, probes };
+  }
+  // reclaim path: cache seeded past bare by an orphan, bare itself free -> exactly one bare probe
+  const reclaim = countingInjector();
+  reclaim.inj.adoptOrphanRefs(['_ref2']);
+  check('probe/reclaim returns bare', reclaim.inj.generateLocalRef(), '_ref');
+  check('probe/reclaim probes bare once', reclaim.probes.filter(name => name === '_ref').length, 1);
+  // bare taken as well: the reclaim probe fails and the allocator resumes from the cache, so bare
+  // is still asked exactly once and the answer skips past the orphan
+  const taken = countingInjector();
+  taken.inj.adoptOrphanRefs(['_ref', '_ref2']);
+  check('probe/bare-taken skips reclaim', taken.inj.generateLocalRef(), '_ref3');
+  check('probe/bare-taken probes bare once', taken.probes.filter(name => name === '_ref').length, 1);
+  // cold cache: no reclaim decision to make, the allocator's own try-bare-first is the only probe
+  const cold = countingInjector();
+  check('probe/cold cache returns bare', cold.inj.generateLocalRef(), '_ref');
+  check('probe/cold cache probes bare once', cold.probes.filter(name => name === '_ref').length, 1);
+}
+checkSingleBareProbePerAllocation();
+
+// `generateUnusedName` is a PROTOTYPE method; the cascade path patches it for the duration of one
+// plan walk and restores it in `finally`. the restored value has to be the method itself, not a
+// bound copy of it - a bound copy is an own property, so each walk would wrap the previous wrapper
+// and the chain would grow monotonically for the life of the file
+function checkUnusedNameRestoreIdentity() {
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'x' });
+  const prototypeMethod = Object.getPrototypeOf(inj).generateUnusedName
+    ?? Object.getPrototypeOf(Object.getPrototypeOf(inj)).generateUnusedName;
+  // wrap `generateUnusedName` the way the emitter's own tracking wrapper does
+  function withTracked(target, fn) {
+    const orig = inj.generateUnusedName;
+    inj.generateUnusedName = () => {
+      const name = orig.call(inj);
+      target.push(name);
+      return name;
+    };
+    try {
+      return fn();
+    } finally {
+      inj.generateUnusedName = orig;
+    }
+  }
+  check('tracked-unused/prototype method exists', typeof prototypeMethod, 'function');
+  const names = [];
+  withTracked(names, () => inj.generateUnusedName());
+  check('tracked-unused/restores the prototype method', inj.generateUnusedName === prototypeMethod, true);
+  // a second walk must restore to the SAME function object - reference equality is what rules the
+  // chain out; a bound copy would differ here even though the names still come out right
+  const restoredAfterFirst = inj.generateUnusedName;
+  withTracked(names, () => inj.generateUnusedName());
+  check('tracked-unused/restore is idempotent across walks', inj.generateUnusedName === restoredAfterFirst, true);
+  // nesting still composes: the inner walk restores the OUTER wrapper, so the outer keeps tracking
+  const outer = [];
+  const inner = [];
+  withTracked(outer, () => {
+    withTracked(inner, () => inj.generateUnusedName());
+    inj.generateUnusedName();
+  });
+  check('tracked-unused/inner walk collects its own name', inner.length, 1);
+  check('tracked-unused/outer walk sees both names', outer.length, 2);
+  check('tracked-unused/prototype method restored after nesting', inj.generateUnusedName === prototypeMethod, true);
+  // and the names themselves stay unique and well-formed through all of it
+  check('tracked-unused/names are distinct', new Set([...names, ...outer]).size, names.length + outer.length);
+}
+checkUnusedNameRestoreIdentity();
+
+// shared probe for the two param-pattern tables below: transform, then report whether the module
+// the row is keyed on came out. A throw is reported as its message rather than as `false` so a
+// crawler abort is distinguishable from a silently dropped binding
+function injectsModule(source, module) {
+  try {
+    const result = createPlugin({ method: 'usage-global', version: '4.0', targets: { ie: 11 } })
+      .transform(source, 'input.ts');
+    return new RegExp(`es\\.${ module }`).test(String(result?.code ?? ''));
+  } catch (error) {
+    return `threw: ${ error.message.split('\n', 1)[0] }`;
+  }
+}

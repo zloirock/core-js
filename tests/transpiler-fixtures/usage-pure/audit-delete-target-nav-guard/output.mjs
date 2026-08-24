@@ -7,9 +7,7 @@ var _ref;
 // a `delete` consumer over a proxy nav COLLAPSES THE NAVIGATION WHOLE: the member it names is never
 // READ, so no `?.` over the nav is load-bearing and no probe guard is built - the slot is reached off
 // the ponyfill, exactly as every other read in this flavor is. the collapse and the injection run UP
-// TO the deleted member; the member itself is never polyfilled. the text leg needs its own channel for
-// that (the guarded render may not simply stand down - with no claim owning the chain the nav would
-// ride raw), and it routes the nav through the plain chain collapse its `?.`-free twin takes.
+// TO the deleted member; the member itself is never polyfilled.
 // an INVOKED claim is not a delete TARGET at all (the operand is a call, no reference either way), so
 // it keeps neither the source tail nor the raw stand-down a leading effect otherwise earns - spelling
 // both cost first a doubled invocation, then the polyfill entirely.

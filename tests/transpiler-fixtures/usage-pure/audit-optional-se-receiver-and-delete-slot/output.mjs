@@ -5,8 +5,8 @@ import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6;
-// three shapes the differential's AST leg caught while the fixture gate stayed green - each one a
-// claim the AST engine used to DROP or fold wrong, and none of them a text difference:
+// three shapes the differential caught while the fixture gate stayed green - each one a
+// claim the engine used to DROP or fold wrong:
 // an optional dispatch over an SE-bearing sequence receiver, a nested instance leaf in a bodyless
 // slot, and a `delete` whose target must stay a member read
 const arr = [3, [1, 2]];

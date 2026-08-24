@@ -1,7 +1,5 @@
 import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, isValidIdentifierName } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import {
-  cloneNode, identifier, literal, memberExpression, sequenceExpression,
-} from './builders.js';
+import { cloneNode, identifier, literal, memberExpression, sequenceExpression } from './builders.js';
 
 // helpers shared by the AST engine's emitters (usage-pure and the destructure pipeline) -
 // they live outside both so neither imports the other
@@ -139,4 +137,9 @@ export function mintedProxyGlobalName(name, injectorState) {
   if (!source) return null;
   const tail = source.split('/').at(-1).replaceAll(/-(?<ch>[a-z])/g, (match, ch) => ch.toUpperCase());
   return POSSIBLE_GLOBAL_OBJECTS.has(tail) ? tail : null;
+}
+
+// SE wrap: `(se1, se2, leaf)` - the sequence spelling both legs share
+export function withSideEffects(leaf, effects) {
+  return effects?.length ? sequenceExpression([...effects.map(effect => cloneNode(effect)), leaf]) : leaf;
 }

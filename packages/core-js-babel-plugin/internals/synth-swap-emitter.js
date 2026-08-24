@@ -105,8 +105,8 @@ export default function createSynthSwapEmitter({
   // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
   // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
   // locating the argument is the shared `findIifeArgPath` (call site + spread-expanding
-  // coordinates); only the trailing peel is substrate-local - the AST emitter reads through a
-  // sequence tail, the text emitter peels transparent wrappers
+  // coordinates); only the trailing peel is substrate-local - this emitter reads through a
+  // sequence tail, the unplugin peels transparent wrappers
   function detectIifeArgPath(wrapper, objectPattern) {
     const argPath = findIifeArgPath(wrapper, objectPattern.node);
     return argPath ? unwrapSequenceTail(argPath) : null;
@@ -201,7 +201,7 @@ export default function createSynthSwapEmitter({
       // (a drop re-emits only its harvested SE ahead). skip the WHOLE receiver - a spine-only skip stops
       // at a sequence and leaves the prefix's dropped globals visible, injecting a dead `_globalThis`
       // import. the harvested SE is re-exposed so its globals still polyfill in the live tree before
-      // apply clones them into the re-emitted prefix. keeps the import set identical to the text emitter
+      // apply clones them into the re-emitted prefix. keeps the import set identical to the unplugin emitter
       const keepSe = rescueSe ? discardRescueNodes({
         node: receiver, scope: targetPath.scope, adapter, path: targetPath,
       }) : [];
@@ -397,7 +397,7 @@ export default function createSynthSwapEmitter({
     // the shape. the seal-aware canon keeps a PLAIN read over the same sealed nav collapsing
     // (`(nav).X` - the locked erase) and an all-plain span deopting as before
     // a `delete` consumer is the exception: the member it names is never READ, so no `?.` over the nav
-    // is load-bearing and the navigation collapses whole (the text leg's twin gate)
+    // is load-bearing and the navigation collapses whole (the unplugin leg's twin gate)
     // the walk peels transparent wrappers: under `createParenthesizedExpressions` a paren NODE sits
     // between the chain and the `delete`, and an identity peel read it as an opaque consumer - the rule
     // then fired in one paren spelling and not the other, which the area allows only cosmetically
@@ -617,13 +617,13 @@ export default function createSynthSwapEmitter({
         // a fallback-logical receiver memoizes its resolved LEFT, not the whole `||` / `??`: the left
         // is the always-truthy receiver, so the dead right operand short-circuits and must not survive
         // into the memo argument (cloning the whole logical would re-substitute the right global on
-        // re-traversal, leaking a dead `_Set` import and diverging from the text emitter). matches the
+        // re-traversal, leaking a dead `_Set` import and diverging from the unplugin emitter). matches the
         // all-resolved leftSe path, which likewise collapses to the left
         const memoReceiver = path.node.type === 'LogicalExpression' ? path.node.left : path.node;
         // a multi-hop proxy rescue receiver is DROPPED (re-emit only the harvested SE): keeping it would
-        // collapse `globalThis[(eff(), 'self')].Array` to `_self.Array`, importing a `self` proxy that is
-        // undefined off-browser, and diverging from the text emitter which can't AST-restructure the
-        // computed hop. shared `shouldDropRescueReceiver` keeps the drop decision identical across emitters
+        // collapse `globalThis[(eff(), 'self')].Array` to `_self.Array`, importing a `self` proxy that
+        // is undefined off-browser. shared `shouldDropRescueReceiver` keeps the drop decision
+        // identical across emitters
         const dropRescueReceiver = pending.rescueSe && shouldDropRescueReceiver(path.node);
         // a SEALED probe receiver (`{ values } = (globalThis.window?.self).Object`): the swap
         // drops the read the source performs on the sealed VALUE - re-emit it as a THROW
@@ -650,8 +650,8 @@ export default function createSynthSwapEmitter({
             // the memo argument takes the same canonical re-read target as the direct path
             [buildMemoArg(memoReceiver, aliasCtx)])
           // a throw probe already CARRIES every rescue node the discard would re-emit (the probe is
-          // built from the same key-SE list), so no discard prefix rides ahead of it - matching the
-          // text emitter, which emits the probe alone here
+          // built from the same key-SE list), so no discard prefix rides ahead of it - the
+          // unplugin emitter emits the probe alone here too
           : throwProbe
             ? t.sequenceExpression([throwProbe.node, literal])
           : dropRescueReceiver

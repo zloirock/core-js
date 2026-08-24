@@ -1,6 +1,5 @@
-// many independent, non-nested polyfills in one file - exercises the fast path for the
-// transform queue (no composition between entries). each line triggers a distinct polyfill
-// so their rewrites shouldn't leak into each other's ranges
+// many independent, non-nested polyfills in one file. each line triggers a distinct
+// polyfill so their rewrites shouldn't leak into each other
 Array.from(a);
 Object.fromEntries(b);
 Array.of(1, 2, 3);

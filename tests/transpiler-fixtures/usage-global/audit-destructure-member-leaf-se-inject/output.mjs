@@ -6,7 +6,7 @@ import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 // same injection contract for an SE-bearing IIFE under a member hop: classification resolves the
-// leaf through the inline call, the import lands, the text stays verbatim
+// leaf through the inline call, the import lands, the body stays untouched
 let calls = 0;
 const [{
   from

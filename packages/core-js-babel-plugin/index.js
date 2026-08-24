@@ -102,7 +102,7 @@ function peelWrapperPath(p) {
 // assignment into ANY slot of a statement-position SequenceExpression (minified tail,
 // comma-joined statements, nested sequences) - the destructure-emitter gate would silently
 // bail without this split. shape detection is shared with unplugin's
-// text-rewrite path via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
+// pre-parse split via `getMinifierSequenceDestructureExpressions` (unplugin's symmetric
 // pre-pass routes through the same shared statement-position walk over the raw AST). walks every
 // Statement-list host - Program + descendant BlockStatement / StaticBlock / TSModuleBlock -
 // so function / loop / try / class-static / namespace bodies are covered too; a Program-only
@@ -112,7 +112,7 @@ function splitMinifierSequenceDestructure(programPath, t) {
   // `(a, (b, ({x} = R)), ({y} = S))` - the middle operand is a sequence-destructure too). the
   // post-split traverse only re-reaches NEW brace hosts, never the host's own statement list, so the
   // fixpoint loop below re-runs over the LIVE body until none remain. each pass strictly reduces the
-  // remaining nesting, so this cap mirrors unplugin's text-rewrite fixpoint as a safety backstop only
+  // remaining nesting, so this cap mirrors unplugin's split fixpoint as a safety backstop only
   const MINIFIER_SPLIT_PASS_CAP = 64;
   // returns true when at least one statement was split this pass, so the caller can loop to a fixpoint
   function splitStatementList(statementPaths) {
@@ -343,7 +343,7 @@ export default function plugin(api, options) {
   let resolveSuperStaticFn = null;
   let isShadowedByClassOwnMemberFn = null;
   // dead Optional*-typed links (optional: false) around a swapped receiver print with a
-  // parenthesized chain boundary under babel codegen where the text emitter spells plain -
+  // parenthesized chain boundary under babel codegen where the unplugin emitter spells plain -
   // retype them in BOTH directions from the slot, stopping at a genuine `?.`
   function retypeDeadOptionalLinks(path) {
     for (let p = path; p && isOptionalNode(p.node) && !p.node.optional; p = p.parentPath) {
@@ -593,8 +593,8 @@ export default function plugin(api, options) {
         // user parens on the callee END the chain: the outer call runs on whatever the chain
         // produced, so a short-circuited chain must make it THROW. combining folds that call's
         // arguments into the guard's alternate and returns void 0 instead - stand down and let the
-        // paren-lookup emit, which keeps the call outside the ternary, take the shape. the text
-        // emitter refuses on the same token, one descent step further in
+        // paren-lookup emit, which keeps the call outside the ternary, take the shape. the
+        // unplugin declines the same shape
         if (outerCall && isWrappedInParens(outerCaller)) return null;
         // rare but possible wrappers: ParenthesizedExpression (babel's
         // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
@@ -616,8 +616,8 @@ export default function plugin(api, options) {
         if (calleeNode.computed || calleeNode.property?.type !== 'Identifier') return null;
         // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
         // OR-chain template, but `super` is not a primary expression and the codegen
-        // throws at parse time. let `super` chains fall through to addInstanceTransform's
-        // dedicated super-call handling instead
+        // throws at parse time. let `super` chains fall through to the instance
+        // transform's dedicated super-call handling instead
         if (calleeNode.object?.type === 'Super') return null;
         const meta = { kind: 'property', object: null, key: calleeNode.property.name, placement: 'prototype' };
         const { result } = resolvePureOrGlobalFallback(meta, callee);
@@ -1114,10 +1114,10 @@ export default function plugin(api, options) {
           normalizeOptionalChain(path, false);
           // a CHAIN-ASSIGN receiver's surviving links stay Optional*-TYPED with
           // `optional: false` - babel codegen then parenthesizes the chain boundary
-          // (`((..., _Map).prototype.has).call(...)`) where the text emitter keeps the plain
+          // (`((..., _Map).prototype.has).call(...)`) where the unplugin emitter keeps the plain
           // spelling. retype the dead links plain in BOTH directions from the swapped slot,
           // stopping at a genuine `?.`. non-assign receivers (an optional-IIFE root) keep the
-          // sealed paren spelling - the text emitter prints it for the consumed `?.()` there
+          // sealed paren spelling - the unplugin emitter prints it for the consumed `?.()` there
           if (hadChainAssign) retypeDeadOptionalLinks(path);
           return;
         }
@@ -1136,7 +1136,7 @@ export default function plugin(api, options) {
           // the CALL-rooted twin of the alias arm below: a proxy nav rooted in an inline-resolvable
           // call whose leaf polyfills nothing (`(() => globalThis)().window.self.userSlot`) has no
           // claim to drive any channel here, so the hops rode raw - a native `self` read where the
-          // ponyfill is the point, and the text leg collapsed the same source through its own
+          // ponyfill is the point, and the unplugin leg collapsed the same source through its own
           // suppressed-hop callback (its visitor reaches the hops this leg's subtree-skip hides)
           if (collapseClaimlessCallRootedNav(path)) return;
           if (synthSwap && isAliasProxyHopChain(path.node, aliasCtx, true)) {
@@ -1289,7 +1289,7 @@ export default function plugin(api, options) {
             // the source (a seal above the guard object, a `delete` tail with a leading effect)
             // the emit stands down and the plain arm below takes it - claim plus THROW PROBE,
             // which reproduces the read the guard would have swallowed. returning here on a
-            // stand-down left the claim raw, unpolyfilled, where the text emitter renders one
+            // stand-down left the claim raw, unpolyfilled, where the unplugin emitter renders one
             if (staticEraseGuard.kind === 'guard' && emitGuardedClaim({
               path, replacePath, id, guardObject: staticEraseGuard.object,
               sideEffects: meta.sideEffects, receiverEffectCount: meta.receiverEffectCount,
@@ -1405,7 +1405,7 @@ export default function plugin(api, options) {
         resolvePure,
       };
       // hops the detector suppressed while the meta KEEPS its receiver path: they survive into the
-      // output, so this emitter still renders them (the marking only guards the text emitter)
+      // output, so this emitter still renders them (the marking only guards the unplugin emitter)
       const keptProxyHops = new WeakSet();
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
@@ -1432,7 +1432,7 @@ export default function plugin(api, options) {
           // the chain walk and the two verdicts it carries - the nav must be CONSUMED by a step
           // above it, and a POLYFILLED dispatch there owns the receiver itself (it memoized and
           // rebuilt the call, so a render over its callee would strip the invocation's receiver) -
-          // are the SAME questions the text emitter asks, so the walk is shared. only the key
+          // are the SAME questions the unplugin emitter asks, so the walk is shared. only the key
           // reader and the polyfill lookup stay dialect-local
           const chainEnd = keptNavChainEndPath({
             path,

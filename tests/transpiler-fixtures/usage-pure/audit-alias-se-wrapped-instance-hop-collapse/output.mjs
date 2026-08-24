@@ -6,9 +6,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // An ALIAS of the proxy-global (`const g = globalThis`) navigated through a redundant hop under a SEQUENCE
 // (`(c++, g.self).Array.prototype.flat`) must drop the hop and keep the alias name: reading `g.self` off
 // engine is undefined (`_globalThis.self` on ie:11 / Node, which throws before the call). babel inlines the
-// alias to the pure root while the text emitter keeps `g` (its binding is rewritten to the pure root), so the
-// receiver shapes diverge COSMETICALLY (output-unplugin sidecar) - but both drop the dead hop, which is the
-// lock. lines vary by nesting depth and hop count; each binds a DISTINCT method and the counters prove order.
+// alias to the pure root while the unplugin keeps `g` (its declaration is rewritten to the pure root), so
+// the receiver shapes diverge COSMETICALLY (output-unplugin sidecar) - but both drop the dead hop, which is
+// the lock. lines vary by nesting depth and hop count; each binds a DISTINCT method and the counters prove order.
 const g = _globalThis;
 let c = 0,
   d = 0;
