@@ -768,7 +768,9 @@ export function createMemberResolve({
   // (a folded call, an optional-chain lowering) reuses parent nodes and swaps their slots,
   // leaving cached reference chains pointing at parents that no longer contain the member
   function nodeHoldsChild(parent, node) {
-    for (const slot of Object.values(parent)) {
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in parent) {
+      const slot = parent[key];
       if (slot === node) return true;
       if (Array.isArray(slot) && slot.includes(node)) return true;
     }
