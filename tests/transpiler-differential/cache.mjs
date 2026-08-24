@@ -106,24 +106,29 @@ await beginCase({ name: 'live', code: SRC, live: true });
 check('a live group runs every cell', (await evaluated('live', 'pure-babel', OUT)).ran, true);
 check('  and is therefore not mixed', mixedCase(), false);
 
-// an audit disagreement has two causes and they demand opposite reactions: a key that lost a
-// dimension must fail the run, a snippet that is not a function of its code alone must simply never
-// be cached. The discriminator is a second run - reproducible means the key is at fault
+// an audit disagreement has two causes and they demand opposite reactions: a REPRODUCIBLE one
+// means the stored value describes a realm that no longer exists - the group is marked DRIFTED so
+// the shard replays it live and believes only the live verdict; a snippet that is not a function
+// of its code alone must simply never be cached. The discriminator is a second run
 process.env.DIFF_AUDIT_EVERY = '1';
 const auditing = await import('./cache-store.mjs?audit=1');
 await auditing.beginCase({ name: 'live', code: SRC });
+check('a fresh group starts undrifted', auditing.auditDrifted(), false);
 let stableRuns = 0;
 function reproducible() {
   stableRuns++;
   return 'OK|reproducible';
 }
 await auditing.cached({ type: 'pure-babel', code: OUT, evaluate: reproducible });
-check('a reproducible disagreement is reported as a stale key', auditing.auditFailures.length, 1);
+check('a reproducible disagreement marks the group drifted', auditing.auditDrifted(), true);
 check('  after a confirming second run', stableRuns, 2);
+check('  counted for the run summary', auditing.cacheStats.drifted, 1);
+check('  and the fresh value is what the group now holds', auditing.collectCases().live['pure-babel'].r, 'OK|reproducible');
 let drift = 0;
 await auditing.beginCase({ name: 'live', code: SRC });
+check('the drift flag resets with the next group', auditing.auditDrifted(), false);
 await auditing.cached({ type: 'pure-babel', code: OUT, evaluate: () => `OK|drift-${ drift++ }` });
-check('an unreproducible one is not reported', auditing.auditFailures.length, 1);
+check('an unreproducible one does not mark drift', auditing.auditDrifted(), false);
 check('  and its group is dropped instead of cached', auditing.collectCases().live, undefined);
 check('  counted as not cacheable', auditing.cacheStats.volatile, 1);
 // the drop has to survive the REST of the group: cells evaluated after it must not resurrect it
@@ -258,7 +263,11 @@ const unaudited = await runShard({ cache: SHARD_CACHE });
 checkDeep('a poisoned cache passes silently when the audit is off', [unaudited.failures.length, unaudited.cacheStats.audited], [0, 0]);
 const audited = await runShard({ cache: SHARD_CACHE, audit: '1' });
 check('the audit re-evaluates every hit at rate 1', audited.cacheStats.audited, hot.cacheStats.hits);
-check('  and reports every poisoned cell', audited.failures.filter(line => line.includes('CACHE AUDIT')).length, audited.cacheStats.audited);
+// the poison agrees with itself, so no verdict fails - but every group DRIFTS, replays live, and
+// the working set carries the live values, not the poison: the green run EXECUTED everything
+check('  a self-consistent poison drifts instead of failing', audited.failures.length, 0);
+check('  every audited group is counted drifted', audited.cacheStats.drifted, audited.cacheStats.audited);
+checkDeep('  and the replay writes the live values back over the poison', audited.cases, cold.cases);
 
 // the same rule end to end: poison ONE cell so the snippet's legs disagree, and the shard must
 // report the divergence AND leave the whole group out of its working set. poisoning every cell

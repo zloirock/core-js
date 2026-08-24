@@ -50,15 +50,30 @@ const CASES = [
   ['mutated-self standdown', 'globalThis.self = globalThis.self;\n'
     + 'export const r = (globalThis.window?.self).Object.entries;\n'
     + 'export const { keys: k } = (globalThis.window?.self).Object;'],
+  // the own-output census family (provider own-output.js): each shape below re-claimed and
+  // grew the file per pass before its census/adoption arm - the same classes the unplugin
+  // engines lock, spelled through THIS emitter's renders
+  ['overwrite rebind', 'let m;\n({ y: { flat: m } } = { y: [1, [2]] });\nconst { from } = Array;\nuse(m, from);'],
+  ['shadow-alias guard alternate', 'const B = Array;\nexport const r = (function () {\n'
+    + '  { const B = {}; var h = B; }\n  { const { of } = h; return typeof of; }\n})();\nuse(r);'],
+  ['dead default in the extraction guard', 'const log = [];\nexport const r = (() => { try { throw [1]; }'
+    + ' catch ({ [(log.push("k"), "includes")]: v = (log.push("dead"), 7) }) { return typeof v; } })();\nuse(r, log);'],
+  ['sentinel pair under a bodyless if', 'const log = [];\nexport const r = (() => {'
+    + ' if (1) var { [(log.push("k"), "at")]: a, other } = [3, [7]]; return [typeof a, typeof other]; })();\nuse(r, log);'],
+  ['optional claim over a minted dispatch', 'export const r = [1, 2, 3].values()?.map(x => x * 2)?.toArray();\nuse(r);'],
+  ['proxy hops in the rendered guard alternate', 'globalThis.probeHost = { tag: "h", read() { return this.tag; } };\n'
+    + 'export const r = String(globalThis.window?.self.window.probeHost.read());\nuse(r);'],
 ];
 
-const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
-const config = { configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]], filename: 'input.mjs' };
+for (const importStyle of ['import', 'require']) {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, importStyle };
+  const config = { configFile: false, babelrc: false, plugins: [[babelPlugin, OPTIONS]], filename: 'input.mjs' };
 
-for (const [label, source] of CASES) {
-  const first = (await transformAsync(source, config)).code;
-  const second = (await transformAsync(first, config)).code;
-  check(`pure re-transform is stable: ${ label }`, second, first);
+  for (const [label, source] of CASES) {
+    const first = (await transformAsync(source, config)).code;
+    const second = (await transformAsync(first, config)).code;
+    check(`pure re-transform is stable: ${ label } (${ importStyle })`, second, first);
+  }
 }
 
 finish();

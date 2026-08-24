@@ -1,8 +1,10 @@
 // the structural identity the AST engine is held to, shared by the no-op roundtrip gate
 // and the babel-baseline comparator. ignored as FORMATTING: positions, the literal `raw`
-// spelling, paren nodes (value AND type level - the printer normalizes to the minimal
-// structural set), statement-list `EmptyStatement`s (semantics-free in a LIST; a loop's
-// empty BODY is a node field and survives), the `shorthand` flag, nested-sequence grouping
+// spelling (a divergence THERE is a printed-byte defect no tree compare can own - the node
+// builders keep `raw` trustworthy instead, and only where it is needed), paren nodes (value
+// AND type level - the printer normalizes to the minimal structural set), statement-list
+// `EmptyStatement`s (semantics-free in a LIST; a loop's empty BODY is a node field and
+// survives), the `shorthand` flag, nested-sequence grouping
 // (`(a, (b, c))` == `(a, b, c)` - babel's generator flattens it on reprint), and a sealed
 // chain under an OPTIONAL continuation (`(a?.b)?.()` == `a?.b?.()` - runtime-equal for
 // every nullish split, and babel prints the unsealed spelling; a seal under a NON-optional
@@ -52,7 +54,7 @@ export function strip(node) {
     }
     const out = {};
     for (const key of Object.keys(node).sort()) {
-      if (key === 'start' || key === 'end' || key === 'loc' || key === 'range' || key === 'raw' || key === 'hashbang' || key === 'shorthand') continue;
+      if (key === 'start' || key === 'end' || key === 'loc' || key === 'range' || key === 'raw' || key === 'shorthand') continue;
       out[key] = strip(node[key]);
     }
     return out;

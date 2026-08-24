@@ -5,6 +5,7 @@
 // (`enumerateFallbackDestructureBranches`), and the parser-shape gate
 // (`canTransformDestructuring`)
 import {
+  pureImportEntryOf,
   asProxyGlobalName,
   canHoldBuiltIn,
   findArrayWrappedDestructureHost,
@@ -60,7 +61,7 @@ import {
   peelProxyGlobalObject,
   proxyGlobalRootName,
 } from '../helpers/class-walk.js';
-import { resolve as resolveBuiltIn } from '../index.js';
+import { entryToGlobalHint, resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
   discardRescueNodes,
@@ -105,7 +106,10 @@ export function buildDestructuringInitMeta({ initNode, key, scope, adapter, path
   // a static the user monkey-patches is NOT a polyfillable destructure source: the prop
   // stays raw and the receiver substitutes through the identifier machinery, so the patch
   // and the extraction read the same object
-  if (meta?.object && meta.placement === 'static' && adapter.isMutatedStatic?.(meta.object, meta.key)) return null;
+  // ... except the well-known-symbol key: its render (`_getIteratorMethod`) reads THROUGH
+  // the receiver, so the patched slot is exactly what it answers
+  if (meta?.object && meta.placement === 'static' && meta.key !== 'Symbol.iterator'
+    && adapter.isMutatedStatic?.(meta.object, meta.key)) return null;
   return meta;
 }
 
@@ -242,10 +246,20 @@ function resolveAndDestructureMeta({ node, key, scope, adapter, path }) {
 // -> `_keys(...)`). otherwise the fallback (right) carries the actual polyfill - e.g.
 // `MyArray || Iterator` for `from` registers `Iterator.from` because `_Iterator`'s
 // constructor binding doesn't carry the static method
+// a HOP meta (`{ Array: { from } } = globalThis`) names no static of its own - `globalThis.Array`
+// is a proxy SURFACE read, not a polyfilled static - so the primary test below discarded it and a
+// `||` wrapping a BRANCHING left dropped the whole selection to its unresolvable fallback, leaving
+// the pattern raw. only a left that already branches qualifies: it is the shape the per-branch
+// machinery owns, and its own enumeration resolves each arm through the surface
+function branchingProxySurfacePrimary(meta, adapter) {
+  return !!meta?.fromFallback && meta.kind === 'property' && POSSIBLE_GLOBAL_OBJECTS.has(meta.object)
+    && isPristineProxyGlobal(adapter, meta.object);
+}
+
 function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
   // null meta = monkey-patched static branch; null-guard before `.object` (build crash otherwise)
   const primaryMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
-  if (primaryMeta?.object && resolveBuiltIn(primaryMeta)) {
+  if (primaryMeta?.object && (resolveBuiltIn(primaryMeta) || branchingProxySurfacePrimary(primaryMeta, adapter))) {
     // the left is the unconditional value only while it cannot be nullish: an undefinable
     // probe nav (`globalThis.window?.Array ?? {}`) selects the FALLBACK exactly off-env, so
     // the runtime value depends on the environment like a differing-branch `&&` - flag it
@@ -1453,12 +1467,25 @@ function reachingContainerValueNode({ binding, adapter, path, readNode, scope })
 //   binding silently extracts off the polyfill stub (unbound at runtime where native requires
 //   the constructor receiver). the hint's span gate ran against the HOST use; this hop READS at
 //   `readNode` - an assignment-form source written after that capture must not stub-narrow it
-function pluginRewrittenHopName({ current, binding, adapter, scope, readNode }) {
+function pluginRewrittenHopName({ current, binding, adapter, scope, readNode, path = null }) {
   const proxyName = proxyGlobalRootName({ node: current, binding, adapter, scope, path: null });
   if (proxyName && proxyName !== current.name) return proxyName;
   const ctorHint = bindingPolyfillHint({ binding, scope, name: current.name, adapter });
-  return ctorHint && ctorHint !== current.name
-    && assignmentAliasHintSoundAtRead({ binding, adapter, readNode }) ? ctorHint : null;
+  if (ctorHint && ctorHint !== current.name
+    && assignmentAliasHintSoundAtRead({ binding, adapter, readNode })) return ctorHint;
+  // a PRE-EXISTING pure default import on a pass over an emitter's own output: the census
+  // prepasses run before any injector registry exists, so the hint derives from the import
+  // source itself (`_Iterator` bound by '.../actual/iterator/constructor' names Iterator)
+  if (binding?.importKind !== 'type' && (binding?.kind === 'module'
+    // ... or the require-style pure binding: THIS binding's own declarator holds the
+    // require call (a shadowed local of the same name has a different node and stays out)
+    || (binding?.node?.type === 'VariableDeclarator' && binding.node.init?.type === 'CallExpression'
+      && binding.node.init.callee?.name === 'require'))) {
+    const entry = pureImportEntryOf(path, current.name);
+    const hinted = entry ? entryToGlobalHint(entry) : null;
+    if (hinted && hinted !== current.name) return hinted;
+  }
+  return null;
 }
 
 // combines the dominance gate with the reaching continuation for a variable hop of the walk.
@@ -1631,7 +1658,7 @@ function walkStaticReceiverStep({
     if (++hops > STATIC_WALK_DEPTH || visited.has(current.name)) return null;
     visited.add(current.name);
     const binding = adapter.getBinding(currentScope, current.name, path);
-    const rewritten = pluginRewrittenHopName({ current, binding, adapter, scope: currentScope, readNode });
+    const rewritten = pluginRewrittenHopName({ current, binding, adapter, scope: currentScope, readNode, path });
     if (rewritten) {
       current = { type: 'Identifier', name: rewritten };
       break;
@@ -1715,6 +1742,8 @@ function walkStaticReceiverTerminal({
   // `_globalThis` bindings via `polyfillHint`. covers
   // `const Array = globalThis.Array; const wrapper = { Array }; ...`
   if (walkPath.length === 0) {
+    // a bare global name answers itself; a minted hop never reaches this terminal - the
+    // hop recognizer (`pluginRewrittenHopName`) resolves it earlier in the walk
     if (current?.type === 'Identifier') return current.name;
     if (current?.type === 'MemberExpression' || current?.type === 'OptionalMemberExpression') {
       return resolveObjectName({ objectNode: current, scope: currentScope, adapter, path, usageNode: readNode });

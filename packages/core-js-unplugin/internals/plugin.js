@@ -2,6 +2,7 @@ import { parseSync } from 'oxc-parser';
 import { canonicalizeRefNumbering } from './ref-canon.js';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
+import { ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   extractIndirectRequireSEPrefix,
   namespaceScopedBindingBlock,
@@ -17,6 +18,7 @@ import {
   climbTransparentWrapperPath,
   isMemberWriteOnlyContext,
   isDeoptedGlobalSlotRead,
+  mutatedSlotLeftNativeWarning,
   isMutatedStaticMeta,
   isMutatedStaticPair,
   isNonReferencePosition,
@@ -25,6 +27,8 @@ import {
   methodReadsUsageCensus,
   memberKeyNamesReducer,
   mutatedGlobalSlotNames,
+  BRACE_STATEMENT_HOST_TYPES,
+  SINGLE_STATEMENT_SLOTS,
   isThisReceiver,
   isUpdateTarget,
   mayHaveSideEffects,
@@ -35,7 +39,9 @@ import {
   unwrapRuntimeExpr,
   migratableClaimSe,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
+import {
+  enrichMutatedStatics, escapedCtorReferencesReducer, mutationShapesReducer,
+} from '@core-js/polyfill-provider/detect-usage/mutations';
 import {
   createClassHelpers, ctorAliasShapesReducer, remapInheritedStaticMeta, usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -44,6 +50,7 @@ import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers
 import {
   buildOffsetToLine,
   buildOffsetToLineColumn,
+  isLineBoundDisableDirective,
   mergeVisitors,
   parseDisableDirectives,
 } from '@core-js/polyfill-provider/helpers/source-scan';
@@ -69,6 +76,9 @@ import TransformQueue from './transform-queue.js';
 import detectEntries, { createTopLevelStatementRewriter, planEntries } from './detect-entry.js';
 import applyEntryProgram, { injectImportStatements } from './ast/entry.js';
 import { printProgram, shiftFirstLineColumns } from './ast/print.js';
+import { flushIntoProgram } from './ast/import-injector.js';
+import createAstDestructureEmitter from './ast/destructure.js';
+import createAstUsagePureCallback, { markSubtreeSkipped } from './ast/usage-pure.js';
 import {
   closestVisibleNativeBinding,
   withoutPhantomDeclarationViolations,
@@ -183,8 +193,14 @@ export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
     const inner = node.parameter;
     const saved = { ...node };
     restorations?.push(() => {
+      // the walk may have REWRITTEN inside the unwrapped parameter (a polyfillable default):
+      // the wrapper restores around what it produced, never around the pre-walk snapshot -
+      // that would silently drop the emission
+      const mutated = { ...node };
+      if (decorators?.length) delete mutated.decorators;
       for (const key of Object.keys(node)) delete node[key];
       Object.assign(node, saved);
+      node.parameter = mutated;
     });
     for (const key of Object.keys(node)) delete node[key];
     Object.assign(node, inner);
@@ -288,6 +304,74 @@ function applyMinifierSequenceSplitPass(code, ast) {
     lastKeptEnd = match.end;
   }
   return mutated.toString();
+}
+
+// a disable directive attached INSIDE a destructuring pattern dies in a sibling pass's
+// lowering between `pre` and `post` (babel drops property-attached comments and reflows the
+// survivors), and post then re-claims the very read the user opted out. the text engine
+// survives by construction: its splice rebuilds the statement under the comment's line. here
+// the directive re-anchors EXPLICITLY: the comment leaves the loc-attached channel and the
+// printer emits `// core-js-disable-next-line` verbatim on its own line ahead of the
+// statement (both source spellings - a leading `-next-line` and a trailing `-line` - land as
+// the leading form, whose covered line is the statement's first). meaning-preserving ONLY
+// for the sole-prop chain whose whole remainder sits on the directive's covered line:
+// everything the statement lowers to derives from that disabled prop, so statement scope IS
+// the directive's scope. wider shapes keep the author's placement (a hoist would widen or
+// lose the opt-out). the walk covers POSITIONED hosts too - statements no emission rebuilt -
+// because their in-pattern comment dies in the same lowering; the text consumer
+// (`spliceDirectiveAnchors`) needs the covering comments per statement, hence `nodeComments`
+function hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines }) {
+  if (!comments?.length || !disabledLines || disabledLines === true) return null;
+  const anchored = new Map();
+  const removed = new Set();
+  const nodeComments = new Map();
+  walkAstNodes({ root: ast, visit(node) {
+    if (node.type === 'VariableDeclaration' && node.declarations.length === 1) {
+      const [{ id }] = node.declarations;
+      const [prop = null] = id?.type === 'ObjectPattern' && id.properties.length === 1 ? id.properties : [];
+      const usable = prop && typeof prop.start === 'number' && typeof prop.end === 'number';
+      const line = usable ? offsetToLine(prop.start) : null;
+      if (usable && disabledLines.has(line) && offsetToLine(prop.end - 1) === line) {
+        for (const comment of comments) {
+          if (typeof comment.start !== 'number' || !isLineBoundDisableDirective(comment.value)) continue;
+          const commentLine = offsetToLine(comment.end - 1);
+          const covers = comment.value.includes('next-line') ? commentLine + 1 === line : commentLine === line;
+          if (!covers) continue;
+          if (!anchored.has(node)) {
+            anchored.set(node, []);
+            nodeComments.set(node, []);
+          }
+          anchored.get(node).push('// core-js-disable-next-line');
+          nodeComments.get(node).push(comment);
+          removed.add(comment);
+        }
+      }
+    }
+  } });
+  return anchored.size ? { anchored, removed, nodeComments } : null;
+}
+
+// the text-splice consumer of `hoistSoleDisabledPatternDirectives`: a POSITIONED host (a
+// statement no queued edit rebuilt) keeps the author's in-pattern placement, which dies in
+// the sibling lowering between the passes - re-anchor by splice: drop the covering comment,
+// lead the statement with the canonical form. a rebuilt statement is left alone: the splice
+// there already re-roots the comment's line (and its ranges may no longer split)
+function spliceDirectiveAnchors({ ms, code, anchors }) {
+  if (!anchors) return;
+  function untouched(start, end) {
+    try {
+      return ms.slice(start, end) === code.slice(start, end);
+    } catch {
+      return false;
+    }
+  }
+  for (const [node, texts] of anchors.anchored) {
+    if (!untouched(node.start, node.end)) continue;
+    for (const comment of anchors.nodeComments.get(node) ?? []) {
+      if (untouched(comment.start, comment.end)) ms.remove(comment.start, comment.end);
+    }
+    ms.prependLeft(node.start, `${ texts.join('\n') }\n`);
+  }
 }
 
 // disable-directive state for a (code, ast, comments) snapshot: the offset->line mapper
@@ -408,16 +492,13 @@ export default function createPlugin(options) {
     console.warn(`[core-js] unknown \`bundler\` ${ JSON.stringify(bundler) } - falling back to generic handling (expected one of ${ list })`);
   }
   // the transform-engine flag of the staged AST-engine migration. per-instance, so the
-  // snapshot cache below can never mix engines - no key extension needed. `'ast'` is landed
-  // method by method and rejected here at configuration time until its first method ships:
-  // silently skipping polyfill work would be the one wrong answer
+  // snapshot cache below can never mix engines - no key extension needed. every method is
+  // landed on `'ast'` - each was rejected here at configuration time until its two gates
+  // (the fixture gate and the differential's AST leg) went green
   const engine = engineOption ?? 'text';
   if (engine !== 'text' && engine !== 'ast') {
     const got = typeof engineOption === 'string' ? `'${ engineOption }'` : typeof engineOption;
     throw new TypeError(`[core-js] invalid \`engine\` option: ${ got } - expected 'text' or 'ast'`);
-  }
-  if (engine === 'ast' && options.method !== 'entry-global' && options.method !== 'usage-global') {
-    throw new TypeError(`[core-js] \`engine: 'ast'\` does not support method '${ options.method }' yet`);
   }
 
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
@@ -664,6 +745,8 @@ export default function createPlugin(options) {
     const readsCensus = methodReadsUsageCensus(method);
     const fileCensus = readsCensus ? collectFileCensus(ast, [
       bindingNamesReducer(),
+      escapedCtorReferencesReducer(),
+      restSentinelNamesReducer(),
       memberKeyNamesReducer(),
       mutationShapesReducer(packages),
       ctorAliasShapesReducer(),
@@ -847,6 +930,14 @@ export default function createPlugin(options) {
         injectGlobal: moduleName => injector.addGlobalImport(moduleName),
       });
 
+      // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
+      // binding info; null when not polyfillable as a global. shared between the polyfill
+      // emitter and the destructure emitter, on both engines
+      function resolveGlobalPolyfill(name) {
+        const pure = resolvePure({ kind: 'global', name });
+        return pure && pure.kind !== 'instance' ? pure : null;
+      }
+
       function injectPureImport(entry, hint) {
         debugOutput?.add(entry);
         return injector.addPureImport(entry, hint);
@@ -869,6 +960,14 @@ export default function createPlugin(options) {
 
       function finalize() {
         injector.flush();
+        // an opted-out read's directive must reach the post pass's parse alive (the entry
+        // method rewrites imports, not member claims - nothing to protect there)
+        if (pass === 'pre' && method !== 'entry-global') {
+          spliceDirectiveAnchors({
+            ms, code,
+            anchors: hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines }),
+          });
+        }
         // `outputDebug` prints the debug report to stdout. in `phase: 'pre+post'` mode
         // `finalize` fires twice per file - emitting the report from both passes would
         // double-print every diagnostic. only post / single / entry-global emits; pre
@@ -992,6 +1091,30 @@ export default function createPlugin(options) {
         });
       }
 
+      // shared by BOTH usage-pure engines (the text callback and the AST port)
+      const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+
+      // write-position bails for a property member usage: update / for-x targets, any
+      // AssignmentExpression LHS - including compound (`obj.at += X`; the read could be
+      // polyfilled, but the write would hit the const polyfill binding - bail to keep both
+      // halves consistent) - and the shared write-only destructure contexts (default-pattern
+      // `{a: obj.at = 1}`, array-pattern `[obj.at] = src`, and the assignment-target shape
+      // parsers emit as ArrayExpression: `[super.from] = src` would otherwise rewrite to a
+      // frozen import binding and throw "Assignment to constant variable" at runtime)
+      function memberWritePositionBails(node, parent, metaPath) {
+        // the write host's `.left` points at the OUTERMOST transparent wrapper when the member
+        // is wrapped (`(obj.at as any) = fn`) - compare against the climbed anchor, and hand the
+        // write-only gate the anchor's own parent window so its slot identities line up
+        const anchor = climbTransparentWrapperPath(metaPath);
+        // ... and a `delete` target is write-only in the same sense: the consumer needs the SLOT,
+        // so a claim that replaces the member with a call would delete nothing and run the helper
+        // besides (`delete g[Symbol.iterator]` keeps the member, its key swapped)
+        return isUpdateTarget(parent) || isForXWriteTarget(metaPath)
+          || (parent?.type === 'AssignmentExpression' && parent.left === anchor.node)
+          || (isDeleteTarget(anchor.parentPath?.node) && anchor.parentPath.node.argument === anchor.node)
+          || isMemberWriteOnlyContext(anchor.node, anchor.parentPath?.node, anchor.parentPath?.parentPath?.node);
+      }
+
       // entry-global mode: replace `import 'core-js'` with resolved modules
       function runEntryGlobal() {
         const entryFound = detectEntries(ast, {
@@ -1031,13 +1154,21 @@ export default function createPlugin(options) {
       // the AST engine's print tail - `finalize`'s MagicString twin: re-prepend the BOM
       // (shifting the first output line's columns by the one char), and keep
       // `sourcesContent` the user's ORIGINAL bytes when the minifier split rewrote the input
+      // the pre-pass directive re-anchor result (see `hoistSoleDisabledPatternDirectives`):
+      // the print emits the anchored texts verbatim and the loc-attached originals drop
+      let directiveAnchors = null;
       function finalizeAst() {
         // undo the detection-convenience pattern neutralization (reverse order - the
         // parameter-property unwrap nests blanking inside itself) so the print sees the
         // author's tree
         for (let i = patternRestorations.length - 1; i >= 0; i--) patternRestorations[i]();
         patternRestorations.length = 0;
-        const printed = printProgram({ program: ast, comments, source: code, id, jsx: sourceDialect.jsx });
+        const printed = printProgram({
+          program: ast,
+          comments: directiveAnchors ? comments.filter(comment => !directiveAnchors.removed.has(comment)) : comments,
+          source: code, id, jsx: sourceDialect.jsx,
+          anchoredComments: directiveAnchors?.anchored ?? null,
+        });
         const { map } = printed;
         let outCode = printed.code;
         if (hasBOM) {
@@ -1049,7 +1180,23 @@ export default function createPlugin(options) {
           const original = preSplitCode ?? content;
           map.sourcesContent[0] = hasBOM ? `\uFEFF${ original }` : original;
         }
+        // pre+post chaining: the bundler chains through pre's content-bearing map, so the
+        // post map omits sourcesContent - the `includeContent: !chainedFromPre` rule of the
+        // text finalize, applied to the printer's map
+        if (map && pass === 'post' && inherit && inheritedPreRewrote) delete map.sourcesContent;
         return { code: outCode, map };
+      }
+
+      // the finalize() pre-store twin for the ast runners. the parse-reuse slots stay empty on
+      // this engine: emission mutates the tree in place and only the detection conveniences
+      // carry an undo ledger, so post re-parses its input instead of inheriting a mutated tree
+      function storeAstPreSnapshot(preRewroteSource) {
+        snapshots.store(id, {
+          snapshot: injector.snapshot(),
+          ast: null, comments: null, postInput: null,
+          preRewroteSource,
+          mutatedStatics,
+        });
       }
       if (method === 'entry-global') return engine === 'ast' ? runEntryGlobalAst() : runEntryGlobal();
 
@@ -1096,15 +1243,24 @@ export default function createPlugin(options) {
         return finalize();
       }
 
-      // the AST engine's usage-global, SINGLE pass only until the pre/post snapshot lands
-      // (the staged migration's next station): the same engine-neutral collection, the
-      // sweep's body surgery already applied above, imports spliced in and printed
+      // the AST engine's usage-global: the same engine-neutral collection, the sweep's body
+      // surgery already applied above, imports spliced in and printed. in `pre` the collection
+      // rides the snapshot and the merged side-effect block lands ONCE in post (the
+      // deferImports rule) - pre prints only what the sweep / normalization already changed
       function runUsageGlobalAst() {
-        // unbranded like every inner throw - the outer catch's `tagError` owns the brand
-        if (pass !== 'single') throw new TypeError(`\`engine: 'ast'\` does not support the '${ pass }' pass yet`);
         collectUsageGlobal();
-        outputDebug();
-        if (!injector.globalImports.size && !astSweptImports && !astNormalized) return null;
+        // pre stores its work in the snapshot and the post pass carries the union - emitting
+        // the report from both passes would double-print every diagnostic (finalize's rule)
+        if (pass !== 'pre') outputDebug();
+        const surgeryChanged = !!astSweptImports || astNormalized;
+        if (pass === 'pre') {
+          directiveAnchors = hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines });
+          const preChanged = surgeryChanged || !!directiveAnchors;
+          storeAstPreSnapshot(preChanged);
+          if (!preChanged) return null;
+          return finalizeAst();
+        }
+        if (!injector.globalImports.size && !surgeryChanged) return null;
         injectImportStatements({
           program: ast,
           modules: injector.globalImports,
@@ -1116,6 +1272,205 @@ export default function createPlugin(options) {
       }
       if (method === 'usage-global') return engine === 'ast' ? runUsageGlobalAst() : runUsageGlobal();
 
+      // the AST engine's usage-pure (see ast/usage-pure.js): shared detection visitors,
+      // babel-blueprint emission; an unported class bails to the raw spelling, never to a
+      // silently-wrong rewrite. pass-aware like its usage-global sibling: pre emits inline
+      // (the self-contained rule) and stores the injector union, post dedups via the
+      // existing-import re-scan
+      function runUsagePureAst() {
+        // `keepLive`: effect subtrees a render RE-EMITS BY IDENTITY - claims under them stay
+        // live even inside consumed / detached spans, and land in place (the keep-live carve)
+        const skippedNodes = Object.assign(new WeakSet(), { keepLive: new Set() });
+        // a `_unused` sentinel carries its own declarator, so the flush owes it no `var` - but
+        // it SHARES the minted-name family and must be in the census, or a sentinel the drain
+        // dropped strands its slot and the survivors never renumber
+        const [astRefNames, astRenameOnly, astRefOrder] = [[], [], []];
+        let astRewrote = false;
+        // the `var` block lands at the top of the nearest enclosing BLOCK (babel's scope.push
+        // placement - an if/catch body hosts its own refs); an expression-bodied arrow has no
+        // block yet, so the FUNCTION node is recorded and the flush converts it; a use inside
+        // PARAMS skips its function (the param scope cannot see body vars)
+        // the canonical single-statement slots MINUS `LabeledStatement`: a label names the
+        // statement it wraps, so a block minted in that slot would sit INSIDE the label and a
+        // `continue` past the memo would re-enter it - the ref belongs outside the label
+        const BODYLESS_HOST_SLOTS = new Map([...SINGLE_STATEMENT_SLOTS]
+          .filter(([type]) => type !== 'LabeledStatement'));
+        function refHostOf(metaPath) {
+          for (let from = metaPath, cur = metaPath.parentPath; cur; from = cur, cur = cur.parentPath) {
+            const { type } = cur.node ?? {};
+            // a NAMESPACE body owns a var scope of its own (it compiles to an IIFE), so it
+            // hosts the block exactly like a function body would
+            if (BRACE_STATEMENT_HOST_TYPES.has(type)) {
+              if (from.listKey === 'params' || from.key === 'params') continue;
+              return { hostBlock: cur.node };
+            }
+            // a BODYLESS statement slot (a block-less loop / if body): babel's scope.push
+            // creates the block, so the flush wraps the slot the same way
+            const slots = BODYLESS_HOST_SLOTS.get(type);
+            if (slots) {
+              const slot = slots.find(key => cur.node[key] === from.node);
+              // a `var` statement in the slot hoists its own bindings out of it, so the ref
+              // block does too - bracing there would be a block nobody needs
+              if (slot && from.node?.type !== 'BlockStatement'
+                && !(from.node?.type === 'VariableDeclaration' && from.node.kind === 'var')) {
+                return { hostBodyless: { parent: cur.node, slot } };
+              }
+            }
+            if (type === 'FunctionDeclaration' || type === 'FunctionExpression' || type === 'ArrowFunctionExpression') {
+              if (from.listKey === 'params' || from.key === 'params') continue;
+              return { hostFunction: cur.node };
+            }
+          }
+          return {};
+        }
+        const refFacade = {
+          // an `_unused` sentinel for an ASSIGNMENT-position rename: it needs a real
+          // declaration (`var _unused;`), which the flush hosts like any declared ref
+          declareUnusedRef(metaPath) {
+            const name = injector.uniqueName('_unused');
+            astRefNames.push({ name, ...refHostOf(metaPath) });
+            return name;
+          },
+          // a DUPLICATED subtree (a destructure receiver copy) carries the refs the walk
+          // already planted inside it: a ref hosted by a FUNCTION of the copy has no
+          // declaration there (the original's `var` sits in the original's own body), so it
+          // re-mints against the copy's host. a ref at the copy's top level keeps its name -
+          // its declaration is the shared enclosing scope and the two reads are sequential
+          recloneDeclaredRefs(root) {
+            const known = new Set(astRefNames.map(entry => entry.name));
+            if (!known.size) return;
+            const renamesByHost = new Map();
+            (function walk(node, hostFn) {
+              if (!node || typeof node !== 'object' || !node.type) return;
+              const isFn = node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+                || node.type === 'ArrowFunctionExpression';
+              const scopeFn = isFn ? node : hostFn;
+              if (node.type === 'Identifier' && hostFn && known.has(node.name)) {
+                if (!renamesByHost.has(hostFn)) renamesByHost.set(hostFn, new Map());
+                const renames = renamesByHost.get(hostFn);
+                if (!renames.has(node.name)) {
+                  const fresh = injector.generateDeclaredRef();
+                  renames.set(node.name, fresh);
+                  astRefNames.push(hostFn.body?.type === 'BlockStatement'
+                    ? { name: fresh, hostBlock: hostFn.body } : { name: fresh, hostFunction: hostFn });
+                }
+                node.name = renames.get(node.name);
+                return;
+              }
+              for (const value of Object.values(node)) {
+                if (Array.isArray(value)) for (const item of value) walk(item, scopeFn);
+                else walk(value, scopeFn);
+              }
+            })(root, null);
+          },
+          generateDeclaredRef(metaPath) {
+            const name = injector.generateDeclaredRef();
+            // the host is recorded as a NODE (block or function), never a body: the emission
+            // may still replace an expression-bodied arrow's direct body node, so which body
+            // hosts the `var` block is the flush's decision, made on the final tree
+            astRefNames.push({ name, ...refHostOf(metaPath) });
+            return name;
+          },
+        };
+        const destructureEmit = createAstDestructureEmitter({
+          adapter: estreeAdapter,
+          injector: refFacade,
+          injectorState: injector,
+          injectPureImport,
+          markRewrite() { astRewrote = true; },
+          skippedNodes,
+          markSubtreeSkipped,
+          program: ast,
+          resolvePure,
+          resolveGlobalPolyfill,
+          mintUnusedName() {
+            const name = injector.uniqueName('_unused');
+            astRenameOnly.push(name);
+            return name;
+          },
+          // a drain-minted `_ref` joins the family CENSUS and renumbers with the rest, in print
+          // order. what makes that work is the ONE exception the census draws: a generated memo
+          // DECLARATION hoists above the statement it serves, so it ranks at its first READ, not
+          // at its binding id - babel numbers the receiver memo at the point of the second read,
+          // between the guards of the two properties that need it (`collectLiveness`)
+          mintRefName() {
+            const name = injector.uniqueName('_ref');
+            astRefOrder.push(name);
+            return name;
+          },
+          paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
+          resolveNodeType: typeResolvers.resolveNodeType,
+          toHint: typeResolvers.toHint,
+          isDisabled,
+          getDebugOutput: () => debugOutput,
+        });
+        const callback = createAstUsagePureCallback({
+          adapter: estreeAdapter,
+          destructureEmit,
+          getDebugOutput: () => debugOutput,
+          injector: refFacade,
+          injectPureImport,
+          isDisabled,
+          isInTypeAnnotation,
+          markRewrite() { astRewrote = true; },
+          isShadowedByClassOwnMember,
+          isThisReceiver,
+          memberWritePositionBails,
+          isInheritedStaticLookup,
+          resolveStaticInheritedMember,
+          isMutatedStatics: m => isMutatedStaticMeta(m, mutatedStatics),
+          injectorState: injector,
+          isEntryAvailable: isEntryNeeded,
+          resolveGlobalPolyfill,
+          resolveNodeType: typeResolvers.resolveNodeType,
+          resolvedType: typeResolvers.resolvedType,
+          toHint: typeResolvers.toHint,
+          resolvePure,
+          resolvePureOrGlobalFallback,
+          semanticParentNode,
+          skippedNodes,
+        });
+        traverse(ast, mergeVisitors({
+          $: { scope: true },
+          Program(path) { injector.rootScope = path.scope; },
+          CatchClause(path) { destructureEmit.extractCatchClause(path); },
+        }, createUsageVisitors({
+          adapter: estreeAdapter,
+          onUsage: callback,
+          method,
+          walkAnnotations: false,
+          isEntryAvailable: isEntryNeeded,
+          resolveMeta: resolvePure,
+          resolvePure,
+          // the AST engine mutates the tree in place, so an emission inside a DECORATOR
+          // (walked manually, with nothing re-queued) hides the replacement's own claims
+          // from the traversal - the second pass reaches them
+          revisitDecorators: true,
+        })));
+        destructureEmit.drain();
+        // pre stores its work in the snapshot and the post pass carries the union (finalize's rule)
+        if (pass !== 'pre') outputDebug();
+        const collected = injector.pureImports.size || injector.globalImports.size || astRefNames.length;
+        // the re-anchor is computed BEFORE the no-op bail: a file whose only core-js-relevant
+        // content is the disabled claim still transforms, or the sibling lowering eats the
+        // in-pattern comment and post re-claims the very read the user opted out
+        if (pass === 'pre') directiveAnchors = hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disabledLines });
+        if (!astRewrote && !collected && !astNormalized && !astSweptImports && !directiveAnchors) {
+          if (pass === 'pre') storeAstPreSnapshot(false);
+          return null;
+        }
+        flushIntoProgram({
+          injector, program: ast, refNames: astRefNames, renameOnly: astRenameOnly, refOrder: astRefOrder,
+        });
+        const out = finalizeAst();
+        // usage-pure emits its imports inline in pre (the self-contained rule the text leg
+        // spells at `deferImports`): the snapshot still carries the injector union, so post
+        // re-scans them as existing, dedups, and resumes name allocation where pre stopped
+        if (pass === 'pre') storeAstPreSnapshot(true);
+        return out;
+      }
+      if (method === 'usage-pure' && engine === 'ast') return runUsagePureAst();
+
       // usage-pure mode
       function runUsagePure() {
       // skippedNodes semantics (implicit contract across ~10 call sites):
@@ -1125,7 +1480,9 @@ export default function createPlugin(options) {
       // 3. "don't emit polyfill for this identifier" - receiver Identifier of a known member
       // a single WeakSet covers all three because the downstream check is the same: any visitor
       // that sees a node in the set exits early. keep this in mind when adding new usages
-        const skippedNodes = new WeakSet();
+        // `keepLive`: effect subtrees a render RE-EMITS BY IDENTITY - claims under them stay
+        // live even inside consumed / detached spans, and land in place (the keep-live carve)
+        const skippedNodes = Object.assign(new WeakSet(), { keepLive: new Set() });
         // members of a raw `_ref.`-rebound / guard-reuse receiver tail. weaker than `skippedNodes`:
         // member/static/global rewrites on these nodes are suppressed (the raw tail re-emits their
         // source verbatim, so a substitution would desync from it - `_self.X` vs the emitted
@@ -1145,14 +1502,6 @@ export default function createPlugin(options) {
         // arrow / scoped vars after the traverse pass. instance + destructure emitters both
         // read scope position + allocate refs through this single tracker
         const scopeTracker = new ScopeTracker({ code, injector });
-
-        // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
-        // binding info; null when not polyfillable as a global. shared between the polyfill
-        // emitter and the destructure emitter
-        function resolveGlobalPolyfill(name) {
-          const pure = resolvePure({ kind: 'global', name });
-          return pure && pure.kind !== 'instance' ? pure : null;
-        }
 
         // a ctor STATIC (`Number.MAX_SAFE_INTEGER` -> `_Number$MAX_SAFE_INTEGER`, `Array.of` -> `_Array$of`):
         // the receiver-independent collapse under a kept proxy guard needs this to substitute a static reached
@@ -1243,8 +1592,6 @@ export default function createPlugin(options) {
           tryFlattenProxyHopHost,
         } = destructureEmitter;
 
-        const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
-
         // true when `inner`'s source range sits inside any sideEffects subtree - the outer
         // text-emit re-emits that subtree verbatim via `wrapSideEffects`, so `inner` survives
         // in the output and must NOT be suppressed from its own polyfill substitution.
@@ -1332,23 +1679,6 @@ export default function createPlugin(options) {
           collapseProxyHopRoot(rootPath);
         }
 
-        // write-position bails for a property member usage: update / for-x targets, any
-        // AssignmentExpression LHS - including compound (`obj.at += X`; the read could be
-        // polyfilled, but the write would hit the const polyfill binding - bail to keep both
-        // halves consistent) - and the shared write-only destructure contexts (default-pattern
-        // `{a: obj.at = 1}`, array-pattern `[obj.at] = src`, and the assignment-target shape
-        // parsers emit as ArrayExpression: `[super.from] = src` would otherwise rewrite to a
-        // frozen import binding and throw "Assignment to constant variable" at runtime)
-        function memberWritePositionBails(node, parent, metaPath) {
-          // the write host's `.left` points at the OUTERMOST transparent wrapper when the member
-          // is wrapped (`(obj.at as any) = fn`) - compare against the climbed anchor, and hand the
-          // write-only gate the anchor's own parent window so its slot identities line up
-          const anchor = climbTransparentWrapperPath(metaPath);
-          return isUpdateTarget(parent) || isForXWriteTarget(metaPath)
-            || (parent?.type === 'AssignmentExpression' && parent.left === anchor.node)
-            || isMemberWriteOnlyContext(anchor.node, anchor.parentPath?.node, anchor.parentPath?.parentPath?.node);
-        }
-
         // runtime ctor guard render: the DECISION is the shared provider plan; this only
         // composes the text - `(M === _Map ? _Map$groupBy : M.groupBy)`, a callee raw branch
         // binding `this` via `.bind(M)`. the member subtree is skip-marked so the natural
@@ -1394,10 +1724,21 @@ export default function createPlugin(options) {
           if (pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1 || prop.computed) return false;
           const binding = prop.value;
           if (binding?.type !== 'Identifier') return false;
-          const declarator = metaPath.parentPath?.parent;
-          if (declarator?.type !== 'VariableDeclarator' || !declarator.init) return false;
+          // two hosts collapse to a plain binding: a declarator, and the SOLE-ASSIGNMENT form
+          // in STATEMENT position (the expression's value, natively the RHS object, is
+          // unobservable there); a value-consuming assignment keeps the raw read
+          const hostPath = metaPath.parentPath?.parentPath;
+          const host = hostPath?.node;
+          const isDeclarator = host?.type === 'VariableDeclarator' && !!host.init;
+          let stmtUp = hostPath?.parentPath;
+          while (stmtUp?.node && unwrapNode(stmtUp.node) !== stmtUp.node) stmtUp = stmtUp.parentPath;
+          const isSoleAssignment = host?.type === 'AssignmentExpression' && host.operator === '='
+            && host.left === pattern;
+          const inStatement = isSoleAssignment && stmtUp?.node?.type === 'ExpressionStatement';
+          if (!isDeclarator && !isSoleAssignment) return false;
+          const hostInit = isDeclarator ? host.init : host.right;
           const plan = planGuardedStaticNarrow({
-            memberNode: { type: 'MemberExpression', object: declarator.init, property: { type: 'Identifier', name: meta.key },
+            memberNode: { type: 'MemberExpression', object: hostInit, property: { type: 'Identifier', name: meta.key },
               computed: false, optional: false },
             parent: null, meta, path: metaPath, resolvePure,
           });
@@ -1414,11 +1755,18 @@ export default function createPlugin(options) {
           // declarator INIT can, and the AST leg's printer spells it bare there
           // ... and the TAIL of a sequence init is such a slot too: the source's own comma parens
           // group it already, so the chain's would only double them (`(n++, (M === _Map ? ...))`)
-          const initCore = unwrapNode(declarator.init);
+          const initCore = unwrapNode(hostInit);
           const seqTail = initCore?.type === 'SequenceExpression' ? initCore.expressions.at(-1) : null;
-          const bareSlot = [declarator.init, ...seqTail ? [seqTail] : []]
+          const bareSlot = [hostInit, ...seqTail ? [seqTail] : []]
             .some(slot => slot.start === plan.recvIdent.start && slot.end === plan.recvIdent.end);
           transforms.add(plan.recvIdent.start, plan.recvIdent.end, bareSlot ? chain : `(${ chain })`);
+          // the VALUE-CONSUMING host keeps its native value - the RHS object - as a sequence
+          // tail; the added parens make the wrap safe in every expression slot (a declarator
+          // init would read the bare comma as its next declarator)
+          if (isSoleAssignment && !inStatement) {
+            transforms.insert(host.start, '(');
+            transforms.insert(host.end, `, ${ recv })`);
+          }
           return true;
         }
 
@@ -1430,7 +1778,7 @@ export default function createPlugin(options) {
           if (!isDeoptedGlobalSlotRead(meta, estreeAdapter)) return false;
           if (!deoptNotedNames.has(meta.name)) {
             deoptNotedNames.add(meta.name);
-            debugOutput?.warn(`\`${ meta.name }\` is written in this file (slot mutation) - the name is left native`);
+            debugOutput?.warn(mutatedSlotLeftNativeWarning(meta.name));
           }
           return true;
         }
@@ -1445,6 +1793,9 @@ export default function createPlugin(options) {
           return node.type === 'MemberExpression' && transforms.ownedWithoutSlot(node.start, node.end);
         }
 
+        function ownEmittedTextNavClaim(metaPath, ownInjector) {
+          return ownEmittedNavClaim(metaPath.node, metaPath, ownOutputTests(ownInjector));
+        }
         function usagePureCallback(meta, metaPath) {
           // identifiers (`<_Map/>` would call the polyfill as a React component) +
           // type-annotation positions. monkey-patched statics never reach here: detection
@@ -1452,6 +1803,9 @@ export default function createPlugin(options) {
           if (isDisabled(metaPath.node) || skippedNodes.has(metaPath.node)
             || metaPath.node?.type === 'JSXIdentifier'
             || isInTypeAnnotation(metaPath)) return;
+          // the shadow-alias guard's kept raw read (`h === Ctor ? _X : h.of`) is already
+          // ours - and so is a nav whose SE spells a minted pure call (a spent claim)
+          if (metaPath.node?.type === 'MemberExpression' && ownEmittedTextNavClaim(metaPath, injector)) return;
           scopeTracker.setScope(metaPath);
           const { node } = metaPath;
           const parent = semanticParentNode(metaPath);

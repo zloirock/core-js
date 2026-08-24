@@ -2,33 +2,13 @@ import { extractIndirectRequireSEPrefix } from '@core-js/polyfill-provider/helpe
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isDirectiveStatement } from '../plugin-helpers.js';
+import { bareImport, bareRequire, expressionStatement } from './builders.js';
 
 // the AST engine's application of the entry plan `planEntries` produced: the text twin is
 // `detectEntries`' rewriter batch. dispositions become body surgery - a removed entry
 // vanishes (its observable indirect-require prefix survives as standalone statements), a
 // promotion-hazard slot becomes the `0;` terminator - and the whole ASI machinery of the
 // text engine has no counterpart here: the printer derives separators from structure
-
-function literal(value) {
-  return { type: 'Literal', value, raw: JSON.stringify(value) };
-}
-
-function expressionStatement(expression) {
-  return { type: 'ExpressionStatement', expression };
-}
-
-function bareImport(path) {
-  return { type: 'ImportDeclaration', specifiers: [], source: literal(path), attributes: [] };
-}
-
-function bareRequire(path) {
-  return expressionStatement({
-    type: 'CallExpression',
-    callee: { type: 'Identifier', name: 'require' },
-    arguments: [literal(path)],
-    optional: false,
-  });
-}
 
 // the injected side-effect module block, canonically ordered; nodes carry no source span,
 // so the printer maps them nowhere - same contract as the text engine's inserted lines

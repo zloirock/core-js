@@ -14,7 +14,7 @@ const { equal } = require('node:assert/strict');
 const { fileURLToPath, pathToFileURL } = require('node:url');
 const { createRequire } = require('node:module');
 
-const { FIXTURE_SHARD, defaultShardCount, emitShardSummary, runShards, shardSlice } =
+const { FIXTURE_SHARD, collectFixtures, defaultShardCount, emitShardSummary, runShards, shardSlice } =
   await import('./fixture-shards.mjs');
 
 const { BABEL_REQUIRE_FROM, BABEL_SKIP, BABEL_VARIANT, OVERWRITE } = process.env;
@@ -28,7 +28,7 @@ const requireBabel = BABEL_REQUIRE_FROM
 const { transformAsync } = requireBabel('@babel/core');
 
 const { _: args } = argv;
-const { pathExists, readdir, readFile, readJson, rm, stat, writeFile } = fs;
+const { pathExists, readFile, readJson, rm, writeFile } = fs;
 const { join } = path;
 const { cyan, green, red, yellow } = chalk;
 
@@ -264,21 +264,6 @@ async function runFixture(directory) {
   }
 
   pass();
-}
-
-// the walk COLLECTS (sorted - readdir order is OS-dependent and the shard slices must be
-// identical across processes), the run loop below dispatches
-async function collectFixtures(directory, out = []) {
-  const names = (await readdir(directory)).sort();
-  if (names.includes('input.mjs')) {
-    out.push(directory);
-    return out;
-  }
-  for (const name of names) {
-    const subdirectory = join(directory, name);
-    if ((await stat(subdirectory)).isDirectory()) await collectFixtures(subdirectory, out);
-  }
-  return out;
 }
 
 // a shard child receives the subtree filter via env (the zx CLI keeps the script name in
