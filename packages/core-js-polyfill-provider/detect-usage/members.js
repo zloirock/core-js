@@ -409,7 +409,7 @@ export function seedChainRootCallRescue({ node, scope, adapter, path }) {
 // resolve the ROOT proxy-global NAME of a member chain - the collapse substitutes the ROOT (`_globalThis`),
 // not the leaf hop. descend to the root (call roots are kept so `resolveObjectName` can inline a chain-root
 // IIFE), then resolve its name through the canonical resolver. returns null when the root isn't a proxy global
-function proxyGlobalChainRootName({ node, scope, adapter, path }) {
+export function proxyGlobalChainRootName({ node, scope, adapter, path }) {
   const { root } = descendToChainRoot(node);
   if (!root) return null;
   return asProxyGlobalName(resolveObjectName({ objectNode: root, scope, adapter, path }));
@@ -785,7 +785,10 @@ export function handleMemberExpressionNode({
       // the `Symbol.iterator -> _Symbol$iterator` span. the RECEIVER side below is gated instead
       markSubsumedProxyChain({ node: symbolKey.ref.unwrapped, handledObjects, scope, adapter, path });
     }
-    if (suppressProxyGlobals && !isMemberWriteHost(path) && !isForXWriteTarget(path)) {
+    // the ROOT RESOLUTION below is substrate-neutral (it reads the chain, it does not touch the
+    // tree), so it runs for every emitter; only the SUBSUME - a text-compose race guard - rides
+    // `suppressProxyGlobals`
+    if (!isMemberWriteHost(path) && !isForXWriteTarget(path)) {
       // the write-position gate, matching the emitters' own symbol-dispatch bails: a member that
       // IS the write target (`= v` / `++` / `delete` / destructuring / for-x head) - or a body
       // read aliasing a for-x per-iteration write - survives with a key-only rewrite, so its
@@ -809,11 +812,11 @@ export function handleMemberExpressionNode({
       const isTaggedTag = isTaggedTemplateTagPosition(taggedAnchor.parentPath?.node, taggedAnchor.node);
       if (iteratorStrandLive && !isTaggedTag && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)) {
         // subsume the chain so the identifier visitor does not queue a parallel rewrite (unplugin crash)
-        markSubsumedProxyChain({ node: receiverChain, handledObjects, scope, adapter, path });
+        if (suppressProxyGlobals) markSubsumedProxyChain({ node: receiverChain, handledObjects, scope, adapter, path });
         symbolReceiverProxyRoot = resolveSymbolReceiverProxyRoot({
           node, receiverChain, receiverValueName: receiverName, scope, adapter, path, resolvePure,
         });
-      } else if (receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
+      } else if (suppressProxyGlobals && receiverName && POSSIBLE_GLOBAL_OBJECTS.has(receiverName)
         && (receiverChain.type === 'MemberExpression' || receiverChain.type === 'OptionalMemberExpression')) {
         // NON-collapsing strand (a non-iterator well-known key): the member-chain receiver stays
         // in the output, and its redundant hop collapses through the ROOT identifier's hop-collapse
@@ -871,11 +874,16 @@ export function handleMemberExpressionNode({
     // the transparent peel stops there by design, so peel the tail explicitly (the plan does the same)
     const recvCore = unwrapTransparentSeq(node.object),
           recvIdent = recvCore?.type === 'SequenceExpression'
-            ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore;
+            ? unwrapTransparentSeq(recvCore.expressions.at(-1)) : recvCore,
+          // a local whose name COINCIDES with the global it aliases (`const { Map } = globalThis`)
+          // only LOOKS like an echo: the object came from the registered alias, and the binding
+          // proves it by hinting that very ctor. guarding there loses the resolved static
+          echoesLocalName = meta?.object && meta.object === recvIdent?.name
+            && adapter.getBinding(scope, recvIdent.name, path)?.polyfillHint !== meta.object;
     // the receiver resolved to NOTHING (`meta` null / `object` null) or merely ECHOED the local
     // binding's own name (`object === recvIdent.name` - an unresolvable local): only those reads
     // are guard candidates; a receiver resolved to a real global keeps its normal dispatch
-    if ((!meta || !meta.object || meta.object === recvIdent?.name) && recvIdent?.type === 'Identifier') {
+    if ((!meta || !meta.object || echoesLocalName) && recvIdent?.type === 'Identifier') {
       // a write whose RHS is itself a resolvable global (`M = globalThis.Map`) is swapped by the
       // member channel and registers NO alias, so the registry cannot name its ctor. the binding's
       // own write enumeration can - and the guard tests identity, so a name that never matches at

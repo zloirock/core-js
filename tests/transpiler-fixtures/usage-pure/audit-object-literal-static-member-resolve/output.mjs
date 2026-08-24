@@ -3,7 +3,7 @@ import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // an object literal is a name-indexable static container: a nested destructure off one of its keys
 // resolves the LAST matching member's value, through the same canonical resolver a class body uses
 

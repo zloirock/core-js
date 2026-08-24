@@ -32,6 +32,23 @@ function zxCliPath() {
   return path.join(path.dirname(req.resolve('zx/package.json')), bin);
 }
 
+// the walk COLLECTS (sorted - readdir order is OS-dependent and the shard slices must be
+// identical across processes); a fixture directory is one holding `input.mjs`. shared by
+// the recursive-corpus runners (babel-plugin, ast-engine); the text runner keeps its own
+// two-level collect because its walk is method-scoped
+export async function collectFixtures(directory, out = []) {
+  const names = (await fs.readdir(directory)).sort();
+  if (names.includes('input.mjs')) {
+    out.push(directory);
+    return out;
+  }
+  for (const name of names) {
+    const subdirectory = path.join(directory, name);
+    if ((await fs.stat(subdirectory)).isDirectory()) await collectFixtures(subdirectory, out);
+  }
+  return out;
+}
+
 export function defaultShardCount(fixtureCount) {
   const wanted = Number(process.env.FIXTURE_SHARDS) || Math.max(1, Math.floor(os.cpus().length / 2));
   // no point forking more shards than a sensible minimum slice per process - the child pays
