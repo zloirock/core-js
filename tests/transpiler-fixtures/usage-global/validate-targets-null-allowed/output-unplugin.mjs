@@ -1,2 +1,3 @@
 import "core-js/modules/es.string.at";
-'str'.at(-1);
+
+('str').at(-1);
