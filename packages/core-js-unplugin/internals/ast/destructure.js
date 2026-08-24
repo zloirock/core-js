@@ -43,7 +43,7 @@ import {
 } from '../plugin-helpers.js';
 import { mintedProxyGlobalName,
   discardedSequenceElement, memberFromKeyName, proxyStoreIsSpellable, receiverCarriesOptional,
-  renderProxyReceiverPlan, replaceNodeInTree } from './emit-shared.js';
+  renderProxyReceiverPlan, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression, binaryExpression, callExpression, chainExpression, cloneNode, conditionalExpression,
   expressionStatement, identifier, literal, memberExpression, objectExpression, objectProperty, sequenceExpression,
@@ -1739,7 +1739,7 @@ function collectArrayDeclExtractions({ hostNode, jobs, sentinelNames, byDeclarat
     const probeLead = extracted.length === 0 ? renderDiscardedInitProbe([job], probeRenderCtx) : null,
           extractValue = probeLead ? sequenceExpression([probeLead, job.value()]) : job.value(),
           extractDecl = variableDeclaration(hostNode.kind, [variableDeclarator(job.bindingTarget, extractValue)]);
-    extracted.push(exportWrap(extractDecl, job.exported));
+    extracted.push(exportWrap(stampReplacementSpan(extractDecl, hostNode), job.exported));
     // a fully-consumed NESTED hop takes the sentinel at the HOP, not at its leaf: the rest
     // sibling lives on the hop's OWN pattern, and it is the hop key that has to keep
     // excluding (`{ Array: { from: f }, ...r }` -> `{ Array: _unused, ...r }`)

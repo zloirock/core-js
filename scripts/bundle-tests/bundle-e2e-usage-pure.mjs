@@ -11,7 +11,7 @@ await Promise.all([
   ['e2e-usage-pure-unplugin-pre', 'webpack.usage-pure-unplugin-pre.config.mjs'],
   ['e2e-usage-pure-unplugin-pre-post', 'webpack.usage-pure-unplugin-pre-post.config.mjs'],
   ['e2e-usage-pure-unplugin-post', 'webpack.usage-pure-unplugin-post.config.mjs'],
-  ['e2e-usage-pure-unplugin-ast-pre-post', 'webpack.usage-pure-unplugin-ast-pre-post.config.mjs'],
+  ['e2e-usage-pure-unplugin-text-pre-post', 'webpack.usage-pure-unplugin-text-pre-post.config.mjs'],
 ].map(([output, config]) => $`webpack \
   --entry ../../tests/e2e-usage-pure/index.js \
   --output-filename ${ output }.js \
@@ -25,7 +25,7 @@ await Promise.all([
 // nobody has an IE11 for
 const { parse } = await import('acorn');
 for (const bundle of ['e2e-usage-pure-babel', 'e2e-usage-pure-unplugin-pre',
-  'e2e-usage-pure-unplugin-pre-post', 'e2e-usage-pure-unplugin-post', 'e2e-usage-pure-unplugin-ast-pre-post']) {
+  'e2e-usage-pure-unplugin-pre-post', 'e2e-usage-pure-unplugin-post', 'e2e-usage-pure-unplugin-text-pre-post']) {
   const source = await fs.readFile(`../../tests/bundles/${ bundle }.js`, 'utf8');
   try {
     parse(source, { ecmaVersion: 5 });
