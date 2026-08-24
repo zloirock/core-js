@@ -25,9 +25,8 @@ const { [(e4(), 'findLast')]: fl = dfltE(), [(e5(), 'findLastIndex')]: fli } = r
 // keys batch before the guard - a documented boundary
 const { [(e6(), 'toSorted')]: ts = dfltF(), ...restF } = recvF;
 
-// memoized receiver + split: both segments and the guard read the shared ref; the extraction
-// PLACEMENT differs per emitter (the text emitter's preceding statements vs the AST emitter's
-// comma chain - a pre-existing cosmetic, side-effect order is identical)
+// memoized receiver + split: both segments and the guard read the shared ref, and the
+// extraction rides the declaration's own comma chain - side-effect order is identical
 const { [(e7(), 'with')]: w7 = dfltG(), [(e8(), 'toSpliced')]: t8 } = [9];
 
 export { a, f, i, toReversed, other, fl, fli, ts, restF, w7, t8 };

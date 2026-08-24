@@ -22,8 +22,8 @@ export { k1, k2, k3, k4, k5, n };
 
 // the write BURIED in a longer navigation is the hop collapse's, not the stored canon's: the stored
 // render spells the write and the proxy nav it stores, so claiming a value that continues PAST that
-// nav froze its hops raw (`v = (w = globalThis).window.self.X` kept `.window.self` on the text leg
-// where the AST leg - and every other consumer of the same source - collapses)
+// nav froze its hops raw (`v = (w = globalThis).window.self.X` used to keep `.window.self`
+// where every other consumer of the same source collapses)
 let bw, bv;
 bv = (bw = globalThis).window.self.Array?.prototype;
 export const buriedWriteInLongerNav = typeof bv;

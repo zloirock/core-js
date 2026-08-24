@@ -13,19 +13,9 @@ function inputOf(method) {
   return resolve(testDir, `input-${ method }.js`);
 }
 
-// the AST-engine axis: methods the staged engine already supports build and run under BOTH
-// engines. the options factory reads the matrix loop's current selection - threading a
-// fourth parameter through every builder would touch each tool for one field
-let currentEngine;
-// every method and phase runs on both engines - the default (undefined) is the AST engine,
-// and the explicit `text` cell keeps the escape hatch covered until phase 5 removes it
-function enginesFor() {
-  return [undefined, 'text'];
-}
 function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full' };
   if (phase) opts.phase = phase;
-  if (currentEngine) opts.engine = currentEngine;
   return opts;
 }
 
@@ -115,7 +105,7 @@ async function verifyDynamic(code, label, ext = '.mjs') {
   });
 }
 
-// bun-mode output mixes CJS/ESM and isn't loadable by node — verify inside bun instead.
+// bun-mode output mixes CJS/ESM and isn't loadable by node - verify inside bun instead.
 // usage-pure exports results; global methods patch globals.
 async function verifyInBun(code, label, method) {
   await withTmpDir(async dir => {
@@ -221,7 +211,7 @@ const siblingMangler = createUnplugin(() => ({
 }));
 
 const builders = {
-  // babel-plugin has no `phase` option — receives base opts regardless
+  // babel-plugin has no `phase` option - receives base opts regardless
   async babel(input, method) {
     const { transformAsync } = await import('@babel/core');
     const source = await readFile(input, 'utf8');
@@ -345,7 +335,7 @@ const builders = {
 
   async farm(input, method, phase, extra = {}) {
     const { build, Logger } = await import('@farmfe/core');
-    // Logger level: 'error' doesn't silence "Build completed" — override info methods directly
+    // Logger level: 'error' doesn't silence "Build completed" - override info methods directly
     function noop() { /* empty */ }
     const silent = Object.assign(new Logger({ level: 'error' }), {
       info: noop, warn: noop, debug: noop, trace: noop, infoOnce: noop, warnOnce: noop, logMessage: noop,
@@ -362,12 +352,12 @@ const builders = {
           sourcemap: false,
           lazyCompilation: false,
           persistentCache: false,
-          // force single-file output — otherwise farm splits into __farm_runtime.js + chunks
+          // force single-file output - otherwise farm splits into __farm_runtime.js + chunks
           partialBundling: { enforceResources: [{ name: 'index', test: ['.+'] }] },
         },
         server: { hmr: false },
       });
-      // farm emits .js but test dir has `"type": "module"` — force CJS via .cjs extension
+      // farm emits .js but test dir has `"type": "module"` - force CJS via .cjs extension
       return { code: await readFile(join(dir, 'index.js'), 'utf8'), ext: '.cjs' };
     });
   },
@@ -399,7 +389,7 @@ const builders = {
 const hasBun = await which('bun', { nothrow: true });
 let failures = 0;
 
-// structural check on the bundler's final sourcemap — confirms our per-module maps
+// structural check on the bundler's final sourcemap - confirms our per-module maps
 // chain through correctly (rollup/vite merge them into a single output map)
 function assertMapShape(label, map) {
   if (!map) throw new Error('expected a sourcemap but got none');
@@ -416,9 +406,8 @@ for (const [name, build] of Object.entries(builders)) {
   for (const method of methods) {
     // babel-plugin ignores `phase`; other builders exercise the full range
     const phases = name === 'babel' ? [undefined] : phasesFor(method);
-    async function runCell(phase, engine) {
-      currentEngine = engine;
-      const label = [name, method, phase, engine && `engine:${ engine }`].filter(Boolean).join('/');
+    async function runCell(phase) {
+      const label = [name, method, phase].filter(Boolean).join('/');
       try {
         const { code, ext, map, verifier } = await build(inputOf(method), method, phase);
         if (verifier === 'bun') await verifyInBun(code, label, method);
@@ -428,14 +417,9 @@ for (const [name, build] of Object.entries(builders)) {
       } catch (error) {
         echo(chalk.red(`${ label } failed: ${ error.message }`));
         failures++;
-      } finally {
-        currentEngine = undefined;
       }
     }
-    for (const phase of phases) {
-      // babel-plugin has no engine option; every other builder exercises the axis
-      for (const engine of name === 'babel' ? [undefined] : enginesFor()) await runCell(phase, engine);
-    }
+    for (const phase of phases) await runCell(phase);
   }
 }
 

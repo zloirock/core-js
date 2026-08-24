@@ -12,8 +12,8 @@ import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 var _ref, _ref2;
 // a computed KEY carrying an effect, on a receiver a trailing dispatch collapses: the collapse
 // discards the receiver span while the dispatch folds that same effect into its memo, so the
-// effect's text is kept by one channel and thrown away by the other. its own polyfills have to
-// survive with the text - subsuming them left a raw call in the memo with its import gone.
+// effect is kept by one channel and thrown away by the other. its own polyfills have to
+// survive the fold - subsuming them left a raw call in the memo with its import gone.
 // a DISTINCT effect call and a DISTINCT consumer per row keep every module attributable
 const log = [];
 const arr = [1, [2]];

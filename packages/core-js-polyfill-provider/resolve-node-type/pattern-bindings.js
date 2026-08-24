@@ -866,8 +866,9 @@ export function createPatternBindings({
     return node => restRebindFamily(node, name) === original;
   }
 
-  // an emitter that rewrites declarators IN PLACE and never re-crawls mid-traversal (babel; the text
-  // emitter cannot hit this) leaves a record whose declarator PROVABLY no longer binds the name: a
+  // an emitter that rewrites declarators IN PLACE and never re-crawls mid-traversal (babel;
+  // the unplugin drains at flush and cannot hit this) leaves a record whose declarator
+  // PROVABLY no longer binds the name: a
   // pattern-valued extraction moves the name onto a new declarator and prunes the host to a
   // sentinel. answering the structural question from that dead node reads as "unknown" and
   // over-injects - `Object.keys` on such a binding loses its provably-non-primitive decline.

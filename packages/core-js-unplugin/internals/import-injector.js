@@ -1,34 +1,25 @@
-import { entryToGlobalHint } from '@core-js/polyfill-provider';
-import { staticMemberFromEntrySegment } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { safeErrorMessage } from '@core-js/polyfill-provider/helpers/pattern-matching';
-import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState, {
   CANONICAL_REF_PREFIXES,
   ORPHAN_REF_PATTERN,
-  refDeclarationOrder,
   renameNamesSet,
   UNUSED_NAME_PATTERN,
+  assignCanonicalRefSlots,
 } from '@core-js/polyfill-provider/injector-base';
+import { entryToGlobalHint } from '@core-js/polyfill-provider';
+import {
+  blocksUidSlot,
+  isInitlessVarDecl,
+  isNonReferencePosition,
+  isTopLevelImportLike,
+  memberKeyNamesReducer,
+  staticMemberFromEntrySegment,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { polyfillOrderComparator, sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { isLineTerminator, skipInlineGap } from './text-scan.js';
-
-function blockify(lines) {
-  return `${ lines.join('\n') }\n`;
-}
+import { walkAstNodes, isDirectiveStatement } from './plugin-helpers.js';
+import { bareImport, bareRequire, defaultImport, identifier, varRequire, variableDeclaration, variableDeclarator } from './builders.js';
 
 export default class ImportInjector extends ImportInjectorState {
-  // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
-  // inherit. refs (`var _refN;`) ARE emitted in pre regardless, so pre's output is valid in
-  // strict mode (ESM) even when post is skipped - otherwise `_ref = foo()` is an undeclared
-  // assignment that throws ReferenceError at runtime
-  #deferImports = false;
-  #directiveEnd = 0;
-  // end position of the trailing user import / require statement (null if none). when
-  // present, `var _ref;` lands AFTER user imports so the injected line doesn't sit
-  // between injected and user imports (lint `import/first`). null falls back to the
-  // directive prologue end - same anchor as injected imports
-  #userImportEnd = null;
-  #ms;
   // iteration order is insertion-preserving, so emitted `var _ref, _ref2, ...;` stays stable
   #refs = new Set();
   // every generated slot-family name (prefix -> Set): `_refN` declared + local AND
@@ -36,7 +27,7 @@ export default class ImportInjector extends ImportInjectorState {
   // from; adopted orphans stay out (their spellings live in the previous pass's text, out
   // of rename reach)
   #generatedByPrefix = new Map(CANONICAL_REF_PREFIXES.map(prefix => [prefix, new Set()]));
-  // refs already written to `ms` by a prior flush (or inherited from pre via snapshot).
+  // refs already emitted by a prior flush (or inherited from pre via snapshot).
   // lets post emit only the delta so pre + post doesn't produce duplicate `var X;` lines
   #flushedRefs = new Set();
   #rootScope = null;
@@ -50,29 +41,18 @@ export default class ImportInjector extends ImportInjectorState {
 
   constructor({
     absoluteImports,
-    deferImports = false,
-    directiveEnd = 0,
-    getDebugOutput = null,
     importStyle,
     inherit = null,
     mode,
-    ms,
     packages = null,
     pkg,
-    userImportEnd = null,
   }) {
     super({ absoluteImports, mode, pkg, importStyle, packages });
-    this.#getDebugOutput = getDebugOutput;
-    this.#deferImports = deferImports;
-    this.#directiveEnd = directiveEnd;
-    this.#userImportEnd = userImportEnd;
-    this.#ms = ms;
     if (inherit) this.#rehydrate(inherit);
   }
 
   // late-bound: outer plugin constructs debugOutput AFTER the injector. lazy lookup avoids
   // TDZ; null-safe so `phase: 'post'` direct invocations without debug still work
-  #getDebugOutput;
 
   #rehydrate(snap) {
     // defensive `?? EMPTY` for every field: SnapshotCache persists across long-running dev
@@ -101,9 +81,8 @@ export default class ImportInjector extends ImportInjectorState {
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
   // (dev-server HMR, --force, double pre). `suffixState` carries the per-prefix counter
   // so post's `uniqueName` resumes at the next free slot instead of re-probing pre's N names.
-  // deliberately SKIPS per-callback state (ScopeTracker `scopedVars` / `bodyWraps`,
-  // destructure-emitter `pendingDestructuring` / `pendingSynthSwaps`) - those track
-  // in-flight rewrites that applied in pre and whose resulting text is already in the
+  // deliberately SKIPS per-callback state (the destructure ledger, pending synth swaps) -
+  // those track in-flight rewrites that applied in pre and whose result is already in the
   // source post re-parses. re-instating them in post would double-apply
   snapshot() {
     return {
@@ -122,10 +101,6 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   set rootScope(scope) { this.#rootScope = scope; }
-
-  // the anchor moves when the usage sweep rewrites the import region (a user core-js import
-  // removed, an indirect require reduced to its prefix): the caller re-reads it off the body
-  set userImportEnd(pos) { this.#userImportEnd = pos; }
 
   isNameTaken(name) {
     return this.usedNames.has(name) || (this.#rootScope?.hasBinding(name) ?? false);
@@ -161,7 +136,7 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // the registries keyed by a GENERATED name - the one list both the drop and the rename walk, so
-  // no registry keeps a spelling the text no longer has: the declared refs, the flushed refs,
+  // no registry keeps a spelling the tree no longer has: the declared refs, the flushed refs,
   // the rest sentinels, the taken-name set, and the per-family generated sets
   #generatedNameSets() {
     return [
@@ -185,16 +160,16 @@ export default class ImportInjector extends ImportInjectorState {
     }
   }
 
-  // a composed-out ref (its only surviving occurrence was stripped by the ref-canon dead-memo
-  // pass) leaves every registry - flush() must not print a dead `var _refX;`, and the slot is
-  // free again for the canonical renumber
+  // a ref whose only surviving occurrence was stripped (the dead-memo retire) leaves every
+  // registry - the flush must not print a dead `var _refX;`, and the slot is free again for
+  // the canonical renumber
   dropRefs(names) {
     for (const [, set] of this.#generatedNameSets()) for (const name of names) set.delete(name);
     this.dropMintedAliases(names);
   }
 
-  // final print-order canonicalization (see ref-canon.js). flush() then declares the renamed
-  // refs under their canonical names in slot order. every registry is rebuilt through
+  // final print-order canonicalization (`assignCanonicalRefSlots`). the flush then declares
+  // the renamed refs under their canonical names in slot order. every registry is rebuilt through
   // `renameNamesSet` - a sequential delete / add over a swap-shaped map (`_ref -> _ref2`,
   // `_ref2 -> _ref`) funnels a set into its last target
   canonicalizeRefs(renameMap) {
@@ -278,252 +253,278 @@ export default class ImportInjector extends ImportInjectorState {
   isAdoptedUnusedName(name) {
     return this.#adoptedUnusedNames.has(name);
   }
+}
 
-  #resolvePath(subpath) {
-    return resolveImportPath(this.pkg, subpath, this.absoluteImports);
+// the flush over the injector state above (the provider base is a pure data sink; this
+// half renders it as nodes). globals and pure imports each canonically sorted through the
+// one polyfill-order comparator, the same order babel prints
+
+function importAnchorIndex(body) {
+  let index = 0;
+  while (index < body.length && isDirectiveStatement(body[index])) index++;
+  return index;
+}
+
+// the trailing edge of the leading import block AFTER the injected imports land - the
+// `var _ref;` block anchors there
+// the `var _ref;` anchor: the index PAST the leading import region, asked through the shared
+// region canon (`isTopLevelImportLike` + the directive / initless-var step-overs) so both legs
+// draw the same boundary - a re-export or an interspersed `var x;` must not truncate it
+function refAnchorIndex(body, from) {
+  let index = from;
+  let end = from;
+  while (index < body.length) {
+    const statement = body[index];
+    if (isTopLevelImportLike(statement)) end = ++index;
+    else if (isDirectiveStatement(statement) || isInitlessVarDecl(statement)) index++;
+    else break;
   }
+  return end;
+}
 
-  // imports vs refs have different flush rules: imports are deferred in `pre` (post emits
-  // the combined set via snapshot inherit); refs go out always, because `_ref = foo()`
-  // without a `var _ref;` throws ReferenceError in strict-mode ESM if post skips.
-  // `#flushedRefs` dedupes so post doesn't re-emit the same `var` pre already wrote.
-  // imports emit at the directive prologue end (top-of-file); refs emit after the trailing
-  // user import (when present) so the `import 'core-js/...' / import {x} from 'user' / var _ref;`
-  // layout matches babel-plugin's `reorderRefsAfterImports` and lint `import/first` stays clean
-  flush() {
-    const imports = this.#deferImports ? [] : this.#collectImportLines();
-    const refs = this.#collectRefLines();
-    if (!imports.length && !refs.length) return;
-    const importPos = this.#prologueEnd();
-    const src = this.#ms.original;
-    // a trailing same-line comment on the last user import (`import x from 'y' // c`) sits past
-    // `#userImportEnd` (oxc's stmt.end stops at the source token, before the comment), so anchoring
-    // `var _ref;` there would split the comment off its import onto a line below the ref block.
-    // skip the trailing comment chain so the ref block lands after it - the comment stays attached
-    const refPos = typeof this.#userImportEnd === 'number' ? skipInlineGap(src, this.#userImportEnd) : importPos;
-    const lead = needsLeadingNewlineAt(src, importPos) ? '\n' : '';
-    // when imports and refs share the same anchor, combine into one block so MagicString
-    // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
-    // position can re-order vs prepend semantics
-    if (importPos === refPos) return this.#emit(lead + blockify([...imports, ...refs]), importPos);
-    // refPos lands right after the trailing user import. when that import omits its `;`
-    // (ASI), refPos sits on whatever token followed - we must prefix our `var _ref;` block
-    // with `\n` to terminate the prior statement. otherwise `import x from "y"var _ref;`
-    // bombs the next parse pass with SyntaxError. additionally, when the next char at refPos
-    // is itself a line terminator (e.g. ASI-ended import + trailing newline), `blockify`'s
-    // trailing `\n` would double-stack against the existing terminator and produce a cosmetic
-    // blank line between our injection and the next user line - trim it in that case
-    let refsBlock = '';
-    if (refs.length) {
-      // ref-block landing right after the trailing user import: without the separator an
-      // ASI-terminated (or even `;`-terminated) import fuses into `import x from "y"var _ref;`.
-      // blank-line trade-off accepted when the next char is already a terminator
-      const needsLead = needsLeadingNewlineAt(src, refPos);
-      const nextIsTerminator = refPos < src.length && isLineTerminator(src[refPos]);
-      const block = nextIsTerminator ? refs.join('\n') : blockify(refs);
-      refsBlock = needsLead ? `\n${ block }` : block;
+// the single-pass orphan filter: a pure import whose minted
+// name no longer appears in the tree was superseded by a later routing - EXCEPT a pure
+// STATIC whose module attaches the method to the pure constructor on load: when any
+// emission reads that static through the injected constructor (`_Map.groupBy`), the
+// binding-unused import stays load-bearing
+// the census also serves the generated-ref canon below: `refNodes` / `printRank` see only
+// REFERENCE positions (a member key or object key spelling a slot-shaped name is source
+// text, same rule the babel census applies), while `usedNames` deliberately stays
+// position-blind - any spelling keeps the import alive
+function collectLiveness(program, mintedRefNames, { retire = null } = {}) {
+  // the census answers about the tree the flush RENUMBERS, so a retire pass that reshapes it
+  // runs first - a name it drops must never reach the slot rank
+  retire?.(program, mintedRefNames);
+  const usedNames = new Set();
+  const memberReads = new Set();
+  const referenceNames = new Set();
+  const refNodes = new Set();
+  const refCounts = new Map();
+  const printRank = [];
+  const declFirstNames = new Set();
+  // an id-rooted member KEY reserves its name too - the census both legs share
+  const memberKeys = memberKeyNamesReducer();
+  walkAstNodes({ root: program, visit(node, parent) {
+    // a `:` slot is where babel's uid scan stops: a name written past one claims nothing
+    // (`declare const v: { _ref2(): void }` leaves `_ref2` free), while a type-alias RHS or
+    // an interface body carries no such wrapper and is walked at any depth (`false` prunes)
+    if (node.type === 'TSTypeAnnotation') return false;
+    if (node.type === 'Identifier') {
+      usedNames.add(node.name);
+      // what may be REWRITTEN and what BLOCKS a slot are two questions: a source-text name is
+      // never rewritten, yet an overload signature's key still reserves its name
+      if (!isNonReferencePosition(parent, node)) {
+        if (mintedRefNames.has(node.name)) {
+          refNodes.add(node);
+          const count = refCounts.get(node.name) ?? 0;
+          // a generated memo DECLARATION hoists above the statement it serves, so its binding id is
+          // not where the name was needed: babel numbers it at the point of the second READ. the
+          // name still ranks - just at that read, and at its declaration when nothing reads it
+          if (!count && parent?.type === 'VariableDeclarator' && parent.id === node && parent.init) {
+            declFirstNames.add(node.name);
+          } else if (!printRank.includes(node.name)) printRank.push(node.name);
+          refCounts.set(node.name, count + 1);
+        } else referenceNames.add(node.name);
+      } else if (blocksUidSlot(parent, node)) referenceNames.add(node.name);
     }
-    // try to land refs right after the trailing user import (refPos). when a sibling plugin's
-    // overwrite straddles that range there's no chunk boundary for appendRight, so it fails - refs
-    // must then FOLD BACK into the import block at the prologue end (importPos), NOT prepend at
-    // position 0. a `var _ref;` prepended above the directive prologue demotes the Use Strict
-    // directive (silently switching the module to sloppy mode) and lands before the import header;
-    // folding keeps the directive intact and emits a single ordered `[imports, refs]` block, exactly
-    // like the same-anchor path above (multiple appendRight at one position re-order vs prepend)
-    const refsLandedAtRefPos = refsBlock ? this.#tryAppendRight(refsBlock, refPos) : true;
-    const importLines = refsLandedAtRefPos ? imports : [...imports, ...refs];
-    if (importLines.length) this.#emit(lead + blockify(importLines), importPos);
+    if (node.type === 'MemberExpression' && node.object?.type === 'Identifier') {
+      const key = node.computed
+        ? (node.property?.type === 'Literal' ? node.property.value : null)
+        : node.property?.name;
+      if (key) memberReads.add(`${ node.object.name }.${ key }`);
+    }
+    memberKeys.visit(node);
+  } });
+  for (const name of declFirstNames) if (!printRank.includes(name)) printRank.push(name);
+  for (const name of memberKeys.result().memberKeyNames) {
+    if (!mintedRefNames.has(name)) referenceNames.add(name);
   }
+  return { usedNames, memberReads, referenceNames, refNodes, refCounts, printRank };
+}
 
-  // attempt appendRight at insertPos; return true on success. a sibling plugin may overwrite a
-  // range containing insertPos, leaving no chunk boundary to attach to (appendRight throws) - return
-  // false so the caller re-routes the content to a safe anchor instead of blindly prepending at
-  // position 0. logs the fallback so users can correlate with sibling-plugin range conflicts
-  #tryAppendRight(block, insertPos) {
-    if (insertPos > 0) {
-      try {
-        this.#ms.appendRight(insertPos, block);
-        return true;
-      } catch (error) {
-        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); folding refs into the import anchor`);
-      }
-    }
-    return false;
+// dead nested guard-memo strip, the twin of babel's `guardCensus` + prune: a guard memo nested DIRECTLY inside
+// an outer guard's test slot whose ref nothing reads (`null == (_refY = null == (_refX = root)
+// ? void 0 : ...)`) is write-only - the outer test already owns the one evaluation. the deadness
+// only exists AFTER composition, so the strip runs here, ahead of the slot census. a TOP-LEVEL
+// guard keeps its memo (the locked kept-swap canon)
+function retireNestedGuardMemos(program, mintedRefNames) {
+  // nothing minted - nothing to retire, and the full-tree walk below is pure cost
+  if (!mintedRefNames.size) return;
+  const counts = new Map();
+  const sites = [];
+  function nullSide(binary, other) {
+    if (binary?.type !== 'BinaryExpression' || binary.operator !== '==') return false;
+    const opposite = binary.left === other ? binary.right : binary.right === other ? binary.left : null;
+    return opposite?.type === 'Literal' && opposite.value === null;
   }
-
-  // single-emission appendRight + prepend fallback. used for the same-anchor combined-block
-  // path where ordering is intrinsic to the block content (one call, one position)
-  #emit(block, insertPos) {
-    if (insertPos > 0) {
-      try {
-        this.#ms.appendRight(insertPos, block);
-        return;
-      } catch (error) {
-        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ safeErrorMessage(error) }); prepending instead`);
-      }
+  (function visit(node, ancestors) {
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, ancestors);
+      return;
     }
-    // a leading `#!` hashbang or `'use strict'` directive must stay FIRST: a block prepended above a
-    // hashbang is a SyntaxError (hashbangs are only legal at offset 0), and one above a directive
-    // silently demotes the module to sloppy mode. anchor the fallback at the END of the last protected
-    // statement (the directive `;`, or the shebang's last char) - that boundary sits before the
-    // conflicting overwrite that defeated appendRight - with a leading newline so the block opens its
-    // own line below the prologue (the shebang has no `;` to separate it). prepend at 0 only when even
-    // that boundary is swallowed by the overwrite
-    // try the prologue boundaries outermost-in (directive end, then shebang end): the first that still
-    // has a chunk boundary ahead of the overwrite lands the block after the longest intact prologue.
-    // when even the shebang boundary is swallowed (a sibling overwrote the whole body) prepend at 0 -
-    // the file is largely that sibling's output by then
-    for (const anchor of this.#prologueFallbackAnchors()) {
-      try {
-        this.#ms.appendLeft(anchor, `\n${ block }`);
-        return;
-      } catch (error) {
-        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendLeft at prologue end ${ anchor } failed (${ safeErrorMessage(error) }); trying next anchor`);
-      }
+    if (!node || typeof node !== 'object' || !node.type) return;
+    if (node.type === 'Identifier' && mintedRefNames.has(node.name) && !isNonReferencePosition(ancestors.at(-1), node)) {
+      counts.set(node.name, (counts.get(node.name) ?? 0) + 1);
     }
-    this.#ms.prepend(block);
-  }
-
-  // protected-prologue boundary offsets, innermost first: the directive `;` end (already past any
-  // shebang), then the shebang-end anchor (see `shebangFallbackAnchor`). each is a chunk boundary
-  // the fallback can attach AFTER so the block never lands above the hashbang (a SyntaxError) or
-  // the directive (sloppy-mode demotion)
-  #prologueFallbackAnchors() {
-    const src = this.#ms.original;
-    const anchors = [];
-    if (this.#directiveEnd > 0) anchors.push(this.#directiveEnd);
-    const shebangAnchor = shebangFallbackAnchor(src);
-    if (shebangAnchor > 0) anchors.push(shebangAnchor);
-    return anchors;
-  }
-
-  // `import "..."` / `var X = require("...")` - dispatched by `importStyle`. side-effect-only
-  // globals first, then pure-import bindings. `referencedInSource` filters dead imports
-  // when the caller tracks usage
-  #collectImportLines() {
-    const lines = [];
-    const newGlobals = sortByPolyfillOrder(this.globalImports);
-    // drop sources already imported in the current text (keyed by source path). needed when
-    // `pureImports` carries a
-    // source that's ALSO present as an existing import - the pre+post inherit path: pre emits its
-    // pure imports inline AND seeds `pureImports` via the snapshot, then post re-scans the inline
-    // line into `existingPureImports`; without this filter post would re-emit a second identical
-    // line. `addPureImport`'s own early-return covers the single-pass case but never sees the
-    // inherited `pureImports` entries
-    // single-pass (no tracker mounted): the transformed BODY text is already in the MagicString
-    // at flush time, so an import whose minted name never appears there is an ORPHAN (a claim
-    // requested it, a later routing superseded the read). EXCEPT a pure STATIC whose module
-    // ATTACHES the method to the pure constructor on load: when any emission reads that static
-    // through the injected constructor (`_Map.groupBy` - mutated routing, awaited statics), the
-    // binding-unused import stays LOAD-BEARING (the differential runtime caught the drop). the
-    // pre/post flows keep the event-driven tracker. `$` is the only regex-special char minted
-    const bodyText = this.referencedInSource ? null : this.#ms.toString();
-    const ctorNameByNamespace = new Map();
-    if (bodyText !== null) {
-      for (const [source, name] of this.pureImports) {
-        const segments = source.split('/');
-        if (segments.at(-1) === 'constructor') ctorNameByNamespace.set(segments.at(-2), name);
-      }
+    if (node.type === 'AssignmentExpression' && node.operator === '=' && node.left?.type === 'Identifier'
+      && mintedRefNames.has(node.left.name)) {
+      const test = ancestors.at(-1);
+      const cond = ancestors.at(-2);
+      const outer = ancestors.at(-3);
+      const grand = ancestors.at(-4);
+      if (nullSide(test, node) && cond?.type === 'ConditionalExpression' && cond.test === test
+        && cond.consequent?.type === 'UnaryExpression' && cond.consequent.operator === 'void'
+        && outer?.type === 'AssignmentExpression' && outer.right === cond
+        && outer.left?.type === 'Identifier' && mintedRefNames.has(outer.left.name)
+        && nullSide(grand, outer)) sites.push({ node, test });
     }
-    function esc(name) {
-      return name.replaceAll('$', '\\$');
-    }
-    function liveInBody(source, name) {
-      if (new RegExp(`\\b${ esc(name) }\\b`).test(bodyText)) return true;
-      const segments = source.split('/');
-      const ctor = segments.length >= 2 ? ctorNameByNamespace.get(segments.at(-2)) : null;
-      if (!ctor) return false;
-      const key = staticMemberFromEntrySegment(entryToGlobalHint(segments.at(-2)), segments.at(-1));
-      return new RegExp(`\\b${ esc(ctor) }\\s*[.\\[]\\s*["']?${ key }\\b`).test(bodyText);
-    }
-    const activePure = [...this.pureImports].filter(([source, name]) => !this.existingPureImports.has(source)
-      && (this.referencedInSource ? this.referencedInSource.has(name)
-        : !bodyText || liveInBody(source, name)));
-    // canonical-sort pure imports by source path through the SHARED comparator (pure sources are
-    // not compat-data keys, so they fall to its lexicographic unknown-key tail) - the same single
-    // ordering rule babel runs the whole flushed-import union through; insertion order alone produces
-    // batch-dependent layout that diverges across plugins / files with different registration timing
-    activePure.sort(([a], [b]) => polyfillOrderComparator(a, b));
-    const isRequire = this.importStyle === 'require';
-    for (const mod of newGlobals) {
-      const path = this.#resolvePath(`modules/${ mod }`);
-      lines.push(isRequire ? `require("${ path }");` : `import "${ path }";`);
-    }
-    for (const [entry, name] of activePure) {
-      const path = this.#resolvePath(entry);
-      lines.push(isRequire ? `var ${ name } = require("${ path }");` : `import ${ name } from "${ path }";`);
-    }
-    return lines;
-  }
-
-  // `var _ref, _ref2, ...;` for refs this flush hasn't written yet. pre's emission makes
-  // the output strict-mode safe; post's emission adds any new refs post allocated.
-  // no usage-tracking filter (unlike babel-plugin's `pruneUnusedRefs`): call sites follow
-  // synchronous allocate-and-use discipline - every `scopeTracker.genRef()` /
-  // `generateDeclaredRef()` result is immediately embedded in a replacement string that goes
-  // to `transforms.add(...)`. `preAllocatedGuardRef` is allocated only under conditions that
-  // guarantee consumption
-  #collectRefLines() {
-    const newRefs = [...this.#refs.difference(this.#flushedRefs)];
-    if (!newRefs.length) return [];
-    // canonical declaration order - the one both emitters print (the AST emitter sorts its
-    // merged declaration through the same comparator): insertion order equals it until the
-    // print-order canonicalization renames refs
-    newRefs.sort(refDeclarationOrder);
-    for (const r of newRefs) this.#flushedRefs.add(r);
-    return [`var ${ newRefs.join(', ') };`];
-  }
-
-  // BOM already stripped by caller before MagicString is created
-  #prologueEnd() {
-    const src = this.#ms.original;
-    let p = skipShebang(src, 0);
-    if (this.#directiveEnd > p) p = skipLineEnd(src, this.#directiveEnd);
-    return p;
+    ancestors.push(node);
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) visit(node[key], ancestors);
+    ancestors.pop();
+  })(program, []);
+  for (const { node, test } of sites) {
+    if (counts.get(node.left.name) !== 1) continue;
+    if (test.left === node) test.left = node.right;
+    else test.right = node.right;
   }
 }
 
-// the shebang-end fallback anchor: the last position still INSIDE the shebang line where a
-// block can attach after the intact prologue - just before the consumed terminator (backed
-// up over CRLF / LF / CR / LS / PS). when the shebang runs to EOF with NO terminator there
-// is nothing to back over: the anchor IS the end, and backing up one char would splice the
-// block mid-shebang (`#!/usr/bin/env nod<block>e`). 0 = no shebang (no anchor)
-export function shebangFallbackAnchor(src) {
-  const afterShebang = skipShebang(src, 0);
-  if (afterShebang === 0) return 0;
-  if (src.startsWith('\r\n', afterShebang - 2)) return afterShebang - 2;
-  return isLineTerminator(src[afterShebang - 1]) ? afterShebang - 1 : afterShebang;
+// every node reachable from the program - the flush asks it whether a recorded ref host
+// still lives in the tree
+function collectNodes(root) {
+  const seen = new Set();
+  (function walk(node) {
+    if (!node || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
+      if (Array.isArray(value)) for (const item of value) walk(item);
+      else walk(value);
+    }
+  })(root);
+  return seen;
 }
 
-// ES spec HashbangComment terminates on any LineTerminator (LF / CR / LS / PS). CR-only
-// separators are legal (classic Mac / hand-constructed), as are LS (U+2028) / PS (U+2029)
-// which a bundler may have left intact. shebangs end at the first LineTerminator
-function skipShebang(src, pos) {
-  if (src[pos] !== '#' || src[pos + 1] !== '!') return pos;
-  for (let i = pos + 2; i < src.length; i++) {
-    if (src[i] === '\r' && src[i + 1] === '\n') return i + 2;
-    if (isLineTerminator(src[i])) return i + 1;
+// the minted family a generated name belongs to: the two renumber in slot spaces of their own
+// and declare in that same order where they share a `var`
+function refFamilyOf(name) {
+  return name.startsWith('_unused') ? '_unused' : '_ref';
+}
+
+export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [] }) {
+  const isRequire = injector.importStyle === 'require';
+  function resolve(subpath) {
+    return resolveImportPath(injector.pkg, subpath, injector.absoluteImports);
   }
-  return src.length;
-}
-
-// insertion needs an explicit `\n` prefix when `pos` is NOT at the start of a line - blockify-
-// emit appends at `pos`, so without a separator the block concatenates onto the prior token.
-// two cases: (1) shebang-only / EOF anchor (`#!/usr/bin/env nodeimport "core-js/...";` syntax
-// error), and (2) a directive line carrying trailing code / comments past which `skipLineEnd`
-// found no terminator, so `pos` sits mid-line and the import would otherwise jam onto the
-// directive line. detection: pos is past file start and the previous char is not a line terminator
-function needsLeadingNewlineAt(src, pos) {
-  return pos > 0 && !isLineTerminator(src[pos - 1]);
-}
-
-// land insertion on the next line: skip trailing whitespace and any chain of inline
-// comments, then advance past the line terminator. without multi-comment handling,
-// `"use strict"; /*a*/ //b\nfoo()` would land between `/*a*/` and `//b`, shredding `//b`
-// (or injecting import INTO the line comment so it gets commented out at runtime)
-function skipLineEnd(src, pos) {
-  const p = skipInlineGap(src, pos);
-  if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
-  if (isLineTerminator(src[p])) return p + 1;
-  return p;
+  const nodes = [];
+  for (const moduleName of sortByPolyfillOrder(injector.globalImports)) {
+    const path = resolve(`modules/${ moduleName }`);
+    nodes.push(isRequire ? bareRequire(path) : bareImport(path));
+  }
+  // `renameOnly` names carry no declaration of their own (a pattern sentinel), but they belong
+  // to the same minted family and must renumber with it - a dropped one would strand its slot
+  const mintedRefNames = new Set([...refNames.map(entry => entry.name), ...renameOnly, ...refOrder]);
+  const { usedNames, memberReads, referenceNames, refNodes, refCounts, printRank } =
+    collectLiveness(program, mintedRefNames, { retire: retireNestedGuardMemos });
+  // generated-ref canon, the shared slot rule both emitters print through: a minted ref the
+  // emission ended up not using is dropped, the survivors renumber into compact print-order
+  // slots. minted names never collide with source spellings (the injector's uniqueName
+  // guarantee), so renaming by NAME touches exactly the plugin-emitted identifiers
+  // per-FAMILY renumber: `_unused` sentinels share the census but never take `_ref` slots
+  const renameMap = new Map();
+  for (const prefix of ['_ref', '_unused']) {
+    const familyRank = printRank.filter(name => refFamilyOf(name) === prefix);
+    // a RESERVED name blocks its slot with no spelling of its own to find: a mutated global
+    // slot written through a string key (`Object.defineProperty(self, '_ref3', ...)`) reaches
+    // the census only through the injector's own reservation
+    for (const [from, to] of assignCanonicalRefSlots(prefix, familyRank,
+      name => referenceNames.has(name) || injector.reservedNames.has(name))) {
+      renameMap.set(from, to);
+    }
+  }
+  for (const node of refNodes) {
+    const to = renameMap.get(node.name);
+    if (to) node.name = to;
+  }
+  const liveRefs = refNames
+    .map((entry, registrationIndex) => ({ ...entry, registrationIndex }))
+    .filter(entry => refCounts.has(entry.name))
+    .sort((a, b) => printRank.indexOf(a.name) - printRank.indexOf(b.name))
+    .map(entry => ({ ...entry, name: renameMap.get(entry.name) ?? entry.name }));
+  const ctorNameByNamespace = new Map();
+  for (const [source, name] of injector.pureImports) {
+    const segments = source.split('/');
+    if (segments.at(-1) === 'constructor') ctorNameByNamespace.set(segments.at(-2), name);
+  }
+  function liveInProgram(source, name) {
+    if (usedNames.has(name)) return true;
+    const segments = source.split('/');
+    const ctor = segments.length >= 2 ? ctorNameByNamespace.get(segments.at(-2)) : null;
+    if (!ctor) return false;
+    const key = staticMemberFromEntrySegment(entryToGlobalHint(segments.at(-2)), segments.at(-1));
+    return memberReads.has(`${ ctor }.${ key }`);
+  }
+  const activePure = [...injector.pureImports]
+    .filter(([source, name]) => !injector.existingPureImports.has(source) && liveInProgram(source, name))
+    .sort(([a], [b]) => polyfillOrderComparator(a, b));
+  for (const [source, name] of activePure) {
+    const path = resolve(source);
+    nodes.push(isRequire ? varRequire(name, path) : defaultImport(name, path));
+  }
+  const anchor = importAnchorIndex(program.body);
+  program.body.splice(anchor, 0, ...nodes);
+  // refs group per host body: program-level ones behind the import block, function-level
+  // ones at their body's head (the babel `scope.push` anchor)
+  const byHost = new Map();
+  // a recorded host can be REPLACED before the flush (a drain that rebuilds a statement
+  // clones the subtree it moves): the declaration would then land in a detached node and
+  // the surviving reads have none. the program level always holds one, so a lost host
+  // degrades there instead of dropping - a re-homed clone is the fix, this is the net
+  const liveHosts = liveRefs.some(entry => entry.hostFunction || entry.hostBlock)
+    ? collectNodes(program) : null;
+  for (const { name, registrationIndex, hostFunction, hostBlock, hostBodyless } of liveRefs) {
+    let host = program;
+    if ((hostFunction && !liveHosts?.has(hostFunction)) || (hostBlock && !liveHosts?.has(hostBlock))) {
+      if (!byHost.has(program)) byHost.set(program, []);
+      byHost.get(program).push({ name, registrationIndex });
+      continue;
+    }
+    if (hostBodyless) {
+      // wrap the bodyless statement slot in a block on the final tree - babel's scope.push
+      // creates the same block when a ref lands in a block-less loop / if body
+      const { parent, slot } = hostBodyless;
+      if (parent[slot]?.type !== 'BlockStatement') {
+        parent[slot] = { type: 'BlockStatement', body: [parent[slot]] };
+      }
+      host = parent[slot];
+    } else if (hostBlock) host = hostBlock;
+    else if (hostFunction) {
+      // babel's scope.push converts an expression-bodied arrow to a block - here on the
+      // final tree, so the wrap can no longer be clobbered by a chain-root replacement
+      if (hostFunction.body.type !== 'BlockStatement') {
+        hostFunction.body = { type: 'BlockStatement', body: [{ type: 'ReturnStatement', argument: hostFunction.body }] };
+      }
+      host = hostFunction.body;
+    }
+    if (!byHost.has(host)) byHost.set(host, []);
+    byHost.get(host).push({ name, registrationIndex });
+  }
+  for (const [host, entries] of byHost) {
+    // a program-level block declares in print order; a function-level one in REGISTRATION
+    // order - babel's scope.push appends there, and a deferred check ref (minted before the
+    // receiver memo, declared after it) lands behind it (`var _ref2, _ref;`)
+    // ... and the PROGRAM-level declaration groups by FAMILY whatever the print order says: the
+    // two register through channels of their own - the injector opens the `var` for the refs
+    // and the drain's sentinels append to it (`var _ref, _unused;`)
+    const names = (host === program
+      ? [...entries.filter(entry => refFamilyOf(entry.name) === '_ref'),
+        ...entries.filter(entry => refFamilyOf(entry.name) !== '_ref')]
+      : entries.toSorted((a, b) => a.registrationIndex - b.registrationIndex)).map(entry => entry.name);
+    const declaration = variableDeclaration('var', names.map(name => variableDeclarator(identifier(name))));
+    if (host === program) program.body.splice(refAnchorIndex(program.body, anchor + nodes.length), 0, declaration);
+    // a function-host block anchors PAST its directive prologue (babel's scope.push slot)
+    else host.body.splice(importAnchorIndex(host.body), 0, declaration);
+  }
 }

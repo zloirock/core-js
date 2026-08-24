@@ -1,6 +1,6 @@
 # transpiler-perf
 
-Complexity-class gates for both emitters (unplugin in both engines: the `unplugin` rows run the plugin default - the AST engine - and `unplugin-text` the text escape hatch, sharing the same complexity-class bounds unless a case overrides them). The corpus is real packages, pinned in this directory's `package.json` - large single-scope bundles, and sets of modules from tiny to mid-sized - plus synthetic sources that push a single analysis to its worst shape.
+Complexity-class gates for both emitters. The corpus is real packages, pinned in this directory's `package.json` - large single-scope bundles, and sets of modules from tiny to mid-sized - plus synthetic sources that push a single analysis to its worst shape.
 
 ## Target environment
 

@@ -254,8 +254,8 @@ export default class ImportInjector extends ImportInjectorState {
   //   - ArrowFunctionExpression with expression body: no block to host `var _ref;`
   //   - FunctionExpression in IIFE position: Babel pushes to params for callable scopes
   // both shapes need post-pass normalization to `var _ref;` in body so output stays
-  // symmetric across the babel <-> unplugin pipelines (unplugin's text-rewrite path always
-  // emits `var _ref;` via scope-tracker `#scopedVars`).
+  // symmetric across the babel <-> unplugin pipelines (unplugin's flush hosts its `var _ref;`
+  // block in the same body slot).
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
   // container pointers still point at the pre-convert arrow.body slot - they clobber the
   // new block when they fire.
@@ -381,7 +381,7 @@ export default class ImportInjector extends ImportInjectorState {
   // the injected CONSTRUCTOR, stranding the static's earlier-ordered import). bundle weight,
   // not correctness. raw name census like the ref prune - the local names are minted UIDs, so
   // an occurrence count needs no scope graph; the specifier / require-declarator id itself is
-  // exactly one occurrence, a second proves a live read. mirrors the text emitter's
+  // exactly one occurrence, a second proves a live read. mirrors the unplugin emitter's
   // referenced-name emission filter
   pruneUnusedPureImports() {
     const nameBySource = new Map();
@@ -446,14 +446,14 @@ export default class ImportInjector extends ImportInjectorState {
     // generated slot-family name (declared `var _refN;`, local `const _refN = ...` UIDs, and
     // `_unusedN` rest sentinels): the canonical numbering is one shared slot space per family,
     // so locals rank and renumber like declared refs - excluding them left non-releasable
-    // holes and produced SWAP maps against the text emitter's full-registry canon. a DECLARED
+    // holes and produced SWAP maps against the unplugin emitter's full-registry canon. a DECLARED
     // ref's own declarator id is exactly one occurrence - a second occurrence proves a live
     // use; a wholesale-discarded emission leaves zero. any slot-shaped identifier OUTSIDE the
     // generated registry (a nested user binding, a sibling-plugin introduction) routes to the
     // full path so the taken-aware renumber can keep avoiding it.
     // print-order rank: first occurrence per name outside VariableDeclarator id positions
     // (the hoisted `var _ref, _ref2;` line would just reproduce allocation order, and the
-    // text emitter's scanner skips declarator members the same way, so both emitters rank
+    // unplugin emitter's census skips declarator members the same way, so both emitters rank
     // by the first REAL use)
     const { refCounts, printRank, foreignSlotName, nestedGuardMemoCandidates } = this.#censusGeneratedNames(allGenerated);
     // a guard memo nested DIRECTLY inside an outer guard's test slot whose ref nothing reads
@@ -461,8 +461,8 @@ export default class ImportInjector extends ImportInjectorState {
     // once served was replaced by a receiver-independent claim, which only exists after every
     // claim landed - so the unwrap lives here, riding the census walk (no extra traversal, no
     // scope crawl). the now declarator-only ref falls to the standard prune below; a TOP-LEVEL
-    // guard keeps its memo (the locked kept-swap canon). mirrors the text emitter's ref-canon
-    // dead-memo strip
+    // guard keeps its memo (the locked kept-swap canon). mirrors the unplugin injector's
+    // nested-guard memo retire
     ImportInjector.#unwrapWriteOnlyGuardMemos(nestedGuardMemoCandidates, refCounts);
     if (!foreignSlotName) {
       let hasDead = false;
@@ -801,8 +801,8 @@ export default class ImportInjector extends ImportInjectorState {
     //     `'use strict'` as a raw statement instead of via `program.directives` (shared
     //     `isDirectiveStatement` accepts the `.directive` marker on the statement OR inner literal,
     //     and rejects a bare non-directive `'foo';` so it can't extend the region)
-    // the directive term is babel-side only - unplugin handles directives separately in its
-    // `lastUserImportEnd` scan
+    // the directive term is babel-side only - unplugin's flush skips directives in its
+    // own anchor scan
     function isImportRegion(stmt) {
       return isTopLevelImportLike(stmt) || isDirectiveStatement(stmt);
     }
@@ -859,7 +859,7 @@ export default class ImportInjector extends ImportInjectorState {
     }
     // canonical declaration order: `_ref` family first, ascending slot within each family.
     // pull order is allocation order, which the print-order renumber no longer matches; the
-    // text emitter's flush line sorts the same way, so both emitters print one sequence
+    // unplugin emitter's flush sorts the same way, so both emitters print one sequence
     pulledDeclarators.sort((a, b) => refDeclarationOrder(a.id.name, b.id.name));
     const merged = this.#t.variableDeclaration('var', pulledDeclarators);
     kept.splice(importEnd, 0, merged);
