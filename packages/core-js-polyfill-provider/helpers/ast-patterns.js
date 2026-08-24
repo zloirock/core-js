@@ -436,6 +436,35 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
   'ParenthesizedExpression',
 ]);
 
+// is this chain the CALLEE of a call (or the TAG of a tagged template), behind a SEAL - source
+// parens or a TS cast? `(w?.self.fn)()` keeps the reference (so `this` still binds) while the seal
+// ends the short-circuit; folding the tail into a guarded alternate hands the callee a bare value.
+// `unwrap` is the caller's transparent-wrapper peel (the two adapters spell parens differently)
+export function parenSealedCalleeAbove(metaPath, node, unwrap) {
+  let step = metaPath;
+  while (step?.node && unwrap(step.node) !== node) step = step.parentPath;
+  let wrapped = false;
+  // the climb has to know WHICH slot it came up through: only the callee / tag position binds the
+  // reference. an ARGUMENT reaching the same call is not a sealed callee, and answering as if it
+  // were hands the argument a `?.` tail the source never wrote
+  let child = step?.node;
+  for (let up = step?.parentPath; up?.node; child = up.node, up = up.parentPath) {
+    const { type } = up.node;
+    // a TS cast seals the chain exactly as parens do (the canon set is the two together), and it is
+    // transparent to this climb: stopping on it read `(nav?.hop as any)(1)` as an unsealed callee
+    // and folded the call into the guarded branch, which answers undefined where the source throws
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) {
+      wrapped = true;
+      continue;
+    }
+    // a tagged template binds `this` from its tag reference just like a call
+    if (type === 'TaggedTemplateExpression') return up.node.tag === child;
+    if (type === 'CallExpression' || type === 'OptionalCallExpression') return wrapped && up.node.callee === child;
+    if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression' && type !== 'ChainExpression') return false;
+  }
+  return false;
+}
+
 // extended set including `ChainExpression` for callers that need to skip / mark optional-
 // chain wrappers too. used by skip-mark walkers (`markSynthReceiverSkipped` /
 // destructure-emitter's per-branch peel) and by `unwrapRuntimeExpr`. ChainExpression
@@ -827,6 +856,13 @@ export const BRACE_STATEMENT_HOST_TYPES = new Set([...RUNTIME_BLOCK_TYPES, 'TSMo
 // BlockStatement only groups statements. functions / methods wrap their list in a BlockStatement at
 // `.body.body`, and babel's `File` wraps Program - both folded in by callers where needed, not here
 export const STATEMENT_LIST_HOST_TYPES = new Set([...BRACE_STATEMENT_HOST_TYPES, 'Program']);
+
+// the statement LIST a node hosts, `null` for a non-host: the `.body` list hosts above plus
+// `SwitchCase`, which holds its list at `consequent`
+export function statementListOf(node) {
+  if (node?.type === 'SwitchCase') return node.consequent;
+  return STATEMENT_LIST_HOST_TYPES.has(node?.type) && Array.isArray(node.body) ? node.body : null;
+}
 
 // the other half of the statement lattice: slots holding exactly ONE statement rather than a list -
 // an un-braced control-flow body. no statement-list walk can reach them, so a pass that rewrites a
@@ -2378,7 +2414,11 @@ export function followConstLiteralAlias(node, ctx) {
   for (let depth = 0; depth <= 16; depth++) {
     if (!ctx || cur?.type !== 'Identifier' || !ctx.adapter.hasBinding(ctx.scope, cur.name, ctx.path)) break;
     const binding = ctx.adapter.getBinding(ctx.scope, cur.name, ctx.path);
-    if (binding?.constantViolations?.length) break;
+    // a reassigned alias follows only on the method-aware flow proof (for pure: no write can
+    // reach this read) - the flat break kept a later `w = []` blocking a read it provably
+    // does not touch; adapters without a method keep the conservative flat bail
+    if (binding?.constantViolations?.length
+      && reassignBailApplies({ binding, adapter: ctx.adapter, path: ctx.path, usageNode: cur })) break;
     const decl = binding?.path?.node ?? binding?.node;
     // only a PLAIN declarator binds the name to its init: a destructure declarator binds a
     // SELECTED slot, so blindly returning the whole init would smuggle the container in place
@@ -2732,9 +2772,16 @@ export function importBindingKind(bindingNode, bindingParent) {
 // declaration - so the erasure canon reads one field covering both spellings
 export function importBindingView(bindingNode, bindingParent) {
   const isImportBinding = IMPORT_SPECIFIER_TYPES.has(bindingNode?.type);
+  // the require-style twin (`var _x = require('...')`) is its own flag: consumers that mean
+  // "an ES import specifier" keep their gate, the polyfill-hint gate accepts both spellings
+  const isRequireBinding = !isImportBinding && bindingNode?.type === 'VariableDeclarator'
+    && bindingNode.init?.type === 'CallExpression' && bindingNode.init.callee?.name === 'require'
+    && typeof bindingNode.init.arguments?.[0]?.value === 'string';
   return {
     isImportBinding,
-    importSource: isImportBinding ? bindingParent?.source?.value ?? null : null,
+    isRequireBinding,
+    importSource: isImportBinding ? bindingParent?.source?.value ?? null
+      : (isRequireBinding ? bindingNode.init.arguments[0].value : null),
     importKind: isImportBinding ? importBindingKind(bindingNode, bindingParent) : null,
   };
 }
@@ -3316,6 +3363,17 @@ export function peelParenAndTSParentPath(startPath) {
 // replace the whole statement); the SE-tail peel collects leading expressions so they can
 // be re-emitted as side-effect siblings, and the resolved ExpressionStatement path is the
 // host whose slot the cascade rewrites
+// does this assignment DISCARD its value? only a statement position does - source parens and TS
+// wrappers are transparent on the way there, and everything else consumes what the assignment
+// yields (`const w = ({ Map: { k } } = globalThis)` reads the GLOBAL, not the anchored ctor)
+export function assignmentInStatementPosition(assignPath) {
+  let up = assignPath?.parentPath;
+  while (up?.node && (up.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(up.node.type))) {
+    up = up.parentPath;
+  }
+  return up?.node?.type === 'ExpressionStatement';
+}
+
 export function peelToExpressionStatement(startPath) {
   const sequencePrefix = [];
   const ctx = peelTransparentExprWrappers(startPath, exprs => {
@@ -4185,6 +4243,12 @@ export function isDeoptedGlobalSlotRead(meta, adapter) {
   return meta?.kind === 'global' && isMutatedGlobalSlot(adapter, meta.name);
 }
 
+// ... and the debug-warn that reports it, single-sourced beside the predicate so all three
+// emitters say the identical thing (it was spelled three times, once per emitter)
+export function mutatedSlotLeftNativeWarning(name) {
+  return `\`${ name }\` is written in this file (slot mutation) - the name is left native`;
+}
+
 // the one question every proxy-root recogniser asks: does this NAME still stand for the pristine
 // global surface? the two halves must travel together - a name that is a known proxy but whose slot
 // the user overwrote (`window = fake`) holds the replacement, not the surface, so recognising it
@@ -4439,7 +4503,65 @@ function isInImplementsHeritage(path) {
 }
 
 // shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
+// the pure-package ENTRY a name is bound to by a program-root DEFAULT import (or require
+// binding): `_Iterator` from '.../actual/iterator/constructor' -> 'iterator/constructor'.
+// injector-FREE (a plain program walk), so census prepasses that run before any injector
+// exists resolve a prior pass's minted bindings the same way the live registry would
+const PURE_IMPORT_FLAVOR_SEGMENTS = new Set(['actual', 'es', 'features', 'full', 'stable']);
+// the source-level half of the recognition: the entry a pure-package specifier names, or null
+// when no flavor segment with an entry tail is present. package-alias agnostic - a scoped or
+// aliased package's specifier still reads as pure by its flavor segment, mirroring the binding
+// resolution below
+export function pureImportSourceEntry(source) {
+  if (typeof source !== 'string') return null;
+  const segments = source.split('/');
+  const at = segments.findIndex(segment => PURE_IMPORT_FLAVOR_SEGMENTS.has(segment));
+  return at === -1 || at === segments.length - 1 ? null : segments.slice(at + 1).join('/');
+}
+export function pureImportEntryOf(path, name) {
+  let root = path;
+  while (root?.parentPath?.node) root = root.parentPath;
+  let source = null;
+  for (const decl of root?.node?.body ?? []) {
+    if (decl.type === 'ImportDeclaration'
+      && decl.specifiers?.some(sp => sp.type === 'ImportDefaultSpecifier' && sp.local?.name === name)) {
+      source = decl.source?.value ?? null;
+      break;
+    }
+    if (decl.type !== 'VariableDeclaration') continue;
+    for (const declarator of decl.declarations) {
+      if (declarator.id?.type === 'Identifier' && declarator.id.name === name
+        && declarator.init?.type === 'CallExpression' && declarator.init.callee?.name === 'require'
+        && typeof declarator.init.arguments?.[0]?.value === 'string'
+        // an in-file `require` binding shadows the CJS import - the alias stays opaque
+        && !declaresRequireBinding(root.node.body)) {
+        source = declarator.init.arguments[0].value;
+        break;
+      }
+    }
+    if (source) break;
+  }
+  return pureImportSourceEntry(source);
+}
+
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
+
+// is this member path the OPERAND of a `delete`? transparent wrappers (parens as a NODE, TS
+// casts, the chain wrapper) sit between them in one spelling and not the other, so the climb
+// peels them - and a guard the emit already rendered sits between too (`delete (null == t ?
+// void 0 : X.name)`): on the defined branch the member still IS the delete operand, so the
+// climb steps through the branch it fills. single source for both emitters' claim-side gate
+export function claimDeleteOperand(path) {
+  let step = path;
+  for (;;) {
+    const up = step?.parentPath;
+    if (!up?.node) return false;
+    const throughBranch = up.node.type === 'ConditionalExpression'
+      && (up.node.alternate === step.node || up.node.consequent === step.node);
+    if (!throughBranch && unwrapRuntimeExpr(up.node) !== step.node) return isDeleteTarget(up.node);
+    step = up;
+  }
+}
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
 
 // ObjectPattern property shapes that require a named receiver (`_ref`) to rewrite against:
@@ -4494,6 +4616,22 @@ export function catchPropRewriteObservable({ propNode, patternNode, bodyNode, lo
     referenced = true;
   });
   return referenced;
+}
+
+// the per-prop liveness gate for a RELOCATED catch pattern: it dispatches as an ordinary
+// declarator, so its bindings still belong to the catch and a binding the body never reads
+// is not worth an import and a dispatcher call. the relocated declaration is excluded from
+// the scan - its own binding occurrence would read as a reference. `walkNode(stmt, visit)`
+// walks ONE statement subtree with parents; that injection is all the emitters differ by
+export function relocatedCatchPropUnobservable({ declaratorPath, propNode, patternNode, localName, walkNode }) {
+  const relocated = relocatedCatchPattern(declaratorPath);
+  if (!relocated) return false;
+  return !catchPropRewriteObservable({
+    propNode, patternNode, bodyNode: relocated.body, localName,
+    walkNode: (root, visit) => {
+      for (const stmt of root.body ?? []) if (stmt !== relocated.skip) walkNode(stmt, visit);
+    },
+  });
 }
 
 // `RestElement` and `SpreadElement` are equivalent for `{a, ...rest}` patterns - estree
@@ -5663,8 +5801,13 @@ export function unwrapReceiverLeaf(node) {
 // receiver the polyfill binding - `(() => { c++; return _Promise; })().noSuchStatic` reads off
 // the right object without a `(call(), _Promise)` wrapper. all other receiver shapes keep the
 // swap: a proxy-hop receiver (`(IIFE)().Promise`) drops the hop, a sequence / bare / assignment
-// receiver has its leaf OUTSIDE any harvested-SE span, a no-SE call is dropped entirely
-export function staticFallbackSwapRedundant(receiverNode, sideEffects) {
+// receiver has its leaf OUTSIDE any harvested-SE span, a no-SE call is dropped entirely.
+// an allocator-MINTED memo ref (`mintedAliasRef`) is the same redundancy through a binding: its
+// single plugin-owned write already holds the substituted value (`_ref = _Map`), so the read off
+// the ref IS the polyfill binding and the swap would only respell the memo idiom
+export function staticFallbackSwapRedundant(receiverNode, sideEffects, { mintedAliasRef = null } = {}) {
+  const direct = unwrapRuntimeExpr(receiverNode);
+  if (direct?.type === 'Identifier' && mintedAliasRef?.(direct.name)) return true;
   if (!sideEffects?.length) return false;
   const leaf = unwrapReceiverLeaf(receiverNode);
   return leaf?.type === 'Identifier'

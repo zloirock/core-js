@@ -285,6 +285,15 @@ export default class ImportInjectorState {
   // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
   // in helpers/class-walk.js) and `getBinding(name).importSource` path-match detection;
   // null when unknown
+  // was `name` minted by THIS pass's own pure-import channel? a prior pass's binding
+  // lives in the source and registers through `existingPureImports` instead - the census
+  // family uses the distinction to tell a prior pass's spelling from a sibling emission
+  // of the current one (the in-place emitters expose mid-pass spellings to later claims)
+  isOwnPassPureBinding(name) {
+    for (const minted of this.pureImports.values()) if (minted === name) return true;
+    return false;
+  }
+
   getPureImport(name) {
     return this.#importInfoByName.get(name) ?? null;
   }
@@ -583,11 +592,62 @@ export default class ImportInjectorState {
 
   // `_ref, _ref2, _ref3, ...`. `extraCheck` covers bindings the injector doesn't track
   // (e.g. caller's inner scope)
-  generateRefName(extraCheck) { return this.uniqueName('_ref', extraCheck); }
+  generateRefName(extraCheck) { return this.#recordOwnPassName(this.uniqueName('_ref', extraCheck)); }
 
   // `_unused, _unused2, _unused3, ...` sentinels for rest-destructure rebuild
   // (`{ polyKey: _unused, ...rest } = obj`). subclass may override to track per-pass state
-  generateUnusedName() { return this.uniqueName('_unused'); }
+  generateUnusedName() {
+    const name = this.#recordOwnPassName(this.uniqueName('_unused'));
+    this.#unusedSentinelNames.add(name);
+    return name;
+  }
+
+  // `_unused` sentinel bookkeeping: `hasGeneratedUnusedName` arms the dispatchers'
+  // idempotency skip, and ADOPTION re-arms it on a re-parse of our own output, where the
+  // rest/SE-key sentinels are already in place - without it a pass re-extracts the sentinel
+  // as a live binding and mints a fresh one, growing the file per pass. the caller hands
+  // over only census-verified sentinel-POSITION names (bound there, read nowhere else);
+  // the generator-shape check here is the second half of the same gate. subclasses with
+  // richer per-pass state may override the trio wholesale
+  #unusedSentinelNames = new Set();
+  #adoptedUnusedSentinelNames = new Set();
+
+  adoptUnusedNames(names) {
+    let maxSuffix = 1;
+    for (const name of names) {
+      const match = UNUSED_NAME_PATTERN.exec(name);
+      if (!match) continue;
+      this.#unusedSentinelNames.add(name);
+      this.#adoptedUnusedSentinelNames.add(name);
+      this.usedNames.add(name);
+      const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
+      if (n > maxSuffix) maxSuffix = n;
+    }
+    if (maxSuffix > 1) this.rehydrateSuffixState(new Map([['_unused', maxSuffix + 1]]));
+  }
+
+  hasGeneratedUnusedName(name) {
+    return this.#unusedSentinelNames.has(name);
+  }
+
+  isAdoptedUnusedName(name) {
+    return this.#adoptedUnusedSentinelNames.has(name);
+  }
+
+  // generated names THIS pass minted: a prior pass's `_refN` / `_unusedN` lives in the
+  // source and never re-generates (allocation skips taken names), so membership here
+  // separates a sibling emission of the current pass from a prior pass's spelling - the
+  // census family's question for adopted-ref receivers
+  #ownPassGeneratedNames = new Set();
+
+  #recordOwnPassName(name) {
+    this.#ownPassGeneratedNames.add(name);
+    return name;
+  }
+
+  isOwnPassGeneratedName(name) {
+    return this.#ownPassGeneratedNames.has(name);
+  }
 }
 
 // --- canonical generated-name numbering (shared by both emitters' final renumber passes) ---

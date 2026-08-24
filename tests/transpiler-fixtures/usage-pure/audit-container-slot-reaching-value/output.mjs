@@ -1,5 +1,5 @@
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Promise from "@core-js/pure/actual/promise";
 import _String$raw from "@core-js/pure/actual/string/raw";
 // the pure flavor must stay UNTOUCHED by the container-slot reaching union: it is a
 // usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file

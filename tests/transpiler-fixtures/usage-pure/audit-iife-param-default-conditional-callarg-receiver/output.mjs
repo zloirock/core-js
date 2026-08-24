@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 // an IIFE destructure param carrying a DEFAULT, invoked with a non-simple receiver (a conditional or
 // logical call-arg): the live call-arg is the receiver, NOT the dead default. each branch is enumerated

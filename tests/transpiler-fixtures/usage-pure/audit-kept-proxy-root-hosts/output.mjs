@@ -67,11 +67,13 @@ export { c4 };
 // is dead and the whole navigation collapses with no memo at all.
 export const bareDoubleOptional = null == (_ref4 = null == _globalThis.window ? void 0 : _self) ? void 0 : _flatMaybeArray(_ref4.Array.prototype).call([2, [3]]);
 
-// An optional CALL between the hops is not a member hop: the dead-hop descent must not claim it -
-// the value lands on the ponyfilled global and the call guard dies by that substitution.
+// An optional CALL between the hops leaves the SE-key fold NO surviving key to migrate the dropped
+// hop's effect into, so the own `?.` stops riding that fold and the probe keeps its guard: flattened,
+// the emit ran `oc++` and the call on the very branch native short-circuits past (measured off-window:
+// the source answers `undefined` with `oc` untouched, the flat spelling throws with `oc` at 1).
 let oc = 0;
 let cb;
-export const optionalCallHop = () => (cb = _globalThis.window, oc++, _self)().Array;
+export const optionalCallHop = () => (null == (cb = _globalThis.window) ? void 0 : (oc++, _self))?.().Array;
 export { oc };
 
 // An ALIAS-carried kept root under two live-looking optionals: one memo at the root, keys migrate.

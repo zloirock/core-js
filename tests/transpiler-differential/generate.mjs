@@ -457,6 +457,22 @@ const C_SLOTS = [
   // usage-global unions its statics beside the literal candidate's, pure keeps the bail. member
   // and destructure spellings read through the same walk, so both lock the union channel
   { id: 'write-reaching-member', setup: 'const w = { k: Object }; w.k = Map;', use: 'typeof w.k.groupBy', strip: false },
+  // a bare ctor INSTALLED by an in-place array mutator escapes the same way a slot write
+  // does - the argument must resolve to the namespace entry, statics included (the mutator
+  // itself may be polyfilled, so the claim sees the rewritten `.call` dispatch spelling)
+  { id: 'mutator-arg-push', setup: 'const b = []; b.push(Map);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-unshift', setup: 'const b = []; b.unshift(Map);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-splice', setup: 'const b = [Object]; b.splice(0, 1, Map);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-call', setup: 'const b = []; b.push.call(b, Map);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-apply', setup: 'const b = []; b.push.apply(b, [Map]);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-reflect', setup: 'const b = []; Reflect.apply(b.push, b, [Map]);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'mutator-arg-spread', setup: 'const b = []; b.push(...[Map]);', use: 'typeof b[0].groupBy', strip: false },
+  { id: 'assign-install', setup: 'const w = { k: Object }; Object.assign(w, { k: Map });', use: 'typeof w.k.groupBy', strip: false },
+  { id: 'factory-arg-of', setup: 'const b = Array.of(Map);', use: 'typeof b[0].groupBy', strip: false, fullEnvSnippet: true },
+  { id: 'param-default-ctor', setup: 'function f(M = Map) { return typeof M.groupBy; }', use: 'f()', strip: false, fullEnvSnippet: true },
+  { id: 'branchy-return-ctor', setup: 'let c = 1; function h() { if (c) return Map; return Set; }', use: 'typeof h().groupBy', strip: false, fullEnvSnippet: true },
+  { id: 'method-return-ctor', setup: 'const o = { m() { return Map; } };', use: 'typeof o.m().groupBy', strip: false, fullEnvSnippet: true },
+  { id: 'getter-return-ctor', setup: 'const o = { get m() { return Map; } };', use: 'typeof o.m.groupBy', strip: false, fullEnvSnippet: true },
   { id: 'write-reaching-destructure', setup: 'const w = { k: Object }; w.k = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
   { id: 'write-reaching-dynamic-key', setup: 'const w = { k: Object }; const dk = "k"; w[dk] = Map; const { k: { groupBy: g } } = w;', use: 'typeof g', strip: false },
   { id: 'write-reaching-nested', setup: 'const i = { g: Object }; const w = { k: i }; i.g = Map; const { k: { g: { groupBy: g } } } = w;', use: 'typeof g', strip: false },
@@ -515,7 +531,7 @@ function * generateContainerSlots() {
   for (const s of C_SLOTS) {
     if (ORDER_DEPENDENT_SLOT_ROWS.has(s.id)) continue;
     const body = `(() => { ${ s.setup } return ${ s.use }; })()`;
-    yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip };
+    yield { ...snippet(`container-slot/${ s.id }`, body), strip: s.strip, ...s.fullEnvSnippet ? { fullEnv: true } : {} };
   }
 }
 
@@ -1672,7 +1688,10 @@ const KPR_SHAPES = [
   { id: 'blind-triple-instance', value: 'globalThis.window', tail: '?.self.Array.prototype.at.name.at?.(0)' },
   // instance dispatch OVER a blind call tail: the static claim inside the tail dies at enter
   // (a late drop strands a dead import), and the memo re-reads the call verbatim
-  { id: 'blind-call-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([1]).at?.(0)' },
+  // `textLags` on the two ctor-memo rows: babel now tags the memoized ctor receiver (`_ref =
+  // ...Array` serves `_ref?.from` -> `_Array$from`), the text leg leaves the read unresolved -
+  // accepted lag, that layer is slated for deletion
+  { id: 'blind-call-tail', value: 'globalThis.window', tail: '?.self.Array.from?.([1]).at?.(0)', textLags: true },
   // claimable ctor under a blind kept tail: the blocked claim keeps the tail verbatim including
   // the `.self` hop (dropping the hop desyncs from the AST emitter)
   { id: 'blind-ctor-leaf', value: 'globalThis.window', tail: '?.self.Set.name.at?.(0)' },
@@ -1705,7 +1724,10 @@ const KPR_SHAPES = [
   { id: 'chain-assign-symbol-iter-leaf', value: 'globalThis', tail: '.globalThis[Symbol.iterator]' },
   { id: 'claim-nonoptional', value: 'globalThis.window', tail: '.self.Map.name.at?.(0)' },
   { id: 'claim-resolvable-assign', value: 'globalThis', tail: '?.self.Set.name.includes?.("S")' },
-  { id: 'claim-resolvable-call', value: 'globalThis', tail: '?.self.Array.from?.([3]).at?.(-1)' },
+  { id: 'claim-resolvable-call', value: 'globalThis', tail: '?.self.Array.from?.([3]).at?.(-1)', textLags: true },
+  // the READ form over a kept write with an SE computed key: the arm rendering it was a
+  // mutation-tested blind spot of every other gate
+  { id: 'claim-se-key-read-form', value: 'globalThis.window', tail: '?.self[(log.push("k"), "Array")].name' },
   { id: 'sealed-by-wrapper', value: 'globalThis.window', tail: '?.self).Array.prototype.at.call([5], 0', seal: true },
   { id: 'provable-value-negative', value: 'globalThis', tail: '?.self.Array.prototype.findLast.call([1], x => x)' },
   { id: 'ponyfilled-value-negative', value: 'globalThis.self', tail: '?.self.Array.prototype.map.call([1], x => x)' },
@@ -1810,7 +1832,7 @@ function * generateKeptProxyRoot() {
     const assign = shape.se ? `(log.push("se"), t = ${ shape.value })` : `(t = ${ shape.value })`;
     const expr = shape.seal ? `(${ assign }${ shape.tail })` : `${ assign }${ shape.tail }`;
     const inner = `(() => { let t; const v = ${ expr }; log.push(t === globalThis.window); return v; })()`;
-    yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false };
+    yield { ...snippet(`kept-proxy-root/${ shape.id }`, inner, { rig: true }), strip: false, textLags: !!shape.textLags };
   }
 }
 
@@ -1835,7 +1857,14 @@ const BARE_PROBE_SHAPES = [
   // yields undefined (the unrigged rows are the oracle)
   { id: 'second-unresolvable-hop', tail: '?.window?.self.Array.of(5).at(0)' },
   { id: 'second-unresolvable-hop-optional', tail: '?.window?.self?.Array.of(6).at(0)' },
-  { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)" },
+  // `textLags`: babel polyfills the kept key's own claim (`log.push` -> `_pushMaybeArray`, the
+  // claim lands on the live spelling before the deferred flush clones it); the text leg still
+  // re-emits the pre-claim key raw - accepted lag, that layer is slated for deletion
+  { id: 'second-unresolvable-hop-se-key', tail: "?.window?.[(log.push('k'), 'self')]?.Array.of(7).at(0)", textLags: true },
+  // the OPTIONAL-root twins: the inner `?.`'s defined probe must not erase the deeper
+  // environment probe's guard (the fixed optionalMemberStaysGuarded early-return)
+  { id: 'optional-root-value', tail: '?.self.Array.of(8).at(0)', optRoot: true },
+  { id: 'optional-root-se-key', tail: "?.[(log.push('k'), 'self')]?.Array.of(9).at(0)", optRoot: true, textLags: true },
   // the declined-leaf connector over a DEEP plain nav: the hop fold must not erase the `?.`
   // (it read a defined `_globalThis.BigInt` where the guarded canon answers undefined).
   // rig-only: the unrigged twin throws NATIVELY at the plain `.self` read (the accepted
@@ -1844,9 +1873,10 @@ const BARE_PROBE_SHAPES = [
 ];
 function * generateBareProxyProbe() {
   for (const shape of BARE_PROBE_SHAPES) {
-    const inner = `(() => { const v = globalThis.window${ shape.tail }; return typeof v; })()`;
-    if (!shape.rigOnly) yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false };
-    yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false };
+    const root = shape.optRoot ? 'globalThis?.window' : 'globalThis.window';
+    const inner = `(() => { const v = ${ root }${ shape.tail }; return typeof v; })()`;
+    if (!shape.rigOnly) yield { ...snippet(`bare-proxy-probe/${ shape.id }`, inner), strip: false, textLags: !!shape.textLags };
+    yield { ...snippet(`bare-proxy-probe/${ shape.id }-rigged`, inner, { rig: true }), strip: false, textLags: !!shape.textLags };
   }
   // a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
   // it must keep the probe hop - binding the bare write tested an always-defined global and ran
@@ -2615,7 +2645,13 @@ const SRC_SHAPES = [
   // untouched and injects no es.global-this (the source never reads it), so the untranspiled
   // rig helper cannot run in the globalThis-stripped realm - fullEnv skips that leg, the
   // pure legs carry the fold oracle
-  { id: 'window-get', body: 'const v = window.self[Symbol.iterator]; log.push(typeof v); return typeof v;', fullEnv: true },
+  // ... and the slot it reads is one its SIBLINGS below write and delete on the shared realm, so
+  // the row has to own its own state: the leading `delete` pins the answer to `undefined` whatever
+  // ran before it, and the GET under test still folds the same root
+  { id: 'window-get',
+    body: 'delete globalThis.self[Symbol.iterator]; const v = window.self[Symbol.iterator]; '
+      + 'log.push(typeof v); return typeof v;',
+    fullEnv: true },
   { id: 'update-host',
     body: 'globalThis.self[Symbol.iterator]++; const d = Object.getOwnPropertyDescriptor(globalThis, Symbol.iterator); '
       + 'log.push(typeof d.value); delete globalThis.self[Symbol.iterator]; return typeof d.value;' },
@@ -3608,6 +3644,12 @@ function * generateAssignAliasReassign() {
     { id: 'extraction-seq-init-se-sole-assignment',
       code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); let g; '
         + 'try { ({ groupBy: g } = (n++, M)); return [typeof g, n]; } catch (e) { return ["T", n]; } } '
+        + 'return [t(true), t(false)]; })()' },
+    // ... and the VALUE-CONSUMING twin: the expression's value is natively the RHS object,
+    // which the render must preserve (`(g = <narrow>, M)`)
+    { id: 'extraction-seq-init-se-sole-assignment-value',
+      code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); let g; '
+        + 'try { const v = ({ groupBy: g } = (n++, M)); return [typeof g, n, v === M]; } catch (e) { return ["T", n, null]; } } '
         + 'return [t(true), t(false)]; })()' },
     { id: 'extraction-seq-init-se-multi-order',
       code: '(() => { let n = 0; function t(c) { let M; if (c) ({ Map: M } = globalThis); '
@@ -4985,6 +5027,15 @@ const EXPR_FAMILIES = {
     '(globalThis ?? {}).Array.from([1, 2])',
     'globalThis.Array.from(globalThis.Array.of(1, 2))',
   ],
+  // exotic-but-valid source spellings around a claim: the printers must carry the astral /
+  // escaped identifier and the lone-surrogate escape through unchanged, and the value legs
+  // execute the result (a mangled escape diverges by value or throw, not just by text)
+  'exotic-source-forms': [
+    '(() => { const \u{1D4B6}b = [1, [2]]; return \u{1D4B6}b.flat().length; })()',
+    '(() => { const \\u{69}d = [1, [2]]; return \\u{69}d.flat().length; })()',
+    '(() => { const s = "\\uD800".padStart(3, "x"); return [s.length, s.charCodeAt(2)]; })()',
+    '(() => { const k = "\\u{1F600}"; return k.padStart(4, "\\uD83D").length; })()',
+  ],
   'destructure-edge': [
     // a missing-able ctor's unresolvable leaf re-anchors the residual to the ctor binding (`{ noSuchStatic }
     // = _Map`) instead of reading native off the proxy root. for a SINGLE ctor this fires even with zero
@@ -5003,6 +5054,25 @@ const EXPR_FAMILIES = {
     '(() => { const { from = null } = Array; return typeof from; })()',
     '(() => { const { nope = (log.push("d"), 5) } = Array; return nope; })()',
     '(() => { const { ["from"]: f } = Array; return typeof f; })()',
+    // the defaulted-slot matrix under an array-wrapped ASSIGNMENT host: the STATIC default is
+    // dead (the pairing proved the element) and the consume drops the raw destructure; the
+    // INSTANCE twin keeps it and re-binds after; the spread-shifted row DECLINES whole - the
+    // index past the spread is runtime-uncertain
+    '(() => { let o; [{ of: o = null }] = [Array]; return typeof o; })()',
+    '(() => { let m; [{ at: m = null }] = [[7, 8]]; return typeof m; })()',
+    '(() => { const [, { at: m }] = [...[[1]], [2, 3]]; return typeof m; })()',
+    // a kept write at the receiver root LEADS the key SE that followed it in the source -
+    // the log rows are the runtime order oracle (native: write first, so the key sees it)
+    '(() => { const log = []; let r; const { of } = (r = globalThis)[(log.push(typeof r), "Array")]; return [typeof of, log[0]]; })()',
+    '(() => { const log = []; let r; const [{ of }] = [(r = globalThis)[(log.push(typeof r), "Array")]]; return [typeof of, log[0]]; })()',
+    // a polyfillable claim inside the harvested key se of a synth-swap memo argument: the
+    // drain re-harvests the LIVE container, so the landed claim reaches the arg
+    '(() => { const log = []; function f({ from: x, nope: y } = globalThis[(log.push([3].at(0)), "self")].Array) { return [typeof x, typeof y, log[0]]; } return f(); })()',
+    // a TERMINAL effect-bearing concat-fold keeps the hop's OWN pure (`self`, babel's
+    // claim) - the re-root swapped the IMPORT, not the value (self IS the global object),
+    // so the IMPORT-PARITY oracle is what discriminates here; the value row is a plain
+    // runtime invariant
+    '(() => { let e = 0; const v = globalThis[(e++, "se") + "lf"]; return [typeof v, v === globalThis, e]; })()',
     // a side-effecting computed key in a CATCH param rides the catch extraction: the binding
     // takes the dispatcher, the key survives in the residual (effect once), a user default is
     // dead ("polyfill always wins") and rest still gathers the remaining props
@@ -5358,6 +5428,19 @@ const EXPR_FAMILIES = {
     '(() => { let m = 1, c = 0; const { Array: { from } } = (c++, m) && globalThis; return [typeof from, c]; })()',
     '(() => { let c = 0; const { Array: { of } } = (c++, globalThis) || self; return [typeof of, c]; })()',
     '(() => { let c = 0; const { Array: { from } } = globalThis || (c++, self); return [typeof from, c]; })()',
+    // a seq-prefixed diverging branch over a NON-proxy fallback: the mirror lands on the
+    // sequence TAIL of the selected branch, on every host shape (the fromFallback dispatch
+    // cannot reach these - a non-nullish primary resolves WITHOUT the flag)
+    '(() => { let c = 0; const { Array: { of } } = (c++, globalThis) || { Array: {} }; return [typeof of, c]; })()',
+    '(() => { let of, c = 0; ({ Array: { of } } = (c++, globalThis) || { Array: {} }); return [typeof of, c]; })()',
+    '(() => { let c = 0; function g({ Array: { from } } = (c++, globalThis) || { Array: {} }) { return typeof from; } return [g(), c]; })()',
+    '(() => { let c = 0; const { Array: { from } } = (c++, globalThis) ?? { Array: {} }; return [typeof from, c]; })()',
+    // the mirror walks EVERY hop prop (a half-registered two-hop plan once emitted nothing),
+    // a defaulted leaf mirrors like its undefaulted twin, and the `&&`-declined rest shape
+    // takes the INSERTED sound default
+    '(() => { let c = 0; const { Array: { of }, JSON: { stringify } } = (c++, globalThis) || { Array: {}, JSON: {} }; return [typeof of, typeof stringify, c]; })()',
+    '(() => { let c = 0; const fb = 9; const { Array: { from = fb } } = (c++, globalThis) || { Array: {} }; return [typeof from, c]; })()',
+    '(() => { let cond = 1, of, rest; ({ Array: { of, ...rest } } = cond && globalThis); return [typeof of, typeof rest]; })()',
     // `self` in the KEPT (EVALUATED, not short-circuited) position: the proxy-global IS the taken value
     // (|| / ?? keep the left, && keeps the right, a ternary keeps its branch, a member root is read), so
     // the mirror / hop-collapse must rewrite bare `self` to its pure import (`_self`; core-js ships one).
