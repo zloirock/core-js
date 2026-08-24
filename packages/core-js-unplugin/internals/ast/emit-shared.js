@@ -11,9 +11,11 @@ import {
 export function receiverCarriesOptional(node) {
   if (!node || typeof node !== 'object' || !node.type) return false;
   if ((node.type === 'MemberExpression' || node.type === 'CallExpression') && node.optional) return true;
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(item => receiverCarriesOptional(item))) return true;
+      for (const item of value) if (receiverCarriesOptional(item)) return true;
     } else if (receiverCarriesOptional(value)) return true;
   }
   return false;
@@ -79,7 +81,9 @@ export function replaceNodeInTree(root, target, next) {
     return root.some(item => replaceNodeInTree(item, target, next));
   }
   if (!root || typeof root !== 'object' || !root.type) return false;
-  for (const [key, value] of Object.entries(root)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in root) {
+    const value = root[key];
     if (value === target) {
       root[key] = next;
       return true;

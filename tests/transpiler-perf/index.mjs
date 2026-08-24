@@ -187,6 +187,7 @@ async function transformWith(emitter, mode, source, ts) {
     });
     return out.code;
   }
+  if (emitter === 'unplugin-ast') return createUnplugin({ ...options, engine: 'ast' }).transform(source, filename)?.code;
   return createUnplugin(options).transform(source, filename)?.code;
 }
 
@@ -197,7 +198,7 @@ for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
   const modules = Array.isArray(input) ? input : [input];
   const kilobytes = Math.round(modules.reduce((total, module) => total + module.length, 0) / 1024);
   for (const mode of MODES) {
-    for (const emitter of ['babel', 'unplugin']) {
+    for (const emitter of ['babel', 'unplugin', 'unplugin-ast']) {
       const start = performance.now();
       let injected = 0;
       for (const module of modules) {
@@ -206,10 +207,11 @@ for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
       }
       const seconds = (performance.now() - start) / 1000;
       const detected = injected >= injections;
-      const ok = detected && seconds < bounds[mode][emitter];
+      const bound = bounds[mode][emitter] ?? bounds[mode].unplugin;
+      const ok = detected && seconds < bound;
       if (!ok) failed++;
       const size = modules.length > 1 ? `${ kilobytes }kb, ${ modules.length } modules` : `${ kilobytes }kb`;
-      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ size }) | ${ mode } ${ emitter }: ${ seconds.toFixed(2) }s (bound ${ bounds[mode][emitter] }s${ detected ? '' : `, ${ injected }/${ injections } INJECTED` })`;
+      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ size }) | ${ mode } ${ emitter }: ${ seconds.toFixed(2) }s (bound ${ bound }s${ detected ? '' : `, ${ injected }/${ injections } INJECTED` })`;
     }
   }
 }

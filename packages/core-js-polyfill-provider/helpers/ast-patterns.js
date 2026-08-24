@@ -799,11 +799,13 @@ export function identifierReferencedInSubtree(node, name) {
   // recurse, skipping the source-text name slots `isNonReferencePosition` recognises (member tail,
   // object / class / method / field key, label, import / export specifier, JSX attribute name /
   // member-tag tail) - those are name literals, not references
-  for (const child of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const child = node[key];
     if (isNonReferencePosition(node, child)) continue;
-    if (Array.isArray(child)
-      ? child.some(grandchild => identifierReferencedInSubtree(grandchild, name))
-      : identifierReferencedInSubtree(child, name)) return true;
+    if (Array.isArray(child)) {
+      for (const grandchild of child) if (identifierReferencedInSubtree(grandchild, name)) return true;
+    } else if (identifierReferencedInSubtree(child, name)) return true;
   }
   return false;
 }
@@ -3439,7 +3441,9 @@ export function isMemberWriteOnlyContext(member, parent, grandparent) {
 // and oxc shapes carry the same `.type` string on AST nodes
 export function walkAstChildren(node, visit) {
   if (!node || typeof node !== 'object') return;
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
       for (const el of value) if (isASTNode(el)) visit(el);
     } else if (isASTNode(value)) visit(value);
@@ -3908,7 +3912,9 @@ function nodeHoldsSuperMethodRead(node, parent, info) {
       || (parent?.type === 'UnaryExpression' && parent.operator === 'void');
     if (!isDirectCall && !isDiscard) return true;
   }
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
       for (const item of value) {
         if (item && typeof item.type === 'string' && nodeHoldsSuperMethodRead(item, node, info)) return true;
@@ -4010,16 +4016,23 @@ export function collectFileCensus(programNode, reducers) {
   // `parentNode` is the IMMEDIATE structural parent (unlike `parentType`, which skips transparent
   // wrappers): a reducer that must tell a source-name position from a reference (an identifier that
   // is a property key / member key / label, per `isNonReferencePosition`) needs the exact parent node
-  const stack = [{
-    node: programNode, parentType: null, atTopLevel: true, atThisTopLevel: true,
+  // two parallel stacks: SIBLINGS share one frame object, so the walk allocates one frame
+  // per PARENT rather than one per node - the reducers' contract is unchanged, they never
+  // read a `node` off the frame
+  const nodeStack = [programNode];
+  const frameStack = [{
+    parentType: null, atTopLevel: true, atThisTopLevel: true,
     parentNode: null, underTypeAnnotation: false,
   }];
-  while (stack.length) {
-    const frame = stack.pop();
-    const { node } = frame;
+  while (nodeStack.length) {
+    const node = nodeStack.pop();
+    const frame = frameStack.pop();
     if (Array.isArray(node)) {
-      // an array is not a node: its members inherit the frame verbatim, only `node` advances
-      for (let i = node.length - 1; i >= 0; i--) stack.push({ ...frame, node: node[i] });
+      // an array is not a node: its members inherit the frame verbatim
+      for (let i = node.length - 1; i >= 0; i--) {
+        nodeStack.push(node[i]);
+        frameStack.push(frame);
+      }
       continue;
     }
     if (!isASTNode(node)) continue;
@@ -4033,11 +4046,14 @@ export function collectFileCensus(programNode, reducers) {
     // type ARGUMENTS. a type-alias RHS, an interface body and type arguments carry no wrapper
     const underTypeAnnotation = frame.underTypeAnnotation || isTypeAnnotationWrapper(node);
     const parentType = TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) ? frame.parentType : node.type;
+    let childFrame = null;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const value = node[key];
       if (Array.isArray(value) || isASTNode(value)) {
-        stack.push({ node: value, parentType, atTopLevel, atThisTopLevel, parentNode: node, underTypeAnnotation });
+        childFrame ??= { parentType, atTopLevel, atThisTopLevel, parentNode: node, underTypeAnnotation };
+        nodeStack.push(value);
+        frameStack.push(childFrame);
       }
     }
   }
@@ -4969,9 +4985,11 @@ function bodyHasParamReference(node, paramNames) {
       || (node.computed && bodyHasParamReference(node.property, paramNames));
   }
   if (NESTED_BINDING_INTRODUCERS.has(node.type)) return true;
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(v => bodyHasParamReference(v, paramNames))) return true;
+      for (const v of value) if (bodyHasParamReference(v, paramNames)) return true;
     } else if (bodyHasParamReference(value, paramNames)) return true;
   }
   return false;
@@ -5079,9 +5097,11 @@ export function paramReboundInBody(node, paramNames) {
       .every(param => !patternBindsName(param, paramName))));
     if (visible.size !== paramNames.size) return visible.size !== 0 && paramReboundInBody(node, visible);
   }
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(child => paramReboundInBody(child, paramNames))) return true;
+      for (const child of value) if (paramReboundInBody(child, paramNames)) return true;
     } else if (paramReboundInBody(value, paramNames)) return true;
   }
   return false;

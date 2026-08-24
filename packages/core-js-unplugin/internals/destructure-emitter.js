@@ -2532,7 +2532,9 @@ export function createDestructureEmitter({
         return;
       }
       if (isVarScopeBoundary(node.type)) return;
-      for (const value of Object.values(node)) {
+      // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+      for (const key in node) {
+        const value = node[key];
         if (Array.isArray(value)) for (const v of value) collectFunctionVars(v, locals);
         else collectFunctionVars(value, locals);
       }
@@ -2741,9 +2743,11 @@ export function createDestructureEmitter({
         matches.push(node);
       }
       ancestors.push(node);
-      for (const [key, value] of Object.entries(node)) {
+      // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+      for (const key in node) {
+        const value = node[key];
         if (Array.isArray(value)) {
-          for (const [index, item] of value.entries()) if (!ownedByOtherChannel(node, key, index)) walk(item, node);
+          for (let index = 0; index < value.length; index++) if (!ownedByOtherChannel(node, key, index)) walk(value[index], node);
         } else if (!ownedByOtherChannel(node, key, null)) walk(value, node);
       }
       ancestors.pop();
