@@ -72,12 +72,12 @@
   },
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.1",
-    "@jridgewell/sourcemap-codec": "^1.4.15",
+    "@jridgewell/sourcemap-codec": "^1.5.5",
     "@core-js/polyfill-provider": "4.0.0-alpha.1",
-    "esrap": "^2.3.5",
+    "esrap": "^2.3.6",
     "estree-toolkit": "^1.7.14",
-    "magic-string": "^1.2.0",
-    "oxc-parser": "^0.144.0",
+    "magic-string": "^1.2.2",
+    "oxc-parser": "^0.147.0",
     "unplugin": "^3.3.0"
   },
   "engines": {

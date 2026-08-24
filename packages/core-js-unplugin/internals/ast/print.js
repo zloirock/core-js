@@ -93,13 +93,20 @@ function withCorpusGapOverrides(language) {
     if (BARE_INSTANTIATION_BASES.has(node.expression.type)) return baseInstantiation(node, context);
     baseInstantiation({ ...node, expression: parenthesize(node.expression) }, context);
   };
-  // `function foo([a]: string[])` drops the pattern's annotation - ObjectPattern and
-  // Identifier carry theirs through, ArrayPattern alone forgets
-  const baseArrayPattern = language.ArrayPattern;
-  language.ArrayPattern = (node, context) => {
-    baseArrayPattern(node, context);
-    if (node.typeAnnotation) context.visit(node.typeAnnotation);
-  };
+  // esrap prints a destructuring pattern's annotation (2.3.6; <= 2.3.5 forgot ArrayPattern's)
+  // but never its `?` (a declare-signature `([a]?: T[])` / `({ a }?: O)` param; Identifier
+  // carries its own upstream). strip both from what the base sees and print them ourselves,
+  // in source order - correct on either esrap side, and the tree stays unmutated
+  for (const type of ['ArrayPattern', 'ObjectPattern']) {
+    const basePattern = language[type];
+    language[type] = (node, context) => {
+      if (!node.typeAnnotation && !node.optional) return basePattern(node, context);
+      const { typeAnnotation, optional, ...bare } = node;
+      basePattern(bare, context);
+      if (optional) context.write('?');
+      if (typeAnnotation) context.visit(typeAnnotation);
+    };
+  }
   // `` `${string}_sfx` `` drops every quasi - only the substitutions survive
   language.TSTemplateLiteralType = (node, context) => {
     context.write(`\`${ node.quasis[0].value.raw }`);
@@ -225,16 +232,21 @@ function withCorpusGapOverrides(language) {
 // a `type`. mutating the parsed program is deliberate - the parse is transform-local
 function synthesizeLocs(program, comments, source) {
   const locate = buildOffsetToLoc(source);
+  let hasChainExpression = false;
   (function walk(node) {
     if (Array.isArray(node)) {
       for (const item of node) walk(item);
       return;
     }
     if (!node || typeof node !== 'object') return;
+    // the flag feeds the dead-chain gate, and a SYNTHESIZED chain (no source positions,
+    // so the loc branch below never sees it) must arm it too
+    if (node.type === 'ChainExpression') hasChainExpression = true;
     if (typeof node.type === 'string' && typeof node.start === 'number' && typeof node.end === 'number') {
       node.loc = { start: locate(node.start), end: locate(node.end) };
     }
-    for (const key of Object.keys(node)) {
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
       if (key === 'loc') continue;
       const value = node[key];
       if (Array.isArray(value)) {
@@ -251,7 +263,10 @@ function synthesizeLocs(program, comments, source) {
   if (program.loc && source.length && locate(source.length).column !== 0) {
     program.loc.end.column += 1;
   }
-  return comments.map(comment => ({ ...comment, loc: { start: locate(comment.start), end: locate(comment.end) } }));
+  return {
+    comments: comments.map(comment => ({ ...comment, loc: { start: locate(comment.start), end: locate(comment.end) } })),
+    hasChainExpression,
+  };
 }
 
 // re-prepending a stripped BOM shifts every generated column on the FIRST output line by
@@ -278,22 +293,29 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
   function chainHasLiveOptional(node) {
     if (!node || typeof node !== 'object') return false;
     if (node.optional === true) return true;
-    for (const [key, value] of Object.entries(node)) {
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
       if (key === 'loc' || key === 'range') continue;
+      const value = node[key];
       if (Array.isArray(value)) {
-        if (value.some(item => chainHasLiveOptional(item))) return true;
+        for (const item of value) if (chainHasLiveOptional(item)) return true;
       } else if (chainHasLiveOptional(value)) return true;
     }
     return false;
   }
-  (function unwrapDeadChains(node) {
+  const { comments: printComments, hasChainExpression } = synthesizeLocs(program, ownComments, source);
+  // the dead-chain unwrap pays a full-tree walk - a file with no ChainExpression at all
+  // (the loc walk already looked at every node) has nothing to unwrap
+  if (hasChainExpression) (function unwrapDeadChains(node) {
     if (Array.isArray(node)) {
       node.forEach(item => unwrapDeadChains(item));
       return;
     }
     if (!node || typeof node !== 'object') return;
-    for (const [key, value] of Object.entries(node)) {
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
       if (key === 'loc' || key === 'range') continue;
+      const value = node[key];
       let child = value;
       while (child?.type === 'ChainExpression' && !chainHasLiveOptional(child.expression)) {
         child = child.expression;
@@ -302,7 +324,7 @@ export function printProgram({ program, comments, source, id, jsx = false, inclu
       unwrapDeadChains(node[key]);
     }
   })(program);
-  const printComments = synthesizeLocs(program, ownComments, source);
+
   const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments, boundaryTokens: true }));
   // explicitly ANCHORED leading comments (node -> texts): emitted verbatim ahead of the
   // statement's own print, bypassing the loc heuristics entirely - the deterministic channel
