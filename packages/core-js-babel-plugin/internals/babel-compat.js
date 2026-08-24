@@ -710,6 +710,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       callReceiver = t.cloneNode(receiverNode);
     } else {
       const [assign, receiverRef] = memoize(receiverNode, scope, chainStart.node);
+      // the memo may hold a resolvable surface (a proxy global, or a CTOR read off one):
+      // tag the ref so the re-traversed method read keeps resolving through it
+      // (`_ref = (t = _globalThis, _globalThis).Array` serves `_ref?.from` -> `_Array$from`)
+      tagProxyGlobalMemoRef(receiverRef, receiverNode, scope);
       receiverMemo = assign;
       callReceiver = t.cloneNode(receiverRef);
       // rebind the method's receiver to the memoized ref so it (and any inner `?.`) evaluates once
@@ -754,6 +758,13 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // effect exactly once in the guard test, so the tagged ref is safe in the branch
       const resolved = resolveObjectName({ objectNode: rootNode, scope, adapter, path: null });
       name = resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved) ? resolved : null;
+      // ... and a CTOR read off the surface tags the same way: the memo holds the
+      // constructor itself, so a claim rebuilt onto the ref resolves its statics
+      // (`_ref = (t = _globalThis, _globalThis).Array` serves `_ref?.from` -> `_Array$from`)
+      if (!name && resolved && /^[A-Z]/.test(resolved) && !adapter.isMutatedStatic('globalThis', resolved)) {
+        getInjector().registerGlobalAlias(ref.name, resolved, { minted: true, trusted: true });
+        return;
+      }
     }
     if (name) getInjector().registerGlobalAlias(ref.name, name, { minted: true, trusted: true });
   }
@@ -867,8 +878,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
   // the AST spelling of a nav-collapse plan (mirrors the text emitter's forms byte-for-byte)
   function renderNavCollapseAst(plan, pureId) {
+    // the flush may land in a suppressed region no visitor re-enters, so the render reads the
+    // key effects through the plan's LIVE accessor - the one liveness rule both emitters share.
     // the test's share is already inside the rendered prefix - only the hops ABOVE it re-emit here
-    const keySeExprs = plan.keySeExprs.slice(plan.testKeySeCount).map(se => t.cloneNode(se));
+    const keySeExprs = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(se => t.cloneNode(se));
     const leaf = keySeExprs.length ? t.sequenceExpression([...keySeExprs, t.cloneNode(pureId)]) : t.cloneNode(pureId);
     // the TAIL hangs off the leaf INSIDE the guarded alternate (`null == X ? void 0 : _self
     // .window`) - hung off the whole ternary it would read `.window` off the short-circuited
@@ -1040,7 +1053,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         if (!rootValue) return;
         plan.rootValueNode = rootValue;
       }
-      plan.keySeExprs = plan.keySeExprs.map(se => t.cloneNode(se, true));
+      // the key-SE exprs stay LIVE references on purpose - the same deferral the hop
+      // snapshot above makes: children complete first, so a claim inside a kept key
+      // (`log.push('k')`) lands before the exit flush clones the spelling; an eager deep
+      // clone here froze the pre-claim spelling into the emitted test
     }
     pendingKeptNavCollapses.push({ plan, pureId: injectPureGlobal(pure.entry, pure.hintName) });
   }

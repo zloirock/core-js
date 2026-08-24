@@ -475,7 +475,14 @@ export function createEstreeAdapter(options = {}) {
   const { getInjector = () => null } = options;
   return createDetectionAdapter(options, adapter => ({
     hasBinding(scope, name, path = null) {
-      return hasRuntimeBinding(scope, name, path);
+      // a MINTED pure-import name answers like the printed tree will (see getBinding below):
+      // without this, `resolveObjectName`'s unbound-identifier branch reads the UID as a
+      // would-be global (`_Promise` - not capitalised - resolves to nothing). the registry
+      // view applies the span discipline; a USER-named record out of its span must not
+      // serve (out there the name is a different binding or the real global)
+      if (hasRuntimeBinding(scope, name, path)) return true;
+      const minted = getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null);
+      return !!(minted?.hint && minted.source && !minted.userNamed);
     },
     getBinding(scope, name, path = null) {
       const { native: b, synth } = resolveClosestBinding(scope, name, path);
@@ -487,7 +494,26 @@ export function createEstreeAdapter(options = {}) {
       // reassignment sites so alias resolution reads its `.init` and the resolver's reassignment
       // guard fires for a REASSIGNED nested-block var
       if (synth || !b) {
-        if (!synth) return null;
+        if (!synth) {
+          // a MINTED pure-import name: the AST leg swaps members to import bindings DURING
+          // traversal while the ImportDeclarations only flush at the end, so a follow through
+          // such a name (`const k = _Symbol$iterator; k in X`) finds no tree binding yet.
+          // serve the injector's registry view (span-disciplined; a USER-named record out of
+          // its span stays invisible - the name there is a different binding)
+          const minted = getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null);
+          // a MINTED blind alias (the AST leg's guard memo, `_ref = _globalThis.window`
+          // registered as holding 'window') serves its hint the same way - the rebuilt
+          // spine's claims resolve through the ref exactly like the source root
+          if (minted?.hint && ((minted.source && !minted.userNamed) || minted.minted)) {
+            return {
+              node: null, kind: 'module', constantViolations: [], references: 1, scope,
+              // the stored hint is the UID spelling (`Symbol$iterator`); the polyfillHint
+              // contract is the source spelling (`Symbol.iterator`, `Promise`)
+              importSource: null, importKind: 'value', polyfillHint: minted.hint.replaceAll('$', '.'),
+            };
+          }
+          return null;
+        }
         // the synthetic binding skips the hint machinery below (no `.path`); still surface the
         // registry's guard hint for it - IDENTITY view only, like the native-binding path (a
         // hoisted-var alias registers per-declarator in the pre-pass, so identity reaches it)
@@ -527,7 +553,7 @@ export function createEstreeAdapter(options = {}) {
       // binding-first: the per-binding registry is exact - see the babel twin
       const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
       const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null) ?? null;
-      const { isImportBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
+      const { isImportBinding, isRequireBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
       // same-named namespace/declare-global var twin as a violation. recompute from the AST via the
@@ -558,9 +584,12 @@ export function createEstreeAdapter(options = {}) {
       });
       // guarded registration = flow-trust refused: the member read stays native. the dominance
       // gate keeps a use textually BEFORE its trusted write / declaration native too.
-      // the babel twin admits a plugin-MINTED memo here as well; this emitter never mints one
-      // (no `registerGlobalAlias(..., { minted: true })` site), so the disjunct has no counterpart
-      const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding)
+      // a plugin-MINTED memo (the AST leg's guard ref) is binding-less and serves through the
+      // synthetic branch above, so this native-binding disjunct still has no minted arm
+      // an in-file `require` binding shadows the CJS import - the require-style arm only
+      // fires for the real module function (the node-local view cannot see the shadow)
+      const requireBindingLive = isRequireBinding && !adapter.hasBinding(scope, 'require', path);
+      const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || requireBindingLive)
         && aliasSpanDominatesUse({ info, useStart: path?.node?.start ?? null }) ? info.hint : null;
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
@@ -690,6 +719,12 @@ function makeSynthPath({ node, parent, parentKey, parentPath, scope, listKey = n
     listKey,
     container: container ?? parent,
     scope,
+    // the AST engine mutates through paths; a synthetic path swaps its container slot
+    // (array child: container = the array, key = index; else container = parent node)
+    replaceWith(next) {
+      self.container[self.key] = next;
+      self.node = next;
+    },
     get(key) {
       if (childCache.has(key)) return childCache.get(key);
       const value = node?.[key];
@@ -909,13 +944,21 @@ function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, lis
   });
 }
 
-function walkDecoratorList(decorators, parentPath, decoratorVisitors) {
+function walkDecoratorList(decorators, parentPath, decoratorVisitors, revisit = false) {
   if (!decorators?.length) return;
   for (let i = 0; i < decorators.length; i++) {
-    walkSubtree({
-      node: decorators[i], parent: parentPath.node, parentKey: i, parentPath, scope: parentPath.scope,
-      visitors: decoratorVisitors, listKey: 'decorators', container: decorators,
-    });
+    // a MANUAL walk queues nothing: an AST emission inside a decorator replaces its span and
+    // the replacement's own claims (an argument's nested read) would never be visited. the
+    // revisit pass reaches exactly those - consumed spans carry their skip marks and stay
+    // inert. the TEXT leg must NOT revisit: its transforms are position-keyed, so a second
+    // walk queues a colliding edit for a span the first one already owns
+    const passes = revisit ? 2 : 1;
+    for (let pass = 0; pass < passes; pass++) {
+      walkSubtree({
+        node: decorators[i], parent: parentPath.node, parentKey: i, parentPath, scope: parentPath.scope,
+        visitors: decoratorVisitors, listKey: 'decorators', container: decorators,
+      });
+    }
   }
 }
 
@@ -934,13 +977,17 @@ function estreeAutoWalksDecorators(node) {
 // walks the node's own decorators plus any param-level decorators (TS legacy `@dec arg`
 // on class method / constructor params). `MethodDefinition.params` lives on `.value`. skip any
 // owner whose decorators estree-toolkit already auto-walks (see estreeAutoWalksDecorators)
-function walkDecorators(parentPath, decoratorVisitors) {
+function walkDecorators(parentPath, decoratorVisitors, revisit = false) {
   const { node } = parentPath;
-  if (!estreeAutoWalksDecorators(node)) walkDecoratorList(node?.decorators, parentPath, decoratorVisitors);
+  if (!estreeAutoWalksDecorators(node)) {
+    walkDecoratorList(node?.decorators, parentPath, decoratorVisitors, revisit);
+  }
   const params = node?.params ?? node?.value?.params;
   if (!params) return;
   for (const param of params) {
-    if (!estreeAutoWalksDecorators(param)) walkDecoratorList(param?.decorators, parentPath, decoratorVisitors);
+    if (!estreeAutoWalksDecorators(param)) {
+      walkDecoratorList(param?.decorators, parentPath, decoratorVisitors, revisit);
+    }
   }
 }
 
@@ -965,6 +1012,7 @@ function isJsxMemberRoot(path) {
 export function createUsageVisitors({
   adapter, onUsage, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
   resolveMeta, resolvePure = null, onSuppressedProxyHop = null, suppressKeptNavRoot = null,
+  revisitDecorators = false,
 }) {
   // hops the detector suppressed while the meta keeps its receiver PATH: the marking exists so no
   // second rewrite lands inside the span that swallowed them, but the nav itself still owes a
@@ -1202,7 +1250,7 @@ export function createUsageVisitors({
   };
 
   function visitDecorators(path) {
-    walkDecorators(path, decoratorVisitors);
+    walkDecorators(path, decoratorVisitors, revisitDecorators);
   }
 
   // explicit type arguments at a call / new site (`bar<Map<...>>()`, `new Foo<Map<...>>()`)

@@ -14,6 +14,7 @@ import {
   trustedIdentifierAliasWrite,
 } from '../helpers/class-walk.js';
 import {
+  pureImportEntryOf,
   asProxyGlobalName,
   bindsModuleDefault,
   globalProxyNameFromImportSource,
@@ -407,6 +408,23 @@ function sealedReadIsClaimCtor(sealedAt, resolvePure) {
   return !sealedAt.optional && !!resolvePure({ kind: 'global', name: staticMemberKeyName(sealedAt) });
 }
 
+// does the SE-key fold have a surviving KEY to migrate the dropped hop's effect into? the harvest
+// canon re-emits it as the NEXT member's key (`X?.[(c++, 'self')].Array` -> `X?.[c++, 'Array']`),
+// which is what lets the own `?.` ride the fold. with a CALL consumer there is no next key: the
+// flattened emit then ran the effect and the call on the very branch native short-circuits past
+function seKeyFoldHasSurvivingKey(memberNode, aliasCtx) {
+  let step = aliasCtx?.path;
+  while (step?.node && unwrapRuntimeExpr(step.node) !== memberNode) step = step.parentPath;
+  for (let cursor = step, up = step?.parentPath; up?.node; cursor = up, up = up.parentPath) {
+    const { node } = up;
+    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') return true;
+    // a transparent wrapper is not the consumer - keep climbing through it
+    if (unwrapRuntimeExpr(node) !== node && unwrapRuntimeExpr(node) === cursor.node) continue;
+    return false;
+  }
+  return false;
+}
+
 export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = null) {
   if (!memberNode || !resolvePure) return { kind: 'erase' };
   // the deleted member is never READ, so nothing over the navigation below it is load-bearing and the
@@ -426,7 +444,8 @@ export function undefinableOptionalGuard(memberNode, resolvePure, aliasCtx = nul
     && !(aliasCtx && resolveKey({
       node: memberNode.property, computed: true, scope: aliasCtx.scope, adapter: aliasCtx.adapter,
       seen: new Set(), path: aliasCtx.path, bailOnSideEffectKey: true,
-    }));
+    }))
+    && seKeyFoldHasSurvivingKey(memberNode, aliasCtx);
   const undefinable = [],
         provenSources = new Map(),
         // objects of one chain share the root - prove the inline call once per verdict
@@ -1040,7 +1059,18 @@ function resolveGuardedBindingToGlobal({ name, scope, adapter, seen, path, usage
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
-  const hint = binding?.polyfillHint;
+  let hint = binding?.polyfillHint;
+  // a PRE-EXISTING pure default import (a pass over an emitter's own output): the census
+  // prepasses run before any injector registry exists, so the hint derives from the import
+  // source itself - `_Iterator` bound by '.../actual/iterator/constructor' reads as Iterator
+  if (!hint && binding?.importKind !== 'type' && (binding?.kind === 'module'
+    // ... or the require-style pure binding: THIS binding's own declarator holds the
+    // require call (a shadowed local of the same name has a different node and stays out)
+    || (binding?.node?.type === 'VariableDeclarator' && binding.node.init?.type === 'CallExpression'
+      && binding.node.init.callee?.name === 'require'))) {
+    const entry = pureImportEntryOf(path, name);
+    if (entry) hint = entryToGlobalHint(entry) ?? null;
+  }
   if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))) {
     // pure only - the hint drives a receiver-dropping rewrite, so it must be flow-sound at THIS use;
     // global / entry modes inject side-effect imports and stay sound regardless (over-inject-safe).
@@ -1810,6 +1840,22 @@ function resolveComputedHopKeys(hops, { scope, adapter, path, unwrap }) {
 // kinds: 'nested' (a prefix test survives), 'sequence' (no prefix, but the root or its arg
 // carries effects the collapse must keep), 'bare' (everything provably drops). null = not this
 // shape; the callers keep their own canons there
+// the RENDER-time read of a plan's key effects, off the LIVE key containers: a claim landing
+// inside a kept computed key swaps the node in its PARENT slot (`path.replaceWith` /
+// `replaceNodeInTree`), so the plan's eager `keySeExprs` references go stale by flush time.
+// every renderer that re-emits the key effects reads THROUGH the plan's `liveKeySeExprs`
+// instead - one liveness rule for both emitters (babel's re-read at flush == the ast
+// engine's keep-live identity); the shape check falls back to the captured nodes when a
+// rewrite reshaped the container
+function liveHopKeySeExprs(hops, unwrap) {
+  return hops.flatMap(hop => {
+    if (!hop.keySeExprs?.length) return [];
+    const prop = unwrap(hop.node.property);
+    return prop?.type === 'SequenceExpression' && prop.expressions.length === hop.keySeExprs.length + 1
+      ? prop.expressions.slice(0, -1) : hop.keySeExprs;
+  });
+}
+
 export function planProvenNavGuardCollapse({
   rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq, allowSequenceRoot = false,
   throughKeptAssign = false, descendSequenceTail = false,
@@ -1971,7 +2017,8 @@ export function planProvenNavGuardCollapse({
     // the claim's side effects must skip it, or the source's single store runs twice - and the text
     // leg's replay spells it RAW (`w = globalThis`), a bare global in usage-pure output
     rootAssign: chainAssign ?? null,
-    topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx, keySeExprs, testKeySeCount,
+    topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
+    liveKeySeExprs: () => liveHopKeySeExprs(hops, unwrap), testKeySeCount,
     seqAroundPrefix,
     leafName: hops[collapseIdx].name, leafPure, rootValueNode: seqRootNode ?? n, seqRoot: !!seqRootNode,
     // the sequence's TAIL is part of what the hops navigate, so a render that descended past it
@@ -2754,7 +2801,8 @@ export function navValueCanShortCircuit(navNode, resolvePure, aliasCtx = null, {
 // an Identifier resolves through the alias walk (`undefinableProxyRootValue` - an alias
 // HOLDING a probe/nav is as undefinable as the nav); other shapes (opaque calls, ...) stay
 // with each caller's own arm - pass only nav/Identifier cores here
-export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = null, { throughChainAssign = false } = {}) {
+export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = null,
+  { throughChainAssign = false, observableRead = false } = {}) {
   const core = unwrapRuntimeExpr(peelReceiverSequenceTail(node));
   if (core?.type !== 'MemberExpression' && core?.type !== 'OptionalMemberExpression') {
     return undefinableProxyRootValue(core, resolvePure, aliasCtx);
@@ -2763,8 +2811,26 @@ export function proxyReceiverValueCanBeUndefined(node, resolvePure, aliasCtx = n
   const hop = staticMemberKeyName(core);
   if (!proxyHopLacksPureEntry(hop, resolvePure)) return false;
   const rootRaw = unwrapRuntimeExpr(peelReceiverSequenceTail(core.object));
-  const rootObj = unwrapRuntimeExpr(peelChainAssignment(rootRaw).value ?? rootRaw);
-  if (rootObj?.type === 'Identifier') return !!isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx });
+  // the chain-root peel to FIXPOINT: a write storing an effect-prefixed root is the shape it
+  // exists for (`(held = (n++, globalThis)).window`) - the one-step assign peel stops at that
+  // sequence and reads no root, calling a load-bearing probe always-defined
+  let rootObj = unwrapRuntimeExpr(peelChainRootValue(rootRaw) ?? rootRaw);
+  // only an OBSERVABLE read (a kept write, a seal - the caller proves it) may treat a proxy
+  // SPINE below the probe hop as one surface (`(v = globalThis.self.window)`: the probe reads
+  // off `globalThis.self`); a PLAIN multi-hop nav collapses whole and its `?.` deopts instead
+  if (observableRead) {
+    while (rootObj?.type === 'MemberExpression' || rootObj?.type === 'OptionalMemberExpression') {
+      const hopName = staticMemberKeyName(rootObj);
+      if (!hopName || !POSSIBLE_GLOBAL_OBJECTS.has(hopName)) break;
+      rootObj = unwrapRuntimeExpr(peelReceiverSequenceTail(rootObj.object));
+    }
+  }
+  // a MINTED pure import at the root (`_self.window` after the in-place rewrite) names its
+  // source global through the polyfillHint side-channel - the probe read is the same
+  if (rootObj?.type === 'Identifier') {
+    return !!isProxyGlobalIdentifierNode({ node: rootObj, ...aliasCtx })
+      || (!!aliasCtx && !!bareProxyGlobalAliasName(rootObj, aliasCtx));
+  }
   // the probe read off a PROVEN inline call is the same environment probe (`f()?.window`,
   // `f = () => globalThis` - the opaque-root canon guards it)
   return (rootObj?.type === 'CallExpression' || rootObj?.type === 'OptionalCallExpression')
@@ -2815,7 +2881,7 @@ function callValueCanBeUndefined(callNode, aliasCtx, resolvePure = null) {
 // which nothing above re-tests), or a proven body whose returned navigation is itself
 // undefinable. the guard-SOURCE arm asks this of an optional call: the print rule answers true
 // for every optional link, but a const-bound callee yields a proven value whose collapse is sound
-function callYieldCanBeUndefined(callNode, aliasCtx, resolvePure) {
+export function callYieldCanBeUndefined(callNode, aliasCtx, resolvePure) {
   if (!aliasCtx || !inlineCallProxyGlobalRoot({ callNode, ...aliasCtx, rejectConditional: true })) return true;
   // proving the call YIELDS a proxy global is not proving its value is DEFINED: an inlined body that
   // navigates through a live `?.` (`() => globalThis.window?.self`) short-circuits to undefined, and
@@ -2883,9 +2949,14 @@ export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
   for (let cur = navNode; cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
     cur = unwrapRuntimeExpr(cur.object)) {
     const object = unwrapRuntimeExpr(cur.object);
-    const undefinable = isCallShape(object)
-      ? callValueCanBeUndefined(object, aliasCtx, resolvePure)
-      : proxyReceiverValueCanBeUndefined(object, resolvePure, aliasCtx);
+    // a KEPT WRITE holds its VALUE, and the write makes the read observable - a proxy
+    // spine below the probe hop counts as one surface (`(w = globalThis.window)?.X`
+    // keeps its guard, `(w = globalThis)?.X` is dead)
+    const value = peelChainAssignmentDeep(object);
+    const undefinable = isCallShape(value)
+      ? callValueCanBeUndefined(value, aliasCtx, resolvePure)
+      : proxyReceiverValueCanBeUndefined(value, resolvePure, aliasCtx,
+        value === object ? undefined : { observableRead: true });
     if (cur.optional && !undefinable) dead.push(cur);
   }
   return dead;
@@ -2908,7 +2979,7 @@ export function vestigialNavOptionals(navNode, resolvePure, aliasCtx = null) {
 // `tryFlattenProxyHopHost` / `isProxyHopHostShape` classify a destructure host, `rebuildWrappedProxyChain`
 // re-emits hops onto a binding. `navHasUnresolvableProxyHop` stays the owner of the question - this is
 // its arm, lifted so `proxyReceiverValueCanBeUndefined` asks it in the same spelling
-function proxyHopLacksPureEntry(hop, resolvePure) {
+export function proxyHopLacksPureEntry(hop, resolvePure) {
   return !!hop && POSSIBLE_GLOBAL_OBJECTS.has(hop)
     && !resolvePure({ kind: 'global', name: hop })
     && !resolveBuiltInMeta({ kind: 'global', name: hop });

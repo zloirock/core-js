@@ -27,7 +27,7 @@ import {
   peelMemoizeWrappers,
   peelNestedSequenceExpressions,
   TS_EXPR_WRAPPERS,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  parenSealedCalleeAbove,
   POSSIBLE_GLOBAL_OBJECTS,
   staticMemberKeyName,
   isValidIdentifierName,
@@ -67,6 +67,7 @@ import {
   sealedLayerBetween,
   sealedChainBoundary,
   ownChainOptionalObjects,
+  proxyHopLacksPureEntry,
   proxyReceiverValueCanBeUndefined,
   staticMayEraseReceiver,
   vestigialNavOptionals,
@@ -461,38 +462,27 @@ function parensBalanced(src) {
   return unmatched === 0 && open === 0;
 }
 
+// may a `delete` consumer fold the whole navigation? only while no live `?.` guards the
+// ENVIRONMENT PROBE read itself: that short-circuit decides whether the delete happens, and folding
+// it deletes a slot off the ponyfill the source never touches
+function deleteFoldsWholeNav(node, resolveGlobalPolyfill) {
+  for (let cur = unwrapNode(node);
+    cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression';
+    cur = unwrapNode(cur.object)) {
+    if (cur.optional && proxyHopLacksPureEntry(staticMemberKeyName(cur),
+      ({ name }) => resolveGlobalPolyfill(name))) return false;
+  }
+  return true;
+}
+
 // is a `delete` the consumer anywhere above this claim's chain? the canon's walk, with this
 // dialect's wrapper peel
 function deleteAboveChain(metaPath, node) {
   return deleteHostAboveChain(metaPath, node, unwrapNode);
 }
 
-// is this chain the CALLEE of a call, behind parens? `(w?.self.fn)()` keeps the reference (so
-// `this` still binds) while the parens end the short-circuit - only the lifted spelling gives
-// both, a folded tail hands the callee a bare value
 function parenCalleeAbove(metaPath, node) {
-  let step = metaPath;
-  while (step?.node && unwrapNode(step.node) !== node) step = step.parentPath;
-  let wrapped = false;
-  // the climb has to know WHICH slot it came up through: only the callee / tag position binds the
-  // reference. an ARGUMENT reaching the same call is not a paren'd callee, and answering as if it
-  // were hands the argument a `?.` tail the source never wrote
-  let child = step?.node;
-  for (let up = step?.parentPath; up?.node; child = up.node, up = up.parentPath) {
-    const { type } = up.node;
-    // a TS cast seals the chain exactly as parens do (the canon set is the two together), and it is
-    // transparent to this climb: stopping on it read `(nav?.hop as any)(1)` as an unsealed callee
-    // and folded the call into the guarded branch, which answers undefined where the source throws
-    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(type)) {
-      wrapped = true;
-      continue;
-    }
-    // a tagged template binds `this` from its tag reference just like a call
-    if (type === 'TaggedTemplateExpression') return up.node.tag === child;
-    if (type === 'CallExpression' || type === 'OptionalCallExpression') return wrapped && up.node.callee === child;
-    if (type !== 'MemberExpression' && type !== 'OptionalMemberExpression' && type !== 'ChainExpression') return false;
-  }
-  return false;
+  return parenSealedCalleeAbove(metaPath, node, unwrapNode);
 }
 
 // is the climbed member tail consumed by a `delete` (through chain / paren / TS wrappers)?
@@ -4536,7 +4526,11 @@ export function createPolyfillEmitter({
     // simply stand DOWN, though: with no claim owning the chain the nav would ride raw
     // (`_globalThis.window.self?.X` - a throw off-window). hand it to the plain chain collapse, the
     // one the `?.`-free twin of the same source takes, so the delete lands on the collapsed root
-    if (deleteAboveChain(metaPath, unwrapped)) {
+    // ... and the exception is narrow: a live `?.` whose OWN key is the unresolvable hop guards the
+    // environment probe READ, and that short-circuit decides whether the delete happens at all -
+    // folded, it removes a slot off the ponyfill the source never touches (`delete ut()?.window
+    // ?.self?.chrome` must leave `globalThis.chrome` alone on a realm with no `window`)
+    if (deleteAboveChain(metaPath, unwrapped) && deleteFoldsWholeNav(unwrapped, resolveGlobalPolyfill)) {
       const collapsedForDelete = resolveProxyGlobalChainSrc(unwrapped, metaPath, false, [], { throughDelete: true });
       return collapsedForDelete
         ? { src: collapsedForDelete.src, end: unwrapped.end, verbatimFrom: unwrapped.end, keySeExprs: [] } : null;

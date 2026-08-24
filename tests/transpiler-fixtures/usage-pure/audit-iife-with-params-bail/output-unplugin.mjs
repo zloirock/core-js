@@ -1,5 +1,5 @@
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-import _WeakSet from "@core-js/pure/actual/weak-set/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map";
+import _WeakSet from "@core-js/pure/actual/weak-set";
 // IIFE whose param is a DESTRUCTURE pattern can't be statically arg-matched, so inline-call
 // resolution bails and the live call survives. a single-Identifier identity param (`(x) => x`)
 // IS inlined now - only non-trackable param shapes keep the receiver behind the call

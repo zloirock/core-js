@@ -7,6 +7,8 @@ import {
   proxyNavEffectsHarvestable,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
+import { ESCAPED_CTOR_REFS, nodePositionKey } from './detect-usage/mutations.js';
+import { rootProgramOf } from './detect-usage/own-output.js';
 import { TYPE_HINTS } from './resolve-node-type/base.js';
 import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, resolve } from './index.js';
@@ -294,6 +296,19 @@ export function createPolyfillResolver(options, {
     return dependencies;
   }
 
+  // assignment spellings that store their RHS VALUE into the target slot: the plain write
+  // and the logical compounds (a `||=` stores the ctor exactly like `=` when it fires);
+  // arithmetic compounds store a computed value, never the bare reference
+
+  // the census stamp, looked up by SOURCE POSITION under the claim's own program: a
+  // position survives our rewrites' clones and region rebuilds, where node identity does not
+  function escapedCtorClaim(path) {
+    const node = path?.node;
+    if (node?.type !== 'Identifier') return false;
+    const key = nodePositionKey(node);
+    return key !== null && ESCAPED_CTOR_REFS.get(rootProgramOf(path))?.has(key) === true;
+  }
+
   // shared pure-resolve protocol: resolve meta -> require `pure` desc -> extract (kind, desc)
   // -> caller-supplied effectiveMeta builder -> resolvePureEntry -> build return shape.
   // the caller supplies step 3 (effectiveMeta construction); every other step is fixed
@@ -314,8 +329,17 @@ export function createPolyfillResolver(options, {
     // narrows by receiver type-hint (e.g. `arr.at()` -> Array-specific entry vs common)
     const effectiveMeta = kind === 'instance' ? enhanceMeta(meta, path, desc) : meta;
     if (!effectiveMeta) return null;
-    const entry = resolvePureEntry({ kind, desc, meta: effectiveMeta, path });
+    let entry = resolvePureEntry({ kind, desc, meta: effectiveMeta, path });
     if (!entry) return null;
+    // a bare global-ctor reference whose value ESCAPES the tracked-read positions (the
+    // source-anchored census in detect-usage/mutations.js) resolves to the NAMESPACE entry
+    // instead of the bare constructor: reads through wherever the value lands are
+    // unresolvable, so it must carry the ctor's statics itself - the constructor entry
+    // answered `undefined` for `w.k.groupBy` where every target engine with the ctor
+    // answers the member, and keeping the reference RAW instead broke the stripped realm
+    if (entry.endsWith('/constructor') && escapedCtorClaim(path)) {
+      entry = entry.replace(/\/constructor$/u, '');
+    }
     return {
       entry,
       kind,

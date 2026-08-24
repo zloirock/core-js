@@ -1,5 +1,5 @@
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
 // IIFE body contains an IfStatement before the trailing return. conditional branch
 // returns Map, tail returns Set - receiver depends on `cond`, so a scan that only saw
 // the tail would resolve wrong. any non-Expression / non-Return statement bails: outer

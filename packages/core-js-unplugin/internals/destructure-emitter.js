@@ -9,6 +9,11 @@
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation), `collapseProxyHopRoot`,
 // `tryFlattenProxyHopHost` (alias-hop collapse hooks), `markLiftedSePrefixOperand`
 import {
+  ownEmittedPatternClaim,
+  ownOutputTests,
+  restSentinelExtractionSibling,
+} from '@core-js/polyfill-provider/detect-usage/own-output';
+import {
   peelTransparentWrapperPath,
   buildFlatSynthEntries,
   collectFoldedReceiverSideEffects,
@@ -29,7 +34,6 @@ import {
   isNonReferencePosition,
   isSynthSimpleObjectPattern,
   isValidIdentifierName,
-  kebabToCamel,
   markAndPeelSkippableWrappers,
   mayHaveSideEffects,
   memberProxyHopName,
@@ -45,12 +49,10 @@ import {
   propBindingIdentifier,
   receiverCarriesLiveOptional,
   resolveFallbackReceiver,
-  STATEMENT_LIST_HOST_TYPES,
   synthSwapPropKey,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapParens,
-  unwrapRuntimeExpr,
   walkPatternIdentifiers,
   POSSIBLE_GLOBAL_OBJECTS,
   deleteHostAboveChain,
@@ -68,7 +70,7 @@ import {
   unwrapInitForResolution,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { subsume } from '@core-js/polyfill-provider/helpers/subsumption';
-import { entryToGlobalHint, resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
+import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   claimlessGuardedObjectUndefinable,
   claimlessOptionalNavGuardsUndefinable,
@@ -147,10 +149,10 @@ import {
   inlineCallNavGuardRootSrc, sealedClaimLeafGuardSrc, skipCollapsedChainExceptRootCall, subsumeDiscardedRegion,
 } from './polyfill-emitter.js';
 import {
+  dropRedundantRootParens,
   parenthesizeExprStmtHazard,
   skipDirectivePrologue,
   walkAstNodes,
-  dropRedundantRootParens,
 } from './plugin-helpers.js';
 import { findRegionContaining, literalRegionsOf, skipGap } from './text-scan.js';
 
@@ -278,55 +280,6 @@ export function createDestructureEmitter({
   // that legitimately contain a `\n` for cosmetic separation)
   function wrapBodylessIfMulti(src, isMulti, hostPath) {
     return isMulti && isBodylessStatementBody(hostPath) ? `{ ${ src } }` : src;
-  }
-
-  // an ADOPTED sentinel - a `_unusedN` the census found in the sentinel position of a source that
-  // already imports core-js (a re-parse of our own output, or a user file written against the
-  // pure imports) - is ours only where our extraction of THIS KEY stands with it: every rest
-  // rebuild leaves the extracted value in the same statement list, as a declarator init or an
-  // assignment read through the key's pure-import binding (`at = _atMaybeArray(_ref)`,
-  // `from = _Array$from`, a `for` head's `from = _Array$from, _unused = ...`; a nested proxy key
-  // names the NAMESPACE the import hangs off - `Array: _unused` beside `_Array$from`; a symbol
-  // iterator key reads through `get-iterator-method`). a user's unread alias in that position has
-  // no such sibling and keeps its rewrite - its importers may read it
-  function hasExtractionSibling(path, { key, symbolIterator }) {
-    let p = path;
-    while (p?.parentPath && !STATEMENT_LIST_HOST_TYPES.has(p.parentPath.node?.type)
-      && p.parentPath.node?.type !== 'SwitchCase') p = p.parentPath;
-    const host = p?.parentPath?.node;
-    const list = host?.type === 'SwitchCase' ? host.consequent : host?.body;
-    if (!Array.isArray(list)) return false;
-    function extractsKey(name) {
-      const info = injector.getPureImport(name);
-      if (!info) return false;
-      const segments = info.entry.split('/');
-      if (symbolIterator) return info.entry === 'get-iterator-method';
-      if (typeof key !== 'string') return false;
-      return kebabToCamel(segments.at(-1)).toLowerCase() === key.toLowerCase()
-        || (segments.length > 1 && entryToGlobalHint(segments[0]) === key);
-    }
-    function readsPureImport(expr) {
-      const e = unwrapRuntimeExpr(expr);
-      const callee = e?.type === 'CallExpression' ? unwrapRuntimeExpr(e.callee) : e;
-      return callee?.type === 'Identifier' && extractsKey(callee.name);
-    }
-    function * inits(stmt) {
-      const node = stmt?.type === 'ExportNamedDeclaration' ? stmt.declaration : stmt;
-      switch (node?.type) {
-        case 'VariableDeclaration':
-          for (const d of node.declarations) yield d.init;
-          break;
-        case 'ForStatement':
-          yield * inits(node.init);
-          break;
-        case 'ExpressionStatement': {
-          const expressions = node.expression?.type === 'SequenceExpression' ? node.expression.expressions : [node.expression];
-          for (const e of expressions) if (e?.type === 'AssignmentExpression') yield e.right;
-        }
-      }
-    }
-    for (const stmt of list) for (const init of inits(stmt)) if (init && readsPureImport(init)) return true;
-    return false;
   }
 
   // prepend a `;` when a statement-position overwrite's first char would fuse LEFTWARD into the prev surviving
@@ -3878,9 +3831,13 @@ export function createDestructureEmitter({
     // included, or a pass over the output re-extracts the sentinel as a live binding and mints
     // a fresh one, and the file grows per pass
     if (propNode.value?.type === 'Identifier' && injector.hasGeneratedUnusedName(propNode.value.name)
-        && (!injector.isAdoptedUnusedName(propNode.value.name) || hasExtractionSibling(metaPath, {
+        && (!injector.isAdoptedUnusedName(propNode.value.name) || restSentinelExtractionSibling(metaPath, {
           key: typeof meta.key === 'string' ? meta.key : propertyKeyName(propNode), symbolIterator: isSourcedSymbolIteratorMeta(meta),
+          injector,
         }))) return;
+    // ... and a prop whose OVERWRITE REBIND already follows the kept-raw statement is one a
+    // prior pass claimed - the shared census, or every pass appends one more rebind
+    if (ownEmittedPatternClaim(metaPath, ownOutputTests(injector))) return;
     if (isFunctionParamDestructureParent(metaPath.parentPath)) {
       return handleParameterDestructurePure(meta, metaPath, propNode, pureRaw);
     }
