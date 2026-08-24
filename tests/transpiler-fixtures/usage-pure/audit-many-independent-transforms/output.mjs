@@ -7,9 +7,8 @@ import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _String$raw from "@core-js/pure/actual/string/raw";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
-// many independent, non-nested polyfills in one file - exercises the fast path for the
-// transform queue (no composition between entries). each line triggers a distinct polyfill
-// so their rewrites shouldn't leak into each other's ranges
+// many independent, non-nested polyfills in one file. each line triggers a distinct
+// polyfill so their rewrites shouldn't leak into each other
 _Array$from(a);
 _Object$fromEntries(b);
 _Array$of(1, 2, 3);

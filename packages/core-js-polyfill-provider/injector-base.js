@@ -38,7 +38,7 @@ function nextSuffixFromName(name, prefix) {
 // user-edited source dropped `_ref` declaration leaving `_ref2+`), prefer bare so output stays
 // canonical (`_ref, _ref2, ...`). otherwise resume from cache.
 // returns the bare NAME rather than a null start suffix in the reclaim case: handing `null` to
-// `findUniqueName` made it probe the very name this just proved free, and in the AST emitter
+// `findUniqueName` made it probe the very name this just proved free, and in the babel emitter
 // that probe is a full scope-chain lookup
 function chooseStart(cached, prefix, isTaken) {
   if (cached >= 2 && !isTaken(prefix)) return { name: prefix };
@@ -74,7 +74,7 @@ function reassignedStart(binding) {
 // shared invariants:
 //   - usedNames is single source-of-truth for collision detection. uniqueName consults it
 //     plus subclass-supplied extraCheck (e.g. babel's program.references / scope.hasBinding,
-//     unplugin's collectAllBindingNames Set)
+//     unplugin's declaredNames Set)
 //   - #refs (subclass field) tracks plugin-allocated refs for orphan adoption + rename
 //   - existingPureImports populated via scanExistingCoreJSImports in pre-pass; readers
 //     don't write. there is no global-import counterpart: both emitters remove a user global
@@ -655,7 +655,7 @@ export default class ImportInjectorState {
 // `_refN` memo slots and `_unusedN` rest-destructure sentinels. slot naming matches
 // `uniqueName` allocation: slot 1 is the bare prefix, slot 2+ is `<prefix>2, <prefix>3, ...`
 // (skip-1 per babel convention)
-export const GENERATED_NAME_FAMILIES = new Map([
+const GENERATED_NAME_FAMILIES = new Map([
   ['_ref', ORPHAN_REF_PATTERN],
   ['_unused', UNUSED_NAME_PATTERN],
 ]);
@@ -674,7 +674,7 @@ export function refSlotName(prefix, i) {
 
 // numeric slot of a generator-shaped name (`_ref` -> 1, `_ref7` -> 7) via the family's own
 // pattern; Infinity for a non-slot spelling so canonical sorts push it last instead of throwing
-export function refSlotNumber(prefix, name) {
+function refSlotNumber(prefix, name) {
   const match = GENERATED_NAME_FAMILIES.get(prefix)?.exec(name);
   if (!match) return Infinity;
   return match.groups.suffix ? Number(match.groups.suffix) : 1;
@@ -699,8 +699,8 @@ export function refDeclarationOrder(a, b) {
 
 // canonical slot assignment for ONE prefix family: names ordered by FIRST PRINT OCCURRENCE
 // take the lowest free slots, so the two emitters agree on numbering wherever they agree on
-// output shape - the raw allocation orders differ by construction (the AST emitter's guard
-// climb allocates helper-first, the text emitter's guard builder root-first). `isTaken`
+// output shape - the raw allocation orders differ by construction (the babel emitter's guard
+// climb allocates helper-first, the unplugin's guard builder root-first). `isTaken`
 // filters slots the file cannot reuse (user bindings, orphan slot-shaped names). returns
 // Map<oldName, newName> with identity entries omitted
 export function assignCanonicalRefSlots(prefix, orderedNames, isTaken) {
