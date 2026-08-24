@@ -4,10 +4,9 @@ import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/web.self";
 // a SEQUENCE evaluates to its last element, so a probe nav sitting there is the receiver's value
-// and owes the guard render. the text emitter builds such a receiver with the chain ROOT already
-// substituted, which leaves the nav's own rewrite looking for a needle whose head token was
-// renamed - locating it by that token rather than skipping it as a phantom is what keeps the
-// ponyfillable hop off a native read here
+// and owes the guard render. by the time the nav's own rewrite runs, the chain ROOT is already
+// substituted - the rewrite must still claim the nav under the renamed head rather than skip
+// it as a phantom, which is what keeps the ponyfillable hop off a native read here
 globalThis.seqBox = {
   list: ['ab', 'cd'],
   n: 7

@@ -1032,8 +1032,8 @@ QUnit.test('optional chaining: folded guard under an extends clause', assert => 
 });
 
 // a guard render leading with `(` at the head of an ExpressionStatement fuses with an
-// unterminated previous statement and turns it into a call (`sink = 1(...)` throws). the text
-// emitter edits source in place, so it owes the separator the reprinting one gets for free
+// unterminated previous statement and turns it into a call (`sink = 1(...)` throws) - the
+// emit owes the separator however the output is produced
 QUnit.test('optional chaining: a paren-leading guard at statement start keeps its separator', assert => {
   globalThis.e2eGuardAsi = {
     calls: 0,

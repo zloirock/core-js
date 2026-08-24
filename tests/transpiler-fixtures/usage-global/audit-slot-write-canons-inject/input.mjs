@@ -1,6 +1,6 @@
 // usage-global equivalents of the slot-write canons: injection is the whole reaction - the
 // polyfill loads at bundle start, the user's write overwrites it at runtime, reads then see
-// the live value; the text stays verbatim. proxy-root write, container write, member slot
+// the live value; the body stays untouched. proxy-root write, container write, member slot
 // write, static patch (polyfill-then-patch) and the identity self-copy all inject their
 // names' modules like any other usage
 window = fake;

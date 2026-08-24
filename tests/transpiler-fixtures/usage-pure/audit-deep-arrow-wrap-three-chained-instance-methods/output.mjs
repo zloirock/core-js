@@ -3,9 +3,9 @@ import _findLastIndexMaybeArray from "@core-js/pure/actual/array/instance/find-l
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _at from "@core-js/pure/actual/instance/at";
 import _includes from "@core-js/pure/actual/instance/includes";
-// Deeply nested arrow body with chained instance methods stresses the compose loop:
-// outer arrow wrap + 3 inner polyfills, all sharing the same root receiver.
-// Phase 1 sortInnersInnermostLast + nth-occurrence accounting must keep emission stable
+// Deeply nested arrow body with chained instance methods - outer arrow wrap + 3 inner
+// polyfills, all sharing the same root receiver: nested rewrites over one
+// receiver chain must keep emission stable
 const f = x => {
   var _ref, _ref2;
   return _includes(_ref = _at(_ref2 = _flatMaybeArray(arr).call(arr)).call(_ref2, 0)).call(_ref, 1);

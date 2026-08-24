@@ -11,8 +11,7 @@ export const sealedStatic = (null == _globalThis.window ? void 0 : _Array$of)(5)
 export const sealedDeepNav = (null == _globalThis.window ? void 0 : _Math$trunc)(1.5);
 
 // a doubled wrapper seals no differently: one terminator is enough and the second adds no layer.
-// the AST emitter reprints the value and drops the redundant layer, the text emitter leaves the
-// source's own tokens in place - a formatting difference over the same guarded value
+// the reprint drops the redundant parens - formatting over the same guarded value
 export const doubleSealed = (null == _globalThis.window ? void 0 : _Array$of)(5);
 
 // an OPTIONAL invocation on the sealed value keeps its own `?.()`: the seal ends the SOURCE chain,

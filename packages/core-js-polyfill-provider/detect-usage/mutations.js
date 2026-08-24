@@ -1011,7 +1011,7 @@ export function mutationShapesReducer(packages = null) {
   return { visit, result };
 }
 
-export function hasMutationCandidateShapes(programNode, packages = null) {
+function hasMutationCandidateShapes(programNode, packages = null) {
   return collectFileCensus(programNode, [mutationShapesReducer(packages)]).hasMutationShapes;
 }
 
@@ -1391,7 +1391,7 @@ function addReceiverDeopt(mutated, name) {
 // Promise = self.Promise`) the copy installs the replacement's value - re-record the skipped
 // slots against the COMPLETE set, iterating because one re-recorded slot can invalidate
 // another skip's receiver
-export function createMutationSiteHandler({ adapter, mutated }) {
+function createMutationSiteHandler({ adapter, mutated }) {
   const pendingIdentitySkips = [];
   function handleSite(path) {
     const ctx = { scope: path.scope, adapter, path, pendingIdentitySkips };

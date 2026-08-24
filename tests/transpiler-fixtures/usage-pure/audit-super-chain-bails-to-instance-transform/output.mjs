@@ -1,9 +1,9 @@
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 // `super.X?.().Y(args)` would lift `super` into a `(_ref = super)` memo on the
 // OR-chain template, but `super` is not a primary expression and the codegen
-// produces invalid JS (`null == (_ref = super)`). findInnerPolyChain bails when
+// produces invalid JS (`null == (_ref = super)`). the combined-chain finder bails when
 // the inner callee receiver is `Super`, so super chains fall through to the
-// addInstanceTransform path with its dedicated super-call handling
+// instance-transform path with its dedicated super-call handling
 class C extends Array {
   m() {
     var _ref, _ref2;

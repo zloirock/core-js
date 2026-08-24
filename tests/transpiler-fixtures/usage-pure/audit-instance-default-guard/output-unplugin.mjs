@@ -46,9 +46,8 @@ const { [(e4(), 'findLast')]: _unused4 } = recvE,
 const { [(e6(), 'toSorted')]: _unused6, ...restF } = recvF,
 	ts = (_ref7 = _toSortedMaybeArray(recvF)) === void 0 ? dfltF() : _ref7;
 
-// memoized receiver + split: both segments and the guard read the shared ref; the extraction
-// PLACEMENT differs per emitter (the text emitter's preceding statements vs the AST emitter's
-// comma chain - a pre-existing cosmetic, side-effect order is identical)
+// memoized receiver + split: both segments and the guard read the shared ref, and the
+// extraction rides the declaration's own comma chain - side-effect order is identical
 const _ref8 = [9];
 
 const { [(e7(), 'with')]: _unused7 } = _ref8,

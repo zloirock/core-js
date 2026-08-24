@@ -1,6 +1,6 @@
 // a polyfill BURIED inside a kept chain root: the claim between them replaces the whole chain, so
 // the buried rewrite has no slot there - it has one in the GUARD, which re-emits that root as its
-// test. the fold has to reach past the claim to the transform that actually kept the text; blaming
+// test. the fold has to reach past the claim to the rewrite that actually kept the root; blaming
 // the inner instead aborted the build on a shape that composes. one method per row keeps it readable.
 export const inBody = (() => (Array.from([1]), globalThis))()?.window?.Array.of(5).at(0);
 export const inArgument = ((x) => globalThis)(Object.entries({ a: 1 }))?.window?.Set.prototype.has.call(new Set([1]), 1);

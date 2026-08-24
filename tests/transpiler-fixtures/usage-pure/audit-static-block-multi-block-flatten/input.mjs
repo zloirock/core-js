@@ -1,5 +1,5 @@
 // two static-init blocks back-to-back. the second block declares `var globalThis` inside
-// a NESTED BlockStatement (not directly under static). collectFunctionVars should still
+// a NESTED BlockStatement (not directly under static). the function-locals walk must still
 // hoist that var into the StaticBlock's locals because BlockStatement is not a var-scope
 // boundary, so the inner reference must resolve to the local var rather than the polyfill
 const { Array: { from } } = globalThis, K = (() => {

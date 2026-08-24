@@ -1,4 +1,4 @@
-// four more claims the differential's AST leg caught the engine DROPPING, all with the fixture
+// four more claims the differential caught the engine DROPPING, all with the fixture
 // gate green: a bodyless SE-key sentinel over a receiver only a memo can re-read, the same over
 // an EFFECTFUL init the memo evaluates once, an instance synth slot whose receiver is spelled
 // exactly once, and a receiver-bearing default one level in - in a declarator, an assignment
