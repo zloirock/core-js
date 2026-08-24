@@ -1,5 +1,5 @@
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
 // IIFE body wraps the receiver in a TryStatement before the unreachable tail return. try
 // returns Map, catch returns Set, dead-code tail returns Array - receiver is dynamically
 // Map or Set. receiver resolution must bail on TryStatement (only Expression / Return
