@@ -6,7 +6,7 @@
 // files oxc cannot parse (error fixtures, flow) are out of the printer's contract - they
 // are counted and skipped, with a canary so a skip-everything regression cannot read green
 import { parseSync } from 'oxc-parser';
-import { printProgram } from '../../packages/core-js-unplugin/internals/ast/print.js';
+import { printProgram } from '../../packages/core-js-unplugin/internals/print.js';
 import { isLineBoundDisableDirective } from '../../packages/core-js-polyfill-provider/helpers/source-scan.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 import { inferTestId, loadBabelOptions } from './fixture-lang.mjs';
