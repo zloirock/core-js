@@ -52,7 +52,7 @@ export const babelAdapter = {
 // from unplugin's estree-compat normalises that to the Babel dispatch name. `estreeTypes`
 // shims the `t.isXxx` predicate API. estree-toolkit traverse populates `.scope` on each
 // path - matches babel-traverse closely enough that `path.scope.getBinding(...)` works
-export const oxcAdapter = {
+const oxcAdapter = {
   name: 'oxc',
   // oxc auto-detects features by file extension (no extraPlugins arg - callers' plugin list is
   // babel-only). a 'script' sourceType parses sloppy-mode (Annex-B block-function hoisting); use

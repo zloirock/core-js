@@ -22,13 +22,8 @@ vite({
   browserslistEnv: null,
   ignoreBrowserslistConfig: null,
   importStyle: null,
-  engine: null,
   phase: null,
 });
-
-// the staged AST-engine flag types both values even while 'ast' is rejected at runtime
-vite({ method: 'usage-global', engine: 'text' });
-vite({ method: 'usage-pure', engine: 'ast' });
 
 // readonly arrays accepted for additionalPackages / include / exclude
 const unpAdditional = ['@x/y'] as const;
@@ -150,39 +145,37 @@ rolldownPlugin({ method: 'usage-global' });
 farmPlugin({ method: 'usage-global' });
 bunPlugin({ method: 'usage-global' });
 
-// @ts-expect-error — method is required
+// @ts-expect-error - method is required
 vite({});
-// @ts-expect-error — invalid method
+// @ts-expect-error - invalid method
 vite({ method: 'invalid' });
-// @ts-expect-error — invalid mode
+// @ts-expect-error - invalid mode
 vite({ method: 'usage-global', mode: 'invalid' });
-// @ts-expect-error — invalid engine
-vite({ method: 'usage-global', engine: 'quantum' });
-// @ts-expect-error — version must be a string
+// @ts-expect-error - version must be a string
 vite({ method: 'usage-global', version: 4 });
-// @ts-expect-error — debug must be a boolean
+// @ts-expect-error - debug must be a boolean
 vite({ method: 'usage-global', debug: 'yes' });
-// @ts-expect-error — package must be a string
+// @ts-expect-error - package must be a string
 vite({ method: 'usage-global', package: 123 });
-// @ts-expect-error — additionalPackages must be a string array
+// @ts-expect-error - additionalPackages must be a string array
 vite({ method: 'usage-global', additionalPackages: [123] });
-// @ts-expect-error — include must be an array
+// @ts-expect-error - include must be an array
 vite({ method: 'usage-global', include: 'es.array.push' });
-// @ts-expect-error — shouldInjectPolyfill must be a function
+// @ts-expect-error - shouldInjectPolyfill must be a function
 vite({ method: 'usage-global', shouldInjectPolyfill: true });
-// @ts-expect-error — importStyle must be 'import' or 'require'
+// @ts-expect-error - importStyle must be 'import' or 'require'
 vite({ method: 'usage-global', importStyle: 'esm' });
-// @ts-expect-error — absoluteImports must be a boolean
+// @ts-expect-error - absoluteImports must be a boolean
 vite({ method: 'usage-global', absoluteImports: 'path' });
-// @ts-expect-error — configPath must be a string
+// @ts-expect-error - configPath must be a string
 vite({ method: 'usage-global', configPath: true });
-// @ts-expect-error — shippedProposals was removed and is no longer a known option
+// @ts-expect-error - shippedProposals was removed and is no longer a known option
 vite({ method: 'usage-global', shippedProposals: true });
-// @ts-expect-error — browserslistEnv must be a string
+// @ts-expect-error - browserslistEnv must be a string
 vite({ method: 'usage-global', browserslistEnv: 1 });
-// @ts-expect-error — entry-global rejects phase 'post' (discriminated union)
+// @ts-expect-error - entry-global rejects phase 'post' (discriminated union)
 vite({ method: 'entry-global', phase: 'post' });
-// @ts-expect-error — entry-global rejects phase 'pre+post'
+// @ts-expect-error - entry-global rejects phase 'pre+post'
 vite({ method: 'entry-global', phase: 'pre+post' });
-// @ts-expect-error — invalid phase value
+// @ts-expect-error - invalid phase value
 vite({ method: 'usage-global', phase: 'late' });

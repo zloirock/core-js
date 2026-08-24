@@ -124,7 +124,7 @@ function reparenthesizeTaggedTag(t, fromPath) {
 // the nav-collapse descent reached the environment PROBE itself (`globalThis.self.window?.X` - the nav
 // ENDS at the hop pure cannot back, so there is no ponyfilled LEAF for a plan to collapse onto). the hops
 // BELOW it still collapse: substitute their ponyfill and leave the probe read - and its `?.` - exactly as
-// written, which is what the text emitter spells. without it the emit keeps `_globalThis.self.window`, a
+// written, which is what the unplugin emitter spells. without it the emit keeps `_globalThis.self.window`, a
 // NATIVE `self` read off the ponyfill that throws in Node where the same source, spelled by the other
 // leg, short-circuits. effect-free plans with nothing above their collapse only - everything else is the
 // guarded render's business
@@ -151,7 +151,7 @@ function navPlanValueAst(t, plan, pureId, renderedPlanTails) {
 // a CLAIMLESS proxy nav rooted in an inline-resolvable CALL (`(() => globalThis)().window.self
 // .userSlot`): every claim channel here is driven by a claim, and there is none, so nothing
 // rendered the hops and they rode raw - a native `self` read where the ponyfill is the point,
-// while the text leg collapses the same source through its own suppressed-hop callback. climb to
+// while the unplugin leg collapses the same source through its own suppressed-hop callback. climb to
 // the chain END and hand it to the collapse a claimed nav takes. an IDENTIFIER root is not this:
 // its own visitor substitutes the root and the hop drive owns the rest
 function collapseClaimlessCallRootedNav({ endPath, adapter, resolvePureGlobalEntry, injectPureGlobal, collapseNav }) {
@@ -178,7 +178,7 @@ function collapseClaimlessCallRootedNav({ endPath, adapter, resolvePureGlobalEnt
   // a call yielding a DEFINED global collapses onto the ROOT ponyfill, the canon every other
   // spelling of that source takes. one yielding the PROBE (`() => globalThis.window`) does not:
   // its root names a global the value never reached, so the nav collapses onto the ponyfill of
-  // what it NAVIGATES instead - the leaf, which is what the text leg spells for this shape
+  // what it NAVIGATES instead - the leaf, which is what the unplugin leg spells for this shape
   if (!proxyReceiverValueCanBeUndefined(root, resolvePure, ctx)) return collapseNav(endPath);
   const navPath = endPath.get('object');
   const name = resolveObjectName({ objectNode: navPath.node, ...ctx });
@@ -248,10 +248,11 @@ function collapseHopsBelowProbe({ probePath, anchorPath, adapter, resolvePure, i
   return true;
 }
 
+// eslint-disable-next-line max-statements -- per-transform channel factory wiring
 export default function (t, { getInjector, getAdapter, typeResolvers, resolvePureGlobalEntry, injectPureGlobal,
   collapseReceiverHops = null } = {}) {
-  const { resolveNodeType, resolvedType } = typeResolvers ?? {},
-        isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+  const { resolveNodeType, resolvedType } = typeResolvers ?? {};
+  const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
   function reset() {
     isInTypeAnnotation.reset();
@@ -329,18 +330,18 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // canon must not re-run on them, or the same source yields a different chain per traversal
   // chains whose tail feeds a TAGGED template: the source parens end the chain there, so the
   // lift that re-creates a short-circuit would swallow the throw the source performs
-  const taggedTemplateTails = new WeakSet(),
-        renderedPlanTails = new WeakSet(),
-        renderedGuardTests = new WeakSet(),
-        guardedClaims = new WeakSet(),
-        // render-minted effect nodes (alias throw probes): inserted AS-IS by the SE wrap, so
-        // the consumer's skip seeding survives to the visitor that would otherwise re-claim
-        mintedEffectNodes = new WeakSet(),
-        pluginSeqWraps = new WeakSet(),
-        parenTerminated = new WeakSet(),
-        pendingKeptNavCollapses = [],
-        throwingExtractions = new WeakSet(),
-        rebuiltSourceCalls = new WeakSet();
+  const taggedTemplateTails = new WeakSet();
+  const renderedPlanTails = new WeakSet();
+  const renderedGuardTests = new WeakSet();
+  const guardedClaims = new WeakSet();
+  // render-minted effect nodes (alias throw probes): inserted AS-IS by the SE wrap, so
+  // the consumer's skip seeding survives to the visitor that would otherwise re-claim
+  const mintedEffectNodes = new WeakSet();
+  const pluginSeqWraps = new WeakSet();
+  const parenTerminated = new WeakSet();
+  const pendingKeptNavCollapses = [];
+  const throwingExtractions = new WeakSet();
+  const rebuiltSourceCalls = new WeakSet();
   function markThrowingExtraction(node) {
     throwingExtractions.add(node);
     return node;
@@ -374,7 +375,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // resolves, but it is a polyfill in its own right - lifting a guard over it turns the
     // argument's short-circuit into the whole call's
     // a plugin HELPER wraps the claim and stays undefined-tolerant, so a guard may lift over it -
-    // the text emitter hangs it outside too. a call the SOURCE wrote around the claim is a
+    // the unplugin emitter hangs it outside too. a call the SOURCE wrote around the claim is a
     // polyfill in its own right, whether it still carries its source range or an outer claim has
     // already rebuilt it: lifting past it turns the argument's short-circuit into the whole call's
     return typeof callNode.start !== 'number' && !rebuiltSourceCalls.has(callNode)
@@ -429,7 +430,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the whole sequence lifts - its key SE legally moves into the guard's non-null branch
       // (native evaluates the key only when the chain does not short-circuit). a bare-
       // Identifier claim needs no memo at all - inline it over the ref reads and drop the
-      // assign (the text emitter folds the same shape memo-free)
+      // assign (the unplugin emitter folds the same shape memo-free)
       if (gp?.isSequenceExpression() && pluginSeqWraps.has(gp.node)
         && gp.node.expressions[0] === p.node) {
         if (body.type === 'Identifier') {
@@ -535,12 +536,12 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       }
     }
     rootNode = navGuardTestNode(rootNode, path, null, guardObject);
-    // the test is a RENDER, and which of the two shapes it takes is the seal question the text
-    // emitter asks: under a seal keep the navigation (its read throws where the source does) and
+    // the test is a RENDER, and which of the two shapes it takes is the shared seal
+    // question: under a seal keep the navigation (its read throws where the source does) and
     // mark it so nothing re-reads it; without one take the plan's BASE, or the test keeps a native
     // `self` read (`_globalThis.self.window`) where its ponyfill is the point
     // a transparent wrapper on the ROOT gets explicit parens in the guard test: babel prints
-    // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the text emitter keeps
+    // `null == <cast> ? ...` cast-on-boolean (precedence drift) where the unplugin emitter keeps
     // the wrapped root grouped - `null == ((c = gw) as any) ? ...`
     if (SKIPPABLE_WRAPPER_TYPES.has(rootNode.type)) rootNode = t.parenthesizedExpression(rootNode);
     const invokeParent = replacePath.parentPath;
@@ -565,11 +566,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       climbedHelper ||= lifted[2] === 'helper';
       [target, claimBody] = lifted;
     }
-    // a guard re-hung above climbed HELPER wrappers memoizes its root: the text emitter's
+    // a guard re-hung above climbed HELPER wrappers memoizes its root: the unplugin emitter's
     // guard builder (which owns those shapes there) always allocates the memo ref, and the
     // pre-claim kept-canon does too - an unmemoized test would split the emitters on every
     // wrapped claim byte-for-byte. unwrapped claims, pure tail climbs and claims landing
-    // inside an OUTER guard test keep the memo-free spelling (the text emitter's
+    // inside an OUTER guard test keep the memo-free spelling (the unplugin emitter's
     // slot-hoisted prefix carries no memo either - the locked H1 / combined canon)
     let landing = target.parentPath;
     while (landing?.isAssignmentExpression()) landing = landing.parentPath;
@@ -770,8 +771,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   // THE guard-test spelling, shared by every channel that builds a `null == <test>` guard: the
-  // vestigial-`?.` verdict of the provider (a `?.` over the proven root is dead text the text
-  // emitter drops too; one over a genuine probe is load-bearing and stays). deopts a CLONE - the
+  // vestigial-`?.` verdict of the provider (a `?.` over the proven root is dead - the unplugin
+  // drops it too; one over a genuine probe is load-bearing and stays). deopts a CLONE - the
   // source node may still be read by another channel - and keeps node identity when nothing is dead
   // AND nothing inside still owes its own render, so channels relying on the live subtree are
   // untouched; a nav buried in a call root owes one, and the original is already marked handled
@@ -807,7 +808,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // ... with ONE exception, and it is the seal canon, not a spelling preference: a chain that READS
     // THROUGH a seal over a short-circuit performs that read itself (`((w = gw).window?.self).Symbol`
     // throws off-window), and collapsing the test both erases the throw and drops the write the
-    // source performs on the way. keep the source spelling there - what the text leg spells too
+    // source performs on the way. keep the source spelling there - what the unplugin leg spells too
     if (guardObject && injectPureGlobal
       && !chainReadsThroughSeal(guardObject, resolvePure, ctx)) {
       // the plan models PROXY hops, so a guard object ending in a claim hop (`(gw).self.Array`) has
@@ -838,7 +839,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         // the WRITE below the hops is what the collapse replaces along with them, and it is the
         // source's own first act: it rides INSIDE the collapsed value, ahead of the leaf, so the
         // hops above read off the ponyfill and the store still happens where the source performs it
-        // (`(u = _globalThis, _self).window` - the text leg's own spelling). declining the collapse
+        // (`(u = _globalThis, _self).window` - the unplugin leg's own spelling). declining the collapse
         // for it instead left `_globalThis.self` standing: a host read off the ponyfill, undefined
         // in exactly the realms the polyfill exists for
         let spelled = injectPureGlobal(testPlan.leafPure.entry, testPlan.leafPure.hintName);
@@ -861,7 +862,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const clone = t.cloneNode(node, true);
     const dead = vestigialNavOptionals(clone, resolvePure, ctx);
     // a nav BURIED in a call root still owes its own collapse, and the claim's walk already marked
-    // the original subtree handled - handing that back freezes it raw while the text emitter renders
+    // the original subtree handled - handing that back freezes it raw while the unplugin emitter renders
     // it. the clone resets identity, so the visitors re-enter and spell the same guard there
     if (!dead.length) {
       const { root } = descendToChainRoot(node, true);
@@ -876,7 +877,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     return markGuardTestRendered(clone);
   }
 
-  // the AST spelling of a nav-collapse plan (mirrors the text emitter's forms byte-for-byte)
+  // the AST spelling of a nav-collapse plan (mirrors the unplugin emitter's forms byte-for-byte)
   function renderNavCollapseAst(plan, pureId) {
     // the flush may land in a suppressed region no visitor re-enters, so the render reads the
     // key effects through the plan's LIVE accessor - the one liveness rule both emitters share.
@@ -937,7 +938,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // a SEQUENCE root carries only its PREFIX expressions into the render: the sequence's own
       // tail is the proxy-root read the collapse replaces - re-emitting the whole sequence left
       // it as a dead middle element dragging a dead import (`(se, _globalThis, _self)` where the
-      // text emitter spells `(se, _self)`). every other 'sequence' root (a chain-assign write,
+      // unplugin emitter spells `(se, _self)`). every other 'sequence' root (a chain-assign write,
       // an effectful call) IS the effect and re-emits whole
       const rootValue = plan.seqRoot
         ? plan.rootValueNode.expressions.slice(0, -1).map(expr => keptPrefix(expr))
@@ -1104,7 +1105,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // ?.self.window` - the nav extends into the end member) belongs to the alias / kept canons -
     // EXCEPT when the nav's own value short-circuits: no claim sits above such a chain, so nothing
     // else owns it, and standing down leaves the hops RAW (`_globalThis.window?.self.window` - a
-    // native `self` read where the ponyfill is the whole point). the text emitter takes the same arm
+    // native `self` read where the ponyfill is the whole point). the unplugin emitter takes the same arm
     if (memberProxyHopName(memberPath.node)
       && !navValueCanShortCircuit(memberPath.node, ({ name }) => resolvePureGlobalEntry(name, memberPath),
         { scope: memberPath.scope, adapter, path: memberPath })) return false;
@@ -1144,7 +1145,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
 
     // hops the plan does NOT cover (a non-proxy name - `...?.self?.chrome`) read off the value
     // the render produces. while that value is provably defined they belong INSIDE the guarded
-    // alternate (`null == test ? void 0 : _self.chrome`, the text emitter's shape): hung off
+    // alternate (`null == test ? void 0 : _self.chrome`, the unplugin emitter's shape): hung off
     // the ternary instead, each one needs a `?.` the ES5 lowering then has to memoize. the
     // FIRST hop reads the always-defined ponyfill leaf, so it pulls in whatever its own
     // spelling; past it the value can be absent, so only PLAIN hops keep pulling and the first
@@ -1172,8 +1173,8 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         const up = hop.parentPath;
         hop = up?.node && (up.node.object === hop.node || up.node.callee === hop.node) ? up : null;
       }
-      // no `foreign` step here: the AST emitter re-queues what it pulls, so a claim inside the
-      // tail still gets its own rewrite (the text emitter cannot, and gates on it instead)
+      // no `foreign` step here: this emitter re-queues what it pulls, so a claim inside the
+      // tail still gets its own rewrite
       const steps = paths.map(path => ({
         optional: !!path.node.optional,
         isCall: path.isOptionalCallExpression() || path.isCallExpression(),
@@ -1252,7 +1253,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // the descent reached the environment PROBE itself (`globalThis.self.window?.X` - the nav ENDS at
       // the hop pure cannot back, so there is no ponyfilled LEAF for a plan to collapse onto). the hops
       // BELOW it still collapse: substitute their ponyfill and leave the probe read - and its `?.` -
-      // exactly as written, which is what the text leg emits. without it the emit keeps
+      // exactly as written, which is what the unplugin leg emits. without it the emit keeps
       // `_globalThis.self.window`, a NATIVE `self` read off the ponyfill that throws in Node where the
       // same source, spelled by the other leg, short-circuits. effect-free plans with nothing above
       // their collapse only: everything else is the guarded render's business
@@ -1267,7 +1268,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // realm self-reference the collapse assumes present. the plan cannot tell them apart because
     // the discriminator lives ABOVE it - a seal over the chain makes every short-circuit below
     // observable, and only this caller can see one. unsealed and deep: no probe to guard, so the
-    // redundant hops go to the shared collapse instead, which is where the text emitter takes them
+    // redundant hops go to the shared collapse instead, which is where the unplugin emitter takes them
     // a nav with NO live `?.` has no short-circuit for a guard to reproduce, so it collapses - what
     // the bare-root spelling of the same source already does through the earlier hop-collapse drive.
     // that drive declines a proven-CALL root, and this render was answering for it with a guard
@@ -1295,7 +1296,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const { leafPure: pure } = plan;
     // a `delete` hosting the chain collapses the navigation WHOLE: the probe guard would make the
     // deletion conditional on the host environment where the source deletes unconditionally, and
-    // the member `delete` needs is the one the guard's `void 0` branch never has. the text leg
+    // the member `delete` needs is the one the guard's `void 0` branch never has. the unplugin leg
     // spells it the same way. plans whose value carries their effects only
     if (deleteHostAboveChain(memberPath, memberPath.node, unwrapRuntimeExpr) && navPlanValueSpells(plan)) {
       target.get('object').replaceWith(navPlanValueAst(t, plan,
@@ -1516,7 +1517,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // always-defined ponyfill (`(n = w, _self)`) - the guard then never fires (silent wrong
   // value, worse than the sealed throw). the hops re-hang RAW off the ref and their `?.`
   // folds into the root guard - the proxy-collapse assumption (`self` is a realm-local
-  // self-reference), the text emitter's canon for the same shape. returns the check or null
+  // self-reference), the unplugin emitter's canon for the same shape. returns the check or null
   // when the target is not this shape (caller falls back to the plain memoize)
   function memoizeProxyNavRoot(navNode, scope, ownerNode, anchorPath = null) {
     const adapter = getAdapter?.();
@@ -1531,7 +1532,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // ponyfilled forwarder). an UNRESOLVABLE hop is the environment probe itself - the one
     // value the guard exists for - so folding it out of the test leaves an always-defined
     // root under the null-check and runs the branch where the source short-circuits. keep
-    // the whole nav in the memo there (the caller's plain memoize), like the text emitter
+    // the whole nav in the memo there (the caller's plain memoize), like the unplugin emitter
     if (resolvePureGlobalEntry && navHasUnresolvableProxyHop(navNode,
       ({ name }) => resolvePureGlobalEntry(name, anchorPath))) return null;
     // descend the object spine to the root (the maximal-prefix check proved pure-nav shape);
@@ -1548,10 +1549,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       while (root && SKIPPABLE_WRAPPER_TYPES.has(root.type)) root = root.expression;
     }
     // a SEQUENCE root (`(sc++, n = gw)`) memoizes WHOLE - its prefix SE then runs exactly
-    // once inside the memo, the text emitter's canon; the assign is its tail
+    // once inside the memo, the unplugin emitter's canon; the assign is its tail
     if (peelReceiverSequenceTail(root)?.type !== 'AssignmentExpression') return null;
     // memoize the holder's OBJECT (wrappers included): a transparent wrapper between the last
-    // hop and the root rides INSIDE the memo (`_ref = (v = gw) as any`) - the text emitter
+    // hop and the root rides INSIDE the memo (`_ref = (v = gw) as any`) - the unplugin emitter
     // keeps it verbatim there, and dropping it desynced the spelling. the shape gates above
     // ran on the PEELED root, so the wrapped memo target is the same value
     const [check, ref] = memoize(holder.object, scope, ownerNode);
@@ -1588,7 +1589,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const binding = injectPureGlobal(pure.entry, pure.hintName);
       // the substitution owes the HOP COLLAPSE too, not only the root: a redundant proxy hop left
       // above the pure binding reads an engine `self` off it (undefined off-browser), so the test
-      // fires where the collapsed spelling - the one the text emitter prints for this same nav -
+      // fires where the collapsed spelling - the one the unplugin emitter prints for this same nav -
       // answers. only a tail that is proxy navigation WHOLE collapses; anything else keeps its shape
       // the tail sits at the bottom of the NESTED sequences, which is also the slot to write
       let seq = core;
@@ -1895,7 +1896,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const { seMode, effectiveSE } = applyReceiverSeMode(path, sideEffects, receiverEffectCount);
     const { callerPath, parent, isCall, isParenLookupOnly } = classifyCallerContext(path);
     const [check, extracted, embed] = extractCheck(path, skipOptional);
-    // the text emitter drops redundant proxy hops INSIDE its receiver render; this leg memoizes the
+    // the unplugin emitter drops redundant proxy hops INSIDE its receiver render; this leg memoizes the
     // receiver raw and would keep them (`_ref.self.foo` - a native `self` read where its ponyfill
     // is the point). the whole receiver cannot collapse while its `?.` is live, but once the guard
     // memoized the root the tail hangs off a ref carrying that root's provenance and the shared

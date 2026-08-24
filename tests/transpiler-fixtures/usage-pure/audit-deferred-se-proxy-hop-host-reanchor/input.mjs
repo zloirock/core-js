@@ -1,8 +1,6 @@
 // a deferred-SE destructure host (a `({ hop: { leaf } } = root)` assignment buried in a consumed
 // init's sequence prefix) must re-anchor exactly like the plain statement form even though no
-// leaf resolves: the AST emitter re-enters the anchored-plan trigger on its drain re-traversal;
-// the text emitter records the lifted operand and composes the anchored rebuild into the lifted
-// statement by needle.
+// leaf resolves: each emitter re-enters the anchored-plan trigger on its own re-traversal.
 let customY;
 export const { of } = (({ Map: { customY } } = globalThis), Array);
 // assignment-host consume lifts and re-anchors the same way
