@@ -1,8 +1,8 @@
 import { parseSync } from 'oxc-parser';
-import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import { LEAST_UPPER_BOUND, TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
-import { collapseWhitespace } from './collapse-whitespace.mjs';
+import { strip } from './structural.mjs';
 import { extractPluginOptions, inferTestId, loadBabelOptions, normalizeMachinePaths, shouldSkip } from './fixture-lang.mjs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -43,24 +43,32 @@ function collapseDriftingTargets(text) {
   return text === null ? text : text.replace(/Using targets: \{[^}]*\}/, 'Using targets: <RESOLVED>');
 }
 
-// strip Babel-specific boilerplate + collapse whitespace for cross-plugin comparison
-function stripBoilerplate(code) {
-  return collapseWhitespace(code.split('\n')
-    .filter(l => !/^\s*["']use strict["']/.test(l))
-    .join('\n'));
+// fixtures whose babel BASELINE bakes an @babel/generator defect (EDGE row in the queue):
+// the body compare would hold our correct print to a wrong baseline - the import-set
+// assertion still stands. paired manifestation: cast-under-update baselines do not parse
+// at all and take the same lane through the parse check
+const BASELINE_GENERATOR_DEFECTS = new Set([
+  // `(f || g)<string>` printed as `f || g<string>` - the instantiation reassociates onto `g`
+  'ts-instantiation-host-priority-parens',
+]);
+
+function parseOrNull(parseId, source) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync(parseId, source, { sourceType: 'module' });
+  return parsed.errors?.some(error => error.severity === 'Error') ? null : parsed;
 }
 
-// the injected-polyfill set, for the imports-only loose comparison. captures BOTH ESM
-// (`import "core-js/..."` / `import _x from "core-js/..."`) and CJS (`require("core-js/...")`)
-// forms - global-mode CJS / importStyle:require fixtures emit polyfills as side-effect
-// `require(...)`, which an `import `-only filter skips, making the loose compare vacuously
-// pass against any require-set regression (no requires, wrong set, or `import` for `require`).
-// `trimStart` guards against future codegen drift that could indent the injected lines
-function extractImports(code) {
-  return code.split('\n').filter(l => {
-    const trimmed = l.trimStart();
-    return trimmed.startsWith('import ') || /^require\(["']core-js\//.test(trimmed);
-  }).sort().join('\n');
+// the injected-polyfill set for the imports-only loose lanes, BOTH spellings: usage-global
+// writes a BARE `import "core-js/modules/..."` (or a side-effect `require(...)`), usage-pure
+// a DEFAULT import off `@core-js/pure`. the two package names normalize together, as the
+// differential's own extractor does
+function importsOf(text) {
+  const found = text.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('import') && !trimmed.includes('require(')) return null;
+    return /["'](?<path>@?core-js(?:\/pure)?\/[^"']+)["']/u.exec(trimmed)?.groups.path.replace('@core-js/pure', 'core-js');
+  });
+  return JSON.stringify(found.filter(Boolean).sort());
 }
 
 function label(directory) {
@@ -149,17 +157,29 @@ function checkMapMappings(directory, map, method) {
   } catch (error) {
     return reject(`VLQ decode failed: ${ error.message }`);
   }
-  // entry-global emits all-synthetic imports (no user-code mapping survives the rewrite
-  // by design); skip the round-trip probe but VLQ decode above still ran
+  // an entry-global fixture is usually the entry import ALONE (plus comments): the rewrite
+  // replaces that import wholesale, so the output holds only synthetic statements and there
+  // is legitimately nothing user-mapped to find - a mixed file WOULD map its surviving
+  // code, but the runner cannot cheaply tell the shapes apart. VLQ decode above still ran
   if (method === 'entry-global') return true;
   const lines = (map.mappings.match(/;/g) ?? []).length + 1;
-  const limit = Math.min(lines, MAPPING_PROBE_LIMIT);
-  for (let line = 1; line <= limit; line++) {
-    const probe = originalPositionFor(tm, { line, column: 0 });
+  // both ENDS of the output: a file may lead with hundreds of synthetic import lines (no
+  // mapping by design), leaving the reprinted user code - the mapping the probe is after -
+  // beyond a head-only window
+  const probed = new Set();
+  for (let i = 0; i < Math.min(lines, MAPPING_PROBE_LIMIT); i++) {
+    probed.add(1 + i);
+    probed.add(lines - i);
+  }
+  for (const line of probed) {
+    // the first segment AT OR AFTER the line start: the AST reprint's first mapped token may
+    // sit past column 0 (a leading paren carries no mapping of its own), which the default
+    // at-or-before bias reads as unmapped; an all-zero or malformed map still yields nothing
+    const probe = originalPositionFor(tm, { line, column: 0, bias: LEAST_UPPER_BOUND });
     if (probe.source !== undefined && probe.source !== null
         && probe.line !== undefined && probe.line !== null) return true;
   }
-  return reject(`no user-code mapping resolves to a valid source position (lines 1..${ limit })`);
+  return reject(`no user-code mapping resolves to a valid source position (${ lines } lines, ${ MAPPING_PROBE_LIMIT }-line window at each end)`);
 }
 
 // sourcemap check: shape + content + VLQ-decode + round-trip probe. empty `mappings` is
@@ -217,7 +237,7 @@ function captureTransform(source, pluginOptions, testId) {
     if (result === null && testId.endsWith('.tsx') && source.includes('<') && !source.includes('/>')) {
       result = plugin.transform(source, testId.replace('.tsx', '.ts'));
     }
-    return { code: result?.code ?? source, map: result?.map ?? null, logs, warns };
+    return { code: result?.code ?? source, map: result?.map ?? null, abstained: result === null, logs, warns };
   } finally {
     restore();
   }
@@ -337,46 +357,42 @@ async function compareStrict(directory, actual, directFile) {
   compareNormalized(directory, actual, normalize(await readFile(directFile, UTF8)));
 }
 
-// imports-only comparator: usage-global only (usage-pure and entry-global go through the
-// full-text compare above). body divergence between babel AST codegen and unplugin
-// text-transform is tolerated by default; opt into strict tail comparison by dropping an
-// `output-unplugin.mjs` next to `output.mjs`
-function compareLoose(directory, actual, babelOutput) {
-  compareNormalized(directory, extractImports(actual), extractImports(babelOutput));
-}
-
-// full-text compare under `stripBoilerplate` (collapses whitespace, drops the `'use strict'` prologue).
-// the sidecar opt-in is the divergence itself: OVERWRITE writes `output-unplugin.mjs` whenever unplugin's
-// text differs from babel's and removes it when they agree, so EVERY needed sidecar regenerates from
-// scratch on the OVERWRITE flag (no hand-maintained list of which fixtures to pin)
-async function compareFullText(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile) {
-  if (OVERWRITE) {
-    const desired = stripBoilerplate(actual) === stripBoilerplate(babelOutput) ? null : actual;
-    await writeIfChanged(directory, unpluginOutputFile, desired);
-    return;
-  }
-  if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
-  compareNormalized(directory, stripBoilerplate(actual), stripBoilerplate(babelOutput));
-}
-
-// pick the comparator by plugin method. usage-pure AND entry-global go through the full-text compare:
-// entry removal can mutate the body (ASI guard `;`, `0;` directive-promotion placeholder, spurious-semi
-// suppression) - a token-level transform an imports-only check and `checkOutputParses` (rejects only
-// UNPARSABLE output) are both blind to. the full-text path pins the body and regenerates the sidecar on
-// OVERWRITE; usage-global is import-injection-only (body is reprint-only) so it stays imports-only loose,
-// recording a sidecar only when the import set diverges (babel@8 no-targets skips a polyfill unplugin injects)
-async function compareMainOutput({ directory, actual, babelOutput, method, hasUnpluginOutput, unpluginOutputFile }) {
-  if (method === 'usage-pure' || method === 'entry-global') {
-    return compareFullText(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
+// the structural comparator: the unplugin leg is an AST renderer like babel, so the output
+// must be STRUCTURALLY identical to the babel baseline (`tests/unplugin/structural.mjs`
+// owns what counts as formatting) - a difference is a defect, never formatting. three lanes
+// degrade to an imports-only compare, each with a reason the body compare cannot own: an
+// ABSTAIN (`null`) keeps the user's bytes while babel may reprint normalization-only
+// changes; a baseline that DOES NOT PARSE has a babel-generator defect baked in; and a
+// fixture whose babel chain carries OTHER real plugins bakes their work into the baseline
+// body. an `output-unplugin.mjs` sidecar records an ACCEPTED unplugin-vs-babel divergence
+// (environment-dependent targets resolution, the `require` dialect on SFC virtuals) and is
+// byte-held via `compareStrict`; OVERWRITE regenerates the sidecar set from scratch: one is
+// written exactly where the structural (or lane's import-set) compare against babel differs
+async function compareMainOutput({ directory, actual, babelOutput, babelOptions, parseId, abstained, hasUnpluginOutput, unpluginOutputFile }) {
+  const looseLane = abstained || BASELINE_GENERATOR_DEFECTS.has(basename(directory))
+    || (babelOptions.plugins ?? []).some(plugin => !(Array.isArray(plugin) && plugin[0] === '@core-js'));
+  let agrees;
+  if (looseLane) {
+    agrees = importsOf(actual) === importsOf(babelOutput);
+  } else {
+    const baselineParsed = parseOrNull(parseId, babelOutput);
+    if (!baselineParsed) {
+      // unparsable baseline: the generator-defect lane without a listed name
+      agrees = importsOf(actual) === importsOf(babelOutput);
+    } else {
+      const actualParsed = parseOrNull(parseId, actual);
+      if (!actualParsed) return fail(directory, 'output does not parse for the structural compare');
+      agrees = JSON.stringify(strip(actualParsed.program)) === JSON.stringify(strip(baselineParsed.program));
+    }
   }
   if (OVERWRITE) {
-    const importsDiverge = extractImports(actual) !== extractImports(babelOutput);
-    const desired = hasUnpluginOutput || importsDiverge ? actual : null;
-    await writeIfChanged(directory, unpluginOutputFile, desired);
+    await writeIfChanged(directory, unpluginOutputFile, agrees ? null : actual);
     return;
   }
+  if (agrees) return pass();
   if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
-  compareLoose(directory, actual, babelOutput);
+  fail(directory, 'differs from the babel baseline (structurally, or by import set on a loose lane)',
+    firstDiff(actual, babelOutput));
 }
 
 async function runFixture(directory) {
@@ -413,7 +429,7 @@ async function runFixture(directory) {
   try {
     const testId = inferTestId(babelOptions);
     const source = await readFile(join(directory, 'input.mjs'), UTF8);
-    const { code, map, logs, warns } = captureTransform(source, pluginOptions, testId);
+    const { code, map, abstained, logs, warns } = captureTransform(source, pluginOptions, testId);
     const actual = normalize(code);
     const babelOutput = normalize(await readFile(outputFile, UTF8));
 
@@ -426,7 +442,8 @@ async function runFixture(directory) {
     if (!checkSourceMapContent(directory, map, testId, source, pluginOptions.method)) return;
     if (!checkOutputParses(directory, code, testId)) return;
     await compareMainOutput({
-      directory, actual, babelOutput, method: pluginOptions.method, hasUnpluginOutput, unpluginOutputFile,
+      directory, actual, babelOutput, babelOptions, parseId: liftSfcLangSuffix(testId), abstained,
+      hasUnpluginOutput, unpluginOutputFile,
     });
   } catch (error) {
     fail(directory, error.message);
@@ -453,7 +470,7 @@ if (FIXTURE_SHARD) {
   emitShardSummary(counts);
 } else {
   const shards = defaultShardCount(fixtures.length);
-  echo(green(`unplugin fixtures: ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));
+  echo(green(`unplugin fixtures (structural against the babel baseline): ${ cyan(fixtures.length) } in ${ cyan(shards) } shard(s); only failures and rewrites are printed below`));
   if (shards > 1) {
     Object.assign(counts, await runShards({
       script: fileURLToPath(import.meta.url), shards, extraEnv: subtree ? { FIXTURE_SUBTREE: subtree } : {},
@@ -463,5 +480,8 @@ if (FIXTURE_SHARD) {
   }
   const { passed, failed, skipped } = counts;
   echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }, Skipped: ${ yellow(skipped) }`);
+  // corpus-presence canary - a walk or filter regression must not read green; a subtree run
+  // is a deliberate narrowing, so only the full corpus is held to it
+  if (!subtree && !OVERWRITE && passed + failed < 200) throw new Error(`unplugin corpus collapsed: only ${ passed + failed } fixtures compared`);
   if (failed) throw new Error('Some tests have failed');
 }
