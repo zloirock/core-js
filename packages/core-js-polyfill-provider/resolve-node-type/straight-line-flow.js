@@ -63,9 +63,11 @@ function subtreeContainsExit(node, inLoopOrSwitch = false, labels = null) {
     nextLabels = new Set(labels);
     nextLabels.add(node.label.name);
   }
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
-      if (value.some(v => subtreeContainsExit(v, nextInLoop, nextLabels))) return true;
+      for (const v of value) if (subtreeContainsExit(v, nextInLoop, nextLabels)) return true;
     } else if (subtreeContainsExit(value, nextInLoop, nextLabels)) return true;
   }
   return false;

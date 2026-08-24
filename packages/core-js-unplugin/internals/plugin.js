@@ -212,7 +212,8 @@ export function neutralizeUnwalkedParamPatterns(node, restorations = null) {
     for (const child of node) neutralizeUnwalkedParamPatterns(child, restorations);
     return;
   }
-  for (const value of Object.values(node)) neutralizeUnwalkedParamPatterns(value, restorations);
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) neutralizeUnwalkedParamPatterns(node[key], restorations);
 }
 
 // 1-based `line:col` from oxc's first label via shared offset->line+column helper.
@@ -1357,7 +1358,9 @@ export default function createPlugin(options) {
                 node.name = renames.get(node.name);
                 return;
               }
-              for (const value of Object.values(node)) {
+              // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+              for (const key in node) {
+                const value = node[key];
                 if (Array.isArray(value)) for (const item of value) walk(item, scopeFn);
                 else walk(value, scopeFn);
               }

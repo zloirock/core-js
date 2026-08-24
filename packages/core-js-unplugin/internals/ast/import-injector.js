@@ -104,6 +104,8 @@ function collectLiveness(program, mintedRefNames, { retire = null } = {}) {
 // only exists AFTER composition, so the strip runs here, ahead of the slot census. a TOP-LEVEL
 // guard keeps its memo (the locked kept-swap canon)
 function retireNestedGuardMemos(program, mintedRefNames) {
+  // nothing minted - nothing to retire, and the full-tree walk below is pure cost
+  if (!mintedRefNames.size) return;
   const counts = new Map();
   const sites = [];
   function nullSide(binary, other) {
@@ -130,7 +132,8 @@ function retireNestedGuardMemos(program, mintedRefNames) {
         && nullSide(grand, outer)) sites.push({ node, test });
     }
     ancestors.push(node);
-    for (const value of Object.values(node)) visit(value, ancestors);
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) visit(node[key], ancestors);
     ancestors.pop();
   })(program, []);
   for (const { node, test } of sites) {
@@ -147,7 +150,9 @@ function collectNodes(root) {
   (function walk(node) {
     if (!node || typeof node !== 'object' || seen.has(node)) return;
     seen.add(node);
-    for (const value of Object.values(node)) {
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
       if (Array.isArray(value)) for (const item of value) walk(item);
       else walk(value);
     }
