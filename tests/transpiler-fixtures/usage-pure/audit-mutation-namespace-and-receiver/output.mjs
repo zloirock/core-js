@@ -1,12 +1,15 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Iterator2 from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Map2 from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Object$assign from "@core-js/pure/actual/object/assign";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$all from "@core-js/pure/actual/promise/all";
 import _Promise$any from "@core-js/pure/actual/promise/any";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise2 from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Reflect$set from "@core-js/pure/actual/reflect/set";
 // Mutation through an Object / Reflect namespace reached as a proxy-global member chain - direct
@@ -16,16 +19,16 @@ import _Reflect$set from "@core-js/pure/actual/reflect/set";
 // constructor. `Reflect.set(target, key, value, RECEIVER)` redirects the write to the receiver, the real
 // mutation host. distinct statics pin which shape was detected.
 _Reflect$set(_Map, "groupBy", patchA);
-const r1 = _Map.groupBy(items, fn);
+const r1 = _Map2.groupBy(items, fn);
 _Reflect$set({}, "try", patchB, _Promise);
-const r2 = _Promise.try(fn);
+const r2 = _Promise2.try(fn);
 _Object$assign(_Iterator, {
   from: patchC
 });
-const r3 = _Iterator.from(src);
+const r3 = _Iterator2.from(src);
 const g = _globalThis;
 _Reflect$set(_Promise, "any", patchD);
-const r4 = _Promise.any(list);
+const r4 = _Promise2.any(list);
 _Reflect$set(_Promise, "all", patchE);
-const r5 = _Promise.all(list);
+const r5 = _Promise2.all(list);
 export { r1, r2, r3, r4, r5 };

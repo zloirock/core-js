@@ -17,8 +17,12 @@
 //
 // The cache never decides a verdict on its own. `native` is the reference the other legs are
 // compared against, and the AUDIT re-runs a sampled share of the hits: a cached key that disagrees
-// with a REPRODUCIBLE fresh one fails the run loudly - the one guard against a key that lost a
-// dimension. Without it the symptom would be a green run that executed nothing at all.
+// with a REPRODUCIBLE fresh one marks the group DRIFTED - the shard then replays the whole snippet
+// live and believes only the live verdict, and the fresh values overwrite the stale group. A real
+// product divergence still fails (the live verdict carries it); a value that moved because the
+// REALM around it moved (prior snippets' transformed outputs enrich the shared ponyfill state, a
+// dimension the key cannot fold) heals silently instead of flaking the run. The guard against a
+// green run that executed nothing survives in the replay: a drifted group is never trusted cached.
 //
 // Hashing the runtime trees and sweeping dead cache files live in the coordinator rather than here:
 // both are one-shot startup work over `glob`, and keeping them there leaves this module to the cache
@@ -43,10 +47,13 @@ const RUNTIME_TYPES = {
 // while asserting the plain hit path - a probabilistic sample would make those assertions flaky
 const AUDIT_EVERY = process.env.DIFF_AUDIT_EVERY === undefined ? 100 : Number(process.env.DIFF_AUDIT_EVERY);
 
-export const cacheStats = { hits: 0, evaluated: 0, audited: 0, volatile: 0 };
-// audit disagreements are the shard's failures, not exceptions: they must ride the normal failure
-// channel so the coordinator prints them next to product divergences and the run exits non-zero
-export const auditFailures = [];
+export const cacheStats = { hits: 0, evaluated: 0, audited: 0, volatile: 0, drifted: 0 };
+// a reproducible audit disagreement on the CURRENT group: the shard reads it after judging a
+// snippet and replays the whole group live - the flag is per-case, reset by `beginCase`
+let currentAuditDrift = false;
+export function auditDrifted() {
+  return currentAuditDrift;
+}
 
 export function hashCode(code, ts = false) {
   // the fixed-width flag goes FIRST, so the variable-length code needs no delimiter after it
@@ -138,6 +145,7 @@ export async function beginCase({ name, code, ts = false, live = false, prefix =
   // the audit keeps the stored group for COMPARISON while running every cell of it: sampling one
   // cell out of an otherwise cached group is exactly the mixing described above
   currentAuditing = Boolean(currentStored) && auditDue(currentSrc);
+  currentAuditDrift = false;
   currentHits = 0;
   currentEvaluations = 0;
   currentSet = collected[name] = { src: currentSrc };
@@ -180,17 +188,20 @@ export async function cached({ type, code, evaluate }) {
   } else {
     cacheStats.audited++;
     // a disagreement has two possible causes, and telling them apart needs one more run rather than
-    // a judgement call: EITHER the key lost a dimension (something moved the result without moving
-    // the key), and then a second run reproduces `fresh` exactly - the loud failure this guard
-    // exists for - OR the snippet is not a function of its code alone (the corpus has shapes that
-    // count the properties of `globalThis`, which grows as modules load), and then the second run
-    // disagrees with the first as well. The latter can never be cached: a value recorded in one run
-    // is compared against another run's state, so it would report forever. Second runs cost worker
+    // a judgement call: EITHER the stored value describes a realm that no longer exists (the key
+    // folds the prefix SOURCES, but the realm is enriched by the prefix's transformed OUTPUTS,
+    // which a plugin edit moves without moving the key) - a second run then reproduces `fresh`
+    // exactly, the group is DRIFTED and the shard replays it live before believing any verdict -
+    // OR the snippet is not a function of its code alone (the corpus has shapes that count the
+    // properties of `globalThis`, which grows as modules load), and then the second run disagrees
+    // with the first as well. The latter can never be cached: a value recorded in one run is
+    // compared against another run's state, so it would report forever. Second runs cost worker
     // spawns, which is why only a disagreement pays for one
     if (fresh !== hit) {
       const second = await evaluate();
       if (second === fresh) {
-        auditFailures.push(`${ currentName } :: CACHE AUDIT ${ type } - cached=${ hit } fresh=${ fresh }`);
+        cacheStats.drifted++;
+        currentAuditDrift = true;
       } else {
         cacheStats.volatile++;
         evicted.add(currentName);

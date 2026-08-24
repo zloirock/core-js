@@ -9,7 +9,8 @@ import {
   tsRuntimeBindingName,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '@core-js/polyfill-provider/injector-base';
+import { restSentinelNamesReducer } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
 import {
   codePointEndingAt, findRegionContaining, isLineTerminator, isOptionalChainAt, literalRegionsOf, prevSignificantPos, skipGap,
@@ -42,7 +43,9 @@ export function sourceDialectOf(cleanId) {
 // oxc bug-emitted cycles). 1024 covers realistic depth bounds with margin
 export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
   if (!root || typeof root !== 'object' || typeof root.type !== 'string' || depth >= 1024) return;
-  visit(root, parent);
+  // an explicit `false` from the visit PRUNES the subtree (a type-annotation wall, a span the
+  // caller owns); any other return keeps descending - existing callers return undefined
+  if (visit(root, parent) === false) return;
   for (const value of Object.values(root)) {
     if (Array.isArray(value)) for (const v of value) walkAstNodes({ root: v, visit, parent: root, depth: depth + 1 });
     else walkAstNodes({ root: value, visit, parent: root, depth: depth + 1 });
@@ -380,9 +383,6 @@ export function bindingNamesReducer() {
   // prints a `_unusedN`. a name bound there AND read nowhere else is what post adopts as its own
   // sentinel when the pre snapshot is gone; a user binding in that position that IS read
   // somewhere keeps its rewrite (its polyfill would be dropped by a skip)
-  const sentinelCandidates = new Set();
-  const sentinelShapedReads = new Map();
-
   // declaredNames is the strict subset; pair the writes so the invariant holds at the source
   function addDecl(name) {
     names.add(name);
@@ -397,15 +397,6 @@ export function bindingNamesReducer() {
     switch (node.type) {
       case 'VariableDeclarator':
         addPattern(node.id);
-        break;
-      case 'ObjectPattern':
-        if (node.properties.some(p => p.type === 'RestElement')) {
-          for (const p of node.properties) {
-            if (p.type === 'Property' && !p.shorthand && p.value?.type === 'Identifier' && UNUSED_NAME_PATTERN.test(p.value.name)) {
-              sentinelCandidates.add(p.value.name);
-            }
-          }
-        }
         break;
       case 'FunctionDeclaration':
       case 'FunctionExpression':
@@ -464,23 +455,21 @@ export function bindingNamesReducer() {
       // undeclared reads in user code still land here referentially and stay reserved (a plugin
       // `_ref` must not shadow a `ReferenceError`-throwing reference with a silent `undefined`)
       case 'Identifier':
-        if (!underTypeAnnotation && blocksUidSlot(parentNode, node)) {
-          names.add(node.name);
-          if (UNUSED_NAME_PATTERN.test(node.name)) sentinelShapedReads.set(node.name, (sentinelShapedReads.get(node.name) ?? 0) + 1);
-        }
+        if (!underTypeAnnotation && blocksUidSlot(parentNode, node)) names.add(node.name);
         break;
     }
   }
   function result() {
-    // a candidate's own pattern binding is one occurrence; any second one is a read
-    const restSentinelNames = new Set([...sentinelCandidates].filter(name => sentinelShapedReads.get(name) === 1));
-    return { names, declaredNames, orphanRefs, restSentinelNames };
+    return { names, declaredNames, orphanRefs };
   }
   return { visit, result };
 }
 
 export function collectAllBindingNames(ast) {
-  const { names, declaredNames, orphanRefs, restSentinelNames } = collectFileCensus(ast, [bindingNamesReducer()]);
+  // the sentinel-position census rides the same walk - its canon lives with the own-output family
+  const { names, declaredNames, orphanRefs, restSentinelNames } = collectFileCensus(ast, [
+    bindingNamesReducer(), restSentinelNamesReducer(),
+  ]);
   return { names, declaredNames, orphanRefs, restSentinelNames };
 }
 
@@ -620,3 +609,4 @@ function dropRedundantRootParenText(src) {
 
 // `(<injected path>)` in an object position, with or without an effect-free LITERAL ahead of it
 const ROOT_PAREN_RE = /^\((?:(?:-?\d+(?:\.\d+)?|"[^"\\]*"|'[^'\\]*'|false|null|true|void 0)\s*,\s*)?(?<path>_[\w$]+(?:\.[\w$]+)*)\)(?=[.[])/;
+

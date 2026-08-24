@@ -10,13 +10,14 @@
 // `flushProbedAnchorSwaps`, `splitFlatMultiDecls`, `tryFlattenProxyHopHost`.
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
+import { ownEmittedPatternClaim, ownOutputTests, restSentinelExtractionSibling } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   peelTransparentWrapperPath,
   computedKeyHasSideEffects,
   dropDeadSequenceTail,
   hasRestSiblingExcept,
   catchPropRewriteObservable,
-  relocatedCatchPattern,
+  relocatedCatchPropUnobservable,
   isChainAssignment,
   isDirectiveStatement,
   isFunctionParamDestructureParent,
@@ -2079,11 +2080,27 @@ export default function createDestructureEmitter({
     }
   }
 
+  // a sentinel-valued prop a prior pass printed (`{ key: _unusedN }`): adopted names skip
+  // only while our extraction of THIS key stands with them - the same census pair both
+  // unplugin dispatchers run ahead of every route
+  function sentinelAlreadyProcessed(prop, meta) {
+    return prop.node.value?.type === 'Identifier' && injector.hasGeneratedUnusedName(prop.node.value.name)
+      && (!injector.isAdoptedUnusedName(prop.node.value.name) || restSentinelExtractionSibling(prop, {
+        key: typeof meta?.key === 'string' ? meta.key : prop.node.key?.name ?? prop.node.key?.value,
+        symbolIterator: !!meta && isSourcedSymbolIteratorMeta(meta),
+        injector,
+      }));
+  }
+
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
     // a key-swap survivor of an already-rendered flatten / fold (revisits re-enter here
     // after the host rebuild requeues the pattern subtree): the natural computed-key
     // visitor owns the key-text, nothing to extract
     if (keySwapOwnedProps.has(prop.node)) return;
+    // a prop a prior pass already claimed (its overwrite rebind, substituted default,
+    // minted computed key or printed sentinel stands beside it) - the shared census
+    // family, ahead of every route
+    if (ownEmittedPatternClaim(prop, ownOutputTests(injector)) || sentinelAlreadyProcessed(prop, meta)) return;
     // the group's size is read HERE, at the first prop of it to dispatch - the emissions below
     // splice props out, and the receiver plan must judge the group the source wrote
     patternSizeOf(prop.parentPath);
@@ -2121,7 +2138,12 @@ export default function createDestructureEmitter({
     // catch, so the same per-prop liveness rule the clause form gets applies: a binding the body
     // never reads is not worth an import and a dispatcher call. the clause form itself never gets
     // here twice - `extractCatchClause` already dropped its unobservable props before relocating
-    if (relocatedCatchPropUnobservable(prop)) return;
+    // the clause form never arrives here twice - `extractCatchClause` drops its unobservable
+    // props before relocating; what reaches this gate is a declarator someone else wrote
+    if (relocatedCatchPropUnobservable({
+      declaratorPath: prop.parentPath?.parentPath, propNode: prop.node, patternNode: prop.parentPath.node,
+      localName: propBindingIdentifier(prop.node.value)?.name ?? null, walkNode: traverseWithParent,
+    })) return;
     if (meta?.fromFallback) {
       registerFallbackBranchSynth({ prop, meta });
       return;
@@ -2247,25 +2269,6 @@ export default function createDestructureEmitter({
   // visitor no parent, and the provider's reference-position filters need one
   function traverseWithParent(root, visit) {
     t.traverse(root, (node, ancestors) => { visit(node, ancestors.at(-1)?.node ?? null); });
-  }
-
-  // a RELOCATED catch pattern dispatches as an ordinary declarator - written that way by a sibling,
-  // by the text emitter's earlier phase, or by hand. its bindings are block-scoped to the catch, so
-  // the same per-prop liveness rule the clause form gets applies: a binding the body never reads is
-  // not worth an import and a dispatcher call. the clause form never arrives here twice -
-  // `extractCatchClause` drops its unobservable props before relocating
-  function relocatedCatchPropUnobservable(prop) {
-    const relocated = relocatedCatchPattern(prop.parentPath?.parentPath);
-    if (!relocated) return false;
-    return !catchPropRewriteObservable({
-      propNode: prop.node, patternNode: prop.parentPath.node, bodyNode: relocated.body,
-      localName: propBindingIdentifier(prop.node.value)?.name ?? null,
-      walkNode: (root, visit) => {
-        for (const stmt of root.body ?? []) {
-          if (stmt !== relocated.skip) traverseWithParent(stmt, visit);
-        }
-      },
-    });
   }
 
   // catch-clause receiver extraction: `catch ({ code }) { ... }` -> `catch (_ref) { let { code } = _ref; ... }`.

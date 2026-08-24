@@ -4,6 +4,7 @@ import {
   extractIndirectRequireSEPrefix,
   hasTopLevelESM,
   isAssignOrForXWriteTargetPath,
+  claimDeleteOperand as isDeleteOperand,
   isDeleteTarget,
   isForXWriteTarget,
   isInUpdateOperand,
@@ -11,6 +12,7 @@ import {
   isThisReceiver,
   getMinifierSequenceDestructureExpressions,
   isDeoptedGlobalSlotRead,
+  mutatedSlotLeftNativeWarning,
   isMutatedStaticMeta,
   isMutatedStaticPair,
   isTSTypeOnlyIdentifierPath,
@@ -32,7 +34,12 @@ import {
   keptNavChainEndPath,
   memberChainEndPath,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { enrichMutatedStatics, mutationShapesReducer } from '@core-js/polyfill-provider/detect-usage/mutations';
+import {
+  navHoldsMintedSeCall, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
+} from '@core-js/polyfill-provider/detect-usage/own-output';
+import {
+  enrichMutatedStatics, escapedCtorReferencesReducer, mutationShapesReducer,
+} from '@core-js/polyfill-provider/detect-usage/mutations';
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
@@ -265,7 +272,7 @@ export default function plugin(api, options) {
   function noteDeoptedGlobal(name) {
     if (deoptNotedNames.has(name)) return;
     deoptNotedNames.add(name);
-    debugOutput?.warn(`\`${ name }\` is written in this file (slot mutation) - the name is left native`);
+    debugOutput?.warn(mutatedSlotLeftNativeWarning(name));
   }
 
   const {
@@ -350,21 +357,6 @@ export default function plugin(api, options) {
   // is this member the OPERAND of a `delete`? transparent wrappers (parens as a NODE, TS casts) sit
   // between them in one paren spelling and not the other, so the climb peels them - the same rule the
   // shared write-host predicate applies to its own hosts
-  function isDeleteOperand(path) {
-    let step = path;
-    for (;;) {
-      const up = step?.parentPath;
-      if (!up?.node) return false;
-      // a guard this emit already rendered sits BETWEEN the member and its consumer by the time the
-      // claim is visited (`delete (null == t ? void 0 : X.name)`): on the defined branch the member
-      // still IS the delete operand, so the climb steps through the branch it fills
-      const throughBranch = up.node.type === 'ConditionalExpression'
-        && (up.node.alternate === step.node || up.node.consequent === step.node);
-      if (!throughBranch && unwrapRuntimeExpr(up.node) !== step.node) return isDeleteTarget(up.node);
-      step = up;
-    }
-  }
-
   function skipPolyfillableOptional(node, scope, path) {
     return isPolyfillableOptional({
       node, scope, path, adapter, resolve: resolveBuiltIn, resolveSuperStatic: resolveSuperStaticFn,
@@ -857,10 +849,20 @@ export default function plugin(api, options) {
         if (prop.node.computed || prop.node.shorthand && prop.node.value?.type !== 'Identifier') return false;
         const binding = prop.node.value;
         if (binding?.type !== 'Identifier') return false;
-        const declarator = pattern.parentPath;
-        if (!declarator?.isVariableDeclarator() || !declarator.node.init) return false;
+        // three hosts collapse to a plain binding: a declarator, the SOLE-ASSIGNMENT form in
+        // STATEMENT position (`({ g } = init);` - the expression's value is unobservable
+        // there, so `g = <narrow>` is sound), and the VALUE-CONSUMING sole assignment, whose
+        // value - natively the RHS object - the render preserves as a sequence tail
+        // (`(g = <narrow>, M)`); a second read of the local receiver is unobservable
+        const host = pattern.parentPath;
+        const isDeclarator = host?.isVariableDeclarator() && !!host.node.init;
+        const isSoleAssignment = host?.isAssignmentExpression() && host.node.operator === '='
+          && host.node.left === pattern.node;
+        const inStatement = isSoleAssignment && unwrapTSExpressionParent(host).parentPath?.isExpressionStatement();
+        if (!isDeclarator && !isSoleAssignment) return false;
+        const hostInit = isDeclarator ? host.node.init : host.node.right;
         const plan = planGuardedStaticNarrow({
-          memberNode: t.memberExpression(t.cloneNode(declarator.node.init), t.identifier(meta.key)),
+          memberNode: t.memberExpression(t.cloneNode(hostInit), t.identifier(meta.key)),
           parent: null, meta, path: prop, resolvePure,
         });
         if (!plan || plan.bail) return false;
@@ -875,9 +877,19 @@ export default function plugin(api, options) {
           t.cloneNode(injectPureImport(branch.staticPure.entry, branch.staticPure.hintName)),
           alternate,
         ), rawBranch);
-        declarator.node.id = t.cloneNode(binding);
-        declarator.node.init = plan.seqPrefix.length
+        const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
+        if (isDeclarator) {
+          host.node.id = t.cloneNode(binding);
+          host.node.init = value;
+        } else if (inStatement) {
+          host.node.left = t.cloneNode(binding);
+          host.node.right = value;
+        } else {
+          host.replaceWith(t.sequenceExpression([
+            t.assignmentExpression('=', t.cloneNode(binding), value), t.cloneNode(plan.recvIdent),
+          ]));
+        }
         return true;
       }
 
@@ -891,6 +903,20 @@ export default function plugin(api, options) {
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
         if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
+
+        // a pass over our own output must not claim the member again - the shared census
+        // family (provider own-output), ahead of EVERY route: the guarded-narrow render's
+        // alternate deliberately keeps this very read, and re-claiming nests the guard.
+        // PLAIN members only, as in both unplugin engines - an optional chain's own guarded
+        // handling stays live
+        if (path.isMemberExpression()
+          && ownEmittedNavClaim(path.node, path, ownOutputTests(injector))) return;
+        // an OPTIONAL claim gets only the minted-se-call census: its receiver carrying our
+        // own minted dispatch means the first pass deliberately declined this `?.` claim
+        // (re-claiming upgrades that verdict); the other censuses stay off optional chains -
+        // their guarded handling is live there
+        if (path.isOptionalMemberExpression()
+          && navHoldsMintedSeCall(path.node.object, path, ownOutputTests(injector))) return;
 
         if (meta.guardedAliasHint && (path.isObjectProperty()
           ? emitGuardedDestructureNarrow(meta, path) : emitGuardedStaticNarrow(meta, path))) return;
@@ -974,8 +1000,10 @@ export default function plugin(api, options) {
         if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())
           && !t.isSuper(path.node.object)) {
           // a kept SE-bearing inline-call receiver already yields the polyfill binding through its
-          // own rewritten return leaf - leave the member untouched, the inner visits do the job
-          if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects)) return;
+          // own rewritten return leaf - leave the member untouched, the inner visits do the job;
+          // a minted memo ref reads the substituted value off its own write the same way
+          if (staticFallbackSwapRedundant(path.node.object, meta.sideEffects,
+            { mintedAliasRef: name => injector?.getBindingInfo?.(name)?.minted === true })) return;
           // inject the pure ctor LAZILY - a multi-undefinable-hop chain stands down below (keeps the raw
           // chain), and an eager import there would be dead. every real use funnels through `fallbackId()`
           let fallbackImport = null;
@@ -1458,6 +1486,8 @@ export default function plugin(api, options) {
           minifierShapesReducer(),
           ctorAliasShapesReducer(),
           mutationShapesReducer(packages),
+          escapedCtorReferencesReducer(),
+          restSentinelNamesReducer(),
         ]);
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as
@@ -1563,6 +1593,13 @@ export default function plugin(api, options) {
             },
             onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
           });
+          // a re-parse of our own pure output carries rest/SE-key sentinels already in place -
+          // adopt the census' sentinel-position names so the dispatcher skip re-arms, exactly
+          // as unplugin's post pass does (the sentinel names co-occur with pure imports; a
+          // file with none has nothing to adopt from)
+          if (method === 'usage-pure' && injector.existingPureImports.size && fileCensus?.restSentinelNames?.size) {
+            injector.adoptUnusedNames(fileCensus.restSentinelNames);
+          }
           if (removed.size) {
             for (const stmt of path.get('body')) {
               if (!removed.has(stmt.node)) continue;
