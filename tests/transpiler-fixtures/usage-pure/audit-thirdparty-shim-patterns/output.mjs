@@ -1,5 +1,6 @@
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
+import _Map2 from "@core-js/pure/actual/map";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
@@ -17,7 +18,7 @@ _Iterator.from ||= shimIterFrom;
 export const r3 = _Iterator.from(it);
 if (typeof Object.groupBy !== 'function') Object.groupBy = shimGroupBy;
 export const r4 = Object.groupBy(items, fn);
-if (!_Map.groupBy) Object.defineProperty(_Map, 'groupBy', {
+if (!_Map.groupBy) Object.defineProperty(_Map2, 'groupBy', {
   value: shimMapGroupBy
 });
 export const r5 = _Map.groupBy(items, fn);

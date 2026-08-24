@@ -1,4 +1,4 @@
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
 // IIFE arg is a chain-assignment `store = cond ? Array : Iterator`: per-branch synth
 // must NOT reshape the conditional, since rewriting branches would change the value
 // bound to the outer `store` variable

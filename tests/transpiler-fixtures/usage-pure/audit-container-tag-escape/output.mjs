@@ -1,4 +1,4 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 // a template TAG receives its interpolations like a call receives arguments, so a container in an
 // interpolation escapes and its slots stop resolving. isolated in its own fixture: in a shared file
