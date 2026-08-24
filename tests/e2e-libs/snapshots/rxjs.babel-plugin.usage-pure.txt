@@ -34,6 +34,7 @@
 @core-js/pure/full/object/has-own
 @core-js/pure/full/object/keys
 @core-js/pure/full/object/set-prototype-of
+@core-js/pure/full/promise
 @core-js/pure/full/promise/all
 @core-js/pure/full/promise/constructor
 @core-js/pure/full/promise/reject
