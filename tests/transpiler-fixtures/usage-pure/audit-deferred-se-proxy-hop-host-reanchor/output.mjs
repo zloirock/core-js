@@ -23,9 +23,7 @@ import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
 var _ref, _unused2;
 // a deferred-SE destructure host (a `({ hop: { leaf } } = root)` assignment buried in a consumed
 // init's sequence prefix) must re-anchor exactly like the plain statement form even though no
-// leaf resolves: the AST emitter re-enters the anchored-plan trigger on its drain re-traversal;
-// the text emitter records the lifted operand and composes the anchored rebuild into the lifted
-// statement by needle.
+// leaf resolves: each emitter re-enters the anchored-plan trigger on its own re-traversal.
 let customY;
 ({
   customY

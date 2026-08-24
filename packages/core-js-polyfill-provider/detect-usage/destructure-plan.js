@@ -132,11 +132,11 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
   const visited = new Set();
   // sequence prefixes peeled off CONSUMED wrapper levels, source order. the flatten discards
   // those levels, so their effects must surface to the caller's lift - silently peeling them
-  // lost the outer effect on the text emitter (`(outer(), [(inner(), R)])` kept only `inner`)
-  // while the AST emitter's own descent lost the inner one: both sides re-emit from THIS list.
+  // lost the outer effect on the unplugin (`(outer(), [(inner(), R)])` kept only `inner`)
+  // while babel's own descent lost the inner one: both sides re-emit from THIS list.
   // a bail level's prefixes are NOT committed - the returned `init` keeps them in place.
   // `firstArray` / `lastArray` bracket the consumed ArrayExpression chain (null when no level
-  // was consumed): the AST emitter re-anchors `init` at the first and swaps the leaf element
+  // was consumed): babel re-anchors `init` at the first and swaps the leaf element
   // of the last, so its re-visit guard needs no descent of its own
   const peeledPrefixes = [];
   // committed consumed levels, outermost first: `wrapper` is the level's raw init (its text /
@@ -200,7 +200,7 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
     // every effect runs verbatim. a pure extra stays peelable - dropping a value-dead pure
     // element is silent. a DEREFERENCED wrapper is exempt: the alias's own declaration keeps
     // the whole array (only the VALUE flows here), so its effects were never at risk - and
-    // bailing mid-follow desynced the peel from the detect pass (a compose crash)
+    // bailing mid-follow desynced the peel from the detect pass
     if (!dereferenced && effectiveInit.elements.some((el, i) => i > 0 && el
       && (el.type === 'SpreadElement' || mayHaveSideEffects(el)))) {
       return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };
@@ -225,7 +225,7 @@ function peelInnerDefault(value) {
 // does the pattern subtree carry ANY slot default (`X = d`) at ANY depth? a residual leaf default
 // must defer anchoring at every nesting level, not just the top - a nested default (`nested: { x = d }`)
 // re-anchored to the pure ctor renders verbatim, so a polyfillable `d` is never injected
-export function patternHasAnyDefault(node) {
+function patternHasAnyDefault(node) {
   while (isRestProperty(node)) node = node.argument;
   switch (node?.type) {
     case 'AssignmentPattern': return true;
@@ -358,6 +358,7 @@ const planCache = new WeakMap();
 // the discard would drop (a chain assignment, an SE-bearing chain-root call) for the
 // emitters to re-run exactly once; `initElement` is the descended array element within
 // the original init's span a residual receiver swap must target
+// eslint-disable-next-line max-statements -- sequential plan-building steps of one pattern
 export function buildNestedDestructurePlan({
   declarator, scope, adapter, path = null, resolvePure, resolveGlobalPolyfill,
   isDisabledProp = null,
@@ -606,8 +607,8 @@ export function buildNestedDestructurePlan({
     // setup already runs at the alias declaration, so harvesting it would double-run
     const probed = init ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
     const inSlot = declarator.init
-            ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [],
-          discardSe = inSlot.length ? inSlot : null;
+            ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [];
+    const discardSe = inSlot.length ? inSlot : null;
     const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
     planReceiverName = receiver;
     // an UNDEFINABLE probe nav as the init (`globalThis.window?.self`, `globalThis.window?.Array`,
@@ -705,8 +706,8 @@ export function buildNestedDestructurePlan({
       function planPeeledProxyHop() {
         const receiverPure = resolveGlobalPolyfill(receiver);
         if (!receiverPure) return null;
-        let effPattern = pattern,
-            lastHop = null;
+        let effPattern = pattern;
+        let lastHop = null;
         while (effPattern.properties.length === 1 && isPropertyNode(effPattern.properties[0])) {
           const [prop] = effPattern.properties;
           const key = propKeyNameScoped(prop);

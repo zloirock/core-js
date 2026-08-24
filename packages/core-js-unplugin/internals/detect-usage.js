@@ -7,15 +7,8 @@ import {
   resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
-import {
-  beginMutationPrePass,
-  createDetectionAdapter,
-  mutationSiteVisitors,
-} from '@core-js/polyfill-provider/detect-usage/mutations';
-import {
-  resolveKey as sharedResolveKey,
-  unwrapTransparentSeq,
-} from '@core-js/polyfill-provider/detect-usage/resolve';
+import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } from '@core-js/polyfill-provider/detect-usage/mutations';
+import { resolveKey as sharedResolveKey, unwrapTransparentSeq } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
@@ -48,8 +41,14 @@ import {
   withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  aliasSpanDominatesUse, assignmentAliasWriteTrusted, hasCtorAliasCandidateShapes, isPolyfillAliasBinding, soleAliasWrite,
-  isSymbolDestructureAliasBinding, registerAliasPrePassSite, usableAliasInfo,
+  aliasSpanDominatesUse,
+  assignmentAliasWriteTrusted,
+  hasCtorAliasCandidateShapes,
+  isPolyfillAliasBinding,
+  soleAliasWrite,
+  isSymbolDestructureAliasBinding,
+  registerAliasPrePassSite,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { is as estreeIs, traverse } from 'estree-toolkit';
 
@@ -202,7 +201,7 @@ function isOverHoistedNamespaceBinding(native, path) {
 // `native` is declared directly under a SwitchCase and `path` does NOT sit inside that switch's
 // cases region. babel scopes the CaseBlock correctly, so this fires only on the estree side; a
 // binding inside a nested block of a case is scoped by that block and never resolves out here
-export function isCaseBlockBindingOutsideCases(native, path) {
+function isCaseBlockBindingOutsideCases(native, path) {
   if (!native?.path || !path?.node) return false;
   let p = native.path;
   while (p?.node && p.node.type !== 'SwitchCase') {
@@ -271,10 +270,9 @@ function tsOrVarHoistFallback(scope, name, path) {
   // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
   // the enclosing function scope (babel's tracker does). without this fallback,
   // `function () { if (cond) { var globalThis = ...; } return globalThis; }` reports
-  // no binding at the inner reference, the Identifier visitor queues
-  // `globalThis -> _globalThis`, and `polyfillSiblingReceiverRefs`'s OWN var-walker
-  // disagrees - the resulting nth-occurrence mismatch fails compose with "could not
-  // locate inner needle". walking `path` ancestors for var-scope owners closes the gap
+  // no binding at the inner reference, so the Identifier visitor substitutes a USER
+  // binding (`globalThis -> _globalThis`). walking `path` ancestors for var-scope owners
+  // closes the gap
   return path ? findFunctionScopeVarInPath(path, name) : false;
 }
 
@@ -351,8 +349,13 @@ export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census
       if (node.operator !== '=' || isDisabled(node)
         || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
       registerAliasPrePassSite({
-        pattern: node.left, init: node.right, assignNode: node,
-        scope: path.scope, adapter, injector, path,
+        pattern: node.left,
+        init: node.right,
+        assignNode: node,
+        scope: path.scope,
+        adapter,
+        injector,
+        path,
       });
     },
     VariableDeclarator(path) {
@@ -360,8 +363,13 @@ export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census
       if (!node.init || isDisabled(node)
         || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
       registerAliasPrePassSite({
-        pattern: node.id, init: node.init, declKind: path.parent.kind,
-        scope: path.scope, adapter, injector, path,
+        pattern: node.id,
+        init: node.init,
+        declKind: path.parent.kind,
+        scope: path.scope,
+        adapter,
+        injector,
+        path,
       });
     },
   };
@@ -495,13 +503,13 @@ export function createEstreeAdapter(options = {}) {
       // guard fires for a REASSIGNED nested-block var
       if (synth || !b) {
         if (!synth) {
-          // a MINTED pure-import name: the AST leg swaps members to import bindings DURING
+          // a MINTED pure-import name: the emitter swaps members to import bindings DURING
           // traversal while the ImportDeclarations only flush at the end, so a follow through
           // such a name (`const k = _Symbol$iterator; k in X`) finds no tree binding yet.
           // serve the injector's registry view (span-disciplined; a USER-named record out of
           // its span stays invisible - the name there is a different binding)
           const minted = getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null);
-          // a MINTED blind alias (the AST leg's guard memo, `_ref = _globalThis.window`
+          // a MINTED blind alias (a guard memo, `_ref = _globalThis.window`
           // registered as holding 'window') serves its hint the same way - the rebuilt
           // spine's claims resolve through the ref exactly like the source root
           if (minted?.hint && ((minted.source && !minted.userNamed) || minted.minted)) {
@@ -574,7 +582,11 @@ export function createEstreeAdapter(options = {}) {
       // self-record (`var { Map: M } = g; var M;`) stripped inside it, so both adapters hand
       // the resolver the same violation list for identical source
       const constantViolations = recomputedBindingWrites({
-        kind: b.kind, bindingPath: b.path, usePath: path, name, fallback: b.constantViolations,
+        kind: b.kind,
+        bindingPath: b.path,
+        usePath: path,
+        name,
+        fallback: b.constantViolations,
       });
       // the shared alias guard reads the RECOMPUTED violations (an assignment-form alias matches them
       // against its registered write span; the raw estree list carries phantoms) - so it runs after them
@@ -584,7 +596,7 @@ export function createEstreeAdapter(options = {}) {
       });
       // guarded registration = flow-trust refused: the member read stays native. the dominance
       // gate keeps a use textually BEFORE its trusted write / declaration native too.
-      // a plugin-MINTED memo (the AST leg's guard ref) is binding-less and serves through the
+      // a plugin-MINTED memo (a guard ref) is binding-less and serves through the
       // synthetic branch above, so this native-binding disjunct still has no minted arm
       // an in-file `require` binding shadows the CJS import - the require-style arm only
       // fires for the real module function (the node-local view cannot see the shadow)
@@ -602,7 +614,8 @@ export function createEstreeAdapter(options = {}) {
         node: b.path.node,
         kind: b.kind,
         constantViolations,
-        importSource, importKind,
+        importSource,
+        importKind,
         // READ count of the binding - estree-toolkit keeps reference paths (writes excluded)
         references: b.references?.length ?? 0,
         // the scope the DECLARATOR is written in - see the babel twin. here it IS `b.scope`: unlike
@@ -620,7 +633,7 @@ export function createEstreeAdapter(options = {}) {
         // RUNTIME ctor guard on member reads of known separate statics - the guard compares
         // the live value against the swapped ctor, so it self-corrects on any actual flow
         guardedAliasHint: identityInfo && !polyfillHint ? identityInfo.hint : null,
-        // every ctor the slot was written with - the AST leg's twin carries the same list
+        // every ctor the slot was written with - the babel twin carries the same list
         guardedAliasHints: identityInfo && !polyfillHint ? identityInfo.hints ?? null : null,
       };
     },
@@ -732,7 +745,13 @@ function makeSynthPath({ node, parent, parentKey, parentPath, scope, listKey = n
       const value = node?.[key];
       const result = Array.isArray(value)
         ? value.map((el, i) => makeSynthPath({
-          node: el, parent: node, parentKey: i, parentPath: self, scope, listKey: key, container: value,
+          node: el,
+          parent: node,
+          parentKey: i,
+          parentPath: self,
+          scope,
+          listKey: key,
+          container: value,
         }))
         : makeSynthPath({
           node: value ?? null, parent: node, parentKey: key, parentPath: self, scope, container: node,
@@ -796,7 +815,9 @@ function makeFrameScope(parentScope, localDecls) {
           path: makeSynthPath({
             node: local.node,
             parent: local.kind ? { type: 'VariableDeclaration', kind: local.kind } : null,
-            parentKey: null, parentPath: null, scope: frame,
+            parentKey: null,
+            parentPath: null,
+            scope: frame,
           }),
         };
         bindingCache.set(local, binding);
@@ -899,7 +920,10 @@ function collectFunctionLocals(fnNode) {
       const catchStart = node.body?.start ?? node.start;
       const catchEnd = node.body?.end ?? node.end;
       addPatternLocals(locals, node.param, {
-        constant: false, node: node.param, blockStart: catchStart, blockEnd: catchEnd,
+        constant: false,
+        node: node.param,
+        blockStart: catchStart,
+        blockEnd: catchEnd,
       });
       if (node.body) walk(node.body, catchStart, catchEnd);
       return;
@@ -940,8 +964,14 @@ function walkSubtree({ node, parent, parentKey, parentPath, scope, visitors, lis
   visitors[node.type]?.(synthPath);
   forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
     walkSubtree({
-      node: child, parent: node, parentKey: childKey, parentPath: synthPath, scope: childScope, visitors,
-      listKey: childListKey, container: childContainer,
+      node: child,
+      parent: node,
+      parentKey: childKey,
+      parentPath: synthPath,
+      scope: childScope,
+      visitors,
+      listKey: childListKey,
+      container: childContainer,
     });
   });
 }
@@ -1012,8 +1042,16 @@ function isJsxMemberRoot(path) {
 // --- Usage visitors ---
 
 export function createUsageVisitors({
-  adapter, onUsage, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
-  resolveMeta, resolvePure = null, onSuppressedProxyHop = null, suppressKeptNavRoot = null,
+  adapter,
+  onUsage,
+  method,
+  suppressProxyGlobals = false,
+  walkAnnotations = true,
+  isEntryAvailable,
+  resolveMeta,
+  resolvePure = null,
+  onSuppressedProxyHop = null,
+  suppressKeptNavRoot = null,
   revisitDecorators = false,
 }) {
   // hops the detector suppressed while the meta keeps its receiver PATH: the marking exists so no
@@ -1021,10 +1059,19 @@ export function createUsageVisitors({
   // render - one that replaces the WHOLE chain span, which composes rather than collides
   const keptProxyHops = new WeakSet();
   const core = createUsageHandlerCore({
-    adapter, onUsage, method, isEntryAvailable, resolveMeta, resolvePure, suppressProxyGlobals,
-    // the text emitter has no AST re-visit: hops a DECLINED proxy-rooted meta marked handled
+    adapter,
+    onUsage,
+    method,
+    isEntryAvailable,
+    resolveMeta,
+    resolvePure,
+    suppressProxyGlobals,
+    // hops a DECLINED proxy-rooted meta marked handled
     // must stay recorded for the suppressed-hop callback, or nothing renders them
-    keptProxyHops, keptDeclinedProxyMetaHops: true, onSuppressedProxyHop, suppressKeptNavRoot,
+    keptProxyHops,
+    keptDeclinedProxyMetaHops: true,
+    onSuppressedProxyHop,
+    suppressKeptNavRoot,
     // read `kind` off the parent VariableDeclaration via the binding path - works across
     // estree-toolkit shapes (`.path.parent` for one host, `.path.parentPath?.node` for
     // another). babel's `binding.kind` is read directly via the babel adapter's own getter
@@ -1089,7 +1136,13 @@ export function createUsageVisitors({
           // default is a polyfill dead-end; a non-receiver arg (notably `undefined`, where the runtime
           // applies the default) keeps the default. single-sourced chooser shared with babel + the emitters
           initNode = chooseFallbackReceiverNode({
-            argNode, defaultNode: parent.node.right, objectPattern: objectPattern.node, scope, adapter, path: parent, resolvePure,
+            argNode,
+            defaultNode: parent.node.right,
+            objectPattern: objectPattern.node,
+            scope,
+            adapter,
+            path: parent,
+            resolvePure,
           });
           if (argNode && initNode === argNode) {
             initScope = desc.callPath.scope;

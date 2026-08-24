@@ -6,10 +6,7 @@ import {
   peelParenAndTSParentPath,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import {
-  isClassifiableReceiverArg,
-  isExpandedClassifiableReceiver,
-} from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg, isExpandedClassifiableReceiver } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   resolvableArgSupersedesDeadDefault,
@@ -18,36 +15,6 @@ import {
 // intermediate slots permitted on the walk from an inner Property up to a destructure host.
 // AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
 // receivers are always defined so the default never fires; ArrayPattern allowed for array
-// wrappers (`[{...}] = [globalThis]`) of ANY arity - this set only names the slots the walk
-// may cross, it does not decide the outcome. dropping the whole declaration is the
-// EVERY-LEAF-CONSUMED case; a wrapper with an unconsumed sibling keeps the declaration and
-// renames the consumed leaf to a `_unused` sentinel instead, so the sibling binding survives
-const NESTED_PATTERN_INTERMEDIATES = new Set([
-  'ObjectPattern',
-  'Property',
-  'AssignmentPattern',
-  'ArrayPattern',
-]);
-
-// declaration walker passes through one extra `VariableDeclarator` slot before reaching
-// the terminus VariableDeclaration. AssignmentExpression hosts have no analogous
-// intermediate (the outer ObjectPattern sits directly on `.left`), so the assignment
-// walker uses the bare INTERMEDIATES set
-function isDeclarationWalkIntermediate(type) {
-  return NESTED_PATTERN_INTERMEDIATES.has(type) || type === 'VariableDeclarator';
-}
-
-// walk Property/ObjectPattern pairs up to the enclosing VariableDeclaration. 2-level
-// nest is 5 hops, every additional alias-hop adds 2. returns the declaration's path
-// or null when the chain leaves the allowed-types set
-export function walkUpNestedDestructureToDeclaration(startPath) {
-  let current = startPath;
-  while (current && current.node?.type !== 'VariableDeclaration') {
-    if (!isDeclarationWalkIntermediate(current.node?.type)) return null;
-    current = current.parentPath;
-  }
-  return current;
-}
 
 // gate `metaPath` for destructure rewrite: skip Property-of-Property nesting (handled by
 // the nested-proxy flatten path), accept CatchClause (treated as variable-decl with
@@ -119,7 +86,13 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
     // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
     if (resolvableArgSupersedesDeadDefault({
-      argNode: argReceiver, defaultNode: peeled, objectPattern, scope, adapter, path: wrapperPath, resolvePure,
+      argNode: argReceiver,
+      defaultNode: peeled,
+      objectPattern,
+      scope,
+      adapter,
+      path: wrapperPath,
+      resolvePure,
     })) return argReceiver;
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out

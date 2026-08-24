@@ -3,7 +3,7 @@ import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Promise from "@core-js/pure/actual/promise";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // the param routes drop the user-written default (polyfill always wins), so a polyfillable read
-// inside it goes with the text: body-extract removes the whole prop, the rest-sibling shape cuts
+// inside it goes with it: body-extract removes the whole prop, the rest-sibling shape cuts
 // it back to its key plus a fresh sentinel, and the inline default replaces the default alone.
 // the last row keeps its default in the pattern, so the read there stays polyfilled in place
 let e = 0;

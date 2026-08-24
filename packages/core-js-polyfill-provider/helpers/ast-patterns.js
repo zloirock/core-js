@@ -71,7 +71,7 @@ export function isRequireCall(expr) {
 // VariableDeclaration with at least one `require()` initializer. re-exports count because the
 // module record fetches them before the body runs, so `var _ref;` placed before them would
 // trip `import/first`. directive-prologue handling is the CALLER's concern - it differs:
-// unplugin's `lastUserImportEnd` skips directives mid-scan, babel folds them into its region check
+// unplugin's flush skips directives mid-scan, babel folds them into its region check
 export function isTopLevelImportLike(stmt) {
   if (stmt?.type === 'ImportDeclaration') return true;
   if (stmt?.type === 'ExportNamedDeclaration' && stmt.source) return true;
@@ -119,7 +119,7 @@ function isStringLiteralExpressionStatement(node) {
 // statement - promotion becomes impossible for EVERY removed entry, so no `0;` placeholder
 // is ever needed. only a zero-module expansion (modern targets filtering everything out)
 // leaves the bare-removal hazard this guard exists for
-export function wouldPromoteDirectiveAfterRemoval({
+function wouldPromoteDirectiveAfterRemoval({
   body, entryIndex, pendingRemovals, hasPriorDirective = false, injectedImportsBreakPrologue = false,
 }) {
   if (injectedImportsBreakPrologue) return false;
@@ -475,17 +475,6 @@ export const SKIPPABLE_WRAPPER_TYPES = new Set([
   'ChainExpression',
 ]);
 
-// walk down `SKIPPABLE_WRAPPER_TYPES` wrappers marking each in `skippedNodes`; returns the
-// inner non-wrapper node. shared between `markSynthReceiverSkipped` (class-walk) and
-// per-branch synth-swap peel (destructure-emitter) so the wrapper-set stays in lockstep
-export function markAndPeelSkippableWrappers(node, skippedNodes) {
-  while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) {
-    skippedNodes.add(node);
-    node = node.expression;
-  }
-  return node;
-}
-
 // a member-access node in EITHER parser: babel keeps OptionalMemberExpression distinct, while
 // estree-toolkit (oxc) folds the optional marker into a MemberExpression under a ChainExpression.
 // centralizes the two-type check that every member-receiver / member-write walk repeats so the
@@ -586,7 +575,7 @@ export function unwrapRuntimeExpr(node) {
 }
 
 // memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
-// in the checked node keeps babel's `_ref` emission aligned with unplugin's source-text handling,
+// in the checked node keeps the two emitters' `_ref` emission aligned,
 // so both pipelines make the same reuse decision around optional chains. narrower than
 // unwrapRuntimeExpr (which also strips TS)
 export function peelMemoizeWrappers(node) {
@@ -603,8 +592,8 @@ export function isReusableReceiver(node) {
 }
 
 // peel `SKIPPABLE_WRAPPER_TYPES` wrappers down through `.expression` slot, returning the
-// innermost non-wrapper path (or the input when nothing to peel). path-based counterpart
-// to `markAndPeelSkippableWrappers`. callers that need to walk down through TS / paren /
+// innermost non-wrapper path (or the input when nothing to peel).
+// callers that need to walk down through TS / paren /
 // chain wrappers to a semantic-bearing node use this; null-safe so chained calls don't
 // require pre-guard. used by global-resolve's proxy-global detection where babel strips
 // parens but oxc preserves them, and TS expression wrappers can land on either parser
@@ -690,7 +679,7 @@ export function isTopLevelThisContext(path) {
 // (body-extract, leaf inline defaults) are sound ONLY here: a declared / exported function's
 // callers are invisible to the transform, and mutating its pattern leaves or body changes
 // what a caller-supplied argument observably produces
-export function isImmediatelyInvokedFunction(fnPath) {
+function isImmediatelyInvokedFunction(fnPath) {
   let callee = fnPath;
   let parent = fnPath.parentPath;
   while (parent?.node && (parent.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(parent.node.type))) {
@@ -704,7 +693,7 @@ export function isImmediatelyInvokedFunction(fnPath) {
 // the path whose node occupies `fnPath`'s param slot on the chain from `path` up to the
 // function - null when the chain runs through the body instead. the param slot is where a
 // caller-supplied value enters
-export function findFunctionParamPath(path, fnPath) {
+function findFunctionParamPath(path, fnPath) {
   const params = fnPath?.node?.params;
   if (!params) return null;
   for (let cur = path; cur?.node && cur.node !== fnPath.node; cur = cur.parentPath) {
@@ -1511,7 +1500,7 @@ function collectScopeReassignmentNodes(ownerNode, name) {
 
 // var-hoist reassignment recovery: estree-toolkit block-scopes a `var`, so its constantViolations miss
 // a cross-block redeclaration / write. recompute from the AST at the var's function-scope owner
-export function collectFunctionScopeVarReassignments(path, name) {
+function collectFunctionScopeVarReassignments(path, name) {
   const found = findVarOwnerDeclaring(path, name);
   if (!found) return [];
   // the scope-declaring var IS the binding's own declaration for the var-kind consumers
@@ -1554,7 +1543,7 @@ export const LET_SCOPE_HOST_TYPES = new Set([
 // (possibly deferred, possibly captured, violating) while positional reads take `.node`.
 // dedupe by containment: a native entry may record the assignment itself or just its target
 // identifier, both sit inside the canonical node's range
-export function withCanonicalViolations(binding, name) {
+function withCanonicalViolations(binding, name) {
   const kind = binding?.kind;
   if (!binding?.path || !name || (kind !== 'var' && kind !== 'let' && kind !== 'const')) return binding;
   const canonical = kind === 'var'
@@ -1679,7 +1668,7 @@ export function wrapScopeBindingLookup(lookup) {
 // observed across the function boundary). recompute by the same AST scan, anchored at the `let`'s OWN
 // lexical scope (climb the declarator to its scope host) so a block-scoped `let` is not over-scanned -
 // anchoring at the enclosing FUNCTION would let the scan stop at the let's own block as a shadow
-export function collectScopeLetReassignments(declaratorPath, name) {
+function collectScopeLetReassignments(declaratorPath, name) {
   let scopeNode = null;
   for (let p = declaratorPath?.parentPath; p && !scopeNode; p = p.parentPath) {
     if (LET_SCOPE_HOST_TYPES.has(p.node?.type)) scopeNode = p.node;
@@ -2186,7 +2175,7 @@ export function patternSlotHasDefault(pattern, name) {
 // without a default)? one spelling of that question, over the canonical binding-leaf walk - the
 // default-guarded ask above keeps its own walk because it TRACKS default context, which the leaf
 // walk deliberately does not carry
-export function patternBindsName(pattern, name) {
+function patternBindsName(pattern, name) {
   return patternBindsIdentifier(pattern, id => id.name === name);
 }
 
@@ -2763,7 +2752,7 @@ export const IMPORT_SPECIFIER_TYPES = new Set([
 // the declaration side is therefore asked FIRST when it carries the type-only mark, and only then
 // does the ordinary node-then-parent order apply. ONE home for that rule - the predicate
 // `importBindingIsTypeOnly` below answers through this, so the two cannot drift
-export function importBindingKind(bindingNode, bindingParent) {
+function importBindingKind(bindingNode, bindingParent) {
   if (isTypeOnlyImportKind(bindingParent?.importKind)) return bindingParent.importKind;
   return bindingNode?.importKind ?? bindingParent?.importKind ?? null;
 }
@@ -2860,7 +2849,7 @@ function isIdentitySelfAssignViolation(v, own) {
 // the real reassignment site nodes (every violation other than the loop-reinit declarator-self
 // and identity self-assigns). counting the self-rebind sent every `for (const k in ...)` body
 // read - and every for-init DESTRUCTURED alias - through the flow-sensitive walks as "reassigned"
-export function reassignmentNodesBeyondDeclarator(binding) {
+function reassignmentNodesBeyondDeclarator(binding) {
   const own = bindingDeclaratorNode(binding);
   return binding.constantViolations
     .filter(v => !isDeclaratorSelfViolation(v, own) && !isIdentitySelfAssignViolation(v, own))
@@ -3176,7 +3165,7 @@ export function findArrayWrappedDestructureHost(objectPatternPath) {
       cur = parent.parentPath;
     } else if (node.type === 'VariableDeclarator') {
       // for-init hosts cannot take a preceding extraction statement (the loop header forbids
-      // it: babel's insert crashed on scope re-registration, unplugin's text insert produced
+      // it: babel's insert crashed on scope re-registration, unplugin's produced
       // two `const` statements inside the parens) - route them to the cascade flatten, whose
       // sibling-sink machinery already handles loop headers
       const declarationNode = parent.parentPath?.node;
@@ -3544,7 +3533,7 @@ export function isMemberMutationContext(node, parent, grandparent) {
 // string-literal under both babel (`StringLiteral`) and oxc (`Literal` with string value).
 // returns null when the key isn't a statically resolvable string - dynamic / computed keys
 // can't be tracked by the pre-pass since their value isn't known at parse time
-export function staticStringKey(node) {
+function staticStringKey(node) {
   if (node?.type === 'StringLiteral') return node.value;
   if (node?.type === 'Literal' && typeof node.value === 'string') return node.value;
   // single-quasi template key (`Object.defineProperty(Array, `from`, d)`) is a static string too
@@ -3563,7 +3552,7 @@ export function canHoldBuiltIn(node) {
 // a computed key that is a (paren-wrapped) SequenceExpression with a static-string TAIL
 // (`[(eff(), 'from')]`) resolves to that tail name ('from'); null otherwise. the member-access side
 // stops here: a member key is READ in place, so only the sequence form needs its prefix accounted for
-export function sequenceKeyStaticName(keyNode) {
+function sequenceKeyStaticName(keyNode) {
   const node = unwrapParens(keyNode);
   if (node?.type !== 'SequenceExpression') return null;
   return staticStringKey(peelSequenceTail(node, { step: unwrapParens }));
@@ -3660,7 +3649,7 @@ export function prototypeValueMayDispatch(node, undefinedShadowed = false) {
 // is THIS property the one that installs a prototype? only a plain, non-computed, non-shorthand
 // `__proto__` data property does - a method, an accessor or a computed key of the same name creates
 // an ordinary own property instead. one rule, read both per-literal and per-property
-export function propertyInstallsPrototype(prop, undefinedShadowed = false) {
+function propertyInstallsPrototype(prop, undefinedShadowed = false) {
   if (prop?.type !== 'Property' && prop?.type !== 'ObjectProperty') return false;
   if (prop.computed || prop.shorthand || prop.method || (prop.kind && prop.kind !== 'init')) return false;
   if (propertyKeyName(prop) !== '__proto__') return false;
@@ -3962,7 +3951,7 @@ export function mutatedStaticKey(object, key) {
 // drops when descending into them - unplugin's orphan-ref classifier keys on it (a `var _ref;`
 // rehydrated at module top hoists through plain blocks but never past these), and the census
 // driver computes it once for every reducer
-export const SCOPE_REBINDING_TYPES = new Set([
+const SCOPE_REBINDING_TYPES = new Set([
   'FunctionDeclaration',
   'FunctionExpression',
   'ArrowFunctionExpression',
@@ -3976,12 +3965,12 @@ export const SCOPE_REBINDING_TYPES = new Set([
   'StaticBlock',
   // TS namespaces and enums compile to IIFEs - their bodies are var-scopes, so a `_ref = X`
   // inside `namespace N { ... }` / an enum initializer is never the plugin's module-top-level
-  // emission (mirrors the var-scope treatment `varScopeAnchor` gives TSModuleBlock)
+  // emission (mirrors the injector's var-scope anchoring of TSModuleBlock)
   'TSModuleDeclaration',
   'TSEnumDeclaration',
 ]);
 
-export function isScopeRebinding(node) {
+function isScopeRebinding(node) {
   return SCOPE_REBINDING_TYPES.has(node.type);
 }
 
@@ -3990,7 +3979,7 @@ export function isScopeRebinding(node) {
 // `isTopLevelThisContext` walks, so a census frame and a path walk answer alike
 const THIS_REBINDING_TYPES = new Set([...SCOPE_REBINDING_TYPES].filter(type => type !== 'ArrowFunctionExpression'));
 
-export function isThisRebinding(node) {
+function isThisRebinding(node) {
   return THIS_REBINDING_TYPES.has(node.type);
 }
 
@@ -4716,7 +4705,7 @@ export function peelTransparentExprAncestorPath(path) {
 // termination is structural instead: the climb ends at the root, and the visited set covers the only
 // way a parent chain can run forever - a cyclic tree from a foreign plugin - by ending the climb so
 // the consumer answers with its own bail
-export function * ancestorPathSteps(path) {
+function * ancestorPathSteps(path) {
   const visited = new Set();
   for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
     if (visited.has(cur.node)) return;
@@ -5124,8 +5113,8 @@ function patternBindsIdentifier(pattern, predicate) {
 
 // recursive peel of nested SequenceExpressions through paren wrappers: `(se1(), (se2(), G))`
 // yields preceding-effect list `[se1(), se2()]` and tail `G`. used by destructure-flatten
-// emitters (babel `liftSEPrefixSwap`, unplugin `tryFlattenAssignmentExpression`,
-// unplugin main flatten) so every SE layer's preceding expressions lift instead of only
+// emitters (babel `liftSEPrefixSwap`, the unplugin drain's memo-receiver
+// peel) so every SE layer's preceding expressions lift instead of only
 // the outermost. without recursion, inner se2() silently elides under the rewrite. peel
 // parens + TS expression wrappers (`as` / `satisfies` / `!` / chain) so SE through casts
 // (`(logCall(), R) as any`) lifts the same as bare SE - otherwise the prefix gets dropped
@@ -5276,7 +5265,7 @@ export function isFunctionParamDestructureParent(path) {
 // ObjectPattern prop value is a synth-swap eligible binding: `{key}` / `{key: bound}` /
 // `{key = D}` / `{key: bound = D}`. rejects nested patterns (`{key: {a}}`) and rest -
 // those don't fit the synth-swap receiver substitution model. shared between babel-plugin's
-// `handleParameterDestructure` and unplugin's `handleParameterDestructurePure`.
+// `handleParameterDestructure` and the unplugin's param destructure route.
 // returns the Identifier that receives the binding across all four prop-value shapes:
 // `{ x }` / `{ x: alias }` / `{ x = default }` / `{ x: alias = default }`. null when the value
 // is a nested pattern or any other non-Identifier shape. nested-destructure flatten and
@@ -5402,7 +5391,7 @@ export function isReplayableSynthKey(prop) {
 }
 
 // per-property CONTENT plan for a synthesized receiver literal - the single classification both
-// emitters render (babel as ObjectProperties, unplugin as source text). serves the flat
+// emitters render as their receiver literal. serves the flat
 // param-default synth swap AND the per-branch conditional / logical synth: both families
 // register into the same accumulator and flow through this builder. per entry:
 //   keyNode  - the original pattern key node
@@ -5490,9 +5479,9 @@ export const isTaggedTemplateQuasiPosition = (parent, node) => parent?.type === 
 // wrappers peel at every level so `(o).at` / `(o as any).at` (oxc keeps the paren node,
 // TS casts survive in both parsers) match the bare `o.at` slot they read at runtime
 // canonical member-shape signature, snapshotted at COLLECTION time: the for-x same-shape rule
-// compares the head write target against body reads, but the AST emitter rewrites the head's
+// compares the head write target against body reads, but an emitter rewrites the head's
 // object / key children in place before the body visits - a live-node structural compare then
-// sees the MUTATED head and drops the match while the text emitter compares the pristine tree
+// sees the MUTATED head and drops the match
 // (one side collapsed the body read, the other stranded its raw proxy global). optionality does
 // not change WHICH slot is resolved (`o?.at` reads the same `o.at` key), so it never enters the
 // signature; dot (`obj.at`) and bracket (`obj['at']`) spellings of one static key produce one
@@ -6120,10 +6109,10 @@ export function isUndefinedNode(node) {
   return node?.type === 'UnaryExpression' && node.operator === 'void' && !mayHaveSideEffects(node.argument);
 }
 
-// the stored-canon VALUES an AST emitter rendered in place this pass: for classification they
+// the stored-canon VALUES an emitter rendered in place this pass: for classification they
 // ARE the navigation they replaced, so the guarded-read gate below does not apply - the raw
-// source (the text emitter's view, the pre-render state) classified them unconditionally, and
-// gating them would desync the legs on every unguarded read form. a USER-written conditional
+// pre-render source classified them unconditionally, and
+// gating them would flip the verdict on every unguarded read form. a USER-written conditional
 // never enters this set and keeps the gate (its void-0 arm is a real runtime value). WeakSet:
 // nodes die with their AST, and a re-parse (the sandwich's second pass) sees fresh unmarked
 // nodes - by then the reads are already claimed, so the gate's decline is vacuous there
@@ -6299,24 +6288,6 @@ export const CLASS_FIELD_TYPES = new Set([
   'PropertyDefinition',
   'ClassAccessorProperty',
   'AccessorProperty',
-]);
-
-// parent types that parenthesize a guard ternary: an operator binding tighter than `?:`, or a
-// grammar slot that demands a LeftHandSideExpression. an AST printer adds those parens itself
-// while a text emitter spells them, so both need the SAME table - a type missing on one side
-// spelled the same fold two ways (the tail folded INSIDE the parens on one, `?.` outside on
-// the other). a ternary TEST parent belongs here too, but its branches do not - the emitters
-// recognise that one on their own terms (node identity / span end)
-export const GUARD_PAREN_CONSUMERS = new Set([
-  'AwaitExpression',
-  'BinaryExpression',
-  'ClassDeclaration',
-  'ClassExpression',
-  'LogicalExpression',
-  'SpreadElement',
-  'TaggedTemplateExpression',
-  'UnaryExpression',
-  'UpdateExpression',
 ]);
 
 // one ancestor step: is `node` (entered via the `child` path) a DEFERRED evaluation context - a
@@ -6534,7 +6505,7 @@ export function forEachStatementPosition(rootNode, { onList, onUnbracedSlot } = 
 export const POSITION_CONSUMES = 'consumes';
 export const POSITION_FORWARDS = 'forwards';
 export const POSITION_INSPECTS = 'inspects';
-export const POSITION_HANDS_OUT = 'hands-out';
+const POSITION_HANDS_OUT = 'hands-out';
 
 export function positionDisposition(parent, node, parentNodePath) {
   switch (parent?.type) {

@@ -187,8 +187,6 @@ async function transformWith(emitter, mode, source, ts) {
     });
     return out.code;
   }
-  if (emitter === 'unplugin-text') return createUnplugin({ ...options, engine: 'text' }).transform(source, filename)?.code;
-  // bare `unplugin` measures the plugin default - the AST engine
   return createUnplugin(options).transform(source, filename)?.code;
 }
 
@@ -199,7 +197,7 @@ for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
   const modules = Array.isArray(input) ? input : [input];
   const kilobytes = Math.round(modules.reduce((total, module) => total + module.length, 0) / 1024);
   for (const mode of MODES) {
-    for (const emitter of ['babel', 'unplugin', 'unplugin-text']) {
+    for (const emitter of ['babel', 'unplugin']) {
       const start = performance.now();
       let injected = 0;
       for (const module of modules) {

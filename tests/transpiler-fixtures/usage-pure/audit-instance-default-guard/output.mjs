@@ -55,9 +55,8 @@ const {
   } = recvF,
   ts = (_ref7 = _toSortedMaybeArray(recvF)) === void 0 ? dfltF() : _ref7;
 
-// memoized receiver + split: both segments and the guard read the shared ref; the extraction
-// PLACEMENT differs per emitter (the text emitter's preceding statements vs the AST emitter's
-// comma chain - a pre-existing cosmetic, side-effect order is identical)
+// memoized receiver + split: both segments and the guard read the shared ref, and the
+// extraction rides the declaration's own comma chain - side-effect order is identical
 const _ref8 = [9],
   {
     [(e7(), 'with')]: _unused7

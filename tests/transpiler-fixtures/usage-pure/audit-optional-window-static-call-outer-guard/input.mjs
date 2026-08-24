@@ -1,7 +1,7 @@
 // three window-optional forms where a receiver-independent static under a KEPT trailing-instance guard must
 // read BARE, and a bare-window ctor.static must collapse without crashing:
 //   - bareCtorStatic: `globalThis.window?.Number.MAX_SAFE_INTEGER.toFixed(1)` - the whole proxy-root.ctor.static
-//     subsumes into one pure static (the bare root skipped), guard erased. before: transform-queue crash.
+//     subsumes into one pure static (the bare root skipped), guard erased. before: a transform crash.
 //   - aliasStaticCall: `(w = g)?.Array.from([1])...` (g = globalThis alias) - the `.from` static reads bare
 //     `_Array$from([1])`, NOT `(w = g, _Array$from)` (which double-ran the assign under the `.at` guard).
 //   - seqStaticCall: `(c++, v = globalThis.window)?.Array.of(5)...` - same, plus the seq guard root substitutes

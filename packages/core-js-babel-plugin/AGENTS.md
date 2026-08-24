@@ -4,7 +4,7 @@ Automatic polyfill injection for Babel: the adapter between Babel's plugin API a
 
 ## Target environment
 
-Build-time only, ESM. Node `^22.18.0 || >=24.11.0`. Works with both `@babel/core` 7 and 8.
+Build-time only, ESM. Node `^22.18.0 || >=24.11.0`. Works with both `@babel/core` 7 and 8. `@core-js/compat` in `dependencies` is runtime-unused on purpose: `index.d.ts` type-imports `@core-js/compat/compat`, so the package must resolve for consumers' tsc - do not drop it as a leftover.
 
 ## Layout
 

@@ -1,7 +1,7 @@
-// these shapes now SYNTH their receiver: the caller-correct literal is preferred over the text
-// splice, so no prop is removed and no comma has to be consumed here. what they lock is that a
-// trailing comma does not push the pattern off the synth path. the splice and its comma handling
-// are exercised where a dynamic computed key makes the literal impossible
+// these shapes now SYNTH their receiver: the caller-correct literal is preferred over
+// editing the pattern, so no prop is removed and no comma has to be consumed here. what they
+// lock is that a trailing comma does not push the pattern off the synth path. prop removal
+// and its comma handling are exercised where a dynamic computed key makes the literal impossible
 (function ({ 'from': f, }) {
   return f;
 })(globalThis.Array);
