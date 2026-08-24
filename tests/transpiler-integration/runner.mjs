@@ -17,12 +17,10 @@ function inputOf(method) {
 // engines. the options factory reads the matrix loop's current selection - threading a
 // fourth parameter through every builder would touch each tool for one field
 let currentEngine;
-function enginesFor(method, phase) {
-  if (method === 'entry-global') return [undefined, 'ast'];
-  // usage-global renders single-pass on the ast engine until its pre/post snapshot lands -
-  // the single-stage 'pre' cell is that pass; the phased cells stay text-only
-  if (method === 'usage-global' && phase === 'pre') return [undefined, 'ast'];
-  return [undefined];
+// every method and phase runs on both engines - the pre/post snapshot landed with MIG-15,
+// so the axis has no staged exclusions left
+function enginesFor() {
+  return [undefined, 'ast'];
 }
 function pluginOpts(method, phase) {
   const opts = { method, version: '4.0', mode: 'full' };
@@ -436,7 +434,7 @@ for (const [name, build] of Object.entries(builders)) {
     }
     for (const phase of phases) {
       // babel-plugin has no engine option; every other builder exercises the axis
-      for (const engine of name === 'babel' ? [undefined] : enginesFor(method, phase)) await runCell(phase, engine);
+      for (const engine of name === 'babel' ? [undefined] : enginesFor()) await runCell(phase, engine);
     }
   }
 }

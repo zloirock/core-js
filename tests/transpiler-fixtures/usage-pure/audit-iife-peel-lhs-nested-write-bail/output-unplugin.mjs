@@ -1,6 +1,7 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _Object$groupBy from "@core-js/pure/actual/object/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
+import _Promise2 from "@core-js/pure/actual/promise/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 // the IIFE identity-peel bails on a param write hidden in a WRITE-TARGET subtree: an LHS
@@ -16,14 +17,14 @@ const { from } = viaLhsDefault;
 export const r1 = from([1, 2]);
 const sink = {};
 const viaMemberKey = (arg => {
-  sink[arg = _Promise] = 1;
+  sink[arg = _Promise2] = 1;
   return arg;
 })(Array);
 const { of } = viaMemberKey;
 export const r2 = of(3);
 const counts = { rebound: 0 };
 const viaUpdateKey = (arg => {
-  counts[arg = _Promise]++;
+  counts[arg = _Promise2]++;
   return arg;
 })(Array);
 const { from: fu } = viaUpdateKey;

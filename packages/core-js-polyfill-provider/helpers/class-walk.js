@@ -688,7 +688,16 @@ function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
     for (const prop of pat.properties ?? []) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
       const key = propertyKeyName(prop);
-      if (key && prop.value?.type === 'Identifier') pairs.push({ localName: prop.value.name, hint: key });
+      if (!key) continue;
+      if (prop.value?.type === 'Identifier') {
+        pairs.push({ localName: prop.value.name, hint: key });
+        continue;
+      }
+      // a PROXY-GLOBAL key names the SAME surface one level down, so a nested pattern under it
+      // binds the very globals the flat form would (`{ window: { Array } }` -> the global
+      // `Array`); without the descent the leaf keeps its native spelling and loses the polyfill
+      if (prop.value?.type === 'ObjectPattern' && POSSIBLE_GLOBAL_OBJECTS.has(key)
+        && isPristineProxyGlobal(adapter, key)) collectFromObjectPattern(prop.value);
     }
   }
   if (pattern?.type === 'ObjectPattern') collectFromObjectPattern(pattern);

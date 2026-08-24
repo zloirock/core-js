@@ -62,7 +62,7 @@ export const destructuredUnponyfilled = _Object$values({
 const {
   window: extractedNested
 } = _globalThis;
-export const destructuredNested = null == extractedNested ? void 0 : _Object$fromEntries([['d', 4]]);
+export const destructuredNested = _Object$fromEntries([['d', 4]]);
 const fromArray = _self;
 export const destructuredThroughArray = _Promise$resolve(1);
 const withDefault = _self === void 0 ? _globalThis : _self;

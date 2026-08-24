@@ -72,11 +72,6 @@ const unplugin = createUnplugin((options, meta) => {
     console.warn(`[core-js] \`phase: 'pre+post'\` is not reliably honored on \`${ bundler }\` (upstream sibling-ordering gap); falling back to single-mode 'post'`);
   }
   const resolvedPhase = fallbackToPost ? 'post' : effective;
-  // the staged AST engine renders single-pass only until its pre/post snapshot lands;
-  // reject the phased configurations early with the staged-migration wording
-  if (rest.engine === 'ast' && !isEntryGlobal && resolvedPhase !== 'pre') {
-    throw new TypeError(`[core-js] \`engine: 'ast'\` does not support \`phase: '${ resolvedPhase }'\` yet`);
-  }
   const plugin = createPlugin({ ...rest, bundler });
 
   function stage(enforce, pass) {

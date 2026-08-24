@@ -87,7 +87,7 @@ if (tokens.has('babel') && tokens.has('unplugin')) throw new Error('babel + unpl
 const PURE_ONLY = tokens.has('pure');
 const EMITTER = tokens.has('babel') ? 'babel' : tokens.has('unplugin') ? 'unplugin' : 'both';
 
-echo(green(`Transpiler differential: ${ cyan(corpusTotal) } snippets in ${ cyan(CHUNKS) } chunks (${ cyan(CONCURRENCY) } concurrent), three oracles per snippet (full-env three-way + pure stripped worker + usage-global stripped realm); progress streams below every ${ cyan(100) } snippets`));
+echo(green(`Transpiler differential: ${ cyan(corpusTotal) } snippets in ${ cyan(CHUNKS) } chunks (${ cyan(CONCURRENCY) } concurrent), four oracles per snippet (full-env three-way + pure stripped worker + the AST engine's own rewrite in both realms + usage-global stripped realm); progress streams below every ${ cyan(100) } snippets`));
 if (PURE_ONLY) echo(red('PURE-ONLY RUN: the usage-global leg is SKIPPED - not a full verification, gates need the default run'));
 if (EMITTER !== 'both') echo(red(`SINGLE-EMITTER RUN (${ EMITTER }): the other emitter and the import-parity oracle are OFF - not a full verification`));
 
@@ -254,13 +254,15 @@ try {
 let passed = 0;
 let globalChecked = 0;
 let globalArmed = 0;
+let astChecked = 0;
 const failures = [];
 const timings = {};
-const cache = { hits: 0, evaluated: 0, audited: 0, volatile: 0 };
+const cache = { hits: 0, evaluated: 0, audited: 0, volatile: 0, drifted: 0 };
 for (const r of results) {
   passed += r.passed;
   globalChecked += r.globalChecked;
   globalArmed += r.globalArmed;
+  astChecked += r.astChecked ?? 0;
   failures.push(...r.failures);
   for (const [phase, ms] of Object.entries(r.timings ?? {})) timings[phase] = (timings[phase] ?? 0) + ms;
   for (const [name, value] of Object.entries(r.cacheStats ?? {})) cache[name] += value;
@@ -271,11 +273,14 @@ const globalSummary = PURE_ONLY
   ? red('SKIPPED (pure-only run - NOT a full verification)')
   : `${ cyan(globalArmed) } armed of ${ cyan(globalChecked) } checked`;
 const emitterSummary = EMITTER === 'both' ? '' : ` | ${ red(`${ EMITTER }-only, parity oracle OFF`) }`;
-echo`\nChunks: ${ CHUNKS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | Global leg: ${ globalSummary }${ emitterSummary }`;
+const astSummary = EMITTER === 'babel' ? red('SKIPPED (babel-only run)') : `${ cyan(astChecked) } transformed`;
+const legSummary = `AST leg: ${ astSummary } | Global leg: ${ globalSummary }${ emitterSummary }`;
+echo`\nChunks: ${ CHUNKS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | ${ legSummary }`;
 // what the run actually EXECUTED, spelled out: a fully memoized run evaluates nothing, and the
 // audit count is the only evidence that the cached keys were checked against live ones at all
 const volatileNote = cache.volatile ? `, ${ cyan(cache.volatile) } not cacheable (result not a function of the code alone)` : '';
-echo`Cache: ${ cyan(cache.hits) } hits, ${ cyan(cache.evaluated) } evaluated, ${ cyan(cache.audited) } audited${ volatileNote }`;
+const driftNote = cache.drifted ? `, ${ cyan(cache.drifted) } drifted (stale realm - replayed live and rewritten)` : '';
+echo`Cache: ${ cyan(cache.hits) } hits, ${ cyan(cache.evaluated) } evaluated, ${ cyan(cache.audited) } audited${ volatileNote }${ driftNote }`;
 
 // phase table: per-phase wall-time SUMMED over parallel shards (a CPU-time share, not the run's
 // wall-clock) - the shares, robust to machine noise, are what optimization decisions read.

@@ -12,8 +12,11 @@
 //     reach, a SUPERSET of what the scoped pass can attribute. No extra walk: the reducer rides
 //     the shared per-file census. An over-report only degrades a narrow, which is the safe
 //     direction; an under-report would drop a polyfill, so the roots must stay a superset.
+import { entryToGlobalHint } from '../index.js';
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import {
+  kebabToCamel,
+  pureImportEntryOf,
   plainSynthKeyName,
   computedKeyStaticName,
   canHoldBuiltIn,
@@ -235,6 +238,232 @@ function memberReadDetachesRepositioner(node) {
   return name !== null ? ARRAY_REPOSITIONING_METHODS.has(name) : true;
 }
 
+// the VALUE arguments a mutator invocation installs, seen from the mutator MEMBER read's own
+// frame: the direct call's arguments, or - for `Reflect.apply(b.push, b, [v])`, where the
+// member rides the first argument slot - the args-array's elements. `[]` for a detached read
+function directInvocationValues(memberNode, parent) {
+  if (parent?.type !== 'CallExpression') return [];
+  if (unwrapRuntimeExpr(parent.callee) === memberNode) return spreadInstallValues(parent.arguments);
+  const outerCallee = unwrapRuntimeExpr(parent.callee);
+  if (outerCallee?.type === 'MemberExpression' && !outerCallee.computed
+    && unwrapRuntimeExpr(outerCallee.object)?.name === 'Reflect' && outerCallee.property?.name === 'apply'
+    && unwrapRuntimeExpr(parent.arguments?.[0]) === memberNode) {
+    const argsArray = unwrapRuntimeExpr(parent.arguments[2]);
+    if (argsArray?.type === 'ArrayExpression') return argsArray.elements;
+  }
+  return [];
+}
+
+// a spread argument installs its LITERAL's elements (`b.push(...[v])`); other arguments
+// install themselves
+function spreadInstallValues(args) {
+  const values = [];
+  for (const argument of args) {
+    if (argument?.type === 'SpreadElement') {
+      const spreadee = unwrapRuntimeExpr(argument.argument);
+      if (spreadee?.type === 'ArrayExpression') values.push(...spreadee.elements);
+    } else values.push(argument);
+  }
+  return values;
+}
+
+// `Object.assign(w, { k: v })` installs literal values into the target's named slots -
+// the one call spelling whose writes are statically attributable to keys; they ride the
+// ordinary slot-write channel
+function recordAssignInstall(node, rawSlotWrites) {
+  const callee = unwrapRuntimeExpr(node.callee);
+  if (callee?.type !== 'MemberExpression' || callee.computed
+    || unwrapRuntimeExpr(callee.object)?.name !== 'Object' || callee.property?.name !== 'assign') return;
+  const target = unwrapRuntimeExpr(node.arguments?.[0]);
+  if (target?.type !== 'Identifier') return;
+  for (const source of node.arguments.slice(1)) {
+    const literal = unwrapRuntimeExpr(source);
+    if (literal?.type !== 'ObjectExpression') continue;
+    for (const prop of literal.properties) {
+      if (prop?.type !== 'ObjectProperty' && prop?.type !== 'Property') continue;
+      const key = prop.computed ? computedKeyStaticName(prop.key) : propertyKeyName(prop);
+      rawSlotWrites.push([target.name, key ?? '*', prop.value]);
+    }
+  }
+}
+
+// the `.call` / `.apply` hop spellings, recorded from the invocation itself (the member
+// read's frame cannot see its grandparent): value args past the receiver for `.call`, the
+// args-array's elements for `.apply`
+function recordHopInvocation(node, rawRepositioned) {
+  const hop = unwrapRuntimeExpr(node.callee);
+  if ((hop?.type !== 'MemberExpression' && hop?.type !== 'OptionalMemberExpression') || hop.computed
+    || (hop.property?.name !== 'call' && hop.property?.name !== 'apply')) return;
+  const mutatorRead = unwrapRuntimeExpr(hop.object);
+  if ((mutatorRead?.type !== 'MemberExpression' && mutatorRead?.type !== 'OptionalMemberExpression')
+    || !memberReadDetachesRepositioner(mutatorRead)) return;
+  const owner = unwrapRuntimeExpr(mutatorRead.object);
+  if (owner?.type !== 'Identifier') return;
+  let values = [];
+  if (hop.property.name === 'call') values = node.arguments.slice(1);
+  else {
+    const argsArray = unwrapRuntimeExpr(node.arguments?.[1]);
+    if (argsArray?.type === 'ArrayExpression') values = argsArray.elements;
+  }
+  rawRepositioned.push([owner.name, values]);
+}
+
+// --- escaped bare-ctor references (source-anchored) ---
+// a bare built-in-ctor reference whose VALUE escapes the resolver's tracked-read positions
+// (an argument of any call or `new`, a spread, a member-slot write's RHS, an export, a
+// throw - including through value-forwarding layers and temporary literals): reads through
+// wherever it lands are unresolvable, so its pure claim must carry the ctor's statics with
+// it (the NAMESPACE entry; both entries export the same object, so only the loaded module
+// set differs). stamped over the PRISTINE tree by node identity, so the decision cannot
+// depend on which emitter rewrites first - the whole reason this is a census and not a
+// claim-time parent probe. tracked positions (a declarator init, a member object, a callee,
+// a plain-identifier assignment, a literal chain ending in a declarator init, a bare value
+// compare) never stamp: the reaching-value walks resolve reads through them, and the
+// constructor entry suffices
+// keyed by PROGRAM node -> `start:end` position keys: a position survives every clone and
+// region rebuild (babel's cloneNode keeps source positions), where node identity does not
+export const ESCAPED_CTOR_REFS = new WeakMap();
+
+// the position key both sides agree on: parser nodes carry `start` / `end` char offsets;
+// a babel clone drops them but keeps `loc.*.index` in the same offset space
+export function nodePositionKey(node) {
+  const start = node?.start ?? node?.loc?.start?.index;
+  const end = node?.end ?? node?.loc?.end?.index;
+  return typeof start === 'number' && typeof end === 'number' ? `${ start }:${ end }` : null;
+}
+
+// stamp every bare-identifier LEAF a value position forwards to, through the layers a value
+// flows untouched: wrappers, conditional / logical arms, a sequence tail, literal
+// elements / values, spreads, and an assignment's stored value
+function stampEscapingLeaves(node, stamps) {
+  const target = unwrapRuntimeExpr(node);
+  if (!target || typeof target !== 'object') return;
+  switch (target.type) {
+    case 'Identifier': {
+      const key = nodePositionKey(target);
+      if (key) stamps.add(key);
+      return;
+    }
+    case 'ConditionalExpression':
+      stampEscapingLeaves(target.consequent, stamps);
+      stampEscapingLeaves(target.alternate, stamps);
+      return;
+    case 'LogicalExpression':
+      stampEscapingLeaves(target.left, stamps);
+      stampEscapingLeaves(target.right, stamps);
+      return;
+    case 'SequenceExpression': stampEscapingLeaves(target.expressions.at(-1), stamps); return;
+    case 'ArrayExpression': for (const element of target.elements) if (element) stampEscapingLeaves(element, stamps); return;
+    case 'ObjectExpression':
+      for (const prop of target.properties) stampEscapingLeaves(prop?.value ?? prop?.argument, stamps);
+      return;
+    case 'SpreadElement': stampEscapingLeaves(target.argument, stamps); return;
+    case 'AssignmentExpression': stampEscapingLeaves(target.right, stamps);
+  }
+}
+
+// the function's OWN return statements: a shallow walk that does not descend into nested
+// functions (their returns belong to them)
+function collectOwnReturns(body) {
+  const returns = [];
+  const stack = [body];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (Array.isArray(node)) {
+      stack.push(...node);
+      continue;
+    }
+    if (typeof node.type !== 'string') continue;
+    if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression'
+      || node.type === 'ArrowFunctionExpression') continue;
+    if (node.type === 'ReturnStatement') {
+      returns.push(node);
+      continue;
+    }
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
+      if (value && typeof value === 'object') stack.push(value);
+    }
+  }
+  return returns;
+}
+
+export function escapedCtorReferencesReducer() {
+  let stamps = null;
+  function visit(node, frame) {
+    // the first visited node IS the program - its stamp set lives module-level, keyed by it
+    if (!stamps) ESCAPED_CTOR_REFS.set(node, stamps = new Set());
+    if (frame?.underTypeAnnotation) return;
+    switch (node.type) {
+      case 'CallExpression':
+      case 'OptionalCallExpression':
+      case 'NewExpression':
+        for (const argument of node.arguments ?? []) stampEscapingLeaves(argument, stamps);
+        break;
+      case 'AssignmentExpression': {
+        const target = unwrapRuntimeExpr(node.left);
+        if (target?.type === 'MemberExpression' || target?.type === 'OptionalMemberExpression') {
+          stampEscapingLeaves(node.right, stamps);
+        }
+        break;
+      }
+      case 'ExportDefaultDeclaration': stampEscapingLeaves(node.declaration, stamps); break;
+      case 'ThrowStatement': stampEscapingLeaves(node.argument, stamps); break;
+      // a yield hands the value to the iterator's consumer, a tagged template passes its
+      // expressions as call arguments - both escape exactly like a call argument does
+      case 'YieldExpression': stampEscapingLeaves(node.argument, stamps); break;
+      case 'TaggedTemplateExpression':
+        for (const expression of node.quasi?.expressions ?? []) stampEscapingLeaves(expression, stamps);
+        break;
+      // a PLAIN-IDENTIFIER default (`function f(M = Ctor)`) and a function's return value:
+      // reads through the binding / the call result are outside the reaching-value walks (a
+      // branchy return proves no single value; a plain default has no narrow channel), so
+      // the value must carry its statics. a DESTRUCTURE default (`{ x } = Ctor`) stays
+      // unstamped - the mirror / guarded-narrow channels own it and resolve their own
+      // entries (stamping it double-resolved the same source position to two entries).
+      // the simple-return case the walk DOES track only widens to the same object
+      case 'AssignmentPattern':
+        if (node.left?.type === 'Identifier') stampEscapingLeaves(node.right, stamps);
+        break;
+      // returns the reaching-value walk can FOLLOW stay unstamped: a zero-arg function whose
+      // body yields a single return expression is the forwarder `inlineCallReturnExpression`
+      // descends (`const F = (() => Ctor)()` - stamping it split that canon's resolution).
+      // params or a second return put the value out of the walk's reach - those escape
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression': {
+        if (node.body && node.body.type !== 'BlockStatement') {
+          if (node.params?.length) stampEscapingLeaves(node.body, stamps);
+          break;
+        }
+        // a METHOD's function value is never the forwarder canon's target (`o.m()` resolves
+        // by receiver, not by binding) - its returns always escape
+        const parent = frame?.parentNode;
+        const isMethodValue = parent?.type === 'MethodDefinition'
+          || ((parent?.type === 'Property' || parent?.type === 'ObjectProperty')
+            && (parent.method === true || parent.kind === 'get' || parent.kind === 'set'));
+        const returns = collectOwnReturns(node.body);
+        if (isMethodValue || node.params?.length || returns.length > 1) {
+          for (const ret of returns) stampEscapingLeaves(ret.argument, stamps);
+        }
+        break;
+      }
+      // babel spells methods as their own node types
+      case 'ObjectMethod':
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+        for (const ret of collectOwnReturns(node.body)) stampEscapingLeaves(ret.argument, stamps);
+        break;
+    }
+  }
+  function result() {
+    return {};
+  }
+  return { visit, result };
+}
+
 export function mutationShapesReducer(packages = null) {
   const targets = [];
   let markTopLevelThis = false;
@@ -258,6 +487,7 @@ export function mutationShapesReducer(packages = null) {
   // element list stops describing what a slot holds. `push` only appends and the `to*` / `with`
   // family returns copies, so neither disturbs an existing index
   const rawRepositioned = [];
+  const arrayLiteralBound = new Set();
   // an OBJECT PATTERN detaches a method exactly like a member read does (`const { reverse } = box`),
   // just without a MemberExpression node - record the source the same way. non-computed keys only:
   // a computed key resolves through the member-read guard when it is static, and a dynamic one
@@ -352,7 +582,7 @@ export function mutationShapesReducer(packages = null) {
       // member-read guard does; a numeric key is a plain slot read and detaches nothing
       const detaches = key !== null ? ARRAY_REPOSITIONING_METHODS.has(key)
         : prop.computed && plainSynthKeyName(prop.key) === null;
-      if (detaches) rawRepositioned.push(source.name);
+      if (detaches) rawRepositioned.push([source.name, []]);
     }
   }
   // what an alias SOURCE names, for the point-query gate: a plain root names itself; a `this`-rooted
@@ -425,6 +655,9 @@ export function mutationShapesReducer(packages = null) {
       // a data-only array stays inert - marking every `[1, 2, 3]` deopts namespaces wholesale,
       // since a chain whose first key cannot be read keeps every bound container in play
       const arrayContainer = value?.type === 'ArrayExpression' && value.elements.some(canHoldBuiltIn);
+      // every array-literal binding, the inert ones included: a mutator invocation may INSTALL a
+      // built-in into one later (`const b = []; b.push(Map)`), which promotes it at publish time
+      if (value?.type === 'ArrayExpression') arrayLiteralBound.add(id.name);
       if (!arrayContainer && (!value || INERT_VALUE_TYPES.has(value.type))) return;
       if (arrayContainer || value.type === 'ObjectExpression' || value.type === 'ClassExpression') {
         let nodes = containerBound.get(id.name);
@@ -499,7 +732,21 @@ export function mutationShapesReducer(packages = null) {
     if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
       && !frame?.underTypeAnnotation && memberReadDetachesRepositioner(node)) {
       const owner = unwrapRuntimeExpr(node.object);
-      if (owner?.type === 'Identifier') rawRepositioned.push(owner.name);
+      if (owner?.type === 'Identifier') {
+        // an invocation's value arguments land in the container's slots - record them as
+        // reaching candidates on the wildcard entry (`b.push(Map)` makes `Map` readable
+        // through any slot). the direct call and the `Reflect.apply(b.push, b, [v])`
+        // spelling are visible from this frame; the `.call` / `.apply` hop spellings are
+        // recorded at their invocation's own visit below. a read detached into a variable
+        // records the reposition alone - its invocation is not statically attributable
+        rawRepositioned.push([owner.name, directInvocationValues(node, frame?.parentNode)]);
+      }
+    }
+    // the `.call` / `.apply` hop spellings of a mutator invocation (`b.push.call(b, v)`,
+    // `b.push.apply(b, [v])`): the whole shape is visible only from the invocation itself
+    if (node.type === 'CallExpression') {
+      recordHopInvocation(node, rawRepositioned);
+      recordAssignInstall(node, rawSlotWrites);
     }
     switch (node.type) {
       case 'AssignmentExpression': {
@@ -738,7 +985,8 @@ export function mutationShapesReducer(packages = null) {
     // map serves both records: a written slot as `name.key`, a repositioned container as the
     // wildcard `name.*` - repositioning invalidates every slot, and the reader checks both
     // spellings. each entry's value lists the KNOWN written value nodes of that slot (empty for
-    // escapes / deletes / repositioning), so usage-global can union the reaching candidates
+    // escapes / deletes; a repositioning INVOCATION contributes its value arguments - they land
+    // in slots the walk cannot address), so usage-global can union the reaching candidates
     const writtenContainerSlots = new Map();
     function writtenSlot(slotKey) {
       let values = writtenContainerSlots.get(slotKey);
@@ -750,7 +998,14 @@ export function mutationShapesReducer(packages = null) {
       const values = writtenSlot(mutatedStaticKey(name, key));
       if (value) values.push(value);
     }
-    for (const name of rawRepositioned) if (containerBound.has(name)) writtenSlot(`${ name }.*`);
+    for (const [name, values] of rawRepositioned) {
+      // a mutator invocation whose arguments can hold a built-in PROMOTES an inert array-literal
+      // binding to a container - the install is what makes its slots worth walking
+      const installsBuiltIn = values.some(value => canHoldBuiltIn(value));
+      if (!containerBound.has(name) && !(installsBuiltIn && arrayLiteralBound.has(name))) continue;
+      const sink = writtenSlot(`${ name }.*`);
+      for (const value of values) if (value) sink.push(value);
+    }
     return { hasMutationShapes, mutationRoots: { names: rootNames, open }, writtenContainerSlots };
   }
   return { visit, result };
@@ -1077,11 +1332,19 @@ function classifyMutatorCall(node, ctx) {
 function bareCalleeStaticPair(callee, ctx) {
   if (callee?.type !== 'Identifier') return null;
   const decl = bindingDeclarator(callee.name, ctx);
-  if (!decl) return null;
+  if (!decl) return mintedMutatorPair(callee.name, ctx);
   const sources = decl.id?.type === 'Identifier'
     ? [unwrapRuntimeExpr(decl.init)]
     : patternSlotValues(decl.id, decl.init, callee.name, { ...ctx, resolveKey }).map(unwrapRuntimeExpr);
   for (const member of sources) {
+    if (member?.type === 'Identifier') {
+      // `const dp = _Object$defineProperty;` - a pass over an emitter's own output stores
+      // the MINTED import; the mutator resolves through the import's entry, or the
+      // defineProperty write goes unseen and the deopt it owed is lost on the re-pass
+      const minted = mintedMutatorPair(member.name, ctx);
+      if (minted) return minted;
+      continue;
+    }
     if (member?.type !== 'MemberExpression' && member?.type !== 'OptionalMemberExpression') continue;
     // a resolvable namespace with an UNREADABLE method (`const fn = Object[m]`) still names a
     // possible mutator - the caller deopts the call's mutation hosts whole
@@ -1089,7 +1352,21 @@ function bareCalleeStaticPair(callee, ctx) {
     const namespace = peeledNamespaceName(member.object, ctx);
     if (namespace) return { namespace, method };
   }
-  return null;
+  // a require-style pure binding's declarator init is the require CALL itself - neither a
+  // member nor an identifier source; the import-entry canon answers for the binding name
+  // (shadow-guarded inside `pureImportEntryOf`)
+  return mintedMutatorPair(callee.name, ctx);
+}
+
+// (namespace, method) of a name bound by a pure-package DEFAULT import (or require binding)
+// at the program root (`_Object$defineProperty` -> `Object.defineProperty`): the entry tail
+// past the flavor namespace spells the pair. null for anything else
+function mintedMutatorPair(name, ctx) {
+  const entry = pureImportEntryOf(ctx.path, name);
+  const segments = entry ? entry.split('/') : [];
+  if (segments.length !== 2) return null;
+  const namespace = entryToGlobalHint(segments[0]);
+  return namespace ? { namespace, method: kebabToCamel(segments[1]) } : null;
 }
 
 // a mutation whose KEY the canons cannot read could have hit any member of its receiver -
