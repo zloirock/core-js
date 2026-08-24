@@ -10,9 +10,9 @@
     "@rspack/core": "^2.1.10",
     "core-js": "file:../../packages/core-js",
     "esbuild": "^0.28.2",
-    "rolldown": "^1.2.4",
-    "rollup": "^4.62.4",
-    "vite": "^8.2.1",
+    "rolldown": "^1.2.5",
+    "rollup": "^4.62.5",
+    "vite": "^8.2.2",
     "webpack": "^5.109.2"
   }
 }
