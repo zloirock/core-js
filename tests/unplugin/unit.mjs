@@ -3057,6 +3057,24 @@ function checkMintedLiteralSpelling() {
   check('a bigint prints its own suffix', printed(1n), '1n;');
   check('NaN prints NaN, not null', printed(NaN), 'NaN;');
   check('Infinity prints Infinity, not null', printed(Infinity), 'Infinity;');
+  // the mint gate: a parser never puts a negative in a `Literal`, and `-0` both printers
+  // would derive from the value as `0` - a wrong VALUE; minting one throws instead
+  function mintThrows(value) {
+    try {
+      mintLiteral(value);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+  check('a negative number is refused at mint', mintThrows(-5), true);
+  check('minus zero is refused at mint', mintThrows(-0), true);
+  check('negative Infinity is refused at mint', mintThrows(-Infinity), true);
+  check('a negative bigint is refused at mint', mintThrows(-1n), true);
+  check('undefined is refused at mint', mintThrows(undefined), true);
+  check('an object is refused at mint', mintThrows({}), true);
+  check('NaN stays mintable', mintThrows(NaN), false);
+  check('a fraction stays mintable', mintThrows(1.5), false);
 }
 checkMintedLiteralSpelling();
 
