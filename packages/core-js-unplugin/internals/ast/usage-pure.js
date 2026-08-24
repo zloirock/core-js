@@ -96,7 +96,9 @@ export function markSubtreeSkipped(skippedNodes, node, keepLive = null) {
   // place, exactly where the text emitter's nested edits survive an outer splice
   if (keepLive?.has(node)) return;
   skippedNodes.add(node);
-  for (const value of Object.values(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) for (const item of value) markSubtreeSkipped(skippedNodes, item, keepLive);
     else markSubtreeSkipped(skippedNodes, value, keepLive);
   }
@@ -107,7 +109,9 @@ export function markSubtreeSkipped(skippedNodes, node, keepLive = null) {
 function subtreeContainsNode(root, target) {
   if (root === target) return true;
   if (!root || typeof root !== 'object' || !root.type) return false;
-  for (const value of Object.values(root)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in root) {
+    const value = root[key];
     if (Array.isArray(value)) {
       for (const item of value) if (subtreeContainsNode(item, target)) return true;
     } else if (subtreeContainsNode(value, target)) return true;
@@ -771,7 +775,8 @@ function cloneTyped(node, ctx) {
     if (!source || typeof source !== 'object' || !copy) return;
     const type = ctx.resolvedType.get(source);
     if (type) ctx.resolvedType.set(copy, type);
-    for (const [key, value] of Object.entries(source)) restamp(value, copy[key]);
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in source) restamp(source[key], copy[key]);
   })(node, clone);
   return clone;
 }

@@ -694,7 +694,9 @@ const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration'
 // `visit(child, key, listKey, container)` matches babel NodePath shape: for array children
 // `key` = index, `listKey` = property name; for non-array `key` = property name, `listKey` = null
 function forEachChildNode(node, visit) {
-  for (const [key, value] of Object.entries(node)) {
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in node) {
+    const value = node[key];
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) if (isASTNode(value[i])) visit(value[i], i, key, value);
     } else if (isASTNode(value)) visit(value, key, null, node);
