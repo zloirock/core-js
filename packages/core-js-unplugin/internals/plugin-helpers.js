@@ -42,14 +42,20 @@ export function sourceDialectOf(cleanId) {
 // depth cap protects against pathological deeply-nested AST (template-literal bombs,
 // oxc bug-emitted cycles). 1024 covers realistic depth bounds with margin
 export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
-  if (!root || typeof root !== 'object' || typeof root.type !== 'string' || depth >= 1024) return;
-  // an explicit `false` from the visit PRUNES the subtree (a type-annotation wall, a span the
-  // caller owns); any other return keeps descending - existing callers return undefined
-  if (visit(root, parent) === false) return;
-  for (const value of Object.values(root)) {
-    if (Array.isArray(value)) for (const v of value) walkAstNodes({ root: v, visit, parent: root, depth: depth + 1 });
-    else walkAstNodes({ root: value, visit, parent: root, depth: depth + 1 });
-  }
+  // positional inner recursion: the options object stays a call-site convenience, and the
+  // per-node hot path allocates nothing
+  (function step(node, parentNode, level) {
+    if (!node || typeof node !== 'object' || typeof node.type !== 'string' || level >= 1024) return;
+    // an explicit `false` from the visit PRUNES the subtree (a type-annotation wall, a span
+    // the caller owns); any other return keeps descending - existing callers return undefined
+    if (visit(node, parentNode) === false) return;
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
+      if (Array.isArray(value)) for (const item of value) step(item, node, level + 1);
+      else step(value, node, level + 1);
+    }
+  })(root, parent, depth);
 }
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
