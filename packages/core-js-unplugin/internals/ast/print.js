@@ -58,6 +58,33 @@ function withCorpusGapOverrides(language) {
       context.write(';');
     } else baseImport(node, context);
   };
+  // a concise arrow body whose LEFT EDGE is an object literal needs parens: bare, that `{`
+  // opens a BLOCK body and `() => ({ a: 1 } || x)` re-parses as a labelled statement. esrap
+  // wraps only when the object IS the whole body, and the synth mirror plants literals at
+  // exactly that edge inside a larger expression
+  function startsWithObjectLiteral(node) {
+    for (let cur = node; cur && typeof cur.type === 'string';) {
+      switch (cur.type) {
+        case 'ObjectExpression': return true;
+        case 'BinaryExpression': case 'LogicalExpression': case 'AssignmentExpression': cur = cur.left; break;
+        case 'MemberExpression': cur = cur.object; break;
+        case 'CallExpression': case 'NewExpression': cur = cur.callee; break;
+        case 'ConditionalExpression': cur = cur.test; break;
+        case 'SequenceExpression': [cur] = cur.expressions; break;
+        case 'TaggedTemplateExpression': cur = cur.tag; break;
+        case 'ChainExpression': case 'TSAsExpression': case 'TSSatisfiesExpression':
+        case 'TSNonNullExpression': cur = cur.expression; break;
+        default: return false;
+      }
+    }
+    return false;
+  }
+  const baseArrow = language.ArrowFunctionExpression;
+  language.ArrowFunctionExpression = (node, context) => {
+    if (node.body?.type === 'BlockStatement' || node.body?.type === 'ObjectExpression'
+      || !startsWithObjectLiteral(node.body)) return baseArrow(node, context);
+    baseArrow({ ...node, body: parenthesize(node.body) }, context);
+  };
   // `(M.g as any)<any>` prints as `M.g as any<any>` - no precedence row for the
   // instantiation base; a synthetic paren node restores the grouping
   const BARE_INSTANTIATION_BASES = new Set(['Identifier', 'MemberExpression', 'CallExpression', 'ThisExpression', 'Super']);
@@ -119,6 +146,19 @@ function withCorpusGapOverrides(language) {
   };
   const baseProperty = language.Property;
   language.Property = (node, context) => {
+    // esrap collapses `x: x` to shorthand on NAME equality alone, ignoring the parsed
+    // `shorthand: false` - on an ES5-target reprint (the post side of the e2e sandwich,
+    // where the input is already lowered) that rewrites the author's longhand back into
+    // ES2015 syntax. spell the longhand the flag records
+    const collapseTarget = node.value?.type === 'AssignmentPattern' ? node.value.left : node.value;
+    if (!node.shorthand && !node.computed && !node.method && node.kind === 'init'
+      && node.key?.type === 'Identifier' && collapseTarget?.type === 'Identifier'
+      && node.key.name === collapseTarget.name) {
+      context.visit(node.key);
+      context.write(': ');
+      context.visit(node.value);
+      return;
+    }
     const typeParameters = node.value?.typeParameters;
     if (!typeParameters || !node.method || node.value.type !== 'FunctionExpression') return baseProperty(node, context);
     if (!node.computed) {
@@ -227,13 +267,60 @@ export function shiftFirstLineColumns(map, delta) {
 // the id-to-dialect decision, same as it owns it for the parse. the returned map follows
 // the plugin's text-engine contract: `sources[0]` keeps the full id (SFC sub-block
 // identity), `file` is the query-stripped basename, content rides only when requested
-export function printProgram({ program, comments, source, id, jsx = false, includeContent = true }) {
+export function printProgram({ program, comments, source, id, jsx = false, includeContent = true, anchoredComments = null }) {
   // for a `.mjs`/`.cjs` parse oxc reports the hashbang BOTH as `program.hashbang` and as a
   // comment; printing both would double it - the re-emission below owns it
   const hashbangStart = program.hashbang?.start;
   const ownComments = hashbangStart === undefined ? comments : comments.filter(comment => comment.start !== hashbangStart);
+  // a ChainExpression whose every `?.` an emission erased is a dead wrapper: esrap prints
+  // it transparently, so an assignment left inside loses its required parens and the
+  // output stops parsing - unwrap before printing (babel never emits the bare wrapper)
+  function chainHasLiveOptional(node) {
+    if (!node || typeof node !== 'object') return false;
+    if (node.optional === true) return true;
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'loc' || key === 'range') continue;
+      if (Array.isArray(value)) {
+        if (value.some(item => chainHasLiveOptional(item))) return true;
+      } else if (chainHasLiveOptional(value)) return true;
+    }
+    return false;
+  }
+  (function unwrapDeadChains(node) {
+    if (Array.isArray(node)) {
+      node.forEach(item => unwrapDeadChains(item));
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'loc' || key === 'range') continue;
+      let child = value;
+      while (child?.type === 'ChainExpression' && !chainHasLiveOptional(child.expression)) {
+        child = child.expression;
+      }
+      if (child !== value) node[key] = child;
+      unwrapDeadChains(node[key]);
+    }
+  })(program);
   const printComments = synthesizeLocs(program, ownComments, source);
   const language = withCorpusGapOverrides((jsx ? tsx : ts)({ comments: printComments, boundaryTokens: true }));
+  // explicitly ANCHORED leading comments (node -> texts): emitted verbatim ahead of the
+  // statement's own print, bypassing the loc heuristics entirely - the deterministic channel
+  // for a directive that must reach the NEXT pass on its own line whatever a sibling's
+  // reprint does to loc-attached comments
+  if (anchoredComments) {
+    const baseVariableDeclaration = language.VariableDeclaration;
+    language.VariableDeclaration = (node, context) => {
+      const lead = anchoredComments.get(node);
+      if (lead) {
+        for (const text of lead) {
+          context.write(text);
+          context.newline();
+        }
+      }
+      baseVariableDeclaration(node, context);
+    };
+  }
   const printed = print(program, language, {
     sourceMapSource: id,
     sourceMapContent: includeContent ? source : undefined,

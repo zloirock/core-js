@@ -206,7 +206,7 @@ export function createBabelAdapter(options = {}) {
       const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null : null;
       const info = identityInfo ?? getInjector()?.getBindingInfo(name, useStart) ?? null;
       if (b) {
-        const { isImportBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
+        const { isImportBinding, isRequireBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
         // `info.source !== null` means a registered pure import - only attach the hint when the
         // actual scope binding IS that import. `info.source === null` is a destructure-alias from
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
@@ -234,7 +234,8 @@ export function createBabelAdapter(options = {}) {
         // `var _ref` scope binding that is NOT an alias-init shape, so the shape checks above miss it -
         // but it is allocator-owned (no user rebind) and its hint was set from a resolved proxy-global
         // root, so trust it directly. the dominance gate still bounds a use textually before the write
-        const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || info.minted)
+        const requireBindingLive = isRequireBinding && !adapter.hasBinding(scope, 'require', path);
+        const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
           && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it
         // carries no `importSource` and its hint is the UID (`iterator`); surface the registered module

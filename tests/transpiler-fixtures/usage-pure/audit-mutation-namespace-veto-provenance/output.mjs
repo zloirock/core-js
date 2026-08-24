@@ -1,9 +1,11 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-import _Iterator from "@core-js/pure/actual/iterator/constructor";
+import _Iterator from "@core-js/pure/actual/iterator";
+import _Iterator2 from "@core-js/pure/actual/iterator/constructor";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Map2 from "@core-js/pure/actual/map/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
-import _Promise from "@core-js/pure/actual/promise/constructor";
+import _Promise from "@core-js/pure/actual/promise";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Reflect$set from "@core-js/pure/actual/reflect/set";
 // a local Object / Reflect shadow silences only the BARE mutator callee (the local twin is not
@@ -25,9 +27,9 @@ const g = _globalThis;
 g.Object.defineProperty(_Iterator, 'from', {
   value: custom2
 });
-const r2 = _Iterator.from(r1);
+const r2 = _Iterator2.from(r1);
 _Reflect$set(_Map, 'groupBy', custom3);
-const r3 = _Map.groupBy(r2, fn);
+const r3 = _Map2.groupBy(r2, fn);
 Object.defineProperty(_Promise, 'try', {
   value: custom4
 });
