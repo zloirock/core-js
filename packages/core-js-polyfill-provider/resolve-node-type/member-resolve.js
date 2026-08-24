@@ -855,7 +855,14 @@ export function createMemberResolve({
       // and the original shape was a use of that member, so a rewired parent classifies
       // exactly like a live callee position. a text-emit pipeline never mutates the tree,
       // so rewired parents cannot occur there
-      const rewiredParent = !calleeOfParent && parentOfMember
+      // ... but only a slot the member could have LED may claim it. a callee starts exactly
+      // where its call does, while an ARGUMENT or a declarator init starts past its parent -
+      // `use(a.includes)` rewires to `use(_includesMaybeArray(a))`, and reading that as a call
+      // kept the element narrow over the extraction the branch below exists to bail on. a
+      // parent the parser gave no position keeps the permissive verdict
+      const ledParent = !Number.isInteger(parentOfMember?.start) || !Number.isInteger(memberNode?.start)
+        || parentOfMember.start === memberNode.start;
+      const rewiredParent = !calleeOfParent && parentOfMember && ledParent
         && !nodeHoldsChild(parentOfMember, memberNode);
       const key = memberKeyName(memberNode);
       if (calleeOfParent || rewiredParent) {

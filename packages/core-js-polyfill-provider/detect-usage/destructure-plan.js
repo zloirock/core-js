@@ -225,7 +225,7 @@ function peelInnerDefault(value) {
 // does the pattern subtree carry ANY slot default (`X = d`) at ANY depth? a residual leaf default
 // must defer anchoring at every nesting level, not just the top - a nested default (`nested: { x = d }`)
 // re-anchored to the pure ctor renders verbatim, so a polyfillable `d` is never injected
-function patternHasAnyDefault(node) {
+export function patternHasAnyDefault(node) {
   while (isRestProperty(node)) node = node.argument;
   switch (node?.type) {
     case 'AssignmentPattern': return true;

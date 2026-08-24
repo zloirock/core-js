@@ -1,4 +1,5 @@
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Map2 from "@core-js/pure/actual/map/constructor";
 import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Object$getOwnPropertyNames from "@core-js/pure/actual/object/get-own-property-names";
 import _Object$keys from "@core-js/pure/actual/object/keys";
@@ -18,7 +19,7 @@ const entries = _Object$entries;
 const typedOnly = [Object];
 type TypedRead = typeof typedOnly.reverse;
 const getOwnPropertyNames = _Object$getOwnPropertyNames;
-const asserted = [Object, _Map] as [typeof Object, typeof Map];
+const asserted = [Object, _Map2] as [typeof Object, typeof Map];
 asserted!.reverse();
 const { 0: { getOwnPropertyDescriptor } } = asserted;
 export type { TypedRead };

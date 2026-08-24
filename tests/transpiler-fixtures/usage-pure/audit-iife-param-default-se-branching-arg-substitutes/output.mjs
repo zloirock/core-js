@@ -1,7 +1,7 @@
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-import _Map from "@core-js/pure/actual/map/constructor";
+import _Map from "@core-js/pure/actual/map";
 import _Object$fromEntries from "@core-js/pure/actual/object/from-entries";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Set from "@core-js/pure/actual/set";
 // usage-pure twin of the usage-global SE-branching arg case: an IIFE param-default destructure whose
 // call-arg is an SE-prefixed BRANCHING receiver. pure classifies the arg by its peeled receiver value
 // (not the raw sequence) and rewrites EACH reachable branch to its own ponyfill - the Iterator branch

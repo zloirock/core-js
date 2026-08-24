@@ -1,5 +1,5 @@
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Set from "@core-js/pure/actual/set/constructor";
+import _Map from "@core-js/pure/actual/map";
+import _Set from "@core-js/pure/actual/set";
 // IIFE body has a SwitchStatement before the tail return. cases may early-return Map or
 // Set; tail returns Array. receiver resolution must bail on SwitchStatement - nested
 // ReturnStatements inside SwitchCase consequent are NOT visible to the top-level scan,

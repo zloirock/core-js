@@ -29,6 +29,7 @@ import createPlugin, {
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
 import { printProgram } from '../../packages/core-js-unplugin/internals/ast/print.js';
+import { expressionStatement as mintStatement, literal as mintLiteral } from '../../packages/core-js-unplugin/internals/ast/builders.js';
 import { createTopLevelStatementRewriter } from '../../packages/core-js-unplugin/internals/detect-entry.js';
 import { collapseWhitespace } from './collapse-whitespace.mjs';
 import {
@@ -3960,20 +3961,408 @@ checkDeferPassKeepsUserImports();
 // result as single-pass because the state machine is idempotent given a stable input
 function checkPhasePipelinePassThrough() {
   const code = 'export var v = arr?.at?.(0);\nexport var x = "test".at(-1);\nexport var m = new Map();';
-  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
-  const single = createPlugin(opts).transform(code, '/sm-phase.mjs');
-  // pre+post share one plugin instance. internal `runTransform` accepts pass: 'pre'/'post'/'single'
-  const twoPass = createPlugin(opts);
-  const preOut = twoPass.transform(code, '/sm-phase.mjs', 'pre');
-  // post receives pre's output as input, must produce stable result via snapshot lookup
-  const postOut = preOut?.code ? twoPass.transform(preOut.code, '/sm-phase.mjs', 'post') : preOut;
-  const final = postOut?.code ?? preOut?.code;
-  // imports must match (single source of truth for which polyfills are needed)
-  const singleImports = (single?.code ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
-  const twoPassImports = (final ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
-  check('phase/pre+post imports match single', twoPassImports, singleImports);
+  for (const engine of ['text', 'ast']) {
+    const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine };
+    const single = createPlugin(opts).transform(code, '/sm-phase.mjs');
+    // pre+post share one plugin instance. internal `runTransform` accepts pass: 'pre'/'post'/'single'
+    const twoPass = createPlugin(opts);
+    const preOut = twoPass.transform(code, '/sm-phase.mjs', 'pre');
+    // post receives pre's output as input, must produce stable result via snapshot lookup
+    const postOut = preOut?.code ? twoPass.transform(preOut.code, '/sm-phase.mjs', 'post') : preOut;
+    const final = postOut?.code ?? preOut?.code;
+    // imports must match (single source of truth for which polyfills are needed)
+    const singleImports = (single?.code ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+    const twoPassImports = (final ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+    check(`phase/pre+post imports match single (${ engine })`, twoPassImports, singleImports);
+  }
 }
 checkPhasePipelinePassThrough();
+
+// --- pre+post snapshot flow, engine axis ---
+// two cases only the SNAPSHOT can answer - post's own re-detection cannot: a sibling lowers
+// the usage into an undetectable spelling between passes (usage-global defers its imports to
+// post, so the pre-detected module arrives via the snapshot alone), and a sibling INJECTS new
+// polyfillable code between passes (post must rewrite it, dedup imports against pre's inline
+// ones, and mint refs that do not collide with pre's - the suffix state rides the snapshot)
+function checkPhaseSnapshotFlow() {
+  for (const engine of ['text', 'ast']) {
+    const globalOpts = { method: 'usage-global', version: '4.0', targets: { ie: 11 }, engine };
+    const lowered = createPlugin(globalOpts);
+    check(`phase/snapshot pre defers usage-global imports (${ engine })`,
+      lowered.transform('[1].flat();', '/sm-lowered.mjs', 'pre'), null);
+    const loweredOut = lowered.transform('lowFlat([1]);', '/sm-lowered.mjs', 'post')?.code ?? '';
+    check(`phase/snapshot carries pre-detected module past a lowering sibling (${ engine })`,
+      loweredOut.includes('es.array.flat'), true);
+
+    const pureOpts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine };
+    const injected = createPlugin(pureOpts);
+    const pre = injected.transform('const v = getA().flat?.()?.at(0);\nuse(v);', '/sm-injected.mjs', 'pre');
+    const post = injected.transform(`${ pre.code }\nconst w = getB().flat?.()?.at(0);\nuse(w);`, '/sm-injected.mjs', 'post');
+    const out = post?.code ?? '';
+    const importLines = out.split('\n').filter(l => l.startsWith('import '));
+    check(`phase/sibling-injected usage rewritten in post (${ engine })`,
+      out.includes('use(w)') && !/getB\(\)\.flat\?\./.test(out), true);
+    check(`phase/post dedups imports against pre's inline ones (${ engine })`,
+      new Set(importLines).size === importLines.length && importLines.length > 0, true);
+    const declared = out.matchAll(/var (?<names>[\w ,]+);/g).flatMap(m => m.groups.names.split(', ')).toArray();
+    check(`phase/post refs do not collide with pre refs (${ engine })`,
+      declared.filter((name, i) => declared.indexOf(name) !== i).length, 0);
+
+    // an in-pattern opt-out must reach the post pass alive: the pre output re-anchors the
+    // directive to the rebuilt remainder statement (property-attached comments die in a
+    // sibling lowering between the passes; statement-leading ones survive)
+    const directive = createPlugin(pureOpts).transform(
+      'const {\n  Map: { groupBy },\n  // core-js-disable-next-line\n  Object: { groupBy: og },\n} = globalThis;\nuse(groupBy, og);',
+      '/sm-directive.mjs', 'pre');
+    check(`phase/pre keeps the opt-out statement-anchored (${ engine })`,
+      /\n\/\/ core-js-disable-next-line\nconst /.test(directive?.code ?? ''), true);
+    // ... and the trailing `-line` spelling re-anchors as the same leading form
+    const directiveLine = createPlugin(pureOpts).transform(
+      'const {\n  Map: { groupBy },\n  Object: { groupBy: og }, // core-js-disable-line\n} = globalThis;\nuse(groupBy, og);',
+      '/sm-directive-line.mjs', 'pre');
+    check(`phase/pre re-anchors a trailing -line opt-out too (${ engine })`,
+      /\n\/\/ core-js-disable-next-line\nconst /.test(directiveLine?.code ?? ''), true);
+    // a POSITIONED host - a statement no emission rebuilt - is adopted too: the in-pattern
+    // comment dies in the sibling lowering all the same, so pre re-anchors it even though
+    // the statement itself needed no rewrite (and, below, even when it is the file's ONLY
+    // core-js-relevant content - the directive alone is reason to transform)
+    const positionedSrc = 'const arr = [1];\nconst {\n  // core-js-disable-next-line\n  flat: f,\n} = arr;\nuse(f);\n';
+    for (const method of ['usage-pure', 'usage-global']) {
+      const positioned = createPlugin({ ...pureOpts, method }).transform(
+        `${ positionedSrc }[2].at(0);\n`, '/sm-directive-positioned.mjs', 'pre');
+      check(`phase/pre re-anchors a positioned-host opt-out (${ method }, ${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nconst \{/.test(positioned?.code ?? ''), true);
+      const soleDisabled = createPlugin({ ...pureOpts, method }).transform(
+        positionedSrc, '/sm-directive-sole.mjs', 'pre');
+      check(`phase/pre transforms for a sole disabled claim (${ method }, ${ engine })`,
+        /\n\/\/ core-js-disable-next-line\nconst \{/.test(soleDisabled?.code ?? ''), true);
+    }
+
+    // a pass over our own output must not re-extract the SE-key sentinel (`{ [k]: _unusedN }`,
+    // no rest) as a live binding - the census adopts the computed-key form too, and the
+    // dispatchers' shared skip stands down (the file grew a fresh `_unusedN` per pass)
+    // the REQUIRE import style re-transforms to a fixpoint too: its pure bindings are
+    // `var _x = require(...)` declarators, recognized by the same censuses (an in-file
+    // `require` shadow keeps them opaque - the locked fixture's rule)
+    {
+      const reqOpts = { ...pureOpts, importStyle: 'require' };
+      const src = 'let w;\nconst v = (w = globalThis.window)?.self;\nuse(v, w);\nconst { flat: m } = arr;\nuse(m);';
+      const one = createPlugin(reqOpts).transform(src, '/sm-req.mjs')?.code ?? src;
+      const two = createPlugin(reqOpts).transform(one, '/sm-req.mjs')?.code ?? one;
+      check(`re-transform fixpoint: require import style (${ engine })`, two, one);
+    }
+    // require/import twins of the recognition arms the K2-tail matrix exposed: each shape
+    // discriminates one arm (resolve hint fallback / the bare-callee pair arms / the
+    // require-binding view and its detect-usage gate)
+    for (const [armLabel, styles, armSrc] of [
+      ['mutated-static alias readback', ['require'],
+        'export const r = (() => { const F = (() => Map)(); const orig = F.of;'
+        + ' F.of = function () { return "fp"; }; const out = [Map.of === F.of]; F.of = orig; return out; })();\nuse(r);'],
+      ['reflect template-key deopt', ['import', 'require'],
+        'export const r = (() => { const _o = Array.from;'
+        + ' try { Reflect.defineProperty(Array, `from`, { value: () => "P", configurable: true, writable: true }); return Array.from([1, 2]); }'
+        + ' finally { Reflect.defineProperty(Array, `from`, { value: _o, configurable: true, writable: true }); } })();\nuse(r);'],
+      ['double-optional proxy hop chain', ['require'],
+        'export const r = (() => { const v = globalThis.window?.window?.self.Array.of(5).at(0); return typeof v; })();\nuse(r);'],
+    ]) {
+      for (const style of styles) {
+        const armOpts = { ...pureOpts, importStyle: style };
+        const one = createPlugin(armOpts).transform(armSrc, '/sm-arm.mjs')?.code ?? armSrc;
+        const two = createPlugin(armOpts).transform(one, '/sm-arm.mjs')?.code ?? one;
+        check(`re-transform fixpoint: ${ armLabel } (${ style }, ${ engine })`, two, one);
+      }
+    }
+    const seKeySrc = 'const log = [];\nexport const r = (() => {\n  const { from: f, [(log.push("k"), "from")]: g } = Array;\n  return typeof f;\n})();\nuse(r, log);';
+    const oncePlugin = createPlugin(pureOpts);
+    const once = oncePlugin.transform(seKeySrc, '/sm-sekey.mjs')?.code;
+    const twice = createPlugin(pureOpts).transform(once, '/sm-sekey.mjs')?.code ?? once;
+    check(`re-transform of the SE-key sentinel output is a fixpoint (${ engine })`, twice, once);
+    // ... and the OVERWRITE-REBIND / sentinel-census forms: a kept-raw destructure with its
+    // appended rebind, the assignment-form sentinel PAIR (`var _unusedN;` + pattern value),
+    // the nested-instance plain sentinel, and the defaulted guard spellings all re-transform
+    // to a fixpoint - each was a growth class (FC-86) before its census arm
+    for (const [label, fixSrc] of [
+      ['kept-raw overwrite rebind', 'let m;\n({ y: { flat: m } } = { y: arr });\nuse(m);'],
+      ['array-instance defaulted rebind', 'let m;\n[{ at: m = null }] = [[7, 8]];\nuse(m);'],
+      ['defaulted static guard', 'const log = [];\nconst { [(log.push("e"), "from")]: f = 9 } = Array;\nuse(f, log);'],
+      ['assignment-form sentinel pair', 'let from, rest;\n({ from, ...rest } = Array);\nuse(from, rest);'],
+      ['substituted assign-se-key default', 'const log = [];\nlet f;\n({ [(log.push("k"), "from")]: f = 9 } = Array);\nuse(f, log);'],
+      ['shadow-alias guard alternate', 'const B = Array;\nexport const r = (function () {\n  {\n    const B = {};\n    var h = B;\n  }'
+        + '\n  {\n    const { of } = h === Array ? Array : h;\n    return typeof of;\n  }\n})();\nuse(r);'],
+      ['param default minted root', 'export const v = (function ({ Promise: P } = globalThis) {\n  return typeof P;\n})({ Promise: Promise });\nuse(v);'],
+      ['guarded nav with spent se-key claims', 'const log = [];\nexport const r = (log.push("r"), globalThis)[(log.push("k"), "window")]?.self.Array === Array;\nuse(r, log);'],
+      ['symbol read through the minted key', 'export const t = String(typeof [1, 2][Symbol.iterator]);\nuse(t);'],
+      ['extracted defineProperty deopt', 'const dp = Object.defineProperty;\nexport const r = (() => { const o = Array.from;'
+        + ' try { dp(Array, "from", { value: () => "P", configurable: true }); return Array.from([1, 2]); }'
+        + ' finally { dp(Array, "from", { value: o, configurable: true }); } })();\nuse(r);'],
+      ['anchored symbol-key default', 'const { [Symbol.iterator]: it = "fb" } = WeakSet;\nuse(it);'],
+      ['two-prop overwrite rebinds', 'const a2 = [3, [4]];\nlet m, n;\n({ y: { flat: m }, z: { flat: n } } = { y: arr, z: a2 });\nuse(m, n);'],
+      ['guard-alternate deep read', 'const D = cond ? Array : other;\nexport const r = (D === Array ? Array.from : D.from.bind(D))([1]);\nuse(r);'],
+      ['sekey keyswap symbol pattern', 'const log = [];\nlet it;\n({ Set: { [(log.push(1), Symbol.iterator)]: it } } = globalThis);\nuse(it, log);'],
+      ['double-key literal alias mutation deopt', 'const ND = { M: Array, M: Iterator };\nconst Md = ND.M;'
+        + '\nMd.from = function () { return "dk"; };\nexport const out = [Iterator.from === Md.from, typeof Array.from];\nuse(out);'],
+      // the five sharpened shapes below each discriminate exactly one census's false-arm
+      // (the corpus idempotence sweep found them; the earlier locks routed through siblings)
+      ['assign-form se-key extraction', 'const log = [];\nlet f;\n({ [(log.push("e"), "from")]: f } = Array);\nuse(f, log);'],
+      ['iife-arg param default ownership', 'export const r = (() => {'
+        + '\n  const { Array: { of } } = globalThis, v = (function ({ Promise: P } = globalThis) { return typeof P; })(globalThis);'
+        + '\n  return [typeof of, String(typeof v)];\n})();\nuse(r);'],
+      ['block-shadowed alias var hoist', 'export const r = (() => { const B = Array; return (function () {'
+        + '\n  { const B = {}; var h = B; }\n  { const { of } = h; return typeof of; }\n})(); })();\nuse(r);'],
+      ['chained sequence nav receivers', 'const nr = () => globalThis;\nexport const r = ('
+        + '\n  (nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat()'
+        + '\n    .concat((nr().window?.self.probeGen.arr, nr().window?.self.probeGen.arr)?.flat() ?? [])\n);\nuse(r);'],
+      ['optional-first string chain claims', 'export const r = "abcde"?.slice(1).padStart(8, "0");\nuse(r);'],
+      // exotic-but-valid module forms flow through both engines and settle
+      ['import attributes on a sibling import', 'import data from "./d.json" with { type: "json" };\nexport const r = Array.from(data);\nuse(r);'],
+      ['astral-plane identifier', 'const \u{1D4B6}b = [1];\nexport const r = \u{1D4B6}b.flat();\nuse(r);'],
+      ['lone-surrogate string escape', 'export const r = "\\uD800".padStart(3, "x");\nuse(r);'],
+      ['top-level await receiver', 'export const r = (await Promise.resolve([1])).flat();\nuse(r);'],
+      ['crlf line endings', 'const a = [1, 2];\r\nexport const r = a.flat();\r\nuse(r);'],
+    ]) {
+      const one = createPlugin(pureOpts).transform(fixSrc, '/sm-fixpoint.mjs')?.code ?? fixSrc;
+      const two = createPlugin(pureOpts).transform(one, '/sm-fixpoint.mjs')?.code ?? one;
+      check(`re-transform fixpoint: ${ label } (${ engine })`, two, one);
+    }
+    // boundary contracts around whole-file reprint: a hashbang survives injection, a file
+    // with nothing to claim stays untouched byte-for-byte (CRLF included), JSX flows through
+    {
+      const hbRes = createPlugin(pureOpts).transform('#!/usr/bin/env node\nexport const r = Array.from("ab");\nuse(r);\n', '/sm-hashbang.mjs');
+      const hb = hbRes?.code ?? '';
+      check(`hashbang survives injection (${ engine })`, hb.startsWith('#!/usr/bin/env node'), true);
+      check(`hashbang file still injects (${ engine })`, /core-js/.test(hb), true);
+      // the re-emitted hashbang shifts the whole map one generated line down - a claim
+      // token must still trace to its ORIGINAL source line (2, under the hashbang)
+      {
+        const tracer = new TraceMap(hbRes.map);
+        const genLines = hb.split('\n');
+        const genLine = genLines.findIndex(line => line.includes('"ab"'));
+        const pos = originalPositionFor(tracer, { line: genLine + 1, column: genLines[genLine].indexOf('"ab"') });
+        check(`hashbang map traces below the shift (${ engine })`, pos.line, 2);
+      }
+      const noop = 'const a = 1;\r\nconst b = a + 1;\r\nexport { b };\r\n';
+      const kept = createPlugin(pureOpts).transform(noop, '/sm-noop-crlf.mjs');
+      check(`claimless CRLF file stays untouched (${ engine })`, kept === null || kept === undefined || kept.code === noop, true);
+      const jsxSrc = 'const El = () => <div a={[1].flat()} />;\nexport const r = El;\nuse(r);\n';
+      const jsxOne = createPlugin(pureOpts).transform(jsxSrc, '/sm-el.jsx')?.code ?? jsxSrc;
+      const jsxTwo = createPlugin(pureOpts).transform(jsxOne, '/sm-el.jsx')?.code ?? jsxOne;
+      check(`jsx injects and settles (${ engine })`, /core-js/.test(jsxOne) && jsxTwo === jsxOne, true);
+    }
+    // the bundler pattern: ONE plugin instance transforms many files - no state may leak
+    // between files, and instances with different targets may interleave freely
+    {
+      const srcA = 'export const r = [1, [2]].flat().at(-1);\nconst { from } = Array;\nuse(r, from);\n';
+      const srcB = 'let w;\nconst v = (w = globalThis.window)?.self;\nuse(v, w);\n';
+      const shared = createPlugin(pureOpts);
+      const a1 = shared.transform(srcA, '/sm-leak-a.mjs')?.code;
+      const b1 = shared.transform(srcB, '/sm-leak-b.mjs')?.code;
+      const a2 = shared.transform(srcA, '/sm-leak-a.mjs')?.code;
+      check(`shared instance leaks no state between files (${ engine })`, a1 === a2, true);
+      check(`shared instance matches a fresh one (${ engine })`,
+        b1 === createPlugin(pureOpts).transform(srcB, '/sm-leak-b.mjs')?.code, true);
+      const modern = createPlugin({ ...pureOpts, targets: { chrome: 130 } }).transform(srcA, '/sm-leak-a.mjs')?.code ?? srcA;
+      check(`interleaved modern targets stay separate (${ engine })`, /array\/flat|instance\/flat/.test(modern), false);
+      const a3 = createPlugin(pureOpts).transform(srcA, '/sm-leak-a.mjs')?.code;
+      check(`legacy targets unaffected by the interleave (${ engine })`, a3, a1);
+      // cross-config pass-2: output written under a SCOPED `package` must still read as our
+      // own under the default config - the census source test's /actual/ arm is exactly this
+      const xpkgSrc = 'let m;\n({ y: { flat: m } } = { y: [1, [2]] });\nconst { from } = Array;\nuse(m, from);\n';
+      for (const mode of ['actual', 'full']) {
+        const scopedOut = createPlugin({ ...pureOpts, package: '@my/scoped-pure', mode })
+          .transform(xpkgSrc, '/sm-xpkg.mjs')?.code ?? xpkgSrc;
+        check(`scoped ${ mode } package injects under its own name (${ engine })`,
+          scopedOut.includes(`@my/scoped-pure/${ mode }/`), true);
+        const rescan = createPlugin(pureOpts).transform(scopedOut, '/sm-xpkg.mjs')?.code ?? scopedOut;
+        check(`scoped ${ mode } output re-reads as own under the default config (${ engine })`, rescan, scopedOut);
+      }
+      // absoluteImports output (filesystem specifiers) re-reads as own the same way
+      const absoluteOut = createPlugin({ ...pureOpts, absoluteImports: true })
+        .transform(xpkgSrc, `${ process.cwd() }/sm-xpkg-abs.mjs`)?.code ?? xpkgSrc;
+      check(`absolute-import output re-reads as own (${ engine })`,
+        createPlugin(pureOpts).transform(absoluteOut, `${ process.cwd() }/sm-xpkg-abs.mjs`)?.code ?? absoluteOut, absoluteOut);
+      // a hand-written ALIASED pure import adopts by its flavor segment even without
+      // additionalPackages: the claim reuses it instead of re-importing
+      const aliasedSrc = 'import _flat from "my-alias/actual/array/instance/flat";\nlet m;'
+        + '\n({ y: { flat: m } } = { y: [1, [2]] });\nm = _flat([1, [2]]);\nuse(m);\n';
+      const aliasedOut = createPlugin(pureOpts).transform(aliasedSrc, '/sm-xpkg-alias.mjs');
+      check(`aliased pure import adopts, no re-import (${ engine })`,
+        aliasedOut === null || aliasedOut === undefined || (aliasedOut.code.match(/instance\/flat/g) ?? []).length === 1, true);
+      // the adoption stays SCOPED to pure-package sources: a FOREIGN default import in the
+      // same sandwich shape (and one ending exactly at a flavor segment) must still claim
+      for (const [foreignLabel, foreignSource] of [
+        ['foreign package', 'lodash/flat-tools'],
+        ['trailing flavor segment', 'locale-pkg/es'],
+        ['prefix-similar package', '@core-js/pure-fake/array/flat-like'],
+      ]) {
+        const foreignSrc = `import _flat from "${ foreignSource }";\nlet m;`
+          + '\n({ y: { flat: m } } = { y: [1, [2]] });\nm = _flat([1, [2]]);\nuse(m);\n';
+        const foreignOut = createPlugin(pureOpts).transform(foreignSrc, '/sm-xpkg-foreign.mjs')?.code ?? foreignSrc;
+        check(`${ foreignLabel } import is not adopted - the claim still fires (${ engine })`,
+          /@core-js\/pure\//.test(foreignOut), true);
+      }
+      // usage-global's cross-config twin: additionalPackages ADOPTS a prior config's bare
+      // imports (no second injection) and the merged block normalizes to the active package
+      {
+        const gSrc = 'export const r = [1, [2]].flat();\nuse(r);\n';
+        function gOpts(extra) {
+          return { method: 'usage-global', version: '4.0', targets: { ie: 11 }, engine, ...extra };
+        }
+        const g1 = createPlugin(gOpts({ package: '@my/scoped-core' })).transform(gSrc, '/sm-xpkg-g.mjs')?.code ?? gSrc;
+        const g2 = createPlugin(gOpts({ additionalPackages: ['@my/scoped-core'] })).transform(g1, '/sm-xpkg-g.mjs')?.code ?? g1;
+        check(`usage-global adoption keeps the module count (${ engine })`,
+          (g2.match(/import "/g) ?? []).length, (g1.match(/import "/g) ?? []).length);
+        const g3 = createPlugin(gOpts({ additionalPackages: ['@my/scoped-core'] })).transform(g2, '/sm-xpkg-g.mjs')?.code ?? g2;
+        check(`usage-global adopted block is a fixpoint (${ engine })`, g3, g2);
+        const eSrc = 'import "@my/scoped-core/actual";\nexport const r = [1, [2]].flat();\nuse(r);\n';
+        const e1 = createPlugin({ ...gOpts({}), method: 'entry-global', package: '@my/scoped-core' }).transform(eSrc, '/sm-xpkg-e.mjs')?.code ?? eSrc;
+        check(`entry-global expands the scoped entry (${ engine })`, (e1.match(/import "/g) ?? []).length > 5, true);
+        const e2 = createPlugin({ ...gOpts({}), method: 'entry-global' }).transform(e1, '/sm-xpkg-e.mjs')?.code ?? e1;
+        check(`foreign modules paths stay untouched on rescan (${ engine })`, e2, e1);
+      }
+    }
+  }
+}
+checkPhaseSnapshotFlow();
+
+// --- AST-engine internals: builders and emit-shared contracts ---
+async function checkAstInternalsCore() {
+  const b = await import('../../packages/core-js-unplugin/internals/ast/builders.js');
+  check('ast/builders identifier shape', JSON.stringify(b.identifier('x')), '{"type":"Identifier","name":"x"}');
+  check('ast/builders string literal carries its raw quote', b.literal('a').raw, '"a"');
+  check('ast/builders non-string literal has NO raw (printer derives NaN/bigint itself)',
+    Object.hasOwn(b.literal(1), 'raw'), false);
+  check('ast/builders member defaults plain', JSON.stringify(b.memberExpression(b.identifier('a'), b.identifier('b'))),
+    '{"type":"MemberExpression","object":{"type":"Identifier","name":"a"},"property":{"type":"Identifier","name":"b"},"computed":false,"optional":false}');
+  check('ast/builders call keeps optional flag', b.callExpression(b.identifier('f'), [], { optional: true }).optional, true);
+  check('ast/builders voidZero is `void 0`',
+    (() => { const v = b.voidZero(); return v.type === 'UnaryExpression' && v.operator === 'void' && v.argument.value === 0; })(), true);
+  const seq = b.sequenceExpression([b.identifier('a'), b.identifier('b')]);
+  check('ast/builders sequence holds its expressions', seq.expressions.length, 2);
+  const clone = b.cloneNode(seq);
+  check('ast/builders cloneNode is deep and detached',
+    clone !== seq && clone.expressions[0] !== seq.expressions[0] && clone.expressions[0].name === 'a', true);
+  check('ast/builders bareImport has no specifiers', b.bareImport('core-js/modules/es.array.flat').specifiers.length, 0);
+  check('ast/builders defaultImport binds its local', b.defaultImport('_at', '@core-js/pure/actual/instance/at').specifiers[0].local.name, '_at');
+
+  const es = await import('../../packages/core-js-unplugin/internals/ast/emit-shared.js');
+  const optionalDeep = b.memberExpression(b.callExpression(b.identifier('g'), [], { optional: true }), b.identifier('k'));
+  check('emit-shared receiverCarriesOptional sees a buried `?.()`', es.receiverCarriesOptional(optionalDeep), true);
+  check('emit-shared receiverCarriesOptional clean spine answers false',
+    es.receiverCarriesOptional(b.memberExpression(b.identifier('a'), b.identifier('b'))), false);
+  check('emit-shared memberFromKeyName spells a non-ident key computed',
+    es.memberFromKeyName(b.identifier('o'), 'has-dash').computed, true);
+  check('emit-shared memberFromKeyName spells an ident key plain',
+    es.memberFromKeyName(b.identifier('o'), 'flat').computed, false);
+  const wrapped = { type: 'ParenthesizedExpression', expression: { type: 'TSNonNullExpression', expression: b.identifier('z') } };
+  check('emit-shared peelExpressionWrappers strips paren + TS layers', es.peelExpressionWrappers(wrapped).name, 'z');
+  const host = b.expressionStatement(b.identifier('old'));
+  check('emit-shared replaceNodeInTree lands by identity',
+    es.replaceNodeInTree(host, host.expression, b.identifier('next')) && host.expression.name === 'next', true);
+  check('emit-shared replaceNodeInTree reports a missing target', es.replaceNodeInTree(host, b.identifier('ghost'), b.identifier('x')), false);
+  const injectorState = { pureImports: new Map([['actual/self', '_self'], ['actual/array/of', '_Array$of']]) };
+  check('emit-shared mintedProxyGlobalName resolves a minted proxy root', es.mintedProxyGlobalName('_self', injectorState), 'self');
+  check('emit-shared mintedProxyGlobalName rejects a minted non-proxy', es.mintedProxyGlobalName('_Array$of', injectorState), null);
+  check('emit-shared mintedProxyGlobalName rejects an unknown name', es.mintedProxyGlobalName('_ref', injectorState), null);
+  const spellable = es.proxyStoreIsSpellable(
+    b.memberExpression(b.identifier('globalThis'), b.identifier('self')), name => name === 'self' ? { entry: 'self' } : null);
+  check('emit-shared proxyStoreIsSpellable accepts a pure-leaf spine', spellable, true);
+  check('emit-shared proxyStoreIsSpellable rejects a window-terminated spine',
+    es.proxyStoreIsSpellable(b.memberExpression(b.identifier('globalThis'), b.identifier('window')), () => null), false);
+}
+await checkAstInternalsCore();
+
+// --- AST-engine internals: printProgram contracts (the roundtrip gate holds the corpus;
+// these lock the specific promises the emitters lean on) ---
+async function checkAstPrintContracts() {
+  const { shiftFirstLineColumns } = await import('../../packages/core-js-unplugin/internals/ast/print.js');
+  function reprint(src, anchoredComments = null) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/p.mjs', src, { sourceType: 'module' });
+    return printProgram({
+      program: parsed.program, comments: parsed.comments, source: src, id: '/p.mjs', anchoredComments,
+    }).code;
+  }
+  check('print keeps an explicit longhand property (`x: x` never re-shorthands)',
+    reprint('const o = { x: x };\n').includes('{ x: x }'), true);
+  check('print keeps a source shorthand property',
+    reprint('const o = { x };\n').includes('{ x }'), true);
+  check('print normalizes redundant parens off a plain member',
+    reprint('use((a).b);\n').includes('use(a.b);'), true);
+  check('print keeps the paren a chain boundary needs',
+    reprint('use((a?.b).c);\n').includes('(a?.b).c'), true);
+  check('print keeps a leading directive line association',
+    reprint('// core-js-disable-next-line\nuse(arr.flat);\n').startsWith('// core-js-disable-next-line\nuse('), true);
+  const anchoredSrc = 'const { flat } = arr;\nuse(flat);\n';
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const anchoredParse = parseSync('/p.mjs', anchoredSrc, { sourceType: 'module' });
+  const anchoredOut = printProgram({
+    program: anchoredParse.program, comments: anchoredParse.comments, source: anchoredSrc, id: '/p.mjs',
+    anchoredComments: new Map([[anchoredParse.program.body[0], ['// core-js-disable-next-line']]]),
+  }).code;
+  check('print anchoredComments channel writes the text ahead of its statement',
+    /\/\/ core-js-disable-next-line\nconst \{ flat \}/.test(anchoredOut), true);
+  const { encode, decode } = await import('@jridgewell/sourcemap-codec');
+  const shifted = { mappings: encode([[[0, 0, 0, 0]], [[0, 0, 1, 0]]]) };
+  shiftFirstLineColumns(shifted, 1);
+  const decoded = decode(shifted.mappings);
+  check('print shiftFirstLineColumns moves line 0 only',
+    decoded[0][0][0] === 1 && decoded[1][0][0] === 0, true);
+}
+await checkAstPrintContracts();
+
+// --- AST-engine internals: flushIntoProgram placement contracts ---
+async function checkAstFlushContracts() {
+  const { flushIntoProgram } = await import('../../packages/core-js-unplugin/internals/ast/import-injector.js');
+  function flushOver(src, injector, opts = {}) {
+    // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+    const parsed = parseSync('/f.mjs', src, { sourceType: 'module' });
+    flushIntoProgram({ injector, program: parsed.program, ...opts });
+    return parsed.program.body.map(node => node.source?.value ? `${ node.type }:${ node.source.value }` : node.type).join('|');
+  }
+  const injector = {
+    importStyle: 'import', pkg: '@core-js/pure', absoluteImports: false,
+    globalImports: new Set(['es.array.flat']), pureImports: new Map([['actual/self', '_self']]),
+    existingPureImports: new Set(),
+  };
+  const shape = flushOver("'use strict';\nuse(_self);\n", injector);
+  check('flush lands imports AFTER the directive prologue',
+    shape.startsWith('ExpressionStatement|ImportDeclaration'), true);
+  check('flush spells the global module path off the pkg',
+    shape.includes('@core-js/pure/modules/es.array.flat'), true);
+  const requireInjector = { ...injector, importStyle: 'require', globalImports: new Set(['es.array.at']) };
+  const requireShape = flushOver('use(_self);\n', requireInjector);
+  check('flush spells require() in the require style', requireShape.split('|', 1)[0], 'ExpressionStatement');
+}
+await checkAstFlushContracts();
+
+// --- AST-engine behavior locks the fixture corpus does not pin directly ---
+function checkAstEngineBehaviors() {
+  for (const method of ['entry-global', 'usage-global', 'usage-pure']) {
+    const opts = { method, version: '4.0', targets: { ie: 11 }, engine: 'ast' };
+    // a `core-js-disable-file` directive stands the whole engine down, ast leg included
+    check(`ast engine honors disable-file (${ method })`,
+      createPlugin(opts).transform('// core-js-disable-file\nimport "core-js";\n[1].flat();\n', '/df.mjs'), null);
+  }
+  const entryOpts = { method: 'entry-global', version: '4.0', targets: { ie: 11 }, engine: 'ast' };
+  const entryOut = createPlugin(entryOpts).transform('import "core-js";\nuse();\n', '/e.mjs')?.code ?? '';
+  check('ast entry-global expands the root entry to modules',
+    entryOut.includes('core-js/modules/') && !entryOut.includes('import "core-js";'), true);
+  const entryMap = createPlugin(entryOpts).transform('import "core-js";\nuse();\n', '/e.mjs')?.map;
+  check('ast entry-global emits a sourcemap with content', !!entryMap && Array.isArray(entryMap.sources), true);
+  // pre+post map chaining: the post map of a pre-rewritten file omits sourcesContent (the
+  // chain reads content from pre's map), a standalone post emits it
+  const sandwich = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'ast' });
+  const preOut = sandwich.transform('const v = getA().flat?.();\nuse(v);\n', '/sw.mjs', 'pre');
+  const postOut = sandwich.transform(`${ preOut.code }\nconst w = getB().at?.(0);\nuse(w);`, '/sw.mjs', 'post');
+  check('ast pre emits a content-bearing map', Array.isArray(preOut?.map?.sourcesContent), true);
+  check('ast post map omits sourcesContent when chaining a pre rewrite',
+    postOut?.map ? !Array.isArray(postOut.map.sourcesContent) : false, true);
+  const standalonePost = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'ast' })
+    .transform('const v = getA().flat?.();\nuse(v);\n', '/sp.mjs', 'post');
+  check('ast standalone post map keeps sourcesContent',
+    Array.isArray(standalonePost?.map?.sourcesContent), true);
+}
+checkAstEngineBehaviors();
 
 // `additionalPackages` items must be non-empty non-slash-only strings. validateOptions
 // catches this for plugin-options-layer users; direct createPolyfillContext callers also
@@ -7110,6 +7499,30 @@ function checkAstPrintQuirks() {
 }
 checkAstPrintQuirks();
 
+// --- ast-builders: the minted literal's spelling ---
+
+// what the PRINTER makes of a literal this engine minted. `raw` is its preferred spelling and
+// only a string needs one from us (esrap quotes with `'`, babel prints `"`); every other value
+// it derives itself, and correctly - which is why the builder must NOT hand it a `JSON.stringify`
+// answer: that throws on a bigint and returns `null` for NaN / Infinity, a different VALUE
+function checkMintedLiteralSpelling() {
+  function printed(value) {
+    const program = { type: 'Program', body: [mintStatement(mintLiteral(value))], sourceType: 'module' };
+    return printProgram({ program, comments: [], source: '', id: 'input.mjs' }).code.trim();
+  }
+  check('a minted string keeps babel\'s double quotes', printed('a\'b'), '"a\'b";');
+  check('a double quote inside it escapes', printed('a"b'), '"a\\"b";');
+  check('null prints null', printed(null), 'null;');
+  check('true prints true', printed(true), 'true;');
+  check('a number prints itself', printed(0), '0;');
+  // the three the stringified `raw` used to get wrong: a bigint THREW at mint time, and both
+  // non-finite numbers printed `null` - a literal spelling a value the node does not hold
+  check('a bigint prints its own suffix', printed(1n), '1n;');
+  check('NaN prints NaN, not null', printed(NaN), 'NaN;');
+  check('Infinity prints Infinity, not null', printed(Infinity), 'Infinity;');
+}
+checkMintedLiteralSpelling();
+
 // --- ast-print: sourcemap contract ---
 
 function checkAstPrintMapContract() {
@@ -7143,10 +7556,13 @@ function checkEngineOption() {
   check('non-string engine reports its type',
     creationError({ method: 'usage-pure', engine: 42 }),
     '[core-js] invalid `engine` option: number - expected \'text\' or \'ast\'');
-  check("engine 'ast' is staged - rejected until its first method ships",
-    creationError({ method: 'usage-pure', engine: 'ast' }),
-    "[core-js] `engine: 'ast'` does not support method 'usage-pure' yet");
-  // the one method the staged engine has landed transforms; the rest keep the guard above
+  // usage-pure landed once its two gates (the fixture gate and the differential's AST leg)
+  // went green - the acceptance is the lock, mirroring the entry-global/usage-global checks
+  const astPure = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 }, engine: 'ast' })
+    .transform('arr.at(0);\nuse(arr);', 'input.mjs');
+  check("engine 'ast' transforms usage-pure",
+    astPure !== null && astPure.code.includes('@core-js/pure/') && astPure.code.includes('.call(arr, 0)'), true);
+  // the landed methods transform; the rest keep the guard above
   const entryOptions = { method: 'entry-global', version: '4.0', targets: { ie: 11 } };
   const astEntry = createPlugin({ ...entryOptions, engine: 'ast' }).transform("import 'core-js/actual/array/from';\nuse();", 'input.mjs');
   check("engine 'ast' transforms entry-global",
@@ -7170,16 +7586,11 @@ function checkEngineOption() {
   check('the ast engine normalizes instantiation before optional call',
     createPlugin({ ...usageOptions, engine: 'ast' }).transform('const r = ((f)<string>)?.(1);\narr.at(0);', 'input.ts')
       .code.includes('f?.<string>(1)'), true);
-  function phasedAstError() {
-    try {
-      createPlugin({ ...usageOptions, engine: 'ast' }).transform('arr.at(0);', 'input.mjs', 'post');
-      return null;
-    } catch (error) {
-      return error.message;
-    }
-  }
-  check('the ast engine rejects phased usage-global at the plugin layer',
-    phasedAstError(), "[core-js] [input.mjs] `engine: 'ast'` does not support the 'post' pass yet");
+  // phased passes landed with the pre/post snapshot (MIG-15) - the acceptance is the lock;
+  // standalone post (no pre snapshot) transforms exactly like the text engine's post
+  check('the ast engine transforms phased usage-global at the plugin layer',
+    createPlugin({ ...usageOptions, engine: 'ast' }).transform('arr.at(0);', 'input.mjs', 'post')
+      ?.code.includes('import "core-js/modules/es.array.at";'), true);
   const viaDefault = createPlugin({ method: 'usage-pure' }).transform('[1].at(0);', 'input.mjs')?.code;
   const viaText = createPlugin({ method: 'usage-pure', engine: 'text' }).transform('[1].at(0);', 'input.mjs')?.code;
   check("explicit engine 'text' is the default engine", viaText, viaDefault);
