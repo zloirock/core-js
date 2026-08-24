@@ -6,14 +6,9 @@ import _self from "@core-js/pure/actual/self";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
-// a TS cast layer sits BETWEEN the probe nav and its tail. the render replaces the nav span, which
-// starts after the cast's opening paren, while the sliced tail still carries its closing one - the
-// slice is unbalanced on its own and only holds where the surrounding source closes it. every
-// consumer that reuses it (a memo body, a composition needle) inherits that, so the render stands
-// down here and the raw source keeps its own shape
-// the sidecar is the text emitter's own spelling of the same result: it splices source, so the
-// type-only layers stay in the output (they erase downstream) and an object literal keeps the
-// source's line breaks where the AST emitter reprints it
+// a TS cast layer sits BETWEEN the probe nav and its tail. the cast is type-only: the guard
+// renders exactly as in the bare spelling, the collapse still fires, and the cast layer rides
+// the rendered value (it erases downstream)
 _globalThis.tsBox = {
   n: 4,
   inner: {

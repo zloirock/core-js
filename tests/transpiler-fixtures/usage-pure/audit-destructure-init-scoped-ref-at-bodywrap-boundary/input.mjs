@@ -1,7 +1,5 @@
-// scopedVar insertPos lands at block.start + 1 (the `var _ref;` anchor immediately after
-// `{`). that position is INCLUSIVE in bodyContains() since both bodyWrap's body.start and
-// the scopedVar's insertPos can coincide for tight nested-block shapes. pins inclusive
-// containment - exclusive `>` would drop the scopedVar at the boundary, leaving _ref
-// undeclared after the bodyWrap overwrite
+// the block-scoped `var _ref;` anchors immediately after the block's `{`, and for tight
+// nested-block shapes that anchor coincides with the wrapped body's own start. the ref must
+// stay INSIDE the block either way - dropping it at the boundary leaves _ref undeclared
 const { from } = ((() => {var x = [1, 2, 3].at(0); return Array;})(), Array);
 console.log(from);

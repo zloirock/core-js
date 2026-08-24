@@ -48,7 +48,7 @@ export { memberKeyName, staticMemberKeyName };
 // to a fixpoint; covers mixed-wrapper cases like `((se(), X) as any)`. exported so the unplugin
 // destructure emitter can tell a buried receiver effect (in the member - survives) from a liftable
 // top-level prefix (peeled away here)
-export function unwrapInitForResolution(node) {
+function unwrapInitForResolution(node) {
   while (node) {
     const peeled = unwrapRuntimeExpr(node);
     if (peeled?.type === 'SequenceExpression') node = peeled.expressions.at(-1);
@@ -681,7 +681,7 @@ export function registerCtorAliasExtractions({ plan, declarator, scope, adapter,
 // form); the array-wrapped form pairs each ObjectPattern element positionally and RECURSES into
 // deeper array-wrap layers (`[[{ Map: M }], y] = [[globalThis], 0]`) - the registration walk must
 // agree on nesting with the alias judge and the receiver mirror, else a deep alias never gets its
-// hint and its static reads stay raw in babel only (unplugin's text visitor re-derives them)
+// hint and its static reads stay raw in babel only (unplugin's visitor re-derives them)
 function collectCtorAliasPairs({ pattern, init, scope, adapter, injector }) {
   if (!init || !arrayInitServesPattern(pattern, init)
     || !aliasInitResolvesToGlobal(unwrapInitForResolution(init), scope, adapter, injector)) return [];
@@ -873,7 +873,7 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
 // disambiguates same-name entries positionally - a use belongs to an entry whose hosting scope
 // contains it. spans, not scope objects: the fallback runs exactly when the live scope is
 // unavailable (babel scope-tracker lag after `replaceWith`)
-export function enclosingFunctionSpan(stmtPath) {
+function enclosingFunctionSpan(stmtPath) {
   for (let cur = stmtPath; cur; cur = cur.parentPath) {
     if (isVarScopeBoundary(cur.node?.type)) {
       return { start: cur.node.start, end: cur.node.end };
@@ -1007,7 +1007,7 @@ function userAliasBindingResolvesToSymbol(node, scope, adapter, injector, seen, 
   // declarator, but the adapter's hint machinery already verified its write shape AND that the
   // write span dominates the read anchored at `keyCtx.path` - the surfaced hint IS the
   // resolution. babel reaches the same fold through its in-place inline of the defaulted
-  // consumer, a rewrite the text emitter never performs, so this walker must accept the hint
+  // consumer, a rewrite the unplugin emitter never performs, so this walker must accept the hint
   // or the two emitters desync on every assignment-form host
   if (binding?.polyfillHint === 'Symbol') return true;
   const declarator = binding?.node?.type === 'VariableDeclarator' ? binding.node : binding?.path?.node;
@@ -1231,10 +1231,7 @@ export function peelProxyGlobalObject(node) {
 // walks intermediate proxy-global links so deeper chains resolve to the leaf key; peels a
 // zero-arg IIFE-return at each hop so `(()=>globalThis)().Array` resolves like `globalThis.Array`.
 // empty-string key returns null - no real global has empty name; keeps callers' `!== null` sound
-// `includeMutatedSlots` opts OUT of the mutated-slot gates for consumers that only NAME the
-// slot rather than resolve reads through it - a logical-assign WRITE target is itself the
-// mutation site, so gating its classification on the mutation would self-suppress the warn
-export function globalProxyMemberName({ node, scope, adapter, path, seen, includeMutatedSlots = false }) {
+export function globalProxyMemberName({ node, scope, adapter, path, seen }) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = peelProxyGlobalObject(node.object);
@@ -1243,7 +1240,7 @@ export function globalProxyMemberName({ node, scope, adapter, path, seen, includ
     // a mutated hop slot holds the user's replacement - the chain no longer re-enters the
     // global-object surface, so it must not resolve to the leaf global
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)
-      || (!includeMutatedSlots && isMutatedGlobalSlot(adapter, linkName))) return null;
+      || isMutatedGlobalSlot(adapter, linkName)) return null;
     object = peelProxyGlobalObject(object.object);
   }
   if (!isProxyGlobalIdentifierNode({ node: object, scope, adapter, path, seen })) return null;
@@ -1251,13 +1248,13 @@ export function globalProxyMemberName({ node, scope, adapter, path, seen, includ
   // replacement, same as a mutated intermediate hop - the chain must not resolve. aliases
   // decline through the recognizers' own gates (capture order decides what an alias holds,
   // which no span model covers)
-  if (!includeMutatedSlots && object?.type === 'Identifier'
+  if (object?.type === 'Identifier'
     && isMutatedGlobalSlot(adapter, object.name)) return null;
   const leaf = staticMemberKeyName(node) || null;
   // a SLOT-mutated leaf (`globalThis.Map = Shim`) holds the user's replacement - the chain
   // does not name the pristine global, so every READ consumer (pure-ctor swaps, deopts,
   // typing) must fall back to its raw / generic path
-  return !includeMutatedSlots && isMutatedGlobalSlot(adapter, leaf) ? null : leaf;
+  return isMutatedGlobalSlot(adapter, leaf) ? null : leaf;
 }
 
 // strict: IIFE caller-arg overrides wrapper-default ONLY when it is a bare Identifier the
@@ -1306,7 +1303,7 @@ export function isExpandedClassifiableReceiver({ node, scope, adapter, path }) {
 }
 
 // mark a synth-swap receiver and all inner sub-nodes as owned by skippedNodes so the
-// inner-Identifier visitor doesn't double-fire (orphan import / transform-queue overlap).
+// inner-Identifier visitor doesn't double-fire (orphan import / an overlapping rewrite).
 // walks through paren / chain / TS wrappers on each `.object` hop too
 export function markSynthReceiverSkipped(receiver, skippedNodes) {
   for (const node of subsume(receiver, { form: 'kept-spine', skippableTypes: SKIPPABLE_WRAPPER_TYPES })) skippedNodes.add(node);
@@ -1314,8 +1311,8 @@ export function markSynthReceiverSkipped(receiver, skippedNodes) {
 
 // skip a synth-swap receiver subtree the literal REPLACES (or DROPS, re-emitting only its harvested
 // SE ahead). `markSynthReceiverSkipped` walks the `.object` spine only and stops at a SequenceExpression,
-// leaving a prefix's dropped globals (`(gt.x, gt.self).Array`) to inject a dead import (babel) or orphan
-// a rewrite into the dead span (text emitter). this skip-marks the WHOLE receiver, then UN-skips the
+// leaving a prefix's dropped globals (`(gt.x, gt.self).Array`) to inject a dead import or orphan
+// a rewrite into the dead span. this skip-marks the WHOLE receiver, then UN-skips the
 // harvested-SE subtrees so their own globals still polyfill (empty list = plain replace, nothing kept).
 // `walkNode(root, visit)` is the emitter's full-subtree walker (babel `traverseFast`, estree `walkAstNodes`)
 export function markReplacedReceiverSkipped({ receiver, keepSe = [], skippedNodes, walkNode }) {

@@ -124,10 +124,10 @@ function checkMapShape(directory, map) {
   return true;
 }
 
-// content: `sources[0]` must equal the test id verbatim. MagicString's `getRelativePath`
-// collapses to basename when source/file are the same path - this check guards the shape
-// downstream bundlers actually consume. `sourcesContent[0]` (if present) must match input
-// verbatim - mismatch means MagicString lost source bytes during transform composition
+// content: `sources[0]` must equal the test id verbatim - a printer that derives it from the
+// filename can collapse to basename, and this check guards the shape downstream bundlers
+// actually consume. `sourcesContent[0]` (if present) must match input verbatim - mismatch
+// means the map no longer carries the bytes it claims to map
 function checkMapContent(directory, map, testId, source) {
   function reject(msg) {
     return rejectMap(directory, msg);
@@ -226,13 +226,13 @@ function captureConsole() {
 
 function captureTransform(source, pluginOptions, testId) {
   // plugin instantiation is INSIDE the hijack window because constructor-time warns
-  // (e.g. `unknown bundler` from plugin.js:106) fire there — moving `createPlugin` out
+  // (e.g. `unknown bundler` from plugin.js:106) fire there - moving `createPlugin` out
   // would leak that diagnostic past the runner before `restore()` runs
   const { logs, warns, restore } = captureConsole();
   try {
     const plugin = createPlugin(pluginOptions);
     let result = plugin.transform(source, testId);
-    // TS type assertions like <Type>expr cause JSX parse errors — retry without JSX
+    // TS type assertions like <Type>expr cause JSX parse errors - retry without JSX
     // only when source actually contains `<` that could be misinterpreted
     if (result === null && testId.endsWith('.tsx') && source.includes('<') && !source.includes('/>')) {
       result = plugin.transform(source, testId.replace('.tsx', '.ts'));
@@ -290,10 +290,10 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
 
 // table-driven validation for side-channel files (`debug.txt`, `warnings.txt`). symmetric
 // with babel-plugin runner's unified `expected[]` loop. each tuple `[file, content]`:
-//   content === null → file must NOT exist (any presence is `unexpected ${ file }`)
-//   content !== null → file must exist AND match exactly
+//   content === null -> file must NOT exist (any presence is `unexpected ${ file }`)
+//   content !== null -> file must exist AND match exactly
 // OVERWRITE auto-creates files when content is non-null and removes them otherwise. `null`
-// is the runner's signal for "no observable output on this channel" — strict in both
+// is the runner's signal for "no observable output on this channel" - strict in both
 // directions catches drift from either side
 // `<stem>.<ext>` -> `<stem>-unplugin.<ext>`: the side-channel counterpart of `output-unplugin.mjs`
 function unpluginVariantPath(file) {
