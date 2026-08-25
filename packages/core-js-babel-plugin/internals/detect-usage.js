@@ -1,9 +1,6 @@
 import {
-  buildDestructuringInitMeta,
-  chooseFallbackReceiverNode,
-  isInnerDestructureDefault,
-  resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
-  resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
+  buildDestructureLeafMeta,
+  classifyDestructureLeafHost,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   resolveKey as sharedResolveKey,
@@ -21,14 +18,11 @@ import {
   climbJsxMemberChain,
   bindingInvisibleFromUseRegion,
   findFunctionScopeVarInPath,
-  findIifeCallSite,
-  resolveFallbackReceiver,
   findTSRuntimeBindingInPath,
   importBindingView,
   isAmbientBindingShape,
   bareAssignmentPatternLeafPath,
   isAssignOrForXWriteTargetPath,
-  isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isNonReferencePosition,
@@ -37,8 +31,6 @@ import {
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
   recomputedBindingWrites,
-  resolveCallArgument,
-  unwrapSafeSequenceTail,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -896,160 +888,30 @@ export function createUsageVisitors({
     core.emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects });
   }
 
-  // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
-  // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
-  function emitNestedDestructureMeta(path, outerProp) {
-    // thread the key's own path so the flow gates anchor at the capture (a reassigned/hoisted key
-    // alias reaches its dominating value), matching the `resolveKey` wrapper and the unplugin twin -
-    // without it babel defaults to the declarator init and diverges on a reassigned key
-    const innerKey = sharedResolveKey({
-      node: path.node.key, computed: path.node.computed, scope: path.scope, adapter, path: path.get('key'),
-    });
-    // the container walk collects the slot's OTHER reaching values (written / repositioned)
-    // beside its primary answer - they join the usage-global union axis in the prop funnel
-    const containerUnion = [];
-    const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter, containerUnion);
-    // a BRANCHING inner key rides a null-key carrier that KEEPS the resolved nested receiver,
-    // so the union pairs the arm keys with it as statics
-    // (`{ Array: { [cond ? "from" : "of"]: f } } = globalThis` reaches both statics)
-    if (!innerKey) {
-      return emitPropUsage(receiverKey !== null
-        ? { kind: 'property', object: receiverKey, key: null, placement: 'static' } : null, path, containerUnion);
-    }
-    // a monkey-patched static is NOT a polyfillable destructure source (the same gate the
-    // provider's init-meta builder applies): emit NO meta at all - the typeless form would
-    // fall to the instance dispatcher. the prop stays raw and the receiver routes through
-    // the identifier machinery, so the patch and the read share one object
-    if (receiverKey !== null && adapter.isMutatedStatic?.(receiverKey, innerKey)) return;
-    emitPropUsage(receiverKey !== null
-      ? { kind: 'property', object: receiverKey, key: innerKey, placement: 'static' }
-      : { kind: 'property', object: null, key: innerKey, placement: null }, path, containerUnion);
-  }
-
-  // `function({ from } = Array)` - AssignmentPattern wraps the param; the default expression
-  // is the receiver the destructure targets when the arg is omitted. for an IIFE with a
-  // statically-classifiable caller-arg (`(({from} = Array) => ...)(Set)`) the wrapper-default
-  // is dead code at runtime - resolve against the caller-arg instead; the shared chooser keeps
-  // the default for non-receiver args (notably `undefined`). the winning call-arg evaluates
-  // AT THE CALL SITE - resolve it against the call-site scope, not the invoked function's
-  // inner scope (a param shadowing the arg's name would swallow the receiver)
-  function emitIifeParamDefaultDestructure(path, parent) {
-    const key = resolveKey(path.get('key'), path.node.computed);
-    if (!key) return emitPropUsage(null, path);
-    const desc = resolveFallbackReceiver(parent, parent.node);
-    const argNode = desc?.callPath ? unwrapSafeSequenceTail(desc.rhsNode) : null;
-    const receiverNode = chooseFallbackReceiverNode({
-      argNode, defaultNode: parent.node.right, objectPattern: parent.node.left, scope: parent.scope, adapter, path, resolvePure,
-    });
-    // resolve the winning call-arg against the call-site scope AND path (like the unplugin twin) -
-    // the fallback shadow walks anchor at `path`, so a stale ObjectProperty anchor inside the arrow
-    // would find an inner same-name shadow and drop the meta. emit still targets the prop path
-    const argWins = argNode && receiverNode === argNode;
-    const receiverScope = argWins ? desc.callPath.scope : parent.scope;
-    const receiverPath = argWins ? desc.callPath : path;
-    const paramContainerUnion = [];
-    const meta = buildDestructuringInitMeta({
-      initNode: receiverNode, key, scope: receiverScope, adapter, path: receiverPath, unionSink: paramContainerUnion,
-    });
-    emitPropUsage(meta, path, paramContainerUnion);
-  }
-
   function handleDestructuring(path) {
     const objectPattern = path.parentPath;
     if (!objectPattern.isObjectPattern()) return;
-    // ONE key resolution for every host branch below; the nested / iife-param funnels keep
-    // their own resolution on purpose (they anchor flow gates differently)
+    // the funnel choke: ONE host classification and ONE meta rule, shared with the
+    // unplugin leg - the per-shape else-chain this replaces is where the two funnels
+    // drifted apart. `host: 'none'` (a non-destructure parent) emits nothing at all
+    const descriptor = classifyDestructureLeafHost({ objectPattern });
+    if (descriptor.host === 'none') return;
     const key = resolveKey(path.get('key'), path.node.computed);
-    const parent = objectPattern.parentPath;
-    let initPath;
-    if (parent.isVariableDeclarator()) {
-      initPath = parent.get('init');
-      if (!initPath?.node) {
-        emitPropUsage(key ? { kind: 'property', object: null, key, placement: null } : null, path);
-        return;
-      }
-    } else if (parent.isAssignmentExpression()) {
-      initPath = parent.get('right');
-    } else if (parent.isAssignmentPattern() && isFunctionParamDestructureParent(objectPattern)
-      && !isInnerDestructureDefault(parent)) {
-      return emitIifeParamDefaultDestructure(path, parent);
-    } else if (parent.isAssignmentPattern() && parent.parentPath?.isObjectProperty()
-      && parent.node.left === objectPattern.node) {
-      // nested destructure with inner-default: `{ Array: { from } = {} } = X` - AssignmentPattern
-      // wraps inner ObjectPattern and provides default `{}` if `X.Array` is undefined. for
-      // proxy-global receivers `X.Array` is always defined, so default is dead code; treat
-      // AssignmentPattern as transparent and resolve via the same nested chain as the bare
-      // `{ Array: { from } } = X` shape
-      emitNestedDestructureMeta(path, parent.parentPath);
-      return;
-    } else if (parent.isObjectProperty()) {
-      emitNestedDestructureMeta(path, parent);
-      return;
-    } else if (parent.isArrayPattern()
-      || (parent.isAssignmentPattern() && parent.node.left === objectPattern.node
-        && parent.parentPath?.isArrayPattern())) {
-      // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` (or with a transparent
-      // inner-default `const [{from} = {}] = wrapper`, where the AssignmentPattern wraps the
-      // ObjectPattern as an ArrayPattern element) - walk up the ArrayPattern stack to the host
-      // and descend Identifier-aliased ArrayExpression wrappers to find the leaf constructor;
-      // the shared resolver peels the inner-default wrapper. fall through to typeless when none
-      if (!key) return emitPropUsage(null, path);
-      const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
-      // mutated static: no meta at all (a typeless meta would dispatch the instance helper)
-      if (constructor && adapter.isMutatedStatic?.(constructor, key)) return;
-      emitPropUsage(constructor
-        ? { kind: 'property', object: constructor, key, placement: 'static' }
-        : { kind: 'property', object: null, key, placement: null }, path);
-      return;
-    } else if (parent.isAssignmentPattern()
-      || parent.isForOfStatement()
-      || parent.isForInStatement()
-      || parent.isRestElement()
-      || parent.isCatchClause()) {
-      // for-of / catch: unknown receiver, emit typeless meta
-      emitPropUsage(key ? { kind: 'property', object: null, key, placement: null } : null, path);
-      return;
-    } else if (parent.isFunction()) {
-      // IIFE: `(({from}) => {})(Array)` / `!function({from}) {}(Array)`. shared
-      // `findIifeCallSite` peels wrapper chain (Unary / Sequence / Paren / Chain / TS),
-      // accepts CallExpression / NewExpression / OptionalCallExpression, AND enforces
-      // the callee-identity gate (`peelIifeCallee(callee, fn) === fn`) so functions
-      // PASSED AS ARGS to another call (`doStuff(Array, function({from}) {...})`) don't
-      // get misclassified as IIFEs reading from the outer call's args
-      const site = findIifeCallSite(parent, objectPattern.node);
-      if (!site) return;
-      if (!key) return emitPropUsage(null, path);
-      const argNode = resolveCallArgument(site.callPath.node.arguments, site.paramIndex);
-      // anchor BOTH scope AND path at the call site: the receiver arg lives there, and the adapter's
-      // var-hoist / Annex-B / TS-runtime shadow fallback keys on `path` - leaving it at the USE path
-      // (inside the IIFE body) stops the function-scope walk at the IIFE boundary, missing a call-site
-      // shadow. matches the with-default sibling (8e18d8e0df) and the unplugin twin
-      const iifeContainerUnion = [];
-      const meta = buildDestructuringInitMeta({
-        initNode: argNode ?? null, key, scope: site.callPath.scope, adapter, path: site.callPath ?? path,
-        unionSink: iifeContainerUnion,
-      });
-      emitPropUsage(meta, path, iifeContainerUnion);
-      return;
-    } else return;
-    if (!initPath?.node) return;
-    if (!key) return emitPropUsage(null, path);
     const containerUnion = [];
-    let meta = buildDestructuringInitMeta({
-      initNode: initPath.node, key, scope: initPath.scope, adapter, path, unionSink: containerUnion,
+    let meta = buildDestructureLeafMeta({
+      descriptor, key, adapter, resolvePure, unionSink: containerUnion,
     });
-    // null = monkey-patched static: the prop stays raw, the receiver substitutes elsewhere
-    // (the funnel's union no-ops on a resolved single key, so routing null through is inert)
-    if (!meta) return emitPropUsage(null, path);
-    // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
-    // spread instead of in-place mutation: contract with buildDestructuringInitMeta
-    // doesn't promise mutable meta, and a fresh object is cheap here
-    const cachedInitType = resolvedType?.get(initPath.node);
-    if (!meta.placement && cachedInitType) {
-      // cache stores the canonical Type object; convert to lowercase hint string for
-      // `meta.object` dispatch (TYPE_HINTS keys are lowercase)
-      const objectHint = toHint?.(cachedInitType);
-      if (objectHint) meta = { ...meta, object: objectHint, placement: 'prototype' };
+    // follow memoized reference type (e.g. `const _ref = [1, 2, 3]` after memoization) -
+    // a binding-half post-step: the resolvedType cache is this leg's scope tracker's.
+    // spread instead of in-place mutation: the choke doesn't promise mutable meta
+    if (meta && !meta.placement && descriptor.host === 'init' && descriptor.initNode) {
+      const cachedInitType = resolvedType?.get(descriptor.initNode);
+      if (cachedInitType) {
+        // cache stores the canonical Type object; convert to lowercase hint string for
+        // `meta.object` dispatch (TYPE_HINTS keys are lowercase)
+        const objectHint = toHint?.(cachedInitType);
+        if (objectHint) meta = { ...meta, object: objectHint, placement: 'prototype' };
+      }
     }
     emitPropUsage(meta, path, containerUnion);
   }

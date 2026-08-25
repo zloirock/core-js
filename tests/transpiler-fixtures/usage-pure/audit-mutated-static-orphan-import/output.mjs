@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
+import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 // a user-mutated static routes every surface through the injected CONSTRUCTOR (patch-wins).
 // the static's own import LOOKS binding-unused, but it is LOAD-BEARING: the pure module
 // attaches the method to the pure constructor on load, and the ctor-routed read depends on

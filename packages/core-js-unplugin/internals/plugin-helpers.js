@@ -26,30 +26,9 @@ export function sourceDialectOf(cleanId) {
   return { jsx: /\.[jt]sx$/.test(cleanId), script: /\.c[jt]s$/.test(cleanId) };
 }
 
-// recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
-// on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
-// O(N) per call where N is subtree size; callers feed it small subtrees (declarator,
-// RHS of `in`, inner-callee chain) so total amortized cost across the file is bounded.
-// `visit(node, parent)` - parent is the directly-enclosing AST node, null at root,
-// used by callers (the destructure drains) for context-aware filtering.
-// depth cap protects against pathological deeply-nested AST (template-literal bombs,
-// oxc bug-emitted cycles). 1024 covers realistic depth bounds with margin
-export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
-  // positional inner recursion: the options object stays a call-site convenience, and the
-  // per-node hot path allocates nothing
-  (function step(node, parentNode, level) {
-    if (!node || typeof node !== 'object' || typeof node.type !== 'string' || level >= 1024) return;
-    // an explicit `false` from the visit PRUNES the subtree (a type-annotation wall, a span
-    // the caller owns); any other return keeps descending - existing callers return undefined
-    if (visit(node, parentNode) === false) return;
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      const value = node[key];
-      if (Array.isArray(value)) for (const item of value) step(item, node, level + 1);
-      else step(value, node, level + 1);
-    }
-  })(root, parent, depth);
-}
+// the positional AST walk lives in the provider (the injector census shares it);
+// re-exported here for this package's many callers
+export { walkAstNodes } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // generic walker: advance past directive prologue in `statements`, starting from `fallback`.
 // returns end-of-last-directive when present, else `fallback`. used by Program-level emit
@@ -183,6 +162,10 @@ export function bindingNamesReducer() {
   const names = new Set();
   const declaredNames = new Set();
   const orphanRefs = new Set();
+  // names the USER writes through (plain or compound assignment) - the injector's
+  // dedup-target poison: a user pure-import binding that is reassigned no longer holds the
+  // polyfill, so deduping onto it would substitute the wrong value at runtime
+  const assignedNames = new Set();
   // the rest-destructure sentinel position: a non-shorthand property VALUE of an ObjectPattern
   // that carries a RestElement (`{ polyKey: _unusedN, ...rest }`) - the ONE place the emitter
   // prints a `_unusedN`. a name bound there AND read nowhere else is what post adopts as its own
@@ -247,8 +230,19 @@ export function bindingNamesReducer() {
           if (node.operator === '=' && ORPHAN_REF_PATTERN.test(node.left.name)
               && isPluginShapedOrphanAssign(node, parentType, atTopLevel)) {
             orphanRefs.add(node.left.name);
-          } else addDecl(node.left.name);
+          } else {
+            addDecl(node.left.name);
+            assignedNames.add(node.left.name);
+          }
+        // an assignment-form destructure (`({ myFrom } = other)`) writes through every name
+        // its pattern binds - the same poison, babel-side constantViolations count it too
+        } else if (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern') {
+          walkPatternIdentifiers(node.left, id => assignedNames.add(id.name));
         }
+        break;
+      case 'UpdateExpression':
+        // `myFrom++` is a write through the binding - reassignment for the dedup poison
+        if (node.argument?.type === 'Identifier') assignedNames.add(node.argument.name);
         break;
       // every Identifier surfaces here - bindings already reserved via their structural case,
       // but bare references (`console.log(_ref)` where `_ref` is undeclared) land only here.
@@ -265,7 +259,7 @@ export function bindingNamesReducer() {
     }
   }
   function result() {
-    return { names, declaredNames, orphanRefs };
+    return { names, declaredNames, orphanRefs, assignedNames };
   }
   return { visit, result };
 }
@@ -357,10 +351,11 @@ export function isChunkLoaderBundler(bundler) {
 }
 
 // strip ALL leading U+FEFF (Byte Order Mark) characters. a single-strip would leave
-// residual BOM bytes mid-prefix when a sibling plugin's per-pass BOM re-prepend stacks
+// residual BOM bytes mid-prefix when a sibling plugin's per-pass BOM prepend stacks
 // on top of ours, or when source is malformed multi-BOM. returns the BOM-free string;
 // callers track whether a BOM was present (via a separate `charCodeAt(0)` check before
-// stripping) to decide whether to re-prepend a single BOM on output
+// stripping) so `sourcesContent` can keep the user's original bytes - the OUTPUT never
+// re-emits a BOM
 export function stripLeadingBOMs(code) {
   let i = 0;
   while (code.charCodeAt(i) === 0xFEFF) i++;

@@ -32,6 +32,6 @@ const withNumericAndString = function ({
   return [n, k];
 }({
   "1": _globalThis.Object["1"],
-  "keys": _Object$keys
+  'keys': _Object$keys
 });
 export { withNumericKey, withNamesOnly, withNumericAndString };

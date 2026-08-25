@@ -3758,3 +3758,197 @@ testUnlessDetectLowered('destructuring: a param-default synth-swap over an undef
     assert.same(sealedParam(), 'function', 'a present host resolves the sealed receiver');
   }
 });
+
+// a WELL-KNOWN-SYMBOL key beside a plain one in a PARAM DEFAULT: the default is replaced by the
+// synth literal, whose symbol slot carries the method lookup rather than a raw symbol read (that
+// read answers undefined on an engine without the native symbol). caller-correct by construction -
+// an argument the caller DOES pass destructures natively, so the polyfilled slots must not leak
+// into it. NATIVE-SYMBOL ONLY: conflict with Babel `_toPropertyKey` -> `_toPrimitive`
+if (!Symbol.sham) QUnit.test('destructuring: wks key beside a plain one in a param default', assert => {
+  function read({ at, [Symbol.iterator]: it } = [3, 4, 5]) {
+    return [at, it];
+  }
+  const [at, it] = read();
+  assert.same(typeof at, 'function');
+  assert.same(at.call([9, 8], 0), 9);
+  assert.same(typeof it, 'function');
+  assert.same(it.call([7, 8]).next().value, 7);
+  // a PASSED argument destructures natively - the synth default never fires for it
+  const passed = { at: 'own-at', [Symbol.iterator]: 'own-iterator' };
+  assert.deepEqual(read(passed), ['own-at', 'own-iterator']);
+});
+
+// ... and a STRING spelling of that symbol's own name is an ordinary property: the slot must keep
+// the plain read, since reading it through the symbol would hand back a different value entirely
+QUnit.test('destructuring: a string-spelled symbol name stays a plain property', assert => {
+  const src = { at: [].at, 'Symbol.iterator': 'plain-own-property' };
+  const named$key = 'Symbol.iterator';
+  function read({ at, [named$key]: named } = src) {
+    return [at, named];
+  }
+  const [at, named] = read();
+  assert.same(typeof at, 'function');
+  assert.same(named, 'plain-own-property');
+});
+
+// several claims off ONE array-wrapper element: the extractions bind the consumed keys, so the
+// residual must not re-read them - native reads each property exactly once, and a kept residual
+// would fire their getters a second time. the surviving user binding keeps its own single read
+QUnit.test('destructuring: array-wrapper element is read once per key', assert => {
+  const reads = [];
+  // an ARRAY receiver, so the claims resolve and the residual's own reads are what this counts
+  const src = [3, 4];
+  for (const key of ['at', 'keys']) {
+    Object.defineProperty(src, key, {
+      // an OWN method, so the read answers the same value with or without the native one -
+      // the assertion here is the read COUNT, not which implementation answers
+      get() {
+        reads.push(key);
+        return function own() { return key; };
+      },
+      enumerable: true,
+    });
+  }
+  Object.defineProperty(src, 'other', { value: 'kept', enumerable: true });
+  const [{ at, keys, other }] = [src];
+  assert.same(at(), 'at');
+  assert.same(keys(), 'keys');
+  assert.same(other, 'kept');
+  assert.deepEqual(reads, ['at', 'keys']);
+});
+
+// an array-wrapper NEIGHBOUR that runs code pins the evaluation order: native evaluates every
+// element of the literal before reading a property off any of them, so a hoisted extraction
+// would move the read ahead of the neighbour. the claim stays native there
+QUnit.test('destructuring: an effectful array-wrapper neighbour keeps the order', assert => {
+  const order = [];
+  // an ARRAY receiver, so the claims actually resolve - on a plain object neither `at` nor
+  // `keys` is a polyfillable method and the row would observe an untransformed destructure
+  const src = [1, 2];
+  for (const key of ['at', 'keys']) {
+    Object.defineProperty(src, key, {
+      get() {
+        order.push(key);
+        return function own() { return key; };
+      },
+      enumerable: true,
+    });
+  }
+  function neighbour() {
+    order.push('neighbour');
+    return 'n';
+  }
+  const [{ at, keys }, n] = [src, neighbour()];
+  assert.same(at(), 'at');
+  assert.same(keys(), 'keys');
+  assert.same(n, 'n');
+  assert.deepEqual(order, ['neighbour', 'at', 'keys']);
+  // the read COUNT is the second half of the claim: one per key, like native
+  assert.same(order.length, 3);
+});
+
+// an ARRAY receiver carrying own getters for the claimed keys: the claims resolve (a plain object
+// has no polyfillable `at` / `keys`), the getters record the READ, and the values they return are
+// plain functions, so the extracted binding is callable without the receiver native would need
+function orderedSource(order, keys) {
+  const src = [1, 2];
+  for (const key of keys) {
+    Object.defineProperty(src, key, {
+      get() {
+        order.push(key);
+        return function own() { return key; };
+      },
+      enumerable: true,
+    });
+  }
+  return src;
+}
+
+// a SOURCE declarator ahead of an array-wrapped one: native runs its initializer first, so a memo
+// of the wrapper element hoisted above the whole declaration would invert two observable effects
+QUnit.test('destructuring: a declarator before an array wrap keeps the order', assert => {
+  const order = [];
+  const src = orderedSource(order, ['at', 'keys']);
+  function eff() {
+    order.push('eff');
+    return 'q';
+  }
+  function pick() {
+    order.push('pick');
+    return src;
+  }
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the shared declaration IS the shape under test
+  const q = eff(), [{ at, keys }] = [pick()];
+  assert.same(q, 'q');
+  assert.same(at(), 'at');
+  assert.same(keys(), 'keys');
+  assert.deepEqual(order, ['eff', 'pick', 'at', 'keys']);
+});
+
+// two array-wrapped declarators in ONE declaration are two independent verdicts: each element is
+// selected once and read once, and neither residual survives to read the other's
+QUnit.test('destructuring: two array-wrapped declarators in one declaration', assert => {
+  const order = [];
+  const first = orderedSource(order, ['at']);
+  const second = orderedSource(order, ['keys']);
+  function pickFirst() {
+    order.push('first');
+    return first;
+  }
+  function pickSecond() {
+    order.push('second');
+    return second;
+  }
+  // eslint-disable-next-line @stylistic/one-var-declaration-per-line -- the shared declaration IS the shape under test
+  const [{ at }] = [pickFirst()], [{ keys }] = [pickSecond()];
+  assert.same(at(), 'at');
+  assert.same(keys(), 'keys');
+  assert.deepEqual(order, ['first', 'at', 'second', 'keys']);
+});
+
+// a SURVIVING prop keeps the residual, and the extraction still reads the element before it - one
+// selection of the receiver, one read per key, exactly what the flat channel performs
+QUnit.test('destructuring: an array wrap with a surviving prop reads once', assert => {
+  const reads = [];
+  const src = orderedSource(reads, ['at']);
+  Object.defineProperty(src, 'other', { value: 'kept', enumerable: true });
+  let selections = 0;
+  function select() {
+    selections++;
+    return src;
+  }
+  const [{ at, other }] = [select()];
+  assert.same(at(), 'at');
+  assert.same(other, 'kept');
+  assert.same(selections, 1);
+  assert.deepEqual(reads, ['at']);
+});
+
+// an element the claim never touched still COERCES its own value, and no extraction repeats that
+// read - a wrapper that dropped it would swallow the TypeError native throws here
+QUnit.test('destructuring: an unclaimed wrapper element keeps coercing', assert => {
+  assert.throws(() => {
+    // eslint-disable-next-line no-empty-pattern -- the empty element IS the coercion under test
+    const [{}, { at }] = [null, [1, 2]];
+    return at;
+  }, TypeError);
+});
+
+// a REST element keeps the residual, so the wrapper element has a SECOND reader: re-running the
+// selection instead of sharing one evaluation lets a getter fired by the first read pick the
+// other branch, and here that branch is nullish
+QUnit.test('destructuring: a rest wrapper shares one selection', assert => {
+  let flipped = false;
+  const first = [1, 2];
+  Object.defineProperty(first, 'at', {
+    get() {
+      flipped = true;
+      return function own() { return 'at'; };
+    },
+    enumerable: true,
+  });
+  const [{ at }, ...rest] = [flipped ? null : first, 9];
+  assert.same(at(), 'at');
+  assert.deepEqual(rest, [9]);
+  assert.same(flipped, true);
+});
