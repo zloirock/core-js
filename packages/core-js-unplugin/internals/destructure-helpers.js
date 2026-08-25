@@ -59,6 +59,8 @@ import {
   variableDeclaration,
   variableDeclarator,
   voidZero,
+  nullFirstGuardTest,
+  renderShortCircuitGuard,
 } from './builders.js';
 
 // the AST engine's destructure pipeline - the STAGED port of babel's destructure-emitter
@@ -682,7 +684,7 @@ export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlob
     identifier(injectPureImport(hopPure.entry, hopPure.hintName)));
   const alternate = keyEffects.length
     ? sequenceExpression([...keyEffects.map(expr => cloneNode(expr)), navTail]) : navTail;
-  return conditionalExpression(binaryExpression('==', literal(null), probe), voidZero(), alternate);
+  return renderShortCircuitGuard(nullFirstGuardTest(probe), alternate);
 }
 
 // the effects a sealed nav's LEAF hop key carries (`?.[(c++, 'self')]`): native runs them past
@@ -753,7 +755,7 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
         : identifier(plan.leafPlan.leafName);
     const liveEffects = sealedLeafKeyEffects(plan.effectsHost).map(expr => cloneNode(expr));
     if (liveEffects.length) leaf = sequenceExpression([...liveEffects, leaf]);
-    navRead = conditionalExpression(binaryExpression('==', literal(null), probe), voidZero(), leaf);
+    navRead = renderShortCircuitGuard(nullFirstGuardTest(probe), leaf);
   }
   if (!navRead) return null;
   return boundary.member.computed
@@ -814,7 +816,7 @@ export function renderDiscardedInitProbe(jobs, ctx) {
     : plan.leafPure ? identifier(ctx.injectPureImport(plan.leafPure.entry, plan.leafPure.hintName))
     : leafGlobal ? identifier(ctx.injectPureImport(leafGlobal.entry, leafGlobal.hintName))
     : identifier(plan.leafName);
-  const guarded = conditionalExpression(binaryExpression('==', literal(null), probe), voidZero(), leaf);
+  const guarded = renderShortCircuitGuard(nullFirstGuardTest(probe), leaf);
   // a computed key BOUND to a name reads through the spelling the walk left in the pattern - a
   // well-known symbol through its polyfilled binding (`[_Symbol$iterator]`), never through the
   // name it resolves to; a literal spelling normalises to the dotted read below
