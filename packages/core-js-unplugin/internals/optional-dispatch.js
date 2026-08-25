@@ -24,17 +24,16 @@ import {
 import { bindingPolyfillHint, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   assignmentExpression,
-  binaryExpression,
   callExpression,
   chainExpression,
   cloneNode,
-  conditionalExpression,
+  composeNullGuardTest,
   identifier,
   literal,
-  logicalExpression,
   memberExpression,
+  nullGuardTest,
+  renderShortCircuitGuard,
   sequenceExpression,
-  voidZero,
 } from './builders.js';
 import {
   memberFromKeyName,
@@ -106,7 +105,7 @@ export default function createOptionalDispatchChannel(ctx) {
   function guardObject(objectNode, metaPath, { bareMemo = false } = {}) {
     if (isReusableReceiver(objectNode)) {
       return {
-        disjuncts: [binaryExpression('==', cloneNode(objectNode), literal(null))],
+        disjuncts: [cloneNode(objectNode)],
         makeBase: () => cloneNode(objectNode),
       };
     }
@@ -138,9 +137,8 @@ export default function createOptionalDispatchChannel(ctx) {
         const droppedBase = peelExpressionWrappers(peeledVal.object);
         if (peeledVal.optional && peelChainAssignmentDeep(droppedBase) === droppedBase) {
           const dropped = resolveGlobalPolyfill(peeledVal.property.name);
-          memoSource = conditionalExpression(
-            binaryExpression('==', literal(null), cloneNode(peeledVal.object)),
-            voidZero(), identifier(injectPureImport(dropped.entry, dropped.hintName)));
+          memoSource = renderShortCircuitGuard(nullGuardTest(cloneNode(peeledVal.object)),
+            identifier(injectPureImport(dropped.entry, dropped.hintName)));
           break;
         }
         memoSource = peeledVal.object;
@@ -210,7 +208,7 @@ export default function createOptionalDispatchChannel(ctx) {
         ?? memoizedCallResultType(objectNode, metaPath, resolveNodeType)
         ?? nodeTypeRefinement(peelExpressionWrappers(objectNode), metaPath.scope, resolveNodeType);
     return {
-      disjuncts: [binaryExpression('==', literal(null), assignmentExpression('=', identifier(ref), memoized))],
+      disjuncts: [assignmentExpression('=', identifier(ref), memoized)],
       makeBase() {
         const base = identifier(ref);
         if (baseType) resolvedType.set(base, baseType);
@@ -300,8 +298,7 @@ export default function createOptionalDispatchChannel(ctx) {
       let thisArg;
       if (isReusableReceiver(reusabilityView) || superReceiver) {
         refMethod = injector.generateDeclaredRef(metaPath);
-        disjuncts = [binaryExpression('==', literal(null),
-          assignmentExpression('=', identifier(refMethod), chainExpression(cloneNode(callee))))];
+        disjuncts = [assignmentExpression('=', identifier(refMethod), chainExpression(cloneNode(callee)))];
         thisArg = reusableThisArg();
       } else {
         // refs mint in EVALUATION order (receiver memo, then method) - the babel push
@@ -311,11 +308,11 @@ export default function createOptionalDispatchChannel(ctx) {
         const recvClone = cloneReceiverValue();
         const optRead = memberExpression(identifier(refRecv), cloneNode(callee.property),
           { computed: callee.computed, optional: true });
-        disjuncts = [binaryExpression('==', literal(null), sequenceExpression([
+        disjuncts = [sequenceExpression([
           assignmentExpression('=', identifier(refRecv),
             receiverCarriesOptional(callee.object) ? chainExpression(recvClone) : recvClone),
           assignmentExpression('=', identifier(refMethod), chainExpression(optRead)),
-        ]))];
+        ])];
         thisArg = identifier(refRecv);
       }
       return {
@@ -334,7 +331,7 @@ export default function createOptionalDispatchChannel(ctx) {
     return {
       hopKind: 'call',
       disjuncts: [...rootGuard.disjuncts,
-        binaryExpression('==', literal(null), assignmentExpression('=', identifier(ref), methodRead))],
+        assignmentExpression('=', identifier(ref), methodRead)],
       receiver: stampSourceCallType(
         callExpression(memberExpression(identifier(ref), identifier('call')),
           [rootGuard.makeBase(), ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
@@ -421,7 +418,7 @@ export default function createOptionalDispatchChannel(ctx) {
       if ((callee?.type === 'Identifier' || callee?.type === 'ThisExpression') && isReusableReceiver(callee)) {
         return {
           hopKind: 'call',
-          disjuncts: [binaryExpression('==', cloneNode(callee), literal(null))],
+          disjuncts: [cloneNode(callee)],
           receiver: callExpression(cloneNode(callee), node.arguments.map(argument => cloneNode(argument))),
         };
       }
@@ -432,8 +429,7 @@ export default function createOptionalDispatchChannel(ctx) {
       const calleeRef = injector.generateDeclaredRef(metaPath);
       return {
         hopKind: 'call',
-        disjuncts: [binaryExpression('==', literal(null),
-          assignmentExpression('=', identifier(calleeRef), cloneNode(callee)))],
+        disjuncts: [assignmentExpression('=', identifier(calleeRef), cloneNode(callee))],
         receiver: callExpression(identifier(calleeRef), node.arguments.map(argument => cloneNode(argument))),
       };
     }
@@ -501,15 +497,14 @@ export default function createOptionalDispatchChannel(ctx) {
           if (recvType) resolvedType.set(optRecvId, recvType);
           const optRead = memberExpression(optRecvId, cloneNode(callee.property),
             { computed: callee.computed, optional: true });
-          disjuncts = [binaryExpression('==', literal(null), sequenceExpression([
+          disjuncts = [sequenceExpression([
             assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue())),
             assignmentExpression('=', identifier(refMethod), chainExpression(optRead)),
-          ]))];
+          ])];
         } else {
           disjuncts = [
-            binaryExpression('==', literal(null),
-              assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue()))),
-            binaryExpression('==', literal(null), methodAssign),
+            assignmentExpression('=', identifier(refRecv), chainExpression(cloneReceiverValue())),
+            methodAssign,
           ];
         }
       } else {
@@ -518,7 +513,7 @@ export default function createOptionalDispatchChannel(ctx) {
           assignmentExpression('=', identifier(refRecv), cloneReceiverValue()), methodAssign,
         ]);
         guardCommaMemos.add(memo);
-        disjuncts = [binaryExpression('==', literal(null), memo)];
+        disjuncts = [memo];
       }
       return {
         hopKind: 'call',
@@ -545,7 +540,7 @@ export default function createOptionalDispatchChannel(ctx) {
     }
     return {
       hopKind: 'call',
-      disjuncts: [binaryExpression('==', literal(null), assignmentExpression('=', identifier(ref), methodRead))],
+      disjuncts: [assignmentExpression('=', identifier(ref), methodRead)],
       receiver: stampSourceCallType(
         callExpression(memberExpression(identifier(ref), identifier('call')),
           [reusableThisArg(), ...node.arguments.map(argument => cloneNode(argument))]), node, metaPath, typeStampCtx),
@@ -874,24 +869,10 @@ export default function createOptionalDispatchChannel(ctx) {
     return true;
   }
 
-  // one guard test out of split disjuncts and the member-optional check: inside a disjunct
-  // CHAIN every test spells `null == X` (babel's uniform chain spelling); the ident-first
-  // `X == null` form is the single-test spelling only
-  function composeGuardTest(guardDisjuncts, check) {
-    // an EMPTY disjunct list is a split that proved its receiver always-defined - nothing
-    // of its own to test, so only the member's own check survives
-    if (!guardDisjuncts?.length) return check;
-    let disjuncts = [...guardDisjuncts, ...check ? [check] : []];
-    if (disjuncts.length > 1) {
-      disjuncts = disjuncts.map(item => {
-        if (item.type === 'BinaryExpression' && item.operator === '=='
-          && item.right?.type === 'Literal' && item.right.value === null) {
-          return binaryExpression('==', item.right, item.left);
-        }
-        return item;
-      });
-    }
-    return disjuncts.reduce((left, right) => logicalExpression('||', left, right));
+  // one guard test out of the split's CHECKS and the member-optional one; the spelling rule
+  // (single test ident-first, a chain literal-first) is the render canon's
+  function composeGuardTest(guardChecks, check) {
+    return composeNullGuardTest([...guardChecks ?? [], ...check ? [check] : []]);
   }
 
   // the receiver / guard spelling of one instance dispatch: how the lookup argument and the
@@ -917,7 +898,7 @@ export default function createOptionalDispatchChannel(ctx) {
     let callReceiver;
     if (memberOptional) {
       if (reusable) {
-        check = binaryExpression('==', cloneStamped(effObject, typeStampCtx), literal(null));
+        check = cloneStamped(effObject, typeStampCtx);
         lookupArg = cloneStamped(effObject, typeStampCtx);
         callReceiver = cloneStamped(effObject, typeStampCtx);
       } else {
@@ -927,7 +908,7 @@ export default function createOptionalDispatchChannel(ctx) {
         // wrappers peel off the memoized spine
         const peeledMemo = cloneSpinePeeled(effObject);
         const memoized = receiverCarriesOptional(effObject) ? chainExpression(peeledMemo) : peeledMemo;
-        check = binaryExpression('==', literal(null), assignmentExpression('=', identifier(ref), memoized));
+        check = assignmentExpression('=', identifier(ref), memoized);
         if (guardDisjuncts) {
           guardDisjuncts = [...guardDisjuncts, check];
           check = null;
@@ -1158,7 +1139,7 @@ export default function createOptionalDispatchChannel(ctx) {
     if (isCall && parenWrapped && test && !callOptional) {
       const lookup = callExpression(identifier(id), [lookupArg]);
       built = callExpression(
-        memberExpression(conditionalExpression(test, voidZero(), lookup), identifier('call')),
+        memberExpression(renderShortCircuitGuard(test, lookup), identifier('call')),
         [callReceiver, ...parent.arguments.map(argument => cloneNode(argument))],
       );
       const returnTypePl = resolveNodeType(callerPath);
@@ -1320,7 +1301,7 @@ export default function createOptionalDispatchChannel(ctx) {
     if (memberOptional) {
       // the member's own `?.` folds into the guard: the receiver memo is its null test
       // (`... || null == (_ref2 = _ref.call(arr, 0)) ? void 0 : (eff(), _k(_ref2)...)`)
-      test = composeGuardTest(guardDisjuncts, binaryExpression('==', literal(null), memo));
+      test = composeGuardTest(guardDisjuncts, memo);
       built = effects.length ? sequenceExpression([...effects, dispatch]) : dispatch;
     } else {
       test = composeGuardTest(guardDisjuncts, null);

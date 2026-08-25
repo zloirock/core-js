@@ -28,15 +28,16 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentExpression,
-  binaryExpression,
   callExpression,
   chainExpression,
   cloneNode,
-  conditionalExpression,
   identifier,
   literal,
   memberExpression,
   sequenceExpression,
+  nullFirstGuardTest,
+  renderCtorIdentityNarrow,
+  renderNavGuardTestBase,
 } from './builders.js';
 import {
   memberFromKeyName,
@@ -127,12 +128,9 @@ export default function createProxySpineChannel(ctx) {
 
   // one guard branch per candidate ctor, innermost-last - both legs chain the same plan list
   function guardChainNode(plan, rawBranch) {
-    return plan.branches.reduceRight((alternate, branch) => conditionalExpression(
-      binaryExpression('===', identifier(plan.recvIdent.name),
-        identifier(branch.ctorPure ? injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
-      identifier(injectPureImport(branch.staticPure.entry, branch.staticPure.hintName)),
-      alternate,
-    ), rawBranch);
+    return renderCtorIdentityNarrow(plan, rawBranch, {
+      injectImport: injectPureImport, spellRecv: () => identifier(plan.recvIdent.name),
+    });
   }
 
   // runtime ctor guard render: the DECISION is the shared provider plan,
@@ -467,7 +465,7 @@ export default function createProxySpineChannel(ctx) {
     const id = injectPureImport(entry, hintName);
     markRewrite();
     replaceGuardedHop({
-      hopPath: metaPath, test: binaryExpression('==', literal(null), test),
+      hopPath: metaPath, test: nullFirstGuardTest(test),
       built: identifier(id), skippedNodes, alwaysDefined: true, deleteHostTail: deleteHost,
       // the ORIGINAL key-effect nodes ride by IDENTITY: a claim inside them fires later in
       // the walk and lands in place (the keep-live carve above the consumed mark)
@@ -483,9 +481,7 @@ export default function createProxySpineChannel(ctx) {
   function buildNavGuardTest(plan, { aliasCtx, resolveHere }) {
     const base = navGuardTestBase(plan);
     if (base) {
-      const pureId = identifier(injectPureImport(base.basePure.entry, base.basePure.hintName));
-      const test = memberExpression(plan.rootAssign
-        ? sequenceExpression([cloneNode(plan.rootAssign), pureId]) : pureId, identifier(base.probeName));
+      const test = renderNavGuardTestBase(base, { rootAssign: plan.rootAssign, injectImport: injectPureImport });
       if (plan.rootAssign) substituteProbeProxyRoot(test);
       return test;
     }
@@ -595,7 +591,7 @@ export default function createProxySpineChannel(ctx) {
       }
       markRewrite();
       replaceGuardedHop({
-        hopPath: leafPath, test: binaryExpression('==', literal(null), test), built, skippedNodes, alwaysDefined: true,
+        hopPath: leafPath, test: nullFirstGuardTest(test), built, skippedNodes, alwaysDefined: true,
       });
       return true;
     }
@@ -833,8 +829,7 @@ export default function createProxySpineChannel(ctx) {
         { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
       const probeClone = receiverCarriesOptional(probeInner) || probeInner.optional === true
         ? chainExpression(probeInner) : probeInner;
-      const test = binaryExpression('==', literal(null),
-        instanceTailMemoTest(probeClone, metaPath, node, seKeyReadCtx));
+      const test = nullFirstGuardTest(instanceTailMemoTest(probeClone, metaPath, node, seKeyReadCtx));
       replaceGuardedHop({
         hopPath: metaPath, test, built: identifier(id), skippedNodes,
         // the NAV route: the alternate is the claim's own pure over the collapsed spine, and the
