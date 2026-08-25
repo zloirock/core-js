@@ -18,6 +18,7 @@ import {
   unwrapRuntimeExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   deleteHostAboveChain,
+  peelNestedSequenceExpressions,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
@@ -57,6 +58,7 @@ import {
   unwrapParensCollectingEffects,
   chainReadsThroughSeal, chainSealsAShortCircuit, navValueCanShortCircuit, ownChainOptionalObjects,
   proxyReceiverValueCanBeUndefined,
+  proxyGlobalMemberCtorPureSwap,
   claimAlreadyRendered,
 } from './resolve.js';
 
@@ -351,6 +353,19 @@ export function planProxyReceiver(receiver, {
     property: receiver.property,
     computed: receiver.computed,
   };
+}
+
+// the canonical RE-READ target of a memoized receiver, peeled to its SE tail: a pure-ctor leaf
+// whole-swaps (the erased navigation's harvested effects re-run ahead of the binding), an alias
+// or proxy chain collapses through `planProxyReceiver`. null where neither resolves - the caller
+// re-reads the receiver verbatim, and only that remainder does, because a re-traversed verbatim
+// clone picks a per-shape collapse (`_self.Map` vs `_Map` vs a kept dead hop) and desyncs the legs
+export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
+  const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
+  const ctorSwap = proxyGlobalMemberCtorPureSwap({ receiver: tail, aliasCtx, resolvePure });
+  if (ctorSwap) return { prefix, se: ctorSwap.se, pure: ctorSwap.pure, plan: null, tail };
+  const plan = planProxyReceiver(tail, { aliasCtx, throughChainAssign: false, resolvePure });
+  return plan ? { prefix, se: [], pure: null, plan, tail } : null;
 }
 
 // call/IIFE-rooted proxy nav (`(() => globalThis)().self.Array`): `findProxyGlobal` validates only bare-Identifier

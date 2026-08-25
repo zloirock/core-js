@@ -7,6 +7,7 @@
 // same family; the emitters only bind their injector state
 import { entryToGlobalHint } from '../index.js';
 import { ORPHAN_REF_PATTERN, UNUSED_NAME_PATTERN } from '../injector-base.js';
+import { isSourcedSymbolIteratorMeta } from './members.js';
 import {
   TS_EXPR_WRAPPERS,
   blocksUidSlot,
@@ -299,13 +300,39 @@ function overwriteRebindSibling(path, { localName, ...tests }) {
 // `from = _Array$from`, a `for` head's `from = _Array$from, _unused = ...`; a nested proxy key
 // names the NAMESPACE the import hangs off - `Array: _unused` beside `_Array$from`; a symbol
 // iterator key reads through `get-iterator-method`). a user's unread alias in that position has
-// no such sibling and keeps its rewrite - its importers may read it. shared by both emitters'
-// destructure dispatchers, ahead of EVERY route: without the skip a pass over our own output
-// re-extracts the sentinel as a live binding and mints a fresh one, growing the file per pass
-export function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) {
+// no such sibling and keeps its rewrite - its importers may read it. reached through the census
+// below, which both dispatchers ask ahead of EVERY route: without the skip a pass over our own
+// output re-extracts the sentinel as a live binding and mints a fresh one, growing it per pass
+
+// a sentinel-valued prop a PRIOR pass printed (`{ key: _unusedN }`): ours outright, or an
+// adopted name that still stands beside our extraction of THIS key. both dispatchers ask it
+// ahead of every route
+export function sentinelAlreadyProcessed(path, { node, meta, injector }) {
+  const { value } = node;
+  if (value?.type !== 'Identifier' || !injector.hasGeneratedUnusedName(value.name)) return false;
+  return !injector.isAdoptedUnusedName(value.name) || restSentinelExtractionSibling(path, {
+    key: typeof meta?.key === 'string' ? meta.key : node.key?.name ?? node.key?.value,
+    symbolIterator: !!meta && isSourcedSymbolIteratorMeta(meta),
+    injector,
+  });
+}
+
+function restSentinelExtractionSibling(path, { key, symbolIterator, injector }) {
   let p = path;
-  while (p?.parentPath && !statementListOf(p.parentPath.node)) p = p.parentPath;
-  const list = statementListOf(p?.parentPath?.node);
+  let paramsBody = null;
+  while (p?.parentPath && !statementListOf(p.parentPath.node)) {
+    // a sentinel standing in a function's PARAM pattern is answered by that function's BODY:
+    // the extraction our own pass wrote for it went to the top of the body, not beside the
+    // function (`function f({ from: _unused, ...rest } = R) { let from = _X; }`). without the
+    // hop the climb reaches the enclosing statement list, finds nothing, and the next pass
+    // re-extracts the sentinel as a live binding - the file grows per pass
+    if (Array.isArray(p.parentPath.node?.params) && p.parentPath.node.params.includes(p.node)) {
+      paramsBody = statementListOf(p.parentPath.node.body);
+      break;
+    }
+    p = p.parentPath;
+  }
+  const list = paramsBody ?? statementListOf(p?.parentPath?.node);
   if (!Array.isArray(list)) return false;
   function extractsKey(name) {
     const info = injector.getPureImport(name);

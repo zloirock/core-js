@@ -2,9 +2,9 @@
 // the final tree - pattern surgery, memo declarations, residual re-anchoring and the
 // literal renders. created per transform over the visit half's shared context
 import { resolveNestedReceiverBase, resolvePassthroughRef } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { planCatchClauseExtraction } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
-  computedPropKeyHostsMachinery,
-  planProxyReceiver,
+  planMemoReadTarget,
   shouldDropRescueReceiver,
   SYMBOL_ITERATOR_PURE_RESULT,
 } from '@core-js/polyfill-provider/detect-usage/members';
@@ -20,7 +20,6 @@ import {
   arrayWrapperResidualDroppable,
   hasRealBinding,
   POSSIBLE_GLOBAL_OBJECTS,
-  catchPropRewriteObservable,
   computedKeyHasSideEffects,
   isNonReferencePosition,
   isPristineProxyGlobal,
@@ -28,7 +27,6 @@ import {
   mayHaveSideEffects,
   receiverCarriesLiveOptional,
   statementListOf,
-  peelNestedSequenceExpressions,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { walkAstNodes } from './plugin-helpers.js';
 import { memberFromKeyName, renderProxyReceiverPlan, replaceNodeInTree } from './emit-shared.js';
@@ -455,18 +453,11 @@ export default function createDestructureDrains(ctx) {
   // shared plan. resolved at REGISTRATION (pristine tree); null leaves the receiver live
   function planMemoArg(memoReceiver, metaPath) {
     const aliasCtx = { ...nodeSite(memoReceiver, metaPath), adapter };
-    const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
-    const ctorSwap = proxyGlobalMemberCtorPureSwap({
-      receiver: tail, aliasCtx, resolvePure: m => resolvePure(m, metaPath),
-    });
-    let target = null;
-    if (ctorSwap) target = identifier(injectPureImport(ctorSwap.pure.entry, ctorSwap.pure.hintName));
-    else {
-      const proxyPlan = planProxyReceiver(tail, {
-        aliasCtx, throughChainAssign: false, resolvePure: m => resolvePure(m, metaPath),
-      });
-      if (proxyPlan) target = renderProxyReceiverPlan(proxyPlan, injectPureImport);
-    }
+    const plan = planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure: m => resolvePure(m, metaPath) });
+    if (!plan) return null;
+    const target = plan.pure
+      ? identifier(injectPureImport(plan.pure.entry, plan.pure.hintName))
+      : renderProxyReceiverPlan(plan.plan, { injectImport: injectPureImport });
     if (!target) return null;
     // the plan's clones detach from the walk before their own claims land: a pristine
     // proxy-global root inside a harvested effect substitutes its pure binding here
@@ -476,7 +467,7 @@ export default function createDestructureDrains(ctx) {
     // their claims land in place during the walk - and the DRAIN clones them, so the memo
     // argument carries the rewritten spelling instead of a pre-claim snapshot (a
     // registration-time clone froze `getObj().at(0)` raw and dropped the claim)
-    return { prefix, liveSe: ctorSwap?.se ?? [], target, tail };
+    return { prefix: plan.prefix, liveSe: plan.se, target, tail: plan.tail };
   }
 
   function substituteClonedProxyRoots(root, metaPath) {
@@ -2179,25 +2170,17 @@ export default function createDestructureDrains(ctx) {
   // on the source shape; both gates are the shared provider predicates the babel twin asks
   function extractCatchClause(path) {
     const { param } = path.node;
-    if (param?.type !== 'ObjectPattern' || !param.properties?.length) return;
-    const resolvableProps = param.properties.filter(prop => {
-      if ((prop.type !== 'Property' && prop.type !== 'ObjectProperty') || prop.computed) return false;
-      const key = prop.key?.name ?? prop.key?.value ?? null;
-      return key !== null && !!resolvePure({ kind: 'property', object: null, key, placement: null }, path);
-    });
-    const hasMachinery = param.properties.some(prop => computedPropKeyHostsMachinery({
-      propNode: prop, scope: path.scope, adapter, path, resolvePure: m => resolvePure(m, path),
-    }));
-    if (!hasMachinery && !resolvableProps.length) return;
-    const unobservable = resolvableProps.filter(prop => !catchPropRewriteObservable({
-      propNode: prop,
-      patternNode: param,
+    const plan = planCatchClauseExtraction({
+      paramNode: param,
       bodyNode: path.node.body,
-      localName: prop.value?.type === 'Identifier' ? prop.value.name : null,
+      scope: path.scope,
+      adapter,
+      path,
+      resolvePure: m => resolvePure(m, path),
       walkNode: (root, visit) => walkAstNodes({ root, visit }),
-    }));
-    if (!hasMachinery && unobservable.length === resolvableProps.length) return;
-    for (const prop of unobservable) skippedNodes.add(prop);
+    });
+    if (!plan) return;
+    for (const prop of plan.unobservable) skippedNodes.add(prop);
     const refName = mintRefName();
     path.node.body.body.unshift(variableDeclaration('let', [variableDeclarator(param, identifier(refName))]));
     path.node.param = identifier(refName);
