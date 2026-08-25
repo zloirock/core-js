@@ -12,11 +12,11 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
+  isRestProperty,
   peelTransparentWrapperPath,
   isMemberWriteHost,
   isReceiverShapedNode,
   peelNestedSequenceExpressions,
-  buildFlatSynthEntries,
   findIifeArgPath,
   getFallbackBranchSlots,
   isSynthSimpleObjectPattern,
@@ -30,12 +30,23 @@ import {
   markSynthReceiverSkipped,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
+  synthPropDedupKey,
+  buildPatternRenderPlan,
+  undefinedArmEffectiveReceiver,
   classifyCallBranchForSynth,
   fallbackBranchSwapKeepsSelection,
   isViableBranchForKey,
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
+import estreeToBabel from './estree-to-babel.js';
 import {
+  hostSlot,
+  renderSynthSlotRead,
+  synthEntryKey,
+  synthKeyMustBeComputed,
+} from '@core-js/polyfill-provider/render';
+import {
+  SYMBOL_ITERATOR_PURE_RESULT,
   planProxyReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
@@ -120,7 +131,9 @@ export default function createSynthSwapEmitter({
   // otherwise the wrapper-default stays the synth target (the live fallback for the
   // undefined-arg runtime path); an opaque non-resolvable arg yields nothing and keeps it
   function findTargetPath(wrapper, objectPattern) {
-    if (objectPattern.node.properties.some(property => t.isRestElement(property))) return null;
+    // rest in EITHER spelling bails the synth (the canon predicate - a SpreadElement-spelled
+    // rest slipping through would destructure the synth literal and lose the remainder)
+    if (objectPattern.node.properties.some(property => isRestProperty(property))) return null;
     if (wrapper?.isAssignmentPattern()) {
       // peel parens / TS wrappers / SE-tail through `unwrapSequenceTail` so all these
       // shapes reach the inner receiver and synth-swap fires:
@@ -230,33 +243,38 @@ export default function createSynthSwapEmitter({
   // each viable branch becomes its own `{key: _Branch$key}` literal. branches without
   // a viable polyfill stay raw - identifier visitor still emits `_Set` etc. via the
   // standard global rewrite, so user gets correct constructor at runtime
-  function tryRegisterPerBranchSynth(rhsPath, prop) {
+  function tryRegisterPerBranchSynth(rhsPath, prop, { undefinedArmFallback = null } = {}) {
     const objectPattern = prop.parentPath;
     // per-branch has no body-extract fallback, so it accepts static-literal computed keys (`['from']`)
     // and synths them rather than dropping the polyfill (resolveSynthKeys folds the key to its value).
     // a SIDE-EFFECTING computed key (`[(eff(), 'from')]`) is accepted too: synthSwapPropKey folds it to
     // its static `["from"]` slot (no effect in the synth literal) while the effect stays in the residual
     // LHS pattern and runs exactly once - so the proxy branch polyfills instead of bailing to native
-    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node, {
-      allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true,
-    })) return false;
+    if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
     // bail when any computed-key sibling is a generated import (polyfill-rewritten symbol) rather
     // than a user const-key, so per-branch synth stays aligned with unplugin (which bails on the
     // original `Symbol.iterator` MemberExpression)
-    if (!patternComputedKeysSynthSafe(t, objectPattern.node, objectPattern.scope, node => injector.isInjectedReference(node))) return false;
+    if (!patternComputedKeysSynthSafe({
+      objectPatternNode: objectPattern.node, scope: objectPattern.scope, adapter, path: objectPattern,
+    })) return false;
     // a user-const computed key (`const k = 'from'; [k]`) resolves to its static name for the branch
     // viability lookup but registers under its synth SLOT key (`[k]`), so buildSynthLiteral emits
     // `[k]: _polyfill` instead of dropping the polyfill. the resolved value also polyfills a sibling-
     // aliasing computed key (`{ from, [k]: x }` with k='from' -> both get `_Array$from`), avoiding the
     // overwrite that dropped the shorthand polyfill. a dynamic key (lookupKey null) bails
-    const { lookupKey, slotKey } = resolveSynthKeys({ node: prop.node, scope: objectPattern.scope, adapter, path: prop });
-    if (!lookupKey) return false;
+    const { lookupKey } = resolveSynthKeys({ node: prop.node, scope: objectPattern.scope, adapter, path: prop });
+    // the SLOT this branch registers under is the shared dedup key - the same one the render
+    // plan looks the polyfill up by, and the same one the unplugin leg registers
+    const slotKey = synthPropDedupKey(prop.node, { scope: objectPattern.scope, path: prop, adapter });
+    if (!lookupKey || !slotKey) return false;
     // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
     // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
     // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
     // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
     // escape hatch (rewriting branches as synth literals would change `foo`'s runtime value)
-    return registerBranchTreeForKey({ branchPath: peelTransparentWrapperPath(rhsPath), objectPattern, lookupKey, slotKey });
+    return registerBranchTreeForKey({
+      branchPath: peelTransparentWrapperPath(rhsPath), objectPattern, lookupKey, slotKey, undefinedArmFallback,
+    });
   }
 
   // recurse into nested ConditionalExpression / LogicalExpression branches so every leaf
@@ -264,7 +282,7 @@ export default function createSynthSwapEmitter({
   // so `(logCall(), cond ? A : B)` reaches the inner conditional, slot detection finds the
   // branches, and recursion registers each leaf. SE prefix stays in the AST around the
   // substitution target so side-effects run at runtime
-  function registerBranchTreeForKey({ branchPath, objectPattern, lookupKey, slotKey }) {
+  function registerBranchTreeForKey({ branchPath, objectPattern, lookupKey, slotKey, undefinedArmFallback = null }) {
     const peeled = unwrapSequenceTail(branchPath);
     if (!peeled?.node) return false;
     const slots = getFallbackBranchSlots(peeled.node);
@@ -272,17 +290,23 @@ export default function createSynthSwapEmitter({
       let any = false;
       for (const slot of slots) {
         // a value-selecting operand that can be nullish must not become an always-defined
-        // literal - the swap would flip which branch runs (the shared predicate's contract)
-        if (!fallbackBranchSwapKeepsSelection({
-          hostNode: peeled.node, slot, branchNode: peeled.node[slot], scope: peeled.scope, adapter, path: peeled,
-        })) continue;
-        if (registerBranchTreeForKey({ branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey })) any = true;
+        // literal - the swap would flip which branch runs (the shared predicate's contract).
+        // the undefined-shaped arm under a live PARAM DEFAULT is the one exception: the
+        // shared rule substitutes the default there (same branch, same value)
+        if (!undefinedArmEffectiveReceiver({ branch: peeled.node[slot], paramDefaultNode: undefinedArmFallback })
+          && !fallbackBranchSwapKeepsSelection({
+            hostNode: peeled.node, slot, branchNode: peeled.node[slot], scope: peeled.scope, adapter, path: peeled,
+          })) continue;
+        if (registerBranchTreeForKey({
+          branchPath: peeled.get(slot), objectPattern, lookupKey, slotKey, undefinedArmFallback,
+        })) any = true;
       }
       return any;
     }
-    const branch = peeled.node;
-    // `lookupKey` is the resolved static name (probes the branch for a polyfillable static); `slotKey`
-    // is the synth-literal slot (`[k]` for a computed key) the polyfill is registered + emitted under
+    const branch = undefinedArmEffectiveReceiver({ branch: peeled.node, paramDefaultNode: undefinedArmFallback })
+      ?? peeled.node;
+    // `lookupKey` is the resolved static name (probes the branch for a polyfillable static);
+    // `slotKey` is the shared dedup slot the polyfill is registered + looked up under
     const pure = isViableBranchForKey({ branch, key: lookupKey, scope: peeled.scope, adapter, resolvePure, path: peeled });
     if (!pure) return false;
     // call-branch policy (single fully-polyfilled key + SE rescue) lives in the shared
@@ -552,22 +576,44 @@ export default function createSynthSwapEmitter({
       return receiverRef = collapseProxyGlobalReceiver(readReceiver, { aliasCtx }) ?? readReceiver;
     }
 
-    // the per-property classification lives in the shared `buildFlatSynthEntries`; this loop
-    // only renders the entries as AST. injectPureImport already returns a fresh clone.
-    // an INSTANCE polyfill entry (a typed param-default receiver) binds the method to the
-    // receiver's value: `at: _atMaybeArray(<receiver>)` - the receiver read happens inside the
-    // synth literal, so it only evaluates when the default fires (caller-correct); the shared
-    // registration gate bounds member receivers to a single entry so that read stays single
+    // the per-property classification AND its key spelling live in the shared plan / render
+    // canon; this loop only converts what they decide into babel nodes. injectPureImport
+    // already returns a fresh clone. an INSTANCE polyfill entry (a typed param-default
+    // receiver) binds the method to the receiver's value: `at: _atMaybeArray(<receiver>)` -
+    // the read happens inside the literal, so it only evaluates when the default fires
     const properties = [];
-    for (const { keyNode, computed, seName, polyfill } of entries) {
+    for (const entry of entries) {
+      const { polyfill, wks } = entry;
+      const spelled = synthEntryKey(entry);
+      // a CARRIED source key is already a node of this dialect - clone it; a respelled one is
+      // canonical and converts at the boundary like every other render the canon hands over
+      const key = spelled.fromSource ? t.cloneNode(spelled.key) : estreeToBabel(spelled.key);
+      const { computed } = spelled;
+      // an UNCOVERED `Symbol.iterator` slot reads through the method-lookup helper - the one
+      // spelling both emitters print for that read anywhere else; a raw
+      // `receiver[_Symbol$iterator]` answers undefined off-engine
       const value = polyfill
         ? polyfill.instance
           ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(getReceiverRef())])
           : injectPureImport(polyfill.entry, polyfill.hintName)
-        : seName !== null ? t.memberExpression(t.cloneNode(getReceiverRef()), t.stringLiteral(seName), true)
-        : t.memberExpression(t.cloneNode(getReceiverRef()), t.cloneNode(keyNode), computed);
-      const synthKey = seName !== null ? t.stringLiteral(seName) : t.cloneNode(keyNode);
-      properties.push(t.objectProperty(synthKey, value, computed));
+        : wks === 'iterator'
+          ? t.callExpression(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName),
+            [t.cloneNode(getReceiverRef())])
+          : estreeToBabel(renderSynthSlotRead({
+            base: hostSlot(t.cloneNode(getReceiverRef())),
+            key: spelled.fromSource ? hostSlot(key) : spelled.key,
+            computed,
+            lookupKey: entry.lookupKey,
+          }));
+      let synthKey = key;
+      let synthComputed = computed;
+      // the canon's `__proto__` rule: re-spell as a computed STRING key (a bare
+      // `[__proto__]` would read a binding; a plain `__proto__:` sets the prototype)
+      if (!synthComputed && synthKeyMustBeComputed(synthKey)) {
+        synthKey = t.stringLiteral('__proto__');
+        synthComputed = true;
+      }
+      properties.push(t.objectProperty(synthKey, value, synthComputed));
     }
     return t.objectExpression(properties);
   }
@@ -603,7 +649,11 @@ export default function createSynthSwapEmitter({
         // a call branch with a key left unresolved memoizes the call result through a
         // function-IIFE param: the call runs exactly once (as the argument) and unresolved
         // keys read the memo instead of re-running the call per read
-        const entries = buildFlatSynthEntries(pending.objectPatternNode, pending.polyfills);
+        // the shared render PLAN of the pattern, joined with what each slot resolved to: one entry
+        // per distinct slot, keyed the way both emitters register, so the two renders read one
+        // classification instead of each deriving its own
+        const entries = (buildPatternRenderPlan(pending.objectPatternNode, { scope: path.scope, path, adapter }) ?? [])
+          .map(planEntry => ({ ...planEntry, polyfill: pending.polyfills.get(planEntry.dedupKey) ?? null }));
         const needMemo = pending.callBranch && entries.some(entry => !entry.polyfill);
         // the memo param is minted via the injector's raw name generator: it must NOT enter
         // the DECLARED ref-set (the arrow-param normalize post-pass strips trailing ref-set

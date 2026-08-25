@@ -1,30 +1,15 @@
+import { computedKeyIsWellKnownSymbol } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { computedKeysAllBound } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 // babel-plugin: computed-key synth-swap safety gate. a computed key is safe to mirror into a synth
 // literal (`[k]: _polyfill` / `[k]: receiver[k]`) when it resolves to a STABLE in-scope value: a user
-// local (`const k = 'of'`) or a genuine user import (replayed losslessly as `[X]: receiver[X]`). it is
-// UNSAFE when:
-//   - it has no binding (a bare global like `[Set]`) - emitted raw it ReferenceErrors on the target;
-//     this half is the provider rule (`computedKeysAllBound`) shared with unplugin's gate
-//   - its binding is a polyfill-rewritten well-known symbol. babel mutates `[Symbol.iterator]` to
-//     `[_Symbol$iterator]` (a core-js pure import) BEFORE this gate runs, so it reads as an
-//     Identifier; unplugin's later-ordered claim still sees the original `Symbol.iterator`
-//     MemberExpression and bails via isSynthSimpleObjectPattern. bailing the injected pure-import
-//     reference keeps the two pipelines aligned, while a genuine user import does NOT bail
-// `t` is babel-types (passed in so this stays a pure module-level helper, no factory state).
-// `isInjectedReference(node)` is the injector's node-identity test for a reference IT placed - a
-// rewritten member key, NOT a user binding (a `core-js`-substring path import like `a-core-js-helper`
-// that the old source-string check misread, nor the user's own deduped `@core-js/pure` import that a
-// name-based check would over-bail). node-identity matches exactly what unplugin bails on (the
-// original MemberExpression), so the two pipelines stay aligned
-export function patternComputedKeysSynthSafe(t, objectPatternNode, scope, isInjectedReference) {
-  for (const p of objectPatternNode.properties) {
-    if (!p.computed || !t.isIdentifier(p.key)) continue;
-    // a polyfill-rewritten member key (`[Symbol.iterator]` -> `[_Symbol$iterator]`) - bail to match
-    // unplugin. load-bearing only when the rewrite DEDUPED onto a user's own pre-existing pure
-    // import: a plugin-minted UID is unbound at this point (imports flush at Program exit), so
-    // `computedKeysAllBound` below already declines it
-    if (isInjectedReference(p.key)) return false;
-  }
-  return computedKeysAllBound(objectPatternNode, scope);
+// local (`const k = 'of'`), a genuine user import, or a WELL-KNOWN-SYMBOL key (spelled
+// `[Symbol.iterator]` or through the pure import this emitter already minted for it - the shared
+// fold answers for both spellings, so the two emitters agree however their rewrite order left it).
+// UNSAFE when a computed key has no binding and folds to no symbol: a bare global like `[Set]`
+// ReferenceErrors on the target when emitted raw. that half is the provider rule
+// (`computedKeysAllBound`) shared with unplugin
+export function patternComputedKeysSynthSafe({ objectPatternNode, scope, adapter, path }) {
+  return computedKeysAllBound(objectPatternNode, scope,
+    keyNode => computedKeyIsWellKnownSymbol({ keyNode, scope, adapter, path }));
 }

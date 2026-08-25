@@ -66,7 +66,9 @@ Only that slot fires exactly when no argument is passed, leaving a caller's own 
 - `index.js` - the package entry: the polyfill context and the `resolve` that turns a usage site into a meta from the built-in definitions
 - `detect-usage/`, `detect-syntax.js` - what the source uses; `detect-usage/own-output.js` is the census family recognizing the plugins' OWN prior output (any emitter, any config) so a re-transform never claims a spelling a pass deliberately left - both plugins' dispatchers gate on it ahead of every claim route, and pass-2 idempotence on the generated corpus is its north star
 - `resolve-node-type/`, `resolve-node-type.js` - receiver type resolution. It gates the pure path most visibly, but the global path narrows through it too, so a change here moves both import sets
-- `resolver.js`, `injector-base.js` - the shared injection machinery; `destructure-host-shape.js` classifies destructure hosts into the parser-agnostic booleans both emitters consume
+- `resolver.js`, `injector-base.js` - the shared injection machinery: the injector state both plugins subclass, the flush census over the final tree, pure-import liveness and the canonical slot renumber
+- `render.js` - the render canon's node factory (canonical-ESTree builders, the closed vocabulary the babel converter is total over) and the injected-import render both bindings insert
+- `destructure-host-shape.js` - classifies destructure hosts into the parser-agnostic booleans both emitters consume
 - `plugin-options/` - more than its name suggests: alongside option parsing and validation it holds the `usage-global` dispatcher and the module injectors both plugin entry points call. Plugin options are trusted build configuration, not attacker-controlled input, and generated identifiers all flow through `findUniqueName` under plugin-owned prefixes - the source being transformed cannot steer an emitted name
 - `helpers/` - the cross-emitter canon that must not be forked: AST patterns, class walking, the skip-set subsumption rules, `key in obj` handling, path normalization
 
