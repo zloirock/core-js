@@ -26,6 +26,14 @@ const CASES = [
   ['sealed proto swap probe', 'export const r = (globalThis.window?.self).Map.prototype.has.call(new Map(), 1);'],
   ['delete through probe', 'export const r = delete globalThis.window?.self.customProp;'],
   ['kept assign with seal', 'let d;\nexport const r = (d = globalThis.window?.self).Array;'],
+  // the ALIAS-held claim probe: the render leaves the source read as the non-final element of a
+  // sequence whose tail is the ponyfill (`(held.of, _Array$of)`). the span check that recognises a
+  // render inside one pass cannot see it after a RE-PARSE, so the claim owes a shape-level check -
+  // without it the sequence grows by one copy per pass
+  ['alias-held probe call', 'const held = globalThis.window?.Array;\nexport const r = held.of(1);'],
+  ['alias-held probe read', 'const held = globalThis.window?.Array;\nexport const r = held.from;'],
+  ['alias-held probe through a second alias',
+    'const held = globalThis.window?.Array;\nconst chained = held;\nexport const r = chained.of(4);'],
   // the layer / sequence / chaining families: their renders are built from spans on the text side
   // and folded in place here, so both emitters owe the same fixed point
   ['paren layer over nav', 'globalThis.iBox = { arr: [3, [1, 2]] };\n'

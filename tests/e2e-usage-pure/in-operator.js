@@ -285,6 +285,51 @@ QUnit.test('non-table key on a typed receiver stays a live probe', assert => {
   assert.false('foo' in [1, 2]);
 });
 
+// the fold REPLAYS the receiver call it discards, and only a callee it can reach and prove
+// effect-free folds away. an unreachable callee is unknown, not pure
+QUnit.test('a folded receiver call still runs', assert => {
+  let calls = 0;
+  function impureMk() {
+    calls += 1;
+    return [1];
+  }
+  const box = {
+    make() {
+      calls += 1;
+      return [1];
+    },
+  };
+  function tag() {
+    calls += 1;
+    return [1];
+  }
+  assert.true('flat' in impureMk(), 'the membership answers for the polyfilled world');
+  assert.strictEqual(calls, 1, 'a resolvable impure callee runs');
+  assert.true('flat' in box.make());
+  assert.strictEqual(calls, 2, 'a method callee no resolution reaches runs too');
+  assert.true('flat' in tag`x`);
+  assert.strictEqual(calls, 3, 'a tagged template invokes its tag');
+});
+
+// a BRANCHING operand the fold discards runs exactly as the source wrote it: its effects are
+// conditional, so the constant answer must carry the whole selection ahead of it. erasing the
+// operand ran neither branch
+QUnit.test('a folded logical operand still runs its taken branch', assert => {
+  const log = [];
+  const absent = null;
+  assert.true('flat' in (absent || (log.push('right'), [1])));
+  assert.deepEqual(log, ['right'], 'the falsy left hands the test its right operand, effects included');
+  const present = [2];
+  assert.true('flat' in (present || (log.push('never'), [1])));
+  assert.deepEqual(log, ['right'], 'a truthy left short-circuits the operand exactly as native does');
+});
+
+QUnit.test('a folded conditional operand runs only the taken branch', assert => {
+  const log = [];
+  assert.true('flat' in (log.length ? (log.push('then'), [1]) : (log.push('else'), [2])));
+  assert.deepEqual(log, ['else'], 'the test runs, the taken branch runs, the other does not');
+});
+
 // the RHS of a Symbol.iterator membership is handed to the is-iterable helper as an OPERAND, so a
 // `?.` inside it short-circuits only that operand - the helper still runs and throws on the nullish
 // value, exactly as `in` does. a guard hoisted around the helper would answer undefined instead, and

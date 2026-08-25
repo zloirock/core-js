@@ -17,11 +17,11 @@ import { hasOwnStaticDefinition } from '../index.js';
 // bail when the usage is syntactically present but carries no runtime read - polyfilling
 // would be pure over-injection. covers: plugin's disable marker, TS type-only contexts,
 // and for-x LHS where the MemberExpression targets a local write, not a prototype lookup
-function shouldSkipUsageDispatch(meta, path, isDisabled) {
+function shouldSkipUsageDispatch(meta, path, isDisabled, adapter) {
   if (isDisabled(path.node)) return true;
   if (path?.parentPath?.node?.type === 'TSTypeQuery') return true;
   if (isTSTypeOnlyIdentifierPath(path)) return true;
-  return meta.kind === 'property' && path?.node && isForXWriteTarget(path);
+  return meta.kind === 'property' && path?.node && isForXWriteTarget(path, adapter);
 }
 
 // `super.X(...)` / `this.X(...)` in a static method of `extends KnownGlobal { ... }`:
@@ -40,6 +40,7 @@ function tryResolveSuperStaticMeta({ meta, path, resolveStaticInheritedMember, i
 }
 
 export function createUsageGlobalCallback({
+  adapter = null,
   resolveUsage,
   injectModulesForModeEntry,
   isDisabled,
@@ -95,7 +96,7 @@ export function createUsageGlobalCallback({
   }
 
   function dispatch(meta, path) {
-    if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
+    if (shouldSkipUsageDispatch(meta, path, isDisabled, adapter)) return;
     if (subsumedByOuterMemberRead(meta, path)) return;
     if (meta.kind === 'in') {
       // Symbol-sourced LHS (`Symbol.iterator in obj`) routes through the symbol-in entry table

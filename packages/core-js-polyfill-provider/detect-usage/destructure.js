@@ -73,6 +73,7 @@ import { identifier, memberFromKeyName, objectExpression, synthProperty } from '
 import { entryToGlobalHint, resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
+  peelReceiverSequenceTail,
   discardRescueNodes,
   inlineCallReturnExpression,
   isCallShape,
@@ -520,6 +521,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter, { reso
     const desc = resolveFallbackReceiver(wrapperPath.parentPath, wrapperNode);
     receiverNode = chooseFallbackReceiverNode({
       argNode: desc?.rhsNode, defaultNode: wrapperNode.right, objectPattern, scope: path.scope, adapter, path, resolvePure,
+      argScope: desc?.callPath?.scope ?? path.scope, argPath: desc?.callPath ?? path,
     });
     if (desc?.callPath && receiverNode === desc.rhsNode) {
       receiverScope = desc.callPath.scope;
@@ -611,7 +613,12 @@ function receiverProvablyInstanceFree({ objectNode, scope, adapter, path }) {
   if (!binding || declarator?.type !== 'VariableDeclarator' || declarator.id?.type !== 'Identifier'
     || declarator.id.name !== alias.name) return false;
   const { nodes, complete } = reassignmentValueEnumeration({
-    binding, usagePath: path, name: alias.name, ctx: { scope, adapter, path }, usageNode: alias,
+    binding, usagePath: path, name: alias.name,
+    // the same ctx the sibling enumerations pass: without `resolveKey` an ALIASED computed-key
+    // write (`const KK = "x"; ({ [KK]: O } = { x: Object })`) does not decompose, the enumeration
+    // reports incomplete, and the receiver stops being provably instance-free - over-inject
+    ctx: { scope, adapter, path, resolveKey: sharedResolveKey },
+    usageNode: alias,
   });
   if (!complete) return false;
   const values = declarator.init ? [declarator.init, ...nodes] : nodes;
@@ -769,7 +776,11 @@ export function collectMemberUnionCandidates(options) {
   }
   const keys = reachableAliasValues({
     aliasNode: computedKeyNode, primary: primaryKey, scope, adapter, path,
-    resolve: rhs => sharedResolveKey({ node: rhs, computed: true, scope, adapter, path }),
+    // `usageNode` anchors the reassignment-dominance check on THIS axis too: without it a key
+    // alias resolves its source binding from the binding's own site, so a write that lands AFTER
+    // the key was captured (`if (c) k = base; base = "includes"`) both hides the reachable key
+    // and offers one that never reaches - the object axis has threaded it all along
+    resolve: (rhs, usageNode = null) => sharedResolveKey({ node: rhs, computed: true, scope, adapter, path, usageNode }),
   });
   // a BRANCHING computed key feeds the key axis the way a branching receiver feeds the object
   // axis: `arr[cond ? "flat" : "at"]()` reaches both arm keys at runtime. with no dominating
@@ -822,7 +833,11 @@ export function attachMemberUnionExtras(meta, options) {
 // patterns, array elements - bind from a per-element value, not a reassignable receiver alias,
 // and enumerate keys only); a per-branch fallback meta keeps its own mirror machinery and is
 // excluded here
-export function collectDestructureUnionCandidates({
+// the union in TWO phases, because the meta's instance-free verdict has to reach the PRIMARY
+// dispatch while the enumeration itself must run after it: `prepare` builds the union options and
+// stamps the verdict, `collect` enumerates. the member twin gets the same order for free - its
+// producer dispatches after `attachMemberUnionExtras` has already stamped
+export function prepareDestructureUnion({
   meta, keyNode, computed, scope, adapter, path, resolvePure = null, containerWalkObjects = null,
 }) {
   // a BRANCHING computed key resolves to no single key, so the producers build NO meta at all
@@ -830,12 +845,16 @@ export function collectDestructureUnionCandidates({
   // arm is reachable exactly like the member-call form. synthesize the same null-key typeless
   // carrier the member path rides so the arm keys enumerate as usage-global extras; every
   // other null-meta call stays the no-op it always was
+  // the member twin peels the key's sequence tail before it asks anything - both the carrier gate
+  // below and the key axis read the peeled node, or an SE-wrapped branching key
+  // (`{ [(se(), c ? "flat" : "at")]: f }`) resolves to nothing and not one arm reaches the axis
+  const computedKeyNode = computed ? peelReceiverSequenceTail(keyNode) : null;
   if (!meta && computed && adapter.method === 'usage-global'
-    && getFallbackBranchSlots(unwrapRuntimeExpr(keyNode))) {
+    && getFallbackBranchSlots(unwrapRuntimeExpr(computedKeyNode))) {
     meta = { kind: 'property', object: null, key: null, placement: 'prototype' };
   }
-  if (!meta || meta.kind !== 'property' || meta.fromFallback) return [];
-  if (adapter.method !== 'usage-global') return [];
+  if (!meta || meta.kind !== 'property' || meta.fromFallback) return null;
+  if (adapter.method !== 'usage-global') return null;
   const hostPath = path?.parentPath?.parentPath;
   const host = hostPath?.node;
   let hostInitNode = host?.type === 'VariableDeclarator' ? host.init
@@ -851,6 +870,7 @@ export function collectDestructureUnionCandidates({
     hostInitNode = chooseFallbackReceiverNode({
       argNode: desc?.rhsNode, defaultNode: host.right, objectPattern: path.parentPath?.node,
       scope, adapter, path, resolvePure,
+      argScope: desc?.callPath?.scope ?? scope, argPath: desc?.callPath ?? path,
     });
     // a winning call-arg's reachables resolve at the call site (same shadow hazard as the
     // primary meta's resolution)
@@ -896,7 +916,7 @@ export function collectDestructureUnionCandidates({
   const unionInitNode = hostInitNode ? peelSequenceTail(unwrapRuntimeExpr(hostInitNode)) : hostInitNode;
   const unionOptions = {
     objectNode: unionInitNode,
-    computedKeyNode: computed ? keyNode : null,
+    computedKeyNode,
     primaryObject,
     primaryKey: meta.key,
     scope: unionScope, adapter, path: unionPath,
@@ -906,7 +926,11 @@ export function collectDestructureUnionCandidates({
   const receiverInstanceFree = unionOptions.primaryObject === null
     && receiverProvablyInstanceFree(unionOptions);
   if (receiverInstanceFree) meta.receiverInstanceFree = true;
-  return collectMemberUnionCandidates({ ...unionOptions, receiverInstanceFree });
+  return { ...unionOptions, receiverInstanceFree };
+}
+
+export function collectDestructureUnionCandidates(prepared) {
+  return prepared ? collectMemberUnionCandidates(prepared) : [];
 }
 
 // gate for the "conditional destructure left untouched" warn: it is only meaningful when some branch
@@ -962,22 +986,55 @@ function nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure
 // polyfill and the emitter rescues the call's side effect AHEAD of the literal (`(<call>(), { from: _$ })`)
 // - excluding it MISSED the polyfill on a live, statically-known receiver. an opaque (non-resolvable) call
 // yields nothing and keeps the default. shared by the meta layer + both emitters so detect/emit never disagree
-export function resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
+export function resolvableArgSupersedesDeadDefault({
+  argNode,
+  defaultNode,
+  objectPattern,
+  scope,
+  adapter,
+  path,
+  resolvePure,
+  argScope = scope,
+  argPath = path,
+}) {
   if (!argNode || argNode.type === 'Identifier') return false;
   const keys = destructureStaticKeys(objectPattern);
   if (!keys) return false;
-  function yieldsAny(node) {
-    return keys.some(key => nodeYieldsViablePolyfill({ node, key, scope, adapter, path, resolvePure }));
+  // each side is judged WHERE IT EVALUATES: the default in the invoked function's frame, the arg at
+  // the call site. judging the arg in the frame lets a same-named parameter shadow it into
+  // unresolvable, and the runtime-DEAD default then wins the choice
+  function yieldsAny(node, nodeScope, nodePath) {
+    return keys.some(key => nodeYieldsViablePolyfill({ node, key, scope: nodeScope, adapter, path: nodePath, resolvePure }));
   }
-  return !yieldsAny(defaultNode) && yieldsAny(argNode);
+  return !yieldsAny(defaultNode, scope, path) && yieldsAny(argNode, argScope, argPath);
 }
 
 // the IIFE-param fallback receiver choice, single-sourced across the meta layer and both emitters: a
 // classifiable arg (or per-branch conditional / logical) wins; else a safe-access proxy-global arg wins
 // over a polyfill-DEAD-END default; else the default
-export function chooseFallbackReceiverNode({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure }) {
-  if (isUsableFallbackReceiverArg(argNode, scope, adapter)) return argNode;
-  if (resolvableArgSupersedesDeadDefault({ argNode, defaultNode, objectPattern, scope, adapter, path, resolvePure })) return argNode;
+export function chooseFallbackReceiverNode({
+  argNode,
+  defaultNode,
+  objectPattern,
+  scope,
+  adapter,
+  path,
+  resolvePure,
+  argScope = scope,
+  argPath = path,
+}) {
+  if (isUsableFallbackReceiverArg(argNode, argScope, adapter)) return argNode;
+  if (resolvableArgSupersedesDeadDefault({
+    argNode,
+    defaultNode,
+    objectPattern,
+    scope,
+    adapter,
+    path,
+    resolvePure,
+    argScope,
+    argPath,
+  })) return argNode;
   return defaultNode;
 }
 
@@ -1139,6 +1196,20 @@ export function paramDefaultInstanceSynthAllowed({ objectPatternNode, receiverNo
   if (receiverNode.type === 'ThisExpression') return true;
   if (receiverNode.type === 'Identifier') return !unboundPureGlobal(receiverNode.name);
   if (isConstantLiteralNode(receiverNode)) return true;
+  // a SELECTING receiver (`nul || arr`, `cond ? a : b`) hands the destructure one of its parts, so it
+  // is admissible exactly when EVERY part is - the same question asked of each. a raw global inside
+  // still bails (`cond ? Array.prototype : arr`), a re-referenceable pair still passes, and the
+  // INSTANCE render spells the selection whole because the arm is chosen at runtime
+  if (receiverNode.type === 'LogicalExpression' || receiverNode.type === 'ConditionalExpression') {
+    const parts = receiverNode.type === 'LogicalExpression'
+      ? [receiverNode.left, receiverNode.right]
+      : [receiverNode.test, receiverNode.consequent, receiverNode.alternate];
+    // the parts are peeled the way every other receiver question peels: one parser keeps the source
+    // parens as nodes and the other strips them, and an unpeeled arm answered no on that alone
+    return parts.every(part => paramDefaultInstanceSynthAllowed({
+      objectPatternNode, receiverNode: unwrapRuntimeExpr(part), scope, adapter, path, resolvePure,
+    }));
+  }
   if (receiverNode.type !== 'MemberExpression' && receiverNode.type !== 'OptionalMemberExpression') return false;
   if (objectPatternNode.properties.length !== 1 || mayHaveSideEffects(receiverNode)) return false;
   // walk the chain: literal / plain keys only, Identifier / this root, root not a rewritable global.
@@ -3190,6 +3261,8 @@ export function buildDestructureLeafMeta({ descriptor, key, adapter, resolvePure
         adapter,
         path: pattern,
         resolvePure,
+        argScope: site?.callPath?.scope ?? pattern.scope,
+        argPath: site?.callPath ?? pattern,
       });
       const argWins = argNode !== null && receiverNode === argNode;
       return buildDestructuringInitMeta({

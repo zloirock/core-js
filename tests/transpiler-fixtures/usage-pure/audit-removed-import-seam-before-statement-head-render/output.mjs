@@ -1,6 +1,6 @@
-import "@core-js/pure/modules/es.array.at";
-import "@core-js/pure/modules/es.array.from";
-import "@core-js/pure/modules/es.array.of";
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.of";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";

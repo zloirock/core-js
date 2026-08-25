@@ -30,6 +30,9 @@ export const staticBehindProxyHop = 'from' in globalThis.window?.Array;
 export const staticBehindPlainHop = 'of' in globalThis.Array;
 export const staticBareHost = 'fromAsync' in Array;
 
+// a FOLDED branching operand is replayed WHOLE, never piecewise: its effects are conditional, so
+// re-emitting one side alone would run it unconditionally. `'flat' in (arr || src.slice())` keeps
+// `arr || src.slice()` ahead of the constant - the erased spelling ran neither call
 // the logical operators are NOT symmetric for this question. `&&` yields its LEFT whenever that is
 // falsy, and every falsy value is one `in` throws on - so it can hand `in` a bad operand even when
 // both sides look like arrays. `||` and `??` yield the left only when it is usable, so only their
@@ -59,3 +62,18 @@ export function composedWraps(absent) {
     'flat' in (('at' in (arr?.slice())) ? src.slice() : src),
   ];
 }
+
+// the fold replays CALLS, and what it may erase is decided scope-aware: only a callee it can
+// reach AND prove effect-free folds away. an unreachable callee is UNKNOWN, not pure - a method
+// call, an imported function, a tagged template (whose tag no callee resolution reaches) all keep
+// their evaluation ahead of the constant
+let calls = 0;
+function impureMk() { calls++; return [1]; }
+function pureMk() { return [1]; }
+function tag() { return [1]; }
+const box = { make() { calls++; return [1]; } };
+export const viaImpureCall = 'flat' in impureMk();
+export const viaPureCall = 'flat' in pureMk();
+export const viaMethodCall = 'flat' in box.make();
+export const viaTaggedTemplate = 'flat' in tag`x`;
+export { calls };
