@@ -32,6 +32,24 @@ export function staticMemberFromEntrySegment(constructor, segment) {
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
+// positional recursive walk over a raw AST subtree of EITHER dialect: `visit(node, parent)`
+// per position (a node shared by two parents is visited from each), an explicit `false`
+// return PRUNES the subtree (a type-annotation wall, a span the caller owns). the depth cap
+// protects against pathological nesting (template-literal bombs, parser bug-emitted cycles);
+// the per-node hot path allocates nothing
+export function walkAstNodes({ root, visit, parent = null, depth = 0 }) {
+  (function step(node, parentNode, level) {
+    if (!node || typeof node !== 'object' || typeof node.type !== 'string' || level >= 1024) return;
+    if (visit(node, parentNode) === false) return;
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const value = node[key];
+      if (Array.isArray(value)) for (const item of value) step(item, node, level + 1);
+      else step(value, node, level + 1);
+    }
+  })(root, parent, depth);
+}
+
 // directive-prologue detection ('use strict' etc.). oxc surfaces directives as top-of-body
 // ExpressionStatement nodes with `.directive: string` on the statement; babel lifts real
 // directives into `Program.directives[]` / block `.directives[]`, so a directive that survives
@@ -5302,16 +5320,14 @@ export function objectPatternHasNestedValue(objectPattern) {
 //   covers Identifier, string and NUMERIC spellings alike (`{ 0: x }` and `{ '0': x }` read one slot)
 // - a computed Identifier key (`[k]`) is replayable unless `k` is bound by THIS pattern: the literal
 //   evaluates the key before the pattern binds, so `{ of, [of]: x }` would read the wrong `of`
-// - any other computed key is replayable only once its name folds statically, and then only for the
-//   flavour the caller opted into: `allowLiteralComputedKeys` for an effect-FREE key
-//   (`['from']` / [`from`]), `allowSideEffectComputedKeys` for an effect-bearing one, whose prefix
-//   stays on the pattern and runs once. the per-branch synth path opts in because it has no
-//   body-extract fallback; param-default leaves both off and takes the safe body-extract instead
+// - any other computed key is replayable once its name folds statically: an effect-FREE key
+//   (`['from']` / [`from`]) clones into the literal, an effect-BEARING one mirrors through the
+//   resolved name while its prefix stays on the pattern and runs once
 // - RestElement / SpreadElement have no literal-prop equivalent
 // a NESTED-value prop is owned by the nested mirror and declines here, see above.
-// callers bail to inline-default when this check fails. shared between babel-plugin and unplugin;
-// accepts both Babel `ObjectProperty` and ESTree `Property` node types
-export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputedKeys = false, allowSideEffectComputedKeys = false } = {}) {
+// callers bail to inline-default / native when this check fails. shared between babel-plugin and
+// unplugin; accepts both Babel `ObjectProperty` and ESTree `Property` node types
+export function isSynthSimpleObjectPattern(objectPattern) {
   let bound = null;
   // a NESTED-value prop (`{ Array: { from } }`) belongs to the nested mirror (it replaces the WHOLE
   // receiver); a flat synth-swap here would race it on the same receiver and lose the nested polyfill
@@ -5335,12 +5351,7 @@ export function isSynthSimpleObjectPattern(objectPattern, { allowLiteralComputed
         walkPatternIdentifiers(objectPattern, n => bound.add(n.name));
       }
       if (bound.has(p.key.name)) return false;
-      // a non-Identifier computed key is replayable once its name folds statically: an effect-free
-      // one clones into the literal and evaluates to the same slot, an effect-BEARING one mirrors
-      // through the resolved name while its prefix stays on the pattern and runs once. gate on
-      // whether the key carries an effect, not on which shape produced the name
-    } else if (computedKeyStaticName(p.key) === null
-      || !(mayHaveSideEffects(p.key) ? allowSideEffectComputedKeys : allowLiteralComputedKeys)) {
+    } else if (computedKeyStaticName(p.key) === null && wksComputedKeyName(p.key) === null) {
       return false;
     }
   }
@@ -5366,7 +5377,16 @@ export function plainSynthKeyName(key) {
 export function synthSwapPropKey(prop) {
   if (!prop.computed) return plainSynthKeyName(prop.key);
   if (prop.key.type === 'Identifier') return `[${ prop.key.name }]`;
-  return `[${ JSON.stringify(computedKeyStaticName(prop.key)) }]`;
+  // a direct wks key slots under the `@@` notation - it can never collide with a string
+  // fold (`['Symbol.iterator']` quotes) or a bound-identifier slot (`[k]`)
+  const wks = wksComputedKeyName(prop.key);
+  if (wks !== null) return `[@@${ wks }]`;
+  const staticName = computedKeyStaticName(prop.key);
+  // an UNRESOLVABLE computed key (`[window.k]`) names NO slot: stringifying its null minted
+  // a "[null]" sentinel that read as a bound-identifier slot downstream (admitting the key
+  // into a synth literal, where later-key-wins let the raw read overwrite a polyfilled
+  // sibling and the key evaluated twice) - and collided across DIFFERENT unresolvable keys
+  return staticName === null ? null : `[${ JSON.stringify(staticName) }]`;
 }
 
 // the SLOT a pattern property names, for synth purposes; null when nothing static resolves. ONE fold
@@ -5383,56 +5403,104 @@ function isComputedIdentifierKey(prop) {
   return !!prop.computed && prop.key?.type === 'Identifier';
 }
 
+// a WELL-KNOWN-SYMBOL computed key spelled directly (`[Symbol.iterator]`): the shape alone -
+// scope-aware routes still gate on the fold / the Symbol static resolving, and a shadowed
+// `Symbol` never registers, so a shape-keyed lookup can only MISS, never mis-substitute
+export function wksComputedKeyName(keyNode) {
+  return keyNode?.type === 'MemberExpression' && !keyNode.computed && !keyNode.optional
+    && keyNode.object?.type === 'Identifier' && keyNode.object.name === 'Symbol'
+    && keyNode.property?.type === 'Identifier' ? keyNode.property.name : null;
+}
+
 // a synth-literal builder can replay a property whose key resolves to a static slot - a plain
 // Identifier / string / numeric key, or a computed key the folder reduces to a name. anything else
 // (dynamic / side-effecting computed key) is skipped. shared so both emitters apply the same rule
 export function isReplayableSynthKey(prop) {
-  return isComputedIdentifierKey(prop) || synthSlotName(prop) !== null;
+  return isComputedIdentifierKey(prop) || synthSlotName(prop) !== null
+    || (!!prop.computed && wksComputedKeyName(prop.key) !== null);
 }
 
-// per-property CONTENT plan for a synthesized receiver literal - the single classification both
-// emitters render as their receiver literal. serves the flat
-// param-default synth swap AND the per-branch conditional / logical synth: both families
-// register into the same accumulator and flow through this builder. per entry:
-//   keyNode  - the original pattern key node
-//   computed - render the key / receiver read as computed `[k]` (false for SE keys)
-//   seName   - static name of a side-effecting sequence key, null otherwise. the key mirrors
-//              as the PLAIN string name and an unpolyfilled value reads `R["name"]` - the
-//              prefix effects stay on the pattern key and run exactly once at destructure
-//   polyfill - the accumulator's queued value when the key resolved (emitter-opaque:
-//              babel queues { entry, hintName }, unplugin the injected binding name),
-//              null -> re-read through the receiver
-export function buildFlatSynthEntries(objectPatternNode, polyfills) {
-  const entries = [];
-  // props naming the SAME slot collapse to one entry: the literal may hold a key once (twice is an
-  // ES5 strict-mode syntax error), and every pattern read of that slot destructures the same value
-  const bySlot = new Map();
-  for (const prop of objectPatternNode.properties) {
-    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-    const computedIdentifier = isComputedIdentifierKey(prop);
-    // an Identifier computed key names no statically known slot, so it can never be collapsed
-    const slot = synthSlotName(prop);
-    if (slot === null && !computedIdentifier) continue;
-    // a key replays THROUGH its resolved NAME (the literal spells it as a string, the passthrough
-    // reads it computed) exactly when it cannot be CLONED into the literal: an effect-bearing
-    // computed key would run its effect a second time, and a plain string / numeric key carries no
-    // Identifier to clone into either slot. an effect-free key clones and names the same slot
-    const cloneable = computedIdentifier
-      || (prop.computed ? !mayHaveSideEffects(prop.key) : prop.key?.type === 'Identifier');
-    const seName = cloneable ? null : slot;
-    const polyfill = polyfills.get(synthSwapPropKey(prop)) ?? null;
-    const kept = slot === null ? undefined : bySlot.get(slot);
-    if (kept) {
-      // whichever occurrence resolved wins: the others read the same slot either way, and a
-      // passthrough kept over a polyfill would silently drop the import
-      if (kept.polyfill === null) kept.polyfill = polyfill;
-      continue;
+// an extraction hoisted AHEAD of an array-wrapped declaration reads its property before the
+// declaration runs - but native evaluates EVERY element of the array literal first, and only
+// then reads anything off one of them. an effect-bearing NEIGHBOUR therefore pins the order
+// (runtime-checked: native `g() | read at`, hoisted `read at | g()`), and the claim stays
+// native. `index` is the slot the consumed pattern sits in; a non-literal init pins nothing
+export function arrayWrapperNeighbourEffect(initNode, index) {
+  return initNode?.type === 'ArrayExpression'
+    && initNode.elements.some((item, at) => at !== index && mayHaveSideEffects(item));
+}
+
+// does the (post-rename) pattern still spell a computed key with an effect?
+export function patternKeepsEffectfulKey(patternNode) {
+  let kept = false;
+  walkAstNodes({
+    root: patternNode,
+    visit(item) {
+      // both dialects: babel spells the prop `ObjectProperty`, estree `Property`
+      if ((item?.type === 'Property' || item?.type === 'ObjectProperty')
+        && item.computed && computedKeyHasSideEffects(item)) kept = true;
+    },
+  });
+  return kept;
+}
+
+// a SPREAD makes every position PAST it a POSSIBLE one, never a certain one - the slot may
+// hold any of the spread's own items, and a substituted binding would compute the wrong
+// value. a slot strictly BEFORE it still pairs exactly
+// an array-wrapper residual still COERCES every element pattern it holds - `const [{}] = [x]` throws
+// on a nullish `x` - so the wrapper may only drop when each element is a HOLE (which coerces nothing)
+// or one this pipeline emptied: there the extraction that emptied it performs the same coercion,
+// in the same place. a rest element is neither, and keeps the wrapper by itself
+export function arrayWrapperResidualDroppable(pattern, emptied) {
+  return pattern?.type === 'ArrayPattern' && pattern.elements.length > 0
+    && pattern.elements.every(element => element === null || wrapperElementClaimed(element, emptied));
+}
+
+function wrapperElementClaimed(element, emptied) {
+  // an element DEFAULT is transparent to the claim - what got claimed is the pattern under it
+  let node = element;
+  while (node && !emptied.has(node) && node.type === 'AssignmentPattern') node = node.left;
+  // a wrapper CHAIN coerces once per level, and the extraction repeats every level it descended,
+  // so an inner wrapper leaves exactly when its own elements may
+  return emptied.has(node) || arrayWrapperResidualDroppable(node, emptied);
+}
+
+export function spreadShiftsIndex(elements, index) {
+  const spreadAt = elements.findIndex(item => item?.type === 'SpreadElement');
+  return spreadAt !== -1 && index >= spreadAt;
+}
+
+// does anything in this pattern still bind a REAL name, or is every leaf a minted sentinel?
+// the whole-consume drop asks it before removing the declarator
+export function hasRealBinding(root, sentinelNames) {
+  const queue = [root];
+  while (queue.length) {
+    const node = queue.pop();
+    if (!node || typeof node !== 'object' || !node.type) continue;
+    switch (node.type) {
+      case 'Identifier':
+        if (!sentinelNames.has(node.name)) return true;
+        break;
+      case 'ObjectPattern':
+        // both dialects reach this walk: babel spells a destructure prop `ObjectProperty`,
+        // estree `Property`; a rest element pushes itself and unwraps below
+        for (const item of node.properties) {
+          queue.push(item.type === 'Property' || item.type === 'ObjectProperty' ? item.value : item);
+        }
+        break;
+      case 'ArrayPattern':
+        queue.push(...node.elements.filter(Boolean));
+        break;
+      case 'AssignmentPattern':
+        queue.push(node.left);
+        break;
+      case 'RestElement':
+        queue.push(node.argument);
+        break;
+      default:
     }
-    const entry = { keyNode: prop.key, computed: prop.computed && seName === null, seName, polyfill };
-    if (slot !== null) bySlot.set(slot, entry);
-    entries.push(entry);
   }
-  return entries;
+  return false;
 }
 
 // computed-key synth-swap safety: a bare-global computed key (`[Set]` with no in-scope binding) gets
@@ -5441,9 +5509,12 @@ export function buildFlatSynthEntries(objectPatternNode, polyfills) {
 // synth-swap-safe - callers bail (param-default -> body-extract). user-local / imported computed keys
 // have a binding and replay safely as `[k]: receiver[k]`. takes `scope` so it cannot fold into the
 // purely-structural `isSynthSimpleObjectPattern`. `scope.getBinding` is common to babel + estree scopes
-export function computedKeysAllBound(objectPattern, scope) {
+// `exempt(keyNode)`: a key the CALLER vouches for despite no scope binding yet - babel's
+// injected pure-symbol keys bind at the Program-exit flush, after this gate runs
+export function computedKeysAllBound(objectPattern, scope, exempt = null) {
   for (const p of objectPattern.properties) {
-    if (p.computed && p.key?.type === 'Identifier' && !scope.getBinding(p.key.name)) return false;
+    if (p.computed && p.key?.type === 'Identifier' && !scope.getBinding(p.key.name)
+      && !exempt?.(p.key)) return false;
   }
   return true;
 }

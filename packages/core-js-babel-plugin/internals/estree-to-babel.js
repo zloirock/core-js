@@ -1,3 +1,4 @@
+import { HOST_SLOT } from '@core-js/polyfill-provider/render';
 // the binding-side converter of the render canon: canonical ESTree nodes (the closed
 // builder vocabulary of the core's emission) become babel nodes at the insertion boundary.
 // TOTAL over that vocabulary and defined on nothing else - an unknown node type THROWS,
@@ -21,9 +22,9 @@
 // - `loc`/`start`/`end`/`range` are copied verbatim when present (relocation accuracy);
 //   comment arrays convert `Line`/`Block` to `CommentLine`/`CommentBlock`
 //
-// embedded HOST subtrees (a cloned babel node inside a canonical shell) are NOT handled
-// yet: the current vocabulary mints every leaf itself. The first unification cluster that
-// embeds host nodes grows the contract here, in the same change as its converter lock.
+// embedded HOST subtrees ride `CoreJsHostSlot` wrappers (the render canon's `hostSlot`):
+// the converter unwraps the slot and passes the babel subtree through UNCONVERTED - the
+// wrapper never survives into an inserted tree.
 
 const COMMENT_TYPES = { Line: 'CommentLine', Block: 'CommentBlock' };
 
@@ -128,6 +129,9 @@ function convertChainLink(node) {
 
 function build(node) {
   switch (node?.type) {
+    // an embedded HOST subtree: already babel dialect - unwrap the slot, convert nothing
+    case HOST_SLOT:
+      return node.node;
     case 'Identifier':
       return { type: 'Identifier', name: node.name };
     case 'Literal':

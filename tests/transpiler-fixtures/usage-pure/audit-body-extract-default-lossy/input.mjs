@@ -1,7 +1,9 @@
-// computed-key sibling forces body-extract instead of pattern reshape. all four binding shapes
-// (shorthand / aliased, with and without default) extract uniformly; user-written defaults are
-// intentionally dropped since the polyfill binding is always defined. these functions are
-// EXPORTED so callers are invisible: params stay VERBATIM, body-extract proven by the iife twin.
+// a wks-key sibling joins the DEFAULT synth: the literal replaces the param default whole
+// (`= { from: _Array$from, [_Symbol$iterator]: _getIteratorMethod(Array) }`), caller-correct
+// by construction - it evaluates only when the caller omits the argument, so EXPORTED
+// functions with invisible callers qualify too. all four binding shapes reshape uniformly;
+// a user-written leaf default stays in the pattern (dead when the synth default fires,
+// exactly as native leaves it dead when the ctor carries the static)
 function f({ from = [], [Symbol.iterator]: it } = Array) {
   return [from([1]), it];
 }
