@@ -157,6 +157,11 @@ export default function createAstUsagePureCallback({
   // `replaceInstanceLike` keys on this set
   const guardCommaMemos = new WeakSet();
   const resolvedClaimNodes = new WeakSet();
+  // a consumer whose ctor-FALLBACK swap staged renders nothing at all, so a claim below it may
+  // not stand down for it: over a proxy-rooted nav the collapse family is otherwise assumed to
+  // own the whole read, and the assumption ships the ctor raw when the swap has no slot for
+  // what the receiver buries (`(v = gw.window?.self)?.Promise.noSuchStatic`)
+  const stagedFallbackHosts = new WeakSet();
   // the VALUE a guard memo holds - a claim rendering inside one is not in a SOURCE value
   // position (the memo re-reads it), so an alias root stays spelled
   const memoValueClones = new WeakSet();
@@ -251,6 +256,7 @@ export default function createAstUsagePureCallback({
     resolveGlobalPolyfill,
     resolvePure,
     resolvedClaimNodes,
+    stagedFallbackHosts,
     seKeyReadCtx,
     sealedProbeCtx,
     skippedNodes,
@@ -392,7 +398,8 @@ export default function createAstUsagePureCallback({
       aliasCtx: { scope: metaPath.scope, adapter, path: metaPath },
       throughChainAssign: true, resolvePure: m => resolvePure(m, metaPath),
     });
-    const rendered = proxyPlan?.kind === 'collapse' ? renderProxyReceiverPlan(proxyPlan, injectPureImport) : null;
+    const rendered = proxyPlan?.kind === 'collapse'
+      ? renderProxyReceiverPlan(proxyPlan, { injectImport: injectPureImport }) : null;
     if (!rendered) return;
     let base = rendered.object;
     if (proxyPlan.keyPrefixSE?.length) {
@@ -669,9 +676,8 @@ export default function createAstUsagePureCallback({
     // dispatch instead of staying raw (`({ Map: M } = globalThis); M = user; M.at(0)`)
     if (meta.guardedAliasHint && !(node.type === 'MemberExpression' && meta.placement === 'prototype')) return;
     // OUR rest sentinel from a prior pass never re-routes - ahead of every claim route
-    if ((node.type === 'Property' && (destructureEmit.sentinelAlreadyProcessed({
-      metaPath, meta, symbolIterator: isSourcedSymbolIteratorMeta(meta),
-    }) || destructureEmit.overwriteRebindEmitted({ metaPath }))) || earlyStagedBail(meta, metaPath)) return;
+    if ((node.type === 'Property' && (destructureEmit.sentinelAlreadyProcessed({ metaPath, meta })
+      || destructureEmit.overwriteRebindEmitted({ metaPath }))) || earlyStagedBail(meta, metaPath)) return;
 
     if (meta.kind === 'property') {
       if (node.type === 'Property') {
@@ -800,13 +806,17 @@ export default function createAstUsagePureCallback({
     }
     // static-FALLBACK swap: a member that is NOT itself polyfilled but whose receiver
     // resolves to a pure ctor (`Promise.noSuchStatic` -> `_Promise.noSuchStatic`).
-    // the guarded/prototype/SE-bearing shapes are staged - raw source stays there
-    if (fallback && node.type === 'MemberExpression'
-      && node.object?.type !== 'Super' && meta.placement !== 'prototype'
-      && !meta.sideEffects?.length && !meta.receiverEffectCount
-      // the object swap ERASES the receiver spelling - an observable buried in it (a
-      // chain-assignment, an SE-bearing root call) has no slot in this shape yet: staged
-      && !discardRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath }).length) {
+    // the prototype shape is out of the family; the SE-bearing and observable-burying ones are
+    // STAGED - raw source stays there, and the staging is recorded because a claim below reads
+    // this consumer's fate to decide whether it owns its own render
+    const fallbackSwappable = !!fallback && node.type === 'MemberExpression'
+      && node.object?.type !== 'Super' && meta.placement !== 'prototype';
+    // the object swap ERASES the receiver spelling - an observable buried in it (a
+    // chain-assignment, an SE-bearing root call) has no slot in this shape yet
+    const fallbackStaged = fallbackSwappable && (!!meta.sideEffects?.length || !!meta.receiverEffectCount
+      || discardRescueNodes({ node: node.object, scope: metaPath.scope, adapter, path: metaPath }).length > 0);
+    if (fallbackStaged) stagedFallbackHosts.add(node);
+    if (fallbackSwappable && !fallbackStaged) {
       const id = injectPureImport(fallback.entry, fallback.hintName);
       // a LIVE `?.` over an undefinable probe keeps its guard, the fallback riding the
       // alternate (`...window?.self?.Promise.noSuchStatic` -> `null == _globalThis.window

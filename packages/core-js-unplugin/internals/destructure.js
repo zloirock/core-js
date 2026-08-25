@@ -100,7 +100,6 @@ import {
   resolveArrayWrappedReceiver,
   routeSelectionMirror,
   seLiftedHopNav,
-  sentinelAlreadyProcessed,
   sinkDropsReceiver,
   staticallySelectedLeft,
   swapInlineDefaults,
@@ -108,6 +107,7 @@ import {
   takesInlineDefault,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
+import { sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
 import createDestructureDrains from './destructure-drain.js';
 
 export default function createAstDestructureEmitter({
@@ -2045,7 +2045,9 @@ export default function createAstDestructureEmitter({
     handleObjectPropertyResult,
     handlePerBranch,
     drain,
-    sentinelAlreadyProcessed: args => sentinelAlreadyProcessed({ ...args, injectorState }),
+    sentinelAlreadyProcessed({ metaPath, meta }) {
+      return sentinelAlreadyProcessed(metaPath, { node: metaPath.node, meta, injector: injectorState });
+    },
     overwriteRebindEmitted: args => overwriteRebindEmitted({ ...args, injectorState }),
     warnConditionalFallbackUntouched(meta, metaPath) {
       warnConditionalFallbackUntouched(meta, metaPath, { getDebugOutput, adapter, resolvePure });

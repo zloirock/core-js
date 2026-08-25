@@ -1,8 +1,8 @@
 // nested-destructure flatten DECISION layer, shared by both emitters: classify every outer
 // prop of a flatten-eligible declarator (proxy-global / bare-constructor / static-object
-// receiver) into a parser-agnostic plan tree. emitters RENDER the tree (babel as AST
-// mutation, unplugin as text) - key / source text, sentinel names, import bindings and
-// rebuilt-text offsets are render concerns and stay out of the tree. plan node kinds:
+// receiver) into a parser-agnostic plan tree. both bindings RENDER the tree into their own
+// dialect - keys, sentinel names and import bindings are render concerns and stay out of it.
+// plan node kinds:
 //   - { kind: 'verbatim', prop }               keep the prop untouched (residual)
 //   - { kind: 'consumed', prop, extractions }  drop the prop, bind extractions instead
 //     (under a rest sibling the renderer keeps a `key: <throwaway>` sentinel so rest
@@ -17,6 +17,7 @@
 // a 'rebuilt' node's `extractions` already aggregates its children's - consumers read
 // extractions at the OUTER level only and use child lists for residual rendering
 import {
+  catchPropRewriteObservable,
   isChainAssignment,
   isRestProperty,
   mayHaveSideEffects,
@@ -30,6 +31,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
 } from '../helpers/ast-patterns.js';
 import { resolve as resolveBuiltIn } from '../index.js';
+import { computedPropKeyHostsMachinery } from './members.js';
 import {
   chainSealsAShortCircuit, discardRescueNodes, isStaticPlacement, isUndefinedNode,
   proxyReceiverValueCanBeUndefined, resolveKey as sharedResolveKey, resolveObjectName,
@@ -752,4 +754,38 @@ export function buildNestedDestructurePlan({
   }
   planCache.set(declarator, plan);
   return plan;
+}
+
+// --- catch-clause relocation ---
+
+// whether `catch ({ pattern })` has to become `catch (_ref) { let { pattern } = _ref;` - the
+// receiver a key lookup and a defaulted key both rewrite against. the answer is per PATTERN
+// but composed of per-prop ones: a computed key hosting machinery forces the relocation on
+// its own, and a plainly-resolvable key earns it only where the body actually READS what it
+// binds - an unread one would buy an import plus a dead dispatcher call for nothing. those
+// unread props come back so the caller can skip them, keeping them native reads in the
+// residual. shallow by design: a nested pattern without outer-level machinery destructures
+// in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern
+// is out of the family entirely - its bindings are positional, so there is no key to rewrite
+// against a named receiver and the relocation would be pure overhead
+export function planCatchClauseExtraction({ paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode }) {
+  if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length) return null;
+  const resolvableProps = paramNode.properties.filter(prop => {
+    if (!isPropertyNode(prop) || prop.computed) return false;
+    const key = prop.key?.name ?? prop.key?.value ?? null;
+    return key !== null && !!resolvePure({ kind: 'property', object: null, key, placement: null });
+  });
+  const hasMachinery = paramNode.properties.some(prop => computedPropKeyHostsMachinery({
+    propNode: prop, scope, adapter, path, resolvePure,
+  }));
+  if (!hasMachinery && !resolvableProps.length) return null;
+  const unobservable = resolvableProps.filter(prop => !catchPropRewriteObservable({
+    propNode: prop,
+    patternNode: paramNode,
+    bodyNode,
+    localName: prop.value?.type === 'Identifier' ? prop.value.name : null,
+    walkNode,
+  }));
+  if (!hasMachinery && unobservable.length === resolvableProps.length) return null;
+  return { unobservable };
 }
