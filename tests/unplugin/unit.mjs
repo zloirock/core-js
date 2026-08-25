@@ -2633,9 +2633,9 @@ function checkChunkLoaderBundler() {
 checkChunkLoaderBundler();
 
 // --- stripLeadingBOMs ---
-// oxc rejects BOM-prefixed shebangs; the plugin strips ALL leading U+FEFF before parsing
-// and re-prepends a single one to the final output. multi-BOM survives malformed source
-// or a sibling plugin's per-pass re-prepend stacking on top of ours
+// oxc rejects BOM-prefixed shebangs; the plugin strips ALL leading U+FEFF before parsing and
+// the output carries none back (babel alignment) - only `sourcesContent` keeps the original
+// bytes. multi-BOM survives malformed source or a sibling plugin's per-pass prepend on top of ours
 function checkStripLeadingBOMs() {
   // no BOM: returns same instance (cheap fast path)
   const plain = 'export var x = 1;';
