@@ -1,7 +1,6 @@
 import { print } from 'esrap';
 import ts, { EXPRESSIONS_PRECEDENCE } from 'esrap/languages/ts';
 import tsx from 'esrap/languages/tsx';
-import { decode, encode } from '@jridgewell/sourcemap-codec';
 import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { buildOffsetToLoc } from '@core-js/polyfill-provider/helpers/source-scan';
 
@@ -14,8 +13,8 @@ EXPRESSIONS_PRECEDENCE.TSNonNullExpression = EXPRESSIONS_PRECEDENCE.MemberExpres
 // the esrap printer adapter: oxc-parser hands out offsets, esrap attaches comments and
 // emits sourcemap segments by `loc` - this module synthesizes the locs and owns the
 // esrap-facing quirks (hashbang, EOF flush strictness, map field contract). the caller
-// passes BOM-free source - the plugin strips the BOM before parsing and re-prepends it
-// on the finished output, and the fixture/roundtrip runners mirror that
+// passes BOM-free source - the plugin strips the BOM before parsing, and the output stays
+// BOM-free (babel alignment; `sourcesContent` alone keeps the original bytes)
 
 // the parse keeps `preserveParens` for detection, but the PRINT normalizes parens to the
 // minimal structural set, exactly like the babel leg: esrap re-derives every required paren
@@ -287,15 +286,6 @@ function synthesizeLocs(program, comments, source) {
     comments: comments.map(comment => ({ ...comment, loc: { start: locate(comment.start), end: locate(comment.end) } })),
     hasChainExpression,
   };
-}
-
-// re-prepending a stripped BOM shifts every generated column on the FIRST output line by
-// one char while deeper lines stay put - the deltas are VLQ, so decode/patch/encode rather
-// than string surgery
-export function shiftFirstLineColumns(map, delta) {
-  const decoded = decode(map.mappings);
-  if (decoded[0]) for (const segment of decoded[0]) segment[0] += delta;
-  map.mappings = encode(decoded);
 }
 
 // print a parsed program back to source. `jsx` picks the tsx language - the caller owns

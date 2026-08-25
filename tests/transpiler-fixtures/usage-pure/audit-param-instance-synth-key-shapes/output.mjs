@@ -18,7 +18,7 @@ const identifierKey = function ({
 const stringKey = function ({
   'flat': f
 } = {
-  "flat": _flatMaybeArray([1, 2])
+  'flat': _flatMaybeArray([1, 2])
 }) {
   return f;
 }();

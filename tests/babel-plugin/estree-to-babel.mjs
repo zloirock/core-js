@@ -35,7 +35,9 @@ import {
   variableDeclarator,
   varRequire,
   voidZero,
-} from '../../packages/core-js-unplugin/internals/builders.js';
+  hostSlot,
+  renderInstanceDefaultGuard,
+} from '../../packages/core-js-polyfill-provider/render.js';
 import { createChecker } from '../polyfill-provider/harness.mjs';
 
 const generate = generateModule.default ?? generateModule;
@@ -149,6 +151,27 @@ const sealed = memberExpression(
   identifier('c'));
 check('chain/seal boundary spelling', print(sealed), '(a?.b).c');
 check('chain/seal boundary types', estreeToBabel(sealed).type, 'MemberExpression');
+
+// --- host slots: an embedded babel subtree passes through UNCONVERTED ---
+{
+  // identity: the slot unwraps to the very node, undescended - a babel-only inner type
+  // (ArrowFunctionExpression is outside the vocabulary) proves the converter never walked in
+  const hostNode = { type: 'ArrowFunctionExpression', params: [], body: { type: 'Identifier', name: 'x' } };
+  checkTruthy('host-slot/unwraps to the very node', estreeToBabel(hostSlot(hostNode)) === hostNode);
+  const shell = callExpression(identifier('f'), [hostSlot(hostNode)]);
+  checkTruthy('host-slot/inside a canonical shell passes through by identity',
+    estreeToBabel(shell).arguments[0] === hostNode);
+  // the one guard shape both legs print, host operands embedded
+  const ref = { type: 'Identifier', name: '_ref' };
+  const guard = renderInstanceDefaultGuard({
+    assignedRef: hostSlot(ref),
+    call: hostSlot({ type: 'CallExpression', callee: { type: 'Identifier', name: '_at' }, arguments: [] }),
+    defaultValue: hostSlot({ type: 'ObjectExpression', properties: [] }),
+    reread: hostSlot(ref),
+  });
+  check('host-slot/instance default guard prints the canonical spelling',
+    generate(estreeToBabel(guard)).code, '(_ref = _at()) === void 0 ? {} : _ref');
+}
 
 // --- totality: outside the vocabulary or misminted = loud throw, never a wrong print ---
 checkTruthy('totality/unknown type throws', caught({ type: 'ArrowFunctionExpression' })?.includes('outside the canonical vocabulary'));
