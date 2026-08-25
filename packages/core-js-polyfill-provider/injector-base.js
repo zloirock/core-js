@@ -1,6 +1,20 @@
 import { entryToGlobalHint } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
-import { isCleanDestructureAliasBinding, isGuardedAliasingWrite, isVarScopeBoundary } from './helpers/ast-patterns.js';
+import {
+  blocksUidSlot,
+  isCleanDestructureAliasBinding,
+  isGuardedAliasingWrite,
+  isNonReferencePosition,
+  isNullLiteralNode,
+  isRequireCall,
+  isTypeAnnotationWrapper,
+  isVarScopeBoundary,
+  memberKeyName,
+  memberKeyNamesReducer,
+  staticMemberFromEntrySegment,
+  unwrapRuntimeExpr,
+  walkAstNodes,
+} from './helpers/ast-patterns.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
@@ -22,6 +36,24 @@ export const ORPHAN_REF_PATTERN = new RegExp(`^_ref(?<suffix>${ REF_SLOT_SUFFIX_
 // grammar and safe-integer cap as ORPHAN_REF_PATTERN - shared by the post-pass adoption
 // that re-recognizes pre's rest-destructure sentinels when the state snapshot was lost
 export const UNUSED_NAME_PATTERN = new RegExp(`^_unused(?<suffix>${ REF_SLOT_SUFFIX_SOURCE })?$`);
+
+// --- canonical generated-name numbering (shared by both emitters' final renumber passes) ---
+// the generator families the canonicalization renumbers, each with its whole-string pattern:
+// `_refN` memo slots and `_unusedN` rest-destructure sentinels. slot naming matches
+// `uniqueName` allocation: slot 1 is the bare prefix, slot 2+ is `<prefix>2, <prefix>3, ...`
+// (skip-1 per babel convention)
+const GENERATED_NAME_FAMILIES = new Map([
+  ['_ref', ORPHAN_REF_PATTERN],
+  ['_unused', UNUSED_NAME_PATTERN],
+]);
+const CANONICAL_REF_PREFIXES = GENERATED_NAME_FAMILIES.keys().toArray();
+
+// generator-shaped in ANY family - the census' foreign-name gate asks this instead of
+// re-spelling the pattern pair
+function isGeneratedSlotShapedName(name) {
+  for (const pattern of GENERATED_NAME_FAMILIES.values()) if (pattern.test(name)) return true;
+  return false;
+}
 
 // returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
 // `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.
@@ -94,8 +126,14 @@ export default class ImportInjectorState {
   pureImports = new Map(); // `${mode}/${entry}` -> binding name
   existingPureImports = new Map();
   usedNames = new Set();
-  // post-pass dead-import filter - null when inactive
-  referencedInSource = null;
+  // names whose `var <name>;` declaration this injector owes or has adopted - the declared
+  // `_ref` subset of the slot space; each emitter's flush/prune reads and maintains it
+  declaredRefNames = new Set();
+  // every generated slot-family name (prefix -> Set): `_refN` slots (declared AND local)
+  // plus `_unusedN` rest sentinels - the whole slot space the print-order canonicalization
+  // renumbers from. adopted names stay out (their spellings live in a previous pass's text,
+  // out of rename reach)
+  #generatedByPrefix = new Map(CANONICAL_REF_PREFIXES.map(prefix => [prefix, new Set()]));
   // binding-name -> { source, hint } for BOTH plugin-emitted and user-registered pure
   // imports. `source` is `${mode}/${entry}` (used by `getBinding` adapter to detect
   // Symbol.X polyfills via source-path); `hint` is the global class name so
@@ -116,16 +154,8 @@ export default class ImportInjectorState {
 
   addPureImport(entry, hint) {
     const source = `${ this.mode }/${ entry }`;
-    // mark name so `flush()`'s post-pass dead-import filter keeps it even when the
-    // generated identifier never appeared in source (sibling-injected usage between
-    // pre and post). no-op when tracking isn't enabled. called on every entry - including
-    // dedup hits - so the hint survives even when the first registration was before
-    // reference-tracking was enabled (post-pass inherit case)
     const existing = this.existingPureImports.get(source) ?? this.pureImports.get(source);
-    if (existing) {
-      this.trackReferencedName(existing);
-      return existing;
-    }
+    if (existing) return existing;
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
     // store `entry` alongside hint - downstream type resolution (`resolveCallReturnType`'s
@@ -133,7 +163,6 @@ export default class ImportInjectorState {
     // of reverse-engineering the UID hint shape, so changing the UID convention can't
     // silently break receiver-type narrowing through alias chains
     this.#importInfoByName.set(name, { source, hint, entry });
-    this.trackReferencedName(name);
     return name;
   }
 
@@ -193,9 +222,14 @@ export default class ImportInjectorState {
     return best;
   }
 
-  registerUserPureImport(entry, name) {
-    const source = `${ this.mode }/${ entry }`;
+  registerUserPureImport(entry, name, { reassigned = false } = {}) {
     this.usedNames.add(name);
+    // a REASSIGNED user binding (`var _from = require(...); _from = other;`) is poisoned:
+    // deduping onto it would substitute a value that is no longer the polyfill, and an info
+    // record would mislead the same narrowing - the name only reserves its spelling, and the
+    // plugin mints its own import for the entry
+    if (reassigned) return;
+    const source = `${ this.mode }/${ entry }`;
     // first-write-wins on existingPureImports - keeps dedup target stable when one
     // declaration mixes `import Def, { default as Alt }`. without it last-write-wins
     // would pick the alias as dedup target, asymmetric with `#importInfoByName` (also
@@ -489,14 +523,6 @@ export default class ImportInjectorState {
     }
   }
 
-  enableReferenceTracking() {
-    this.referencedInSource = new Set();
-  }
-
-  trackReferencedName(name) {
-    this.referencedInSource?.add(name);
-  }
-
   // per-prefix next-slot cache: O(1) amortized over repeated allocations. without it,
   // N user-taken `_hintN` names would force every new allocation to re-probe all N
   #nextSuffixByPrefix = new Map();
@@ -539,10 +565,14 @@ export default class ImportInjectorState {
   // regresses in post because `addPureImport` early-returns on existing entry before writing
   // into `#importInfoByName`
   captureImportInfoByName() {
-    // sibling lists are mutable - clone them so post-phase appends don't alias pre's capture
-    return new Map([...this.#importInfoByName].map(([name, info]) => [
-      name, info.siblings ? { ...info, siblings: [...info.siblings] } : info,
-    ]));
+    // the RECORDS are mutable, not only the sibling lists (`#recordImportInfo` pushes into an
+    // existing record) - clone each record and its siblings so post-phase writes never reach
+    // back into pre's capture
+    return new Map([...this.#importInfoByName].map(([name, info]) => {
+      const record = { ...info };
+      if (record.siblings) record.siblings = record.siblings.map(sibling => ({ ...sibling }));
+      return [name, record];
+    }));
   }
   rehydrateImportInfoByName(captured) {
     if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
@@ -592,14 +622,58 @@ export default class ImportInjectorState {
 
   // `_ref, _ref2, _ref3, ...`. `extraCheck` covers bindings the injector doesn't track
   // (e.g. caller's inner scope)
-  generateRefName(extraCheck) { return this.#recordOwnPassName(this.uniqueName('_ref', extraCheck)); }
+  generateRefName(extraCheck) {
+    const name = this.#recordOwnPassName(this.uniqueName('_ref', extraCheck));
+    this.#generatedByPrefix.get('_ref').add(name);
+    return name;
+  }
 
   // `_unused, _unused2, _unused3, ...` sentinels for rest-destructure rebuild
-  // (`{ polyKey: _unused, ...rest } = obj`). subclass may override to track per-pass state
+  // (`{ polyKey: _unused, ...rest } = obj`)
   generateUnusedName() {
     const name = this.#recordOwnPassName(this.uniqueName('_unused'));
     this.#unusedSentinelNames.add(name);
+    this.#generatedByPrefix.get('_unused').add(name);
     return name;
+  }
+
+  // membership in ANY generated family - the renumber's own-name gate
+  isGeneratedFamilyName(name) {
+    for (const [, names] of this.#generatedByPrefix) if (names.has(name)) return true;
+    return false;
+  }
+
+  // the family registry itself (prefix -> Set) - each emitter's prune reads and maintains
+  // the slot space through it
+  generatedRefFamilies() { return this.#generatedByPrefix; }
+
+  // subclass hook: extra name registries the canonical rename must rebuild alongside the
+  // base ones (e.g. the unplugin injector's flushed-refs set)
+  extraGeneratedNameSets() { return []; }
+
+  #allGeneratedNameSets() {
+    return [
+      this.declaredRefNames,
+      this.usedNames,
+      this.#unusedSentinelNames,
+      this.#adoptedUnusedSentinelNames,
+      ...this.#generatedByPrefix.values(),
+      ...this.extraGeneratedNameSets(),
+    ];
+  }
+
+  // final print-order canonicalization: every registry keyed by a GENERATED name renames
+  // through `renameNamesSet` (a sequential delete/add over a swap-shaped map funnels a set
+  // into its last target), and the minted blind aliases follow their refs - a registry that
+  // kept the old spelling would answer for a name the tree no longer has
+  canonicalizeGeneratedNames(renameMap) {
+    if (!renameMap.size) return;
+    for (const set of this.#allGeneratedNameSets()) {
+      const renamed = renameNamesSet(set, renameMap);
+      set.clear();
+      for (const name of renamed) set.add(name);
+    }
+    this.renameMintedAliases(renameMap);
   }
 
   // `_unused` sentinel bookkeeping: `hasGeneratedUnusedName` arms the dispatchers'
@@ -634,6 +708,13 @@ export default class ImportInjectorState {
     return this.#adoptedUnusedSentinelNames.has(name);
   }
 
+  // pre->post handoff of the sentinel registry (adoption state deliberately stays per-pass:
+  // post re-adopts from its own census, so only the plain sentinel set travels)
+  captureUnusedSentinelNames() { return new Set(this.#unusedSentinelNames); }
+  rehydrateUnusedSentinelNames(names) {
+    for (const name of names ?? []) this.#unusedSentinelNames.add(name);
+  }
+
   // generated names THIS pass minted: a prior pass's `_refN` / `_unusedN` lives in the
   // source and never re-generates (allocation skips taken names), so membership here
   // separates a sibling emission of the current pass from a prior pass's spelling - the
@@ -650,26 +731,19 @@ export default class ImportInjectorState {
   }
 }
 
-// --- canonical generated-name numbering (shared by both emitters' final renumber passes) ---
-// the generator families the canonicalization renumbers, each with its whole-string pattern:
-// `_refN` memo slots and `_unusedN` rest-destructure sentinels. slot naming matches
-// `uniqueName` allocation: slot 1 is the bare prefix, slot 2+ is `<prefix>2, <prefix>3, ...`
-// (skip-1 per babel convention)
-const GENERATED_NAME_FAMILIES = new Map([
-  ['_ref', ORPHAN_REF_PATTERN],
-  ['_unused', UNUSED_NAME_PATTERN],
-]);
-export const CANONICAL_REF_PREFIXES = GENERATED_NAME_FAMILIES.keys().toArray();
-
-// generator-shaped in ANY family - the emitters' foreign-name gates (census / canon
-// eligibility) share this instead of re-spelling the pattern pair
-export function isGeneratedSlotShapedName(name) {
-  for (const pattern of GENERATED_NAME_FAMILIES.values()) if (pattern.test(name)) return true;
-  return false;
+function refSlotName(prefix, i) {
+  return i === 1 ? prefix : `${ prefix }${ i }`;
 }
 
-export function refSlotName(prefix, i) {
-  return i === 1 ? prefix : `${ prefix }${ i }`;
+// true when `familyRank` names occupy exactly slots `<prefix>..<prefix>N` in ascending
+// order - the one state where the canonical (print-order) renumber is provably the
+// identity without consulting the taken set: every slot in the compact prefix is
+// plugin-owned, so the shared assignment can only hand the k-th ranked name the k-th slot
+export function isCanonicalSlotOrder(prefix, familyRank) {
+  for (let i = 0; i < familyRank.length; i++) {
+    if (familyRank[i] !== refSlotName(prefix, i + 1)) return false;
+  }
+  return true;
 }
 
 // numeric slot of a generator-shaped name (`_ref` -> 1, `_ref7` -> 7) via the family's own
@@ -682,19 +756,24 @@ function refSlotNumber(prefix, name) {
 
 // snapshot-rebuild of a name set through a rename map - sequential in-place delete/add
 // would chain a shift-shaped map (`_ref -> _ref2 -> _ref3`) and funnel the whole set into
-// its last target; both emitters' registries rename through this one helper
-export function renameNamesSet(set, renameMap) {
+// its last target; every registry renames through this one helper
+function renameNamesSet(set, renameMap) {
   return new Set([...set].map(name => renameMap.get(name) ?? name));
+}
+
+// the minted family a generated name belongs to - the ONE spelling of the prefix split
+// (the registries cannot answer for a snapshot-rehydrated name, so the name decides)
+export function generatedNameFamilyOf(name) {
+  return name.startsWith('_unused') ? '_unused' : '_ref';
 }
 
 // composite sort key for a mixed declarator list: `_ref` family first, then `_unused`,
 // ascending slot within each - the one declaration order both emitters print
 export function refDeclarationOrder(a, b) {
-  const familyA = a.startsWith('_unused') ? 1 : 0;
-  const familyB = b.startsWith('_unused') ? 1 : 0;
-  if (familyA !== familyB) return familyA - familyB;
-  const prefix = familyA ? '_unused' : '_ref';
-  return refSlotNumber(prefix, a) - refSlotNumber(prefix, b);
+  const prefixA = generatedNameFamilyOf(a);
+  const prefixB = generatedNameFamilyOf(b);
+  if (prefixA !== prefixB) return prefixA === '_unused' ? 1 : -1;
+  return refSlotNumber(prefixA, a) - refSlotNumber(prefixB, b);
 }
 
 // canonical slot assignment for ONE prefix family: names ordered by FIRST PRINT OCCURRENCE
@@ -703,13 +782,197 @@ export function refDeclarationOrder(a, b) {
 // climb allocates helper-first, the unplugin's guard builder root-first). `isTaken`
 // filters slots the file cannot reuse (user bindings, orphan slot-shaped names). returns
 // Map<oldName, newName> with identity entries omitted
-export function assignCanonicalRefSlots(prefix, orderedNames, isTaken) {
+function assignCanonicalRefSlots(prefix, orderedNames, isTaken) {
   const renameMap = new Map();
   let i = 1;
   for (const name of orderedNames) {
     let target = refSlotName(prefix, i++);
     while (isTaken(target)) target = refSlotName(prefix, i++);
     if (name !== target) renameMap.set(name, target);
+  }
+  return renameMap;
+}
+
+// --- the flush-time census both emitters read (ONE positional AST pass over the final tree) ---
+
+const EMPTY_NAME_SET = new Set();
+
+// the one position a pure import's own statement binds its name in: the default specifier's
+// local, or the declarator id of a `var X = require(...)` - an occurrence there is the
+// import itself, not a use of it
+function isPureImportBinderPosition(parent, node) {
+  if (parent?.type === 'ImportDefaultSpecifier' && parent.local === node) return true;
+  return parent?.type === 'VariableDeclarator' && parent.id === node && isRequireCall(parent.init);
+}
+
+// the nested write-only guard-memo shape, matched top-down from the OUTER null-compare:
+// `null == (_refOUTER = null == (_refX = root) ? void 0 : ...)`. an inner guard memo whose
+// ref nothing reads is write-only - the outer test already owns the one evaluation - and the
+// deadness only exists AFTER composition, so it is decided at flush from the census counts
+// (`unwrapWriteOnlyGuardMemos`); a TOP-LEVEL guard keeps its memo (the locked kept-swap canon)
+function collectNestedGuardMemoCandidate(node, mintedRefNames, out) {
+  if (node.type !== 'BinaryExpression' || node.operator !== '==') return;
+  // every slot peels transparent wrappers: the minted composition carries none, but the two
+  // paren spellings (babel's `extra` flag, an estree parser's node) owe the same answer
+  const outerWrite = isNullLiteralNode(unwrapRuntimeExpr(node.left)) ? unwrapRuntimeExpr(node.right)
+    : isNullLiteralNode(unwrapRuntimeExpr(node.right)) ? unwrapRuntimeExpr(node.left) : null;
+  if (outerWrite?.type !== 'AssignmentExpression' || outerWrite.operator !== '='
+    || outerWrite.left?.type !== 'Identifier' || !isGeneratedSlotShapedName(outerWrite.left.name)) return;
+  const cond = unwrapRuntimeExpr(outerWrite.right);
+  if (cond?.type !== 'ConditionalExpression' || unwrapRuntimeExpr(cond.consequent)?.type !== 'UnaryExpression'
+    || unwrapRuntimeExpr(cond.consequent).operator !== 'void') return;
+  const test = unwrapRuntimeExpr(cond.test);
+  if (test?.type !== 'BinaryExpression' || test.operator !== '==') return;
+  const left = unwrapRuntimeExpr(test.left);
+  const right = unwrapRuntimeExpr(test.right);
+  const side = left?.type === 'AssignmentExpression' ? 'left'
+    : right?.type === 'AssignmentExpression' ? 'right' : null;
+  if (!side || !isNullLiteralNode(side === 'left' ? right : left)) return;
+  const write = side === 'left' ? left : right;
+  if (write.operator !== '=' || write.left?.type !== 'Identifier' || !mintedRefNames.has(write.left.name)) return;
+  // `write` rides along: `test[side]` may be a paren NODE over the write, and the unwrap
+  // replaces that whole slot with the write's RHS
+  out.push({ test, side, write, name: write.left.name });
+}
+
+// answers every liveness / slot question the emitters flush and prune by: which spellings
+// exist at all (`usedNames`, position-blind), which minted refs are READ and where they rank
+// in print order (`refCounts` / `refDeclIdCounts` / `printRank` / `refNodes`), which
+// pure-import names occur beyond their own import statement (`pureCounts` minus
+// `pureImportBoundCounts`), which `obj.key` member reads exist (the pure-static ctor
+// exception), which foreign slot-shaped spellings force the taken-aware renumber
+// (`foreignSlotName` / `referenceNames`), and the nested guard-memo candidates. one walk,
+// either dialect - the node-shape questions go through the canon predicates
+export function collectInjectorCensus(program, { mintedRefNames = EMPTY_NAME_SET, pureNames = EMPTY_NAME_SET } = {}) {
+  const usedNames = new Set();
+  const memberReads = new Set();
+  const referenceNames = new Set();
+  const refNodes = new Set();
+  const refCounts = new Map();
+  const refDeclIdCounts = new Map();
+  const printRank = [];
+  const rankedNames = new Set();
+  const pureCounts = new Map();
+  const pureImportBoundCounts = new Map();
+  let foreignSlotName = false;
+  const nestedGuardMemoCandidates = [];
+  const memberKeys = memberKeyNamesReducer();
+  walkAstNodes({ root: program, visit(node, parent) {
+    // a `:` slot is where babel's uid scan stops: a name written past one claims nothing
+    // (`declare const v: { _ref2(): void }` leaves `_ref2` free), while a type-alias RHS or
+    // an interface body carries no such wrapper and is walked at any depth
+    if (isTypeAnnotationWrapper(node)) return false;
+    if (node.type === 'Identifier' || node.type === 'JSXIdentifier') {
+      const { name } = node;
+      usedNames.add(name);
+      if (pureNames.has(name)) {
+        pureCounts.set(name, (pureCounts.get(name) ?? 0) + 1);
+        if (isPureImportBinderPosition(parent, node)) {
+          pureImportBoundCounts.set(name, (pureImportBoundCounts.get(name) ?? 0) + 1);
+        }
+      }
+      // what may be RENAMED and what BLOCKS a slot are two questions: a source-text name is
+      // never rewritten, yet an overload signature's key still reserves its name
+      if (!isNonReferencePosition(parent, node)) {
+        if (mintedRefNames.has(name)) {
+          refNodes.add(node);
+          refCounts.set(name, (refCounts.get(name) ?? 0) + 1);
+          if (parent?.type === 'VariableDeclarator' && parent.id === node) {
+            refDeclIdCounts.set(name, (refDeclIdCounts.get(name) ?? 0) + 1);
+          // print-order rank: the first occurrence OUTSIDE a declarator-id position - a
+          // hoisted declaration (or a memo `const`) is not where the name was needed, so both
+          // emitters number at the first real use; a name only its declarators spell is
+          // appended after the ranked survivors by the renumber
+          } else if (!rankedNames.has(name)) {
+            rankedNames.add(name);
+            printRank.push(name);
+          }
+        } else {
+          referenceNames.add(name);
+          // a foreign slot-shaped spelling (a user binding, a sibling-plugin introduction)
+          // means the compact-prefix fast exit cannot prove canonicality by itself
+          if (!foreignSlotName && name.charCodeAt(0) === 95 && isGeneratedSlotShapedName(name)) {
+            foreignSlotName = true;
+          }
+        }
+      } else if (blocksUidSlot(parent, node)) referenceNames.add(name);
+    }
+    if ((node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+      && node.object?.type === 'Identifier') {
+      const key = memberKeyName(node);
+      if (key !== null) memberReads.add(`${ node.object.name }.${ key }`);
+    }
+    memberKeys.visit(node);
+    collectNestedGuardMemoCandidate(node, mintedRefNames, nestedGuardMemoCandidates);
+  } });
+  // an id-rooted member KEY reserves its name too - a slot-shaped spelling there is source
+  // text, and the renumber must keep avoiding it
+  for (const name of memberKeys.result().memberKeyNames) {
+    if (!mintedRefNames.has(name)) referenceNames.add(name);
+  }
+  return {
+    usedNames,
+    memberReads,
+    referenceNames,
+    refNodes,
+    refCounts,
+    refDeclIdCounts,
+    printRank,
+    pureCounts,
+    pureImportBoundCounts,
+    foreignSlotName,
+    nestedGuardMemoCandidates,
+  };
+}
+
+// unwrap the write-only candidates in place: a ref with exactly ONE occurrence beyond its
+// declarators (the write itself) serves no read - the write collapses to its RHS and the
+// ref falls to declarator-only, which each emitter's own prune then drops
+export function unwrapWriteOnlyGuardMemos(census) {
+  for (const candidate of census.nestedGuardMemoCandidates) {
+    const { name } = candidate;
+    if ((census.refCounts.get(name) ?? 0) - (census.refDeclIdCounts.get(name) ?? 0) !== 1) continue;
+    candidate.test[candidate.side] = candidate.write.right;
+    census.refCounts.set(name, (census.refCounts.get(name) ?? 1) - 1);
+  }
+}
+
+// pure-import liveness at flush: an import is live when its name occurs beyond its own
+// import statement, or - the pure-STATIC exception - when the module attaches the method to
+// the pure constructor on load and an emission reads that static through the injected
+// constructor (`_Map.groupBy`). the ctor table spans EVERY recognized pure import: the
+// user's own registered constructor import serves a minted static's liveness too
+export function createPureImportLiveness({ pureImports, existingPureImports, census }) {
+  const ctorNameByNamespace = new Map();
+  function addConstructorNames(entries) {
+    for (const [source, name] of entries) {
+      const segments = source.split('/');
+      if (segments.at(-1) === 'constructor') ctorNameByNamespace.set(segments.at(-2), name);
+    }
+  }
+  addConstructorNames(pureImports);
+  addConstructorNames(existingPureImports);
+  return function isLive(source, name) {
+    if ((census.pureCounts.get(name) ?? 0) > (census.pureImportBoundCounts.get(name) ?? 0)) return true;
+    const segments = source.split('/');
+    const ctor = segments.length >= 2 ? ctorNameByNamespace.get(segments.at(-2)) : null;
+    if (!ctor) return false;
+    const key = staticMemberFromEntrySegment(entryToGlobalHint(segments.at(-2)), segments.at(-1));
+    return census.memberReads.has(`${ ctor }.${ key }`);
+  };
+}
+
+// canonical renumber over every family at once: rank = the census print order filtered to
+// the family's live names, unranked survivors (declarator-only spellings) appended in
+// registration order so they still receive slots. `isTaken` filters slots the file cannot
+// reuse (user bindings, orphan slot-shaped names, reserved slots)
+export function buildCanonicalRenameMap({ printRank, aliveByPrefix, isTaken }) {
+  const renameMap = new Map();
+  for (const [prefix, alive] of aliveByPrefix) {
+    const ordered = printRank.filter(name => alive.has(name));
+    const seen = new Set(ordered);
+    for (const name of alive) if (!seen.has(name)) ordered.push(name);
+    for (const [from, to] of assignCanonicalRefSlots(prefix, ordered, isTaken)) renameMap.set(from, to);
   }
   return renameMap;
 }
