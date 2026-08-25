@@ -1590,6 +1590,12 @@ const KVC_VALUES = [
   ['ts-cast-leaf', 'globalThis.self as any', { ts: true }],
   ['ts-cast-tail', 'globalThis.self.window as any', { ts: true }],
   ['ts-nonnull-tail', 'globalThis.self.window!', { ts: true }],
+  // the kept root's own hop carries the GUARD: it is erased with the hop, so it re-hangs on what
+  // the collapse leaves, and everything the source read past it stays inside that one chain. the
+  // SEALED twin spells the seal, which is what keeps the source's throw instead of a guard
+  ['guarded-hop', 'globalThis.window?.self'],
+  ['guarded-hop-tail', 'globalThis.window?.self.window'],
+  ['guarded-hop-sealed', '(globalThis.window?.self)'],
 ];
 const KVC_CLAIMS = [
   ['static-read', recv => `${ recv }.Number.MAX_SAFE_INTEGER`],
