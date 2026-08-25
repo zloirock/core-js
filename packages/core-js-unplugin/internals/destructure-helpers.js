@@ -40,7 +40,7 @@ import {
   statementListOf,
   hasRestSiblingExcept,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { ownEmittedPatternClaim, ownOutputTests, restSentinelExtractionSibling } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { walkAstNodes } from './plugin-helpers.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
@@ -97,16 +97,6 @@ export const SELECTING_INIT_TYPES = new Set(['ConditionalExpression', 'LogicalEx
 // the prop's LOCAL binding name - through a slot default (`{ flat: m = fb }` binds `m`)
 export function overwriteRebindEmitted({ metaPath, injectorState }) {
   return ownEmittedPatternClaim(metaPath, ownOutputTests(injectorState));
-}
-
-export function sentinelAlreadyProcessed({ metaPath, meta, symbolIterator, injectorState }) {
-  const prop = metaPath.node;
-  return prop.value?.type === 'Identifier' && injectorState.hasGeneratedUnusedName(prop.value.name)
-    && (!injectorState.isAdoptedUnusedName(prop.value.name) || restSentinelExtractionSibling(metaPath, {
-      key: typeof meta?.key === 'string' ? meta.key : prop.key?.name ?? prop.key?.value,
-      symbolIterator,
-      injector: injectorState,
-    }));
 }
 
 // the OUTERMOST hop prop of a nested claim - the per-branch mirror anchors there (its

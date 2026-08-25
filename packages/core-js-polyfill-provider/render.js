@@ -206,6 +206,35 @@ export function synthEntryKey({ keyNode, dedupKey, slotKey, lookupKey, computedK
   return { key: literal(lookupKey), computed: false };
 }
 
+// the collapsed spelling of a proxy-receiver plan (`planProxyReceiver` holds the decision -
+// which hops drop, whether the root is swapped, kept or aliased, where harvested effects
+// ride, whether an erased hop's guard re-hangs). `embed` wraps the plan's carried nodes,
+// which are in the CALLER's dialect: identity where that dialect is canonical, `hostSlot`
+// for the babel binding, whose converter passes such a subtree through unconverted
+export function renderProxyReceiverPlan(plan, { injectImport, embed = node => node }) {
+  if (plan.kind === 'member') {
+    const inner = renderProxyReceiverPlan(plan.inner, { injectImport, embed });
+    return inner ? memberExpression(inner, embed(cloneNode(plan.property)), { computed: plan.computed }) : null;
+  }
+  // a `keep` root is cloned like an alias - the substrate re-visits the clone, so its own
+  // proxy root still earns the pure rewrite there
+  const keepOrAlias = plan.rootBinding.alias ?? plan.rootBinding.keep;
+  const rootBinding = keepOrAlias ? embed(cloneNode(keepOrAlias))
+    : identifier(injectImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName));
+  const rootNode = plan.harvestedSE.length
+    ? sequenceExpression([...plan.harvestedSE.map(expr => embed(cloneNode(expr))), rootBinding])
+    : rootBinding;
+  // dropped-hop KEY effects fold into the surviving leaf key - where the native order
+  // evaluates them (after the root and its guard, before the read)
+  const keyPrefix = plan.keyPrefixSE ?? [];
+  const property = keyPrefix.length
+    ? sequenceExpression([...keyPrefix.map(expr => embed(cloneNode(expr))),
+      plan.computed ? embed(cloneNode(plan.property)) : literal(plan.property.name)])
+    : embed(cloneNode(plan.property));
+  const computed = plan.computed || keyPrefix.length > 0;
+  return memberExpression(rootNode, property, { computed, optional: !!plan.optional });
+}
+
 // a member hop spelled by KEY NAME: a valid identifier reads after a dot, anything else
 // reads computed with its string (`_globalThis["App-Key"]`)
 export function memberFromKeyName(object, keyName, options = {}) {
