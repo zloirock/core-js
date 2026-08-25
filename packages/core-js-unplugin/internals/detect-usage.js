@@ -1,10 +1,7 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
 import {
-  buildDestructuringInitMeta,
-  chooseFallbackReceiverNode,
-  isInnerDestructureDefault,
-  resolveArrayWrapperedDestructureReceiver as sharedResolveArrayWrapperedDestructureReceiver,
-  resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
+  buildDestructureLeafMeta,
+  classifyDestructureLeafHost,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { beginMutationPrePass, createDetectionAdapter, mutationSiteVisitors } from '@core-js/polyfill-provider/detect-usage/mutations';
@@ -16,14 +13,12 @@ import {
   bindingInvisibleFromUseRegion,
   climbJsxMemberChain,
   findFunctionScopeVarInPath,
-  findIifeCallSite,
   findTSRuntimeBindingInPath,
   getTypeArgs,
   IMPORT_SPECIFIER_TYPES,
   importBindingView,
   isAmbientBindingShape,
   isASTNode,
-  isFunctionParamDestructureParent,
   isIntrinsicJsxTagName,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
@@ -32,11 +27,8 @@ import {
   namespaceScopedBindingBlock,
   peelTransparentExprAncestorPath,
   recomputedBindingWrites,
-  resolveCallArgument,
-  resolveFallbackReceiver,
   synthVarHoistBinding,
   unwrapExportedDeclaration,
-  unwrapSafeSequenceTail,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -1102,138 +1094,14 @@ export function createUsageVisitors({
 
   function buildDestructuringMeta(propNode, parentPath, containerUnionSink = null) {
     const objectPattern = parentPath;
-    const parent = objectPattern?.parentPath;
-    if (!parent) return null;
-
-    let initNode;
-    const scope = parent.scope || objectPattern.scope;
-    // a call-site-sourced receiver (IIFE arg) evaluates AT THE CALL SITE: when the arg wins,
-    // the resolution scope/path must be the call site's - the invoked function's inner scope
-    // would let a param shadowing the arg's name swallow the receiver
-    let initScope = null;
-    let initPath = null;
-    // nested patterns leave `initNode` undefined -> typeless meta (`object: null`)
-    switch (parent.node.type) {
-      case 'VariableDeclarator': initNode = parent.node.init; break;
-      case 'AssignmentExpression': initNode = parent.node.right; break;
-      case 'AssignmentPattern':
-        // `function({ from } = Array)` - AssignmentPattern wraps the param. Route `parent.right`
-        // as the destructure receiver so `from` resolves to `Array.from`.
-        // for IIFE with statically-classifiable caller-arg, the wrapper-default is dead code at
-        // runtime: prefer caller-arg as receiver. peel SE-tail / paren / TS wrappers first
-        // (`(0, Array)` / `(Array)` -> `Array`) so a wrapped bare global classifies - matches the
-        // synth-swap emit path, which already peels via the same helper. genuinely non-Identifier
-        // shapes (`(...)(globalThis.X)`, `(...)(call())`) stay un-classifiable, so wrapper-default
-        // keeps the static context and the runtime fallback (`= Array` on undefined arg) carries it
-        // only when THIS AssignmentPattern is the direct param default (`function f({from} = R)`); an
-        // inner default (`f([{from}={}] = [R])`) carries `{}` in `.right`, not the receiver - it falls
-        // through to the array/property inner-default cases below, which peel it to the real host
-        if (isFunctionParamDestructureParent(objectPattern) && !isInnerDestructureDefault(parent)) {
-          const desc = resolveFallbackReceiver(parent, parent.node);
-          const argNode = desc?.callPath ? unwrapSafeSequenceTail(desc.rhsNode) : null;
-          // caller-arg wins over the default when it is a usable fallback receiver (classifiable, or a
-          // conditional / logical enumerated per-branch), OR a safe-access proxy-global member-expr whose
-          // default is a polyfill dead-end; a non-receiver arg (notably `undefined`, where the runtime
-          // applies the default) keeps the default. single-sourced chooser shared with babel + the emitters
-          initNode = chooseFallbackReceiverNode({
-            argNode,
-            defaultNode: parent.node.right,
-            objectPattern: objectPattern.node,
-            scope,
-            adapter,
-            path: parent,
-            resolvePure,
-          });
-          if (argNode && initNode === argNode) {
-            initScope = desc.callPath.scope;
-            initPath = desc.callPath;
-          }
-          break;
-        }
-        // nested destructure with inner-default: `{ Array: { from } = {} } = X` - peel the
-        // AssignmentPattern wrapper and resolve via the same nested-chain classifier as the
-        // bare `{ Array: { from } } = X` shape (proxy-global init guarantees default never
-        // fires, so it's transparent under "polyfill always wins")
-        if (parent.parentPath?.node?.type === 'Property' && parent.node.left === objectPattern.node) {
-          const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-          const constructor = sharedResolveNestedDestructureReceiver(parent.parentPath, adapter, containerUnionSink);
-          // a BRANCHING inner key rides a null-key carrier keeping the resolved receiver -
-          // the union pairs the arm keys with it as statics, mirroring babel's nested funnel
-          if (!innerKey) {
-            return constructor
-              ? { kind: 'property', object: constructor, key: null, placement: 'static' } : null;
-          }
-          if (constructor) {
-            return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
-          }
-        }
-        // inner-default inside an ArrayPattern wrapper (`[{ from } = {}]` / `[, { from } = {}]`):
-        // the AssignmentPattern is transparent, resolve via the array-wrapper resolver (which peels
-        // it). mirrors babel-plugin's detect-usage ArrayPattern branch
-        if (parent.parentPath?.node?.type === 'ArrayPattern' && parent.node.left === objectPattern.node) {
-          const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-          const constructor = innerKey
-            ? sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter) : null;
-          if (constructor) {
-            return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
-          }
-        }
-        break;
-      case 'Property': {
-        // nested pattern - shared `resolveNestedDestructureReceiver` walks outer-prop chain
-        // up to the destructure host and returns the constructor name across proxy-global
-        // and static-object descent shapes (see helper docstring)
-        const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-        const constructor = sharedResolveNestedDestructureReceiver(parent, adapter, containerUnionSink);
-        // a BRANCHING inner key rides a null-key carrier keeping the resolved receiver -
-        // the union pairs the arm keys with it as statics, mirroring babel's nested funnel
-        if (!innerKey) {
-          return constructor
-            ? { kind: 'property', object: constructor, key: null, placement: 'static' } : null;
-        }
-        if (constructor) {
-          return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
-        }
-        break;
-      }
-      case 'ForOfStatement':
-      case 'ForInStatement':
-      case 'RestElement':
-      case 'CatchClause': break;
-      case 'ArrayPattern': {
-        // ArrayPattern-rooted nested destructure `const [{from}] = wrapper` - walk up the
-        // ArrayPattern stack to the host and descend Identifier-aliased ArrayExpression
-        // wrappers to find the leaf constructor
-        const innerKey = extractPropertyKey(propNode, scope, objectPattern);
-        if (!innerKey) break;
-        const constructor = sharedResolveArrayWrapperedDestructureReceiver(objectPattern, adapter);
-        if (constructor) {
-          return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
-        }
-        break;
-      }
-      default: {
-        // IIFE destructuring: `!function({entries}) {}(Object)`. shared `findIifeCallSite`
-        // peels wrapper chain (Unary / Sequence / Paren / Chain / TS), accepts CallExpression /
-        // NewExpression / OptionalCallExpression, AND enforces the callee-identity gate
-        // (`peelIifeCallee(callee, fn) === fn`) so functions PASSED AS ARGS to another call
-        // (`doStuff(Object, function({entries}) {...})`) don't get misclassified as IIFEs
-        const site = findIifeCallSite(parent, objectPattern.node);
-        if (!site) return null;
-        // a no-arg IIFE (`(function ({ at }) {})()`) leaves `initNode` undefined -> fall through to
-        // the typeless (`object: null`) meta, matching babel: usage-global over-injects every method
-        // named by the key, usage-pure can't resolve the receiver and bails. bailing here instead
-        // dropped the global injection (import-set divergence vs babel)
-        initNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
-        initScope = site.callPath.scope;
-        initPath = site.callPath;
-      }
-    }
-
+    if (!objectPattern?.parentPath) return null;
+    // the funnel choke: ONE host classification and ONE meta rule, shared with the babel
+    // leg - the per-shape switch this replaces is where the two funnels drifted apart
+    const descriptor = classifyDestructureLeafHost({ objectPattern });
+    const scope = objectPattern.parentPath.scope || objectPattern.scope;
     const key = extractPropertyKey(propNode, scope, objectPattern);
-    if (!key) return null;
-    return buildDestructuringInitMeta({
-      initNode, key, scope: initScope ?? scope, adapter, path: initPath ?? parent, unionSink: containerUnionSink,
+    return buildDestructureLeafMeta({
+      descriptor, key, adapter, resolvePure, unionSink: containerUnionSink,
     });
   }
 

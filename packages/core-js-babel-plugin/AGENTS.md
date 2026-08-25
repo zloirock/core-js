@@ -11,7 +11,8 @@ Build-time only, ESM. Node `^22.18.0 || >=24.11.0`. Works with both `@babel/core
 - `index.js` - the plugin itself: options, the Babel visitors, and the dispatch between the injection methods
 - `internals/detect-entry.js` - recognizes the entry-import shapes that `entry-global` replaces
 - `internals/detect-usage.js` - the Babel side of the provider's usage detection: it adapts Babel paths to what the provider expects
-- `internals/import-injector.js` - inserts the imports or requires, respecting directives and the existing import block
+- `internals/import-injector.js` - inserts the imports or requires, respecting directives and the existing import block; the import set itself comes from the core's render canon, converted at insertion
+- `internals/estree-to-babel.js` - the converter at the insertion boundary: the core's canonical ESTree render becomes babel nodes, total over the builder vocabulary and defined on nothing else
 - `internals/babel-compat.js` - the Babel-specific AST primitives: ref memoization, optional-chain deoptionalization, instance-method replacement, TS-wrapper peeling. Despite the name it knows nothing about Babel versions: the 7-versus-8 difference is bridged in `internals/import-injector.js`, where the scope bag hides `scope.references` / `scope.uids` becoming `referencesSet` / `uidsSet`
 - `internals/destructure-emission-plan.js`, `internals/destructure-emitter.js` - destructure rewrites, planning separated from emission
 - `internals/synth-swap-emitter.js`, `internals/synth-key-utils.js` - the receiver-targeted synth-swap and the safety gate deciding when a computed key may be mirrored into a synth literal

@@ -52,7 +52,7 @@ import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usa
 import { nodeType, types } from './estree-compat.js';
 import { planEntries } from './detect-entry.js';
 import applyEntryProgram, { injectImportStatements } from './entry.js';
-import { printProgram, shiftFirstLineColumns } from './print.js';
+import { printProgram } from './print.js';
 import ImportInjector, { flushIntoProgram } from './import-injector.js';
 import createAstDestructureEmitter from './destructure.js';
 import createAstUsagePureCallback from './usage-pure.js';
@@ -555,11 +555,12 @@ export default function createPlugin(options) {
     const sourceDialect = sourceDialectOf(cleanId);
     const isCJSFile = sourceDialect.script;
     // strip leading BOM(s) before parsing - oxc rejects BOM-prefixed shebangs, and
-    // offsetting positions by 1 would corrupt every transform. a single BOM is re-prepended
-    // to the final output. Reassign `code` so the minifier split AND the post-pass cache
-    // comparison use the BOM-stripped source (stored `postInput` is always BOM-stripped).
-    // `stripLeadingBOMs` drops the whole leading run so a sibling plugin's per-pass
-    // re-prepend on top of ours doesn't leave residual BOM bytes mid-prefix
+    // offsetting positions by 1 would corrupt every transform. the output does NOT carry a
+    // BOM (babel alignment - bundlers strip it anyway); `hasBOM` survives only so
+    // `sourcesContent` can keep the user's original bytes. Reassign `code` so the minifier
+    // split AND the post-pass cache comparison use the BOM-stripped source (stored
+    // `postInput` is always BOM-stripped). `stripLeadingBOMs` drops the whole leading run
+    // so a sibling plugin's per-pass prepend doesn't leave residual BOM bytes mid-prefix
     const hasBOM = code.charCodeAt(0) === 0xFEFF;
     code = stripLeadingBOMs(code);
 
@@ -803,7 +804,12 @@ export default function createPlugin(options) {
             injector.addGlobalImport(mod);
             removed.add(node);
           },
-          onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
+          // a user binding the file WRITES through is poisoned as a dedup target - the
+          // census' assignedNames is the reassignment fact this leg has (babel reads its
+          // scope's constantViolations for the same gate)
+          onPureImport: (entry, name) => injector.registerUserPureImport(entry, name, {
+            reassigned: fileCensus.assignedNames?.has(name) ?? false,
+          }),
           packages,
           pkg,
         });
@@ -825,18 +831,6 @@ export default function createPlugin(options) {
           ast.body = ast.body.filter(n => !removed.has(n) || kept.has(n));
         }
       }
-      // post drops pure imports whose binding isn't referenced - sibling may have deleted
-      // the usage between pre and post. enable for every post pass, not just `inherit`:
-      // single-post (no pre snapshot, e.g. `phase: 'post'` without `pre`) can still emit
-      // dead imports when a destructure transform drops all uses mid-pass, and the ref-tracking
-      // overhead is negligible. babel-plugin doesn't call this - it resolves destructure
-      // transforms synchronously during traversal. SINGLE source of truth: shared by both
-      // `enableReferenceTracking()` activation here AND the usage-pure Identifier visitor mount
-      // in `runUsagePure`. drift in either gate's predicate would leak ALL pure imports per
-      // `pruneUnusedRefs`' dead-import filter (no Identifier ever fires `trackReferencedName`)
-      const trackReferences = pass === 'post';
-      if (trackReferences) injector.enableReferenceTracking();
-
       debugOutput = createDebugOutput?.() ?? null;
 
       const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
@@ -859,13 +853,12 @@ export default function createPlugin(options) {
         return injector.addPureImport(entry, hint);
       }
 
-      // shared mutated-key enrichment: see `enrichMutatedStatics` for the model. explicitly
-      // mark referenced - no Identifier in the source ever reads the bindings
+      // shared mutated-key enrichment: see `enrichMutatedStatics` for the model
       if (method === 'usage-pure') {
         enrichMutatedStatics({
           mutatedStatics,
           resolvePure: resolvePureUnfiltered,
-          injectPureImport: (entry, hint) => injector.trackReferencedName(injectPureImport(entry, hint)),
+          injectPureImport: (entry, hint) => injectPureImport(entry, hint),
         });
       }
       // early ctor-alias registration (visit-order independence) - see the babel twin. BOTH
@@ -943,9 +936,9 @@ export default function createPlugin(options) {
         return finalizeAst();
       }
 
-      // the print tail: re-prepend the BOM
-      // (shifting the first output line's columns by the one char), and keep
-      // `sourcesContent` the user's ORIGINAL bytes when the minifier split rewrote the input
+      // the print tail: the output does NOT re-emit a stripped BOM (babel's generator
+      // carries none and bundlers strip it before the final artifact), but `sourcesContent`
+      // keeps the user's ORIGINAL bytes - BOM included - because devtools compare it to disk
       // the pre-pass directive re-anchor result (see `hoistSoleDisabledPatternDirectives`):
       // the print emits the anchored texts verbatim and the loc-attached originals drop
       let directiveAnchors = null;
@@ -964,11 +957,7 @@ export default function createPlugin(options) {
           anchoredComments: directiveAnchors?.anchored ?? null,
         });
         const { map } = printed;
-        let outCode = printed.code;
-        if (hasBOM) {
-          outCode = `\uFEFF${ outCode }`;
-          shiftFirstLineColumns(map, 1);
-        }
+        const outCode = printed.code;
         const content = map?.sourcesContent?.[0];
         if (content !== null && content !== undefined) {
           const original = preSplitCode ?? content;
@@ -1187,7 +1176,7 @@ export default function createPlugin(options) {
           // order. what makes that work is the ONE exception the census draws: a generated memo
           // DECLARATION hoists above the statement it serves, so it ranks at its first READ, not
           // at its binding id - babel numbers the receiver memo at the point of the second read,
-          // between the guards of the two properties that need it (`collectLiveness`)
+          // between the guards of the two properties that need it (`collectInjectorCensus`)
           mintRefName() {
             const name = injector.uniqueName('_ref');
             astRefOrder.push(name);

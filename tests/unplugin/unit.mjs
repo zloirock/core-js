@@ -1519,7 +1519,6 @@ await checkAstInternalsCore();
 // --- AST-engine internals: printProgram contracts (the roundtrip gate holds the corpus;
 // these lock the specific promises the emitters lean on) ---
 async function checkAstPrintContracts() {
-  const { shiftFirstLineColumns } = await import('../../packages/core-js-unplugin/internals/print.js');
   function reprint(src, anchoredComments = null) {
     // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
     const parsed = parseSync('/p.mjs', src, { sourceType: 'module' });
@@ -1546,12 +1545,6 @@ async function checkAstPrintContracts() {
   }).code;
   check('print anchoredComments channel writes the text ahead of its statement',
     /\/\/ core-js-disable-next-line\nconst \{ flat \}/.test(anchoredOut), true);
-  const { encode, decode } = await import('@jridgewell/sourcemap-codec');
-  const shifted = { mappings: encode([[[0, 0, 0, 0]], [[0, 0, 1, 0]]]) };
-  shiftFirstLineColumns(shifted, 1);
-  const decoded = decode(shifted.mappings);
-  check('print shiftFirstLineColumns moves line 0 only',
-    decoded[0][0][0] === 1 && decoded[1][0][0] === 0, true);
 }
 await checkAstPrintContracts();
 
@@ -1638,10 +1631,10 @@ function checkAdditionalPackagesShapeGuard() {
 checkAdditionalPackagesShapeGuard();
 
 // --- single-post without pre-snapshot still emits pure imports ---
-// `enableReferenceTracking` fires for every post pass to filter dead imports (e.g.
-// destructure-transform dropping all uses mid-pass). without parity Identifier visitor
-// mounted in the SAME post-pass case, no `trackReferencedName` ever fires and
-// pruneUnusedRefs strips ALL pure imports as unreferenced - emit becomes empty
+// the flush census filters dead imports by liveness in the FINAL tree (e.g. a
+// destructure transform dropping all uses mid-pass); an isolated post pass must still
+// see its own emissions as live, or the filter strips every pure import and the emit
+// becomes empty
 function checkSinglePostPassEmitsPureImports() {
   const code = 'export var x = "test".at(-1);\nexport var m = new Map();';
   const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
@@ -1924,8 +1917,8 @@ checkEntryGlobalTransformWithPhasePre();
 // --- usage-pure standalone phase: 'post' wrapper dispatches `pass='post'` ---
 // regression lock: the wrapper at unplugin/index.js builds sub-plugins via
 // `stage(effective, ...)`; when phase=='post' the second-arg `pass` MUST be 'post' (not
-// 'single'), otherwise `enableReferenceTracking` / `pruneUnusedRefs` / post-snapshot
-// pickup don't fire and an isolated post build emits an empty bundle. mirrors the
+// 'single'), otherwise the post-only machinery (orphan adoption, post-snapshot pickup)
+// doesn't fire and an isolated post build emits an empty bundle. mirrors the
 // entry-global phase=='pre' end-to-end test above but goes through usage-pure to assert
 // pure imports survive the wrapper-driven pass dispatch
 function checkUsagePurePhasePostWrapperEmitsImports() {
@@ -2684,6 +2677,67 @@ function checkFileStrictness() {
 }
 checkFileStrictness();
 
+// --- the typed-outer inner default: the composed two-step extraction (a dead mirror
+// would polyfill only the branch the default fires on; the composition dispatches the
+// LIVE outer step and folds the default through the canonical guard) ---
+function checkTypedOuterInnerDefault() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  function transformed(form) {
+    const source = `const src = [1, [2]];\nconst fallback = { name: 1 };\n${ form }\nexport { src };\n`;
+    return createPlugin(OPTIONS).transform(source, '/p.mjs')?.code ?? source;
+  }
+  function importCount(form) {
+    return (transformed(form).match(/@core-js\/pure/g) ?? []).length;
+  }
+  // the literal inner default COMPOSES: hop dispatch feeds the leaf dispatch through the
+  // canonical guard - the babel canon spelling, byte-for-byte
+  const composed = transformed('const { at: { name } = {} } = src;');
+  check('typed-outer inner default/composes the two-step extraction',
+    composed.includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? {} : _ref)'), true);
+  check('typed-outer inner default/both steps import', importCount('const { at: { name } = {} } = src;'), 2);
+  // a sibling prop keeps its residual beside the extraction
+  check('typed-outer inner default/multi-prop keeps the residual',
+    transformed('const { at: { name } = {}, other } = src;').includes('const { other } = src;'), true);
+  // the receiver-bearing default folds through the SAME guard (the climb's carriesReceiver
+  // answers false on the typed outer, so the hop stays and the composition owns the claim)
+  check('typed-outer inner default/receiver default folds into the guard',
+    transformed('const { at: { name } = fallback } = src;')
+      .includes('_nameMaybeFunction((_ref = _atMaybeArray(src)) === void 0 ? fallback : _ref)'), true);
+  check('typed-outer inner default/receiver default imports both steps',
+    importCount('const { at: { name } = fallback } = src;'), 2);
+  // the ARRAY-pattern default binds the guard to its own pattern (form 2 of the same canon);
+  // the bare array value stays native (babel extracts only the defaulted spelling)
+  check('typed-outer inner default/array default composes',
+    transformed('const { at: [first] = [] } = src;')
+      .includes('const [first] = (_ref = _atMaybeArray(src)) === void 0 ? [] : _ref;'), true);
+  check('typed-outer inner default/bare array value stays native',
+    importCount('const { at: [bare] } = src;'), 0);
+  // the LIVE mirrors stay: an empty outer host leaves the default live; a param default is
+  // caller-correct; an untyped outer proves nothing
+  check('live inner default/empty outer host keeps the mirror', importCount('const { inner: { at } = [1, 2] } = {};'), 1);
+  check('live inner default/param default keeps the synth', importCount('export const p = (function ({ at } = [1]) { return at; })();'), 1);
+  check('live inner default/untyped outer keeps the mirror', importCount('const { at: { name } = fallback } = opaque;'), 1);
+}
+checkTypedOuterInnerDefault();
+
+// --- synth-literal key edges: the shared namer and the `__proto__` canon rule ---
+function checkSynthKeyEdges() {
+  const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  function out(form) {
+    return createPlugin(OPTIONS).transform(form, '/p.mjs')?.code ?? form;
+  }
+  // an unresolvable computed key names NO slot - the whole synth bails to native (the
+  // "[null]" sentinel used to admit it, and later-key-wins overwrote the polyfill)
+  const bailed = out('export const f = (function ({ at, [window.k]: alias } = [1, 2]) { return [at, alias]; })();');
+  check('synth keys/unresolvable computed key bails the synth', bailed.includes('@core-js/pure'), false);
+  check('synth keys/bailed pattern stays native', bailed.includes('{ at, [window.k]: alias } = [1, 2]'), true);
+  // `__proto__` re-spells computed-string: an own property, the literal keeps its prototype
+  const proto = out('export const g = (function ({ __proto__: p, at } = [1, 2]) { return [p, at]; })();');
+  check('synth keys/__proto__ spells computed-string', proto.includes('["__proto__"]: [1, 2].__proto__'), true);
+  check('synth keys/__proto__ never spells the setter form', /\{\s*__proto__:/.test(proto.replace(/\{ __proto__: p/, '')), false);
+}
+checkSynthKeyEdges();
+
 // --- source shape that moves offsets: CRLF, BOM, astral characters ---
 
 // every span the render computes is a PARSER offset into the source, so a byte-order mark, CRLF
@@ -2696,7 +2750,9 @@ function checkOffsetShapes() {
     'export const layered = (globalThis.window?.self.oBox).list?.at(0);'].join('\n');
   function guardLines(code) {
     const out = createPlugin(OPTIONS).transform(code, '/p.mjs')?.code ?? code;
-    return out.split(/\r?\n/u).filter(line => line.startsWith('export const')).join(' | ').replace(/^\u{FEFF}/u, '');
+    // the output never carries a BOM, so no strip is needed for the compare
+    check('offsets/output is BOM-free', out.charCodeAt(0) === 0xFEFF, false);
+    return out.split(/\r?\n/u).filter(line => line.startsWith('export const')).join(' | ');
   }
   const baseline = guardLines(BODY);
   check('offsets/baseline renders both guards', baseline.includes('_self.oBox.list') && baseline.includes('void 0'), true);
@@ -2711,6 +2767,19 @@ function checkOffsetShapes() {
   }
 }
 checkOffsetShapes();
+
+// --- BOM output contract: the output drops the BOM, sourcesContent keeps the bytes ---
+
+// babel alignment: its generator never re-emits a BOM and bundlers strip it before the
+// final artifact; devtools compare `sourcesContent` to DISK, so the map keeps the user's
+// original bytes - BOM included
+function checkBomOutputContract() {
+  const source = '\uFEFFexport const r = [1].at(0);\n';
+  const out = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } }).transform(source, '/p.mjs');
+  check('bom/output starts with the import, not a BOM', out.code.charCodeAt(0) === 0xFEFF, false);
+  check('bom/sourcesContent keeps the original bytes BOM included', out.map.sourcesContent[0], source);
+}
+checkBomOutputContract();
 
 // --- source map: every mapping the guard render emits stays inside the original ---
 

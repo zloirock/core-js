@@ -72,7 +72,6 @@
   },
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.1",
-    "@jridgewell/sourcemap-codec": "^1.5.5",
     "@core-js/polyfill-provider": "4.0.0-alpha.1",
     "esrap": "^2.3.6",
     "estree-toolkit": "^1.7.14",
