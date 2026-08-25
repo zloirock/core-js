@@ -1,11 +1,8 @@
-// the member-hop spelling is the render canon's; re-exported so this leg's emitters keep
-// importing their node vocabulary from one place
-
 import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { cloneNode, identifier, literal, memberExpression, sequenceExpression } from './builders.js';
-// the member-hop spelling is the render canon's, re-exported so this leg's emitters keep
-// taking their node vocabulary from one import
-export { memberFromKeyName } from '@core-js/polyfill-provider/render';
+import { cloneNode, sequenceExpression } from './builders.js';
+// the member-hop spelling and the proxy-receiver collapse are the render canon's, re-exported
+// so this leg's emitters keep taking their node vocabulary from one import
+export { memberFromKeyName, renderProxyReceiverPlan } from '@core-js/polyfill-provider/render';
 
 // helpers shared by the AST engine's emitters (usage-pure and the destructure pipeline) -
 // they live outside both so neither imports the other
@@ -36,32 +33,6 @@ export function discardedSequenceElement(path) {
     cur = up;
   }
   return false;
-}
-
-// render a substrate-neutral proxy-receiver plan (from the shared `planProxyReceiver`)
-// into collapsed AST - the babel emitter's twin: the decision lives in the provider, this
-// only builds nodes. a `keep` / alias root is cloned - the clone re-visits, so its own
-// proxy root still earns the pure rewrite there
-export function renderProxyReceiverPlan(plan, injectPureImport) {
-  if (plan.kind === 'member') {
-    const inner = renderProxyReceiverPlan(plan.inner, injectPureImport);
-    return inner ? memberExpression(inner, cloneNode(plan.property), { computed: plan.computed }) : null;
-  }
-  const keepOrAlias = plan.rootBinding.alias ?? plan.rootBinding.keep;
-  const rootBinding = keepOrAlias ? cloneNode(keepOrAlias)
-    : identifier(injectPureImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName));
-  const rootNode = plan.harvestedSE.length
-    ? sequenceExpression([...plan.harvestedSE.map(expr => cloneNode(expr)), rootBinding])
-    : rootBinding;
-  // dropped-hop KEY effects fold into the surviving leaf key - where the native order
-  // evaluates them (after the root and its guard, before the read)
-  const keyPrefix = plan.keyPrefixSE ?? [];
-  const property = keyPrefix.length
-    ? sequenceExpression([...keyPrefix.map(expr => cloneNode(expr)),
-      plan.computed ? cloneNode(plan.property) : literal(plan.property.name)])
-    : cloneNode(plan.property);
-  const computed = plan.computed || keyPrefix.length > 0;
-  return memberExpression(rootNode, property, { computed, optional: !!plan.optional });
 }
 
 // swap `target` for `next` wherever it sits - the emit plans hand NODES, not paths, so the

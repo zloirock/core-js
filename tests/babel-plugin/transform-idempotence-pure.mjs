@@ -69,6 +69,12 @@ const CASES = [
   ['sentinel pair under a bodyless if', 'const log = [];\nexport const r = (() => {'
     + ' if (1) var { [(log.push("k"), "at")]: a, other } = [3, [7]]; return [typeof a, typeof other]; })();\nuse(r, log);'],
   ['optional claim over a minted dispatch', 'export const r = [1, 2, 3].values()?.map(x => x * 2)?.toArray();\nuse(r);'],
+  // a sentinel standing in a PARAM pattern: our extraction for it went to the top of the
+  // function BODY, so a census that only reads the list the FUNCTION sits in finds nothing and
+  // the next pass re-extracts it as a live binding, minting a fresh sentinel every time. the
+  // call site is what routes the pattern through the body-extract in the first place
+  ['param sentinel extracted into the body',
+    'function f({ from, ...rest } = globalThis.self.Array) { return from([1]); }\nuse(f());'],
   ['proxy hops in the rendered guard alternate', 'globalThis.probeHost = { tag: "h", read() { return this.tag; } };\n'
     + 'export const r = String(globalThis.window?.self.window.probeHost.read());\nuse(r);'],
 ];

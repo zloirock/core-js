@@ -7,6 +7,7 @@ import './nested-receiver-base.mjs';
 import './array-wrapper-drop.mjs';
 import './existing-imports.mjs';
 import './synth-wks-keys.mjs';
+import './destructure-collapse.mjs';
 import './detect-syntax.mjs';
 import './detect-usage.mjs';
 import './helpers.mjs';
