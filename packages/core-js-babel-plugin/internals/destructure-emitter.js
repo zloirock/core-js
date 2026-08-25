@@ -10,7 +10,7 @@
 // `flushProbedAnchorSwaps`, `splitFlatMultiDecls`, `tryFlattenProxyHopHost`.
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
-import { ownEmittedPatternClaim, ownOutputTests, restSentinelExtractionSibling } from '@core-js/polyfill-provider/detect-usage/own-output';
+import { ownEmittedPatternClaim, ownOutputTests, sentinelAlreadyProcessed } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   hostSlot,
   identifier as canonIdentifier,
@@ -28,7 +28,6 @@ import {
   computedKeyHasSideEffects,
   dropDeadSequenceTail,
   hasRestSiblingExcept,
-  catchPropRewriteObservable,
   relocatedCatchPropUnobservable,
   isChainAssignment,
   isFunctionParamDestructureParent,
@@ -77,10 +76,10 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   buildNestedDestructurePlan, isSymbolIteratorPatternProp, peelArrayWrapperPair,
-  probedNavProbeKey, resolvePolyfillableStaticProp, symbolIteratorInstanceLeaf,
+  planCatchClauseExtraction, probedNavProbeKey, resolvePolyfillableStaticProp,
+  symbolIteratorInstanceLeaf,
 } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import {
-  computedPropKeyHostsMachinery,
   harvestDiscardedReceiverSE,
   isSourcedSymbolIteratorMeta,
   planCallRootDiscardedProxySwap,
@@ -268,7 +267,8 @@ function liftDeclaratorInitSE(t, declaratorNode, hostPath) {
 
 // render the provider-normalized nested-param synth plan as AST replacing the parameter
 // DEFAULT (the semantics - tree mirror, validation, leaf resolution - live in the shared
-// `buildNestedParamSynthPlan`; this is a dumb renderer, unplugin renders the same plan as text)
+// `buildNestedParamSynthPlan`, the tree spelling in `renderSynthTree`; this half is the host
+// surgery - path recovery by span and the skip marking - which the other leg does its own way)
 function renderNestedParamSynth({ prop, meta, deps }) {
   const { t, resolvePure, resolveGlobalPolyfill, injectPureImport, skippedNodes, adapter } = deps;
   const plan = buildNestedParamSynthPlan({ leafPatternPath: prop.parentPath, meta, resolvePure, adapter });
@@ -284,8 +284,7 @@ function renderNestedParamSynth({ prop, meta, deps }) {
     // descend from the host slot by span containment to recover the live path
     // generic span-containment descent: at every level pick the child slot whose span holds
     // the target (covers logical / conditional / sequence / paren AND transparent-IIFE hops -
-    // call callee, arrow body, block return). the printer re-parenthesizes as needed, so the
-    // plan's needsParens marker is text-emitter-only
+    // call callee, arrow body, block return)
     // the descent length is the SOURCE's nesting, so it carries no hop budget: each step moves into
     // a strictly smaller span and the walk ends on the tree - either at the target or at a level
     // whose children do not contain it. a budget answered a legal deeply-nested pattern exactly as
@@ -1077,8 +1076,8 @@ export default function createDestructureEmitter({
     return pure && pure.kind !== 'instance' ? pure : null;
   }
 
-  // the shared provider plan for a flatten-eligible host: the SAME decision tree unplugin
-  // renders as text. babel's resolvePure already carries the mutated-static and disable
+  // the shared provider plan for a flatten-eligible host: the SAME decision tree the other
+  // leg renders. babel's resolvePure already carries the mutated-static and disable
   // gates, so plan resolution matches the per-leaf detection pipeline. `declaratorNode` is
   // a real VariableDeclarator or the cascade's synthetic `{ id, init }` assignment host
   function buildFlattenPlan({ declaratorNode, scope, path }) {
@@ -1661,7 +1660,8 @@ export default function createDestructureEmitter({
   // memoize a constant-literal receiver into a `_ref` so the surviving residual doesn't keep a
   // duplicate of the (possibly large) literal beside the extract. the SWAP below is the dedup: the
   // literal leaves the residual in this same call, so a sibling leaf resolves `_ref` and never
-  // reaches here with the same node (unplugin memoizes by node because it rewrites text, not AST).
+  // reaches here with the same node (the other leg memoizes by node - its drain renders once per
+  // receiver node, after the walk).
   // constant-only, so re-crawling the hoisted clone is inert
   function memoizeSeKeyReceiver({ prop, plan, residualDecl, objectNode }) {
     const ref = generateLocalRef(residualDecl.scope);
@@ -2246,18 +2246,6 @@ export default function createDestructureEmitter({
     }
   }
 
-  // a sentinel-valued prop a prior pass printed (`{ key: _unusedN }`): adopted names skip
-  // only while our extraction of THIS key stands with them - the same census pair both
-  // unplugin dispatchers run ahead of every route
-  function sentinelAlreadyProcessed(prop, meta) {
-    return prop.node.value?.type === 'Identifier' && injector.hasGeneratedUnusedName(prop.node.value.name)
-      && (!injector.isAdoptedUnusedName(prop.node.value.name) || restSentinelExtractionSibling(prop, {
-        key: typeof meta?.key === 'string' ? meta.key : prop.node.key?.name ?? prop.node.key?.value,
-        symbolIterator: !!meta && isSourcedSymbolIteratorMeta(meta),
-        injector,
-      }));
-  }
-
   function handleObjectPropertyResult({ prop, meta, kind, entry, hintName }) {
     // a key-swap survivor of an already-rendered flatten / fold (revisits re-enter here
     // after the host rebuild requeues the pattern subtree): the natural computed-key
@@ -2266,7 +2254,8 @@ export default function createDestructureEmitter({
     // a prop a prior pass already claimed (its overwrite rebind, substituted default,
     // minted computed key or printed sentinel stands beside it) - the shared census
     // family, ahead of every route
-    if (ownEmittedPatternClaim(prop, ownOutputTests(injector)) || sentinelAlreadyProcessed(prop, meta)) return;
+    if (ownEmittedPatternClaim(prop, ownOutputTests(injector))
+      || sentinelAlreadyProcessed(prop, { node: prop.node, meta, injector })) return;
     // the group's size is read HERE, at the first prop of it to dispatch - the emissions below
     // splice props out, and the receiver plan must judge the group the source wrote
     patternSizeOf(prop.parentPath);
@@ -2437,55 +2426,22 @@ export default function createDestructureEmitter({
     t.traverse(root, (node, ancestors) => { visit(node, ancestors.at(-1)?.node ?? null); });
   }
 
-  // catch-clause receiver extraction: `catch ({ code }) { ... }` -> `catch (_ref) { let { code } = _ref; ... }`.
-  // ArrayPattern destructuring in catch can't be polyfilled by property rewrite (bindings
-  // are positional, not named), so extracting it is pure overhead - unplugin keeps it
-  // inline and babel mirrors that. ObjectPattern still needs extraction because
-  // `{ key = default }` and polyfillable key lookups require a named receiver (`_ref`)
-  // to rewrite against. extraction is gated on actual usage: skip when nothing in the
-  // catch body reads the destructured names AND no property forces a receiver rewrite
+  // catch-clause receiver relocation - `catch ({ code }) { ... }` -> `catch (_ref) { let { code } = _ref; ... }`
+  // - as the shared planner decides it; this half is the host surgery (ref allocation, the
+  // unshift into the body, the born-declaration registration)
   function extractCatchClause(path) {
     const { param } = path.node;
-    if (!param || param.type !== 'ObjectPattern') return;
-    if (!param.properties?.length) return;
-    // shallow check: only outer-level props are inspected. nested patterns
-    // (`{ a: { b: { Array: { from } } } }`) without rest/default/computed at the outer
-    // level don't need extraction - the destructure works as-is in catch params, and
-    // leaf bindings (`from`) are local catch bindings, not polyfill candidates. recursive
-    // descent here would trigger extraction noise without observable runtime gain
-    // only a prop whose KEY resolves to a pure polyfill via the typeless catch meta gets
-    // rewritten against the `_ref` receiver (`{ at }` -> `let at = _at(_ref)`); a
-    // non-polyfillable name (`{ message }`) gets no rewrite, so restructuring for it is
-    // pure churn the unplugin twin never produces - its transform fires only off a
-    // resolved prop to begin with
-    const resolvableProps = param.properties.filter(p => {
-      if (p.type !== 'ObjectProperty' || p.computed) return false;
-      const key = p.key?.name ?? p.key?.value ?? null;
-      return key !== null && !!resolvePure({ kind: 'property', object: null, key, placement: null }, path);
+    const plan = planCatchClauseExtraction({
+      paramNode: param,
+      bodyNode: path.node.body,
+      scope: path.scope,
+      adapter,
+      path,
+      resolvePure: meta => resolvePure(meta, path),
+      walkNode: traverseWithParent,
     });
-    // computed keys hosting the symbol / SE-key / resolvable-fold machinery keep their
-    // unconditional extraction; a machinery-less computed key (string spelling of a symbol,
-    // unresolvable dynamic key) is a plain in-place read the unplugin twin never restructures
-    // for. otherwise extraction needs a rewrite-bound prop AND a pattern-level
-    // reason: a rest sibling (the `_unused` sentinel preserves its exclusion) or a
-    // default on the resolved key (the guarded `_ref`-read rewrite); a plain resolved
-    // prop matters only when the body actually reads it. plain `{ code = 1 }` /
-    // rest-only patterns destructure in place
-    const hasMachinery = param.properties.some(p => computedPropKeyHostsMachinery({
-      propNode: p, scope: path.scope, adapter, path, resolvePure,
-    }));
-    if (!hasMachinery && !resolvableProps.length) return;
-    // whether a resolvable prop is worth an `_ref`-bound rewrite is a PER-PROP question - the
-    // shared predicate both emitters ask. a machinery sibling forces the relocation but says
-    // nothing about this prop, so an unread one stays a native read in the residual instead of
-    // an import plus a dead dispatcher call
-    const unobservable = resolvableProps.filter(p => !catchPropRewriteObservable({
-      propNode: p, patternNode: param, bodyNode: path.node.body,
-      localName: p.value?.type === 'Identifier' ? p.value.name : null, walkNode: traverseWithParent,
-    }));
-    // nothing to rewrite and no machinery to relocate for: the pattern destructures in place
-    if (!hasMachinery && unobservable.length === resolvableProps.length) return;
-    for (const p of unobservable) skippedNodes.add(p);
+    if (!plan) return;
+    for (const p of plan.unobservable) skippedNodes.add(p);
     // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
     // - keeps one naming scheme across the plugin and matches unplugin's output shape
     const ref = injector.generateLocalRef(path.scope);

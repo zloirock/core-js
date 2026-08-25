@@ -1039,9 +1039,9 @@ export function chooseFallbackReceiverNode({
 }
 
 // Single source of truth for HOW a polyfillable destructure prop whose computed key has a side effect
-// (`{ [(eff(), 'from')]: f } = R`) is emitted on a `var/let/const` declarator. The two emitters render
-// differently (babel mutates the AST, unplugin rewrites text) but the strategy decision lives here, so
-// a fix lands once. The effect is entangled with the destructure's evaluation order, so the ONE robust
+// (`{ [(eff(), 'from')]: f } = R`) is emitted on a `var/let/const` declarator. The two bindings render
+// the residual at different MOMENTS (babel in traversal, unplugin at its drain) but the strategy
+// decision lives here, so a fix lands once. The effect is entangled with the destructure's evaluation order, so the ONE robust
 // strategy keeps the key IN PLACE (its value renamed to a throwaway, so the effect runs exactly once and
 // in source order) and binds the polyfill separately - this handles every shape uniformly (sole / multi
 // / nested / rest / for-init / default / export / array-wrapper / nested-sequence key).
@@ -2389,7 +2389,6 @@ function mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys }) {
   return key;
 }
 
-// eslint-disable-next-line max-statements -- sequential plan-building steps of one pattern
 export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, adapter }) {
   if (!resolvePure || !meta?.object || meta.placement !== 'static') return null;
   if (leafPatternPath?.node?.type !== 'ObjectPattern') return null;
@@ -2479,18 +2478,11 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
   // declared HERE, above `collectValueLeaves`: `rootContext` hoists, a `const` beside it does not
   const rootContextByNode = new Map();
   const targetLeaves = [];
-  // arrows whose WHOLE expression body becomes a target: a text replacement with an object
-  // literal there needs wrapping parens (block ambiguity); AST printers add them automatically
-  // ... and leaves whose OWN value picks a `||` / `??` branch (a logical LEFT, and everything
-  // whose value flows into one): swapping such a leaf to an always-defined literal flips which
-  // branch runs when the leaf can be nullish, so the mirror skips those below
-  const expressionBodyLeaves = new Set();
+  // leaves whose OWN value picks a `||` / `??` branch (a logical LEFT, and everything whose
+  // value flows into one): swapping such a leaf to an always-defined literal flips which branch
+  // runs when the leaf can be nullish, so the mirror skips those below
   const valueSelectingLeaves = new Set();
-  // `atBodyStart` tracks whether the current node sits at an arrow's expression-body START, where a
-  // spliced object literal would make `=> {...}` read as a block body. it only matters for the
-  // unplugin text splice (babel's printer parenthesises on its own); the leaf that finally lands
-  // there is marked so the renderer wraps it in parens
-  function collectValueLeaves(node, atBodyStart = false, selects = false) {
+  function collectValueLeaves(node, selects = false) {
     while (true) {
       const { tail } = peelNestedSequenceExpressions(node);
       if (tail?.type === 'CallExpression' || tail?.type === 'OptionalCallExpression') {
@@ -2498,24 +2490,17 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
         // only the value leaves inside its return expression are mirrored
         const inlined = peelZeroArgIifeReturn(tail);
         if (inlined) {
-          const calleeNode = peelSequenceTail(unwrapRuntimeExpr(tail.callee), { step: unwrapRuntimeExpr });
-          // the inlined value is at body-start only for an arrow whose body IS this expression
-          // (a block-bodied or function-expression IIFE splices inside a `{ return ... }`, no `=>`
-          // hazard); this overrides any incoming flag since the splice position is the inner wrapper's
-          atBodyStart = calleeNode?.type === 'ArrowFunctionExpression' && calleeNode.body === inlined;
           node = inlined;
           continue;
         }
       }
       if (tail?.type === 'ConditionalExpression') {
-        // both branches are reachable - the runtime test picks per call and stays native. the test
-        // occupies body-start (never a value leaf), so the branch values are never at body-start
-        const consequentFalsy = collectValueLeaves(tail.consequent, false, selects);
-        return collectValueLeaves(tail.alternate, false, selects) || consequentFalsy;
+        // both branches are reachable - the runtime test picks per call and stays native
+        const consequentFalsy = collectValueLeaves(tail.consequent, selects);
+        return collectValueLeaves(tail.alternate, selects) || consequentFalsy;
       }
       if (tail?.type !== 'LogicalExpression') {
         targetLeaves.push(tail);
-        if (atBodyStart) expressionBodyLeaves.add(tail);
         if (selects) valueSelectingLeaves.add(tail);
         // a DEFINED proxy operand is truthy, so a `||` / `??` right beside it is dead; an
         // UNDEFINABLE probe nav (`globalThis.window ?? {}` - nullish exactly off-env) reaches
@@ -2524,15 +2509,13 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
           || fallbackValueCanBeNullish(tail, { scope: leafPatternPath.scope, adapter, path: leafPatternPath });
       }
       if (tail.operator === '&&') {
-        // only the RIGHT operand is a value leaf; the left is a truthiness gate that stays verbatim,
-        // so no collected leaf lands at body-start
-        collectValueLeaves(tail.right, false, selects);
+        // only the RIGHT operand is a value leaf; the left is a truthiness gate that stays verbatim
+        collectValueLeaves(tail.right, selects);
         return true;
       }
-      // `||` / `??`: the LEFT operand occupies body-start, so the flag rides into it; the right is
-      // past the operator and never at body-start. the LEFT's own value picks the branch, and the
-      // RIGHT hands the expression's value on, so it keeps the caller's selection position
-      return collectValueLeaves(tail.left, atBodyStart, true) ? collectValueLeaves(tail.right, false, selects) : false;
+      // `||` / `??`: the LEFT's own value picks the branch, and the RIGHT hands the expression's
+      // value on, so it keeps the caller's selection position
+      return collectValueLeaves(tail.left, true) ? collectValueLeaves(tail.right, selects) : false;
     }
   }
   const rootCanBeFalsy = collectValueLeaves(receiverNode);
@@ -2662,7 +2645,7 @@ export function buildNestedParamSynthPlan({ leafPatternPath, meta, resolvePure, 
       // so a tree mixing a passthrough with polyfills there is un-renderable - bail to native instead of
       // emitting `t.identifier(null)`. an all-polyfill static-object tree needs no receiver and still fires
       if (!descriptor.receiverName && metrics.hasPassthrough) continue;
-      out.push({ node: leaf, tree, needsParens: expressionBodyLeaves.has(leaf), ...descriptor });
+      out.push({ node: leaf, tree, ...descriptor });
     }
     return out;
   }
@@ -2786,10 +2769,11 @@ function mirrorReceiverDescriptor(ctxNode, leafPatternPath, adapter) {
   return { receiverName, receiverIsProxy: POSSIBLE_GLOBAL_OBJECTS.has(receiverName) };
 }
 
-// resolve a passthrough leaf's base reference for the UNPLUGIN text-emitter (the babel emitter re-emits the
-// bare member access and lets its natural visitor resolve it - no replica). this mirrors that visitor and
-// the unplugin's own natural injection: a MISSING-ABLE constructor (`Set`/`Map` - it has a pure constructor
-// entry) IS the pure import: read the whole binding (`{ Set }` -> `_Set`) or a property off it
+// resolve a passthrough leaf's base reference. both bindings read it from here: the canon resolves
+// what babel once left to a second visitor pass over its own re-emitted member access, and the two
+// answers coincide by corpus. the resolution mirrors the natural injection: a MISSING-ABLE
+// constructor (`Set`/`Map` - it has a pure constructor entry) IS the pure import: read the whole
+// binding (`{ Set }` -> `_Set`) or a property off it
 // (`{ Set: { union } }` -> `_Set.union`). the property lives on the pure constructor even when not declared
 // in the built-in definitions (`_Set.union` is a static), so this INJECTS the polyfill - matching usage-
 // pure's own `globalThis.Set.union` -> `_Set.union` resolution. NEVER a native read / optional chain: that
@@ -2907,8 +2891,8 @@ export function applyNestedParamSynthPlan({ plan, renderTree, replaceTarget, ski
   // (no inline default that would corrupt the branch's legitimate undefined). nothing to render
   if (plan.bail) return true;
   let replaced = false;
-  for (const { node, tree, needsParens, receiverName, receiverIsProxy } of plan.targets) {
-    if (!replaceTarget(node, renderTree(tree, { receiverName, receiverIsProxy }), needsParens === true)) continue;
+  for (const { node, tree, receiverName, receiverIsProxy } of plan.targets) {
+    if (!replaceTarget(node, renderTree(tree, { receiverName, receiverIsProxy }))) continue;
     skipSubtree(node);
     replaced = true;
   }
