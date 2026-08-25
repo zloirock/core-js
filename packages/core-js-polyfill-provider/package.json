@@ -44,6 +44,8 @@
     "./helpers/*.js": "./helpers/*.js",
     "./injector-base": "./injector-base.js",
     "./injector-base.js": "./injector-base.js",
+    "./render": "./render.js",
+    "./render.js": "./render.js",
     "./resolver": "./resolver.js",
     "./resolver.js": "./resolver.js"
   },

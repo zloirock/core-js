@@ -13,7 +13,7 @@ const cond = Math.random() > 0.5;
 const {
   'from': f
 } = cond ? {
-  "from": _Array$from
+  'from': _Array$from
 } : _Set;
 const {
   of
@@ -25,7 +25,7 @@ const {
   'entries': e
 } = cond ? {
   "0": Object["0"],
-  "entries": _Object$entries
+  'entries': _Object$entries
 } : _Map;
 const {
   ['ke' + 'ys']: k

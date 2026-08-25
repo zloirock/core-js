@@ -562,6 +562,15 @@ export function buildNestedDestructurePlan({
     return foldNestedPattern(outerProp, value, innerProp => planOuterPropStatic(innerProp, hostInit, newPath));
   }
 
+  // the ONE unknown-span rule (bias-safe = KEEP): a node a co-transform synthesized carries
+  // no positions, and its effect exists only where it stands - excluding it on
+  // `undefined >= X` silently DROPPED the rescue (the observable user effect vanished),
+  // while the sibling guards merely skipped an optimization in the opposite direction.
+  // containment applies only when both spans are known
+  function spanWithinSlot(node, host) {
+    if (typeof node?.start !== 'number' || typeof host?.start !== 'number') return true;
+    return node.start >= host.start && node.end <= host.end;
+  }
   let plan = null;
   const originalId = declarator.id;
   const peeled = peelArrayWrapperPair({ pattern: originalId, init: declarator.init, scope, adapter, path });
@@ -573,13 +582,12 @@ export function buildNestedDestructurePlan({
   // a const-alias dereference lands OUTSIDE the init span - the residual keeps the alias
   // identifier verbatim, so no element targeting applies
   const initElement = arrayPeelHappened && peeled.init !== declarator.init
-    && peeled.init.start >= declarator.init.start && peeled.init.end <= declarator.init.end ? peeled.init : null;
+    && spanWithinSlot(peeled.init, declarator.init) ? peeled.init : null;
   // INLINE consumed wrapper levels whose sequence prefixes were lifted: the residual render
   // strips each down to its bare array so the lifted effect never re-runs. an alias-dereferenced
   // level (array outside the wrapper span) keeps its identifier verbatim - nothing to strip
   const consumedLevelStrips = (peeled.consumedLevels ?? []).filter(l => l.wrapper !== l.array
-    && l.array.start >= l.wrapper.start && l.array.end <= l.wrapper.end
-    && l.wrapper.start >= declarator.init.start && l.wrapper.end <= declarator.init.end);
+    && spanWithinSlot(l.array, l.wrapper) && spanWithinSlot(l.wrapper, declarator.init));
   if (pattern?.type === 'ObjectPattern' && pattern.properties.length) {
     // peel parens / chain / TS wrappers AND SE tail to a fixpoint so `(se(), R) as any`
     // (and nested forms like `(se(), (R as any))`) reach the receiver. without this,
@@ -607,7 +615,7 @@ export function buildNestedDestructurePlan({
     // setup already runs at the alias declaration, so harvesting it would double-run
     const probed = init ? discardRescueNodes({ node: initBeforeCollapse, scope, adapter, path }) : [];
     const inSlot = declarator.init
-            ? probed.filter(n => n.start >= declarator.init.start && n.end <= declarator.init.end) : [];
+      ? probed.filter(n => spanWithinSlot(n, declarator.init)) : [];
     const discardSe = inSlot.length ? inSlot : null;
     const receiver = init ? resolveObjectName({ objectNode: init, scope, adapter, path }) : null;
     planReceiverName = receiver;

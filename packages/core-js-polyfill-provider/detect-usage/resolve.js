@@ -1275,8 +1275,14 @@ function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, pat
   }
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
-    // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
-    if (unwrapped.name === name || !adapter.hasBinding(initScope, unwrapped.name, path)) return unwrapped.name;
+    // (recursion hits the top-level polyfillHint translation for plugin-managed imports).
+    // a MUTATED proxy slot is the user's replacement whatever route reaches it: an ALIAS of
+    // that name (`globalThis.self = X; const g = self`) holds the replacement too, so it
+    // resolves to no global - the same verdict the direct read gets
+    if (unwrapped.name === name || !adapter.hasBinding(initScope, unwrapped.name, path)) {
+      return POSSIBLE_GLOBAL_OBJECTS.has(unwrapped.name) && isMutatedGlobalSlot(adapter, unwrapped.name)
+        ? null : unwrapped.name;
+    }
     return resolveBindingToGlobal({ name: unwrapped.name, scope: initScope, adapter, seen, path, usageNode: unwrapped });
   }
   // identity / param-free / SE-prefix IIFE peel applied ONLY in the binding-init walk,
@@ -1447,7 +1453,11 @@ export function resolveObjectName({ objectNode, scope, adapter, seen, path, usag
     if (adapter.hasBinding(scope, objectNode.name, path)) {
       return resolveBindingToGlobal({ name: objectNode.name, scope, adapter, seen, path, usageNode });
     }
-    // no binding - global only if starts with uppercase or is a known global proxy
+    // no binding - global only if starts with uppercase or is a known global proxy.
+    // a mutated proxy SLOT (`globalThis.self = fake`) is the user's replacement, not the
+    // global - the bare name no longer roots a global surface (the recognizer and the
+    // member-tail hop already decline it; this is the binding-less name's own spelling)
+    if (POSSIBLE_GLOBAL_OBJECTS.has(objectNode.name) && isMutatedGlobalSlot(adapter, objectNode.name)) return null;
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
   // call expression: inline the function-like callee's body return when it bottoms out on
@@ -2287,6 +2297,25 @@ export function resolveKey({ node, computed, scope, adapter, seen, path, depth =
     }
     return null;
   }
+}
+
+// which WELL-KNOWN SYMBOL a COMPUTED key names - spelled `[Symbol.iterator]`, aliased (`[s]`), or
+// through the pure import an emitter minted for it (`[_Symbol$iterator]`)? such a key replays
+// losslessly into a synth literal: the slot evaluates to the same symbol the pattern's own key
+// reads, and the import is one the pattern already owes. the fold plus its provenance answer, so
+// the two emitters agree however their rewrite order left the spelling, while a minted pure CTOR
+// standing in for a bare global (`[Set]` -> `[_Set]`) names none and stays out - a raw emission
+// there would ReferenceError off-engine
+export function computedKeyWellKnownSymbolName({ keyNode, scope, adapter, path }) {
+  const key = resolveKey({ node: keyNode, computed: true, scope, adapter, path });
+  // the fold alone cannot answer: a STRING spelling folds to the same name (`['Symbol.iterator']`
+  // reads an ordinary property called that), so provenance decides
+  return symbolSourcedFoldedKey({ key, keyNode, scope, adapter, path }) ? key.slice('Symbol.'.length) : null;
+}
+
+// the boolean view, for the gates that only ask whether the key is one
+export function computedKeyIsWellKnownSymbol(args) {
+  return computedKeyWellKnownSymbolName(args) !== null;
 }
 
 // the two keys a synth-swap pattern property needs, derived once so babel-plugin and unplugin agree:
