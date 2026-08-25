@@ -114,7 +114,7 @@ import {
   trailingSeKeyProps,
   withoutCtorHopJobsWithLiveSiblings,
 } from './destructure-helpers.js';
-import { markSubtreeSkipped } from './nav-spine.js';
+import { cloneStamped, markSubtreeSkipped, nodeSite } from './nav-spine.js';
 
 export default function createDestructureDrains(ctx) {
   const {
@@ -209,7 +209,7 @@ export default function createDestructureDrains(ctx) {
       // not have (`{ [Symbol.iterator]: it } = Map` -> `_getIteratorMethod(_Map)`)
       const barePure = !nested && receiver?.type === 'Identifier'
         && (isPristineProxyGlobal(adapter, receiver.name)
-          || (!adapter.getBinding(metaPath.scope, receiver.name, metaPath)
+          || (!adapter.getBinding(nodeSite(receiver, metaPath).scope, receiver.name, nodeSite(receiver, metaPath).path)
             && !isMutatedGlobalSlot(adapter, receiver.name)))
         ? resolveGlobalPolyfill(receiver.name) : null;
       if (barePure) {
@@ -244,7 +244,7 @@ export default function createDestructureDrains(ctx) {
         const ref = resolveNestedReceiverBase({
           rootName: receiver.name,
           keys: chainKeys,
-          bound: !!adapter.getBinding(metaPath.scope, receiver.name, metaPath),
+          bound: !!adapter.getBinding(nodeSite(receiver, metaPath).scope, receiver.name, nodeSite(receiver, metaPath).path),
           adapter,
           resolveGlobalPolyfill,
         });
@@ -390,7 +390,7 @@ export default function createDestructureDrains(ctx) {
       // SOURCE nav instead, its own root substituted (`(_globalThis.window?.Array).other`)
       // ... unless the LEAF whole-swaps to a pure ctor: that binding is always defined and the
       // read goes through it (`globalThis.window?.Map` -> `_Map.other`)
-      const navAliasCtx = metaPath ? { scope: metaPath.scope, adapter, path: metaPath } : null;
+      const navAliasCtx = metaPath ? { ...nodeSite(receiver, metaPath), adapter } : null;
       // ... and only a `?.` that can GENUINELY short-circuit: one over a proven root is dead
       // text and the nav collapses like its plain twin
       const navPassthrough = navAliasCtx && receiver && receiverCarriesLiveOptional(receiver)
@@ -404,7 +404,7 @@ export default function createDestructureDrains(ctx) {
         // (`globalThis.window?.self.Object` -> `(null == _globalThis.window ? void 0 : _self.Object)`)
         const navRead = guardedNavPassthrough(receiver, metaPath,
           { adapter, resolveGlobalPolyfill, injectPureImport }) ?? (() => {
-          const clone = cloneNode(receiver);
+          const clone = cloneStamped(receiver);
           substituteProxyRootsInClone(clone, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
           // the read sits OUTSIDE the chain the nav carries: fused in, it would short-circuit too
           return chainExpression(clone);
@@ -454,7 +454,7 @@ export default function createDestructureDrains(ctx) {
   // effects re-run ahead of the binding), an alias / proxy chain collapses through the
   // shared plan. resolved at REGISTRATION (pristine tree); null leaves the receiver live
   function planMemoArg(memoReceiver, metaPath) {
-    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
+    const aliasCtx = { ...nodeSite(memoReceiver, metaPath), adapter };
     const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
     const ctorSwap = proxyGlobalMemberCtorPureSwap({
       receiver: tail, aliasCtx, resolvePure: m => resolvePure(m, metaPath),
@@ -516,13 +516,18 @@ export default function createDestructureDrains(ctx) {
     // every other logical left keeps the harvest, its value being one the literal replaces
     const sealedLeft = receiver.type === 'LogicalExpression' || branchMirror
       ? renderSealedNavProbe(pending.sealedProbePlan, metaPath, probeRenderCtx) : null;
-    const rescue = sealedLeft ? [sealedLeft]
-      : shouldDropRescueReceiver(rescueSource) || receiver.type === 'LogicalExpression'
+    // the multi-hop proxy drop and the per-branch mirror both ERASE the read instead of keeping it
+    const dropRescueReceiver = shouldDropRescueReceiver(rescueSource)
       || (branchMirror && !insideParamPosition(metaPath)
-        && rescueSource?.type === 'MemberExpression' && !rescueOverBinding)
-      ? discardRescueNodes({ node: rescueSource, scope: metaPath.scope, adapter, path: metaPath })
-        .map(node => cloneNode(node))
-      : [cloneNode(rescueSource)];
+        && rescueSource?.type === 'MemberExpression' && !rescueOverBinding);
+    // `rescueSe` is the provider's verdict that the receiver's own READ has to run - re-emitted
+    // WHOLE, the way babel's swap spells it, because a navigation the literal replaces is
+    // observable beyond the effects it buries (it throws off an absent host). everything else asks
+    // the rescue canon, which owns what a DISCARD silently drops
+    const rescue = sealedLeft ? [sealedLeft]
+      : pending.rescueSe && !dropRescueReceiver ? [cloneStamped(rescueSource)]
+      : discardRescueNodes({ node: rescueSource, ...nodeSite(rescueSource, metaPath), adapter })
+        .map(node => cloneStamped(node));
     // the clone is built at DRAIN time, past the walk: a proxy root the registration
     // suppressed (its spine was the memo plan's tail) would ship raw, so the clone
     // substitutes it here (`(() => { eff(); return globalThis; })().self.Array`)
@@ -560,9 +565,8 @@ export default function createDestructureDrains(ctx) {
           else if (pending.memoArgPlan.liveSe?.length) {
             pending.memoArgPlan.liveSe = discardRescueNodes({
               node: pending.memoArgPlan.tail,
-              scope: pending.metaPath.scope,
+              ...nodeSite(pending.memoArgPlan.tail, pending.metaPath),
               adapter,
-              path: pending.metaPath,
             });
           }
         }
@@ -803,9 +807,12 @@ export default function createDestructureDrains(ctx) {
   // the receiverless-STATIC rescue arm of the memo declarator, extracted for its size:
   // the discard rescues, the seq-callee keep, the ctor-pattern re-anchor and the lift.
   // returns 'consumed' when the re-anchor took the declarator whole
-  function emitStaticMemoRescues({ hostNode, declarator, declJobs, statements, exported, seqRescues }) {
+  function emitStaticMemoRescues({ hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe }) {
     const [{ metaPath }] = declJobs;
-    const rescues = discardRescueNodes({
+    // the extraction's own probe re-emits the discarded READ whole, buried effects included, so a
+    // lift of the same nodes would run them twice - babel spells the rule at its swap, where the
+    // rescue keeps only what the probe does not already carry
+    const rescues = consumeProbe ? [] : discardRescueNodes({
       node: declarator.init,
       scope: metaPath.scope,
       adapter,
@@ -882,7 +889,7 @@ export default function createDestructureDrains(ctx) {
     // resolvable CTOR off a proxy surface re-emits that read as a THROW PROBE on its own
     // binding (`const { iterator } = f().self.Symbol` keeps `_Symbol;`), which is what
     // preserves the native throw on an absent host
-    if (!rescues.length) {
+    if (!rescues.length && !consumeProbe) {
       // the walk already collapsed the receiver nav onto its pure BINDING: the full consume
       // discards that read, so it re-emits as a throw probe of its own (`const { iterator }
       // = f().self.Symbol` keeps `_Symbol;`) - what preserves the native throw off-host
@@ -1012,6 +1019,10 @@ export default function createDestructureDrains(ctx) {
     // extraction's own probe (`((null == _globalThis.window ? void 0 : _self)[_S], _gim(_self))`)
     const guardedPureTail = !refName && needsValue && guardedPureBinding(declarator.init, injectorState);
     if (guardedPureTail) refName = guardedPureTail;
+    // the probe the full consume owes for the read it discards, decided BEFORE the rescue harvest:
+    // the harvest asks whether this probe is coming, and the extraction below reuses the same node
+    // (`guardedPureTail` is a needsValue-only refName, so the full consume asks only about refName)
+    const consumeProbe = !needsValue && !refName ? renderDiscardedInitProbe(declJobs, probeRenderCtx) : null;
     const guardRefs = new Map();
     if (needsValue && !refName) {
       // ref order mirrors babel's requeue: the FIRST claim's guard ref mints before the
@@ -1022,7 +1033,9 @@ export default function createDestructureDrains(ctx) {
       refName = mintRefName();
       statements.push(variableDeclaration(hostNode.kind, [variableDeclarator(identifier(refName), declarator.init)]));
     } else if (!needsValue) {
-      const consumedCtor = emitStaticMemoRescues({ hostNode, declarator, declJobs, statements, exported, seqRescues });
+      const consumedCtor = emitStaticMemoRescues({
+        hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe,
+      });
       if (consumedCtor) return consumedCtor;
     }
     // the pattern consumed WHOLE leaves nothing to carry the read native performs off the init's
@@ -1030,7 +1043,7 @@ export default function createDestructureDrains(ctx) {
     // the first extraction leads with that read, rebuilt off the rendered init. a MEMO'd init is
     // already read by its own slot and owes nothing here
     const probePrefix = refName && !guardedPureTail ? null
-      : renderDiscardedInitProbe(declJobs, probeRenderCtx);
+      : consumeProbe ?? renderDiscardedInitProbe(declJobs, probeRenderCtx);
     for (const job of declJobs) {
       let value = memoJobValue({ job, refName, guardRefs });
       if (seqRescues.length || (probePrefix && job === declJobs[0])) {
@@ -1584,17 +1597,13 @@ export default function createDestructureDrains(ctx) {
       path: dropMetaPath,
     }) : [];
     const droppedInit = peelWrappers(declarator.init);
-    // a value-SELECTING init re-emits WHOLE: an effect buried in an operand (a proxy-hop KEY)
-    // has no slot of its own, and the selection reads exactly what the source wrote
-    // ... and it LEADS the extraction: the source evaluates the init before it binds
-    if (!dropExprs.length
-      && (droppedInit?.type === 'LogicalExpression' || droppedInit?.type === 'ConditionalExpression')
-      && mayHaveSideEffects(droppedInit)) {
-      if (insertAt >= 0) {
-        statements.splice(insertAt, 0, expressionStatement(declarator.init));
-        return;
-      }
-      dropExprs.push(declarator.init);
+    // a value-SELECTING init re-emits WHOLE - an effect buried in an operand (a proxy-hop KEY) has
+    // no slot of its own, so the rescue canon answers with the selection itself. the POSITION is the
+    // separate half: it LEADS the extraction, because the source evaluates the init before it binds
+    if (insertAt >= 0 && dropExprs.length
+      && (droppedInit?.type === 'LogicalExpression' || droppedInit?.type === 'ConditionalExpression')) {
+      statements.splice(insertAt, 0, ...dropExprs.map(expr => expressionStatement(expr)));
+      return;
     }
     for (const expr of dropExprs) statements.push(expressionStatement(expr));
   }

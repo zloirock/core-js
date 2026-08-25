@@ -83,6 +83,24 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
   return result;
 }
 
+// the DIRECTORY a package resolves to need not carry its name (`@core-js/pure` lives in
+// `core-js-pure` in a workspace, and a pnpm store renames again), so a specifier the injector
+// spelled as a resolved file path is recognised by the package ROOT the same resolver produced -
+// normalized like every other specifier, or null when the package does not resolve at all
+const packageRootCache = new Map();
+
+export function packageRootPrefix(pkg) {
+  if (packageRootCache.has(pkg)) return packageRootCache.get(pkg);
+  const resolved = resolveImportPath(pkg, 'package.json', true);
+  const marker = '/package.json';
+  // an UNRESOLVED package falls back to the bare specifier, which the bare-prefix check already
+  // covers - reporting it here would claim a root that does not exist
+  const root = resolved.endsWith(marker) && resolved !== `${ pkg }${ marker }`
+    ? normalizeImportSource(resolved.slice(0, -marker.length + 1)) : null;
+  packageRootCache.set(pkg, root);
+  return root;
+}
+
 // skip core-js internals, root entry re-exports, and bundles - polyfilling them creates
 // circular dependencies. `(?:^|\/)` boundary covers Farm/Bun/esbuild-plugin bare ids too.
 // patterns operate on canonical (normalizeImportSource-output) form: forward slashes only,

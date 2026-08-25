@@ -13,6 +13,7 @@ import {
   resolveObjectName,
   storedUserAssignmentOf,
   vestigialNavOptionals,
+  proxyNavSpellsClaimPure,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import {
@@ -890,9 +891,7 @@ export default function createProxySpineChannel(ctx) {
     // a `delete` performs no read, so its nav collapses whole; with a kept WRITE spelled
     // in the way, the surface after it is the claim's OWN pure rather than a root re-read
     // (`delete (d = globalThis.window).self.k` -> `delete (d = _globalThis.window, _self).k`)
-    if (keptWrite && isDeleteOperand(navHost)) {
-      return { navigated: false, mutatedAbove: false, writeTargetAbove: false, patternHost: false };
-    }
+    if (keptWrite && isDeleteOperand(navHost)) return { navigated: false, mutatedAbove: false };
     // a WRITE TARGET keeps the VALUE spelling - except over a KEPT TAIL, which the value
     // render would respell off the ponyfill (`_self.window.WeakSet = f` reads `.window` on
     // an engine that has none): there it folds to the root like any read
@@ -906,7 +905,9 @@ export default function createProxySpineChannel(ctx) {
     const navigated = (host?.type === 'MemberExpression' && host.object === child
       && !writeTargetAbove && !mutatedAbove && !optionalOverKeptTail)
       || (!!keptTail.length && (patternHost || writeTargetAbove));
-    return { navigated, mutatedAbove, writeTargetAbove, patternHost };
+    // the two positional flags stay INTERNAL: they are terms of `navigated`, and the one consumer
+    // that read them separately weighed them against the key spelling - the canon owns that now
+    return { navigated, mutatedAbove };
   }
 
   // the extension stepped over a kept WRITE: the write re-emits carrying the spine's own
@@ -1030,22 +1031,19 @@ export default function createProxySpineChannel(ctx) {
     // sequence, after the inner ones (evaluation order)
     const { target, outerEffects, seqPrefixEffects, keptTail, writeStep, innerKeptTail, outerHopName } =
       extendCollapseUpward(metaPath, { allowOptional });
-    const { navigated, mutatedAbove, writeTargetAbove, patternHost } = spineIsNavigated(
+    const { navigated, mutatedAbove } = spineIsNavigated(
       target, keptTail, collapsed.keptWrite ?? writeStep, { deadOptional: allowOptional });
 
     // a NAVIGATION rebuilds from the root, so a dead prefix has nothing to carry and drops
     // (`(0, globalThis.window).Promise = f` -> `_globalThis.Promise = f`); a VALUE keeps the
     // source spelling whole (`(0, globalThis.self).Map = f` -> `(0, _self).Map = f`)
     const collectedEffects = [...seqPrefixEffects, ...collapsed.effects, ...outerEffects];
-    // in navigation, with folded KEY effects or onto an alias the ROOT binding spells
-    // the base - the kept-root canon (`globalThis[(eff(), 'self')]` -> `(eff(),
-    // _globalThis)`); a plain VALUE position substitutes the claim's OWN pure instead
-    // (`globalThis.self` -> `_self`), unresolvable swallowed hops respelled above it
-    // (`(v = globalThis.self.window)` -> `v = _self.window`). a bare seq ROOT PREFIX is
-    // not a key effect and keeps the positional verdict (`(q = (eff(), globalThis).self)`
-    // -> `q = (eff(), _self)`)
+    // in NAVIGATION the root binding spells the base; a VALUE position substitutes the claim's OWN
+    // pure, unresolvable swallowed hops respelled above it (`(v = globalThis.self.window)` ->
+    // `v = _self.window`). the canon owns the question - the key SPELLING is not part of it, so a
+    // folded key's effects ride ahead of the binding here exactly as they do for a quiet twin
     const foldedKeyEffects = [...collapsed.keyEffects, ...outerEffects];
-    const valuePosition = !navigated && (!foldedKeyEffects.length || writeTargetAbove || patternHost);
+    const valuePosition = proxyNavSpellsClaimPure({ navigated });
     // an UN-NAVIGATED spine whose kept tail SURVIVES declines the collapse WHOLE: the
     // reference emitters keep every hop below an unbacked terminal spelled
     // (`(v = globalThis.self.window)` stays `_globalThis.self.window`) - folding the backed

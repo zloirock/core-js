@@ -38,6 +38,8 @@ import {
   forEachStatementPosition,
   importBindingView,
   isDirectiveStatement,
+  programPrologueEndIndex,
+  prologueEndIndex,
   isFunctionParamDestructureParent,
   isReusableReceiver,
   methodReadsUsageCensus,
@@ -1113,6 +1115,42 @@ check('directiveValue/empty stmt marker', directiveValue({ directive: '' }), '')
 // a non-directive node yields null so `=== 'use strict'` is cleanly false
 check('directiveValue/non-directive', directiveValue({ type: 'ExpressionStatement', expression: { type: 'Literal', value: 'foo' } }), null);
 check('directiveValue/nullish', directiveValue(null), null);
+
+// --- the prologue-end pair: marker-based for ANY body, marker-less-tolerant for the PROGRAM ---
+
+// `prologueEndIndex` answers for a block that admits no prologue at all (a class static block),
+// so it must never promote a marker-less string; the program half must, or a head insertion
+// lands above a re-emitted `'use client'` and silently disables it
+function markedDirective(directive) {
+  return { type: 'ExpressionStatement', directive, expression: { type: 'Literal', value: directive, directive } };
+}
+function bareDirective(value) {
+  return { type: 'ExpressionStatement', expression: { type: 'Literal', value } };
+}
+const realCode = { type: 'ExpressionStatement', expression: { type: 'CallExpression' } };
+
+for (const [name, end] of [['prologueEndIndex', prologueEndIndex], ['programPrologueEndIndex', programPrologueEndIndex]]) {
+  check(`${ name }/empty body`, end([]), 0);
+  check(`${ name }/nullish body`, end(null), 0);
+  check(`${ name }/no prologue`, end([realCode, markedDirective('use strict')]), 0);
+  check(`${ name }/one marked directive`, end([markedDirective('use strict'), realCode]), 1);
+  check(`${ name }/consecutive marked directives`,
+    end([markedDirective('use strict'), markedDirective('use asm'), realCode]), 2);
+  check(`${ name }/a marked directive past code does not extend`,
+    end([markedDirective('use strict'), realCode, markedDirective('use asm')]), 1);
+  check(`${ name }/whole body is prologue`, end([markedDirective('use strict')]), 1);
+}
+
+check('prologueEndIndex/marker-less known directive is NOT prologue',
+  prologueEndIndex([bareDirective('use client'), realCode]), 0);
+check('programPrologueEndIndex/marker-less known directive IS prologue',
+  programPrologueEndIndex([bareDirective('use client'), realCode]), 1);
+check('programPrologueEndIndex/marker-less UNKNOWN string is not',
+  programPrologueEndIndex([bareDirective('not-a-directive'), realCode]), 0);
+check('programPrologueEndIndex/marker-less known value after a marked one',
+  programPrologueEndIndex([markedDirective('use strict'), bareDirective('use server'), realCode]), 2);
+check('programPrologueEndIndex/an unknown string stops the scan at itself',
+  programPrologueEndIndex([markedDirective('use strict'), bareDirective('nope'), bareDirective('use client')]), 1);
 
 // --- findTSRuntimeBindingInPath: a parameter property binds the body, never the decorators ---
 // The two arms of this climb have DIFFERENT reach and the difference is the whole point: a TS
