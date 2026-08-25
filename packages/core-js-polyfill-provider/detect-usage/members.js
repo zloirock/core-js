@@ -57,6 +57,7 @@ import {
   unwrapParensCollectingEffects,
   chainReadsThroughSeal, chainSealsAShortCircuit, navValueCanShortCircuit, ownChainOptionalObjects,
   proxyReceiverValueCanBeUndefined,
+  claimAlreadyRendered,
 } from './resolve.js';
 
 // is this read the RAW branch of a ctor-identity guard this plugin already emitted (`M === _Map ?
@@ -733,6 +734,8 @@ export function handleMemberExpressionNode({
   node, scope, adapter, handledObjects, suppressProxyGlobals, path, resolveMeta, isEntryAvailable,
   resolvePure = null, keptProxyHops = null, keptDeclinedProxyMetaHops = false,
 }) {
+  // our own render read back on a SECOND pass stands down whole - not just its probe half
+  if (claimAlreadyRendered(node, { scope, adapter, path })) return null;
   const symbolKey = resolveComputedSymbolKey({ node, scope, adapter, path });
   if (symbolKey) {
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
@@ -774,7 +777,7 @@ export function handleMemberExpressionNode({
     // the ROOT RESOLUTION below is substrate-neutral (it reads the chain, it does not touch the
     // tree), so it runs for every emitter; only the SUBSUME - a text-compose race guard - rides
     // `suppressProxyGlobals`
-    if (!isMemberWriteHost(path) && !isForXWriteTarget(path)) {
+    if (!isMemberWriteHost(path) && !isForXWriteTarget(path, adapter)) {
       // the write-position gate, matching the emitters' own symbol-dispatch bails: a member that
       // IS the write target (`= v` / `++` / `delete` / destructuring / for-x head) - or a body
       // read aliasing a for-x per-iteration write - survives with a key-only rewrite, so its
@@ -1165,6 +1168,15 @@ export function handleBinaryIn({ node, scope, adapter, handledObjects, isEntryAv
     primaryObject: objectName && placement ? objectName : null, primaryKey: resolvedLeft ?? null,
     scope, adapter, path,
   });
+  // the instance probe FOLDS the same way the static one does, so it owes the same scope-aware
+  // bit the structural harvest cannot decide: a provably-IMPURE receiver call at the chain root
+  // (`'flat' in mk()` keeps `mk()`; a pure `(() => [1])()` still folds to bare `true`)
+  const probeSideEffects = [];
+  collectChainRootCallEffect({ node: rightObject, sideEffects: probeSideEffects, scope, adapter, path });
+  if (probeSideEffects.length) {
+    carrier.sideEffects = probeSideEffects;
+    carrier.receiverEffectCount = probeSideEffects.length;
+  }
   return carrier.extraCandidates || instanceProbeKey ? carrier : null;
 }
 

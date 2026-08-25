@@ -2,6 +2,7 @@ import {
   blocksUidSlot,
   isDirectiveStatement,
   isTopLevelImportLike,
+  prologueEndIndex,
   tsRuntimeBindingName,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
@@ -36,12 +37,8 @@ export { walkAstNodes } from '@core-js/polyfill-provider/helpers/ast-patterns';
 // body-extract param insert (fallback=fn body open-brace+1) so an inserted statement
 // doesn't split the directive off the prologue and silently flip to sloppy mode
 export function skipDirectivePrologue(statements, fallback) {
-  let end = fallback;
-  for (const stmt of statements ?? []) {
-    if (!isDirectiveStatement(stmt)) break;
-    end = stmt.end;
-  }
-  return end;
+  const end = prologueEndIndex(statements);
+  return end ? statements[end - 1].end : fallback;
 }
 
 // `isRequireCall` + `isTopLevelImportLike` are shared with babel-plugin (the `var _ref;`

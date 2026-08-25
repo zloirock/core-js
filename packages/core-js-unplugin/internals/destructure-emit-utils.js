@@ -1,12 +1,16 @@
-// pure path/AST helpers for destructure-receiver classification. depend only on shared
-// helpers from polyfill-provider, no file-scope state - callers pass paths / nodes directly
+// path/AST helpers for destructure-receiver classification, plus the FRAME stamp a receiver the
+// channel pulls in from elsewhere carries. depend only on shared helpers from polyfill-provider -
+// callers pass paths / nodes directly; the one piece of file-scope state is the node-keyed stamp
+// registry below, which lives and dies with the parse
 import {
   isReceiverShapedNode,
   findIifeArgForParam,
+  findIifeCallSite,
   peelParenAndTSParentPath,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg, isExpandedClassifiableReceiver } from '@core-js/polyfill-provider/helpers/class-walk';
+import { nodeSite, stampNodeSite } from './nav-spine.js';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   resolvableArgSupersedesDeadDefault,
@@ -52,7 +56,9 @@ export function canTransformDestructuring(metaPath) {
 // raw argument node ahead of the classifiable-receiver gate this file's own callers apply
 export function detectIifeArgReceiver(wrapperPath, objectPattern) {
   const arg = findIifeArgForParam(wrapperPath, objectPattern);
-  return arg ? unwrapSafeSequenceTail(arg) : arg;
+  if (!arg) return arg;
+  const callPath = findIifeCallSite(wrapperPath, objectPattern)?.callPath;
+  return stampNodeSite(unwrapSafeSequenceTail(arg), callPath && { scope: callPath.scope, path: callPath });
 }
 
 // receiver node to swap; null means inline-default fallback. handles
@@ -82,7 +88,9 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
     // gating on the default first bailed `(({ from } = []) => ...)(Array)` to a native-first
     // inline default even though the live receiver was statically known
     const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-    if (isClassifiableReceiverArg(argReceiver, scope, adapter)) return argReceiver;
+    // the arg is classified and resolved WHERE IT EVALUATES - the detector stamped that frame on it
+    const { scope: argScope, path: argPath } = nodeSite(argReceiver, wrapperPath);
+    if (isClassifiableReceiverArg(argReceiver, argScope, adapter)) return argReceiver;
     // a resolvable non-Identifier arg (proxy-global member `globalThis.Array`, inline-resolvable call)
     // supersedes the default when the default is a polyfill dead-end - mirrors `chooseFallbackReceiverNode`
     if (resolvableArgSupersedesDeadDefault({
@@ -93,6 +101,8 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern, scope, adapter
       adapter,
       path: wrapperPath,
       resolvePure,
+      argScope,
+      argPath,
     })) return argReceiver;
     // a fallback-shaped default (`Array || Iterator`, `?? Iterator`) collapses LEFT - the synth
     // replaces the whole expression (babel-twin contract); `&&` selects its right side and stays out

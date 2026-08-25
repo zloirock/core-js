@@ -3,7 +3,7 @@
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
 import { declaresRequireBinding } from '../helpers/ast-patterns.js';
-import { normalizeImportSource } from '../helpers/path-normalize.js';
+import { normalizeImportSource, packageRootPrefix } from '../helpers/path-normalize.js';
 import {
   bindsModuleDefault,
   extractStaticString,
@@ -85,26 +85,35 @@ function canonicalizeEntrySubpath(s) {
 // `normalizeImportSource` (shared with `getCoreJSEntry`) handles case / backslash / slash-
 // collapse uniformly so pre-pass dedup catches Vite-rewritten Windows imports and Farm's
 // doubled-slash artifact equally
+// `{ entry, pkg }` for the FIRST package this specifier belongs to, or null. the package travels
+// with the entry because a recognised import is re-emitted, and re-emitting it under the plugin's
+// own package would silently retarget a user's polyfill at another one
 function matchEntrySubpath(source, pkgs, subPrefix) {
   const clean = normalizeImportSource(source);
   for (const pkg of pkgs) {
-    const pkgPrefix = `${ pkg }/`;
-    // the package may be a path SEGMENT rather than the start: `absoluteImports` makes the injector
-    // spell its own imports as resolved file paths, and a re-scan that only matched the string start
-    // would read them as foreign and inject a duplicate beside each one. same boundary rule
-    // `isCoreJSFile` applies to file names
-    const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
-    const start = clean.startsWith(pkgPrefix) ? 0 : segment !== -1 ? segment + 1 : -1;
-    if (start < 0) continue;
-    const afterPkg = clean.slice(start + pkgPrefix.length);
+    const afterPkg = subpathAfterPackage(clean, pkg);
     // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
     // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
     // LATER package that IS a full match (`a/b/` over `a/b/modules/x`) must still be tried -
     // bailing here would make matching order-dependent
-    if (!afterPkg.startsWith(subPrefix)) continue;
-    return canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
+    if (afterPkg === null || !afterPkg.startsWith(subPrefix)) continue;
+    const entry = canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
+    if (entry) return { entry, pkg };
   }
   return null;
+}
+
+// what follows the package in an already-normalized specifier, or null. three spellings answer for
+// one package: the bare name the source writes, the RESOLVED ROOT the injector writes under
+// `absoluteImports` (whose directory need not be named after the package), and - for a layout
+// neither of those covers - the name as a path SEGMENT
+function subpathAfterPackage(clean, pkg) {
+  const pkgPrefix = `${ pkg }/`;
+  if (clean.startsWith(pkgPrefix)) return clean.slice(pkgPrefix.length);
+  const root = packageRootPrefix(pkg);
+  if (root && clean.startsWith(root)) return clean.slice(root.length);
+  const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
+  return segment === -1 ? null : clean.slice(segment + 1 + pkgPrefix.length);
 }
 
 function defaultSpecifierNames(node) {
@@ -133,13 +142,26 @@ const REQUIRE_SHADOWED_SCOPE = {
 // pure-import dedup / super-method mapping is scoped to the main package only:
 // `additionalPackages` are monorepo aliases / vendor forks the user picked deliberately,
 // so their bindings stay inert and their `super.X` stays with the fork's own semantics
-export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, onGlobalImport, onPureImport }) {
+export function scanExistingCoreJSImports(ast, {
+  packages,
+  pkg,
+  mode,
+  adapter,
+  onGlobalImport,
+  onPureImport,
+  isDisabled = null,
+}) {
   // `packages` is lowercased in the resolver; mirror that so config `package: '@My/Fork'`
   // still matches the user's source literal when they typed the lowercase canonical form
   const mainPkgs = pkg ? [pkg.toLowerCase()] : null;
   const modePrefix = mode ? `${ mode }/` : null;
   const shadowScope = declaresRequireBinding(ast.body) ? REQUIRE_SHADOWED_SCOPE : null;
   for (const node of ast.body ?? []) {
+    // an opt-out directive means "do not touch this line": the statement is neither adopted as a
+    // dedup target nor removed and re-emitted, so it stays exactly where the author wrote it. the
+    // cost is deliberate - unknown to the injector, the module may be imported a second time beside
+    // it, and that is the reading the file-level `core-js-disable-file` has always had
+    if (isDisabled?.(node)) continue;
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
       if (!onPureImport || !mainPkgs || !modePrefix) continue;
       // two shapes of type-only imports: `import type X from '...'` (Flow `import typeof X`) sets
@@ -154,8 +176,8 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       if (typeof source !== 'string') continue;
       const names = defaultSpecifierNames(node);
       if (!names.length) continue;
-      const entry = matchEntrySubpath(source, mainPkgs, modePrefix);
-      if (entry) for (const name of names) onPureImport(entry, name);
+      const match = matchEntrySubpath(source, mainPkgs, modePrefix);
+      if (match) for (const name of names) onPureImport(match.entry, name);
       continue;
     }
     // TS `import X = require('<pkg>/<mode>/...')` - the same pure require-import shape tsc/esbuild
@@ -168,9 +190,9 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       && !node.isExport && node.importKind !== 'type'
       && node.moduleReference?.type === 'TSExternalModuleReference') {
       const required = extractStaticString(node.moduleReference.expression, adapter);
-      const entry = typeof required === 'string' ? matchEntrySubpath(required, mainPkgs, modePrefix) : null;
-      if (entry) {
-        onPureImport(entry, node.id.name);
+      const match = typeof required === 'string' ? matchEntrySubpath(required, mainPkgs, modePrefix) : null;
+      if (match) {
+        onPureImport(match.entry, node.id.name);
         continue;
       }
     }
@@ -185,8 +207,8 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
           if (decl.id?.type !== 'Identifier') continue;
           const required = requireCallSource(decl.init, adapter, shadowScope);
           if (required === null) continue;
-          const entry = matchEntrySubpath(required, mainPkgs, modePrefix);
-          if (entry) onPureImport(entry, decl.id.name);
+          const match = matchEntrySubpath(required, mainPkgs, modePrefix);
+          if (match) onPureImport(match.entry, decl.id.name);
         }
       }
       continue;
@@ -194,6 +216,8 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
     const source = getEntrySource(node, adapter, shadowScope);
     if (typeof source !== 'string') continue;
     const mod = matchEntrySubpath(source, packages, 'modules/');
-    if (mod) onGlobalImport?.(mod, node);
+    // the PACKAGE travels with the module: this import is removed and re-emitted, and a user's
+    // global polyfill re-emitted under the plugin's own (pure) package stops polyfilling anything
+    if (mod) onGlobalImport?.(mod.entry, node, mod.pkg);
   }
 }

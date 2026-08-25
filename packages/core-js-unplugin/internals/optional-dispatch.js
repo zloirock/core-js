@@ -49,7 +49,7 @@ import {
   chainContainsMutatedStatic,
   climbToCallerPath,
   cloneSpinePeeled,
-  cloneTyped,
+  cloneStamped,
   foldSeqKeyLiteralTail,
   foldedResolvedKey,
   isDeleteOperand,
@@ -917,9 +917,9 @@ export default function createOptionalDispatchChannel(ctx) {
     let callReceiver;
     if (memberOptional) {
       if (reusable) {
-        check = binaryExpression('==', cloneTyped(effObject, typeStampCtx), literal(null));
-        lookupArg = cloneTyped(effObject, typeStampCtx);
-        callReceiver = cloneTyped(effObject, typeStampCtx);
+        check = binaryExpression('==', cloneStamped(effObject, typeStampCtx), literal(null));
+        lookupArg = cloneStamped(effObject, typeStampCtx);
+        callReceiver = cloneStamped(effObject, typeStampCtx);
       } else {
         const ref = injector.generateDeclaredRef(metaPath);
         // the memo keeps the receiver's own inner `?.` (its short-circuit routes into this
@@ -936,14 +936,14 @@ export default function createOptionalDispatchChannel(ctx) {
         callReceiver = identifier(ref);
       }
     } else if (reusable) {
-      lookupArg = cloneTyped(effObject, typeStampCtx);
-      callReceiver = cloneTyped(effObject, typeStampCtx);
+      lookupArg = cloneStamped(effObject, typeStampCtx);
+      callReceiver = cloneStamped(effObject, typeStampCtx);
     } else if (isCall) {
       const ref = injector.generateDeclaredRef(metaPath);
-      lookupArg = assignmentExpression('=', identifier(ref), cloneTyped(effObject, typeStampCtx));
+      lookupArg = assignmentExpression('=', identifier(ref), cloneStamped(effObject, typeStampCtx));
       callReceiver = identifier(ref);
     } else {
-      lookupArg = cloneTyped(effObject, typeStampCtx);
+      lookupArg = cloneStamped(effObject, typeStampCtx);
     }
     return { check, lookupArg, callReceiver, guardDisjuncts };
   }

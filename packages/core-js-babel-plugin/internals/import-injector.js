@@ -1,6 +1,10 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
-  isDirectiveStatement, isInitlessVarDecl, isNonReferencePosition, isTopLevelImportLike,
+  isInitlessVarDecl,
+  isNonReferencePosition,
+  isPrologueDirectiveStatement,
+  isTopLevelImportLike,
+  programPrologueEndIndex,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
 import estreeToBabel from './estree-to-babel.js';
@@ -28,6 +32,25 @@ function makeScopeBag(probeScope, setKey, mapKey) {
     has: (scope, name) => !!scope[mapKey]?.[name],
     add(scope, name) { (scope[mapKey] ??= {})[name] = true; },
   };
+}
+
+// the comments a statement OWNS as its own annotation: the run directly above it, unbroken by a
+// blank line. a block the author separated reads as a file or section header - a license banner
+// stays at the head where it was written, while an adjacent pragma travels with the line it marks.
+// canon carries no near-match: `destructure-emitter`'s comment move transplants a node's WHOLE
+// leading list onto its replacement, and `anchorLeadingStatement` answers the esrap position question
+function attachedLeadingComments(node) {
+  const comments = node.leadingComments;
+  if (!comments?.length) return [];
+  const attached = [];
+  let expected = node.loc?.start?.line;
+  for (let index = comments.length - 1; index >= 0; index--) {
+    const comment = comments[index];
+    if (comment.loc?.end?.line + 1 < expected) break;
+    attached.push(comment);
+    expected = comment.loc?.start?.line;
+  }
+  return attached;
 }
 
 export default class ImportInjector extends ImportInjectorState {
@@ -62,9 +85,19 @@ export default class ImportInjector extends ImportInjectorState {
   // scope-bag accessors specialised once per injector to the babel version's API
   #scopeReferences;
   #scopeUids;
+  #sourcePrologueNodes = new Set();
 
-  constructor({ t, programPath, pkg, packages = null, mode, importStyle, absoluteImports = false }) {
-    super({ absoluteImports, mode, pkg, importStyle, packages });
+  constructor({
+    t,
+    programPath,
+    pkg,
+    packages = null,
+    mode,
+    importStyle,
+    absoluteImports = false,
+    emitsGlobalModules = true,
+  }) {
+    super({ absoluteImports, mode, pkg, importStyle, packages, emitsGlobalModules });
     this.#t = t;
     this.#programPath = programPath;
     const program = programPath.scope.getProgramParent();
@@ -524,16 +557,19 @@ export default class ImportInjector extends ImportInjectorState {
     return this.#t.cloneNode(id);
   }
 
-  registerUserPureImport(entry, name) {
-    super.registerUserPureImport(entry, name);
+  // `options` carries the reassignment poison - swallowing it here silently registered a WRITTEN
+  // binding as the dedup target, and every later read of the entry resolved to the user's
+  // reassigned value instead of the polyfill
+  registerUserPureImport(entry, name, options) {
+    super.registerUserPureImport(entry, name, options);
     // guard against dead writes: a repeat registration for the same name would otherwise
     // overwrite `#idByName` with a fresh Identifier, breaking the node-IDENTITY contract
     // that `addPureImport` relies on (clones share identity with the cached source node)
     if (!this.#idByName.has(name)) this.#idByName.set(name, this.#t.identifier(name));
   }
 
-  #resolvePath(subpath) {
-    return resolveImportPath(this.pkg, subpath, this.absoluteImports);
+  #resolvePath(subpath, pkg = null) {
+    return resolveImportPath(pkg ?? this.pkg, subpath, this.absoluteImports);
   }
 
   #buildNodes() {
@@ -551,7 +587,8 @@ export default class ImportInjector extends ImportInjectorState {
       globalModules: newGlobals,
       pureEntries: newPure,
       importStyle: this.importStyle,
-      resolve: subpath => this.#resolvePath(subpath),
+      resolve: (subpath, pkg) => this.#resolvePath(subpath, pkg),
+      globalPackages: this.globalImportPackages,
     });
     const nodes = [];
     for (const { node, key } of rendered) {
@@ -609,20 +646,70 @@ export default class ImportInjector extends ImportInjectorState {
     while (true) {
       const nodes = this.#buildNodes();
       if (!nodes) break;
-      this.#programPath.unshiftContainer('body', nodes);
+      // BELOW the body-resident prologue THE SOURCE CARRIED: real directives live in
+      // `program.directives` and an unshift already lands under them, but a sibling transform that
+      // re-emitted one as a raw statement leaves it in `body` - injecting above it would silently
+      // disable the directive. membership, not shape: a same-valued string the source wrote BELOW
+      // an import never was a directive, and the imports still belong above it
+      const flushBody = this.#programPath.node.body;
+      let prologueEnd = 0;
+      while (prologueEnd < flushBody.length && this.#sourcePrologueNodes.has(flushBody[prologueEnd])) prologueEnd++;
+      this.#releaseAnchorComments(prologueEnd === 0
+        ? this.#programPath.node.directives?.at(-1) : flushBody[prologueEnd - 1], flushBody.slice(prologueEnd));
+      if (prologueEnd === 0) this.#programPath.unshiftContainer('body', nodes);
+      else this.#programPath.get('body')[prologueEnd - 1].insertAfter(nodes);
     }
+  }
+
+  // babel hands an OWN-LINE comment between two statements to both of them - trailing on the
+  // first, leading on the second - and the printer emits the trailing copy, so a block spliced
+  // between them lands after the comment and the statement it marks loses it. an opt-out pragma
+  // then guards OUR import instead of the author's line. a comment that ENDS the anchor's own
+  // line really is its trailing comment and stays
+  #releaseAnchorComments(previous, following) {
+    if (!previous?.trailingComments?.length) return;
+    // scan EVERY node below the anchor, not just the first: a `scope.push` ref block already sits
+    // there and carries no comments, so the owner of the shared one is further down. a comment no
+    // node below claims is trailing-only - releasing it would print it nowhere
+    const owned = new Set(following.flatMap(attachedLeadingComments));
+    const anchorLine = previous.loc?.end?.line;
+    const kept = previous.trailingComments.filter(comment => !owned.has(comment)
+      || comment.loc?.start?.line === anchorLine);
+    if (kept.length !== previous.trailingComments.length) previous.trailingComments = kept;
   }
 
   // `scope.push({ id: _ref })` in handlers schedules a top-level `var _ref;` that lands
   // ahead of our later-unshifted imports in Babel's final body. sweep the program body
   // once (called from programExit after all pushes settle) and move the ref-only decls
   // past the import header. keeps source order lint-clean without touching pruneUnusedRefs
+  // the body-resident prologue the SOURCE carried, recorded before any of our head insertions or
+  // an entry replacement moved things around - membership, not shape, decides what may be hoisted back
+  recordSourcePrologue(body) {
+    this.#sourcePrologueNodes = new Set((body ?? []).slice(0, programPrologueEndIndex(body ?? [])));
+  }
+
   reorderRefsAfterImports() {
     if (!this.#importRegionSorted) {
       throw new Error('[core-js] import-injector: reorderRefsAfterImports() must follow reorderImportRegion()');
     }
     const { body } = this.#programPath.node;
     if (!body?.length) return;
+    // a body-resident prologue statement must stay FIRST. `scope.push` and the import flush both
+    // land at the head, so a directive a sibling transform re-emitted as a raw statement ends up
+    // UNDER them and stops being a directive at all (`'use client'` disabled, `'use strict'` not
+    // applied). moving it back past imports and initless vars is inert - neither is an executable
+    // statement whose order a directive could depend on
+    for (let slot = 0; slot < body.length; slot++) {
+      if (this.#sourcePrologueNodes.has(body[slot])) {
+        if (slot === 0) continue;
+        if (body.slice(0, slot).some(node => !isTopLevelImportLike(node) && !isInitlessVarDecl(node)
+          && !this.#sourcePrologueNodes.has(node))) break;
+        const [prologue] = body.splice(slot, 1);
+        body.splice(body.findLastIndex((node, at) => at < slot && this.#sourcePrologueNodes.has(node)) + 1, 0, prologue);
+        continue;
+      }
+      if (!isTopLevelImportLike(body[slot]) && !isInitlessVarDecl(body[slot])) break;
+    }
     const refsSet = this.declaredRefNames;
 
     // import-region members - the reorder loop accumulates `importEnd` over them and bails
@@ -643,7 +730,7 @@ export default class ImportInjector extends ImportInjectorState {
     // the directive term is babel-side only - unplugin's flush skips directives in its
     // own anchor scan
     function isImportRegion(stmt) {
-      return isTopLevelImportLike(stmt) || isDirectiveStatement(stmt);
+      return isTopLevelImportLike(stmt) || isPrologueDirectiveStatement(stmt);
     }
 
     // collect EVERY movable ref `var` in the body, not just a leading run. scope.push tags each

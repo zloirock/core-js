@@ -4,6 +4,7 @@
 // the injector itself emits under `absoluteImports` - a re-scan blind to that last one duplicates
 // every import it wrote.
 import { scanExistingCoreJSImports } from '../../packages/core-js-polyfill-provider/detect-usage/entries.js';
+import { resolveImportPath } from '../../packages/core-js-polyfill-provider/helpers/path-normalize.js';
 import { createChecker } from './harness.mjs';
 
 const { check, finish, runBoth } = createChecker('existing-imports');
@@ -106,5 +107,20 @@ runBoth('pure TS import-equals, resolved absolute path',
   (adapter, prog, lbl) => {
     check(lbl, scanPure(adapter, prog).join(','), 'array/instance/at=_at');
   }, ['typescript']);
+
+// the spelling the injector ACTUALLY emits under `absoluteImports`: a resolved file path whose
+// DIRECTORY need not be named after the package (`@core-js/pure` resolves to `core-js-pure` in a
+// workspace, and a store layout renames again). recognising it is what keeps a second pass - or the
+// `pre+post` post pass - from declaring the same import twice
+runBoth('pure default import, the resolver own absolute spelling',
+  `import _at from "${ resolveImportPath('@core-js/pure', 'actual/array/instance/at', true) }";`,
+  (adapter, prog, lbl) => {
+    check(lbl, scanPure(adapter, prog).join(','), 'array/instance/at=_at');
+  });
+
+runBoth('global module, the resolver own absolute spelling',
+  `import "${ resolveImportPath('core-js', 'modules/es.array.at', true) }";`, (adapter, prog, lbl) => {
+    check(lbl, scanGlobals(adapter, prog).join(','), 'es.array.at');
+  });
 
 finish();
