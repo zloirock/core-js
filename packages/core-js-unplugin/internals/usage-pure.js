@@ -22,14 +22,15 @@ import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/cla
 import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
   assignmentExpression,
-  binaryExpression,
   callExpression,
   chainExpression,
   cloneNode,
   identifier,
-  literal,
   memberExpression,
   sequenceExpression,
+  nullGuardTest,
+  nullFirstGuardTest,
+  renderInExpressionPlan,
 } from './builders.js';
 import { peelExpressionWrappers, receiverCarriesOptional, renderProxyReceiverPlan, withSideEffects } from './emit-shared.js';
 import {
@@ -314,34 +315,22 @@ export default function createAstUsagePureCallback({
       parent: metaPath.parentPath?.node ?? null,
     });
     if (plan.kind === 'noop') return;
-    const lhsSe = plan.leadingSe.map(effect => cloneNode(effect));
-    function withLhsSe(core) {
-      return lhsSe.length ? sequenceExpression([...lhsSe, core]) : core;
-    }
-    // keep the membership test live (it carries the throw) and answer `true` after it; the
-    // clone is re-visited by replaceWith, so the receiver inside still gets its own rewrite
-    if (plan.kind === 'fold-after-test') {
-      const test = cloneNode(metaPath.node);
-      foldedInTests.add(test);
-      metaPath.replaceWith(sequenceExpression([test, literal(true)]));
-      markRewrite();
-      return;
-    }
-    if (plan.kind === 'symbol') {
-      const id = injectPureImport(plan.entry, plan.hint);
-      if (plan.call) {
-        // the helper CONSUMES the operand the way `in` did - it throws on a nullish one
-        metaPath.replaceWith(withLhsSe(callExpression(identifier(id), [cloneNode(plan.right)])));
-      } else {
-        // swap only the LHS in place so the RHS keeps its visited state
-        metaPath.get('left').replaceWith(identifier(id));
-        if (lhsSe.length) metaPath.replaceWith(sequenceExpression([...lhsSe, metaPath.node]));
+    const rendered = renderInExpressionPlan(plan, {
+      injectImport: injectPureImport, cloneSource: () => cloneNode(metaPath.node),
+    });
+    if (rendered.swapLeft) {
+      // swap only the LHS in place so the RHS keeps its visited state
+      metaPath.get('left').replaceWith(rendered.swapLeft);
+      if (rendered.leadingSe.length) {
+        metaPath.replaceWith(sequenceExpression([...rendered.leadingSe, metaPath.node]));
       }
       markRewrite();
       return;
     }
-    // the polyfill is always defined, so the membership test is constantly true
-    metaPath.replaceWith(withLhsSe(literal(true)));
+    // the kept membership test is re-queued by `replaceWith` - without the mark it would wrap
+    // its own wrap on the next visit
+    if (plan.kind === 'fold-after-test') foldedInTests.add(rendered.replace.expressions[0]);
+    metaPath.replaceWith(rendered.replace);
     markRewrite();
   }
 
@@ -372,8 +361,7 @@ export default function createAstUsagePureCallback({
       && ((upNode.type === 'MemberExpression' && upNode.object === parent)
         || (upNode.type === 'CallExpression' && upNode.callee === parent));
     if (memberOptional) {
-      const check = binaryExpression('==', cloneNode(object), literal(null));
-      replaceGuardedHop({ hopPath: callPath, test: check, built: dispatch, skippedNodes });
+      replaceGuardedHop({ hopPath: callPath, test: nullGuardTest(cloneNode(object)), built: dispatch, skippedNodes });
       return;
     }
     let target = callPath;
@@ -610,9 +598,10 @@ export default function createAstUsagePureCallback({
         [guard.makeBase(), ...callerPath.node.arguments.map(argument => cloneNode(argument))]);
     }
     const [check] = guard.disjuncts;
+    // the split hands raw CHECKS - the spelling is the canon's, at the render boundary
     // the shared climb absorbs the plain tail into the alternate
     // (`x?.[S]().next()` -> `x == null ? void 0 : _getIterator(x).next()`)
-    replaceGuardedHop({ hopPath, test: check, built: withSideEffects(guardedCore, effects), skippedNodes });
+    replaceGuardedHop({ hopPath, test: nullGuardTest(check), built: withSideEffects(guardedCore, effects), skippedNodes });
   }
 
   // the staged top bails: a conditional / logical destructure receiver routes to the
@@ -839,7 +828,7 @@ export default function createAstUsagePureCallback({
           // the dead `?.` inside the probe spelling erases with it - the canonical verdict
           for (const hop of vestigialNavOptionals(probeInner, m => resolvePure(m, metaPath),
             { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
-          const test = binaryExpression('==', literal(null),
+          const test = nullFirstGuardTest(
             receiverCarriesOptional(probeInner) ? chainExpression(probeInner) : probeInner);
           replaceGuardedHop({
             hopPath: metaPath,
