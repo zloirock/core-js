@@ -562,6 +562,15 @@ export default function createSynthSwapEmitter({
     const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
     let receiverRef = null;
 
+    // an INSTANCE entry binds the method to the receiver's VALUE, so a SELECTING receiver is spelled
+    // WHOLE - the arm is chosen at runtime. the left-peel above answers the ctor question (which
+    // global a static resolves through), which is a different one; spelling the left there would
+    // hand the helper the dead arm (`nul || arr` -> `_atMaybeArray(nul)`)
+    function instanceReceiverRef() {
+      return receiver.type === 'LogicalExpression' || receiver.type === 'ConditionalExpression'
+        ? memoParam ?? receiver : getReceiverRef();
+    }
+
     function getReceiverRef() {
       if (receiverRef) return receiverRef;
       // a memo param (call-branch) replaces every receiver read - cloning the call would re-run it
@@ -594,7 +603,7 @@ export default function createSynthSwapEmitter({
       // `receiver[_Symbol$iterator]` answers undefined off-engine
       const value = polyfill
         ? polyfill.instance
-          ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(getReceiverRef())])
+          ? t.callExpression(injectPureImport(polyfill.entry, polyfill.hintName), [t.cloneNode(instanceReceiverRef())])
           : injectPureImport(polyfill.entry, polyfill.hintName)
         : wks === 'iterator'
           ? t.callExpression(injectPureImport(SYMBOL_ITERATOR_PURE_RESULT.entry, SYMBOL_ITERATOR_PURE_RESULT.hintName),
@@ -694,6 +703,12 @@ export default function createSynthSwapEmitter({
           }
         }
         const probeSe = throwProbe && new Set(throwProbe.keySeExprs);
+        // what the literal's discard of this receiver would silently drop (the rescue canon). a
+        // fallback-logical has its own harvest below - the leftSe plan asks the same canon about the
+        // LEFT branch, and asking about the whole `||` here as well would run the effects twice
+        const discardedReceiverSe = needMemo || throwProbe || dropRescueReceiver
+          || path.node.type === 'LogicalExpression'
+          ? [] : discardRescueNodes({ node: path.node, scope: path.scope, adapter, path });
         let replacement = needMemo
           ? t.callExpression(
             t.functionExpression(null, [memoParam], t.blockStatement([t.returnStatement(literal)])),
@@ -710,9 +725,16 @@ export default function createSynthSwapEmitter({
                 .map(n => t.cloneNode(n, true)),
               literal,
             ])
+            // an EFFECT-bearing receiver the literal replaces still has to run: a call-arg receiver
+            // (`(({ from } = Object) => from)(mk())`) is evaluated by the source, and swapping the
+            // whole argument for the literal would drop that call. what exactly a discard owes is
+            // the rescue canon's question, so the same list rides here - it interleaves a hop-key
+            // effect at its true position instead of re-emitting the whole navigation
             : pending.rescueSe
               ? t.sequenceExpression([t.cloneNode(path.node, true), literal])
-              : literal;
+              : discardedReceiverSe.length
+                ? t.sequenceExpression([...discardedReceiverSe.map(n => t.cloneNode(n, true)), literal])
+                : literal;
         // fallbackCollapse (`(logSE(), Array) || Set`, `IIFE().Array || Set`): the whole `||` / `??`
         // default collapses to the synth literal (its left is the always-resolved receiver, its right
         // short-circuits), but the left's side effects must still run when the default fires. preserve

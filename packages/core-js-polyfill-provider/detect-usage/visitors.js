@@ -5,7 +5,7 @@
 // domains (members, destructure, globals, annotations) on purpose: homing it in any one of them
 // would add a cross-import between siblings, and the emitters are its only consumers
 import { checkTypeAnnotations, typeOnlyImportShadows, walkTypeAnnotationGlobals } from './annotations.js';
-import { collectDestructureUnionCandidates } from './destructure.js';
+import { collectDestructureUnionCandidates, prepareDestructureUnion } from './destructure.js';
 import { isKnownGlobalName } from './globals.js';
 import { handleBinaryIn, handleMemberExpressionNode, tagSymbolSourcedMeta } from './members.js';
 import { createSelfRefVarGuard } from './resolve.js';
@@ -101,12 +101,28 @@ export function createUsageHandlerCore({
   // its branch-key carrier there, so every producer bail keeps its reachable arm keys
   function emitDestructurePropUsage({ meta, path, keyNode, computed, containerWalkObjects = null }) {
     const { scope } = path;
-    if (meta) onUsage(tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }), path);
-    // usage-global reachable receiver / key union: each extra destructure target earns a
-    // side-effect import beside the primary, mirroring the member funnel
-    for (const extra of collectDestructureUnionCandidates({
-      meta, keyNode, computed, scope, adapter, path, resolvePure, containerWalkObjects,
-    })) onUsage(extra, path);
+    const tagged = meta ? tagSymbolSourcedMeta({ meta, keyNode, computed, scope, adapter, path }) : null;
+    // usage-global reachable receiver / key union, in the member twin's order: its verdict phase
+    // runs BEFORE the primary dispatch (it is what stamps `receiverInstanceFree`, and the primary
+    // has to see it - otherwise the resolver's placement-agnostic instance fallback fabricates rows
+    // the receiver provably never dispatches), its ENUMERATION after, where it always ran
+    const union = prepareDestructureUnion({
+      meta: tagged,
+      keyNode,
+      computed,
+      scope,
+      adapter,
+      path,
+      resolvePure,
+      containerWalkObjects,
+    });
+    // extras ATTACH to the meta, the way `attachMemberUnionExtras` does for the member twin: the
+    // callback's fallback-branch backstop skips a meta the choke already served, and reading the
+    // extras off the meta is what tells it this producer did route through one
+    const extras = collectDestructureUnionCandidates(union);
+    if (tagged && extras.length) tagged.extraCandidates = extras;
+    if (tagged) onUsage(tagged, path);
+    for (const extra of extras) onUsage(extra, path);
   }
 
   // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it

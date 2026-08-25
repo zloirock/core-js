@@ -646,6 +646,57 @@ function * generateFallbackArg() {
   }
 }
 
+// syntactic HOSTS the combinatorial context axis does not carry: each is a place a claim can land
+// where the emitters' insertion / extraction machinery has to find a statement slot of its own -
+// a class STATIC block, a destructured `catch` parameter, a generator body, an object GETTER, a
+// private field initialiser, a labeled block and the head of a `for-of`. one row each, stripped
+function * generateAwkwardHosts() {
+  const HOSTS = [
+    ['class-static-block', '(() => { class C { static v; static { C.v = arr.at(0); } } return C.v; })()'],
+    ['catch-destructure', '(() => { try { throw { xs: arr }; } catch ({ xs }) { return xs.at(0); } })()'],
+    ['generator-body', '(() => { function * g() { yield arr.at(0); } return [...g()][0]; })()'],
+    ['object-getter', '(() => { const o = { get v() { return arr.at(0); } }; return o.v; })()'],
+    ['private-field', '(() => { class C { #v = arr.at(0); get v() { return this.#v; } } return new C().v; })()'],
+    ['labeled-block', '(() => { let out; outer: { out = arr.at(0); break outer; } return out; })()'],
+    ['for-of-iterable', '(() => { let out; for (const v of [arr.at(0)]) out = v; return out; })()'],
+    ['method-this', '(() => { const host = { xs: arr, run() { return this.xs.at(0); } }; return host.run(); })()'],
+  ];
+  for (const [id, expr] of HOSTS) yield { ...snippet(`awkward-host/${ id }`, expr), strip: true };
+}
+
+// the INSTANCE param-default synth gate, one question in the core: a SELECTING receiver answers no
+// (the render would have to pick an arm), a re-referenceable binding answers yes at any prop count.
+// a leg that asks a local re-eval test instead swaps where the other keeps the destructure native -
+// runtime-equal in a full realm, visible to the import-parity oracle and to the stripped one
+function * generateSelectingReceiverSynth() {
+  const ROWS = [
+    ['logical', '(function ({ at } = nul || arr) { return typeof at; })()'],
+    ['conditional', '(function ({ at } = cond ? arr : arr2) { return typeof at; })()'],
+    ['logical-multi', '(function ({ at, flat } = nul || arr) { return typeof at + typeof flat; })()'],
+    ['binding-control', '(function ({ at } = arr) { return typeof at; })()'],
+  ];
+  for (const [id, expr] of ROWS) {
+    yield { ...snippet(`selecting-receiver-synth/${ id }`, expr), strip: true };
+  }
+}
+
+// PROXY-NAV value vs navigation, across every key spelling: what the nav spells is decided by POSITION,
+// and the key's spelling (plain, literal, variable, SE-bearing) never enters the question - a value reads
+// its own claim's ponyfill, a navigation rebuilds from the root. one leg weighed the key's effects and
+// answered a DIFFERENT module for the noisy spelling than for its quiet twins (`global-this` vs `self`),
+// which the import-parity oracle sees and the runtime does not
+function * generateProxyNavKeySpellings() {
+  const KEYS = [
+    ['plain', '.self'],
+    ['literal', "['self']"],
+    ['se', "[(log.push('k'), 'self')]"],
+  ];
+  for (const [id, key] of KEYS) {
+    yield { ...snippet(`proxy-nav-key/${ id }-value`, `typeof globalThis${ key }`, { rig: true }), strip: false };
+    yield { ...snippet(`proxy-nav-key/${ id }-navigated`, `typeof globalThis${ key }.Array.from`, { rig: true }), strip: false };
+  }
+}
+
 // IIFE call-arg SHADOWED by a same-named inner param: the argument evaluates at the CALL
 // SITE, so detection must resolve it in the OUTER scope - the inner shadow must not swallow
 // the receiver (usage-pure synths the arg's statics; a miss leaves the raw destructure
@@ -653,6 +704,30 @@ function * generateFallbackArg() {
 function * generateIifeArgShadow() {
   yield { ...snippet('iife-arg-shadow/no-default', '(function ({ from }, Array) { return typeof from; })(Array)'), strip: true };
   yield { ...snippet('iife-arg-shadow/param-default', '(function ({ of } = Number, Array) { return typeof of; })(Array)'), strip: true };
+  // ... and the same question for every COMPOUND receiver spelling: the shadowed name sits inside a
+  // hop, a branch, a computed key or a seal, and each of those is asked about on its own - a frame
+  // that stops at the receiver's root answers the inner ones in the callee's scope
+  const shadowed = [
+    ['proxy-hop', 'globalThis, mk', 'globalThis.Array'],
+    ['se-hop-key', 'globalThis, mk', "globalThis[(log.push('k'), 'Array')]"],
+    ['se-prefix-hop', 'globalThis, mk', "(log.push('p'), globalThis).Array"],
+    ['conditional', 'globalThis, mk', "cond ? (log.push('c'), Array) : Number"],
+    ['logical', 'globalThis, mk', "(log.push('l'), Array) || Number"],
+  ];
+  for (const [id, params, receiver] of shadowed) {
+    yield {
+      ...snippet(`iife-arg-shadow/${ id }`,
+        `(function ({ from } = Number, ${ params }) { return typeof from; })(${ receiver })`),
+      strip: true,
+    };
+  }
+  // the SEALED nav needs the rigged aliases: its guard reads `window` off the global object
+  yield {
+    ...snippet('iife-arg-shadow/sealed-nav',
+      '(function ({ from } = Number, globalThis, mk) { return typeof from; })((globalThis.window?.self).Array)',
+      { rig: true }),
+    strip: false,
+  };
 }
 
 // --- TYPE of a nested-block `var`, read past its block ---
@@ -6891,6 +6966,9 @@ export function * generate() {
   yield * generateProxyAliasCells();
   yield * generateFallbackArg();
   yield * generateIifeArgShadow();
+  yield * generateProxyNavKeySpellings();
+  yield * generateSelectingReceiverSynth();
+  yield * generateAwkwardHosts();
   yield * generateTypeMarkerPeels();
   yield * generateContainerLocalTypes();
   yield * generateRestSlices();
