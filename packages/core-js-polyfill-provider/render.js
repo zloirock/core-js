@@ -265,6 +265,106 @@ export function renderSynthSlotRead({ base, key, computed, lookupKey }) {
     { computed: computed || literalKey });
 }
 
+// --- the short-circuit guard both bindings print ---
+
+// a check safe as a STATEMENT-leading token. only an identifier or `this` can reach a test slot
+// bare (a memo-free receiver admits nothing else, and `super` cannot head an optional chain)
+function isLeadingIdentLike(node) {
+  return node?.type === 'Identifier' || node?.type === 'ThisExpression';
+}
+
+// the ONE null-test spelling: an identifier-like check reads `x == null`, anything else puts the
+// literal FIRST (`null == (_ref = x)`). the corpus holds both forms, so the rule is a spelling
+// canon, not a preference - it was written twice, once per binding, and the two agreed by
+// convention rather than by construction. `embed` wraps the carried check for a binding whose
+// dialect is not canonical; the SHAPE question is asked of the raw node, so it is asked first
+export function nullGuardTest(check, { embed = node => node } = {}) {
+  return isLeadingIdentLike(check)
+    ? binaryExpression('==', embed(check), literal(null))
+    : binaryExpression('==', literal(null), embed(check));
+}
+
+// the LITERAL-FIRST spelling as a rule of its own, for a test that may be composed with others:
+// a chain is ONE test, and mixing the two forms inside it printed two spellings for one rule. the
+// nav-guard channels take this form for a single test too - their test is built to be joinable
+export function nullFirstGuardTest(check, { embed = node => node } = {}) {
+  return binaryExpression('==', literal(null), embed(check));
+}
+
+// a disjunct chain: one check keeps the shape rule, several spell literal-first and fold with `||`
+export function composeNullGuardTest(checks, { embed = node => node } = {}) {
+  if (!checks?.length) return null;
+  if (checks.length === 1) return nullGuardTest(checks[0], { embed });
+  return checks
+    .map(check => nullFirstGuardTest(check, { embed }))
+    .reduce((left, right) => logicalExpression('||', left, right));
+}
+
+// the short-circuit itself: a nullish test yields `void 0`, everything else the live branch.
+// `test` arrives BUILT (the channels compose their own disjuncts and reuse rendered tests)
+export function renderShortCircuitGuard(test, alternate) {
+  return conditionalExpression(test, voidZero(), alternate);
+}
+
+// the RENDER of an `in`-expression plan (`planInExpression` decides the kind): what each kind
+// puts in place, with the leading effects the plan harvested riding ahead of it. the surgery
+// stays with the binding - a `swapLeft` result replaces only the LHS, so the RHS keeps the
+// visited state its own traversal gave it, and `leadingSe` then wraps what is left standing
+export function renderInExpressionPlan(plan, { injectImport, embed = node => node, cloneSource = null }) {
+  const leadingSe = plan.leadingSe.map(effect => embed(cloneNode(effect)));
+  function withLeadingSe(core) {
+    return leadingSe.length ? sequenceExpression([...leadingSe, core]) : core;
+  }
+  // the membership test stays LIVE (it carries the throw) and the answer follows it
+  if (plan.kind === 'fold-after-test') return { replace: sequenceExpression([embed(cloneSource()), literal(true)]) };
+  if (plan.kind === 'symbol') {
+    const id = identifier(injectImport(plan.entry, plan.hint));
+    if (!plan.call) return { swapLeft: id, leadingSe };
+    // the helper CONSUMES the operand the way `in` did - it throws on a nullish one, and that
+    // CALL is the node that throws. it sits at the TAIL when leading effects wrap it: a
+    // binding marking the whole replacement would mark the sequence, and the reader - which asks
+    // the node it is about to lift a guard out of - would never see the mark
+    return { replace: withLeadingSe(callExpression(id, [embed(cloneNode(plan.right))])), throwsAtTail: true };
+  }
+  // the polyfill is always defined, so the membership test is constantly true
+  return { replace: withLeadingSe(literal(true)) };
+}
+
+// the alias-held claim PROBE read (`aliasHeldClaimProbe` decides there is one): the claim's own
+// member spelled verbatim off the alias binding - the source's own computed flag decides the
+// spelling, not the key's validity, because the probe reproduces a read the source performs
+export function renderAliasHeldProbeRead(probe, object) {
+  return probe.computed
+    ? memberExpression(object, literal(probe.key), { computed: true })
+    : memberExpression(object, identifier(probe.key));
+}
+
+// the guard TEST a resolvable base supplies (`navGuardTestBase` decides there IS one): the probe
+// hop read off the ponyfilled base, with a kept root write riding ahead of it in a sequence
+// (`(w = _globalThis, _self).window`) - the write is the source's own act and evaluates first
+export function renderNavGuardTestBase(base, { rootAssign = null, injectImport, embed = node => node }) {
+  const pure = identifier(injectImport(base.basePure.entry, base.basePure.hintName));
+  const root = rootAssign ? sequenceExpression([embed(cloneNode(rootAssign)), pure]) : pure;
+  return memberExpression(root, identifier(base.probeName));
+}
+
+// the runtime CTOR-IDENTITY narrow: one branch per candidate constructor, innermost-last, each
+// testing the receiver against that ctor and yielding its static ponyfill; `rawBranch` is what a
+// receiver matching none of them falls through to. the DECISION - which ctors are candidates and
+// in what order - is the shared plan's; this spells it. `spellRecv` mints the test's receiver read
+// per binding (the babel leg marks its clone handled on the way out).
+// every branch is spelled by EITHER a pure entry or a name, and that is the plan's own invariant:
+// `planGuardedStaticNarrow` builds candidates only from truthy names, so neither slot is ever
+// empty here. a branch carrying neither would mint a nameless identifier and print `undefined`
+export function renderCtorIdentityNarrow(plan, rawBranch, { injectImport, spellRecv }) {
+  return plan.branches.reduceRight((alternate, branch) => conditionalExpression(
+    binaryExpression('===', spellRecv(), identifier(branch.ctorPure
+      ? injectImport(branch.ctorPure.entry, branch.ctorPure.hintName) : branch.ctorName)),
+    identifier(injectImport(branch.staticPure.entry, branch.staticPure.hintName)),
+    alternate,
+  ), rawBranch);
+}
+
 // the `(ref = <dispatcher call>) === void 0 ? <default> : ref` guard for an instance
 // extraction carrying a user default: the dispatcher may return undefined on a foreign
 // receiver (its own-property read), so the default stays LIVE - polyfill-always-wins covers

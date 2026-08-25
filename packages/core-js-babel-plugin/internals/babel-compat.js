@@ -38,6 +38,15 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  hostSlot,
+  nullFirstGuardTest,
+  nullGuardTest,
+  renderAliasHeldProbeRead,
+  renderNavGuardTestBase,
+  renderShortCircuitGuard,
+} from '@core-js/polyfill-provider/render';
+import estreeToBabel from './estree-to-babel.js';
 
 // is `child` the operand slot (object/callee) of an optional expression,
 // possibly through TS wrappers OR explicit ParenthesizedExpression?
@@ -225,9 +234,7 @@ function aliasHeldClaimProbeNode(memberPath, member, { t, adapter, resolvePureGl
     ({ name }) => resolvePureGlobalEntry(name, memberPath),
     { scope: memberPath.scope, adapter, path: memberPath });
   if (!probe) return null;
-  const read = probe.computed
-    ? t.memberExpression(t.cloneNode(probe.object), t.stringLiteral(probe.key), true)
-    : t.memberExpression(t.cloneNode(probe.object), t.identifier(probe.key));
+  const read = estreeToBabel(renderAliasHeldProbeRead(probe, hostSlot(t.cloneNode(probe.object))));
   mintedEffectNodes.add(read);
   return { keySeExprs: [], navStart: probe.navStart, node: read };
 }
@@ -306,13 +313,6 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     const clone = t.cloneNode(ref);
     if (type) resolvedType?.set(clone, type);
     return clone;
-  }
-
-  // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement).
-  // only Identifier / this can reach here: `isReusableReceiver` admits nothing else as a memo-free
-  // receiver, and a bare `super` cannot head an optional chain (SyntaxError)
-  function isLeadingIdentLike(node) {
-    return t.isIdentifier(node) || t.isThisExpression(node);
   }
 
   // guarded claims minted by the static erase-refusal (`null == root ? void 0 : <claim>`).
@@ -593,20 +593,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // delete target deletes nothing - keep the raw stand-down for a leading effect there
     if (deleteTail && leadingSe.length) return false;
     if (deleteTail) {
-      const guard = markGuardedClaim(t.conditionalExpression(
-        t.binaryExpression('==', t.nullLiteral(), test),
-        t.unaryExpression('void', t.numericLiteral(0)),
-        claimBody.object,
-      ));
+      const guard = markGuardedClaim(estreeToBabel(renderShortCircuitGuard(
+        nullFirstGuardTest(test, { embed: hostSlot }), hostSlot(claimBody.object))));
       target.replaceWith(t.optionalMemberExpression(
         guard, t.cloneNode(claimBody.property), claimBody.computed, true));
       return true;
     }
-    const claimResult = markGuardedClaim(t.conditionalExpression(
-      t.binaryExpression('==', t.nullLiteral(), test),
-      t.unaryExpression('void', t.numericLiteral(0)),
-      claimBody,
-    ));
+    const claimResult = markGuardedClaim(estreeToBabel(renderShortCircuitGuard(
+      nullFirstGuardTest(test, { embed: hostSlot }), hostSlot(claimBody))));
     markParenTerminatedIfWrapped(target, claimResult);
     // effects the source wrote AHEAD of the guarded root run before the test, so they wrap the
     // whole claim rather than riding in either of its branches
@@ -615,15 +609,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   function wrapConditional(check, result) {
-    // place `null` first when `check` doesn't start with an identifier-like token (typically
-    // an AssignmentExpression `(_ref = X)`). This guarantees ASI safety when the replacement
-    // is embedded in raw source and matches the unplugin output. For identifier-like tokens
-    // there is no ASI hazard, so keep the more readable `x == null` form
-    const NULL = t.nullLiteral();
-    const test = isLeadingIdentLike(check)
-      ? t.binaryExpression('==', check, NULL)
-      : t.binaryExpression('==', NULL, check);
-    return t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
+    // the SHAPE spelling of the canon (`x == null` for an identifier-like check, `null == (_ref = x)`
+    // otherwise); the nav-guard channels take the literal-first form through `nullTest` instead
+    return estreeToBabel(renderShortCircuitGuard(
+      nullGuardTest(check, { embed: hostSlot }), hostSlot(result)));
   }
 
   function buildMethodCall({ id, object, scope, args, optionalCall, anchorNode }) {
@@ -902,13 +891,14 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     function collapsedTestNode() {
       const base = navGuardTestBase(plan);
       if (!base) return null;
-      const pure = injectPureGlobal(base.basePure.entry, base.basePure.hintName);
       // the WRITE below the hops is replaced along with them, and it is the source's own first act:
       // it rides INSIDE the collapsed value, ahead of the base, so the probe reads off the ponyfill
       // and the store still happens where the source performs it (`(w = _globalThis, _self).window`)
-      return t.memberExpression(plan.rootAssign
-        ? t.sequenceExpression([t.cloneNode(plan.rootAssign, true), pure]) : pure,
-      t.identifier(base.probeName));
+      return estreeToBabel(renderNavGuardTestBase(base, {
+        rootAssign: plan.rootAssign,
+        injectImport: (entry, hintName) => injectPureGlobal(entry, hintName).name,
+        embed: hostSlot,
+      }));
     }
     function keptPrefix(node) {
       return navGuardTestNode(node, null, plan);
@@ -928,11 +918,10 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       const probeTest = collapsedTestNode()
         ?? t.cloneNode(keptPrefix(plan.hops[plan.lastUnresolvableIdx].node), true);
       const wrapAssign = plan.assignWrap;
-      return t.conditionalExpression(
-        t.binaryExpression('==', t.nullLiteral(), wrapAssign
-          ? t.assignmentExpression(wrapAssign.operator, t.cloneNode(wrapAssign.left), probeTest) : probeTest),
-        t.unaryExpression('void', t.numericLiteral(0)), withTail(leaf),
-      );
+      return estreeToBabel(renderShortCircuitGuard(
+        nullFirstGuardTest(wrapAssign
+          ? t.assignmentExpression(wrapAssign.operator, t.cloneNode(wrapAssign.left), probeTest) : probeTest,
+        { embed: hostSlot }), hostSlot(withTail(leaf))));
     }
     if (plan.kind === 'sequence') {
       // a SEQUENCE root carries only its PREFIX expressions into the render: the sequence's own
@@ -1465,12 +1454,9 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
     // render where no identifier rewrite runs again
     const testObject = cloneWithSubstitutedProxyRoot(plan.guardObject, anchorPath,
       { t, resolvePureGlobalEntry, injectPureGlobal });
-    return t.conditionalExpression(
-      t.binaryExpression('==', t.nullLiteral(),
-        navGuardTestNode(testObject, anchorPath, null, testObject)),
-      t.unaryExpression('void', t.numericLiteral(0)),
-      alternate,
-    );
+    return estreeToBabel(renderShortCircuitGuard(
+      nullFirstGuardTest(navGuardTestNode(testObject, anchorPath, null, testObject), { embed: hostSlot }),
+      hostSlot(alternate)));
   }
 
   // flush THIS assignment's kept nav-collapse at its own EXIT: every claim resolver over the
@@ -2010,7 +1996,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   }
 
   function nullTest(expr) {
-    return t.binaryExpression('==', t.nullLiteral(), expr);
+    return estreeToBabel(nullFirstGuardTest(expr, { embed: hostSlot }));
   }
   function assignTo(ref, value) {
     return t.assignmentExpression('=', t.cloneNode(ref), value);
@@ -2021,10 +2007,11 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // like native, while each `?.` contributes its own `null == ...` test.
   // the outer is a call OR a bare GET (`recv.m?.().at`) - `outerIsCall` says which, and a GET
   // ends the emit at the member itself, with no arguments to fold and no `.call` receiver.
-  // unplugin re-implements this combined-chain logic as a text-level rewrite. the two emit
-  // differently - babel rebuilds the AST recursively (stacked optional-poly hops nest naturally),
-  // unplugin emits one flat OR-chain in a single pass; semantically identical, and where the
-  // textual shape diverges the unplugin fixture carries an output-unplugin.mjs sidecar
+  // the other leg re-implements the same combined chain: both build nodes now, and both spell
+  // their tests through the render canon, but the shapes are built differently - this one
+  // recurses (stacked optional-poly hops nest naturally), the other emits one flat OR-chain in
+  // a single pass; semantically identical, and where the shape diverges the unplugin fixture
+  // carries an output-unplugin.mjs sidecar
   function replaceInstanceChainCombined(outerPath, outerId,
     { innerCallee, innerArgs, innerId, chainStartNode, hasHops, sideEffects, outerIsCall = true, chainStartType,
       outerReturnType = null }) {
@@ -2125,8 +2112,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
         }
       }
     }
-    const conditional = t.conditionalExpression(testOr,
-      t.unaryExpression('void', t.numericLiteral(0)), alternate);
+    const conditional = estreeToBabel(renderShortCircuitGuard(hostSlot(testOr), hostSlot(alternate)));
     // chained outer calls read the hint off the result node; relocate the pre-combine
     // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve.
     // the stamp is placed by the visitor's own `annotateCallReturnType` on the CALL node - the

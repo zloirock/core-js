@@ -23,14 +23,13 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { walkAstNodes } from './plugin-helpers.js';
 import {
-  binaryExpression,
   cloneNode,
-  conditionalExpression,
   identifier,
   literal,
   memberExpression,
   sequenceExpression,
-  voidZero,
+  nullFirstGuardTest,
+  renderShortCircuitGuard,
 } from './builders.js';
 import { discardedSequenceElement, memberFromKeyName, peelExpressionWrappers } from './emit-shared.js';
 
@@ -133,8 +132,7 @@ export function emitNestedGuardNavValue(metaPath, node, {
       : memberFromKeyName(built, hop.name, { optional: !!hop.liveOptional });
   }
   markRewrite();
-  metaPath.replaceWith(conditionalExpression(
-    binaryExpression('==', literal(null), prefixNode), voidZero(), built));
+  metaPath.replaceWith(renderShortCircuitGuard(nullFirstGuardTest(prefixNode), built));
   return true;
 }
 
