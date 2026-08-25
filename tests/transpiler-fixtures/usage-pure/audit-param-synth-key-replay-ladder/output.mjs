@@ -40,7 +40,7 @@ const computedSequenceKey = function ({
 const plainStringKey = function ({
   'keys': keys
 } = {
-  "keys": _Object$keys
+  'keys': _Object$keys
 }) {
   return keys;
 }();
