@@ -6,7 +6,12 @@ import ImportInjectorState, {
   generatedNameFamilyOf,
   unwrapWriteOnlyGuardMemos,
 } from '@core-js/polyfill-provider/injector-base';
-import { isInitlessVarDecl, isTopLevelImportLike } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isInitlessVarDecl,
+  isTopLevelImportLike,
+  programPrologueEndIndex,
+  prologueEndIndex,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { renderInjectedImportNodes } from '@core-js/polyfill-provider/render';
 import { isDirectiveStatement } from './plugin-helpers.js';
@@ -20,13 +25,14 @@ export default class ImportInjector extends ImportInjectorState {
 
   constructor({
     absoluteImports,
+    emitsGlobalModules = true,
     importStyle,
     inherit = null,
     mode,
     packages = null,
     pkg,
   }) {
-    super({ absoluteImports, mode, pkg, importStyle, packages });
+    super({ absoluteImports, mode, pkg, importStyle, packages, emitsGlobalModules });
     if (inherit) this.#rehydrate(inherit);
   }
 
@@ -42,6 +48,7 @@ export default class ImportInjector extends ImportInjectorState {
     const EMPTY_ARR = [];
     const EMPTY_MAP = new Map();
     for (const g of snap.globals ?? EMPTY_ARR) this.globalImports.add(g);
+    for (const [k, v] of snap.globalPkgs ?? EMPTY_MAP) this.globalImportPackages.set(k, v);
     for (const [k, v] of snap.pure ?? EMPTY_MAP) this.pureImports.set(k, v);
     for (const n of snap.usedNames ?? EMPTY_ARR) this.usedNames.add(n);
     this.rehydrateUnusedSentinelNames(snap.unusedNames);
@@ -72,6 +79,7 @@ export default class ImportInjector extends ImportInjectorState {
   snapshot() {
     return {
       globals: new Set(this.globalImports),
+      globalPkgs: new Map(this.globalImportPackages),
       pure: new Map(this.pureImports),
       usedNames: new Set(this.usedNames),
       unusedNames: this.captureUnusedSentinelNames(),
@@ -149,12 +157,6 @@ export default class ImportInjector extends ImportInjectorState {
 // half renders it as nodes). globals and pure imports each canonically sorted through the
 // one polyfill-order comparator, the same order babel prints
 
-function importAnchorIndex(body) {
-  let index = 0;
-  while (index < body.length && isDirectiveStatement(body[index])) index++;
-  return index;
-}
-
 // the trailing edge of the leading import block AFTER the injected imports land - the
 // `var _ref;` block anchors there
 // the `var _ref;` anchor: the index PAST the leading import region, asked through the shared
@@ -190,8 +192,8 @@ function collectNodes(root) {
 }
 
 export function flushIntoProgram({ injector, program, refNames = [], renameOnly = [], refOrder = [] }) {
-  function resolve(subpath) {
-    return resolveImportPath(injector.pkg, subpath, injector.absoluteImports);
+  function resolve(subpath, pkg) {
+    return resolveImportPath(pkg ?? injector.pkg, subpath, injector.absoluteImports);
   }
   // `renameOnly` names carry no declaration of their own (a pattern sentinel), but they belong
   // to the same minted family and must renumber with it - a dropped one would strand its slot
@@ -242,8 +244,9 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     pureEntries: activePure,
     importStyle: injector.importStyle,
     resolve,
+    globalPackages: injector.globalImportPackages,
   }).map(entry => entry.node);
-  const anchor = importAnchorIndex(program.body);
+  const anchor = programPrologueEndIndex(program.body);
   program.body.splice(anchor, 0, ...nodes);
   // refs group per host body: program-level ones behind the import block, function-level
   // ones at their body's head (the babel `scope.push` anchor)
@@ -295,6 +298,6 @@ export function flushIntoProgram({ injector, program, refNames = [], renameOnly 
     const declaration = variableDeclaration('var', names.map(name => variableDeclarator(identifier(name))));
     if (host === program) program.body.splice(refAnchorIndex(program.body, anchor + nodes.length), 0, declaration);
     // a function-host block anchors PAST its directive prologue (babel's scope.push slot)
-    else host.body.splice(importAnchorIndex(host.body), 0, declaration);
+    else host.body.splice(prologueEndIndex(host.body), 0, declaration);
   }
 }

@@ -31,7 +31,7 @@ The usage-pure emitter is layered bottom-up and acyclic; `proxy-spine`, `optiona
 - `optional-dispatch.js` - optional and split dispatch: receiver splits, instance and inherited-static emission, guard composition
 - `se-dispatch.js` - the side-effect lifts: bare-optional SE dispatch, SE-key reads, sealed-key consumes
 - `claim-guards.js` - guard rendering over claims: probe spellings, sealed forms, guarded-hop replacement
-- `nav-spine.js` - the navigation walks and shared bottom helpers: spine climbs, peels, probes, skip marking
+- `nav-spine.js` - the navigation walks and shared bottom helpers: spine climbs, peels, probes, skip marking, and the per-node stamps a clone has to carry (resolved type, evaluation frame)
 - `destructure.js`, `destructure-drain.js`, `destructure-helpers.js` - the destructure pipeline: the visit half and facade, the drains that render at flush, and the shared helper vocabulary
 - `destructure-emit-utils.js` - pure receiver-classification helpers, no file-scope state
 
@@ -46,6 +46,8 @@ Mutates the parsed tree during traversal and reprints the whole file through esr
 This package is a BINDING, not an emitter (the architecture contract is "Core and bindings" in the provider's AGENTS.md): it owes the host plumbing - parse, traversal, scope, print, sourcemaps, id filtering, SFC - and the insertion of the provider's canonical ESTree render (no conversion needed: ESTree is native here), holding no decisions and no render forms of its own. The render code still living here awaits collapse into the provider's core; until a given render is shared, the live smell is the old one: anything that has to be fixed in this package *and* in babel-plugin belongs in the provider instead.
 
 Before writing a helper or a branch, check the canon - `npm run canon -- find "<behavior words>"` (its own `AGENTS.md` in `scripts/canon/` carries the reference): what you need may already exist in the provider or in babel-plugin under an unguessable name. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit. Before handing the work off, `npm run canon -- delta` audits the diff the other way: it lists every added named symbol with its same-name and near-name canon candidates, and exits 1 while any remain unadjudicated.
+
+This leg passes NODES where babel passes paths, so a receiver acquired from ANOTHER frame (an IIFE call-ARG evaluates at the CALL SITE) carries its frame as a stamp: `stampNodeSite` wherever such a receiver enters, `nodeSite` at every scope-aware question about it - never a free-floating `metaPath` - and `cloneStamped` for every clone, since a copy inherits no stamp.
 
 A render the core hands over may CARRY one of this leg's own nodes: `synthEntryKey` marks such a
 key `fromSource`, and the caller must clone before embedding it. The node still sits in the source

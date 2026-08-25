@@ -733,6 +733,23 @@ export function aliasHeldClaimProbe(member, resolvePure, aliasCtx) {
   return { object, key, computed: member.computed, navStart: objectRaw.start ?? member.object.start ?? null };
 }
 
+// OUR OWN render, read back: a claim whose probe fired leaves the source's read as a NON-FINAL element
+// of a sequence whose tail is the ponyfill binding it resolved to (`(held.of, _Array$of)`). both
+// emitters recognise a render inside one pass by its missing source span, but a RE-PARSE gives it a
+// real one - and the emitters run over each other's output in the sandwich, so without a shape-level
+// check the claim fires again on every pass. the `in` fold spells the same self-recognition for its
+// kept test, and declines a hand-written twin the same way: the shape already IS the answer
+export function claimAlreadyRendered(node, { scope, adapter, path }) {
+  if (!path || path.node !== node) return false;
+  const parent = path.parentPath?.node;
+  if (parent?.type !== 'SequenceExpression') return false;
+  const parts = parent.expressions ?? [];
+  const index = parts.indexOf(node);
+  if (index === -1 || index === parts.length - 1) return false;
+  const tail = parts.at(-1);
+  return tail?.type === 'Identifier' && !!adapter?.getBinding?.(scope, tail.name, path)?.polyfillHint;
+}
+
 // the VALUE canon asked THROUGH an Identifier alias: follow the binding to what it holds and
 // ask `proxyReceiverValueCanBeUndefined` of THAT. distinct from the hop-based alias walk
 // (`undefinableProxyRootValue`): an all-plain held nav stays the declared environment under
@@ -2487,6 +2504,18 @@ export function findProxyGlobal(node, aliasCtx = null, throughChainAssign = fals
   return isProxyGlobalIdentifierNode({ node: root, ...aliasCtx }) ? root : null;
 }
 
+// WHAT a proxy-global navigation spells: its own claim's ponyfill when the navigation IS the value the
+// source reads (`globalThis.self` -> `_self`), or the collapsed ROOT when something reads THROUGH it
+// (`globalThis.self.Array` -> `_globalThis.Array`, where an intermediate `self` would be undefined off
+// a host that has none). the KEY SPELLING does not enter the question: a folded computed key -
+// literal, variable or SE-bearing - names the same leaf, and its discarded effects ride ahead of the
+// binding (`globalThis[(c++, 'self')]` -> `(c++, _self)`). weighing the effects here answered a
+// DIFFERENT global for the noisy spelling than for every quiet twin, which is the one thing a proxy
+// alias may never do - the two ponyfills are separate modules
+export function proxyNavSpellsClaimPure({ navigated }) {
+  return !navigated;
+}
+
 // the largest pure proxy-global navigation sub-expression of `node`: the root proxy-global
 // identifier plus any consecutive member hops whose key is itself a proxy-global (`globalThis.self`
 // - `self` is a proxy-global alias of the global object). a non-proxy key (a constructor leaf or a
@@ -2990,9 +3019,20 @@ export function findChainRootCallExpression(node, throughChainAssign = false) {
 // returns the call node when it carries effects, null otherwise - callers either harvest it for
 // re-emission or bail the discard entirely
 export function seBearingChainRootCall({ node, scope, adapter, path }) {
+  // a TAGGED TEMPLATE invokes its tag with the quasi's expressions - a call in every way that
+  // matters to a discard, and one no callee resolution reaches through, so it never erases
+  const { root } = descendToChainRoot(node);
+  if (root?.type === 'TaggedTemplateExpression') return root;
   const rootCall = findChainRootCallExpression(node);
-  return rootCall && inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path })
-    ? rootCall : null;
+  if (!rootCall) return null;
+  // an UNRESOLVABLE callee is UNKNOWN, not pure - erasing the call would drop whatever it does.
+  // `inlineCallHasObservableEffects` answers the opposite question (may I INLINE this call), where
+  // a callee it cannot reach simply means there is nothing to inline, so it answers "no effects"
+  const callee = resolveInlineCalleeFunction({
+    callNode: rootCall, scope, adapter, path, seen: new Set(), allowIdentityParam: true,
+  });
+  if (!callee) return rootCall;
+  return inlineCallHasObservableEffects({ callNode: rootCall, scope, adapter, path }) ? rootCall : null;
 }
 
 // observable nodes a DISCARD would silently drop, in source-eval order: chain-assignments

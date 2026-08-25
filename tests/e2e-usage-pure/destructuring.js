@@ -3952,3 +3952,53 @@ QUnit.test('destructuring: a rest wrapper shares one selection', assert => {
   assert.deepEqual(rest, [9]);
   assert.same(flipped, true);
 });
+
+// a `for-x` head writes the member slot per iteration, so a body read of that slot must keep
+// reading what the head assigned - even from a nested closure, where the write-gate used to lose
+// sight of the receiver and let the polyfill win over the assigned value
+QUnit.test('destructuring: a for-of head write survives a closure read', assert => {
+  const src = [1, 2];
+  const seen = [];
+  for (src.at of [function assigned() { return 'assigned'; }]) {
+    function read() { return src.at(0); }
+    seen.push(read());
+  }
+  assert.deepEqual(seen, ['assigned']);
+  // ... and a receiver the closure BINDS itself is a different object, which keeps its polyfill
+  const shadowedResults = [];
+  for (src.flat of [function assigned() { return 'assigned'; }]) {
+    function shadowed(own) { return own.flat(); }
+    shadowedResults.push(shadowed([1, [2]]));
+  }
+  assert.deepEqual(shadowedResults, [[1, 2]]);
+});
+
+// an IIFE call-ARG evaluates at the CALL SITE, so the receiver it names is the one visible THERE -
+// a same-named parameter of the invoked function shadows nothing on that side. asking inside the
+// frame turned a resolvable receiver into an unknown one and dropped the polyfill on a rename
+/* eslint-disable default-param-last, es/no-nonstandard-object-properties, no-shadow, no-unused-vars
+   -- the SHAPE is the test: a dead `Object` default ahead of a positional parameter whose name
+   shadows the receiver the call site passes */
+QUnit.test('destructuring: an arg receiver resolves at the call site, not in the callee frame', assert => {
+  let calls = 0;
+  function mk() {
+    calls += 1;
+    return Array;
+  }
+  const cond = true;
+  const viaBranch = (function ({ from } = Object, mk) {
+    return from;
+  })(cond ? mk() : Object);
+  assert.deepEqual(viaBranch('ab'), ['a', 'b'], 'the branch receiver keeps its polyfilled static');
+  const viaLogical = (function ({ from } = Object, mk) {
+    return from;
+  })(mk() || Object);
+  assert.deepEqual(viaLogical('cd'), ['c', 'd'], 'a fallback-logical arg answers the same way');
+  assert.same(calls, 2, 'each receiver call ran exactly once');
+  const renamed = (function ({ from } = Object, zz) {
+    return from;
+  })(cond ? mk() : Object);
+  assert.deepEqual(renamed('ef'), ['e', 'f'], 'control: the same shape without the shadowing name');
+});
+/* eslint-enable default-param-last, es/no-nonstandard-object-properties, no-shadow, no-unused-vars
+   -- the shape-under-test block ends here */

@@ -1,7 +1,9 @@
-import { extractIndirectRequireSEPrefix } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  extractIndirectRequireSEPrefix,
+  programPrologueEndIndex,
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
-import { isDirectiveStatement } from './plugin-helpers.js';
 import { bareImport, bareRequire, expressionStatement } from './builders.js';
 
 // the application of the entry plan `planEntries` produced: dispositions become body
@@ -21,8 +23,7 @@ function buildImportNodes({ modules, importStyle, pkg, absoluteImports }) {
 
 // anchored after the CURRENT prologue's end as a body INDEX
 export function injectImportStatements({ program, modules, importStyle, pkg, absoluteImports }) {
-  let prologueEnd = 0;
-  while (prologueEnd < program.body.length && isDirectiveStatement(program.body[prologueEnd])) prologueEnd++;
+  const prologueEnd = programPrologueEndIndex(program.body);
   program.body.splice(prologueEnd, 0, ...buildImportNodes({ modules, importStyle, pkg, absoluteImports }));
 }
 
@@ -33,8 +34,7 @@ export default function applyEntryProgram({ program, plan, modules, importStyle,
   // directive-shaped string up against the prologue, and an anchor computed on the rebuilt
   // body would slide past it - promoting it into a directive, exactly what the disposition
   // policy blocked. spelled as a sentinel node the rebuild loop replaces
-  let prologueEnd = 0;
-  while (prologueEnd < program.body.length && isDirectiveStatement(program.body[prologueEnd])) prologueEnd++;
+  const prologueEnd = programPrologueEndIndex(program.body);
   const body = [];
   const anchor = { type: 'EmptyStatement' };
   for (let idx = 0; idx < program.body.length; idx++) {
