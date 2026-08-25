@@ -5,16 +5,15 @@ import { mayHaveSideEffects } from '@core-js/polyfill-provider/helpers/ast-patte
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   assignmentExpression,
-  binaryExpression,
   callExpression,
   chainExpression,
   cloneNode,
-  conditionalExpression,
   identifier,
-  literal,
   memberExpression,
   sequenceExpression,
   voidZero,
+  nullGuardTest,
+  renderShortCircuitGuard,
 } from './builders.js';
 import { peelExpressionWrappers, withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop } from './claim-guards.js';
@@ -81,8 +80,7 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
       .filter(effect => !subtreeContainsNode(bare, effect))
       .map(effect => cloneNode(effect));
     const lookup = callExpression(identifier(ctx.injectPureImport(entry, hintName)), [cloneNode(bare)]);
-    const sealedGuard = conditionalExpression(
-      binaryExpression('==', cloneNode(bare), literal(null)), voidZero(),
+    const sealedGuard = renderShortCircuitGuard(nullGuardTest(cloneNode(bare)),
       keyEffects.length ? sequenceExpression([...keyEffects, lookup]) : lookup);
     ctx.markRewrite();
     const consumed = callerPath.node;
@@ -110,10 +108,8 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
   ctx.markRewrite();
   replaceGuardedHop({
     hopPath: callerPath,
-    test: reusable
-      ? binaryExpression('==', cloneNode(bare), literal(null))
-      : binaryExpression('==', literal(null),
-        ctx.assignmentExpression('=', identifier(ref), cloneNode(bare))),
+    test: nullGuardTest(reusable ? cloneNode(bare)
+      : ctx.assignmentExpression('=', identifier(ref), cloneNode(bare))),
     built: effects.length ? sequenceExpression([...effects, dispatch]) : dispatch,
     skippedNodes: ctx.skippedNodes,
   });
@@ -164,9 +160,9 @@ export function emitSealedKeySeConsume({ id, object, metaPath, hopPath, callerPa
   const memoStore = object?.type === 'Identifier' && effects[0]?.type === 'AssignmentExpression'
     && effects[0].left?.type === 'Identifier' && effects[0].left.name === object.name ? effects[0] : null;
   const { disjuncts, makeBase } = memoStore
-    ? { disjuncts: [binaryExpression('==', literal(null), memoStore)], makeBase: () => cloneNode(object) }
+    ? { disjuncts: [memoStore], makeBase: () => cloneNode(object) }
     : ctx.guardObject(object, metaPath);
-  const guardedKeySe = conditionalExpression(ctx.composeGuardTest(disjuncts, null), voidZero(),
+  const guardedKeySe = renderShortCircuitGuard(ctx.composeGuardTest(disjuncts, null),
     sequenceExpression([...effects.slice(memoStore ? 1 : 0).map(effect => cloneNode(effect)), voidZero()]));
   const consumed = hopPath.node;
   hopPath.replaceWith(sequenceExpression([guardedKeySe, ctx.buildSymbolConsumeCore({

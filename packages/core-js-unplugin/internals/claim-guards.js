@@ -22,15 +22,15 @@ import {
   parenSealedCalleeAbove,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
-  binaryExpression,
   chainExpression,
   cloneNode,
-  conditionalExpression,
   identifier,
   literal,
   memberExpression,
   sequenceExpression,
-  voidZero,
+  nullFirstGuardTest,
+  renderShortCircuitGuard,
+  renderAliasHeldProbeRead,
 } from './builders.js';
 import { memberFromKeyName, peelExpressionWrappers, receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
@@ -289,7 +289,7 @@ export function replaceGuardedHop({
     // through its defined branch, and without the mark the in-place collapse hides the nav
     // from those reads and their claims die
     const replacement = test
-      ? markRenderedStoredValue(conditionalExpression(test, voidZero(), withLeafKeySe(built))) : built;
+      ? markRenderedStoredValue(renderShortCircuitGuard(test, withLeafKeySe(built))) : built;
     if (test && returnType) resolvedType?.set(replacement, returnType);
     const inserted = withPrefixSe(replacement);
     target.replaceWith(inserted);
@@ -334,7 +334,7 @@ export function replaceGuardedHop({
     // original one
     if (receiverCarriesOptional(alternate)) alternate = chainExpression(alternate);
     const replacement = markRenderedStoredValue(
-      conditionalExpression(test, voidZero(), memberTail ? alternate : withLeafKeySe(alternate)));
+      renderShortCircuitGuard(test, memberTail ? alternate : withLeafKeySe(alternate)));
     if (returnType) resolvedType?.set(replacement, returnType);
     let wrapped = replacement;
     for (const wrapper of outerTsWrappers.toReversed()) wrapped = { ...wrapper, expression: wrapped };
@@ -527,9 +527,7 @@ export function aliasHeldClaimProbeNode(member, aliasCtx, { resolveGlobalPolyfil
   if (!Number.isInteger(member?.start)) return null;
   const probe = aliasHeldClaimProbe(member, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
   if (!probe) return null;
-  const read = probe.computed
-    ? memberExpression(identifier(probe.object.name), literal(probe.key), { computed: true })
-    : memberExpression(identifier(probe.object.name), identifier(probe.key));
+  const read = renderAliasHeldProbeRead(probe, identifier(probe.object.name));
   // the probe IS the source read spelled verbatim - a re-visit claiming it would substitute the
   // very ponyfill it stands ahead of
   markSubtreeSkipped(skippedNodes, read);
@@ -611,7 +609,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const test = planRoute ? ctx.buildNavGuardTest(plan, { metaPath, aliasCtx, resolveHere })
     : probeSpelling(leafPlan.guardObject, { resolveHere, aliasCtx, substituteProbeProxyRoot: ctx.substituteProbeProxyRoot });
   if (!planRoute) markSubtreeSkipped(skippedNodes, test);
-  const guarded = conditionalExpression(binaryExpression('==', literal(null), test), voidZero(), alternate);
+  const guarded = renderShortCircuitGuard(nullFirstGuardTest(test), alternate);
   const read = boundary.member.computed
     ? memberExpression(guarded, literal(key), { computed: true })
     : memberFromKeyName(guarded, key);
