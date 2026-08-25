@@ -1617,6 +1617,39 @@ const KVC_CLAIMS = [
   ['destructure-decl', recv => `(() => { const { Map: M } = ${ recv }; return typeof M; })()`],
 ];
 
+// --- `this` as the guarded receiver ---
+// the null-test spelling canon admits exactly two bare heads, an identifier and `this`, and the
+// corpus locked the `this` half in ONE printed row and nowhere at runtime. the axis BRANCHES on
+// the binding itself: in a module every function body is strict, so a detached call leaves `this`
+// undefined and the source short-circuits, while the same body invoked as a method reads through.
+// each claim row is a different emission channel over that one receiver
+const THIS_CLAIMS = [
+  ['instance-optional', 'this?.at(0)'],
+  ['instance-optional-call', 'this?.flat?.()'],
+  // ONE deliberate exclusion, and it is a finding, not a shape the axis declines to cover:
+  // `(this)?.at(-1)` diverges TODAY - the parenthesised receiver routes through the SE-peeling
+  // instance emitter on the unplugin leg and injects `instance/at`, while the bare twin stays
+  // native on both legs and babel (whose parser drops the paren) cannot even see the form.
+  // the row would be red on arrival, so it waits for the routing cluster that owns the split
+  ['symbol-membership', 'Symbol.iterator in Object(this)'],
+  ['static-through-this', 'this?.constructor.name'],
+];
+const THIS_BINDINGS = [
+  ['method', 'const host = { arr: [3, [1, 2]], read() { return String(%s); } }; return host.read();'],
+  ['detached', 'const host = { arr: [3, [1, 2]], read() { return String(%s); } }; const loose = host.read;'
+    + ' try { return String(loose()); } catch (e) { return "throw"; }'],
+];
+
+function * generateThisReceiverGuards() {
+  for (const [claimId, claim] of THIS_CLAIMS) {
+    for (const [bindingId, shape] of THIS_BINDINGS) {
+      const body = shape.replace('%s', claim);
+      yield snippet(`this-receiver-guard/${ claimId }-${ bindingId }`,
+        `(() => { ${ body } })()`);
+    }
+  }
+}
+
 function * generateKeptValueCanon() {
   for (const [valueId, value, valueOpts = {}] of KVC_VALUES) {
     for (const [claimId, build, claimOpts = {}] of KVC_CLAIMS) {
@@ -6997,6 +7030,7 @@ export function * generate() {
   yield * generateProxyGlobalSEReceiver();
   yield * generateChainAssignValue();
   yield * generateKeptValueCanon();
+  yield * generateThisReceiverGuards();
   yield * generateIifeArgOwnership();
   yield * generateWrappedSiblingReceiver();
   yield * generateProxyHopCtor();

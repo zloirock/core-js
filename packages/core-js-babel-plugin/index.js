@@ -46,6 +46,14 @@ import {
   createClassHelpers, ctorAliasShapesReducer, registerAliasPrePassSite, remapInheritedStaticMeta, usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
+import {
+  hostSlot,
+  nullFirstGuardTest,
+  renderCtorIdentityNarrow,
+  renderInExpressionPlan,
+  renderShortCircuitGuard,
+} from '@core-js/polyfill-provider/render';
+import estreeToBabel from './internals/estree-to-babel.js';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import { mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -704,37 +712,31 @@ export default function plugin(api, options) {
           parent: path.parentPath?.node ?? null,
         });
         if (plan.kind === 'noop') return;
-        // cloneNode keeps the harvested SE / arg subtrees independent of the replaced tree -
-        // defensive against sibling plugins that might hold a reference to the old nodes
-        const lhsSe = plan.leadingSe.map(e => t.cloneNode(e));
-        function withLhsSe(core) {
-          return lhsSe.length ? t.sequenceExpression([...lhsSe, core]) : core;
-        }
-        // keep the membership test live (it carries the throw) and answer `true` after it. the clone
-        // is re-queued by `replaceWith`, so the receiver inside still gets its own rewrite
-        if (plan.kind === 'fold-after-test') {
-          const test = t.cloneNode(path.node);
-          foldedInTests.add(test);
-          path.replaceWith(t.sequenceExpression([test, t.booleanLiteral(true)]));
-          return;
-        }
-        if (plan.kind === 'symbol') {
-          const id = injectPureImport(plan.entry, plan.hint);
-          if (plan.call) {
-            // the helper CONSUMES the operand the way `in` did - it throws on a nullish one - so a
-            // guard rendered for the operand's own chain must stay INSIDE the argument. climbing
-            // out of the call (the receiver-dispatch lift, where the whole chain short-circuits)
-            // answers `undefined` where the source throws, and strands the memo it built
-            path.replaceWith(withLhsSe(markThrowingExtraction(t.callExpression(id, [t.cloneNode(plan.right)]))));
-          } else {
-            // swap only the LHS in place so the RHS keeps its visited state (not re-traversed)
-            path.get('left').replaceWith(id);
-            if (lhsSe.length) path.replaceWith(t.sequenceExpression([...lhsSe, path.node]));
+        const rendered = renderInExpressionPlan(plan, {
+          injectImport: (entry, hint) => injectPureImport(entry, hint).name,
+          embed: hostSlot,
+          cloneSource: () => t.cloneNode(path.node),
+        });
+        if (rendered.swapLeft) {
+          // swap only the LHS in place so the RHS keeps its visited state (not re-traversed)
+          path.get('left').replaceWith(estreeToBabel(rendered.swapLeft));
+          if (rendered.leadingSe.length) {
+            path.replaceWith(t.sequenceExpression([
+              ...rendered.leadingSe.map(effect => estreeToBabel(effect)), path.node]));
           }
           return;
         }
-        // fold: the polyfill is always defined, so the membership test is constantly true
-        path.replaceWith(withLhsSe(t.booleanLiteral(true)));
+        const replacement = estreeToBabel(rendered.replace);
+        // the kept membership test is re-queued by `replaceWith`; without the mark it would wrap
+        // its own wrap. the helper form CONSUMES the operand the way `in` did, so a guard rendered
+        // for the operand's own chain must stay INSIDE the argument - climbing out of the call
+        // answers `undefined` where the source throws, and strands the memo it built
+        if (plan.kind === 'fold-after-test') foldedInTests.add(replacement.expressions[0]);
+        if (rendered.throwsAtTail) {
+          markThrowingExtraction(replacement.type === 'SequenceExpression'
+            ? replacement.expressions.at(-1) : replacement);
+        }
+        path.replaceWith(replacement);
       }
 
       // the instance rewrite REPLACES the parent call (`arr.at(0)` -> `_atMaybeArray(arr).call(arr, 0)`),
@@ -798,15 +800,14 @@ export default function plugin(api, options) {
           // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
           // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
           // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
-          const testRecv = t.cloneNode(plan.recvIdent);
-          skippedNodes.add(testRecv);
-          return t.conditionalExpression(
-            t.binaryExpression('===', testRecv, branch.ctorPure
-              ? t.cloneNode(injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName))
-              : t.identifier(branch.ctorName)),
-            t.cloneNode(injectPureImport(branch.staticPure.entry, branch.staticPure.hintName)),
-            alternate,
-          );
+          return estreeToBabel(renderCtorIdentityNarrow({ branches: [branch] }, hostSlot(alternate), {
+            injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+            spellRecv: () => {
+              const testRecv = t.cloneNode(plan.recvIdent);
+              skippedNodes.add(testRecv);
+              return hostSlot(testRecv);
+            },
+          }));
         }, rawBranch);
         const guard = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
@@ -871,13 +872,10 @@ export default function plugin(api, options) {
         // handled, exactly as the member render does with the node it keeps
         const rawBranch = t.memberExpression(t.cloneNode(plan.recvIdent), t.identifier(meta.key));
         t.traverseFast(rawBranch, node => skippedNodes.add(node));
-        const narrow = plan.branches.reduceRight((alternate, branch) => t.conditionalExpression(
-          t.binaryExpression('===', t.cloneNode(plan.recvIdent), branch.ctorPure
-            ? t.cloneNode(injectPureImport(branch.ctorPure.entry, branch.ctorPure.hintName))
-            : t.identifier(branch.ctorName)),
-          t.cloneNode(injectPureImport(branch.staticPure.entry, branch.staticPure.hintName)),
-          alternate,
-        ), rawBranch);
+        const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          spellRecv: () => hostSlot(t.cloneNode(plan.recvIdent)),
+        }));
         const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
         if (isDeclarator) {
@@ -1070,11 +1068,9 @@ export default function plugin(api, options) {
             // funnel: this channel builds its own guard, and skipping the collapse left the
             // intermediate pony hops raw off a root that does not carry them
             collapseKeptNavValueNode(guardTest, path);
-            tip.replaceWith(t.conditionalExpression(
-              t.binaryExpression('==', t.nullLiteral(), navGuardTestNode(guardTest, path)),
-              t.unaryExpression('void', t.numericLiteral(0)),
-              tip.node,
-            ));
+            tip.replaceWith(estreeToBabel(renderShortCircuitGuard(
+              nullFirstGuardTest(navGuardTestNode(guardTest, path), { embed: hostSlot }),
+              hostSlot(tip.node))));
           }
           if (guardAssigns.length === 1 && allEffects.length === 1
             && !staticMayEraseReceiver(path.node, resolveBuiltIn,
