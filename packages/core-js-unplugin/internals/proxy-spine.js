@@ -102,6 +102,7 @@ export default function createProxySpineChannel(ctx) {
     resolveGlobalPolyfill,
     resolvePure,
     resolvedClaimNodes,
+    stagedFallbackHosts,
     seKeyReadCtx,
     sealedProbeCtx,
     skippedNodes,
@@ -377,7 +378,10 @@ export default function createProxySpineChannel(ctx) {
     // claim substitutes and renders nothing of its own, so standing down there shipped the
     // static raw (`(globalThis.window?.self)?.Array?.of(5)`). only a call the resolution
     // already claimed owns a render
+    // ... and a consumer whose own ctor-fallback swap STAGED renders nothing, so it owns
+    // nothing either: standing down for it ships the ctor raw
     const consumedAbove = (rootIsProxyIdentifier || resolvedClaimNodes.has(host))
+      && !stagedFallbackHosts.has(host)
       && ((host?.type === 'MemberExpression'
       && (host.object === child || peelExpressionWrappers(host.object) === node))
       || (host?.type === 'CallExpression' && resolvedClaimNodes.has(host)
