@@ -100,7 +100,6 @@ import {
   isMemberWriteOnlyContext,
   isNonReferencePosition,
   isRestProperty,
-  buildFlatSynthEntries,
   isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
   isTypeAnnotationWrapper,
@@ -6210,11 +6209,6 @@ runBoth('the subclass own namespace export outranks the parent one',
     };
     checkTruthy('ast-patterns: isSynthSimpleObjectPattern numeric and string spellings of one slot',
       isSynthSimpleObjectPattern(oneSlot));
-    const collapsed = buildFlatSynthEntries(oneSlot, new Map([['0', 'POLYFILL']]));
-    check('ast-patterns: buildFlatSynthEntries collapses one slot to a single entry', collapsed.length, 1);
-    // the resolved occurrence wins over a passthrough, or the import would be dropped
-    check('ast-patterns: buildFlatSynthEntries keeps the resolved value of a collapsed slot',
-      collapsed[0].polyfill, 'POLYFILL');
   }
   // RestElement among properties -> false
   check('ast-patterns: isSynthSimpleObjectPattern rest',

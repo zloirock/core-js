@@ -57,8 +57,11 @@ const oxcAdapter = {
   // oxc auto-detects features by file extension (no extraPlugins arg - callers' plugin list is
   // babel-only). a 'script' sourceType parses sloppy-mode (Annex-B block-function hoisting); use
   // a `.js` name so oxc doesn't apply TS module rules
-  parseAndScope(code, sourceType = 'module') {
-    const filename = sourceType === 'script' ? 'test.js' : 'test.ts';
+  parseAndScope(code, sourceType = 'module', extraPlugins = []) {
+    // oxc keys the language off the FILENAME: a `.ts` name parses `<X ... />` as a type
+    // assertion, so a JSX scenario must ask for the `.tsx` grammar the same way the babel
+    // adapter asks for its `jsx` plugin
+    const filename = sourceType === 'script' ? 'test.js' : extraPlugins.includes('jsx') ? 'test.tsx' : 'test.ts';
     // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
     const { program } = oxcParseSync(filename, code, { sourceType });
     // the same pass the real unplugin pipeline runs before ANY scope traverse: estree-toolkit

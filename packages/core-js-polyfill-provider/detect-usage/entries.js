@@ -89,8 +89,14 @@ function matchEntrySubpath(source, pkgs, subPrefix) {
   const clean = normalizeImportSource(source);
   for (const pkg of pkgs) {
     const pkgPrefix = `${ pkg }/`;
-    if (!clean.startsWith(pkgPrefix)) continue;
-    const afterPkg = clean.slice(pkgPrefix.length);
+    // the package may be a path SEGMENT rather than the start: `absoluteImports` makes the injector
+    // spell its own imports as resolved file paths, and a re-scan that only matched the string start
+    // would read them as foreign and inject a duplicate beside each one. same boundary rule
+    // `isCoreJSFile` applies to file names
+    const segment = clean.lastIndexOf(`/${ pkgPrefix }`);
+    const start = clean.startsWith(pkgPrefix) ? 0 : segment !== -1 ? segment + 1 : -1;
+    if (start < 0) continue;
+    const afterPkg = clean.slice(start + pkgPrefix.length);
     // `continue`, not `return null`: when an earlier package is a path-prefix of `source` but
     // the sub-prefix doesn't match (`a/` matches but `a/stable/x` isn't under `modules/`), a
     // LATER package that IS a full match (`a/b/` over `a/b/modules/x`) must still be tried -
@@ -149,7 +155,7 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       const names = defaultSpecifierNames(node);
       if (!names.length) continue;
       const entry = matchEntrySubpath(source, mainPkgs, modePrefix);
-      if (entry) for (const name of names) onPureImport(entry, name, node);
+      if (entry) for (const name of names) onPureImport(entry, name);
       continue;
     }
     // TS `import X = require('<pkg>/<mode>/...')` - the same pure require-import shape tsc/esbuild
@@ -164,7 +170,7 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       const required = extractStaticString(node.moduleReference.expression, adapter);
       const entry = typeof required === 'string' ? matchEntrySubpath(required, mainPkgs, modePrefix) : null;
       if (entry) {
-        onPureImport(entry, node.id.name, node);
+        onPureImport(entry, node.id.name);
         continue;
       }
     }
@@ -180,7 +186,7 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
           const required = requireCallSource(decl.init, adapter, shadowScope);
           if (required === null) continue;
           const entry = matchEntrySubpath(required, mainPkgs, modePrefix);
-          if (entry) onPureImport(entry, decl.id.name, node);
+          if (entry) onPureImport(entry, decl.id.name);
         }
       }
       continue;

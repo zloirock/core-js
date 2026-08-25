@@ -9,7 +9,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 }) {
   return f;
 })({
-  "from": _Array$from
+  'from': _Array$from
 });
 (function ({
   'from': f,
@@ -17,8 +17,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 }) {
   return [f, o];
 })({
-  "from": _Array$from,
-  "of": _Array$of
+  'from': _Array$from,
+  'of': _Array$of
 });
 // a block comment between the sole prop and its trailing comma must not hide the comma from the
 // removal scan, or the same orphaned-comma syntax error returns
@@ -27,5 +27,5 @@ import _Array$of from "@core-js/pure/actual/array/of";
 }) {
   return o;
 })({
-  "of": _Array$of
+  'of': _Array$of
 });

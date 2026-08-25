@@ -1,5 +1,11 @@
-import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, isValidIdentifierName } from '@core-js/polyfill-provider/helpers/ast-patterns';
+// the member-hop spelling is the render canon's; re-exported so this leg's emitters keep
+// importing their node vocabulary from one place
+
+import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { cloneNode, identifier, literal, memberExpression, sequenceExpression } from './builders.js';
+// the member-hop spelling is the render canon's, re-exported so this leg's emitters keep
+// taking their node vocabulary from one import
+export { memberFromKeyName } from '@core-js/polyfill-provider/render';
 
 // helpers shared by the AST engine's emitters (usage-pure and the destructure pipeline) -
 // they live outside both so neither imports the other
@@ -17,15 +23,6 @@ export function receiverCarriesOptional(node) {
     } else if (receiverCarriesOptional(value)) return true;
   }
   return false;
-}
-
-// a member read spelled from a KEY NAME string: a name a plain member cannot carry
-// (`'App-Key'`, `'A b'`) spells COMPUTED with its literal - `base.App-Key` parses as a
-// subtraction and `base.A b` not at all
-export function memberFromKeyName(object, keyName, options = {}) {
-  return isValidIdentifierName(keyName)
-    ? memberExpression(object, identifier(keyName), options)
-    : memberExpression(object, literal(keyName), { ...options, computed: true });
 }
 
 // a node DISCARDED as a non-tail SEQUENCE element: nobody reads the value it evaluates to, so a

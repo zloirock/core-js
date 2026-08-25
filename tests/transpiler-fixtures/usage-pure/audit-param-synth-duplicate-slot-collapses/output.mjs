@@ -16,7 +16,7 @@ const duplicateUnresolvedSlot = function ({
   from,
   of
 } = {
-  "z": Array["z"],
+  'z': Array['z'],
   from: _Array$from,
   of: _Array$of
 }) {
@@ -48,7 +48,7 @@ const foldedSpellingOfSameSlot = function ({
   'values': v1,
   ['val' + 'ues']: v2
 } = {
-  "values": _Object$values
+  'values': _Object$values
 }) {
   return [v1, v2];
 }();
