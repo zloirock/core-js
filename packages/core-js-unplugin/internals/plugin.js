@@ -20,6 +20,7 @@ import {
   methodReadsUsageCensus,
   memberKeyNamesReducer,
   mutatedGlobalSlotNames,
+  prologueEndIndex,
   BRACE_STATEMENT_HOST_TYPES,
   SINGLE_STATEMENT_SLOTS,
   isThisReceiver,
@@ -71,7 +72,6 @@ import {
   bindingNamesReducer,
   hasCoreJSImport,
   isChunkLoaderBundler,
-  isDirectiveStatement,
   KNOWN_BUNDLERS,
   liftSfcLangSuffix,
   parenthesizeExprStmtHazard,
@@ -334,7 +334,7 @@ function hoistSoleDisabledPatternDirectives({ ast, comments, offsetToLine, disab
 // prologue can precede it, so directives before the cutoff are skipped
 function parseDisableState(code, ast, comments) {
   const offsetToLine = buildOffsetToLine(code);
-  const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
+  const firstNonDirective = ast.body[prologueEndIndex(ast.body)];
   const disabledLines = parseDisableDirectives({ comments, offsetToLine, firstStmtStart: firstNonDirective?.start, ast });
   return { offsetToLine, disabledLines };
 }
@@ -729,6 +729,7 @@ export default function createPlugin(options) {
       pkg,
       packages,
       mode,
+      emitsGlobalModules: method !== 'usage-pure',
       absoluteImports,
       importStyle,
       inherit,
@@ -793,15 +794,16 @@ export default function createPlugin(options) {
         const removed = new Set();
         scanExistingCoreJSImports(ast, {
           adapter: estreeAdapter,
+          isDisabled,
           mode,
           // the user's global import is REMOVED here and re-emitted through `addGlobalImport`,
           // so nothing may suppress it as already-present. the DEFER pass leaves user global
           // imports COMPLETELY alone (no removal, no registration): its own emission is
           // deferred to post, so removing here would strand the file import-less if the post
           // pass never lands (evicted snapshot / sibling bail / watch-mode re-run)
-          onGlobalImport: (mod, node) => {
+          onGlobalImport: (mod, node, modPkg) => {
             if (deferImports) return;
-            injector.addGlobalImport(mod);
+            injector.addGlobalImport(mod, modPkg);
             removed.add(node);
           },
           // a user binding the file WRITES through is poisoned as a dedup target - the
@@ -909,7 +911,7 @@ export default function createPlugin(options) {
         // ... and a `delete` target is write-only in the same sense: the consumer needs the SLOT,
         // so a claim that replaces the member with a call would delete nothing and run the helper
         // besides (`delete g[Symbol.iterator]` keeps the member, its key swapped)
-        return isUpdateTarget(parent) || isForXWriteTarget(metaPath)
+        return isUpdateTarget(parent) || isForXWriteTarget(metaPath, estreeAdapter)
           || (parent?.type === 'AssignmentExpression' && parent.left === anchor.node)
           || (isDeleteTarget(anchor.parentPath?.node) && anchor.parentPath.node.argument === anchor.node)
           || isMemberWriteOnlyContext(anchor.node, anchor.parentPath?.node, anchor.parentPath?.parentPath?.node);
@@ -995,6 +997,7 @@ export default function createPlugin(options) {
       // usage-global mode
       function collectUsageGlobal() {
         const usageGlobalCallback = createUsageGlobalCallback({
+          adapter: estreeAdapter,
           resolveUsage,
           injectModulesForModeEntry,
           isDisabled,

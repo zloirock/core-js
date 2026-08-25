@@ -31,7 +31,6 @@ import {
   catchPropRewriteObservable,
   relocatedCatchPropUnobservable,
   isChainAssignment,
-  isDirectiveStatement,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isReplayableSynthKey,
@@ -40,6 +39,7 @@ import {
   isTransparentDestructureWrapper,
   mayHaveSideEffects,
   paramsHaveInvisibleCallers,
+  prologueEndIndex,
   patternBindingCount,
   peelNestedSequenceExpressions,
   isValidIdentifierName,
@@ -513,7 +513,9 @@ export default function createDestructureEmitter({
     const prevInsert = bodyExtractLastInsert.get(fnPath.node);
     if (prevInsert) return prevInsert.insertAfter(newDecl)[0];
     const bodyPath = fnPath.get('body');
-    const directiveCount = countLeadingDirectives(bodyPath.node.body);
+    // inline-injected directives the parser didn't lift into `node.directives[]` still hold the
+    // body head: an insert above them demotes them to regular statements (silent strict-mode loss)
+    const directiveCount = prologueEndIndex(bodyPath.node.body);
     if (directiveCount === 0) return bodyPath.unshiftContainer('body', newDecl)[0];
     return bodyPath.get('body')[directiveCount - 1].insertAfter(newDecl)[0];
   }
@@ -683,17 +685,6 @@ export default function createDestructureEmitter({
       entry: use.entry, hintName: use.hintName, instance: true,
     });
     return true;
-  }
-
-  // count leading directive-prologue ExpressionStatements (`'use strict'`, `'use asm'`) at the
-  // start of a function body - inline-injected forms the parser didn't lift into `node.directives[]`.
-  // delegates to the shared classifier so a sibling-plugin synth whose marker sits on the inner
-  // literal is counted too; inserts that intend to land at the very top of body must skip past these
-  // or they demote directives into regular statements (silent strict-mode loss)
-  function countLeadingDirectives(body) {
-    let count = 0;
-    while (count < body.length && isDirectiveStatement(body[count])) count++;
-    return count;
   }
 
   // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier

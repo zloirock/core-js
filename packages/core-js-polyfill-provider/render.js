@@ -132,11 +132,19 @@ export function cloneNode(node) {
 // as side-effect imports, pure entries as default-import bindings, the require dialect
 // swapping both statement forms. returns { node, key } pairs - `key` is the canonical-order
 // key the babel binding's late import-region reorder tracks per node
-export function renderInjectedImportNodes({ globalModules, pureEntries, importStyle, resolve }) {
+export function renderInjectedImportNodes({
+  globalModules,
+  pureEntries,
+  importStyle,
+  resolve,
+  globalPackages = null,
+}) {
   const isRequire = importStyle === 'require';
   const rendered = [];
   for (const moduleName of sortByPolyfillOrder(globalModules)) {
-    const path = resolve(`modules/${ moduleName }`);
+    // each global module resolves under the package it was recognised under - the emitter's own
+    // for what it injected, the user's for what the scan adopted from the source
+    const path = resolve(`modules/${ moduleName }`, globalPackages?.get(moduleName));
     rendered.push({ node: isRequire ? bareRequire(path) : bareImport(path), key: moduleName });
   }
   for (const [source, name] of [...pureEntries].sort(([a], [b]) => polyfillOrderComparator(a, b))) {

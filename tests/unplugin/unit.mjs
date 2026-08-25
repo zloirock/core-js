@@ -692,6 +692,24 @@ function checkPrePostUsageGlobalSourcesContent() {
 }
 checkPrePostUsageGlobalSourcesContent();
 
+// `absoluteImports` spells every injected import as a RESOLVED FILE PATH, and the post pass has to
+// recognise what pre wrote there - a scan that reads its own spelling as foreign redeclares the
+// same binding and the build dies on `Identifier has already been declared`
+function checkPrePostAbsoluteImportsNoDuplicate() {
+  const source = 'export const r = [1].at(0);\n';
+  const id = '/src/pre-post-absolute.js';
+  const plugin = createPlugin({
+    method: 'usage-pure', version: '4.0', targets: { ie: 11 }, absoluteImports: true,
+  });
+  const pre = plugin.transform(source, id, 'pre');
+  const post = plugin.transform(pre?.code ?? source, id, 'post');
+  const names = (post?.code ?? pre?.code ?? source).matchAll(/^import (?<local>\w+)/gm)
+    .map(m => m.groups.local).toArray();
+  check('prePost/absoluteImports declares each import once', names.length, new Set(names).size);
+  check('prePost/absoluteImports still injects', names.length > 0, true);
+}
+checkPrePostAbsoluteImportsNoDuplicate();
+
 // --- pre+post: ctor-alias member reads survive the snapshot handoff end-to-end ---
 // the injector-level round-trip is unit-locked above (blind entries carried, per-binding
 // entries intentionally dropped - stale spans); this locks the TRANSFORM-level outcome the
