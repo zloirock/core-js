@@ -40,6 +40,7 @@ import {
 import {
   buildDestructuringInitMeta,
   collectDestructureUnionCandidates,
+  prepareDestructureUnion,
   destructureAssignmentValueIsCaptured,
   destructurePatternHostPath,
   collectMemberUnionCandidates,
@@ -1045,10 +1046,12 @@ runBoth('collectMemberUnionCandidates/placement override types the reachable cto
 // alias, the prop key supplies the key alias; a non-global method or a fallback meta yields none
 function destructureExtras(adapter, prog, meta, method = 'usage-global') {
   const prop = pickProp(adapter, prog);
-  return collectDestructureUnionCandidates({
+  // the funnel runs in two phases so the meta's instance-free verdict reaches the PRIMARY dispatch
+  // (`prepare` stamps it, `collect` enumerates) - the production caller orders them the same way
+  return collectDestructureUnionCandidates(prepareDestructureUnion({
     meta, keyNode: prop.node.key, computed: prop.node.computed,
     scope: prop.scope, adapter: { ...unionAdapter, method }, path: prop,
-  });
+  }));
 }
 runBoth('collectDestructureUnionCandidates/reassigned key on unresolved receiver',
   'let k = "at"; if (c) k = "flat"; const arr = [1]; const { [k]: v } = arr;', (adapter, prog, lbl) => {

@@ -13,6 +13,7 @@ import {
   resolvePassthroughRef,
   qualifiesForParamBodyExtract,
   undefinedArmEffectiveReceiver,
+  paramDefaultInstanceSynthAllowed,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { symbolIteratorInstanceLeaf } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { registerBindinglessCtorAlias, registerDeclAliasIfSound } from '@core-js/polyfill-provider/helpers/class-walk';
@@ -45,10 +46,12 @@ import {
   hasRestSiblingExcept,
   paramsHaveInvisibleCallers,
   propBindingIdentifier,
+  prologueEndIndex,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { detectIifeArgReceiver, findSynthSwapReceiver } from './destructure-emit-utils.js';
-import { isDirectiveStatement, walkAstNodes } from './plugin-helpers.js';
-import { discardedSequenceElement, memberFromKeyName, receiverCarriesOptional, replaceNodeInTree } from './emit-shared.js';
+import { nodeSite, stampNodeSite } from './nav-spine.js';
+import { walkAstNodes } from './plugin-helpers.js';
+import { discardedSequenceElement, memberFromKeyName, replaceNodeInTree } from './emit-shared.js';
 import { callExpression, cloneNode, identifier, variableDeclaration, variableDeclarator } from './builders.js';
 import {
   SELECTING_INIT_TYPES,
@@ -76,7 +79,6 @@ import {
   isPlainConsumableProp,
   isPureNavAfterSePrefix,
   isPureNavReceiver,
-  isReusableSynthReceiver,
   navSpineHasCall,
   navSpineHasComputedKeyEffect,
   nodeHoldsSubtree,
@@ -238,23 +240,22 @@ export default function createAstDestructureEmitter({
       const instanceReceiver = hostParent?.node?.type === 'AssignmentPattern'
         ? peelWrappers(hostParent.node.right)
         : peelWrappers(detectIifeArgReceiver(hostParent, pattern));
-      // ... and a receiver whose re-evaluation IS observable may still be spelled once: a
-      // SOLE-prop pattern gives its one slot that single spelling (`{ at } = Array.prototype` ->
-      // `{ at: _atMaybeArray(Array.prototype) }`). a second slot would read it twice, and a CALL
-      // receiver stays out whatever the count - where both other emitters stand down too
-      // ... a receiver reading off a GUARDED value stands down whole: by synth time the
-      // walk has rendered the source's `?.` as its ternary, and the slot literal would spell
-      // that read unconditionally where the source short-circuits - babel keeps the raw
-      // destructure there (a source-written selecting receiver declines the same way)
-      const spelledOnce = pattern.properties.length === 1
-        && instanceReceiver?.type === 'MemberExpression' && !mayHaveSideEffects(instanceReceiver)
-        && !receiverCarriesOptional(instanceReceiver)
-        && peelWrappers(instanceReceiver.object)?.type !== 'ConditionalExpression';
+      // WHICH receivers a slot may spell is the core's question - the shape rules (re-referenceable
+      // root, single-prop for a member read, no raw global riding inside) live in one gate, asked by
+      // both legs. a local re-eval test here let a SELECTING receiver through where babel declined
+      // and the comment above already said it should not
       // ... and the slot must BIND: a nested pattern value (`{ [S]: { keys } }`) destructures
       // the dispatch result, which the flat literal has no slot for - that shape belongs to
       // the nested routes, where both legs keep it native
       return !!propBindingIdentifier(metaPath.node.value)
-        && (isReusableSynthReceiver(instanceReceiver) || spelledOnce)
+        && paramDefaultInstanceSynthAllowed({
+          objectPatternNode: pattern,
+          receiverNode: instanceReceiver,
+          scope: metaPath.scope,
+          adapter,
+          path: metaPath,
+          resolvePure: m => resolvePure(m, metaPath),
+        })
         && registerInstanceSynthSlot({
           metaPath,
           pattern,
@@ -276,7 +277,7 @@ export default function createAstDestructureEmitter({
     // (a call, a rescue-carrying member / logical left) memoizes through the IIFE param -
     // the direct swap would re-run its setup on every unresolved re-read
     const sePolicy = receiver
-      ? classifyCallBranchForSynth({ inner: receiver, scope: metaPath.scope, adapter, path: metaPath })
+      ? classifyCallBranchForSynth({ inner: receiver, ...nodeSite(receiver, metaPath), adapter })
       : { callBranch: false };
     // a pure proxy-nav MEMBER receiver (`globalThis.self.Array`): the literal's passthrough
     // reads through the kept root and the surviving nav keys - an ALIAS root resolves the
@@ -284,7 +285,7 @@ export default function createAstDestructureEmitter({
     let baseIsProxy = false;
     const navBase = sePolicy.callBranch ? null
       : proxyNavSynthBase(receiver?.type === 'LogicalExpression' ? peelWrappers(receiver.left) : receiver,
-        { scope: metaPath.scope, adapter, path: metaPath });
+        { ...nodeSite(receiver, metaPath), adapter });
     // a fallback LEFT takes the nav base only when it spells NO effect of its own: an
     // SE-bearing one routes through the callBranch memo, which owns the re-emission order
     if (navBase && !(receiver?.type === 'LogicalExpression' && navBase.leadingEffects)) {
@@ -326,6 +327,9 @@ export default function createAstDestructureEmitter({
         leadingEffects,
         passthroughPrefix,
         callBranch,
+        // the provider's own verdict on whether the receiver's READ has to run: the same
+        // `classifyCallBranchForSynth` answer babel's swap consumes
+        rescueSe: sePolicy.rescueSe ?? null,
         // the IIFE param takes its number HERE, ahead of the claims inside the receiver: the
         // pattern is visited before its own init and babel numbers by that order
         // ... and only where the pattern will NOT be fully covered: a covered one renders the flat
@@ -350,7 +354,7 @@ export default function createAstDestructureEmitter({
     // the effects the drain's rescue will RE-EMIT stay claim-live inside a marked span:
     // their claims land in place and the drain harvest picks the rewritten spelling
     function markSkippedKeepingRescues(node) {
-      for (const rescue of discardRescueNodes({ node, scope: metaPath.scope, adapter, path: metaPath })) {
+      for (const rescue of discardRescueNodes({ node, ...nodeSite(node, metaPath), adapter })) {
         skippedNodes.keepLive?.add(rescue);
       }
       markSubtreeSkipped(skippedNodes, node, skippedNodes.keepLive?.size ? skippedNodes.keepLive : null);
@@ -393,6 +397,10 @@ export default function createAstDestructureEmitter({
     const desc = resolveFallbackReceiver(patternPath.parentPath, pattern)
       ?? (element => element ? { rhsNode: element } : null)(resolveArrayWrappedReceiver(patternPath)?.element);
     if (!desc?.rhsNode) return;
+    // the SECOND way a foreign-frame receiver enters the channel (the first is the arg detector):
+    // the shared resolver hands back the call-ARG plus the site it evaluates at, so the subtree
+    // takes its frame stamp here too - every branch question below then answers at the call site
+    if (desc.callPath) stampNodeSite(desc.rhsNode, { scope: desc.callPath.scope, path: desc.callPath });
     // a HOP prop (its value another pattern): the mirror descends into the leaf and
     // resolves each leaf slot as a static of the hop's constructor - the branch literal
     // then nests back up (`cond ? { Array: { from: _Array$from } } : userObj`)
@@ -470,7 +478,7 @@ export default function createAstDestructureEmitter({
     // (`c ? (() => { hits++; return globalThis; })() : ...`, `(() => m && globalThis)()`)
     if (inner.type === 'CallExpression' && !inner.optional) {
       const returned = inlineCallReturnExpression({
-        callNode: inner, scope: metaPath.scope, adapter, seen: new Set(), path: metaPath, rejectConditional: true,
+        callNode: inner, ...nodeSite(inner, metaPath), adapter, seen: new Set(), rejectConditional: true,
       });
       // an IDENTITY call hands back its ARGUMENT: the literal lands on that value's own tail,
       // so a sequence prefix keeps running where the source wrote it
@@ -490,7 +498,7 @@ export default function createAstDestructureEmitter({
       let any = false;
       for (const slot of slots) {
         if (!fallbackBranchSwapKeepsSelection({
-          hostNode: inner, slot, branchNode: inner[slot], scope: metaPath.scope, adapter, path: metaPath,
+          hostNode: inner, slot, branchNode: inner[slot], ...nodeSite(inner, metaPath), adapter,
         })) continue;
         if (registerNestedBranchMirror({
           branch: inner[slot], leafPattern, chainKeys, metaPath, outerPattern,
@@ -549,7 +557,7 @@ export default function createAstDestructureEmitter({
         // shared rule substitutes the default there (same branch, same value)
         if (!undefinedArmEffectiveReceiver({ branch: inner[slot], paramDefaultNode: undefinedArmFallback })
           && !fallbackBranchSwapKeepsSelection({
-            hostNode: inner, slot, branchNode: inner[slot], scope: metaPath.scope, adapter, path: metaPath,
+            hostNode: inner, slot, branchNode: inner[slot], ...nodeSite(inner, metaPath), adapter,
           })) continue;
         if (registerBranchTree({ branch: inner[slot], key, dedupKey, pattern, metaPath, undefinedArmFallback })) any = true;
       }
@@ -557,7 +565,8 @@ export default function createAstDestructureEmitter({
     }
     const effectiveBranch = undefinedArmEffectiveReceiver({ branch, paramDefaultNode: undefinedArmFallback }) ?? branch;
     const pure = isViableBranchForKey({
-      branch: effectiveBranch, key, scope: metaPath.scope, adapter, resolvePure: m => resolvePure(m, metaPath), path: metaPath,
+      branch: effectiveBranch, key, ...nodeSite(effectiveBranch, metaPath), adapter,
+      resolvePure: m => resolvePure(m, nodeSite(effectiveBranch, metaPath).path),
     });
     if (!pure || pure.kind === 'instance') return false;
     // an SE-carrying branch (a buried effect along the spine, a call root) swaps WITH its
@@ -565,7 +574,7 @@ export default function createAstDestructureEmitter({
     // the literal (`cond ? ((eff2(), _globalThis).Object, { keys: _Object$keys }) : ...`);
     // partial key coverage takes the IIFE instead, the branch value passed as its memo
     const sePolicy = inner.type === 'Identifier' ? { callBranch: false }
-      : classifyCallBranchForSynth({ inner, scope: metaPath.scope, adapter, path: metaPath });
+      : classifyCallBranchForSynth({ inner, ...nodeSite(inner, metaPath), adapter });
     if (sePolicy.callBranch) {
       let pending = pendingBranchSynths.get(inner);
       if (!pending) {
@@ -573,6 +582,7 @@ export default function createAstDestructureEmitter({
         if (!plan) return false;
         pending = {
           plan, receiver: inner, slots: new Map(), callBranch: true, branchMirror: true, metaPath,
+          rescueSe: sePolicy.rescueSe ?? null,
           // partial key coverage renders the IIFE, and the branch VALUE is its argument -
           // the node itself, which the drain moves out of the tree into the call
           memoReceiver: inner,
@@ -606,9 +616,9 @@ export default function createAstDestructureEmitter({
         // an inline-resolvable PURE root (`(() => globalThis)().Promise`, an alias): the
         // root falls away (the canonical discard keeps nothing) and the passthrough reads
         // through the resolved surface (`_Promise.baz`)
-        const resolved = resolveObjectName({ objectNode: cur, scope: metaPath.scope, adapter, path: metaPath });
+        const resolved = resolveObjectName({ objectNode: cur, ...nodeSite(cur, metaPath), adapter });
         if (resolved && POSSIBLE_GLOBAL_OBJECTS.has(resolved)
-          && !discardRescueNodes({ node: cur, scope: metaPath.scope, adapter, path: metaPath }).length) {
+          && !discardRescueNodes({ node: cur, ...nodeSite(cur, metaPath), adapter }).length) {
           rootName = resolved;
         }
       }
@@ -1083,10 +1093,7 @@ export default function createAstDestructureEmitter({
     // `let` (the original was a reassignable parameter binding), past the directive prologue;
     // later extracts chain AFTER earlier ones (babel's insertAfter chain, source order)
     let at = bodyExtractInsertAt.get(fnPath.node);
-    if (at === undefined) {
-      at = 0;
-      while (at < body.length && isDirectiveStatement(body[at])) at++;
-    }
+    if (at === undefined) at = prologueEndIndex(body);
     body.splice(at, 0, variableDeclaration('let', [variableDeclarator(identifier(localId.name), identifier(id))]));
     bodyExtractInsertAt.set(fnPath.node, at + 1);
     if (hasRestSiblingExcept(pattern.properties, prop)) {

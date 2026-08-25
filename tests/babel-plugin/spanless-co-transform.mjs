@@ -49,4 +49,25 @@ const viaPrefix = await transformed('const { Array: { from } } = globalThis;\nex
   init => t.sequenceExpression([t.callExpression(t.identifier('mkSe'), []), init]));
 check('spanless sequence prefix keeps its effect', viaPrefix.includes('mkSe()'), true);
 
+// a co-transform that DEMOTES the directive prologue into raw statements (no `.directive` marker
+// on either shape - the form `isImportRegion` documents as coming from another transform). the ref
+// migration must still land BELOW it: `var _ref;` above `"use client"` kills the directive, and
+// the marker-based classifier alone could not see one here
+function directiveDemotingPlugin() {
+  return { pre(file) {
+    const { program } = file.ast;
+    const directives = program.directives ?? [];
+    if (!directives.length) return;
+    program.directives = [];
+    program.body.unshift(...directives.map(d => t.expressionStatement(t.stringLiteral(d.value.value))));
+  } };
+}
+
+const demoted = (await transformAsync('"use client";\nexport const r = globalThis.Array?.prototype.flat.call([1]);\n', {
+  configFile: false, plugins: [directiveDemotingPlugin, [PLUGIN, OPTIONS]],
+})).code;
+const firstStatement = demoted.split('\n').map(line => line.trim()).find(Boolean);
+check('demoted directive keeps the first slot', firstStatement, '"use client";');
+check('the ref var still migrates below the imports', /import [^\n]*\n(?:import [^\n]*\n)*var _ref;/.test(demoted), true);
+
 finish();

@@ -801,19 +801,44 @@ export function chainContainsMutatedStatic(objectNode, { metaPath, adapter }) {
   }
 }
 
-// a deep clone must carry the resolved-type STAMPS with it: what lands in the tree is a CLONE
-// of the built spelling, and a claim above resolves its receiver off that node - an unstamped
-// copy resolves generic (babel's `seededRefClone`, over a whole subtree)
-export function cloneTyped(node, ctx) {
+// the frame a node evaluates in, keyed by the node itself. an IIFE call-ARG runs at the CALL SITE,
+// not inside the function whose parameter the pattern is, and a same-named parameter shadows its
+// bindings there - so every scope-aware answer about it (binding resolution, purity, what a discard
+// may erase) has to be taken at the call site. babel needs no registry: `findTargetPath` hands back
+// a PATH and the frame rides with it; this channel passes NODES, so the frame is stamped on them
+const nodeSites = new WeakMap();
+
+// stamp the whole SUBTREE, not just its root: a branch, a hop or a computed key deep inside the
+// acquired receiver evaluates in the same foreign frame, and each is asked about on its own
+export function stampNodeSite(node, site) {
+  if (node && site?.path) walkAstNodes({ root: node, visit: child => { nodeSites.set(child, site); } });
+  return node;
+}
+
+// the frame to ask about `node` in: its stamp when the channel pulled it in from elsewhere, the
+// pattern's own frame otherwise. every scope-aware question in the destructure channel goes
+// through here - a free-floating `metaPath` cannot tell the two apart
+export function nodeSite(node, metaPath) {
+  return nodeSites.get(node) ?? { scope: metaPath?.scope, path: metaPath };
+}
+
+// a deep clone carries EVERY per-node stamp this leg keeps beside the tree: the resolved TYPE a
+// claim above resolves its receiver off (babel's `seededRefClone`, over a whole subtree) and the
+// FRAME an acquired receiver evaluates in. what lands in the tree is a COPY, and an unstamped one
+// resolves generic / answers in the wrong scope. `ctx` is optional - a caller with no type table
+// still gets the frame carried
+export function cloneStamped(node, ctx = null) {
   const clone = cloneNode(node);
+  const site = nodeSites.get(node);
   (function restamp(source, copy) {
     if (Array.isArray(source)) {
       for (const [index, item] of source.entries()) restamp(item, copy[index]);
       return;
     }
     if (!source || typeof source !== 'object' || !copy) return;
-    const type = ctx.resolvedType.get(source);
+    const type = ctx?.resolvedType?.get(source);
     if (type) ctx.resolvedType.set(copy, type);
+    if (site) nodeSites.set(copy, site);
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in source) restamp(source[key], copy[key]);
   })(node, clone);

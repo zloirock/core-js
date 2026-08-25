@@ -1,6 +1,6 @@
-import "@core-js/pure/modules/es.array.from";
-import "@core-js/pure/modules/es.array.includes";
-import "@core-js/pure/modules/es.array.of";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.array.of";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref, _ref2;
 // an indirect-require core-js entry (`(prefix, require)('core-js/...')`) under a package the plugin
