@@ -38,11 +38,12 @@ import {
   isSynthSimpleObjectPattern,
   mayHaveSideEffects,
   statementListOf,
-  reEvaluationObservable,
   hasRestSiblingExcept,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests, restSentinelExtractionSibling } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { walkAstNodes } from './plugin-helpers.js';
+import { cloneStamped, nodeSite } from './nav-spine.js';
+
 import { mintedProxyGlobalName, memberFromKeyName, proxyStoreIsSpellable, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
 import {
   assignmentExpression,
@@ -610,9 +611,10 @@ export function divergingSentinelSelectorDeclines({ declarator, meta, metaPath, 
     }
     if (operand?.type === 'Identifier') {
       return proxySurfaceIdentifier(operand, { adapter, injectorState })
-        || (!adapter.getBinding(metaPath.scope, operand.name, metaPath) && !!resolveGlobalPolyfill(operand.name));
+        || (!adapter.getBinding(nodeSite(operand, metaPath).scope, operand.name, nodeSite(operand, metaPath).path)
+          && !!resolveGlobalPolyfill(operand.name));
     }
-    return !!findProxyGlobal(operand, { scope: metaPath.scope, adapter, path: metaPath });
+    return !!findProxyGlobal(operand, { ...nodeSite(operand, metaPath), adapter });
   }
   return (selectingInit?.type === 'ConditionalExpression'
     || (selectingInit?.type === 'LogicalExpression'
@@ -684,7 +686,7 @@ export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlob
   }
   const hopPure = hopName ? resolveGlobalPolyfill(hopName) : null;
   if (!hopPure) return null;
-  const probe = cloneNode(cur.object);
+  const probe = cloneStamped(cur.object);
   substituteProxyRootsInClone(probe, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport });
   const navTail = tail.reduce((base, hop) => memberFromKeyName(base, hop),
     identifier(injectPureImport(hopPure.entry, hopPure.hintName)));
@@ -717,7 +719,7 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
   if (!boundary) return null;
   const key = memberKeyName(boundary.member);
   if (key === null) return null;
-  const aliasCtx = { scope: metaPath.scope, adapter: ctx.adapter, path: metaPath };
+  const aliasCtx = { ...nodeSite(read, metaPath), adapter: ctx.adapter };
   function resolveHere(meta) {
     return ctx.resolvePure(meta, metaPath);
   }
@@ -740,7 +742,7 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
     key,
     leafPlan,
     basePure: leafBase && proxyGlobalMemberCtorPure({ receiver: leafBase, aliasCtx, resolvePure: resolveHere }),
-    guardObject: cloneNode(leafPlan.guardObject),
+    guardObject: cloneStamped(leafPlan.guardObject),
     effectsHost: boundary.inner,
   };
 }
@@ -751,7 +753,7 @@ export function renderSealedNavProbe(plan, metaPath, ctx) {
   let navRead;
   if (plan.passthrough) navRead = guardedNavPassthrough(boundary.inner, metaPath, ctx);
   else {
-    const probe = cloneNode(plan.guardObject);
+    const probe = cloneStamped(plan.guardObject);
     substituteProxyRootsInClone(probe, metaPath, ctx);
     let leaf = plan.leafPlan.leafPure
       ? identifier(ctx.injectPureImport(plan.leafPlan.leafPure.entry, plan.leafPlan.leafPure.hintName))
@@ -810,7 +812,7 @@ export function renderDiscardedInitProbe(jobs, ctx) {
   const keyProp = job.chain?.length ? job.chain.at(-1).hopProp : job.prop;
   const { lookupKey } = resolveSynthKeys({ node: keyProp, ...aliasCtx });
   if (typeof lookupKey !== 'string') return null;
-  const probe = cloneNode(plan.guardObject);
+  const probe = cloneStamped(plan.guardObject);
   substituteProxyRootsInClone(probe, metaPath, ctx);
   // a leaf the ctor canon could not back may still BE a possible-global with a pure of its own
   // (`dh().window?.self` -> `_self`): a bare spelling there is a ReferenceError off-browser
@@ -873,7 +875,7 @@ export function anchorLeadingStatement(statements, hostNode) {
 export function substituteProxyRootsInClone(root, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport }) {
   function proxyRootSwap(node) {
     if (!POSSIBLE_GLOBAL_OBJECTS.has(node.name) || !isPristineProxyGlobal(adapter, node.name)) return null;
-    if (adapter.getBinding(metaPath.scope, node.name, metaPath)?.node) return null;
+    if (adapter.getBinding(nodeSite(node, metaPath).scope, node.name, nodeSite(node, metaPath).path)?.node) return null;
     const pure = resolveGlobalPolyfill(node.name);
     return pure ? identifier(injectPureImport(pure.entry, pure.hintName)) : null;
   }
@@ -1135,7 +1137,7 @@ function agreeingTernaryArm(selecting, metaPath, adapter) {
   if (mayHaveSideEffects(selecting.test)) return null;
   function armName(arm) {
     return resolveObjectName({
-      objectNode: peelWrappers(peelReceiverSequenceTail(peelWrappers(arm))), scope: metaPath.scope, adapter, path: metaPath,
+      objectNode: peelWrappers(peelReceiverSequenceTail(peelWrappers(arm))), ...nodeSite(arm, metaPath), adapter,
     });
   }
   const name = armName(selecting.consequent);
@@ -1162,7 +1164,7 @@ export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding,
   // (`{ from } = (e++, globalThis.self.Array) || Set`)
   const left = peelWrappers(selecting.left);
   const leftName = resolveObjectName({
-    objectNode: peelWrappers(peelReceiverSequenceTail(left)), scope: metaPath.scope, adapter, path: metaPath,
+    objectNode: peelWrappers(peelReceiverSequenceTail(left)), ...nodeSite(left, metaPath), adapter,
   });
   return leftName === meta.object ? left : null;
 }
@@ -1594,16 +1596,12 @@ export function insideParamPosition(metaPath) {
   return false;
 }
 
-export function isReusableSynthReceiver(node) {
-  return !!node && !reEvaluationObservable(node);
-}
-
 // does a discarded receiver DROP instead of sinking verbatim? asked on the PRISTINE tree - by
 // drain time the collapse has reshaped the spine into a sequence and the shape is gone. the
 // canonical decision needs a confirmed rescue node, so the harvest is asked first
 export function sinkDropsReceiver(init, metaPath, adapter) {
   const inner = peelWrappers(init);
-  return discardRescueNodes({ node: inner, scope: metaPath.scope, adapter, path: metaPath }).length > 0
+  return discardRescueNodes({ node: inner, ...nodeSite(inner, metaPath), adapter }).length > 0
     && shouldDropRescueReceiver(inner);
 }
 
@@ -1862,7 +1860,7 @@ export function synthPlanFullyCovered(plan, receiver, metaPath, { adapter, resol
   const named = peelWrappers(receiver)?.type === 'LogicalExpression'
     ? peelWrappers(receiver).left : receiver;
   const objectName = named
-    ? resolveObjectName({ objectNode: named, scope: metaPath.scope, adapter, path: metaPath }) : null;
+    ? resolveObjectName({ objectNode: named, ...nodeSite(named, metaPath), adapter }) : null;
   if (!objectName) return false;
   return plan.every(entry => typeof entry.lookupKey === 'string' && resolvePure({
     kind: 'property', object: objectName, key: entry.lookupKey, placement: 'static',
