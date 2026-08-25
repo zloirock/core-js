@@ -40,20 +40,23 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import estreeToBabel from './estree-to-babel.js';
 import {
+  chainExpression,
   hostSlot,
+  renderProxyReceiverPlan,
   renderSynthSlotRead,
   synthEntryKey,
   synthKeyMustBeComputed,
 } from '@core-js/polyfill-provider/render';
 import {
   SYMBOL_ITERATOR_PURE_RESULT,
+  planMemoReadTarget,
   planProxyReceiver,
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop, navValueCanShortCircuit, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
-  proxyGlobalMemberCtorPureSwap, resolveSynthKeys,
+  resolveSynthKeys,
   peelChainAssignment,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
@@ -321,46 +324,30 @@ export default function createSynthSwapEmitter({
     return true;
   }
 
-  // render a substrate-neutral proxy-receiver plan (from the shared `planProxyReceiver`) into collapsed AST.
-  // the decision (drop hops / swap root / harvest SE / recurse a deeper nav) lives in the provider; this only
-  // builds nodes - keep the leaf's own computed flag (`globalThis.self['Object']` -> `_globalThis['Object']`)
-  function renderProxyReceiverPlanAst(plan) {
-    if (plan.kind === 'member') {
-      const inner = renderProxyReceiverPlanAst(plan.inner);
-      return inner ? t.memberExpression(inner, t.cloneNode(plan.property), plan.computed) : null;
-    }
-    // a `keep` root is cloned like an alias - the AST substrate re-visits the clone, so its own proxy root
-    // still earns the pure rewrite there
-    const rootBinding = plan.rootBinding.alias ?? plan.rootBinding.keep
-      ? t.cloneNode(plan.rootBinding.alias ?? plan.rootBinding.keep)
-      : injectPureImport(plan.rootBinding.pure.entry, plan.rootBinding.pure.hintName);
-    const rootNode = plan.harvestedSE.length
-      ? t.sequenceExpression([...plan.harvestedSE.map(expr => t.cloneNode(expr)), rootBinding])
-      : rootBinding;
-    // dropped-hop KEY effects fold into the surviving leaf key as a sequence prefix - the position where
-    // the native order evaluates them (after the root and its guard, before the read)
-    const keyPrefix = plan.keyPrefixSE ?? [];
-    const property = keyPrefix.length
-      ? t.sequenceExpression([...keyPrefix.map(expr => t.cloneNode(expr)),
-        plan.computed ? t.cloneNode(plan.property) : t.stringLiteral(plan.property.name)])
-      : t.cloneNode(plan.property);
-    const computed = plan.computed || keyPrefix.length > 0;
-    // the plan re-hangs onto the leaf a `?.` that guarded a root it kept - the dropped hop was a
-    // realm-local self-reference, its guard was not
-    return plan.optional
-      ? t.optionalMemberExpression(rootNode, property, computed, true)
-      : t.memberExpression(rootNode, property, computed);
-  }
-
   // `hopsOnly`: take the collapse ONLY when it drops redundant hops off a root that is already
   // spelled (a memo ref, an alias). a plan that resolves a PURE root injects an import, which is a
   // claim decision - a caller asking merely to drop hops must not make one behind the resolver's back
+  // the canon spells the collapse in ESTree and this leg's own nodes ride host slots. an
+  // `optional` link is canonical only inside a `ChainExpression` - the converter refuses one
+  // outside a chain - so a guard-bearing plan is wrapped before conversion, and babel then
+  // types every link from the first `?.` upward as `Optional*`. the printed text and the
+  // downstream optional-chaining lowering are the same either way (both were measured): the
+  // wrapper is what makes the canonical render CONVERTIBLE, not a spelling choice
+  function renderCollapsePlan(plan) {
+    const rendered = renderProxyReceiverPlan(plan, {
+      injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+      embed: hostSlot,
+    });
+    if (!rendered) return null;
+    return estreeToBabel(plan.kind === 'member' || plan.optional ? chainExpression(rendered) : rendered);
+  }
+
   function collapseProxyGlobalReceiver(receiver, { aliasCtx = null, isWriteTarget = false,
     throughChainAssign = false, hopsOnly = false } = {}) {
     const plan = planProxyReceiver(receiver, { aliasCtx, isWriteTarget, throughChainAssign, resolvePure });
     if (!plan) return null;
     if (hopsOnly && plan.rootBinding?.pure) return null;
-    return renderProxyReceiverPlanAst(plan);
+    return renderCollapsePlan(plan);
   }
 
   // the global-usage rewrite reaches a proxy-global ROOT identifier (`globalThis`) that is the base
@@ -526,13 +513,12 @@ export default function createSynthSwapEmitter({
   // falls back to the verbatim clone - re-traversal of that clone picks a per-shape collapse
   // (`_self.Map` vs `_Map` vs a kept dead hop) and desyncs the emitters on the re-read target
   function buildMemoArg(memoReceiver, aliasCtx) {
-    const { prefix, tail } = peelNestedSequenceExpressions(memoReceiver);
-    const ctorSwap = proxyGlobalMemberCtorPureSwap({ receiver: tail, aliasCtx, resolvePure });
-    const target = ctorSwap
-      ? injectPureImport(ctorSwap.pure.entry, ctorSwap.pure.hintName)
-      : collapseProxyGlobalReceiver(tail, { aliasCtx });
+    const plan = planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure });
+    const target = !plan ? null
+      : plan.pure ? injectPureImport(plan.pure.entry, plan.pure.hintName)
+      : renderCollapsePlan(plan.plan);
     if (!target) return t.cloneNode(memoReceiver, true);
-    const ahead = [...prefix, ...ctorSwap ? ctorSwap.se : []];
+    const ahead = [...plan.prefix, ...plan.se];
     return ahead.length
       ? t.sequenceExpression([...ahead.map(node => t.cloneNode(node, true)), target])
       : target;
