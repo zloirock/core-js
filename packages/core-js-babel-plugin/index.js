@@ -518,6 +518,7 @@ export default function plugin(api, options) {
       isShadowedByClassOwnMemberFn = isShadowedByClassOwnMember;
 
       const usageGlobalCallback = createUsageGlobalCallback({
+        adapter,
         resolveUsage,
         injectModulesForModeEntry,
         isDisabled,
@@ -946,7 +947,7 @@ export default function plugin(api, options) {
             // whole-swaps to the imported `_Set` const - reassigning a frozen import
             // `isMemberWriteHost` covers update operands too (`(obj.at)++` - the rewrite would
             // be a function call receiver, not writable), climbing the same wrapper set
-            if (isForXWriteTarget(path) || isMemberWriteHost(path)) return;
+            if (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)) return;
             // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
@@ -1212,7 +1213,7 @@ export default function plugin(api, options) {
           // acts on (`delete X.flat.name` became `delete _nameMaybeFunction(...)`, whose operand is a
           // CALL, so the delete stopped deleting anything). only the target: the members BELOW it are
           // read on the way there and keep their claims (`flat` above still swaps)
-          if (kind === 'instance' && (isForXWriteTarget(path) || isMemberWriteHost(path)
+          if (kind === 'instance' && (isForXWriteTarget(path, adapter) || isMemberWriteHost(path)
             || isDeleteOperand(path))) return;
           if (kind === 'instance') {
             // a SE-wrapped proxy-global RECEIVER (`(c++, globalThis.self).Array.prototype.flat`) is skipped by
@@ -1503,7 +1504,16 @@ export default function plugin(api, options) {
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
-        injector = new ImportInjector({ t, programPath: path, pkg, packages, mode, importStyle, absoluteImports });
+        injector = new ImportInjector({
+          t,
+          programPath: path,
+          pkg,
+          packages,
+          mode,
+          importStyle,
+          absoluteImports,
+          emitsGlobalModules: method !== 'usage-pure',
+        });
         // user-owned global-object property names: in a script-scope output a top-level
         // `var <name>` temp ALIASES `globalThis.<name>`, so a temp write would clobber the
         // user's slot. `program.globals` only sees unbound identifier REFERENCES - property
@@ -1584,11 +1594,15 @@ export default function plugin(api, options) {
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
           scanExistingCoreJSImports(path.node, {
-            packages, pkg, mode, adapter,
+            packages,
+            pkg,
+            mode,
+            adapter,
+            isDisabled,
             // the user's global import is REMOVED here and re-emitted through
             // `addGlobalImport`, so nothing may suppress it as already-present
-            onGlobalImport: (mod, node) => {
-              injector.addGlobalImport(mod);
+            onGlobalImport: (mod, node, modPkg) => {
+              injector.addGlobalImport(mod, modPkg);
               removed.add(node);
             },
             // a user binding the file WRITES through is poisoned as a dedup target - the
@@ -1795,6 +1809,11 @@ export default function plugin(api, options) {
         resetPerFilePrimitives();
         if (!path?.node) return false;
         initFile(path);
+        // the body-resident prologue AS THE SOURCE WROTE IT, before any entry replacement or head
+        // insertion of ours: a `'use client'` a sibling transform re-emitted as a raw statement is a
+        // directive here and must stay first, while a same-valued string BELOW an import never was
+        // one and must not be promoted into the prologue
+        injector?.recordSourcePrologue(path.node.body);
         return true;
       }
 
