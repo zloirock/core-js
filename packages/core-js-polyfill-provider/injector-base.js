@@ -123,6 +123,7 @@ export default class ImportInjectorState {
   importStyle;
 
   globalImports = new Set();
+  globalImportPackages = new Map();
   pureImports = new Map(); // `${mode}/${entry}` -> binding name
   existingPureImports = new Map();
   usedNames = new Set();
@@ -140,16 +141,23 @@ export default class ImportInjectorState {
   // `resolveSuperImportName` can map `class C extends MyPromise` back to `Promise`
   #importInfoByName = new Map();
 
-  constructor({ absoluteImports, mode, pkg, importStyle, packages = null }) {
+  constructor({ absoluteImports, mode, pkg, importStyle, packages = null, emitsGlobalModules = true }) {
     this.absoluteImports = absoluteImports;
+    this.emitsGlobalModules = emitsGlobalModules;
     this.mode = mode;
     this.pkg = pkg;
     this.packages = packages;
     this.importStyle = importStyle;
   }
 
-  addGlobalImport(moduleName) {
+  // `pkg`: the package the module was RECOGNISED under. a global-flavour injector CANONICALISES
+  // onto its own package - that is what dedups a user's alias (`my-core-js/modules/x`) against
+  // its own emission. an injector that emits no global modules at all (pure) has no canonical
+  // spelling to offer: re-homing the user's import there would leave the file importing a module
+  // that polyfills no global, so the recognised package travels with it
+  addGlobalImport(moduleName, pkg = null) {
     this.globalImports.add(moduleName);
+    if (pkg && pkg !== this.pkg && !this.emitsGlobalModules) this.globalImportPackages.set(moduleName, pkg);
   }
 
   addPureImport(entry, hint) {
