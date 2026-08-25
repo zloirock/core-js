@@ -18,7 +18,7 @@ At the package root, one `<bundler>.js` and `<bundler>.d.ts` pair per bundler - 
 - `detect-entry.js`, `detect-usage.js` - the unplugin side of detection, on top of the provider; `entry.js` applies the entry plan as body surgery
 - `print.js` - the esrap printer adapter: loc synthesis, paren normalization to the minimal structural set, the corpus-measured esrap gap overrides, the sourcemap anchors of minted spellings
 - `import-injector.js` - the injector: import and generated-ref bookkeeping, name allocation, the pre-to-post snapshot shape, and the flush that sweeps, injects and retires dead memos
-- `builders.js`, `emit-shared.js` - the node constructors and the shared render idioms
+- `builders.js` - a re-export of the core's render canon (`@core-js/polyfill-provider/render`); `emit-shared.js` - the shared render idioms
 - `estree-compat.js` - ESTree to Babel literal-type mapping, the seam between the two AST dialects
 - `sfc-shapes.js` - module ids of SFC virtual modules (Vue, Svelte, Astro), whose metadata lives in query params
 - `snapshot-cache.js` - the pre-to-post handoff for `phase: 'pre+post'`
@@ -46,6 +46,11 @@ Mutates the parsed tree during traversal and reprints the whole file through esr
 This package is a BINDING, not an emitter (the architecture contract is "Core and bindings" in the provider's AGENTS.md): it owes the host plumbing - parse, traversal, scope, print, sourcemaps, id filtering, SFC - and the insertion of the provider's canonical ESTree render (no conversion needed: ESTree is native here), holding no decisions and no render forms of its own. The render code still living here awaits collapse into the provider's core; until a given render is shared, the live smell is the old one: anything that has to be fixed in this package *and* in babel-plugin belongs in the provider instead.
 
 Before writing a helper or a branch, check the canon - `npm run canon -- find "<behavior words>"` (its own `AGENTS.md` in `scripts/canon/` carries the reference): what you need may already exist in the provider or in babel-plugin under an unguessable name. Extend or lift the near-match, never fork a copy; implementing new means naming the checked candidates and why each does not fit. Before handing the work off, `npm run canon -- delta` audits the diff the other way: it lists every added named symbol with its same-name and near-name canon candidates, and exits 1 while any remain unadjudicated.
+
+A render the core hands over may CARRY one of this leg's own nodes: `synthEntryKey` marks such a
+key `fromSource`, and the caller must clone before embedding it. The node still sits in the source
+pattern, so one object in two tree positions aliases every later mutation across both - and no
+gate sees it, because printing the same node twice prints the same text.
 
 ## Tests
 

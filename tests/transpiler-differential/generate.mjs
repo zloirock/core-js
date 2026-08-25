@@ -238,6 +238,36 @@ const D_HOSTS = [
     build: p => `(() => { var zLead = 1, ${ p.lhs } = ${ p.recv }; return [zLead, ${ p.observe }]; })()` },
   { id: 'for-init', strip: true,
     build: p => `(() => { for (var ${ p.lhs } = ${ p.recv }, i0 = 0; i0 < 1; i0++); return ${ p.observe }; })()` },
+  // ARRAY-WRAPPED hosts: the pattern is paired with an element of a literal array, which changes
+  // both what the residual may drop and WHEN the receiver is read. native evaluates every element
+  // of the literal BEFORE reading a property off any of them, so an effect-bearing NEIGHBOUR pins
+  // the order against any extraction hoisted ahead of the declaration - `log` records it, and the
+  // pure-neighbour twin is the control where nothing pins and the residual is free to shed the
+  // consumed props. the sole form is the one that may drop the wrapper whole
+  { id: 'array-wrap-sole', strip: true,
+    build: p => `(() => { const [${ p.lhs }] = [${ p.recv }]; return ${ p.observe }; })()` },
+  { id: 'array-wrap-effect-neighbour', strip: true,
+    build: p => `(() => { const [${ p.lhs }, zn] = [${ p.recv }, log.push("n")]; return [zn, ${ p.observe }]; })()` },
+  { id: 'array-wrap-pure-neighbour', strip: true,
+    build: p => `(() => { const [${ p.lhs }, zn] = [${ p.recv }, 7]; return [zn, ${ p.observe }]; })()` },
+  // an array-wrapped pattern SHARING its declaration: a memo of the element hoisted ahead of the
+  // whole declaration would run the element read before an EFFECT the leading declarator performs,
+  // and the trailing twin is the control where nothing precedes. the second wrapped declarator makes
+  // each residual verdict answer for its own slot instead of the declaration's first
+  { id: 'array-wrap-effect-leading-sibling', strip: true,
+    build: p => `(() => { const zLead = log.push("lead"), [${ p.lhs }] = [${ p.recv }]; return [zLead, ${ p.observe }]; })()` },
+  { id: 'array-wrap-trailing-sibling', strip: true,
+    build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], zTail = 1; return [zTail, ${ p.observe }]; })()` },
+  { id: 'array-wrap-twin-declarators', strip: true,
+    build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], [{ at: zAt }] = [[1, 2]]; return [typeof zAt, ${ p.observe }]; })()` },
+  // the array wrapper x CATCH parameter and x FOR-OF head are EXCLUDED, not forgotten:
+  // `catch ([{ at }])` / `for (const [{ from }] of [[Array]])` leave the claim native on BOTH legs,
+  // where the flat catch twin (`catch ({ at })`) extracts. the wrapper element there is not a
+  // syntactic slot of a literal but a value the ITERATION protocol produces, so extracting off it
+  // needs an emission shape neither leg has (bind the element, then dispatch off the binding).
+  // the builders are recorded with the repro in the area queue and re-adding them is its fail-before:
+  //   catch:      `(() => { try { throw [<recv>]; } catch ([<lhs>]) { return <observe>; } })()`
+  //   for-of head: `(() => { for (const [<lhs>] of [[<recv>]]) return <observe>; })()`
 ];
 
 function * generateDestructure() {
@@ -3178,6 +3208,27 @@ const AW_SYMBOL_ITER = [
   // size - the extracted `from` is non-enumerable and was never in the rest to begin with
   { id: 'compose-static-symbol-rest', pre: "const [{ 'from': f, [Symbol.iterator]: it, ...r }] = [Array];", obs: '[typeof f, typeof it, typeof r]' },
   { id: 'se-element-single-eval', pre: 'const [{ [Symbol.iterator]: se, ...sr }] = [(() => { log.push(1); return [8]; })()];', obs: 'typeof se' },
+  // the SYNTH channel of a well-known-symbol key: a param default replaced by a literal must
+  // spell the key through the pure symbol import (a raw `Symbol.x` read answers undefined off
+  // engine) and its uncovered slot through the method lookup, while an ALIASED spelling and a
+  // STRING spelling of the same text stay what the source wrote - the string one is an ordinary
+  // property, and reading it through the symbol would substitute a different value entirely
+  { id: 'synth-param-default-direct',
+    pre: 'const f = ({ at, [Symbol.iterator]: it } = [9, 10]) => [typeof at, typeof it]; const dsyn = f();', obs: 'dsyn' },
+  { id: 'synth-param-default-alias',
+    pre: 'const sAl = Symbol.iterator; const g = ({ at, [sAl]: it } = [9, 10]) => [typeof at, typeof it]; const asyn = g();',
+    obs: 'asyn' },
+  { id: 'synth-param-default-string-spelling',
+    pre: 'const src = { at: [].at, "Symbol.iterator": "own" }; const h = ({ at, ["Symbol.iterator"]: named } = src) => [typeof at, named]; const ssyn = h();',
+    obs: 'ssyn', fullEnv: true },
+  { id: 'synth-param-passed-argument',
+    pre: 'const k = ({ at, [Symbol.iterator]: it } = [9]) => [typeof at, typeof it]; const psyn = k({ at: "own-at", [Symbol.iterator]: "own-it" });',
+    obs: 'psyn', fullEnv: true },
+  // a UNION-typed default (`[9] : "s"`) belongs to the type resolver's own axis, not this
+  // channel: both legs inject the STRING method for an ARRAY-valued arm, which the stripped
+  // leg sees as a missing polyfill. tracked in the queue; holding it here would color this
+  // family red for a defect it does not own
+
   { id: 'const-chain-decline', pre: 'const chain = [[9]]; const [{ [Symbol.iterator]: chained, ...cr }] = chain;', obs: 'typeof chained' },
   // a getter-backed element: the sole-binding extraction is the receiver's ONLY read, so the
   // count proves single vs double read (native evaluates the element exactly once too)
@@ -4579,6 +4630,35 @@ function * generateSlotBackstop() {
     const body = `(() => { ${ f.pre } const _o = globalThis.Iterator; try { globalThis.Iterator = ${ f.shim }; `
       + `return ${ f.use }; } finally { ${ restore } } })()`;
     yield { ...snippet(`slot-deopt/${ f.id }`, body), strip: false };
+  }
+}
+
+// --- Mutated PROXY-ROOT grammar (the global-proxy NAME itself holds the user's object) ---
+// `globalThis.self = { ... }` replaces what the BARE name `self` reads, so every consumption of
+// that name reads the user's object, not the global surface: a nested mirror must not swap its
+// leaves for pure statics, a param-default synth must not replace the user's default, and a
+// symbol leaf must not extract through the method-lookup helper. FULL-env only - the observable
+// is the user's own value, which the stripped realm has no bearing on. each form restores the
+// slot in `finally`, so the realm stays exactly as the next snippet expects it
+function * generateMutatedProxyRoot() {
+  const restore = 'if (_o === undefined) delete globalThis.self; else globalThis.self = _o;';
+  const shim = '{ Array: { from: () => "USER-FROM" }, inner: { [Symbol.iterator]: () => "USER-ITER" } }';
+  const forms = [
+    // the nested mirror's shape: a leaf under a ctor-named hop
+    { id: 'nested-mirror', use: '(() => { const { Array: { from } } = self; return from(); })()' },
+    // the flat synth's shape: the same read as a param default
+    { id: 'param-default-synth', use: '(() => { const f = ({ Array: { from } } = self) => from(); return f(); })()' },
+    // the symbol channel: a wks leaf under a plain hop
+    { id: 'symbol-leaf', use: '(() => { const { inner: { [Symbol.iterator]: it } } = self; return it(); })()' },
+    // a plain member read off the mutated name - the control that must stay raw too
+    { id: 'plain-member-read', use: 'self.Array.from()' },
+    // ... and the same consumption through an ALIAS of the mutated name
+    { id: 'through-alias', use: '(() => { const g = self; const { Array: { from } } = g; return from(); })()' },
+  ];
+  for (const f of forms) {
+    const body = `(() => { const _o = globalThis.self; try { globalThis.self = ${ shim }; `
+      + `return ${ f.use }; } finally { ${ restore } } })()`;
+    yield { ...snippet(`mutated-proxy-root/${ f.id }`, body), strip: false };
   }
 }
 
@@ -6895,6 +6975,7 @@ export function * generate() {
   yield * generateMutatedDestructure();
   yield * generateMutatedAnchoredSymbol();
   yield * generateSlotBackstop();
+  yield * generateMutatedProxyRoot();
   yield * generateBareSlotWrite();
   yield * generateMutatedNarrowChain();
   yield * generateMutatedComputedKey();
