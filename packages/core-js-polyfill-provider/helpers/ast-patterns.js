@@ -68,6 +68,43 @@ export const directiveValue = node => typeof node?.directive === 'string' ? node
 
 export const isDirectiveStatement = node => node?.type === 'ExpressionStatement' && directiveValue(node) !== null;
 
+// a BARE string-literal statement: `'use client';` re-emitted by a sibling transform WITHOUT the
+// directive marker either shape carries, or a raw string expression that would BECOME a directive if
+// its position reached the prologue. it is a directive only by POSITION, so callers must ask it while
+// still inside the leading prologue run - `isDirectiveStatement` stays the marker-based classifier,
+// and this one never extends a region past real code on its own. deliberately does NOT peel: per spec
+// only an unparenthesized string literal is a directive, so `('use strict');` must stay a plain
+// expression - peeling would promote a non-directive and leave a bare `0;` on the removal path
+export const isBareStringStatement = node => node?.type === 'ExpressionStatement'
+  && (node.expression?.type === 'StringLiteral'
+    || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
+
+// the directive strings a runtime or a bundler acts on. a marker-LESS string statement is a
+// directive only if it says one of these: `'not-a-directive';` below an import is ordinary code
+// that must not be promoted, while `'use client';` a sibling transform re-emitted as a raw
+// statement is a directive whose position still matters
+const KNOWN_DIRECTIVE_VALUES = new Set(['use strict', 'use asm', 'use client', 'use server']);
+
+export const isPrologueDirectiveStatement = node => isDirectiveStatement(node)
+  || (isBareStringStatement(node) && KNOWN_DIRECTIVE_VALUES.has(node.expression.value));
+
+// index past the leading directive prologue of ANY body - marker-based, so a block that admits no
+// prologue at all (a class static block) reports 0 and the head insertion stays at the top
+export function prologueEndIndex(body) {
+  let index = 0;
+  while (index < body?.length && isDirectiveStatement(body[index])) index++;
+  return index;
+}
+
+// the PROGRAM's prologue, which additionally tolerates the marker-less spelling: everything the
+// emitters put at the head of a file - the injected imports, the ref block - anchors here, and a
+// node placed above a directive silently disables it (`'use client'` stops being one)
+export function programPrologueEndIndex(body) {
+  let index = 0;
+  while (index < body?.length && isPrologueDirectiveStatement(body[index])) index++;
+  return index;
+}
+
 // indirect-require call: `require('m')`, `require?.('m')` (optional), `require('m').default`
 // (MemberExpression tail), `(0, require)('m')` / `((0, require))('m')` (SequenceExpression callee).
 // peel the outer wrappers oxc keeps but babel strips FIRST - a top-level optional require `require?.('m')`
@@ -108,17 +145,6 @@ export function isInitlessVarDecl(stmt) {
     && stmt.declarations.every(d => !d.init);
 }
 
-// an ExpressionStatement whose expression IS a StringLiteral - includes already-promoted directives
-// AND raw string-literal expressions that would BECOME directives if their position in the body
-// reached the prologue. deliberately does NOT peel: per spec only an unparenthesized string literal
-// is a directive, so `('use strict');` must stay a plain expression - peeling it here would promote
-// a non-directive and, on the removal path, leave a bare `0;` in the output
-function isStringLiteralExpressionStatement(node) {
-  return node?.type === 'ExpressionStatement'
-    && (node.expression?.type === 'StringLiteral'
-      || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
-}
-
 // would removing `body[entryIndex]` silently extend an EXISTING directive prologue with the
 // next surviving string-literal sibling? `"use strict"; require('core-js'); "use asm"; foo()`
 // -> removal promotes `"use asm"` and activates asm.js. fires only when SOME prologue exists
@@ -150,7 +176,7 @@ function wouldPromoteDirectiveAfterRemoval({
   if (!hasSurvivingDirective) return false;
   let next = entryIndex + 1;
   while (pendingRemovals?.has(next)) next++;
-  return isStringLiteralExpressionStatement(body[next]);
+  return isBareStringStatement(body[next]);
 }
 
 // partition `candidateIndices` (ascending body indices) into removable nodes vs nodes left as
@@ -590,6 +616,18 @@ export function isMemberWriteHost(memberPath) {
 export function unwrapRuntimeExpr(node) {
   while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) node = node.expression;
   return node;
+}
+
+// descend a member chain to its ROOT node, peeling only RUNTIME-transparent wrappers at every hop.
+// deliberately NOT `descendToChainRoot`: that canon also peels sequence TAILS, which hands back
+// `globalThis` for the very `(c++, globalThis)` root some callers here exist to recognise - and it
+// lives a layer above this file, which every layer imports
+export function runtimeChainRoot(node) {
+  let root = unwrapRuntimeExpr(node);
+  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
+    root = unwrapRuntimeExpr(root.object);
+  }
+  return root;
 }
 
 // memoization peels parens + chain wrappers but deliberately NOT TS wrappers: keeping a TS cast
@@ -4083,11 +4121,7 @@ export function memberKeyNamesReducer() {
       if (node.type !== 'MemberExpression' && node.type !== 'OptionalMemberExpression') return;
       const key = memberKeyName(node);
       if (key === null) return;
-      let root = unwrapRuntimeExpr(node.object);
-      while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-        root = unwrapRuntimeExpr(root.object);
-      }
-      if (root?.type === 'Identifier') memberKeyNames.add(key);
+      if (runtimeChainRoot(node.object)?.type === 'Identifier') memberKeyNames.add(key);
     },
     result() { return { memberKeyNames }; },
   };
@@ -4858,6 +4892,14 @@ export function collectFoldedReceiverSideEffects(node, out = [], rescue = null, 
       for (const element of cur.elements) {
         collectContainerMemberSideEffect(element?.type === 'SpreadElement' ? element.argument : element, out, rescue);
       }
+      break;
+    // a branching receiver is discarded WHOLE, exactly like a sequence prefix: the test always runs
+    // and the taken branch's effects go with the value. pushing the branch NODE (not its parts) keeps
+    // each side conditional - re-emitting an operand alone would run it unconditionally. without this
+    // the fold ERASED the operand: `'flat' in (arr || (log.push('x'), [1]))` printed a bare `true`
+    case 'ConditionalExpression':
+    case 'LogicalExpression':
+      if (mayHaveSideEffects(cur)) out.push(cur);
       break;
     case 'AssignmentExpression':
       // receiver-spine chain-assign under position-mode: record its eval slot (the emit re-emits it),
@@ -5671,7 +5713,20 @@ function getForXWrites(forXNode) {
 // `for (obj.key of/in ...)` rebinds obj.key each iteration, aliasing the prototype method.
 // Both the write target (bare or nested in a destructuring pattern) and matching reads in
 // the body target a local write, not the inherited method - polyfilling either is wrong
-export function isForXWriteTarget(path) {
+// a shape signature matches by NAME, which cannot tell a receiver REBOUND inside a nested function
+// from the same free binding the for-x head writes through. the binding answers that, and only
+// where it has to: the question arises exactly when the walk crossed a function boundary
+function sameReceiverBinding({ node, path, forXPath, adapter }) {
+  const root = runtimeChainRoot(node);
+  if (root?.type !== 'Identifier') return false;
+  // the adapters hand back a normalized VIEW, rebuilt per call - identity lives on the binding's
+  // own declaration node. an unresolved side answers "unknown", which keeps the conservative bail
+  const readBinding = adapter.getBinding(path.scope, root.name, path);
+  const headBinding = readBinding && adapter.getBinding(forXPath.scope, root.name, forXPath);
+  return !!readBinding?.node && readBinding.node === headBinding?.node;
+}
+
+export function isForXWriteTarget(path, adapter = null) {
   // ObjectProperty / Property wraps a write-target MemberExpression in `.value`;
   // meta emission for destructure properties hands us the wrapper, not the member.
   // the value slot may itself carry a transparent wrapper over the member - peel the
@@ -5683,19 +5738,26 @@ export function isForXWriteTarget(path) {
   // write - babel spells it OptionalMemberExpression while estree reaches here as a plain
   // MemberExpression once the entry peel strips its ChainExpression
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return false;
+  let crossedFunction = false;
   for (let current = path.parentPath; current; current = current.parentPath) {
     const parent = current.node;
     if (!parent) break;
-    // function-like boundary: a `for-of/in` enclosing a nested function isn't writing to
-    // the inner function's bindings - bail when we cross a fn body upward. without this
-    // guard `for (obj.x of arr) { function nested() { obj.x } }` would false-positive
-    // mark inner reads as part of the for-write set (different lexical scope)
-    if (FUNCTION_LIKE_NODE_TYPES.has(parent.type)) return false;
+    // function-like boundary: a nested function that REBINDS the receiver reads its own slot,
+    // not the one the enclosing `for-of/in` head writes per iteration - and the name-based shape
+    // match below cannot tell the two apart. so crossing is allowed, and the match beyond the
+    // boundary additionally has to prove the receiver is the SAME binding. without an adapter to
+    // ask, the conservative bail stands (the shape match alone would false-positive on a shadow)
+    if (FUNCTION_LIKE_NODE_TYPES.has(parent.type)) {
+      if (!adapter?.getBinding) return false;
+      crossedFunction = true;
+      continue;
+    }
     if (!isForXStatement(parent)) continue;
     const writes = getForXWrites(parent);
     if (writes.nodes.includes(node)) return true;
     const sig = memberShapeSignature(node);
-    if (sig !== null && writes.sigs.includes(sig)) return true;
+    if (sig === null || !writes.sigs.includes(sig)) continue;
+    if (!crossedFunction || sameReceiverBinding({ node, path, forXPath: current, adapter })) return true;
   }
   return false;
 }
@@ -5736,14 +5798,10 @@ const HARVESTABLE_NAV_ROOTS = new Set(['SequenceExpression', 'AssignmentExpressi
 // PRESERVES the shell the swap would drop, so the swap stands down there instead. gating on the ROOT
 // alone left the key spelling deciding the claim: the same ctor was swapped when written `.Map` and
 // read raw off the global when written `[(c++, 'Map')]`.
-// the descent peels only RUNTIME-transparent wrappers (oxc parens, chains, TS casts), deliberately
-// NOT `descendToChainRoot`: that canon peels sequence TAILS too, which would hand back `globalThis`
-// for the very `(c++, globalThis)` root this predicate exists to recognise
+// the descent peels only RUNTIME-transparent wrappers, deliberately NOT `descendToChainRoot`
+// (`runtimeChainRoot` carries why)
 export function proxyNavEffectsHarvestable(node) {
-  let root = unwrapRuntimeExpr(node);
-  while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
-    root = unwrapRuntimeExpr(root.object);
-  }
+  const root = runtimeChainRoot(node);
   return HARVESTABLE_NAV_ROOTS.has(root?.type) || !mayHaveSideEffects(root);
 }
 

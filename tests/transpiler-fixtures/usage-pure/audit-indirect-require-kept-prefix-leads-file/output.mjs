@@ -1,4 +1,4 @@
-import "@core-js/pure/modules/es.array.includes";
+import "core-js/modules/es.array.includes";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
 // an indirect-require entry at the head of the file keeps its prefix, and that prefix needs a memo
