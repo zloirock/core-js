@@ -1,4 +1,6 @@
 import {
+  synthPropDedupKey,
+  buildPatternRenderPlan,
   applyNestedParamSynthPlan,
   buildNestedParamSynthPlan,
   classifyCallBranchForSynth,
@@ -10,10 +12,12 @@ import {
   resolveNestedReceiverNode,
   resolvePassthroughRef,
   qualifiesForParamBodyExtract,
+  undefinedArmEffectiveReceiver,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { symbolIteratorInstanceLeaf } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { registerBindinglessCtorAlias, registerDeclAliasIfSound } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
+  computedKeyIsWellKnownSymbol,
   discardRescueNodes,
   findProxyGlobal,
   inlineCallReturnExpression,
@@ -45,14 +49,12 @@ import {
 import { detectIifeArgReceiver, findSynthSwapReceiver } from './destructure-emit-utils.js';
 import { isDirectiveStatement, walkAstNodes } from './plugin-helpers.js';
 import { discardedSequenceElement, memberFromKeyName, receiverCarriesOptional, replaceNodeInTree } from './emit-shared.js';
-import { callExpression, cloneNode, identifier, objectExpression, variableDeclaration, variableDeclarator } from './builders.js';
+import { callExpression, cloneNode, identifier, variableDeclaration, variableDeclarator } from './builders.js';
 import {
   SELECTING_INIT_TYPES,
   allProxySelectingInit,
   applyInlineDefault,
   arrayWrapperDeclarator,
-  buildPatternRenderPlan,
-  buildSynthProp,
   buriedKeyClaimInit,
   classifyDeclarationHost,
   climbPatternChain,
@@ -101,7 +103,6 @@ import {
   staticallySelectedLeft,
   swapInlineDefaults,
   synthPlanFullyCovered,
-  synthPropDedupKey,
   takesInlineDefault,
   warnConditionalFallbackUntouched,
 } from './destructure-helpers.js';
@@ -195,19 +196,10 @@ export default function createAstDestructureEmitter({
     const applied = applyNestedParamSynthPlan({
       plan,
       renderTree: (tree, recv) => renderSynthTree(tree, {
-        polyfill: (entry, hintName) => identifier(injectPureImport(entry, hintName)),
-        object: entries => objectExpression(entries.map(({ key, value }) => buildSynthProp(key, value))),
-        passthrough: keyPath => {
-          const ref = resolvePassthroughRef({
-            keyPath,
-            ...recv,
-            resolveGlobalPolyfill,
-            isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
-          });
-          let base = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);
-          for (const key of ref.path) base = memberFromKeyName(base, key);
-          return base;
-        },
+        injectImport: injectPureImport,
+        ...recv,
+        resolveGlobalPolyfill,
+        adapter,
       }),
       replaceTarget: (targetNode, rendered) => {
         // ... and never OUTSIDE the host the caller owns: a receiver reached through an alias
@@ -222,6 +214,12 @@ export default function createAstDestructureEmitter({
     });
     if (applied) synthDone.add(leafPattern.node);
     return applied;
+  }
+
+  // a MINTED well-known-symbol key (`[_Symbol$iterator]` - the wks swap ran before this claim)
+  // has no tree binding until the import flush; the shared fold vouches for it
+  function mintedKeyExempt(metaPath) {
+    return keyNode => computedKeyIsWellKnownSymbol({ keyNode, scope: metaPath.scope, adapter, path: metaPath });
   }
 
   // one slot of the simple synth literal; the drain renders the whole pattern at once
@@ -252,7 +250,10 @@ export default function createAstDestructureEmitter({
         && instanceReceiver?.type === 'MemberExpression' && !mayHaveSideEffects(instanceReceiver)
         && !receiverCarriesOptional(instanceReceiver)
         && peelWrappers(instanceReceiver.object)?.type !== 'ConditionalExpression';
-      return entry !== 'get-iterator-method'
+      // ... and the slot must BIND: a nested pattern value (`{ [S]: { keys } }`) destructures
+      // the dispatch result, which the flat literal has no slot for - that shape belongs to
+      // the nested routes, where both legs keep it native
+      return !!propBindingIdentifier(metaPath.node.value)
         && (isReusableSynthReceiver(instanceReceiver) || spelledOnce)
         && registerInstanceSynthSlot({
           metaPath,
@@ -265,8 +266,8 @@ export default function createAstDestructureEmitter({
           ctx: instanceSynthCtx,
         });
     }
-    if (!isSynthSimpleObjectPattern(pattern, { allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true })
-      || !computedKeysAllBound(pattern, metaPath.scope)) return false;
+    if (!isSynthSimpleObjectPattern(pattern)
+      || !computedKeysAllBound(pattern, metaPath.scope, mintedKeyExempt(metaPath))) return false;
     const receiver = findSynthSwapReceiver(hostParent, pattern, metaPath.scope, adapter, resolvePure);
     let baseIdent = receiver;
     let leadingEffects = null;
@@ -432,12 +433,17 @@ export default function createAstDestructureEmitter({
       }
       return;
     }
-    if (!isSynthSimpleObjectPattern(pattern, { allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true })
-      || !computedKeysAllBound(pattern, metaPath.scope)) return;
+    if (!isSynthSimpleObjectPattern(pattern)
+      || !computedKeysAllBound(pattern, metaPath.scope, mintedKeyExempt(metaPath))) return;
     const { lookupKey } = resolveSynthKeys({ node: prop, scope: metaPath.scope, adapter, path: metaPath });
     const dedupKey = synthPropDedupKey(prop, { scope: metaPath.scope, path: metaPath, adapter });
     if (!lookupKey || !dedupKey) return;
-    registerBranchTree({ branch: desc.rhsNode, key: lookupKey, dedupKey, pattern, metaPath });
+    // the winning CALL-ARG leaves the wrapper-default live on its undefined-shaped arm -
+    // thread the default so the leaf substitutes it there (the shared S081-1 rule)
+    const wrapperNode = patternPath.parentPath?.node;
+    const undefinedArmFallback = wrapperNode?.type === 'AssignmentPattern' && desc.rhsNode !== wrapperNode.right
+      ? wrapperNode.right : null;
+    registerBranchTree({ branch: desc.rhsNode, key: lookupKey, dedupKey, pattern, metaPath, undefinedArmFallback });
   }
 
   // the nested mirror registers only on a PRISTINE proxy-root branch: leading hops must be
@@ -455,8 +461,8 @@ export default function createAstDestructureEmitter({
         && peelWrappers(selecting.left) === branch) return false;
     }
     if (chainKeys.slice(0, -1).some(key => !isPristineProxyGlobal(adapter, key))) return false;
-    if (!isSynthSimpleObjectPattern(leafPattern, { allowLiteralComputedKeys: true, allowSideEffectComputedKeys: true })
-      || !computedKeysAllBound(leafPattern, metaPath.scope)) return false;
+    if (!isSynthSimpleObjectPattern(leafPattern)
+      || !computedKeysAllBound(leafPattern, metaPath.scope, mintedKeyExempt(metaPath))) return false;
     let inner = peelFallbackBranchInner(branch);
     if (!inner) return false;
     // an INLINE-resolvable CALL branch yields its own RETURN expression: the literal replaces
@@ -501,12 +507,20 @@ export default function createAstDestructureEmitter({
     if (!plan) return false;
     const slotMap = new Map();
     for (const planEntry of plan) {
+      // a wks leaf under the hop is not a static of the hop's ctor - it dispatches on the
+      // VALUE, which the nested literal has no slot for. both legs keep the key-swap there
+      if (planEntry.wks) return false;
       const pure = resolvePure({
         kind: 'property', object: chainKeys.at(-1), key: planEntry.lookupKey, placement: 'static',
       }, metaPath);
-      if (!pure || pure.kind === 'instance') return false;
+      if (pure?.kind === 'instance') return false;
+      // an unresolvable STATIC leaf renders as a passthrough off the branch root
+      // (`isArray: _globalThis.Array.isArray` beside `of: _Array$of` - babel's mixed
+      // mirror); only an all-unresolvable pattern has nothing to mirror for
+      if (!pure) continue;
       slotMap.set(planEntry.dedupKey, injectPureImport(pure.entry, pure.hintName));
     }
+    if (!slotMap.size) return false;
     markSubtreeSkipped(skippedNodes, inner);
     let pending = pendingBranchSynths.get(inner);
     if (!pending?.nestedTrees) {
@@ -522,7 +536,7 @@ export default function createAstDestructureEmitter({
     return true;
   }
 
-  function registerBranchTree({ branch, key, dedupKey, pattern, metaPath }) {
+  function registerBranchTree({ branch, key, dedupKey, pattern, metaPath, undefinedArmFallback = null }) {
     const inner = peelFallbackBranchInner(branch);
     if (!inner) return false;
     const slots = getFallbackBranchSlots(inner);
@@ -530,16 +544,20 @@ export default function createAstDestructureEmitter({
       let any = false;
       for (const slot of slots) {
         // a value-selecting operand that can be nullish must not become an always-defined
-        // literal - the swap would flip which branch runs (the shared predicate's contract)
-        if (!fallbackBranchSwapKeepsSelection({
-          hostNode: inner, slot, branchNode: inner[slot], scope: metaPath.scope, adapter, path: metaPath,
-        })) continue;
-        if (registerBranchTree({ branch: inner[slot], key, dedupKey, pattern, metaPath })) any = true;
+        // literal - the swap would flip which branch runs (the shared predicate's contract).
+        // the undefined-shaped arm under a live PARAM DEFAULT is the one exception: the
+        // shared rule substitutes the default there (same branch, same value)
+        if (!undefinedArmEffectiveReceiver({ branch: inner[slot], paramDefaultNode: undefinedArmFallback })
+          && !fallbackBranchSwapKeepsSelection({
+            hostNode: inner, slot, branchNode: inner[slot], scope: metaPath.scope, adapter, path: metaPath,
+          })) continue;
+        if (registerBranchTree({ branch: inner[slot], key, dedupKey, pattern, metaPath, undefinedArmFallback })) any = true;
       }
       return any;
     }
+    const effectiveBranch = undefinedArmEffectiveReceiver({ branch, paramDefaultNode: undefinedArmFallback }) ?? branch;
     const pure = isViableBranchForKey({
-      branch, key, scope: metaPath.scope, adapter, resolvePure: m => resolvePure(m, metaPath), path: metaPath,
+      branch: effectiveBranch, key, scope: metaPath.scope, adapter, resolvePure: m => resolvePure(m, metaPath), path: metaPath,
     });
     if (!pure || pure.kind === 'instance') return false;
     // an SE-carrying branch (a buried effect along the spine, a call root) swaps WITH its
@@ -682,6 +700,26 @@ export default function createAstDestructureEmitter({
     });
   }
 
+  // the ONE dead-default rule both inner-default spellings ask (the receiver-bearing route
+  // through handleParamHost's declarator case and the receiver-less one in
+  // handleObjectPropertyResult): when the OUTER init is TYPED and the outer key dispatches
+  // an instance polyfill, the outer slot is always defined and the inner default never
+  // fires - mirroring it would polyfill only the DEAD branch while the LIVE outer step
+  // stays a raw read. babel answers the shape with the composed two-step extraction (the
+  // guarded outer dispatch); until this leg composes that extraction too, the leaf stays
+  // native rather than wrong-sided
+  function innerDefaultDeadOnTypedOuter({ assignmentPattern, declaratorPath, metaPath }) {
+    const outerProp = assignmentPattern?.parentPath;
+    const outerKeyNode = outerProp?.node?.type === 'Property' && !outerProp.node.computed ? outerProp.node.key : null;
+    const outerKey = outerKeyNode?.name ?? (typeof outerKeyNode?.value === 'string' ? outerKeyNode.value : null);
+    const initPath = declaratorPath?.node?.type === 'VariableDeclarator' ? declaratorPath.get?.('init') : null;
+    if (!initPath?.node || typeof outerKey !== 'string' || !resolveNodeType || !toHint) return null;
+    const objectHint = toHint(resolveNodeType(initPath));
+    if (!objectHint) return null;
+    const outerPure = resolvePure({ kind: 'property', object: objectHint, key: outerKey, placement: 'prototype' }, metaPath);
+    return outerPure?.kind === 'instance' ? outerPure : null;
+  }
+
   // eslint-disable-next-line max-statements -- per-form prop dispatch sequence
   function handleObjectPropertyResult({ metaPath, meta, kind, entry, hintName }) {
     const prop = metaPath.node;
@@ -706,7 +744,7 @@ export default function createAstDestructureEmitter({
         && !resolvePure({
           kind: 'property', object: hintName, key: leaf.key.name ?? leaf.key.value, placement: 'static',
         }, metaPath));
-    if (!isPlainConsumableProp(prop, { symbolProp, ctorPattern })) return;
+    if (!isPlainConsumableProp(prop, { symbolProp, ctorPattern, instanceArrayLeft: kind === 'instance' })) return;
     const patternPath = metaPath.parentPath;
     const pattern = patternPath?.node;
     // a RELOCATED catch pattern reaches this ledger as an ordinary declarator - the shared
@@ -746,7 +784,12 @@ export default function createAstDestructureEmitter({
           && host.node.type !== 'CatchClause' && host.node.type !== 'ForOfStatement'
           && host.node.type !== 'ForInStatement') host = host.parentPath;
         const hostInit = host?.node?.init ?? host?.node?.right ?? null;
-        return !hostInit || !findProxyGlobal(hostInit, { scope: metaPath.scope, adapter, path: metaPath });
+        if (!hostInit) return true;
+        if (findProxyGlobal(hostInit, { scope: metaPath.scope, adapter, path: metaPath })) return false;
+        // the TYPED outer is the same dead rule from the other side: the outer slot is always
+        // defined, so the climb keeps the hop and the composed extraction folds this default
+        // through the canonical guard instead of mirroring it
+        return !innerDefaultDeadOnTypedOuter({ assignmentPattern: defaultPath, declaratorPath: host, metaPath });
       },
     });
     if (!climbed) return;
@@ -786,7 +829,7 @@ export default function createAstDestructureEmitter({
       // statement holds (`const chain = [arr]; const [{ at }] = chain` stays native)
       const wrapped = resolveArrayWrappedReceiver(hostPatternPath,
         kind === 'instance' || symbolProp ? null : { scope: metaPath.scope, adapter, path: metaPath },
-        { allowBodylessMulti: true });
+        { allowBodylessMulti: true, readsReceiver: kind === 'instance' || symbolProp });
       // a BODYLESS slot has no statement list for the array drain to splice into: the
       // element is the receiver and the shared bodyless registration owns the rewrite,
       // its own SE lift included
@@ -804,7 +847,11 @@ export default function createAstDestructureEmitter({
           initNode: wrapped.elementNode,
         });
       }
-      if (receiverSeOnly || (wrapped && divergingSelection(wrapped.element, { adapter, injectorState }))) return;
+      // a diverging SELECTION declines only the branch-bound claims: a receiver-based one
+      // (instance / symbol) reads the selected VALUE once inside its dispatch, exactly the
+      // native read (`[{ at }] = [c ? a : b]` -> `at = _at(c ? a : b)` - babel's canon)
+      if (receiverSeOnly || (wrapped && kind !== 'instance' && !symbolProp
+        && divergingSelection(wrapped.element, { adapter, injectorState }))) return;
       if (wrapped?.assignment) {
         registerArrayAssignTwinJob({ wrapped, prop, pattern, chain, kind, entry, hintName, metaPath, symbolProp });
         return;
@@ -849,7 +896,31 @@ export default function createAstDestructureEmitter({
         // `_flatMaybeArray(arr)`); the pairing-proven single read is the literal route
         const deepReceiver = kind === 'instance' && chain.length
           ? resolveNestedReceiverNode(metaPath) : null;
-        const declReceiver = deepReceiver ?? wrapped.element;
+        // SEVERAL claims off ONE element read it once each, and an element that is not
+        // re-referenceable (a selection, a member whose getter would re-fire) cannot serve
+        // that twice: it memoizes into a leading `_ref` the extractions share - the same
+        // shared channel the plain declarator route uses, wired to the wrapper's element
+        // an element that cannot be spelled twice - a selection, or one whose evaluation is
+        // OBSERVABLE - memoizes into a leading ref the extractions read, exactly what the flat
+        // whole-init memo does one level up. sound only where the memo keeps source order:
+        // every element ahead of this slot must be pure (`precedingPure`)
+        // a REST sibling re-reads the element in the residual, which is exactly what the memo
+        // gives one identity to - both legs memoize there now
+        const sharedElementMemo = !deepReceiver && kind === 'instance' && chain.length === 0
+          && prop.value.type === 'Identifier' && wrapped.precedingPure
+          // several readers only: a SOLE prop reads the element once inside its own dispatch, and
+          // memoizing there would polyfill a shape the other leg still leaves native (that
+          // missed polyfill is the pre-existing class the queue tracks, not this memo's job).
+          // a REST element keeps the residual whatever this prop takes, and that residual reads
+          // the element again - a re-run selection could take the other branch by then
+          && (pattern.properties.length > 1 || wrapped.wrapperRest)
+          && !isReReferenceableReceiver(wrapped.element)
+          ? elementMemoFor(wrapped.element) : null;
+        // the dispatch SPELLS the element the source wrote (its TS cast kept - the flat canon);
+        // the classifiers above read the peeled view
+        const declReceiver = sharedElementMemo?.ident ?? deepReceiver
+          ?? (wrapped.writtenElement && !mayHaveSideEffects(wrapped.writtenElement)
+            ? wrapped.writtenElement : wrapped.element);
         const value = buildValue({
           kind,
           entry,
@@ -859,9 +930,21 @@ export default function createAstDestructureEmitter({
           nested: !deepReceiver && chain.length > 0, chainKeys, metaPath,
           // ... a POSSIBLE-GLOBAL identifier stays off the literal route: the barePure /
           // proxy machinery owns its substitution (`globalThis` -> `_globalThis`)
-          literalRoute: kind === 'instance' && (isConstantLiteralReceiver(peelWrappers(declReceiver))
+          literalRoute: kind === 'instance' && (!!sharedElementMemo
+            // a SOLE consuming prop reads the element exactly once - inside its own dispatch -
+            // so an effect-FREE element may be spelled there whatever its shape (`[arr?.inner]`
+            // is one read either way, which is what native performs)
+            || (patternBindingCount(prop.value) === patternBindingCount(hostPatternPath.node)
+              && !mayHaveSideEffects(wrapped.element))
+            || isConstantLiteralReceiver(peelWrappers(declReceiver))
             || (isReReferenceableReceiver(declReceiver)
-              && !(peelWrappers(declReceiver)?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(peelWrappers(declReceiver).name)))),
+              && !(peelWrappers(declReceiver)?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(peelWrappers(declReceiver).name)))
+            // an SE-free diverging SELECTION consumed by the SOLE binding reads once inside
+            // the dispatch (`[{ at }] = [c ? a : b]` -> `_at(c ? a : b)` - babel's canon);
+            // a multi-prop selection needs the memo channel and stays declined
+            || (pattern.properties.length === 1 && prop.value.type === 'Identifier'
+              && divergingSelection(declReceiver, { adapter, injectorState })
+              && !mayHaveSideEffects(declReceiver))),
         });
         if (!value) return;
         // the extracted alias registers with the injector so calls off it keep their
@@ -879,6 +962,12 @@ export default function createAstDestructureEmitter({
             sentinel: true,
             declarator: wrapped.declarator,
             local: propLocalName(prop), value, host: 'array-decl', exported: wrapped.exported,
+            kind,
+            // the extraction lands AFTER the residual: an effect-bearing neighbour element runs
+            // inside the array literal, and native reads the property only once every element
+            // has evaluated
+            extractAfterResidual: wrapped.neighbourEffect,
+            memoRecv: sharedElementMemo,
             bodylessWrap: wrapped.host?.bodyless === true,
             bindingTarget: propBindingTarget(prop), metaPath,
             initProbePlan: planDiscardedInitProbe(wrapped.declarator.init, metaPath, { adapter, resolvePure }),
@@ -893,9 +982,12 @@ export default function createAstDestructureEmitter({
     // THROUGH the AssignmentPattern and lands the claim on the outer host, but the swap belongs to
     // the default - the same simple synth the parameter form takes, whatever that outer host is
     // (a declarator, an assignment, a catch param: it decides where the residual lives, not
-    // whether the default is live - `handleParamHost`'s own rule for the shape one level up)
+    // whether the default is live - `handleParamHost`'s own rule for the shape one level up).
+    // ... but a DEAD default declines (`innerDefaultDeadOnTypedOuter` - the one rule both
+    // inner-default spellings ask)
     if (chain.length > 0 && !receiverSeOnly && patternPath?.parentPath?.node?.type === 'AssignmentPattern'
       && patternPath.parentPath.node.left === patternPath.node
+      && !innerDefaultDeadOnTypedOuter({ assignmentPattern: patternPath.parentPath, declaratorPath: hostParent, metaPath })
       && registerSimpleSynthSlot({
         metaPath,
         pattern,
@@ -950,7 +1042,9 @@ export default function createAstDestructureEmitter({
         || type === 'Program') {
         // a receiver-bearing default fires under exactly the condition its outer slot leaves
         // open, so the mirror is correct outside a parameter list too - the host only decides
-        // where the residual lives, not whether the default is live
+        // where the residual lives, not whether the default is live. (the TYPED-outer dead
+        // case never reaches here: `carriesReceiver` answers false there, the climb keeps
+        // the hop, and the composed extraction owns the claim)
         if (chain.length === 0 && hostParent.node.type === 'AssignmentPattern') {
           registerSimpleSynthSlot({ metaPath, pattern, hostParent, kind, entry, hintName });
         }
@@ -1237,7 +1331,7 @@ export default function createAstDestructureEmitter({
   }) {
     const wrap = resolveArrayWrappedReceiver(hostPatternPath,
       kind === 'instance' || symbolProp ? null : { scope: metaPath.scope, adapter, path: metaPath },
-      { allowForInit: true });
+      { allowForInit: true, readsReceiver: kind === 'instance' || symbolProp });
     if (!wrap?.host?.forInit || !wrap.single || prop.value.type !== 'Identifier') return false;
     // a REST-kept prop renames to `_unused` and the residual re-reads its init in place, so
     // only a receiverless STATIC qualifies - an instance extraction would read it a second
@@ -1432,9 +1526,19 @@ export default function createAstDestructureEmitter({
       sentinelMemoEligible = false;
       memoSibling = false;
     }
+    // the TYPED single hop (the receiver's own type dispatches the outer key as an instance
+    // method) composes the two-step extraction: hop dispatch feeds the leaf dispatch, the
+    // inner default folding through the canonical guard - it needs no literal receiver, so
+    // it rides PAST the nested-instance decline below. this is what retires the dead-mirror
+    // suppression for the sole-leaf shape; the babel leg composes the same steps natively
+    const innerDefault = chain.length === 1 && metaPath.parentPath?.parentPath?.node?.type === 'AssignmentPattern'
+      && metaPath.parentPath.parentPath.node.left === metaPath.parentPath.node
+      ? metaPath.parentPath.parentPath : null;
+    const typedHopPure = innerDefault && kind === 'instance' && entry !== 'get-iterator-method'
+      ? innerDefaultDeadOnTypedOuter({ assignmentPattern: innerDefault, declaratorPath: hostParent, metaPath }) : null;
     // a sentinel KEEPS the declarator (and its init) alive, so the discard-safety proof is
     // not needed there; the instance value builder still bounds receiver reads on its own
-    if ((chain.length > 0 && (kind === 'instance' && entry !== 'get-iterator-method' && !literalReceiver
+    if ((chain.length > 0 && (kind === 'instance' && entry !== 'get-iterator-method' && !literalReceiver && !typedHopPure
       // an ANCHORED symbol prop keeps its key-swap instead of extracting when the extraction
       // would change what the slot answers: a DEFAULT fires on the raw read's undefined, which
       // the helper result need not be, and an SE KEY has no slot outside the kept key
@@ -1531,7 +1635,8 @@ export default function createAstDestructureEmitter({
       hintName,
       receiverNode: memoRecv ? (memoRecv.ident ?? identifier(memoRecv.refName))
         : literalReceiver ?? (allProxyInit ? firstProxyBranch(declarator.init) : declarator.init), prop,
-      nested: !literalReceiver && chain.length > 0, chainKeys, metaPath,
+      typedHop: typedHopPure ? { pure: typedHopPure, defaultNode: innerDefault.node.right } : null,
+      nested: (!literalReceiver || !!typedHopPure) && chain.length > 0, chainKeys, metaPath,
       literalRoute: (!!literalReceiver && !memoRecv) || sentinelMemoEligible,
       liveReceiver: memoRecv || literalReceiver || allProxyInit ? null : () => declarator.init,
       reusedReceiver: !!keepKey,
@@ -1615,6 +1720,17 @@ export default function createAstDestructureEmitter({
   // place, and the registered hint is what lets a later read resolve through the alias
   // (`const { self: { Symbol: S } } = globalThis; obj[iterator]` folds off `S`'s hops) -
   // babel reaches the same via its in-place rewrite, which the walk-time judges then see
+  // the shared memo for a wrapper ELEMENT several claims read: one deferred plan per element
+  // node, its number taken at drain like every other memo this emitter plants
+  function elementMemoFor(element) {
+    let memo = literalMemoNames.get(element);
+    if (!memo) {
+      memo = { ident: identifier(''), node: element, deferred: true };
+      literalMemoNames.set(element, memo);
+    }
+    return memo;
+  }
+
   // a MULTI-prop pattern whose receiver an extraction actually reads hoists the collapsed
   // nav once (`const _ref = _globalThis.Array; const it = _gim(_ref); ...` - babel's
   // shape); a single prop reads the collapsed spelling inline, and a pure-ctor leaf
@@ -1905,7 +2021,7 @@ export default function createAstDestructureEmitter({
       receiverName: cur.name,
       receiverIsProxy: true,
       resolveGlobalPolyfill,
-      isMutatedStatic: (object, key) => adapter.isMutatedStatic(object, key),
+      adapter,
     });
     return () => {
       let base = ref.pure ? identifier(injectPureImport(ref.pure.entry, ref.pure.hintName)) : identifier(ref.name);

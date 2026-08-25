@@ -1591,7 +1591,11 @@ export default function plugin(api, options) {
               injector.addGlobalImport(mod);
               removed.add(node);
             },
-            onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
+            // a user binding the file WRITES through is poisoned as a dedup target - the
+            // pre-mutation scope's constantViolations carry the reassignment fact
+            onPureImport: (entry, name) => injector.registerUserPureImport(entry, name, {
+              reassigned: (path.scope.getBinding(name)?.constantViolations.length ?? 0) > 0,
+            }),
           });
           // a re-parse of our own pure output carries rest/SE-key sentinels already in place -
           // adopt the census' sentinel-position names so the dispatcher skip re-arms, exactly
@@ -1798,6 +1802,10 @@ export default function plugin(api, options) {
         if (!beginFile(path) || skipFile) return;
         path.traverse(visitors);
         processDeferredSideEffects(path);
+        // the array-wrapped residuals the per-prop route emptied: the verdict needs the whole
+        // traversal, since a second polyfilled prop is what kept the per-prop consume test from
+        // firing. BEFORE the split, which replaces the host declaration this verdict is recorded against
+        destructureEmit.pruneArrayResiduals();
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
         // against the pre-split body
         destructureEmit.splitFlatMultiDecls();
@@ -1952,6 +1960,7 @@ export default function plugin(api, options) {
         // the same body-index ordering as the primary pass
         processDeferredSideEffects(path);
         // helper-body re-traversal may have touched fresh multi-decl declarations
+        destructureEmit.pruneArrayResiduals();
         destructureEmit.splitFlatMultiDecls();
         rewalkRetainedForInits();
         postSweepIntroduced(path);

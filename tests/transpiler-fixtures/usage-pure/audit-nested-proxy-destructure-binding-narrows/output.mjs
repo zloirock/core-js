@@ -1,6 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // nested proxy-global destructure `const {window: {Array}} = globalThis` must walk
 // through proxy-global keys (`window`, `self`, ...) so the leaf `Array` binding still
 // registers as the global; otherwise downstream `Array.from(...)` loses its narrow
@@ -29,3 +30,34 @@ const {
 } = _globalThis;
 const swapped = SelfArray.from([6]);
 export { boxed, swapped };
+
+// NEGATIVE: the mutated slot read as the ROOT BINDING - the bare name holds the user's
+// replacement, so no leaf below it narrows, extracts or mirrors
+const {
+  Array: {
+    from: mutFrom
+  }
+} = self;
+const {
+  inner: {
+    [_Symbol$iterator]: mutIter
+  }
+} = self;
+function viaParam({
+  Array: {
+    from: paramFrom
+  }
+} = self) {
+  return paramFrom;
+}
+export { mutFrom, mutIter, viaParam };
+
+// ... and through an ALIAS of that mutated name: the binding holds the user's replacement too,
+// so the leaf below it stays native exactly like the direct read
+const aliasOfMutated = self;
+const {
+  Array: {
+    from: viaAlias
+  }
+} = aliasOfMutated;
+export { viaAlias };
