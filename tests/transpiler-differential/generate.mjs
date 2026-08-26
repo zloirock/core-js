@@ -19,6 +19,8 @@ const PRELUDE = [
   // statement cannot ride inside the snippet expression
   'let ntm;',
   'const nrm = () => globalThis;',
+  // the chain-assign carrier: a kept write needs a real binding to store into
+  'let kw;',
 ];
 
 // absolute URL: the harness materializes snippets in a tmp dir, so a relative specifier
@@ -151,6 +153,68 @@ const D_PATTERNS = [
   { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true },
   { id: 'object', recv: 'Object', lhs: '{ fromEntries }', names: ['fromEntries'], observe: 'typeof fromEntries', strip: true },
   { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
+  // the receiver spine wearing the optional-chain MARKER: on ESTree it is a node the extraction
+  // meets before anything else, and the two wrapper sets answer differently about it. every form
+  // navigates a DEFINED slot, so the `?.` never short-circuits and the three legs stay comparable -
+  // what is under test is the marker in the way, not the short-circuit
+  { id: 'marker-root', recv: 'globalThis?.Array', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
+  { id: 'marker-nested-proxy', recv: 'globalThis?.globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
+  { id: 'marker-se-key-root', recv: 'globalThis?.[(log.push("k"), "Array")]', lhs: '{ from }', names: ['from'], observe: 'typeof from', strip: true },
+  // ... and the INSTANCE leaf off a marker-headed spine: the extraction dispatches on the receiver
+  // it discards, so the route asks about the nav through the marker in one more place
+  { id: 'marker-instance-proto', recv: 'globalThis?.Array.prototype', lhs: '{ flat: m }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'marker-instance-two-hop', recv: 'globalThis?.globalThis.Array.prototype', lhs: '{ at: a }', names: ['a'], observe: 'typeof a', strip: true },
+  // a chain-assign receiver whose stored VALUE carries its own SE prefix: only the tail is the nav,
+  // and the write is an effect of the source's own - the claim must still land
+  { id: 'se-prefixed-kept-write', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g } }', names: ['g'], observe: 'typeof g', strip: true },
+  // ... the same receiver with a SURVIVING residual (the init keeps a reader of its own) and with a
+  // DEAD default (a static ponyfill is always defined, so the source's default never fires): both
+  // ride the opaque-init routes the assignment and bodyless hosts gained
+  { id: 'se-prefixed-kept-write-residual', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g }, other }',
+    names: ['g', 'other'], observe: '[typeof g, typeof other]', strip: true },
+  { id: 'se-prefixed-kept-write-defaulted', recv: '(kw = (log.push("w"), globalThis))', lhs: '{ Map: { groupBy: g = null } }', names: ['g'], observe: 'typeof g', strip: true },
+  // the DEFAULTED instance leaf, whose dispatch answers `it.method` VERBATIM off a surface that is
+  // not the polyfilled one: the axis BRANCHES on what the receiver names, and the `null` sentinel
+  // separates "the ponyfill bound" from "the source's default fired" on every leg
+  { id: 'defaulted-instance-foreign-slot', recv: '{ y: { flat: undefined } }', lhs: '{ y: { flat: m = nul } }',
+    names: ['m'], observe: 'm === null ? "DEFAULT" : typeof m', strip: true },
+  { id: 'defaulted-instance-array-slot', recv: '{ y: arr }', lhs: '{ y: { flat: m = nul } }',
+    names: ['m'], observe: 'm === null ? "DEFAULT" : typeof m', strip: true },
+  // ... and the PROXY-surface twins, where the receiver names the polyfilled surface itself: the
+  // claim dispatches on what the hops NAME (`_globalThis.Array.prototype`), not on the root
+  { id: 'defaulted-instance-proxy-surface', recv: 'globalThis', lhs: '{ Array: { prototype: { flat: m = nul } } }',
+    names: ['m'], observe: 'm === null ? "DEFAULT" : typeof m', strip: true },
+  { id: 'defaulted-instance-proxy-nav', recv: 'globalThis.globalThis', lhs: '{ Array: { prototype: { flat: m = nul } } }',
+    names: ['m'], observe: 'm === null ? "DEFAULT" : typeof m', strip: true },
+  { id: 'instance-proxy-surface', recv: 'globalThis', lhs: '{ Array: { prototype: { flat: m } } }',
+    names: ['m'], observe: 'typeof m', strip: true },
+  // ... and the SE-PREFIXED init of the same surface claim: the prefix rides INSIDE the dispatch (or
+  // lifts ahead of it), so the effect log answers whether it ran once, in source order
+  // ... and the kept WRITE, whose lifted statement STORES the value the nav then reads: `kw` is
+  // observed, so a lift that dropped the write shows as a wrong binding and not merely as an import
+  { id: 'instance-proxy-surface-kept-write', recv: '(kw = globalThis)',
+    lhs: '{ Array: { prototype: { flat: m } } }', names: ['m'],
+    observe: '[typeof m, kw === globalThis]', strip: true },
+  // ... and SEVERAL claims sharing that init: the prefix must run ONCE for all of them, so the row
+  // reads both bindings and the effect log answers whether any reader ran it a second time
+  { id: 'instance-proxy-surface-se-prefix-multi', recv: '(log.push("e"), globalThis)',
+    lhs: '{ Array: { prototype: { flat: m, at: m2 } } }', names: ['m', 'm2'],
+    observe: '[typeof m, typeof m2]', strip: true },
+  { id: 'instance-proxy-surface-se-prefix', recv: '(log.push("e"), globalThis)',
+    lhs: '{ Array: { prototype: { flat: m } } }', names: ['m'], observe: 'typeof m', strip: true },
+  // ... and the GETTER-backed capitalised hop off a USER object: a name that LOOKS like a built-in
+  // surface is still a user key, and an emitter that re-spelled it beside the surviving residual
+  // fired that getter twice where the source reads it once - the effect log is the oracle
+  { id: 'opaque-ctor-hop-getter', recv: '({ get Array() { log.push("g"); return { prototype: { flat: undefined } }; } })',
+    lhs: '{ Array: { prototype: { flat: m } } }', names: ['m'], observe: 'typeof m', strip: true },
+  // ... and its NEGATIVE twin one hop short: the chain stops at the object it reaches, where the
+  // leaf is a name match and not a surface claim - both legs keep the native slot
+  { id: 'instance-proxy-name-match', recv: 'globalThis', lhs: '{ Array: { keys: m } }',
+    names: ['m'], observe: 'typeof m', strip: true },
+  // ... and its MARKED twin: the `?.` must not buy the claim a route around that rule - the hop
+  // short-circuits the whole chain, so the question it answers is the plain one's
+  { id: 'marker-name-match', recv: 'globalThis?.globalThis', lhs: '{ Array: { keys: m } }',
+    names: ['m'], observe: 'typeof m', strip: true },
   { id: 'nested-proxy-multi', recv: 'globalThis', lhs: '{ Array: { from, of } }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
   { id: 'se-key', recv: 'Array', lhs: '{ [(log.push("k"), "from")]: f }', names: ['f'], observe: 'typeof f', strip: true },
   // SE-key off a CONSTANT-LITERAL receiver: the literal cannot be re-referenced, so the emitter
@@ -216,6 +280,20 @@ const D_HOSTS = [
   { id: 'decl', strip: true, build: p => `(() => { const ${ p.lhs } = ${ p.recv }; return ${ p.observe }; })()` },
   { id: 'param-default', strip: false, build: p => `(() => { function g(${ p.lhs } = ${ p.recv }) { return ${ p.observe }; } return g(); })()` },
   { id: 'assign', strip: false, build: p => `(() => { let ${ p.names.join(', ') }; (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+  // ASSIGNMENT hosts under an array WRAPPER and in a bodyless slot: the claim has no declaration to
+  // extract into, so it lands as an overwrite - and the raw slot beside it drops only when nothing
+  // reads it any more. the sole wrapper may shed the whole statement, the multi one keeps it (its
+  // neighbour still binds, and `zn` is observed for that), and the bodyless twin answers whether the
+  // overwrite stayed CONDITIONAL: the guard is false here, so a leg that hoisted it out of the slot
+  // binds where native leaves the initial value
+  { id: 'assign-array-wrap-sole', strip: false,
+    build: p => `(() => { let ${ p.names.join(', ') }; ([${ p.lhs }] = [${ p.recv }]); return ${ p.observe }; })()` },
+  { id: 'assign-array-wrap-multi', strip: false,
+    build: p => `(() => { let ${ p.names.join(', ') }, zn; ([${ p.lhs }, zn] = [${ p.recv }, 7]); return [zn, ${ p.observe }]; })()` },
+  { id: 'assign-bodyless-skipped', strip: false,
+    build: p => `(() => { let ${ p.names.join(', ') }; if (log.length < 0) (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+  { id: 'assign-bodyless-taken', strip: false,
+    build: p => `(() => { let ${ p.names.join(', ') }; if (log.length >= 0) (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
   // bodyless control-body declaration hosts: a polyfill extract emitted before the surviving residual must
   // share the body's `{ }` block with it. `var` is required (a bodyless body cannot host a lexical
   // declaration); `if (1)` / `while (0)` run the body once so the binding is assigned. without the block a
@@ -1583,8 +1661,15 @@ const KVC_VALUES = [
   // SE-bearing wrapper, the prefix effect stays alive and runs once
   ['seq-around-leaf', 'globalThis.self', { around: true }],
   ['seq-around-tail', 'globalThis.self.window', { around: true }],
-  // the COMPUTED spelling of a pristine hop rides the key-fold canon into the same collapse
+  // the COMPUTED spelling of a pristine hop rides the key-fold canon into the same collapse - at the
+  // LEAF the fold consumes it, in the TAIL the hop survives the collapse and must be re-hung in the
+  // source's own spelling (a tail respelled `.window` reads a different key on a computed name)
   ['computed-leaf', "globalThis['self']"],
+  ['computed-tail', "globalThis.self['window']"],
+  // ... and the tail key that CARRIES an effect: the hop survives the collapse, so its key node -
+  // and any claim inside it - travels into the render, which is what decides WHICH channel may
+  // spell it (a raw slot write would orphan the claim's own path and drop its polyfill)
+  ['computed-tail-se', 'globalThis.self[(log.push("k"), "window")]'],
   // TS wrappers around the value are transparent to the peel canon; the cast/non-null token
   // must neither block the collapse nor leak into the re-emitted spelling unbalanced
   ['ts-cast-leaf', 'globalThis.self as any', { ts: true }],
@@ -1626,11 +1711,10 @@ const KVC_CLAIMS = [
 const THIS_CLAIMS = [
   ['instance-optional', 'this?.at(0)'],
   ['instance-optional-call', 'this?.flat?.()'],
-  // ONE deliberate exclusion, and it is a finding, not a shape the axis declines to cover:
-  // `(this)?.at(-1)` diverges TODAY - the parenthesised receiver routes through the SE-peeling
-  // instance emitter on the unplugin leg and injects `instance/at`, while the bare twin stays
-  // native on both legs and babel (whose parser drops the paren) cannot even see the form.
-  // the row would be red on arrival, so it waits for the routing cluster that owns the split
+  // the parenthesised twin of the bare read: a wrapper is not a position, so both legs must answer
+  // it exactly as they answer `this?.at(-1)`. the row was red when the axis first ran - the
+  // this-escape scan counted the wrapper as a position - and it is the row that proves the fix
+  ['sealed-read', '(this)?.at(-1)'],
   ['symbol-membership', 'Symbol.iterator in Object(this)'],
   ['static-through-this', 'this?.constructor.name'],
 ];
@@ -3055,6 +3139,39 @@ function * generateSymbolIterProxyReceiver() {
   }
 }
 
+// --- How a `[Symbol.iterator]` lookup is CONSUMED ---
+// one rule decides which helper the lookup earns: a plain zero-arg call ON the lookup takes the
+// receiver-passing form, every other consumption takes the method form and leaves the call, its
+// `this` and its arguments to the source. The axis is the consumption, and the rows that discriminate
+// are the ones with something standing between the lookup and the call: a SEAL keeps the direct call
+// (the reference is still the callee, so `this` is still the receiver), a SEQUENCE does not - there
+// the source hands the iterator function an undefined `this` and owes a throw the receiver-passing
+// form would silently repair. Import parity is the sharp oracle here: the two forms are two entries
+const SYM_ITER_CONSUME = [
+  { id: 'read', expr: 'typeof arr[Symbol.iterator]' },
+  { id: 'call', expr: 'arr[Symbol.iterator]().next().value' },
+  { id: 'sealed-call', expr: '(arr[Symbol.iterator])().next().value' },
+  { id: 'sealed-optional-call', expr: '(arr?.[Symbol.iterator])().next().value' },
+  { id: 'optional-call', expr: 'arr?.[Symbol.iterator]().next().value' },
+  { id: 'optional-call-optional', expr: 'arr?.[Symbol.iterator]?.().next().value' },
+  { id: 'nullish-optional-call', expr: 'nul?.[Symbol.iterator]().next().value' },
+  // an ARGUMENT and `new` are the other two ways out of the direct form
+  { id: 'call-with-arg', expr: 'arr[Symbol.iterator](1).next().value' },
+  { id: 'new', expr: 'typeof new (arr[Symbol.iterator])()' },
+  // the SE seal: the receiver is gone by the time the function is called
+  { id: 'seq-callee', expr: '(log.push("c"), arr[Symbol.iterator])().next().value' },
+  { id: 'ts-cast-call', expr: '(arr[Symbol.iterator] as any)().next().value', ts: true },
+  { id: 'ts-nonnull-call', expr: 'arr[Symbol.iterator]!().next().value', ts: true },
+];
+
+function * generateSymbolIterConsume() {
+  for (const shape of SYM_ITER_CONSUME) {
+    const body = `(() => { try { return String(${ shape.expr }); }`
+      + ' catch (e) { return "throw:" + (e instanceof TypeError); } })()';
+    yield { ...snippet(`symbol-iter-consume/${ shape.id }`, body), ...shape.ts ? { ts: true } : {} };
+  }
+}
+
 // --- Single-key synth-swap param-default with a sequence-prefixed / fallback-logical MEMBER receiver ---
 // a single-key synth-swap param-default whose receiver is a proxy-global member behind a sequence prefix
 // (`(pre, globalThis.Array)`) or a fallback-logical (`(pre, globalThis.Array) || Set`). the synth literal
@@ -3845,6 +3962,11 @@ function * generateAssignAliasReassign() {
     // TWO writes of different ctors: no single hint can stand for the binding, so the guard has to
     // fall to the raw read on both arms
     { id: 'multi-write', pre: 'if (c) ', post: 'if (!c) ({ Promise: M } = globalThis);' },
+    // a user value whose method READS `this`: the guard puts the raw read in CALLEE position, where
+    // a bare member would be invoked with `this === undefined`. every other user-value row answers
+    // the same on both spellings, so this is the one that sees the rebind
+    { id: 'user-value-this', pre: 'if (c) ',
+      post: 'M = { tag: "U", groupBy() { return { get: () => this.tag }; }, get() { return this.tag; } };' },
   ];
   for (const write of NARROW_WRITES) {
     for (const read of NARROW_READS) {
@@ -5207,6 +5329,17 @@ const EXPR_FAMILIES = {
     '(() => { const r = "resolve" in (() => { log.push("r"); return Promise; })(); return [r, log.length]; })()',
     '(() => { let a; const r = "from" in (a = (() => { log.push("r"); return globalThis; })()).Array; return [r, a === globalThis, log.length]; })()',
     '(() => { const r = "from" in (log.push("s"), (() => { log.push("r"); return globalThis; })().Array); return [r, log.join("|")]; })()',
+  ],
+  // the `Symbol.iterator in X` fold whose LHS carries the effects: the LHS is DISCARDED whole, so
+  // its effects are re-prepended and the helper - which consumes the operand exactly as `in` did,
+  // throwing on a nullish one - stays at the TAIL of that sequence. before this family the fold's
+  // effectful-LHS arm had no runtime row at all: every `in` row here carried its effects on the RHS
+  'symbol-in-lhs-se': [
+    '(() => { const r = (log.push("k"), Symbol).iterator in arr; return [r, log.length]; })()',
+    '(() => { try { const r = (log.push("k"), Symbol).iterator in nul; return [r, log.length]; }'
+      + ' catch (e) { return ["throw", log.length]; } })()',
+    '(() => { const r = (log.push("k"), Symbol)["iterator"] in arr; return [r, log.length]; })()',
+    '(() => { const r = ((() => { log.push("r"); return Symbol; })()).iterator in arr; return [r, log.length]; })()',
   ],
   'deep-proxy': [
     'globalThis.globalThis.Array.from([1, 2])',
@@ -7052,6 +7185,7 @@ export function * generate() {
   yield * generateNewArgMember();
   yield * generateOptionalProxyPureCall();
   yield * generateSymbolIterProxyReceiver();
+  yield * generateSymbolIterConsume();
   yield * generateSynthSwapSeqReceiver();
   yield * generateNestedMirrorMixed();
   yield * generateReceiverCopyShape();
