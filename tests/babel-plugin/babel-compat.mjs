@@ -372,23 +372,24 @@ for (const { kind, code, pick, to } of DEOPT_CASES) {
     optTail.node.type, 'MemberExpression');
 }
 
-// --- unwrapTSExpressionParent ---
-
-// identifier inside TSAsExpression: parent walk peels TS wrapper, returns first non-TS path
-{
-  const { helpers, program } = setup('(arr as any).includes(1);');
-  const innerArrPath = pickIdent(program, 'arr');
-  const unwrapped = helpers.unwrapTSExpressionParent(innerArrPath);
-  check('unwrapTSExpressionParent/peels TSAsExpression wrapper',
-    unwrapped.node.type, 'TSAsExpression');
-}
-
-// no wrapper: returns same path
-{
-  const { helpers, program } = setup('let x;');
-  const idPath = pickIdent(program, 'x');
-  const unwrapped = helpers.unwrapTSExpressionParent(idPath);
-  check('unwrapTSExpressionParent/no wrapper returns same path', unwrapped, idPath);
+// the seal question asked by a CHANNEL, in both parser modes: the two dialects spell one source
+// two ways (a flag on the wrapped node, or a ParenthesizedExpression above it), so a site that
+// reads only one of them answers differently per mode - and this pair of channels then routed the
+// same source through different arms. the predicate is the one place that knows both spellings
+for (const parserOpts of [{}, { createParenthesizedExpressions: true }]) {
+  const mode = parserOpts.createParenthesizedExpressions ? 'node' : 'flag';
+  const { helpers, program } = setup('(nav.tag)`x`;', ['typescript'], parserOpts);
+  const memberPath = pickPath(program, 'MemberExpression', p => p.node.property?.name === 'tag');
+  check(`seal-both-spellings/${ mode }: a sealed tag reads as wrapped`,
+    helpers.isWrappedInParens(memberPath), true);
+  const { helpers: h2, program: p2 } = setup('(nav.fn)();', ['typescript'], parserOpts);
+  const calleePath = pickPath(p2, 'MemberExpression', p => p.node.property?.name === 'fn');
+  check(`seal-both-spellings/${ mode }: a sealed callee reads as wrapped`,
+    h2.isWrappedInParens(calleePath), true);
+  const { helpers: h3, program: p3 } = setup('nav.tag`x`;', ['typescript'], parserOpts);
+  const barePath = pickPath(p3, 'MemberExpression', p => p.node.property?.name === 'tag');
+  check(`seal-both-spellings/${ mode }: an unsealed tag reads as bare`,
+    h3.isWrappedInParens(barePath), false);
 }
 
 // --- isWrappedInParens (exercised via replaceInstanceLike paren-lookup-only branch) ---
@@ -686,7 +687,7 @@ function countOr(n) {
 
 // callerPath unwraps TS wrappers BETWEEN the MemberExpression and the enclosing call.
 // `(arr.includes as any)(1)` shape: TSAsExpression sits between MemberExpression and the
-// CallExpression, so unwrapTSExpressionParent peels it before replacePath
+// CallExpression, so the canon slot peel reaches it before replacePath
 {
   const { helpers, program } = setup('let p = (arr.includes as any)(1);');
   const [stmt] = runSimple(helpers, program, '_includes');

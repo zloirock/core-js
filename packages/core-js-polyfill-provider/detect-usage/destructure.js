@@ -37,6 +37,7 @@ import {
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   computedKeyHasSideEffects,
+  isRestProperty,
   isValidIdentifierName,
   objectPatternLiteralKeyPath,
   mayHaveSideEffects,
@@ -59,6 +60,8 @@ import {
   isBareUndefinedIdentifier,
   isNullLiteralNode,
   isReassignedBeyondDeclarator,
+  isDestructurePattern,
+  aliasDeclScope,
 } from '../helpers/ast-patterns.js';
 import {
   assignmentAliasHintSoundAtRead,
@@ -73,6 +76,7 @@ import { identifier, memberFromKeyName, objectExpression, synthProperty } from '
 import { entryToGlobalHint, resolve as resolveBuiltIn } from '../index.js';
 import { staticReceiverHint } from './globals.js';
 import {
+  CAPITALISED_IDENT,
   peelReceiverSequenceTail,
   discardRescueNodes,
   inlineCallReturnExpression,
@@ -476,7 +480,7 @@ function resolveIndirectBranchingReceiver({ node, scope, adapter, path, seen = n
       // advance to the followed binding's own scope, like the sibling const-alias walkers - a
       // later hop reading a name declared in an OUTER scope must resolve it there, not against
       // the receiver-use scope (an inner shadow of that name would swallow the branching value)
-      scope = binding.scope ?? scope;
+      scope = aliasDeclScope(binding, scope);
     } else if (isCallShape(cur)) {
       const ret = inlineCallReturnExpression({ callNode: cur, scope, adapter, seen, path });
       if (!ret) return null;
@@ -1073,7 +1077,7 @@ export function chooseFallbackReceiverNode({
 export function planSideEffectKeyStrategy({
   polyfillKind, isForInit, isMultiDeclarator, receiverNode = null,
   soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
-  memoHoistKeepsOrder = false, slotDropsAlone = false,
+  memoHoistKeepsOrder = false, slotDropsAlone = false, receiverCarriesInit = false,
 }) {
   const instance = polyfillKind === 'instance';
   const siblingDeclarator = !!(isForInit || (isMultiDeclarator && instance));
@@ -1081,7 +1085,11 @@ export function planSideEffectKeyStrategy({
   // (`{ [(eff(), 'k')]: f }` keeps the key in place so the effect still runs - dropping it would lose `eff()`).
   // a sibling-declarator host (for-init / multi-declarator) shares its declaration, so the slot can only
   // drop where the host renders one statement per declarator (`slotDropsAlone`) - a loop header cannot
-  const eliminateResidual = soleBindingInDeclaration && initIsPure && propKeyIsPure
+  // ... and an init whose effects RIDE the receiver node - the caller spelled the whole init into the
+  // dispatch (`_flat((eff(), Array.prototype))`, the flat canon's own shape) - leaves nothing for the
+  // residual to preserve: what the drop discards is a read the extraction now performs itself, in
+  // source order, exactly once
+  const eliminateResidual = soleBindingInDeclaration && (initIsPure || receiverCarriesInit) && propKeyIsPure
     && (!siblingDeclarator || slotDropsAlone);
   // memoize the receiver into a shared `_ref` read once by both the residual and the extract:
   //   - a CONSTANT array / object literal, so the surviving residual doesn't keep a duplicate of the
@@ -1285,6 +1293,119 @@ export function isSeFreeMemberReceiver(node) {
     && !mayHaveSideEffects(node);
 }
 
+// a nav a SECOND read may spell: every hop names a BUILT-IN surface - a global proxy, a
+// constructor-shaped name or `prototype` - which is what the polyfill already models as stable and
+// re-spells freely (`globalThis.Array.prototype` stands in the residual and in the dispatch beside
+// it). a USER key may be a getter, so a caller that keeps the source's own read next to its own can
+// never re-spell one (`recvF.codes` fired twice where the source reads it once, and so would
+// `globalThis.navigator`); such a caller has only the MEMO route `isSeFreeMemberReceiver` names
+// `allowOptionalHops` answers the same question about a nav the source wrote with `?.`: the hop
+// short-circuits the WHOLE chain, so both a residual and a re-spelling read the same value - what
+// the flag must never do is let a caller dispatch on a nav it did not otherwise accept
+export function isBuiltInSurfaceNav(node, options = undefined) {
+  let cur = node;
+  let hops = 0;
+  while ((cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression')
+    && !cur.computed && cur.property?.type === 'Identifier'
+    && (cur.property.name === 'prototype' || POSSIBLE_GLOBAL_OBJECTS.has(cur.property.name)
+      || CAPITALISED_IDENT.test(cur.property.name))) {
+    // an OPTIONAL hop ends the walk unless the caller says it reads the same value twice: the root
+    // check below then fails on the member it stopped at, which is the answer this always gave
+    if (cur.optional && !options?.allowOptionalHops) break;
+    hops++;
+    cur = cur.object;
+  }
+  return hops > 0 && (cur?.type === 'Identifier' || cur?.type === 'ThisExpression');
+}
+
+// ... and the SECOND-READ form of the same question: a nav re-spelled BESIDE a surviving residual
+// must be rooted in the built-in namespace itself - a plugin-minted alias (`_globalThis`), a global
+// proxy or a constructor-shaped name. a capitalised hop off a USER object is a user key, and
+// re-reading it fires that object's getter twice (`({ Array: { prototype: { flat: m } } } = src)`
+// fired `src`'s `Array` getter twice where the source reads it once)
+export function isReReadableSurfaceNav(node, isOwnAlias = null, opts = undefined) {
+  if (!isBuiltInSurfaceNav(node, opts)) return false;
+  let cur = node;
+  while (cur?.type === 'MemberExpression' || cur?.type === 'OptionalMemberExpression') cur = cur.object;
+  if (cur?.type !== 'Identifier') return false;
+  // the alias this plugin minted in place (`globalThis` -> `_globalThis`) is the built-in namespace
+  // under another name; the INJECTOR is what knows it, and that is per-leg state, so the caller
+  // brings the lookup and the rule stays here
+  return POSSIBLE_GLOBAL_OBJECTS.has(cur.name) || CAPITALISED_IDENT.test(cur.name)
+    || !!isOwnAlias?.(cur.name);
+}
+
+// ... and the nested INSTANCE surface is that nav ending at `prototype`: the last hop is what makes
+// a leaf an instance claim on a REAL surface (`globalThis.Array.prototype`) instead of a name match
+// on whatever object the chain happens to reach (`globalThis.Array.keys`, kept native by both legs)
+export function isInstanceSurfaceNav(node, opts = undefined) {
+  return (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
+    && !node.computed && node.property?.type === 'Identifier' && node.property.name === 'prototype'
+    && isBuiltInSurfaceNav(node, opts);
+}
+
+// the two AST flavors of an object-pattern property - the walk below climbs through either
+const PATTERN_PROP_TYPES = new Set(['ObjectProperty', 'Property']);
+
+// ONE climb, three questions. the levels from the consumed prop up to its host, each with what it
+// KEEPS - a surviving sibling, a rest - and whether the climb reached the assignment at all. the
+// SOLE-element array wrapper is the one transparent step between levels: a wrapper with siblings has
+// no way to drop, so the climb ends there like at any other non-hop parent
+function consumedAssignmentSlotLevels(propPath) {
+  const levels = [];
+  let pattern = propPath.parentPath;
+  for (;;) {
+    if (pattern?.node?.type !== 'ObjectPattern') return { levels, reachesAssignment: false };
+    let parent = pattern.parentPath;
+    let below = pattern.node;
+    while (parent?.node?.type === 'ArrayPattern'
+      && parent.node.elements.length === 1 && parent.node.elements[0] === below) {
+      below = parent.node;
+      parent = parent.parentPath;
+    }
+    const root = parent?.node?.type === 'AssignmentExpression' && parent.node.left === below;
+    levels.push({
+      props: pattern.node.properties.length,
+      hasRest: pattern.node.properties.some(isRestProperty),
+      root,
+    });
+    if (root) return { levels, reachesAssignment: true };
+    if (!PATTERN_PROP_TYPES.has(parent?.node?.type)) return { levels, reachesAssignment: false };
+    pattern = parent.parentPath;
+  }
+}
+
+// the slot an assignment-host OVERWRITE consumes can leave the residual behind: the dispatch re-spells
+// what the raw pattern read, so the prop drops, every hop pattern it empties drops with it, and an
+// emptied TOP takes the statement. asked BEFORE the dispatch renders, since a pruned slot never runs
+// the source default. a level that KEEPS something ends the climb prunable - the prop drops and the
+// residual keeps its shape - and so does reaching the assignment. a COMPUTED key keeps its slot
+// outright: it is the one part of the pattern the dispatch never re-spells, so the slot runs the key
+export function consumedAssignmentSlotPrunes(propPath) {
+  if (propPath?.parentPath?.node?.type !== 'ObjectPattern' || propPath.node.computed) return false;
+  const { levels, reachesAssignment } = consumedAssignmentSlotLevels(propPath);
+  return levels.some(level => level.props > 1 || level.hasRest) || reachesAssignment;
+}
+
+// ... and the sharper question the RECEIVER gate asks: does the residual stop reading the NAV
+// altogether? every hop the nav spells has to drop with the slot - a hop kept alive by a surviving
+// sibling (`{ y: { flat: m, other } }`) or renamed under a rest leaves the residual reading it beside
+// the dispatch, the double read the re-read gate exists to forbid. only the ROOT pattern may keep
+// siblings: what they read is the assignment's own receiver, not a hop of the nav
+export function consumedAssignmentSlotDropsNav(propPath) {
+  if (!consumedAssignmentSlotPrunes(propPath)) return false;
+  const { levels, reachesAssignment } = consumedAssignmentSlotLevels(propPath);
+  return reachesAssignment && levels.every(level => !level.hasRest && (level.root || level.props === 1));
+}
+
+// ... and the last of the three: does the HOST die with the slot? every level up to the assignment
+// has to be sole and rest-free, the root included - a surviving sibling keeps the statement, and with
+// it the block an unbraced control slot then needs to hold both it and the dispatch
+export function consumedAssignmentSlotDropsHost(propPath) {
+  if (!consumedAssignmentSlotDropsNav(propPath)) return false;
+  return consumedAssignmentSlotLevels(propPath).levels.every(level => level.props === 1);
+}
+
 // intermediate slots on the walk from an inner destructure prop up to its host - both AST flavors
 // (babel `ObjectProperty` / estree `Property`); `VariableDeclarator` passes through so a declaration
 // host terminates the walk at its declaration like the assignment / param hosts do at theirs
@@ -1413,11 +1534,12 @@ export function resolveNestedReceiverChain(leafPath) {
   return null;
 }
 
-export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = false, allowSePeeledFragment = false } = {}) {
+export function resolveNestedReceiverNode(leafPath,
+  { allowSeFreeSingleRead = false, allowSePeeledFragment = false, allowNavSegments = false } = {}) {
   const elidedPrefixes = [];
   const segs = [];
   let pattern = leafPath.parentPath;
-  while (pattern?.node?.type === 'ObjectPattern' || pattern?.node?.type === 'ArrayPattern') {
+  while (isDestructurePattern(pattern?.node)) {
     const owner = pattern.parentPath;
     const ownerType = owner?.node?.type;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
@@ -1442,24 +1564,54 @@ export function resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead = fa
     const rhs = ownerType === 'VariableDeclarator' ? owner.node.init
       : ownerType === 'AssignmentExpression' ? owner.node.right : null;
     if (!rhs) return null;
-    let node = unwrapCollectingSePrefixes(rhs, elidedPrefixes);
+    // a kept WRITE is a prefix like any other for a caller that keeps it: the residual still performs
+    // it (the overwrite hosts) or the render lifts it (the extraction hosts), and the value it stores
+    // is the receiver the claim reads. only that caller asks - the flag is its promise. the peel rides
+    // EVERY descent step, not just the init: a wrapper slot may hold the write (`[(kw = globalThis)]`)
+    function peelToValue(from) {
+      let cur = unwrapCollectingSePrefixes(from, elidedPrefixes);
+      if (!allowSePeeledFragment) return cur;
+      while (cur?.type === 'AssignmentExpression' && cur.operator === '=') {
+        elidedPrefixes.push(cur);
+        cur = unwrapCollectingSePrefixes(cur.right, elidedPrefixes);
+      }
+      return cur;
+    }
+    let node = peelToValue(rhs);
     for (const seg of segs) {
       // an OBJECT-pattern key can still name an array SLOT (`{ 0: { at } } = [[1, 2]]` reads property
       // '0' off the array, exactly as the language does), so ONE canonical index read serves both
       // segment kinds: an array pattern's positional segment and a key that spells that same index
       const element = arrayLiteralSlotValue(node, seg.index === undefined ? seg.key : seg.index);
       if (element) {
-        node = unwrapCollectingSePrefixes(element, elidedPrefixes);
+        node = peelToValue(element);
         continue;
       }
-      // a positional segment carries no property name to look up instead
-      if (seg.index !== undefined || node?.type !== 'ObjectExpression') return null;
-      // last match wins (duplicate keys); only plain non-computed data properties resolve, and a
-      // trailing spread that could override the matched key bails (canonical helper)
-      const match = findObjectKeyBeforeSpread(node.properties, p => !p.computed
-        && plainSynthKeyName(p.key) === seg.key);
-      if (!match) return null;
-      node = unwrapCollectingSePrefixes(match.value, elidedPrefixes);
+      // a positional segment carries no property name to look up instead; last match wins
+      // (duplicate keys), only plain non-computed data properties resolve, and a trailing spread
+      // that could override the matched key bails (canonical helper)
+      const match = seg.index === undefined && node?.type === 'ObjectExpression'
+        ? findObjectKeyBeforeSpread(node.properties, p => !p.computed && plainSynthKeyName(p.key) === seg.key)
+        : null;
+      if (match) {
+        node = peelToValue(match.value);
+        continue;
+      }
+      // ... and where no LITERAL holds the slot, a receiver that is a nav is still readable, for a
+      // caller that ASKS: an identifier or an SE-free member chain spells the remaining segments as
+      // its own member reads, which is what the source itself does (`{ Array: { prototype: { flat } } }
+      // = globalThis` reads `globalThis.Array.prototype`). the option is the caller's promise that
+      // its render reads that nav ONCE - every other caller keeps the literal-only walk, where the
+      // null is what tells it to take another channel
+      if (allowNavSegments && (isReReferenceableReceiver(node) || isSeFreeMemberReceiver(node))) {
+        if (!allowSePeeledFragment && elidedPrefixes.some(mayHaveSideEffects)) return null;
+        let spelled = node;
+        for (const rest of segs.slice(segs.indexOf(seg))) {
+          spelled = memberFromKeyName(spelled, rest.index === undefined ? rest.key : String(rest.index));
+        }
+        return spelled;
+      }
+      return null;
     }
     if (!allowSePeeledFragment && elidedPrefixes.some(mayHaveSideEffects)) return null;
     if (isReReferenceableReceiver(node)) return node;
@@ -1871,7 +2023,7 @@ function walkStaticReceiverStep({
       if (hop.leaf) return hop.leaf;
       if (hop.follow) {
         current = unwrapTransparentSeq(hop.follow);
-        currentScope = binding.scope ?? currentScope;
+        currentScope = aliasDeclScope(binding, currentScope);
         readNode = hop.follow;
         continue;
       }
@@ -1889,7 +2041,7 @@ function walkStaticReceiverStep({
       if (!blocked) return null;
       containerName = current.name;
       current = unwrapTransparentSeq(blocked);
-      currentScope = binding.scope ?? currentScope;
+      currentScope = aliasDeclScope(binding, currentScope);
       // the reaching value was READ at its write site - the next hop's dominance proofs anchor
       // there (`a = b; b = x; a.k` captured b BEFORE `b = x`, which therefore does not block)
       readNode = blocked;
@@ -1911,7 +2063,7 @@ function walkStaticReceiverStep({
     // spells, and the descent has to consult that before trusting the initial member
     containerName = current.name;
     current = unwrapTransparentSeq(initNode);
-    currentScope = binding.scope ?? currentScope;
+    currentScope = aliasDeclScope(binding, currentScope);
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
   }
   return walkStaticReceiverTerminal({
@@ -2205,7 +2357,7 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
       const reaching = reachingContainerValueNode({ binding, adapter, path, readNode, scope });
       if (!reaching) break;
       cur = unwrapExpressionChain(peelChainAssignmentDeep(reaching));
-      scope = binding.scope ?? scope;
+      scope = aliasDeclScope(binding, scope);
       readNode = reaching;
       captureSite = readNode;
       continue;
@@ -2213,7 +2365,7 @@ function followConstIdentifierInit(cur, scope, adapter, path) {
     const initNode = binding.path?.node?.init ?? binding.node?.init;
     if (!initNode) break;
     cur = unwrapExpressionChain(peelChainAssignmentDeep(initNode));
-    scope = binding.scope ?? scope;
+    scope = aliasDeclScope(binding, scope);
     readNode = (binding.path?.node ?? binding.node) ?? readNode;
     captureSite = readNode;
   }

@@ -11484,6 +11484,36 @@ for (const [label, source, want] of PROMISE_COMBINATOR_ROWS) {
   });
 }
 
+// --- a transparent wrapper is not a POSITION ---
+
+// the this-escape scan decides what a method does with `this` by the position each `this` sits in,
+// and it walks NODES. a paren or a TS cast holds the value without reading it, so the position is
+// the one ABOVE the wrapper - counted as a position itself it answered "handed out", the object's
+// closure stopped being provable, and the receiver lost its type. only one parser keeps parens as
+// real nodes, so the two answered the same source differently until the wrapper became transparent
+// here. each row asserts the WRAPPED spelling resolves exactly as its bare twin does
+for (const [label, wrap] of [
+  ['bare', 'this'],
+  ['paren', '(this)'],
+  ['double paren', '((this))'],
+  ['cast', '(this as any)'],
+  ['non-null', 'this!'],
+]) {
+  runBoth(`this in an Array subclass method, ${ label }`,
+    `class C extends Array { m() { return ${ wrap }.at(-1); } }`, arrayAtReceiver);
+  // ... and through an ALIAS the same rule holds: the wrapper is not the position the alias sits in
+  runBoth(`this aliased out of an Array subclass method, ${ label }`,
+    `class C extends Array { m() { const self = ${ wrap }; return self.at(-1); } }`, arrayAtReceiver);
+}
+
+// the negative the rule must not swallow: a `this` genuinely HANDED OUT still breaks the closure,
+// wrapper or not - the wrapper is transparent, not exculpatory
+for (const [label, wrap] of [['bare', 'this'], ['paren', '(this)']]) {
+  runBoth(`this handed to a sink, ${ label }`,
+    `declare const sink: (x: any) => void;\nclass C extends Array { m() { sink(${ wrap }); return this.at(-1); } }`,
+    dropAtReceiver);
+}
+
 // --- call sites of the predicates the cycle changed ---
 // isMethodMember decides the scan roots of the class-field write flow: a bodyless member
 // must neither become a root nor hide the writes the concrete members carry.
