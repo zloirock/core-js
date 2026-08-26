@@ -14,43 +14,54 @@ import { shouldDropRescueReceiver } from '@core-js/polyfill-provider/detect-usag
 import {
   discardRescueNodes,
   findProxyGlobal,
+  peelChainRootValue,
   peelReceiverSequenceTail,
-  proxyReceiverValueCanBeUndefined,
   proxyGlobalMemberCtorPure,
+  proxyReceiverValueCanBeUndefined,
   resolveObjectName,
   resolveSynthKeys,
   sealedChainBoundary,
   sealedClaimLeafGuardPlan,
+  undefinableOptionalGuard,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  spreadShiftsIndex,
   arrayWrapperNeighbourEffect,
-  patternBindingCount,
-  POSSIBLE_GLOBAL_OBJECTS,
-  SINGLE_STATEMENT_SLOTS,
-  TS_EXPR_WRAPPERS,
   computedKeyHasSideEffects,
   followConstLiteralAlias,
+  hasRestSiblingExcept,
+  isDestructurePattern,
   isNonReferencePosition,
   isPristineProxyGlobal,
-  isValidIdentifierName,
-  memberKeyName,
   isSynthSimpleObjectPattern,
+  isValidIdentifierName,
   mayHaveSideEffects,
+  memberKeyName,
+  patternBindingCount,
+  peelParenAndTSParentPath,
+  peelSkippableWrapperPath,
+  peelTransparentExpr,
+  POSSIBLE_GLOBAL_OBJECTS,
+  SINGLE_STATEMENT_SLOTS,
+  spreadShiftsIndex,
   statementListOf,
-  hasRestSiblingExcept,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ownEmittedPatternClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
 import { walkAstNodes } from './plugin-helpers.js';
 import { cloneStamped, nodeSite } from './nav-spine.js';
 
-import { mintedProxyGlobalName, memberFromKeyName, proxyStoreIsSpellable, replaceNodeInTree, stampReplacementSpan } from './emit-shared.js';
+import {
+  memberFromKeyName,
+  mintedProxyGlobalName,
+  proxyStoreIsSpellable,
+  replaceNodeInTree,
+  stampReplacementSpan,
+} from './emit-shared.js';
 import {
   assignmentExpression,
-  binaryExpression,
   callExpression,
   cloneNode,
-  conditionalExpression,
   expressionStatement,
   identifier,
   literal,
@@ -58,9 +69,10 @@ import {
   sequenceExpression,
   variableDeclaration,
   variableDeclarator,
-  voidZero,
   nullFirstGuardTest,
+  renderInstanceDefaultGuard,
   renderShortCircuitGuard,
+  renderStaticDefaultGuard,
 } from './builders.js';
 
 // the AST engine's destructure pipeline - the STAGED port of babel's destructure-emitter
@@ -73,19 +85,6 @@ import {
 // that shifts into the removed prop's slot, and the drain sidesteps that class entirely -
 // it also means a prop VALUE rewritten by the ordinary visitors (a polyfilled default) is
 // already in place when the residual is rebuilt
-export function peelWrappers(node) {
-  while (node && (node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(node.type))) node = node.expression;
-  return node;
-}
-
-// ... and through the chain wrapper an inner `?.` wears, which a NAV walk reads past: the
-// short-circuit itself lives on the hop nodes, not on the wrapper
-export function peelNavWrappers(node) {
-  let cur = peelWrappers(node);
-  while (cur?.type === 'ChainExpression') cur = peelWrappers(cur.expression);
-  return cur;
-}
-
 export function propLocalName(prop) {
   return prop.value.type === 'AssignmentPattern' ? prop.value.left.name : prop.value.name;
 }
@@ -117,7 +116,7 @@ export function emitAssignStaticDefaultOverwrite({ hostParent, prop, pattern, ch
   const discardable = isPureNavReceiver(hostParent.node.right)
     || allProxySelectingInit(hostParent.node.right, { adapter: ctx.adapter, injectorState: ctx.injectorState })
     || staticallySelectedLeft({
-      selecting: peelWrappers(hostParent.node.right), meta: null, metaPath,
+      selecting: peelTransparentExpr(hostParent.node.right), meta: null, metaPath,
       soleBinding: true,
       chain,
       adapter: ctx.adapter,
@@ -170,7 +169,7 @@ export function classifyDeclarationHost(hostParent) {
 export function defaultedSoleConsumes({ forInit, prop, soleBinding, chain, kind, declarator }) {
   if (forInit || prop.value.type !== 'AssignmentPattern' || !soleBinding || chain.length !== 0) return false;
   if (kind !== 'instance' && mayHaveSideEffects(declarator.init)) return false;
-  const inner = peelWrappers(declarator.init);
+  const inner = peelTransparentExpr(declarator.init);
   return inner?.type !== 'ConditionalExpression' && inner?.type !== 'LogicalExpression';
 }
 
@@ -178,7 +177,7 @@ export function defaultedSoleConsumes({ forInit, prop, soleBinding, chain, kind,
 // asked on the PRISTINE tree: the collapse folds that key away, and the harvested effect then
 // looks like any other statement-level one
 export function navSpineHasComputedKeyEffect(initNode) {
-  for (let cur = peelWrappers(initNode); cur?.type === 'MemberExpression'; cur = peelWrappers(cur.object)) {
+  for (let cur = peelTransparentExpr(initNode); cur?.type === 'MemberExpression'; cur = peelTransparentExpr(cur.object)) {
     if (cur.computed && mayHaveSideEffects(cur.property)) return true;
   }
   return false;
@@ -194,10 +193,10 @@ export function navSpineHasComputedKeyEffect(initNode) {
 export function initRawKeyOnRoot(initNode) {
   // a leading SE sequence is transparent: its own prefix rides the same lift
   // (`(e++, globalThis[(e++, 'Symbol')])`)
-  let init = peelWrappers(initNode);
-  while (init?.type === 'SequenceExpression') init = peelWrappers(init.expressions.at(-1));
+  let init = peelTransparentExpr(initNode);
+  while (init?.type === 'SequenceExpression') init = peelTransparentExpr(init.expressions.at(-1));
   return init?.type === 'MemberExpression' && init.computed && mayHaveSideEffects(init.property)
-    && peelWrappers(init.object)?.type === 'Identifier';
+    && peelTransparentExpr(init.object)?.type === 'Identifier';
 }
 
 // a SEQUENCE root DIRECTLY under the claimed key: the collapse rebuilds the whole read as
@@ -205,23 +204,23 @@ export function initRawKeyOnRoot(initNode) {
 // (`(e++, globalThis).Promise` lifts `(e++, _Promise)`). a PROXY HOP between them is the other
 // shape - there the read collapses whole and only the effect survives
 export function initSeqDirectClaim(initNode) {
-  const init = peelWrappers(initNode);
+  const init = peelTransparentExpr(initNode);
   if (init?.type !== 'MemberExpression' || init.computed) return false;
-  const base = peelWrappers(init.object);
+  const base = peelTransparentExpr(init.object);
   if (base?.type !== 'SequenceExpression'
     || base.expressions.slice(0, -1).every(expr => !mayHaveSideEffects(expr))) return false;
   // the tail must be the BARE root: a NAV tail collapses whole with its hops and leaves only
   // the effect (`(c++, globalThis.self).Map` -> `c++;`)
-  return peelWrappers(base.expressions.at(-1))?.type === 'Identifier';
+  return peelTransparentExpr(base.expressions.at(-1))?.type === 'Identifier';
 }
 
 export function buriedKeyClaimInit(initNode) {
   // a leading SE sequence is transparent: the buried key sits in its TAIL
-  let init = peelWrappers(initNode);
-  while (init?.type === 'SequenceExpression') init = peelWrappers(init.expressions.at(-1));
+  let init = peelTransparentExpr(initNode);
+  while (init?.type === 'SequenceExpression') init = peelTransparentExpr(init.expressions.at(-1));
   if (init?.type !== 'MemberExpression' || !init.computed || !mayHaveSideEffects(init.property)) return false;
-  let root = peelWrappers(init.object);
-  while (root?.type === 'MemberExpression') root = peelWrappers(root.object);
+  let root = peelTransparentExpr(init.object);
+  while (root?.type === 'MemberExpression') root = peelTransparentExpr(root.object);
   return root?.type === 'Identifier';
 }
 
@@ -229,10 +228,10 @@ export function buriedKeyClaimInit(initNode) {
 // asked on the PRISTINE tree: by drain time the collapse may have eaten the member above it, and
 // only the source shape tells this from an effect buried in a computed KEY
 export function initSeqRootHasKeptWrite(initNode) {
-  const init = peelWrappers(initNode);
-  const base = init?.type === 'MemberExpression' ? peelWrappers(init.object) : null;
+  const init = peelTransparentExpr(initNode);
+  const base = init?.type === 'MemberExpression' ? peelTransparentExpr(init.object) : null;
   return base?.type === 'SequenceExpression' && base.expressions.some(expr => {
-    const stored = peelWrappers(expr);
+    const stored = peelTransparentExpr(expr);
     return stored?.type === 'AssignmentExpression' && stored.operator === '=';
   });
 }
@@ -250,14 +249,22 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   removeConsumedProps,
   reanchorSoleCtorHopResidual,
 }) {
-  if (jobs.some(job => job.sentinel)) return;
+  const sentinelKept = jobs.some(job => job.sentinel);
   const statements = jobs.map(job => expressionStatement(
     assignmentExpression('=', propBindingTarget(job.prop), job.value())));
-  // the lifted SE prefix runs first, once
-  const [{ seqPrefix }] = jobs;
-  if (seqPrefix?.length) statements.unshift(...seqPrefix.map(expr => expressionStatement(expr)));
+  // the lifted SE prefix runs first, once - re-derived from the CURRENT right, the way the statement
+  // drain derives its own: the walk rewrites the claims INSIDE the prefix in place, and the nodes the
+  // job recorded are the pre-rewrite originals (lifting those printed a native `log.push` where the
+  // statement host prints the polyfilled one)
+  const [{ seqPrefix, assignment: bodylessAssign }] = jobs;
+  const peeledRight = peelTransparentExpr(bodylessAssign.right);
+  const liveSeq = seqPrefix?.length && peeledRight?.type === 'SequenceExpression'
+    && peeledRight.expressions.length === seqPrefix.length + 1 ? peeledRight.expressions : null;
+  const prefixExprs = liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? [];
+  if (prefixExprs.length) statements.unshift(...prefixExprs.map(expr => expressionStatement(expr)));
   removeConsumedProps(jobs);
-  const [{ assignment: bodylessAssign }] = jobs;
+  // a SURVIVING residual then reads the quiet tail the prefix left behind
+  if (liveSeq && bodylessAssign.left.properties?.length) bodylessAssign.right = liveSeq.at(-1);
   // the memo verdict needs the residual as it SURVIVES - after the consumed props leave
   const memoRef = assignmentMemoRef(bodylessAssign, jobs, mintRefName);
   const memoInit = memoRef ? bodylessAssign.right : null;
@@ -274,16 +281,41 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body: statements })) markRewrite();
     return;
   }
+  // a SENTINEL residual rides the block as it stands: the slot keeps what it renames - a rest must
+  // go on excluding the key, an SE key must still run where the source wrote it - and the extraction
+  // joins it. the ORDER is what the residual OWES: an SE key runs before the lookup it feeds, so the
+  // residual leads there; a rest exclusion owes nothing and follows the extraction
+  if (sentinelKept) {
+    if (seqPrefix?.length || mayHaveSideEffects(bodylessAssign.right)) return;
+    const mintedNames = jobs.flatMap(job => job.mintedSentinels ?? []);
+    const varDecl = mintedNames.length
+      ? [variableDeclaration('var', mintedNames.map(name => variableDeclarator(identifier(name))))] : [];
+    const residual = expressionStatement(bodylessAssign);
+    const seKeyFirst = jobs.some(job => job.sentinel && job.prop.computed && computedKeyHasSideEffects(job.prop));
+    // the sentinel `var` LEADS the block whatever the order below: it declares, it does not run, and
+    // that is where the other leg plants it
+    const body = seKeyFirst
+      ? [...varDecl, residual, ...statements]
+      : [...varDecl, ...statements, residual];
+    if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
+    return;
+  }
   // a SURVIVING residual rides the same block: it re-anchors on the hop's own pure and
   // runs FIRST, the extractions after it (`if (c) { ({ customI } = _Iterator); g =
   // _Iterator$zip; }`). without this the consumed props were already gone and their
   // extractions were dropped on the floor - the bindings never got written
   if (bodylessAssign.left.properties.length !== 0) {
-    if (seqPrefix?.length || mayHaveSideEffects(bodylessAssign.right)) return;
+    // a lift we could not re-derive as a TAIL would be re-run by the residual beside it
+    if (prefixExprs.length && !liveSeq) return;
     const view = { id: bodylessAssign.left, init: bodylessAssign.right };
-    if (!reanchorSoleCtorHopResidual(view)) return;
-    bodylessAssign.left = view.id;
-    bodylessAssign.right = view.init;
+    if (reanchorSoleCtorHopResidual(view)) {
+      bodylessAssign.left = view.id;
+      bodylessAssign.right = view.init;
+    } else if (jobs.some(job => job.readsReceiver)) {
+      // ... and an extraction that READS the receiver needs the memo this shape has no slot for:
+      // the residual reads it too, and native reads once
+      return;
+    }
     statements.unshift(expressionStatement(bodylessAssign));
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body: statements })) markRewrite();
     return;
@@ -299,7 +331,7 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
 
 export function assignmentMemoRef(assignment, jobs, mintRefName) {
   if (jobs.every(job => !job.readsReceiver) || jobs.some(job => job.seqPrefix?.length)) return null;
-  const right = peelWrappers(assignment.right);
+  const right = peelTransparentExpr(assignment.right);
   if (right?.type === 'Identifier' || right?.type === 'ThisExpression') return null;
   // a kept-binding residual reads the RAW right in place and the overwrite re-spells a
   // constant literal - no shared identity to memoize
@@ -347,35 +379,46 @@ function statementListSlot(program, stmtNode) {
 export function liftArrayWrapperPrefixes(declarator) {
   const lifted = [];
   function strip(node) {
-    const core = peelWrappers(node);
+    const core = peelTransparentExpr(node);
     if (core?.type !== 'ArrayExpression') return;
     for (const [index, element] of core.elements.entries()) {
       if (!element) continue;
-      let peeled = peelWrappers(element);
+      let peeled = peelTransparentExpr(element);
       if (peeled?.type === 'SequenceExpression') {
         lifted.push(...peeled.expressions.slice(0, -1));
-        peeled = peelWrappers(peeled.expressions.at(-1));
+        peeled = peelTransparentExpr(peeled.expressions.at(-1));
+        core.elements[index] = peeled;
+      }
+      // ... and a kept WRITE in the slot lifts WHOLE, leaving its TARGET behind: the lifted statement
+      // performs the write (its own value included, effects and all) and the slot then READS the
+      // binding it stored (`[(kw = (eff(), globalThis))]` -> `kw = (eff(), _globalThis);` + `kw`).
+      // leaving the VALUE there instead would evaluate it a second time - measured as a doubled
+      // effect log. only a plain binding target qualifies: a member one would fire its getter twice
+      if (peeled?.type === 'AssignmentExpression' && peeled.operator === '='
+        && peeled.left?.type === 'Identifier') {
+        lifted.push(peeled);
+        peeled = peeled.left;
         core.elements[index] = peeled;
       }
       strip(core.elements[index]);
     }
   }
-  const initCore = peelWrappers(declarator.init);
+  const initCore = peelTransparentExpr(declarator.init);
   if (initCore?.type === 'SequenceExpression'
-    && peelWrappers(initCore.expressions.at(-1))?.type === 'ArrayExpression') {
+    && peelTransparentExpr(initCore.expressions.at(-1))?.type === 'ArrayExpression') {
     lifted.push(...initCore.expressions.slice(0, -1));
-    declarator.init = peelWrappers(initCore.expressions.at(-1));
+    declarator.init = peelTransparentExpr(initCore.expressions.at(-1));
   }
   strip(declarator.init);
   return lifted;
 }
 
 export function propBindingTarget(prop) {
-  if (prop.value.type === 'ObjectPattern' || prop.value.type === 'ArrayPattern') return prop.value;
+  if (isDestructurePattern(prop.value)) return prop.value;
   // a DEFAULTED pattern value binds through its OWN pattern: the default rides the extraction's
   // guard ternary, so only the left survives as the target
   if (prop.value.type === 'AssignmentPattern'
-    && (prop.value.left?.type === 'ObjectPattern' || prop.value.left?.type === 'ArrayPattern')) {
+    && isDestructurePattern(prop.value.left)) {
     return prop.value.left;
   }
   return identifier(propLocalName(prop));
@@ -386,7 +429,7 @@ export function propBindingTarget(prop) {
 // a computed STRING-LITERAL key (`globalThis['self']`) navigates like the dotted spelling
 export function plainNavHopKey(node) {
   if (!node.computed) return node.property?.name ?? null;
-  const key = peelWrappers(node.property);
+  const key = peelTransparentExpr(node.property);
   return key?.type === 'Literal' && typeof key.value === 'string' ? key.value : null;
 }
 
@@ -397,20 +440,48 @@ export function plainNavHopKey(node) {
 // the check is ALSO the claim's validity proof: an extraction is polyfill-always-wins only
 // over a provable global nav - a conditional / opaque receiver must never extract, rest or
 // not (the other branch's miss semantics would be erased)
-export function isPureNavReceiver(node) {
-  node = peelWrappers(node);
-  while (node?.type === 'MemberExpression' && !node.optional && plainNavHopKey(node) !== null) {
-    node = peelWrappers(node.object);
+// a chain MARKER whose `?.` the guard canon ERASES guards nothing: the source cannot short-circuit
+// there, so every receiver question below may read the nav it wraps. asked once, at the route's
+// entry - the marker alone otherwise declined the extraction and the claim shipped native, while
+// the babel binding (whose parser spells no marker at all) extracted off the same source
+export function peelDeadChainMarker(node, guardCtx = null) {
+  const cur = peelTransparentExpr(node);
+  if (cur?.type !== 'ChainExpression' || !guardCtx?.resolvePure) return node;
+  const inner = peelTransparentExpr(cur.expression);
+  return undefinableOptionalGuard(inner, guardCtx.resolvePure, guardCtx.aliasCtx ?? null).kind === 'erase'
+    ? inner : node;
+}
+
+// the one hop walk both nav questions ride - "is this a nav?" and "which surface does it name?":
+// they differ in what they READ off the chain, never in what counts as a hop. an ERASED `?.` is
+// transparent to the walk, its own hop carrying the marker's flag, so the guard verdict travels
+// with the node - a resolver that judged the flags alone answered the opposite for a marked twin
+export function navHopChain(node, guardCtx = null) {
+  const peeled = peelDeadChainMarker(node, guardCtx);
+  const deadOptionals = peeled !== node;
+  const keys = [];
+  function hopIsNav(hop) {
+    return hop?.type === 'MemberExpression' && (deadOptionals || !hop.optional) && plainNavHopKey(hop) !== null;
   }
-  return node?.type === 'Identifier' || node?.type === 'ThisExpression';
+  let cur = peelTransparentExpr(peeled);
+  while (hopIsNav(cur)) {
+    keys.unshift(plainNavHopKey(cur));
+    cur = peelTransparentExpr(cur.object);
+  }
+  return { root: cur, keys };
+}
+
+export function isPureNavReceiver(node, guardCtx = null) {
+  const { root } = navHopChain(node, guardCtx);
+  return root?.type === 'Identifier' || root?.type === 'ThisExpression';
 }
 
 // the for-init variant keeps a side-effecting init alive in the `_unused` dummy, so only
 // the SEQUENCE TAIL has to be the provable nav
-export function isPureNavAfterSePrefix(node) {
-  node = peelWrappers(node);
+export function isPureNavAfterSePrefix(node, guardCtx = null) {
+  node = peelTransparentExpr(node);
   if (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
-  return isPureNavReceiver(node);
+  return isPureNavReceiver(node, guardCtx);
 }
 
 // the same SOURCE node seen through a rebuild that may have CLONED it: a clone carries the
@@ -424,7 +495,7 @@ export function spellsSameSource(node, source) {
 // same value re-spelled, so lifting the write away would leave the read answering nothing.
 // every other harvested effect is the source's own and lands as a statement of its own
 export function keptWriteRidesValue(node, { adapter, injectorState, resolveGlobalPolyfill }) {
-  const write = peelWrappers(node);
+  const write = peelTransparentExpr(node);
   return write?.type === 'AssignmentExpression' && write.left?.type === 'Identifier'
     && proxyStoreIsSpellable(write.right, resolveGlobalPolyfill,
       name => isMintedOrProxyName(name, injectorState))
@@ -435,21 +506,27 @@ export function keptWriteRidesValue(node, { adapter, injectorState, resolveGloba
 // source SEQUENCE hands over its tail, a chain ASSIGNMENT the value it stored. a hop ANCHOR in a
 // sequence slot takes neither - it has no statement ahead of it, so the write rides the
 // re-anchored read where the source wrote it (`({ customX } = (wx = _globalThis, _Map))`)
-export function planLiftedRhsPrefix(right, { anchorsInSequence }) {
-  const peeled = peelWrappers(right);
-  if (peeled?.type === 'SequenceExpression' && isPureNavReceiver(peeled.expressions.at(-1))) {
+export function planLiftedRhsPrefix(right, { anchorsInSequence, residualSurvives = false, guardCtx = null }) {
+  const peeled = peelTransparentExpr(right);
+  if (peeled?.type === 'SequenceExpression' && isPureNavReceiver(peeled.expressions.at(-1), guardCtx)) {
     return { prefix: peeled.expressions.slice(0, -1), receiver: peeled.expressions.at(-1) };
   }
-  if (anchorsInSequence || !chainAssignOverPureNav(peeled)) return null;
+  // the chain-assign lift re-emits the WRITE as its own statement, and a surviving residual keeps
+  // reading the source's right - so the write (and any effect its value carries) would run TWICE.
+  // only a whole consume, where nothing is left to read it, may take this lift
+  if (anchorsInSequence || residualSurvives || !chainAssignOverPureNav(peeled, guardCtx)) return null;
   return { prefix: [right], receiver: peeled.right };
 }
 
 // a chain ASSIGNMENT storing a provable global nav (`(q = globalThis)`): the write is an
 // effect of the source's own, and the value it leaves behind is the receiver a claim reads
-export function chainAssignOverPureNav(node) {
-  const assign = peelWrappers(node);
+export function chainAssignOverPureNav(node, guardCtx = null) {
+  const assign = peelTransparentExpr(node);
+  // the stored VALUE may carry its own SE prefix (`(q = (eff(), globalThis))`): only the TAIL is
+  // the nav, and the prefix is an effect the lift re-emits - the sibling predicate that already
+  // spells that rule is what answers here, else an SE-bearing write left the claim native
   return assign?.type === 'AssignmentExpression' && assign.operator === '='
-    && isPureNavReceiver(assign.right) ? assign : null;
+    && isPureNavAfterSePrefix(assign.right, guardCtx) ? assign : null;
 }
 
 // the shared "conditional destructure left untouched" debug-warn, emitted where the per-branch
@@ -565,26 +642,41 @@ export function planLiteralRoute({ metaPath, prop, sentinel, chain, declarator, 
   return { soleBinding, literalReceiver, relaxedReceiver };
 }
 
+// the guard an overwrite owes: the pure entry answers `it.method` verbatim off a receiver that is not
+// the polyfilled surface, so the dispatch may be undefined and something must stand in that case.
+// while the RAW destructure SURVIVES that is the slot it already assigned - the read, or the source's
+// own default, run exactly once - and re-spelling the default node beside it would run it twice. once
+// the slot is PRUNED nothing ran it, and the default node itself is the one reader left
+export function overwriteDefaultGuard({ call, localName, ref, defaultNode = null }) {
+  return renderInstanceDefaultGuard({
+    assignedRef: identifier(ref),
+    call,
+    defaultValue: defaultNode ?? identifier(localName),
+    reread: identifier(ref),
+  });
+}
+
 // the SE-keyed DEFAULTED instance prop's overwrite: the destructure stays whole (the key
 // runs where the source runs it) and the ponyfill re-binds after. the overwrite re-reads
 // the receiver, so it must be safe to spell twice; the binding must be a plain name
 export function registerSeKeyDefaultOverwrite({ prop, chain, entry, hintName, hostParent },
   { injectPureImport, markRewrite, recordJob, injector }) {
   const overwriteId = prop.value.left?.type === 'Identifier' ? prop.value.left : null;
-  const receiver = peelWrappers(hostParent.node.right);
-  let overwriteStmtPath = hostParent.parentPath;
-  while (overwriteStmtPath && (overwriteStmtPath.node?.type === 'ParenthesizedExpression'
-    || TS_EXPR_WRAPPERS.has(overwriteStmtPath.node?.type))) {
-    overwriteStmtPath = overwriteStmtPath.parentPath;
-  }
+  const receiver = peelTransparentExpr(hostParent.node.right);
+  const overwriteStmtPath = peelParenAndTSParentPath(hostParent);
   if (!overwriteId || chain.length || overwriteStmtPath?.node?.type !== 'ExpressionStatement'
     || !isReReferenceableReceiver(receiver)) return;
   const id = injectPureImport(entry, hintName);
+  const overwriteRef = injector.generateDeclaredRef(hostParent);
   markRewrite();
   recordJob({ hostPath: overwriteStmtPath,
     job: { host: 'assign-overwrite', local: overwriteId.name,
       bodyless: !statementListOf(overwriteStmtPath.parentPath?.node),
-      value: () => callExpression(identifier(id), [duplicateReceiver(receiver, injector)]) } });
+      value: () => overwriteDefaultGuard({
+        call: callExpression(identifier(id), [duplicateReceiver(receiver, injector)]),
+        localName: overwriteId.name,
+        ref: overwriteRef,
+      }) } });
 }
 
 // a value-SELECTING init under a sentinel-kept prop: a LOGICAL over KNOWN library surfaces
@@ -594,10 +686,10 @@ export function registerSeKeyDefaultOverwrite({ prop, chain, entry, hintName, ho
 // the ponyfill on the user branch too. the ternary mirror owns its own shapes
 export function divergingSentinelSelectorDeclines({ declarator, meta, metaPath, chain, kind },
   { adapter, injectorState, resolveGlobalPolyfill }) {
-  const selectingInit = peelWrappers(declarator.init);
+  const selectingInit = peelTransparentExpr(declarator.init);
   function knownSurfaceOperand(node) {
-    let operand = peelWrappers(node);
-    if (operand?.type === 'SequenceExpression') operand = peelWrappers(operand.expressions.at(-1));
+    let operand = peelTransparentExpr(node);
+    if (operand?.type === 'SequenceExpression') operand = peelTransparentExpr(operand.expressions.at(-1));
     if (operand?.type === 'LogicalExpression') {
       return knownSurfaceOperand(operand.left) && knownSurfaceOperand(operand.right);
     }
@@ -656,11 +748,11 @@ export function duplicateReceiver(node, injector) {
 // above it hangs back on. null where no such hop carries the short-circuit
 export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlobalPolyfill, injectPureImport }) {
   const tail = [];
-  let cur = peelWrappers(receiver);
+  let cur = peelTransparentExpr(receiver);
   while (cur?.type === 'MemberExpression' && !cur.optional) {
     if (cur.computed || cur.property?.type !== 'Identifier') return null;
     tail.unshift(cur.property.name);
-    cur = peelWrappers(cur.object);
+    cur = peelTransparentExpr(cur.object);
   }
   if (cur?.type !== 'MemberExpression') return null;
   // a COMPUTED leaf key folds to its literal spelling, and the effects it carries ride the
@@ -669,10 +761,10 @@ export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlob
   const keyEffects = [];
   let hopName = cur.computed ? null : cur.property?.type === 'Identifier' ? cur.property.name : null;
   if (cur.computed) {
-    let key = peelWrappers(cur.property);
+    let key = peelTransparentExpr(cur.property);
     if (key?.type === 'SequenceExpression') {
       keyEffects.push(...key.expressions.slice(0, -1));
-      key = peelWrappers(key.expressions.at(-1));
+      key = peelTransparentExpr(key.expressions.at(-1));
     }
     hopName = key?.type === 'Literal' && typeof key.value === 'string' ? key.value : null;
   }
@@ -690,9 +782,9 @@ export function guardedNavPassthrough(receiver, metaPath, { adapter, resolveGlob
 // the effects a sealed nav's LEAF hop key carries (`?.[(c++, 'self')]`): native runs them past
 // the short-circuit and before the read, which is inside the guard's alternate
 function sealedLeafKeyEffects(nav) {
-  const leaf = peelWrappers(nav);
+  const leaf = peelTransparentExpr(nav);
   if (leaf?.type !== 'MemberExpression' || !leaf.computed) return [];
-  const key = peelWrappers(leaf.property);
+  const key = peelTransparentExpr(leaf.property);
   return key?.type === 'SequenceExpression' ? key.expressions.slice(0, -1) : [];
 }
 
@@ -705,8 +797,8 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
   if (!metaPath || !receiver) return null;
   // a FALLBACK operand changes what the pattern binds, never whether the LEFT read ran: the
   // seal's own throw is the source's either way (`(g.window?.self).Object || {}`)
-  const read = peelWrappers(receiver)?.type === 'LogicalExpression'
-    ? peelWrappers(receiver).left : receiver;
+  const read = peelTransparentExpr(receiver)?.type === 'LogicalExpression'
+    ? peelTransparentExpr(receiver).left : receiver;
   const boundary = sealedChainBoundary(read);
   if (!boundary) return null;
   const key = memberKeyName(boundary.member);
@@ -724,7 +816,7 @@ export function planSealedNavProbe(receiver, metaPath, ctx) {
   // a leaf pure CANNOT back is not a global of its own: it reads off the collapsed base the
   // guard proved (`(globalThis.window?.self.window)` -> `_self.window`), where a bare spelling
   // would be a ReferenceError on an engine without it
-  const leafBase = leafPlan.leafPure ? null : peelNavWrappers(boundary.inner)?.object;
+  const leafBase = leafPlan.leafPure ? null : unwrapRuntimeExpr(boundary.inner)?.object;
   // the effect nodes this plan will RE-EMIT stay claim-live: a claim inside the kept key
   // (`log.push('k')`) fires later in the walk and must land on the (soon detached) original,
   // which the render-time harvest off `effectsHost` then picks up rewritten
@@ -773,9 +865,9 @@ export function sealedNavProbeRead(receiver, metaPath, ctx) {
 export function planDiscardedInitProbe(initNode, metaPath, ctx) {
   // an ARRAY-wrapped pattern reads its ELEMENT, and that read is the one native performs;
   // the chain wrapper an inner `?.` wears is transparent to the plan
-  const peeled = peelNavWrappers(initNode);
+  const peeled = unwrapRuntimeExpr(initNode);
   let nav = peeled?.type === 'ArrayExpression' && peeled.elements.length === 1
-    ? peelNavWrappers(peeled.elements[0]) : peeled;
+    ? unwrapRuntimeExpr(peeled.elements[0]) : peeled;
   // an AGREEING ternary reads its arm whichever way the test goes - that read is the one the
   // consume discards, and the dead test drops with the selection
   if (nav?.type === 'ConditionalExpression') nav = agreeingTernaryArm(nav, metaPath, ctx.adapter) ?? nav;
@@ -833,12 +925,12 @@ export function renderDiscardedInitProbe(jobs, ctx) {
 // (`({ self: { k: v } } = (eff(), globalThis))` -> `eff(); ({ k: v } = _globalThis);`). an
 // unbraced control body takes a block for the pair
 export function liftAssignInitPrefix(host, metaPath, program) {
-  const init = peelWrappers(host.right);
+  const init = peelTransparentExpr(host.right);
   if (init?.type !== 'SequenceExpression' || !metaPath) return;
   let stmtPath = metaPath;
   while (stmtPath?.node && stmtPath.node.type !== 'ExpressionStatement') stmtPath = stmtPath.parentPath;
   const stmtNode = stmtPath?.node;
-  if (!stmtNode || peelWrappers(stmtNode.expression) !== host) return;
+  if (!stmtNode || peelTransparentExpr(stmtNode.expression) !== host) return;
   const prefix = init.expressions.slice(0, -1);
   if (!prefix.length) return;
   host.right = init.expressions.at(-1);
@@ -905,10 +997,10 @@ export function isMintedOrProxyName(name, injectorState) {
 // does this nav spine bottom out on a CALL? that read belongs to the source, so a full
 // consume owes it a throw probe - a plain proxy nav from a bare root owes nothing
 export function navSpineHasCall(node) {
-  for (let cur = peelWrappers(node); cur;) {
+  for (let cur = peelTransparentExpr(node); cur;) {
     if (cur.type === 'CallExpression') return true;
     if (cur.type === 'MemberExpression') {
-      cur = peelWrappers(cur.object);
+      cur = peelTransparentExpr(cur.object);
       continue;
     }
     return false;
@@ -1046,7 +1138,7 @@ export function replayedPrefixHopHosts(ledger, hopHosts) {
   for (const [, { jobs }] of ledger) {
     const consumed = new Set(jobs.map(job => job.prop));
     for (const job of jobs) {
-      const init = job.declarator?.init && peelWrappers(job.declarator.init);
+      const init = job.declarator?.init && peelTransparentExpr(job.declarator.init);
       if (init?.type !== 'SequenceExpression'
         || !residualSurvivesAfterJobs(job.declarator.id, consumed)) continue;
       for (const expr of init.expressions.slice(0, -1)) {
@@ -1074,7 +1166,7 @@ export function jobOwnedNodes(ledger) {
     // an ASSIGNMENT host is keyed by its own expression, a SEQUENCE-element one by the
     // expression itself
     const assignExpr = hostNode?.type === 'AssignmentExpression' ? hostNode
-      : hostNode?.type === 'ExpressionStatement' ? peelWrappers(hostNode.expression) : null;
+      : hostNode?.type === 'ExpressionStatement' ? peelTransparentExpr(hostNode.expression) : null;
     if (assignExpr?.type === 'AssignmentExpression') owned.add(assignExpr);
   }
   return { owned, hostSiblings };
@@ -1083,10 +1175,10 @@ export function jobOwnedNodes(ledger) {
 // the pure BINDING a rendered guard hands back on its live branch (`null == x ? void 0 : _self`),
 // re-readable wherever the guarded value was - null when the branch is anything else
 export function guardedPureBinding(initNode, injectorState) {
-  const init = peelWrappers(initNode);
+  const init = peelTransparentExpr(initNode);
   if (init?.type !== 'ConditionalExpression' || init.consequent?.type !== 'UnaryExpression'
     || init.consequent.operator !== 'void') return null;
-  const live = peelWrappers(init.alternate);
+  const live = peelTransparentExpr(init.alternate);
   return live?.type === 'Identifier' && isMintedOrProxyName(live.name, injectorState) ? live.name : null;
 }
 
@@ -1102,7 +1194,7 @@ export function planSentinelMemo({ sentinel, declarator, metaPath, adapter, kind
   // wears: an SE-bearing SEQUENCE reads once into the memo and the residual reads the ref, so
   // the prefix does not re-run (`var _ref = (se(), arr), { [(k(), 'at')]: _unused } = _ref,
   // at = _at(_ref);`)
-  const init = peelNavWrappers(declarator.init);
+  const init = unwrapRuntimeExpr(declarator.init);
   // a value-SELECTING init memoizes too, but only under an INSTANCE claim: the Maybe-dispatch
   // stays value-correct on a branch the polyfill does not own, and the memo is what makes the
   // branch select exactly once for the two readers (extraction and residual)
@@ -1129,11 +1221,11 @@ function agreeingTernaryArm(selecting, metaPath, adapter) {
   if (mayHaveSideEffects(selecting.test)) return null;
   function armName(arm) {
     return resolveObjectName({
-      objectNode: peelWrappers(peelReceiverSequenceTail(peelWrappers(arm))), ...nodeSite(arm, metaPath), adapter,
+      objectNode: peelTransparentExpr(peelReceiverSequenceTail(peelTransparentExpr(arm))), ...nodeSite(arm, metaPath), adapter,
     });
   }
   const name = armName(selecting.consequent);
-  return name && name === armName(selecting.alternate) ? peelWrappers(selecting.consequent) : null;
+  return name && name === armName(selecting.alternate) ? peelTransparentExpr(selecting.consequent) : null;
 }
 
 export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding, chain, adapter, kind }) {
@@ -1154,9 +1246,9 @@ export function staticallySelectedLeft({ selecting, meta, metaPath, soleBinding,
   // an SE-bearing left names its built-in through the sequence TAIL - the prefix is the
   // effect the discarded read re-emits, not part of the name
   // (`{ from } = (e++, globalThis.self.Array) || Set`)
-  const left = peelWrappers(selecting.left);
+  const left = peelTransparentExpr(selecting.left);
   const leftName = resolveObjectName({
-    objectNode: peelWrappers(peelReceiverSequenceTail(left)), ...nodeSite(left, metaPath), adapter,
+    objectNode: peelTransparentExpr(peelReceiverSequenceTail(left)), ...nodeSite(left, metaPath), adapter,
   });
   return leftName === meta.object ? left : null;
 }
@@ -1202,7 +1294,7 @@ export function hasRestSibling(pattern) {
 // substituted (`_globalThis`) is the same surface - the minted import's hint says which
 // global it holds
 export function proxySurfaceIdentifier(node, { adapter, injectorState }) {
-  const inner = peelWrappers(node);
+  const inner = peelTransparentExpr(node);
   if (inner?.type !== 'Identifier') return null;
   return isPristineProxyGlobal(adapter, inner.name)
     || POSSIBLE_GLOBAL_OBJECTS.has(injectorState?.getPureImport?.(inner.name)?.hint) ? inner : null;
@@ -1215,7 +1307,7 @@ export function allProxySelectingInit(node, { adapter, injectorState }) {
   const stack = [{ node, branch: false }];
   while (stack.length) {
     const { node: raw, branch } = stack.pop();
-    const inner = peelWrappers(raw);
+    const inner = peelTransparentExpr(raw);
     if (inner?.type === 'ConditionalExpression') {
       // an SE-bearing test must keep the destructure (the mirror's shape) - the extraction
       // would discard the init and its effect with it
@@ -1235,7 +1327,7 @@ export function allProxySelectingInit(node, { adapter, injectorState }) {
     // not a selection at all and keeps its own channels
     let value = inner;
     if (branch) {
-      while (value?.type === 'AssignmentExpression' && value.operator === '=') value = peelWrappers(value.right);
+      while (value?.type === 'AssignmentExpression' && value.operator === '=') value = peelTransparentExpr(value.right);
     }
     if (!proxySurfaceIdentifier(value, { adapter, injectorState })) return false;
   }
@@ -1296,9 +1388,9 @@ export function applyInlineDefault({ prop, entry, hintName, injectPureImport, ma
 // of the slot the extraction read, so they belong in the value, not in a statement after it.
 // every other init shape keeps the statement lift (`rescueEmptiedDeclaratorInit`)
 export function literalContainerRescue(declarator, declJobsHere, adapter) {
-  const init = peelWrappers(declarator.init);
+  const init = peelTransparentExpr(declarator.init);
   if (init?.type !== 'ArrayExpression' && init?.type !== 'ObjectExpression') return [];
-  if (declJobsHere.some(job => job.seLifted || job.readsReceiver)) return [];
+  if (declJobsHere.some(job => job.seCarried || job.readsReceiver)) return [];
   const metaPath = declJobsHere[0]?.metaPath;
   if (!metaPath) return [];
   return discardRescueNodes({ node: declarator.init, scope: metaPath.scope, adapter, path: metaPath });
@@ -1345,7 +1437,7 @@ export function residualPrecedesExtractions(declarator, declJobs, sourceProps, {
 // second read of a slot the selection does not prove
 export function takesInlineDefault({ host, prop, pattern, chain, kind, sentinel, adapter, injectorState }) {
   if (kind === 'instance') return false;
-  const init = peelWrappers(host.declarator?.init);
+  const init = peelTransparentExpr(host.declarator?.init);
   if (chain.length > 0 && prop.value?.type !== 'ObjectPattern') {
     return (init?.type === 'AssignmentExpression'
         || !isSynthSimpleObjectPattern(pattern))
@@ -1359,12 +1451,12 @@ export function takesInlineDefault({ host, prop, pattern, chain, kind, sentinel,
 // an ALL-PROXY selection whose branches are chain ASSIGNMENTS: the writes must survive the
 // destructure, so nothing may extract off it - the leaf takes the sound inline default instead
 function selectionHoldsChainWrites(node, ctx) {
-  const inner = peelWrappers(node);
+  const inner = peelTransparentExpr(node);
   if (inner?.type !== 'ConditionalExpression' && inner?.type !== 'LogicalExpression') return false;
   if (!allProxySelectingInit(inner, ctx)) return false;
   const stack = [inner];
   while (stack.length) {
-    const branch = peelWrappers(stack.pop());
+    const branch = peelTransparentExpr(stack.pop());
     if (branch?.type === 'ConditionalExpression') {
       stack.push(branch.consequent, branch.alternate);
       continue;
@@ -1383,17 +1475,17 @@ function selectionHoldsChainWrites(node, ctx) {
 function andSelectedProxyInit(node, { adapter, injectorState }) {
   // a chain assignment is transparent to the verdict: what the destructure reads is the
   // value it stores (`w = m && globalThis`)
-  let inner = peelWrappers(node);
-  while (inner?.type === 'AssignmentExpression' && inner.operator === '=') inner = peelWrappers(inner.right);
+  let inner = peelTransparentExpr(node);
+  while (inner?.type === 'AssignmentExpression' && inner.operator === '=') inner = peelTransparentExpr(inner.right);
   return inner?.type === 'LogicalExpression' && inner.operator === '&&'
     && !!proxySurfaceIdentifier(inner.right, { adapter, injectorState });
 }
 
 // the surface an all-proxy selecting init reads - its first branch's pristine root
 export function firstProxyBranch(node) {
-  let inner = peelWrappers(node);
+  let inner = peelTransparentExpr(node);
   while (inner?.type === 'ConditionalExpression' || inner?.type === 'LogicalExpression') {
-    inner = peelWrappers(inner.type === 'ConditionalExpression' ? inner.consequent : inner.left);
+    inner = peelTransparentExpr(inner.type === 'ConditionalExpression' ? inner.consequent : inner.left);
   }
   return inner;
 }
@@ -1467,11 +1559,7 @@ export function registerInstanceSynthSlot({ metaPath, pattern, hostParent, entry
 // receiver's own position lives
 function iifeArgumentPathFor(hostParent, receiver) {
   function peeledPath(path) {
-    let cur = path;
-    while (cur?.node && (cur.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.node.type))) {
-      cur = cur.get('expression');
-    }
-    return cur;
+    return peelSkippableWrapperPath(path, TRANSPARENT_EXPR_WRAPPER_TYPES);
   }
   let callPath = null;
   for (let cur = hostParent, up = cur.parentPath; up?.node; cur = up, up = cur.parentPath) {
@@ -1479,7 +1567,7 @@ function iifeArgumentPathFor(hostParent, receiver) {
       if (up.node.callee === cur.node) callPath = up;
       break;
     }
-    if (!(up.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(up.node.type)
+    if (!(TRANSPARENT_EXPR_WRAPPER_TYPES.has(up.node.type)
       || (up.node.type === 'SequenceExpression' && up.node.expressions.at(-1) === cur.node))) break;
   }
   for (const argPath of callPath?.get('arguments') ?? []) {
@@ -1501,7 +1589,7 @@ export function patternHasPolyfillableDefault(node) {
   while (node?.type === 'RestElement' || node?.type === 'SpreadElement') node = node.argument;
   switch (node?.type) {
     case 'AssignmentPattern': {
-      const value = peelWrappers(node.right);
+      const value = peelTransparentExpr(node.right);
       const inert = INERT_DEFAULT_TYPES.has(value?.type)
         || ((value?.type === 'ObjectExpression' && !value.properties.length)
           || (value?.type === 'ArrayExpression' && !value.elements.length));
@@ -1517,18 +1605,56 @@ export function patternHasPolyfillableDefault(node) {
 // a plain SE PREFIX ahead of a HOP nav, with the pattern consuming the declarator WHOLE: the
 // prefix lifts as its own statement ahead of the extraction (source order, exactly once). a
 // chain-assignment in the prefix is not liftable - it replays whole through its own channel
-export function seLiftedHopNav({ forInit, chain, declarator, prop }) {
-  const init = peelWrappers(declarator.init);
+export function seCarriedHopNav({ forInit, chain, declarator, prop, kind = null }) {
+  const init = peelTransparentExpr(declarator.init);
+  // ... and a kept WRITE is a prefix of its own: the statement it lifts to STORES the same value the
+  // nav then reads (`(kw = globalThis)` -> `kw = _globalThis;` + the dispatch off `_globalThis`), so
+  // the write survives where re-spelling it inside the dispatch would run it twice.
+  // INSTANCE only: a static leaf binds its pure directly and both legs already carry the write inside
+  // that value (`const from = (a = _globalThis, _Array$from)`) - lifting there would part them
+  // ... and a SEQUENCE that ends in that write is the same shape one layer out: the whole init lifts,
+  // its last expression included, and the nav reads what the write stored
+  const writeTail = init?.type === 'AssignmentExpression' ? init
+    : init?.type === 'SequenceExpression' && peelTransparentExpr(init.expressions.at(-1))?.type === 'AssignmentExpression'
+      ? peelTransparentExpr(init.expressions.at(-1)) : null;
+  // a FOR-HEAD takes it too: its init runs exactly once, so the lifted write ahead of the loop
+  // stores what the header would have stored, in the same order
+  if (kind === 'instance' && chain.length > 0 && writeTail
+    && patternBindingCount(declarator.id) === patternBindingCount(prop.value)) {
+    return isPureNavReceiver(peelChainRootValue(writeTail));
+  }
+  // a WRITE among the lifted expressions is no obstacle for an INSTANCE claim: the whole prefix
+  // becomes statements ahead of the extraction, so the write runs where it ran, exactly once - the
+  // refusal below stands for the other kinds, whose value carries the prefix instead of lifting it
   return !forInit && chain.length > 0 && init?.type === 'SequenceExpression'
     && patternBindingCount(declarator.id) === patternBindingCount(prop.value)
-    && init.expressions.slice(0, -1).every(expr => peelWrappers(expr)?.type !== 'AssignmentExpression')
+    && (kind === 'instance'
+      || init.expressions.slice(0, -1).every(expr => peelTransparentExpr(expr)?.type !== 'AssignmentExpression'))
     && isPureNavAfterSePrefix(init);
 }
 
-// the statements an SE-LIFTED nav owes ahead of its extraction
-export function liftedSePrefixStatements(declarator, declJobs) {
-  if (declJobs.every(job => !job.seLifted)) return [];
-  return peelWrappers(declarator.init).expressions.slice(0, -1).map(expr => expressionStatement(expr));
+// the EXPRESSIONS an SE-carrying init performs before it yields the receiver: a sequence's leading
+// ones, and a kept WRITE whole (it is both the effect and the store of the value read after it, so a
+// sequence ENDING in one carries its last expression too)
+export function carriedInitPrefix(declarator, declJobs) {
+  if (declJobs.every(job => !job.seCarried)) return [];
+  const init = peelTransparentExpr(declarator.init);
+  if (init?.type === 'AssignmentExpression') return [init];
+  const keepsTail = peelTransparentExpr(init.expressions.at(-1))?.type === 'AssignmentExpression';
+  return keepsTail ? init.expressions : init.expressions.slice(0, -1);
+}
+
+// the prefix travels WITH the extraction's value: inside the dispatch ARGUMENT where the claim has
+// one (`_m((eff(), recv))`), on the value itself where it does not (`const from = (eff(), _Array$from)`).
+// this is the ONE shape every host accepts - a control slot hosts no statements at all - which is why
+// no host analysis is left here and why both legs print it
+export function carryInitPrefix(value, prefix) {
+  if (!prefix.length) return value;
+  if (value?.type === 'CallExpression' && value.arguments.length === 1) {
+    value.arguments[0] = sequenceExpression([...prefix, value.arguments[0]]);
+    return value;
+  }
+  return sequenceExpression([...prefix, value]);
 }
 
 // does this claim sit inside a function PARAMETER? the walk stops at the first binding host it
@@ -1549,13 +1675,13 @@ export function proxyNavSynthBase(receiver, { scope, adapter, path }) {
   for (;;) {
     if (cur?.type === 'MemberExpression' && !cur.computed) {
       keys.unshift(cur.property?.name);
-      cur = peelNavWrappers(cur.object);
+      cur = unwrapRuntimeExpr(cur.object);
       continue;
     }
     if (cur?.type === 'SequenceExpression'
       && !(seqPrefix && cur.expressions.slice(0, -1).some(expr => mayHaveSideEffects(expr)))) {
       seqPrefix ??= cur;
-      cur = peelNavWrappers(cur.expressions.at(-1));
+      cur = unwrapRuntimeExpr(cur.expressions.at(-1));
       continue;
     }
     break;
@@ -1592,7 +1718,7 @@ export function insideParamPosition(metaPath) {
 // drain time the collapse has reshaped the spine into a sequence and the shape is gone. the
 // canonical decision needs a confirmed rescue node, so the harvest is asked first
 export function sinkDropsReceiver(init, metaPath, adapter) {
-  const inner = peelWrappers(init);
+  const inner = peelTransparentExpr(init);
   return discardRescueNodes({ node: inner, ...nodeSite(inner, metaPath), adapter }).length > 0
     && shouldDropRescueReceiver(inner);
 }
@@ -1600,7 +1726,7 @@ export function sinkDropsReceiver(init, metaPath, adapter) {
 // a DIVERGING selection in a wrapped slot is the per-branch MIRROR's shape: an extraction
 // off it would answer the ponyfill on the USER branch too
 export function divergingSelection(node, ctx) {
-  const inner = peelWrappers(node);
+  const inner = peelTransparentExpr(node);
   return (inner?.type === 'ConditionalExpression' || inner?.type === 'LogicalExpression')
     && !allProxySelectingInit(inner, ctx);
 }
@@ -1633,11 +1759,15 @@ export function forInitMemoVerdicts(byDeclarator, mintRefName) {
 // array-wrapped twin) keeps the raw destructure first with the re-binds after (babel's
 // shape - the native slot assigns first); a bodyless ARRAY-DECL host drains against a
 // SYNTHETIC one-statement list and the slot takes the result back as a block
-export function drainBodylessWrapKinds({ kind, kindJobs, hostNode, declNode }, { program, drainArrayDeclaration }) {
+export function drainBodylessWrapKinds({ kind, kindJobs, hostNode, declNode },
+  { program, drainArrayDeclaration, consumedAssignmentRemains }) {
   if ((kind === 'assign-overwrite' || kind === 'array-assign') && kindJobs[0]?.bodyless) {
-    replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body: [hostNode,
-      ...kindJobs.map(job => expressionStatement(
-        assignmentExpression('=', identifier(job.local), job.value())))] });
+    const overwrites = kindJobs.map(job => expressionStatement(
+      assignmentExpression('=', identifier(job.local), job.value())));
+    // the consumed slot leaves in a bodyless slot too, and a slot left with ONE statement keeps its
+    // bare shape - the block is what holds two (the surviving destructure and the dispatch)
+    const body = [...consumedAssignmentRemains(kindJobs) ?? [hostNode], ...overwrites];
+    replaceNodeInTree(program, hostNode, body.length === 1 ? body[0] : { type: 'BlockStatement', body });
     return true;
   }
   if (kind === 'array-decl' && kindJobs[0]?.bodylessWrap) {
@@ -1771,15 +1901,15 @@ export function patternDead(node) {
 // a multi-element wrapper keeps its shape - the siblings still evaluate
 export function flattenArrayWrapInit(node) {
   const effects = [];
-  let cur = peelWrappers(node);
+  let cur = peelTransparentExpr(node);
   for (;;) {
     if (cur?.type === 'SequenceExpression') {
       effects.push(...cur.expressions.slice(0, -1));
-      cur = peelWrappers(cur.expressions.at(-1));
+      cur = peelTransparentExpr(cur.expressions.at(-1));
       continue;
     }
     if (cur?.type === 'ArrayExpression' && cur.elements.length === 1 && cur.elements[0]) {
-      cur = peelWrappers(cur.elements[0]);
+      cur = peelTransparentExpr(cur.elements[0]);
       continue;
     }
     break;
@@ -1849,8 +1979,8 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs },
 export function synthPlanFullyCovered(plan, receiver, metaPath, { adapter, resolvePure }) {
   // a FALLBACK operand changes nothing about which keys the LEFT can answer - the literal is
   // built over that left, exactly as every other route peels it
-  const named = peelWrappers(receiver)?.type === 'LogicalExpression'
-    ? peelWrappers(receiver).left : receiver;
+  const named = peelTransparentExpr(receiver)?.type === 'LogicalExpression'
+    ? peelTransparentExpr(receiver).left : receiver;
   const objectName = named
     ? resolveObjectName({ objectNode: named, ...nodeSite(named, metaPath), adapter }) : null;
   if (!objectName) return false;
@@ -1926,29 +2056,28 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null,
   if (hostParent?.node?.type === 'AssignmentExpression' && hostParent.node.left === cur.node
     && hostParent.node.operator === '=') {
     let exprStmtPath = hostParent.parentPath;
-    while (exprStmtPath && (exprStmtPath.node?.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(exprStmtPath.node?.type))) {
+    while (exprStmtPath && TRANSPARENT_EXPR_WRAPPER_TYPES.has(exprStmtPath.node?.type)) {
       exprStmtPath = exprStmtPath.parentPath;
     }
     if (exprStmtPath?.node?.type !== 'ExpressionStatement') return null;
     // a BODYLESS slot (`if (c) [{ flat }] = [a];`) has no list to splice into - flagged, the
     // registration gates it and the drain wraps the slot in a block
     const bodyless = !statementListOf(exprStmtPath.parentPath?.node);
-    // the assignment twin fires on SINGLE-element wrappers only - a sibling element
-    // (`[{ of }, other] = [Array, 1]`) keeps the whole destructure raw (babel declines)
-    // ... except in a BODYLESS slot, whose drain keeps the destructure RAW anyway: each
-    // consumed element just appends its own overwrite
-    if (!bodyless && (cur.node.type === 'ArrayPattern' ? cur.node.elements.length !== 1 : false)) return null;
+    // a SIBLING element (`[{ of }, other] = [Array, 1]`) keeps the whole destructure raw - it still
+    // binds - so the claim there lands the way the BODYLESS slot's does: the slot stays verbatim and
+    // the overwrite appends after it, which makes the element a SECOND read the registration gates
+    const multi = !sole || (cur.node.type === 'ArrayPattern' && cur.node.elements.length !== 1);
     let element = hostParent.node.right;
     for (const index of indices) {
-      element = followConstLiteralAlias(peelWrappers(element), aliasCtx);
-      if (element?.type === 'SequenceExpression') element = peelWrappers(element.expressions.at(-1));
+      element = followConstLiteralAlias(peelTransparentExpr(element), aliasCtx);
+      if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
       if (element?.type !== 'ArrayExpression' || spreadShiftsIndex(element.elements, index)) return null;
       element = element.elements[index];
       if (!element) return null;
     }
-    element = peelWrappers(element);
-    if (element?.type === 'SequenceExpression') element = peelWrappers(element.expressions.at(-1));
-    return { assignment: hostParent.node, exprStmtPath, element, bodyless };
+    element = peelTransparentExpr(element);
+    if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
+    return { assignment: hostParent.node, exprStmtPath, element, bodyless, multi };
   }
   if (hostParent?.node?.type !== 'VariableDeclarator' || hostParent.node.id !== cur.node) return null;
   // the wrapper does not change WHERE the declaration lives, so the shared host
@@ -1967,9 +2096,9 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null,
   let element = hostParent.node.init;
   let aliased = false;
   for (const index of indices) {
-    const peeledElement = peelWrappers(element);
+    const peeledElement = peelTransparentExpr(element);
     aliased ||= (element = followConstLiteralAlias(peeledElement, aliasCtx)) !== peeledElement;
-    if (element?.type === 'SequenceExpression') element = peelWrappers(element.expressions.at(-1));
+    if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
     if (element?.type !== 'ArrayExpression' || spreadShiftsIndex(element.elements, index)) return null;
     // an element the pattern does not bind still EVALUATES - a spread ITERATES its argument, a
     // call runs. a SOLE slot drops the wrapper whole, which would ERASE that value
@@ -1990,11 +2119,11 @@ export function resolveArrayWrappedReceiver(patternPath, aliasCtx = null,
   // receiver's own spelling and both legs keep it in the dispatch (`_at(arr as any)` - the flat
   // canon), while the classifiers below want it peeled
   const writtenElement = element;
-  element = peelWrappers(element);
+  element = peelTransparentExpr(element);
   // the SEQUENCE spelling stays available too: a host that lifts the prefix itself needs the
   // whole element, the value consumers want its quiet tail
   const elementNode = element;
-  if (element?.type === 'SequenceExpression') element = peelWrappers(element.expressions.at(-1));
+  if (element?.type === 'SequenceExpression') element = peelTransparentExpr(element.expressions.at(-1));
   return {
     declarator: hostParent.node,
     declarationPath,
@@ -2122,7 +2251,7 @@ export function eagerSentinelMemoName({
 }, sentinelMemoNames, mintRefName) {
   if (!keepKey || memoRecv || kind !== 'instance' || forInit || sentinelMemoNames.has(declarator)
     || prop.value.type !== 'AssignmentPattern'
-    || !sentinelMemoInitShape(peelNavWrappers(declarator.init), allProxyInit, firstDeclarator)) return;
+    || !sentinelMemoInitShape(unwrapRuntimeExpr(declarator.init), allProxyInit, firstDeclarator)) return;
   sentinelMemoNames.set(declarator, mintRefName());
 }
 
@@ -2184,11 +2313,17 @@ export function interleavedSeKeySegments(declarator, jobs, refName) {
 export function guardedSlotValue(built, valueNode, guardRef) {
   if (!guardRef) return built;
   // the VALUE node is CAPTURED at registration - a sentinel rename detaches it from the prop
-  // before the drain, and `.right` still reads lazily so later in-place rewrites land through it
-  const tested = built.type === 'Identifier' ? built
-    : assignmentExpression('=', identifier(guardRef), built);
-  return conditionalExpression(binaryExpression('===', tested, voidZero()),
-    valueNode.right, built.type === 'Identifier' ? built : identifier(guardRef));
+  // before the drain, and `.right` still reads lazily so later in-place rewrites land through it.
+  // which of the canon's two default guards applies is the same question both of them answer by:
+  // a plain binding re-reads for free, a dispatch result has to be memoized to be re-read
+  return built.type === 'Identifier'
+    ? renderStaticDefaultGuard({ read: built, defaultValue: valueNode.right, reread: built })
+    : renderInstanceDefaultGuard({
+      assignedRef: identifier(guardRef),
+      call: built,
+      defaultValue: valueNode.right,
+      reread: identifier(guardRef),
+    });
 }
 
 export function joinSeKeySiblingDeclarator({

@@ -536,7 +536,12 @@ export const EMPTY_CLOSURE = new Map();
 
 // LHS positions that bind a value at runtime, distinguishing assign-as-mutation from
 // assign-as-binding for the dataflow / rebind analysis
-export const ASSIGN_LEFT_TYPES = new Set(['Identifier', 'ObjectPattern', 'ArrayPattern']);
+// the two destructuring patterns, enumerated ONCE: every walk that asks "is this a pattern"
+// reads this set, so a third pattern type would be learned in one place instead of in each of
+// the twenty tests that used to spell the pair by hand
+export const DESTRUCTURE_PATTERN_TYPES = new Set(['ObjectPattern', 'ArrayPattern']);
+
+export const ASSIGN_LEFT_TYPES = new Set(['Identifier', ...DESTRUCTURE_PATTERN_TYPES]);
 
 // `extends`-clause child resolvers: which child slots carry the super-class binding when
 // the extends clause uses a non-Identifier expression. covers call expressions / mixins

@@ -32,8 +32,8 @@ import {
 import { isTypeReferenceNode, typeRefName } from './ast-shapes.js';
 import {
   FUNCTION_LIKE_NODE_TYPES, getTypeArgs, peelTransparentWrapperPath, resolveCallArgumentCoords,
+  SKIPPABLE_WRAPPER_TYPES,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
-  TS_EXPR_WRAPPERS,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -182,8 +182,7 @@ export function createKnownGlobals({
         // `(a = Array).from()` evaluates to the assigned value (rightmost operand) at runtime -
         // peel to the right operand so the return type narrows off the real constructor
         cur = cur.get('right');
-      } else if (type === 'ParenthesizedExpression' || type === 'ChainExpression'
-        || TS_EXPR_WRAPPERS.has(type)) {
+      } else if (SKIPPABLE_WRAPPER_TYPES.has(type)) {
         cur = cur.get('expression');
       } else break;
     }

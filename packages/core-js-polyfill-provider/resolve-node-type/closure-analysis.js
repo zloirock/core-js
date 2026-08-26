@@ -36,6 +36,8 @@ import {
   mergeOwnThisMethodInfo,
   objectOwnThisMethodInfo,
   peelParenAndTSParentPath,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  peelParenAndTSSlotChild,
   aliasTargetName,
   positionDisposition,
   POSITION_CONSUMES,
@@ -46,6 +48,8 @@ import {
   unwrapRuntimeExpr,
   walkAstChildren,
   walkPatternIdentifiers,
+  isDestructurePattern,
+  aliasDeclScope,
 } from '../helpers/ast-patterns.js';
 import { globalProxyMemberName } from '../helpers/class-walk.js';
 import { pushMultimap } from '../helpers/pattern-matching.js';
@@ -126,7 +130,7 @@ export function createClosureAnalysis({
   // a target deeper than the anon's path holds a FIELD of the anon, not the anon - the empty remainder's
   // generic leak analysis over-approximates that safely. a non-pattern LHS shape can't be enumerated -> escape
   function destructureVarTargetLeaks({ pattern, scope, anchorPath, fieldPath }) {
-    if (pattern?.type !== 'ObjectPattern' && pattern?.type !== 'ArrayPattern') return true;
+    if (!isDestructurePattern(pattern)) return true;
     if (patternBindsAnonMethod({ pattern, fieldPath, methodInfo: objectOwnThisMethodInfo(anchorPath?.node) })) return true;
     let leaks = false;
     walkPatternIdentifiers(pattern, (id, depth) => {
@@ -235,6 +239,15 @@ export function createClosureAnalysis({
       }
       // a nested non-arrow function re-binds `this` to its own call receiver
       if (node !== rootNode && FUNCTION_LIKE_NODE_TYPES.has(node.type) && node.type !== 'ArrowFunctionExpression') return;
+      // a transparent wrapper is not a POSITION: parens and TS casts hold the value without reading
+      // it, so what sits above them is the real parent (`(this).at(0)` is a member receiver, not "a
+      // value inside a paren"). counted as a level it answered the position question itself, every
+      // wrapped `this` read as handed out, and the receiver lost its type on the parser that keeps
+      // parens as real nodes - the other one strips them and never saw the difference
+      if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type)) {
+        walkAstChildren(node, child => visit(child, parent, grandparent));
+        return;
+      }
       walkAstChildren(node, child => visit(child, node, parent));
     }
     visit(rootNode, null, null);
@@ -277,7 +290,11 @@ export function createClosureAnalysis({
           if (handedOut) return;
           const parentPath = peelParenAndTSParentPath(thisPath);
           const parent = parentPath?.node;
-          if (!parent || positionDisposition(parent, thisPath.node, parentPath) === POSITION_CONSUMES) return;
+          // the parent's slot holds the outermost WRAPPER, not the bare `this` - the position
+          // question matches by identity, and asking with the inner node read every parenthesised
+          // `this` as handed out, which untyped the receiver and lost its claim
+          const slotChild = peelParenAndTSSlotChild(thisPath);
+          if (!parent || positionDisposition(parent, slotChild, parentPath) === POSITION_CONSUMES) return;
           const declared = parent.type === 'VariableDeclarator' && aliasTargetName(parent);
           if (declared && carrierBindingClosure(parentPath.scope, declared, thisPath, []) !== null) return;
           handedOut = true;
@@ -963,7 +980,7 @@ export function createClosureAnalysis({
   function classDeclFromBindingName(name, scope) {
     const binding = getScopeBinding(scope, name);
     const node = binding?.path?.node;
-    const declScope = binding?.path?.scope ?? scope;
+    const declScope = aliasDeclScope(binding, scope);
     // the PATH comes along for consumers that need to traverse the ancestor body, not just read its
     // node; it is handed over only when it addresses that very node, so a peeled wrapper never
     // silently substitutes a different subtree
@@ -995,7 +1012,7 @@ export function createClosureAnalysis({
       // advance scope to the binding's declaration scope so the next hop's `getBinding`
       // hop to the binding's own declaration scope; inner shadows (`const P = Promise`
       // outer; `function f() { const P = X; ... }` inner) would otherwise mis-resolve
-      scope = binding.path?.scope ?? scope;
+      scope = aliasDeclScope(binding, scope);
       name = init.name;
     }
     return null;

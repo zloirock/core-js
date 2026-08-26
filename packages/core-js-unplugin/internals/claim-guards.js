@@ -14,12 +14,15 @@ import {
   vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
-  TS_EXPR_WRAPPERS,
+  CHAIN_HOP_WRAPPER_TYPES,
   isPristineProxyGlobal,
   markRenderedStoredValue,
   memberKeyName,
   parenSealedCalleeAbove,
+  POSSIBLE_GLOBAL_OBJECTS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
@@ -32,7 +35,7 @@ import {
   renderShortCircuitGuard,
   renderAliasHeldProbeRead,
 } from './builders.js';
-import { memberFromKeyName, peelExpressionWrappers, receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
+import { memberFromKeyName, receiverCarriesOptional, replaceNodeInTree, withSideEffects } from './emit-shared.js';
 import {
   aliasHoldsUnbackedHopNav,
   markSubtreeSkipped,
@@ -45,14 +48,14 @@ import {
 // renders as one inline `?.call` value, and the disjunct chain joins it with the hop above -
 // a segment ending on an optional MEMBER memoizes its own guard instead
 export function optionalCallSegmentBelow(node) {
-  for (let cur = peelExpressionWrappers(node); cur;) {
+  for (let cur = unwrapRuntimeExpr(node); cur;) {
     if (cur.type === 'CallExpression') {
       if (cur.optional) return true;
-      cur = peelExpressionWrappers(cur.callee);
+      cur = unwrapRuntimeExpr(cur.callee);
       continue;
     }
     if (cur.type !== 'MemberExpression' || cur.optional) return false;
-    cur = peelExpressionWrappers(cur.object);
+    cur = unwrapRuntimeExpr(cur.object);
   }
   return false;
 }
@@ -62,15 +65,15 @@ export function optionalCallSegmentBelow(node) {
 // sequence carried runs ahead of the whole render, where the source ran it. null when the probe
 // spells no guard of its own
 export function descendIntoOwnGuard(probe, ctx) {
-  const sealed = probe?.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(probe?.type);
-  let inner = sealed ? peelExpressionWrappers(probe) : null;
+  const sealed = TRANSPARENT_EXPR_WRAPPER_TYPES.has(probe?.type);
+  let inner = sealed ? unwrapRuntimeExpr(probe) : null;
   // a SEQUENCE - sealed or bare - hands its TAIL on
-  for (let seqProbe = inner ?? peelExpressionWrappers(probe); seqProbe?.type === 'SequenceExpression';) {
-    inner = peelExpressionWrappers(seqProbe.expressions.at(-1));
+  for (let seqProbe = inner ?? unwrapRuntimeExpr(probe); seqProbe?.type === 'SequenceExpression';) {
+    inner = unwrapRuntimeExpr(seqProbe.expressions.at(-1));
     seqProbe = inner;
   }
   if (!sealed && inner === null) return null;
-  for (let hop = inner; hop?.type === 'MemberExpression'; hop = peelExpressionWrappers(hop.object)) {
+  for (let hop = inner; hop?.type === 'MemberExpression'; hop = unwrapRuntimeExpr(hop.object)) {
     if (!hop.optional) continue;
     return guardProbeUndefinable(hop.object, ctx) ? hop.object : null;
   }
@@ -78,12 +81,12 @@ export function descendIntoOwnGuard(probe, ctx) {
 }
 
 function parenSealedCalleeTail(hopPath) {
-  if (!parenSealedCalleeAbove(hopPath, hopPath.node, peelExpressionWrappers)) return null;
+  if (!parenSealedCalleeAbove(hopPath, hopPath.node, unwrapRuntimeExpr)) return null;
   // the tail the seal keeps outside starts at the FIRST plain member above the hop
   let first = null;
   for (let cur = hopPath, up = hopPath.parentPath; up?.node; up = cur.parentPath) {
     const upNode = up.node;
-    if (upNode.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(upNode.type)) {
+    if (CHAIN_HOP_WRAPPER_TYPES.has(upNode.type)) {
       cur = up;
       continue;
     }
@@ -180,7 +183,7 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
 function rehangGuardedTailOptional(target, inserted) {
   const up = target.parentPath;
   const above = up?.node;
-  if (above?.type !== 'MemberExpression' || peelExpressionWrappers(above.object) !== inserted) return;
+  if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== inserted) return;
   above.optional = true;
   // the chain wrapper belongs at the TOP of the continuation, not on the hop that carries the
   // `?.`: sealed one step up it TERMINATES the chain and the tail above reads plainly
@@ -254,7 +257,7 @@ export function replaceGuardedHop({
   for (let cursor = target, up = target.parentPath, outermost = null; up?.node; up = cursor.parentPath) {
     const upNode = up.node;
     if (upNode.expression === cursor.node
-      && (TS_EXPR_WRAPPERS.has(upNode.type) || upNode.type === 'ParenthesizedExpression')) {
+      && TRANSPARENT_EXPR_WRAPPER_TYPES.has(upNode.type)) {
       if (TS_EXPR_WRAPPERS.has(upNode.type)) outermost = up;
       cursor = up;
       continue;
@@ -368,7 +371,7 @@ export function guardProbeUndefinable(probe, {
 }) {
   if (probe?.type === 'CallExpression') {
     const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
-    const probeCallee = peelExpressionWrappers(probe.callee);
+    const probeCallee = unwrapRuntimeExpr(probe.callee);
     function resolveHere(meta) {
       return resolvePure(meta, metaPath);
     }
@@ -393,7 +396,7 @@ export function guardProbeUndefinable(probe, {
   // a KEPT WRITE holds its VALUE: the canon judges what the write yields, while the
   // test clones the write whole (`null == (w = _globalThis.window)`). the write makes
   // the read OBSERVABLE, so a proxy spine below the probe hop counts as one surface
-  const peeledProbe = peelExpressionWrappers(probe);
+  const peeledProbe = unwrapRuntimeExpr(probe);
   let probeValue = peelChainAssignmentDeep(peeledProbe);
   // effectful sequence tails peel manually - the SE-bailing canon stops at them
   // (`(s = (e++, globalThis.self))` proves through the tail)
@@ -421,7 +424,7 @@ export function guardProbeUndefinable(probe, {
     }
     const dechained = peelChainAssignmentDeep(probeValue);
     if (dechained === probeValue) break;
-    probeValue = peelExpressionWrappers(dechained);
+    probeValue = unwrapRuntimeExpr(dechained);
   }
   // a CHAIN-ASSIGN probe keeps its own locked rule, the one the detection's source count asks:
   // the captured value's undefinedness is HOP-based, because the write observes the raw read
@@ -452,7 +455,7 @@ export function optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePur
   // the inner probe being defined answers only for the hops BELOW: the hop's own READ can
   // still be the environment probe, and that value is what OUR `?.` tests
   // (`globalThis?.window?.self` - `globalThis` is defined, `window` is not backed, the guard stays)
-  let cur = peelExpressionWrappers(node.object);
+  let cur = unwrapRuntimeExpr(node.object);
   while (cur?.type === 'MemberExpression') {
     if (cur.optional) {
       if (guardProbeUndefinable(cur.object, seqOpts)) return true;
@@ -460,19 +463,19 @@ export function optionalMemberStaysGuarded(node, { metaPath, adapter, resolvePur
       // span roots at a minted always-defined binding, and its vestigial `?.` keeps the
       // erase the re-emit spelled (the sealed respell owns the probe there)
       let root = cur;
-      while (root?.type === 'MemberExpression') root = peelExpressionWrappers(root.object);
+      while (root?.type === 'MemberExpression') root = unwrapRuntimeExpr(root.object);
       if (root?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return false;
       return proxyReceiverValueCanBeUndefined(cur, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true, observableRead });
     }
-    cur = peelExpressionWrappers(cur.object);
+    cur = unwrapRuntimeExpr(cur.object);
   }
   if (cur?.type === 'CallExpression' && cur.optional) return guardProbeUndefinable(cur, seqOpts);
-  let probeObject = peelExpressionWrappers(node.object);
+  let probeObject = unwrapRuntimeExpr(node.object);
   let sawWrite = false;
   while (probeObject?.type === 'AssignmentExpression') {
     sawWrite = true;
-    probeObject = peelExpressionWrappers(probeObject.right);
+    probeObject = unwrapRuntimeExpr(probeObject.right);
   }
   // a BARE call value guards even proven (the strict opaque-root canon: `(() =>
   // globalThis)()?.self...` keeps its test); a KEPT WRITE of it erases (the write observes)
@@ -552,7 +555,7 @@ export function sealedPristineHopCollapse(metaPath, node, { adapter, resolvePure
   // ... only where something READS through it: in value position the drop would hand back the
   // seal instead of the surface the hop named
   const above = metaPath.parentPath?.node;
-  if (above?.type !== 'MemberExpression' || peelExpressionWrappers(above.object) !== node) return false;
+  if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== node) return false;
   markRewrite();
   metaPath.replaceWith(node.object);
   return true;
@@ -627,7 +630,7 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
 export function calleeParenWrapped(callNode) {
   for (let wrapper = callNode.callee; wrapper;) {
     if (wrapper.type === 'ParenthesizedExpression') return true;
-    if (wrapper.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(wrapper.type)) wrapper = wrapper.expression;
+    if (CHAIN_HOP_WRAPPER_TYPES.has(wrapper.type)) wrapper = wrapper.expression;
     else return false;
   }
   return false;

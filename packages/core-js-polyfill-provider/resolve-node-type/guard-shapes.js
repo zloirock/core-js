@@ -20,7 +20,7 @@
 //   parseAssertionGuardEntries(sibling)
 //     consumed by the preceding-exit guard index for `asserts x is T` statement guards
 import { PRIMITIVES, dropLeadingThisParam, peelAssignmentPattern } from './base.js';
-import { TS_EXPR_WRAPPERS, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
+import { TRANSPARENT_EXPR_WRAPPER_TYPES, unwrapExpressionChain, unwrapSafeSequenceTail } from '../helpers/ast-patterns.js';
 
 const EMPTY_GUARD_ENTRIES = [];
 
@@ -79,7 +79,7 @@ function hasOptionalChainInCall(rawExpr) {
     // into callee / object respectively.
     // ChainExpression / Optional* types: optional segment found, bail caller.
     // Paren / TS wrappers: peel and continue
-    if (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression') {
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) {
       cur = cur.expression;
       continue;
     }

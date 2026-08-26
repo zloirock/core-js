@@ -27,6 +27,7 @@ import {
   peelArrayWrapBindingLayers,
   peelSkippableWrapperPath,
   POSSIBLE_GLOBAL_OBJECTS,
+  aliasDeclScope,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
 import { inlineCallProxyGlobalRoot } from '../detect-usage/resolve.js';
@@ -151,7 +152,7 @@ export function createGlobalResolve({
     const declarator = binding?.path?.node;
     if (!declarator || binding.constantViolations?.length || !t.isVariableDeclarator(declarator)) return null;
     if (!declarator.init) return null;
-    const declScope = binding.scope ?? binding.path?.scope ?? path.scope;
+    const declScope = aliasDeclScope(binding, path.scope);
     const keyCtx = destructureKeyCtx(declScope, binding.path);
     // peel array-wrap layers (`const [{ Array: A }] = [globalThis]`) positionally to the inner
     // ObjectPattern + init element (mirrors the usage-side resolveArrayWrappedProxyGlobalAlias)
@@ -166,7 +167,7 @@ export function createGlobalResolve({
     return walkStaticReceiverChain({
       receiverNode: init,
       walkPath: keyPath,
-      scope: binding.scope ?? binding.path.scope ?? path.scope,
+      scope: aliasDeclScope(binding, path.scope),
       adapter: babelBindingAdapter,
       path: binding.path,
     });
