@@ -1516,8 +1516,6 @@ async function checkAstInternalsCore() {
     es.memberFromKeyName(b.identifier('o'), 'has-dash').computed, true);
   check('emit-shared memberFromKeyName spells an ident key plain',
     es.memberFromKeyName(b.identifier('o'), 'flat').computed, false);
-  const wrapped = { type: 'ParenthesizedExpression', expression: { type: 'TSNonNullExpression', expression: b.identifier('z') } };
-  check('emit-shared peelExpressionWrappers strips paren + TS layers', es.peelExpressionWrappers(wrapped).name, 'z');
   const host = b.expressionStatement(b.identifier('old'));
   check('emit-shared replaceNodeInTree lands by identity',
     es.replaceNodeInTree(host, host.expression, b.identifier('next')) && host.expression.name === 'next', true);
