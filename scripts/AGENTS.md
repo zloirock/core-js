@@ -46,7 +46,7 @@ Run them through the npm script, never with a bare `node` - the bootstrap is wha
 - `check-compat-data-mapping.mjs` (`npm run check-mapping`) - compares the compat data against upstream release histories, so it goes online
 - `check-dependencies/` (`npm run check-dependencies`) - reports outdated dependencies of every workspace, printing a table per package and failing nothing
 - `check-actions/` (`npm run check-actions`) - checks the GitHub Actions versions; the one check that `npm run check` leaves out
-- `canon/` (`npm run canon`) - canonical-helper search over the plugin packages and the `@core-js/compat` sources, to run before writing a new function or branch there; its `delta` subcommand audits a diff's added symbols afterwards. Has its own `AGENTS.md` with the command reference
+- `canon/` (`npm run canon`) - canonical-helper search over the plugin packages and the `@core-js/compat` sources, to run before writing a new function or branch there; its `delta` subcommand audits a diff's added symbols afterwards, and `sets` enumerates the sites that walk a wrapper set by hand - those add no symbol, so `delta` is blind to them. Has its own `AGENTS.md` with the command reference
 - `update-version.mjs` (`npm run update-version`, alias `u`) - the version bump: rewrites the version and the year wherever they are spelled out, from the READMEs and `CHANGELOG.md` to `LICENSE`, the shared store of the runtime and the docs
 - `prepublish.mjs` (runs as the first half of `npm run publish`) - the release gate; among other things it refuses to publish while the by-versions data still carries an `unreleased` bucket
 - `downloads-by-versions.mjs` (`npm run downloads`) - npm download statistics grouped by version
