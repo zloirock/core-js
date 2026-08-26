@@ -43,7 +43,7 @@
     "@core-js/compat": "4.0.0-alpha.1",
     "@swc/core": "^1.16.1",
     "core-js": "4.0.0-alpha.1",
-    "rolldown": "^1.2.5"
+    "rolldown": "^1.2.6"
   },
   "engines": {
     "node": "^22.18.0 || >=24.11.0"
