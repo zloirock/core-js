@@ -1,7 +1,7 @@
 // SE-carrying emission forms: dispatches and reads that replay harvested side effects
 // ahead of (or inside) the spelling they guard
 import { resolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { mayHaveSideEffects } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { mayHaveSideEffects, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   assignmentExpression,
@@ -15,7 +15,7 @@ import {
   nullGuardTest,
   renderShortCircuitGuard,
 } from './builders.js';
-import { peelExpressionWrappers, withSideEffects } from './emit-shared.js';
+import { withSideEffects } from './emit-shared.js';
 import { replaceGuardedHop } from './claim-guards.js';
 import {
   LITERAL_RECEIVER_TYPES,
@@ -40,11 +40,11 @@ export function effectsPastThrowProbe(effects, throwProbe) {
 // prefix) lift ahead of the plain `?.call` dispatch - babel's shape; a receiver the guard
 // cannot spell twice memoizes ahead of them (`(_ref = <recv>, k2, _at(_ref)?.call(_ref, 0))`)
 export function emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPath, meta, entry, hintName }, ctx) {
-  const seqRecvOpt = peelExpressionWrappers(node.object);
+  const seqRecvOpt = unwrapRuntimeExpr(node.object);
   const recvPrefix = seqRecvOpt?.type === 'SequenceExpression' && Number.isInteger(seqRecvOpt.start)
     ? seqRecvOpt.expressions.slice(0, -1) : [];
   const recvTail = seqRecvOpt?.type === 'SequenceExpression'
-    ? peelExpressionWrappers(seqRecvOpt.expressions.at(-1)) : seqRecvOpt;
+    ? unwrapRuntimeExpr(seqRecvOpt.expressions.at(-1)) : seqRecvOpt;
   const reusable = ctx.isReusableReceiver(recvTail);
   const ref = reusable ? null : ctx.injector.generateDeclaredRef(metaPath);
   function held() {
@@ -65,7 +65,7 @@ export function emitOptionalCallWithLiftedSe({ node, parent, callerPath, metaPat
 }
 
 export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath, meta, entry, hintName }, ctx) {
-  const bare = peelExpressionWrappers(node.object);
+  const bare = unwrapRuntimeExpr(node.object);
   // a receiver the guard cannot SPELL TWICE - the test reads it and so does the dispatch -
   // memoizes into the test itself, which is the one evaluation the source performs
   // (`(eff(), arr)?.flat()` -> `null == (_ref = (eff(), arr)) ? void 0 : _flat(_ref).call(_ref)`)
@@ -125,7 +125,7 @@ export function emitBareOptionalSeDispatch({ node, parent, callerPath, metaPath,
 // a LITERAL receiver constructs unobservably and keeps the plain prefix instead
 export function emitSeKeyReadMemo({ node, metaPath, meta, entry, hintName }, ctx) {
   const { injectPureImport, injector, markRewrite, skippedNodes } = ctx;
-  const receiver = peelExpressionWrappers(node.object);
+  const receiver = unwrapRuntimeExpr(node.object);
   const id = injectPureImport(entry, hintName);
   const effects = meta.sideEffects.map(effect => cloneNode(effect));
   markRewrite();
@@ -215,13 +215,13 @@ export function emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
   { adapter, injector, injectPureImport, markRewrite, skippedNodes }) {
   const id = injectPureImport(entry, hintName);
   markRewrite();
-  const seqRecv = peelExpressionWrappers(node.object);
+  const seqRecv = unwrapRuntimeExpr(node.object);
   const seqTail = seqRecv?.type === 'SequenceExpression'
-          ? peelExpressionWrappers(seqRecv.expressions.at(-1)) : null;
+          ? unwrapRuntimeExpr(seqRecv.expressions.at(-1)) : null;
   const seqWrites = seqRecv?.type === 'SequenceExpression'
           && seqRecv.expressions.slice(0, -1)
             .some(expr => {
-              const stored = peelExpressionWrappers(expr);
+              const stored = unwrapRuntimeExpr(expr);
               // a COMPOUND assignment is an ordinary effect, not a kept write: nothing
               // downstream reads what it stored (`(n += 100, _Promise).name` lifts)
               return stored?.type === 'AssignmentExpression' && stored.operator === '=';
@@ -249,7 +249,7 @@ export function emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
 // defined, so nothing short-circuits and the split hands back a guard-less receiver. the key
 // is passed EXPLICITLY - this path anchors on the trailing claim, not on `super.<key>` itself
 export function inheritedStaticCalleeSplit(node, callee, metaPath, ctx) {
-  const calleeObject = peelExpressionWrappers(callee.object);
+  const calleeObject = unwrapRuntimeExpr(callee.object);
   // a COMPUTED key answers through the canonical resolver, but only when it carries NO
   // effect: this split has no slot that spells an effectful key exactly once, so the raw
   // guarded read stays the honest answer there
@@ -304,5 +304,5 @@ export function isSealedDirectSymbolCall(metaPath) {
   const sealedCallerPath = climbToCallerPath(metaPath);
   const sealedCaller = sealedCallerPath !== metaPath.parentPath ? sealedCallerPath?.node : null;
   return !!sealedCaller && sealedCaller.type === 'CallExpression' && !sealedCaller.optional
-    && peelExpressionWrappers(sealedCaller.callee) === metaPath.node && sealedCaller.arguments.length === 0;
+    && unwrapRuntimeExpr(sealedCaller.callee) === metaPath.node && sealedCaller.arguments.length === 0;
 }

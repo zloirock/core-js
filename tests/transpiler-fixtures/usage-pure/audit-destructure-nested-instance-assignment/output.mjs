@@ -5,11 +5,4 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 // this overwrite makes the polyfill win. statement context only - an expression-context assignment bails
 const arr = [1, [2]];
 let m;
-({
-  y: {
-    flat: m
-  }
-} = {
-  y: arr
-});
 m = _flatMaybeArray(arr);

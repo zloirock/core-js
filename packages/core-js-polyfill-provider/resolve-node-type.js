@@ -1,17 +1,21 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
 import {
-  isVoidExpression,
-  isNullLiteralNode,
   cachedContainerPaths,
   findFunctionScopeVarDeclaratorInPath,
   findFunctionScopeVarInPath,
   findVarOwnerDeclaring,
   getTypeArgs,
+  isDestructurePattern,
+  isNullLiteralNode,
   isTypeAnnotationWrapper,
+  isVoidExpression,
   ownerWritePathIndex,
+  peelParenAndTSParentPath,
+  peelParenAndTSSlotChild,
   peelZeroArgIifeReturn,
   singleQuasiString,
+  SKIPPABLE_WRAPPER_TYPES,
   spreadAtOrBefore,
   staleVarRedeclNodes,
   staticMemberFromEntrySegment,
@@ -594,14 +598,7 @@ function createResolveNodeType(babelNodeType, t, {
       path = resolvePath(path);
       if (!path.node) break;
       const { type } = path.node;
-      if (type === 'TSAsExpression'
-        || type === 'TSTypeAssertion'
-        || type === 'TSSatisfiesExpression'
-        || type === 'TSNonNullExpression'
-        || type === 'TSInstantiationExpression'
-        || type === 'TypeCastExpression'
-        || type === 'ParenthesizedExpression'
-        || type === 'ChainExpression') {
+      if (SKIPPABLE_WRAPPER_TYPES.has(type)) {
         path = path.get('expression');
       // chain-AssignmentExpression `(a = init)` evaluates to its right operand at runtime.
       // common shape: `const x = a = init` / `const x = a = b = init`. peel here so the
@@ -1150,7 +1147,7 @@ function createResolveNodeType(babelNodeType, t, {
     // branch does. without this the whole array `['s']` narrows `x`, dispatching the array-only `at`
     // variant onto a string receiver (wrong on ie:11)
     const { id } = reaching.node;
-    if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
+    if (isDestructurePattern(id)) {
       const keyPath = findPatternKeyPath(id, name, reaching.scope);
       if (!keyPath) return null;
       // a rest-bound slot is always an Array - but the RHS being spread is not necessarily
@@ -1290,7 +1287,7 @@ function createResolveNodeType(babelNodeType, t, {
   function followableVarInit(bindingPath) {
     if (!t.isVariableDeclarator(bindingPath.node)) return null;
     const { id } = bindingPath.node;
-    if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') return null;
+    if (isDestructurePattern(id)) return null;
     let initPath = bindingPath.get('init');
     if (!initPath?.node) return null;
     if (id?.typeAnnotation && isNullishInit(initPath.node, bindingPath.scope, bindingPath)) return null;
@@ -1491,8 +1488,14 @@ function createResolveNodeType(babelNodeType, t, {
   // class-expression `const C = class{}` form and object-literal `const o = {...}` form.
   // destructured ids (`const {a} = ...`) bail to null - no stable single name to enumerate
   function getDeclaratorBindingName(path) {
-    const parent = path.parentPath?.node;
-    if (parent?.type === 'VariableDeclarator' && parent.init === path.node && t.isIdentifier(parent.id)) {
+    // through the wrapper peel, both halves: a cast or parens between the declarator and its value
+    // (`const C = (class {} as any)`) makes the raw parent the WRAPPER, where the name reads null.
+    // no shape has been found where the null CHANGES an answer - the export check has other routes
+    // to the same name - so this is the position question asked the way the pair contract requires,
+    // not a repair
+    const parent = peelParenAndTSParentPath(path)?.node;
+    if (parent?.type === 'VariableDeclarator' && parent.init === peelParenAndTSSlotChild(path)
+      && t.isIdentifier(parent.id)) {
       return parent.id.name;
     }
     return null;
