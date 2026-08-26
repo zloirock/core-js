@@ -445,6 +445,71 @@ async function commandContracts() {
   echo(green(`${ missing.length } exported functions without a contract line`));
 }
 
+// --- Wrapper sets ---
+
+// the canon file OWNS the wrapper sets and the peels over them; everything else reads them
+const WRAPPER_SET_NAMES = ['TS_EXPR_WRAPPERS', 'TRANSPARENT_EXPR_WRAPPER_TYPES', 'SKIPPABLE_WRAPPER_TYPES'];
+const WRAPPER_TYPE_LITERALS = [
+  'ParenthesizedExpression',
+  'ChainExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSTypeAssertion',
+  'TSNonNullExpression',
+  'TSInstantiationExpression',
+  'TypeCastExpression',
+];
+const CANON_HOME = 'helpers/ast-patterns.js';
+
+// a `while` whose whole condition is a null test plus one canon set - the peel body below it makes
+// the loop a re-spelling of a canon function, whatever it names its cursor
+const BARE_SET_LOOP = /^\s*(?:[\w$.?]+ && )?[\w$.?]*has\([\w$.?]*\.type\)\s*$/;
+const DESCENDS = /=\s*[\w$.?]+\.expression\b|\.get\('expression'\)/;
+
+// sites walking a wrapper set by hand. two shapes, and both are invisible to `delta` - they add no
+// symbol: a LOOP that peels a canon set (a canon function already spells it), and a hand-written
+// set - a disjunction covering both parser spellings of a transparent wrapper, or a canon set OR'd
+// with a literal that extends it. a TS-only group is not one of these: the annotation-bearing
+// wrappers are their own question and have no canon set. an ENUMERATION, like `dupes` - a site
+// mixing a wrapper test with an identity or terminator rule is a legitimate hit to adjudicate
+async function commandSets() {
+  const { files } = await scanFiles();
+  const hits = [];
+  const scanned = files.filter(name => !name.endsWith(CANON_HOME));
+  for (const file of scanned) {
+    const lines = (await fs.readFile(file, 'utf8')).split('\n');
+    for (const [index, line] of lines.entries()) {
+      if (/^\s*(?:\/\/|\*)/.test(line)) continue;
+      const pair = `${ line }\n${ lines[index + 1] ?? '' }`;
+      const loop = line.match(/while \((?<condition>[^)]*)\)/);
+      const condition = loop?.groups?.condition ?? '';
+      if (loop && WRAPPER_SET_NAMES.some(name => condition.includes(name))
+        && BARE_SET_LOOP.test(condition) && DESCENDS.test(`${ pair }\n${ lines[index + 2] ?? '' }`)) {
+        hits.push({ file, line: index + 1, what: 'loop re-derives a canon peel', text: line.trim() });
+        continue;
+      }
+      // only a single wrapper-ness QUESTION counts - a disjunction of type tests. a `case` group
+      // or a set literal enumerates types for their own handling and is not a peel
+      if (!pair.includes('||') || /(?:^|\n)\s*case /.test(pair)) continue;
+      const spelled = WRAPPER_TYPE_LITERALS.filter(type => pair.includes(`.type === '${ type }'`));
+      const bothSpellings = spelled.includes('ParenthesizedExpression') && spelled.includes('ChainExpression');
+      const extendsSet = spelled.length > 0 && WRAPPER_SET_NAMES.some(name => pair.includes(`${ name }.has(`));
+      if (bothSpellings || extendsSet) {
+        hits.push({ file, line: index + 1, what: 'wrapper set spelled by hand', text: line.trim() });
+      }
+    }
+  }
+  if (asJSON) {
+    echo(JSON.stringify({ mode: 'sets', hits }));
+  } else {
+    for (const { file, line, what, text } of hits) {
+      echo(`${ red(what) }  ${ file }:${ cyan(line) }`);
+      echo(`  ${ text.slice(0, 120) }`);
+    }
+    echo(green(`${ hits.length } site(s) walking a wrapper set by hand - each is a canon verdict`));
+  }
+}
+
 // --- Delta ---
 
 // named symbols of one file version through the SAME extraction that builds the index, so the
@@ -550,12 +615,16 @@ switch (command) {
   case 'delta':
     await commandDelta(rest[0]);
     break;
+  case 'sets':
+    await commandSets();
+    break;
   case 'reindex':
     await loadIndex({ force: true });
     break;
   default:
     console.error(red(
-      'usage: canon find "<words>" [--full] | show <file:line> | dupes [--min N] | contracts | delta [<ref>|<A>..<B>] | reindex  [--json]',
+      'usage: canon find "<words>" [--full] | show <file:line> | dupes [--min N] | contracts'
+      + ' | delta [<ref>|<A>..<B>] | sets | reindex  [--json]',
     ));
     process.exitCode = 1;
 }
