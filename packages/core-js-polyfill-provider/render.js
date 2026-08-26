@@ -339,6 +339,28 @@ export function renderAliasHeldProbeRead(probe, object) {
     : memberExpression(object, identifier(probe.key));
 }
 
+// the nav-collapse LEAF: the collapsed run answers with its pure binding, wrapped in the leaf's
+// own live key effects - the share the guard test already spelled stays out of it, that prefix
+// evaluated there (`(c++, _self)`). `cloneHost` lifts the source's effect nodes into the render
+export function renderNavCollapseLeaf(plan, pureId, { cloneHost = node => node } = {}) {
+  const keySe = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(expr => cloneHost(expr));
+  return keySe.length ? sequenceExpression([...keySe, pureId]) : pureId;
+}
+
+// ... and the TAIL the collapse did not absorb, hung back on in the SOURCE's own spelling: a
+// computed hop stays computed, a named one takes the key-name spelling, and a live `?.` rides
+// where the source wrote it. it hangs off the LEAF, never off a whole guard - there it would
+// read the short-circuited `void 0` instead of the ponyfill
+export function renderNavCollapseTail(plan, base, { cloneHost = node => node } = {}) {
+  let built = base;
+  for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
+    built = hop.node.computed
+      ? memberExpression(built, cloneHost(hop.node.property), { computed: true, optional: !!hop.liveOptional })
+      : memberFromKeyName(built, hop.name, { optional: !!hop.liveOptional });
+  }
+  return built;
+}
+
 // the guard TEST a resolvable base supplies (`navGuardTestBase` decides there IS one): the probe
 // hop read off the ponyfilled base, with a kept root write riding ahead of it in a sequence
 // (`(w = _globalThis, _self).window`) - the write is the source's own act and evaluates first
@@ -346,6 +368,13 @@ export function renderNavGuardTestBase(base, { rootAssign = null, injectImport, 
   const pure = identifier(injectImport(base.basePure.entry, base.basePure.hintName));
   const root = rootAssign ? sequenceExpression([embed(cloneNode(rootAssign)), pure]) : pure;
   return memberExpression(root, identifier(base.probeName));
+}
+
+// the RAW branch of that narrow where the read is a CALLEE: a conditional in callee position is
+// invoked with `this === undefined`, so the raw arm rebinds the receiver it was read off. both
+// operands arrive already embedded - the binding clones its own host nodes
+export function renderBoundRawBranch(read, recv) {
+  return callExpression(memberExpression(read, identifier('bind')), [recv]);
 }
 
 // the runtime CTOR-IDENTITY narrow: one branch per candidate constructor, innermost-last, each

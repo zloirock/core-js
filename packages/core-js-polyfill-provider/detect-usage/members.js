@@ -14,11 +14,12 @@ import {
   privateNameSpelling,
   proxyNavEffectsHarvestable,
   staticMemberKeyName,
-  TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
   POSSIBLE_GLOBAL_OBJECTS,
   deleteHostAboveChain,
   peelNestedSequenceExpressions,
+  peelParenAndTSParentPath,
+  SKIPPABLE_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 import {
   GET_ITERATOR_ENTRY,
@@ -113,7 +114,7 @@ function hasInstanceWrapperAbove({ path, scope, adapter, resolveMeta }) {
   let parentPath = path?.parentPath;
   while (parentPath) {
     const type = parentPath.node?.type;
-    if (type === 'ChainExpression' || type === 'ParenthesizedExpression' || type === 'TSNonNullExpression') {
+    if (SKIPPABLE_WRAPPER_TYPES.has(type)) {
       parentPath = parentPath.parentPath;
       continue;
     }
@@ -272,10 +273,7 @@ export function planProxyReceiver(receiver, {
   // leaf is the assignment slot, never an SE-tail read), so its sequence tail peels here - else a raw hop
   // survives off the pure root (`(0, globalThis.window).Set = fn` -> `(0, _globalThis.window).Set`, an
   // undefined write host off-engine); the prefix effects ride the harvest below
-  let objectCore = receiver.object;
-  while (TRANSPARENT_EXPR_WRAPPER_TYPES.has(objectCore?.type) || objectCore?.type === 'ChainExpression') {
-    objectCore = objectCore.expression;
-  }
+  let objectCore = unwrapRuntimeExpr(receiver.object);
   // a write target peels its sequence tail: the leaf is the assignment slot, and the
   // per-id rewrite does not reach it there
   const throughRoot = findProxyGlobal(receiver, aliasCtx, throughChainAssign);
@@ -368,6 +366,44 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
   return plan ? { prefix, se: [], pure: null, plan, tail } : null;
 }
 
+// the DESTRUCTURED spelling of the guarded-alias narrow (`const { groupBy: g } = M`): which
+// single-prop pattern on which host may collapse to a plain binding, and the plan the collapse
+// renders. the admission is the decision - one property, a nameable binding, an uncomputed key,
+// and a host whose value is either declared or written by a sole `=`; `hostKind` then tells the
+// binding WHICH surgery its own dialect owes, including the value-consuming assignment whose
+// native value (the RHS object) has to survive as a sequence tail
+export function planGuardedDestructureNarrow({
+  propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure,
+}) {
+  if (patternNode?.type !== 'ObjectPattern' || patternNode.properties.length !== 1) return null;
+  if (propNode?.computed || (propNode?.shorthand && propNode.value?.type !== 'Identifier')) return null;
+  const binding = propNode?.value;
+  if (binding?.type !== 'Identifier') return null;
+  const isDeclarator = hostNode?.type === 'VariableDeclarator' && !!hostNode.init;
+  const isSoleAssignment = hostNode?.type === 'AssignmentExpression' && hostNode.operator === '='
+    && hostNode.left === patternNode;
+  if (!isDeclarator && !isSoleAssignment) return null;
+  const plan = planGuardedStaticNarrow({
+    memberNode: {
+      type: 'MemberExpression',
+      object: isDeclarator ? hostNode.init : hostNode.right,
+      property: { type: 'Identifier', name: meta.key },
+      computed: false,
+      optional: false,
+    },
+    parent: null,
+    meta,
+    path,
+    resolvePure,
+  });
+  if (!plan || plan.bail) return null;
+  return {
+    plan,
+    bindingName: binding.name,
+    hostKind: isDeclarator ? 'declarator' : hostInStatement ? 'assignment-statement' : 'assignment-value',
+  };
+}
+
 // call/IIFE-rooted proxy nav (`(() => globalThis)().self.Array`): `findProxyGlobal` validates only bare-Identifier
 // roots, so the main path bails. resolve the root global (inlining the call), drop the proxy hop, keep an
 // SE-bearing chain-root call as the harvested prefix
@@ -433,7 +469,7 @@ export function shouldDropRescueReceiver(inner) {
   // differ on keeping paren nodes (babel strips `((e(), gt).self)`, oxc keeps it as a wrapper)
   let obj = inner.object;
   for (let guard = 0; obj && guard < 32; guard++) {
-    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(obj.type) || obj.type === 'ChainExpression') {
+    if (SKIPPABLE_WRAPPER_TYPES.has(obj.type)) {
       obj = obj.expression;
     } else if (obj.type === 'SequenceExpression') {
       obj = obj.expressions.at(-1);
@@ -778,9 +814,12 @@ export function handleMemberExpressionNode({
     // (`self[Symbol.asyncIterator]`) or an EXCLUDED iterator entry leaves the receiver to the
     // identifier visitor's own proxy rewrite - subsuming it here stranded the raw proxy-global
     // (off-engine throw), asymmetric with `handleBinaryIn`'s availability gate
-    const parentNode = path.parentPath?.node;
-    const iteratorEntry = resolveSymbolIteratorEntry(node, parentNode,
-      isCallShape(parentNode) && unwrapRuntimeExpr(parentNode.callee) === node);
+    // asked with the pair the EMITTERS ask with - the member and the caller above any seal. from the
+    // bare parent this gate reads `(recv[Symbol.iterator])()` as the method form while the emitter
+    // renders the direct one, so the availability question would be about an entry that is not the
+    // one rendered; no target set has been found where the two answers differ observably, so this is
+    // alignment of one rule's inputs, not a repair
+    const iteratorEntry = resolveSymbolIteratorEntry(node, peelParenAndTSParentPath(path, SKIPPABLE_WRAPPER_TYPES)?.node);
     const iteratorStrandLive = symbolKey.key === 'Symbol.iterator'
       && (!isEntryAvailable || isEntryAvailable(iteratorEntry));
     if (suppressProxyGlobals) {
@@ -1046,12 +1085,13 @@ export function resolveSymbolInEntry(key) {
 // `node[Symbol.iterator]` fetches the iterator directly (`get-iterator`) only when it is
 // immediately and plainly called with zero args and no optional - `node[Symbol.iterator]()`. Any
 // other shape (no call, args, optional, `new`) needs the method form so the call / optional / args
-// stay on the caller's side. `isCall` ("is `parent` a plain call whose callee is `node`") is
-// supplied by the caller because that test is AST-dialect-specific: babel has no parenthesis nodes
-// so a strict callee match suffices, while oxc keeps them so unplugin unwraps the callee. The
-// default is the babel-shape strict match
-export function resolveSymbolIteratorEntry(node, parent, isCall = isCallShape(parent) && parent.callee === node) {
-  return isCall && parent.arguments.length === 0 && !parent.optional ? GET_ITERATOR_ENTRY : SYMBOL_ITERATOR_PURE_RESULT.entry;
+// stay on the caller's side. `parent` is the node ABOVE any transparent wrapper (each binding
+// climbs its own dialect's spelling of that: babel has no parenthesis nodes, oxc keeps them), and
+// the callee is peeled here - a SEAL over the lookup (`(arr?.[S])()`) still calls it directly.
+// every caller that compensated for an unpeeled callee AFTERWARDS was this rule spelled twice
+export function resolveSymbolIteratorEntry(node, parent) {
+  return isCallShape(parent) && unwrapRuntimeExpr(parent.callee) === node
+    && parent.arguments.length === 0 && !parent.optional ? GET_ITERATOR_ENTRY : SYMBOL_ITERATOR_PURE_RESULT.entry;
 }
 
 // the import-hint half of the iterator-form entry pair - single-sourced so the emitters'

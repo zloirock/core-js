@@ -49,6 +49,7 @@ import {
   resolveFallbackReceiverPath,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
+  statementListOf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   synthPropDedupKey,
@@ -71,6 +72,13 @@ import {
   planSideEffectKeyStrategy,
   qualifiesForParamBodyExtract,
   resolveDestructureReceiverPlan,
+  consumedAssignmentSlotDropsHost,
+  isBuiltInSurfaceNav,
+  consumedAssignmentSlotDropsNav,
+  consumedAssignmentSlotPrunes,
+  isReReadableSurfaceNav,
+  isInstanceSurfaceNav,
+  isReReferenceableReceiver,
   resolveNestedReceiverNode,
   collectEnclosingObjectPatterns,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -402,6 +410,7 @@ export default function createDestructureEmitter({
   // per-statement nested-instance overwrite tail: chains each overwrite off the previous one so a
   // multi-element pattern emits them in SOURCE order (last element wins, as native destructuring)
   const nestedOverwriteLastInsert = new WeakMap();
+  const nestedOverwriteUnusedVar = new WeakMap();
   // the FIRST artifact each host emitted, by host node. the whole-init memo has to precede them:
   // natively the init evaluates before the pattern binds anything, so a static extracted ahead of
   // the memoizing prop must not be hoisted above the init's own effects - an effect that reads the
@@ -925,7 +934,11 @@ export default function createDestructureEmitter({
       else applyAnchoredAssignmentRebuild(plan, assignPath);
       return !!prop && skippedNodes.has(prop.node);
     }
-    const exprStmt = ensureExprStmtInBlock(rawStmt);
+    // the block-wrap goes through the SHARED pair: wrapping leaves every path already held for this
+    // statement pointing at the WRAPPER, so a channel that wrapped it earlier (an overwrite beside
+    // this cascade) had its block wrapped a second time - the sentinel `var` and the residual ended
+    // up in a block of their own, nested inside the slot's
+    const exprStmt = blockWrappedHostStatement(assignPath);
     flattenSEWrappersToBareAE(exprStmt, assignPath, peeled);
     liftSEPrefixSwap(t, assignPath.node, 'right', exprStmt);
     // within-call chaining only: the `cascadedAssignments` gate above makes this the sole pass
@@ -1978,15 +1991,63 @@ export default function createDestructureEmitter({
   // left native when the receiver can't be re-referenced), false otherwise (declaration / param /
   // expression-context whose value would need preserving) so the caller continues
   function emitAssignmentInstanceOverwrite({ prop, entry, hintName }) {
-    const statement = nestedAssignmentStatementOf(prop);
-    if (!statement) return false;
+    const rawStatement = nestedAssignmentStatementOf(prop);
+    if (!rawStatement) return false;
     // `resolveNestedReceiverNode` gates the receiver (Identifier / side-effect-free literal); `propBinding-
     // Identifier` unwraps a defaulted binding (`{ flat: m = [] }` is an AssignmentPattern), so a raw
     // `value?.type === 'Identifier'` check wouldn't drop the overwrite and lose the polyfill to the native read
     // read-after consumer: the overwrite runs AFTER the residual evaluated the init in place,
     // so a receiver peeled from under an SE prefix keeps native order here
-    const receiverNode = resolveNestedReceiverNode(prop, { allowSePeeledFragment: true });
+    // ... and a NAV receiver resolves through the same canon now that it spells its own segments
+    // (`globalThis.Array.prototype`): the overwrite reads it once in its dispatch, which is the
+    // single-read contract that gate names. without it the claim shipped native in this host alone.
+    // ... a DEFAULTED prop rides it too: the guard below keeps whatever the raw slot bound, so a
+    // dispatch that answers undefined off a foreign receiver no longer buries the source's default
+    // ... but the SPELLED nav is a second read of the source's own receiver, beside the residual's,
+    // so only a BUILT-IN surface qualifies - a user key may be a getter, and re-spelling it fired
+    // that getter twice where the source reads it once
+    // a nav the source wrote with `?.` answers every question below the same way: the hop
+    // short-circuits the WHOLE chain, so a residual and a re-spelling read one value - and the
+    // collapse then renders the nav without the marker, as it does for every other host
+    const OPTIONAL_HOPS = { allowOptionalHops: true };
+    // a FLAT claim inside an array WRAPPER has no nested chain to resolve: its receiver is the
+    // ELEMENT the pattern is paired with, the very value the statement host reads directly. without
+    // it the claim had no route at all under a wrapper and shipped native, where every other host of
+    // both legs dispatches (`([{ flat: m }] = [globalThis.Array.prototype])`)
+    const resolvedReceiver = resolveNestedReceiverNode(prop,
+      { allowSePeeledFragment: true, allowNavSegments: true }) ?? arrayWrappedAssignElement(prop);
+    // ... and a FLAT SE-keyed prop over a MEMBER read stands down: its key keeps the slot, so the
+    // residual re-reads that member and the dispatch would read it a second time, where the source
+    // reads once. only a flat one - a NESTED claim's hops name the polyfilled surface themselves, and
+    // that the canon does re-spell (a re-referenceable token and a constant literal re-spell freely
+    // too). the receiver is what the SOURCE hands the pattern: the wrapper element, or the
+    // assignment's own right
+    const sourceReceiver = arrayWrappedAssignElement(prop)
+      ?? prop.findParent(item => item.isAssignmentExpression())?.node?.right;
+    if (prop.node.computed && mayHaveSideEffects(prop.node.key)
+      && !prop.parentPath?.parentPath?.isObjectProperty?.()
+      && (sourceReceiver?.type === 'MemberExpression'
+        || sourceReceiver?.type === 'OptionalMemberExpression')) return false;
+    // ... and a nav into the BUILT-IN namespace must NAME the instance surface it dispatches on: a
+    // leaf off the object the hops merely REACH is a name match (`[{ Array: { keys: k } }] =
+    // [globalThis]`), which every other host of both legs keeps native - the shared rule the nested
+    // render asks. a receiver that is not such a nav resolved through its own TYPE and keeps its claim
+    if (resolvedReceiver && isBuiltInSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)
+      && !isInstanceSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)) {
+      return false;
+    }
+    // ... and a slot that takes the NAV with it leaves the dispatch as the only reader, so the root the
+    // re-read gate insists on has nothing left to protect: an instance surface off a USER namespace
+    // (`userNs.Array.prototype`) is read exactly once, where the source reads it
+    const receiverNode = resolvedReceiver
+      && (isReReferenceableReceiver(resolvedReceiver)
+        || isReReadableSurfaceNav(resolvedReceiver, name => !!injector?.getBindingInfo?.(name), OPTIONAL_HOPS)
+        || (consumedAssignmentSlotDropsNav(prop) && isInstanceSurfaceNav(resolvedReceiver, OPTIONAL_HOPS)))
+      ? resolvedReceiver : null;
     const bindingId = propBindingIdentifier(prop.node.value);
+    // the overwrite re-spells the receiver nav the residual reads, so the raw slot has no reader
+    // left once the dispatch lands - unless its KEY still owes an in-place effect
+    const prunesSlot = consumedAssignmentSlotPrunes(prop);
     if (bindingId && receiverNode && !skippedNodes.has(prop.node)) {
       // mark handled so a re-visit (babel re-crawls after the insertAfter mutation) doesn't append a
       // second identical overwrite
@@ -1995,12 +2056,86 @@ export default function createDestructureEmitter({
       // pattern (`[{ flat: x }, { at: x }] = [a, b]`) must overwrite in SOURCE order so the last one wins,
       // as native destructuring does - a bare `statement.insertAfter` per element reverses them
       const overwriteCall = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(receiverNode)]));
+      // a DEFAULTED leaf keeps its guard: the pure entry answers `it.method` verbatim off a receiver
+      // that is not the polyfilled surface, so the dispatch may be undefined and burying what the
+      // destructure bound loses the source's default (`({ y: { flat: m = null } } = { y: navigator })`
+      // bound undefined where the source binds null). the RAW slot ran that default already, exactly
+      // once, so the BINDING is the fallback - re-spelling the default node would run it twice
+      // ... and once the slot is PRUNED nothing ran that default, so the guard spells the default
+      // NODE instead - the one reader left, evaluated exactly once
+      const overwriteValue = prop.node.value?.type === 'AssignmentPattern'
+        ? buildInstanceDefaultGuard(t, {
+          call: overwriteCall,
+          defaultNode: t.cloneNode(prunesSlot ? prop.node.value.right : bindingId),
+          ref: generateRef(prop.scope, prop.node),
+        })
+        : overwriteCall;
       const overwriteStmt = inheritSpan(t.expressionStatement(
-        inheritSpan(t.assignmentExpression('=', t.cloneNode(bindingId), overwriteCall), statement.node)), statement.node);
+        inheritSpan(t.assignmentExpression('=', t.cloneNode(bindingId), overwriteValue), rawStatement.node)), rawStatement.node);
+      // an unbraced control slot whose HOST dies takes the dispatch IN PLACE: block-wrapping first
+      // and removing the raw statement after would drop the block the wrap just built, and the slot
+      // holds one statement either way - which is the shape the other leg prints
+      const assignPath = prop.findParent(item => item.isAssignmentExpression());
+      // ... only for a receiver that owes NOTHING: an effect lifted off a bodyless slot is queued
+      // against the list holding the CONTROL statement, so it would run unconditionally where the
+      // source runs it only when the branch is taken. one with effects takes the block below, whose
+      // lift lands inside it
+      if (prunesSlot && consumedAssignmentSlotDropsHost(prop) && !nestedOverwriteLastInsert.has(rawStatement.node)
+        && !mayHaveSideEffects(assignPath.node.right)
+        && isBodylessStatementSlot(rawStatement.parentPath?.node, rawStatement.node)) {
+        rawStatement.replaceWith(overwriteStmt);
+        return true;
+      }
+      // the host is block-wrapped through the SHARED pair before the first dispatch lands: babel's own
+      // `insertAfter` wraps a bodyless slot without re-seating the path, and a second element then
+      // anchored on the stale slot and landed AHEAD of the first - reversing the source order the last
+      // write depends on (`if (c) [{ flatMap: s }, { at: s }] = [b, c]` bound `s` from `b`)
+      const statement = blockWrappedHostStatement(assignPath);
       const prevInsert = nestedOverwriteLastInsert.get(statement.node);
       nestedOverwriteLastInsert.set(statement.node, (prevInsert ?? statement).insertAfter(overwriteStmt)[0]);
+      if (prunesSlot) pruneOverwrittenSlot({ prop, statement });
     }
     return true;
+  }
+
+  // the consumed slot drops the way the flat host's does: the prop first, then every hop pattern it
+  // empties, and an emptied TOP takes the statement with it - its receiver keeping only the PREFIX
+  // it owes (`({ A: { prototype: { fill: m } } } = (kw = _g, _g.A))` -> `kw = _g;` + the overwrite).
+  // a REST at any level keeps that level's slot under an `_unused` sentinel, so the rest keeps
+  // excluding the key - the one shape `prunePatternByPlan` already spells for the plan-driven hosts
+  // the wrapper ELEMENT a flat claim is paired with: the pattern sits in an ArrayPattern whose
+  // assignment reads an array LITERAL, so the element at that index is what the source destructures
+  function arrayWrappedAssignElement(prop) {
+    const pattern = prop.parentPath;
+    const arrayPattern = pattern?.isObjectPattern?.() ? pattern.parentPath : null;
+    if (!arrayPattern?.isArrayPattern?.()) return null;
+    const index = arrayPattern.node.elements.indexOf(pattern.node);
+    const assign = arrayPattern.parentPath;
+    if (index === -1 || !assign?.isAssignmentExpression?.() || assign.node.left !== arrayPattern.node) return null;
+    const init = assign.node.right;
+    return init?.type === 'ArrayExpression' && init.elements.every(item => item?.type !== 'SpreadElement')
+      ? init.elements[index] ?? null : null;
+  }
+
+  function pruneOverwrittenSlot({ prop, statement }) {
+    const bk = { unusedVarDecl: nestedOverwriteUnusedVar.get(statement.node) ?? null };
+    let propNode = prop.node;
+    let pattern = prop.parentPath;
+    while (pattern?.isObjectPattern?.()) {
+      appendUnusedVarDeclarators(bk, statement,
+        prunePatternByPlan(pattern.node, [{ kind: 'consumed', prop: propNode }]));
+      if (bk.unusedVarDecl) nestedOverwriteUnusedVar.set(statement.node, bk.unusedVarDecl);
+      if (pattern.node.properties.length) return;
+      const { parent, leftmost } = peelTransparentWrappers(pattern);
+      if (parent?.isAssignmentExpression?.() && parent.node.left === leftmost) {
+        deferSideEffect(statement, parent.node.right);
+        statement.remove();
+        return;
+      }
+      if (!parent?.isObjectProperty?.()) return;
+      propNode = parent.node;
+      pattern = parent.parentPath;
+    }
   }
 
   // deep-clone a pattern for a helper-result extraction LHS, claiming its PROPERTY nodes so
@@ -2023,6 +2158,7 @@ export default function createDestructureEmitter({
   // synth-swaps the receiver instead. an assignment host (no declaration) emits the post-statement overwrite
   // for an instance method; an SE-computed key never falls through to the discarding instance extract.
   // returns true when handled (caller stops); false lets the caller continue (non-instance assignment host)
+  // eslint-disable-next-line max-statements -- the host dispatch: one branch per slot shape
   function handleSideEffectComputedKey({ prop, kind, entry, hintName, meta = null }) {
     const objectPattern = prop.parentPath;
     const { parent: synthHost } = peelTransparentWrappers(objectPattern);
@@ -2039,7 +2175,7 @@ export default function createDestructureEmitter({
       handleParameterDestructure({ prop, kind, entry, hintName, meta });
       return true;
     }
-    const declaration = hostDeclarationOf(prop);
+    let declaration = hostDeclarationOf(prop);
     // an assignment host has no declaration to extract into. an INSTANCE method emits the post-statement
     // overwrite (which leaves the destructure in place so an in-place computed-key effect still runs) and is
     // always reported handled - an SE-computed key must never fall through to the default instance extract,
@@ -2055,6 +2191,26 @@ export default function createDestructureEmitter({
     // declarator init, which `resolveNestedReceiverNode` also reaches - either way it gates memo / re-ref
     let objectNode = kind === 'instance'
       ? resolveDestructuringObject(prop, resolvePropertyObjectType(prop), true) : null;
+    let declarator = prop.findParent(pp => pp.isVariableDeclarator())?.node;
+    const bindingCount = originalBindingCount(prop);
+    // the wrapper's other element PATTERNS, or null where this prop sits in no wrapper: the same
+    // view the purity test reads, asked for what each of them still coerces
+    const wrapperSiblingElements = arrayWrapperOtherElements(prop, declaration);
+    // does the residual DIE with this extraction? the same three facts the plan reads, asked here
+    // too: the SE-prefix route below spells the init into the dispatch only where nothing survives
+    // to evaluate it a second time
+    const residualDies = bindingCount === patternBindingCount(prop.node.value)
+      && (!wrapperSiblingElements || wrapperSiblingElements.elements.every(element => element === null));
+    // an ARRAY-WRAPPED slot in a statement declaration: the wrapper residual is the one this pipeline
+    // drops whole once its props are consumed, so eliminating it up front only does earlier what the
+    // post-traverse prune does anyway - and a loop header has no statement list to drop into
+    // ... and so does a DECLARATOR of a shared statement declaration whose receiver carries the init:
+    // the extraction replaces that declarator alone and the siblings render beside it, which is the
+    // split the flat route already performs (`const { flat } = (eff(), Array.prototype), z = 1`)
+    let slotDropsAlone = !isForInit && arrayWrapperSlotIndex(prop, declaration) >= 0;
+    // does the receiver node below CARRY the init's own effects? the plan drops the residual only
+    // where nothing is left to preserve, and a receiver spelled as `(prefix, <nav>)` is that case
+    let receiverCarriesInit = false;
     // the identifier-init twin of the literal walk, SYMBOL channel only (the one canon the
     // other leg already extracts): the receiver renders as the member chain the pattern
     // descends (`_getIteratorMethod(obj.inner)`), spelled through the render canon and
@@ -2079,6 +2235,107 @@ export default function createDestructureEmitter({
         ));
       }
     }
+    // ... and a chain that NAVIGATES INTO a built-in surface spells that surface as its receiver
+    // (`{ Array: { prototype: { flat: m } } } = globalThis` -> `_flatMaybeArray(_globalThis.Array
+    // .prototype)`, the hop already folded into the init by the proxy flatten): the extraction
+    // CONSUMES the declarator, so the nav is read exactly once. the other leg extracts the same
+    // claim - leaving it native here is the import-set divergence, not the safe side
+    // ... the SYMBOL claim rides this walk too, and only through the surface gate below: its
+    // anchored-residual shape navigates to the object itself (`_globalThis.Map`), which that gate
+    // refuses, so the re-key both legs print there stands
+    if (kind === 'instance' && !objectNode) {
+      const navReceiver = resolveNestedReceiverNode(prop, { allowNavSegments: true });
+      if (isInstanceSurfaceNav(navReceiver)) objectNode = navReceiver;
+      else {
+        // ... and an init that is a plain SE SEQUENCE spells its prefix INSIDE the dispatch, the way
+        // the flat canon spells one (`_flat((eff(), Array.prototype))`): the receiver is read once,
+        // in source order, and the residual it replaces discards nothing. the prefix nodes ride LIVE
+        // - their own claims land through them - and a WRITING tail is not this shape, since peeling
+        // it would drop the write
+        // the node that HOLDS the receiver: an array WRAPPER puts it in the slot's own element, and
+        // the prefix there belongs to that element, not to the literal around it
+        const declInit = prop.findParent(pp => pp.isVariableDeclarator())?.node?.init;
+        const wrapperSlot = declInit?.type === 'ArrayExpression' ? arrayWrapperSlotIndex(prop, declaration) : -1;
+        const seqInit = unwrapRuntimeExpr(wrapperSlot >= 0 ? declInit.elements[wrapperSlot] : declInit);
+        // the EXPRESSIONS this init performs before it yields the receiver: a sequence's leading ones,
+        // and a kept WRITE (whole - it is both the effect and the store of what the nav then reads)
+        const prefixExprs = seqInit?.type === 'AssignmentExpression' && seqInit.operator === '=' ? [seqInit]
+          : seqInit?.type === 'SequenceExpression'
+            ? unwrapRuntimeExpr(seqInit.expressions.at(-1))?.type === 'AssignmentExpression'
+              ? seqInit.expressions : seqInit.expressions.slice(0, -1)
+            : null;
+        const overPrefix = prefixExprs
+          ? resolveNestedReceiverNode(prop, { allowNavSegments: true, allowSePeeledFragment: true }) : null;
+        // ... and only where the residual DIES with the extraction: a surviving one would evaluate
+        // that same init a second time. where it survives, the prefix LIFTS to its own statement
+        // ahead of the declaration instead - available wherever the declaration itself is a
+        // statement (a for-head lifts ahead of the loop, which its once-only init makes equivalent),
+        // but never out of a CONTROL slot, where the effect would stop being conditional
+        // the lift lands ahead of the WHOLE declaration, so it may not jump over a PRECEDING
+        // declarator that performs effects of its own: `const zLead = eff("lead"), [{...}] =
+        // [(eff("e"), globalThis)]` runs `lead` first, and hoisting `e` past it swapped them
+        // (caught by the differential's effect log, not by any import set)
+        function precedingDeclaratorsPure() {
+          const decls = declaration.node.declarations;
+          const at = decls.indexOf(declarator);
+          return at <= 0 || decls.slice(0, at).every(item => !mayHaveSideEffects(item.init));
+        }
+        if (isInstanceSurfaceNav(overPrefix)) {
+          const liftHost = isForInit ? declaration.parentPath : declaration;
+          // a FOR-HEAD carries it like any other SOLE reader: its header holds the dispatch, the
+          // prefix inside that argument runs before the read, and that is the order the source has -
+          // one statement fewer than the lift, and the same shape the other leg prints
+          // the value the init yields once its prefix has been taken off it
+          function seqTailValue() {
+            return seqInit.type === 'AssignmentExpression' ? seqInit.right
+              : prefixExprs.length === seqInit.expressions.length ? seqInit.expressions.at(-1).right
+                : seqInit.expressions.at(-1);
+          }
+          if (residualDies) {
+            objectNode = t.sequenceExpression([...prefixExprs, overPrefix]);
+            receiverCarriesInit = true;
+            slotDropsAlone = true;
+          } else if (isBodylessStatementSlot(declaration.parentPath?.node, declaration.node)) {
+            // ... and a CONTROL slot gets its statement by BRACING first: the block keeps the effect
+            // conditional, which is what forbids the bare lift, and the pair the flatten route uses
+            // owns that surgery. the lift REPLACES the declaration path, so the anchors are taken
+            // again from the moved pair - reading the stale one is an undefined node downstream
+            liftDeclaratorInitSE(t, declarator, declaration);
+            const moved = reanchorBlockWrappedDeclaration(declaration, declarator);
+            if (moved) {
+              declaration = moved.declaration;
+              declarator = moved.declarator.node ?? moved.declarator;
+            }
+            objectNode = overPrefix;
+          } else if (!isForInit && statementListOf(declaration.parentPath?.node) && !precedingDeclaratorsPure()) {
+            // ... and where an EFFECTFUL sibling declarator stands AHEAD of the slot, the prefix may
+            // not hoist over it - the declaration SPLITS at the slot instead: pre-siblings evaluate,
+            // then the prefix, then this declarator with the rest. the split keeps the declarator
+            // only when it is handed back as the slot's own list, and it REPLACES the path, so the
+            // host is read again from the prop that travelled with it
+            const at = declaration.node.declarations.indexOf(declarator);
+            if (wrapperSlot >= 0) declInit.elements[wrapperSlot] = seqTailValue();
+            else declarator.init = seqTailValue();
+            splitDeclarationAtSlot({
+              declaration,
+              idx: at,
+              sePrefix: prefixExprs,
+              extractedDeclarators: [declarator],
+            });
+            const rehomed = hostDeclarationOf(prop);
+            if (!rehomed?.node) return true;
+            declaration = rehomed;
+            declarator = prop.findParent(pp => pp.isVariableDeclarator())?.node;
+            objectNode = overPrefix;
+          } else if (statementListOf(liftHost?.parentPath?.node) && precedingDeclaratorsPure()) {
+            for (const expr of prefixExprs) liftHost.insertBefore(t.expressionStatement(expr));
+            if (wrapperSlot >= 0) declInit.elements[wrapperSlot] = seqTailValue();
+            else declarator.init = seqTailValue();
+            objectNode = overPrefix;
+          }
+        }
+      }
+    }
     // an instance receiver that resolves to NOTHING (a call, an interpolated template, an unmatched hop) is
     // unextractable - leave native. the planner's `receiverIsSafe` short-circuit used to catch this, but the
     // `eliminateResidual` relaxation (which admits a side-effect-free member) no longer does, so guard here
@@ -2088,7 +2345,6 @@ export default function createDestructureEmitter({
     // resolved by PARENT WALK, not source positions: a catch-born relocated declaration is
     // synthesized (no start/end), and a position find would miss it - initIsPure then reads
     // false and the dead-residual drop never fires
-    const declarator = prop.findParent(pp => pp.isVariableDeclarator())?.node;
     // a CONDITIONAL / LOGICAL receiver (`c ? globalThis : userObj`, `m && globalThis`, `g || self`)
     // must NOT extract `const f = _polyfill` unconditionally: on a diverging ternary that binds the
     // polyfill on the user branch too, corrupting its legitimate `undefined`. decline (no emission) so
@@ -2099,14 +2355,13 @@ export default function createDestructureEmitter({
     // `outerDestructureReceiver` descends array wrappers (`[{ Array: { [se]: f } }] = [c ? gt : u]`)
     const recv = kind === 'instance' ? null : outerDestructureReceiver(prop.parentPath, prop.scope, adapter);
     if (recv?.type === 'ConditionalExpression' || recv?.type === 'LogicalExpression') return false;
-    const bindingCount = originalBindingCount(prop);
-    // the wrapper's other element PATTERNS, or null where this prop sits in no wrapper: the same
-    // view the purity test reads, asked for what each of them still coerces
-    const wrapperSiblingElements = arrayWrapperOtherElements(prop, declaration);
-    // an ARRAY-WRAPPED slot in a statement declaration: the wrapper residual is the one this pipeline
-    // drops whole once its props are consumed, so eliminating it up front only does earlier what the
-    // post-traverse prune does anyway - and a loop header has no statement list to drop into
-    const slotDropsAlone = !isForInit && arrayWrapperSlotIndex(prop, declaration) >= 0;
+    // ... and a FOR-HEAD drops its slot too when the extraction takes the declarator whole AND its
+    // receiver is a resolved SURFACE: what the drop needs is a DECLARATOR slot, not a statement one,
+    // and the header has that (`for (const m = _m(_g.Array.prototype); ...)`, the other leg's
+    // spelling) - the dead residual kept there re-read that surface a second time for nothing. a
+    // LITERAL receiver keeps its residual on both legs, which is the standing negative
+    if (isForInit && isInstanceSurfaceNav(objectNode)
+      && originalBindingCount(prop) === patternBindingCount(prop.node.value)) slotDropsAlone = true;
     const plan = planSideEffectKeyStrategy({
       polyfillKind: kind,
       isForInit,
@@ -2137,6 +2392,7 @@ export default function createDestructureEmitter({
         && (arrayWrapperSlotIndex(prop, declaration) < 0
           || !mayHaveSideEffects(declarator.init.elements[arrayWrapperSlotIndex(prop, declaration)])),
       propKeyIsPure: !computedKeyHasSideEffects(prop.node),
+      receiverCarriesInit,
       // an ARRAY-WRAPPED slot whose PRECEDING elements are pure: the memo evaluates the element
       // where native already evaluates it first, so the hoist observes nothing out of order even
       // though the literal as a whole is not pure
@@ -2853,7 +3109,10 @@ export default function createDestructureEmitter({
       // (`var _unused;`) or strict mode throws ReferenceError; a declaration host binds it
       // via the destructure pattern itself
       if (parent.isAssignmentExpression()) {
-        const stmt = peelParenAndTSParentPath(parent);
+        // through the SHARED pair: an unbraced control slot has no statement list, and `insertBefore`
+        // wraps it on its own without re-seating the path - the extraction landing after it then
+        // wrapped the block a SECOND time, leaving the `var` and the residual in a block of their own
+        const stmt = blockWrappedHostStatement(parent);
         if (stmt?.node?.type === 'ExpressionStatement') {
           stmt.insertBefore(t.variableDeclaration('var', [t.variableDeclarator(t.identifier(unusedId.name))]));
         }

@@ -1,4 +1,4 @@
-import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { cloneNode, sequenceExpression } from './builders.js';
 // the member-hop spelling and the proxy-receiver collapse are the render canon's, re-exported
 // so this leg's emitters keep taking their node vocabulary from one import
@@ -71,14 +71,6 @@ export function replaceNodeInTree(root, target, next) {
   return false;
 }
 
-// peel the transparent wrappers an expression may wear (parens, chain, TS casts) down to the
-// value-bearing node - the one peel both emitters read through
-export function peelExpressionWrappers(node) {
-  while (node && (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(node.type))) node = node.expression;
-  return node;
-}
-
 // the VALUE a kept write stores: a bare proxy root or a spine whose LEAF hop has a pure
 // entry spells one (`globalThis.self` -> `_self`); a window-terminated spine does not.
 // `isSubstituted` answers for a root the walk ALREADY swapped - a drain-time caller reads the
@@ -87,10 +79,10 @@ export function proxyStoreIsSpellable(storedNode, resolveGlobalPolyfill, isSubst
   // the stored VALUE is the sequence's tail - the prefix is effect, not surface. only a MEMBER
   // tail answers here: a bare IDENTIFIER tail may be an alias this helper cannot resolve, and the
   // caller's re-read canon owns that shape (`(s = (f++, g), g).WeakRef`)
-  let value = peelExpressionWrappers(storedNode);
+  let value = unwrapRuntimeExpr(storedNode);
   while (value?.type === 'SequenceExpression'
-    && peelExpressionWrappers(value.expressions.at(-1))?.type === 'MemberExpression') {
-    value = peelExpressionWrappers(value.expressions.at(-1));
+    && unwrapRuntimeExpr(value.expressions.at(-1))?.type === 'MemberExpression') {
+    value = unwrapRuntimeExpr(value.expressions.at(-1));
   }
   if (value?.type === 'Identifier') return !!resolveGlobalPolyfill(value.name) || !!isSubstituted?.(value.name);
   if (value?.type === 'MemberExpression' && !value.computed) return !!resolveGlobalPolyfill(value.property?.name);
