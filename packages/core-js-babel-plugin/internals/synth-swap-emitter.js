@@ -22,6 +22,7 @@ import {
   isSynthSimpleObjectPattern,
   deleteHostAboveChain,
   unwrapRuntimeExpr,
+  isDestructurePattern,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
@@ -440,7 +441,7 @@ export default function createSynthSwapEmitter({
     // a DISCARDED destructure SOURCE - the receiver value is invariant of which global names it, safe to drop
     // the hops (`{Object:OD} = _globalThis`). a value-USE (`const x = globalThis.self.window`) keeps the raw
     // hops: it reads `window`, which throws off-browser exactly as the source does (finding-e faithful-throw)
-    if (allProxyEnd && target?.type !== 'ObjectPattern' && target?.type !== 'ArrayPattern') return false;
+    if (allProxyEnd && !isDestructurePattern(target)) return false;
     // the all-proxy chain's LAST hop is itself a proxy. only root-collapse when SOME hop is UNRESOLVABLE
     // (`.window`, no `_window` - `collapseProxyGlobalReceiver` keeps it as `_globalThis.window`, undefined
     // off-engine): drop EVERY hop to the root pure import (`_globalThis`). when every hop resolves (`.self`

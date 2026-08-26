@@ -7,9 +7,6 @@ const arr = [1, [2]];
 let m;
 let z;
 ({
-  y: {
-    flat: m
-  },
   z
 } = {
   y: arr,

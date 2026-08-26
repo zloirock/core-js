@@ -6,6 +6,7 @@ import {
   tsRuntimeBindingName,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
+  isDestructurePattern,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 import { liftSfcLangSuffix } from './sfc-shapes.js';
@@ -233,7 +234,7 @@ export function bindingNamesReducer() {
           }
         // an assignment-form destructure (`({ myFrom } = other)`) writes through every name
         // its pattern binds - the same poison, babel-side constantViolations count it too
-        } else if (node.left?.type === 'ObjectPattern' || node.left?.type === 'ArrayPattern') {
+        } else if (isDestructurePattern(node.left)) {
           walkPatternIdentifiers(node.left, id => assignedNames.add(id.name));
         }
         break;

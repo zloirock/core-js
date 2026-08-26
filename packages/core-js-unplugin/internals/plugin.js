@@ -2,30 +2,28 @@ import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import { restSentinelNamesReducer } from '@core-js/polyfill-provider/detect-usage/own-output';
 import {
-  extractIndirectRequireSEPrefix,
-  namespaceScopedBindingBlock,
-  forEachStatementPosition,
-  getMinifierSequenceDestructureExpressions,
-  sequenceHeadDirectiveHazard,
+  BRACE_STATEMENT_HOST_TYPES,
+  collectFileCensus,
   createTypeAnnotationChecker,
   detectCommonJS,
+  extractIndirectRequireSEPrefix,
+  forEachStatementPosition,
+  getMinifierSequenceDestructureExpressions,
   hasTopLevelESM,
-  isDeleteTarget,
   isForXWriteTarget,
-  climbTransparentWrapperPath,
-  isMemberWriteOnlyContext,
+  isMemberWriteHost,
   isMutatedStaticMeta,
   isMutatedStaticPair,
-  collectFileCensus,
-  methodReadsUsageCensus,
-  memberKeyNamesReducer,
-  mutatedGlobalSlotNames,
-  prologueEndIndex,
-  BRACE_STATEMENT_HOST_TYPES,
-  SINGLE_STATEMENT_SLOTS,
   isThisReceiver,
-  isUpdateTarget,
-  TS_EXPR_WRAPPERS,
+  memberKeyNamesReducer,
+  methodReadsUsageCensus,
+  mutatedGlobalSlotNames,
+  namespaceScopedBindingBlock,
+  peelParenAndTSParentPath,
+  prologueEndIndex,
+  sequenceHeadDirectiveHazard,
+  SINGLE_STATEMENT_SLOTS,
+  SKIPPABLE_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   enrichMutatedStatics,
@@ -198,13 +196,7 @@ export function formatLabelLocation(label, code) {
 // walk past parens, chain expressions, and TS wrappers - they all forward to
 // whatever wraps them, so the semantic parent is past them
 function semanticParentNode(metaPath) {
-  let { parentPath } = metaPath;
-  while (parentPath?.node && (parentPath.node.type === 'ParenthesizedExpression'
-    || parentPath.node.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(parentPath.node.type))) {
-    parentPath = parentPath.parentPath;
-  }
-  return parentPath?.node;
+  return peelParenAndTSParentPath(metaPath, SKIPPABLE_WRAPPER_TYPES)?.node;
 }
 
 function nonEmptyString(value) {
@@ -896,25 +888,14 @@ export default function createPlugin(options) {
 
       const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
-      // write-position bails for a property member usage: update / for-x targets, any
-      // AssignmentExpression LHS - including compound (`obj.at += X`; the read could be
-      // polyfilled, but the write would hit the const polyfill binding - bail to keep both
-      // halves consistent) - and the shared write-only destructure contexts (default-pattern
-      // `{a: obj.at = 1}`, array-pattern `[obj.at] = src`, and the assignment-target shape
-      // parsers emit as ArrayExpression: `[super.from] = src` would otherwise rewrite to a
-      // frozen import binding and throw "Assignment to constant variable" at runtime)
-      function memberWritePositionBails(node, parent, metaPath) {
-        // the write host's `.left` points at the OUTERMOST transparent wrapper when the member
-        // is wrapped (`(obj.at as any) = fn`) - compare against the climbed anchor, and hand the
-        // write-only gate the anchor's own parent window so its slot identities line up
-        const anchor = climbTransparentWrapperPath(metaPath);
-        // ... and a `delete` target is write-only in the same sense: the consumer needs the SLOT,
-        // so a claim that replaces the member with a call would delete nothing and run the helper
-        // besides (`delete g[Symbol.iterator]` keeps the member, its key swapped)
-        return isUpdateTarget(parent) || isForXWriteTarget(metaPath, estreeAdapter)
-          || (parent?.type === 'AssignmentExpression' && parent.left === anchor.node)
-          || (isDeleteTarget(anchor.parentPath?.node) && anchor.parentPath.node.argument === anchor.node)
-          || isMemberWriteOnlyContext(anchor.node, anchor.parentPath?.node, anchor.parentPath?.parentPath?.node);
+      // write-position bails for a property member usage: a for-x head target, and every other
+      // write host the shared predicate enumerates - assignment LHS (compound included: the read
+      // could be polyfilled, but the write would hit the const polyfill binding, so both halves
+      // bail together), update operand, `delete` target (the consumer needs the SLOT), and the
+      // destructuring write-only contexts. the other leg asks exactly this pair; spelled as its
+      // own disjunction here it was one rule in two places, and only a probe told them apart
+      function memberWritePositionBails(metaPath) {
+        return isForXWriteTarget(metaPath, estreeAdapter) || isMemberWriteHost(metaPath);
       }
 
       // entry-global: the detection and disposition policy (`planEntries`) applied as body

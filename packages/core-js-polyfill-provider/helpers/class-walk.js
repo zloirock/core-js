@@ -2,20 +2,24 @@ import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
-  importedGlobalProxyName,
-  tsImportEqualsProxyName,
-  LET_SCOPE_HOST_TYPES,
-  FUNCTION_LIKE_NODE_TYPES,
-  isMutatedGlobalSlot,
-  isPristineProxyGlobal,
-  POSSIBLE_GLOBAL_OBJECTS,
+  aliasDeclScope,
   aliasReadGuardedAgainstNullish,
   arrayWrapSlotBindsName,
   asProxyGlobalName,
+  collectFileCensus,
   definedBranchOfGuardConditional,
   findVarOwnerDeclaring,
+  FUNCTION_LIKE_NODE_TYPES,
+  importedGlobalProxyName,
+  isASTNode,
+  isDeclaratorSelfViolation,
+  isDestructurePattern,
+  isGuardedAliasingWrite,
+  isMutatedGlobalSlot,
+  isPristineProxyGlobal,
   isRenderedStoredValue,
   isVarScopeBoundary,
+  LET_SCOPE_HOST_TYPES,
   memberKeyName,
   objectPatternLiteralKeyPath,
   pairedArrayWrapInitElement,
@@ -25,19 +29,17 @@ import {
   peelArrayWrapBindingLayers,
   peelSequenceTail,
   peelZeroArgIifeReturn,
+  POSSIBLE_GLOBAL_OBJECTS,
+  propertyKeyName,
   reachingReassignmentValueNode,
   reassignmentBlocksGlobalResolve,
   SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
-  collectFileCensus,
-  isGuardedAliasingWrite,
-  propertyKeyName,
+  tsImportEqualsProxyName,
   unwrapRuntimeExpr,
-  varInitDominatesUsage,
-  isDeclaratorSelfViolation,
-  withoutValuelessDeclarationViolations,
   unwrapSafeSequenceTail,
-  isASTNode,
+  varInitDominatesUsage,
+  withoutValuelessDeclarationViolations,
 } from './ast-patterns.js';
 
 // re-export so existing consumers (`global-resolve.js`, `member-resolve.js`) keep their
@@ -79,16 +81,6 @@ function peelIifeReturnTarget(node) {
 // so the keep-vs-swap decision lives in one place
 export function isAliasProxyRoot(rootNode, aliasCtx) {
   return !!aliasCtx && !!rootNode && !POSSIBLE_GLOBAL_OBJECTS.has(rootNode.name);
-}
-
-// the scope an alias's init / next hop is canonical in: the binding's OWN declaration scope, not the
-// use site - a later hop reading an outer-declared name must not bind to an inner shadow of it. the
-// detect-usage adapter surfaces the declaration scope on `binding.scope` (its path carries no scope),
-// the raw babel binding on `binding.path.scope`; falls back to the use scope when neither is present.
-// single source so no hop site can drop the `binding.scope` arm (the gap that under-resolved an
-// alias-hop chain under a shadowed receiver)
-function aliasDeclScope(binding, scope) {
-  return binding.path?.scope ?? binding.scope ?? scope;
 }
 
 // BOTH cycle guards below answer with the shared narrow: on a cycle nothing is resolvable through
@@ -286,7 +278,7 @@ function trustedWriteValue(assignNode) {
 function trustedPatternWriteSlotValue({ scope, name, adapter, path }) {
   if (!adapter?.findTrustedAliasWrite) return null;
   const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
-  if (!write || (write.left?.type !== 'ObjectPattern' && write.left?.type !== 'ArrayPattern')) return null;
+  if (!write || !isDestructurePattern(write.left)) return null;
   if (adapter.method === 'usage-pure'
     && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)) return null;
   const container = unwrapInitForResolution(write.right);
@@ -767,7 +759,7 @@ export function ctorAliasShapesReducer() {
       if (hasCtorAliasShapes) return;
       const pattern = node.type === 'AssignmentExpression' && node.operator === '=' ? node.left
         : node.type === 'VariableDeclarator' && node.init ? node.id : null;
-      if (pattern?.type === 'ObjectPattern' || pattern?.type === 'ArrayPattern') hasCtorAliasShapes = true;
+      if (isDestructurePattern(pattern)) hasCtorAliasShapes = true;
     },
     result() { return { hasCtorAliasShapes }; },
   };
