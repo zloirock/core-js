@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added polyfill for `requestIdleCallback`
 - Compat data improvements:
   - [`Iterator.{ zip, zipKeyed }`](https://github.com/tc39/proposal-joint-iteration) marked as [shipped in V8 ~ Chrome 153](https://issues.chromium.org/issues/465715798)
   - [`Promise.{ allKeyed, allSettledKeyed }`](https://github.com/tc39/proposal-await-dictionary) marked as [shipped in FF155](https://bugzilla.mozilla.org/show_bug.cgi?id=2057270)
