@@ -1,4 +1,5 @@
 import {
+  claimIsInert,
   ESM_MARKER_TYPES,
   detectCommonJS,
   extractIndirectRequireSEPrefix,
@@ -33,6 +34,10 @@ import {
   sequenceHeadDirectiveHazard,
   keptNavChainEndPath,
   memberChainEndPath,
+  peelParenAndTSSlotPath,
+  peelSkippableWrapperPath,
+  isDestructurePattern,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   navHoldsMintedSeCall, ownEmittedNavClaim, ownOutputTests, restSentinelNamesReducer,
@@ -49,6 +54,7 @@ import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
   hostSlot,
   nullFirstGuardTest,
+  renderBoundRawBranch,
   renderCtorIdentityNarrow,
   renderInExpressionPlan,
   renderShortCircuitGuard,
@@ -73,6 +79,7 @@ import {
   resolveKey as sharedResolveKey,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
+  planGuardedDestructureNarrow,
   isSourcedSymbolIteratorMeta, planGuardedStaticNarrow, resolveSymbolIteratorEntry, SYMBOL_ITERATOR_PURE_RESULT, symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import { chainNavigatesIntoMutatedStatic, isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
@@ -95,16 +102,6 @@ import {
 import runEntryDetection from './internals/detect-entry.js';
 import createDestructureEmitter from './internals/destructure-emitter.js';
 import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
-
-// climb a babel path through transparent runtime wrappers (parens / ChainExpression / TS cast / non-null)
-// to the underlying expression path, so receiver navigation reaches the real node a TS cast or paren hides
-function peelWrapperPath(p) {
-  while (p?.node && (TS_EXPR_WRAPPERS.has(p.node.type)
-    || p.node.type === 'ChainExpression' || p.node.type === 'ParenthesizedExpression')) {
-    p = p.get('expression');
-  }
-  return p;
-}
 
 // minifier-shape pre-pass: `(prefixExpr, ..., ({pat} = R), ...);` collapses a destructure
 // assignment into ANY slot of a statement-position SequenceExpression (minified tail,
@@ -306,7 +303,6 @@ export default function plugin(api, options) {
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
-    unwrapTSExpressionParent,
     withSideEffects,
     reset: resetASTHelpers,
   } = createASTHelpers(t, {
@@ -430,8 +426,10 @@ export default function plugin(api, options) {
         // (`globalThis.Symbol.iterator` -> `_Symbol$iterator`), which subsumes the proxy-global root.
         // skipping it first then bailing stranded a raw `globalThis` (ie:11 ReferenceError) / left the
         // broken `_globalThis.Symbol.iterator` (`_globalThis.Symbol` is undefined in the pure variant)
-        const callerPath = unwrapTSExpressionParent(path);
-        const entry = resolveSymbolIteratorEntry(callerPath.node, callerPath.parent);
+        const callerPath = peelParenAndTSSlotPath(path);
+        // the MEMBER and the caller above it, the one convention all three callers now use -
+        // the resolver peels the callee itself, so a seal or a TS wrapper needs no compensation
+        const entry = resolveSymbolIteratorEntry(path.node, callerPath.parent);
         if (!isEntryNeeded(entry)) return;
         // collapse a proxy-global receiver to its ROOT pure import (provider-resolved): `globalThis.self[
         // Symbol.iterator]` -> `_getIteratorMethod((droppedSe, _globalThis))`, NOT a leaf `_self` / dead
@@ -494,7 +492,7 @@ export default function plugin(api, options) {
           let cur = peelNestedSequenceExpressions(path.node.property).tail;
           while (cur) {
             skippedNodes.add(cur);
-            if (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression') cur = cur.expression;
+            if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.type)) cur = cur.expression;
             else break;
           }
         }
@@ -583,16 +581,17 @@ export default function plugin(api, options) {
       }
 
       function shouldSkipPath(path) {
-        return isDisabled(path.node) || skippedNodes.has(path.node)
-          || (path.parentPath && !path.parentPath.container) // stale parent
-          || isOrphaned(path) || isInTypeAnnotation(path);
+        // DETACHMENT is this leg's own question - babel reports it as a stale container or an
+        // orphaned path; the four SHAPE questions are the shared ones
+        return (path.parentPath && !path.parentPath.container) || isOrphaned(path)
+          || claimIsInert({ node: path.node, path, isDisabled, skippedNodes, isInTypeAnnotation });
       }
 
       // detect `(recv)?.inner?.(args).outer(args)` with polyfillable instance inner+outer;
       // resolve inner via callee path so `[].at` -> `_atMaybeArray` (not generic `_at`)
       function findInnerPolyChain(path) {
         if (!path.isOptionalMemberExpression()) return null;
-        const outerCaller = unwrapTSExpressionParent(path);
+        const outerCaller = peelParenAndTSSlotPath(path);
         // a GET tail over the same chain (`recv.m?.().at`) combines too: the standalone emit
         // memoizes the callee and rebuilds the optional call off it, which resolves the inner
         // method-get on a bare `_ref` and so loses the receiver type the chain still carries
@@ -608,7 +607,7 @@ export default function plugin(api, options) {
         // rare but possible wrappers: ParenthesizedExpression (babel's
         // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
         // peel both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
-        let current = peelWrapperPath(path.get('object'));
+        let current = peelSkippableWrapperPath(path.get('object'));
         // outer call's immediate (wrapper-peeled) receiver. when the descent below crosses
         // non-optional Member/Call hops (`.map(...)` / `.slice(...)`) to reach the optional
         // inner, this differs from the inner - the combine then threads the surviving hops
@@ -616,7 +615,7 @@ export default function plugin(api, options) {
         const outerObjectNode = current.node;
         while (isOptionalNode(current.node)) {
           if (current.node.optional) break;
-          current = peelWrapperPath(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
+          current = peelSkippableWrapperPath(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
         }
         if (!current.isOptionalCallExpression() || !current.node.optional) return null;
         const callee = current.get('callee');
@@ -670,7 +669,7 @@ export default function plugin(api, options) {
       // sideEffects channel covers computed-key SE: `super[(fn(),'X')](args)` collected fn()
       // into meta.sideEffects via members.js; emit wraps the call in SequenceExpression
       function replaceInheritedStatic(path, id, sideEffects) {
-        const callerPath = unwrapTSExpressionParent(path);
+        const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
         if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node) {
@@ -678,7 +677,7 @@ export default function plugin(api, options) {
             [t.thisExpression(), ...callParent.node.arguments.map(a => t.cloneNode(a))]);
           callParent.replaceWith(withSideEffects(callExpr, sideEffects));
         } else {
-          unwrapTSExpressionParent(path).replaceWith(withSideEffects(id, sideEffects));
+          peelParenAndTSSlotPath(path).replaceWith(withSideEffects(id, sideEffects));
         }
       }
 
@@ -744,7 +743,7 @@ export default function plugin(api, options) {
       // BEFORE the rewrite and hand it back after. the COMBINED render replaces a different path
       // than the one held here, so it takes the type as an argument and stamps its own replacement
       function captureInstanceCallType(path) {
-        const callerPath = unwrapTSExpressionParent(path);
+        const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
         const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           && callParent.node.callee === callerPath.node;
@@ -759,7 +758,7 @@ export default function plugin(api, options) {
       // stash return type on CallExpression before callee replacement so downstream
       // resolveNodeType can still determine e.g. Promise.all -> Array
       function annotateCallReturnType(path) {
-        const callerPath = unwrapTSExpressionParent(path);
+        const callerPath = peelParenAndTSSlotPath(path);
         const callParent = callerPath.parentPath;
         if (!(callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           || callerPath.parent.callee !== callerPath.node) return;
@@ -778,7 +777,7 @@ export default function plugin(api, options) {
         const memberNode = path.node;
         if (guardedNarrowRendered.has(memberNode)) return true;
         const plan = planGuardedStaticNarrow({
-          memberNode, parent: unwrapTSExpressionParent(path).parentPath?.node, meta, path, resolvePure,
+          memberNode, parent: peelParenAndTSSlotPath(path).parentPath?.node, meta, path, resolvePure,
         });
         if (!plan) return false;
         if (plan.bail) return true;
@@ -791,24 +790,21 @@ export default function plugin(api, options) {
             memberNode.computed)
           : memberNode;
         const rawBranch = plan.isCallee
-          ? t.callExpression(t.memberExpression(t.cloneNode(readNode), t.identifier('bind')), [t.cloneNode(plan.recvIdent)])
+          ? estreeToBabel(renderBoundRawBranch(hostSlot(t.cloneNode(readNode)), hostSlot(t.cloneNode(plan.recvIdent))))
           : readNode;
         guardedNarrowRendered.add(memberNode);
-        // one branch per candidate ctor, innermost-last: whichever the binding actually holds at
-        // runtime answers with ITS pure static, and a value that is none of them keeps the raw read
-        const narrow = plan.branches.reduceRight((alternate, branch) => {
-          // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
-          // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
-          // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
-          return estreeToBabel(renderCtorIdentityNarrow({ branches: [branch] }, hostSlot(alternate), {
-            injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
-            spellRecv: () => {
-              const testRecv = t.cloneNode(plan.recvIdent);
-              skippedNodes.add(testRecv);
-              return hostSlot(testRecv);
-            },
-          }));
-        }, rawBranch);
+        // the whole chain is the canon's fold - one branch per candidate ctor, innermost-last.
+        // the test reads the USER's binding, so its identifier is skipped like the raw branch's:
+        // left live, the identifier visitor swapped it for the ponyfill wherever the binding NAME
+        // is a global one (`var Map = Map`), and the test became `_Map === _Map` - constant true
+        const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
+          injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+          spellRecv: () => {
+            const testRecv = t.cloneNode(plan.recvIdent);
+            skippedNodes.add(testRecv);
+            return hostSlot(testRecv);
+          },
+        }));
         const guard = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
         t.traverseFast(rawBranch, n => skippedNodes.add(n));
@@ -847,27 +843,21 @@ export default function plugin(api, options) {
       // multi-prop pattern would need splitting, and a default / computed key has its own canon
       function emitGuardedDestructureNarrow(meta, prop) {
         const pattern = prop.parentPath;
-        if (!pattern?.isObjectPattern() || pattern.node.properties.length !== 1) return false;
-        if (prop.node.computed || prop.node.shorthand && prop.node.value?.type !== 'Identifier') return false;
-        const binding = prop.node.value;
-        if (binding?.type !== 'Identifier') return false;
-        // three hosts collapse to a plain binding: a declarator, the SOLE-ASSIGNMENT form in
-        // STATEMENT position (`({ g } = init);` - the expression's value is unobservable
-        // there, so `g = <narrow>` is sound), and the VALUE-CONSUMING sole assignment, whose
-        // value - natively the RHS object - the render preserves as a sequence tail
-        // (`(g = <narrow>, M)`); a second read of the local receiver is unobservable
-        const host = pattern.parentPath;
-        const isDeclarator = host?.isVariableDeclarator() && !!host.node.init;
-        const isSoleAssignment = host?.isAssignmentExpression() && host.node.operator === '='
-          && host.node.left === pattern.node;
-        const inStatement = isSoleAssignment && unwrapTSExpressionParent(host).parentPath?.isExpressionStatement();
-        if (!isDeclarator && !isSoleAssignment) return false;
-        const hostInit = isDeclarator ? host.node.init : host.node.right;
-        const plan = planGuardedStaticNarrow({
-          memberNode: t.memberExpression(t.cloneNode(hostInit), t.identifier(meta.key)),
-          parent: null, meta, path: prop, resolvePure,
+        const host = pattern?.parentPath;
+        const admitted = planGuardedDestructureNarrow({
+          propNode: prop.node,
+          patternNode: pattern?.node,
+          hostNode: host?.node,
+          // the statement question is this leg's own: its parser records parens as `extra`, so the
+          // TS-wrapper climb is what reaches the host's real statement
+          hostInStatement: !!host?.isAssignmentExpression()
+            && !!peelParenAndTSSlotPath(host).parentPath?.isExpressionStatement(),
+          meta,
+          path: prop,
+          resolvePure,
         });
-        if (!plan || plan.bail) return false;
+        if (!admitted) return false;
+        const { plan, bindingName, hostKind } = admitted;
         // the raw branch is a member read this very rule would narrow again on re-entry - mark it
         // handled, exactly as the member render does with the node it keeps
         const rawBranch = t.memberExpression(t.cloneNode(plan.recvIdent), t.identifier(meta.key));
@@ -878,15 +868,15 @@ export default function plugin(api, options) {
         }));
         const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
-        if (isDeclarator) {
-          host.node.id = t.cloneNode(binding);
+        if (hostKind === 'declarator') {
+          host.node.id = t.identifier(bindingName);
           host.node.init = value;
-        } else if (inStatement) {
-          host.node.left = t.cloneNode(binding);
+        } else if (hostKind === 'assignment-statement') {
+          host.node.left = t.identifier(bindingName);
           host.node.right = value;
         } else {
           host.replaceWith(t.sequenceExpression([
-            t.assignmentExpression('=', t.cloneNode(binding), value), t.cloneNode(plan.recvIdent),
+            t.assignmentExpression('=', t.identifier(bindingName), value), t.cloneNode(plan.recvIdent),
           ]));
         }
         return true;
@@ -896,12 +886,11 @@ export default function plugin(api, options) {
         if (shouldSkipPath(path)) return;
         // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
         // Identifier, and `<_Map/>` would call the polyfill as a React component at runtime
-        if (path.node.type === 'JSXIdentifier') return;
 
         if (meta.kind === 'in') return handleInExpression(meta, path);
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
-        if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
+        if (isDeleteTarget(peelParenAndTSSlotPath(path).parentPath?.node)) return;
 
         // a pass over our own output must not claim the member again - the shared census
         // family (provider own-output), ahead of EVERY route: the guarded-narrow render's
@@ -973,7 +962,7 @@ export default function plugin(api, options) {
             // the tag slot may hold a TS wrapper over the member (`(arr.at as any)\`x\`` - the
             // wrapper survives in babel's AST): climb to the tagged-template host; the shared
             // predicate unwraps its tag slot, so the identity subsumes the old `path.key` check
-            if (isTaggedTemplateTag(unwrapTSExpressionParent(path).parentPath?.node, path.node, meta.placement)) return;
+            if (isTaggedTemplateTag(peelParenAndTSSlotPath(path).parentPath?.node, path.node, meta.placement)) return;
             // provenance gate: a string-spelled key (`arr['Symbol.iterator']`) is a plain
             // property read and stays raw
             if (isSourcedSymbolIteratorMeta(meta)) {
@@ -1016,7 +1005,7 @@ export default function plugin(api, options) {
           // transparent wrappers (parens / TS cast / non-null) on the `.prototype` receiver so a TS-wrapped
           // one (`((c++, globalThis.self).Map.prototype as any).has`) reaches the ctor sub-receiver `X.Map`
           const receiverPath = meta.placement === 'prototype'
-            ? peelWrapperPath(path.get('object')).get('object')
+            ? peelSkippableWrapperPath(path.get('object')).get('object')
             : path.get('object');
           // mirror the main static-rewrite branch (`replacePath.replaceWith(withSideEffects(
           // id, allEffects))` below): preserve `meta.sideEffects` (computed-key SE in the
@@ -1224,9 +1213,9 @@ export default function plugin(api, options) {
               // (`((c++, globalThis.self).Array.prototype as any).flat`) reaches its proxy root and collapses
               // its hops like the unwrapped form, instead of leaving `_globalThis.self` (undefined off-engine,
               // diverging from unplugin which drops it)
-              let recvRoot = peelWrapperPath(path.get('object'));
+              let recvRoot = peelSkippableWrapperPath(path.get('object'));
               while (recvRoot.isMemberExpression() || recvRoot.isOptionalMemberExpression()) {
-                recvRoot = peelWrapperPath(recvRoot.get('object'));
+                recvRoot = peelSkippableWrapperPath(recvRoot.get('object'));
               }
               synthSwap.collapseProxyHopRoot(recvRoot, { scope: path.scope, adapter, path });
             }
@@ -1262,7 +1251,7 @@ export default function plugin(api, options) {
             replaceInheritedStatic(path, id, meta.sideEffects);
           } else {
             const wasOptional = (annotateCallReturnType(path), path.node.optional);
-            const replacePath = unwrapTSExpressionParent(path);
+            const replacePath = peelParenAndTSSlotPath(path);
             // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` - preserve fn() via
             // SequenceExpression wrap since the MemberExpression replacement discards its
             // receiver/computed-key subtree.
@@ -1645,7 +1634,7 @@ export default function plugin(api, options) {
               AssignmentExpression(p) {
                 const { node } = p;
                 if (node.operator !== '=' || isDisabled(node)
-                    || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
+                    || !isDestructurePattern(node.left)) return;
                 registerAliasPrePassSite({
                   pattern: node.left, init: node.right, assignNode: node,
                   scope: p.scope, adapter, injector, path: p,
@@ -1654,7 +1643,7 @@ export default function plugin(api, options) {
               VariableDeclarator(p) {
                 const { node } = p;
                 if (!node.init || isDisabled(node)
-                    || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
+                    || !isDestructurePattern(node.id)) return;
                 registerAliasPrePassSite({
                   pattern: node.id, init: node.init, declKind: p.parent.kind,
                   scope: p.scope, adapter, injector, path: p,

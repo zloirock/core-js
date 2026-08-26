@@ -31,10 +31,6 @@ const {
 // polyfill overwrite survives
 let m;
 ({
-  v: {
-    flatMap: m
-  }
-} = {
   v: (se4(), arr4)
 });
 m = _flatMapMaybeArray(arr4);

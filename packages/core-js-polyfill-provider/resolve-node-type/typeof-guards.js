@@ -322,8 +322,15 @@ export function createTypeofGuards({
   // irrelevant to guard polarity. cached per node; the cached peeled PATH shares the
   // sibling caches' staleness contract
   const siblingExitConditionCache = new WeakMap();
+  const NO_SIBLING_GUARD = { peeled: null, conditionTrue: null };
   function siblingExitCondition(sibling) {
     const { node } = sibling;
+    // a REMOVED sibling: the index is keyed on the paths array the container cache handed out, and
+    // that cache validates by length plus three sampled nodes - an emitter that inserts a statement
+    // and drops the one beside it (the assignment-host overwrite does exactly that) leaves both
+    // unchanged, so a path whose statement is gone can still be read here. it guards nothing any
+    // more, which is the same answer re-materializing the list gives
+    if (!node) return NO_SIBLING_GUARD;
     let cached = siblingExitConditionCache.get(node);
     if (!cached) {
       const blockedLabels = peeledLabelNames(sibling);
@@ -354,6 +361,7 @@ export function createTypeofGuards({
       // unified sibling shapes: condition-bearing early-exit (`if (typeof x === 'string')
       // return;`) and assertion statement (`assertString(x);`)
       const { peeled, conditionTrue } = siblingExitCondition(siblings[i]);
+      if (!peeled) continue;
       const entries = conditionTrue !== null
         ? extractConditionGuardEntries({ testNode: peeled.node.test, conditionTrue, scope: peeled.scope })
         : parseAssertionGuardEntries(peeled);

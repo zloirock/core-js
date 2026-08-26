@@ -53,6 +53,8 @@ import {
   propertyKeyName,
   unwrapRuntimeExpr,
   walkPatternIdentifiers,
+  isDestructurePattern,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '../helpers/ast-patterns.js';
 
 // walk up from an Identifier through destructuring pattern wrappers to the enclosing binding / assign
@@ -523,7 +525,7 @@ export function createBindingAnalysis({
     // only reads named/indexed properties off `o`, no mutation channel. equivalent to a
     // bag of `o.x` / `o[N]` member-receiver reads
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode
-      && (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')) return 'trivial';
+      && isDestructurePattern(parent.id)) return 'trivial';
     // the shared position enumeration: a value this reference names is evaluated here and nothing
     // downstream can reach it - a `for...in` head among them, since it only enumerates keys. this walk
     // cannot follow a FORWARDS into a container, so anything but CONSUMES falls through to the rules
@@ -876,7 +878,7 @@ export function createBindingAnalysis({
       if (isForXStatement(parent) && parent.right === refNode) return 'leak';
       if (parent?.type === 'SpreadElement') return 'leak';
       if (parent?.type === 'VariableDeclarator' && parent.init === refNode
-        && (parent.id?.type === 'ObjectPattern' || parent.id?.type === 'ArrayPattern')) return 'leak';
+        && isDestructurePattern(parent.id)) return 'leak';
       if (isMemberRefReceiver(parent, refNode)) {
         const memberOuter = peelTransparentExprAncestorPath(refPath?.parentPath);
         const use = memberOuter?.parentPath?.node;
@@ -955,7 +957,7 @@ export function createBindingAnalysis({
         let refNode = ref.node;
         let refContext = ref;
         let { parent } = refContext;
-        while (parent && (TS_EXPR_WRAPPERS.has(parent.type) || parent.type === 'ParenthesizedExpression')) {
+        while (parent && TRANSPARENT_EXPR_WRAPPER_TYPES.has(parent.type)) {
           refNode = parent;
           refContext = refContext.parentPath;
           if (!refContext) break;

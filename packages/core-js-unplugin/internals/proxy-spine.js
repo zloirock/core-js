@@ -15,20 +15,29 @@ import {
   vestigialNavOptionals,
   proxyNavSpellsClaimPure,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { planGuardedStaticNarrow } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
-  TS_EXPR_WRAPPERS,
+  planGuardedDestructureNarrow,
+  planGuardedStaticNarrow,
+} from '@core-js/polyfill-provider/detect-usage/members';
+import {
+  CHAIN_HOP_WRAPPER_TYPES,
   climbTransparentWrapperPath,
   deleteHostAboveChain,
+  isDestructurePattern,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
+  peelParenAndTSParentPath,
+  peelParenAndTSSlotChild,
+  POSSIBLE_GLOBAL_OBJECTS,
   receiverCarriesLiveOptional,
+  SKIPPABLE_WRAPPER_TYPES,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   assignmentExpression,
-  callExpression,
   chainExpression,
   cloneNode,
   identifier,
@@ -36,12 +45,13 @@ import {
   memberExpression,
   sequenceExpression,
   nullFirstGuardTest,
+  renderBoundRawBranch,
   renderCtorIdentityNarrow,
+  renderNavCollapseLeaf,
+  renderNavCollapseTail,
   renderNavGuardTestBase,
 } from './builders.js';
 import {
-  memberFromKeyName,
-  peelExpressionWrappers,
   proxyStoreIsSpellable,
   receiverCarriesOptional,
   replaceNodeInTree,
@@ -147,7 +157,7 @@ export default function createProxySpineChannel(ctx) {
       ? { ...cloneNode(memberNode), object: identifier(plan.recvIdent.name) }
       : cloneNode(memberNode);
     const rawBranch = plan.isCallee
-      ? callExpression(memberExpression(memberClone, identifier('bind')), [identifier(plan.recvIdent.name)])
+      ? renderBoundRawBranch(memberClone, identifier(plan.recvIdent.name))
       : memberClone.optional || receiverCarriesOptional(memberClone) ? chainExpression(memberClone) : memberClone;
     let replacement = guardChainNode(plan, rawBranch);
     if (plan.seqPrefix.length) replacement = sequenceExpression([...plan.seqPrefix.map(expr => cloneNode(expr)), replacement]);
@@ -174,51 +184,41 @@ export default function createProxySpineChannel(ctx) {
   function emitGuardedDestructureNarrow(meta, metaPath) {
     const prop = metaPath.node;
     const pattern = metaPath.parentPath?.node;
-    if (pattern?.type !== 'ObjectPattern' || pattern.properties.length !== 1 || prop.computed) return false;
-    const binding = prop.value;
-    if (binding?.type !== 'Identifier') return false;
-    // two hosts collapse to a plain binding: a declarator, and the SOLE-ASSIGNMENT form in
-    // STATEMENT position (the expression's value, natively the RHS object, is unobservable
-    // there); a value-consuming assignment keeps the raw read
-    const hostPath = metaPath.parentPath.parentPath;
-    const host = hostPath?.node;
-    const isDeclarator = host?.type === 'VariableDeclarator' && !!host.init;
+    const hostPath = metaPath.parentPath?.parentPath;
+    // the statement question is this leg's own: oxc keeps parens as nodes, so the climb peels
+    // them before asking whether the assignment's value is discarded
     let stmtUp = hostPath?.parentPath;
-    while (stmtUp?.node && peelExpressionWrappers(stmtUp.node) !== stmtUp.node) stmtUp = stmtUp.parentPath;
-    const isSoleAssignment = host?.type === 'AssignmentExpression' && host.operator === '='
-      && host.left === pattern;
-    const inStatement = isSoleAssignment && stmtUp?.node?.type === 'ExpressionStatement';
-    if (!isDeclarator && !isSoleAssignment) return false;
-    const hostInit = isDeclarator ? host.init : host.right;
-    const plan = planGuardedStaticNarrow({
-      memberNode: {
-        type: 'MemberExpression', object: hostInit,
-        property: { type: 'Identifier', name: meta.key }, computed: false, optional: false,
-      },
-      parent: null,
+    while (stmtUp?.node && unwrapRuntimeExpr(stmtUp.node) !== stmtUp.node) stmtUp = stmtUp.parentPath;
+    const admitted = planGuardedDestructureNarrow({
+      propNode: prop,
+      patternNode: pattern,
+      hostNode: hostPath?.node,
+      hostInStatement: stmtUp?.node?.type === 'ExpressionStatement',
       meta,
       path: metaPath,
       resolvePure,
     });
-    if (!plan || plan.bail) return false;
+    if (!admitted) return false;
+    const { plan, bindingName, hostKind } = admitted;
+    const host = hostPath.node;
     const chain = guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)));
     markRewrite();
     markSubtreeSkipped(skippedNodes, pattern);
     markSubtreeSkipped(skippedNodes, chain);
-    if (isDeclarator) {
-      host.id = identifier(binding.name);
+    if (hostKind === 'declarator') {
+      host.id = identifier(bindingName);
       if (host.init === plan.recvIdent) host.init = chain;
       else replaceNodeInTree(host.init, plan.recvIdent, chain);
-    } else {
-      host.left = identifier(binding.name);
-      if (host.right === plan.recvIdent) host.right = chain;
-      else replaceNodeInTree(host.right, plan.recvIdent, chain);
-      // the VALUE-CONSUMING host keeps its native value - the RHS object - as a sequence tail
-      if (!inStatement) {
-        const tail = identifier(plan.recvIdent.name);
-        markSubtreeSkipped(skippedNodes, tail);
-        replaceNodeInTree(hostPath.parentPath.node, host, sequenceExpression([host, tail]));
-      }
+      return true;
+    }
+    host.left = identifier(bindingName);
+    if (host.right === plan.recvIdent) host.right = chain;
+    else replaceNodeInTree(host.right, plan.recvIdent, chain);
+    // the VALUE-CONSUMING host keeps its native value - the RHS object - as a sequence tail
+    if (hostKind === 'assignment-value') {
+      const tail = identifier(plan.recvIdent.name);
+      markSubtreeSkipped(skippedNodes, tail);
+      replaceNodeInTree(hostPath.parentPath.node, host, sequenceExpression([host, tail]));
     }
     return true;
   }
@@ -237,13 +237,13 @@ export default function createProxySpineChannel(ctx) {
       const keyName = node.property?.name;
       return keyName && isPristineProxyGlobal(adapter, keyName) ? { keyName, effects: [] } : null;
     }
-    let key = peelExpressionWrappers(node.property);
+    let key = unwrapRuntimeExpr(node.property);
     const effects = [];
     // sequence levels NEST (`[(f++, (g++, 'window'))]`): every prefix is an effect of this
     // hop's key, so the peel runs to the quiet tail
     while (key?.type === 'SequenceExpression') {
       effects.push(...key.expressions.slice(0, -1));
-      key = peelExpressionWrappers(key.expressions.at(-1));
+      key = unwrapRuntimeExpr(key.expressions.at(-1));
     }
     if (key?.type === 'Literal' && typeof key.value === 'string' && isPristineProxyGlobal(adapter, key.value)) {
       return { keyName: key.value, effects };
@@ -273,16 +273,16 @@ export default function createProxySpineChannel(ctx) {
       const hop = proxyHopKey(cur, { metaPath, allowOptional });
       if (!hop) return null;
       if (!keptWrite) hopEffects.push(hop.effects);
-      cur = peelExpressionWrappers(cur.object);
+      cur = unwrapRuntimeExpr(cur.object);
       for (;;) {
         if (cur?.type === 'SequenceExpression') {
           if (!keptWrite) rootPrefix.push(...cur.expressions.slice(0, -1));
-          cur = peelExpressionWrappers(cur.expressions.at(-1));
+          cur = unwrapRuntimeExpr(cur.expressions.at(-1));
           continue;
         }
         if (cur?.type === 'AssignmentExpression' && cur.operator === '=') {
           keptWrite ??= cur;
-          cur = peelExpressionWrappers(cur.right);
+          cur = unwrapRuntimeExpr(cur.right);
           continue;
         }
         break;
@@ -312,7 +312,7 @@ export default function createProxySpineChannel(ctx) {
           effects,
           keyEffects,
           keptWrite,
-          writeStoreSpellable: writeStoreSpellable || peelExpressionWrappers(keptWrite?.right) === cur,
+          writeStoreSpellable: writeStoreSpellable || unwrapRuntimeExpr(keptWrite?.right) === cur,
         };
       }
       return null;
@@ -336,10 +336,10 @@ export default function createProxySpineChannel(ctx) {
   // always-defined ponyfill and folds like its plain twin (`(globalThis.window).self?.Array`)
   function deleteHostForClaim(metaPath, node, { forFold = false } = {}) {
     if (!(deleteHostedSpines.has(sourceSpanKey(node))
-      || deleteHostAboveChain(metaPath, node, peelExpressionWrappers))) return false;
+      || deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr))) return false;
     if (!forFold) return true;
-    for (let cur = peelExpressionWrappers(node.object); cur?.type === 'MemberExpression';
-      cur = peelExpressionWrappers(cur.object)) {
+    for (let cur = unwrapRuntimeExpr(node.object); cur?.type === 'MemberExpression';
+      cur = unwrapRuntimeExpr(cur.object)) {
       if (cur.optional && unbackedProxyHopKey(cur, m => resolvePure(m, metaPath))) return false;
     }
     return true;
@@ -357,13 +357,8 @@ export default function createProxySpineChannel(ctx) {
   function emitOwnOptionalGuardedClaim({ meta, metaPath, node, parent, kind, entry, hintName }) {
     // the consumer is found by CLIMBING the path through transparent wrappers - the
     // semantic-parent helper answers a different question and misses a chain-wrapped hop
-    let child = node;
-    let up = metaPath.parentPath;
-    while (up?.node && (up.node.type === 'ChainExpression' || up.node.type === 'ParenthesizedExpression'
-      || TS_EXPR_WRAPPERS.has(up.node.type))) {
-      child = up.node;
-      up = up.parentPath;
-    }
+    const child = peelParenAndTSSlotChild(metaPath, SKIPPABLE_WRAPPER_TYPES) ?? node;
+    const up = peelParenAndTSParentPath(metaPath, SKIPPABLE_WRAPPER_TYPES);
     const host = up?.node ?? parent;
     // ... and over an OPAQUE root only a RESOLVED consumer consumes: an unresolvable read
     // above renders nothing, so the guard belongs to this claim (`nr().window?.self
@@ -381,9 +376,9 @@ export default function createProxySpineChannel(ctx) {
     const consumedAbove = (rootIsProxyIdentifier || resolvedClaimNodes.has(host))
       && !stagedFallbackHosts.has(host)
       && ((host?.type === 'MemberExpression'
-      && (host.object === child || peelExpressionWrappers(host.object) === node))
+      && (host.object === child || unwrapRuntimeExpr(host.object) === node))
       || (host?.type === 'CallExpression' && resolvedClaimNodes.has(host)
-        && (host.callee === child || peelExpressionWrappers(host.callee) === node)));
+        && (host.callee === child || unwrapRuntimeExpr(host.callee) === node)));
     if (kind === 'instance' || consumedAbove) return true;
     if (emitStaticOverGuardedNav({ meta, metaPath, node, entry, hintName })) return true;
     // both guard renders declining is not a verdict to ship the claim RAW: the ordinary swap
@@ -431,7 +426,7 @@ export default function createProxySpineChannel(ctx) {
       if (plan) break;
       if (navRoot?.type !== 'MemberExpression' || navRoot.computed
         || navRoot.property?.type !== 'Identifier' || navRoot.optional) return false;
-      navRoot = peelExpressionWrappers(navRoot.object);
+      navRoot = unwrapRuntimeExpr(navRoot.object);
     }
     if (plan.kind !== 'nested') return false;
     // undefinability living in the KEPT VALUE belongs to the root route's in-place drop -
@@ -441,8 +436,8 @@ export default function createProxySpineChannel(ctx) {
     // the kept write as a comma prefix instead - the plain-swap tail renders that)
     {
       let probe = node.optional ? node.object : null;
-      for (let cur = probe ? null : peelExpressionWrappers(node.object); cur?.type === 'MemberExpression';
-        cur = peelExpressionWrappers(cur.object)) {
+      for (let cur = probe ? null : unwrapRuntimeExpr(node.object); cur?.type === 'MemberExpression';
+        cur = unwrapRuntimeExpr(cur.object)) {
         if (cur.optional) {
           probe = cur.object;
           break;
@@ -489,7 +484,7 @@ export default function createProxySpineChannel(ctx) {
     // what the `?.` tests, and the hop above drops from the test (`(() => globalThis
     // .window?.self)()?.window?...` tests `null == <call>` alone)
     let probeNode = plan.hops[plan.lastUnresolvableIdx].node;
-    const probeBelow = peelExpressionWrappers(probeNode.object);
+    const probeBelow = unwrapRuntimeExpr(probeNode.object);
     // ... but a call whose OWN `?.()` is the undefinable part is not that source: its spelling
     // already carries that test, and the hop above is the environment probe the source asked
     // for (`oc?.()?.window?.self.Array.of` tests `oc?.()?.window`) - the same exclusion the
@@ -497,9 +492,9 @@ export default function createProxySpineChannel(ctx) {
     if (probeBelow?.type === 'CallExpression' && !probeBelow.optional) {
       // the body may already be REWRITTEN into its guard ternary - that shape is the
       // undefinability proof itself
-      const probeCalleeFn = peelExpressionWrappers(probeBelow.callee);
+      const probeCalleeFn = unwrapRuntimeExpr(probeBelow.callee);
       const fnBody = (probeCalleeFn?.type === 'ArrowFunctionExpression' && probeCalleeFn.expression)
-        ? peelExpressionWrappers(probeCalleeFn.body) : null;
+        ? unwrapRuntimeExpr(probeCalleeFn.body) : null;
       const guardShapedBody = fnBody?.type === 'ConditionalExpression'
         && fnBody.consequent?.type === 'UnaryExpression' && fnBody.consequent.operator === 'void';
       if (guardShapedBody || proxyReceiverValueCanBeUndefined(
@@ -539,7 +534,7 @@ export default function createProxySpineChannel(ctx) {
       // a computed hop climbs too (`[(c++, 'self')]`) - the plan's own key resolution
       // validates the fold; a hop it rejects falls back to a shallower leaf below
       if (upNode.type === 'MemberExpression'
-        && (upNode.object === cursor.node || peelExpressionWrappers(upNode.object) === cursor.node)
+        && (upNode.object === cursor.node || unwrapRuntimeExpr(upNode.object) === cursor.node)
         && (upNode.computed || POSSIBLE_GLOBAL_OBJECTS.has(upNode.property?.name))) {
         climbed.push(up);
         cursor = up;
@@ -581,14 +576,9 @@ export default function createProxySpineChannel(ctx) {
       // the leaf's key effects wrap the PURE binding, the absorbed tail hangs outside
       // (`(c++, _self).Array` - the nav-collapse leaf shape); nav hops ABOVE the collapse
       // hang back on in their SOURCE spelling (`_self['window']`, a raw `.window` read)
-      let built = identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName));
-      const leafKeySe = plan.liveKeySeExprs().slice(plan.testKeySeCount).map(expr => cloneNode(expr));
-      if (leafKeySe.length) built = sequenceExpression([...leafKeySe, built]);
-      for (const hop of plan.hops.slice(plan.collapseIdx + 1)) {
-        built = hop.node.computed
-          ? memberExpression(built, cloneNode(hop.node.property), { computed: true, optional: !!hop.liveOptional })
-          : memberFromKeyName(built, hop.name, { optional: !!hop.liveOptional });
-      }
+      const leaf = renderNavCollapseLeaf(plan,
+        identifier(injectPureImport(plan.leafPure.entry, plan.leafPure.hintName)), { cloneHost: cloneNode });
+      const built = renderNavCollapseTail(plan, leaf, { cloneHost: cloneNode });
       markRewrite();
       replaceGuardedHop({
         hopPath: leafPath, test: nullFirstGuardTest(test), built, skippedNodes, alwaysDefined: true,
@@ -626,8 +616,7 @@ export default function createProxySpineChannel(ctx) {
     // _globalThis.window).Array`)
     let crossedSeal = false;
     while (top.parentPath?.node?.expression === top.node
-      && (TS_EXPR_WRAPPERS.has(top.parentPath.node.type) || top.parentPath.node.type === 'ChainExpression'
-        || top.parentPath.node.type === 'ParenthesizedExpression')) {
+      && SKIPPABLE_WRAPPER_TYPES.has(top.parentPath.node.type)) {
       crossedSeal ||= top.parentPath.node.type !== 'ChainExpression';
       top = top.parentPath;
     }
@@ -655,24 +644,24 @@ export default function createProxySpineChannel(ctx) {
     let spine = root;
     while (spine && typeof spine === 'object') {
       if (spine.type === 'AssignmentExpression') {
-        spine = peelExpressionWrappers(spine.right);
+        spine = unwrapRuntimeExpr(spine.right);
         continue;
       }
       if (spine.type === 'MemberExpression') {
-        spine = peelExpressionWrappers(spine.object);
+        spine = unwrapRuntimeExpr(spine.object);
         continue;
       }
       if (spine.type === 'SequenceExpression') {
-        spine = peelExpressionWrappers(spine.expressions.at(-1));
+        spine = unwrapRuntimeExpr(spine.expressions.at(-1));
         continue;
       }
       // an IIFE ROOT spells its proxy global inside the body the call yields - the probe is a
       // finished clone the walk never revisits, so the root must substitute here or a raw
       // `globalThis` reaches the output (`(() => globalThis)()?.window` tests the ponyfill)
       if (spine.type === 'CallExpression' && !spine.optional) {
-        const callee = peelExpressionWrappers(spine.callee);
+        const callee = unwrapRuntimeExpr(spine.callee);
         if (callee?.type === 'ArrowFunctionExpression' && callee.expression) {
-          spine = peelExpressionWrappers(callee.body);
+          spine = unwrapRuntimeExpr(callee.body);
           continue;
         }
       }
@@ -691,7 +680,7 @@ export default function createProxySpineChannel(ctx) {
   function emitLiveOptionalProbeGuard({ metaPath, node, entry, hintName, effects, receiverEffectCount }) {
     // the collapse owns the shape wherever a `delete` may still fold it
     if (deleteHostForClaim(metaPath, node, { forFold: true })) return false;
-    let cur = peelExpressionWrappers(node.object);
+    let cur = unwrapRuntimeExpr(node.object);
     let plainHops = true;
     // the claim's OWN `?.` probes its object directly (`(w = gw)?.Map` -> the write is
     // the probe); otherwise the deepest optional hop inside the receiver carries it
@@ -703,10 +692,10 @@ export default function createProxySpineChannel(ctx) {
       }
       // a LITERAL STRING key is the same plain read in its computed spelling
       // (`...?.self['Array'].from` folds like `.Array` - the guard survives either)
-      const literalKey = cur.computed && peelExpressionWrappers(cur.property)?.type === 'Literal'
-        && typeof peelExpressionWrappers(cur.property).value === 'string';
+      const literalKey = cur.computed && unwrapRuntimeExpr(cur.property)?.type === 'Literal'
+        && typeof unwrapRuntimeExpr(cur.property).value === 'string';
       if (!literalKey && (cur.computed || cur.property?.type !== 'Identifier')) plainHops = false;
-      cur = peelExpressionWrappers(cur.object);
+      cur = unwrapRuntimeExpr(cur.object);
     }
     if (!probe && cur?.type === 'CallExpression' && cur.optional) probe = cur;
     // the harvested receiver effect may BE the probe (the chain-root call detection
@@ -718,17 +707,17 @@ export default function createProxySpineChannel(ctx) {
     const navSe = keySe ? (effects ?? []).slice(0, receiverEffectCount ?? 0) : effects;
     const effectsAreProbe = !navSe?.length
             || (navSe.length === 1
-              && (navSe[0] === probe || peelExpressionWrappers(navSe[0]) === peelExpressionWrappers(probe ?? {})));
+              && (navSe[0] === probe || unwrapRuntimeExpr(navSe[0]) === unwrapRuntimeExpr(probe ?? {})));
     // a claim NAVIGATED further reads a value THROUGH the probe, and a nested sequence
     // leaves that value unproven (`(d++, (c++, globalThis))?.Map.name` keeps its guard);
     // a whole-swap leaf reads nothing through it (`....Array.of` erases)
     const navigatedAbove = metaPath.parentPath?.node?.type === 'MemberExpression'
-            && peelExpressionWrappers(metaPath.parentPath.node.object) === node;
+            && unwrapRuntimeExpr(metaPath.parentPath.node.object) === node;
     // ... and a BARE call value stays unproven for an INSTANCE dispatch reading it: that
     // dispatch takes the value THROUGH its receiver, so babel memoizes the call into the
     // guard test (`(call)?.self.Map.name` keeps `null == (_ref = call())`)
-    const instanceReadAbove = navigatedAbove && peelExpressionWrappers(probe)?.type === 'CallExpression'
-            && !peelExpressionWrappers(probe).optional
+    const instanceReadAbove = navigatedAbove && unwrapRuntimeExpr(probe)?.type === 'CallExpression'
+            && !unwrapRuntimeExpr(probe).optional
             && resolvePure({
               kind: 'property', object: 'function', placement: 'prototype',
               key: metaPath.parentPath.node.computed ? null : metaPath.parentPath.node.property?.name,
@@ -746,21 +735,21 @@ export default function createProxySpineChannel(ctx) {
     // unresolvable hops keep the source's `?.` inside the test (`_globalThis.window?.window`,
     // babel's spelling) instead of descending to the bottom probe
     function deeperSourceUndefinable(objNode) {
-      const objValue = peelExpressionWrappers(objNode);
+      const objValue = unwrapRuntimeExpr(objNode);
       if (objValue?.type !== 'CallExpression' || objValue.optional) return false;
-      const fnCallee = peelExpressionWrappers(objValue.callee);
+      const fnCallee = unwrapRuntimeExpr(objValue.callee);
       const fnBody = (fnCallee?.type === 'ArrowFunctionExpression' && fnCallee.expression)
-        ? peelExpressionWrappers(fnCallee.body) : null;
+        ? unwrapRuntimeExpr(fnCallee.body) : null;
       if (fnBody?.type === 'ConditionalExpression'
         && fnBody.consequent?.type === 'UnaryExpression' && fnBody.consequent.operator === 'void') return true;
       return proxyReceiverValueCanBeUndefined(objValue, m => resolvePure(m, metaPath),
         { scope: metaPath.scope, adapter, path: metaPath }, { throughChainAssign: true });
     }
-    for (let inner = probe && peelExpressionWrappers(probe);
+    for (let inner = probe && unwrapRuntimeExpr(probe);
       inner?.type === 'MemberExpression' && inner.optional && !inner.computed
         && (resolveGlobalPolyfill(inner.property?.name) || inner.property?.name === claimCtor
           || deeperSourceUndefinable(inner.object));
-      inner = peelExpressionWrappers(probe)) {
+      inner = unwrapRuntimeExpr(probe)) {
       probe = inner.object;
     }
     // a PAREN-SEALED probe renders as a guard of its OWN, and the test reads that guard's
@@ -775,12 +764,12 @@ export default function createProxySpineChannel(ctx) {
       // the memoized probe respells bare: parens and TS wrappers around the write drop
       // (`((a = gw) as any)?.self...` -> `null == (_ref = a = _globalThis.window)`);
       // trailing ERASABLE hops drop too - the test reads at most the probe hop itself
-      let probeSource = peelExpressionWrappers(probe);
+      let probeSource = unwrapRuntimeExpr(probe);
       // a KEPT WRITE anchors the prefix: the sequence stays whole inside the test beside it
       // (`null == (eff(), t = _self.window) ? void 0 : ...`, the kept-root canon). without
       // one the harvested prefix was lifted and the clone reads the quiet tail
       const probeSeqTail = probeSource?.type === 'SequenceExpression'
-        ? peelExpressionWrappers(probeSource.expressions.at(-1)) : null;
+        ? unwrapRuntimeExpr(probeSource.expressions.at(-1)) : null;
       // ... except where the probe was reached by descending INTO a SEAL: the seal renders its
       // own value, and the prefix it carried runs ahead of the whole guard there
       // ... and a NESTED sequence keeps its whole spelling too: the value canon stopped there,
@@ -791,7 +780,7 @@ export default function createProxySpineChannel(ctx) {
       for (;;) {
         if (probeSource?.type === 'SequenceExpression' && !keepSeqInTest) {
           droppedSeqPrefix.push(...probeSource.expressions.slice(0, -1));
-          probeSource = peelExpressionWrappers(probeSource.expressions.at(-1));
+          probeSource = unwrapRuntimeExpr(probeSource.expressions.at(-1));
           continue;
         }
         const peeled = peelPristineProxyHops(probeSource, hopPeelCtx);
@@ -858,8 +847,7 @@ export default function createProxySpineChannel(ctx) {
     let navHost = targetPath.parentPath;
     while (navHost?.node) {
       const wrap = navHost.node;
-      const transparent = wrap.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(wrap.type)
-        || wrap.type === 'ChainExpression'
+      const transparent = SKIPPABLE_WRAPPER_TYPES.has(wrap.type)
         || (wrap.type === 'SequenceExpression' && wrap.expressions.at(-1) === child);
       if (!transparent) break;
       child = wrap;
@@ -870,9 +858,9 @@ export default function createProxySpineChannel(ctx) {
     // the root (`const { x } = globalThis.self.window` - a value render would read
     // `.window` off the ponyfill)
     const patternHost = (host?.type === 'VariableDeclarator' && host.init === child
-      && (host.id?.type === 'ObjectPattern' || host.id?.type === 'ArrayPattern'))
+      && isDestructurePattern(host.id))
       || (host?.type === 'AssignmentExpression' && host.right === child
-        && (host.left?.type === 'ObjectPattern' || host.left?.type === 'ArrayPattern'));
+        && isDestructurePattern(host.left));
     // a MUTATED slot READ above keeps the VALUE spelling: the read must reach the user's
     // patch through the nearest proxy hop's ponyfill (`globalThis.self.Set.name` ->
     // `_self.Set`, the mutated-static receiver canon). a `delete` names the slot without
@@ -1097,7 +1085,7 @@ export default function createProxySpineChannel(ctx) {
       // above it, not a prefix ahead of the write - which would run it first
       // (`(u = _globalThis.window)[c++, 'Array']`, babel's key fold)
       const keyHost = foldedKeyEffects.length ? target.parentPath?.node : null;
-      if (keyHost?.type === 'MemberExpression' && peelExpressionWrappers(keyHost.object) === target.node
+      if (keyHost?.type === 'MemberExpression' && unwrapRuntimeExpr(keyHost.object) === target.node
         && (keyHost.computed || keyHost.property?.type === 'Identifier')) {
         keyHost.property = sequenceExpression([
           ...foldedKeyEffects.map(effect => cloneNode(effect)),
@@ -1149,7 +1137,7 @@ export default function createProxySpineChannel(ctx) {
     // the hop and its consumer: every verdict below is about what READS this hop, and
     // `(g.window?.self)?.Array` reads it exactly like the bare twin
     const above = climbTransparentWrapperPath(metaPath).parentPath?.node;
-    const aboveKey = above?.type === 'MemberExpression' && peelExpressionWrappers(above.object) === node
+    const aboveKey = above?.type === 'MemberExpression' && unwrapRuntimeExpr(above.object) === node
       && !above.computed ? above.property?.name : null;
     const sealedAbove = !!aboveKey && POSSIBLE_GLOBAL_OBJECTS.has(aboveKey) && !isPristineProxyGlobal(adapter, aboveKey);
     // a `delete` consumer performs no READ, so no `?.` over its navigation is load-bearing
@@ -1165,7 +1153,7 @@ export default function createProxySpineChannel(ctx) {
     // re-emits it as the sequence prefix (`(w = globalThis)?.self[0]` -> `(w = _globalThis,
     // _globalThis)[0]`, exactly the plain twin's render)
     const sealedRead = sealedLayerAbove(metaPath, node);
-    const probeIsKeptWrite = peelExpressionWrappers(node.object)?.type === 'AssignmentExpression';
+    const probeIsKeptWrite = unwrapRuntimeExpr(node.object)?.type === 'AssignmentExpression';
     const deadOwnOptional = node.optional && (probeIsKeptWrite || !spineHoldsKeptWrite(node.object))
             && !optionalMemberStaysGuarded(node,
               { metaPath, adapter, resolvePure, observableRead: sealedRead });
@@ -1193,7 +1181,7 @@ export default function createProxySpineChannel(ctx) {
     const probedReceiver = !deleteHost && receiverCarriesLiveOptional(node.object)
       && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath));
     const optionalAbove = above?.type === 'MemberExpression'
-      && peelExpressionWrappers(above.object) === node && above.optional && !probedReceiver;
+      && unwrapRuntimeExpr(above.object) === node && above.optional && !probedReceiver;
     // a `delete` consumer reads nothing over its navigation, so no `?.` in it is load-bearing
     // and the guarded render owes nothing (`delete dl()?.window?.self.missing` -> `delete
     // _self.missing`) - the same verdict the spine collapse takes through `allowOptional`
@@ -1207,10 +1195,10 @@ export default function createProxySpineChannel(ctx) {
     // babel's fold)
     if (!collapsed && !sealedAbove && !optionalAbove && !deleteHost && node.optional
       && POSSIBLE_GLOBAL_OBJECTS.has(hintName) && resolveGlobalPolyfill(hintName)
-      && above?.type === 'MemberExpression' && peelExpressionWrappers(above.object) === node) {
-      let probeStore = peelExpressionWrappers(node.object);
-      if (probeStore?.type === 'SequenceExpression') probeStore = peelExpressionWrappers(probeStore.expressions.at(-1));
-      const storeValue = peelExpressionWrappers(peelChainAssignmentDeep(probeStore));
+      && above?.type === 'MemberExpression' && unwrapRuntimeExpr(above.object) === node) {
+      let probeStore = unwrapRuntimeExpr(node.object);
+      if (probeStore?.type === 'SequenceExpression') probeStore = unwrapRuntimeExpr(probeStore.expressions.at(-1));
+      const storeValue = unwrapRuntimeExpr(peelChainAssignmentDeep(probeStore));
       const storeUndefinable = peelChainAssignmentDeep(probeStore) !== probeStore
         && storeValue?.type === 'MemberExpression' && !storeValue.computed
         && POSSIBLE_GLOBAL_OBJECTS.has(storeValue.property?.name)
@@ -1278,7 +1266,6 @@ export default function createProxySpineChannel(ctx) {
     return true;
   }
 
-  // eslint-disable-next-line max-statements -- sequential emission steps of one static claim
   function emitStaticGlobalClaim({ meta, metaPath, node, kind, entry, hintName }) {
     // a POSSIBLE-GLOBAL hop claim under a TERMINAL unbacked tail stands down whole - the
     // root identifier's own swap spells the base, every hop stays a real read. NOT inside a
@@ -1299,13 +1286,8 @@ export default function createProxySpineChannel(ctx) {
     }
     // an OPTIONAL member above will split and absorb this claim - see the hop branch;
     // found by climbing through transparent wrappers (a chain wrapper sits between)
-    let omaChild = node;
-    let omaUp = metaPath.parentPath;
-    while (omaUp?.node && (omaUp.node.type === 'ChainExpression' || omaUp.node.type === 'ParenthesizedExpression'
-      || TS_EXPR_WRAPPERS.has(omaUp.node.type))) {
-      omaChild = omaUp.node;
-      omaUp = omaUp.parentPath;
-    }
+    const omaChild = peelParenAndTSSlotChild(metaPath, SKIPPABLE_WRAPPER_TYPES) ?? node;
+    const omaUp = peelParenAndTSParentPath(metaPath, SKIPPABLE_WRAPPER_TYPES);
     const optionalMemberAbove = omaUp?.node?.type === 'MemberExpression'
       && omaUp.node.object === omaChild && omaUp.node.optional;
     if (node.type === 'MemberExpression' && !optionalMemberAbove
@@ -1447,7 +1429,7 @@ export default function createProxySpineChannel(ctx) {
     // surviving transparent wrappers (a paren skin the climb could not consume) sit between
     // the replacement and its `?.` parent - peel upward before testing it
     let upPath = metaPath.parentPath;
-    while (upPath?.node && (upPath.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(upPath.node.type))) {
+    while (upPath?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(upPath.node.type)) {
       upPath = upPath.parentPath;
     }
     const upNode = upPath?.node;
@@ -1461,8 +1443,8 @@ export default function createProxySpineChannel(ctx) {
     // a harvested effect prefix does not revive the `?.`: the sequence hands its TAIL on, and
     // that tail is the always-defined binding (`(n++, _Symbol)?.iterator` reads plainly)
     const substituted = replacement.type === 'SequenceExpression'
-      ? peelExpressionWrappers(replacement.expressions.at(-1)) : replacement;
-    if (upNode?.type === 'MemberExpression' && upNode.optional && peelExpressionWrappers(upNode.object) === replacement
+      ? unwrapRuntimeExpr(replacement.expressions.at(-1)) : replacement;
+    if (upNode?.type === 'MemberExpression' && upNode.optional && unwrapRuntimeExpr(upNode.object) === replacement
       && substituted?.type === 'Identifier') {
       // a SEAL below a live `?.` keeps the memo's source spelling whole - the dead `?.`
       // rides it un-erased (`(Promise?.foo)?.bar` memoizes `_ref = _Promise?.foo`); the
@@ -1478,7 +1460,7 @@ export default function createProxySpineChannel(ctx) {
           sawSeal = !proxyRoot;
           continue;
         }
-        if (liveNode.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(liveNode.type)) continue;
+        if (CHAIN_HOP_WRAPPER_TYPES.has(liveNode.type)) continue;
         if (liveNode.type !== 'MemberExpression' && liveNode.type !== 'CallExpression') break;
         if (liveNode.optional) {
           liveAbove = sawSeal;
@@ -1491,7 +1473,7 @@ export default function createProxySpineChannel(ctx) {
       }
     }
     // the same rule for an optional CALL of the substituted binding (`_Map?.()` -> `_Map()`)
-    if (upNode?.type === 'CallExpression' && upNode.optional && peelExpressionWrappers(upNode.callee) === replacement) {
+    if (upNode?.type === 'CallExpression' && upNode.optional && unwrapRuntimeExpr(upNode.callee) === replacement) {
       upNode.optional = false;
       dropChainAt(upPath.parentPath);
     }

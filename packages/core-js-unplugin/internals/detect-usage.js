@@ -31,6 +31,7 @@ import {
   unwrapExportedDeclaration,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
+  isDestructurePattern,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse,
@@ -339,7 +340,7 @@ export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census
     AssignmentExpression(path) {
       const { node } = path;
       if (node.operator !== '=' || isDisabled(node)
-        || (node.left.type !== 'ObjectPattern' && node.left.type !== 'ArrayPattern')) return;
+        || !isDestructurePattern(node.left)) return;
       registerAliasPrePassSite({
         pattern: node.left,
         init: node.right,
@@ -353,7 +354,7 @@ export function collectAliasPrePass({ ast, adapter, injector, isDisabled, census
     VariableDeclarator(path) {
       const { node } = path;
       if (!node.init || isDisabled(node)
-        || (node.id.type !== 'ObjectPattern' && node.id.type !== 'ArrayPattern')) return;
+        || !isDestructurePattern(node.id)) return;
       registerAliasPrePassSite({
         pattern: node.id,
         init: node.init,
