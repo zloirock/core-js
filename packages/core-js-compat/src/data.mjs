@@ -831,9 +831,11 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.zip': {
+    chrome: '153',
     firefox: '148',
   },
   'es.iterator.zip-keyed': {
+    chrome: '153',
     firefox: '148',
   },
   'es.json.is-raw-json': {
@@ -2790,10 +2792,12 @@ export const data = {
   'esnext.observable.of': {
   },
   'esnext.promise.all-keyed': {
+    firefox: '155',
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
   'esnext.promise.all-settled-keyed': {
+    firefox: '155',
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,

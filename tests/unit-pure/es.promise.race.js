@@ -34,10 +34,15 @@ QUnit.test('Promise.race, resolved with rejection', assert => {
 });
 
 QUnit.test('Promise.race, resolved with timeouts', assert => {
+  let timer;
   return Promise.race([
-    new Promise(resolve => setTimeout(() => resolve(1), 50)),
+    new Promise(resolve => {
+      timer = setTimeout(() => resolve(1), 50);
+    }),
     Promise.resolve(2),
   ]).then(it => {
+    // the delayed arm loses by design, and an armed timer keeps node alive for its whole delay
+    clearTimeout(timer);
     assert.same(it, 2, 'keeps correct mapping, even with delays');
   });
 });

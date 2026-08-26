@@ -138,12 +138,21 @@ export const nativeSubclass = (() => {
 })();
 
 export function timeLimitedPromise(time, functionOrPromise) {
+  let timer;
+  // losing the race does not disarm the timer, and in node an armed timer alone keeps the
+  // process alive - the whole `time` is then spent idling after the suite is already done
   return Promise.race([
     typeof functionOrPromise == 'function' ? new Promise(functionOrPromise) : functionOrPromise,
     new Promise((resolve, reject) => {
-      setTimeout(reject, time);
+      timer = setTimeout(reject, time);
     }),
-  ]);
+  ]).then(result => {
+    clearTimeout(timer);
+    return result;
+  }, error => {
+    clearTimeout(timer);
+    throw error;
+  });
 }
 
 // This function is used to force RegExp.prototype[Symbol.*] methods

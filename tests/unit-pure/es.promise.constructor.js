@@ -39,6 +39,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
   });
   promise1.catch(() => {
     result += 'C';
+    clearTimeout(timer);
     assert.same(result, EXPECTED_ORDER);
     async();
   });
@@ -60,7 +61,9 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
     result += 'G';
   });
   result += 'H';
-  setTimeout(() => {
+  // the fallback only exists for an order that never reaches `C`, so disarm it on the order
+  // that does: in node an armed timer keeps the process alive for its whole delay
+  const timer = setTimeout(() => {
     if (!~result.indexOf('C')) {
       assert.same(result, EXPECTED_ORDER);
       async();

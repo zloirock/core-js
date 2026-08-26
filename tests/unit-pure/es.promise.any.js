@@ -56,10 +56,15 @@ QUnit.test('Promise.any, rejected #3', assert => {
 });
 
 QUnit.test('Promise.any, resolved with timeout', assert => {
+  let timer;
   return Promise.any([
-    new Promise(resolve => setTimeout(() => resolve(1), 50)),
+    new Promise(resolve => {
+      timer = setTimeout(() => resolve(1), 50);
+    }),
     Promise.resolve(2),
   ]).then(it => {
+    // the delayed arm loses by design, and an armed timer keeps node alive for its whole delay
+    clearTimeout(timer);
     assert.same(it, 2, 'resolved with a correct value');
   });
 });

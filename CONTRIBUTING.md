@@ -86,9 +86,17 @@ You can run the most tests by
 npm t
 ```
 You can run parts of the test case separately:
-- Linting:
+- Linting, the spelling check included:
   ```sh
   npm run lint
+  ```
+  The spelling check is [`codespell`](https://github.com/codespell-project/codespell), a Python package rather than a dependency of this repository, so install it separately - without it that step is skipped locally, while CI has it and fails on what it finds:
+  ```sh
+  pip install codespell
+  ```
+  It can be run on its own, optionally scoped to the files you changed:
+  ```sh
+  npm run codespell -- path/to/changed-file.js
   ```
 - Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), ancient WebKit (PhantomJS), IE11 (if available)):
   ```sh

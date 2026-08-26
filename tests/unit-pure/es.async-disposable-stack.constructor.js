@@ -189,14 +189,15 @@ QUnit.test('AsyncDisposableStack#3', assert => {
 QUnit.test('AsyncDisposableStack#256', assert => {
   const resume = assert.async();
   assert.expect(1);
-  let called = false;
   const stack = new AsyncDisposableStack();
   const neverResolves = new Promise(() => { /* empty */ });
   stack.use({ [Symbol.dispose]() { return neverResolves; } });
+  // the fallback only exists for a `disposeAsync` that never settles, so disarm it on the
+  // path that does: in node an armed timer keeps the process alive for its whole delay
+  const timer = setTimeout(resume, 3e3);
   stack.disposeAsync().then(() => {
-    called = true;
+    clearTimeout(timer);
     assert.required('It should be called');
     resume();
   });
-  setTimeout(() => called || resume(), 3e3);
 });
