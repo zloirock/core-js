@@ -1,5 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { canonicalArrayIndex, MAX_DEPTH } from '../resolve-node-type/base.js';
+import { canonicalArrayIndex, DESTRUCTURE_PATTERN_TYPES, MAX_DEPTH } from '../resolve-node-type/base.js';
 
 // `globalThis` / `self` / `window` etc. - proxy names aliasing the ONE global object
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
@@ -75,9 +75,11 @@ export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
 // and this one never extends a region past real code on its own. deliberately does NOT peel: per spec
 // only an unparenthesized string literal is a directive, so `('use strict');` must stay a plain
 // expression - peeling would promote a non-directive and leave a bare `0;` on the removal path
-export const isBareStringStatement = node => node?.type === 'ExpressionStatement'
-  && (node.expression?.type === 'StringLiteral'
-    || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
+function isBareStringStatement(node) {
+  return node?.type === 'ExpressionStatement'
+    && (node.expression?.type === 'StringLiteral'
+      || (node.expression?.type === 'Literal' && typeof node.expression.value === 'string'));
+}
 
 // the directive strings a runtime or a bundler acts on. a marker-LESS string statement is a
 // directive only if it says one of these: `'not-a-directive';` below an import is ordinary code
@@ -519,6 +521,14 @@ export const SKIPPABLE_WRAPPER_TYPES = new Set([
   'ChainExpression',
 ]);
 
+// the third set, and the reason it is not one of the two above: a caller walking a chain's HOPS
+// reads through the marker and through TS assertions, but a source paren SEALS the chain - it ends
+// the short-circuit, so it is a terminator to be recognised, never a wrapper to peel
+export const CHAIN_HOP_WRAPPER_TYPES = new Set([
+  ...TS_EXPR_WRAPPERS,
+  'ChainExpression',
+]);
+
 // a member-access node in EITHER parser: babel keeps OptionalMemberExpression distinct, while
 // estree-toolkit (oxc) folds the optional marker into a MemberExpression under a ChainExpression.
 // centralizes the two-type check that every member-receiver / member-write walk repeats so the
@@ -618,11 +628,49 @@ export function unwrapRuntimeExpr(node) {
   return node;
 }
 
+// does this node destructure? the predicate over `DESTRUCTURE_PATTERN_TYPES`, re-exported here
+// because this file is what both bindings import - the set itself lives with the type primitives
+// (same coverage note as the peels: a seed widening this set to `ArrayExpression` moves neither
+// emitter over either corpus - the provider rows are its only guard)
+export function isDestructurePattern(node) {
+  return DESTRUCTURE_PATTERN_TYPES.has(node?.type);
+}
+
+export { DESTRUCTURE_PATTERN_TYPES };
+
+// the scope an alias's init / next hop is canonical in: the binding's OWN declaration scope, not the
+// use site - a later hop reading an outer-declared name must not bind to an inner shadow of it. the
+// detect-usage adapter surfaces the declaration scope on `binding.scope` (its path carries no scope),
+// the raw babel binding on `binding.path.scope`; falls back to the use scope when neither is present.
+// the PRIORITY is deliberate and belongs to the whole stack: the declaration's own path sees the
+// shadows the declaration saw, which is the question every hop asks. spelled per site the rule lost
+// one arm or the other at two thirds of them - the gap that under-resolved an alias-hop chain under
+// a shadowed receiver. NOTE on coverage: the two arms coincide on every shape the fixture corpus and
+// the differential carry - a seeded REVERSAL of this priority leaves both emitters byte-identical and
+// is caught only by the provider row that asks the predicate directly. that row is the guard here
+export function aliasDeclScope(binding, scope) {
+  return binding?.path?.scope ?? binding?.scope ?? scope;
+}
+
+// the TRANSPARENT twin of `unwrapRuntimeExpr`: parens and TS casts only. a caller judging the VALUE
+// peels the optional-chain marker with it too, one judging a SHORT-CIRCUIT must not - the marker is
+// part of what it judges, which is the whole difference between the two wrapper sets. that
+// difference is an ESTree one: the babel binding's parser spells an optional chain with no marker
+// node at all, so the two peels coincide on everything it hands them and a site there may use
+// either. on the ESTree side the choice is live, and the corpus holds it where the receiver of a
+// destructure wears the marker - most sites survive a swap because the question they ask (a
+// hop walk with its own `optional` guard, a Conditional / Logical test the marker can never be)
+// cannot tell a marked node from the one under it
+export function peelTransparentExpr(node) {
+  while (node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type)) node = node.expression;
+  return node;
+}
+
 // descend a member chain to its ROOT node, peeling only RUNTIME-transparent wrappers at every hop.
 // deliberately NOT `descendToChainRoot`: that canon also peels sequence TAILS, which hands back
 // `globalThis` for the very `(c++, globalThis)` root some callers here exist to recognise - and it
 // lives a layer above this file, which every layer imports
-export function runtimeChainRoot(node) {
+function runtimeChainRoot(node) {
   let root = unwrapRuntimeExpr(node);
   while (root?.type === 'MemberExpression' || root?.type === 'OptionalMemberExpression') {
     root = unwrapRuntimeExpr(root.object);
@@ -653,8 +701,8 @@ export function isReusableReceiver(node) {
 // chain wrappers to a semantic-bearing node use this; null-safe so chained calls don't
 // require pre-guard. used by global-resolve's proxy-global detection where babel strips
 // parens but oxc preserves them, and TS expression wrappers can land on either parser
-export function peelSkippableWrapperPath(path) {
-  while (path?.node && SKIPPABLE_WRAPPER_TYPES.has(path.node.type)) path = path.get('expression');
+export function peelSkippableWrapperPath(path, wrappers = SKIPPABLE_WRAPPER_TYPES) {
+  while (path?.node && wrappers.has(path.node.type)) path = path.get('expression');
   return path;
 }
 
@@ -738,7 +786,7 @@ export function isTopLevelThisContext(path) {
 function isImmediatelyInvokedFunction(fnPath) {
   let callee = fnPath;
   let parent = fnPath.parentPath;
-  while (parent?.node && (parent.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(parent.node.type))) {
+  while (parent?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(parent.node.type)) {
     callee = parent;
     parent = parent.parentPath;
   }
@@ -1522,7 +1570,7 @@ export function buildScopeReassignmentIndex(ownerNode) {
     } else if (node.type === 'UpdateExpression' && node.argument?.type === 'Identifier') {
       record(node.argument.name, node);
     } else if (node.type === 'AssignmentExpression'
-      && (node.left?.type === 'ArrayPattern' || node.left?.type === 'ObjectPattern')) {
+      && isDestructurePattern(node.left)) {
       for (const name of patternNames(node.left, [])) record(name, node);
     } else if (isForXStatement(node)) {
       // for-of / for-in head writing: a bare-Identifier / destructuring-pattern target
@@ -1974,29 +2022,26 @@ function usageSitsUnderAllBranches(usagePath, ownerNode, guards) {
   return guards.every(branch => ancestors.has(branch));
 }
 
-// `a` ends at or before `b` begins (textual order by source positions). a parser that omits
-// positions can't be ordered, so the caller passes the `whenUnknown` result that is SAFE for its
-// direction (see the two wrappers below)
-function endsBeforeStart(a, b, whenUnknown) {
+// `a` ends at or before `b` begins (textual order by source positions), with the two answers a
+// parser that omits positions may get. WHICH answer is safe belongs to the QUESTION, not to the
+// call site: spelled as an argument it was hardcoded per site, and the same order was asked three
+// ways. a `var` hoists the declaration but not the assignment, so a use before the declarator reads
+// `undefined`; symmetrically a reassignment AFTER the read cannot have changed the value read there
+function precedesByPosition(a, b) {
   const aEnd = a?.end;
   const bStart = b?.start;
-  if (typeof aEnd !== 'number' || typeof bStart !== 'number') return whenUnknown;
-  return aEnd <= bStart;
+  return typeof aEnd === 'number' && typeof bStart === 'number' ? aEnd <= bStart : null;
 }
 
-// does `node` end at or before the read at `readNode` begins? a `var` hoists the declaration but not
-// the assignment, so a use before the declarator reads `undefined`; symmetrically a reassignment AFTER
-// the read can't have changed the value read there. `readNode` is the use node, or a multi-hop alias
-// hop's read-site override. unknown positions -> true: don't over-bail the global-dominance check
-function nodePrecedesUsage(node, readNode) {
-  return endsBeforeStart(node, readNode, true);
+// unordered counts as PRECEDING: the global-dominance check would over-bail otherwise
+export function precedesOrUnordered(a, b) {
+  return precedesByPosition(a, b) ?? true;
 }
 
-// inverse direction for the usage-pure reachability gate: the write `node` lies textually STRICTLY
-// after the read at `readNode` (the use node, or a multi-hop alias hop's read-site override).
-// unknown positions -> false: pure can't prove the write is after the read, so bail
-function usagePrecedesNode(readNode, node) {
-  return endsBeforeStart(readNode, node, false);
+// ... and the gates that must PROVE the order (the usage-pure reachability bail, the outer-scope
+// domination walk) read the other answer: unordered is not proof
+export function provablyPrecedes(a, b) {
+  return precedesByPosition(a, b) ?? false;
 }
 
 // core single-node domination check: does `node` lie on EVERY control-flow path reaching `usagePath`?
@@ -2014,11 +2059,11 @@ function nodeDominatesUsage({ node, usagePath, owner, climb, usageNode = null })
   // read at the prior declarator, not the host use, so a write AFTER that read can't change the captured
   // value. the guard / scope owner stay the host's (the chain lives in one scope)
   const readNode = usageNode ?? usagePath.node;
-  if (guards !== null) return usageSitsUnderAllBranches(usagePath, owner.node, guards) && endsBeforeStart(node, readNode, true);
+  if (guards !== null) return usageSitsUnderAllBranches(usagePath, owner.node, guards) && precedesOrUnordered(node, readNode);
   if (!climb) return false;
   for (let o = findNearestVarScopeOwner(owner.parentPath); o; o = findNearestVarScopeOwner(o.parentPath)) {
     const outer = collectVarGuardsToDeclarator(o.node, node);
-    if (outer !== null) return outer.length === 0 && endsBeforeStart(node, owner.node, false);
+    if (outer !== null) return outer.length === 0 && provablyPrecedes(node, owner.node);
   }
   return null;
 }
@@ -2119,7 +2164,7 @@ export function reassignmentDominatesUsage({ reassignmentNodes, usagePath, usage
 // lie strictly AFTER the read at `readNode` within its OWN var-scope `owner`? a node beyond that
 // boundary (guards === null - a nested closure) could run before the read, so it does NOT qualify
 function nodeFollowsUsageInScope({ node, readNode, owner }) {
-  return collectVarGuardsToDeclarator(owner.node, node) !== null && usagePrecedesNode(readNode, node);
+  return collectVarGuardsToDeclarator(owner.node, node) !== null && provablyPrecedes(readNode, node);
 }
 
 // SOUND gate for the SUBSTITUTE (usage-pure) direction: does the declarator-init value provably
@@ -2191,7 +2236,7 @@ function reassignmentRhsForBinding(node, ownerNode, bindingName, ctx) {
     assignment = found?.operator === '=' ? found : null;
   }
   const left = assignment?.left;
-  if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
+  if (isDestructurePattern(left)) {
     if (!bindingName) return null;
     const values = patternSlotValues(left, assignment.right, bindingName, ctx);
     return values.length === 1 && !patternSlotHasDefault(left, bindingName)
@@ -2259,7 +2304,7 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, 
   const readNode = usageNode ?? usagePath.node;
   if (nodeSitsInLoopRerunWithin(owner.node, readNode)) return null;
   const bindingName = bindingDeclaratorName(binding);
-  const before = reassignmentNodesBeyondDeclarator(binding).filter(node => nodePrecedesUsage(node, readNode));
+  const before = reassignmentNodesBeyondDeclarator(binding).filter(node => precedesOrUnordered(node, readNode));
   if (!before.length) return null;
   // SAME-SCOPE: every before-use write is a plain `name = <expr>` in the read's own var-scope. the
   // textually-last one overwrites every earlier write - it is the reaching definition only if it ALWAYS
@@ -2282,7 +2327,7 @@ export function reachingReassignmentValueNode({ binding, usagePath, ctx = null, 
   // consumer (requireSingleObservation) must bail when any write lies textually after the captured read -
   // substituting one value would silently miscompile the other invocations. global stays over-inject-safe
   if (requireSingleObservation
-    && reassignmentNodesBeyondDeclarator(binding).some(node => !nodePrecedesUsage(node, readNode))) return null;
+    && reassignmentNodesBeyondDeclarator(binding).some(node => !precedesOrUnordered(node, readNode))) return null;
   const dominating = before.filter(node => nodeDominatesUsage({ node, usagePath, owner, climb: true, usageNode }) === true);
   if (!dominating.length) return null;
   const last = dominating.reduce((a, b) => b.start > a.start ? b : a);
@@ -2355,7 +2400,7 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   const out = [];
   let complete = true;
   for (const node of reassignmentNodesBeyondDeclarator(binding)) {
-    if (!useInLoop && !closureReenters && endsBeforeStart(readNode, node, false)) continue;
+    if (!useInLoop && !closureReenters && provablyPrecedes(readNode, node)) continue;
     const values = flattenBranchingValueNodes(reassignmentValueNodesAt(node, violationSearchRoot, bindingName, ctx));
     if (!values.length) complete = false;
     out.push(...values);
@@ -2507,7 +2552,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
   // by key - recurse so a binding bound through arbitrary nesting still surfaces its value union;
   // the slot's own default is an alternative RHS the nested bindings may pair against instead
   function descend(slot, element, pairedRhs) {
-    if (slot?.type !== 'ArrayPattern' && slot?.type !== 'ObjectPattern') return false;
+    if (!isDestructurePattern(slot)) return false;
     if (pairedRhs) out.push(...patternSlotValues(slot, pairedRhs, name, ctx));
     if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
     return true;
@@ -2523,7 +2568,7 @@ export function patternSlotValues(pattern, rhs, name, ctx) {
       // so enumerate them all; the spread's items stay unenumerable, which
       // `patternSlotSpreadShifted` reports to consumers that need the union to be COMPLETE
       const candidates = rhs?.type === 'ArrayExpression' ? arrayWrapSlotValueCandidates(rhs.elements, i) : [];
-      if (slot?.type === 'ArrayPattern' || slot?.type === 'ObjectPattern') {
+      if (isDestructurePattern(slot)) {
         for (const cand of candidates) out.push(...patternSlotValues(slot, cand, name, ctx));
         if (element.type === 'AssignmentPattern') out.push(...patternSlotValues(slot, element.right, name, ctx));
         continue;
@@ -2668,7 +2713,7 @@ function forXHeadValueNodes(forX, bindingName, ctx) {
   if (left?.type === 'Identifier') return elements;
   // a PATTERN head binds a slot of each element, not the element itself: pair the bound
   // name's slot against every element so `for ([M] of [[Array]])` reaches Array
-  if ((left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') && bindingName) {
+  if (isDestructurePattern(left) && bindingName) {
     return elements.flatMap(el => patternSlotValues(left, el, bindingName, ctx));
   }
   return [];
@@ -2690,7 +2735,7 @@ function ownerValueFlowIndex(ownerNode) {
     if (!isASTNode(n)) return;
     if (n.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(n.operator) && n.left) {
       index.assignment.set(n.left, n);
-      if (n.left.type === 'ArrayPattern' || n.left.type === 'ObjectPattern') {
+      if (isDestructurePattern(n.left)) {
         walkPatternIdentifiers(n.left, id => index.assignment.set(id, n));
       }
     } else if (FOR_X_STATEMENT_TYPES.has(n.type) && n.left) {
@@ -2700,7 +2745,7 @@ function ownerValueFlowIndex(ownerNode) {
           index.forX.set(d, n);
           if (d.id) index.forX.set(d.id, n);
         }
-      } else if (n.left.type === 'ArrayPattern' || n.left.type === 'ObjectPattern') {
+      } else if (isDestructurePattern(n.left)) {
         walkPatternIdentifiers(n.left, id => index.forX.set(id, n));
       }
     }
@@ -3398,10 +3443,45 @@ function peelTransparentExprWrappers(startPath, onSequencePrefix) {
 // to FIND the enclosing non-wrapper ancestor but want SE-tail to terminate the walk
 // (e.g. `({...} = X) as any` -> ExpressionStatement, but `((0, {...} = X))` -> stays at SE
 // because SE-tail semantics aren't always desired in the caller's context)
-export function peelParenAndTSParentPath(startPath) {
+// the wrapper set is the caller's: a question about POSITION peels the transparent wrappers only,
+// while a question about the VALUE a callee reaches also peels the optional-chain marker
+export function peelParenAndTSParentPath(startPath, wrappers = TRANSPARENT_EXPR_WRAPPER_TYPES) {
   let path = startPath?.parentPath ?? null;
-  while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) path = path.parentPath;
+  while (path?.node && wrappers.has(path.node.type)) path = path.parentPath;
   return path;
+}
+
+// ... and the node that actually SITS in that parent's slot: the outermost transparent wrapper
+// below it, or the start node when nothing wraps. every position question matches its child by
+// IDENTITY against the parent's slots (`parent.right === node` and kin), so asking with the bare
+// inner node answers "in no slot at all" on the parser that keeps parens as real nodes - the
+// wrapper is what the parent holds, and the two peels have to be taken as a PAIR. this is the PATH
+// form, for a caller that keeps walking from there; `peelParenAndTSSlotChild` below is its node
+export function peelParenAndTSSlotPath(startPath, wrappers = TRANSPARENT_EXPR_WRAPPER_TYPES) {
+  let path = startPath;
+  while (path?.parentPath?.node && wrappers.has(path.parentPath.node.type)) path = path.parentPath;
+  return path ?? null;
+}
+
+export function peelParenAndTSSlotChild(startPath, wrappers) {
+  return peelParenAndTSSlotPath(startPath, wrappers)?.node ?? null;
+}
+
+// nothing to rewrite here, by SHAPE: the claim is disabled by a directive, already consumed by an
+// earlier emission, a JSX identifier (a tag name is not a value read), or type-only. what this does
+// NOT answer is DETACHMENT - whether the node still hangs in the tree - because each binding's path
+// API reports that its own way, and each ORs its own check onto this one. the four shape questions
+// were spelled twice, once per binding, with the JSX one inside on one leg and beside it on the other
+export function claimIsInert({ node, path, isDisabled, skippedNodes, isInTypeAnnotation }) {
+  return !!isDisabled?.(node) || !!skippedNodes?.has(node)
+    || node?.type === 'JSXIdentifier' || !!isInTypeAnnotation?.(path);
+}
+
+// does this assignment DISCARD its value? only a statement position does - source parens and TS
+// wrappers are transparent on the way there, and everything else consumes what the assignment
+// yields (`const w = ({ Map: { k } } = globalThis)` reads the GLOBAL, not the anchored ctor)
+export function assignmentInStatementPosition(assignPath) {
+  return peelParenAndTSParentPath(assignPath)?.node?.type === 'ExpressionStatement';
 }
 
 // statement-hosted assignment-destructure resolver: returns the {ExpressionStatement path,
@@ -3410,17 +3490,6 @@ export function peelParenAndTSParentPath(startPath) {
 // replace the whole statement); the SE-tail peel collects leading expressions so they can
 // be re-emitted as side-effect siblings, and the resolved ExpressionStatement path is the
 // host whose slot the cascade rewrites
-// does this assignment DISCARD its value? only a statement position does - source parens and TS
-// wrappers are transparent on the way there, and everything else consumes what the assignment
-// yields (`const w = ({ Map: { k } } = globalThis)` reads the GLOBAL, not the anchored ctor)
-export function assignmentInStatementPosition(assignPath) {
-  let up = assignPath?.parentPath;
-  while (up?.node && (up.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(up.node.type))) {
-    up = up.parentPath;
-  }
-  return up?.node?.type === 'ExpressionStatement';
-}
-
 export function peelToExpressionStatement(startPath) {
   const sequencePrefix = [];
   const ctx = peelTransparentExprWrappers(startPath, exprs => {
@@ -4716,7 +4785,7 @@ export function hasRestSiblingExcept(properties, currentProp) {
 // distinct from `TS_EXPR_WRAPPERS` alone because ParenthesizedExpression is also transparent
 // here but not everywhere (e.g. callee resolution treats parens as chain-breakers)
 function isUpdateOperandWrapper(node) {
-  return !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
+  return !!node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type);
 }
 
 // per-branch peel for fallback receivers: paren / TS / chain wrappers AND SequenceExpression
@@ -4742,7 +4811,7 @@ export function peelFallbackBranchInner(node) {
 export function peelTransparentExprAncestorPath(path) {
   let cur = path;
   while (cur?.parentPath?.node
-    && (cur.parentPath.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.parentPath.node.type))
+    && TRANSPARENT_EXPR_WRAPPER_TYPES.has(cur.parentPath.node.type)
     && cur.parentPath.node.expression === cur.node) {
     cur = cur.parentPath;
   }
@@ -6509,7 +6578,7 @@ export function walkPatternIdentifiers(node, visit, depth = 0) {
   // parens and TS expression wrappers are runtime no-ops around an assignment-position leaf
   // (`[Promise!] = arr`, `[(Map as unknown)] = arr`); binding-position patterns cannot parse
   // them, so the peel only ever fires on assignment-target patterns
-  if (node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(node.type)) {
+  if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type)) {
     walkPatternIdentifiers(node.expression, visit, depth);
     return;
   }

@@ -33,7 +33,7 @@ import {
   argIndexForParam, callArgumentPaths, dropLeadingThisParam, peelAssignmentPattern,
 } from './base.js';
 import { isBareUndefinedIdentifier, isTypeQueryOverImportType, peelTSParenthesized, typeRefName } from './ast-shapes.js';
-import { getCallSiteTypeArgs, getTypeArgs, isVoidExpression, spreadAtOrBefore } from '../helpers/ast-patterns.js';
+import { getCallSiteTypeArgs, getTypeArgs, isVoidExpression, spreadAtOrBefore, isDestructurePattern } from '../helpers/ast-patterns.js';
 import { nodeAlwaysExits } from './exit-analysis.js';
 
 export function createReturnType({
@@ -142,7 +142,7 @@ export function createReturnType({
         return { index: i, param, keyPath: null };
       }
       if (!targetName) continue;
-      if (patternParam?.type !== 'ObjectPattern' && patternParam?.type !== 'ArrayPattern') continue;
+      if (!isDestructurePattern(patternParam)) continue;
       // findPatternKeyPath returns null when the target name isn't in this pattern (continue
       // scanning siblings); a non-null keyPath is definitive - resolution succeeds or fails AT
       // this param, no later param can match

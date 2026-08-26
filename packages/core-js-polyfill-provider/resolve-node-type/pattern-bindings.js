@@ -25,6 +25,7 @@ import { assignLeft, assignRightKey, bindingCrossesLoopBackEdge } from './straig
 import {
   cachedContainerPaths, declaratorBindsName, isVoidExpression, objectLiteralPrototypeValue, spreadAtOrBefore,
   staleVarRedeclNodes, varInitStaleByRedecl,
+  isDestructurePattern,
 } from '../helpers/ast-patterns.js';
 
 export function createPatternBindings({
@@ -239,11 +240,11 @@ export function createPatternBindings({
         }
         // `{ a: { b = [] } = {} }` - the inner pattern is on `valuePath.left`, recurse there
         const innerLeft = valuePath.get('left');
-        if (innerLeft.node?.type === 'ObjectPattern' || innerLeft.node?.type === 'ArrayPattern') {
+        if (isDestructurePattern(innerLeft.node)) {
           const found = walkDestructuringForDefault(innerLeft, innerLeft.node, varName);
           if (found) return found;
         }
-      } else if (valuePath.node?.type === 'ObjectPattern' || valuePath.node?.type === 'ArrayPattern') {
+      } else if (isDestructurePattern(valuePath.node)) {
         const found = walkDestructuringForDefault(valuePath, valuePath.node, varName);
         if (found) return found;
       }
@@ -998,7 +999,7 @@ export function createPatternBindings({
     const keyPath = findPatternKeyPath(left, name, assignPath.scope);
     if (keyPath) return resolveDestructuredMember(assignPath.get(rightKey), keyPath);
     // an undecomposable pattern slot is an unknown value, not the whole RHS
-    if (left?.type === 'ObjectPattern' || left?.type === 'ArrayPattern') return null;
+    if (isDestructurePattern(left)) return null;
     return resolveNodeType(assignPath.get(rightKey));
   }
 

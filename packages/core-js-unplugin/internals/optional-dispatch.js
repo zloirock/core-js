@@ -20,6 +20,7 @@ import {
   isReusableReceiver,
   mayHaveSideEffects,
   receiverCarriesLiveOptional,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { bindingPolyfillHint, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
@@ -38,7 +39,6 @@ import {
 import {
   memberFromKeyName,
   mintedProxyGlobalName,
-  peelExpressionWrappers,
   receiverCarriesOptional,
   withSideEffects,
 } from './emit-shared.js';
@@ -124,17 +124,17 @@ export default function createOptionalDispatchChannel(ctx) {
       // trailing ERASABLE hops drop from a SURFACE memo - the surface below them IS the
       // memo's value (`(v = gw)?.self` memoizes `_ref = v = _globalThis.window`); a hop
       // pure cannot back (`window`) is the probe the test must read and stays
-      for (let peeledVal = peelExpressionWrappers(memoSource);
+      for (let peeledVal = unwrapRuntimeExpr(memoSource);
         peeledVal?.type === 'MemberExpression' && !peeledVal.computed
           && POSSIBLE_GLOBAL_OBJECTS.has(peeledVal.property?.name)
           && isPristineProxyGlobal(adapter, peeledVal.property.name)
           && resolveGlobalPolyfill(peeledVal.property.name);
-        peeledVal = peelExpressionWrappers(memoSource)) {
+        peeledVal = unwrapRuntimeExpr(memoSource)) {
         // a dropped hop that carried a LIVE `?.` owed a short-circuit of its own: the memo
         // holds that RENDER, not the bare probe below it (`window?.window?.self` memoizes
         // `null == _globalThis.window?.window ? void 0 : _self`). over a KEPT WRITE the memo
         // IS the stored value and the drop stands (`(v = gw)?.self` memoizes `v = _gw.window`)
-        const droppedBase = peelExpressionWrappers(peeledVal.object);
+        const droppedBase = unwrapRuntimeExpr(peeledVal.object);
         if (peeledVal.optional && peelChainAssignmentDeep(droppedBase) === droppedBase) {
           const dropped = resolveGlobalPolyfill(peeledVal.property.name);
           memoSource = renderShortCircuitGuard(nullGuardTest(cloneNode(peeledVal.object)),
@@ -145,24 +145,24 @@ export default function createOptionalDispatchChannel(ctx) {
       }
       // a NAMED pure proven call at the bottom folds onto the surface's pure spelling
       // (`dh().self` memoizes `_ref = _self`); a LITERAL IIFE keeps its source spelling
-      const bottomCall = peelExpressionWrappers(memoSource);
+      const bottomCall = unwrapRuntimeExpr(memoSource);
       if (bottomCall?.type === 'CallExpression' && !bottomCall.optional
-        && peelExpressionWrappers(bottomCall.callee)?.type === 'Identifier'
+        && unwrapRuntimeExpr(bottomCall.callee)?.type === 'Identifier'
         && !inlineCallHasObservableEffects({ callNode: bottomCall, scope: metaPath.scope, adapter, path: metaPath })) {
         const surfacePure = resolveGlobalPolyfill(surface);
         if (surfacePure) memoSource = identifier(injectPureImport(surfacePure.entry, surfacePure.hintName));
       }
     }
-    const peeled = bareMemo ? cloneNode(peelExpressionWrappers(memoSource)) : cloneSpinePeeled(memoSource);
+    const peeled = bareMemo ? cloneNode(unwrapRuntimeExpr(memoSource)) : cloneSpinePeeled(memoSource);
     // a `?.` sitting directly on a KEPT WRITE whose stored value is provably defined is dead
     // in the memo spelling too - babel writes the read plain (`(h = globalThis)?.window`
     // memoizes `(h = _globalThis).window`). only that hop: every other `?.` in the spelling
     // belongs to a probe the test still owes
     // a rendered dropped hop carries the same spine inside its TEST - deoptionalize there too
     const rendered = peeled.type === 'ConditionalExpression';
-    const spine = rendered ? peelExpressionWrappers(peeled.test?.right) : peeled;
-    for (let hop = spine; hop?.type === 'MemberExpression'; hop = peelExpressionWrappers(hop.object)) {
-      let base = peelExpressionWrappers(hop.object);
+    const spine = rendered ? unwrapRuntimeExpr(peeled.test?.right) : peeled;
+    for (let hop = spine; hop?.type === 'MemberExpression'; hop = unwrapRuntimeExpr(hop.object)) {
+      let base = unwrapRuntimeExpr(hop.object);
       // a PLAIN erasable hop between the `?.` and a kept write already throws on a nullish
       // stored value, so the `?.` above it can never fire and erases with the collapse
       // (`(w = globalThis.window).self?.Array` memoizes `(w = _globalThis.window).Array`)
@@ -170,7 +170,7 @@ export default function createOptionalDispatchChannel(ctx) {
       while (base?.type === 'MemberExpression' && !base.computed && !base.optional
         && POSSIBLE_GLOBAL_OBJECTS.has(base.property?.name) && isPristineProxyGlobal(adapter, base.property.name)
         && resolveGlobalPolyfill(base.property.name)) {
-        base = peelExpressionWrappers(base.object);
+        base = unwrapRuntimeExpr(base.object);
         crossedHop = true;
       }
       // inside a RENDERED drop the whole prefix is the test's OWN read, and a proven inline
@@ -180,7 +180,7 @@ export default function createOptionalDispatchChannel(ctx) {
       // call yields is not proving it yields a defined one (the strict opaque-root canon), so
       // the memo keeps the `?.` the source spelled (`(held = ca())?.window`)
       const writtenValue = base?.type === 'AssignmentExpression'
-        ? peelExpressionWrappers(peelChainAssignmentDeep(base)) : null;
+        ? unwrapRuntimeExpr(peelChainAssignmentDeep(base)) : null;
       const provenBase = (writtenValue ? rendered || writtenValue.type !== 'CallExpression' : false)
         || (rendered && base?.type === 'CallExpression' && !base.optional && !!inlineCallProxyGlobalRoot({
           callNode: base,
@@ -206,7 +206,7 @@ export default function createOptionalDispatchChannel(ctx) {
     const baseType = surface ? null
       : resolvedType.get(objectNode)
         ?? memoizedCallResultType(objectNode, metaPath, resolveNodeType)
-        ?? nodeTypeRefinement(peelExpressionWrappers(objectNode), metaPath.scope, resolveNodeType);
+        ?? nodeTypeRefinement(unwrapRuntimeExpr(objectNode), metaPath.scope, resolveNodeType);
     return {
       disjuncts: [assignmentExpression('=', identifier(ref), memoized)],
       makeBase() {
@@ -220,16 +220,16 @@ export default function createOptionalDispatchChannel(ctx) {
   // the possible-global SURFACE a receiver's value denotes (`globalThis.window` -> 'window',
   // a bare pristine root -> its own name), or null when the value is not that shape
   function proxySurfaceNameOf(objectNode, metaPath = null) {
-    let value = peelExpressionWrappers(objectNode);
+    let value = unwrapRuntimeExpr(objectNode);
     // the value flows out of a sequence TAIL and through a kept write's stored value, and the
     // two interleave (`(eff(), q = globalThis.window)`) - so the peel alternates
     for (;;) {
       if (value?.type === 'SequenceExpression') {
-        value = peelExpressionWrappers(value.expressions.at(-1));
+        value = unwrapRuntimeExpr(value.expressions.at(-1));
         continue;
       }
       if (value?.type !== 'AssignmentExpression') break;
-      value = peelExpressionWrappers(value.right);
+      value = unwrapRuntimeExpr(value.right);
     }
     // a PROVEN call yields the surface too (`(() => self)()` - the inline canon)
     if (value?.type === 'CallExpression' && !value.optional && metaPath) {
@@ -275,7 +275,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // provably DEFINED object erases BOTH `?.` once substituted (`Array?.from?.(x)` ->
     // `_Array$from(x)`; the result's own `?.` still guards above)
     if (!callee.computed && callee.property?.type === 'Identifier') {
-      const dCalleeObject = peelExpressionWrappers(callee.object);
+      const dCalleeObject = unwrapRuntimeExpr(callee.object);
       const dObjName = dCalleeObject?.type === 'Identifier' && !adapter.getBinding?.(metaPath.scope, dCalleeObject.name)
         ? dCalleeObject.name
         : resolveObjectName({ objectNode: callee.object, scope: metaPath.scope, adapter, path: metaPath });
@@ -342,7 +342,7 @@ export default function createOptionalDispatchChannel(ctx) {
   // method resolution (`[].at?.(1)` -> `_atMaybeArray`, babel's typed probe); null when
   // the type does not resolve - the bare prototype meta then keeps the generic entry
   function splitReceiverTypeHint(receiverNode, metaPath) {
-    const value = peelExpressionWrappers(receiverNode);
+    const value = unwrapRuntimeExpr(receiverNode);
     if (!value) return null;
     return toHint(nodeTypeRefinement(value, metaPath.scope, resolveNodeType)) ?? null;
   }
@@ -408,7 +408,7 @@ export default function createOptionalDispatchChannel(ctx) {
   }
 
   function splitOptionalCallReceiver(node, metaPath) {
-    const callee = peelExpressionWrappers(node.callee);
+    const callee = unwrapRuntimeExpr(node.callee);
     // a BARE callee's `?.()` guards on the callee value itself: reusable re-reads
     // (`a == null ? void 0 : _at(_ref = a()).call(_ref, 0)`); a COMPLEX or non-reusable
     // callee memoizes, the disjunct guards the memo and the call reads it exactly once
@@ -442,7 +442,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // reuses `_globalThis` bare), but REUSABILITY peels parens only - a TS cast keeps
     // babel memoizing (`(globalThis as any).flat?.()` -> `_ref2 = _globalThis`), and the
     // SEAL semantics of the live-optional test read the unpeeled spelling
-    const calleeObject = peelExpressionWrappers(callee.object);
+    const calleeObject = unwrapRuntimeExpr(callee.object);
     let reusabilityView = callee.object;
     while (reusabilityView?.type === 'ParenthesizedExpression') reusabilityView = reusabilityView.expression;
     // `super` cannot memoize (`_ref = super` does not parse) - the method memoizes whole
@@ -460,8 +460,8 @@ export default function createOptionalDispatchChannel(ctx) {
     function cloneReceiverValue() {
       const clone = cloneNode(callee.object);
       if (holdsProxySurface(callee.object, metaPath)) {
-        for (let hop = peelExpressionWrappers(clone); hop?.type === 'MemberExpression' && !hop.computed
-          && POSSIBLE_GLOBAL_OBJECTS.has(hop.property?.name); hop = peelExpressionWrappers(hop.object)) {
+        for (let hop = unwrapRuntimeExpr(clone); hop?.type === 'MemberExpression' && !hop.computed
+          && POSSIBLE_GLOBAL_OBJECTS.has(hop.property?.name); hop = unwrapRuntimeExpr(hop.object)) {
           skippedNodes.add(hop);
         }
       }
@@ -478,7 +478,7 @@ export default function createOptionalDispatchChannel(ctx) {
       const recvIdForRead = identifier(refRecv);
       // the memo ref carries the RECEIVER's resolved type: the re-visited method read
       // resolves its typed instance entry off it (`[].at?.(1)...` -> `_atMaybeArray`)
-      const recvType = nodeTypeRefinement(peelExpressionWrappers(callee.object), metaPath.scope, resolveNodeType);
+      const recvType = nodeTypeRefinement(unwrapRuntimeExpr(callee.object), metaPath.scope, resolveNodeType);
       if (recvType) resolvedType.set(recvIdForRead, recvType);
       const methodRead = memberExpression(recvIdForRead, cloneNode(callee.property), { computed: callee.computed });
       const methodAssign = assignmentExpression('=', identifier(refMethod), methodRead);
@@ -601,18 +601,18 @@ export default function createOptionalDispatchChannel(ctx) {
     // sequence wrappers out, so nothing else resolves its statics
     if (!node.computed && node.property?.type === 'Identifier'
       && (!holdsProxySurface(node.object, metaPath)
-        || peelExpressionWrappers(node.object)?.type === 'SequenceExpression')) {
+        || unwrapRuntimeExpr(node.object)?.type === 'SequenceExpression')) {
       // the base VALUE folds through effectful sequence tails and kept writes - the
       // memo test keeps their spelling, the chain only needs the surface they yield
-      let baseValue = peelExpressionWrappers(node.object);
+      let baseValue = unwrapRuntimeExpr(node.object);
       for (;;) {
         if (baseValue?.type === 'SequenceExpression') {
-          baseValue = peelExpressionWrappers(baseValue.expressions.at(-1));
+          baseValue = unwrapRuntimeExpr(baseValue.expressions.at(-1));
           continue;
         }
         const dechained = peelChainAssignmentDeep(baseValue);
         if (dechained === baseValue) break;
-        baseValue = peelExpressionWrappers(dechained);
+        baseValue = unwrapRuntimeExpr(dechained);
       }
       const aliasName = resolveObjectName({ objectNode: baseValue, scope: metaPath.scope, adapter, path: metaPath });
       if (aliasName && POSSIBLE_GLOBAL_OBJECTS.has(aliasName) && isPristineProxyGlobal(adapter, aliasName)) {
@@ -689,7 +689,7 @@ export default function createOptionalDispatchChannel(ctx) {
         // (`(w = gw)?.[(c++, 'self')]?.[(c++, 'self')].Array` -> `_ref[c++, c++, 'Array']`)
         const foldKey = receiverCarriesOptional(node.object)
           ? proxyHopKey(node, { allowOptional: true, metaPath }) : null;
-        const innerHop = foldKey ? peelExpressionWrappers(node.object) : null;
+        const innerHop = foldKey ? unwrapRuntimeExpr(node.object) : null;
         // ... and only while the inner probe's own value stays SPELLABLE off the memo: a PLAIN
         // proxy nav collapses to a ponyfill, leaving no member read to re-run off the memo base,
         // so the inner hop renders its own guard and THAT is what the memo holds
@@ -697,7 +697,7 @@ export default function createOptionalDispatchChannel(ctx) {
         // : _self`). a write or an effect-bearing sequence has a spelling that MUST be kept
         // whole in the memo, and the hops fold onto it as before (`(sc++, p = globalThis.window)
         // ?.self?.self.Array`)
-        const innerNav = peelExpressionWrappers(innerHop?.object);
+        const innerNav = unwrapRuntimeExpr(innerHop?.object);
         if (innerHop && !(innerNav?.type === 'MemberExpression' && holdsProxySurface(innerNav, metaPath))
           && (innerHop.type !== 'MemberExpression' || !innerHop.optional
             || guardProbeUndefinable(innerHop.object, { metaPath, adapter, resolvePure }))) {
@@ -770,13 +770,13 @@ export default function createOptionalDispatchChannel(ctx) {
         // the migrated key effects respell the surviving key computed (`[c++, "Array"]`);
         // a computed STRING-LITERAL key respells the same way - only a dynamic computed
         // key (whose own read the prefix would reorder against) stays staged
-        const computedTail = node.computed ? peelExpressionWrappers(node.property) : null;
+        const computedTail = node.computed ? unwrapRuntimeExpr(node.property) : null;
         const surviving = !node.computed && node.property?.type === 'Identifier'
           ? literal(node.property.name)
           : computedTail?.type === 'Literal' && typeof computedTail.value === 'string'
             ? literal(computedTail.value)
             : computedTail?.type === 'SequenceExpression'
-              && peelExpressionWrappers(computedTail.expressions.at(-1))?.type === 'Literal'
+              && unwrapRuntimeExpr(computedTail.expressions.at(-1))?.type === 'Literal'
               ? cloneNode(computedTail)
               : null;
         if (!surviving) return STAGED_SPLIT;
@@ -803,21 +803,21 @@ export default function createOptionalDispatchChannel(ctx) {
   function holdsProxySurface(objectNode, metaPath = null) {
     // writes interleave with the hops (`((dw = gw) as any)?.self` holds the surface too),
     // so the peel alternates instead of running write-then-members once
-    let value = peelExpressionWrappers(objectNode);
+    let value = unwrapRuntimeExpr(objectNode);
     for (;;) {
       // ... and the value of a SEQUENCE is its tail, which the hops read through
       if (value?.type === 'SequenceExpression') {
-        value = peelExpressionWrappers(value.expressions.at(-1));
+        value = unwrapRuntimeExpr(value.expressions.at(-1));
         continue;
       }
       if (value?.type === 'AssignmentExpression') {
-        value = peelExpressionWrappers(value.right);
+        value = unwrapRuntimeExpr(value.right);
         continue;
       }
       if (value?.type === 'MemberExpression' && !value.computed
         && POSSIBLE_GLOBAL_OBJECTS.has(value.property?.name)
         && isPristineProxyGlobal(adapter, value.property.name)) {
-        value = peelExpressionWrappers(value.object);
+        value = unwrapRuntimeExpr(value.object);
         continue;
       }
       break;
@@ -858,9 +858,9 @@ export default function createOptionalDispatchChannel(ctx) {
     const recvClone = cloneNode(recvAssign);
     // the memo build may have claim-suppressed the receiver's proxy-surface hops (the memo
     // holds the VALUE, babel keeps the hops spelled) - the fresh clone inherits those marks
-    for (let orig = peelExpressionWrappers(recvAssign.right), copy = peelExpressionWrappers(recvClone.right);
+    for (let orig = unwrapRuntimeExpr(recvAssign.right), copy = unwrapRuntimeExpr(recvClone.right);
       orig?.type === 'MemberExpression' && copy?.type === 'MemberExpression';
-      orig = peelExpressionWrappers(orig.object), copy = peelExpressionWrappers(copy.object)) {
+      orig = unwrapRuntimeExpr(orig.object), copy = unwrapRuntimeExpr(copy.object)) {
       if (skippedNodes.has(orig)) skippedNodes.add(copy);
     }
     seqPath.replaceWith(assignmentExpression('=', cloneNode(assignUp.left),
@@ -943,7 +943,7 @@ export default function createOptionalDispatchChannel(ctx) {
       // own subject, which is the non-sequence shape below (`(c++, p = globalThis.window)`)
       const seqTail = singleSequenceTail(node);
       const peeled = seqTail && peelChainAssignmentDeep(seqTail) === seqTail
-        ? seqTail : peelExpressionWrappers(node);
+        ? seqTail : unwrapRuntimeExpr(node);
       let cur = peelChainAssignmentDeep(peeled);
       const throughWrite = cur !== peeled;
       // a SEQUENCE stored BY the write hands its tail on the same way a bare one does - the
@@ -954,7 +954,7 @@ export default function createOptionalDispatchChannel(ctx) {
         if (!proxyHopKey(cur, { allowOptional: true, metaPath })) return false;
         // a kept write UNDER the hops is as transparent as one above them
         // (`((r = globalThis).self)?.Array` - the erased `?.` reads the pure root)
-        cur = peelChainAssignmentDeep(peelExpressionWrappers(cur.object));
+        cur = peelChainAssignmentDeep(unwrapRuntimeExpr(cur.object));
       }
       if (cur?.type === 'Identifier') {
         if (POSSIBLE_GLOBAL_OBJECTS.has(cur.name)) return isPristineProxyGlobal(adapter, cur.name);
@@ -975,7 +975,7 @@ export default function createOptionalDispatchChannel(ctx) {
         // kept write (`(u = g())?.Array` erases, bare `dh().self?.` keeps its guard -
         // babel's erase stops at named bindings outside the write shape), and its yield
         // must be a defined proxy global (const-arrow followed by the call canon)
-        const callee = peelExpressionWrappers(cur.callee);
+        const callee = unwrapRuntimeExpr(cur.callee);
         const literalCallee = callee?.type === 'ArrowFunctionExpression' || callee?.type === 'FunctionExpression';
         if (literalCallee) {
           const rootName = resolveObjectName({ objectNode: cur, scope: metaPath.scope, adapter, path: metaPath });
@@ -996,8 +996,8 @@ export default function createOptionalDispatchChannel(ctx) {
     // the walk stops at a call; the `?.` under its CALLEE is the same navigation
     // (`(w = globalThis)?.Array.of(5)` - the hop sits below `.of`), so descend there
     let navNode = object;
-    for (let peeled = peelExpressionWrappers(navNode); peeled?.type === 'CallExpression' && !peeled.optional;
-      peeled = peelExpressionWrappers(navNode)) navNode = peeled.callee;
+    for (let peeled = unwrapRuntimeExpr(navNode); peeled?.type === 'CallExpression' && !peeled.optional;
+      peeled = unwrapRuntimeExpr(navNode)) navNode = peeled.callee;
     const deadHops = vestigialNavOptionals(navNode, m => resolvePure(m, metaPath),
       { scope: metaPath.scope, adapter, path: metaPath });
     // a dead hop erases only when PROVABLE (its object collapses to a defined surface or
@@ -1008,15 +1008,15 @@ export default function createOptionalDispatchChannel(ctx) {
       // through a kept WRITE only a DIRECT global spelling proves: babel's erase stops at a
       // BINDING there however it resolves (`(n = gw)?.self` keeps its guard, `(n = globalThis)
       // ?.self` erases) - the same boundary the hop-guard verdict draws
-      const written = peelExpressionWrappers(hop.object);
+      const written = unwrapRuntimeExpr(hop.object);
       if (written?.type === 'AssignmentExpression') {
-        const stored = peelExpressionWrappers(peelChainAssignmentDeep(written));
+        const stored = unwrapRuntimeExpr(peelChainAssignmentDeep(written));
         if (stored?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(stored.name)) return false;
       }
       // a `?.` whose probe IS a bare call keeps its guard - proving WHICH global a call
       // yields is not proving it yields a DEFINED one (the strict opaque-root canon);
       // only a KEPT WRITE of the call value erases (`(u = g())?.` - the write observes)
-      if (peelExpressionWrappers(hop.object)?.type === 'CallExpression') return false;
+      if (unwrapRuntimeExpr(hop.object)?.type === 'CallExpression') return false;
       const hopKeyName = !hop.computed && hop.property?.name;
       if (hopKeyName && POSSIBLE_GLOBAL_OBJECTS.has(hopKeyName) && !isPristineProxyGlobal(adapter, hopKeyName)) return false;
       if (chainContainsMutatedStatic(hop.object, { metaPath, adapter })) return false;
@@ -1040,8 +1040,8 @@ export default function createOptionalDispatchChannel(ctx) {
     }
     const provable = new Set(deadHops.filter(hop => hopProvable(hop)));
     let liveHops = false;
-    for (let cur = peelExpressionWrappers(navNode); cur?.type === 'MemberExpression';
-      cur = peelExpressionWrappers(cur.object)) {
+    for (let cur = unwrapRuntimeExpr(navNode); cur?.type === 'MemberExpression';
+      cur = unwrapRuntimeExpr(cur.object)) {
       if (cur.optional && !provable.has(cur)) liveHops = true;
     }
     if (!liveHops) for (const hop of provable) hop.optional = false;
@@ -1056,7 +1056,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // unwraps to exactly this member (the paren-lookup class included)
     const callerPath = climbToCallerPath(metaPath);
     const parent = callerPath?.node;
-    const isCall = (parent?.type === 'CallExpression' ? peelExpressionWrappers(parent.callee) : null) === memberNode;
+    const isCall = (parent?.type === 'CallExpression' ? unwrapRuntimeExpr(parent.callee) : null) === memberNode;
     const callOptional = isCall && parent.optional;
     // the member's own `?.` is DEAD over a value the polyfill makes always-defined - a pure CTOR
     // binding: it erases with the substitution, and a guard there would test a binding that
@@ -1097,9 +1097,9 @@ export default function createOptionalDispatchChannel(ctx) {
       // (`arr.flat?.()?.flatMap(f)?.at(0)`)
       const split = splitOptionalReceiver(splitSource, metaPath);
       if (split === STAGED_SPLIT) return false;
-      const splitCall = peelExpressionWrappers(splitSource);
+      const splitCall = unwrapRuntimeExpr(splitSource);
       const splitHop = splitCall?.type === 'CallExpression'
-              ? peelExpressionWrappers(splitCall.callee) : null;
+              ? unwrapRuntimeExpr(splitCall.callee) : null;
       const splitHopKey = splitHop?.type === 'MemberExpression'
               ? (splitHop.computed ? foldSeqKeyLiteralTail(splitHop.property)?.key ?? null
                 : splitHop.property?.type === 'Identifier' ? splitHop.property.name : null)
@@ -1115,7 +1115,7 @@ export default function createOptionalDispatchChannel(ctx) {
       // (babel: `null == (_ref = box.get?.())`); every other call shape threads its
       // disjuncts as before (an inner optional segment, a rewritten dispatch callee)
       const splitCallCallee = splitCall?.type === 'CallExpression' && splitCall.optional === true
-              ? peelExpressionWrappers(splitCall.callee) : null;
+              ? unwrapRuntimeExpr(splitCall.callee) : null;
       const soleRootOptCall = !!splitCallCallee && !splitHopClaim
               && !receiverCarriesOptional(splitCallCallee) && !optionalCallSegmentBelow(splitCallCallee);
       // ... and a PAREN-SEALED lookup keeps its whole segment in ONE memo: the `.call` rides
@@ -1190,7 +1190,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // CALLEE - an argument-position claim (`_name(x[(eff(), 'flat')])`, a sibling render's
     // own call) reads like the plain form, and rewriting the call would consume a span this
     // claim does not own
-    const methodCall = parent?.type === 'CallExpression' && peelExpressionWrappers(parent.callee) === node;
+    const methodCall = parent?.type === 'CallExpression' && unwrapRuntimeExpr(parent.callee) === node;
     // the READ form (an SE computed key folding to a member read - the split's memo, a bare
     // read): `arr[(eff(), 'flat')]` -> `(eff(), _flatMaybeArray(arr))`
     // effects the receiver spelling ALREADY carries (a rescued chain-assign the earlier
@@ -1204,8 +1204,8 @@ export default function createOptionalDispatchChannel(ctx) {
       return emitSeCarryingReceiverRead({ node, metaPath, entry, hintName },
         { adapter, injector, injectPureImport, markRewrite, skippedNodes });
     }
-    if (!memberOptional && !methodCall && isReusableReceiver(peelExpressionWrappers(node.object))) {
-      const receiver = peelExpressionWrappers(node.object);
+    if (!memberOptional && !methodCall && isReusableReceiver(unwrapRuntimeExpr(node.object))) {
+      const receiver = unwrapRuntimeExpr(node.object);
       const id = injectPureImport(entry, hintName);
       markRewrite();
       replaceGuardedHop({
@@ -1236,14 +1236,14 @@ export default function createOptionalDispatchChannel(ctx) {
         { splitOptionalReceiver, stagedSplit: STAGED_SPLIT, injectPureImport, markRewrite, composeGuardTest, skippedNodes });
     }
     if (!methodCall || (parent.optional && !memberOptional)) return;
-    let receiver = peelExpressionWrappers(node.object);
+    let receiver = unwrapRuntimeExpr(node.object);
     if (receiver?.type === 'SequenceExpression') receiver = receiver.expressions.at(-1);
     // ... and THROUGH nested sequences whose prefixes the harvest carries: a memo of the
     // nested tail would run the inner effect once in the memo and again in the replay
     // (`(a(), (b(), arr)).flat()` ran b, a, b)
-    for (let seq = peelExpressionWrappers(receiver); seq?.type === 'SequenceExpression'
+    for (let seq = unwrapRuntimeExpr(receiver); seq?.type === 'SequenceExpression'
       && seq.expressions.slice(0, -1).every(expr => meta.sideEffects?.includes(expr));
-      seq = peelExpressionWrappers(receiver)) {
+      seq = unwrapRuntimeExpr(receiver)) {
       receiver = seq.expressions.at(-1);
     }
     if (!memberOptional && isReusableReceiver(receiver)) {
@@ -1277,10 +1277,10 @@ export default function createOptionalDispatchChannel(ctx) {
     // `(se(), _at(_ref = [1, 2]).call(_ref, -1))`)
     const id = injectPureImport(entry, hintName);
     const ref = injector.generateDeclaredRef(metaPath);
-    for (let seq = peelExpressionWrappers(effReceiver); seq?.type === 'SequenceExpression'
+    for (let seq = unwrapRuntimeExpr(effReceiver); seq?.type === 'SequenceExpression'
       && seq.expressions.slice(0, -1).every(expr => meta.sideEffects?.includes(expr));
-      seq = peelExpressionWrappers(effReceiver)) {
-      effReceiver = peelExpressionWrappers(seq.expressions.at(-1));
+      seq = unwrapRuntimeExpr(effReceiver)) {
+      effReceiver = unwrapRuntimeExpr(seq.expressions.at(-1));
     }
     const memo = assignmentExpression('=', identifier(ref), cloneNode(effReceiver));
     // a LITERAL receiver's memo fuses into the lookup argument and the harvested key SE
@@ -1289,7 +1289,7 @@ export default function createOptionalDispatchChannel(ctx) {
     // receiver READS (a member's getter, a call), and ECMA evaluates the receiver BEFORE
     // the key: the memo leads the sequence (`(_ref = box.list, k++, _at(_ref)...)`). under
     // a split's guard the alternate keeps the memo-first seq too (the disjuncts' own canon)
-    const fusableReceiver = LITERAL_RECEIVER_TYPES.has(peelExpressionWrappers(effReceiver)?.type);
+    const fusableReceiver = LITERAL_RECEIVER_TYPES.has(unwrapRuntimeExpr(effReceiver)?.type);
     const fuseMemo = !memberOptional && !guardDisjuncts && fusableReceiver && !mayHaveSideEffects(effReceiver);
     const dispatch = callExpression(
       memberExpression(callExpression(identifier(id), [fuseMemo ? memo : identifier(ref)]), identifier('call')),

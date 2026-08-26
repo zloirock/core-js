@@ -14,39 +14,42 @@ import {
   trustedIdentifierAliasWrite,
 } from '../helpers/class-walk.js';
 import {
-  pureImportEntryOf,
+  aliasDeclScope,
+  aliasReadGuardedAgainstNullish,
   asProxyGlobalName,
   bindsModuleDefault,
-  globalProxyNameFromImportSource,
-  importSourceMatchesUserPackage,
-  importBindingIsTypeOnly,
-  tsImportEqualsProxyName,
-  tsImportEqualsRequireSource,
-  isTopLevelThisContext,
   collectFoldedReceiverSideEffects,
-  isDirectiveStatement,
+  definedBranchOfGuardConditional,
+  deleteHostAboveChain,
+  globalProxyNameFromImportSource,
+  identifierReferencedInSubtree,
   IMPORT_SPECIFIER_TYPES,
+  importBindingIsTypeOnly,
+  importSourceMatchesUserPackage,
+  isDestructurePattern,
+  isDirectiveStatement,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReassignedBeyondDeclarator,
+  isRenderedStoredValue,
+  isTopLevelThisContext,
+  isUndefinedNode,
   isValidIdentifierName,
   isVarDeclaratorInLoopRerun,
   kebabToCamel,
-  aliasReadGuardedAgainstNullish,
-  definedBranchOfGuardConditional,
-  isRenderedStoredValue,
-  isUndefinedNode,
   mayHaveSideEffects,
   memberProxyHopName,
   paramReboundInBody,
   patternSlotHasDefault,
   patternSlotSpreadShifted,
   patternSlotValues,
-  unwrapParens,
-  unwrapRuntimeExpr,
+  peelMemoizeWrappers,
   peelSequenceTail,
   peelZeroArgIifeReturn,
+  plainSynthKeyName,
+  POSSIBLE_GLOBAL_OBJECTS,
   pureCtorNameFromImportSource,
+  pureImportEntryOf,
   reachingReassignmentValueNode,
   reassignBailApplies,
   reassignmentBlocksGlobalResolve,
@@ -54,17 +57,17 @@ import {
   sequencePrefixWithSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
+  SKIPPABLE_WRAPPER_TYPES,
   spreadAtOrBefore,
   staticMemberKeyName,
-  plainSynthKeyName,
   synthSwapPropKey,
-  SKIPPABLE_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
-  identifierReferencedInSubtree,
+  tsImportEqualsProxyName,
+  tsImportEqualsRequireSource,
+  unwrapParens,
+  unwrapRuntimeExpr,
   varInitDominatesUsage,
   zeroArgIifeSideEffectFree,
-  POSSIBLE_GLOBAL_OBJECTS,
-  deleteHostAboveChain,
 } from '../helpers/ast-patterns.js';
 import { nodeRangeContains } from '../resolve-node-type/ast-shapes.js';
 import { SYMBOL_STATIC_KEYS } from './globals.js';
@@ -298,8 +301,7 @@ export function ownChainOptionalObjects(node) {
   // consumers read the value as never short-circuiting
   // `ChainExpression` comes off with them: estree marks the chain with a node babel does not
   // spell at all, and it is the very short-circuit being counted, so entering it is the point
-  let start = node;
-  while (start?.type === 'ParenthesizedExpression' || start?.type === 'ChainExpression') start = start.expression;
+  const start = peelMemoizeWrappers(node);
   for (let cur = start, depth = 0; cur && depth++ <= MAX_KEY_DEPTH;) {
     if (cur !== start && cur.extra?.parenthesized) break;
     if (cur.type === 'TSNonNullExpression') {
@@ -802,7 +804,7 @@ export function isStaticPlacement(name) {
 }
 
 // capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
-const CAPITALISED_IDENT = /^[A-Z]\w*$/;
+export const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
 // `.js` suffix is tolerated (explicit-extension import style) - `.js` ONLY: the packages ship
 // no `.cjs` / `.mjs` files, so those spellings can never resolve and must not be recognized.
@@ -852,7 +854,7 @@ function enterIdentifierBindingFollow({ node, scope, adapter, seen, path = null,
   // the returned scope anchors the NEXT hop: the init's identifiers resolve in the alias's OWN
   // declaration scope, not the use scope - a use-site shadow of an init name (`const k = j;
   // function f(j) { obj[k] }`) must not swallow the module-level value the alias actually holds
-  return { binding, init, nextSeen, scope: binding.scope ?? scope };
+  return { binding, init, nextSeen, scope: aliasDeclScope(binding, scope) };
 }
 
 // resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
@@ -931,7 +933,7 @@ function isInteropDefaultCallee(callee, scope, adapter, path) {
   }
   if (isReassignedBeyondDeclarator(binding)) return false;
   const source = binding.importSource
-    ?? (binding.node?.type === 'VariableDeclarator' ? requireCallSource(binding.node.init, adapter, binding.scope ?? scope) : null)
+    ?? (binding.node?.type === 'VariableDeclarator' ? requireCallSource(binding.node.init, adapter, aliasDeclScope(binding, scope)) : null)
     ?? tsImportEqualsRequireSource(binding.node, adapter);
   return typeof source === 'string' && INTEROP_HELPER_SOURCE.test(source);
 }
@@ -1025,11 +1027,11 @@ export function interopDefaultProxyName({ objectNode, scope, adapter, path }) {
     if (!init) return null;
     if (init.type === 'Identifier') {
       // the init resolves in the alias's OWN declaration scope, not the use scope
-      lookupScope = binding.scope ?? lookupScope;
+      lookupScope = aliasDeclScope(binding, lookupScope);
       ({ name } = init);
       continue;
     }
-    return interopCallProxySource({ callNode: init, scope: binding.scope ?? lookupScope, adapter, path });
+    return interopCallProxySource({ callNode: init, scope: aliasDeclScope(binding, lookupScope), adapter, path });
   }
   return null;
 }
@@ -1042,7 +1044,7 @@ export function requireBoundProxyGlobalName({ node, scope, adapter, path }) {
   if (!binding || isReassignedBeyondDeclarator(binding)) return null;
   const init = binding.node?.type === 'VariableDeclarator' && binding.node.id?.type === 'Identifier'
     ? unwrapTransparentSeq(binding.node.init) : null;
-  const required = init && requireCallSource(init, adapter, binding.scope ?? scope);
+  const required = init && requireCallSource(init, adapter, aliasDeclScope(binding, scope));
   return required ? globalProxyNameFromImportSource(required, adapter.packages) : null;
 }
 
@@ -1172,7 +1174,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
       // RHS receiver resolves there - `scope` (the use site) only located the write; resolving the
       // RHS in it would rebind an outer receiver to an inner shadow (same missed-sibling gap as the
       // declarator-init delegations)
-      const writeScope = binding.scope ?? scope;
+      const writeScope = aliasDeclScope(binding, scope);
       const alias = write.left?.type === 'ObjectPattern'
         ? resolveProxyGlobalDestructureAlias({ pattern: write.left, init: write.right, name, scope: writeScope, adapter, seen, path })
         : write.left?.type === 'ArrayPattern'
@@ -1214,7 +1216,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // capture it (mirror of the identifier-hop rule in `resolveAliasValueNode`; passing raw `scope`
   // was the missed-sibling gap that dropped injection for `const { Map: M } = a` / `const [A] =
   // [a.Map]` used under a shadowing param)
-  const initScope = binding.scope ?? scope;
+  const initScope = aliasDeclScope(binding, scope);
   // `{ from, ...rest } = Array` - rest !=== init
   const props = pattern?.properties ?? pattern?.elements;
   if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
@@ -1238,7 +1240,7 @@ function resolveVariableBindingToGlobal({ name, binding, scope, adapter, seen, p
   // (`const { from } = Array`) pairs to a property, not a literal slot value, so it surfaces nothing
   // here and falls through to null (resolved by the destructure detection instead). diverging slot
   // values (a default that disagrees with the paired value) stay unresolved - bail-safe both modes
-  if ((pattern?.type === 'ArrayPattern' || pattern?.type === 'ObjectPattern') && init) {
+  if (isDestructurePattern(pattern) && init) {
     // a slot default makes the value default-or-runtime, and this union sees only the values
     // `patternSlotValues` could pair (its contract is over-approximation - a dynamic / spread-
     // shifted / foreign pair contributes nothing), so a lone resolved default wrongly reads as
@@ -1275,7 +1277,7 @@ function resolveAliasValueNode({ value, name, binding, scope, adapter, seen, pat
   // init-shape delegation below threads `initScope`; passing the raw use `scope` was the missed-
   // sibling gap that dropped injection under an inner-shadowed alias hop (`var g = a.Map` used where
   // `a` is a shadowing param)
-  const initScope = binding.scope ?? scope;
+  const initScope = aliasDeclScope(binding, scope);
   // a guard-shaped conditional value (the stored kept-nav render - `null == _globalThis.window
   // ? void 0 : _self.window` - or any user ternary of the same shape) stores either undefined
   // or the defined branch: classification follows that branch, and the undefinable verdict
@@ -1666,7 +1668,7 @@ function resolveInlineCalleeFunction({ callNode, scope, adapter, path, seen, all
       callee = declNode;
     }
     seen.add(name);
-    hopScope = binding.scope ?? hopScope;
+    hopScope = aliasDeclScope(binding, hopScope);
   }
   return finishInlineCallee({ callee, allowIdentityParam });
 }
@@ -1883,7 +1885,6 @@ function liveHopKeySeExprs(hops, unwrap) {
   });
 }
 
-// eslint-disable-next-line max-statements -- sequential plan-building steps of one nav
 export function planProvenNavGuardCollapse({
   rootNode, scope, adapter, path, resolvePure, unwrap = unwrapTransparentSeq, allowSequenceRoot = false,
   throughKeptAssign = false, descendSequenceTail = false,
@@ -1997,7 +1998,9 @@ export function planProvenNavGuardCollapse({
     }
   }
   if (collapseIdx === -1) return null;
-  if (hops.some((hop, i) => hop.keySeExprs && i > collapseIdx)) return null;
+  // a TAIL hop's key effects ride WITH the hop: the render re-hangs every hop above the collapse in
+  // the source's own spelling, key node included, so the effect stays where the source runs it -
+  // after the collapsed value, before the read it keys
   // a hop earns a GUARD only when its own read can genuinely be undefined - the positional rule the
   // value canon owns (`globalThis.window` is the environment probe; a DEEPER unresolvable hop is a
   // realm self-reference the collapse assumes present). keying on name-resolution alone built a
@@ -2045,7 +2048,10 @@ export function planProvenNavGuardCollapse({
     // replay spells it unpolyfilled (`w = globalThis`), a bare global in usage-pure output
     rootAssign: chainAssign ?? null,
     topAssign, topAssignSteps, topValue: dug?.value ?? null, hops, collapseIdx, lastUnresolvableIdx, keySeExprs,
-    liveKeySeExprs: () => liveHopKeySeExprs(hops, unwrap), testKeySeCount,
+    // the COLLAPSED hops only: their key nodes are discarded with them, so their effects have to be
+    // replayed ahead of the leaf. a hop ABOVE the collapse survives as itself, key node included,
+    // and replaying it here too would run the source's effect twice
+    liveKeySeExprs: () => liveHopKeySeExprs(hops.slice(0, collapseIdx + 1), unwrap), testKeySeCount,
     seqAroundPrefix,
     leafName: hops[collapseIdx].name, leafPure, rootValueNode: seqRootNode ?? n, seqRoot: !!seqRootNode,
     // the sequence's TAIL is part of what the hops navigate, so a render that descended past it

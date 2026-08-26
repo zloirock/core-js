@@ -10,16 +10,22 @@ import {
   storedNavHopClaimSuppressed,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
-  SKIPPABLE_WRAPPER_TYPES,
-  TS_EXPR_WRAPPERS,
   assignmentInStatementPosition,
   claimDeleteOperand,
+  isDestructurePattern,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   mayHaveSideEffects,
   memberProxyHopName,
+  peelParenAndTSParentPath,
+  peelParenAndTSSlotChild,
+  peelParenAndTSSlotPath,
+  POSSIBLE_GLOBAL_OBJECTS,
+  SKIPPABLE_WRAPPER_TYPES,
   staticMemberKeyName,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
+  TS_EXPR_WRAPPERS,
+  unwrapRuntimeExpr,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { walkAstNodes } from './plugin-helpers.js';
 import {
@@ -31,7 +37,7 @@ import {
   nullFirstGuardTest,
   renderShortCircuitGuard,
 } from './builders.js';
-import { discardedSequenceElement, memberFromKeyName, peelExpressionWrappers } from './emit-shared.js';
+import { discardedSequenceElement, memberFromKeyName } from './emit-shared.js';
 
 // is the node read as a member OBJECT above - asked THROUGH transparent wrappers and a
 // sequence TAIL: `(se(), g[fold]).Array` reads the hop exactly like the bare spelling
@@ -39,7 +45,7 @@ export function navigatedMemberAbove(metaPath) {
   let navUp = metaPath;
   for (let up = navUp.parentPath; up?.node; up = navUp.parentPath) {
     const upNode = up.node;
-    const wraps = (upNode.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(upNode.type))
+    const wraps = TRANSPARENT_EXPR_WRAPPER_TYPES.has(upNode.type)
       && upNode.expression === navUp.node;
     if (!wraps && !(upNode.type === 'SequenceExpression' && upNode.expressions.at(-1) === navUp.node)) break;
     navUp = up;
@@ -75,12 +81,12 @@ export function cloneSpinePeeled(node, inCallee = false) {
 // it lives (`(d++, (c++, globalThis))?.Map.name`). through a kept WRITE the store makes the value
 // known and the descent continues (`(k = (c++, (c++, globalThis.self)))?.self` erases)
 export function singleSequenceTail(node, { nested = false } = {}) {
-  const core = peelExpressionWrappers(node);
+  const core = unwrapRuntimeExpr(node);
   if (core?.type !== 'SequenceExpression' || !core.expressions?.length) return null;
-  let tail = peelExpressionWrappers(core.expressions.at(-1));
+  let tail = unwrapRuntimeExpr(core.expressions.at(-1));
   if (!nested) return tail?.type === 'SequenceExpression' ? null : tail;
   while (tail?.type === 'SequenceExpression' && tail.expressions?.length) {
-    tail = peelExpressionWrappers(tail.expressions.at(-1));
+    tail = unwrapRuntimeExpr(tail.expressions.at(-1));
   }
   return tail;
 }
@@ -155,7 +161,7 @@ export function unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill) {
   let sawUnbacked = false;
   let cur = metaPath;
   for (let up = cur.parentPath; up?.node; up = cur.parentPath) {
-    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type) || up.node.type === 'ChainExpression') {
+    if (SKIPPABLE_WRAPPER_TYPES.has(up.node.type)) {
       cur = up;
       continue;
     }
@@ -190,7 +196,7 @@ export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) 
     && POSSIBLE_GLOBAL_OBJECTS.has(base.property?.name)
     && isPristineProxyGlobal(adapter, base.property.name)
     && resolveGlobalPolyfill(base.property.name)) {
-    base = peelExpressionWrappers(base.object);
+    base = unwrapRuntimeExpr(base.object);
   }
   return base;
 }
@@ -198,7 +204,7 @@ export function peelPristineProxyHops(node, { adapter, resolveGlobalPolyfill }) 
 // ... and a KEPT sequence navigates just the same: its TAIL drops them in place
 export function dropTailPristineProxyHops(node, ctx) {
   for (let seq = node; seq?.type === 'SequenceExpression';) {
-    const tail = peelExpressionWrappers(seq.expressions.at(-1));
+    const tail = unwrapRuntimeExpr(seq.expressions.at(-1));
     if (tail?.type === 'SequenceExpression') {
       seq = tail;
       continue;
@@ -261,12 +267,7 @@ export function sequenceTailRunAbove(seqPath) {
 // (`(arr.at)(0)`, `(arr.at as any)(0)`): the paren-lookup CLASS - the dispatch must still
 // bind `this`, so the wrapped spelling routes exactly like the bare one
 export function climbToCallerPath(metaPath) {
-  let callerPath = metaPath.parentPath;
-  while (callerPath && (callerPath.node?.type === 'ParenthesizedExpression' || callerPath.node?.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(callerPath.node?.type))) {
-    callerPath = callerPath.parentPath;
-  }
-  return callerPath;
+  return peelParenAndTSParentPath(metaPath, SKIPPABLE_WRAPPER_TYPES);
 }
 
 // an optional hop anywhere INSIDE a receiver: the arms that cannot consume it stay staged,
@@ -305,7 +306,7 @@ export function memberIsWriteTarget(hopPath) {
     if (upNode.type === 'ForOfStatement' || upNode.type === 'ForInStatement') return upNode.left === cursor.node;
     // pattern containers hand the question up - a Property or a default only when the
     // member fills its TARGET slot (a default's value side is an ordinary read)
-    const climbs = upNode.type === 'ArrayPattern' || upNode.type === 'ObjectPattern'
+    const climbs = isDestructurePattern(upNode)
       || upNode.type === 'RestElement' || upNode.type === 'ParenthesizedExpression'
       || TS_EXPR_WRAPPERS.has(upNode.type)
       || (upNode.type === 'Property' && upNode.value === cursor.node)
@@ -325,19 +326,12 @@ export function memberIsWriteTarget(hopPath) {
 export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHopKey }) {
   const upNode = up.node;
   if (upNode.type !== 'AssignmentExpression' || upNode.operator !== '='
-    || peelExpressionWrappers(upNode.right) !== peelExpressionWrappers(target.node)) return null;
-  let over = up.parentPath;
-  while (over?.node && (over.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(over.node.type))) {
-    over = over.parentPath;
-  }
-  const overNode = over?.node;
-  if (overNode?.type !== 'MemberExpression' || peelExpressionWrappers(overNode.object) !== upNode) return null;
+    || unwrapRuntimeExpr(upNode.right) !== unwrapRuntimeExpr(target.node)) return null;
+  const overNode = peelParenAndTSParentPath(up)?.node;
+  if (overNode?.type !== 'MemberExpression' || unwrapRuntimeExpr(overNode.object) !== upNode) return null;
   if (overNode.optional && !allowOptional) return null;
   if (!proxyHopKey(overNode, { allowOptional: true, metaPath })) return null;
-  let step = up;
-  while (step.parentPath?.node && (step.parentPath.node.type === 'ParenthesizedExpression'
-    || TS_EXPR_WRAPPERS.has(step.parentPath.node.type))) step = step.parentPath;
-  return step;
+  return peelParenAndTSSlotPath(up);
 }
 
 // is the plan's probe hop INSIDE the kept write's value (`(r = globalThis.window)?.self`:
@@ -346,12 +340,9 @@ export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHo
 // call away on a nullish root, so the span's own read must survive as the callee - dropping
 // it would call the root's value instead (`((w = globalThis.window)?.self)(1)`)
 export function probeValueIsInvoked(path) {
-  let top = path;
-  while (top.parentPath?.node?.expression === top.node
-    && (TS_EXPR_WRAPPERS.has(top.parentPath.node.type) || top.parentPath.node.type === 'ChainExpression'
-      || top.parentPath.node.type === 'ParenthesizedExpression')) top = top.parentPath;
-  const above = top.parentPath?.node;
-  return (above?.type === 'CallExpression' || above?.type === 'NewExpression') && above.callee === top.node;
+  const top = peelParenAndTSSlotChild(path, SKIPPABLE_WRAPPER_TYPES);
+  const above = peelParenAndTSParentPath(path, SKIPPABLE_WRAPPER_TYPES)?.node;
+  return (above?.type === 'CallExpression' || above?.type === 'NewExpression') && above.callee === top;
 }
 
 export function probeHopInValue(plan, probeHop) {
@@ -365,13 +356,13 @@ export function probeHopInValue(plan, probeHop) {
 export function reReadKeptWriteValue(targetPath, id, replacement, { adapter, resolveGlobalPolyfill, skippedNodes }) {
   const writePath = targetPath.parentPath;
   if (writePath?.node?.type !== 'AssignmentExpression' || writePath.node.operator !== '='
-    || peelExpressionWrappers(writePath.node.right) !== replacement) return;
+    || unwrapRuntimeExpr(writePath.node.right) !== replacement) return;
   let above = writePath.parentPath;
-  while (above?.node && (above.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(above.node.type))) {
+  while (above?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(above.node.type)) {
     above = above.parentPath;
   }
   const host = above?.node;
-  if (host?.type !== 'MemberExpression' || peelExpressionWrappers(host.object) !== writePath.node) return;
+  if (host?.type !== 'MemberExpression' || unwrapRuntimeExpr(host.object) !== writePath.node) return;
   // the same two exclusions the spine collapse makes: a WRITE TARGET addresses the slot
   // on the surface the source named, and a MUTATED polyfillable slot must be read through
   // it so the user's patch wins - both keep the write standing alone
@@ -390,18 +381,18 @@ export function reReadKeptWriteValue(targetPath, id, replacement, { adapter, res
 export function navRootIsProxyIdentifier(node, metaPath, adapter, { requireBareName = false } = {}) {
   // writes, hops and sequence tails INTERLEAVE (`((a = globalThis.window) as any)?.self`),
   // so the peel alternates instead of running one kind to exhaustion
-  let cur = peelExpressionWrappers(node.object);
+  let cur = unwrapRuntimeExpr(node.object);
   for (;;) {
     if (cur?.type === 'MemberExpression') {
-      cur = peelExpressionWrappers(cur.object);
+      cur = unwrapRuntimeExpr(cur.object);
       continue;
     }
     if (cur?.type === 'AssignmentExpression') {
-      cur = peelExpressionWrappers(cur.right);
+      cur = unwrapRuntimeExpr(cur.right);
       continue;
     }
     if (cur?.type === 'SequenceExpression') {
-      cur = peelExpressionWrappers(cur.expressions.at(-1));
+      cur = unwrapRuntimeExpr(cur.expressions.at(-1));
       continue;
     }
     break;
@@ -434,8 +425,8 @@ export function swallowDeadSeqWrapper(targetPath) {
 // the member is the helper's own call - so the tail folds onto its ROOT here
 // (`(n += 1, _globalThis)`, babel's nav collapse); null when the tail is not that shape
 export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHopSpine, injectPureImport }) {
-  const seqValue = peelExpressionWrappers(object);
-  const tail = seqValue?.type === 'SequenceExpression' ? peelExpressionWrappers(seqValue.expressions.at(-1)) : null;
+  const seqValue = unwrapRuntimeExpr(object);
+  const tail = seqValue?.type === 'SequenceExpression' ? unwrapRuntimeExpr(seqValue.expressions.at(-1)) : null;
   const collapsed = tail?.type === 'MemberExpression' ? collapseProxyHopSpine(tail, metaPath) : null;
   if (!collapsed?.entry || collapsed.aliasRoot || collapsed.keyEffects?.length) return null;
   return sequenceExpression([
@@ -505,7 +496,7 @@ export function noteUnbackedHopAliasInit(metaPath, node, resolvePure, hopNoteCtx
     noteMutatedCtorHopDestructure(metaPath, node, hopNoteCtx);
   }
   const host = metaPath.parentPath?.node;
-  if (host?.type !== 'VariableDeclarator' || peelExpressionWrappers(host.init) !== node) return;
+  if (host?.type !== 'VariableDeclarator' || unwrapRuntimeExpr(host.init) !== node) return;
   if (navHasUnresolvableProxyHop(node, m => resolvePure(m, metaPath))) unbackedHopAliasDecls.add(host);
 }
 
@@ -519,10 +510,10 @@ export function aliasHoldsUnbackedHopNav(value, metaPath, adapter) {
 // claims must stay live inside the kept spelling
 export function navComputedKeyEffects(node) {
   const effects = [];
-  for (let cur = peelExpressionWrappers(node); cur?.type === 'MemberExpression';
-    cur = peelExpressionWrappers(cur.object)) {
+  for (let cur = unwrapRuntimeExpr(node); cur?.type === 'MemberExpression';
+    cur = unwrapRuntimeExpr(cur.object)) {
     if (!cur.computed) continue;
-    const key = peelExpressionWrappers(cur.property);
+    const key = unwrapRuntimeExpr(cur.property);
     if (key?.type === 'SequenceExpression') effects.push(...key.expressions.slice(0, -1));
   }
   return effects;
@@ -531,8 +522,8 @@ export function navComputedKeyEffects(node) {
 // a COMPUTED hop anywhere down the member spine - the read-form split arm keys on it
 // (`navComputedKeyEffects` answers a different question: only the SEQ-keyed hops' effects)
 export function spineCarriesComputedHop(objectNode) {
-  for (let cur = peelExpressionWrappers(objectNode); cur?.type === 'MemberExpression';
-    cur = peelExpressionWrappers(cur.object)) if (cur.computed) return true;
+  for (let cur = unwrapRuntimeExpr(objectNode); cur?.type === 'MemberExpression';
+    cur = unwrapRuntimeExpr(cur.object)) if (cur.computed) return true;
   return false;
 }
 
@@ -541,14 +532,14 @@ export function spineCarriesComputedHop(objectNode) {
 export function spineHoldsKeptWrite(objectNode) {
   // ... and through a SEQUENCE tail: the write is the value the spine reads either way
   // (`(c++, e = globalThis.window)?.[k]` anchors on the same kept write as the bare twin)
-  let value = peelExpressionWrappers(objectNode);
+  let value = unwrapRuntimeExpr(objectNode);
   for (;;) {
     if (value?.type === 'MemberExpression') {
-      value = peelExpressionWrappers(value.object);
+      value = unwrapRuntimeExpr(value.object);
       continue;
     }
     if (value?.type === 'SequenceExpression') {
-      value = peelExpressionWrappers(value.expressions.at(-1));
+      value = unwrapRuntimeExpr(value.expressions.at(-1));
       continue;
     }
     break;
@@ -560,11 +551,11 @@ export function spineHoldsKeptWrite(objectNode) {
 // effects (`[(c++, 'values')]` -> `values` plus the prefix); null when the tail is not
 // a string literal
 export function foldSeqKeyLiteralTail(property) {
-  let key = peelExpressionWrappers(property);
+  let key = unwrapRuntimeExpr(property);
   const effects = [];
   if (key?.type === 'SequenceExpression') {
     effects.push(...key.expressions.slice(0, -1));
-    key = peelExpressionWrappers(key.expressions.at(-1));
+    key = unwrapRuntimeExpr(key.expressions.at(-1));
   }
   if (key?.type !== 'Literal' || typeof key.value !== 'string') return null;
   return { key: key.value, effects };
@@ -574,10 +565,9 @@ export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destruc
   // the claim may sit under the init's SE wrappers - the surface it names is the same one
   // (`(eff(), globalThis)`, `(q = globalThis)`), and so is the hop above it
   let up = metaPath.parentPath;
-  while (up?.node && (up.node.type === 'SequenceExpression' || up.node.type === 'ParenthesizedExpression'
-    // the chain wrapper an optional spine wears is transparent to the host climb too, and so is
-    // a TS assertion: it says nothing about which host the surface is destructured from
-    || up.node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(up.node.type)
+  // the chain wrapper an optional spine wears is transparent to the host climb too, and so is
+  // a TS assertion: it says nothing about which host the surface is destructured from
+  while (up?.node && (up.node.type === 'SequenceExpression' || SKIPPABLE_WRAPPER_TYPES.has(up.node.type)
     // a CHAIN assignment is transparent; an assignment holding a PATTERN is the host itself
     || (up.node.type === 'AssignmentExpression' && up.node.left?.type !== 'ObjectPattern'))) up = up.parentPath;
   const host = up?.node;
@@ -699,7 +689,7 @@ export function receiverMintsSpelling(objectNode, { adapter, metaPath }) {
   let below = objectNode;
   while (below?.type === 'MemberExpression') {
     if (below.computed && mayHaveSideEffects(below.property)) return true;
-    below = peelExpressionWrappers(below.object);
+    below = unwrapRuntimeExpr(below.object);
   }
   // the hops above it collapse with the root, so the question is what the SPINE bottoms on
   if (below?.type === 'SequenceExpression') return true;
@@ -717,8 +707,6 @@ export function insideMemoClone(metaPath, memoValueClones) {
   return false;
 }
 
-// nothing to rewrite here: the claim is disabled, already consumed, type-only, or its span
-// was DETACHED by an earlier emission in the same chain (that render happened above it)
 // a `delete` operand names a property slot, never a read - and a claim INSIDE the
 // operand's SPINE is owned by the delete too (`delete globalThis.self.Promise` - the hop
 // claim must not read the slot the delete removes): the caller climb answers the deep
@@ -763,7 +751,7 @@ export function valueObservingDestructureSource(metaPath, destructureEmit) {
     // ... and only where the pattern claims NOTHING: a claimed one re-renders its receiver
     // through its own channel, and that render is the collapse
     if (pattern) {
-      return observed && (pattern.type === 'ObjectPattern' || pattern.type === 'ArrayPattern')
+      return observed && isDestructurePattern(pattern)
         && !destructureEmit.patternClaimed(pattern);
     }
     child = up.node;
@@ -777,14 +765,14 @@ export function valueObservingDestructureSource(metaPath, destructureEmit) {
 // anchor and direction, and the erase-verdict here asks it of a DETACHED object node the
 // path-up walk cannot reach
 export function chainContainsMutatedStatic(objectNode, { metaPath, adapter }) {
-  for (let cur = peelExpressionWrappers(objectNode); ;) {
+  for (let cur = unwrapRuntimeExpr(objectNode); ;) {
     if (cur?.type === 'CallExpression' && !cur.optional) {
-      cur = peelExpressionWrappers(cur.callee);
+      cur = unwrapRuntimeExpr(cur.callee);
       continue;
     }
     if (cur?.type !== 'MemberExpression') return false;
     const key = cur.computed
-      ? (peelExpressionWrappers(cur.property)?.type === 'Literal' ? peelExpressionWrappers(cur.property).value : null)
+      ? (unwrapRuntimeExpr(cur.property)?.type === 'Literal' ? unwrapRuntimeExpr(cur.property).value : null)
       : cur.property?.name;
     if (typeof key === 'string') {
       const objName = resolveObjectName({
@@ -795,7 +783,7 @@ export function chainContainsMutatedStatic(objectNode, { metaPath, adapter }) {
       });
       if (objName && adapter.isMutatedStatic?.(objName, key)) return true;
     }
-    cur = peelExpressionWrappers(cur.object);
+    cur = unwrapRuntimeExpr(cur.object);
   }
 }
 
@@ -862,9 +850,9 @@ export function foldedResolvedKey(property, metaPath, adapter) {
 // shape stands down: the resolver descends by PATH, and one the split rebuilt (or whose callee
 // resolves through a binding) has no path to walk
 export function memoizedCallResultType(objectNode, metaPath, resolveNodeType) {
-  const value = peelExpressionWrappers(objectNode);
+  const value = unwrapRuntimeExpr(objectNode);
   if (value?.type !== 'CallExpression' || value.optional
-    || peelExpressionWrappers(value.callee)?.type !== 'MemberExpression'
+    || unwrapRuntimeExpr(value.callee)?.type !== 'MemberExpression'
     || !Number.isInteger(value.start)) return null;
   return nodeTypeRefinement(value, metaPath.scope, resolveNodeType);
 }

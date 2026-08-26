@@ -8,7 +8,7 @@ import {
   symbolIteratorHint,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
-  TS_EXPR_WRAPPERS,
+  claimIsInert,
   deleteHostAboveChain,
   isDeoptedGlobalSlotRead,
   isReusableReceiver,
@@ -17,6 +17,8 @@ import {
   mutatedSlotLeftNativeWarning,
   peelParenAndTSParentPath,
   receiverCarriesLiveOptional,
+  unwrapRuntimeExpr,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
 import { ownEmittedNavClaim, ownOutputTests } from '@core-js/polyfill-provider/detect-usage/own-output';
@@ -32,7 +34,7 @@ import {
   nullFirstGuardTest,
   renderInExpressionPlan,
 } from './builders.js';
-import { peelExpressionWrappers, receiverCarriesOptional, renderProxyReceiverPlan, withSideEffects } from './emit-shared.js';
+import { receiverCarriesOptional, renderProxyReceiverPlan, withSideEffects } from './emit-shared.js';
 import {
   calleeParenWrapped,
   guardProbeUndefinable,
@@ -61,30 +63,31 @@ import createOptionalDispatchChannel from './optional-dispatch.js';
 // missing import is a visible divergence, never a silently wrong rewrite
 
 function claimIsMoot(metaPath, node, { isDisabled, skippedNodes, isInTypeAnnotation }) {
+  // DETACHMENT is this leg's own question - estree-toolkit reports it as `removed` on the path,
+  // and a claim under a subtree a render RE-EMITS BY IDENTITY stays live: its rewrite lands on
+  // the (possibly detached) original, which the re-emission carries into the output
   for (let up = metaPath; up?.node; up = up.parentPath) {
-    // a claim under a subtree a render RE-EMITS BY IDENTITY stays live: its rewrite lands on
-    // the (possibly detached) original, which the re-emission carries into the output
     if (skippedNodes.keepLive?.has(up.node)) break;
     if (up.removed) return true;
   }
-  return isDisabled(node) || skippedNodes.has(node) || node?.type === 'JSXIdentifier'
-    || isInTypeAnnotation(metaPath);
+  // ... the four SHAPE questions are the shared ones
+  return claimIsInert({ node, path: metaPath, isDisabled, skippedNodes, isInTypeAnnotation });
 }
 
 function markDeleteHostedSpine(node, marks) {
-  for (let cur = peelExpressionWrappers(node); cur;) {
+  for (let cur = unwrapRuntimeExpr(node); cur;) {
     const key = sourceSpanKey(cur);
     if (key) marks.add(key);
     switch (cur.type) {
       case 'MemberExpression':
-        cur = peelExpressionWrappers(cur.object);
+        cur = unwrapRuntimeExpr(cur.object);
         break;
       case 'CallExpression':
       case 'NewExpression':
-        cur = peelExpressionWrappers(cur.callee);
+        cur = unwrapRuntimeExpr(cur.callee);
         break;
       case 'AssignmentExpression':
-        cur = peelExpressionWrappers(cur.right);
+        cur = unwrapRuntimeExpr(cur.right);
         break;
       default:
         return;
@@ -109,9 +112,9 @@ function noteDeoptedSlotRead(meta, { getDebugOutput, adapter, noted }) {
 // then the swap has no erasure to compensate: it lands on the tail and everything else
 // keeps running where the source wrote it
 function fallbackSwapsSequenceTail(node, meta) {
-  const receiver = peelExpressionWrappers(node.object);
+  const receiver = unwrapRuntimeExpr(node.object);
   if (receiver?.type !== 'SequenceExpression'
-    || peelExpressionWrappers(receiver.expressions.at(-1))?.type !== 'Identifier') return null;
+    || unwrapRuntimeExpr(receiver.expressions.at(-1))?.type !== 'Identifier') return null;
   const effects = meta.sideEffects ?? [];
   const prefix = receiver.expressions.slice(0, -1);
   const recvHeld = effects.slice(0, meta.receiverEffectCount ?? 0)
@@ -416,14 +419,14 @@ export default function createAstUsagePureCallback({
     // (k(), _getIterator(_ref))`). a receiver effect the spelling does NOT carry has no
     // slot before the test - staged
     if (state.memberOptional) {
-      const peeled = peelExpressionWrappers(state.object);
+      const peeled = unwrapRuntimeExpr(state.object);
       const recvSe = pendingEffects.filter(effect => state.receiverSe.has(effect));
       if (!recvSe.length && isReusableReceiver(peeled)) state.object = peeled;
       else if (recvSe.some(effect => !subtreeContainsNode(state.object, effect))) return false;
       state.effects = pendingEffects.filter(effect => !state.receiverSe.has(effect));
       return true;
     }
-    let receiver = proxyPlanFired ? state.object : peelExpressionWrappers(state.object);
+    let receiver = proxyPlanFired ? state.object : unwrapRuntimeExpr(state.object);
     if (!proxyPlanFired && receiver?.type === 'SequenceExpression') receiver = receiver.expressions.at(-1);
 
     // a reusable / pure tail rides the helper argument behind the hoisted effects
@@ -446,7 +449,7 @@ export default function createAstUsagePureCallback({
       // the always-defined tail is re-readable, so no memo is owed (`globalThis[(hop(), 'self')]
       // [(key(), S)]` -> `(hop(), key(), _getIterator(_globalThis))`)
       const seqTail = !state.liveOptionalReceiver && receiver?.type === 'SequenceExpression'
-        ? peelExpressionWrappers(receiver.expressions.at(-1)) : null;
+        ? unwrapRuntimeExpr(receiver.expressions.at(-1)) : null;
       if (seqTail && isReusableReceiver(seqTail)) {
         state.effects = [...receiver.expressions.slice(0, -1), ...pendingEffects];
         state.object = seqTail;
@@ -510,7 +513,9 @@ export default function createAstUsagePureCallback({
         object = split.receiver;
       }
     }
-    const entry = sealedDirectCall ? 'get-iterator' : resolveSymbolIteratorEntry(node, parent);
+    // the caller ABOVE any seal: the shared resolver peels the callee itself, so the sealed
+    // form needs no second spelling of the entry rule here
+    const entry = resolveSymbolIteratorEntry(node, climbToCallerPath(metaPath)?.node ?? parent);
     if (!isEntryAvailable(entry)) return;
     // the computed `Symbol.iterator` key must not ALSO take the plain static swap - the
     // helper consumes the whole member
@@ -535,13 +540,13 @@ export default function createAstUsagePureCallback({
     let wrapWalk = metaPath.parentPath;
     if (wrapWalk?.node?.type === 'ChainExpression' && wrapWalk.node.expression === node) wrapWalk = wrapWalk.parentPath;
     const sealed = !!wrapWalk?.node
-      && (wrapWalk.node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(wrapWalk.node.type));
+      && TRANSPARENT_EXPR_WRAPPER_TYPES.has(wrapWalk.node.type);
     // the METHOD form consumed by a plain call keeps `this`: `x[S](42)` dispatches
     // `_getIteratorMethod(x).call(x, 42)`; a non-reusable receiver memoizes into the
     // helper argument (`_getIteratorMethod(_ref = getObj()).call(_ref, arg)`)
     const methodCallConsume = !consumesCall
       && callerPath?.node?.type === 'CallExpression' && !callerPath.node.optional
-      && peelExpressionWrappers(callerPath.node.callee) === node;
+      && unwrapRuntimeExpr(callerPath.node.callee) === node;
     const hopPath = consumesCall || (sealed && memberOptional) || methodCallConsume ? callerPath : metaPath;
     // a SEALED optional lookup with a KEY effect: native short-circuits the `?.` before the key
     // runs, so the effect rides a guard of its own while the helper call stays unconditional -
@@ -651,7 +656,7 @@ export default function createAstUsagePureCallback({
     if (claimIsMoot(metaPath, node, { isDisabled, skippedNodes, isInTypeAnnotation })
       || (node.type === 'MemberExpression' && ownEmittedNavClaim(node, metaPath, ownOutputTests(injectorState)))) return;
     if (node.type === 'MemberExpression' && !deleteHostedSpines.has(sourceSpanKey(node))
-      && deleteHostAboveChain(metaPath, node, peelExpressionWrappers)) {
+      && deleteHostAboveChain(metaPath, node, unwrapRuntimeExpr)) {
       markDeleteHostedSpine(node, deleteHostedSpines);
     }
     const parent = semanticParentNode(metaPath);
@@ -687,7 +692,7 @@ export default function createAstUsagePureCallback({
         return;
       }
       if (node.type !== 'MemberExpression') return;
-      if (memberWritePositionBails(node, parent, metaPath)) return;
+      if (memberWritePositionBails(metaPath)) return;
       // the iterator-method read outranks the inherited-static machinery on a `this`
       // receiver (`this[Symbol.iterator]` in a static block -> `_getIteratorMethod(this)`);
       // `super` still bails inside the handler
@@ -812,8 +817,8 @@ export default function createAstUsagePureCallback({
       // ? void 0 : _Promise.noSuchStatic`, babel's guarded fallback)
       if (receiverCarriesLiveOptional(node.object)) {
         let probe = null;
-        for (let cur = peelExpressionWrappers(node.object); cur?.type === 'MemberExpression';
-          cur = peelExpressionWrappers(cur.object)) {
+        for (let cur = unwrapRuntimeExpr(node.object); cur?.type === 'MemberExpression';
+          cur = unwrapRuntimeExpr(cur.object)) {
           if (!cur.optional) continue;
           // the descent stops at the SHALLOWEST hop whose own object can actually be absent:
           // a deeper one over a provably DEFINED value is not the source of the undefinedness
@@ -824,7 +829,7 @@ export default function createAstUsagePureCallback({
         // a provably DEFINED probe leaves the `?.` dead - the plain swap below erases it
         if (probe) {
           markRewrite();
-          const probeInner = cloneNode(peelExpressionWrappers(probe));
+          const probeInner = cloneNode(unwrapRuntimeExpr(probe));
           // the dead `?.` inside the probe spelling erases with it - the canonical verdict
           for (const hop of vestigialNavOptionals(probeInner, m => resolvePure(m, metaPath),
             { scope: metaPath.scope, adapter, path: metaPath })) hop.optional = false;
@@ -856,7 +861,7 @@ export default function createAstUsagePureCallback({
     const optionalReader = metaPath.parentPath?.node?.type === 'ChainExpression'
       ? metaPath.parentPath.parentPath?.node : metaPath.parentPath?.node;
     if (optionalReader?.type === 'MemberExpression' && optionalReader.optional
-      && peelExpressionWrappers(optionalReader.object) === node) return;
+      && unwrapRuntimeExpr(optionalReader.object) === node) return;
     if (node.type === 'MemberExpression' && !meta.sideEffects?.length && !meta.receiverEffectCount) {
       // the node that is ITSELF a pristine hop (`g.self.window`, `.window` claimless)
       // collapses whole; a dead leaf (`.Array`) collapses its object spine under it
