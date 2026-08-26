@@ -37,6 +37,7 @@ import {
   walkPatternIdentifiers,
   TS_EXPR_WRAPPERS,
   walkAstChildren,
+  isDestructurePattern,
 } from '../helpers/ast-patterns.js';
 import {
   requireCallSource,
@@ -566,7 +567,7 @@ export function mutationShapesReducer(packages = null) {
       }
       if (!value) continue;
       if (target?.type === 'Identifier') recordEscapedContainers([value]);
-      else if (target?.type === 'ObjectPattern' || target?.type === 'ArrayPattern') {
+      else if (isDestructurePattern(target)) {
         recordPatternLiteralReHomes(target, unwrapRuntimeExpr(value));
       }
     }
@@ -637,7 +638,7 @@ export function mutationShapesReducer(packages = null) {
     const selfTail = id?.type === 'Identifier' ? peelNestedSequenceExpressions(rawValue).tail : null;
     const identitySelfAssign = selfTail?.type === 'Identifier' && selfTail.name === id.name;
     if (id?.type === 'Identifier' && !identitySelfAssign) recordEscapedContainers([rawValue]);
-    else if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') {
+    else if (isDestructurePattern(id)) {
       recordPatternLiteralReHomes(id, unwrapRuntimeExpr(rawValue));
     }
     // classification reads the VALUE, not its wrapper: a TS cast / paren around a container init
@@ -672,7 +673,7 @@ export function mutationShapesReducer(packages = null) {
           aliasSourceRoot.set(id.name, aliasSourceName(collectGateRoots(value, [])[0]));
         }
       }
-    } else if (id?.type === 'ArrayPattern' || id?.type === 'ObjectPattern') {
+    } else if (isDestructurePattern(id)) {
       // pattern slots pair positionally / by key downstream - flat over-approximation here
       recordPatternSlots(id, null, value);
     }
@@ -763,7 +764,7 @@ export function mutationShapesReducer(packages = null) {
             rawSlotWrites.push([writeRoot.name, memberKeyName(left) ?? '*', value]);
           }
           pushTarget(gateMemberTarget(left));
-        } else if (left?.type === 'ArrayPattern' || left?.type === 'ObjectPattern') {
+        } else if (isDestructurePattern(left)) {
           gatherPatternMemberTargets(left, { push: pushTarget });
           // bare identifier elements assign global slots like the flat form - gate on them too
           walkPatternIdentifiers(left, id => pushTarget(id));
@@ -1191,7 +1192,7 @@ function bareSlotWriteEntries(target, ctx, rhs = null) {
     ctx.pendingIdentitySkips?.push({ proxyName: source, slotKey: target.name });
     return [];
   }
-  if (target?.type !== 'ArrayPattern' && target?.type !== 'ObjectPattern') return [];
+  if (!isDestructurePattern(target)) return [];
   const identity = identitySelfCopyLeaves(target, rhs, ctx);
   const out = [];
   walkPatternIdentifiers(target, id => {
@@ -1570,9 +1571,7 @@ export function enrichMutatedStatics({ mutatedStatics, resolvePure, injectPureIm
 // them (a sequence flows its tail, a ternary / logical / chain-assign flows both / the RHS) -
 // this is expression-shape fan-out only; all NAME resolution stays in the canons
 function valueFanLeaves(node, leaves, depth = 0) {
-  let value = node;
-  while (value && (value.type === 'ParenthesizedExpression' || value.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(value.type))) value = value.expression;
+  const value = unwrapRuntimeExpr(node);
   if (!value || depth > 16) return leaves;
   switch (value.type) {
     case 'SequenceExpression':

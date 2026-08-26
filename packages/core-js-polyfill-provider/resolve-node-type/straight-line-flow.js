@@ -10,11 +10,12 @@ import { nodeAlwaysHardExits } from './exit-analysis.js';
 import { usageCrossesLoopBackEdgeReassign } from './ast-shapes.js';
 import {
   IIFE_CALL_CALLEE_WRAPPERS,
-  NESTED_BINDING_INTRODUCERS,
-  TS_EXPR_WRAPPERS,
-  isIifeCallNode,
   isDeferredContextStep,
+  isIifeCallNode,
+  NESTED_BINDING_INTRODUCERS,
+  peelTransparentExpr,
   readRunsDeferredWithin,
+  TS_EXPR_WRAPPERS,
 } from '../helpers/ast-patterns.js';
 import { isLoopStatement } from '../destructure-host-shape.js';
 
@@ -238,11 +239,7 @@ export function createStraightLineFlow({ t, babelNodeType }) {
       if (call.node.type === 'NewExpression' && cur.node.type !== 'FunctionExpression') return null;
       // body-side peel mirrors callee-side: `() => ((x = 1) as any)` parses as TSAsExpression
       // wrapping the assignment; without peel, the assignment-is-body trivial case misses
-      let fnBody = cur.node.body;
-      while (fnBody && (fnBody.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(fnBody.type))) {
-        fnBody = fnBody.expression;
-      }
-      return { call, fnBody };
+      return { call, fnBody: peelTransparentExpr(cur.node.body) };
     }
     return null;
   }
