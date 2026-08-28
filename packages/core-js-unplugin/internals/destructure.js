@@ -45,6 +45,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 
 import {
+  forOfHeadElements,
   assignmentInStatementPosition,
   computedKeyHasSideEffects,
   computedKeysAllBound,
@@ -976,7 +977,12 @@ export default function createAstDestructureEmitter({
     // a PRISTINE proxy hop holding a nested pattern is pure NAVIGATION, not a ctor alias:
     // the flatten owns it, and an extraction here would bind the hop's OWN surface where
     // the source reads through it to the root (`{ self: { X } } = globalThis` -> `_globalThis`)
-    if (meta?.guardedAliasHint || (meta?.chainAssignInsertAt !== null && meta?.chainAssignInsertAt !== undefined)
+    // a guarded alias clouds the STATIC surface - WHICH object the binding holds - and that surface
+    // is the guard channel's. an INSTANCE claim reads off the runtime value whatever the binding
+    // turned out to hold, so it takes the ordinary dispatch here, exactly as the member spelling of
+    // the same read does one dialect over
+    if ((meta?.guardedAliasHint && kind !== 'instance')
+      || (meta?.chainAssignInsertAt !== null && meta?.chainAssignInsertAt !== undefined)
       || (kind === 'global' && !prop.computed && prop.value?.type === 'ObjectPattern'
         && POSSIBLE_GLOBAL_OBJECTS.has(hintName) && isPristineProxyGlobal(adapter, hintName))) return;
     // harvested effects: only pure RECEIVER effects pass (the memo path keeps the whole
@@ -1384,6 +1390,15 @@ export default function createAstDestructureEmitter({
       // ... and where NO literal pairs the element, nothing spells it at all - the slot takes a
       // minted binding instead, which is the one route a positional segment has
       if (!wrapped && registerPositionalElementJob({ metaPath, prop, kind, entry, hintName })) return;
+      // ... and a for-x HEAD holds no statement for any of these routes to land in: the mirror
+      // answers in the ELEMENT instead, wrapper and all. the wrappers pair a slot, they host
+      // nothing, so the walk through them ends at the same slot-less declarator
+      let headHost = hostPatternPath;
+      while (headHost?.node?.type === 'ArrayPattern' || headHost?.node?.type === 'ObjectPattern') {
+        headHost = headHost.parentPath;
+      }
+      if (kind !== 'instance' && headHost?.node?.type === 'VariableDeclarator' && forOfHeadElements(headHost)
+        && renderNestedParamSynth({ metaPath, meta })) return;
     }
     if (hostParent?.node?.type === 'AssignmentPattern' || hostParent?.node?.type === 'ArrayPattern') {
       if (receiverSeOnly) return;
@@ -1823,7 +1838,8 @@ export default function createAstDestructureEmitter({
     if (!walk.keys.length) return false;
     // a REST sibling gathers what the pattern did not name and cannot travel; a COMPUTED one can -
     // it keeps its key node and its position, so the key evaluates where the source evaluates it
-    if (walk.leafPattern.node.properties.some(item => item.type !== 'Property')) return false;
+    // a REST in the leaf travels with it: the twin keeps the leaf's own pattern, so the rest gathers
+    // off the memo and the claim's key stays there as a sentinel, still excluding itself
     const declaratorPath = walk.declarator;
     // an array WRAPPER pairs the pattern with an ELEMENT of a literal, and the flat twin lives
     // there: the element takes the nav and the pattern takes the leaf. the core owns what moves -
@@ -1838,8 +1854,12 @@ export default function createAstDestructureEmitter({
     // the core answers WHERE the twin goes under a wrapper: ahead of the literal, or trailing the
     // residual where an effect stands between (`[{ y: { at, findLast } }, zn] = [nb, eff()]`)
     const navPlacement = wrapperNode ? wrapperElementNavPlacement(walk) : null;
+    // ... and either spelling REPLACES the host pattern with the leaf, so the host may hold nothing
+    // but the hop: a sibling beside it binds a value that replacement drops, and the emitted code
+    // then reads a name nothing declares. the flat spelling asks it of the declarator's own
+    // pattern, the wrapped one of the ELEMENT that pairs with the literal
     if (wrapperNode
-      ? !navPlacement
+      ? !navPlacement || walk.hostPattern?.node?.properties?.length !== 1
       : declaratorPath?.node?.id?.type !== 'ObjectPattern'
         || declaratorPath.node.id.properties.length !== 1) return false;
     const declarationPath = declaratorPath.parentPath;
@@ -1944,7 +1964,7 @@ export default function createAstDestructureEmitter({
   }
 
   function registerPositionalElementJob({ metaPath, prop, kind, entry, hintName }) {
-    if (kind !== 'instance' || prop.value.type !== 'Identifier') return false;
+    if (kind !== 'instance' || !propBindingIdentifier(prop.value)) return false;
     const positional = resolvePositionalElementSlot(metaPath);
     if (!positional) return false;
     // the slot is an array ELEMENT, or - where a REST sibling keeps the hop in the pattern - the
@@ -2020,6 +2040,13 @@ export default function createAstDestructureEmitter({
         arrayPattern,
         hopPropNode,
         slotNode: positional.slot.node,
+        // the CLAIM's own level and the hops above it: where a hop stands between the element and
+        // the claim, the residual is rooted at the memo of that read rather than re-reading it
+        claimPatternNode: metaPath.parentPath?.node ?? null,
+        hopKeys: positional.keys,
+        // ... and each OUTER level binds its own slots: what it names before the hop is read before
+        // it, what it names after is read after the inner level
+        levels: positional.levels ?? [],
         refName,
         value,
         exported,
@@ -2261,6 +2288,11 @@ export default function createAstDestructureEmitter({
     // here would bind the same leaf a second time and lift the branch as a bare statement
     const host = classifyDeclarationHost(hostParent);
     if (!host || chain.some(level => branchMirrorPatterns.has(level.outerPattern))) return;
+    // a LOOP HEAD hosts no statement, and its declarator no init: what it destructures is an
+    // ELEMENT of the iterated literal, and the shared mirror swaps that element in place inside
+    // the array - read afresh on every pass. asked here because this leg's other mirror hooks sit
+    // on the param and array-wrapper routes, which a head reaches neither of
+    if (host.head && renderNestedParamSynth({ metaPath, meta })) return;
     if (takesInlineDefault({ host, prop, pattern, chain, kind, sentinel, adapter, injectorState })) {
       return applyInlineDefault({
         prop,
@@ -3004,6 +3036,9 @@ export default function createAstDestructureEmitter({
   // effect-bearing consumed init stays live as an `_unused` dummy declarator
 
   return {
+    // the ONE unused-name minter of this leg: the guard render's rest residual mints its sentinels
+    // through it too, so every `_unused` joins the same rename census and numbers with the rest
+    mintUnusedName,
     extractCatchClause,
     extractLoopLeft,
     handleObjectPropertyResult,

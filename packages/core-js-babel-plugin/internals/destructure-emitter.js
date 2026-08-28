@@ -29,6 +29,8 @@ import {
   computedKeyHasSideEffects,
   dropDeadSequenceTail,
   hasRestSiblingExcept,
+  forOfHeadElements,
+  invalidateScopeVarIndex,
   relocatedCatchPropUnobservable,
   isChainAssignment,
   isFunctionParamDestructureParent,
@@ -769,7 +771,8 @@ export default function createDestructureEmitter({
     // that asymmetry was the slot read answering init-only on the nested side, and it is closed -
     // both spellings now fold the same writer set, so the deeper chains flatten like the first
     if (!walk.keys.length) return false;
-    if (walk.leafPattern.node.properties.some(isRestProperty)) return false;
+    // a REST in the leaf travels with it: the normalization hands the whole leaf pattern to the flat
+    // channel, which already spells a rest beside a claim off one memo
     const { declarator } = walk;
     // an array WRAPPER pairs the pattern with an ELEMENT of a literal, and the flat twin lives
     // THERE: the element takes the nav, the pattern takes the leaf, and the pairing routes read the
@@ -781,8 +784,12 @@ export default function createDestructureEmitter({
     // the core answers WHERE the twin goes: into the element, or trailing the residual where an
     // effect stands between the literal and the read
     const navPlacement = wrapped ? wrapperElementNavPlacement(walk) : null;
+    // ... and either spelling REPLACES the host pattern with the leaf, so the host may hold nothing
+    // but the hop: a sibling beside it binds a value that replacement drops, and the emitted code
+    // then reads a name nothing declares. the flat spelling asks it of the declarator's own
+    // pattern, the wrapped one of the ELEMENT that pairs with the literal
     if (wrapped
-      ? !navPlacement
+      ? !navPlacement || walk.hostPattern?.node?.properties?.length !== 1
       : declarator?.node?.id?.type !== 'ObjectPattern' || declarator.node.id.properties.length !== 1) return false;
     // the HOST shapes both legs render: no export wrapper (the memo would have to lift out of it),
     // and a slot the pair can stand in - a statement list, a LOOP HEAD taking declarators, or an
@@ -885,6 +892,31 @@ export default function createDestructureEmitter({
   // declaration (and its iteration) exactly as the source wrote it, and bind the claim off that
   // name in the statement that follows. the declaration is what evaluates the init, so it stays -
   // this route discards nothing and reorders nothing
+  // the reads an OUTER level owes, in the order the source's nesting spells them: what a level binds
+  // BEFORE the hop is read before it, the hop's own value is memoized into the next root, and what
+  // the level binds AFTER is read after the inner level - so the trailing pieces come back
+  // innermost-first for the caller to place behind the claim
+  function buildPositionalLevelReads({ outer, keys, ref, hopped, kind, scope }) {
+    const leading = [];
+    const trailing = [];
+    let root = t.cloneNode(ref);
+    for (const [index, level] of outer.entries()) {
+      if (level.before.length) {
+        leading.push(t.variableDeclaration(kind,
+          [t.variableDeclarator(t.objectPattern(level.before), t.cloneNode(root))]));
+      }
+      const next = index === outer.length - 1 ? hopped : generateLocalRef(scope);
+      const hopRead = memberFromKeyName(hostSlot(t.cloneNode(root)), keys[index]);
+      leading.push(t.variableDeclaration(kind, [t.variableDeclarator(t.cloneNode(next), estreeToBabel(hopRead))]));
+      if (level.after.length) {
+        trailing.unshift(t.variableDeclaration(kind,
+          [t.variableDeclarator(t.objectPattern(level.after), t.cloneNode(root))]));
+      }
+      root = next;
+    }
+    return { leading, trailing };
+  }
+
   function extractPositionalElementSlot({ prop, entry, hintName, positional, declaration, isForInit }) {
     const bindingId = propBindingIdentifier(prop.node.value);
     if (!bindingId) return false;
@@ -928,10 +960,38 @@ export default function createDestructureEmitter({
     const bodyless = isBodylessStatementSlot(anchor.parentPath?.node, anchor.node);
     const ref = generateLocalRef(prop.scope);
     const dropped = positional.slot.node;
+    // a REST in the dropped pattern gathers what that pattern did not name, so the pattern itself
+    // has to survive - reading the minted name, with the claim's key renamed to a sentinel so it
+    // goes on excluding itself. renamed BEFORE the drop is marked skipped, since it rides along
+    const sentinel = generateUnusedId();
+    prop.node.value = sentinel;
+    prop.node.shorthand = false;
+    const residualBinds = Object.keys(t.getBindingIdentifiers(dropped)).some(name => name !== sentinel.name);
+    // the pattern the residual re-emits is the CLAIM's own level, not the whole element: rooted at
+    // the value the dispatch already read, it repeats no hop. re-emitting the element pattern would
+    // read every hop key a SECOND time, which runs a getter the source runs once
+    const claimPattern = prop.parentPath.node;
     positional.slot.replaceWith(t.cloneNode(ref));
     t.traverseFast(dropped, node => { skippedNodes.add(node); });
     const receiver = estreeToBabel(positional.keys.reduce(memberFromKeyName, hostSlot(t.cloneNode(ref))));
-    const dispatch = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName), [receiver]));
+    // the OUTER levels bind their own slots, so each reads the value ITS level reads: the props
+    // before the hop are read before it, the props after it after the inner level - the order the
+    // source's nesting spells. a level with nothing beside the hop needs no read of its own
+    const outer = (positional.levels ?? []).slice(0, -1);
+    const outerBinds = outer.some(level => level.before.length || level.after.length);
+    // ... and where a hop stands between the element and the claim, the read is memoized so both
+    // sides take the SAME value: the dispatch's argument and the residual's root
+    const hopped = (residualBinds || outerBinds) && positional.keys.length ? generateLocalRef(prop.scope) : null;
+    const { leading, trailing } = hopped
+      ? buildPositionalLevelReads({ outer, keys: positional.keys, ref, hopped, kind: declaration.node.kind, scope: prop.scope })
+      : { leading: [], trailing: [] };
+    const hopDecl = hopped && !leading.length
+      ? t.variableDeclaration(declaration.node.kind, [t.variableDeclarator(t.cloneNode(hopped), receiver)]) : null;
+    const dispatch = markThrowingExtraction(t.callExpression(injectPureImport(entry, hintName),
+      [hopped ? t.cloneNode(hopped) : receiver]));
+    const residual = residualBinds
+      ? t.variableDeclaration(declaration.node.kind, [t.variableDeclarator(
+        hopped ? claimPattern : dropped, t.cloneNode(hopped ?? ref))]) : null;
     const extracted = wrapAsExportIf(
       t.variableDeclaration(declaration.node.kind, [t.variableDeclarator(t.cloneNode(bindingId), dispatch)]),
       isExport);
@@ -943,12 +1003,13 @@ export default function createDestructureEmitter({
       return true;
     }
     // an unbraced control slot takes exactly one statement - the pair goes into a block there
-    if (bodyless) anchor.replaceWith(t.blockStatement([declaration.node, extracted]));
+    const pair = [...hopDecl ? [hopDecl] : [], ...leading, extracted, ...residual ? [residual] : [], ...trailing];
+    if (bodyless) anchor.replaceWith(t.blockStatement([declaration.node, ...pair]));
     else if (isExport) {
       const specifiers = exportedSiblings.map(name => t.exportSpecifier(t.identifier(name), t.identifier(name)));
       const kept = specifiers.length ? [t.exportNamedDeclaration(null, specifiers)] : [];
-      anchor.replaceWithMultiple([declaration.node, extracted, ...kept]);
-    } else anchor.insertAfter(extracted);
+      anchor.replaceWithMultiple([declaration.node, ...pair, ...kept]);
+    } else anchor.insertAfter(pair);
     return true;
   }
 
@@ -2638,6 +2699,17 @@ export default function createDestructureEmitter({
     // the long-hand flat shape normalizes FIRST: the rewrite re-queues the pattern, and the claim
     // fires again on the twin this file already knows how to extract
     if (kind === 'instance' && normalizeNestedLeafSiblings(prop)) return true;
+    // a for-x HEAD hosts no statement and its declarator no init: every shape below lifts the key
+    // effect into a statement beside the extraction, and there is nowhere for one to land. the claim
+    // stays native there - reaching further crashed the transform, reading the absent init and
+    // inserting a statement into the head. the pattern may sit under WRAPPERS (array slots, hop
+    // properties): they pair a value and host nothing, so the walk through them ends at the same
+    // slot-less declarator
+    let headDeclarator = objectPattern.parentPath;
+    while (headDeclarator?.node && (headDeclarator.node.type === 'ArrayPattern'
+      || headDeclarator.node.type === 'ObjectPattern' || headDeclarator.isObjectProperty?.()
+      || headDeclarator.node.type === 'Property')) headDeclarator = headDeclarator.parentPath;
+    if (headDeclarator?.isVariableDeclarator?.() && !headDeclarator.node.init) return false;
     let declaration = hostDeclarationOf(prop);
     // an assignment host has no declaration to extract into. an INSTANCE method emits the post-statement
     // overwrite (which leaves the destructure in place so an in-place computed-key effect still runs) and is
@@ -3194,10 +3266,26 @@ export default function createDestructureEmitter({
       // shapes: babel's sentinel rename mutates the pattern IN PLACE and unplugin splices the
       // rebuilt pattern back into the original LHS text, so the wrap survives on both and rest
       // keeps reading the matching init element
-      tryFlattenNestedProxyDestructure(prop);
+      if (tryFlattenNestedProxyDestructure(prop)) return;
+      // ... and where the flatten declines because the host is a for-x HEAD - it holds no statement
+      // for the extraction to land in - the mirror answers in the ELEMENT instead, wrapper and all
+      let headHost = objectPattern.parentPath;
+      while (headHost?.node?.type === 'ArrayPattern') headHost = headHost.parentPath;
+      if (headHost?.isVariableDeclarator() && forOfHeadElements(headHost)) {
+        handleParameterDestructure({ prop, kind, entry, hintName, meta });
+      }
       return;
     }
-    if (!canTransformDestructuring(prop)) return;
+    if (!canTransformDestructuring(prop)) {
+      // a for-x HEAD holds no init for the value swap below to rewrite, so the shape gate turns it
+      // away - but what it destructures IS a value: the element of the iterated literal, which the
+      // mirror swaps in place. the relocation that would otherwise mint a host for this claim stands
+      // down for exactly these patterns (the shared plan decides), so the mirror is what answers
+      if (kind !== 'instance' && forOfHeadElements(objectPattern.parentPath)) {
+        handleParameterDestructure({ prop, kind, entry, hintName, meta });
+      }
+      return;
+    }
     // ctor alias (kind global): trust-register the hint. a REFUSED registration (conditional /
     // cross-fn write, dirty binding, conditional `var` decl) only withholds the member-narrow hint;
     // the value swap below still runs - it is value-correct on every path (the polyfill lands
@@ -3312,6 +3400,8 @@ export default function createDestructureEmitter({
       resolvePure: meta => resolvePure(meta, path),
       walkNode: traverseWithParent,
       objectHint: toHint?.(elementType) ?? null,
+      iterableNode: path.node.right,
+      mirrorHosts: !!forOfHeadElements(left.get('declarations')[0]),
     });
     if (!plan) return;
     for (const p of plan.unobservable) skippedNodes.add(p);
@@ -3332,6 +3422,22 @@ export default function createDestructureEmitter({
     if (!path.get('body').isBlockStatement()) path.get('body').replaceWith(t.blockStatement([path.node.body]));
     path.get('body').unshiftContainer('body', [relocated]);
     declarator.id = ref;
+    // the head now declares a MINTED name, and a `var` one hoists into an owner whose var index
+    // may already be built - drop it, or the relocated pattern reads a receiver with no writes
+    if (left.node.kind === 'var') invalidateScopeVarIndex(path);
+    // the head's minted binding is born mid-traversal, and the relocated pattern is RE-DETECTED
+    // against it: a receiver the scope cannot name is a receiver whose STATICS cannot be claimed
+    // (`{ fromEntries } of [Object]`), because the type stash above answers for instance members
+    // alone - a constructor has no value-type to stash. the name is fresh, so registering it here
+    // cannot collide the way re-registering a rewritten sibling would
+    // the head's minted binding is born mid-rewrite, and the relocated pattern is RE-DETECTED
+    // against it: a receiver no scope can name is a receiver whose STATICS are lost, because the
+    // type stash above answers for instance members alone - a constructor has no value-type to
+    // stash. the loop's OWN scope is re-crawled rather than hand-registered: registering a
+    // declarator leaves the kind `unknown` (every constancy gate reads that as "not a binding I
+    // may narrow through"), and registering the declaration collides with the program-exit crawl
+    // ("Duplicate declaration" on an injected helper, measured on the e2e bundle)
+    path.scope.crawl();
   }
 
   // ---------- per-prop AST emission (strategy-dispatched) ----------

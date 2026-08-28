@@ -6,46 +6,13 @@ import {
   isReceiverShapedNode,
   findIifeArgForParam,
   findIifeCallSite,
-  peelParenAndTSParentPath,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isClassifiableReceiverArg, isExpandedClassifiableReceiver } from '@core-js/polyfill-provider/helpers/class-walk';
 import { nodeSite, stampNodeSite } from './nav-spine.js';
 import {
-  canTransformDestructuring as sharedCanTransformDestructuring,
   resolvableArgSupersedesDeadDefault,
 } from '@core-js/polyfill-provider/detect-usage/destructure';
-
-// intermediate slots permitted on the walk from an inner Property up to a destructure host.
-// AssignmentPattern allowed for inner-default wrappers (`{...} = {}`) - proxy-global
-// receivers are always defined so the default never fires; ArrayPattern allowed for array
-
-// gate `metaPath` for destructure rewrite: skip Property-of-Property nesting (handled by
-// the nested-proxy flatten path), accept CatchClause (treated as variable-decl with
-// generated ref), and apply the shared shape filter on the parent declarator/assignment.
-// ESTree-specific: assignment-target form must sit inside ExpressionStatement (oxc keeps
-// ParenthesizedExpression around `({p} = R)`, peel before checking)
-export function canTransformDestructuring(metaPath) {
-  const objectPattern = metaPath.parent;
-  if (!objectPattern) return false;
-  const declaratorPath = metaPath.parentPath?.parentPath;
-  if (!declaratorPath?.node) return false;
-  if (declaratorPath.node.type === 'Property') return false;
-  // catch ({ includes }) {} - treat like a variable declarator with generated ref
-  if (declaratorPath.node.type === 'CatchClause') return true;
-  if (!sharedCanTransformDestructuring({
-    parentType: declaratorPath.node.type,
-    parentInit: declaratorPath.node.init,
-  })) return false;
-  if (declaratorPath.node.type === 'AssignmentExpression') {
-    // walk past Paren AND TS expression wrappers to the host. without TS peel
-    // `({from} = Array) as any;` would parse as ExpressionStatement > TSAsExpression >
-    // AssignmentExpression and the destructure rewrite silently bails
-    const host = peelParenAndTSParentPath(declaratorPath);
-    if (host?.node?.type !== 'ExpressionStatement') return false;
-  }
-  return true;
-}
 
 // find the call-arg node a bare-ObjectPattern IIFE param resolves to. `findIifeArgForParam`
 // itself gates on `FN_NODE_TYPES` (ArrowFunctionExpression / FunctionExpression) and returns
