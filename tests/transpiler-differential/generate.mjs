@@ -374,10 +374,14 @@ const D_PATTERNS = [
     names: ['m', 'rest'],
     observe: '[typeof m, rest.keep]',
     strip: true },
-  // one shape of this family is EXCLUDED as a row, and it is a gap in the product rather than a
-  // corpus shortfall - both emitters leave the claim native, so only the stripped leg sees it, and
-  // re-adding the row here is the gap's own fail-before:
-  //   `{ y: { flat: m, ...rest } }` - rest inside the LEAF cannot travel to the flat twin
+  // ... and a REST in the LEAF travels with it: the twin keeps the leaf's own pattern, so the rest
+  // gathers off the memo while the claim's key stays there as a sentinel, still excluding itself
+  { id: 'nested-instance-leaf-rest',
+    recv: 'nb',
+    lhs: '{ y: { flat: m, ...rest } }',
+    names: ['m', 'rest'],
+    observe: '[typeof m, Object.keys(rest).length]',
+    strip: true },
   { id: 'nested-instance-leaf-sibling',
     recv: 'nb',
     lhs: '{ y: { flat: m, length: len } }',
@@ -524,19 +528,28 @@ const D_HOSTS = [
   // decline. `usage-pure/audit-positional-element-slot` carries the shapes instead, byte-locked on
   // both legs: the sole slot, hops below it, a neighbour, a spread ahead of it, the bodyless slot,
   // the loop head, the catch param, both export shapes, and the assignment host that stays native
-  // the CATCH parameter takes a nested claim now (the relocation gives it the declaration host its
-  // route needs), but it is NOT a row of this table: the cross-product would hand it every receiver
-  // the family carries, and `throw globalThis` / `throw <proxy nav>` is a different claim in a
-  // different place - 40 cells red for reasons that are not this host's. the cell is locked in
-  // `usage-pure/audit-catch-extraction-gate` instead, beside its in-place leaf-sibling twin
-  // the array wrapper x CATCH parameter and x FOR-OF head are EXCLUDED, not forgotten:
-  // `catch ([{ at }])` / `for (const [{ from }] of [[Array]])` leave the claim native on BOTH legs,
-  // where the flat catch twin (`catch ({ at })`) extracts. the wrapper element there is not a
-  // syntactic slot of a literal but a value the ITERATION protocol produces, so extracting off it
-  // needs an emission shape neither leg has (bind the element, then dispatch off the binding).
-  // the builders are recorded with the repro in the area queue and re-adding them is its fail-before:
-  //   catch:      `(() => { try { throw [<recv>]; } catch ([<lhs>]) { return <observe>; } })()`
-  //   for-of head: `(() => { for (const [<lhs>] of [[<recv>]]) return <observe>; })()`
+  // the FOR-OF HEAD is not a row of this table YET. what it serves is real and locked in
+  // `usage-pure/audit-for-x-head-relocated-binding`, `usage-pure/audit-for-x-head-mirrors-every-element`
+  // and their positional twins: the relocated record's own type, an instance claim off the element, a
+  // static off a constructor the source spells, a nested leaf beside a sibling or under a default,
+  // and - since what the head destructures is an ELEMENT of the iterated literal - every static claim
+  // the receiver mirror can spell in that element, siblings above the claim's own level and several
+  // props per pattern included, on each element of a multi-element literal. what it still leaves
+  // native is the INSTANCE claim through the head, a side-effecting computed key, the array-WRAPPED
+  // flat pattern, and - in usage-global, which rewrites nothing and so has only the head's own shape
+  // to resolve against - every claim whose receiver the head declarator cannot name. carrying the
+  // host here today would stand a red cell against half these patterns rather than the product
+  // statement they add up to, one of them a LEG divergence of its own: a defaulted instance claim off
+  // the element, where one leg injects the method and the other keeps the slot's default. the
+  // builders are the fail-before of that gap closing:
+  //   `(() => { for (const <lhs> of [<recv>]) return <observe>; })()`
+  //   `(() => { for (const [<lhs>] of [[<recv>]]) return <observe>; })()`
+  // the CATCH parameter takes these patterns too, and is not a row for a reason of its own: the
+  // cross-product would hand it every receiver the family carries, and `throw globalThis` /
+  // `throw <proxy nav>` is a different claim in a different place - cells red for reasons that are
+  // not this host's. its slice is locked in `usage-pure/audit-catch-extraction-gate` instead,
+  // beside the in-place leaf-sibling twin, and the builder re-adding it here is its fail-before:
+  //   `(() => { try { throw [<recv>]; } catch ([<lhs>]) { return <observe>; } })()`
 ];
 
 function * generateDestructure() {
@@ -5245,6 +5258,33 @@ function * generateValuelessRedecl() {
   }
 }
 
+// --- for-x HEAD binding kinds ---
+// a for-x head declares its binding per iteration and holds no init of its own: what it destructures
+// is an ELEMENT of the iterated literal, which the receiver mirror spells in place. the KIND is one
+// axis (a `var` head hoists its binding into the enclosing function, where `let` / `const` scope to
+// the loop), the ELEMENT the other: the constructor the source spells, a user object whose own value
+// must survive, and a literal holding both - where no single receiver answers for the loop, so the
+// two flavors part ways on purpose. usage-pure keeps the relocation's identity guard, which picks
+// per pass; usage-global rewrites nothing and injects for every element the literal names, its own
+// inject-if-might contract
+const HEAD_KINDS = ['var', 'let', 'const'];
+const HEAD_ELEMENTS = [
+  { id: 'ctor', src: 'Array', obs: 'typeof from' },
+  { id: 'user-object', src: '{ from: "mine" }', obs: 'from' },
+  { id: 'ctor-then-user', src: 'Array, { from: "mine" }', obs: 'typeof from' },
+];
+function * generateForXHeadKind() {
+  for (const kind of HEAD_KINDS) {
+    for (const element of HEAD_ELEMENTS) {
+      yield {
+        ...snippet(`for-x-head-kind/${ kind }/${ element.id }`,
+          `(() => { const seen = []; for (${ kind } { from } of [${ element.src }]) seen.push(${ element.obs }); return seen; })()`),
+        strip: true,
+      };
+    }
+  }
+}
+
 // --- Side-effect ORDER through nested-instance body-extract ---
 // distinct side-effecting siblings (`log.push("x")` / `"z"`) flank the body-extracted binding; the
 // receiver is constant (memoize), an identifier (re-reference), or itself side-effecting (bail). every
@@ -7429,6 +7469,7 @@ export function * generate() {
   yield * generateAsyncStatic();
   yield * generateCollectionReceivers();
   yield * generateForOfIterable();
+  yield * generateForXHeadKind();
   yield * generateProxyImportSlotWrite();
   yield * generateNestingDepth();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
