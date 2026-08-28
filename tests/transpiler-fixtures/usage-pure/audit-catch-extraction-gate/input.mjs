@@ -16,6 +16,7 @@ try { f7(); } catch ({ toSorted, ...restB }) { use(restB); }
 // it, and what the relocation buys is the declaration host its route needs. the receiver is
 // unknown here, so the dispatcher it gets is the generic one
 try { f8(); } catch ({ data: { at } }) { use(at); }
-// ... and a nested leaf with SIBLINGS keeps the whole pattern in place: the flatten that shape
-// needs has no declarator to rewrite until the relocation, and the relocation is what it gates
+// ... and a leaf with SIBLINGS relocates too: what the relocation buys is the declaration host,
+// and every claim below the prop takes it whatever else the pattern binds - the sibling rides
+// along in the residual, reading the same memo the claim was extracted from
 try { f9(); } catch ({ data: { at: a2, length } }) { use(a2, length); }
