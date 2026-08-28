@@ -375,7 +375,7 @@ export function planMemoReadTarget(memoReceiver, { aliasCtx, resolvePure }) {
 export function planGuardedDestructureNarrow({
   propNode, patternNode, hostNode, hostInStatement, meta, path, resolvePure,
 }) {
-  if (patternNode?.type !== 'ObjectPattern' || patternNode.properties.length !== 1) return null;
+  if (patternNode?.type !== 'ObjectPattern' || !patternNode.properties.length) return null;
   if (propNode?.computed || (propNode?.shorthand && propNode.value?.type !== 'Identifier')) return null;
   const binding = propNode?.value;
   if (binding?.type !== 'Identifier') return null;
@@ -383,22 +383,61 @@ export function planGuardedDestructureNarrow({
   const isSoleAssignment = hostNode?.type === 'AssignmentExpression' && hostNode.operator === '='
     && hostNode.left === patternNode;
   if (!isDeclarator && !isSoleAssignment) return null;
-  const plan = planGuardedStaticNarrow({
-    memberNode: {
+  // a MULTI-prop pattern becomes one read per prop, in source order - but only where THIS plan
+  // answers for every one of them. a prop it cannot answer would have to reach the claim funnel on
+  // its own, and only one leg re-visits what it splices, so the two would disagree about it; with
+  // every prop answered here nothing is left for that pass to do. each has to be re-spellable for
+  // the split at all: a rest gathers what no read names, a computed key would be printed twice, and
+  // a default belongs to its own canon
+  const receiverNode = isDeclarator ? hostNode.init : hostNode.right;
+  function memberOf(key) {
+    return {
       type: 'MemberExpression',
-      object: isDeclarator ? hostNode.init : hostNode.right,
-      property: { type: 'Identifier', name: meta.key },
+      object: receiverNode,
+      property: { type: 'Identifier', name: key },
       computed: false,
       optional: false,
-    },
+    };
+  }
+  // a REST gathers what no read names, so it cannot become a read of its own - but it can stay
+  // BEHIND them, reading the same receiver with every consumed key renamed to a sentinel. that is
+  // the shape the direct-receiver hosts already print for this pattern, so the guarded twin spells
+  // it too rather than declining. a rest also forces the SPLIT: the sole-prop render replaces the
+  // whole host, which would take the rest with it
+  const restResidual = patternNode.properties.some(item => item.type === 'RestElement');
+  const splitProps = patternNode.properties.filter(item => item.type !== 'RestElement');
+  const split = splitProps.length === 1 && !restResidual ? null : splitProps.map(item => {
+    if (item.computed || item.value?.type !== 'Identifier') return null;
+    const key = item.key?.name ?? item.key?.value ?? null;
+    if (key === null) return null;
+    if (item === propNode) return { key, name: item.value.name, plan: null, self: true };
+    const sibling = planGuardedStaticNarrow({ memberNode: memberOf(key), parent: null, meta: { ...meta, key }, path, resolvePure });
+    return sibling && !sibling.bail ? { key, name: item.value.name, plan: sibling, self: false } : null;
+  });
+  if (split && split.some(item => !item)) return null;
+  // ... and the split needs a host whose VALUE nobody reads: a declaration, or an assignment
+  // standing as its own statement - an assignment in value position yields the receiver, and the
+  // pieces of a split cannot
+  if (split && !isDeclarator && !hostInStatement) return null;
+  // ... and the REST residual needs a declaration to sit in: an assignment host would have to
+  // re-spell the whole pattern as a second assignment, which is a shape of its own
+  if (restResidual && !isDeclarator) return null;
+  const plan = planGuardedStaticNarrow({
+    memberNode: memberOf(meta.key),
     parent: null,
     meta,
     path,
     resolvePure,
   });
   if (!plan || plan.bail) return null;
+  // ... and never beside an effect: the prefix runs ONCE, ahead of the whole init, where a split
+  // would leave it standing in front of whichever read the claim happens to be
+  if (split && plan.seqPrefix.length) return null;
+  for (const item of split ?? []) if (item.self) item.plan = plan;
   return {
     plan,
+    split,
+    restResidual,
     bindingName: binding.name,
     hostKind: isDeclarator ? 'declarator' : hostInStatement ? 'assignment-statement' : 'assignment-value',
   };

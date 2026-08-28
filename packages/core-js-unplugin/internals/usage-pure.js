@@ -667,8 +667,12 @@ export default function createAstUsagePureCallback({
       : emitGuardedStaticNarrow(meta, metaPath, parent))) return;
     // a guarded alias clouds only the STATIC surface - WHICH object the binding holds. an
     // INSTANCE claim reads off the runtime value either way, so it takes the ordinary
-    // dispatch instead of staying raw (`({ Map: M } = globalThis); M = user; M.at(0)`)
-    if (meta.guardedAliasHint && !(node.type === 'MemberExpression' && meta.placement === 'prototype')) return;
+    // dispatch instead of staying raw (`({ Map: M } = globalThis); M = user; M.at(0)`). a
+    // DESTRUCTURED prop is not held here at all: the guard above already declined it, and the
+    // route below re-asks the whole question - it is the destructure emitter that keeps the static
+    // surface with the guard, and stopping here dropped the INSTANCE half of it outright
+    // (`for (const e of [Array]) { const { name } = e; }`, which the babel twin dispatches)
+    if (meta.guardedAliasHint && node.type === 'MemberExpression' && meta.placement !== 'prototype') return;
     // OUR rest sentinel from a prior pass never re-routes - ahead of every claim route
     if ((node.type === 'Property' && (destructureEmit.sentinelAlreadyProcessed({ metaPath, meta })
       || destructureEmit.overwriteRebindEmitted({ metaPath }))) || earlyStagedBail(meta, metaPath)) return;
