@@ -12,5 +12,10 @@ try { f5(); } catch ({ entries = fb }) { use(entries); }
 // rest alone stays in place; rest beside a polyfillable sibling extracts (sentinel)
 try { f6(); } catch ({ reason, ...restA }) { use(restA); }
 try { f7(); } catch ({ toSorted, ...restB }) { use(restB); }
-// a nested pattern's leaf is a local binding, not a polyfill candidate - stays in place
+// a nested pattern's leaf IS a candidate - the key above it names no member, the claim sits below
+// it, and what the relocation buys is the declaration host its route needs. the receiver is
+// unknown here, so the dispatcher it gets is the generic one
 try { f8(); } catch ({ data: { at } }) { use(at); }
+// ... and a nested leaf with SIBLINGS keeps the whole pattern in place: the flatten that shape
+// needs has no declarator to rewrite until the relocation, and the relocation is what it gates
+try { f9(); } catch ({ data: { at: a2, length } }) { use(a2, length); }

@@ -31,6 +31,7 @@ import {
 export function createPatternBindings({
   t,
   getScopeBinding,
+  resolveObjectFieldFlow,
   violationToAssignment,
   babelNodeType,
   resolveNodeType,
@@ -54,7 +55,8 @@ export function createPatternBindings({
   resolveElementType,
   findTupleElement,
   resolveObjectMember,
-  findObjectMember,
+  walkObjectLiteralPropertyPath,
+  isGetterFreshLiteral,
   resolveTypeAnnotation,
   resolveComputedKeyName,
   getKeyName,
@@ -341,6 +343,8 @@ export function createPatternBindings({
     let common = null;
     for (let i = 0; i < elements.length; i++) {
       if (!elements[i] || elements[i].type === 'SpreadElement') return null;
+      // ... elements stay on the init-only read: the flow resolver has no alias closure for a slot
+      // inside an array literal, so asking it there declines every narrow, held container or not
       const member = resolveObjectMemberPath(resolveRuntimeExpression(cachedContainerPaths(arrayPath, 'elements')[i]), keyPath);
       if (!member) return null;
       common = commonType(common, member);
@@ -555,7 +559,17 @@ export function createPatternBindings({
 
   // { a: [{ b: 'x' }] } with path ['a', 0, 'b'] -> resolveObjectMember for 'x'
   // string keys resolve object properties, number keys resolve array elements
-  function resolveObjectMemberPath(objPath, keyPath) {
+  // `sourcePath`: the UNRESOLVED path the literal was reached through. an Identifier there means a
+  // BINDING (`const { y: { at } } = box`), whose slots a writer or a holder can reach - and then the
+  // read has to ask the same flow-aware resolver a member read of that slot asks. an inline literal
+  // (a for-of element, a call argument) has no binding for a writer to go through, and there the
+  // init type is the whole truth. the rule lives HERE, once, so no caller can spell it differently
+  function resolveObjectMemberPath(objPath, keyPath, sourcePath = null) {
+    // ... and a binding reached MID-WALK counts the same: an array WRAPPER hands the pattern an
+    // element (`[{ y: { at } }] = [box]`), and the slot below that element is as reachable to a
+    // writer as one below a binding named at the top. tracked as the walk descends, or the wrapper
+    // spelling keeps the init's narrow where every other spelling of the same read folds the write
+    let flowAware = sourcePath?.node?.type === 'Identifier';
     while (true) {
       if (keyPath.length === 0) return resolveNodeType(objPath);
       const [step] = keyPath;
@@ -571,7 +585,9 @@ export function createPatternBindings({
         // spread.length. mirror `resolveArrayLiteralElement`'s spread-guard so this nested
         // path matches the top-level extraction semantics
         if (spreadAtOrBefore(objPath.node.elements, step)) return null;
-        objPath = resolveRuntimeExpression(cachedContainerPaths(objPath, 'elements')[step]);
+        const elementPath = cachedContainerPaths(objPath, 'elements')[step];
+        flowAware ||= elementPath?.node?.type === 'Identifier';
+        objPath = resolveRuntimeExpression(elementPath);
         keyPath = rest;
         continue;
       }
@@ -585,17 +601,34 @@ export function createPatternBindings({
         continue;
       }
       if (!t.isObjectExpression(objPath.node)) return null;
-      if (!rest.length) return resolveObjectMember(objPath, step);
-      const prop = findObjectMember(objPath, step);
-      if (!prop || !t.isObjectProperty(prop.node)) return null;
-      objPath = resolveRuntimeExpression(prop.get('value'));
+      // the FINAL slot read asks the flow-aware resolver, exactly as a member read of the same slot
+      // does (`{ y: { at } } = box` reads what `box.y` reads): it folds every reachable write and
+      // refuses a narrow the writer set makes unsound. reading the literal's own init here instead
+      // made the nested spelling resolve NARROWER than the flat one - same source, two answers,
+      // and the two emitters shipped different dispatchers once a route rewrote one into the other
+      // ... and a literal a GETTER builds fresh per read is read off ITSELF: the writer fold has no
+      // earlier caller to account for, which is the same answer the member spelling gives
+      if (!rest.length) {
+        return flowAware && !isGetterFreshLiteral(objPath.node)
+          ? resolveObjectFieldFlow(objPath, step)
+          : resolveObjectMember(objPath, step);
+      }
+      // the canonical stepper owns which slots are walkable - a plain value, and a getter through
+      // its inline return; a hand-rolled `.value` read here answered null for every getter hop
+      const valuePath = walkObjectLiteralPropertyPath(objPath, step);
+      if (!valuePath?.node) return null;
+      flowAware ||= valuePath.node.type === 'Identifier';
+      objPath = resolveRuntimeExpression(valuePath);
       keyPath = rest;
     }
   }
 
-  // try runtime object literal, then annotation-based resolution for a destructured member
+  // try runtime object literal, then annotation-based resolution for a destructured member.
+  // a BINDING source asks the flow-aware slot read for the same reason the nested pattern walk
+  // does: `const { y } = box; y.at(0)` reads the slot `box.y.at(0)` reads, and a writer or a
+  // holder of `box` unseats the narrow for both spellings or for neither
   function resolveDestructuredMember(exprPath, keyPath) {
-    const runtimeResult = resolveObjectMemberPath(resolveRuntimeExpression(exprPath), keyPath);
+    const runtimeResult = resolveObjectMemberPath(resolveRuntimeExpression(exprPath), keyPath, exprPath);
     if (runtimeResult) return runtimeResult;
     const info = findExpressionAnnotation(exprPath);
     if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);

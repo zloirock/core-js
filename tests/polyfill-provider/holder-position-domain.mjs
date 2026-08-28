@@ -58,6 +58,7 @@ const DOMAIN = new Map(Object.entries({
   'SwitchCase.test': 'consumes',
   'SwitchStatement.discriminant': 'consumes',
   'TSAsExpression.expression': 'forwards',
+  'TSNonNullExpression.expression': 'forwards',
   'TSSatisfiesExpression.expression': 'forwards',
   'TemplateLiteral.expressions': 'consumes',
   'ThrowStatement.argument': 'hands-out',

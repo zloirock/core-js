@@ -10,7 +10,7 @@ import {
   storedNavHopClaimSuppressed,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
-  assignmentInStatementPosition,
+  assignmentValueDiscarded,
   claimDeleteOperand,
   isDestructurePattern,
   isMutatedGlobalSlot,
@@ -37,7 +37,7 @@ import {
   nullFirstGuardTest,
   renderShortCircuitGuard,
 } from './builders.js';
-import { discardedSequenceElement, memberFromKeyName } from './emit-shared.js';
+import { memberFromKeyName } from './emit-shared.js';
 
 // is the node read as a member OBJECT above - asked THROUGH transparent wrappers and a
 // sequence TAIL: `(se(), g[fold]).Array` reads the hop exactly like the bare spelling
@@ -619,7 +619,7 @@ export function noteMutatedCtorHopDestructure(metaPath, node, { adapter, destruc
   // an assignment whose VALUE is consumed may not re-anchor: `({ Map: { k } } = globalThis)`
   // yields the GLOBAL, while the anchored `({ k } = _Map)` yields the ctor - only a statement
   // position discards that value and can take the rewrite
-  if (assignHost && !assignmentInStatementPosition(up) && !discardedSequenceElement(up)) return;
+  if (assignHost && !assignmentValueDiscarded(up)) return;
   destructureEmit.noteUntouchedCtorHopHost(host, hopKey, assignHost);
 }
 

@@ -14,6 +14,7 @@ import {
   peelParenAndTSParentPath,
   peelParenAndTSSlotChild,
   peelZeroArgIifeReturn,
+  singleReturnBodyExpression,
   singleQuasiString,
   SKIPPABLE_WRAPPER_TYPES,
   spreadAtOrBefore,
@@ -447,8 +448,37 @@ function createResolveNodeType(babelNodeType, t, {
     if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
     if (argPath?.node?.type === 'ArrayExpression') return arrayLiteralElementPath(argPath, key);
     if (argPath?.node?.type !== 'ObjectExpression') return null;
-    // ObjectMethod is a leaf (Function value with no walkable inner shape)
-    return findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key, () => null);
+    // a plain ObjectMethod is a leaf (a Function value with no walkable inner shape), but a GETTER
+    // names its value through the RETURN - which the resolver already trusts one hop up
+    // (`resolveObjectGetterReturn`), so a spine reading THROUGH the slot reads the same expression
+    return findObjectLiteralKey(cachedContainerPaths(argPath, 'properties'), key,
+      prop => prop.node.kind === 'get' ? getterReturnPath(prop) : null);
+  }
+
+  // a literal written INLINE as a getter's return argument is built fresh on every read, so no
+  // caller of an earlier read can have mutated the object THIS read observes - the premise the
+  // field-flow fold exists to protect. only the inline shape qualifies: `return inner;` hands back
+  // a named object whose writes are exactly what that fold is for
+  const getterFreshLiterals = new WeakSet();
+
+  // the single returned expression of a getter, as a PATH: the shared `singleReturnBodyExpression`
+  // owns which bodies qualify, and the matching statement is located by node identity
+  function getterReturnPath(prop) {
+    const bodyPath = methodFnPath(prop)?.get?.('body');
+    if (bodyPath?.node?.type !== 'BlockStatement') return null;
+    const wanted = singleReturnBodyExpression(bodyPath.node);
+    if (!wanted) return null;
+    const stmt = bodyPath.get('body').find(item => item.node?.type === 'ReturnStatement');
+    const argument = stmt?.get?.('argument');
+    if (argument?.node !== wanted) return null;
+    if (wanted.type === 'ObjectExpression' || wanted.type === 'ArrayExpression') getterFreshLiterals.add(wanted);
+    return argument;
+  }
+
+  // is this literal one a getter builds fresh per read? asked by the member spine, which then reads
+  // its slot off the literal itself rather than through the writer fold
+  function isGetterFreshLiteral(node) {
+    return getterFreshLiterals.has(node);
   }
 
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
@@ -1802,7 +1832,10 @@ function createResolveNodeType(babelNodeType, t, {
     resolveElementType,
     findTupleElement,
     resolveObjectMember,
+    resolveObjectFieldFlow,
     findObjectMember,
+    walkObjectLiteralPropertyPath,
+    isGetterFreshLiteral,
     resolveTypeAnnotation: (...args) => resolveTypeAnnotation(...args),
     resolveComputedKeyName,
     getKeyName,
@@ -2119,6 +2152,9 @@ function createResolveNodeType(babelNodeType, t, {
     collectBindingReferences,
     resolveThisObject,
     resolveObjectFieldFlow,
+    walkObjectLiteralPropertyPath,
+    isGetterFreshLiteral,
+    isMemberLike,
     findAmbientClassPath,
     resolveArrayLiteralElement,
     findAllEnumDeclarations,
@@ -2428,9 +2464,20 @@ function createResolveNodeType(babelNodeType, t, {
       return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
     }
     const parent = objectPattern.parentPath;
+    // a DEFAULT between this pattern and its slot makes the receiver a two-armed value: the slot's
+    // own type when it is defined, the default's when it is not. picking the slot's alone injects
+    // that family and drops the default's - the arm that runs exactly when the slot is absent - so
+    // the two fold, and a cross-family pair collapses to the typeless answer both arms can take
+    const slotDefault = parent?.node?.type === 'AssignmentPattern' && parent.node.left === objectPattern.node
+      ? parent.get('right') : null;
+    function foldDefault(type) {
+      if (!slotDefault?.node) return type;
+      const defaultType = resolveNodeType(slotDefault);
+      return type && defaultType ? commonType(type, defaultType) : null;
+    }
     // direct parent owns the init - resolve the whole RHS
     const directInit = getPatternInit(parent);
-    if (directInit?.node) return resolveNodeType(directInit);
+    if (directInit?.node) return foldDefault(resolveNodeType(directInit));
     // nested pattern: collect key path via shared walk, resolve through the init
     let ancestor = parent;
     while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
@@ -2438,13 +2485,38 @@ function createResolveNodeType(babelNodeType, t, {
     if (keyPath?.length) {
       const initPath = getPatternInit(ancestor);
       if (initPath?.node) {
-        const member = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath);
-        if (member) return member;
+        // a CAST is what the source says the receiver IS: `{ y: { at } } = box as any` reads the
+        // slot off `any`, exactly as `(box as any).y` does. peeling to the literal underneath
+        // answered a type the source overrode - and the flat spelling never does that.
+        // by node TYPE, not a babel-types helper: the estree adapter carries no `isTSAsExpression`,
+        // and a helper that quietly answers `undefined` there would leave one leg on the peeled read
+        const annotated = initPath.node.type === 'TSAsExpression' || initPath.node.type === 'TSTypeAssertion'
+          ? findExpressionAnnotation(initPath) : null;
+        if (annotated) return resolveAnnotatedMemberPath(annotated.annotation, keyPath, annotated.scope);
+        // the init path travels UNRESOLVED as well: the slot read asks it whether a binding stands
+        // between the literal and this read, and answers flow-aware where one does
+        const member = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath, initPath);
+        if (member) return foldDefault(member);
       }
     }
     const forOfPath = t.isForOfStatement(ancestor?.node) ? ancestor : findForLoopParent(ancestor);
-    if (t.isForOfStatement(forOfPath?.node)) return resolveForOfResolvedElement(forOfPath);
-    return null;
+    if (!t.isForOfStatement(forOfPath?.node)) return null;
+    // the loop's ELEMENT is what the pattern destructures, so it answers a claim the pattern names
+    // DIRECTLY. a claim one or more HOPS in reads the element's SLOT, and where the iterable is a
+    // LITERAL that slot is a path this walk can descend - the same read a declarator host performs.
+    // where every element provably LACKS the hop, the pattern's own default is what runs, and its
+    // type is the answer; an annotated iterable has no path to walk and keeps the element type
+    if (keyPath?.length && slotDefault?.node) {
+      const iterated = resolveRuntimeExpression(forOfPath.get('right'));
+      const elements = iterated?.node?.type === 'ArrayExpression'
+        ? cachedContainerPaths(iterated, 'elements').filter(item => item?.node) : [];
+      const lacksHop = elements.length !== 0 && elements.every(element => {
+        const value = resolveRuntimeExpression(element);
+        return t.isObjectExpression(value?.node) && !findObjectMember(value, keyPath[0]);
+      });
+      if (lacksHop) return resolveNodeType(slotDefault);
+    }
+    return resolveForOfResolvedElement(forOfPath);
   }
 
   // `toHint`, `intersectHintSets`, `primitiveTypeOf` live in `resolve-node-type/base.js`

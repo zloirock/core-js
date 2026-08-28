@@ -768,17 +768,60 @@ export function buildNestedDestructurePlan({
 // in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern
 // is out of the family entirely - its bindings are positional, so there is no key to rewrite
 // against a named receiver and the relocation would be pure overhead
-export function planCatchClauseExtraction({ paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode }) {
+// does this ARRAY element hold a positional claim - a chain of sole-property object patterns whose
+// leaf names a polyfillable member? the relocation is what gives that claim a host it can extract
+// from: inside the body the pattern is an ordinary declaration, and the element slot may take a
+// minted binding there (`catch ([{ at }])` -> `catch (_ref) { let [_el] = _ref; let at = _at(_el); }`)
+function positionalClaimElement(element, resolvePure) {
+  let node = element;
+  while (node?.type === 'ObjectPattern' && node.properties.length === 1) {
+    const [prop] = node.properties;
+    if (!isPropertyNode(prop) || prop.computed) return false;
+    const key = prop.key?.name ?? prop.key?.value ?? null;
+    if (key === null) return false;
+    if (prop.value?.type === 'Identifier'
+      && resolvePure({ kind: 'property', object: null, key, placement: null })) return true;
+    node = prop.value;
+  }
+  return false;
+}
+
+export function planCatchClauseExtraction({
+  paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode, objectHint = null,
+}) {
+  // an ARRAY param relocates for a positional claim alone: its elements bind by ITERATION, so the
+  // per-prop questions below (which key is resolvable, which rewrite is observable) have no subject
+  // here - what the relocation buys is a declaration host, and the claim's own route takes it there
+  if (paramNode?.type === 'ArrayPattern') {
+    return paramNode.elements.some(element => positionalClaimElement(element, resolvePure))
+      ? { unobservable: [] } : null;
+  }
   if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length) return null;
   const resolvableProps = paramNode.properties.filter(prop => {
     if (!isPropertyNode(prop) || prop.computed) return false;
     const key = prop.key?.name ?? prop.key?.value ?? null;
-    return key !== null && !!resolvePure({ kind: 'property', object: null, key, placement: null });
+    // `objectHint` is what the relocated value is KNOWN to be - a loop head can type its element
+    // where a catch clause never can. asking with it keeps the relocation to claims that are
+    // really lost: a plain data key off a typed element resolves to no polyfill and the pattern
+    // stays where it is, with the binding types its own destructure still carries
+    return key !== null && !!resolvePure(objectHint
+      ? { kind: 'property', object: objectHint, key, placement: 'prototype' }
+      : { kind: 'property', object: null, key, placement: null });
   });
   const hasMachinery = paramNode.properties.some(prop => computedPropKeyHostsMachinery({
     propNode: prop, scope, adapter, path, resolvePure,
   }));
-  if (!hasMachinery && !resolvableProps.length) return null;
+  // ... and a prop whose VALUE is a nested pattern buys the same thing the array param buys: the
+  // key here names no member, the claim sits below it, and what it lacks is a declaration host -
+  // the relocation gives it one and its own route takes it from there (`catch ({ y: { flat } })`
+  // stayed native while both its neighbours in this host - the flat prop and the array element -
+  // claimed). the same walk the element branch uses answers for it
+  // a DEFAULTED hop (`{ inner: { at } = [1, 2] }`) holds its pattern under the AssignmentPattern, so
+  // the claim is one peel down - and it is the arm the relocation buys most, since the default is
+  // what runs when the slot is absent and the claim off it has no other host
+  const nestedClaim = paramNode.properties.some(prop => isPropertyNode(prop) && !prop.computed
+    && positionalClaimElement(prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value, resolvePure));
+  if (!hasMachinery && !nestedClaim && !resolvableProps.length) return null;
   const unobservable = resolvableProps.filter(prop => !catchPropRewriteObservable({
     propNode: prop,
     patternNode: paramNode,
@@ -786,6 +829,6 @@ export function planCatchClauseExtraction({ paramNode, bodyNode, scope, adapter,
     localName: prop.value?.type === 'Identifier' ? prop.value.name : null,
     walkNode,
   }));
-  if (!hasMachinery && unobservable.length === resolvableProps.length) return null;
+  if (!hasMachinery && !nestedClaim && unobservable.length === resolvableProps.length) return null;
   return { unobservable };
 }
