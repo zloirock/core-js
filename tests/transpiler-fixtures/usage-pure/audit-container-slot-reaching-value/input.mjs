@@ -1,7 +1,9 @@
-// the pure flavor must stay UNTOUCHED by the container-slot reaching union: it is a
-// usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file
-// may reach the read, so no slot read off a written container resolves). every destructure and
-// member read below stays verbatim - only bare constructor NAMES resolve to pure imports
+// the pure flavor must keep its NAME resolution out of the container-slot reaching union: it is a
+// usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file may
+// reach the read, so no slot read off a written container resolves to a static). the destructures
+// below keep their slot reads - bare constructor NAMES resolve to pure imports, and an ambiguous
+// method name resolves no further than the value-safe dispatcher, whose answer IS the source's
+// own read of the written slot (`_keys(cc.c)`), so what the write left there still decides
 const cw = { k: Object };
 cw.k = Map;
 const { k: { groupBy: viaSlotWrite } } = cw;

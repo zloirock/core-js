@@ -1520,6 +1520,21 @@ async function checkAstInternalsCore() {
   check('emit-shared replaceNodeInTree lands by identity',
     es.replaceNodeInTree(host, host.expression, b.identifier('next')) && host.expression.name === 'next', true);
   check('emit-shared replaceNodeInTree reports a missing target', es.replaceNodeInTree(host, b.identifier('ghost'), b.identifier('x')), false);
+  // both walks descend every OWN key, so a graph that cycles would recurse without end. they must not
+  // spell that as `false` / `null`: that is what an honest "not in this subtree" says, and most
+  // callers never read the answer - the tree would go unrewritten while the statements built around
+  // the swap go out anyway. the ceiling is an invariant, and an invariant is loud
+  const cyclic = b.expressionStatement(b.identifier('a'));
+  cyclic.expression.self = cyclic;
+  function threw(label) {
+    try {
+      if (label === 'replace') es.replaceNodeInTree(cyclic, b.identifier('ghost'), b.identifier('x'));
+      else es.findNodeSlot(cyclic, b.identifier('ghost'));
+      return 'no throw';
+    } catch (error) { return error instanceof TypeError && /deeper than the walk supports/.test(error.message) ? 'threw' : 'wrong error'; }
+  }
+  check('emit-shared replaceNodeInTree throws on a cyclic graph rather than reporting "not found"', threw('replace'), 'threw');
+  check('emit-shared findNodeSlot throws on a cyclic graph rather than reporting "no slot"', threw('find'), 'threw');
   const injectorState = { pureImports: new Map([['actual/self', '_self'], ['actual/array/of', '_Array$of']]) };
   check('emit-shared mintedProxyGlobalName resolves a minted proxy root', es.mintedProxyGlobalName('_self', injectorState), 'self');
   check('emit-shared mintedProxyGlobalName rejects a minted non-proxy', es.mintedProxyGlobalName('_Array$of', injectorState), null);
@@ -2729,10 +2744,17 @@ function checkTypedOuterInnerDefault() {
   check('typed-outer inner default/bare array value stays native',
     importCount('const { at: [bare] } = src;'), 0);
   // the LIVE mirrors stay: an empty outer host leaves the default live; a param default is
-  // caller-correct; an untyped outer proves nothing
+  // caller-correct
   check('live inner default/empty outer host keeps the mirror', importCount('const { inner: { at } = [1, 2] } = {};'), 1);
   check('live inner default/param default keeps the synth', importCount('export const p = (function ({ at } = [1]) { return at; })();'), 1);
-  check('live inner default/untyped outer keeps the mirror', importCount('const { at: { name } = fallback } = opaque;'), 1);
+  // ... but an UNTYPED outer composes like a typed one: the surface is what the hop reads, and the
+  // key names it whatever the receiver turns out to be - the generic dispatcher is that answer, and
+  // the flat twin in the same host already gives it. keeping the mirror there spelled the hop RAW,
+  // so the source's default fired on the very path the ponyfill answers
+  check('untyped outer/composes through the generic dispatcher',
+    transformed('const { at: { name } = fallback } = opaque;')
+      .includes('_nameMaybeFunction((_ref = _at(opaque)) === void 0 ? fallback : _ref)'), true);
+  check('untyped outer/imports both steps', importCount('const { at: { name } = fallback } = opaque;'), 2);
 }
 checkTypedOuterInnerDefault();
 

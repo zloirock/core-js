@@ -1,5 +1,8 @@
-import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { POSSIBLE_GLOBAL_OBJECTS, unwrapRuntimeExpr } from '@core-js/polyfill-provider/helpers/ast-patterns';
+
 import { cloneNode, sequenceExpression } from './builders.js';
+
+export { discardedSequenceElement } from '@core-js/polyfill-provider/helpers/ast-patterns';
 // the member-hop spelling and the proxy-receiver collapse are the render canon's, re-exported
 // so this leg's emitters keep taking their node vocabulary from one import
 export { memberFromKeyName, renderProxyReceiverPlan } from '@core-js/polyfill-provider/render';
@@ -22,19 +25,6 @@ export function receiverCarriesOptional(node) {
   return false;
 }
 
-// a node DISCARDED as a non-tail SEQUENCE element: nobody reads the value it evaluates to, so a
-// rewrite there is as free as one in statement position. transparent wrappers climb with it
-export function discardedSequenceElement(path) {
-  let cur = path;
-  for (let up = cur?.parentPath; up?.node; up = cur.parentPath) {
-    const { type } = up.node;
-    if (type === 'SequenceExpression') return up.node.expressions.at(-1) !== cur.node;
-    if (type !== 'ParenthesizedExpression' && !TS_EXPR_WRAPPERS.has(type)) return false;
-    cur = up;
-  }
-  return false;
-}
-
 // swap `target` for `next` wherever it sits - the emit plans hand NODES, not paths, so the
 // parent slot is found by identity from the given root
 // a rebuilt spelling STANDS where its source stood: hand the printer that span through a
@@ -48,14 +38,57 @@ export function stampReplacementSpan(next, source) {
   return next;
 }
 
-export function replaceNodeInTree(root, target, next) {
+// the SLOT a node occupies - its owner plus the key or index holding it. an address survives what
+// an identity does not: a claim INSIDE the node renders by REPLACING it, and a plan holding the old
+// node then finds nothing to swap while the tree keeps the rewrite (a memo shipped the stale source
+// read beside a residual that evaluated the same thing again)
+export function findNodeSlot(root, target, depth = 0) {
+  // this walk descends every OWN key, not the AST's child slots, so what ends it is the shape of the
+  // object graph it is handed rather than the source's nesting - the same reason the canon walker
+  // carries a ceiling. it THROWS rather than answering, because its answer would be indistinguishable
+  // from the honest "not in this subtree" the recursion itself relies on: a caller reading that as
+  // "no slot" keeps the receiver spelled beside its memo and reads it twice, and most callers do not
+  // read the answer at all. a real tree comes nowhere near this (the corpora peak at 14), so reaching
+  // it means a cycle or a graph this walker should never have been handed - both are bugs, not inputs
+  if (depth >= 1024) {
+    throw new TypeError('[core-js] findNodeSlot: object graph deeper than the walk supports (cycle, or a non-AST graph)');
+  }
+  if (Array.isArray(root)) {
+    const at = root.indexOf(target);
+    if (at !== -1) return { owner: root, key: at };
+    for (const item of root) {
+      const found = findNodeSlot(item, target, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!root || typeof root !== 'object') return null;
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in root) {
+    const value = root[key];
+    if (value === target) return { owner: root, key };
+    if (value && typeof value === 'object') {
+      const found = findNodeSlot(value, target, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function replaceNodeInTree(root, target, next, depth = 0) {
+  // ... and the same here, for the same reason: `false` is what "not in this subtree" says, and most
+  // callers ignore it entirely - a give-up that spells itself the same way leaves the tree unrewritten
+  // while the statements built around the swap go out regardless
+  if (depth >= 1024) {
+    throw new TypeError('[core-js] replaceNodeInTree: object graph deeper than the walk supports (cycle, or a non-AST graph)');
+  }
   if (Array.isArray(root)) {
     const at = root.indexOf(target);
     if (at !== -1) {
       root[at] = next;
       return true;
     }
-    return root.some(item => replaceNodeInTree(item, target, next));
+    return root.some(item => replaceNodeInTree(item, target, next, depth + 1));
   }
   if (!root || typeof root !== 'object' || !root.type) return false;
   stampReplacementSpan(next, target);
@@ -66,7 +99,7 @@ export function replaceNodeInTree(root, target, next) {
       root[key] = next;
       return true;
     }
-    if (value && typeof value === 'object' && replaceNodeInTree(value, target, next)) return true;
+    if (value && typeof value === 'object' && replaceNodeInTree(value, target, next, depth + 1)) return true;
   }
   return false;
 }
