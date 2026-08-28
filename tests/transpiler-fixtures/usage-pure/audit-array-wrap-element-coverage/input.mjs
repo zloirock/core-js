@@ -13,7 +13,9 @@ export { at, keys };
 const [{}, { at: at2 }] = [x, arr];
 export { at2 };
 
-// NEGATIVE: a surviving binding keeps its element, and with it the wrapper
+// NEGATIVE: a surviving binding keeps the wrapper - but the emptied element BEHIND it sheds, since
+// no position needs holding at the end and an array pattern whose last element binds nothing is a
+// shape the downstream destructuring lowering miscompiles, dropping the surviving binding with it
 const [{ other }, { at: at3 }] = [x, arr];
 export { other, at3 };
 
