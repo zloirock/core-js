@@ -58,6 +58,4 @@ class K {
 }
 export { K };
 // a VALUE-position sequence is NOT split - its result is consumed, both stay native
-export const v = ({
-  from
-} = Array, from([5]));
+export const v = (from = _Array$from, from([5]));
