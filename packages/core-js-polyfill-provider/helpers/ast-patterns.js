@@ -1169,6 +1169,19 @@ function cachedScopeVars(node) {
   return vars;
 }
 
+// ... and this is the one mutation that breaks that contract from INSIDE the transform: a `var`
+// an emitter MINTS into the tree is absent from an index built before it, and the entry is keyed on
+// the owner NODE, which does not change when a declarator lands under it. the query then answers a
+// stale "no" and the binding reads as never written - so its reaching value is lost, and with it
+// every narrow that value drives. a HIT can never be stale (nothing removes a var here), so
+// dropping the owner's entry at the mint is the whole of the fix; rechecking every MISS instead
+// costs a fifth of the transform. the owner is the one a `var` hoists to, which is where the
+// minted declarator lands whatever slot spells it
+export function invalidateScopeVarIndex(path) {
+  const owner = findNearestVarScopeOwner(path);
+  if (owner?.node) scopeVarsCache.delete(owner.node);
+}
+
 // the owner that hoists `name` as a `var` plus its VariableDeclarator (callers read `.init`), or
 // null. a `var` hoists to its nearest function / program / static-block owner yet stays visible from
 // nested functions below it, so a use in an inner closure keeps climbing when the nearest owner
@@ -3306,6 +3319,45 @@ export function destructureReceiverSlot(node) {
   if (node?.type === 'AssignmentPattern' || node?.type === 'AssignmentExpression') return 'right';
   if (node?.type === 'VariableDeclarator') return 'init';
   return null;
+}
+
+// the values a for-of HEAD declarator destructures. it carries no init of its own - what it binds is
+// an ELEMENT of the iterated value - and only a literal names its elements. a SOLE element names a
+// single value and answers for the whole loop. a longer literal binds a different one per iteration,
+// so it answers only when every element is a PROXY GLOBAL: those roots are one object graph to this
+// provider, which makes the head's claim resolve to the same static on every pass - while the RENDER
+// still mirrors each element on its own, so nothing is shared between the passes but the answer.
+// a HOLE has no element to read (its `undefined` must keep throwing natively) and a SPREAD hides
+// what the pattern will see; for-IN is out (it binds the key, never the element), and so is
+// for-await (the head awaits what the literal holds, which is not the node written there)
+export function forOfHeadElements(declaratorPath) {
+  const elements = forOfHeadIterableElements(declaratorPath);
+  if (!elements) return null;
+  if (elements.length === 1) return elements;
+  return elements.every(element => element.type === 'Identifier' && asProxyGlobalName(element.name)) ? elements : null;
+}
+
+// ... and the same values as a BRANCH SET, making no claim that one receiver answers for the loop:
+// each is what the pattern reads on its own pass. an enumerate-every-candidate consumer (usage-global,
+// whose contract is inject-if-might) wants all of them where the one above insists on agreement
+export function forOfHeadIterableElements(declaratorPath) {
+  const declaration = declaratorPath?.parentPath;
+  const loop = declaration?.parentPath;
+  const loopNode = loop?.node;
+  if (loopNode?.type !== 'ForOfStatement' || loopNode.await || loopNode.left !== declaration.node) return null;
+  const elements = loopNode.right?.type === 'ArrayExpression' ? loopNode.right.elements : null;
+  if (!elements?.length || elements.some(element => !element || element.type === 'SpreadElement')) return null;
+  return elements;
+}
+
+// the NODE a destructure host holds as its receiver: the slot's value, or - for a for-x HEAD, whose
+// declarator has no slot to hold one - the element the iterated literal spells. every consumer that
+// reads a host's receiver asks through here, so the head is a receiver-bearing host everywhere at
+// once rather than in whichever walk was taught about it
+export function destructureReceiverNode(host) {
+  const slot = destructureReceiverSlot(host?.node);
+  if (!slot) return null;
+  return host.node[slot] ?? forOfHeadElements(host)?.[0] ?? null;
 }
 
 // walk a (possibly nested) ObjectPattern to find the keyPath leading to a leaf Identifier

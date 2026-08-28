@@ -19,6 +19,7 @@ import {
   planGuardedDestructureNarrow,
   planGuardedStaticNarrow,
 } from '@core-js/polyfill-provider/detect-usage/members';
+import { renameSplitPropsToSentinels } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   CHAIN_HOP_WRAPPER_TYPES,
   climbTransparentWrapperPath,
@@ -199,12 +200,37 @@ export default function createProxySpineChannel(ctx) {
       resolvePure,
     });
     if (!admitted) return false;
-    const { plan, bindingName, hostKind } = admitted;
+    const { plan, split, restResidual, bindingName, hostKind } = admitted;
     const host = hostPath.node;
     const chain = guardChainNode(plan, memberExpression(identifier(plan.recvIdent.name), identifier(meta.key)));
     markRewrite();
     markSubtreeSkipped(skippedNodes, pattern);
     markSubtreeSkipped(skippedNodes, chain);
+    // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
+    // the plan answered for all of them, so nothing here waits on a later visit - which is what lets
+    // this leg render it at all, its walk never re-entering what it splices
+    if (split) {
+      const reads = split.map(item => {
+        const read = guardChainNode(item.plan,
+          memberExpression(identifier(item.plan.recvIdent.name), identifier(item.key)));
+        markSubtreeSkipped(skippedNodes, read);
+        return read;
+      });
+      if (hostKind === 'declarator') {
+        const declaration = hostPath.parentPath.node;
+        declaration.declarations.splice(declaration.declarations.indexOf(host), 1,
+          ...split.map((item, index) => ({
+            type: 'VariableDeclarator', id: identifier(item.name), init: reads[index],
+          })),
+          // the REST reads the same receiver BEHIND the reads, with every consumed key renamed to a
+          // sentinel so it still gathers exactly what the source left it
+          ...restResidual ? [restResidualDeclarator(pattern, plan)] : []);
+        return true;
+      }
+      replaceNodeInTree(hostPath.parentPath.node, host, sequenceExpression(
+        split.map((item, index) => assignmentExpression('=', identifier(item.name), reads[index]))));
+      return true;
+    }
     if (hostKind === 'declarator') {
       host.id = identifier(bindingName);
       if (host.init === plan.recvIdent) host.init = chain;
@@ -221,6 +247,15 @@ export default function createProxySpineChannel(ctx) {
       replaceNodeInTree(hostPath.parentPath.node, host, sequenceExpression([host, tail]));
     }
     return true;
+  }
+
+  // the residual the shared rename yields, in this leg's declarator - marked handled whole, since
+  // the source's own props are gone from it
+  function restResidualDeclarator(patternNode, plan) {
+    const id = renameSplitPropsToSentinels(patternNode, destructureEmit.mintUnusedName);
+    const residual = { type: 'VariableDeclarator', id, init: identifier(plan.recvIdent.name) };
+    markSubtreeSkipped(skippedNodes, residual);
+    return residual;
   }
 
   // a chain-assignment splice point inside the harvested SE: the static claim interleaves
