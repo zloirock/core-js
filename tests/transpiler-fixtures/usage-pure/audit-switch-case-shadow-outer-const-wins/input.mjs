@@ -1,9 +1,9 @@
 // an OUTER user binding above an invisible case-direct shadow still shadows: the case-let
 // does not cover the discriminant, but the module-level const does - the shadow walk must
 // continue ABOVE the invisible case binding to the outer declaration instead of reporting
-// the name unbound (a raw-global rewrite would read the real global instead of the user's
-// own object). only the extraction wrapper is injected; the receiver text stays untouched
-const globalThis = { Array: { prototype: { at: 1, includes: 2 } } };
+// the name unbound. the slots are a STRING so the row says WHICH object was read: the user's
+// answers the string family, the real global would answer the array one
+const globalThis = { Array: { prototype: "abc" } };
 let yb = {};
 switch (globalThis.Array.prototype.at) {
   case 1:

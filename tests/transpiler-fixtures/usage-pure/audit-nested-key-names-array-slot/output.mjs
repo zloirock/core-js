@@ -6,6 +6,9 @@ import _sliceMaybeArray from "@core-js/pure/actual/array/instance/slice";
 import _sortMaybeArray from "@core-js/pure/actual/array/instance/sort";
 import _spliceMaybeArray from "@core-js/pure/actual/array/instance/splice";
 import _globalThis from "@core-js/pure/actual/global-this";
+import _entries from "@core-js/pure/actual/instance/entries";
+import _keys from "@core-js/pure/actual/instance/keys";
+import _values from "@core-js/pure/actual/instance/values";
 import _JSON$stringify from "@core-js/pure/actual/json/stringify";
 import _Map from "@core-js/pure/actual/map";
 import _Map2 from "@core-js/pure/actual/map/constructor";
@@ -21,6 +24,10 @@ import _Reflect$apply from "@core-js/pure/actual/reflect/apply";
 // an object-pattern key can name an array SLOT - the language reads property '0' off an array host,
 // so the walk to the receiver and the type resolver behind it must both read the element. one
 // canonical index read serves every spelling; the guards it already carried do the rejecting
+// throughout this file a BAIL is about the static name: a container the analysis cannot follow
+// (written, escaped, arriving as a parameter) binds no pure by name. a leaf whose name also has
+// an instance dispatcher still resolves that far, on the source's own read of the slot - it is
+// the sole-slot extraction, so the read happens exactly once and answers whatever the slot holds
 const spreadSrc = [[9]];
 const firstSlot = function () {
   const at = _atMaybeArray([1, 2]);
@@ -709,20 +716,12 @@ const conditionalSlotWrite = function (flag) {
     k: Object
   };
   if (flag) maybe.k = _Map;
-  const {
-    k: {
-      entries
-    }
-  } = maybe;
+  const entries = _entries(maybe.k);
   return entries;
 }(1);
-// a container arriving AS A PARAMETER is unknown - stays native
+// a container arriving AS A PARAMETER is unknown - no static name, only the dispatcher
 const parameterContainer = function (incoming) {
-  const {
-    k: {
-      values
-    }
-  } = incoming;
+  const values = _values(incoming.k);
   return values;
 }({
   k: Object
@@ -814,11 +813,7 @@ const readOnlyCalleeStillBails = function () {
     k: Object
   };
   onlyReads(readOnlyEscape);
-  const {
-    k: {
-      entries
-    }
-  } = readOnlyEscape;
+  const entries = _entries(readOnlyEscape.k);
   return entries;
 }();
 const selfMethodCallLeaksNothing = function () {
@@ -842,11 +837,7 @@ const escapedByAsyncCallee = function () {
     t.k = _Map;
   }
   void takeAsync(asyncEscape);
-  const {
-    k: {
-      keys
-    }
-  } = asyncEscape;
+  const keys = _keys(asyncEscape.k);
   return keys;
 }();
 const escapedThroughPromiseResolve = function () {
@@ -854,11 +845,7 @@ const escapedThroughPromiseResolve = function () {
     k: Object
   };
   void _Promise$resolve(awaitedBox);
-  const {
-    k: {
-      entries
-    }
-  } = awaitedBox;
+  const entries = _entries(awaitedBox.k);
   return entries;
 }();
 const repositionedByOptionalCall = function () {
@@ -955,11 +942,7 @@ const escapedByNew = function () {
     k: Object
   };
   void new TakerShape(newBox);
-  const {
-    k: {
-      entries
-    }
-  } = newBox;
+  const entries = _entries(newBox.k);
   return entries;
 }();
 const escapedByTemplateTag = function () {
@@ -971,11 +954,7 @@ const escapedByTemplateTag = function () {
     k: Object
   };
   void tagShape`x${tagBox}`;
-  const {
-    k: {
-      values
-    }
-  } = tagBox;
+  const values = _values(tagBox.k);
   return values;
 }();
 // a DYNAMIC write key deopts the whole container; the closure write is the escape family above
@@ -999,11 +978,7 @@ const closureWrite = function () {
     k: Object
   };
   poisonContainer(closed);
-  const {
-    k: {
-      entries
-    }
-  } = closed;
+  const entries = _entries(closed.k);
   return entries;
 }();
 export { memberSiblingEffectSurvives, memberOptionalHop, memberComputedStringKey, letReassignedAfterRead, escapedBySpread, escapedByNew, escapedByTemplateTag, escapedInsideArrayLiteral, escapedViaApplyArray, escapedInsideObjectValue, escapedByOptionalCall, escapedByAlias, escapedByWrapperLiteral, aliasLeakIsPairPrecise, branchEscapeBothArms, escapedByForOfHead, forInKeysLeakNothing, escapedByYieldedArgument, escapedByArrayPatternInit, escapedByObjectPatternInit, escapedByNestedPatternLiteral, escapedByThrow, switchDiscriminantLeaksNothing, memberChainReceiverStringKey, constBoundComputedInstanceKey, classInSlotStaysNative, nestedSeSlotKeepsEffect, nestedSlotEffects, containerWhollyReassigned, conditionalSlotWrite, parameterContainer, repositionedByFill, repositionedBySort, repositionedByOptionalCall, repositionedByBoundKey, varIndexOverBail, varIndexOnDataArray, configObjectIsNoContainer, readOnlyCalleeStillBails, selfMethodCallLeaksNothing, escapedByAsyncCallee, escapedThroughPromiseResolve, assignedViaObjectAssign, assignedViaDefineProperty, assignedViaLogicalWrite, deletedSlot, dynamicWriteKey, closureWrite, memberEffects, patternConcatDetaches, patternDynamicDetaches, foldedReadOnlyKeyStillResolves, repositionedByConcatKey, repositionedByDynamicKey, repositionedByDestructuredMethod, repositionedByStoredMethod, repositionedByDetachedCall, repositionedByReflectApply, detachedReadOnlyStillResolves, repositionedByUnshift, repositionedBySplice, repositionedByReverse, objectSlotReplaced, arraySlotReplaced, unrelatedKeyWritten, memberReadThroughSlot, memberReadThroughObjectKey, firstSlot, stringSpelling, laterSlot, overHole, overSpread, nonIndexName, nonCanonicalSpelling, outOfBounds, constructorSlot, constructorUnderObjectKey, patchedSlotStaysNative, patchedStringSpellingStaysNative, siblingEffectSurvives, objectSiblingEffectSurvives, twoLevelContainer, effects };

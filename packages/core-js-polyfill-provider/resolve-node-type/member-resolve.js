@@ -84,6 +84,9 @@ export function createMemberResolve({
   collectBindingReferences,
   resolveThisObject,
   resolveObjectFieldFlow,
+  walkObjectLiteralPropertyPath,
+  isGetterFreshLiteral,
+  isMemberLike,
   findAmbientClassPath,
   resolveArrayLiteralElement,
   findAllEnumDeclarations,
@@ -649,6 +652,22 @@ export function createMemberResolve({
     return chainMayShortCircuit(path) ? result.mark('mayBeNullish') : result;
   }
 
+  // the literal PATH a member spine names (`o.k0.k1` over `const o = { k0: { k1: X } } ` -> X's
+  // path), so a hop past the first resolves off the shape the source wrote. each hop asks the
+  // FLOW-aware slot read first: a null there is an observed or unknown writer, and walking the
+  // init past one would narrow to a value the runtime may not hold
+  function resolveMemberLiteralPath(memberPath, depth = 0) {
+    if (depth > MAX_DEPTH || !memberPath?.node || !isMemberLike(memberPath)) return null;
+    const key = resolveMemberPropertyName(memberPath);
+    if (key === null || key === undefined) return null;
+    const objectPath = resolveRuntimeExpression(memberPath.get('object'));
+    const base = t.isObjectExpression(objectPath.node)
+      ? objectPath : resolveMemberLiteralPath(objectPath, depth + 1);
+    if (!base || !t.isObjectExpression(base.node) || !resolveObjectFieldFlow(base, key)) return null;
+    const valuePath = walkObjectLiteralPropertyPath(base, key);
+    return valuePath?.node ? resolveRuntimeExpression(valuePath) : null;
+  }
+
   function resolveFromMemberExpressionInner(path, callPath) {
     const name = resolveMemberPropertyName(path);
     // empty-string keys (`obj[""]`) are valid static names - only a NULL result means the
@@ -674,7 +693,13 @@ export function createMemberResolve({
         if (result) return result;
       }
     }
-    if (t.isObjectExpression(objectPath.node)) {
+    // ... and an object that is itself a MEMBER (`o.k0.k1.at`) names the literal one hop further
+    // down: the spine folds to the value that hop reads, so the SECOND property hop resolves like
+    // the first. without it the receiver's type is lost past hop one, which costs both ways - an
+    // unknown type injects a single-family method's family even where the literal provably is not
+    // of it, and degrades a multi-family one to the generic dispatcher
+    const spine = t.isObjectExpression(objectPath.node) ? objectPath : resolveMemberLiteralPath(objectPath);
+    if (spine && t.isObjectExpression(spine.node)) {
       // resolveObjectFieldFlow is the flow-aware superset of resolveObjectMember: it delegates
       // method / getter / function-valued props to resolveObjectMember, but for a plain data
       // property it folds the init type with every reachable reassignment (`o.data = "s"`) and
@@ -682,7 +707,10 @@ export function createMemberResolve({
       // case. routing it FIRST (instead of resolveObjectMember, which returns the init type and
       // is blind to later reassignments) keeps the narrow sound; a null result means an unknown /
       // ambiguous writer set, so we do NOT fall back to the init-type-only path
-      const flowResult = resolveObjectFieldFlow(objectPath, name, callPath);
+      // ... and a literal a GETTER builds fresh per read is read off itself: the writer fold has no
+      // earlier caller to account for, and refusing there lost the type of every slot below a getter
+      const flowResult = resolveObjectFieldFlow(spine, name, callPath)
+        ?? (isGetterFreshLiteral(spine.node) ? resolveObjectMember(spine, name, callPath) : null);
       if (flowResult) return flowResult;
     }
     const ctx = resolveClassContext(objectPath);

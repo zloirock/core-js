@@ -1,6 +1,10 @@
 // an object-pattern key can name an array SLOT - the language reads property '0' off an array host,
 // so the walk to the receiver and the type resolver behind it must both read the element. one
 // canonical index read serves every spelling; the guards it already carried do the rejecting
+// throughout this file a BAIL is about the static name: a container the analysis cannot follow
+// (written, escaped, arriving as a parameter) binds no pure by name. a leaf whose name also has
+// an instance dispatcher still resolves that far, on the source's own read of the slot - it is
+// the sole-slot extraction, so the read happens exactly once and answers whatever the slot holds
 const spreadSrc = [[9]];
 const firstSlot = (function () {
   const { 0: { at } } = [[1, 2]];
@@ -422,7 +426,7 @@ const conditionalSlotWrite = (function (flag) {
   const { k: { entries } } = maybe;
   return entries;
 })(1);
-// a container arriving AS A PARAMETER is unknown - stays native
+// a container arriving AS A PARAMETER is unknown - no static name, only the dispatcher
 const parameterContainer = (function (incoming) {
   const { k: { values } } = incoming;
   return values;

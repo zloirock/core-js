@@ -1,5 +1,6 @@
-// nested destructure rooted in a user-owned local (`baz`) is NOT a proxy-global chain,
-// so no polyfill is injected. the receiver type is unknown - prototype-method dispatch
-// would be a guess; safe miss preferred over over-injection
+// nested destructure rooted in a user-owned local (`baz`) is no proxy-global chain, so nothing
+// resolves by NAME here - what resolves is the hop the source itself reads. the leaf level keeps a
+// sibling, so the shape flattens onto its twin (`{ at, bar } = baz.foo`) and the hop reads ONCE
+// into a memo the dispatch and the residual share
 const { foo: { at, bar } } = baz;
 at(1); bar();
