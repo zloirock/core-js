@@ -1,7 +1,6 @@
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-import _Symbol from "@core-js/pure/actual/symbol/constructor";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 // a bare same-name `var` redeclaration writes NO value, but the scope trackers record a
 // phantom violation for it in parser-specific shapes (babel: the valueless declarator;
@@ -98,7 +97,9 @@ for (const viaForInitDestructure = _Symbol$iterator === void 0 ? 0 : _Symbol$ite
 // head's own destructure never judges as a stable Symbol alias
 for (const {
   asyncIterator: viaForOfHead = 0
-} of [_Symbol]) {
+} of [{
+  asyncIterator: _Symbol$asyncIterator
+}]) {
   _pushMaybeArray(export_).call(export_, [][viaForOfHead]);
 }
 
