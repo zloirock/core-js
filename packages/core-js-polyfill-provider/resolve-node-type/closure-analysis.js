@@ -551,7 +551,13 @@ export function createClosureAnalysis({
   function classifyClosureRef(p) {
     const { parent } = p;
     if (parent?.type === 'VariableDeclarator' && parent.id === p.node) return null;
-    if (parent?.type === 'VariableDeclarator' && parent.init === p.node) return null;
+    // an init reference is an ALIAS - `const other = box` - and the alias's own refs are walked
+    // through the closure, so this slot adds nothing. a PATTERN id is not an alias though: it READS
+    // the fields right here, which is an observable use like any other read, and a write it does not
+    // bound is a write the fold silently drops (`box.y = 's'` before `const { y: { at } } = box`
+    // left the nested claim narrowed to the init's array while its flat twin went generic)
+    if (parent?.type === 'VariableDeclarator' && parent.init === p.node
+      && parent.id?.type === 'Identifier') return null;
     // type-only positions (`export type { X }` / `export { type X }`, `class implements
     // Foo<X>` heritage) are tsc-elided at runtime - the reference doesn't escape the module
     // so closure-narrow stays in scope. shared helper covers both declaration-level and

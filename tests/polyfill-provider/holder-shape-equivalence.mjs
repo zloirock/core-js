@@ -120,6 +120,7 @@ export const POSITIONS = [
   // binding the value to a name keeps it tracked: the name's own references are then classified
   // a TS cast is erased at runtime, so the value lands in the position that WRAPS the cast
   ['ts-as-cast', 'const held = (@) as Holder; held.read();', 'local'],
+  ['ts-non-null', 'const held = (@)!; held.read();', 'local'],
   ['ts-satisfies', 'const held = (@) satisfies Holder; held.read();', 'local'],
   ['declarator', 'const held = @; held.read();', 'local'],
   ['assign-identifier', 'let held; held = @; held.read();', 'local'],

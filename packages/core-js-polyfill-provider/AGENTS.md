@@ -63,6 +63,14 @@ function f({ Array: { from } } = { Array: { from: _Array$from } }) { /* ... */ }
 
 Only that slot fires exactly when no argument is passed, leaving a caller's own object to destructure natively. A leaf default (`{ from = _Array$from }`) cannot tell "no argument" from "an argument without that key" - `f({ Array: {} })` would get the polyfill where the source gives `undefined` - and a body extract ignores the caller outright. Those two are allowed only for a local function whose every call provably passes nothing, as decided by the resolver's existing call scan. Otherwise: replace the whole receiver, then extract, then the leaf default; an ambiguous receiver bails.
 
+## Predicates read through wrappers
+
+The two legs' parsers disagree about what reaches the tree: oxc keeps `ParenthesizedExpression`, babel drops it, and a TS assertion arrives only down the path that parsed as TS. So a predicate here answers differently about the SAME program depending on which leg asked whenever it tests a RAW node's `type`, navigates a fixed number of parents, or compares a peeled side against an unpeeled one. That is a divergence, not a spelling difference, and no fixture sees it - both legs print valid code and only their import sets differ. Peel first: `unwrapRuntimeExpr` for a node, `peelTransparentExprAncestorPath` for a climb. Never `unwrapExpressionChain` in a predicate weighing EFFECTS - it elides a sequence prefix along with the wrappers.
+
+## Output the next tool can lower
+
+The emitted code is not the end of the chain: a downgrade pass runs after it, and a shape that pass lowers wrong is a defect of ours even when the fault is upstream. The known class is a destructuring target binding NOTHING - a trailing husk beside one that binds, or a sole husk against a longer literal - which the standard destructuring transform miscompiles silently, losing a binding or a throw. So a residual this pipeline empties sheds its trailing husks, unless the whole residual is husk and its length is what pairs it positionally; `arrayWrapperResidualTrailingShed` is that canon. Neither the fixture gate nor the differential sees this class - they compare our output, never what the next tool makes of it - so a new residual shape is checked by lowering it and looking for a reference the output bound and the lowering left dangling.
+
 ## Layout
 
 - `index.js` - the package entry: the polyfill context and the `resolve` that turns a usage site into a meta from the built-in definitions
