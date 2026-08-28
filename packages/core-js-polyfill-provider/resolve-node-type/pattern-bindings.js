@@ -900,39 +900,52 @@ export function createPatternBindings({
     return node => restRebindFamily(node, name) === original;
   }
 
-  // an emitter that rewrites declarators IN PLACE and never re-crawls mid-traversal (babel;
-  // the unplugin drains at flush and cannot hit this) leaves a record whose declarator
-  // PROVABLY no longer binds the name: a
-  // pattern-valued extraction moves the name onto a new declarator and prunes the host to a
-  // sentinel. answering the structural question from that dead node reads as "unknown" and
-  // over-injects - `Object.keys` on such a binding loses its provably-non-primitive decline.
-  // re-find the live declarator among the host's own statements. the RECORD IS NOT TOUCHED: the
-  // alias / fold verdicts read it as evidence about the ORIGINAL declaration, and rewriting it there
-  // folds a conditionally-executed alias and drops live injections (both measured)
+  // a rewrite that moves a name onto a new declarator and prunes the host to a sentinel leaves a
+  // record whose declarator PROVABLY no longer binds that name - both legs reach this, the one
+  // mutating in place mid-traversal and the one draining at flush. answering the structural
+  // question from the dead node reads as "unknown" and over-injects (`Object.keys` on such a
+  // binding loses its provably-non-primitive decline) or, worse, reads the node's REMAINING shape
+  // and answers about the sentinel. re-find the live declarator in the list that now holds it. the
+  // RECORD IS NOT TOUCHED: the alias / fold verdicts read it as evidence about the ORIGINAL
+  // declaration, and rewriting it there folds a conditionally-executed alias and drops live
+  // injections (both measured)
   function liveBindingPath(binding, name) {
     const declared = binding.path;
-    // only a DECLARATOR-hosted record can go stale this way; a param / for-x / catch binding keeps
-    // its own node, so the recovery never runs for it
+    // only a DECLARATOR-hosted record can go stale this way - a param or catch binding keeps its
+    // own node. a for-x HEAD declarator is one of these, and the block below finds its live twin
     if (declared?.node?.type !== 'VariableDeclarator' || declaratorBindsName(declared.node, name)) return declared;
     let statement = declared.parentPath;
     if (statement?.parentPath?.node?.type === 'ExportNamedDeclaration') statement = statement.parentPath;
-    // scan the statement NODES and materialize a path only for the found declarator: a list-valued
-    // `path.get` builds a NodePath per element on every call, and this recovery runs per use over a
-    // list the emitter keeps rewriting, so going through paths here is quadratic in the block size.
+    // a for-x HEAD holds no statement list, so the scan below has nothing to walk - and an
+    // extraction moves the name into the loop BODY, which is the list that does hold it. without
+    // this the record stays the dead head declarator, whose id is the minted iteration name, and
+    // the binding reads as a DIRECT for-x binding: the rest of an iterated array resolves Array
+    const loopBody = findForLoopParent(declared)?.get('body');
+    if (loopBody?.node?.type === 'BlockStatement') {
+      return findLiveDeclarator(loopBody.node.body, index => loopBody.get('body')[index], name) ?? declared;
+    }
     // reading `container` assumes the main traversal - program-exit finalization replaces the
     // Program body array wholesale (import-injector), but no type query runs after it
     const body = statement?.container;
     if (!Array.isArray(body) || typeof statement.getSibling !== 'function') return declared;
-    for (let i = 0; i < body.length; i++) {
-      const viaExport = body[i]?.type === 'ExportNamedDeclaration';
-      const declaration = viaExport ? body[i].declaration : body[i];
+    return findLiveDeclarator(body, index => statement.getSibling(index), name) ?? declared;
+  }
+
+  // the declarator binding `name` in a statement list, or null. scans the NODES and materializes a
+  // path only for the one found: a list-valued `path.get` builds a NodePath per element on every
+  // call, and this recovery runs per use over a list the emitter keeps rewriting, so going through
+  // paths for the scan itself is quadratic in the block size
+  function findLiveDeclarator(statements, statementAt, name) {
+    for (let i = 0; i < statements.length; i++) {
+      const viaExport = statements[i]?.type === 'ExportNamedDeclaration';
+      const declaration = viaExport ? statements[i].declaration : statements[i];
       if (declaration?.type !== 'VariableDeclaration') continue;
-      const index = (declaration.declarations ?? []).findIndex(d => declaratorBindsName(d, name));
+      const index = (declaration.declarations ?? []).findIndex(item => declaratorBindsName(item, name));
       if (index === -1) continue;
-      const found = statement.getSibling(i);
+      const found = statementAt(i);
       return (viaExport ? found.get('declaration') : found).get('declarations')[index];
     }
-    return declared;
+    return null;
   }
 
   function resolveBindingType(path) {

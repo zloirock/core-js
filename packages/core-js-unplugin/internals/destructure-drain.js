@@ -26,9 +26,12 @@ import {
   patternKeepsEffectfulKey,
   arrayWrapperResidualDroppable,
   arrayWrapperResidualTrailingShed,
+  patternBindingCount,
   hasRealBinding,
   POSSIBLE_GLOBAL_OBJECTS,
   computedKeyHasSideEffects,
+  forOfHeadElements,
+  invalidateScopeVarIndex,
   isNonReferencePosition,
   isPristineProxyGlobal,
   isMutatedGlobalSlot,
@@ -1192,7 +1195,9 @@ export default function createDestructureDrains(ctx) {
         guardRefs.set(declJobs[0], injector.generateDeclaredRef(declJobs[0].metaPath));
       }
       refName = mintRefName();
-      statements.push(variableDeclaration(hostNode.kind, [variableDeclarator(identifier(refName), declarator.init)]));
+      // the memo binds nothing the source named and stands as a statement of its own, so it takes
+      // `const` - the host's kind belongs to the declarators that carry the source's own bindings
+      statements.push(variableDeclaration('const', [variableDeclarator(identifier(refName), declarator.init)]));
     } else if (!needsValue) {
       const consumedCtor = emitStaticMemoRescues({
         hostNode, declarator, declJobs, statements, exported, seqRescues, consumeProbe,
@@ -1267,8 +1272,11 @@ export default function createDestructureDrains(ctx) {
     // a claimed prop whose KEY carries an effect does NOT leave with its claim: the effect runs
     // where the source wrote it, so the prop stays and its binding retires to a sentinel - the
     // same shape the flat channel prints for such a key
+    // a REST in the leaf gathers what the pattern did not name, so the claim's key has to STAY there
+    // (renamed) to keep excluding itself - the same rule the flat channel spells one level up
+    const leafHasRest = job.leafPattern.properties.some(item => item.type !== 'Property');
     const kept = job.leafPattern.properties.filter(item => jobs.every(other => other.prop !== item)
-      || (item.type === 'Property' && computedKeyHasSideEffects(item)));
+      || leafHasRest || (item.type === 'Property' && computedKeyHasSideEffects(item)));
     for (const item of kept) {
       if (jobs.some(other => other.prop === item)) item.value = identifier(mintUnusedName());
     }
@@ -1417,18 +1425,62 @@ export default function createDestructureDrains(ctx) {
 
   function drainPositionalElement({ hostNode, body, at, jobs }) {
     const statements = [];
+    const residuals = [];
     for (const job of jobs) {
       if (!renamePositionalSlot(job)) continue;
       const declaration = hostNode.type === 'ExportNamedDeclaration' ? hostNode.declaration : hostNode;
-      statements.push(variableDeclaration(declaration.kind ?? job.declarationNode.kind,
-        [variableDeclarator(identifier(job.local), job.value)]));
+      const kind = declaration.kind ?? job.declarationNode.kind;
+      // a REST in the dropped pattern gathers what that pattern did not name, so the pattern itself
+      // survives - reading the minted name, with the claim's key renamed to a sentinel so it goes on
+      // excluding itself. renamed FIRST, so the count below sees what the residual really binds
+      job.prop.value = identifier(mintUnusedName());
+      job.prop.shorthand = false;
+      const residualBinds = patternBindingCount(job.slotNode) > 1;
+      // a hop between the element and the claim is read ONCE, into a memo both sides take: the
+      // dispatch's argument and the residual's root. re-emitting the element pattern instead would
+      // read every hop key a second time, running a getter the source runs once
+      // the OUTER levels bind their own slots, so each reads the value ITS level reads - the order
+      // the source's nesting spells, and the babel twin's own emission
+      const outer = (job.levels ?? []).slice(0, -1);
+      const outerBinds = outer.some(level => level.before.length || level.after.length);
+      const hopName = (residualBinds || outerBinds) && job.hopKeys?.length ? mintRefName() : null;
+      const trailing = [];
+      if (hopName && outerBinds) {
+        let root = job.refName;
+        for (const [index, level] of outer.entries()) {
+          if (level.before.length) {
+            statements.push(variableDeclaration(kind, [variableDeclarator(
+              { type: 'ObjectPattern', properties: level.before }, identifier(root))]));
+          }
+          const next = index === outer.length - 1 ? hopName : mintRefName();
+          statements.push(variableDeclaration(kind, [variableDeclarator(identifier(next),
+            memberFromKeyName(identifier(root), job.hopKeys[index]))]));
+          if (level.after.length) {
+            trailing.unshift(variableDeclaration(kind, [variableDeclarator(
+              { type: 'ObjectPattern', properties: level.after }, identifier(root))]));
+          }
+          root = next;
+        }
+      } else if (hopName) {
+        statements.push(variableDeclaration(kind, [variableDeclarator(identifier(hopName),
+          job.hopKeys.reduce(memberFromKeyName, identifier(job.refName)))]));
+      }
+      statements.push(variableDeclaration(kind, [variableDeclarator(identifier(job.local),
+        hopName ? { ...job.value, arguments: [identifier(hopName)] } : job.value)]));
+      // ... and the residual is NEVER export-wrapped: an exported host keeps its source names through
+      // the specifier list below, and exporting the residual too declares the same name twice
+      if (residualBinds) {
+        residuals.push(variableDeclaration(kind, [variableDeclarator(
+          hopName ? job.claimPatternNode : job.slotNode, identifier(hopName ?? job.refName))]));
+      }
+      residuals.push(...trailing);
     }
     if (!statements.length) return;
     // an exported host drops its wrapper: the extraction is what carries the export the source
     // wrote, and the residual declaration binds only the minted name
     if (jobs[0].exported) {
       const siblings = jobs[0].exportedSiblings ?? [];
-      body.splice(at, 1, jobs[0].declarationNode, ...statements.map(statement => exportWrap(statement, true)),
+      body.splice(at, 1, jobs[0].declarationNode, ...statements.map(statement => exportWrap(statement, true)), ...residuals,
         ...siblings.length ? [{
           type: 'ExportNamedDeclaration',
           declaration: null,
@@ -1440,7 +1492,7 @@ export default function createDestructureDrains(ctx) {
           source: null,
           attributes: [],
         }] : []);
-    } else body.splice(at + 1, 0, ...statements);
+    } else body.splice(at + 1, 0, ...statements, ...residuals);
     markRewrite(hostNode);
   }
 
@@ -2251,7 +2303,11 @@ export default function createDestructureDrains(ctx) {
         declarator,
         statements,
         declJobs: jobsByDeclarator.get(declarator) ?? [],
-        kind: hostNode.declarations.length > 1 ? 'const' : hostNode.kind,
+        // the memo binds nothing the source named, so it takes `const` wherever it stands alone. an
+        // SE-KEY group is the exception both legs share: there the memo joins the host's own
+        // declaration rather than standing apart, and a joined declarator carries that host's kind
+        kind: hostNode.declarations.length > 1 || declJobsHere.every(job => !job.seKey)
+          ? 'const' : hostNode.kind,
       });
       if (joinSeKeySiblingDeclarator({
         hostNode,
@@ -2794,6 +2850,8 @@ export default function createDestructureDrains(ctx) {
       resolvePure: m => resolvePure(m, path),
       walkNode: (root, visit) => walkAstNodes({ root, visit }),
       objectHint: toHint?.(elementType) ?? null,
+      iterableNode: path.node.right,
+      mirrorHosts: !!forOfHeadElements(path.get('left').get('declarations')[0]),
     });
     if (!plan) return;
     for (const prop of plan.unobservable) skippedNodes.add(prop);
@@ -2811,6 +2869,16 @@ export default function createDestructureDrains(ctx) {
     if (body.type !== 'BlockStatement') path.node.body = { type: 'BlockStatement', body: [body] };
     path.node.body.body.unshift(relocated);
     declarator.id = identifier(refName);
+    // the head now declares a MINTED name, and a `var` one hoists into an owner whose var index
+    // may already be built - drop it, or the relocated pattern reads a receiver with no writes
+    if (left.kind === 'var') invalidateScopeVarIndex(path);
+    // the head's minted binding is born mid-rewrite, and the relocated pattern is RE-DETECTED
+    // against it - but this leg's scope was built at parse and never saw it. a receiver no scope
+    // can name is a receiver whose STATICS are lost: the type stash above answers for instance
+    // members alone, and a constructor has no value-type to stash. the babel twin registers the
+    // same fact through its own scope
+    const [headDeclarator] = path.get('left').get('declarations');
+    path.scope?.registerBinding?.(left.kind, headDeclarator.get('id'), headDeclarator);
   }
 
   return {

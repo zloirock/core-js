@@ -66,7 +66,10 @@ import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-t
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors } from '@core-js/polyfill-provider/plugin-options/inject';
 import { createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options/usage-callback';
-import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  enumerateFallbackDestructureBranches,
+  renameSplitPropsToSentinels,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 import { isKnownGlobalName } from '@core-js/polyfill-provider/detect-usage/globals';
 import {
   isAliasProxyHopChain,
@@ -841,6 +844,23 @@ export default function plugin(api, options) {
       // the declarator's value, which is equivalent down to the throw - on a nullish receiver the raw
       // branch dereferences it exactly as the pattern would. sole-prop declarator shapes only; a
       // multi-prop pattern would need splitting, and a default / computed key has its own canon
+      // the RAW branch of a guarded read is a member this very rule would narrow again on re-entry -
+      // built and marked handled in one place, for the sole-prop render and every read of a split
+      function markedRawBranch(readPlan, key) {
+        const raw = t.memberExpression(t.cloneNode(readPlan.recvIdent), t.identifier(key));
+        t.traverseFast(raw, node => skippedNodes.add(node));
+        return raw;
+      }
+
+      // the residual the shared rename yields, in this leg's declarator - marked handled whole, since
+      // the source's own props are gone from it
+      function restResidualDeclarator(patternNode, plan) {
+        const id = renameSplitPropsToSentinels(patternNode, () => generateUnusedId().name);
+        const residual = t.variableDeclarator(id, t.cloneNode(plan.recvIdent));
+        t.traverseFast(residual, node => skippedNodes.add(node));
+        return residual;
+      }
+
       function emitGuardedDestructureNarrow(meta, prop) {
         const pattern = prop.parentPath;
         const host = pattern?.parentPath;
@@ -857,17 +877,37 @@ export default function plugin(api, options) {
           resolvePure,
         });
         if (!admitted) return false;
-        const { plan, bindingName, hostKind } = admitted;
-        // the raw branch is a member read this very rule would narrow again on re-entry - mark it
-        // handled, exactly as the member render does with the node it keeps
-        const rawBranch = t.memberExpression(t.cloneNode(plan.recvIdent), t.identifier(meta.key));
-        t.traverseFast(rawBranch, node => skippedNodes.add(node));
+        const { plan, split, restResidual, bindingName, hostKind } = admitted;
+        const rawBranch = markedRawBranch(plan, meta.key);
         const narrow = estreeToBabel(renderCtorIdentityNarrow(plan, hostSlot(rawBranch), {
           injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
           spellRecv: () => hostSlot(t.cloneNode(plan.recvIdent)),
         }));
         const value = plan.seqPrefix.length
           ? t.sequenceExpression([...plan.seqPrefix.map(expr => t.cloneNode(expr)), narrow]) : narrow;
+        // a MULTI-prop pattern becomes one read per prop, in source order, each taking its own guard:
+        // the plan answered for all of them, so nothing here waits on a later visit
+        if (split) {
+          const reads = split.map(item => estreeToBabel(renderCtorIdentityNarrow(item.plan,
+            hostSlot(markedRawBranch(item.plan, item.key)), {
+              injectImport: (entry, hintName) => injectPureImport(entry, hintName).name,
+              spellRecv: () => hostSlot(t.cloneNode(item.plan.recvIdent)),
+            })));
+          if (hostKind === 'declarator') {
+            const declaration = host.parentPath;
+            const at = declaration.node.declarations.indexOf(host.node);
+            declaration.node.declarations.splice(at, 1,
+              ...split.map((item, index) => t.variableDeclarator(t.identifier(item.name), reads[index])),
+              // the REST reads the same receiver BEHIND the reads, with every consumed key renamed
+              // to a sentinel so it still gathers exactly what the source left it
+              ...restResidual ? [restResidualDeclarator(pattern.node, plan)] : []);
+          } else {
+            const statement = peelParenAndTSSlotPath(host).parentPath;
+            statement.replaceWith(t.expressionStatement(t.sequenceExpression(
+              split.map((item, index) => t.assignmentExpression('=', t.identifier(item.name), reads[index])))));
+          }
+          return true;
+        }
         if (hostKind === 'declarator') {
           host.node.id = t.identifier(bindingName);
           host.node.init = value;
