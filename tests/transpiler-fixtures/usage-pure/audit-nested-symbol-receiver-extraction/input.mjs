@@ -20,7 +20,8 @@ function take(self) {
 const { whatever: { [Symbol.iterator]: viaMap } } = Map;
 export { take, viaMap };
 
-// NEGATIVE: a sibling binding keeps the pattern alive, so the leaf stays a key-swap
+// a sibling binding keeps the PATTERN alive, but not the hop: the leaf leaves and the emptied
+// hop prunes with it, so the sibling reads its own key and nothing reads `inner` twice
 const { inner: { [Symbol.iterator]: kept }, keep } = obj;
 // NEGATIVE: a computed hop key cannot be walked - the chain is unresolvable
 const { [k]: { [Symbol.iterator]: viaComputed } } = obj;

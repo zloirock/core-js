@@ -97,6 +97,7 @@ function isBindingDeclarationPath(p) {
   return false;
 }
 
+// eslint-disable-next-line max-statements -- factory of the binding / reference analysis
 export function createBindingAnalysis({
   getScopeBinding,
   t,
@@ -505,6 +506,25 @@ export function createBindingAnalysis({
   // object-shape value). class-binding closure swaps in `classBindingRefClassifier` which also
   // accepts `new ClassName()`, `class Sub extends ClassName`, `x instanceof ClassName` -
   // those uses don't escape the binding's value (the class) for static-state mutation purposes
+  // is this array-literal element read by a destructuring declarator that consumes the whole literal,
+  // and read as a PATTERN rather than bound to a name? a spread shifts what the slot matches, and a
+  // rest slot collects a slice - neither pairs the element with a knowable pattern
+  function wrapperDestructureReadsSlot(literalNode, refNode, refPath) {
+    // the literal may wear wrappers the source spelled, and only ONE leg's parser keeps a paren as
+    // a node: reading the declarator a FIXED number of hops up - and matching its init by IDENTITY -
+    // then answers 'leak' on that leg alone, which costs the read its narrow rather than its
+    // correctness (`const [{ y: { at } }, zn] = ([nb, eff()])` shipped the generic dispatcher)
+    const declarator = peelTransparentExprAncestorPath(refPath?.parentPath)?.parentPath?.node;
+    if (declarator?.type !== 'VariableDeclarator' || unwrapRuntimeExpr(declarator.init) !== literalNode
+      || declarator.id?.type !== 'ArrayPattern') return false;
+    if (literalNode.elements.some(item => item?.type === 'SpreadElement')) return false;
+    const index = literalNode.elements.indexOf(refNode);
+    if (index === -1) return false;
+    let slot = declarator.id.elements[index];
+    if (slot?.type === 'AssignmentPattern') slot = slot.left;
+    return slot?.type === 'ObjectPattern' || slot?.type === 'ArrayPattern';
+  }
+
   function defaultAliasRefClassifier(parent, refNode, refPath) {
     // a dynamic computed-key write is an unenumerable mutation channel - leak before the
     // member-receiver shortcut would otherwise treat it as trivial
@@ -519,13 +539,22 @@ export function createBindingAnalysis({
     // the closure keeps tracking it. an assignment ALSO forwards the value on from its own position
     // (`sink(b = a)` hands it to sink), so that position has to consume it for the alias to hold
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode && aliasTargetName(parent)) return 'alias';
+    // ... asked at the assignment's OWN position, reached through the wrappers the source spelled:
+    // only one leg's parser keeps a paren as a node, and fixed hops land on it there - the position
+    // then reads as a hand-out, the alias is refused, and the value looks leaked on that leg alone
+    const assignHost = peelTransparentExprAncestorPath(refPath?.parentPath);
     if (parent?.type === 'AssignmentExpression' && parent.right === refNode && aliasTargetName(parent)
-      && positionDisposition(refPath?.parentPath?.parent, parent, refPath?.parentPath?.parentPath) === POSITION_CONSUMES) return 'alias';
+      && positionDisposition(assignHost?.parent, parent, assignHost?.parentPath) === POSITION_CONSUMES) return 'alias';
     // VariableDeclarator destructure init `const {x} = o` / `const [x] = o` - destructure
     // only reads named/indexed properties off `o`, no mutation channel. equivalent to a
     // bag of `o.x` / `o[N]` member-receiver reads
     if (parent?.type === 'VariableDeclarator' && parent.init === refNode
       && isDestructurePattern(parent.id)) return 'trivial';
+    // ... and the same read one WRAPPER deep (`const [{ x }] = [o]`): the literal is built only to be
+    // destructured, so nothing downstream reaches `o` through it. the matching pattern slot decides:
+    // a nested PATTERN reads properties off it like the direct form, while a bare name would bind the
+    // value itself and keep today's verdict
+    if (parent?.type === 'ArrayExpression' && wrapperDestructureReadsSlot(parent, refNode, refPath)) return 'trivial';
     // the shared position enumeration: a value this reference names is evaluated here and nothing
     // downstream can reach it - a `for...in` head among them, since it only enumerates keys. this walk
     // cannot follow a FORWARDS into a container, so anything but CONSUMES falls through to the rules
@@ -831,6 +860,39 @@ export function createBindingAnalysis({
   // a HELD slot read (`sink(a[i])` / `sink(o.wrap)`) aliases it out. a reference that does NOT follow the slot
   // path could still expose the whole carrier - iteration, spread, a destructure, a method call on the
   // binding; a structural read / a DIFFERENT field doesn't reach the anon, so the shared default decides
+  // does a DESTRUCTURING read of the carrier reach the anon ITSELF? the pattern is walked along the
+  // slot path: the level that BINDS A NAME there hands the anon out (`const { wrap } = o` - then
+  // `wrap.f = ...` writes the very slot a narrow would rest on), while a level that descends further
+  // reads THROUGH it and binds a FIELD's value, which no write can route back to the slot. an
+  // untrackable key or a rest at or above that level could name it either way, so those stay a reach
+  function destructureReachesAnon(pattern, fieldPath, level = 0) {
+    while (pattern?.type === 'ParenthesizedExpression' || pattern?.type === 'AssignmentPattern') {
+      pattern = pattern.type === 'ParenthesizedExpression' ? pattern.expression : pattern.left;
+    }
+    if (!pattern) return false;
+    // at the anon's own level a nested pattern reads through it; anything else binds it
+    if (level === fieldPath.length) return pattern.type !== 'ObjectPattern' && pattern.type !== 'ArrayPattern';
+    const step = fieldPath[level];
+    if (pattern.type === 'ObjectPattern') {
+      return (pattern.properties ?? []).some(item => {
+        if (item.type === 'RestElement' || item.type === 'SpreadElement') return true;
+        const key = item.computed ? null : propertyKeyName(item);
+        if (key === null || key === undefined) return true;
+        // an ARRAY slot is read by its index key, which a pattern spells as a string - compare
+        // conservatively there rather than by identity
+        if (!step.index && key !== step.key) return false;
+        return destructureReachesAnon(item.value, fieldPath, level + 1);
+      });
+    }
+    if (pattern.type === 'ArrayPattern') {
+      return (pattern.elements ?? []).some(item => item
+        && (item.type === 'RestElement' || item.type === 'SpreadElement'
+          || destructureReachesAnon(item, fieldPath, level + 1)));
+    }
+    // a bare name or a member target ABOVE the anon's level takes the whole carrier with it
+    return true;
+  }
+
   function makeNestedAnonAliasRefClassifier(fieldPath, methodInfo) {
     return function (parent, refNode, refPath) {
       let access = refPath;
@@ -878,7 +940,7 @@ export function createBindingAnalysis({
       if (isForXStatement(parent) && parent.right === refNode) return 'leak';
       if (parent?.type === 'SpreadElement') return 'leak';
       if (parent?.type === 'VariableDeclarator' && parent.init === refNode
-        && isDestructurePattern(parent.id)) return 'leak';
+        && isDestructurePattern(parent.id) && destructureReachesAnon(parent.id, fieldPath)) return 'leak';
       if (isMemberRefReceiver(parent, refNode)) {
         const memberOuter = peelTransparentExprAncestorPath(refPath?.parentPath);
         const use = memberOuter?.parentPath?.node;

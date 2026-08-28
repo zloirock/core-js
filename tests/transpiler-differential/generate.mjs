@@ -21,6 +21,33 @@ const PRELUDE = [
   'const nrm = () => globalThis;',
   // the chain-assign carrier: a kept write needs a real binding to store into
   'let kw;',
+  // the nested claim over a BOUND receiver dispatches on the hop the source itself reads, so the
+  // hop is a GETTER here: every read of `nb.y` logs, and an extraction that owns the read owes
+  // exactly one entry where the source has one - a residual spelling the hop again shows as two
+  'const nb = { get y() { log.push("y"); return [3, [1, 2]]; }, keep: 1 };',
+  // ... and its HELD twin: a container something else can reach is one whose slots a writer may
+  // replace, so a claim reading through it takes the generic dispatcher - the same answer the bare
+  // member spelling of that slot gives. the axis is what keeps the two spellings answering alike
+  'const nbHeld = { y: [3, [1, 2]] };',
+  'const holdNb = () => nbHeld;',
+  // ... and a TWO-hop chain of the same kind: the ownership walk takes any number of plain hops,
+  // while the flatten normalization takes exactly one - past it the two legs read the flattened
+  // receiver's TYPE differently. both hops log, so a route that reads either twice shows it
+  'const nb2 = { get a() { log.push("a"); return { get b() { log.push("b"); return [3, [1, 2]]; } }; } };',
+  // a container whose slot is WRITTEN with another family: every spelling that reads it must fold
+  // both and answer neither, and the row's method has to be one several types carry or the loss
+  // reads identical. the write stands BEFORE the reads, which is what bounds it into the fold
+  'const nbWritten = { y: [1, [2]] };',
+  'nbWritten.y = "str";',
+  // ... and the neighbour of that write where the temporal bound branches: a write inside a
+  // FUNCTION runs whenever that function does, so it folds whatever its source position says
+  'const nbWriteInFn = { y: [1, [2]] };',
+  'const poisonNb = () => { nbWriteInFn.y = "str"; };',
+  // the ALIAS-write neighbour is NOT here on purpose: a `const al = o; al.y = 2;` anywhere in the
+  // module makes one leg fold an unrelated computed key-alias whose key is reassigned in a loop
+  // (`Array[k]`), which is a wrong VALUE, not a lost narrow - the row that catches it is
+  // `assign-alias-reassign/loop-test-alias-rerun`, and re-adding these two lines is its fail-before.
+  // its root is the anchor/dominance cluster the queue already owns, not this family
 ];
 
 // absolute URL: the harness materializes snippets in a tmp dir, so a relative specifier
@@ -151,6 +178,51 @@ const D_PATTERNS = [
   { id: 'alias', recv: 'Array', lhs: '{ from: f }', names: ['f'], observe: 'typeof f', strip: true },
   { id: 'multi', recv: 'Array', lhs: '{ from, of }', names: ['from', 'of'], observe: '[typeof from, typeof of]', strip: true },
   { id: 'rest', recv: 'Array', lhs: '{ from, ...rest }', names: ['from', 'rest'], observe: 'typeof from', strip: true },
+  // a receiver that carries a CLAIM OF ITS OWN: the extraction spells that receiver, and a copy of
+  // it taken before its own step rendered ships the source read with the polyfill lost. the axis is
+  // the SPELLING channel, so it belongs beside the plain receivers rather than in a type family
+  { id: 'receiver-carries-claim', recv: 'arr.flat()', lhs: '{ at: rc }',
+    names: ['rc'], observe: 'typeof rc', strip: false },
+  // ... and the same shape with an OBSERVABLE evaluation: a leg that keeps the residual beside the
+  // dispatch reads the receiver TWICE, which shows as a duplicated log entry rather than a wrong
+  // value - the pure `arr.flat()` above reads the same both times and cannot show it
+  // the LOG is this row's oracle, not the injection: a receiver spelling its own effect is declined
+  // wherever that effect cannot be spelled exactly once, so the stripped leg would only re-ask a
+  // question both legs answer "declined, by design"
+  { id: 'carried-flat-effect', recv: '(log.push("f"), arr).flat()', lhs: '{ at: cf }',
+    names: ['cf'], observe: 'typeof cf', strip: false },
+  // ... and the same call one level IN: the slot of a literal init, whose every other part is
+  // effect-free. the residual that would re-read it is dropped, so the effect runs ONCE - which is
+  // what the log observes, and what a leg keeping that residual would double
+  { id: 'carried-init-slot', recv: '{ y: (log.push("c"), arr) }', lhs: '{ y: { at: ci } }',
+    names: ['ci'], observe: 'typeof ci', strip: false },
+  // ... and the same slot spelled as an observable READ rather than a sequence: the sequence form
+  // declines (a claim inside it lifts its prefix into the residual), so a plain read is what
+  // actually reaches the carry - and every host drops its residual by a route of its own, one of
+  // which kept re-evaluating the init beside the dispatch
+  { id: 'carried-init-read-slot', recv: '{ y: nb.y }', lhs: '{ y: { at: cr } }',
+    names: ['cr'], observe: 'typeof cr', strip: false },
+  // ... and a receiver whose OWN claim renders INSIDE it, with a REST keeping the residual reading
+  // it: the memo the two share has to hold what the tree holds AFTER that render, not the copy the
+  // plan captured - a stranded memo read the receiver a second time
+  { id: 'claim-inside-shared-memo', recv: 'nb.y.slice()', lhs: '{ at: cm, ...cmr }',
+    names: ['cm', 'cmr'], observe: '[typeof cm, Object.keys(cmr).length]', strip: false },
+  // ... and its DEFAULTED twin: the guard a default owes wraps the dispatch, so the receiver is
+  // spelled through the same channel - a route reading the copy captured before the inner claim
+  // rendered ships that receiver with its own step lost, which only the STRIPPED leg can see
+  { id: 'claim-inside-defaulted-leaf', recv: 'arr.flat()', lhs: '{ at: cdl = nul }',
+    names: ['cdl'], observe: 'cdl === null ? "DEFAULT" : typeof cdl', strip: true },
+  // a MULTI-prop INSTANCE consume: several dispatches and any surviving residual read ONE receiver,
+  // which the drain memoizes. the axis is the HOST, since a bodyless slot has no statement list and
+  // must open a block for that memo
+  { id: 'instance-multi-prop', recv: 'arr.flat()', lhs: '{ at: imp, length: impLen }',
+    names: ['imp', 'impLen'], observe: '[typeof imp, impLen]', strip: true },
+  // ... and its INSTANCE twin over a receiver nothing can RE-READ: the rest re-reads it past the
+  // renamed key, so the two readers need one memo - and the routes that mint one are not the same
+  // as the static rest's. the literal is built inside the snippet, so counting its keys is a fact
+  // about this snippet alone
+  { id: 'rest-instance-literal', recv: '[3, [1, 2]]', lhs: '{ at: ra, ...rrest }',
+    names: ['ra', 'rrest'], observe: '[typeof ra, Object.keys(rrest).length]', strip: false },
   { id: 'object', recv: 'Object', lhs: '{ fromEntries }', names: ['fromEntries'], observe: 'typeof fromEntries', strip: true },
   { id: 'nested-proxy', recv: 'globalThis', lhs: '{ Array: { from } }', names: ['from'], observe: 'typeof from', strip: true },
   // the receiver spine wearing the optional-chain MARKER: on ESTree it is a node the extraction
@@ -232,6 +304,108 @@ const D_PATTERNS = [
   { id: 'nested-instance-lit', recv: '{ y: [3, [1, 2]] }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
   { id: 'nested-instance-ident', recv: '{ y: arr }', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
   { id: 'nested-instance-sibling', recv: '{ a: log.push("e"), y: [3, [1, 2]] }', lhs: '{ a, y: { flat: m } }', names: ['a', 'm'], observe: '[a, typeof m]', strip: true },
+  // ... and the same shape over a BOUND receiver, where the hop is a GETTER: the claim resolves
+  // through the receiver's own TYPE, so the dispatch reads `nb.y` - the read the source performs,
+  // and the log says how many times. the extraction is sound only where it OWNS that read, so the
+  // rows enumerate what else can read the same hop, each pinning the read count in `effects`:
+  //   - a HOST sibling (`{ y: { flat: m }, keep }`) - the emptied hop prunes out of the residual,
+  //     so the sibling reads its own key and nothing reads the hop twice
+  //   - a sibling INSIDE the nested pattern (`{ y: { flat: m, length: len } }`) - the hop survives
+  //     for `len`, and the shape normalizes onto its flat twin so both read one memo
+  //   - a DEFAULT between the leaf and the host - what runs when the slot is undefined is the
+  //     default, and the dispatch folds BOTH arms through the instance guard. the STRIPPED leg is
+  //     what makes this row bite: a rewrite that polyfilled the default alone leaves the live arm
+  //     reading the raw hop, which the full environment answers correctly and the stripped one does not
+  { id: 'nested-instance-binding', recv: 'nb', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-host-sibling', recv: 'nb', lhs: '{ y: { flat: m }, keep }', names: ['m', 'keep'], observe: '[typeof m, keep]', strip: true },
+  // TWO hops: the ownership walk spells them all, so a sole claim dispatches off `nb2.a.b` and each
+  // hop logs once - the row is what keeps that walk from quietly narrowing back to one
+  { id: 'nested-instance-two-hop', recv: 'nb2', lhs: '{ a: { b: { flat: m } } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-two-hop-sibling', recv: 'nb2', lhs: '{ a: { b: { flat: m, length: len } } }', names: ['m', 'len'], observe: '[typeof m, len]', strip: true },
+  // TWO claims in one leaf take it WHOLE: the residual then binds nothing and leaves with the
+  // pattern, and the memo alone carries the read - the arm the one-claim rows never reach
+  // TWO claims that differ in what their receiver's type BUYS them: `at` exists on String too, so a
+  // receiver resolved to Array narrows it (`_atMaybeArray`) and an unresolved one falls back to the
+  // generic dispatcher - which makes this row the one that sees a type LOST across a memo, where a
+  // row whose methods are array-only would answer the same either way
+  // ... and the SAME routes with a discriminating method instead of an array-only one: `flat` and
+  // its kin answer `_flatMaybeArray` whatever the receiver resolved to, so a route that LOSES the
+  // type reads identical there. `at` lives on String too, so the answer differs - which is what
+  // makes these rows the family's type oracle rather than its shape oracle
+  // the WRITTEN slot: the nested spelling used to keep the init's narrow where its flat twin
+  // folded the write in, so the row claims `at` (String carries it too) off both spellings
+  { id: 'nested-instance-written-slot', recv: 'nbWritten', lhs: '{ y: { at: a } }', names: ['a'], observe: 'typeof a', strip: false },
+  { id: 'nested-instance-write-in-fn', recv: 'nbWriteInFn', lhs: '{ y: { at: a } }', names: ['a'], observe: 'typeof a', strip: false },
+  { id: 'nested-instance-typed-sole', recv: 'nb', lhs: '{ y: { at: a } }', names: ['a'], observe: 'typeof a', strip: true },
+  { id: 'nested-instance-typed-host-sibling', recv: 'nb', lhs: '{ y: { at: a }, keep }', names: ['a', 'keep'], observe: '[typeof a, keep]', strip: true },
+  // ... and its REST twin reaches the WRAPPER hosts through the same hop rename: a rest above the hop
+  // keeps the hop's key in the pattern, so what leaves is the hop's VALUE, renamed to the binding the
+  // dispatch reads (`[{ y: _ref, ...rest }] = [nb]`) - the wrapper is that host one literal out
+  { id: 'nested-instance-typed-host-rest', recv: 'nb', lhs: '{ y: { at: a }, ...rest }', names: ['a', 'rest'], observe: '[typeof a, rest.keep]', strip: true },
+  { id: 'nested-instance-typed-slot-default', recv: 'nb', lhs: '{ y: { at: a } = [7] }', names: ['a'], observe: 'typeof a', strip: true },
+  { id: 'nested-instance-leaf-typed-pair',
+    recv: 'nb',
+    lhs: '{ y: { at: a, findLast: f } }',
+    names: ['a', 'f'],
+    observe: '[typeof a, typeof f]',
+    strip: true },
+  { id: 'nested-instance-leaf-two-claims',
+    recv: 'nb',
+    lhs: '{ y: { flat: m, at: a } }',
+    names: ['m', 'a'],
+    observe: '[typeof m, typeof a]',
+    strip: true },
+  // the claim's own KEY, spelled the two ways a pattern may spell it: a constant computed key folds
+  // to the same slot as the bare one, and an SE key runs where the source runs it - the `log` order
+  // is the assertion, since the hop read and the key effect are two events the routes may reorder
+  { id: 'nested-instance-computed-claim', recv: 'nb', lhs: "{ y: { ['flat']: m } }", names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-se-key-claim',
+    recv: 'nb',
+    lhs: '{ y: { [(log.push("k"), "flat")]: m } }',
+    names: ['m'],
+    observe: 'typeof m',
+    strip: true },
+  // a REST sibling keeps the hop in the pattern - it is what excludes that key from rest - so the
+  // hop's VALUE takes the minted name and the dispatch reads it: one read, the key still excluding
+  // itself, `rest` observed by a NAMED key since a count over a shared receiver reports chunk order
+  { id: 'nested-instance-host-rest',
+    recv: 'nb',
+    lhs: '{ y: { flat: m }, ...rest }',
+    names: ['m', 'rest'],
+    observe: '[typeof m, rest.keep]',
+    strip: true },
+  // one shape of this family is EXCLUDED as a row, and it is a gap in the product rather than a
+  // corpus shortfall - both emitters leave the claim native, so only the stripped leg sees it, and
+  // re-adding the row here is the gap's own fail-before:
+  //   `{ y: { flat: m, ...rest } }` - rest inside the LEAF cannot travel to the flat twin
+  { id: 'nested-instance-leaf-sibling',
+    recv: 'nb',
+    lhs: '{ y: { flat: m, length: len } }',
+    names: ['m', 'len'],
+    observe: '[typeof m, len]',
+    strip: true },
+  { id: 'nested-instance-slot-default', recv: 'nb', lhs: '{ y: { flat: m } = [7] }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-slot-default-absent', recv: '{ q: 1 }', lhs: '{ y: { flat: m } = [7] }', names: ['m'], observe: 'typeof m', strip: true },
+  // ... and the same slot default where the OUTER hop is itself a claim: the receiver's own type
+  // dispatches it, so nothing but that dispatch answers the outer step and the two COMPOSE - the hop
+  // feeds the leaf, and the default fires only where the source fires it. every other slot-default
+  // row above hops through a plain USER key, where the source's own read answers the outer step, so
+  // the arm a leg mirrors into is invisible to them. both hop kinds are here: an instance method of
+  // the receiver's type, and a static of the constructor the receiver names
+  { id: 'typed-outer-hop-slot-default', recv: 'arr', lhs: '{ flat: { at: a } = [] }',
+    names: ['a'], observe: 'typeof a', strip: false },
+  { id: 'static-outer-hop-slot-default', recv: 'Array', lhs: '{ from: { name: nm } = {} }',
+    names: ['nm'], observe: 'typeof nm', strip: false },
+  // ... and the FLAT defaulted leaf over a receiver nothing can RE-READ: the consume spells the
+  // literal once and the guard decides off the dispatcher's own answer, where a leg that demands a
+  // re-readable token for the guard has no route and ships the destructure native
+  { id: 'flat-defaulted-literal-recv', recv: '[3, [1, 2]]', lhs: '{ at: m = nul }',
+    names: ['m'], observe: 'typeof m', strip: false },
+  // the HELD container: the claim resolves through a slot a holder could replace, so it dispatches
+  // generically - and its flat twin (`{ flat: m } = nbHeld.y`) answers the same, which is the pair
+  // the row exists to keep together
+  { id: 'nested-instance-held', recv: 'nbHeld', lhs: '{ y: { flat: m } }', names: ['m'], observe: 'typeof m', strip: true },
+  { id: 'nested-instance-held-flat', recv: 'nbHeld.y', lhs: '{ flat: m }', names: ['m'], observe: 'typeof m', strip: true },
   // SE-key off a side-effect-free MEMBER receiver: a surviving residual memoizes the receiver
   // (`_ref` read once - getter-safe) and the polyfill lands; a sole binding extracts off the single
   // read. the stripped leg is the seed-bug oracle: a bail leaves the binding native ('undefined')
@@ -294,6 +468,12 @@ const D_HOSTS = [
     build: p => `(() => { let ${ p.names.join(', ') }; if (log.length < 0) (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
   { id: 'assign-bodyless-taken', strip: false,
     build: p => `(() => { let ${ p.names.join(', ') }; if (log.length >= 0) (${ p.lhs } = ${ p.recv }); return ${ p.observe }; })()` },
+  // the assignment DISCARDED as a NON-TAIL element of a sequence: nothing reads its value, so the
+  // position is as free as a statement's and what a leg may do here is what it may do there. it is
+  // NOT a statement though - the rewrite has to land in the element slot, and a leg that reaches
+  // for the enclosing statement drops whatever the sequence held after it
+  { id: 'assign-discarded-seq', strip: false,
+    build: p => `(() => { let ${ p.names.join(', ') }; const zd = ((${ p.lhs } = ${ p.recv }), 7); return [zd, ${ p.observe }]; })()` },
   // bodyless control-body declaration hosts: a polyfill extract emitted before the surviving residual must
   // share the body's `{ }` block with it. `var` is required (a bodyless body cannot host a lexical
   // declaration); `if (1)` / `while (0)` run the body once so the binding is assigned. without the block a
@@ -338,6 +518,17 @@ const D_HOSTS = [
     build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], zTail = 1; return [zTail, ${ p.observe }]; })()` },
   { id: 'array-wrap-twin-declarators', strip: true,
     build: p => `(() => { const [${ p.lhs }] = [${ p.recv }], [{ at: zAt }] = [[1, 2]]; return [typeof zAt, ${ p.observe }]; })()` },
+  // the POSITIONAL element claim (an array pattern element renamed to a minted binding) is fixture
+  // work, not an axis here: every host in this table wraps the pattern in a literal of its own, and
+  // over a literal the PAIRING routes own the element - so the axis would only ever measure their
+  // decline. `usage-pure/audit-positional-element-slot` carries the shapes instead, byte-locked on
+  // both legs: the sole slot, hops below it, a neighbour, a spread ahead of it, the bodyless slot,
+  // the loop head, the catch param, both export shapes, and the assignment host that stays native
+  // the CATCH parameter takes a nested claim now (the relocation gives it the declaration host its
+  // route needs), but it is NOT a row of this table: the cross-product would hand it every receiver
+  // the family carries, and `throw globalThis` / `throw <proxy nav>` is a different claim in a
+  // different place - 40 cells red for reasons that are not this host's. the cell is locked in
+  // `usage-pure/audit-catch-extraction-gate` instead, beside its in-place leaf-sibling twin
   // the array wrapper x CATCH parameter and x FOR-OF head are EXCLUDED, not forgotten:
   // `catch ([{ at }])` / `for (const [{ from }] of [[Array]])` leave the claim native on BOTH legs,
   // where the flat catch twin (`catch ({ at })`) extracts. the wrapper element there is not a
@@ -351,6 +542,9 @@ const D_HOSTS = [
 function * generateDestructure() {
   for (const host of D_HOSTS) {
     for (const pat of D_PATTERNS) {
+      // a row may name the hosts it does NOT cover: a cell both emitters leave native is a gap in
+      // the product, and the corpus records it beside the row rather than carrying a standing red
+      if (pat.skipHosts?.includes(host.id)) continue;
       const name = `destructure-grammar/${ host.id }/${ pat.id }`;
       yield { ...snippet(name, host.build(pat)), strip: host.strip && pat.strip };
     }
@@ -421,12 +615,6 @@ function * generateReceiverBearingDefault() {
         // the parameter host takes its outer object as the CALLER argument, which the row cannot pass
         // through the shared builder - its own default already stands in for the absent arm
         if (host.own && arm === 'present') continue;
-        // instance receiver x for-of head is EXCLUDED, not forgotten: no emitter extracts an
-        // instance method in a for-x head at all - the binding is per-iteration, so the extraction
-        // would have to land inside the body rather than in a declarator slot. the flat twin
-        // (`for (const { at } of [arr])`) declines identically, so the gap predates this axis; it is
-        // filed in the area queue with that repro. every other host x receiver cell is crossed
-        if (recv.id === 'instance' && host.id === 'for-of') continue;
         const body = `${ host.build(pat, outer, recv.key) } return ${ recv.observe }; ${ host.close ?? '' }`;
         const expr = `(() => { const flag = true; ${ body } })()`;
         yield { ...snippet(`receiver-bearing-default/${ arm }/${ recv.id }/${ host.id }`, expr),

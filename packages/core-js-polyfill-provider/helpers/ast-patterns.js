@@ -3484,6 +3484,42 @@ export function assignmentInStatementPosition(assignPath) {
   return peelParenAndTSParentPath(assignPath)?.node?.type === 'ExpressionStatement';
 }
 
+// ... and the OTHER position that discards it: an element of a sequence nobody reads. a NON-TAIL
+// element is discarded outright; the TAIL yields the sequence's own value, so it is discarded
+// exactly when the sequence is - which is why this climbs instead of answering for one slot.
+// transparent wrappers climb with it, exactly as they do above
+export function discardedSequenceElement(path) {
+  let cur = path;
+  for (let up = cur?.parentPath; up?.node; up = cur.parentPath) {
+    const { type } = up.node;
+    if (type === 'SequenceExpression') {
+      if (up.node.expressions.at(-1) !== cur.node) return true;
+    } else if (type !== 'ParenthesizedExpression' && !TS_EXPR_WRAPPERS.has(type)) return false;
+    cur = up;
+  }
+  return false;
+}
+
+// ... and the SLOT such a rewrite owns: the node peeled up to the sequence that holds it, wrappers
+// included. a different question from the one above - the discard may be decided several sequences
+// out, while what a render may replace is only its own element
+export function discardedSequenceElementPath(path) {
+  if (!discardedSequenceElement(path)) return null;
+  let cur = path;
+  for (let up = cur?.parentPath; up?.node; up = cur.parentPath) {
+    if (up.node.type === 'SequenceExpression') return cur;
+    cur = up;
+  }
+  return null;
+}
+
+// the two together: does ANYTHING read what this assignment yields? a position that discards the
+// value is as free for a rewrite as any other that does - which of the two it is only decides
+// WHERE the rewrite lands, and that is the emitter's question, not this one
+export function assignmentValueDiscarded(assignPath) {
+  return assignmentInStatementPosition(assignPath) || discardedSequenceElement(assignPath);
+}
+
 // statement-hosted assignment-destructure resolver: returns the {ExpressionStatement path,
 // SE-prefix exprs} pair the cascade emitter needs. AssignmentExpression is accepted ONLY
 // when the surrounding context is an ExpressionStatement (value is discarded - safe to
@@ -4713,14 +4749,26 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
 // own param, so a declaration off any other value is not mistaken for one. returns the body to scan
 // and the declaration to EXCLUDE from it - the relocated declaration's own binding occurrence would
 // otherwise read as a reference and make every prop look observable
-export function relocatedCatchPattern(declaratorPath) {
+export function relocatedHostPattern(declaratorPath) {
   if (declaratorPath?.node?.type !== 'VariableDeclarator') return null;
   const declaration = declaratorPath.parentPath;
-  const clause = declaration?.parentPath?.parentPath;
-  if (clause?.node?.type !== 'CatchClause' || clause.node.param?.type !== 'Identifier') return null;
+  const host = declaration?.parentPath?.parentPath;
   const { init } = declaratorPath.node;
-  if (init?.type !== 'Identifier' || init.name !== clause.node.param.name) return null;
-  return { body: clause.node.body, skip: declaration.node };
+  if (init?.type !== 'Identifier') return null;
+  if (host?.node?.type === 'CatchClause') {
+    return host.node.param?.type === 'Identifier' && init.name === host.node.param.name
+      ? { body: host.node.body, skip: declaration.node } : null;
+  }
+  // ... and the LOOP HEAD's relocation is the same shape one host over: the head binds the minted
+  // name and the pattern is the body's first statement, so a claim under it reads the same way
+  if (host?.node?.type === 'ForOfStatement' || host?.node?.type === 'ForInStatement') {
+    const { left } = host.node;
+    const loopId = left?.type === 'VariableDeclaration' && left.declarations?.length === 1
+      ? left.declarations[0].id : null;
+    return loopId?.type === 'Identifier' && init.name === loopId.name
+      ? { body: host.node.body, skip: declaration.node } : null;
+  }
+  return null;
 }
 
 // is a catch-hosted prop's `_ref`-bound rewrite OBSERVABLE? it costs an import and a dispatcher
@@ -4750,7 +4798,7 @@ export function catchPropRewriteObservable({ propNode, patternNode, bodyNode, lo
 // the scan - its own binding occurrence would read as a reference. `walkNode(stmt, visit)`
 // walks ONE statement subtree with parents; that injection is all the emitters differ by
 export function relocatedCatchPropUnobservable({ declaratorPath, propNode, patternNode, localName, walkNode }) {
-  const relocated = relocatedCatchPattern(declaratorPath);
+  const relocated = relocatedHostPattern(declaratorPath);
   if (!relocated) return false;
   return !catchPropRewriteObservable({
     propNode, patternNode, bodyNode: relocated.body, localName,
@@ -5563,8 +5611,40 @@ export function patternKeepsEffectfulKey(patternNode) {
 // or one this pipeline emptied: there the extraction that emptied it performs the same coercion,
 // in the same place. a rest element is neither, and keeps the wrapper by itself
 export function arrayWrapperResidualDroppable(pattern, emptied) {
-  return pattern?.type === 'ArrayPattern' && pattern.elements.length > 0
-    && pattern.elements.every(element => element === null || wrapperElementClaimed(element, emptied));
+  if (pattern?.type === 'ArrayPattern') {
+    return pattern.elements.length > 0
+      && pattern.elements.every(element => element === null || wrapperElementClaimed(element, emptied));
+  }
+  // a wrapper may stand under a KEY (`{ pair: [{ at }] } = { pair: [arr] }`): the object level
+  // leaves exactly when every property it names leaves, and a REST there gathers what the pattern
+  // did not name, so it keeps the level whatever the claims took
+  return pattern?.type === 'ObjectPattern' && pattern.properties.length > 0
+    && pattern.properties.every(item => (item.type === 'Property' || item.type === 'ObjectProperty')
+      && !item.computed && wrapperElementClaimed(item.value, emptied));
+}
+
+// ... and a residual the wrapper KEEPS still sheds its TRAILING emptied elements: an array pattern
+// whose LAST element binds nothing is a shape `@babel/plugin-transform-destructuring` lowers wrong -
+// `const [{ other }, {}] = [x, arr]` becomes `_objectDestructuringEmpty(x.other)`, losing the
+// binding entirely - and the elements shed here coerce nothing the extraction does not coerce
+// itself. only over a LITERAL init, where the shed positions still evaluate; an iterated one would
+// pull fewer times. answers how many elements may go
+export function arrayWrapperResidualTrailingShed(pattern, emptied) {
+  if (pattern?.type !== 'ArrayPattern') return 0;
+  // ... and a pattern binding NOTHING sheds nothing: the same lowering pairs a SOLE binding-free
+  // element against the whole literal rather than its first element (`const [{}] = [null, x]` stops
+  // throwing), so a residual that is all husk keeps the length that pairs it positionally
+  if (patternBindingCount(pattern) === 0) return 0;
+  let shed = 0;
+  for (let at = pattern.elements.length - 1; at >= 0; at -= 1) {
+    const element = pattern.elements[at];
+    // a hole sheds freely; a claimed pattern only once it BINDS nothing - a sentinel is a binding,
+    // and the shape the lowering miscompiles is exactly the binding-free one
+    if (element !== null
+      && !(wrapperElementClaimed(element, emptied) && patternBindingCount(element) === 0)) break;
+    shed += 1;
+  }
+  return shed;
 }
 
 function wrapperElementClaimed(element, emptied) {
@@ -6754,12 +6834,16 @@ export function positionDisposition(parent, node, parentNodePath) {
     // string and keeps nothing of it. shorthand (`{ x }`) puts one node in both slots - it stores
     case 'ObjectProperty':
     case 'Property':
-      return unwrapRuntimeExpr(parent.value) === node ? POSITION_FORWARDS : POSITION_CONSUMES;
+      // BOTH sides through the peel: a caller may hand a reference already climbed to its outermost
+      // transparent wrapper, and peeling only the slot compares an inner value against that wrapper -
+      // the position then reads as CONSUMES and a leaked value keeps a narrow it must not keep
+      return unwrapRuntimeExpr(parent.value) === unwrapRuntimeExpr(node) ? POSITION_FORWARDS : POSITION_CONSUMES;
     // the CALLEE slot is a read of the value, not a hand-out of it; an ARGUMENT is the callee's call
     case 'CallExpression':
     case 'NewExpression':
     case 'OptionalCallExpression':
-      return parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === node) ? POSITION_INSPECTS : POSITION_CONSUMES;
+      return parent.arguments?.some(arg => unwrapRuntimeExpr(arg) === unwrapRuntimeExpr(node))
+        ? POSITION_INSPECTS : POSITION_CONSUMES;
     // reading a member OFF the value yields the member, not the value; standing in the computed KEY
     // slot coerces the value to a string. which member, and whether reading it hands a re-bindable
     // method out, is the walks' own business

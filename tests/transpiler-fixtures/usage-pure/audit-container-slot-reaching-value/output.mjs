@@ -1,10 +1,14 @@
+import _entries from "@core-js/pure/actual/instance/entries";
+import _keys from "@core-js/pure/actual/instance/keys";
 import _Map from "@core-js/pure/actual/map";
 import _Promise from "@core-js/pure/actual/promise";
 import _String$raw from "@core-js/pure/actual/string/raw";
-// the pure flavor must stay UNTOUCHED by the container-slot reaching union: it is a
-// usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file
-// may reach the read, so no slot read off a written container resolves). every destructure and
-// member read below stays verbatim - only bare constructor NAMES resolve to pure imports
+// the pure flavor must keep its NAME resolution out of the container-slot reaching union: it is a
+// usage-global-only over-inject axis, while pure keeps its bail (a write anywhere in the file may
+// reach the read, so no slot read off a written container resolves to a static). the destructures
+// below keep their slot reads - bare constructor NAMES resolve to pure imports, and an ambiguous
+// method name resolves no further than the value-safe dispatcher, whose answer IS the source's
+// own read of the written slot (`_keys(cc.c)`), so what the write left there still decides
 const cw = {
   k: Object
 };
@@ -61,13 +65,7 @@ const cc = {
   c: Object
 };
 cc.c += 1;
-const {
-  c: {
-    keys: literalOnly
-  }
-} = cc;
-
-// an escaped container bails via the wildcard too
+const literalOnly = _keys(cc.c); // an escaped container bails via the wildcard too
 const ce = {
   e: Object
 };
@@ -75,13 +73,7 @@ export function sink(x) {
   return x;
 }
 sink(ce);
-const {
-  e: {
-    entries: escapedLiteralOnly
-  }
-} = ce;
-
-// a write to a NESTED container bails the deep read as well
+const escapedLiteralOnly = _entries(ce.e); // a write to a NESTED container bails the deep read as well
 const inner = {
   g: Object
 };
