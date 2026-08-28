@@ -1711,7 +1711,12 @@ export default function plugin(api, options) {
       // (`catch ({ at, ...rest })`) reachable from reTraverseHelperBodies gets needlessly rewritten
       function withCatchExtractor(visitors) {
         if (!isPure) return visitors;
-        return { ...visitors, CatchClause: path => destructureEmit.extractCatchClause(path) };
+        return {
+          ...visitors,
+          CatchClause: path => destructureEmit.extractCatchClause(path),
+          ForOfStatement: path => destructureEmit.extractLoopLeft(path),
+          ForInStatement: path => destructureEmit.extractLoopLeft(path),
+        };
       }
 
       // every pass that walks source-shaped nodes - the main pre-traverse, the deferred-SE drain
@@ -1813,6 +1818,8 @@ export default function plugin(api, options) {
         // multi-decl split canon AFTER the SE drain - deferred indices were captured
         // against the pre-split body
         destructureEmit.splitFlatMultiDecls();
+        // the sentinel `var`s a discarded-element render owes, asked of the finished tree
+        destructureEmit.flushDiscardedElementSentinels();
         // AFTER the split canon: a host that renders its declarator late (the retained `for`
         // header) has planted its SE clones by now, and BEFORE the flush so the walk's own
         // imports still make this batch
@@ -1966,6 +1973,8 @@ export default function plugin(api, options) {
         // helper-body re-traversal may have touched fresh multi-decl declarations
         destructureEmit.pruneArrayResiduals();
         destructureEmit.splitFlatMultiDecls();
+        // the sentinel `var`s a discarded-element render owes, asked of the finished tree
+        destructureEmit.flushDiscardedElementSentinels();
         rewalkRetainedForInits();
         postSweepIntroduced(path);
         // drain deferred synth-swap receivers via program walk - finds receivers via

@@ -17,9 +17,11 @@ import {
   objectPatternHasNestedValue,
   isReplayableSynthKey,
   spreadShiftsIndex,
+  statementListOf,
   synthSlotName,
   wksComputedKeyName,
   peelNestedSequenceExpressions,
+  peelParenAndTSParentPath,
   peelSequenceTail,
   FUNCTION_LIKE_NODE_TYPES,
   FN_NODE_TYPES,
@@ -41,6 +43,7 @@ import {
   isValidIdentifierName,
   objectPatternLiteralKeyPath,
   mayHaveSideEffects,
+  walkAstNodes,
   staticMemberKeyName,
   varInitDominatesUsage,
   arrayWrapSlotValueCandidates,
@@ -253,6 +256,7 @@ function resolveAndDestructureMeta({ node, key, scope, adapter, path }) {
   if (!primaryMeta?.object) return primaryMeta;
   const leftMeta = buildDestructuringInitMeta({ initNode: node.left, key, scope, adapter, path });
   if (leftMeta?.object === primaryMeta.object) return primaryMeta;
+  if (fallbackArmsDisagreeOnType(primaryMeta, leftMeta)) return { kind: 'property', object: null, key, placement: null };
   return { ...primaryMeta, fromFallback: true };
 }
 
@@ -284,7 +288,9 @@ function resolveOrNullishDestructureMeta({ node, key, scope, adapter, path }) {
       ? { ...primaryMeta, fromFallback: true } : primaryMeta;
   }
   const fallbackMeta = buildDestructuringInitMeta({ initNode: node.right, key, scope, adapter, path });
-  return fallbackMeta?.object ? { ...fallbackMeta, fromFallback: true } : fallbackMeta;
+  if (!fallbackMeta?.object) return fallbackMeta;
+  if (fallbackArmsDisagreeOnType(fallbackMeta, primaryMeta)) return { kind: 'property', object: null, key, placement: null };
+  return { ...fallbackMeta, fromFallback: true };
 }
 
 // may a fallback BRANCH be synth-swapped to a polyfill literal? a logical LEFT operand
@@ -322,7 +328,18 @@ function resolveConditionalDestructureMeta({ node, key, scope, adapter, path }) 
   // matching the single-receiver mutated path (receiver substitution happens per-identifier)
   if (!consequent || !alternate) return null;
   const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
-  return resolved ? { ...resolved, fromFallback: true } : consequent;
+  if (!resolved) return consequent;
+  const other = resolved === consequent ? alternate : consequent;
+  if (fallbackArmsDisagreeOnType(resolved, other)) return { kind: 'property', object: null, key, placement: null };
+  return { ...resolved, fromFallback: true };
+}
+
+// do the arms of a fallback disagree on a TYPE receiver? then NEITHER of them is it: picking one
+// injects that family and drops the other's, which is the arm the runtime may take. a NAMED-receiver
+// disagreement is enumerable - the union walk reaches both arms by name - but a type one is not, so
+// the caller degrades to the typeless meta, whose dispatcher serves whichever arm runs
+function fallbackArmsDisagreeOnType(resolved, other) {
+  return resolved?.placement === 'prototype' && other?.object !== resolved.object;
 }
 
 // SE-bearing receiver policy for the synth literal (`{key: _Branch$key}` swap of `cond ? (() => { c++;
@@ -1074,10 +1091,74 @@ export function chooseFallbackReceiverNode({
 // removed: its in-place text surgery made shape assumptions that broke on export / default-with-call /
 // nested-sequence keys / array-wrappers. The residual is the single, robust path - so there is no longer
 // a strategy enum, only this keep-in-place plan or a bail.)
+// does the value an extraction SPELLS perform every effect its init would? then the residual may be
+// DROPPED whatever the init's purity - what the dropped read would have evaluated, the dispatch
+// evaluates instead, exactly once. that is the question `initIsPure` stands in for, and it answers
+// it too narrowly: a LITERAL init whose every OTHER part is effect-free observes nothing when it is
+// constructed, so the slot the receiver descends into was the only effect there was
+// (`const { y: { at } } = { y: arr.flat() }` - dropping the residual makes `flat` run ONCE, keeping
+// it makes it run twice). a computed KEY is an effect the receiver does not spell, and a second
+// effect-bearing part means the drop would lose one
+// ... and it reads THROUGH the wrappers a source may spell around any of these: parens and TS
+// assertions are erased at runtime, so what they hold performs exactly the effects they do, and one
+// leg seeing a wrapper the other's parser drops would answer differently about the same program.
+// a SEQUENCE is not such a wrapper - its prefix is an effect the receiver does not spell - which is
+// why the peel is `unwrapRuntimeExpr` and never `unwrapExpressionChain`, whose elision would drop
+// that prefix out of the accounting
+export function receiverPerformsEveryInitEffect(initNode, receiverNode) {
+  if (!initNode || !receiverNode) return false;
+  if (initNode === receiverNode) return true;
+  const init = unwrapRuntimeExpr(initNode);
+  const receiver = unwrapRuntimeExpr(receiverNode);
+  if (init === receiver) return true;
+  const isObject = init.type === 'ObjectExpression';
+  if (!isObject && init.type !== 'ArrayExpression') return false;
+  if (isObject && init.properties.some(prop => prop.type !== 'SpreadElement'
+    && prop.computed && mayHaveSideEffects(prop.key))) return false;
+  const parts = isObject
+    ? init.properties.map(prop => prop.type === 'SpreadElement' ? prop.argument : prop.value)
+    : init.elements;
+  let holder = null;
+  for (const part of parts) {
+    if (!part) continue;
+    if (unwrapRuntimeExpr(part) === receiver || receiverPerformsEveryInitEffect(part, receiver)) {
+      if (holder) return false;
+      holder = part;
+      continue;
+    }
+    if (mayHaveSideEffects(part)) return false;
+  }
+  return !!holder;
+}
+
+// does this subtree SPELL a sequence? the one shape whose own claims render by lifting their prefix
+// into the RESIDUAL rather than into their dispatch, so neither answer about that residual is right:
+// dropping it drops the lift, keeping it re-reads what the dispatch spells
+export function spellsSequenceExpression(node) {
+  let found = false;
+  walkAstNodes({ root: node, visit: item => {
+    if (item.type === 'SequenceExpression') found = true;
+    return !found;
+  } });
+  return found;
+}
+
+// the receiver an extraction may spell where the residual DIES: past the re-readability gates, which
+// exist to protect a second reader that no longer exists. `resolveOptions` is the host's own resolve
+// vocabulary and `fallbackNode` what the host hands over when the nested walk names nothing (an array
+// wrapper's paired element); the CALLER owns the question of whether its residual dies at all
+export function carriedInitReceiverNode({ path, initNode, resolveOptions = {}, fallbackNode = null }) {
+  const node = resolveNestedReceiverNode(path, { ...resolveOptions, allowInitCarriedEffects: true })
+    ?? fallbackNode;
+  if (!node || spellsSequenceExpression(node)) return null;
+  return receiverPerformsEveryInitEffect(initNode, node) ? node : null;
+}
+
 export function planSideEffectKeyStrategy({
   polyfillKind, isForInit, isMultiDeclarator, receiverNode = null,
   soleBindingInDeclaration = false, initIsPure = false, propKeyIsPure = true,
   memoHoistKeepsOrder = false, slotDropsAlone = false, receiverCarriesInit = false,
+  residualKeepsNoReader = false, receiverIsWholeInit = false,
 }) {
   const instance = polyfillKind === 'instance';
   const siblingDeclarator = !!(isForInit || (isMultiDeclarator && instance));
@@ -1112,15 +1193,36 @@ export function planSideEffectKeyStrategy({
   // exactly that shape, and the element itself has already been memoized by the receiver plan,
   // so what reaches here is the re-readable ref
   const orderSafeHoist = initIsPure || memoHoistKeepsOrder;
-  const memoizeReceiver = instance && !eliminateResidual
+  // ... and a caller that PROVED the surviving residual reads nothing off this receiver needs no
+  // memo at all: the dispatch is the only reader, so it spells the receiver itself and fires its
+  // getter exactly once - and it fires it where the extraction stands, which is the placement the
+  // caller controls (an effect-bearing wrapper neighbour puts the extraction after the residual)
+  // ... and an ARRAY-WRAPPED element whose hoist keeps order memoizes whatever its own shape: the memo
+  // evaluates it exactly where native does - reading that element - so the residual the wrapper keeps
+  // and the dispatch beside it share the ONE read the source performs. without it an effect-bearing
+  // element was refused outright and the claim shipped native (`const [{ at }] = [eff()]`)
+  const memoizeReceiver = instance && !eliminateResidual && !residualKeepsNoReader
     && ((isConstantLiteralReceiver(receiverNode) && !siblingDeclarator)
-      || ((isSeFreeMemberReceiver(receiverNode) || isSeFreeBranchingReceiver(receiverNode)) && orderSafeHoist));
+      || ((isSeFreeMemberReceiver(receiverNode) || isSeFreeBranchingReceiver(receiverNode)) && orderSafeHoist)
+      // ... a SIBLING-declarator host is no obstacle: the memo joins the declaration as a PRECEDING
+      // declarator at the source slot, so it evaluates exactly where the element does. a for-HEAD is,
+      // since it has no declarator slot ahead of the pattern
+      || (memoHoistKeepsOrder && !isForInit && !receiverIsSafe)
+      // ... and a receiver that IS the whole init memoizes whatever its shape: the memo evaluates it
+      // exactly where native does - reading the initializer - so nothing can reorder around it, and
+      // the residual a kept KEY leaves behind then shares that one read instead of forcing a bail
+      // (`const { [(eff(), 'at')]: a } = getArr()` shipped native here while the other leg served it).
+      // a for-HEAD takes it as a preceding DECLARATOR, which is where that head keeps its own memos.
+      // an ARRAY / OBJECT literal stays out - the literal arms above own it, and memoizing one here
+      // served a shape the other leg keeps native
+      || (receiverIsWholeInit && !receiverIsSafe
+        && receiverNode.type !== 'ArrayExpression' && receiverNode.type !== 'ObjectExpression'));
   // an instance polyfill re-references the receiver beside the SURVIVING residual; bail unless it is safe to
   // read twice (Identifier / side-effect-free literal - see `isReReferenceableReceiver`) or the memo above
   // makes the second read a `_ref` read. when the residual is ELIMINATED the extraction (`const m =
   // _m(recv)`) is the receiver's ONLY read, so a member receiver's getter fires exactly once - same as
   // native - and is sound to extract (`const { y: { at } } = { y: Array.prototype }`)
-  if (instance && !receiverIsSafe && !eliminateResidual && !memoizeReceiver) return null;
+  if (instance && !receiverIsSafe && !eliminateResidual && !memoizeReceiver && !residualKeepsNoReader) return null;
   return { instance, siblingDeclarator, eliminateResidual, memoizeReceiver };
 }
 
@@ -1184,6 +1286,12 @@ export function qualifiesForParamBodyExtract({ propPath, localId }) {
 //     inside would leak raw (`Iterator.prototype` -> a bare `Iterator`, a ReferenceError off-engine)
 export function paramDefaultInstanceSynthAllowed({ objectPatternNode, receiverNode, scope, adapter, path, resolvePure }) {
   if (!receiverNode || !objectPatternNode?.properties?.length) return false;
+  // ... but a default the TYPED-NAV dispatch owns is NOT this route's: that one reads the slot's
+  // nav once and folds both arms through the instance guard, where a synth over the default alone
+  // polyfills the arm that may never run and leaves the LIVE read raw (`{ y: { flat } = list } =
+  // src` kept `src.y.flat` native and answered `undefined` off-engine). the two routes disagreed
+  // by which ran first, so the ownership question is asked here rather than left to that order
+  if (path && typedNavClaimShape(path)) return false;
   for (const prop of objectPatternNode.properties) {
     if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') return false;
     // whatever the synth literal can replay is admissible here: the renderers spell a string /
@@ -1504,12 +1612,45 @@ export function isConstantLiteralReceiver(node) {
 // native destructuring reads. plain hops only: a computed hop or an inner default changes
 // reachability. the BASE that chain reads through - proxy-root substitution, mutation
 // gating - is `resolveNestedReceiverBase`'s answer; each leg renders it in its own dialect
-export function resolveNestedReceiverChain(leafPath) {
+// eslint-disable-next-line max-statements -- the walk: one arm per pattern level it may stand in
+export function resolveNestedReceiverChain(leafPath,
+  { soleSlots = false, allowSlotDefault = false, allowLeafSiblings = false } = {}) {
   const keys = [];
-  let pattern = leafPath.parentPath;
+  let slotDefault = null;
+  const leafPattern = leafPath.parentPath;
+  let pattern = leafPattern;
   while (pattern?.node?.type === 'ObjectPattern') {
-    const owner = pattern.parentPath;
+    let owner = pattern.parentPath;
+    // a DEFAULT on the way up decides what the claim reads at all: the slot's own value when it is
+    // defined, the default when it is not. the caller that asks for it folds BOTH arms through the
+    // instance guard (`_at((_ref = src.y) === void 0 ? D : _ref)`) - mirroring the default alone
+    // would polyfill the arm that may never run and leave the live read raw. one default per walk:
+    // a second would need its own guard around the first, which no caller renders
+    if (owner?.node?.type === 'AssignmentPattern' && owner.node.left === pattern.node) {
+      if (!allowSlotDefault || slotDefault) return null;
+      slotDefault = owner.node.right;
+      owner = owner.parentPath;
+    }
     const ownerType = owner?.node?.type;
+    // a caller dispatching on a USER-owned nav asks for `soleSlots`: re-reading `src.y` is a
+    // second getter call, so the extraction is sound only when it OWNS that read - every level
+    // it descends must die with it, leaving no residual to spell the same hops again. a
+    // built-in surface nav needs none of this: re-reading a known namespace costs nothing.
+    // the HOST level is exempt: its siblings name OTHER keys, and the hop this claim empties prunes
+    // out of the residual on both legs, so nothing there reads the hop a second time
+    // ... and the LEAF's own pattern may keep siblings for the caller that NORMALIZES the shape:
+    // it rewrites the declarator into its flat twin (`{ y: { at, other } } = box` -> `{ at, other }
+    // = box.y`), where the ordinary memo channel reads the hop once and hands the residual that
+    // same identity. every level ABOVE the leaf still has to die with the claim
+    // ... and an array WRAPPER standing between that host and its declarator changes nothing about
+    // it: the element is still the value the pattern reads, and the emptied hop still prunes.
+    // a REST sibling is what takes the exemption back: rest gathers whatever the pattern did not
+    // name, so the emptied hop cannot leave - it stays as a sentinel keeping its key excluded, and
+    // that sentinel READS the hop a second time, which for a getter is a second call
+    if (soleSlots && pattern.node.properties.length !== 1
+      && !(allowLeafSiblings && pattern === leafPattern)
+      && ((ownerType !== 'VariableDeclarator' && ownerType !== 'ArrayPattern')
+        || pattern.node.properties.some(isRestProperty))) return null;
     if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
       if (owner.node.computed) return null;
       const key = plainSynthKeyName(owner.node.key);
@@ -1525,17 +1666,291 @@ export function resolveNestedReceiverChain(leafPath) {
       const prefixes = [];
       const root = unwrapCollectingSePrefixes(owner.node.init, prefixes);
       if (prefixes.length || root?.type !== 'Identifier') return null;
-      return { root, keys };
+      // the RAW init travels too: a caller that SPELLS this receiver keeps whatever the source
+      // wrote around the identifier (a TS cast is the one that matters - `box as any` answers a
+      // different type than `box`, and a spelling that drops it resolves against the wrong one)
+      // the DECLARATOR travels with the answer: the walk is what proved the way up is patterns all
+      // the way, and a caller re-deriving it by its own climb has no such proof - one such climb
+      // walked out of an assignment inside an IIFE and handed the rename to the enclosing declaration
+      return { root, keys, slotDefault, leafPattern, declarator: owner, rootSpelling: owner.node.init };
     }
-    // an inner default, an array wrapper, an assignment host: reachability or value capture
-    // changes - outside this walk's narrow contract
+    // an ARRAY WRAPPER over a literal init is a PAIRING, not a hop: the element the pattern matches
+    // is the value the leaf reads through, and the element must be a bare identifier for the
+    // dispatch to spell it (`[{ y: { flat: m } }] = [nb]` reads `nb.y`, exactly what the source
+    // reads). a SOLE wrapper is discarded whole; one with NEIGHBOURS keeps the literal alive for
+    // their coercion, and there the residual re-reads only the ELEMENT - free for an identifier -
+    // because the emptied hop prop prunes out of it and leaves the positional `{}` behind
+    if (ownerType === 'ArrayPattern') {
+      // wrappers NEST (`[[{ y: { flat } }]] = [[nb]]`), and every level asks the same pairing: the
+      // pattern's slot picks the literal's element at that level. collect the slot chain up to the
+      // declarator, then descend the init by the same slots - one level and five read alike, so the
+      // depth is not a rule of its own
+      const slots = [];
+      let child = pattern;
+      let level = owner;
+      // wrappers NEST, and a KEY may stand between two of them (`{ pair: [{ y: { at } }] } = { pair:
+      // [nb] }`): the pattern's slot picks the literal's element, its key picks the literal's property,
+      // and the two steps read alike - what the descent needs is the step chain, not one kind of step
+      for (let depth = 0; depth < STATIC_WALK_DEPTH && level?.node; depth++) {
+        const levelType = level.node.type;
+        if (levelType === 'ArrayPattern') {
+          const index = level.node.elements.indexOf(child.node);
+          if (index === -1) return null;
+          slots.unshift({ index });
+          child = level;
+          level = level.parentPath;
+          continue;
+        }
+        if ((levelType === 'ObjectProperty' || levelType === 'Property') && level.node.value === child.node) {
+          if (level.node.computed) return null;
+          const stepKey = plainSynthKeyName(level.node.key);
+          if (typeof stepKey !== 'string') return null;
+          slots.unshift({ key: stepKey });
+          child = level.parentPath;
+          level = child?.parentPath;
+          continue;
+        }
+        break;
+      }
+      if (level?.node?.type !== 'VariableDeclarator' || level.node.id !== child.node || !keys.length) return null;
+      const prefixes = [];
+      const levels = [];
+      let literal = unwrapCollectingSePrefixes(level.node.init, prefixes);
+      for (const step of slots) {
+        if (prefixes.length) return null;
+        if (step.key === undefined) {
+          if (literal?.type !== 'ArrayExpression') return null;
+          levels.push({ node: literal, index: step.index });
+          literal = unwrapCollectingSePrefixes(literal.elements[step.index], prefixes);
+          continue;
+        }
+        if (literal?.type !== 'ObjectExpression') return null;
+        // a SPREAD anywhere could supply the key, so the slot the pattern reads is not this literal's
+        const at = literal.properties.findIndex(item => (item.type === 'ObjectProperty' || item.type === 'Property')
+          && !item.computed && plainSynthKeyName(item.key) === step.key);
+        if (at === -1 || literal.properties.some(item => item.type === 'SpreadElement')) return null;
+        // ... and a NEIGHBOUR key that carries an effect pins the order: native builds the whole
+        // literal before it destructures, so a read moved to the pairing would step over that effect.
+        // the array levels leave this to the per-route order questions, which spell it for the host
+        // shapes they own; a KEYED level has no such route yet, so the walk itself declines
+        if (literal.properties.some((item, itemAt) => itemAt !== at && mayHaveSideEffects(item.value))) return null;
+        levels.push({ node: literal, key: step.key, propIndex: at });
+        literal = unwrapCollectingSePrefixes(literal.properties[at].value, prefixes);
+      }
+      if (prefixes.length || literal?.type !== 'Identifier') return null;
+      // the pairing FACTS travel too: a caller that rewrites this element into the nav needs the
+      // literal and the slot, and it owes the question `wrapperElementNavPlacement` asks - the
+      // consumers that only READ through the element owe none of that and ignore them.
+      // `wrapper` is the INNERMOST literal (the one holding the element a caller rewrites) and
+      // `wrapperRoot` the declarator's own init, which is what a caller checks it against
+      return {
+        root: literal,
+        keys,
+        slotDefault,
+        leafPattern,
+        declarator: level,
+        rootSpelling: literal,
+        wrapper: levels.at(-1).node,
+        wrapperRoot: levels[0].node,
+        wrapperKeyed: levels.some(item => item.key !== undefined),
+        wrapperLevels: levels,
+        elementIndex: levels.at(-1).index,
+        hostPattern: pattern,
+      };
+    }
+    // an inner default, an assignment host: reachability or value capture changes - outside this
+    // walk's narrow contract
+    return null;
+  }
+  return null;
+}
+
+// WHERE does the flatten put the hop read under a wrapper? the element is where the flat twin lives
+// there, so writing the nav INTO it makes the read happen when the LITERAL builds - ahead of every
+// element after the slot, and ahead of the whole declaration. that is `lead`, and it needs nothing
+// standing between: no effect in an element past the slot, and none in a declarator BEFORE this one.
+// where something does stand there, the twin TRAILS the residual instead: the literal builds whole,
+// the emptied pattern coerces the element, and the read happens after both - which is where the
+// source performs it. the element then keeps its own spelling, having nothing to hand the twin
+// null = no wrapper at all
+export function wrapperElementNavPlacement(walk) {
+  if (!walk?.wrapper) return null;
+  // ... and the TRAILING form is a STATEMENT after the declaration, so it needs a statement list to
+  // stand in: a loop HEAD hosts declarators and an unbraced slot holds one statement, and neither
+  // has a place for it. those hosts keep the claim native rather than reorder the read
+  const hostSlot = walk.declarator?.parentPath?.parentPath?.node;
+  const declarations = walk.declarator?.parentPath?.node?.declarations ?? [];
+  const before = declarations.slice(0, declarations.indexOf(walk.declarator.node));
+  // ... at EVERY wrapper level: a neighbour standing after the slot of an OUTER literal is
+  // evaluated after it just the same, so nesting widens what the moved read would reorder past
+  return before.every(item => !mayHaveSideEffects(item.init))
+    && walk.wrapperLevels.every(level => (level.key === undefined
+      ? level.node.elements.slice(level.index + 1)
+      : level.node.properties.slice(level.propIndex + 1).map(item => item.value))
+      .every(element => !element || !mayHaveSideEffects(element)))
+    ? 'lead' : statementListOf(hostSlot) ? 'trail' : null;
+}
+
+// the first PROPERTY path anywhere in a pattern - what a type query about the value the pattern
+// destructures has to be asked through, since the resolver answers for a prop and not for a pattern.
+// path-API-agnostic like the walks above: both emitters expose `.get` / `.node`, and the object
+// property's two spellings (babel `ObjectProperty` / estree `Property`) are accepted either way
+export function firstPatternProp(patternPath) {
+  const type = patternPath?.node?.type;
+  if (type === 'ObjectPattern') {
+    for (const prop of patternPath.get('properties')) {
+      const propType = prop.node?.type;
+      if (propType !== 'Property' && propType !== 'ObjectProperty') continue;
+      const valueType = prop.node.value?.type;
+      const nested = valueType === 'ObjectPattern' || valueType === 'ArrayPattern'
+        ? firstPatternProp(prop.get('value')) : null;
+      return nested ?? prop;
+    }
+    return null;
+  }
+  if (type === 'ArrayPattern') {
+    for (const element of patternPath.get('elements')) {
+      const found = firstPatternProp(element);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// the SHAPE a typed-nav claim resolves on: the leaf reached through the receiver's own type, over
+// sole slots, and only where the hops name USER keys. `allowLeafSiblings` is for the callers weighing
+// the FLAT TWIN against a mirror - the twin admits siblings at the leaf, so a question that refuses
+// them there answers about a route that is not the one being weighed - a nav INTO a built-in namespace is the
+// proxy / anchored machinery's shape and the rules there are its own. this is the question about the
+// SOURCE, and it is the one the synth gate asks: a fold that takes both arms of a default is the
+// synth's business whoever ends up rendering it
+export function typedNavClaimShape(leafPath, { allowLeafSiblings = false } = {}) {
+  const walk = resolveNestedReceiverChain(leafPath, { soleSlots: true, allowSlotDefault: true, allowLeafSiblings });
+  if (!walk) return null;
+  return isBuiltInSurfaceNav(walk.keys.reduce((base, key) => memberFromKeyName(base, key), walk.root))
+    ? null : walk;
+}
+
+// does the TYPED-NAV dispatch OWN this claim? the shape above, plus what the EXTRACTION can carry -
+// so every route that could claim such a shape asks THIS and none can answer it differently
+export function typedNavClaimChain(leafPath) {
+  const walk = typedNavClaimShape(leafPath);
+  // a claim whose own KEY carries an effect is not one this dispatch owns: the effect runs where the
+  // source wrote it, so the prop cannot leave with the extraction - and a prop that stays reads the
+  // hop a SECOND time. the flat twin is where both are answered at once (the memo the residual
+  // reads), which the normalization reaches on the hosts it takes; everywhere else the claim stays
+  // native, and dropping the prop here would drop the effect with it
+  return walk?.leafPattern?.node?.properties?.some(item => item.type !== 'RestElement'
+    && computedKeyHasSideEffects(item)) ? null : walk;
+}
+
+// the POSITIONAL twin of the chain walk: where an ARRAY pattern element holds the claim, the
+// element cannot be spelled as a member - the pattern ITERATES, and `rows[0]` would read a
+// property instead of pulling from the iterator. what CAN be spelled is a binding: the element
+// slot takes a minted name, the pattern keeps its iteration, and the dispatch reads that name
+// (`const [{ y: { at } }] = rows` -> `const [_el] = rows; const at = _at(_el.y);`). the answer is
+// the SLOT to rename plus the hop keys below it; the host declaration stays put, so its init runs
+// exactly where and as often as the source runs it - nothing is discarded here.
+// sole slots all the way from the leaf to the element, for the same reason the member walk asks:
+// what the rename drops must bind nothing else. elements BESIDE this one are free - they pull
+// their own values from the same iteration
+// the declaration a REST-bearing host hangs off, and the value that host pulls from: the
+// declarator's own init, or - under an ARRAY WRAPPER - the element the wrapper pairs it with. the
+// wrapper is the same host one literal out, and the hop rename reads the paired element the way the
+// flat one reads the init (`const [{ y: { at }, ...rest }] = [nb]`)
+function restHostCarrier(host) {
+  const owner = host.parentPath;
+  if (owner?.node?.type === 'VariableDeclarator' && owner.node.id === host.node) {
+    return { declarator: owner, value: owner.node.init };
+  }
+  if (owner?.node?.type !== 'ArrayPattern') return null;
+  const declarator = owner.parentPath;
+  if (declarator?.node?.type !== 'VariableDeclarator' || declarator.node.id !== owner.node) return null;
+  const index = owner.node.elements.indexOf(host.node);
+  const { init } = declarator.node;
+  if (index === -1 || init?.type !== 'ArrayExpression' || init.elements.length <= index) return null;
+  // a SPREAD at or before the slot makes the pairing a POSSIBILITY, never a fact
+  if (init.elements.slice(0, index + 1).some(element => element?.type === 'SpreadElement')) return null;
+  return { declarator, value: init.elements[index] };
+}
+
+export function resolvePositionalElementSlot(leafPath) {
+  const keys = [];
+  let pattern = leafPath.parentPath;
+  while (pattern?.node?.type === 'ObjectPattern') {
+    if (pattern.node.properties.length !== 1) return null;
+    const owner = pattern.parentPath;
+    const ownerType = owner?.node?.type;
+    if (ownerType === 'ObjectProperty' || ownerType === 'Property') {
+      if (owner.node.computed) return null;
+      const key = plainSynthKeyName(owner.node.key);
+      if (typeof key !== 'string') return null;
+      // the HOST above may carry a REST, and then nothing prunes: rest gathers what the pattern did
+      // not name, so this hop's key has to stay there keeping itself excluded - and a hop that
+      // stays is a second reader of it. what CAN leave is the hop's VALUE, renamed to a binding the
+      // dispatch reads, which is the array element's own answer one dialect over: the source's read
+      // count is unchanged, the key stays where it was, and the claim binds off the name
+      const host = owner.parentPath;
+      if (host?.node?.type === 'ObjectPattern' && host.node.properties.some(isRestProperty)) {
+        const carrier = restHostCarrier(host);
+        if (!carrier) return null;
+        // ... and only over a plain BOUND receiver: a proxy-global root is the anchored family's
+        // shape and it answers a rest host its own way (the surface memo beside a sentinel), so a
+        // pair minted here would be the only leg rewriting it
+        const root = unwrapCollectingSePrefixes(carrier.value, []);
+        if (root?.type !== 'Identifier' || POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return null;
+        return { slot: pattern, keys, declarator: carrier.declarator, hopProp: owner };
+      }
+      keys.unshift(key);
+      pattern = owner.parentPath;
+      continue;
+    }
+    // the element itself: an `= default` between the slot and the array changes what the rename
+    // would bind (the default fires on a missing element), so only a bare slot renames
+    if (ownerType === 'ArrayPattern' && owner.node.elements.includes(pattern.node)) {
+      // ... and the host is a DECLARATION reached through patterns alone: the minted name needs a
+      // binding site, which only a declarator gives it. an assignment host has none - climbing past
+      // it would hand the rename to whatever declaration encloses the statement
+      let outer = owner;
+      while (outer?.parentPath?.node?.type === 'ArrayPattern'
+        || outer?.parentPath?.node?.type === 'ObjectPattern'
+        || (outer?.parentPath?.node?.type === 'AssignmentPattern' && outer.parentPath.node.left === outer.node)) {
+        outer = outer.parentPath;
+      }
+      const declarator = outer?.parentPath;
+      // an ASSIGNMENT host binds no declaration, but a minted name needs only a BINDING SITE, and a
+      // hoisted `var` is one both emitters already mint. the statement keeps its own iteration and
+      // the claim's binding takes the dispatcher's answer right after it - the shape this host's
+      // overwrite channel already spells for a claim whose receiver it CAN name
+      if (declarator?.node?.type === 'AssignmentExpression' && declarator.node.left === outer.node
+        && declarator.node.operator === '=' && !keys.length) {
+        const statement = nestedAssignmentStatementOf(leafPath);
+        const right = statement ? unwrapCollectingSePrefixes(declarator.node.right, []) : null;
+        // an ArrayExpression right is the PAIRING routes' shape, exactly as an ArrayExpression init is
+        return statement && right?.type !== 'ArrayExpression'
+          ? { slot: pattern, keys, assignment: declarator, statement } : null;
+      }
+      if (declarator?.node?.type !== 'VariableDeclarator' || declarator.node.id !== outer.node) return null;
+      // ... and it travels with the answer here too, for the reason the chain walk carries it
+      // ... and only where the array pulls from something the PAIRING routes cannot resolve: an
+      // ArrayExpression init is their shape, and where they leave a claim native there they have
+      // their own reason for it. asking THEM instead would work per case, but the two legs reach
+      // that question through different flows, and a rename firing on one leg alone is a divergence
+      // - the init is the one fact both read the same way. a SPREAD is the exception: it shifts
+      // every position after it by an unknowable amount, so no pairing exists to own the slot
+      const init = unwrapCollectingSePrefixes(declarator.node.init, []);
+      if (init?.type === 'ArrayExpression'
+        && init.elements.every(element => element?.type !== 'SpreadElement')) return null;
+      return { slot: pattern, keys, declarator };
+    }
     return null;
   }
   return null;
 }
 
 export function resolveNestedReceiverNode(leafPath,
-  { allowSeFreeSingleRead = false, allowSePeeledFragment = false, allowNavSegments = false } = {}) {
+  { allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
+    allowSePeeledFragment = false, allowNavSegments = false } = {}) {
   const elidedPrefixes = [];
   const segs = [];
   let pattern = leafPath.parentPath;
@@ -1621,6 +2036,10 @@ export function resolveNestedReceiverNode(leafPath,
     // receivers carry effects and are rejected by `mayHaveSideEffects`
     if (allowSeFreeSingleRead
       && (isSeFreeMemberReceiver(node) || isSeFreeBranchingReceiver(node) || isSeFreeRereadLiteral(node))) return node;
+    // ... and an effect-bearing node comes back as a CANDIDATE for a caller that will test it with
+    // `receiverPerformsEveryInitEffect`: the effects only matter while a residual survives to
+    // re-evaluate them, and that caller's whole question is whether it does
+    if (allowInitCarriedEffects) return node;
     return null;
   }
   return null;
@@ -1684,7 +2103,8 @@ function arrayWrapperElementPlan(patternPath, { allowSeFreeSingleRead }) {
 }
 
 export function resolveDestructureReceiverPlan(leafPath, {
-  allowSeFreeSingleRead = false, adapter = null, resolvePureGlobal = null, patternSize = null,
+  allowSeFreeSingleRead = false, allowInitCarriedEffects = false,
+  adapter = null, resolvePureGlobal = null, patternSize = null,
 } = {}) {
   const patternPath = leafPath.parentPath;
   const host = patternPath?.parentPath;
@@ -1699,7 +2119,7 @@ export function resolveDestructureReceiverPlan(leafPath, {
     // an OBSERVABLE element stays native, losing its polyfill where the flat twin keeps it
     const wrapped = arrayWrapperElementPlan(patternPath, { allowSeFreeSingleRead });
     if (wrapped) return wrapped;
-    return { channel: 'resolved', node: resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead }) };
+    return { channel: 'resolved', node: resolveNestedReceiverNode(leafPath, { allowSeFreeSingleRead, allowInitCarriedEffects }) };
   }
   const objectNode = host.node[initKey];
   if (!objectNode) return { channel: 'resolved', node: null };
@@ -1737,8 +2157,10 @@ export function resolveDestructureReceiverPlan(leafPath, {
 export function nestedAssignmentStatementOf(leafPath) {
   const path = destructurePatternHostPath(leafPath);
   if (path?.node?.type !== 'AssignmentExpression') return null;
-  let host = path.parentPath;
-  while (host?.node?.type === 'ParenthesizedExpression') host = host.parentPath;
+  // the CANON peel, not a Paren-only loop: `(({ from } = Array) as any);` wears a TS wrapper
+  // between the assignment and its statement, and a peel that stops at parens reads it as a
+  // captured value. the same walk `assignmentInStatementPosition` asks, kept as the PATH
+  const host = peelParenAndTSParentPath(path);
   return host?.node?.type === 'ExpressionStatement' ? host : null;
 }
 

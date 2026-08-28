@@ -2,6 +2,7 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
+import _at from "@core-js/pure/actual/instance/at";
 import _Iterator from "@core-js/pure/actual/iterator/constructor";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Number$isFinite from "@core-js/pure/actual/number/is-finite";
@@ -9,6 +10,7 @@ import _Object$entries from "@core-js/pure/actual/object/entries";
 import _Promise$allSettled from "@core-js/pure/actual/promise/all-settled";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _String$raw from "@core-js/pure/actual/string/raw";
+var _ref, _ref2;
 // a nested default that CARRIES the receiver: the outer slot is unknown, so what runs when it is
 // undefined IS the default - and a mirror of that default fires under exactly the same condition,
 // which makes it correct on every host, not only in a parameter list. one static per host so a
@@ -91,17 +93,11 @@ const {
     from: fromTernary
   } = flag ? Array : _Iterator
 } = src;
-// the same rule on an INSTANCE receiver: the default is the receiver, so the mirror carries the
-// bound helper and the caller's own object still destructures natively. the last row is the
-// control - a receiver the shared shape gate rejects (a call, which re-evaluating would repeat)
-// keeps the whole form native
-const {
-  i1: {
-    flat
-  } = {
-    flat: _flatMaybeArray(list)
-  }
-} = src;
+// an INSTANCE claim answers differently: a dispatch can reach BOTH arms, so it folds them - one
+// read of the slot, the default only where the source evaluates it - and the default's shape does
+// not divide that (the `list` row and the `raise()` row fold alike). the mirror keeps the arm no
+// dispatch reaches: a PARAMETER's default, whose live arm is whatever the caller passes
+const flat = _flatMaybeArray((_ref = src.i1) === void 0 ? list : _ref);
 function withDefault({
   i2: {
     includes
@@ -111,9 +107,5 @@ function withDefault({
 } = {}) {
   return includes;
 }
-const {
-  i3: {
-    at
-  } = raise()
-} = src;
+const at = _at((_ref2 = src.i3) === void 0 ? raise() : _ref2);
 use(from, entries, of, plain, union, groupBy, flat, at, withDefault(), fromOr, fromTernary);

@@ -4002,3 +4002,666 @@ QUnit.test('destructuring: an arg receiver resolves at the call site, not in the
 });
 /* eslint-enable default-param-last, es/no-nonstandard-object-properties, no-shadow, no-unused-vars
    -- the shape-under-test block ends here */
+
+// a nested claim dispatches on the hop the SOURCE reads, so that hop must be read exactly as often
+// as the source reads it: once. the getter counts it - a route spelling the hop beside a surviving
+// residual, or a sibling claim spelling it for itself, shows up here as a second read
+QUnit.test('destructuring: a nested claim reads its hop once', assert => {
+  function box() {
+    const carrier = { reads: 0, keep: 7 };
+    Object.defineProperty(carrier, 'y', {
+      get() { carrier.reads += 1; return Object.assign([1, [2]], { other: 5 }); },
+      enumerable: true,
+      configurable: true,
+    });
+    return carrier;
+  }
+  const sole = box();
+  const { y: { at } } = sole;
+  assert.same(typeof at, 'function', 'the sole nested claim resolves');
+  assert.same(sole.reads, 1, 'and reads the hop once');
+  const withHostSibling = box();
+  const { y: { at: at2 }, keep } = withHostSibling;
+  assert.same(typeof at2, 'function', 'a host sibling keeps the claim');
+  assert.same(keep, 7, 'and binds its own key');
+  assert.same(withHostSibling.reads, 1, 'still one read of the hop');
+  const withLeafSiblings = box();
+  const { y: { at: at3, other } } = withLeafSiblings;
+  assert.same(typeof at3, 'function', 'a leaf sibling flattens onto the twin');
+  assert.same(other, 5, 'and the sibling binds off the same read');
+  assert.same(withLeafSiblings.reads, 1, 'which is one read of the hop');
+  const withTwoClaims = box();
+  const { y: { at: at4, flat } } = withTwoClaims;
+  assert.same(typeof at4, 'function', 'two claims in one leaf both resolve');
+  assert.same(typeof flat, 'function', 'the second one too');
+  assert.same(withTwoClaims.reads, 1, 'sharing the one read');
+});
+
+// the positional element cannot be spelled - the pattern pulls from an iterator - so it takes a
+// minted binding, and what the claim dispatches on is whatever the source's own slot received
+QUnit.test('destructuring: a positional element claim binds through its slot', assert => {
+  const pulls = [];
+  const rows = {
+    [Symbol.iterator]() {
+      let index = 0;
+      return {
+        next() {
+          pulls.push(index);
+          return { value: [1, [2]], done: index++ > 0 };
+        },
+      };
+    },
+  };
+  const [{ at }] = rows;
+  assert.same(typeof at, 'function', 'the claim resolves off the pulled element');
+  assert.same(pulls.length, 1, 'and the pattern pulled exactly once');
+  let caught;
+  try {
+    throw [[1, [2]]];
+  } catch ([{ at: thrown }]) {
+    caught = thrown;
+  }
+  assert.same(typeof caught, 'function', 'the catch parameter relocates and extracts there');
+});
+
+// an OPTIONAL nav init is memoized like a plain one: the dispatch and the surviving residual read
+// the same ref, so the hop's getter fires once - spelling the nav twice fires it twice
+QUnit.test('destructuring: an optional nav init reads its hop once', assert => {
+  const carrier = { reads: 0 };
+  Object.defineProperty(carrier, 'y', {
+    get() { carrier.reads += 1; return Object.assign([1, [2]], { other: 5 }); },
+    enumerable: true,
+    configurable: true,
+  });
+  // the SHAPE is the test: an optional nav as a destructure init is what must memoize
+  // eslint-disable-next-line no-unsafe-optional-chaining -- `carrier` is provably present here
+  const { at, other } = carrier?.y;
+  assert.same(typeof at, 'function', 'the claim resolves through the optional nav');
+  assert.same(other, 5, 'and the residual binds off the same read');
+  assert.same(carrier.reads, 1, 'which is one read of the hop');
+});
+
+// a slot DEFAULT folds both arms into the dispatch: the LIVE arm is the one that usually runs, and
+// a rewrite that polyfilled only the default would leave it reading whatever the engine happens to
+// have. the hop is a getter, so the fold's single read is observable beside the answer
+QUnit.test('destructuring: a slot default polyfills the live arm too', assert => {
+  const src = { reads: 0 };
+  Object.defineProperty(src, 'y', {
+    get() { src.reads += 1; return [1, [2]]; },
+    enumerable: true,
+    configurable: true,
+  });
+  const spare = [3];
+  const { y: { flat } = spare } = src;
+  assert.same(typeof flat, 'function', 'the live arm carries the polyfilled method');
+  assert.same(src.reads, 1, 'and the nav was read once');
+  const absent = {};
+  const { y: { flat: fromDefault } = spare } = absent;
+  assert.same(typeof fromDefault, 'function', 'the default arm answers the same way');
+  // the emptied hop leaves the residual, so a host sibling never reads it a second time
+  const beside = { reads: 0, keep: 7 };
+  Object.defineProperty(beside, 'inner', {
+    get() { beside.reads += 1; return [1, [2]]; },
+    enumerable: true,
+    configurable: true,
+  });
+  const { inner: { flatMap } = [], keep } = beside;
+  assert.same(typeof flatMap, 'function', 'the claim beside a sibling still resolves');
+  assert.same(keep, 7, 'the sibling binds its own key');
+  assert.same(beside.reads, 1, 'and the defaulted hop was read once');
+});
+
+// a REST sibling keeps the emptied hop in the pattern - it is what excludes that key from rest - so
+// the hop's VALUE takes a minted binding instead and the dispatch reads that name: the polyfill lands
+// AND the source's single read stands, which is what the two assertions below hold apart
+QUnit.test('destructuring: a rest sibling keeps the hop read single', assert => {
+  const box = { keep: 7, reads: 0 };
+  Object.defineProperty(box, 'inner', {
+    get() {
+      box.reads += 1;
+      return [1, [2]];
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  const { inner: { flat }, ...rest } = box;
+  assert.same(rest.keep, 7, 'rest gathers what the pattern did not name');
+  assert.same(box.reads, 1, 'and the hop was read once');
+  assert.same(typeof flat, 'function', 'while the claim still resolves to its polyfill');
+});
+
+// the claim's own computed KEY is an effect the source runs between the hop read and the bind, so a
+// rewrite that discards the prop discards that effect - the order below is the whole test
+QUnit.test('destructuring: a side-effect key keeps its place', assert => {
+  const log = [];
+  const box = {};
+  Object.defineProperty(box, 'inner', {
+    get() {
+      log.push('hop');
+      return [1, [2]];
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  const { inner: { [(log.push('key'), 'flat')]: m } } = box;
+  assert.same(typeof m, 'function', 'the claim resolves through the flat twin');
+  assert.same(log.join(','), 'hop,key', 'and the key ran once, after the hop read');
+});
+
+// the flat twin of a nested claim lives in the literal's ELEMENT under an array wrapper, so the
+// normalization writes the nav there - the hop is still read once, and the claim still resolves
+// against the receiver's own type rather than degrading to the generic dispatcher
+QUnit.test('destructuring: a wrapper element takes the flattened nav', assert => {
+  const box = { reads: 0 };
+  Object.defineProperty(box, 'y', {
+    get() {
+      box.reads += 1;
+      return [1, [2]];
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  const [{ y: { flat, length: len } }] = [box];
+  assert.same(typeof flat, 'function', 'the claim resolves through the element');
+  assert.same(len, 2, 'and the sibling binds off the same read');
+  assert.same(box.reads, 1, 'which is one read of the hop');
+});
+
+// the wrapper element MEMOIZES when its claims cannot re-read it, and the memo takes the element's
+// place - so the receiver's type has to ride across that swap or the second claim degrades to the
+// generic dispatcher. `at` is the discriminator: it lives on String too, so only a receiver known
+// to be an Array narrows it, and in a realm without the built-in only the narrowed one answers
+QUnit.test('destructuring: the element memo carries the receiver type', assert => {
+  // the SHAPE is the test: a CALL cannot be re-read, so the element memoizes - and its return type
+  // is still known, which is what the claims after the memo need
+  function makeRow() {
+    return [1, [2]];
+  }
+  const [{ at, findLast }] = [makeRow()];
+  assert.same(typeof at, 'function', 'the claim after the memoizing one still resolves');
+  assert.same(typeof findLast, 'function', 'and so does the one that planted the memo');
+  assert.same(at.call([4, 5], -1), 5, 'and the dispatcher it got answers for an array');
+});
+
+// a WRITE to the slot unseats the narrow for every spelling that reads it - including the nested
+// one, whose reference stands in a declarator's init and used to be dropped as an alias. the test
+// runs the written value: a dispatcher narrowed to the init's family answers nothing for it
+QUnit.test('destructuring: a written slot keeps every spelling generic', assert => {
+  const box = { y: [1, [2]] };
+  box.y = 'str';
+  const { y: { at } } = box;
+  assert.same(typeof at, 'function', 'the claim still resolves');
+  assert.same(at.call('abc', -1), 'c', 'and the dispatcher it got answers for the written family');
+});
+
+// a CATCH parameter has no declaration for a claim to extract into, so the relocation gives it one -
+// and a claim sitting BELOW a prop key is what that relocation must recognise, exactly as it already
+// recognises one below an array element
+QUnit.test('destructuring: a nested claim in a catch parameter extracts', assert => {
+  const thrown = { y: [1, [2]] };
+  let seen;
+  try {
+    throw thrown;
+  } catch ({ y: { flat } }) {
+    seen = flat;
+  }
+  assert.same(typeof seen, 'function', 'the claim resolves off the relocated parameter');
+  assert.same(seen.call([1, [2]]).length, 2, 'and the dispatcher it got answers for the thrown value');
+});
+
+// array WRAPPERS nest, and every level is the same pairing: the claim under two of them reads the
+// same hop as under one. the order questions read every level too - a neighbour after the slot at
+// the INNER level is evaluated after it just like an outer one, so the extraction stays behind it
+QUnit.test('destructuring: a claim under nested array wrappers reads its own hop', assert => {
+  const nb = { y: [1, [2]] };
+  const [[{ y: { flat } }]] = [[nb]];
+  assert.same(typeof flat, 'function', 'the claim resolves through both wrapper levels');
+  assert.same(flat.call([1, [2]]).length, 2, 'and the dispatcher it got answers for the hop value');
+  const log = [];
+  const [[{ y: { at } }, zn]] = [[nb, log.push('n')]];
+  assert.same(typeof at, 'function', 'the claim beside an inner effect resolves too');
+  assert.same(zn, 1, 'the neighbour keeps its own value');
+  assert.same(log.join(','), 'n', 'and its effect ran exactly once');
+});
+
+// a LOOP HEAD binds per iteration with no declaration a claim could extract into, so the head takes
+// a minted name and the pattern moves into the body. the kind travels with it - a `const` head still
+// binds per iteration, which a closure made in the body is what proves
+QUnit.test('destructuring: a claim in a loop head relocates and keeps its binding', assert => {
+  const rows = [[1, [2]], [3]];
+  const seen = [];
+  for (const { flat } of rows) seen.push(typeof flat);
+  assert.same(seen.join(','), 'function,function', 'the claim resolves on every iteration');
+  assert.same(rows.map(row => {
+    let call;
+    for (const { flat } of [row]) call = flat.call(row);
+    return call.length;
+  }).join(','), '2,1', 'and the dispatcher each round got answers for its own element');
+  const held = [];
+  for (const { at } of [[1, 2], [3, 4]]) held.push(row => at.call(row, -1));
+  assert.same(held.length, 2, 'both iterations made their own closure');
+  assert.same(held.map((call, index) => call([[10, 20], [30, 40]][index])).join(','), '20,40',
+    'and the relocated const still binds per iteration');
+  let value;
+  for (const { name } of [{ name: [7, 8] }]) value = name.at(-1);
+  assert.same(value, 8, 'a data key keeps its own binding type through the loop');
+});
+
+// a DEFAULT on the slot is CARRIED, not mirrored: the twin folds both arms off one read, so the
+// claim is polyfilled on the arm that actually runs. the LIVE arm is what a mirror of the default
+// alone left raw, and an effectful default proves the call still runs only where the source runs it
+QUnit.test('destructuring: a slot default folds instead of mirroring', assert => {
+  const src = { y: [1, [2]] };
+  const spare = [3];
+  const { y: { at, flat } = spare } = src;
+  assert.same(at.call([4, 5], -1), 5, 'the live arm answers through the dispatcher');
+  assert.same(flat.call([1, [2]]).length, 2, 'and so does its sibling, off the same read');
+  const absent = {};
+  const { y: { at: at2 } = spare } = absent;
+  assert.same(at2.call([6, 7], 0), 6, 'the default arm answers too');
+  let calls = 0;
+  function raise() {
+    calls += 1;
+    return [3];
+  }
+  const { y: { at: at3 } = raise() } = src;
+  assert.same(typeof at3, 'function', 'an effectful default still yields its claim');
+  assert.same(calls, 0, 'and its call did not run while the slot was defined');
+});
+
+// a wrapper standing under a KEY is one descent step further into the init literal, so the claim
+// reads the hop the source reads - a descent that dropped a step would read the holder instead.
+// the effectful-neighbour row is the order boundary: the literal builds before it destructures
+QUnit.test('destructuring: a claim under a keyed wrapper reads its own hop', assert => {
+  const nb = { y: [1, [2]] };
+  const { pair: [{ y: { flat } }] } = { pair: [nb] };
+  assert.same(typeof flat, 'function', 'the claim resolves through the keyed step');
+  assert.same(flat.call([1, [2]]).length, 2, 'and its dispatcher answers for the hop value');
+  const log = [];
+  const { pair: [{ y: { flat: raw } }], zn } = { pair: [nb], zn: log.push('n') };
+  assert.same(zn, 1, 'a neighbour key keeps its own value');
+  assert.same(log.join(','), 'n', 'its effect ran exactly once');
+  assert.same(raw === undefined || typeof raw === 'function', true,
+    'and the claim beside it binds whatever the engine holds - that row stays native by design');
+});
+
+// an ASSIGNMENT host binds no declaration for a positional claim's minted name, but a hoisted `var`
+// is a binding site all the same: the statement keeps its own iteration and the claim's binding takes
+// the dispatcher's answer right after it - source order across several claims included
+QUnit.test('destructuring: a positional claim on an assignment host extracts', assert => {
+  const rows = [[1, 2], [3]];
+  let at, inc;
+  [{ at }, { includes: inc }] = rows;
+  assert.same(at.call([4, 5], -1), 5, 'the first claim answers through its own element');
+  assert.same(inc.call([3], 3), true, 'and so does the second');
+  const log = [];
+  let neighbour;
+  [{ at }, neighbour] = (log.push('once'), rows);
+  assert.same(at.call([8, 9], 0), 8, 'a re-run binds the element again');
+  assert.same(neighbour.length, 1, 'the residual still binds its own neighbour');
+  assert.same(log.join(','), 'once', 'and the right ran exactly once');
+});
+
+// a claim carrying its OWN default inside a relocated loop head: the guard's test ref folds into the
+// relocated declaration, so that declaration cannot be `const` - the head keeps the kind instead
+QUnit.test('destructuring: a defaulted claim in a loop head keeps both arms', assert => {
+  function fallback() {
+    return 'fb';
+  }
+  const seen = [];
+  for (const { at = fallback } of [[1, 2], {}]) seen.push(typeof at === 'function' ? at.name || 'dispatched' : typeof at);
+  assert.same(seen.length, 2, 'both iterations bound the claim');
+  let last;
+  for (const { at = fallback } of [{}]) last = at;
+  assert.same(last, fallback, 'the default arm wins where the slot is absent');
+  let live;
+  for (const { at = fallback } of [[3, 4]]) live = at;
+  assert.same(live.call([5, 6], -1), 6, 'and the live arm answers through its dispatcher');
+});
+
+// a DEFAULTED leaf in an assignment host: the guard decides off the dispatcher's own answer, and
+// a PATTERN default becomes the extraction's target rather than a slot the mirror fills. the last
+// row is the composition - a typed outer hop feeds the leaf dispatch, so the source's default
+// fires exactly where the source fires it, never on the arm the ponyfill answers
+QUnit.test('destructuring: a defaulted leaf on an assignment host keeps both arms', assert => {
+  let at, first, rest, sibling, viaHop, viaStatic;
+  ({ at = 'fb' } = [1, 2]);
+  assert.same(at.call([4, 5], -1), 5, 'the live arm answers through its dispatcher');
+  ({ at = 'fb' } = {});
+  assert.same(at, 'fb', 'and the default arm wins where the slot is absent');
+  ({ at: { length: first } = { length: 'none' } } = [1, 2]);
+  assert.same(typeof first, 'number', 'a pattern default destructures the dispatcher result');
+  ({ at: { length: first } = { length: 'none' } } = {});
+  assert.same(first, 'none', 'and the default itself where the slot is absent');
+  ({ at: { 0: sibling, ...rest } = ['none'] } = {});
+  assert.same(sibling, 'none', 'a rest in that pattern binds beside its named leaf');
+  assert.same(Object.keys(rest).length, 0, 'and collects what the leaf left');
+  ({ at: { 0: sibling } = ['none'] } = [1, 2]);
+  assert.same(typeof sibling, 'undefined', 'the live arm reads that same slot off the dispatcher result');
+  ({ flat: { at: viaHop } = [] } = [[1], [2]]);
+  assert.same(typeof viaHop, 'undefined', 'the composed step reads off the hop dispatch, not off a mirror');
+  ({ flat: { at: viaHop } = [] } = {});
+  assert.same(typeof viaHop, 'function', 'and its default arm still reaches a dispatcher of its own');
+  ({ from: { name: viaStatic } = {} } = Array);
+  assert.same(typeof viaStatic, 'string', 'and a static outer hop composes the same two steps');
+  ({ fromEntries: { name: viaStatic } = {} } = Object);
+  assert.same(viaStatic, 'fromEntries', 'and the step carries that static own identity, not the default');
+});
+
+// an assignment DISCARDED as a non-tail sequence element: nobody reads what it yields, so the claim
+// is served there exactly as in statement position - but the rewrite owns the ELEMENT, not the
+// statement, so everything the sequence holds after it must survive, effects and value alike
+QUnit.test('destructuring: a claim in a discarded sequence element keeps the tail', assert => {
+  const log = [];
+  const src = [1, 2];
+  let at, from, rest, kept;
+  const tail = ({ at } = src, 'tail');
+  assert.same(tail, 'tail', 'the sequence still yields its own tail');
+  assert.same(at.call([4, 5], -1), 5, 'and the claim binds through its dispatcher');
+  const tail2 = ({ from } = Array, log.push('after'), 'second');
+  assert.same(tail2, 'second', 'a longer sequence keeps every element after the claim');
+  assert.same(log.join(','), 'after', 'including the effects they carry');
+  assert.same(typeof from, 'function', 'and the static claim binds beside them');
+  const tail3 = ({ at: kept, ...rest } = src, 'third');
+  assert.same(tail3, 'third', 'a rest sibling keeps the tail too');
+  assert.same(kept.call([7, 8], 0), 7, 'the consumed key binds through its dispatcher');
+  assert.same(Object.keys(rest).length, src.length, 'and the rest still collects what it excluded');
+});
+
+// a REST sibling on an assignment host re-reads the receiver past the renamed key, so a receiver
+// nothing can re-read is memoized: both readers take the one identity, and an observable receiver
+// evaluates exactly once
+QUnit.test('destructuring: a rest sibling on an assignment host shares one receiver read', assert => {
+  const log = [];
+  let at, rest;
+  ({ at, ...rest } = [1, 2]);
+  assert.same(at.call([4, 5], -1), 5, 'the claim binds through its dispatcher');
+  assert.same(Object.keys(rest).length, 2, 'and the rest collects what the renamed key excluded');
+  function mk() {
+    log.push('recv');
+    return [7, 8, 9];
+  }
+  ({ at, ...rest } = mk());
+  assert.same(log.join(','), 'recv', 'an observable receiver evaluates exactly once');
+  assert.same(at.call([1, 2], 0), 1, 'the claim still binds through its dispatcher');
+  assert.same(Object.keys(rest).length, 3, 'and the rest reads the same value the claim did');
+});
+
+// a claim INSIDE the receiver of a destructure survives the consume: the receiver is spelled once,
+// its own step still dispatches, and the effect it carries runs exactly once
+QUnit.test('destructuring: a claim inside the receiver keeps its own step', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  let at, viaDefault;
+  ({ at } = rows().flat());
+  assert.same(typeof at, 'function', 'the outer claim binds through its dispatcher');
+  assert.same(log.join(','), 'rows', 'and the receiver evaluated exactly once');
+  ({ at: { 0: viaDefault } = rows().flat() } = {});
+  assert.same(viaDefault, 1, 'a claim inside the slot default answers too');
+  assert.same(log.join(','), 'rows,rows', 'and its receiver ran only where the default fired');
+  ({ at: { 0: viaDefault } = rows().flat() } = [7, 8]);
+  assert.same(typeof viaDefault, 'undefined', 'where the slot is present the default never runs');
+  assert.same(log.join(','), 'rows,rows', 'so its receiver did not run a third time');
+  ({ at } = [9, 10]);
+  assert.same(at.call([4, 5], -1), 5, 'and a re-run binds the claim again');
+});
+
+// an EFFECT-bearing slot of a nested receiver: the residual that would have re-read it is dropped,
+// so the dispatch is the only read - the effect runs exactly once, as the source runs it
+QUnit.test('destructuring: a nested effectful slot is read exactly once', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  const { y: { at } } = { y: rows().flat() };
+  assert.same(typeof at, 'function', 'the leaf binds through its dispatcher');
+  assert.same(log.join(','), 'rows', 'and the slot evaluated exactly once');
+  const { y: { at: beside } } = { z: 1, y: rows().flat() };
+  assert.same(typeof beside, 'function', 'an effect-free neighbour slot changes nothing');
+  assert.same(log.join(','), 'rows,rows', 'and it still evaluates once per statement');
+});
+
+// the ASSIGNMENT host asks that same question of its OWN residual: the dispatch spells the slot only
+// where the host dies with it, and every shape that keeps a reader alive stands down instead
+QUnit.test('destructuring: an assigned effectful slot is read exactly once', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  let at, kept;
+  ({ y: { at } } = { y: rows().flat() });
+  assert.same(typeof at, 'function', 'the leaf binds through its dispatcher');
+  assert.same(log.join(','), 'rows', 'and the slot evaluated exactly once');
+  [{ y: { at } }] = [{ y: rows().flat() }];
+  assert.same(typeof at, 'function', 'an array wrapper around that host binds too');
+  assert.same(log.join(','), 'rows,rows', 'and its element evaluated exactly once');
+  if (log) ({ y: { at } } = { y: rows().flat() });
+  assert.same(typeof at, 'function', 'a bodyless control slot hosts the dispatch');
+  assert.same(log.join(','), 'rows,rows,rows', 'and evaluates its slot exactly once');
+  // the shapes that KEEP a reader decline the dispatch, so what their leaf binds is whatever the
+  // realm has - asserted by the effect COUNT and the sibling values, never by the method's presence
+  ({ y: { at }, o: kept } = { y: rows().flat(), o: 7 });
+  const viaSibling = typeof at;
+  assert.same(kept, 7, 'a surviving sibling keeps the destructure');
+  assert.same(log.join(','), 'rows,rows,rows,rows', 'and its slot still evaluates once');
+  ({ y: { at, length: kept } } = { y: rows().flat() });
+  const viaKey = typeof at;
+  assert.same(kept, 2, 'a sibling KEY off the same receiver keeps it too');
+  assert.same(log.join(','), 'rows,rows,rows,rows,rows', 'read exactly once');
+  ({ y: { at }, z: kept } = { y: rows().flat(), z: rows().flat() });
+  assert.same(kept.length, 2, 'a second effect-bearing part binds natively');
+  assert.same(log.join(','), 'rows,rows,rows,rows,rows,rows,rows', 'and both parts ran once each');
+  assert.same(viaSibling, viaKey, 'the declined shapes all bind the same raw read');
+  assert.same(viaKey, typeof at, 'whatever the realm holds for it');
+});
+
+// a DECLARATION host reads its receiver once whatever keeps the declaration alive: a consumed
+// declarator splits off beside its siblings, a sole wrapper takes the element whole, and a wrapper
+// whose neighbour still binds empties this element while its own read hoists to the source slot
+QUnit.test('destructuring: a declared observable receiver is read exactly once', assert => {
+  const log = [];
+  function rows() {
+    log.push('y');
+    return [1, [2]];
+  }
+  const { y: { at: sibling } } = { y: rows() },
+        siblingZ = 1;
+  assert.same(typeof sibling, 'function', 'a consumed declarator beside a sibling binds');
+  assert.same(siblingZ, 1, 'and the sibling keeps its own binding');
+  assert.same(log.join(','), 'y', 'off a receiver read exactly once');
+  // the ARRAY-WRAPPED hosts read the SLOT, not the element: a sole one takes it whole, and one whose
+  // neighbour still binds memoizes it - so both bind through the dispatcher whatever the realm holds
+  const [{ y: { at: sole } }] = [{ y: rows() }];
+  assert.same(typeof sole, 'function', 'a sole array wrapper binds through its dispatcher');
+  assert.same(log.join(','), 'y,y', 'reading its element exactly once');
+  const [{ y: { at: neighbour } }, neighbourZ] = [{ y: rows() }, rows()];
+  assert.same(typeof neighbour, 'function', 'a bound neighbour changes neither leaf');
+  assert.same(neighbourZ.length, 2, 'and binds what the source gives it');
+  assert.same(log.join(','), 'y,y,y,y', 'each element read exactly once, in source order');
+  const [{ at: shared, ...rest }] = [rows().slice()];
+  assert.same(typeof shared, 'function', 'a receiver carrying a claim of its own dispatches');
+  assert.same(Object.keys(rest).length, 2, 'and the rest reads the same value the claim did');
+  assert.same(log.join(','), 'y,y,y,y,y', 'off one evaluation, not two');
+});
+
+// a DECLARATION array wrapper whose element cannot be spelled twice memoizes it: the residual keeps
+// the element slot, so without the memo the dispatch beside it evaluated that element a second time
+QUnit.test('destructuring: a wrapped opaque element is read exactly once', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  const [{ at: sole }] = [rows()];
+  assert.same(typeof sole, 'function', 'a sole prop binds through its dispatcher');
+  assert.same(log.join(','), 'rows', 'off one evaluation of the element');
+  const [{ at: defaulted = null }] = [rows()];
+  assert.same(typeof defaulted, 'function', 'a defaulted leaf takes the same memo');
+  assert.same(log.join(','), 'rows,rows', 'and still reads its element once');
+  const [{ at: ahead }] = [rows()],
+        pureTail = 1;
+  assert.same(typeof ahead, 'function', 'a pure trailing declarator is no obstacle');
+  assert.same(pureTail, 1, 'and keeps its own binding');
+  assert.same(log.join(','), 'rows,rows,rows', 'the element still read once');
+  const order = [];
+  function first() {
+    order.push('first');
+    return [1, [2]];
+  }
+  function second() {
+    order.push('second');
+    return [1, [2]];
+  }
+  const [{ at: a1 }] = [first()],
+        [{ at: a2 }] = [second()];
+  assert.same(typeof a1, typeof a2, 'two claimed declarators both bind');
+  assert.same(order.join(','), 'first,second', 'each element evaluated once, in source order');
+});
+
+// the FLAT wrapper of an assignment host is the same question one literal in: its element is spelled
+// by the dispatch, so the dead residual must not re-emit the array beside it
+QUnit.test('destructuring: a wrapped effectful element is read exactly once', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  let at, mate;
+  [{ at }] = [rows().flat()];
+  assert.same(typeof at, 'function', 'the sole element binds through its dispatcher');
+  assert.same(log.join(','), 'rows', 'and evaluated exactly once');
+  [{ at: mate }] = [rows().flat()];
+  assert.same(typeof mate, typeof at, 'a re-run answers the same');
+  assert.same(log.join(','), 'rows,rows', 'and evaluates its element once again');
+  [{ at }, { at: mate }] = [rows().flat(), rows().flat()];
+  assert.same(typeof at, typeof mate, 'a MULTI wrapper answers both elements alike');
+  assert.same(log.join(','), 'rows,rows,rows,rows', 'and evaluates each of them exactly once');
+});
+
+// a NESTED claim under that wrapper reads its slot once too: where this leaf is the wrapper's only
+// binding the residual dies and the dispatch performs the slot's read, and where a reader survives
+// it - a rest, a sibling prop, a key carrying an effect - the slot memoizes so both share one read
+QUnit.test('destructuring: a nested wrapper slot is read exactly once', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  const [{ y: { at: sole } }] = [{ y: rows() }];
+  assert.same(typeof sole, 'function', 'a sole binding takes the slot whole');
+  assert.same(log.join(','), 'rows', 'evaluating it exactly once');
+  const [{ y: { at: kept, ...other } }] = [{ y: rows() }];
+  assert.same(typeof kept, typeof sole, 'a surviving rest answers the same');
+  assert.same(typeof other, 'object', 'and still gathers what the pattern does not name');
+  assert.same(log.join(','), 'rows,rows', 'off one evaluation, not two');
+  const [{ y: { at: beside }, wz }] = [{ y: rows(), wz: 7 }];
+  assert.same(typeof beside, typeof sole, 'a sibling prop keeps the residual');
+  assert.same(wz, 7, 'and binds beside the claim');
+  assert.same(log.join(','), 'rows,rows,rows', 'the slot still read once');
+  const keys = [];
+  const [{ y: { [(keys.push('key'), 'at')]: viaKey } }] = [{ y: rows() }];
+  assert.same(typeof viaKey, typeof sole, 'an effectful key names the claim all the same');
+  assert.same(keys.join(','), 'key', 'and runs where the source wrote it, exactly once');
+  assert.same(log.join(','), 'rows,rows,rows,rows', 'off one read of the slot');
+});
+
+// a REST above the hop keeps the hop's key in the pattern - the key IS the read - so what leaves is
+// the hop's VALUE, renamed to the binding the dispatch reads. the array WRAPPER is that same host
+// one literal out, pairing the element this pattern stands on. the read COUNT is held by the fixture
+// and the generated corpus: counting it here needs an accessor, which the polyfill baseline forbids
+QUnit.test('destructuring: a rest above the hop renames the hop, not the read', assert => {
+  const holder = {
+    keep: 1,
+    y: [1, [2]],
+  };
+  const { y: { at: flat }, ...flatRest } = holder;
+  assert.same(typeof flat, 'function', 'the flat host binds through its dispatcher');
+  assert.same(flatRest.keep, 1, 'the rest still gathers what the pattern does not name');
+  assert.same('y' in flatRest, false, 'and the renamed hop stays excluded from it');
+  const [{ y: { at: wrapped }, ...wrapRest }] = [holder];
+  assert.same(typeof wrapped, typeof flat, 'the array wrapper answers the same');
+  assert.same(wrapRest.keep, 1, 'gathering the same way');
+  assert.same('y' in wrapRest, false, 'and excluding the hop just as surely');
+  const [lead, { y: { at: second }, ...secondRest }] = [7, holder];
+  assert.same(lead, 7, 'a leading element keeps its own binding');
+  assert.same(typeof second, typeof flat, 'and the pattern pairs the element it stands on');
+  assert.same(secondRest.keep, 1, 'whose rest gathers off that element');
+});
+
+// under a wrapper the flatten writes the hop read INTO the element, which moves it to where the
+// literal builds - so where an effect stands between (a neighbour element, a declarator ahead), the
+// twin trails the residual instead and the read keeps the place the source gave it
+QUnit.test('destructuring: a wrapper twin trails what runs before its read', assert => {
+  const log = [];
+  const holder = {
+    keep: 1,
+    y: [1, [2]],
+  };
+  function mark(name) {
+    log.push(name);
+    return log.length;
+  }
+  const [{ y: { at: beside, findLast: besideLast } }, zn] = [holder, mark('neighbour')];
+  assert.same(typeof beside, 'function', 'both claims bind through their dispatchers');
+  assert.same(typeof besideLast, 'function', 'off the one slot they share');
+  assert.same(zn, 1, 'and the neighbour keeps its own binding');
+  assert.same(log.join(','), 'neighbour', 'having run where the source runs it');
+  const zLead = mark('lead'),
+        [{ y: { at: after, findLast: afterLast } }] = [holder];
+  assert.same(zLead, 2, 'a declarator ahead runs before the literal');
+  assert.same(typeof after, typeof beside, 'and the claims behind it bind the same');
+  assert.same(typeof afterLast, typeof besideLast, 'both of them');
+  assert.same(log.join(','), 'neighbour,lead', 'with nothing reordered around it');
+});
+
+// an emptied element at the END of a wrapper sheds: the position needs no holding there, and an
+// array pattern whose last element binds nothing is a shape the downstream destructuring lowering
+// miscompiles - it drops an earlier element's binding, which this bundle's own lowering would show
+QUnit.test('destructuring: an emptied trailing element sheds from the wrapper', assert => {
+  const rows = [1, [2]];
+  const holder = { other: 7 };
+  const [{ other }, { at: claimed }] = [holder, rows];
+  assert.same(other, 7, 'the surviving binding still binds');
+  assert.same(typeof claimed, 'function', 'beside the claim that emptied its own element');
+  const [{ at: leading }, { keep }] = [rows, { keep: 9 }];
+  assert.same(typeof leading, typeof claimed, 'and an emptied LEADING element answers the same');
+  assert.same(keep, 9, 'with the element behind it binding as written');
+});
+
+// the wrappers a source spells around an init are erased at runtime, so what they hold performs
+// exactly the effects they do - a claim inside must read through them. a SEQUENCE is not one of
+// those: its prefix is an effect the receiver never spells, so the residual stays to perform it
+QUnit.test('destructuring: a carried init reads through its wrappers', assert => {
+  const log = [];
+  function rows() {
+    log.push('rows');
+    return [1, [2]];
+  }
+  function lead() {
+    log.push('lead');
+    return 0;
+  }
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parens ARE what this locks
+  const { y: { at: viaParenSlot } } = { y: (rows()) };
+  assert.same(typeof viaParenSlot, 'function', 'a parenthesised slot binds through its dispatcher');
+  assert.same(log.join(','), 'rows', 'reading it exactly once');
+  // eslint-disable-next-line @stylistic/no-extra-parens -- same, one level out
+  const { y: { at: viaParenInit } } = ({ y: rows() });
+  assert.same(typeof viaParenInit, typeof viaParenSlot, 'and so does a parenthesised init');
+  assert.same(log.join(','), 'rows,rows', 'off one read again');
+  // eslint-disable-next-line @stylistic/no-extra-parens -- same, on the wrapper's element
+  const [{ y: { at: viaParenElement } }] = [({ y: rows() })];
+  assert.same(typeof viaParenElement, typeof viaParenSlot, 'the wrapper host answers the same');
+  assert.same(log.join(','), 'rows,rows,rows', 'still one read each');
+  // ... and a SEQUENCE prefix keeps the claim native on both legs - what this locks is the effect
+  // ORDER, which is the invariant the peel must not disturb: the prefix runs first, the slot once
+  const { y: { at: viaSeqPrefix } } = (lead(), { y: rows() });
+  assert.same(log.join(','), 'rows,rows,rows,lead,rows', 'the prefix runs once, before the slot');
+  assert.same(viaSeqPrefix === undefined || typeof viaSeqPrefix === 'function', true,
+    'and the leaf binds what the realm holds for it');
+});
