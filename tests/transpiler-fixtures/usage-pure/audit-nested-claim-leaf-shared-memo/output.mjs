@@ -31,12 +31,12 @@ const computedSibling = function () {
   return [at, dyn];
 }();
 const restSibling = function () {
+  const _ref4 = box.y;
+  const at = _atMaybeArray(_ref4);
   const {
-    y: {
-      at,
-      ...rest
-    }
-  } = box;
+    at: _unused,
+    ...rest
+  } = _ref4;
   return [at, rest];
 }();
 export { twoClaims, claimAndSymbol, computedSibling, restSibling };

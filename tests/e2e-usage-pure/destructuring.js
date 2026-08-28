@@ -4665,3 +4665,252 @@ QUnit.test('destructuring: a carried init reads through its wrappers', assert =>
   assert.same(viaSeqPrefix === undefined || typeof viaSeqPrefix === 'function', true,
     'and the leaf binds what the realm holds for it');
 });
+
+// a for-x HEAD is not a statement list, so extracting a claim out of it relocates what the pattern
+// still binds into the loop body. the record left on the head names the minted iteration variable,
+// and a type read off it answers the ITERATED element: an object rest resolved as an Array folds a
+// presence test and hands a plain object to the array-specific helper, which throws where the
+// polyfill is the only implementation
+QUnit.test('destructuring: a for-x head binds what the head no longer holds', assert => {
+  const rows = Object.assign([1, [2]], { extra: 7 });
+  const nested = [{ y: rows }];
+  for (const { at, ...rest } of [rows]) {
+    assert.same(typeof at, 'function', 'the claim binds from the iterated element');
+    assert.same('at' in rest, false, 'and the rest it left behind is a plain object');
+    assert.same(rest.extra, 7, 'holding what the pattern did not name');
+    assert.same(rest.at, undefined, 'with no instance method of the element it came from');
+  }
+  for (const [{ y: { at, ...rest } }] of [nested]) {
+    assert.same(typeof at, 'function', 'the same one hop in, through a renamed element');
+    assert.same('at' in rest, false, 'the nested rest is a plain object too');
+    assert.same(rest.extra, 7, 'holding the same keys');
+  }
+  for (const { at, ...rest } of [rows]) assert.same('at' in rest, false, 'a bodyless head answers the same');
+  const keys = [];
+  for (const { at, ...rest } in { a: 1 }) {
+    keys.push(typeof at, 'at' in rest);
+  }
+  assert.same(keys.join(','), 'function,false', 'and a for-in head destructures the KEY it iterates');
+});
+
+// an ARRAY-WRAPPED pattern over a BINDING receiver reaches its claim by renaming the element to a
+// minted name; what the pattern binds beside the claim rides the residual, which reads that same
+// name. the pairing routes have no literal element to walk to here, so this is the only shape that
+// reaches the claim at all - and everything the source bound has to survive it
+QUnit.test('destructuring: a renamed element keeps what its pattern bound beside the claim', assert => {
+  const rows = Object.assign([1, [2]], { extra: 7 });
+  const holder = { y: rows, keep: 3 };
+  const pair = [holder];
+  const [{ y: { at, ...rest } }] = pair;
+  assert.same(typeof at, 'function', 'the claim binds off the renamed element');
+  assert.same(rest.extra, 7, 'and the rest gathers what the pattern did not name');
+  assert.same('at' in rest, false, 'excluding the claim key exactly as the source did');
+  const [{ y: { flat, extra } }] = pair;
+  assert.same(typeof flat, 'function', 'a NAMED sibling rides the same residual');
+  assert.same(extra, 7, 'binding what it bound');
+  const [{ y: { concat }, keep }] = pair;
+  assert.same(typeof concat, 'function', 'a sibling one level OUT rides it too');
+  assert.same(keep, 3, 'with its own value');
+  const [{ y: { findLast, extra: extra2, 0: first } }] = pair;
+  assert.same(typeof findLast, 'function', 'two siblings, one keyed numerically');
+  assert.same(extra2, 7, 'the named one binds');
+  assert.same(first, 1, 'and the numeric one reads its slot');
+  // a sibling one level OUT reads the value ITS level reads, and stays where the source's nesting
+  // put it: before the hop when it stands before it, after the inner level when it stands after
+  const order = [];
+  const nested = Object.defineProperties({}, {
+    lead: { get() {
+      order.push('lead');
+      return 5;
+    }, enumerable: true },
+    y: { get() {
+      order.push('y');
+      return Object.assign([1, [2]], { extra: 7 });
+    }, enumerable: true },
+    top: { get() {
+      order.push('top');
+      return 4;
+    }, enumerable: true },
+  });
+  const nestedPair = [nested];
+  const [{ lead, y: { flat: viaOuter, extra: extra5 }, top }] = nestedPair;
+  assert.same(typeof viaOuter, 'function', 'the claim binds through the hop');
+  assert.same([lead, extra5, top].join(','), '5,7,4', 'every sibling binds what it bound');
+  assert.same(order.join(','), 'lead,y,top', 'and each level is read where the source reads it');
+  // the hop between the element and the claim is read ONCE: the dispatch and the residual take the
+  // same memo of it, where re-emitting the element pattern would run this getter a second time
+  const log = [];
+  const source = {};
+  Object.defineProperty(source, 'y', {
+    get() {
+      log.push('y');
+      return Object.assign([1, [2]], { extra: 7 });
+    },
+  });
+  const gettered = [source];
+  const [{ y: { flat: viaGetter, extra: extra4 } }] = gettered;
+  assert.same(typeof viaGetter, 'function', 'the claim binds through the hop');
+  assert.same(extra4, 7, 'the sibling binds off the same read');
+  assert.same(log.length, 1, 'and the getter ran exactly once');
+});
+
+// a binding that may hold a KNOWN CONSTRUCTOR is clouded: which object it holds decides which
+// STATICS exist, so that surface belongs to the guard. an INSTANCE claim asks nothing of it - the
+// read lands on whatever the value turned out to be - and both spellings of it must agree
+QUnit.test('destructuring: a clouded binding still dispatches its instance claims', assert => {
+  const seen = [];
+  for (const ctor of [Array]) {
+    const { name } = ctor;
+    const { at } = ctor;
+    const { from } = ctor;
+    seen.push(name, typeof at, typeof from, ctor.name);
+  }
+  assert.same(seen[0], 'Array', 'the instance claim reads the value the binding holds');
+  assert.same(seen[1], 'undefined', 'a method the value does not carry stays absent');
+  assert.same(seen[2], 'function', 'while the static surface keeps its guarded answer');
+  assert.same(seen[3], seen[0], 'and the member spelling of the same read agrees');
+  const box = { at: 1, name: 'box' };
+  for (const held of [box]) {
+    const { name: heldName } = held;
+    assert.same(heldName, 'box', 'a value that is NOT the constructor reads its own slot');
+  }
+});
+
+// the hop normalization replaces the HOST pattern with the leaf, so a sibling beside the hop would
+// go with it - the binding the source wrote, gone, and the code reads a name nothing declares. the
+// wrapped spelling asks the rule of the ELEMENT that pairs with the literal
+QUnit.test('destructuring: a wrapped host keeps what it binds beside the hop', assert => {
+  const order = [];
+  const nested = Object.defineProperties({}, {
+    lead: { get() {
+      order.push('lead');
+      return 5;
+    }, enumerable: true },
+    y: { get() {
+      order.push('y');
+      return Object.assign([1, [2]], { extra: 7 });
+    }, enumerable: true },
+    top: { get() {
+      order.push('top');
+      return 4;
+    }, enumerable: true },
+  });
+  // the claim itself is DECLINED here - that is the price of the rule, and what must survive is
+  // every binding the source wrote, in the order the source reads them
+  const [{ lead, y: { flat, extra }, top }] = [nested];
+  assert.same([lead, extra, top].join(','), '5,7,4', 'everything beside the hop still binds');
+  assert.same(typeof flat === 'function' || flat === undefined, true, 'the claim binds what the realm holds');
+  assert.same(order.join(','), 'lead,y,top', 'each read where the source reads it');
+  const [{ y: { flat: flatA }, top: topA }] = [nested];
+  assert.same(topA, 4, 'a sibling after the hop alone');
+  const [{ lead: leadB, y: { flat: flatB } }] = [nested];
+  assert.same(leadB, 5, 'and one before it alone');
+  assert.same(typeof flatB, typeof flatA, 'both spellings answer the same for the claim');
+});
+
+// a binding that MAY be a constructor takes the identity guard, and a pattern reading several of its
+// statics splits into one read per prop - each guarded, all in source order. what the split must not
+// disturb is what the pattern bound and when each slot was read
+QUnit.test('destructuring: several statics off a guarded binding each take their guard', assert => {
+  let M = globalThis.Array;
+  if (!M) M = Array;
+  const { from, of } = M;
+  assert.same([typeof from, typeof of].join(','), 'function,function', 'both statics bind');
+  assert.same(from([1, 2]).length, 2, 'and the first one works');
+  assert.same(of(7, 8).length, 2, 'and so does the second');
+  const { of: of2, from: from2 } = M;
+  assert.same([typeof of2, typeof from2].join(','), 'function,function', 'order in the pattern decides nothing');
+  // a prop the plan cannot answer keeps the WHOLE pattern - the negative the split is gated on. the
+  // claim is then DECLINED, so `from3` holds what the realm holds, exactly as the source's own read
+  // would: what the decline owes is the bindings, not the polyfill
+  const { from: from3, isArray } = M;
+  assert.same(typeof isArray, 'function', 'a mixed pattern still binds its unclaimed props');
+  assert.same(from3 === undefined || typeof from3 === 'function', true, 'and the claim binds the raw slot');
+  // source order of the reads, where the slots can observe it
+  const order = [];
+  const probe = Object.defineProperties({}, {
+    from: { get() {
+      order.push('from');
+      return 1;
+    }, enumerable: true },
+    of: { get() {
+      order.push('of');
+      return 2;
+    }, enumerable: true },
+  });
+  const { from: p1, of: p2 } = probe;
+  assert.same([p1, p2].join(','), '1,2', 'a non-constructor receiver binds its own slots');
+  assert.same(order.join(','), 'from,of', 'read in the order the pattern spells');
+});
+
+// a for-x HEAD hosts no statement, but the loop it heads has a BODY - and the claim reads its entry
+// there rather than riding the slot's own default. the difference is observable: a default fires on
+// `undefined` alone, so a native core-js REPLACES would be kept, while the entry is core-js's own
+QUnit.test('destructuring: a head-hosted claim reads its entry, not the raw slot', assert => {
+  // the invariant that holds in every realm, stripped or not: the head answers exactly as the
+  // declarator host does for the same source
+  let viaHead;
+  for (const { Array: { from } } of [globalThis]) viaHead = from;
+  const { Array: { from: viaDeclarator } } = globalThis;
+  assert.same(typeof viaHead, 'function', 'the head binds the claim');
+  assert.same(viaHead, viaDeclarator, 'and binds exactly what the declarator host binds');
+  assert.same(viaHead([1, 2]).length, 2, 'and the binding works');
+  // the head goes on reading what the source read, and everything beside the claim still binds
+  const seen = [];
+  for (const { Array: { of } } of [globalThis]) seen.push(typeof of);
+  assert.same(seen.join(','), 'function', 'a bodyless head braces and keeps its claim');
+});
+
+// a REST beside a guarded read cannot become a read of its own, so it stays behind them reading the
+// same receiver - and what it gathers has to be exactly what the source left it
+QUnit.test('destructuring: a guarded read keeps its rest sibling', assert => {
+  let M = globalThis.Array;
+  if (!M) M = Array;
+  const { from, ...rest } = M;
+  assert.same(typeof from, 'function', 'the guarded read binds its polyfill');
+  assert.same(from([1, 2]).length, 2, 'and the binding works');
+  assert.same('from' in rest, false, 'and the rest no longer carries the key the read consumed');
+  // ... and every key the read did NOT consume is still there
+  let box = { from: 'mine', keep: 7 };
+  if (!box) box = Array;
+  const { from: viaUser, ...userRest } = box;
+  assert.same(viaUser, 'mine', 'a value that is not the constructor keeps its own');
+  assert.same(userRest.keep, 7, 'and the rest still gathers the untouched keys');
+});
+
+// a FLAT head reads its statics off the element the same way a nested one does, whatever kind the
+// head declares - a `var` one hoists its binding out of the loop and still answers there
+QUnit.test('destructuring: a flat loop head reads its statics off the element', assert => {
+  /* eslint-disable no-var, prefer-const, block-scoped-var -- the head KIND is the axis under test, and
+     the hoisted read past the loop is what a `var` head owes */
+  const seen = [];
+  for (var { from } of [Array]) seen.push(typeof from);
+  for (let { from: viaLet } of [Array]) seen.push(typeof viaLet);
+  for (const { from: viaConst, of: viaOf } of [Array]) seen.push(typeof viaConst, typeof viaOf);
+  assert.same(seen.join(','), 'function,function,function,function', 'every kind binds the claim');
+  assert.same(from(['a', 'b']).length, 2, 'and the hoisted binding still works past the loop');
+  // an element that is NOT the global keeps its own value - the polyfill answers for the global's
+  function mine() { return 'mine'; }
+  let ownValue;
+  for (var { from: each } of [{ from: mine }]) ownValue = each;
+  /* eslint-enable no-var, prefer-const, block-scoped-var -- back to the suite's own rules */
+  assert.same(ownValue, mine, 'a user object keeps what it holds');
+});
+
+// a head over a MULTI-element literal binds a different element per pass, so the answer has to
+// travel with each element rather than with the loop: the passes share nothing but the pattern
+QUnit.test('destructuring: a head over several elements answers on every pass', assert => {
+  const both = [];
+  for (const { Array: { from } } of [globalThis, globalThis]) both.push(typeof from, from([1, 2]).length);
+  assert.same(both.join(','), 'function,2,function,2', 'both passes bind the claim');
+  // a sibling the polyfill does not own reads through the element it belongs to, on every pass
+  const sides = [];
+  for (const { Array: { of }, JSON: J } of [globalThis, globalThis]) sides.push(typeof of, typeof J.stringify);
+  assert.same(sides.join(','), 'function,function,function,function', 'the sibling rides along on both');
+  // an element that is not a global holds a value of its own, and the head goes on reading it -
+  // the polyfill would answer for a value that was never the global's
+  function marker() { return 'mine'; }
+  let ownValue;
+  for (const { Array: { fromAsync } } of [globalThis, { Array: { fromAsync: marker } }]) ownValue = fromAsync;
+  assert.same(ownValue, marker, 'a non-proxy element keeps its own value');
+});
