@@ -1168,6 +1168,8 @@ export default function createPlugin(options) {
           },
           paramDefaultNeverOverridden: typeResolvers.paramDefaultNeverOverridden,
           resolveNodeType: typeResolvers.resolveNodeType,
+          resolvePropertyObjectType: typeResolvers.resolvePropertyObjectType,
+          resolvedType: typeResolvers.resolvedType,
           toHint: typeResolvers.toHint,
           isDisabled,
           getDebugOutput: () => debugOutput,
@@ -1202,6 +1204,8 @@ export default function createPlugin(options) {
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           CatchClause(path) { destructureEmit.extractCatchClause(path); },
+          ForOfStatement(path) { destructureEmit.extractLoopLeft(path); },
+          ForInStatement(path) { destructureEmit.extractLoopLeft(path); },
         }, createUsageVisitors({
           adapter: estreeAdapter,
           onUsage: callback,

@@ -86,9 +86,7 @@ let customFR, outFR;
 for (const {
   customFR: fr
 } = ({
-  self: {
-    onoffline: customFR
-  }
+  onoffline: customFR
 } = _globalThis, _Promise); !outFR;) outFR = fr;
 // a symbol-iterator leaf in a buried host folds expression-shaped: the synth assign rides
 // the discarded-value slot, reading the iterator method off the anchored constructor
