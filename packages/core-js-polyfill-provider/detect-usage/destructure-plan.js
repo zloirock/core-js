@@ -37,7 +37,9 @@ import {
   proxyReceiverValueCanBeUndefined, resolveKey as sharedResolveKey, resolveObjectName,
 } from './resolve.js';
 import {
-  destructureRightIsReceiver, fallbackInitWhollyDiscardable, resolveBranchProxyName, walkStaticReceiverChain,
+  mirrorAcceptedKey,
+  buildDestructuringInitMeta, destructureRightIsReceiver, fallbackInitWhollyDiscardable, resolveBranchProxyName,
+  walkStaticReceiverChain,
 } from './destructure.js';
 
 // object-prop node across parsers: estree `Property`, babel `ObjectProperty`
@@ -765,48 +767,106 @@ export function buildNestedDestructurePlan({
 // binds - an unread one would buy an import plus a dead dispatcher call for nothing. those
 // unread props come back so the caller can skip them, keeping them native reads in the
 // residual. shallow by design: a nested pattern without outer-level machinery destructures
-// in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern
-// is out of the family entirely - its bindings are positional, so there is no key to rewrite
-// against a named receiver and the relocation would be pure overhead
-// does this ARRAY element hold a positional claim - a chain of sole-property object patterns whose
-// leaf names a polyfillable member? the relocation is what gives that claim a host it can extract
-// from: inside the body the pattern is an ordinary declaration, and the element slot may take a
-// minted binding there (`catch ([{ at }])` -> `catch (_ref) { let [_el] = _ref; let at = _at(_el); }`)
-function positionalClaimElement(element, resolvePure) {
-  let node = element;
-  while (node?.type === 'ObjectPattern' && node.properties.length === 1) {
-    const [prop] = node.properties;
+// in place, and its leaf bindings are catch-local, not polyfill candidates. an ARRAY pattern asks
+// none of these questions - its bindings are positional, so there is no key to rewrite against a
+// named receiver - and takes the single question its own branch asks instead
+// the values a for-x head binds in TURN, when the source spells them: an array literal names its
+// own elements, and nothing else makes an iterated value's identity provable. a spread hides every
+// later position, so one anywhere takes the whole answer away
+function iterableElementNodes(node) {
+  if (node?.type !== 'ArrayExpression') return [];
+  const elements = node.elements ?? [];
+  if (elements.some(item => item?.type === 'SpreadElement')) return [];
+  return elements.filter(Boolean);
+}
+
+// does a leaf ANYWHERE below this pattern name a polyfillable member? this is the relocation's own
+// question - what it buys is a DECLARATION HOST, and every claim below takes it, whatever else the
+// pattern binds. the positional walk beside it answers a different one (may this element be RENAMED
+// to a minted binding), and its sole-slot and bare-leaf rules exist because a rename drops what the
+// pattern's other slots bind - restrictions with no bearing here, which is why a leaf with a
+// SIBLING (`{ y: { flat, keep } }`) or under a DEFAULT (`{ y: { flat = x } }`) stayed native
+// `undefaultedOnly`: the ELEMENT routes bind the dispatch IN PLACE of the slot, which leaves a
+// default no arm to run - they decline it, so a pattern whose only claim carries one buys nothing
+// from the relocation. the direct hosts fold that arm with a test ref and keep counting it
+function patternHoldsClaim(node, resolvePure, undefaultedOnly = false) {
+  const pattern = node?.type === 'AssignmentPattern' ? node.left : node;
+  if (pattern?.type === 'ArrayPattern') {
+    return (pattern.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, undefaultedOnly));
+  }
+  if (pattern?.type !== 'ObjectPattern') return false;
+  return (pattern.properties ?? []).some(prop => {
     if (!isPropertyNode(prop) || prop.computed) return false;
     const key = prop.key?.name ?? prop.key?.value ?? null;
-    if (key === null) return false;
-    if (prop.value?.type === 'Identifier'
+    const defaulted = prop.value?.type === 'AssignmentPattern';
+    const value = defaulted ? prop.value.left : prop.value;
+    if (key !== null && value?.type === 'Identifier' && !(undefaultedOnly && defaulted)
       && resolvePure({ kind: 'property', object: null, key, placement: null })) return true;
-    node = prop.value;
-  }
-  return false;
+    return patternHoldsClaim(prop.value, resolvePure, undefaultedOnly);
+  });
 }
 
 export function planCatchClauseExtraction({
-  paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode, objectHint = null,
+  paramNode, bodyNode, scope, adapter, path, resolvePure, walkNode,
+  objectHint = null, iterableNode = null, mirrorHosts = false,
 }) {
-  // an ARRAY param relocates for a positional claim alone: its elements bind by ITERATION, so the
+  // an ARRAY param relocates for a claim under any of its elements: they bind by ITERATION, so the
   // per-prop questions below (which key is resolvable, which rewrite is observable) have no subject
-  // here - what the relocation buys is a declaration host, and the claim's own route takes it there
+  // here - what the relocation buys is a DECLARATION HOST, and the element rename takes it from
+  // there, with everything the pattern binds beside the claim riding the residual that host can now
+  // hold. the rename's own walk re-asks the narrower questions (plain key, statement slot) at emit
   if (paramNode?.type === 'ArrayPattern') {
-    return paramNode.elements.some(element => positionalClaimElement(element, resolvePure))
+    return (paramNode.elements ?? []).some(element => patternHoldsClaim(element, resolvePure, true))
       ? { unobservable: [] } : null;
   }
   if (paramNode?.type !== 'ObjectPattern' || !paramNode.properties?.length) return null;
+  const elementNodes = iterableElementNodes(iterableNode);
+  // WHICH channel answers decides whether the relocation is needed at all. the type channel buys a
+  // DECLARATION HOST its dispatch cannot do without; a static off an element the source SPELLS is
+  // something the receiver mirror puts in that element instead - no host, no minted name, no guard,
+  // and it survives a later for-of lowering, which the relocated shape does not
+  const viaElement = [];
   const resolvableProps = paramNode.properties.filter(prop => {
     if (!isPropertyNode(prop) || prop.computed) return false;
     const key = prop.key?.name ?? prop.key?.value ?? null;
+    if (key === null) return false;
     // `objectHint` is what the relocated value is KNOWN to be - a loop head can type its element
     // where a catch clause never can. asking with it keeps the relocation to claims that are
     // really lost: a plain data key off a typed element resolves to no polyfill and the pattern
     // stays where it is, with the binding types its own destructure still carries
-    return key !== null && !!resolvePure(objectHint
+    if (resolvePure(objectHint
       ? { kind: 'property', object: objectHint, key, placement: 'prototype' }
-      : { kind: 'property', object: null, key, placement: null });
+      : { kind: 'property', object: null, key, placement: null })) return true;
+    // ... and where the value's IDENTITY is spelled rather than its type, ask the question the
+    // relocated declaration itself will ask (`const { K } = <element>`). a CONSTRUCTOR has no
+    // value-type for the hint to carry, so a static claim off one is invisible above and only
+    // this name channel sees it - which is the whole of `{ fromEntries } of [Object]`. the meta
+    // must NAME its receiver: the typeless one resolves for any plain data key, and relocating on
+    // that answer moves a pattern whose claim then reads a receiver the ladder can no longer type
+    // (a `{ name }` off a string-valued slot degraded from the string helper to the generic one)
+    const spelled = elementNodes.some(element => {
+      // a PRISTINE global read is the only element that proves its own identity: a bound name may
+      // hold whatever its scope writes, and a minted import alias is exactly the shape the
+      // downstream routes refuse to judge stable - predicting an extraction there relocates a
+      // pattern for nothing
+      if (element?.type !== 'Identifier' || adapter?.hasBinding?.(scope, element.name, path)) return false;
+      // a DEFAULTED prop is out: the relocated read reaches its receiver through a guard (the
+      // minted binding is the iterated value, not the element the source spelled), and that guard
+      // picks between the polyfill and the raw read - a default is a third arm it has no shape for,
+      // so the extraction declines and the relocation buys nothing. the direct-receiver hosts fold
+      // the same default because they need no guard at all
+      if (prop.value?.type === 'AssignmentPattern') return false;
+      const meta = buildDestructuringInitMeta({ initNode: element, key, scope, adapter, path });
+      // ... and it must SPELL what it names: an alias resolves to the same constructor while
+      // holding whatever was written into it, and a plugin-minted one (`_Symbol`) is invisible to
+      // the scope check above because the import that binds it is born mid-transform
+      if (meta?.object !== element.name) return false;
+      // ask the question the EXTRACTION asks, not a weaker one: a prop this predicts and the
+      // static route then declines is a pattern relocated for nothing
+      return !!resolvePolyfillableStaticProp({ prop, receiverName: meta.object, resolvePure });
+    });
+    if (spelled) viaElement.push(prop);
+    return spelled;
   });
   const hasMachinery = paramNode.properties.some(prop => computedPropKeyHostsMachinery({
     propNode: prop, scope, adapter, path, resolvePure,
@@ -815,13 +875,15 @@ export function planCatchClauseExtraction({
   // key here names no member, the claim sits below it, and what it lacks is a declaration host -
   // the relocation gives it one and its own route takes it from there (`catch ({ y: { flat } })`
   // stayed native while both its neighbours in this host - the flat prop and the array element -
-  // claimed). the same walk the element branch uses answers for it
-  // a DEFAULTED hop (`{ inner: { at } = [1, 2] }`) holds its pattern under the AssignmentPattern, so
-  // the claim is one peel down - and it is the arm the relocation buys most, since the default is
-  // what runs when the slot is absent and the claim off it has no other host
+  // claimed)
   const nestedClaim = paramNode.properties.some(prop => isPropertyNode(prop) && !prop.computed
-    && positionalClaimElement(prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value, resolvePure));
+    && patternHoldsClaim(prop.value, resolvePure));
   if (!hasMachinery && !nestedClaim && !resolvableProps.length) return null;
+  // ... so a pattern the mirror HOSTS, whose every claim came from the element channel and whose
+  // every key the literal can carry, is left to it: a rest gathers what no read names, a duplicate
+  // key would need one property twice, and a key with no static spelling has no slot to sit in
+  if (mirrorHosts && !hasMachinery && !nestedClaim && viaElement.length === resolvableProps.length
+    && patternKeysMirrorable({ paramNode, scope, adapter, path })) return null;
   const unobservable = resolvableProps.filter(prop => !catchPropRewriteObservable({
     propNode: prop,
     patternNode: paramNode,
@@ -831,4 +893,16 @@ export function planCatchClauseExtraction({
   }));
   if (!hasMachinery && !nestedClaim && unobservable.length === resolvableProps.length) return null;
   return { unobservable };
+}
+
+// can the mirror's literal carry EVERY key this pattern binds? the render spells one property per
+// key, so a shape its key predicate refuses leaves the literal unable to stand in for the receiver
+function patternKeysMirrorable({ paramNode, scope, adapter, path }) {
+  const seenKeys = new Set();
+  for (const prop of paramNode.properties) {
+    const key = mirrorAcceptedKey({ prop, scope, adapter, path, seenKeys });
+    if (key === null) return false;
+    seenKeys.add(key);
+  }
+  return true;
 }

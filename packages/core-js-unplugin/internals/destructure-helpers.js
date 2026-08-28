@@ -46,6 +46,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   SINGLE_STATEMENT_SLOTS,
   spreadShiftsIndex,
+  isForXStatement,
   statementListOf,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   unwrapRuntimeExpr,
@@ -167,8 +168,13 @@ export function classifyDeclarationHost(hostParent) {
   // slot in a block of extractions there
   const bodyless = !forInit && !exported && declaration.kind === 'var'
     && !!SINGLE_STATEMENT_SLOTS.get(stmtParent?.type)?.some(slot => stmtParent[slot] === declaration);
-  if (!forInit && !exported && !bodyless && !statementListOf(stmtParent)) return null;
-  return { declarator, declarationPath, declaration, forInit, exported, bodyless };
+  // a for-x HEAD declares the iteration binding and hosts nothing else: no sibling declarator slot
+  // the way a for-init has, no statement list, no block to wrap. the one render it can carry is the
+  // slot's own default, so it is a host - dropping it here loses the claim outright
+  const head = !forInit && !exported && !bodyless
+    && isForXStatement(stmtParent) && stmtParent.left === declaration;
+  if (!forInit && !exported && !bodyless && !head && !statementListOf(stmtParent)) return null;
+  return { declarator, declarationPath, declaration, forInit, exported, bodyless, head };
 }
 
 export function defaultedSoleConsumes({ forInit, prop, soleBinding, chain, kind, declarator }) {
@@ -1479,6 +1485,9 @@ export function residualPrecedesExtractions(declarator, declJobs, sourceProps, {
 // second read of a slot the selection does not prove
 export function takesInlineDefault({ host, prop, pattern, chain, kind, sentinel, adapter, injectorState }) {
   if (kind === 'instance') return false;
+  // a for-x HEAD has no other render: it hosts no statement, and the binding it declares is
+  // rebound each iteration, so the slot's own default is where the polyfill goes
+  if (host.head) return true;
   const init = peelTransparentExpr(host.declarator?.init);
   if (chain.length > 0 && prop.value?.type !== 'ObjectPattern') {
     return (init?.type === 'AssignmentExpression'
@@ -2278,6 +2287,10 @@ export function groupExtractionBesideResidual({ hostNode, body, at, declarations
 }
 
 export function emitLiteralReceiverMemos({ declarator, jobs, statements, kind, mintRefName, hostRef = null, hostInit = null }) {
+  // a memo binds nothing the source named, so it takes `const` wherever it stands as a statement of
+  // its own. an SE-KEY group is the exception both legs share: there the memo joins the host's own
+  // declaration, and a joined declarator carries that host's kind
+  const memoKind = jobs.some(job => job.seKey) ? kind : 'const';
   const memoEmitted = new Set();
   // ONE memo per receiver NODE: two claims of the same declarator read what the source read
   // once (`{ [(k(), 'toSorted')]: ts, [S]: { length } } = holder.p`), so the second plan joins
@@ -2305,7 +2318,7 @@ export function emitLiteralReceiverMemos({ declarator, jobs, statements, kind, m
     // receiver renders by replacing it, and memoizing the stale copy left the residual evaluating
     // the same thing a second time (`const [{ at: a, ...rst }] = [eff().slice()]` ran `eff` twice)
     const live = memo.slot ? memo.slot.owner[memo.slot.key] ?? memo.node : memo.node;
-    statements.push(variableDeclaration(kind, [variableDeclarator(identifier(memo.refName), live)]));
+    statements.push(variableDeclaration(memoKind, [variableDeclarator(identifier(memo.refName), live)]));
     // the memoized node may BE the init itself - the in-tree walk only sees children
     if (memo.slot) memo.slot.owner[memo.slot.key] = identifier(memo.refName);
     else if (declarator.init === memo.node) declarator.init = identifier(memo.refName);
