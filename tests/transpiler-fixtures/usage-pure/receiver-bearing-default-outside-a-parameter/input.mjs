@@ -24,10 +24,10 @@ const { Set: { union } = Set } = globalThis;
 // fires. the flat twin affords these shapes only because its meta carries a fallback flag
 const { b1: { from: fromOr } = Array || Iterator } = src;
 const { b2: { from: fromTernary } = flag ? Array : Iterator } = src;
-// the same rule on an INSTANCE receiver: the default is the receiver, so the mirror carries the
-// bound helper and the caller's own object still destructures natively. the last row is the
-// control - a receiver the shared shape gate rejects (a call, which re-evaluating would repeat)
-// keeps the whole form native
+// an INSTANCE claim answers differently: a dispatch can reach BOTH arms, so it folds them - one
+// read of the slot, the default only where the source evaluates it - and the default's shape does
+// not divide that (the `list` row and the `raise()` row fold alike). the mirror keeps the arm no
+// dispatch reaches: a PARAMETER's default, whose live arm is whatever the caller passes
 const { i1: { flat } = list } = src;
 function withDefault({ i2: { includes } = list } = {}) { return includes; }
 const { i3: { at } = raise() } = src;
