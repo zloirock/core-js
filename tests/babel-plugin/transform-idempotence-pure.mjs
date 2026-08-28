@@ -30,6 +30,13 @@ const CASES = [
   // sequence whose tail is the ponyfill (`(held.of, _Array$of)`). the span check that recognises a
   // render inside one pass cannot see it after a RE-PARSE, so the claim owes a shape-level check -
   // without it the sequence grows by one copy per pass
+  // the shapes whose renders this pass MINTS - a guarded read per prop, a residual rooted at a hop
+  // memo, a renamed element with its levels. each spells a name the next pass reads back, so a
+  // second pass must recognise its own output rather than claim it again
+  ['guarded split, two statics', 'let M = globalThis.Array;\nif (!M) M = Array;\nexport const { from, of } = M;'],
+  ['residual beside the claim', 'const pair = [{ y: [1, [2]], keep: 3 }];\nexport const [{ y: { at, ...rest } }] = pair;'],
+  ['residual one level out', 'const pair = [{ y: [1, [2]], keep: 3 }];\nexport const [{ y: { at }, keep }] = pair;'],
+  ['clouded binding, instance claim', 'let out;\nfor (const e of [Array]) { const { name } = e; out = name; }\nexport const r = out;'],
   ['alias-held probe call', 'const held = globalThis.window?.Array;\nexport const r = held.of(1);'],
   ['alias-held probe read', 'const held = globalThis.window?.Array;\nexport const r = held.from;'],
   ['alias-held probe through a second alias',
