@@ -14,11 +14,10 @@ const [{
 }] = [c ? Array : userObj];
 export { from };
 
-// NEGATIVE: an SE-bearing selection cannot re-spell inline (the call must run exactly
-// where the source evaluates it)
-const [{
-  at: viaSe
-}] = [c ? f() : other];
+// ... and an SE-bearing selection rides the MEMO instead of an inline re-spelling: the ref is read
+// where native reads the element, so the call runs exactly once and the branch is selected once
+const _ref = c ? f() : other;
+const viaSe = _at(_ref);
 export { viaSe };
 
 // an effect-FREE element of any shape is one read under a SOLE consuming prop - the dispatch

@@ -4,6 +4,7 @@ import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _flatMapMaybeArray from "@core-js/pure/actual/array/instance/flat-map";
 import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
+import _at from "@core-js/pure/actual/instance/at";
 // four more claims the differential caught the engine DROPPING, all with the fixture
 // gate green: a bodyless SE-key sentinel over a receiver only a memo can re-read, the same over
 // an EFFECTFUL init the memo evaluates once, an instance synth slot whose receiver is spelled
@@ -121,8 +122,10 @@ export const c3 = (() => {
   } = {});
   return typeof at;
 })();
-// ... a CATCH parameter binds like a declarator, so the climb has to stop AT it instead of
-// walking past into the enclosing function's params
+// ... a CATCH parameter binds like a declarator, so the climb has to stop AT it instead of walking
+// past into the enclosing function's params - and where its RELOCATION reaches the claim, the fold
+// takes over from the mirror: one read of the hop, both arms through the guard, where mirroring the
+// default alone left the live arm raw
 export const c4 = (() => {
   try {
     throw {};
@@ -139,13 +142,9 @@ export const c4 = (() => {
 export const c5 = (() => {
   try {
     throw {};
-  } catch ({
-    inner: {
-      at
-    } = {
-      at: _atMaybeArray([1, 2])
-    }
-  }) {
+  } catch (_ref5) {
+    var _ref6;
+    let at = _at((_ref6 = _ref5.inner) === void 0 ? [1, 2] : _ref6);
     return typeof at;
   }
 })();
