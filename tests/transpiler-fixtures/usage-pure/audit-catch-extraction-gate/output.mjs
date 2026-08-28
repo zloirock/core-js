@@ -70,15 +70,16 @@ try {
   let at = _at(_ref5.data);
   use(at);
 }
-// ... and a nested leaf with SIBLINGS keeps the whole pattern in place: the flatten that shape
-// needs has no declarator to rewrite until the relocation, and the relocation is what it gates
+// ... and a leaf with SIBLINGS relocates too: what the relocation buys is the declaration host,
+// and every claim below the prop takes it whatever else the pattern binds - the sibling rides
+// along in the residual, reading the same memo the claim was extracted from
 try {
   f9();
-} catch ({
-  data: {
-    at: a2,
+} catch (_ref6) {
+  const _ref7 = _ref6.data;
+  let a2 = _at(_ref7);
+  let {
     length
-  }
-}) {
+  } = _ref7;
   use(a2, length);
 }
