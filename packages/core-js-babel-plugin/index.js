@@ -52,7 +52,12 @@ import {
 import { isSymbolIteratorPatternProp } from '@core-js/polyfill-provider/detect-usage/destructure-plan';
 import { planInExpression } from '@core-js/polyfill-provider/helpers/in-expression';
 import {
-  createClassHelpers, ctorAliasShapesReducer, registerAliasPrePassSite, remapInheritedStaticMeta, usableAliasInfo,
+  createClassHelpers,
+  ctorAliasShapesReducer,
+  proxyWriteOriginsReducer,
+  registerAliasPrePassSite,
+  remapInheritedStaticMeta,
+  usableAliasInfo,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import {
@@ -1205,9 +1210,11 @@ export default function plugin(api, options) {
           }
           // an ALIAS-rooted proxy-hop chain whose leaf is NON-polyfilled (`const g = globalThis; new
           // g.self.Array(3)` / `g['self'].Array.isArray(...)`) has no leaf usage and no `kind:'global'`
-          // trigger on the alias root, so the redundant `.self` / `.window` hop survives, reading an
-          // undefined hop off the alias off-engine (ie:11 / Node). `isAliasProxyHopChain` is the shared
-          // provider detection; peel to the root path and collapse (which self-gates on the hop again)
+          // trigger on the alias root - and a NAME-rooted chain THROUGH a kept store the same way
+          // (`(v = globalThis.window?.self)?.window.X` - the name's own trigger renders the store,
+          // never the hops above it): the redundant hop survives, reading an undefined hop off the
+          // alias off-engine (ie:11 / Node). `isAliasProxyHopChain` is the provider detection;
+          // peel to the root path and collapse (which self-gates on the hop and the store again)
           const aliasCtx = path.scope ? { scope: path.scope, adapter, path } : null;
           // the CALL-rooted twin of the alias arm below: a proxy nav rooted in an inline-resolvable
           // call whose leaf polyfills nothing (`(() => globalThis)().window.self.userSlot`) has no
@@ -1632,6 +1639,7 @@ export default function plugin(api, options) {
           mutationShapesReducer(packages),
           escapedCtorReferencesReducer(),
           restSentinelNamesReducer(),
+          proxyWriteOriginsReducer(),
         ]);
         // pre-walk for monkey-patches, consulted by `usagePureCallback` before substituting
         // `Object.key` reads - so the INJECTION-policy slot stays usage-pure only, exactly as

@@ -32,5 +32,5 @@ export const deletedSequenceRoot = delete (alias2 = _globalThis, kept = null == 
 // like any other - the store is not what the delete reads
 export const deletedBelowRoot = delete (below = _globalThis, _globalThis).noSuchStatic;
 // ... and the same over a stacked unresolvable prefix
-export const deletedStacked = delete (stacked = null == _self.window ? void 0 : _self).noSuchStatic;
+export const deletedStacked = delete (stacked = _self).noSuchStatic;
 export { deleted, statik, claimless, stacked, alias2, kept, below };

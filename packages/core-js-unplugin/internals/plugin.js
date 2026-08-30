@@ -30,7 +30,12 @@ import {
   escapedCtorReferencesReducer,
   mutationShapesReducer,
 } from '@core-js/polyfill-provider/detect-usage/mutations';
-import { createClassHelpers, ctorAliasShapesReducer, usableAliasInfo } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  createClassHelpers,
+  ctorAliasShapesReducer,
+  proxyWriteOriginsReducer,
+  usableAliasInfo,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { tagError } from '@core-js/polyfill-provider/helpers/error-tag';
 import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
 import {
@@ -691,6 +696,7 @@ export default function createPlugin(options) {
       memberKeyNamesReducer(),
       mutationShapesReducer(packages),
       ctorAliasShapesReducer(),
+      proxyWriteOriginsReducer(),
     ]) : {};
     let mutationInfo = null;
     // INJECTION policy only, so usage-pure only: a global-flavor bail here would drop an import

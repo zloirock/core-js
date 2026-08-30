@@ -101,23 +101,24 @@ export const unplannedNullishCarrier = (null == ut().window ? void 0 : _self.chr
 // so the plain read observes the short-circuited value instead of riding it
 export const sealedUnplannedTail = (null == ut().window ? void 0 : _self).chrome;
 
-// a planned tail of its own (`_self.window`) still folds the FIRST live `?.` above it: while
-// every pulled step is a straight continuation of the leaf the alternate produces the same
-// value the source reads. the SECOND guard has a step with its own `?.` behind it and stays out
-export const plannedTailKeepsGuard = (null == ut().window ? void 0 : _self.window)?.chrome?.Array;
+// the realm hop the plan folds leaves the alternate ON the ponyfill leaf, so the FIRST live `?.`
+// above it is the leaf-adjacent one the vestigial verdict erases: every pulled step is a straight
+// continuation and the alternate produces the value the source reads. the SECOND guard has a step
+// with a name pure does not back behind it, and that one stays out
+export const plannedTailKeepsGuard = (null == ut().window ? void 0 : _self.chrome)?.Array;
 
-// a render that ends in a hop of its OWN (`_self.window`) is not the ponyfill leaf, but the
-// tail still folds in: the hops the render emitted are marked, so the re-traversal keeps the
-// shape the plan chose instead of collapsing them against a receiver it never picked
+// the hops the render emitted are marked, so the re-traversal keeps the shape the plan chose
+// instead of collapsing them against a receiver it never picked - and the realm hop the source
+// wrote above the collapse is not one of them: it folded before the render ever spelled a tail
 const rt = () => _globalThis;
-export const renderTailPlainContinuation = null == rt().window ? void 0 : _self.window.chrome;
-export const renderTailFirstOptionalFolds = (null == rt().window ? void 0 : _self.window)?.chrome;
-export const renderTailDeepPlain = null == rt().window ? void 0 : _self.window.chrome.foo;
+export const renderTailPlainContinuation = null == rt().window ? void 0 : _self.chrome;
+export const renderTailFirstOptionalFolds = null == rt().window ? void 0 : _self.chrome;
+export const renderTailDeepPlain = null == rt().window ? void 0 : _self.chrome.foo;
 
 // the same render under an INSTANCE dispatch receiver keeps its hops too (the receiver-collapse
 // drive must not re-run on them)
 let rc = 0;
-export const renderTailInstanceRecv = (rc++, null == rt().window ? void 0 : _self.window).Array.prototype.indexOf.call([5], 5);
+export const renderTailInstanceRecv = (rc++, null == rt().window ? void 0 : _self).Array.prototype.indexOf.call([5], 5);
 export { rc };
 
 // an OPTIONAL call on the pulled tail keeps its `?.(` INSIDE the alternate: hung off the
@@ -237,7 +238,7 @@ _globalThis.ckHost = {
   a: 1
 };
 const ckr = () => _globalThis;
-export const opaqueComputedKeyTail = (null == ckr().window ? void 0 : (ck2++, _self).window)?.[ck2++, 'ckHost']?.a;
+export const opaqueComputedKeyTail = (null == ckr().window ? void 0 : (ck2++, _self)[ck2++, 'ckHost'])?.a;
 export const opaqueComputedKeyPlain = null == ckr().window ? void 0 : _self[ck2++, 'ckHost'].a;
 export { ck2 };
 
