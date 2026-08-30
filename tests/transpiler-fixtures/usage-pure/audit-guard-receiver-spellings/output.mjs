@@ -91,7 +91,7 @@ export const satisfiesOnPlainHop = (k10 = _self, _Object$assign)({}, {
 let k13;
 export const wrappedMultiHopNav = null == (k13 = null == _globalThis.window ? void 0 : _self) ? void 0 : _Object$getOwnPropertyNames({});
 let k14;
-export const wrappedResolvableNav = null == (k14 = _self.window) ? void 0 : _Promise$reject(1).catch(() => {});
+export const wrappedResolvableNav = null == (k14 = _self) ? void 0 : _Promise$reject(1).catch(() => {});
 let k15;
 export const doubleWrappedNav = (k15 = _self)?.Object.getPrototypeOf({});
 let k11;

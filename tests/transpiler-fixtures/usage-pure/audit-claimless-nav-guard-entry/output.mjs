@@ -12,7 +12,7 @@ export const claimedTwin = null == (() => _globalThis)().window ? void 0 : _Arra
 // the tail the guard's alternate carries answers the shared vestigial verdict: its `?.` reads the
 // always-defined ponyfill the alternate landed, so it is dead text
 const held = _globalThis;
-export const tailOverLeaf = null == held.window ? void 0 : _self.window.noSuchStatic;
+export const tailOverLeaf = null == held.window ? void 0 : _self.noSuchStatic;
 // ... and through a SEQUENCE standing around the navigation: its prefix runs beside the nav, and
 // the render lands in the tail's own slot instead of replacing the sequence whole
 let effects = 0;

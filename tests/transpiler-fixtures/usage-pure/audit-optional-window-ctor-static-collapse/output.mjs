@@ -13,5 +13,5 @@ var _ref;
 // (self.window) roots; a trailing instance method, a static-call, and a bare static-call. both emitters converge.
 let w, v, u;
 export const maxSafe = null == (w = _globalThis.window) ? void 0 : _toFixedMaybeNumber(_ref = _Number$MAX_SAFE_INTEGER).call(_ref, 1);
-export const parseHop = null == (v = _self.window) ? void 0 : _Number$parseInt("42", 10);
+export const parseHop = null == (v = _self) ? void 0 : _Number$parseInt("42", 10);
 export const isInt = null == (u = _globalThis.window) ? void 0 : _Number$isInteger(5);

@@ -8,6 +8,7 @@ import {
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
   peelChainAssignmentDeep,
+  peelReceiverSequenceTail,
   proxyGlobalMemberCtorPureSwap,
   proxyReceiverValueCanBeUndefined,
   resolveKey,
@@ -15,6 +16,7 @@ import {
   vestigialNavOptionals,
   peelChainRootValue,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { storedProxyNavProvesHop } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
@@ -1109,10 +1111,16 @@ export default function createOptionalDispatchChannel(ctx) {
     // provable is LIVE, and a live hop keeps the memo's source spelling whole - the dead
     // `?.` rides it un-erased (`(Promise?.foo)?.bar` memoizes `_ref = _Promise?.foo`)
     function hopProvable(hop) {
-      // through a kept WRITE only a DIRECT global spelling proves: babel's erase stops at a
-      // BINDING there however it resolves (`(n = gw)?.self` keeps its guard, `(n = globalThis)
-      // ?.self` erases) - the same boundary the hop-guard verdict draws
       const written = unwrapRuntimeExpr(hop.object);
+      // a kept WRITE proves through the shared store verdict - the value the store hands on is
+      // always defined once substituted (`(g = globalThis, v = g.self)?.X` erases); a SEQUENCE
+      // hands its tail on, so the store may sit under one and the verdict peels it the same way
+      const storeCore = unwrapRuntimeExpr(peelReceiverSequenceTail(written));
+      if (storeCore?.type === 'AssignmentExpression' && storedProxyNavProvesHop(storeCore,
+        { scope: metaPath.scope, adapter, path: metaPath, resolve: m => resolvePure(m, metaPath) })) return true;
+      // ... and a store the verdict did NOT prove declines on a BINDING value outright
+      // (`(n = gw)?.self` keeps its guard): what an unproven alias holds is the write's business,
+      // and the arms below must not re-derive it from the name
       if (written?.type === 'AssignmentExpression') {
         const stored = unwrapRuntimeExpr(peelChainAssignmentDeep(written));
         if (stored?.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(stored.name)) return false;

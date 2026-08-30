@@ -15,6 +15,7 @@ import { isTypeAnnotationNodeType, typeOnlyImportShadows } from '@core-js/polyfi
 import { createUsageHandlerCore } from '@core-js/polyfill-provider/detect-usage/visitors';
 import { createSyntaxPathHandlers } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  ancestorChainDetached,
   climbJsxMemberChain,
   bindingInvisibleFromUseRegion,
   findFunctionScopeVarInPath,
@@ -290,7 +291,7 @@ export function createBabelAdapter(options = {}) {
     // (clean, unconditionally placed in the binding's own scope) of an init-less binding, as its
     // AssignmentExpression node - or null. computed on demand (only init-less Identifier-pattern
     // bindings reach the resolver branch), so ordinary getBinding calls pay nothing
-    findTrustedAliasWrite(scope, name, { requirePlacement = true } = {}) {
+    findTrustedAliasWrite(scope, name, { requirePlacement = true, readNode = null } = {}) {
       const b = scope.getBinding(name);
       // the plugin's OWN memo write (`_ref = <expr>`): synthesized on a prior rewrite, never a
       // scope constantViolation - and the ref itself may be scope-invisible on the memo-dense
@@ -318,7 +319,7 @@ export function createBabelAdapter(options = {}) {
       // so a conditional expression container between them refuses flow-trust. a STRUCTURAL
       // consumer skips placement - its branch-after-test proof carries execution evidence
       return (requirePlacement
-        ? assignmentAliasWriteTrusted({ binding: { ...b, constantViolations: violations }, assignNode, stmtPath: assignPath })
+        ? assignmentAliasWriteTrusted({ binding: { ...b, constantViolations: violations }, assignNode, stmtPath: assignPath, readNode })
         : soleAliasWrite({ binding: { ...b, constantViolations: violations }, assignNode }))
         ? assignNode : null;
     },
@@ -334,17 +335,6 @@ export function createBabelAdapter(options = {}) {
     isStringLiteral,
     getStringValue: stringLiteralValue,
   }));
-}
-
-// a NodePath whose ancestor chain hits a detached node (`.node` null) before reaching the Program
-// root: a constantViolation path into a subtree an in-place rewrite has already re-parented, so its
-// placement walk is unreliable
-function ancestorChainDetached(path) {
-  for (let cur = path?.parentPath; cur; cur = cur.parentPath) {
-    if (cur.node === null || cur.node === undefined) return true;
-    if (cur.node.type === 'Program') return false;
-  }
-  return false;
 }
 
 // the LIVE path of `targetNode` in `scopeOwnerPath`'s subtree (node identity), or null. re-anchors a

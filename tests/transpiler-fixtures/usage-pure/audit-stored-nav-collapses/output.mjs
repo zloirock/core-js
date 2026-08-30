@@ -14,7 +14,7 @@ export const storedUnderClaim = (k2 = _self)?.Object.getPrototypeOf({});
 const galias = _globalThis;
 export const storedAliasRoot = (k3 = _self)?.Object.isExtensible({});
 // a nav ENDING at the probe keeps its conditional store - its value really is absent off-window
-export const storedProbeLeaf = (k4 = _self.window)?.Object.keys({});
+export const storedProbeLeaf = (k4 = _self)?.Object.keys({});
 // NEGATIVE: a live `?.` inside the stored nav - the store still happens, but its VALUE keeps the guard
 export const storedShortCircuit = k5 = null == _globalThis.window ? void 0 : _self;
 // an effect-bearing root rides AHEAD of the collapsed value, in source order - the same one slot the

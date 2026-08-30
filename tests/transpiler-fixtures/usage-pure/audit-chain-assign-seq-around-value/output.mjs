@@ -16,13 +16,13 @@ const arr = [1];
 let t;
 export const seqAroundGuard = (_ref = (_atMaybeArray(arr).call(arr, 0), t = _self, _Map), _nameMaybeFunction(_ref));
 export const seqAroundStatic = (_atMaybeArray(arr).call(arr, 0), t = _self, _Number$MAX_SAFE_INTEGER);
-export const seqAroundTail = (_ref2 = (_atMaybeArray(arr).call(arr, 0), t = _self.window, _Map), _nameMaybeFunction(_ref2));
+export const seqAroundTail = (_ref2 = (_atMaybeArray(arr).call(arr, 0), t = _self, _Map), _nameMaybeFunction(_ref2));
 // the same tail value under a LIVE guard: the test spells the collapsed value, never a raw hop
-export const seqAroundGuardTail = null == (_atMaybeArray(arr).call(arr, 0), t = _self.window) ? void 0 : _nameMaybeFunction(_Map);
+export const seqAroundGuardTail = null == (_atMaybeArray(arr).call(arr, 0), t = _self) ? void 0 : _nameMaybeFunction(_Map);
 // a chain-END ctor read under the guard: the erase verdict must not flip on the wrapper - the
 // wrapped twin holds the same undefinable value as the bare spelling, so both keep the guard
-export const seqAroundGuardCtor = null == (_atMaybeArray(arr).call(arr, 0), t = _self.window) ? void 0 : _Map;
-export const bareGuardCtor = null == (t = _self.window) ? void 0 : _Map;
+export const seqAroundGuardCtor = null == (_atMaybeArray(arr).call(arr, 0), t = _self) ? void 0 : _Map;
+export const bareGuardCtor = null == (t = _self) ? void 0 : _Map;
 
 // an ALIAS root digs the same way (its binding rewrites itself, the value canon keeps the
 // alias name), and a for-init receiver crosses the discard channel that keeps effect-free

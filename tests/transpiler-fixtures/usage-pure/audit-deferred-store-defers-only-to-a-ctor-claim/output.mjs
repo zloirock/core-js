@@ -12,7 +12,7 @@ let c1, c2, n1, n2, h1, h2, i1, i2, out;
 function eff() {}
 const ctorClaim = () => null == (c1 = _globalThis, c2 = null == c1[eff(), 'window'] ? void 0 : _self) ? void 0 : _Promise.noSuchStatic;
 const noClaim = () => (n1 = _globalThis, n2 = (eff(), _self)).noSuchStatic;
-const hopTail = () => (h1 = _globalThis, h2 = (eff(), _self))?.window.noSuchStatic;
+const hopTail = () => (h1 = _globalThis, h2 = (eff(), _self))?.noSuchStatic;
 const instanceClaim = () => {
   var _ref;
   return null == (_ref = (i1 = _globalThis, i2 = (eff(), _self))) ? void 0 : _atMaybeArray(_ref.Array.prototype);

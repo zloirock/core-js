@@ -1,5 +1,5 @@
 // a KEPT chain-assign VALUE collapses its pony hops whatever claim stands above it: the spelling is
-// the value canon (`(k = globalThis.self.window)` stores `_self.window`), which the static claim
+// the value canon (`(k = globalThis.self.window)` stores `_self`), which the static claim
 // beside these already read through. an instance claim used to leave the hop raw, each emitter for
 // its own reason - one had no visitor left for the assignment once the claim subsumed it, the other
 // deferred the collapse and then handed its helper a COPY the deferred flush could not match.
