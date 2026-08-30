@@ -4914,3 +4914,85 @@ QUnit.test('destructuring: a head over several elements answers on every pass', 
   for (const { Array: { fromAsync } } of [globalThis, { Array: { fromAsync: marker } }]) ownValue = fromAsync;
   assert.same(ownValue, marker, 'a non-proxy element keeps its own value');
 });
+
+// a pattern-bound name holds a SLOT of its init, never the init itself: `{ f } = maker` binds
+// `maker.f` (undefined), and calling it must keep the native TypeError - following the container
+// inlined the factory as the callee and substituted a working static where the source throws
+QUnit.test('destructuring: a missing key stays undefined, its call still throws', assert => {
+  // eslint-disable-next-line unicorn/consistent-function-style -- the arrow-bound factory is the case under test
+  const maker = () => Array;
+  const { f } = maker;
+  assert.same(f, undefined, 'the slot is genuinely absent');
+  assert.throws(() => f().from([1]), TypeError, 'and the call throws like native');
+});
+
+// a const-bound ARRAY wrapper reached through a pattern slot still descends to its real value:
+// `wrapper` holds `[globalThis]` via its own pattern pairing, so the nested claim resolves
+QUnit.test('destructuring: a pattern-bound array wrapper still resolves its leaf', assert => {
+  const [wrapper] = [[globalThis]];
+  const [{ Array: { from } }] = wrapper;
+  assert.deepEqual(from([3, 4]), [3, 4], 'the leaf claim answers through the wrapper alias');
+});
+
+// a spread at the wrapper alias's OWN declarator makes the slot's union incomplete - the value
+// the runtime hands the slot comes out of the spread, not the lone enumerable candidate, so the
+// follow must decline: resolving past it substituted the pure static over the user's own value
+QUnit.test('destructuring: a spread-shifted pattern-bound wrapper keeps the user value', assert => {
+  function marker() { return 'mine'; }
+  const xs = [[{ Array: { from: marker } }]];
+  const [wrapper] = [...xs, [globalThis]];
+  const [{ Array: { from } }] = wrapper;
+  assert.same(from, marker, 'the slot binds the spread element, not the candidate literal');
+  assert.same(from(), 'mine', 'and calling it runs the user function');
+});
+
+// a wrapper alias whose slot union is a LONE DEFAULT declines the same way: the pairing is an
+// over-approximation - the object spread hides the key the runtime actually pairs - so the
+// default is not certain to fire, and following it substituted the static over the user's value
+QUnit.test('destructuring: a defaulted pattern-bound wrapper keeps the paired user value', assert => {
+  function marker() { return 'mine'; }
+  const src = { wrapper: [{ Array: { from: marker } }] };
+  const { wrapper = [globalThis] } = { ...src };
+  const [{ Array: { from } }] = wrapper;
+  assert.same(from, marker, 'the runtime pairs the spread key, not the default');
+});
+
+// the WRAPPED spellings of the wrapper alias hand the same runtime value as the bare one - a
+// paren, a sequence tail - so the claim still answers through the polyfill in a stripped realm
+QUnit.test('destructuring: wrapped spellings of a pattern-bound wrapper still resolve', assert => {
+  let seq = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren spelling is the case under test
+  const [parenInit] = ([[globalThis]]);
+  const [{ Array: { from: viaParen } }] = parenInit;
+  assert.deepEqual(viaParen([1, 2]), [1, 2], 'the paren-wrapped init resolves its leaf');
+  const [seqInit] = (seq++, [[globalThis]]);
+  const [{ Array: { from: viaSeq } }] = seqInit;
+  assert.deepEqual(viaSeq([3]), [3], 'the sequence tail resolves its leaf');
+  assert.same(seq, 1, 'the prefix effect ran exactly once, at the declaration');
+});
+
+// ... and a spread HIDDEN by the wrapper still makes the union incomplete: the value the runtime
+// hands the slot comes out of the spread, and resolving past it substituted the static over it
+QUnit.test('destructuring: a paren-wrapped spread-shifted wrapper keeps the user value', assert => {
+  function marker() { return 'mine'; }
+  const xs = [[{ Array: { from: marker } }]];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the paren spelling is the case under test
+  const [wrapper] = ([...xs, [globalThis]]);
+  const [{ Array: { from } }] = wrapper;
+  assert.same(from, marker, 'the paren hides nothing - the slot binds the spread element');
+});
+
+// a value resolved through an alias walk re-anchors in the alias's own declaration scope: a
+// use-site shadow of a name the value reads must not capture it. the stripped realm is what
+// makes the row non-vacuous - a lost claim leaves a raw read there. the write-RHS twin of this
+// anchor is usage-global's alone (pure bails a reassigned alias by design) and lives in the
+// usage-global fixture instead
+QUnit.test('destructuring: alias values resolve where the alias lives, not at a shadowed use', assert => {
+  // eslint-disable-next-line unicorn/consistent-function-style -- the arrow-bound factory is the case under test
+  const factory = () => Array;
+  // eslint-disable-next-line no-unused-vars -- the shadow parameter is the case under test
+  function callSiteShadow(Array) {
+    return factory().from([5, 6]);
+  }
+  assert.deepEqual(callSiteShadow('shadow'), [5, 6], 'an inline-callee return ignores the call-site shadow');
+});
