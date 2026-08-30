@@ -65,10 +65,10 @@ const pickedAt = _atMaybeArray(null == dg().window ? void 0 : _Array$of(9));
 export const viaDestructureOverGuarded = pickedAt;
 
 // DEEP pristine hops over the provably pure call root: BOTH emitters drop the call and read
-// the hops off the ponyfill leaf (`_self.window`) - a raw `.self` read would miss every engine
+// the hops off the ponyfill leaf - a raw `.self` read would miss every engine
 // the web.self ponyfill serves (the polyfill invariant), so the guard itself is ponyfill-backed
 const dh = () => _globalThis;
-export const viaDeepHops = null == _self.window ? void 0 : _atMaybeArray(_ref9 = _Array$of(3)).call(_ref9, 0);
+export const viaDeepHops = null == _self ? void 0 : _atMaybeArray(_ref9 = _Array$of(3)).call(_ref9, 0);
 
 // an SE-carrying inline BODY of the call root replays as a sequence prefix on the collapsed
 // guard test (`(db(), _self).window`) - the effect runs exactly once, the branch reads the
@@ -78,7 +78,7 @@ const db = () => {
   bodyCount++;
   return _globalThis;
 };
-export const viaSeBodyRoot = null == (db(), _self).window ? void 0 : _atMaybeArray(_ref10 = _Array$of(11)).call(_ref10, 0);
+export const viaSeBodyRoot = null == (db(), _self) ? void 0 : _atMaybeArray(_ref10 = _Array$of(11)).call(_ref10, 0);
 
 // hops SWAPPED (the unresolvable window hop before the ponyfillable self hop): both optional
 // objects share the window hop as their only source of undefined, so ONE nested test on the
@@ -124,7 +124,7 @@ const cse = () => {
   seBodyCount++;
   return _globalThis;
 };
-export const viaChainAssignSeBody = null == (heldSe = cse(), _self).window ? void 0 : _atMaybeArray(_ref18 = _Array$of(18)).call(_ref18, 0);
+export const viaChainAssignSeBody = null == (heldSe = cse(), _self) ? void 0 : _atMaybeArray(_ref18 = _Array$of(18)).call(_ref18, 0);
 
 // an SE-PREFIXED computed hop key still RESOLVES for the guard count (the effect stays live in
 // the kept test text, in source order after the window test) - the branch reads the ponyfill
@@ -205,7 +205,7 @@ export const viaIdentityCtorNew = (null == (x => x)(_globalThis).window ? void 0
 // runtime VALUE is the nav's, not the always-defined global the prefix walk sees) and the
 // claim composes PLAIN into the single outer test
 let navAlias;
-navAlias = null == _globalThis.window ? void 0 : _self.window;
+navAlias = null == _globalThis.window ? void 0 : _self;
 export const viaAliasNavRead = navAlias == null ? void 0 : _atMaybeArray(_ref31 = _Array$of(31)).call(_ref31, 0);
 
 // an ALIAS of the provable callee follows transitively (identifier hops re-anchor at their

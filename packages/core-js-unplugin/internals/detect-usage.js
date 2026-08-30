@@ -33,6 +33,8 @@ import {
   withoutValuelessDeclarationViolations,
   isDestructurePattern,
   POSSIBLE_GLOBAL_OBJECTS,
+  ancestorChainDetached,
+  syntheticNodeAncestry,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   aliasSpanDominatesUse,
@@ -644,7 +646,7 @@ export function createEstreeAdapter(options = {}) {
     // lazy lookup for the resolver's assignment-form alias branch (mirror of the babel adapter):
     // raw estree violations are PATHS onto the written Identifier - climb to the enclosing
     // AssignmentExpression, then run the shared trust predicate
-    findTrustedAliasWrite(scope, name, { requirePlacement = true } = {}) {
+    findTrustedAliasWrite(scope, name, { requirePlacement = true, readNode = null } = {}) {
       const raw = scope?.getBinding?.(name);
       if (!raw || raw.path?.node?.type !== 'VariableDeclarator' || raw.path.node.init) return null;
       // mirror the babel twin: strip valueless-redeclaration phantoms BEFORE the first-violation
@@ -657,11 +659,20 @@ export function createEstreeAdapter(options = {}) {
       while (assignPath && assignPath.node?.type !== 'AssignmentExpression') assignPath = assignPath.parentPath;
       const assignNode = assignPath?.node;
       if (!assignNode) return null;
+      // a render that replaced a subtree while CARRYING this write leaves the cached violation
+      // path climbing edges that left the tree - re-anchor the placement judgment on the write's
+      // LIVE ancestry (the babel adapter re-anchors through its own fresh-path lookup)
+      if (ancestorChainDetached(assignPath)) {
+        let top = scope;
+        while (top?.parent) top = top.parent;
+        const fresh = top?.path?.node ? syntheticNodeAncestry(top.path.node, assignNode) : null;
+        assignPath = fresh ?? assignPath;
+      }
       // the ASSIGNMENT path itself: the placement walk judges every edge up to the statement,
       // so a conditional expression container between them refuses flow-trust. a STRUCTURAL
       // consumer skips placement - its branch-after-test proof carries execution evidence
       return (requirePlacement
-        ? assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath })
+        ? assignmentAliasWriteTrusted({ binding: b, assignNode, stmtPath: assignPath, readNode })
         : soleAliasWrite({ binding: b, assignNode }))
         ? assignNode : null;
     },

@@ -1,6 +1,7 @@
 // spine navigation over proxy-global hops: climbs, peels, kept writes, the fold/keep
 // verdicts of unbacked hops - the position questions the usage-pure emitters ask
 import {
+  foldableRealmHop,
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
   planProvenNavGuardCollapse,
@@ -15,6 +16,7 @@ import {
   claimDeleteOperand,
   isDestructurePattern,
   isMutatedGlobalSlot,
+  nodeHoldsChild,
   isPristineProxyGlobal,
   mayHaveSideEffects,
   memberProxyHopName,
@@ -154,9 +156,10 @@ export function respellKeptHop(spelling, { keyName, keySe }) {
 
 // does a TERMINAL run of unbacked pristine hops ride ABOVE the claim - `window` reads
 // that end the spine without another backed hop or claimable member folding them. the
-// reference emitters keep the WHOLE spine spelled there (`(v = globalThis.self.window)`
-// stays `_globalThis.self.window`): substituting the claim would erase the throw a
-// hop-less realm owes the read. a backed hop above RESETS the run (deep-nav folds), and
+// reference emitters keep the WHOLE spine spelled there (`export const v =
+// globalThis.self.window` stays `_globalThis.self.window`): with no probe under it there is
+// no collapse to fold onto, and substituting the claim alone would leave a raw realm read
+// off the ponyfill. a backed hop above RESETS the run (deep-nav folds), and
 // a claimable member above collapses the receiver through its own plan either way
 export function unbackedTailRidesAbove(metaPath, resolveGlobalPolyfill) {
   let sawUnbacked = false;
@@ -239,6 +242,69 @@ export function unbackedProxyHopKey(node, resolveHere) {
   return !!key && proxyHopLacksPureEntry(key, resolveHere);
 }
 
+// the realm hops standing above a SUBSTITUTED proxy binding: each names the realm the ponyfill
+// already is, and off-browser the ponyfill cannot answer it - so it folds onto the binding, the
+// same verdict the nav plan reaches by truncating its hops. a COMPUTED key stays: folding it would
+// fold its key effect away with it
+export function foldUnbackedRealmHopsAbove(basePath, baseNode, ctx) {
+  let cursor = basePath;
+  for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
+    const { node } = up;
+    if (SKIPPABLE_WRAPPER_TYPES.has(node.type) && node.expression === baseNode) {
+      cursor = up;
+      continue;
+    }
+    // the base node is what the walk tracks, not the path's own: a path whose span was just
+    // replaced still answers with the SOURCE node, and a folded hop hands the same base on
+    if (unwrapRuntimeExpr(node.object) !== baseNode || !foldableRealmHop(node, ctx)) break;
+    up.replaceWith(node.object);
+    cursor = up;
+  }
+}
+
+// an unbacked realm hop reading a CARRIED value - a kept write's store, the sequence handing it
+// on, the wrappers around either: the store hands its value on, so the hop reads through the
+// ponyfill the value collapses to and folds onto it. the hop's OWN `?.` slides one member up
+// (the probe survives: a void store still short-circuits there); a PLAIN hop instead ERASES the
+// `?.` above - a void store then throws on the member above exactly where the source threw on
+// the hop, and over a defined value the erased guard was vestigial either way. only under a
+// member that can host the read: the chain end keeps its shape for the claim routes to answer.
+// only over a KEPT STORE (an assignment carrier on the climb), whichever spelling roots the
+// probe: a storeless sequence prefix hands its value on too, but there the guard renders in
+// place and both emitters keep the hop - the store is the span whose tail the fold owns
+export function foldRealmHopOverCarriedValue(basePath, ctx) {
+  let cursor = basePath;
+  // a render may have replaced the slot the anchor sat in (a guard now holds the claim's span):
+  // lift past the detached levels first - the parent that no longer holds the anchor is the one
+  // whose LIVE content the climb should track
+  while (cursor.parentPath?.node && !nodeHoldsChild(cursor.parentPath.node, cursor.node)) {
+    cursor = cursor.parentPath;
+  }
+  // the lift lands ON the store when the render replaced its value slot - the assignment is then
+  // the climb's base, not a crossed carrier, and it counts as the store all the same
+  let throughStore = cursor.node?.type === 'AssignmentExpression';
+  for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
+    const { node } = up;
+    const carried = (SKIPPABLE_WRAPPER_TYPES.has(node.type) && node.expression === cursor.node)
+      || (node.type === 'AssignmentExpression' && node.right === cursor.node)
+      || (node.type === 'SequenceExpression' && node.expressions.at(-1) === cursor.node);
+    if (carried) {
+      if (node.type === 'AssignmentExpression') throughStore = true;
+      cursor = up;
+      continue;
+    }
+    if (throughStore
+      && node.type === 'MemberExpression' && unwrapRuntimeExpr(node.object) === unwrapRuntimeExpr(cursor.node)
+      && foldableRealmHop(node, ctx)) {
+      const above = up.parentPath?.node;
+      if (above?.type !== 'MemberExpression' || unwrapRuntimeExpr(above.object) !== node) return;
+      above.optional = node.optional === true;
+      up.replaceWith(node.object);
+    }
+    return;
+  }
+}
+
 // the run of enclosing SEQUENCE levels a value tails, and the member READING that run:
 // `(c++, (d++, X)).window` answers `.window` for `X`, with `c++` ahead of `d++` - the climb
 // walks outward, so each level unshifts in front of the ones already collected. null when
@@ -318,19 +384,26 @@ export function memberIsWriteTarget(hopPath) {
   return false;
 }
 
-// does a run of PLAIN proxy hops sit directly above this root claim? false as soon as one
-// carries a live `?.`: that hop is the environment probe (a hop pure cannot back answers
-// `undefined` off-engine), so the whole run must stay spelled - and so must a run whose own
-// consumer reads it optionally, where the hop claim's guard render owns the shape
 // does a kept WRITE sit between the collapsed spine and a further proxy hop? returns the
 // path the extension continues FROM (the write with its wrappers), null otherwise
-export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHopKey }) {
+export function stepOverKeptWrite(up, target, { allowOptional, metaPath, proxyHopKey, deadOptionalHop = null }) {
   const upNode = up.node;
   if (upNode.type !== 'AssignmentExpression' || upNode.operator !== '='
     || unwrapRuntimeExpr(upNode.right) !== unwrapRuntimeExpr(target.node)) return null;
-  const overNode = peelParenAndTSParentPath(up)?.node;
-  if (overNode?.type !== 'MemberExpression' || unwrapRuntimeExpr(overNode.object) !== upNode) return null;
-  if (overNode.optional && !allowOptional) return null;
+  // the member may read the write through an enclosing SEQUENCE tail (`(g = globalThis, v = g.self)
+  // ?.window`): the sequence hands its tail on, so what reads it reads this write's value
+  let overPath = peelParenAndTSParentPath(up);
+  let readBelow = upNode;
+  if (overPath?.node?.type === 'SequenceExpression'
+    && unwrapRuntimeExpr(overPath.node.expressions.at(-1)) === upNode) {
+    readBelow = overPath.node;
+    overPath = peelParenAndTSParentPath(overPath);
+  }
+  const overNode = overPath?.node;
+  if (overNode?.type !== 'MemberExpression' || unwrapRuntimeExpr(overNode.object) !== readBelow) return null;
+  // ... and a `?.` the vestigial verdict calls DEAD reads the store's own always-defined value, so
+  // the run over it is the plain twin (`(v = globalThis)?.window.X`)
+  if (overNode.optional && !allowOptional && !deadOptionalHop?.(overNode)) return null;
   if (!proxyHopKey(overNode, { allowOptional: true, metaPath })) return null;
   return peelParenAndTSSlotPath(up);
 }
@@ -436,7 +509,13 @@ export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHo
   ]);
 }
 
-export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = false } = {}) {
+// does a run of PLAIN proxy hops sit directly above this root claim? false as soon as one
+// carries a live `?.`: that hop is the environment probe (a hop pure cannot back answers
+// `undefined` off-engine), so the whole run must stay spelled - and so must a run whose own
+// consumer reads it optionally, where the hop claim's guard render owns the shape
+// (`deadOptionalHop`: a `?.` the shared vestigial verdict already called dead is no probe and
+// does not end the run)
+export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = false, deadOptionalHop = null } = {}) {
   // a source PAREN - and the chain wrapper an `?.` wears - is transparent to the run and to
   // the read above it (`(g.window?.self)?.Array` navigates exactly like the bare twin)
   // ... and so is a VALUE CARRIER standing at the ROOT (`(v = globalThis).window`): the first hop
@@ -453,9 +532,19 @@ export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = f
   }
   let [child, up] = stepWrappers(metaPath.node, metaPath.parentPath, true);
   let sawHop = false;
+  // a `?.` the shared vestigial verdict calls DEAD is not the environment probe: its receiver is
+  // the always-defined binding this claim substitutes, so the run reads exactly like its plain twin
+  // and folds with it (`globalThis?.window.X`, `(v = globalThis)?.window.X`)
+  let tookDeadVerdict = false;
+  function plainEnough(node) {
+    if (!node.optional || allowOptional) return true;
+    if (!deadOptionalHop?.(node)) return false;
+    tookDeadVerdict = true;
+    return true;
+  }
   while (up?.node?.type === 'MemberExpression' && up.node.object === child) {
-    if (up.node.optional && !allowOptional) return null;
-    if (!proxyHopKey(up.node, { metaPath, allowOptional })) break;
+    if (!plainEnough(up.node)) return null;
+    if (!proxyHopKey(up.node, { metaPath, allowOptional: true })) break;
     sawHop = true;
     [child, up] = stepWrappers(up.node, up.parentPath);
   }
@@ -463,9 +552,15 @@ export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = f
   // the run's own consumer reading it OPTIONALLY keeps every hop spelled - that `?.` is the
   // environment probe the source asked for. under `allowOptional` the delete canon has
   // already answered for the whole navigation and the consumer is only reported back
-  if (!allowOptional
-    && ((consumer?.type === 'MemberExpression' && consumer.object === child && consumer.optional)
-      || (consumer?.type === 'CallExpression' && consumer.callee === child && consumer.optional))) return null;
+  if (((consumer?.type === 'MemberExpression' && consumer.object === child)
+    || (consumer?.type === 'CallExpression' && consumer.callee === child))
+    && !plainEnough(consumer)) return null;
+  // ... and the dead-`?.` reading is not offered to a render's OWN OUTPUT: a null-probe test this
+  // emitter spelled is re-entered by the visitor as a fresh claim, and folding the probe there
+  // erases the very read the guard exists to make (the below-probe collapse owns that spelling)
+  if (tookDeadVerdict && consumer?.type === 'BinaryExpression'
+    && (consumer.operator === '==' || consumer.operator === '!=')
+    && [consumer.left, consumer.right].some(side => side?.type === 'Literal' && side.value === null)) return null;
   return sawHop ? { consumer, child } : null;
 }
 

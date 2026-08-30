@@ -7,20 +7,30 @@ import {
   composableNavGuardPlan,
   planProvenNavGuardCollapse,
   claimReceiverEvaluationMayThrow,
-  classifyReceiverSE, descendToChainRoot, keySideEffectsOnly, maximalProxyGlobalPrefix,
+  classifyReceiverSE,
+  descendToChainRoot,
+  keySideEffectsOnly,
+  maximalProxyGlobalPrefix,
   chainReadsThroughSeal,
   collectChainAssignsThroughMemberChain,
   guardTailPullCount,
   navHasUnresolvableProxyHop,
   navValueCanShortCircuit,
-  peelChainAssignment, peelChainRootValue, peelReceiverSequenceTail, inlineCallProxyGlobalRoot,
+  peelChainAssignment,
+  peelChainRootValue,
+  peelReceiverSequenceTail,
+  inlineCallProxyGlobalRoot,
   receiverSequenceTailKeys,
   inlineCallHasObservableEffects,
   navHopSequencePrefixes,
   storedNavHopClaimSuppressed,
   navGuardTestBase,
-  proxyReceiverValueCanBeUndefined, sealedChainBoundary, sealedClaimLeafGuardPlan,
-  resolveObjectName, vestigialNavOptionals,
+  proxyReceiverValueCanBeUndefined,
+  sealedChainBoundary,
+  sealedClaimLeafGuardPlan,
+  foldableRealmHop,
+  resolveObjectName,
+  vestigialNavOptionals,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { proxyGlobalRootName } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
@@ -107,7 +117,19 @@ export function cloneReceiverForEmit({ t, collapse, node, path, types = null }) 
     });
   }
   const clone = t.cloneNode(node);
+  // `cloneNode` drops source POSITIONS, and the kept-nav trust proof reads them - a write earlier in
+  // the same sequence than the read is what proves the alias. re-stamp them from the original: the
+  // copy is structurally identical, so one deterministic walk of each pairs the nodes in order, and
+  // the positions they carry are the same source positions either way
+  const originals = [];
+  t.traverseFast(node, inner => originals.push(inner));
+  let at = 0;
   t.traverseFast(clone, inner => {
+    const origin = originals[at++];
+    if (origin?.type === inner.type && typeof origin.start === 'number') {
+      inner.start = origin.start;
+      inner.end = origin.end;
+    }
     if (inner.type === 'AssignmentExpression') collapse(inner, path);
     if (inner.type === 'Identifier' && seeded.has(inner.name)) types.set(inner, seeded.get(inner.name));
   });
@@ -424,7 +446,7 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
   // native destructuring of undefined THROWS, so an erase-refusal guard must stay INSIDE the
   // helper argument (the helper then throws on the short-circuited void 0 exactly like native)
   // instead of climbing above it
-  // hops a nav-collapse render emitted above its ponyfill leaf (`_self.window`): the hop-drop
+  // hops a nav-collapse render emitted above its ponyfill leaf: the hop-drop
   // canon must not re-run on them, or the same source yields a different chain per traversal
   // chains whose tail feeds a TAGGED template: the source parens end the chain there, so the
   // lift that re-creates a short-circuit would swallow the throw the source performs
@@ -1481,7 +1503,16 @@ export default function (t, { getInjector, getAdapter, typeResolvers, resolvePur
       // there ends the chain (the printer parenthesizes it), so the source's short-circuit
       // would turn into a read off `undefined`
       let inChain = false;
+      // the alternate starts AS the ponyfill leaf when the plan re-hung nothing over it, and a realm
+      // hop read off a ponyfill folds - the canon's verdict, asked here for the tail the plan does
+      // not own (`globalThis.window?.self.window` reads `_self`). the first step that does not fold
+      // ends it: what stands above then reads a value the doctrine says nothing about
+      let overPure = definedAtLeaf;
       for (const [index, path] of paths.slice(0, taken).entries()) {
+        if (overPure && !steps[index].isCall && foldableRealmHop(path.node, { adapter, resolvePure: plan.resolvePure })) {
+          continue;
+        }
+        overPure = false;
         // the FIRST step reads the always-defined leaf, so its `?.` is the vestigial one the
         // shared verdict drops; every later optional guards a value that can be absent
         const optional = !!path.node.optional && !(index === 0 && definedAtLeaf);

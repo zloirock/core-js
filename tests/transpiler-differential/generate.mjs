@@ -7228,25 +7228,40 @@ function * generateDeclinedInitClaims() {
 }
 
 // --- a KEPT chain-assign value collapses its pony hops, whatever claim stands above it ---
-// the value canon (`(k = globalThis.self.window)` stores `_self.window`) is what the STATIC claim
-// beside these already reads through; an instance claim used to leave the hop raw instead, each
-// emitter for its own reason - one had no visitor left for the assignment, the other deferred the
-// collapse and then emitted a COPY the deferred flush could not match
+// the value canon is what the STATIC claim beside these already reads through; an instance claim
+// used to leave the hop raw instead, each emitter for its own reason - one had no visitor left for
+// the assignment, the other deferred the collapse and then emitted a COPY the deferred flush could
+// not match.
+// every row navigates through a hop that is DEFINED off-window: the realm-hop fold - a hop READ
+// THROUGH a ponyfill answering that ponyfill where a window-less realm throws - is an accepted
+// divergence this oracle cannot express, and the fixture and the e2e boundary carry that half
 const KEPT_ASSIGN_HOPS = [
-  { id: 'instance-call', code: '(k = globalThis.self.window).Array.prototype.at(0)' },
-  { id: 'instance-get', code: 'typeof (k = globalThis.self.window).Array.prototype.at' },
-  { id: 'vestigial-optional', code: '(k = globalThis.self?.window).Array.prototype.at(0)' },
-  { id: 'nested-seq', code: '(log.push("r"), (log.push("i"), k = globalThis.self?.window)).Array.prototype.at(0)' },
-  { id: 'destructure-host', code: '(() => { const { name } = (k = globalThis.self?.window).Array.prototype.at(0); return typeof name; })()' },
-  // NEGATIVE: the static claim above the same value - the spelling both emitters already agreed on.
-  // through a hop that is DEFINED off-window, because the static erase is an accepted divergence
-  // this oracle cannot express (native throws on the read the claim erases); the fixture and the
-  // e2e boundary carry that half
+  { id: 'instance-call', code: '(k = globalThis.globalThis.globalThis).Array.prototype.at(0)' },
+  { id: 'instance-get', code: 'typeof (k = globalThis.globalThis.globalThis).Array.prototype.at' },
+  { id: 'vestigial-optional', code: '(k = globalThis.globalThis?.globalThis).Array.prototype.at(0)' },
+  { id: 'nested-seq',
+    code: '(log.push("r"), (log.push("i"), k = globalThis.globalThis?.globalThis)).Array.prototype.at(0)' },
+  { id: 'destructure-host',
+    code: '(() => { const { name } = (k = globalThis.globalThis?.globalThis).Array.prototype.at(0); return typeof name; })()' },
+  // NEGATIVE: the static claim above the same value - the spelling both emitters already agreed on
   { id: 'static-claim-control', code: '(k = globalThis.globalThis).Array.of(3)' },
+  // a SEQUENCE writing the alias the store reads (`seq-store-direct`): the trust verdict answering
+  // this form is reached only without a probe hop between the write and the read, and the `?.`
+  // over the store is dead - the store hands the always-defined value on
+  { id: 'seq-store-direct', code: '(k = globalThis, j = k.globalThis)?.Array.prototype.at(0)' },
+  { id: 'seq-store-direct-get', code: 'typeof (k = globalThis, j = k.globalThis)?.Array.prototype.at' },
+  { id: 'seq-store-direct-twice',
+    code: '[(k = globalThis, j = k.globalThis)?.Array.prototype.at(0), (k = globalThis, j = k.globalThis)?.Array.prototype.at(0)].length' },
+  // MIXED tails over one alias: the first statement's render replaces its span CARRYING the kept
+  // alias write, and the second still owes that alias its trust - a placement judged over the
+  // replaced span's dead ancestry kept the second store raw, an order-dependence no same-body
+  // twice-read can see
+  { id: 'seq-store-mixed-tails',
+    code: '[(k = globalThis, j = k[(log.push("w"), "globalThis")].globalThis)?.globalThis.noSuchStatic, (k = globalThis, j = k.globalThis)?.Array.prototype.at(0)].length' },
 ];
 function * generateKeptAssignHops() {
   for (const c of KEPT_ASSIGN_HOPS) {
-    yield { ...snippet(`kept-assign-hop-collapse/${ c.id }`, `(() => { let k; return ${ c.code }; })()`), strip: true };
+    yield { ...snippet(`kept-assign-hop-collapse/${ c.id }`, `(() => { let k, j; return ${ c.code }; })()`), strip: true };
   }
 }
 
