@@ -586,7 +586,7 @@ export default function createDestructureDrains(ctx) {
       // a SEALED receiver reads through the guard the source's own read performs: the collapsed
       // root would answer a defined value where the seal throws. the plan is the PRISTINE one -
       // by drain time the walk has erased the `?.` this passthrough is about
-      // (`customK: (null == _g.window ? void 0 : _self.window).Object.customK`)
+      // (`customK: (null == _g.window ? void 0 : _self).Object.customK`)
       const sealedBase = sealedProbePlan ? renderSealedNavProbe(sealedProbePlan, metaPath, probeRenderCtx) : null;
       if (sealedBase) {
         pushSlot(slotRead(sealedBase));
@@ -1113,7 +1113,10 @@ export default function createDestructureDrains(ctx) {
       // babel leg's shape). riding the value there dropped that read
       const spellableStore = keptWriteRidesValue(rescueAssign, { adapter, injectorState, resolveGlobalPolyfill });
       const readOverWrite = spellableStore ? discardedReadOverWrite(declarator.init, rescueAssign) : null;
-      const ridesTheValue = (!readOverWrite && spellableStore)
+      // ... and only where the extraction READS THROUGH the stored value: a property binding the
+      // ponyfill itself (`{ Map: M }` extracts `_Map`) reads nothing off the store, so the write is
+      // a statement of its own - the shape the babel leg spells for the same source
+      const ridesTheValue = (!readOverWrite && spellableStore && declJobs.some(job => job.kind !== 'global'))
         || (rescueAssign?.type === 'CallExpression' && rescueAssign === peelTransparentExpr(declarator.init)
           && inlineCallHasObservableEffects({
             callNode: rescueAssign,

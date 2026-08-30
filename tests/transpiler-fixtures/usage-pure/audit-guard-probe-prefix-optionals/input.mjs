@@ -86,14 +86,15 @@ export const unplannedNullishCarrier = ut()?.window?.self?.chrome ?? 'absent';
 // so the plain read observes the short-circuited value instead of riding it
 export const sealedUnplannedTail = (ut()?.window?.self).chrome;
 
-// a planned tail of its own (`_self.window`) still folds the FIRST live `?.` above it: while
-// every pulled step is a straight continuation of the leaf the alternate produces the same
-// value the source reads. the SECOND guard has a step with its own `?.` behind it and stays out
+// the realm hop the plan folds leaves the alternate ON the ponyfill leaf, so the FIRST live `?.`
+// above it is the leaf-adjacent one the vestigial verdict erases: every pulled step is a straight
+// continuation and the alternate produces the value the source reads. the SECOND guard has a step
+// with a name pure does not back behind it, and that one stays out
 export const plannedTailKeepsGuard = ut()?.window?.self?.window?.chrome?.Array;
 
-// a render that ends in a hop of its OWN (`_self.window`) is not the ponyfill leaf, but the
-// tail still folds in: the hops the render emitted are marked, so the re-traversal keeps the
-// shape the plan chose instead of collapsing them against a receiver it never picked
+// the hops the render emitted are marked, so the re-traversal keeps the shape the plan chose
+// instead of collapsing them against a receiver it never picked - and the realm hop the source
+// wrote above the collapse is not one of them: it folded before the render ever spelled a tail
 const rt = () => globalThis;
 export const renderTailPlainContinuation = rt()?.window?.self.window.chrome;
 export const renderTailFirstOptionalFolds = rt()?.window?.self?.window?.chrome;

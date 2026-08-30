@@ -6,9 +6,9 @@ import _self from "@core-js/pure/actual/self";
 // read kept the hop its twins below dropped, purely because it had no earlier write to point at.
 // the SINGLE-write twin below is the negative: there the ordinary resolution stands and the hop folds
 let v, g, out, out2, out3;
-out = (g = _globalThis, v = null == g.window ? void 0 : _self)?.window.noSuchStatic;
-out2 = (g = _globalThis, v = null == g.window ? void 0 : _self)?.window.noSuchStatic;
-out3 = (g = _globalThis, v = null == g.window ? void 0 : _self)?.window.noSuchStatic;
+out = (g = _globalThis, v = null == g.window ? void 0 : _self)?.noSuchStatic;
+out2 = (g = _globalThis, v = null == g.window ? void 0 : _self)?.noSuchStatic;
+out3 = (g = _globalThis, v = null == g.window ? void 0 : _self)?.noSuchStatic;
 let s1;
 export const singleWrite = (s1 = _globalThis, _globalThis).noSuchStatic;
 export const read = [out, out2, out3];

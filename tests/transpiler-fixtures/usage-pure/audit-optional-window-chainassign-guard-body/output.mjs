@@ -17,4 +17,4 @@ var _ref, _ref2;
 let w, v, u;
 export const ctorName = null == (w = _globalThis.window) ? void 0 : _nameMaybeFunction(_Map);
 export const staticAt = null == (v = _globalThis.window) ? void 0 : _atMaybeArray(_ref = _Array$of(5)).call(_ref, 0);
-export const multiHopFrom = null == (u = _self.window) ? void 0 : _includesMaybeArray(_ref2 = _Array$from([1])).call(_ref2, 1);
+export const multiHopFrom = _includesMaybeArray(_ref2 = (u = _self, _Array$from)([1])).call(_ref2, 1);
