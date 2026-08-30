@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 const { mkdtemp, readFile, rm, writeFile } = fs;
 const { dirname, join, resolve } = path;
+const { cyan, green, red, yellow } = chalk;
 
 const testDir = import.meta.dirname;
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
@@ -400,7 +401,7 @@ function assertMapShape(label, map) {
 
 for (const [name, build] of Object.entries(builders)) {
   if (name === 'bun' && !hasBun) {
-    echo(chalk.yellow('bun: skipped (not installed)'));
+    echo(`${ cyan('bun') }: ${ yellow('skipped (not installed)') }`);
     continue;
   }
   for (const method of methods) {
@@ -413,9 +414,9 @@ for (const [name, build] of Object.entries(builders)) {
         if (verifier === 'bun') await verifyInBun(code, label, method);
         else await verifyInNode(code, label, ext);
         if (name === 'rollup' || name === 'vite') assertMapShape(label, map);
-        echo(chalk.green(`${ label } passed`));
+        echo(`${ cyan(label) } ${ green('passed') }`);
       } catch (error) {
-        echo(chalk.red(`${ label } failed: ${ error.message }`));
+        echo(red(`${ cyan(label) } failed: ${ error.message }`));
         failures++;
       }
     }
@@ -434,9 +435,9 @@ for (const name of ['rollup', 'rolldown', 'vite', 'webpack', 'rspack', 'rsbuild'
     const { code, ext } = await builders[name](phasesInput, 'usage-pure', 'pre+post',
       { siblings: [siblingMangler[name]()] });
     await verifyPhases(code, label, ext);
-    echo(chalk.green(`${ label } passed`));
+    echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {
-    echo(chalk.red(`${ label } failed: ${ error.message }`));
+    echo(red(`${ cyan(label) } failed: ${ error.message }`));
     failures++;
   }
 }
@@ -453,12 +454,12 @@ for (const name of ['esbuild', 'rollup', 'rolldown', 'vite', 'webpack', 'rspack'
     const { code, ext } = await builders[name](dynamicInput, 'usage-global', undefined,
       { inlineDynamic: true });
     await verifyDynamic(code, label, ext);
-    echo(chalk.green(`${ label } passed`));
+    echo(`${ cyan(label) } ${ green('passed') }`);
   } catch (error) {
-    echo(chalk.red(`${ label } failed: ${ error.message }`));
+    echo(red(`${ cyan(label) } failed: ${ error.message }`));
     failures++;
   }
 }
 
 if (failures) throw new Error(`${ failures } integration test(s) failed`);
-echo(chalk.green('\nAll integration tests passed'));
+echo(green('\nAll integration tests passed'));
