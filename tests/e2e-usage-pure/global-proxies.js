@@ -2000,3 +2000,38 @@ QUnit.test('global-proxy: a logical default keeps its boundaries', assert => {
   assert.same(shadowed({ Number: { MAX_SAFE_INTEGER: 'user' } }), 'user', 'a shadowed name reads the user binding');
   assert.same(shadowed(null), 'dead-arm', '... and its right side is genuinely live');
 });
+
+// an alias holding a probe-hop READ (`const { window: W } = globalThis`) is as absent-able as the
+// nav spelling of the same value: the `?.` over it is load-bearing and must short-circuit where
+// the realm has no `window`, instead of the collapse answering the ponyfill there
+QUnit.test('global-proxy: a destructured probe alias keeps its own guard', assert => {
+  const { window: W } = globalThis;
+  const viaAlias = W?.Array.from([1]);
+  const viaNav = globalThis.window?.Array.from([1]);
+  if (globalThis.window === undefined) {
+    assert.same(viaAlias, undefined, 'a window-less realm short-circuits the alias spelling');
+    assert.same(viaNav, undefined, '... exactly like the nav spelling');
+  } else {
+    assert.deepEqual(viaAlias, [1], 'a window host runs the claim through the alias');
+    assert.deepEqual(viaNav, [1], '... and through the nav');
+  }
+  // an ENTRY-BACKED alias stays erasable - `self` is the realm object by its ponyfill
+  const { self: S } = globalThis;
+  assert.deepEqual(S?.Array.of(2), [2], 'an entry-backed alias claim always answers');
+});
+
+// a computed key on a guarded probe alias evaluates only past the guard: native short-circuits
+// at `W?.` before ever reaching the key, so its effect must not run on the nullish path
+QUnit.test('global-proxy: a dropped key effect over a probe alias runs only past the guard', assert => {
+  const { window: W } = globalThis;
+  let keyRuns = 0;
+  // eslint-disable-next-line @stylistic/no-extra-parens -- the parenthesized sequence KEY is the subject: its SE must ride the guard
+  const value = W?.[(keyRuns++, 'Array')].of(1);
+  if (globalThis.window === undefined) {
+    assert.same(keyRuns, 0, 'the nullish path never evaluates the key');
+    assert.same(value, undefined, 'and the claim short-circuits');
+  } else {
+    assert.same(keyRuns, 1, 'a window host evaluates the key once');
+    assert.deepEqual(value, [1], 'and answers the claim');
+  }
+});

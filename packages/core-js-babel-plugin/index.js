@@ -218,11 +218,13 @@ export default function plugin(api, options) {
   const typeResolvers = createResolveNodeType(node => node?.type, t, {
     // a GUARDED alias registration (refused flow-trust) must not feed the type channel: its
     // hint would narrow member types over a flow the registration explicitly refused to trust
-    getPolyfillBindingEntry(scope, name) {
-      return usableAliasInfo(injector?.getBindingInfo?.(name))?.entry ?? null;
+    // `useStart` (the use-site node's start) anchors the injector's name-keyed view
+    // positionally: a USER-named body-extract record serves only inside its hosting scope span
+    getPolyfillBindingEntry(scope, name, useStart = null) {
+      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart))?.entry ?? null;
     },
-    getPolyfillBindingHint(scope, name) {
-      return usableAliasInfo(injector?.getBindingInfo?.(name))?.hint ?? null;
+    getPolyfillBindingHint(scope, name, useStart = null) {
+      return usableAliasInfo(injector?.getBindingInfo?.(name, useStart))?.hint ?? null;
     },
     isReassignedBinding(name, binding) { return injector?.isReassignedBinding?.(name, binding) ?? false; },
     // babel loses a binding from its scope registry after the destructure-assignment alias
