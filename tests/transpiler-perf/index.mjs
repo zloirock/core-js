@@ -210,7 +210,11 @@ for (const { name, source, ts = false, injections = 1, bounds } of CASES) {
       const ok = detected && seconds < bound;
       if (!ok) failed++;
       const size = modules.length > 1 ? `${ kilobytes }kb, ${ modules.length } modules` : `${ kilobytes }kb`;
-      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ size }) | ${ mode } ${ emitter }: ${ seconds.toFixed(2) }s (bound ${ bound }s${ detected ? '' : `, ${ injected }/${ injections } INJECTED` })`;
+      // the failing datum wears the red: over-bound time and a short injection count are the two
+      // ways a cell fails, and the verdict word alone does not say which of them fired
+      const time = `${ seconds.toFixed(2) }s`;
+      const detectionNote = detected ? '' : `, ${ red(`${ injected }/${ injections } INJECTED`) }`;
+      echo`${ ok ? green('PASS') : red('FAIL') } ${ cyan(name) } (${ cyan(size) }) | ${ cyan(mode) } ${ cyan(emitter) }: ${ seconds < bound ? cyan(time) : red(time) } (bound ${ cyan(`${ bound }s`) }${ detectionNote })`;
     }
   }
 }
