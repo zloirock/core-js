@@ -537,6 +537,8 @@ export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 // symbol-keyed `handledObjects.has` so post-sweep can skip nodes that `handleBinaryIn`
 // already covered (e.g. `Symbol` in `Symbol.iterator in obj`)
 export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
+// symbol-keyed `handledObjects.delete` for the emitter that re-emits a marked receiver by identity
+export const USAGE_VISITORS_RELEASE_HANDLED = Symbol('core-js.usageVisitors.releaseHandled');
 
 // shapes the instantiation slot (`<here><T>`) accepts BARE - a LeftHandSideExpression, plus the
 // few looser shapes @babel/generator parenthesizes on its own account (a SequenceExpression, an
@@ -971,6 +973,7 @@ export function createUsageVisitors({
     // Program.enter calls this to drop per-file WeakSet state
     [USAGE_VISITORS_RESET]: core.reset,
     [USAGE_VISITORS_IS_HANDLED]: core.isHandled,
+    [USAGE_VISITORS_RELEASE_HANDLED]: core.releaseHandled,
   };
 }
 

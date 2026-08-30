@@ -4,7 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$parseInt from "@core-js/pure/actual/number/parse-int";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2;
+var _ref;
 // a guard render that leads with `(` at the head of an ExpressionStatement fuses with an
 // unterminated previous statement and turns it into a CALL (`sink = 1(...)`). the reprint
 // owes every statement its own semicolon,
@@ -23,7 +23,7 @@ export let claimUnderOperator = 5;
 // renders that do NOT lead with `(` keep the source verbatim - the negatives that pin the guard
 // to the leading token rather than to the statement position
 export let foldedClaim = 6;
-null == (_ref = _globalThis.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(1)).call(_ref2, 0);
+null == _globalThis.window ? void 0 : _atMaybeArray(_ref = _Array$of(1)).call(_ref, 0);
 export let deleteOperand = 7;
 delete _globalThis.hostBox.gone;
 export let protoPlacement = 8;

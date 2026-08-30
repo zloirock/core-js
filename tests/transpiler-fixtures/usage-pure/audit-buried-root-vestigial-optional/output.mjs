@@ -11,7 +11,7 @@ import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _self from "@core-js/pure/actual/self";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 import _endsWithMaybeString from "@core-js/pure/actual/string/instance/ends-with";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10;
+var _ref, _ref2, _ref3, _ref4, _ref5;
 // the buried root's nav collapses through a VESTIGIAL `?.` and stops at a LIVE one. the two are told
 // apart by what the optional guards, not by its presence: an optional over a value that cannot be
 // undefined is dead text, one over an unponyfilled hop is the environment probe itself. the first
@@ -19,17 +19,17 @@ var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10;
 // the optionals' OBJECTS - so membership never held and every `?.` bailed, leaving the nav raw here
 // while the AST emitter collapsed it (a diverging import set). one static and one instance method
 // per line, so a row that stops resolving shows up in the import set too.
-export const deadOptionalRoot = null == (_ref = (() => _self)()?.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(5)).call(_ref2, 0);
-export const deadOptionalArg = null == (_ref3 = (x => _self)(1)?.window) ? void 0 : _includesMaybeArray(_ref4 = _Object$values({
+export const deadOptionalRoot = null == (() => _self)()?.window ? void 0 : _atMaybeArray(_ref = _Array$of(5)).call(_ref, 0);
+export const deadOptionalArg = null == (x => _self)(1)?.window ? void 0 : _includesMaybeArray(_ref2 = _Object$values({
   a: 1
-})).call(_ref4, 1);
-export const deadOptionalDeep = null == (_ref5 = (() => _self)()?.window) ? void 0 : _flatMaybeArray(_ref6 = _Reflect$ownKeys({
+})).call(_ref2, 1);
+export const deadOptionalDeep = null == (() => _self)()?.window ? void 0 : _flatMaybeArray(_ref3 = _Reflect$ownKeys({
   b: 2
-})).call(_ref6);
-export const deadOptionalParen = null == (_ref7 = (() => _self)()?.window) ? void 0 : _endsWithMaybeString(_ref8 = _String$fromCodePoint(99)).call(_ref8, 'c');
+})).call(_ref3);
+export const deadOptionalParen = null == (() => _self)()?.window ? void 0 : _endsWithMaybeString(_ref4 = _String$fromCodePoint(99)).call(_ref4, 'c');
 
 // the same nav without any optional - the collapse has always reached this one
-export const plainNav = null == (_ref9 = (() => _self)()?.window) ? void 0 : _toFixedMaybeNumber(_ref10 = _Number$parseFloat('1.5')).call(_ref10, 1);
+export const plainNav = null == (() => _self)()?.window ? void 0 : _toFixedMaybeNumber(_ref5 = _Number$parseFloat('1.5')).call(_ref5, 1);
 
 // NEGATIVE: the optional guards an unponyfilled hop, so it is load-bearing and the nav stays whole
 export const liveOptional = null == (() => null == _globalThis.window ? void 0 : _self)() ? void 0 : _Promise$resolve(4).finally(() => {});

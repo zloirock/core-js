@@ -28,7 +28,7 @@ export const deepHopDispatch = _flatMaybeArray(_ref8 = _globalThis.box).call(_re
 export const firstHopProbe = null == _globalThis.window ? void 0 : _self.Array;
 
 // POSITIVE control: a SEAL over the same deep chain makes the short-circuit observable again
-export const sealedDeepHop = (null == _self.window ? void 0 : _self).Array;
+export const sealedDeepHop = _globalThis.Array;
 
 // NEGATIVE: with no live `?.` the whole navigation collapses to the root, hops and all
 export const noOptionalHop = _flatMaybeArray(_ref9 = _globalThis.box).call(_ref9, 1);
