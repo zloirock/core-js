@@ -501,28 +501,28 @@ QUnit.test('global-proxy: chain-assign optional value over an unpolyfilled hop k
   assert.same(f, globalThis.window);
 });
 
-// the receiver-guard channel (a STATIC claim with a tail member above it) builds its own guard and
-// used to freeze the kept value with its pristine hops RAW - `_globalThis.self.window` reads `.window`
-// off an undefined `.self` and the guard TEST itself throws in Node, where the sibling shapes one line
-// apart (instance claim, or the same static with no tail) collapse the hop and yield undefined
+// the receiver-guard channel (a STATIC claim with a tail member above it) builds its own guard, and
+// the kept value follows the realm-hop canon like every other channel: `.window` READ THROUGH the
+// `self` ponyfill folds onto it, so all three shapes one line apart - static with a tail, static
+// with none, instance claim - store that ponyfill and read off it on every realm
 // the fold is what is under test, so the standalone-post leg (detection on already-lowered text,
 // where the chain-assign + `?.` shape no longer exists) stays out, like its siblings above
 testUnlessDetectLowered('global-proxy: static claim under a tail collapses the kept value hops', assert => {
   const hasWindow = globalThis.window !== undefined;
   let k;
   const size = (k = globalThis.self.window)?.Map.length;
-  assert.same(size, hasWindow ? globalThis.Map.length : undefined);
-  assert.same(k, globalThis.window);
+  assert.same(size, globalThis.Map.length);
+  assert.same(k, globalThis);
   // the sibling with no tail above the static, and the instance-claim sibling: same receiver,
   // and the three must agree on what the guard stored
   let m;
   const ctor = (m = globalThis.self.window)?.Map;
-  assert.same(ctor, hasWindow ? globalThis.Map : undefined);
-  assert.same(m, globalThis.window);
+  assert.same(ctor, globalThis.Map);
+  assert.same(m, globalThis);
   let n;
   const fixed = (n = globalThis.self.window)?.Number.MAX_SAFE_INTEGER.toFixed(1);
-  assert.same(fixed, hasWindow ? Number.MAX_SAFE_INTEGER.toFixed(1) : undefined);
-  assert.same(n, globalThis.window);
+  assert.same(fixed, Number.MAX_SAFE_INTEGER.toFixed(1));
+  assert.same(n, globalThis);
   // the hop order reversed: `.window` is the UNRESOLVABLE hop, so the collapse keeps its own
   // guard around it instead of reading the ponyfill unconditionally
   let r;
@@ -562,23 +562,22 @@ QUnit.test('global-proxy: static claim over a chain-assign value keeps the assig
   assert.same(v, globalThis.Math);
 });
 
-// the same value ending at a hop core-js does NOT ponyfill: the erasable `.self` hop collapses
-// to its ponyfill and the `.window` read stays - the value the assignment stores is what the
-// ENVIRONMENT's `window` slot holds (the guarded twin one test up keeps the same spelling), never
-// the collapsed root. the probe reads `window`, which has no ponyfill and answers the REAL
-// environment; every runner realm pairs `self` with `window`
+// the same value ending at a hop core-js does NOT ponyfill: that hop is READ THROUGH the `self`
+// ponyfill, so it folds onto it and the assignment stores the ponyfill - not the environment's own
+// `window` slot, which a window-less realm answers `undefined` for. an inner write BELOW the hop is
+// the exception: what the outer stores is the read off THAT write, and the environment answers it
 QUnit.test('global-proxy: chain-assign value collapses the erasable hop and keeps the tail read', assert => {
   const hasWindow = globalThis.window !== undefined;
   let u;
   const viaWindow = (u = globalThis.self.window).Map;
   assert.same(typeof viaWindow, 'function');
-  assert.same(u, hasWindow ? globalThis.window : undefined);
+  assert.same(u, globalThis);
   // the mid-chain write survives the collapse beside the outer one
   let a, b;
   // eslint-disable-next-line @stylistic/no-extra-parens -- the paren-wrapped inner write IS the form under test
   const nested = (a = (b = globalThis.self.window)).Map;
   assert.same(typeof nested, 'function');
-  assert.same(a, hasWindow ? globalThis.window : undefined);
+  assert.same(a, globalThis);
   assert.same(b, a);
   // an inner write BELOW a hop of the outer value: the innermost collapses to the ponyfill,
   // the outer stores the raw read off it
@@ -592,17 +591,17 @@ QUnit.test('global-proxy: chain-assign value collapses the erasable hop and keep
   // the tail read, and a sequence prefix still runs exactly once
   let c;
   assert.same((c = globalThis.self.window).Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
-  assert.same(c, hasWindow ? globalThis.window : undefined);
+  assert.same(c, globalThis);
   const log = [];
   let d;
   assert.deepEqual((d = (log.push('p'), globalThis).self.window).Array.of(7), [7]);
   assert.deepEqual(log, ['p']);
-  assert.same(d, hasWindow ? globalThis.window : undefined);
+  assert.same(d, globalThis);
   // the fallback rewrite (a member outside the known statics) re-emits the same buried
   // assignment beside the receiver swap, collapsed by the same rule
   let e;
   assert.same((e = globalThis.self.window).Promise.noSuchStatic, undefined);
-  assert.same(e, hasWindow ? globalThis.window : undefined);
+  assert.same(e, globalThis);
   // a sequence AROUND the assignment (not inside its value): the claim still fires through
   // the kept assignment, and the prefix effect runs exactly once
   log.length = 0;
@@ -611,21 +610,20 @@ QUnit.test('global-proxy: chain-assign value collapses the erasable hop and keep
   const aroundCtor = ((log.push('s'), f = globalThis.self.window)).Map;
   assert.same(typeof aroundCtor, 'function');
   assert.deepEqual(log, ['s']);
-  assert.same(f, hasWindow ? globalThis.window : undefined);
+  assert.same(f, globalThis);
 });
 
 // the seq-around shape under a LIVE guard: the test reads the collapsed value (never a raw
-// hop), short-circuits exactly where the environment lacks the slot, and runs the prefix once.
+// hop), the realm hop above the ponyfill folds like everywhere else, and the prefix runs once.
 // the lowering rewrites the `?.` into a temp-var ternary whose memoized test is a claimless
 // value position - the open claimless-value canon - so the lowered leg sits this one out
 testUnlessDetectLowered('global-proxy: guarded seq-around chain-assign value collapses in the test (runs without self in Node)', assert => {
-  const hasWindow = globalThis.window !== undefined;
   const log = [];
   let g;
   const aroundGuardCtor = (log.push('g'), g = globalThis.self.window)?.Map;
-  assert.same(typeof aroundGuardCtor, hasWindow ? 'function' : 'undefined');
+  assert.same(typeof aroundGuardCtor, 'function');
   assert.deepEqual(log, ['g']);
-  assert.same(g, hasWindow ? globalThis.window : undefined);
+  assert.same(g, globalThis);
 });
 
 // a stored target the module also READS takes the same value canon as the unread twin: the
@@ -653,11 +651,12 @@ testUnlessDetectLowered('global-proxy: read-target stored values, absent-claim r
   /* eslint-disable es/no-bigint -- the definitions-ABSENT claim is the shape under test; the
      value is only read and compared, never invoked, so absent engines compare undefined */
   let kv;
-  // this nav ENDS at the probe, so its stored value is genuinely absent off-window - the collapse
-  // above applies to a nav whose LEAF is ponyfilled, not to one whose leaf IS the environment read
+  // this nav's PLAIN hops collapse whole and the realm hop above the ponyfill folds onto it, so
+  // the store holds the global on every host - a plain read has no `?.` for the environment to
+  // answer, and reproducing its off-window throw is not what the collapse is for
   const big = (kv = globalThis.window.self.window)?.BigInt;
-  assert.same(big, hasWindow ? globalThis.BigInt : undefined);
-  assert.same(kv, hasWindow ? globalThis : undefined);
+  assert.same(big, globalThis.BigInt);
+  assert.same(kv, globalThis);
   // the BARE twin of the same nav answers the realm on every host: with no write observing the
   // read, the plain hops collapse whole and the `?.` over the folded value guards nothing - the
   // proxy-collapse assumption, which the STORE above is the one exception to
@@ -1486,11 +1485,10 @@ testUnlessDetectLowered('global-proxy: a chain-assign root evaluates before ever
   assert.same(order.length, 0, 'each row observed exactly one key evaluation');
 });
 
-// a KEPT chain-assign VALUE collapses its pony hops whatever claim stands above it - the spelling
-// the static claim beside it already read through. an instance claim used to leave the hop raw, so
-// the stored value and the read went through a native `self` off the global instead of its ponyfill
+// a KEPT chain-assign VALUE collapses its pony hops whatever claim stands above it, and the realm
+// hop it is READ THROUGH folds onto the ponyfill leaf - so the three claim shapes below store the
+// same realm global and read through it on every host, window-less realms included
 testUnlessDetectLowered('global-proxy: a kept chain-assign value collapses under every claim', assert => {
-  const WINDOW_PRESENT = typeof window != 'undefined';
   let stored;
   function instanceCall() {
     return (stored = globalThis.self.window).Array.prototype.at.call([1, 2], -1);
@@ -1501,21 +1499,12 @@ testUnlessDetectLowered('global-proxy: a kept chain-assign value collapses under
   function staticClaim() {
     return (stored = globalThis.self.window).Array.of(3);
   }
-  if (WINDOW_PRESENT) {
-    assert.same(instanceCall(), 2, 'the instance claim reads through the collapsed value');
-    assert.same(instanceGet(), 'function', 'and so does its get form');
-    assert.deepEqual(staticClaim(), [3], 'the static claim beside them is unchanged');
-    // compared by IDENTITY through a boolean: the realm global itself is not a value the reporter
-    // can serialize when an assertion around it fails
-    assert.true(stored === globalThis, 'the assignment stored the realm global');
-  } else {
-    assert.throws(instanceCall, TypeError, 'off-window the collapsed value is undefined and the read throws');
-    assert.throws(instanceGet, TypeError, 'the get form throws with it');
-    // the STATIC claim is receiver-less by canon: its read erases, so it answers on either host -
-    // the accepted divergence this suite already records, kept here as the pair's boundary
-    assert.deepEqual(staticClaim(), [3], 'the static claim erases its receiver read and still answers');
-    assert.same(typeof stored, 'undefined', 'the assignment stored the short-circuited value');
-  }
+  assert.same(instanceCall(), 2, 'the instance claim reads through the collapsed value');
+  assert.same(instanceGet(), 'function', 'and so does its get form');
+  assert.deepEqual(staticClaim(), [3], 'the static claim beside them is unchanged');
+  // compared by IDENTITY through a boolean: the realm global itself is not a value the reporter
+  // can serialize when an assertion around it fails
+  assert.true(stored === globalThis, 'the assignment stored the realm global');
 });
 
 // a guard ROOT reading through a seal over a PLAIN nav collapses with it: the seal hides no
@@ -1803,15 +1792,16 @@ QUnit.test('global-proxy: wrapped twins of the alias probe read', assert => {
 // a nav kept by a user WRITE owns its short-circuit whatever stands above it: the store is the
 // source's own act, so folding the guard away hands the variable the ponyfill where native stores
 // `undefined`. the rows are the shapes that reach the store through a different channel each -
-// a STACKED unresolvable prefix (the guard tests the deepest one), a `delete` consumer (whose own
-// navigation folds, the store below it does not), and the write BELOW the hops (its value is the
-// bare root, so the outer store is the one carrying the navigation)
+// a `delete` consumer (whose own navigation folds, the store below it does not) and the write
+// BELOW the hops (its value is the bare root, so the outer store carries the navigation). the
+// STACKED prefix opening them is the boundary: every realm hop in it is READ THROUGH a ponyfill,
+// so the whole spine folds and there is no short-circuit left for the store to keep
 testUnlessDetectLowered('global-proxy: a kept write keeps the short-circuit its value spells', assert => {
   const hasWindow = globalThis.window !== undefined;
   let stacked;
   const fixed = (stacked = globalThis.self?.window?.self).Number.MAX_SAFE_INTEGER;
   assert.same(fixed, Number.MAX_SAFE_INTEGER, 'the claim answers its ponyfill either way');
-  assert.same(stacked, hasWindow ? globalThis : undefined, 'the stacked prefix stored its short-circuit');
+  assert.same(stacked, globalThis, 'the read-through spine folded onto the ponyfill');
   let deleted;
   const gone = delete (deleted = globalThis.window?.self)?.Promise.noSuchStatic;
   assert.same(gone, true, 'the delete answers true on both hosts');
@@ -1884,6 +1874,36 @@ QUnit.test('global-proxy: a sealed nav folds the hop above it', assert => {
   /* eslint-enable @stylistic/no-extra-parens -- end of the sealed forms */
 });
 
+// a realm hop reading a KEPT STORE folds onto the guarded value the store hands on, whichever
+// spelling roots the probe - the probe's own `?.` slides one member up and still short-circuits a
+// void store. a PLAIN hop instead erases the `?.` above: a void store then throws on the member
+// above exactly where the source threw on the hop, and the hop at the CHAIN END keeps its shape
+QUnit.test('global-proxy: a realm hop over a kept store folds on every root spelling', assert => {
+  const hasWindow = globalThis.window !== undefined;
+  const alias = globalThis;
+  let aliased, bare, plained, ended;
+  assert.same((aliased = alias.window?.self)?.window.noSuchStatic, undefined, 'the alias-rooted store folds');
+  assert.same((bare = globalThis.window?.self)?.window.noSuchStatic, undefined, 'and the bare-rooted one the same');
+  function plainHop() {
+    return (plained = alias.window?.self).window?.noSuchStatic;
+  }
+  function chainEnd() {
+    return (ended = alias.window?.self).window;
+  }
+  if (hasWindow) {
+    assert.same(plainHop(), undefined, 'on a window host the plain hop reads the realm');
+    assert.same(chainEnd(), globalThis, 'and the chain-end hop answers the realm');
+  } else {
+    assert.throws(plainHop, TypeError, 'off-window the plain hop still throws on the read above');
+    assert.throws(chainEnd, TypeError, 'and the chain-end hop keeps the source throw');
+  }
+  const expected = hasWindow ? globalThis : undefined;
+  assert.same(aliased, expected, 'each store kept the value the source wrote');
+  assert.same(bare, expected, '... the bare-rooted one too');
+  assert.same(plained, expected, '... under the plain hop too');
+  assert.same(ended, expected, '... and at the chain end');
+});
+
 // the `?.` over a CONSTRUCTOR read off the realm is dead - the static below it substitutes an
 // always-defined binding - but the deopt named its host through the proxy-HOP resolver, which
 // answers for `self` and not for `Number`. with no name the guard stayed live and the static read
@@ -1896,4 +1916,45 @@ QUnit.test('global-proxy: a constructor read names its static host', assert => {
   const stored = (held = globalThis.self).Number?.MAX_SAFE_INTEGER;
   assert.same(stored, Number.MAX_SAFE_INTEGER, 'the static below the dead guard keeps its polyfill');
   assert.same(held, globalThis, 'and the store kept the surface the source wrote');
+});
+
+// a realm hop READ THROUGH a ponyfill folds onto it: the source names the realm that ponyfill
+// already is, and off-browser the ponyfill cannot answer the slot - so the store lands the
+// ponyfill, where a raw `.window` read off it answers `undefined` and the read above it throws.
+// the environment PROBE reading off the source ROOT keeps its guard beside it, and that branch is
+// the realm's own answer. lowered input carries no `?.` for either verdict to reach
+testUnlessDetectLowered('global-proxy: a realm hop read through a ponyfill folds onto it', assert => {
+  let held;
+  const value = (held = globalThis.self.window)?.Number.MAX_SAFE_INTEGER;
+  assert.same(held, globalThis, 'the store lands the ponyfill the fold leaves behind');
+  assert.same(value, Number.MAX_SAFE_INTEGER, 'and the read off it keeps its polyfill');
+  const windowValue = globalThis.window;
+  assert.same(globalThis.window?.self.window.Number.MAX_SAFE_INTEGER,
+    windowValue === undefined ? undefined : Number.MAX_SAFE_INTEGER,
+    'the probe still discriminates a window-less realm');
+});
+
+// an alias write proven in the SAME execution region is trusted for the read beside it, whatever
+// host defers that region: the store lands the ponyfill on every one of them, where a raw `g.self`
+// read answers `undefined` in a realm without `self` and the read above it throws. the conditional
+// write beside them dominates nothing and keeps its raw read
+testUnlessDetectLowered('global-proxy: an alias write is trusted for the read in its own region', assert => {
+  let v;
+  let g1;
+  const atTop = (g1 = globalThis, v = g1.self).Array.prototype.at;
+  assert.same(typeof atTop, 'function', 'the statement-level store reads through the ponyfill');
+  assert.true(v === globalThis, 'and stored the realm global');
+  let g2;
+  assert.same(typeof [() => (g2 = globalThis, v = g2.self).Array.prototype.at][0](), 'function',
+    'an arrow body proves the same write');
+  let g3;
+  function inBody() {
+    return (g3 = globalThis, v = g3.self).Array.prototype.at;
+  }
+  assert.same(typeof inBody(), 'function', 'and so does a function body');
+  let g4;
+  class WithField {
+    f = (g4 = globalThis, v = g4.self).Array.prototype.at;
+  }
+  assert.same(typeof new WithField().f, 'function', 'and a class-field initializer');
 });

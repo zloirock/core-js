@@ -19,7 +19,7 @@ var _ref, _ref2, _ref4, _ref5, _ref7, _ref8;
 // kept root's value, a destructuring default, a class static method, an async arrow body, and a computed
 // leaf key. distinct methods per line.
 let n;
-export const nestedKeptRoot = null == (_ref = n = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
+export const nestedKeptRoot = null == (_ref = n = null == _globalThis.window ? void 0 : _self) ? void 0 : _flatMaybeArray(_ref.Array.prototype).call([1, [2]]);
 let p;
 export const inDestructureDefault = (({
   x = null == (_ref2 = p = _globalThis.window) ? void 0 : _includesMaybeArray(_ref2.Array.prototype)
