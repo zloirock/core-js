@@ -42,6 +42,7 @@ import {
   markSubtreeSkipped,
   navComputedKeyEffects,
   singleSequenceTail,
+  unbackedProxyHopKey,
 } from './nav-spine.js';
 
 // does the receiver below a member hop end on an optional CALL (`arr.flat?.()`)? that segment
@@ -105,6 +106,10 @@ function parenSealedCalleeTail(hopPath) {
 // it swallowed on the way. extracted from `replaceGuardedHop` for its size
 function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey = null }) {
   const absorbedWrappers = [];
+  // the realm hops the alternate reads THROUGH: over an always-defined ponyfill each of them names
+  // that same ponyfill (the plan folds them for the same reason), so the alternate drops them
+  // instead of spelling a slot the ponyfill carries only in a browser
+  const foldedHops = [];
   // a transparent wrapper on the absorbed tail (a `!` non-null, a paren) rides along ONLY
   // when the chain continues above it (`a?.b.map(f)!.at(-1)` keeps `.at` on the branch);
   // a TERMINAL wrapper stays outside the guard (`a?.b.at(0)! + 5` wraps the ternary)
@@ -172,18 +177,31 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
         }
       } else if (!absorbedHop) break;
     }
-    if (memberCont && unbackedHopKey?.(upNode)) crossedUnbacked = true;
+    let folded = false;
+    if (memberCont && unbackedHopKey?.(upNode)) {
+      // a FOLDED hop leaves the alternate on the ponyfill it started from, so what reads next still
+      // reads an always-defined value - and its own `?.` folds with it, since the only realm where
+      // that short-circuit fires is the one the collapse already answers for. a COMPUTED key stays:
+      // folding it would fold its key effect away with it
+      if (!upNode.computed && (alwaysDefined || navAlternate)) {
+        foldedHops.push(upNode);
+        folded = true;
+        // the `?.` goes with the hop, so the erase it just spent is RETURNED: the step above is
+        // leaf-adjacent again, reading the same always-defined ponyfill
+        erasedOptional = false;
+      } else crossedUnbacked = true;
+    }
     // only on the NAV route, and only directly over the replaced hop: everywhere else the
     // wrapper asserts about a value the emission still produces - a dispatch RESULT keeps it
     // (`arr?.at(-1)!.toString()`), a plain nav spelling does not (`...?.self!.window`)
     if (alwaysDefined && !absorbedHop) absorbedWrappers.push(...pendingWrappers);
     pendingWrappers = [];
-    mayAbsorbOptional = false;
+    mayAbsorbOptional = folded && alwaysDefined;
     absorbedHop = true;
     cursor = up;
     target = up;
   }
-  return { target, absorbedWrappers };
+  return { target, absorbedWrappers, foldedHops };
 }
 
 // does a live `?.` read the value this chain wrapper seals? the wrappers the seal wears - source
@@ -233,8 +251,12 @@ export function replaceGuardedHop({
   navAlternate = false,
   leafKeySe = null,
   prefixSe = null,
-  unbackedHopKey = null,
+  resolveHere = null,
 }) {
+  // ONE home for the realm-hop question: a caller hands its resolver and the climb asks the canon,
+  // instead of each nav route remembering to pass a predicate of its own (three routes render a nav
+  // alternate here, and only one of them used to ask - the other two folded nothing)
+  const hopIsUnbacked = resolveHere ? hop => unbackedProxyHopKey(hop, resolveHere) : null;
   // an earlier claim in the same chain may have replaced this span already (`arr.at?.(0)
   // [(eff(), 'flat')].name` - the split render detaches the caller the SE-key claim holds):
   // a stale path is a no-op, never a throw
@@ -242,14 +264,19 @@ export function replaceGuardedHop({
   // TS wrappers the climb steps over end up INSIDE the absorbed tail: what they asserted about is
   // the substitution, so they go with the source spelling they wrapped
   // (`globalThis.window?.self!.window` -> `... : _self.window`)
-  const sealedTail = test ? parenSealedCalleeTail(hopPath) : null;
+  let sealedTail = test ? parenSealedCalleeTail(hopPath) : null;
+  // ... and a sealed tail that is itself a realm hop FOLDS like any other read through this
+  // emission: the ponyfill is what it names, and the read OUTSIDE the seal keeps the source's own
+  // throw on the short-circuit (`(g?.window?.self.window).Array` -> `(<guard>).Array`)
+  if (sealedTail && alwaysDefined && !sealedTail.computed && hopIsUnbacked?.(sealedTail)) sealedTail = null;
   // a `delete` consumer needs the MEMBER itself: pulled into the alternate the ternary
   // deletes nothing, so the tail stays outside and re-hangs the short-circuit the guard
   // now owes it (`delete dl()?.window?.self.missing` ->
   // `delete (null == dl().window ? void 0 : _self)?.missing`)
   const climbed = test && !sealedTail && !deleteHostTail
-          ? climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey }) : null;
+          ? climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKey: hopIsUnbacked }) : null;
   const absorbedWrappers = climbed?.absorbedWrappers ?? [];
+  const foldedHops = climbed?.foldedHops ?? [];
   if (sealedTail) sealedTail.optional = true;
   let target = climbed?.target ?? hopPath;
   // did the climb take a TAIL along? a TS wrapper spanning one asserts about a read the render
@@ -339,6 +366,14 @@ export function replaceGuardedHop({
     const builtCore = built.type === 'ChainExpression' ? built.expression : built;
     hopPath.replaceWith(memberTail ? withLeafKeySe(builtCore) : builtCore);
     for (const wrapper of absorbedWrappers) replaceNodeInTree(target.node, wrapper, wrapper.expression);
+    // ... and the realm hops the climb folded: the alternate reads the ponyfill they name, so each
+    // is spliced out and its parent reads what stood below it. the OUTERMOST one has no parent
+    // inside the tail - it moves the tail's own root instead
+    let tailNode = target.node;
+    for (const hop of foldedHops) {
+      if (hop === tailNode) tailNode = hop.object;
+      else replaceNodeInTree(tailNode, hop, hop.object);
+    }
     // a TS wrapper the climb passed THROUGH rather than CONSUMED (the span is not always-defined,
     // so the guard is a real test) asserts about the value the ternary now produces - it wraps the
     // CONDITIONAL, not the branch (`(g.window?.self.tsBox as any).list`
@@ -347,12 +382,12 @@ export function replaceGuardedHop({
     if (tailAbsorbed && !absorbedWrappers.length && !calleeConsumedWrapper) {
       // parens between the layers are the printer's to re-derive - they carry no assertion,
       // so the walk steps over them and collects only the TS layers (`((x as any))!`)
-      for (let cur = target.node; cur; cur = cur.expression) {
+      for (let cur = tailNode; cur; cur = cur.expression) {
         if (TS_EXPR_WRAPPERS.has(cur.type)) outerTsWrappers.push(cur);
         else if (cur.type !== 'ParenthesizedExpression') break;
       }
     }
-    let alternate = peelTailNode(outerTsWrappers.at(-1)?.expression ?? target.node);
+    let alternate = peelTailNode(outerTsWrappers.at(-1)?.expression ?? tailNode);
     while (alternate?.type === 'ParenthesizedExpression') alternate = alternate.expression;
     // a `?.` surviving inside the alternate (an optional dispatch, an absorbed optional
     // tail) keeps chain semantics under a wrapper of its own once the guard consumed the
@@ -623,9 +658,9 @@ export function sealedClaimThrowProbe(node, metaPath, ctx) {
   const planRoute = !!plan && !plan.topAssign && plan.kind === 'nested' && !!plan.leafPure;
   const leafPlan = planRoute ? null
     : sealedClaimLeafGuardPlan(boundary.inner, ({ name }) => resolveGlobalPolyfill(name), aliasCtx);
-  // the hops ABOVE the collapse are pure cannot back: they respell over the ponyfill leaf, each
-  // keeping the `?.` the plan's own tail verdict gives it (`globalThis.window?.self.window` reads
-  // `_self.window` off the guard, not the bare `_self`)
+  // the hops ABOVE the collapse respell over the ponyfill leaf, each keeping the `?.` the plan's
+  // own tail verdict gives it. a plain REALM hop is not among them - the plan folded it onto the
+  // leaf, so what reaches here is a computed key and its effects
   const alternate = planRoute
     ? plan.hops.slice(plan.collapseIdx + 1).reduce(
       (base, hop) => memberFromKeyName(base, hop.name, { optional: !!hop.liveOptional }),

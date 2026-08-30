@@ -4,8 +4,8 @@
 // the source between the value and the end of the assignment - where a parenthesized value keeps its
 // closing token - comes back too, or the file stops parsing.
 // both emitters spell the assigned value by ONE rule, the guarded twin's canon: a fully
-// ponyfilled navigation spells as the LEAF's own ponyfill (`q = _self`), an unresolvable TAIL
-// rides raw off the deepest ponyfillable hop (`q = _self.window`), mid-chain writes survive the
+// ponyfilled navigation spells as the LEAF's own ponyfill (`q = _self`), a realm hop READ THROUGH
+// that leaf folds onto it, mid-chain writes survive the
 // collapse, and a SEQUENCE-rooted navigation stays root-substituted verbatim (its prefix owns
 // live inner rewrites no rebuilt span could carry); the import sets match either way
 let q;
