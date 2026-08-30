@@ -272,7 +272,7 @@ const globalSummary = PURE_ONLY
   : `${ cyan(globalArmed) } armed of ${ cyan(globalChecked) } checked`;
 const emitterSummary = EMITTER === 'both' ? '' : ` | ${ red(`${ EMITTER }-only, parity oracle OFF`) }`;
 const legSummary = `Global leg: ${ globalSummary }${ emitterSummary }`;
-echo`\nChunks: ${ CHUNKS } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | ${ legSummary }`;
+echo`\nChunks: ${ cyan(CHUNKS) } | Passed: ${ green(passed) }, Failed: ${ failures.length ? red(failures.length) : green(0) } | ${ legSummary }`;
 // what the run actually EXECUTED, spelled out: a fully memoized run evaluates nothing, and the
 // audit count is the only evidence that the cached keys were checked against live ones at all
 const volatileNote = cache.volatile ? `, ${ cyan(cache.volatile) } not cacheable (result not a function of the code alone)` : '';
@@ -290,7 +290,7 @@ if (shareBase) {
   const padWidth = Math.max(...Object.keys(timings).map(phase => phase.length));
   for (const [phase, ms] of Object.entries(timings).sort((a, b) => b[1] - a[1])) {
     const share = phase.includes('(inside') ? 'subset' : `${ (100 * ms / shareBase).toFixed(1) }%`;
-    echo`  ${ cyan(phase.padEnd(padWidth)) } ${ cyan(`${ (ms / 1000).toFixed(1) }s`.padStart(8)) }  ${ share }`;
+    echo`  ${ cyan(phase.padEnd(padWidth)) } ${ cyan(`${ (ms / 1000).toFixed(1) }s`.padStart(8)) }  ${ cyan(share) }`;
   }
 }
 

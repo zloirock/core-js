@@ -343,6 +343,7 @@ export async function checkSnippet(src, options, ts = false, stripCheck = false)
     pluginRuntimeDiverge: EMITTER === 'both' && babelRun !== unpluginRun,
     strippedMismatch,
     astPrintMismatch,
+    astChecked: astPrintRun !== null,
     babelImports,
     unpluginImports,
     native,
