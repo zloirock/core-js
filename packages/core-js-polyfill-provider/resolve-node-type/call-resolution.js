@@ -48,7 +48,7 @@ import {
 import { isAmbientFunctionNode } from './name-resolution.js';
 import {
   cleanDestructureAliasWrites, getCallSiteTypeArgs, getTypeArgs, isCleanDestructureAliasBinding,
-  isGuardedAliasingWrite,
+  isGuardedAliasingWrite, useAnchorStart,
 } from '../helpers/ast-patterns.js';
 
 const { hasOwn } = Object;
@@ -231,7 +231,7 @@ export function createCallResolution({
   // both extractors return null for non-matching shapes so the caller order doesn't
   // matter for correctness - polyfilled-entry first only because it's the cheaper probe
   function resolveAliasedStaticReturn(callee, callPath) {
-    const pair = staticPairFromPolyfillEntry(callee.scope, callee.node.name)
+    const pair = staticPairFromPolyfillEntry(callee.scope, callee.node.name, callee.node.start ?? useAnchorStart(callee))
       ?? staticPairFromDestructure(callee.scope, callee.node.name, callee);
     if (!pair) return null;
     // aliased patched static (`const af = Array.from` after `Array.from = ...`) - same drop to generic
