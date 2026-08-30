@@ -35,7 +35,7 @@ export const sealedNavEndingAtClaim = ((null == _globalThis.window ? void 0 : _P
 // a WRITE host is a member access like any other: the seal keeps its read, so the collapse may
 // not retarget it at the live realm global (it wrote there and swallowed the throw)
 export function writeHost(v) {
-  (null == _self.window ? void 0 : _self).Box = v;
+  _globalThis.Box = v;
 }
 export const deleteHost = () => delete _globalThis.Box;
 

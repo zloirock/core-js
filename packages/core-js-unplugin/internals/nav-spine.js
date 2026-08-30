@@ -10,6 +10,7 @@ import {
   storedNavHopClaimSuppressed,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
+  chainValueCarrier,
   assignmentValueDiscarded,
   claimDeleteOperand,
   isDestructurePattern,
@@ -438,14 +439,19 @@ export function foldPendingReceiverSpineRoot(object, metaPath, { collapseProxyHo
 export function plainProxyHopRunAbove(metaPath, proxyHopKey, { allowOptional = false } = {}) {
   // a source PAREN - and the chain wrapper an `?.` wears - is transparent to the run and to
   // the read above it (`(g.window?.self)?.Array` navigates exactly like the bare twin)
-  function stepWrappers(child, up) {
-    while (up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === child) {
+  // ... and so is a VALUE CARRIER standing at the ROOT (`(v = globalThis).window`): the first hop
+  // reads exactly what the carrier hands on. only at the root - a carrier above a hop holds the
+  // whole navigation's value, and what reads it consumes the store, not this run
+  function stepWrappers(child, up, atRoot = false) {
+    while (up?.node) {
+      if (!(SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === child)
+        && !(atRoot && chainValueCarrier(up.node, child))) break;
       child = up.node;
       up = up.parentPath;
     }
     return [child, up];
   }
-  let [child, up] = stepWrappers(metaPath.node, metaPath.parentPath);
+  let [child, up] = stepWrappers(metaPath.node, metaPath.parentPath, true);
   let sawHop = false;
   while (up?.node?.type === 'MemberExpression' && up.node.object === child) {
     if (up.node.optional && !allowOptional) return null;
@@ -638,21 +644,6 @@ export function markSubtreeSkipped(skippedNodes, node, keepLive = null) {
     if (Array.isArray(value)) for (const item of value) markSubtreeSkipped(skippedNodes, item, keepLive);
     else markSubtreeSkipped(skippedNodes, value, keepLive);
   }
-}
-
-// does the subtree hold this exact node - the identity question a rescued effect asks
-// (the receiver spelling already carries it, so a prepend would run it twice)
-export function subtreeContainsNode(root, target) {
-  if (root === target) return true;
-  if (!root || typeof root !== 'object' || !root.type) return false;
-  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-  for (const key in root) {
-    const value = root[key];
-    if (Array.isArray(value)) {
-      for (const item of value) if (subtreeContainsNode(item, target)) return true;
-    } else if (subtreeContainsNode(value, target)) return true;
-  }
-  return false;
 }
 
 // the `delete` verdict travels DOWN the spine. this emitter rewrites as it visits, so a claim

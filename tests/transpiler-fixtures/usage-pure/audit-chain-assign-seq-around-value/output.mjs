@@ -6,7 +6,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Number$MAX_SAFE_INTEGER from "@core-js/pure/actual/number/max-safe-integer";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3;
+var _ref, _ref2;
 // a sequence AROUND the kept assignment (`((se(), t = nav)).Map`) - not inside its value - must
 // not hide the chain-assign from the claim machinery: the claim still fires through the kept
 // assignment, the value spells by the shared canon (leaf ponyfill / collapsed tail), and the
@@ -18,7 +18,7 @@ export const seqAroundGuard = (_ref = (_atMaybeArray(arr).call(arr, 0), t = _sel
 export const seqAroundStatic = (_atMaybeArray(arr).call(arr, 0), t = _self, _Number$MAX_SAFE_INTEGER);
 export const seqAroundTail = (_ref2 = (_atMaybeArray(arr).call(arr, 0), t = _self.window, _Map), _nameMaybeFunction(_ref2));
 // the same tail value under a LIVE guard: the test spells the collapsed value, never a raw hop
-export const seqAroundGuardTail = null == (_ref3 = (_atMaybeArray(arr).call(arr, 0), t = _self.window)) ? void 0 : _nameMaybeFunction(_Map);
+export const seqAroundGuardTail = null == (_atMaybeArray(arr).call(arr, 0), t = _self.window) ? void 0 : _nameMaybeFunction(_Map);
 // a chain-END ctor read under the guard: the erase verdict must not flip on the wrapper - the
 // wrapped twin holds the same undefinable value as the bare spelling, so both keep the guard
 export const seqAroundGuardCtor = null == (_atMaybeArray(arr).call(arr, 0), t = _self.window) ? void 0 : _Map;

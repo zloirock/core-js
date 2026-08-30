@@ -57,4 +57,4 @@ let e = 0;
 var _q;
 export const seBesideWrite = (e++, _q = _globalThis) == null ? void 0 : _nameMaybeFunction(_Reflect$ownKeys);
 var _n;
-export const logicalAssignNegative = (_n ??= _globalThis) == null ? void 0 : _nameMaybeFunction(_n.self.Proxy);
+export const logicalAssignNegative = (_n ??= _globalThis) == null ? void 0 : _nameMaybeFunction(_n.Proxy);

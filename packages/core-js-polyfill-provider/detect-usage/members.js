@@ -146,8 +146,12 @@ function resolveCallRootedProxyCollapse({ receiver, scope, adapter, path }) {
   // the immediate hop is normally a proxy-nav MEMBER (`<call>.self` / `.window`); a SE-wrapping
   // SequenceExpression (`(c++, globalThis.self).Array`) hides that member as its TAIL - peel to it for the
   // key/root checks, but harvest SE from the WHOLE original `hop` below (`collectFoldedReceiverSideEffects`
-  // recurses in source order, so nested sequences keep evaluation order)
-  const hopMember = hop?.type === 'SequenceExpression' ? peelReceiverSequenceTail(hop) : hop;
+  // recurses in source order, so nested sequences keep evaluation order). the peel is unconditional
+  // because it is idempotent for a bare member, and gating it on a RAW sequence type read the same
+  // source two ways: a parser that keeps wrapper NODES puts one between the member and its consumer
+  // (`(eff(), nav).X` under `createParenthesizedExpressions`, the shape oxc always hands the other
+  // leg), and the gate then declined the whole plan - the hops survived raw off the pure root
+  const hopMember = peelReceiverSequenceTail(hop);
   if (hopMember?.type !== 'MemberExpression' && hopMember?.type !== 'OptionalMemberExpression') return null;
   // the immediate hop must be a proxy navigation (`<call>.self` / `.window`): its own leaf key has to
   // be a proxy-global name. `resolveObjectName(hop)` is too weak - it returns truthy for a real ctor
@@ -306,7 +310,10 @@ export function planProxyReceiver(receiver, {
   const leafKey = staticMemberKeyName(receiver);
   if (!isWriteTarget && leafKey && resolvePure({ kind: 'global', name: leafKey })
     && !(isMutatedGlobalSlot(aliasCtx?.adapter, leafKey)
-      && ownChainOptionalCount(receiver) === 0
+      // ... and the `?.` a `delete` folds is not live either: the guard-building rewrite this
+      // waits for never runs there, so the bail would strand the prefix the mutation just took
+      // the leaf swap away from
+      && (ownChainOptionalCount(receiver) === 0 || deleteConsumer)
       && (navHasUnresolvableProxyHop(receiver.object, resolvePure)
         || (!keptAssignRoot && isAliasProxyRoot(throughRoot, aliasCtx))))) return null;
   // the leaf is itself a redundant proxy hop reached via a SE-bearing key (`globalThis[(e++, 'self')]`) - the
@@ -622,7 +629,11 @@ function buildMemberMeta({ node, scope, adapter, path }) {
     // the container walk collects the slot's OTHER reaching values (written / repositioned)
     // beside its primary answer - they join the usage-global union axis below
     const containerUnion = [];
-    const objectName = resolveObjectName({ objectNode: classifyTarget, scope, adapter, path })
+    // the alias READ sits at the classify target, not at the claim above it: a kept write in the
+    // same expression completes before it (`(g = globalThis, v = g.window.self).Promise`). the
+    // anchor rides its OWN parameter - `usageNode` is a dominance ANCHOR PATH for the walks below,
+    // and handing them a node silently passed the gate a conditional write must fail
+    const objectName = resolveObjectName({ objectNode: classifyTarget, scope, adapter, path, readNode: classifyTarget })
       ?? staticContainerReceiverName({ node: classifyTarget, scope, adapter, path, unionSink: containerUnion });
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
@@ -1040,10 +1051,16 @@ export function handleMemberExpressionNode({
     // records them as still-live for its suppressed-hop callback
     // (`keptDeclinedProxyMetaHops`), while babel's own channels re-render the rebuilt
     // subtree and keeping them would detach nodes its destructure plans still read
-    markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure, subsumesReceiver,
-      collapsesReceiver,
-      keptProxyHops: !subsumesReceiver && (keptDeclinedProxyMetaHops || !POSSIBLE_GLOBAL_OBJECTS.has(meta.object))
-        ? keptProxyHops : null });
+    // a claim whose own member is a WRITE TARGET (`=`, an update, a `delete`) renders NOTHING on
+    // either leg - every route stands down on it - so no span swallows its receiver: the members
+    // BELOW it are read on the way there and keep their claims, and marking them here is the
+    // marking outrunning a render that never comes
+    if (!(path && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') && isMemberWriteHost(path))) {
+      markHandledObjects({ node, handledObjects, suppressProxyGlobals, scope, adapter, path, resolvePure, subsumesReceiver,
+        collapsesReceiver,
+        keptProxyHops: !subsumesReceiver && (keptDeclinedProxyMetaHops || !POSSIBLE_GLOBAL_OBJECTS.has(meta.object))
+          ? keptProxyHops : null });
+    }
     // a static-placement member collapses the WHOLE `X.prop` to one import (`Symbol.iterator` ->
     // `_Symbol$iterator`, `Promise.resolve` -> `_Promise$resolve`), so the receiver chain is SUBSUMED -
     // unlike a prototype-method receiver (`_Map.prototype.has`) whose constructor member stays the

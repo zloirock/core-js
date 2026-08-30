@@ -24,13 +24,13 @@ import _Reflect$ownKeys from "@core-js/pure/actual/reflect/own-keys";
 import _self from "@core-js/pure/actual/self";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _Symbol$for from "@core-js/pure/actual/symbol/for";
-var _ref, _ref2, _ref5, _ref6;
+var _ref, _ref3;
 // a folded guard tail ends in a bare ternary, the loosest expression there is: an OPERAND slot
 // on either side of an operator swallows it, so the fold owes that consumer its parens. both
 // emitters read the consumer off the AST for exactly this reason - approximating it from the
 // source text mistook every operator sharing a character with something else (`===` for an
 // assignment, `>=` for an arrow) and returned the operand instead of the comparison
-export const eqRight = 1 === (null == (_ref = _globalThis.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(1)).call(_ref2, 0));
+export const eqRight = 1 === (null == _globalThis.window ? void 0 : _atMaybeArray(_ref = _Array$of(1)).call(_ref, 0));
 export const neqRight = 1 !== (null == _globalThis.window ? void 0 : _Object$assign({}, {
   a: 1
 }).a);
@@ -65,8 +65,8 @@ const arrowBody = () => null == _globalThis.window ? void 0 : _Object$entries({
   a: 1
 }).length;
 function returned() {
-  var _ref3, _ref4;
-  return null == (_ref3 = _globalThis.window) ? void 0 : _keysMaybeArray(_ref4 = _Array$of(2)).call(_ref4);
+  var _ref2;
+  return null == _globalThis.window ? void 0 : _keysMaybeArray(_ref2 = _Array$of(2)).call(_ref2);
 }
 export { assigned, compound, logical };
 export const arrowValue = arrowBody();
@@ -79,7 +79,7 @@ const host = null == _globalThis.window ? void 0 : _self;
 class Extended extends (null == _globalThis.window ? void 0 : _self.hostBox.Base) {}
 export const extendedName = _nameMaybeFunction(Extended);
 export const negated = -(null == _globalThis.window ? void 0 : _self.hostBox.count);
-export const spreadTail = [...(null == (_ref5 = _globalThis.window) ? void 0 : _valuesMaybeArray(_ref6 = _Array$of(1, 2)).call(_ref6))];
+export const spreadTail = [...(null == _globalThis.window ? void 0 : _valuesMaybeArray(_ref3 = _Array$of(1, 2)).call(_ref3))];
 export { host };
 
 // a ternary CONSEQUENT delimits a whole expression, so the fold stays BARE there; the right

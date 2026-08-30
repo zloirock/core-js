@@ -223,8 +223,17 @@ export function discardCase(name) {
   delete collected[name];
 }
 
+// the cells of one snippet are evaluated CONCURRENTLY (the two global legs race in a `Promise.all`),
+// so the order they land in is a function of timing rather than of content. the working set is
+// handed over in a canonical key order, which makes the recorded artifact - and any comparison of
+// two runs of it - depend on what the run found instead of on which leg finished first
 export function collectCases() {
-  return collected;
+  const ordered = {};
+  for (const name of Object.keys(collected).sort()) {
+    const group = collected[name];
+    ordered[name] = Object.fromEntries(Object.keys(group).sort().map(type => [type, group[type]]));
+  }
+  return ordered;
 }
 
 export function collectEvicted() {

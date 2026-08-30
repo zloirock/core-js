@@ -4,10 +4,11 @@ import _pushMaybeArray from "@core-js/pure/actual/array/instance/push";
 // (`const { from, ...rest } = (eff(), Array)`) keeps the consumed key as a `from: <throwaway>`
 // sentinel so rest exclusion survives - rest must NOT capture `from` - and the receiver SE runs once
 let log = [];
+_pushMaybeArray(log).call(log, 1);
 const from = _Array$from;
 const {
   from: _unused,
   ...rest
-} = (_pushMaybeArray(log).call(log, 1), Array);
+} = Array;
 from([1]);
 export { rest, log };
