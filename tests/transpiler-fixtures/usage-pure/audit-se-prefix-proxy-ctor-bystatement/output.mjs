@@ -7,9 +7,10 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 function effect() {
   return 0;
 }
+effect();
 const groupBy = _Map$groupBy;
 const {
   groupBy: _unused,
   ...mapRest
-} = (effect(), _Map);
+} = _Map;
 groupBy([], item => item);

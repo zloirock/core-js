@@ -2,6 +2,8 @@
 // optional call, an optional member hop, the receiver splits) and the instance/inherited
 // dispatches with their guard spellings. created per transform over the factory's context
 import {
+  composableNavGuardPlan,
+  findProxyGlobal,
   inlineCallHasObservableEffects,
   inlineCallProxyGlobalRoot,
   navHasUnresolvableProxyHop,
@@ -11,18 +13,26 @@ import {
   resolveKey,
   resolveObjectName,
   vestigialNavOptionals,
+  peelChainRootValue,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
+  isMemberAccessNode,
   isMutatedGlobalSlot,
   isPristineProxyGlobal,
   isReusableReceiver,
   mayHaveSideEffects,
   receiverCarriesLiveOptional,
   unwrapRuntimeExpr,
+  subtreeContainsNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { bindingPolyfillHint, remapInheritedStaticMeta } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  isAliasProxyRoot,
+  bindingPolyfillHint,
+  remapInheritedStaticMeta,
+  staticMemberKeyName,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   assignmentExpression,
   callExpression,
@@ -59,7 +69,6 @@ import {
   spineCarriesComputedHop,
   spineHoldsKeptWrite,
   stampSourceCallType,
-  subtreeContainsNode,
 } from './nav-spine.js';
 import {
   emitBareOptionalSeDispatch,
@@ -109,12 +118,9 @@ export default function createOptionalDispatchChannel(ctx) {
         makeBase: () => cloneNode(objectNode),
       };
     }
-    const ref = injector.generateDeclaredRef(metaPath);
-    // a memo holding a PROXY SURFACE registers as a global alias - the rebuilt spine's
-    // claims must resolve through `_ref` exactly like the source root (babel's
-    // `tagProxyGlobalMemoRef`); trusted: the ref is plugin-minted, user code cannot rebind
+    // the ref is minted only where a memo survives: a value that renders as a guard of this canon
+    // composes instead, and an eagerly minted ref would leave a dead declaration behind
     const surface = proxySurfaceNameOf(objectNode, metaPath);
-    if (surface) injectorState?.registerGlobalAlias?.(ref, surface, { trusted: true, minted: true });
     // under a PROXY hop the memo respells bare - babel's hop-drop rebuild starts from the
     // kept write, the TS wrappers drop (`((a = gw) as any)?.self...` -> `_ref = a =
     // _globalThis.window`); every other memo keeps its cast (the `satisfies` canon, and a
@@ -154,6 +160,22 @@ export default function createOptionalDispatchChannel(ctx) {
       }
     }
     const peeled = bareMemo ? cloneNode(unwrapRuntimeExpr(memoSource)) : cloneSpinePeeled(memoSource);
+    // the nav under this memo COLLAPSES to a ponyfill under one probe (the kept-nav plan's own
+    // verdict): memoizing it then spells a SECOND test over the guard that render builds, so
+    // compose with it instead - the probe decides the branch and the claim reads the always-defined
+    // leaf. asked AHEAD of the memo deopts below: those read the value as the memo's own spelling,
+    // where a written call yield proves definedness the composed test may not assume - it IS that
+    // read, so the `?.` the source wrote stays. the babel binding asks the same plan at its own
+    // memo site
+    const composed = composableNavGuardPlan(objectNode, {
+      scope: metaPath.scope, adapter, path: metaPath, resolvePure: meta => resolvePure(meta, metaPath),
+    });
+    if (composed) {
+      return {
+        disjuncts: [cloneNode(composed.probe)],
+        makeBase: () => identifier(injectPureImport(composed.pure.entry, composed.pure.hintName)),
+      };
+    }
     // a `?.` sitting directly on a KEPT WRITE whose stored value is provably defined is dead
     // in the memo spelling too - babel writes the read plain (`(h = globalThis)?.window`
     // memoizes `(h = _globalThis).window`). only that hop: every other `?.` in the spelling
@@ -207,6 +229,15 @@ export default function createOptionalDispatchChannel(ctx) {
       : resolvedType.get(objectNode)
         ?? memoizedCallResultType(objectNode, metaPath, resolveNodeType)
         ?? nodeTypeRefinement(unwrapRuntimeExpr(objectNode), metaPath.scope, resolveNodeType);
+    const ref = injector.generateDeclaredRef(metaPath);
+    // a memo holding a PROXY SURFACE registers as a global alias - the rebuilt spine's
+    // claims must resolve through `_ref` exactly like the source root (babel's
+    // `tagProxyGlobalMemoRef`); trusted: the ref is plugin-minted, user code cannot rebind
+    if (surface) injectorState?.registerGlobalAlias?.(ref, surface, { trusted: true, minted: true });
+    else {
+      const ctorSurface = proxyCtorSurfaceOf(objectNode, metaPath);
+      if (ctorSurface) injectorState?.registerGlobalAlias?.(ref, ctorSurface, { trusted: true, minted: true });
+    }
     return {
       disjuncts: [assignmentExpression('=', identifier(ref), memoized)],
       makeBase() {
@@ -219,26 +250,33 @@ export default function createOptionalDispatchChannel(ctx) {
 
   // the possible-global SURFACE a receiver's value denotes (`globalThis.window` -> 'window',
   // a bare pristine root -> its own name), or null when the value is not that shape
+  // a CTOR read off the proxy surface, for the memo tag: the ref holds the constructor itself, so a
+  // static claim rebuilt onto it resolves through the alias table (`_ref = <nav>.Number` serves
+  // `_ref.MAX_SAFE_INTEGER`) - babel's `tagProxyGlobalMemoRef` ctor arm, missing here, left the claim
+  // reading raw off the memo and the polyfill never landed. the CONSTRUCTOR spelling is what makes it
+  // one: a lowercase key off the surface is a user property, and a proxy HOP names the realm again
+  function proxyCtorSurfaceOf(objectNode, metaPath) {
+    if (!metaPath) return null;
+    const value = peelChainRootValue(objectNode);
+    if (!isMemberAccessNode(value)) return null;
+    const aliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
+    const name = resolveObjectName({ objectNode: value, ...aliasCtx });
+    if (!name || !/^[A-Z]/u.test(name) || POSSIBLE_GLOBAL_OBJECTS.has(name)
+      || adapter.isMutatedStatic?.('globalThis', name)) return null;
+    const host = resolveObjectName({ objectNode: peelChainRootValue(value.object), ...aliasCtx });
+    return host && POSSIBLE_GLOBAL_OBJECTS.has(host) && isPristineProxyGlobal(adapter, host) ? name : null;
+  }
+
   function proxySurfaceNameOf(objectNode, metaPath = null) {
-    let value = unwrapRuntimeExpr(objectNode);
-    // the value flows out of a sequence TAIL and through a kept write's stored value, and the
-    // two interleave (`(eff(), q = globalThis.window)`) - so the peel alternates
-    for (;;) {
-      if (value?.type === 'SequenceExpression') {
-        value = unwrapRuntimeExpr(value.expressions.at(-1));
-        continue;
-      }
-      if (value?.type !== 'AssignmentExpression') break;
-      value = unwrapRuntimeExpr(value.right);
-    }
+    const value = peelChainRootValue(objectNode);
     // a PROVEN call yields the surface too (`(() => self)()` - the inline canon)
     if (value?.type === 'CallExpression' && !value.optional && metaPath) {
       const called = resolveObjectName({ objectNode: value, scope: metaPath.scope, adapter, path: metaPath });
       return called && POSSIBLE_GLOBAL_OBJECTS.has(called) && isPristineProxyGlobal(adapter, called) ? called : null;
     }
-    if (value?.type === 'MemberExpression' && !value.computed
-      && POSSIBLE_GLOBAL_OBJECTS.has(value.property?.name) && holdsProxySurface(objectNode, metaPath)) {
-      return value.property.name;
+    const surfaceKey = isMemberAccessNode(value) ? staticMemberKeyName(value) : null;
+    if (surfaceKey && POSSIBLE_GLOBAL_OBJECTS.has(surfaceKey) && holdsProxySurface(objectNode, metaPath)) {
+      return surfaceKey;
     }
     if (value?.type === 'Identifier') {
       if (POSSIBLE_GLOBAL_OBJECTS.has(value.name)) {
@@ -564,14 +602,27 @@ export default function createOptionalDispatchChannel(ctx) {
     // cannot back short-circuits the whole read off-engine, and swapping the always-defined
     // ponyfill in its place answers a value where the source answers undefined
     // (`globalThis.window?.self?.Array.of(1)` must keep `null == _globalThis.window`)
-    const probedNav = receiverCarriesLiveOptional(node.object)
-      && navHasUnresolvableProxyHop(node.object, m => resolvePure(m, metaPath));
+    // asked THROUGH the seal: a paren or a TS cast around the navigation is printer trivia here, and
+    // reading the sealed node raw answered "no live `?.`" for a nav whose probe the read still owes -
+    // the swap then handed back the always-defined ponyfill where the source yields undefined
+    const probedNavObject = unwrapRuntimeExpr(node.object);
+    const probedNav = receiverCarriesLiveOptional(probedNavObject)
+      && navHasUnresolvableProxyHop(probedNavObject, m => resolvePure(m, metaPath));
     if (deadCtorSwap && !deadCtorSwap.se.length && !probedNav) {
-      const pureId = identifier(injectPureImport(deadCtorSwap.pure.entry, deadCtorSwap.pure.hintName));
+      // an ALIAS root keeps its OWN binding and only drops the hops (the alias canon): landing the
+      // leaf ponyfill here would re-root the read on a binding the source never named, where every
+      // other spelling of the same nav keeps the alias (`ga.window.self?.Array.prototype`)
+      const navAliasCtx = { scope: metaPath.scope, adapter, path: metaPath };
+      const navRoot = findProxyGlobal(node.object, navAliasCtx, true);
+      // ... only where the swapped leaf is a PROXY HOP: a CTOR leaf names its own ponyfill and the
+      // alias cannot stand for it (`g.Set?.foo` reads `_Set.foo`, never `g.foo`)
+      const base = POSSIBLE_GLOBAL_OBJECTS.has(deadCtorSwap.pure.hintName)
+        && isAliasProxyRoot(navRoot, navAliasCtx) ? cloneNode(navRoot)
+        : identifier(injectPureImport(deadCtorSwap.pure.entry, deadCtorSwap.pure.hintName));
       return {
         hopKind: 'member',
         disjuncts: [],
-        receiver: memberExpression(pureId, cloneNode(node.property), { computed: node.computed }),
+        receiver: memberExpression(base, cloneNode(node.property), { computed: node.computed }),
       };
     }
     const surfaceHeld = holdsProxySurface(node.object, metaPath);
@@ -593,13 +644,18 @@ export default function createOptionalDispatchChannel(ctx) {
         };
       }
     }
+    // a key that names a pure CTOR is answered by the substitution below, never by the chain
+    // respell: respelled off the memo it reads the constructor off the ponyfill surface, which is
+    // the polyfill this claim exists for
+    const surfaceCtorPure = surfaceHeld && !node.computed && node.property?.type === 'Identifier'
+      ? surfaceCtorPureForKey(node.property.name) : null;
     // a guarded base holding a PROVEN global through an ALIAS surfaces its statics: the
     // hops above are the same claim they were before the memo (`(w = g)?.Array.of(1)` -
     // babel requeues the memo and resolves `_Array$of`). the DIRECT spellings belong to
     // the older guarded-nav routes - only the alias gap rides the chain up
     // a SEQ-wrapped base rides the chain too: the older guarded-nav routes stage
     // sequence wrappers out, so nothing else resolves its statics
-    if (!node.computed && node.property?.type === 'Identifier'
+    if (!surfaceCtorPure && !node.computed && node.property?.type === 'Identifier'
       && (!holdsProxySurface(node.object, metaPath)
         || unwrapRuntimeExpr(node.object)?.type === 'SequenceExpression')) {
       // the base VALUE folds through effectful sequence tails and kept writes - the
@@ -625,16 +681,11 @@ export default function createOptionalDispatchChannel(ctx) {
     // a resolvable CTOR read off the guarded SURFACE base substitutes its pure
     // (`(n = gw)?.WeakSet` -> `_WeakSet` in the alternate - babel's requeue resolves
     // it off the memo); a MUTATED slot keeps the live read off the memo (`_ref.Set`)
-    if (surfaceHeld && !node.computed && node.property?.type === 'Identifier'
-      && !POSSIBLE_GLOBAL_OBJECTS.has(node.property.name)
-      && !isMutatedGlobalSlot(adapter, node.property.name)) {
-      const ctorPure = resolveGlobalPolyfill(node.property.name);
-      if (ctorPure) {
-        return {
-          hopKind: 'member', disjuncts,
-          receiver: identifier(injectPureImport(ctorPure.entry, ctorPure.hintName)),
-        };
-      }
+    if (surfaceCtorPure) {
+      return {
+        hopKind: 'member', disjuncts,
+        receiver: identifier(injectPureImport(surfaceCtorPure.entry, surfaceCtorPure.hintName)),
+      };
     }
     const receiver = memberExpression(makeBase(), cloneNode(node.property), { computed: node.computed });
     return { hopKind: 'member', disjuncts, receiver };
@@ -646,10 +697,36 @@ export default function createOptionalDispatchChannel(ctx) {
     // (`(w = g)?.Array` terminal - the `.Array` read must survive)
     if (split && split !== STAGED_SPLIT && split.provenChain) {
       let spelled = split.provenBase();
-      for (const key of split.provenChain) spelled = memberFromKeyName(spelled, key);
+      for (const key of split.provenChain) {
+        // the same substitution the hop route makes: a respelled CTOR key would read the
+        // constructor off the memoized ponyfill surface
+        const ctorPure = surfaceCtorPureForKey(key);
+        spelled = ctorPure ? identifier(injectPureImport(ctorPure.entry, ctorPure.hintName))
+          : memberFromKeyName(spelled, key);
+      }
       return { hopKind: split.hopKind, disjuncts: split.disjuncts, receiver: spelled };
     }
     return split;
+  }
+
+  // the proven chain, spelled: a hop naming a polyfillable CTOR is answered by its own substitution,
+  // never by a respell off the memo - read off `_ref` it is the native constructor on exactly the
+  // hosts the ponyfill exists for. the hops above it keep their source spelling off that binding
+  function spellProvenChain(inner) {
+    let chainKeys = inner.provenChain;
+    // a PRISTINE proxy hop names the surface the base already holds (`globalThis`, `self` and
+    // `window` are one object), so it drops here exactly as it drops on the surface route - spelled
+    // off the memo it reads an engine `window` the ponyfill exists to stand in for
+    while (chainKeys.length && isPristineProxyGlobal(adapter, chainKeys[0])
+      && !surfaceCtorPureForKey(chainKeys[0])) chainKeys = chainKeys.slice(1);
+    const chainCtor = chainKeys.length ? surfaceCtorPureForKey(chainKeys[0]) : null;
+    let spelled = inner.provenBase();
+    if (chainCtor) {
+      spelled = identifier(injectPureImport(chainCtor.entry, chainCtor.hintName));
+      chainKeys = chainKeys.slice(1);
+    }
+    for (const key of chainKeys) spelled = memberFromKeyName(spelled, key);
+    return spelled;
   }
 
   function splitOptionalReceiverInner(node, metaPath) {
@@ -727,9 +804,8 @@ export default function createOptionalDispatchChannel(ctx) {
           ? foldSeqKeyLiteralTail(node.property) ?? foldedResolvedKey(node.property, metaPath, adapter)
           : node.property?.type === 'Identifier' ? { key: node.property.name, effects: [] } : null)
         : null;
-      if (surfaceKey && typeof surfaceKey.key === 'string'
-        && !POSSIBLE_GLOBAL_OBJECTS.has(surfaceKey.key) && !isMutatedGlobalSlot(adapter, surfaceKey.key)) {
-        const ctorPure = resolveGlobalPolyfill(surfaceKey.key);
+      if (surfaceKey) {
+        const ctorPure = surfaceCtorPureForKey(surfaceKey.key);
         if (ctorPure) {
           return {
             hopKind: inner.hopKind,
@@ -758,8 +834,7 @@ export default function createOptionalDispatchChannel(ctx) {
             };
           }
         }
-        let spelled = inner.provenBase();
-        for (const key of inner.provenChain) spelled = memberFromKeyName(spelled, key);
+        const spelled = spellProvenChain(inner);
         return {
           hopKind: inner.hopKind,
           disjuncts: inner.disjuncts,
@@ -798,25 +873,54 @@ export default function createOptionalDispatchChannel(ctx) {
     return null;
   }
 
+  // does this KEY name a constructor the read off a guarded proxy SURFACE substitutes? a
+  // proxy-global name is a hop, not a claim, and a MUTATED slot keeps the live read off the memo.
+  // one spelling for the three routes that spell a surface read: the hop split, the member arm
+  // above it, and the proven-chain respell
+  function surfaceCtorPureForKey(key) {
+    return typeof key === 'string' && !POSSIBLE_GLOBAL_OBJECTS.has(key)
+      && !isMutatedGlobalSlot(adapter, key) ? resolveGlobalPolyfill(key) : null;
+  }
+
   // does this receiver hold a pristine proxy-global SURFACE (the value of `q = globalThis
   // .window` is the window global itself) - the question the pristine-hop drop above asks
   function holdsProxySurface(objectNode, metaPath = null) {
+    // a write EARLIER in the same sequence dominates every read below it, and that is the only
+    // flow fact this question needs: `(g = globalThis, v = g.window?.self)` navigates the realm,
+    // while the alias walk can prove nothing about `g` - pure bails on a reassigned binding, and
+    // the write it would have to trust is right here beside the read. NOT the canon's
+    // before-use reassignment question (that one weighs textual order across a function body,
+    // where a loop back-edge or a conditional write can reach the use): inside ONE sequence the
+    // order IS the evaluation, so the fact is local and needs no flow proof
+    const sequenceWrites = new Map();
+    const followed = new Set();
     // writes interleave with the hops (`((dw = gw) as any)?.self` holds the surface too),
     // so the peel alternates instead of running write-then-members once
     let value = unwrapRuntimeExpr(objectNode);
     for (;;) {
       // ... and the value of a SEQUENCE is its tail, which the hops read through
       if (value?.type === 'SequenceExpression') {
+        for (const expr of value.expressions.slice(0, -1)) {
+          const write = unwrapRuntimeExpr(expr);
+          if (write?.type === 'AssignmentExpression' && write.operator === '='
+            && write.left?.type === 'Identifier') {
+            sequenceWrites.set(write.left.name, unwrapRuntimeExpr(write.right));
+          }
+        }
         value = unwrapRuntimeExpr(value.expressions.at(-1));
+        continue;
+      }
+      if (value?.type === 'Identifier' && sequenceWrites.has(value.name) && !followed.has(value.name)) {
+        followed.add(value.name);
+        value = sequenceWrites.get(value.name);
         continue;
       }
       if (value?.type === 'AssignmentExpression') {
         value = unwrapRuntimeExpr(value.right);
         continue;
       }
-      if (value?.type === 'MemberExpression' && !value.computed
-        && POSSIBLE_GLOBAL_OBJECTS.has(value.property?.name)
-        && isPristineProxyGlobal(adapter, value.property.name)) {
+      const hopKey = isMemberAccessNode(value) ? staticMemberKeyName(value) : null;
+      if (hopKey && POSSIBLE_GLOBAL_OBJECTS.has(hopKey) && isPristineProxyGlobal(adapter, hopKey)) {
         value = unwrapRuntimeExpr(value.object);
         continue;
       }

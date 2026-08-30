@@ -6,14 +6,14 @@ import _Object$freeze from "@core-js/pure/actual/object/freeze";
 import _Object$keys from "@core-js/pure/actual/object/keys";
 import _Object$values from "@core-js/pure/actual/object/values";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3;
+var _ref, _ref2;
 // TS wrappers across the probe nav: a BARE wrapper (`!`, an unparenthesized cast position)
 // erases without breaking the chain - the short-circuit survives and the value canon renders
 // the guarded ponyfill; a PARENTHESIZED layer seals - the member above it parses PLAIN and
 // the render keeps the source's throw semantics. distinct methods per line
 let c = 0;
 export const bareNonNullHop = null == _globalThis.window ? void 0 : (c++, _self).Number;
-export const bareNonNullMidChain = null == (_ref = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref2 = _Array$of(2)).call(_ref2);
+export const bareNonNullMidChain = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _flatMaybeArray(_ref = _Array$of(2)).call(_ref);
 export const castSealValueUse = (null == _globalThis.window ? void 0 : _self).Math;
 export const parenSealPlainRead = (null == _globalThis.window ? void 0 : _self).JSON;
 export const castSealDelete = delete (_globalThis.customProp as any);
@@ -21,7 +21,7 @@ export const castSealDelete = delete (_globalThis.customProp as any);
 // the cast-seal probes ride the CLAIM, DESTRUCTURE and SYNTH channels too (erasure keeps
 // the paren seal; the throw probe re-emits the sealed read, the key SE runs on it once)
 let c2 = 0;
-export const castSealClaim = _atMaybeArray(_ref3 = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of)(6)).call(_ref3, 0);
+export const castSealClaim = _atMaybeArray(_ref2 = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of)(6)).call(_ref2, 0);
 export const castSealDestructure = ((null == _globalThis.window ? void 0 : _self).Object, _Object$keys);
 export function castSealSynth({
   values: sv
