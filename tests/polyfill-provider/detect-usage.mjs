@@ -1093,6 +1093,100 @@ runBoth('peelArrayWrapperPair/bail commits no prefixes',
     checkDeep(lbl, peeledPrefixes, []);
     check(`${ lbl } init unchanged`, init, decl.node.init);
   });
+// a PATTERN-bound wrapper alias derefs through its slot's unique pairing, like the plain-const
+// spelling - the walk lands on the aliased literal's element
+runBoth('peelArrayWrapperPair/pattern-bound alias derefs its unique slot',
+  'const [wrapper] = [[globalThis]]; const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { pattern, init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init?.name, 'globalThis');
+    check(`${ lbl } pattern peeled`, pattern?.type, 'ObjectPattern');
+  });
+// ... but a spread at the alias's own declarator makes the slot's union INCOMPLETE - the lone
+// enumerable candidate is not what the runtime may hand the slot, so the pure-precision walk
+// declines and the pair stays whole
+runBoth('peelArrayWrapperPair/spread-shifted alias slot declines',
+  'const xs = []; const [wrapper] = [...xs, [globalThis]]; const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { pattern, init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init, decl.node.init);
+    check(`${ lbl } pattern unchanged`, pattern, decl.node.id);
+  });
+// ... and so does a slot whose union is a LONE DEFAULT: the pairing is an over-approximation (a
+// pair the enumerator cannot read - here the object spread - contributes nothing), so the default
+// is not certain to fire and pure precision must not read it as the value
+runBoth('peelArrayWrapperPair/lone-default alias slot declines',
+  'const { wrapper = [globalThis] } = { ...src }; const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { pattern, init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init, decl.node.init);
+    check(`${ lbl } pattern unchanged`, pattern, decl.node.id);
+  });
+// the WRAPPED spellings of the alias's init hand the same runtime value: a paren (an oxc NODE)
+// and a sequence tail follow like the bare literal - judging the raw spelling split the parsers
+runBoth('peelArrayWrapperPair/paren-wrapped alias init derefs like the bare one',
+  'const [wrapper] = ([[globalThis]]); const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init?.name, 'globalThis');
+  });
+// the wrap can sit on the slot VALUE itself: the pairing hands the element as written, and the
+// deref judges it effective before descending (`[([globalThis])]` holds an array, not a paren)
+runBoth('peelArrayWrapperPair/paren-wrapped slot element derefs like the bare one',
+  'const [wrapper] = [([globalThis])]; const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init?.name, 'globalThis');
+  });
+runBoth('peelArrayWrapperPair/sequence-tail alias init derefs to its value',
+  'let e = 0; const [wrapper] = (e++, [[globalThis]]); const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init?.name, 'globalThis');
+  });
+// ... and the completeness gate reads the SAME normalized value: a spread reached through a
+// SECOND alias hop (or hidden by a paren) still declines - values enumerated through the follow
+// with completeness judged on the raw spelling would read the lone candidate as certain
+runBoth('peelArrayWrapperPair/spread through a second alias declines',
+  'const xs = []; const src = [...xs, [globalThis]]; const [wrapper] = src; const [{ x }] = wrapper;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { pattern, init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init, decl.node.init);
+    check(`${ lbl } pattern unchanged`, pattern, decl.node.id);
+  });
+// a cycle spelled ACROSS two pattern declarators re-enters the follow through the slot pairing
+// without spinning any single loop - only the threaded depth budget stops it, and this row is
+// the termination proof (a regression hangs the suite instead of failing an assert)
+runBoth('peelArrayWrapperPair/cross-pattern declarator cycle terminates',
+  'const [a] = b; const [b] = a; const [{ x }] = a;', (adapter, prog, lbl) => {
+    const decl = adapter.pickPath(prog, 'VariableDeclarator',
+      p => p.node.id?.elements?.[0]?.type === 'ObjectPattern');
+    const { init } = peelArrayWrapperPair({
+      pattern: decl.node.id, init: decl.node.init, scope: decl.scope, adapter: unionAdapter, path: decl,
+    });
+    check(lbl, init, decl.node.init);
+  });
 
 runBoth('destructure init meta resolves this-in-static through the adapter hook',
   'class C extends Array { static m() { const { from } = this; return from; } }', (adapter, prog, lbl) => {

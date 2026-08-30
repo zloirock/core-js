@@ -17,10 +17,13 @@
 // a 'rebuilt' node's `extractions` already aggregates its children's - consumers read
 // extractions at the OUTER level only and use child lists for residual rendering
 import {
+  aliasDeclScope,
   catchPropRewriteObservable,
+  identifierDeclaratorInit,
   isChainAssignment,
   isRestProperty,
   mayHaveSideEffects,
+  patternBoundAliasSlotInit,
   peelZeroArgIifeReturn,
   propBindingIdentifier,
   plainSynthKeyName,
@@ -187,11 +190,21 @@ export function peelArrayWrapperPair({ pattern, init, scope = null, adapter = nu
         visited.add(effectiveInit.name);
         const binding = adapter.getBinding(scope, effectiveInit.name, path);
         if (!binding || reassignmentBlocksGlobalResolve({ binding, adapter, path, usageNode: readNode })) break;
-        const bindingInit = binding.path?.node?.init ?? binding.node?.init;
+        // pattern-gated init follow, matching `followConstIdentifierInit`: a destructure
+        // declarator binds the name to a SLOT of its init - the canon pairing follows only a
+        // unique, spread-complete slot value (this plan feeds the pure flatten, so the
+        // inject-if-might relaxation never applies here)
+        const bindingInit = identifierDeclaratorInit(binding)
+          ?? patternBoundAliasSlotInit(binding, effectiveInit.name, { scope, adapter, path, resolveKey: sharedResolveKey });
         if (!bindingInit) break;
-        effectiveInit = bindingInit;
+        // the followed value is judged EFFECTIVE, matching the detect-side follow: the alias's own
+        // paren / cast / sequence spelling evaluates at ITS declaration, so only the value flows here
+        effectiveInit = unwrapExpressionChain(bindingInit);
         dereferenced = true;
         readNode = (binding.path?.node ?? binding.node) ?? readNode;
+        // each hop re-anchors in the followed binding's own declaration scope - the next hop's
+        // name resolves there, not at the destructure host (an inner shadow must not swallow it)
+        scope = aliasDeclScope(binding, scope);
       }
     }
     if (effectiveInit?.type !== 'ArrayExpression') return { pattern, init, peeledPrefixes, firstArray, lastArray, consumedLevels };

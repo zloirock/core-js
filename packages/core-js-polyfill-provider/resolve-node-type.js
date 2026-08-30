@@ -1747,8 +1747,11 @@ function createResolveNodeType(babelNodeType, t, {
   // every capital, so the trailing segment resolves against the registry's own keys.
   // kept in factory (not in call-return cluster) because binding-analysis cluster
   // instantiated upstream consumes it as a service dep
-  function staticPairFromPolyfillEntry(scope, name) {
-    const entry = getPolyfillBindingEntry(scope, name);
+  // `useStart` anchors the injector's name-keyed lookup positionally: a USER-named body-extract
+  // record serves only inside its hosting scope span, so a position-blind ask cannot be served
+  // (a same-named binding elsewhere in the file would read the wrong entry - wrong-Maybe throw)
+  function staticPairFromPolyfillEntry(scope, name, useStart = null) {
+    const entry = getPolyfillBindingEntry(scope, name, useStart);
     if (!entry) return null;
     const segments = entry.split('/');
     if (segments.length < 2) return null;
@@ -1766,8 +1769,8 @@ function createResolveNodeType(babelNodeType, t, {
   // `_Map` from 'map/constructor'): the import binding's entry path names the global it
   // carries, so member reads off the swapped value (`_Math.max(...)`) keep resolving in the
   // known-static analyses exactly like the original (`Math.max(...)`)
-  function namespaceFromPolyfillBinding(scope, name) {
-    const entry = getPolyfillBindingEntry(scope, name);
+  function namespaceFromPolyfillBinding(scope, name, useStart = null) {
+    const entry = getPolyfillBindingEntry(scope, name, useStart);
     if (!entry) return null;
     const segments = entry.split('/');
     if (segments.length !== 2) return null;
@@ -2447,8 +2450,12 @@ function createResolveNodeType(babelNodeType, t, {
   }
 
   // resolve the type of the object from which a property is accessed:
-  // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj)
+  // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj).
+  // anchored like `resolveNodeType`: this public entry reads `path.scope` /
+  // `parentPath.scope` on its own routes, and a scope-gap parser degrades exactly the way
+  // the anchor exists to prevent
   function resolvePropertyObjectType(path) {
+    path = anchorPathScope(path);
     if (isMemberLike(path)) return resolveNodeType(path.get('object'));
     // `key in obj` presence probe: the receiver whose prototype answers is the RIGHT operand
     // (the instance-probe meta and its union extras dispatch with the BinaryExpression path).
@@ -2541,6 +2548,8 @@ function createResolveNodeType(babelNodeType, t, {
   // (conservative full set)
   const UNION_HINTS_MAX_DEPTH = 8;
   function resolvePropertyUnionHints(path) {
+    // anchored like `resolveNodeType` - a public scope-reading entry (see resolvePropertyObjectType)
+    path = anchorPathScope(path);
     let hints = null;
     if (isMemberLike(path)) {
       hints = unionReceiverHints(resolveRuntimeExpression(path.get('object')), 0);
@@ -2650,6 +2659,8 @@ function createResolveNodeType(babelNodeType, t, {
   // or { excludedHints: Set } for negative-only guards (blacklist)
   // or null when no hints can be determined
   function resolveGuardHints(path) {
+    // anchored like `resolveNodeType` - a public scope-reading entry (see resolvePropertyObjectType)
+    path = anchorPathScope(path);
     const info = findGuardsForBinding(path);
     if (!info) return null;
     const { guards, classification } = info;

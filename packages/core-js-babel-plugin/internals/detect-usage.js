@@ -32,6 +32,7 @@ import {
   buildScopeReassignmentIndex,
   findVarOwnerDeclaring,
   recomputedBindingWrites,
+  useAnchorStart,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
@@ -143,7 +144,7 @@ export function createBabelAdapter(options = {}) {
       // plugin-managed pure-import alias / user destructure aliases: presence only - trust and
       // disambiguation happen at the `getBinding` lookup; scope-bound so a same-named local
       // alias in ANOTHER function doesn't shadow a direct global use here
-      return !!getInjector()?.hasAliasName?.(name, path?.node?.start ?? null);
+      return !!getInjector()?.hasAliasName?.(name, useAnchorStart(path));
     },
     getBinding(scope, name, path = null) {
       // a plugin-minted memo ref the scope misrepresents (append-path scope-invisible /
@@ -154,7 +155,7 @@ export function createBabelAdapter(options = {}) {
       // assign-root memo has no registration and resolves through the trusted-write follow
       const memoDecl = scopedMemoDeclarator(scope, name);
       if (memoDecl) {
-        const memoUseStart = path?.node?.start ?? null;
+        const memoUseStart = useAnchorStart(path);
         const memoInfo = getInjector()?.getBindingInfo(name, memoUseStart) ?? null;
         const memoTrusted = memoInfo
           && (memoInfo.source !== null || memoInfo.aliasTrusted || !!memoInfo.aliasWrite || !!memoInfo.aliasVerified);
@@ -169,7 +170,7 @@ export function createBabelAdapter(options = {}) {
       // use anchor for the trusted-span dominance gate: a use textually BEFORE its alias write /
       // declaration must not narrow statically (it runs pre-assignment); callers without a path
       // keep the registration-only behavior
-      const useStart = path?.node?.start ?? null;
+      const useStart = useAnchorStart(path);
       // `polyfillHint` lets `resolveBindingToGlobal` walk back to the source global through:
       // (a) injector's pure-import table - `_Symbol` / `_globalThis` after in-place AST
       // rewrite; (b) globalAlias table - user destructure aliases (`{Symbol: S} = globalThis`
@@ -199,7 +200,8 @@ export function createBabelAdapter(options = {}) {
       const identityInfo = b ? getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null : null;
       const info = identityInfo ?? getInjector()?.getBindingInfo(name, useStart) ?? null;
       if (b) {
-        const { isImportBinding, isRequireBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
+        const { isImportBinding, isRequireBinding, importSource, importKind } =
+          importBindingView(b.path.node, b.path.parent, { adapter, scope, path });
         // `info.source !== null` means a registered pure import - only attach the hint when the
         // actual scope binding IS that import. `info.source === null` is a destructure-alias from
         // `registerGlobalAlias`; the shared predicate identifies the real alias binding (init resolves
@@ -227,7 +229,8 @@ export function createBabelAdapter(options = {}) {
         // `var _ref` scope binding that is NOT an alias-init shape, so the shape checks above miss it -
         // but it is allocator-owned (no user rebind) and its hint was set from a resolved proxy-global
         // root, so trust it directly. the dominance gate still bounds a use textually before the write
-        const requireBindingLive = isRequireBinding && !adapter.hasBinding(scope, 'require', path);
+        // the shadow discipline already rode in through `importBindingView`'s shadowCtx
+        const requireBindingLive = isRequireBinding;
         const polyfillHint = usableAliasInfo(info) && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
           && aliasSpanDominatesUse({ info, useStart }) ? info.hint : null;
         // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding, so it

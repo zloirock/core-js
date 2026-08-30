@@ -214,12 +214,13 @@ export default class ImportInjectorState {
   // the record (primary or sibling) a use at `useStart` may read: a plugin-minted / import
   // record is file-wide; USER records serve only the scope span hosting their binding, the
   // INNERMOST containing span winning (a nested same-name alias shadows the outer one).
-  // a pathless lookup (`useStart === null`) keeps the legacy single-record behavior and
-  // declines when siblings make the name ambiguous
+  // a pathless lookup (`useStart === null`) never serves a USER record: without a position the
+  // span discipline cannot run, and a single record answered FILE-wide for every same-named
+  // binding in the file - the wrong-Maybe over-resolve a positional consumer exists to prevent
   static #servableImportRecord(primary, useStart) {
     if (!primary.userNamed) return primary;
+    if (useStart === null) return null;
     const candidates = [primary, ...primary.siblings ?? []];
-    if (useStart === null) return candidates.length === 1 ? primary : null;
     let best = null;
     for (const record of candidates) {
       const span = record.scopeSpan;
