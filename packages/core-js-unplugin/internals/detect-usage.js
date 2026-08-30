@@ -29,6 +29,7 @@ import {
   recomputedBindingWrites,
   synthVarHoistBinding,
   unwrapExportedDeclaration,
+  useAnchorStart,
   walkPatternIdentifiers,
   withoutValuelessDeclarationViolations,
   isDestructurePattern,
@@ -485,7 +486,7 @@ export function createEstreeAdapter(options = {}) {
       // view applies the span discipline; a USER-named record out of its span must not
       // serve (out there the name is a different binding or the real global)
       if (hasRuntimeBinding(scope, name, path)) return true;
-      const minted = getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null);
+      const minted = getInjector()?.getBindingInfo?.(name, useAnchorStart(path));
       // ... and so does a plugin-MINTED blind alias holding a CONSTRUCTOR (a guard memo ref): its
       // `var _ref` is real but the scope registry lags the mid-traversal insertion, and reading it as
       // unbound sent `resolveObjectName` down the would-be-global branch, where `_ref` names nothing -
@@ -511,7 +512,7 @@ export function createEstreeAdapter(options = {}) {
           // such a name (`const k = _Symbol$iterator; k in X`) finds no tree binding yet.
           // serve the injector's registry view (span-disciplined; a USER-named record out of
           // its span stays invisible - the name there is a different binding)
-          const minted = getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null);
+          const minted = getInjector()?.getBindingInfo?.(name, useAnchorStart(path));
           // a MINTED blind alias (a guard memo, `_ref = _globalThis.window`
           // registered as holding 'window') serves its hint the same way - the rebuilt
           // spine's claims resolve through the ref exactly like the source root
@@ -532,7 +533,7 @@ export function createEstreeAdapter(options = {}) {
         // and the Symbol destructure fold source: an UNCONDITIONAL nested-block `var`
         // (a labeled block, a finally, a for-init) folds on babel through its native
         // hoist, so the shape-judged alias must surface here too or the emitters desync
-        const synthInfo = synthIdentity ?? getInjector()?.getBindingInfo(name, path?.node?.start ?? null) ?? null;
+        const synthInfo = synthIdentity ?? getInjector()?.getBindingInfo(name, useAnchorStart(path)) ?? null;
         const aliasSymbolSource = isSymbolDestructureAliasBinding({
           info: synthInfo, binding: synth, scope, adapter, injector: getInjector(), boundName: name,
           keyCtx: { resolveKey: sharedResolveKey, path },
@@ -563,8 +564,9 @@ export function createEstreeAdapter(options = {}) {
       // declaration kind) and rejects user-declared shadows of the same name
       // binding-first: the per-binding registry is exact - see the babel twin
       const identityInfo = getInjector()?.getBindingAliasInfo?.(b.path.node, name) ?? null;
-      const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, path?.node?.start ?? null) ?? null;
-      const { isImportBinding, isRequireBinding, importSource, importKind } = importBindingView(b.path.node, b.path.parent);
+      const info = identityInfo ?? getInjector()?.getBindingInfo?.(name, useAnchorStart(path)) ?? null;
+      const { isImportBinding, isRequireBinding, importSource, importKind } =
+        importBindingView(b.path.node, b.path.parent, { adapter, scope, path });
       // estree-toolkit's `constantViolations` for a function-scoped `var` are unreliable: it MISSES
       // a nested-block re-declaration (`var x = []; { var x = 'hello' }`) and FALSELY attributes a
       // same-named namespace/declare-global var twin as a violation. recompute from the AST via the
@@ -605,10 +607,11 @@ export function createEstreeAdapter(options = {}) {
       // set from a resolved surface, so a claim rebuilt onto it resolves through the ref
       // an in-file `require` binding shadows the CJS import - the require-style arm only
       // fires for the real module function (the node-local view cannot see the shadow)
-      const requireBindingLive = isRequireBinding && !adapter.hasBinding(scope, 'require', path);
+      // the shadow discipline already rode in through `importBindingView`'s shadowCtx
+      const requireBindingLive = isRequireBinding;
       const polyfillHint = usableAliasInfo(info)
         && (isAliasBindingShape || isImportBinding || requireBindingLive || info.minted)
-        && aliasSpanDominatesUse({ info, useStart: path?.node?.start ?? null }) ? info.hint : null;
+        && aliasSpanDominatesUse({ info, useStart: useAnchorStart(path) }) ? info.hint : null;
       // a destructured Symbol.X alias (`const { iterator } = Symbol`) is a PATTERN binding with no
       // `importSource` and a UID hint; surface the registered module source so `bindingSymbolKey`
       // folds `obj[iterator]` uniformly with babel. the shadow gate rejects a nested same-name binding
