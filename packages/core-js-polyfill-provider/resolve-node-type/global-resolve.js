@@ -31,7 +31,7 @@ import {
   aliasDeclScope,
 } from '../helpers/ast-patterns.js';
 import { walkStaticReceiverChain } from '../detect-usage/destructure.js';
-import { inlineCallProxyGlobalRoot } from '../detect-usage/resolve.js';
+import { guaranteedRealmObjectName, inlineCallProxyGlobalRoot } from '../detect-usage/resolve.js';
 
 export function createGlobalResolve({
   t,
@@ -88,7 +88,7 @@ export function createGlobalResolve({
   }
 
   function isGlobalProxy(objectPath) {
-    // peel to the VALUE the path denotes, alternating the three forwarding shapes:
+    // peel to the VALUE the path denotes, alternating the forwarding shapes:
     //  - transparent wrappers - oxc preserves ParenthesizedExpression around shapes like
     //    `(((() => globalThis) as any)()).Map` where the inner shape IS a proxy-global call;
     //    babel strips parens at AST build so this step is a no-op for it
@@ -109,18 +109,27 @@ export function createGlobalResolve({
         objectPath = exprs.at(-1);
         continue;
       }
-      //  - a `??` / `||` over `globalThis` ITSELF always yields that left operand: the language
-      //    guarantees the binding, and an object is neither nullish nor falsy - the right side is dead
-      //    code the reader wrote defensively (`(globalThis ?? {}).Number.MAX_SAFE_INTEGER` is a
-      //    number). the name matters: `self` / `window` are the environment PROBES this codebase
-      //    guards everywhere, and a nav that can short-circuit (`f()?.window?.self ?? { Array }`)
+      //  - a `??` / `||` over a guaranteed realm name ITSELF always yields that left operand: the
+      //    binding is guaranteed (by the language for `globalThis`, by the ponyfill entry for
+      //    `self`), and an object is neither nullish nor falsy - the right side is dead code the
+      //    reader wrote defensively (`(globalThis ?? {}).Number.MAX_SAFE_INTEGER` is a number).
+      //    the name matters: `window` / `global` are the environment PROBES this codebase guards
+      //    everywhere, and a nav that can short-circuit (`f()?.window?.self ?? { Array }`)
       //    makes the right side live - reading through it there collapses a real union.
       //    a CONDITIONAL keeps its refusal for the same reason: two arms, no dead one
       const logicalLeft = objectPath.node.type === 'LogicalExpression'
         && (objectPath.node.operator === '??' || objectPath.node.operator === '||')
         ? peelSkippableWrapperPath(objectPath.get('left')) : null;
-      if (logicalLeft?.node && t.isIdentifier(logicalLeft.node) && logicalLeft.node.name === 'globalThis'
-        && !hasRuntimeBinding(logicalLeft.scope, 'globalThis', logicalLeft)) {
+      if (logicalLeft?.node && t.isIdentifier(logicalLeft.node) && guaranteedRealmObjectName(logicalLeft.node.name)
+        && !hasRuntimeBinding(logicalLeft.scope, logicalLeft.node.name, logicalLeft)) {
+        objectPath = logicalLeft;
+        continue;
+      }
+      // a NESTED default (`((self ?? {}) ?? {})`) buries the guaranteed name one logical deeper -
+      // step into the left arm and let the loop re-ask; a non-proving inner arm bottoms out below
+      // exactly like the outer one would
+      if (logicalLeft?.node?.type === 'LogicalExpression'
+        && (logicalLeft.node.operator === '??' || logicalLeft.node.operator === '||')) {
         objectPath = logicalLeft;
         continue;
       }
