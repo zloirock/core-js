@@ -5637,6 +5637,14 @@ const EXPR_FAMILIES = {
     'globalThis["Array"].from([1, 2])',
     '(globalThis ?? {}).Array.from([1, 2])',
     'globalThis.Array.from(globalThis.Array.of(1, 2))',
+    // a logical default over an entry-backed proxy name is dead on the right like the realm
+    // spelling above - at every nesting level; `window` has no entry and keeps the raw probe
+    // (both legs throw off-window)
+    '(self ?? {}).Array.from([3, 4])',
+    '(self || {}).Array.of(5)',
+    '((self ?? {}) || {}).Array.of(7)',
+    '(() => { const m = new (self ?? {}).Map([[1, 2]]); return m.get(1); })()',
+    '(() => { try { return String((window ?? {}).Array.of(6)); } catch (e) { return "throw"; } })()',
   ],
   // exotic-but-valid source spellings around a claim: the printers must carry the astral /
   // escaped identifier and the lone-surrogate escape through unchanged, and the value legs
@@ -6769,11 +6777,6 @@ const FULL_ENV_FAMILIES = new Set([
   // markers, dead defaults, SE counts), and its by-design residuals would only false-fail strip
   'destructure-edge',
 ]);
-// point exceptions inside otherwise-armed families: a single cell whose surviving native read
-// is the canon's own bail (`globalThis ?? {}` keeps the guard, blocking the proxy-root collapse)
-const FULL_ENV_SNIPPETS = new Set([
-  '(globalThis ?? {}).Array.from([1, 2])',
-]);
 
 // ASI left-fusion: a destructure whose lifted side-effect re-roots its statement-overwrite on a hazard char
 // (`/re/` divides, `+x` / `-x` continue a binary) must not fuse into a `;`-less value-consuming prev statement.
@@ -7552,7 +7555,7 @@ export function * generate() {
   yield * generateNestingDepth();
   for (const [family, exprs] of Object.entries(EXPR_FAMILIES)) {
     for (const expr of exprs) {
-      const fullEnv = FULL_ENV_FAMILIES.has(family) || FULL_ENV_SNIPPETS.has(expr);
+      const fullEnv = FULL_ENV_FAMILIES.has(family);
       const strip = !fullEnv && STRIP_TARGET_RE.test(expr);
       // fullEnv rides along for the usage-global leg: its empirical arming must also skip the
       // by-design-residual shapes (their stripped-realm divergence is the family's point, not a miss)
