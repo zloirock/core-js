@@ -637,8 +637,14 @@ export function soleAliasWrite({ binding, assignNode }) {
   const target = agreedProxyGlobalWrite(assignNode, aliasName);
   return !!target && violations.every(v => {
     const node = v?.node ?? v;
-    return agreedProxyGlobalWrite(node?.type === 'AssignmentExpression' ? node
-      : (node?.parentPath?.node?.type === 'AssignmentExpression' ? node.parentPath.node : null), aliasName) === target;
+    // the violation is spelled per leg: babel hands the ASSIGNMENT itself, the estree pre-pass hands
+    // the assigned IDENTIFIER, and a node carries no parent - the owner is then read off the PATH.
+    // asking the node for a parent answered null on that leg, so two agreeing writes read as
+    // disagreeing and the alias lost its trust as soon as a second copy of the same source appeared
+    const owner = node?.type === 'AssignmentExpression' ? node
+      : v?.parentPath?.node?.type === 'AssignmentExpression' ? v.parentPath.node
+        : node?.parentPath?.node?.type === 'AssignmentExpression' ? node.parentPath.node : null;
+    return agreedProxyGlobalWrite(owner, aliasName) === target;
   });
 }
 
