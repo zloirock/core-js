@@ -13,6 +13,8 @@ import { generate } from './generate.mjs';
 import { checkGlobalSnippet } from './global-leg.mjs';
 import { checkSnippet, closeStrippedWorker, phaseNs, summarizeVerdict } from './harness.mjs';
 
+const { cyan, green, red } = chalk;
+
 const OPTIONS = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
 // same oldest target: every manifest feature is then required, so a missing injection is a
 // detection miss, never target filtering
@@ -87,9 +89,9 @@ for (const snippet of subset) {
   }
   prefix = hashCode(`${ prefix }\u0000${ snippet.code }`, snippet.ts);
   if (++processed % PROGRESS_EVERY === 0 || processed === subset.length) {
-    process.stderr.write(`[differential ${ shard + 1 }/${ total }] ${ processed }/${ subset.length }`
-      + ` | pure ${ passed } ok | ast-leg ${ astChecked } | global-leg ${ globalArmed } armed`
-      + `${ failures.length ? ` | FAILURES ${ failures.length }` : '' }\n`);
+    process.stderr.write(`${ cyan(`[differential ${ shard + 1 }/${ total }]`) } ${ cyan(processed) }/${ cyan(subset.length) }`
+      + ` | pure ${ green(passed) } ok | ast-leg ${ cyan(astChecked) } | global-leg ${ cyan(globalArmed) } armed`
+      + `${ failures.length ? ` | ${ red(`FAILURES ${ failures.length }`) }` : '' }\n`);
   }
 }
 
