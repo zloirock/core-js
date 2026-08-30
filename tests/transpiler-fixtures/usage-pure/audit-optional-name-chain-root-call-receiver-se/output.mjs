@@ -3,7 +3,6 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Set from "@core-js/pure/actual/set/constructor";
 import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
-var _ref, _ref2, _ref3, _ref4;
 // OPTIONAL `.name` (MaybeFunction get) on a proxy chain-root-CALL receiver `(call)?.self.Ctor.name`. the
 // `?.` guard memoizes the call into `_ref`, RUNNING its receiver-SE there exactly ONCE - the body must NOT
 // re-emit that receiver-SE (it double-ran the call on BOTH emitters before). the receiver is receiver-
@@ -17,20 +16,20 @@ var _ref, _ref2, _ref3, _ref4;
 // shape a DIRECT static leaf takes. reading it off the memo instead (`_ref[n += 1e5, 'Set'].prototype.add`)
 // kept the key but lost the ponyfill: a native `Set` read, absent on the engines this method targets.
 let n = 0;
-const bareRoot = null == (_ref = (() => {
+const bareRoot = null == (() => {
   n += 1;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction(_Map);
-const deepHop = null == (_ref2 = (() => {
+})() ? void 0 : _nameMaybeFunction(_Map);
+const deepHop = null == (() => {
   n += 10;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction(_Set);
-const keySe = null == (_ref3 = (() => {
+})() ? void 0 : _nameMaybeFunction(_Set);
+const keySe = null == (() => {
   n += 100;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction((n += 1000, _WeakMap));
-const keySeTail = null == (_ref4 = (() => {
+})() ? void 0 : _nameMaybeFunction((n += 1000, _WeakMap));
+const keySeTail = null == (() => {
   n += 10000;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction((n += 1e5, _Set).prototype.add);
+})() ? void 0 : _nameMaybeFunction((n += 1e5, _Set).prototype.add);
 export { bareRoot, deepHop, keySe, keySeTail, n };

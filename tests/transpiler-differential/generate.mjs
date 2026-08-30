@@ -500,6 +500,7 @@ const D_HOSTS = [
     build: p => `(() => { var zLead = 1, ${ p.lhs } = ${ p.recv }; return [zLead, ${ p.observe }]; })()` },
   { id: 'for-init', strip: true,
     build: p => `(() => { for (var ${ p.lhs } = ${ p.recv }, i0 = 0; i0 < 1; i0++); return ${ p.observe }; })()` },
+
   // ARRAY-WRAPPED hosts: the pattern is paired with an element of a literal array, which changes
   // both what the residual may drop and WHEN the receiver is read. native evaluates every element
   // of the literal BEFORE reading a property off any of them, so an effect-bearing NEIGHBOUR pins
@@ -551,6 +552,52 @@ const D_HOSTS = [
   // beside the in-place leaf-sibling twin, and the builder re-adding it here is its fail-before:
   //   `(() => { try { throw [<recv>]; } catch ([<lhs>]) { return <observe>; } })()`
 ];
+
+// --- Sequence-prefix evaluation order ---
+// a receiver behind a SEQUENCE PREFIX whose effect READS what the pattern binds. natively the prefix
+// runs before the pattern binds anything, so an extraction emitted ahead of it changes what that
+// effect sees - and only `log` records the answer: the return value and the import set are the same
+// either way. `var` is what makes the read legal at all, a lexical binding being in TDZ there.
+// the hosts are the places a lifted statement has to reach: a plain statement list, a bodyless
+// control slot with no list of its own, a loop header that hosts no statement at all, a
+// multi-declarator host whose sibling init runs first, and a residual carrying its OWN key effect,
+// which the source ordered after the receiver read, and one whose EXTRACTED prop carries that key.
+// the patterns stay the plain ones - what varies here is the host, and a receiver spelled behind a
+// sequence is one the type families decline
+const SPO_PATTERNS = [
+  { id: 'shorthand', lhs: '{ from, other }', name: 'from', observe: 'typeof from' },
+  { id: 'alias', lhs: '{ from: f, other }', name: 'f', observe: 'typeof f' },
+  { id: 'multi', lhs: '{ from, of, other }', name: 'from', observe: '[typeof from, typeof of]' },
+  { id: 'full-consume', lhs: '{ from, of }', name: 'from', observe: '[typeof from, typeof of]' },
+  // ... and a residual carrying its OWN key effect: the source ordered that key after the receiver
+  // read, so both effects have to survive and in that order
+  { id: 'se-key-residual', lhs: '{ from, [(log.push("k"), "other")]: keyed }', name: 'from',
+    observe: '[typeof from, typeof keyed]' },
+  // ... and the key effect on the EXTRACTED prop itself, where the consume takes the key with it
+  { id: 'se-key-extracted', lhs: '{ [(log.push("k"), "from")]: f, other }', name: 'f',
+    observe: '[typeof f, typeof other]' },
+];
+
+const SPO_HOSTS = [
+  { id: 'statement', build: (p, se) => `var ${ p.lhs } = (${ se }, Array);` },
+  { id: 'bodyless', build: (p, se) => `if (1) var ${ p.lhs } = (${ se }, Array);` },
+  { id: 'for-init', build: (p, se) => `for (var ${ p.lhs } = (${ se }, Array), i1 = 0; i1 < 1; i1++);` },
+  { id: 'sibling-leading', build: (p, se) => `var zPre = log.push("pre"), ${ p.lhs } = (${ se }, Array);` },
+  { id: 'assign', build: (p, se) => `var from, f, of, other, keyed; (${ p.lhs } = (${ se }, Array));` },
+];
+
+function * generateSequencePrefixOrder() {
+  for (const host of SPO_HOSTS) {
+    for (const pat of SPO_PATTERNS) {
+      const body = host.build(pat, `log.push(typeof ${ pat.name })`);
+      yield {
+        ...snippet(`sequence-prefix-order/${ host.id }/${ pat.id }`,
+          `(() => { ${ body } return ${ pat.observe }; })()`),
+        strip: true,
+      };
+    }
+  }
+}
 
 function * generateDestructure() {
   for (const host of D_HOSTS) {
@@ -1882,6 +1929,13 @@ const KVC_VALUES = [
   ['guarded-hop', 'globalThis.window?.self'],
   ['guarded-hop-tail', 'globalThis.window?.self.window'],
   ['guarded-hop-sealed', '(globalThis.window?.self)'],
+  // the write sitting BELOW the guarded hop, not around the whole nav: the chain-assign is the
+  // nav's ROOT, so what reaches the value canon is a navigation whose root spells a store. the
+  // guard rides the hop above it and the store keeps running wherever the render puts it
+  ['midwrite-guarded-below-hop', '(ntw = globalThis).window?.self'],
+  // a STACKED unresolvable prefix: the guard tests the deepest one (`_self.window`), and the
+  // ponyfilled hops below it collapse into that test rather than reading raw off the ponyfill
+  ['stacked-guard', 'globalThis.self?.window?.self'],
 ];
 const KVC_CLAIMS = [
   ['static-read', recv => `${ recv }.Number.MAX_SAFE_INTEGER`],
@@ -1901,6 +1955,14 @@ const KVC_CLAIMS = [
   // the destructure channel: the assigned value is a destructure HOST here, whose receiver
   // replacement re-emits the kept assignment through its own plan/emitter pair
   ['destructure-decl', recv => `(() => { const { Map: M } = ${ recv }; return typeof M; })()`],
+  // a ctor claim standing ABOVE the kept value with a TAIL of its own: the claim and its tail are
+  // one atom - a guard render that leaves the tail outside reads it off the short-circuited `void 0`,
+  // and one that leaves the CLAIM raw reads the ctor off the ponyfilled realm instead of the entry
+  ['ctor-computed-tail', recv => `${ recv }?.Promise[String("noSuchStatic")]`, { guard: true }],
+  ['ctor-proto-tail', recv => `${ recv }?.Map.prototype.noSuchMethod`, { guard: true }],
+  // the same atom under a `delete`: the navigation folds, but the kept value is still STORED, so
+  // the store keeps whatever short-circuit the source wrote into it
+  ['delete-host', recv => `delete ${ recv }?.Promise.noSuchStatic`, { guard: true }],
 ];
 
 // --- `this` as the guarded receiver ---
@@ -7358,6 +7420,7 @@ export function * generate() {
   yield * generateTsLeadingThis();
   yield * generateNullableTruthyFold();
   yield * generateDestructure();
+  yield * generateSequencePrefixOrder();
   yield * generateReceiverBearingDefault();
   yield * generateAnchorKeySpelling();
   yield * generateAnchorInnerShape();

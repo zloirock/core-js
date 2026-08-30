@@ -1,7 +1,6 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.of";
 import "core-js/modules/es.global-this";
-import "core-js/modules/es.string.at";
 import "core-js/modules/web.self";
 // the collapse erases an alias hop and re-hangs its optional connector onto what follows. only a
 // dot, a computed key or a call continues a chain there.

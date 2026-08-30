@@ -37,7 +37,10 @@ import {
   isPristineProxyGlobal,
   isSynthSimpleObjectPattern,
   isValidIdentifierName,
+  dropDeadSequenceElements,
   mayHaveSideEffects,
+  observableSequenceElements,
+  peelNestedSequenceExpressions,
   memberKeyName,
   patternBindingCount,
   peelParenAndTSParentPath,
@@ -188,7 +191,10 @@ export function defaultedSoleConsumes({ forInit, prop, soleBinding, chain, kind,
 // asked on the PRISTINE tree: the collapse folds that key away, and the harvested effect then
 // looks like any other statement-level one
 export function navSpineHasComputedKeyEffect(initNode) {
-  for (let cur = peelTransparentExpr(initNode); cur?.type === 'MemberExpression'; cur = peelTransparentExpr(cur.object)) {
+  // through the CHAIN wrapper an optional spelling wears: `globalThis?.[(c++, 'self')]` buries the
+  // same key effect as its plain twin, and reading only the paren peel called it absent - the
+  // effect then lifted to a statement where the plain form keeps it inside the bound value
+  for (let cur = unwrapRuntimeExpr(initNode); cur?.type === 'MemberExpression'; cur = unwrapRuntimeExpr(cur.object)) {
     if (cur.computed && mayHaveSideEffects(cur.property)) return true;
   }
   return false;
@@ -253,6 +259,64 @@ export function initSeqRootHasKeptWrite(initNode) {
 // a BODYLESS assignment host (`if (c) ({ Map: M } = g);`) has no statement list to splice into:
 // it rewrites only when the whole destructure collapses into exactly one assignment, or when a
 // memoized receiver braces the slot around both its reads
+// the ONE expression a lifted prefix becomes, through the shared trim canon: the value slot is
+// gone, so an element with nothing to observe is a comma the source wrote rather than work it did,
+// and a prefix left with no observable at all is not a statement the source ran
+export function liftedPrefixExpression(prefix) {
+  if (!prefix.length) return null;
+  const kept = dropDeadSequenceElements(prefix);
+  const lifted = kept.length === 1 ? kept[0] : sequenceExpression(kept);
+  return mayHaveSideEffects(lifted) ? lifted : null;
+}
+
+export function liftedPrefixStatements(prefix) {
+  const lifted = liftedPrefixExpression(prefix);
+  return lifted ? [expressionStatement(lifted)] : [];
+}
+
+// the LIVE tail, taken for the reason the prefix is: the registration-time node is a pre-swap
+// copy, so a residual bound off it ships the RAW receiver the collapse had already substituted
+export function liveTailOf(declarator, seqPrefix, initTail) {
+  const liveInit = peelTransparentExpr(declarator.init);
+  return liveInit?.type === 'SequenceExpression' && liveInit.expressions.length === seqPrefix.length + 1
+    ? liveInit.expressions.at(-1) : initTail;
+}
+
+// a for-init hosts no statement of its own, so the prefix of a SURVIVING residual's receiver rides
+// the FIRST extraction's value, which the loop header evaluates where the source ran it
+// (`for (var m = (eff(), _Map), { other } = _globalThis; ...)`)
+export function carryForInitPrefixIntoFirst(declarator, declJobs, extracted) {
+  // a FLAT consume off a plain residual only: a nested hop or a rest sibling re-reads the
+  // receiver through the residual, and there the whole read stays with it
+  if (!extracted.length || declJobs.some(job => job.chain?.length)
+    || (declarator.id.properties ?? [])
+      .some(item => item.type === 'RestElement' || item.value?.type === 'ObjectPattern')) return;
+  const init = peelTransparentExpr(declarator.init);
+  if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return;
+  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  if (!prefix.length) return;
+  declarator.init = tail;
+  const lifted = liftedPrefixExpression(prefix);
+  if (!lifted) return;
+  const carried = lifted.type === 'SequenceExpression' ? lifted.expressions : [lifted];
+  extracted[0].init = sequenceExpression([...carried, extracted[0].init]);
+}
+
+// the prefix of a SOURCE sequence init, taken off the declarator so the surviving residual reads
+// the bare tail. one the collapse MINTED is the value's own spelling and stays whole, which its
+// missing span tells us; an element with nothing to observe is a comma the source wrote, not a
+// statement it ran (`var { Map: m, other } = (0, globalThis)`)
+export function liftSurvivingInitPrefix(declarator, declJobs) {
+  if (!declJobs.length) return [];
+  const init = peelTransparentExpr(declarator.init);
+  if (init?.type !== 'SequenceExpression' || !Number.isInteger(init.start)) return [];
+  const { prefix, tail } = peelNestedSequenceExpressions(init);
+  if (!prefix.length) return [];
+  declarator.init = tail;
+  // per element, the grouping the other leg's declarator lift prints for the same shape
+  return observableSequenceElements(prefix).map(expr => expressionStatement(expr));
+}
+
 export function drainBodylessAssignment({ hostNode, jobs }, {
   program,
   markRewrite,
@@ -272,7 +336,8 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
   const liveSeq = seqPrefix?.length && peeledRight?.type === 'SequenceExpression'
     && peeledRight.expressions.length === seqPrefix.length + 1 ? peeledRight.expressions : null;
   const prefixExprs = liveSeq ? liveSeq.slice(0, -1) : seqPrefix ?? [];
-  if (prefixExprs.length) statements.unshift(...prefixExprs.map(expr => expressionStatement(expr)));
+  const prefixStatements = liftedPrefixStatements(prefixExprs);
+  statements.unshift(...prefixStatements);
   removeConsumedProps(jobs);
   // an assignment-position sentinel writes an undeclared name, so its `var` rides whichever branch
   // below renders - the MEMO one owes it exactly as the plain sentinel one does. read AFTER the
@@ -316,15 +381,16 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
     if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
-  // a SURVIVING residual rides the same block: it re-anchors on the hop's own pure and
-  // runs FIRST, the extractions after it (`if (c) { ({ customI } = _Iterator); g =
-  // _Iterator$zip; }`). without this the consumed props were already gone and their
-  // extractions were dropped on the floor - the bindings never got written
+  // a SURVIVING residual rides the same block. a RE-ANCHORED one re-reads the hop's own pure and
+  // leads the extractions (`if (c) { ({ customI } = _Iterator); g = _Iterator$zip; }`); a plain one
+  // keeps the SOURCE order its props were written in, behind them. without this the consumed props
+  // were already gone and their extractions were dropped on the floor - nothing wrote the bindings
   if (bodylessAssign.left.properties.length !== 0) {
     // a lift we could not re-derive as a TAIL would be re-run by the residual beside it
     if (prefixExprs.length && !liveSeq) return;
     const view = { id: bodylessAssign.left, init: bodylessAssign.right };
-    if (reanchorSoleCtorHopResidual(view)) {
+    const reanchored = reanchorSoleCtorHopResidual(view);
+    if (reanchored) {
       bodylessAssign.left = view.id;
       bodylessAssign.right = view.init;
     } else if (jobs.some(job => job.readsReceiver)) {
@@ -332,8 +398,17 @@ export function drainBodylessAssignment({ hostNode, jobs }, {
       // the residual reads it too, and native reads once
       return;
     }
-    statements.unshift(expressionStatement(bodylessAssign));
-    if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body: statements })) markRewrite();
+    // ... in the cascade the statement host prints: a FLAT extraction runs ahead of the residual, a
+    // NESTED hop behind it, and the lifted prefix leads them all - the source ran it first
+    const jobStatements = statements.slice(prefixStatements.length);
+    const paired = jobs.map((job, index) => ({ job, statement: jobStatements[index] }));
+    const flat = paired.filter(entry => !entry.job.chain?.length).map(entry => entry.statement);
+    const nested = paired.filter(entry => entry.job.chain?.length).map(entry => entry.statement);
+    const residual = expressionStatement(bodylessAssign);
+    const body = reanchored
+      ? [...prefixStatements, residual, ...flat, ...nested]
+      : [...prefixStatements, ...flat, residual, ...nested];
+    if (replaceNodeInTree(program, hostNode, { type: 'BlockStatement', body })) markRewrite();
     return;
   }
   // an SE-bearing init has no slot in this shape (the extractions drop it) - staged
@@ -1038,10 +1113,13 @@ export function isMintedOrProxyName(name, injectorState) {
 // does this nav spine bottom out on a CALL? that read belongs to the source, so a full
 // consume owes it a throw probe - a plain proxy nav from a bare root owes nothing
 export function navSpineHasCall(node) {
-  for (let cur = peelTransparentExpr(node); cur;) {
+  // through the CHAIN wrapper an optional spelling wears: `mk()?.self.Object` roots in the same
+  // call as its plain twin, and the paren-only peel stopped at the wrapper - the discarded read
+  // then lost the throw probe the call root owes
+  for (let cur = unwrapRuntimeExpr(node); cur;) {
     if (cur.type === 'CallExpression') return true;
     if (cur.type === 'MemberExpression') {
-      cur = peelTransparentExpr(cur.object);
+      cur = unwrapRuntimeExpr(cur.object);
       continue;
     }
     return false;
@@ -2015,7 +2093,7 @@ export function drainBodylessMultiMemo({ hostNode, declaration, jobs },
     // MEMOIZED init keeps its sequence WHOLE - the memo is where it evaluates
     const [{ seqPrefix, initTail }] = declJobs;
     if (seqPrefix?.length && !memoRef) {
-      for (const expr of seqPrefix) statements.push(expressionStatement(expr));
+      for (const expr of observableSequenceElements(seqPrefix)) statements.push(expressionStatement(expr));
       declarator.init = initTail;
     }
     const values = declJobs.map(job => job.value(memoRef));
@@ -2377,7 +2455,25 @@ export function splitStaticSeKeyAhead({ hostNode, body, at, jobs, markRewrite })
   if (jobs.some(job => job.host === 'memo-decl')) return false;
   const ahead = orderDeclaratorJobs(jobs).map(job => variableDeclaration(hostNode.kind,
     [variableDeclarator(job.bindingTarget, job.value())]));
-  body.splice(at, 0, ...ahead);
+  // ... but the extraction may not hoist over an init the SOURCE runs first, and the receiver's own
+  // sequence prefix runs before either. where one of those pins the order the declaration SPLITS at
+  // its slot and the pair lands inside that split (`zPre = pre(); eff(); const from = _Array$from;`)
+  const slot = hostNode.declarations.find(declarator => jobs.some(job => job.pattern === declarator.id));
+  const index = slot ? hostNode.declarations.indexOf(slot) : -1;
+  const pinned = index > 0
+    && hostNode.declarations.slice(0, index).some(declarator => mayHaveSideEffects(declarator.init));
+  const peeled = slot ? peelNestedSequenceExpressions(slot.init) : { prefix: [], tail: null };
+  if (!pinned && !peeled.prefix.length) {
+    body.splice(at, 0, ...ahead);
+    markRewrite();
+    return true;
+  }
+  if (peeled.prefix.length) slot.init = peeled.tail;
+  const lifted = liftedPrefixStatements(peeled.prefix);
+  const before = hostNode.declarations.slice(0, index);
+  const rest = hostNode.declarations.slice(index);
+  body.splice(at, 1, ...before.length ? [variableDeclaration(hostNode.kind, before)] : [],
+    ...lifted, ...ahead, variableDeclaration(hostNode.kind, rest));
   markRewrite();
   return true;
 }

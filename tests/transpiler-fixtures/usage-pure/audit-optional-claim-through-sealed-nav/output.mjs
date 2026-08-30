@@ -14,7 +14,7 @@ export const optionalMemberThroughSeal = _globalThis.Array?.prototype;
 export const optionalCallSeqSeal = (n++, _Array$of)(5);
 // the TEST is a render, and the engine used to leave it in the tree for the visitors: a claim then
 // collapsed it to the leaf ponyfill (`null == _Promise`), erasing the read the seal makes observable
-export const sealedNavUnderOptionalClaim = null == _globalThis.window ? void 0 : _Promise$resolve(1);
+export const sealedNavUnderOptionalClaim = _Promise$resolve(1);
 // and without a probe under the seal the test takes the plan's own VALUE - `self` is an erasable
 // realm reference, so keeping `_globalThis.self.window` read a native `self` where `_self` is the point
 export const erasableHopUnderSeal = _Array$of(5);
@@ -23,8 +23,8 @@ export const noSeal = _Array$of(5);
 // TWO live `?.` over ONE sealed value: both take their undefinedness from that same read, so one
 // test expresses the union - counted as two sources it stood the claim DOWN and left `Promise.resolve`
 // native, which is the one answer usage-pure may never give
-export const twoOptionalsOneSeal = null == _globalThis.window ? void 0 : _Promise$resolve(1);
-export const twoOptionalsOneSealCtor = null == _globalThis.window ? void 0 : _Array$of(5);
-export const twoOptionalsSeqSeal = (n++, null == _globalThis.window ? void 0 : _Promise$resolve(1));
+export const twoOptionalsOneSeal = _Promise$resolve(1);
+export const twoOptionalsOneSealCtor = _Array$of(5);
+export const twoOptionalsSeqSeal = (n++, _Promise$resolve)(1);
 // NEGATIVE: no live `?.` at all - the claim erases the whole navigation
 export const noOptional = _Array$of(5);
