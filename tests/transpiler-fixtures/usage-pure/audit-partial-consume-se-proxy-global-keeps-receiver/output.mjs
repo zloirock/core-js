@@ -5,9 +5,10 @@ import _Map from "@core-js/pure/actual/map/constructor";
 // receiver skip must NOT fire. the `globalThis` root stays, polyfilled to `_globalThis`, carrying the
 // residual `{ parseInt }`. discriminating negative against the full-consume case which drops the root.
 function eff() {}
+eff();
 const Map = _Map;
 const {
   parseInt
-} = (eff(), _globalThis);
+} = _globalThis;
 export const m = new Map();
 export const n = parseInt("1");

@@ -12,6 +12,7 @@
 // produce fresh identity and fragment the swap; coexistence with plugins that clone a
 // common ancestor remains unsupported
 import {
+  staticMemberKeyName,
   isRestProperty,
   peelTransparentWrapperPath,
   isMemberWriteHost,
@@ -23,12 +24,15 @@ import {
   deleteHostAboveChain,
   unwrapRuntimeExpr,
   isDestructurePattern,
+  POSSIBLE_GLOBAL_OBJECTS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   isClassifiableReceiverArg,
   isExpandedClassifiableReceiver,
   markReplacedReceiverSkipped,
   markSynthReceiverSkipped,
+  trustedIdentifierAliasWrite,
+  bindingPolyfillHint,
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import {
   synthPropDedupKey,
@@ -55,12 +59,31 @@ import {
   shouldDropRescueReceiver,
 } from '@core-js/polyfill-provider/detect-usage/members';
 import {
+  proxyHopLacksPureEntry,
   descendToChainRoot, discardRescueNodes, findProxyGlobal, maximalProxyGlobalHop, maximalProxyGlobalPrefix,
   navHasUnresolvableProxyHop, navValueCanShortCircuit, PROXY_HOP_VALUE_CARRIERS, proxyGlobalMemberCtorPure,
   resolveSynthKeys,
   peelChainAssignment,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { patternComputedKeysSynthSafe } from './synth-key-utils.js';
+
+// does the run swallow a hop pure cannot back that reads a KEPT WRITE? that read is the environment
+// probe off the STORE (`(v = ga.window?.self)?.window`), and folding it answers the ponyfill where
+// the source reads the host - but only where the store holds a navigation of its OWN: a store of the
+// bare root hands on the very surface the run navigates, so hops over it collapse like any other.
+// hops BELOW the write live inside its own value and keep their own verdict, which the store canon spells
+function runSwallowsStoreProbe(runNode, resolvePure) {
+  for (let hop = runNode; hop?.type === 'MemberExpression' || hop?.type === 'OptionalMemberExpression';) {
+    const inner = unwrapRuntimeExpr(hop.object);
+    if (inner?.type !== 'AssignmentExpression') {
+      hop = inner;
+      continue;
+    }
+    return unwrapRuntimeExpr(inner.right)?.type !== 'Identifier'
+      && proxyHopLacksPureEntry(staticMemberKeyName(hop), resolvePure);
+  }
+  return false;
+}
 
 export default function createSynthSwapEmitter({
   adapter,
@@ -364,6 +387,12 @@ export default function createSynthSwapEmitter({
     // alias root collapses its hops too. a non-proxy global (`Map`) resolves to false (no hop); a
     // self-referential `var Map = Map` no longer recurses - the cycle-guard returns the node name
     if (!findProxyGlobal(idPath.node, aliasCtx, true)) return false;
+    // a MULTIPLY-written user binding at the chain root authorizes this collapse only through its
+    // TRUSTED write: the weaker resolutions answer "which global the name refers to", never "it holds
+    // that global HERE", and a hop dropped on that answer moved with an unrelated EARLIER statement's
+    // write to the same name - two identical source expressions in one file collapsed differently,
+    // the first keeping the hop its twins below dropped
+    if (!collapseRootHoldsItsGlobal(descendToChainRoot(idPath.node, true).root, aliasCtx)) return false;
     // the climb's guard compares ROOT to ROOT: the canonical descent always peels to the innermost
     // identifier, while the anchor may be an Identifier, the chain-assign EXPRESSION, or a member the
     // assign stores (`(k = globalThis.self)?...` anchors at `globalThis.self`). comparing the descent's
@@ -415,6 +444,7 @@ export default function createSynthSwapEmitter({
     // then fired in one paren spelling and not the other, which the area allows only cosmetically
     if (!deleteHostAboveChain(recPath, recPath.node, unwrapRuntimeExpr)
       && navValueCanShortCircuit(recPath.node, resolvePure, aliasCtx)) return false;
+    if (runSwallowsStoreProbe(recPath.node, resolvePure)) return false;
     // the destructure-emitter OWNS the collapse when the chain is an OBJECT-pattern destructure SOURCE
     // it CLAIMED (named props feed a synth literal `{ from: _Array$from }`); collapsing here too
     // double-injects a dead `_globalThis`, even when the source sits under value carriers (`{from} =
@@ -500,6 +530,33 @@ export default function createSynthSwapEmitter({
       skippedNodes.add(collapsedMember);
     }
     return true;
+  }
+
+  // a proxy-global PONYFILL import at the chain root ends the collapse: the hop above it is one a
+  // guard render deliberately kept (`_self.window.X` - the alternate of a probe), and folding it drops
+  // the throw that read owes on a host without the hop. asked of the SHAPE, never of a per-pass
+  // registry: re-run over its own output this emitter has no memory of what it rendered, and the fold
+  // then ran once more each pass - a user's own import of the same entry reads the same way
+  function proxyPureImportRoot(root, aliasCtx) {
+    const binding = adapter.getBinding?.(aliasCtx.scope, root.name, aliasCtx.path);
+    if (!binding?.importSource) return false;
+    const hint = bindingPolyfillHint({ binding, scope: aliasCtx.scope, name: root.name, adapter });
+    return !!hint && POSSIBLE_GLOBAL_OBJECTS.has(hint);
+  }
+
+  // does a MULTIPLY-written user binding at a chain root actually HOLD its global at this read? only its
+  // TRUSTED write says so: the weaker resolutions answer which global the name refers to, never that it
+  // holds it HERE, and a hop dropped on that answer moved with an unrelated EARLIER statement's write to
+  // the same name - two identical source expressions in one file collapsed differently, the first keeping
+  // the hop its twins below dropped. a single-write binding keeps the ordinary resolution
+  function collapseRootHoldsItsGlobal(root, aliasCtx) {
+    if (root?.type !== 'Identifier' || POSSIBLE_GLOBAL_OBJECTS.has(root.name)) return true;
+    if (proxyPureImportRoot(root, aliasCtx)) return false;
+    const binding = adapter.getBinding?.(aliasCtx.scope, root.name, aliasCtx.path);
+    if ((binding?.constantViolations?.length ?? 0) <= 1) return true;
+    return !!trustedIdentifierAliasWrite({
+      scope: aliasCtx.scope, name: root.name, adapter, path: aliasCtx.path, readNode: root,
+    });
   }
 
   // build the synth `{key: _polyfill, otherKey: R.otherKey}` literal that swaps the

@@ -4,30 +4,30 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
 import _Map from "@core-js/pure/actual/map";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref19, _ref20, _ref21, _ref22, _ref23, _ref24, _ref25;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16;
 // a SECOND unresolvable hop below the collapse (`window?.window` - the realm self-reference
 // past the environment probe): the guard tests the DEEPER prefix, so the `?.` inside that test
 // guards the probe itself and is LOAD-BEARING. spelling the test with the whole spine plain
 // read `.window` off an absent probe - a TypeError where the source yields undefined
-export const bareRootTwoHops = null == (_ref = null == _globalThis.window?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref2 = _Array$of(1)).call(_ref2, 0);
-export const optionalRootTwoHops = null == (_ref3 = null == _globalThis.window?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref4 = _Array$of(2)).call(_ref4, 0);
+export const bareRootTwoHops = null == _globalThis.window?.window ? void 0 : _atMaybeArray(_ref = _Array$of(1)).call(_ref, 0);
+export const optionalRootTwoHops = null == _globalThis.window?.window ? void 0 : _atMaybeArray(_ref2 = _Array$of(2)).call(_ref2, 0);
 const dr = () => _globalThis;
-export const provenRootTwoHops = null == (_ref5 = null == dr().window?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref6 = _Array$of(3)).call(_ref6, 0);
+export const provenRootTwoHops = null == dr()?.window?.window ? void 0 : _atMaybeArray(_ref3 = _Array$of(3)).call(_ref3, 0);
 
 // the `?.` over a PROVEN root is dead text in the very same test - both emitters drop it, and
 // the load-bearing one above the probe survives beside it
 const sr = () => _globalThis;
-export const provenRootOneHop = null == (_ref7 = null == sr().window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref8 = _Array$of(4)).call(_ref8, 0);
+export const provenRootOneHop = null == sr()?.window ? void 0 : _atMaybeArray(_ref4 = _Array$of(4)).call(_ref4, 0);
 
 // a CHAIN-ASSIGN root under an INSTANCE dispatch: the memo binds the value the guard tests, so
 // it must keep the probe hop. binding the bare write folded the hops out of the test, leaving
 // an always-defined global under the null-check (the branch ran where the source short-circuits)
 let held;
-export const chainAssignInstance = null == (_ref9 = null == (held = _globalThis).window ? void 0 : _self) ? void 0 : _at(_ref10 = _Array$of(5)).call(_ref10, 0);
+export const chainAssignInstance = null == (held = _globalThis)?.window ? void 0 : _atMaybeArray(_ref5 = _Array$of(5)).call(_ref5, 0);
 let heldDeep;
-export const chainAssignInstanceTwoHops = null == (_ref11 = null == (heldDeep = _globalThis).window?.window ? void 0 : _self) ? void 0 : _at(_ref12 = _Array$of(6)).call(_ref12, 0);
+export const chainAssignInstanceTwoHops = null == (heldDeep = _globalThis)?.window?.window ? void 0 : _atMaybeArray(_ref6 = _Array$of(6)).call(_ref6, 0);
 let heldPlainHop;
-export const chainAssignPlainHop = null == (_ref13 = null == (heldPlainHop = _globalThis).window?.window ? void 0 : _self) ? void 0 : _at(_ref14 = _Array$of(7)).call(_ref14, 0);
+export const chainAssignPlainHop = null == (heldPlainHop = _globalThis).window?.window ? void 0 : _atMaybeArray(_ref7 = _Array$of(7)).call(_ref7, 0);
 export { held, heldDeep, heldPlainHop };
 
 // the same chain-assign root with a receiver-INDEPENDENT claim (no memo): the guard shape is
@@ -39,7 +39,7 @@ export { heldStatic };
 // a chain-assign root whose hops ALL resolve keeps the fold: no hop can be undefined, so the
 // write is the whole kept prefix and the leaf reads off the ponyfill
 let heldResolvable;
-export const chainAssignResolvableHops = _at(_ref15 = (heldResolvable = _globalThis, _Array$of)(9)).call(_ref15, 0);
+export const chainAssignResolvableHops = _atMaybeArray(_ref8 = (heldResolvable = _globalThis, _Array$of)(9)).call(_ref8, 0);
 export { heldResolvable };
 
 // NEGATIVE: a CONDITIONALLY proven callee (a single conditional assignment) proves no value -
@@ -47,12 +47,12 @@ export { heldResolvable };
 // `?.` guards, so both optionals stay live
 let maybeFn;
 if (_globalThis.setTimeout) maybeFn = () => _globalThis;
-export const conditionalCalleeKeepsGuards = null == (_ref16 = null == maybeFn?.()?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref17 = _Array$of(10)).call(_ref17, 0);
+export const conditionalCalleeKeepsGuards = null == maybeFn?.()?.window ? void 0 : _atMaybeArray(_ref9 = _Array$of(10)).call(_ref9, 0);
 
 // NEGATIVE: an OPTIONAL call is a chain LINK, not a plain value - dropping the `?.` above it
 // re-groups the chain, so the source spelling stays even though the callee is proven
 const provenFn = () => _globalThis;
-export const optionalCallLinkKeepsGuard = null == (_ref18 = null == provenFn?.()?.window ? void 0 : _self) ? void 0 : _atMaybeArray(_ref19 = _Array$of(11)).call(_ref19, 0);
+export const optionalCallLinkKeepsGuard = null == provenFn?.()?.window ? void 0 : _atMaybeArray(_ref10 = _Array$of(11)).call(_ref10, 0);
 
 // NEGATIVE: an OPAQUE call root is a genuine source of undefined - its `?.` is load-bearing and
 // the chain keeps the raw guarded read off the memo
@@ -63,14 +63,14 @@ const opaque = () => ({
     }
   }
 });
-export const opaqueRootKeepsGuard = null == (_ref20 = opaque()?.window?.self) ? void 0 : _at(_ref21 = _ref20.Array.of(12)).call(_ref21, 0);
+export const opaqueRootKeepsGuard = null == (_ref11 = opaque()?.window?.self) ? void 0 : _at(_ref12 = _ref11.Array.of(12)).call(_ref12, 0);
 
 // hops the plan does NOT cover (a non-proxy name) read off the value the render produces:
 // while that value is provably defined they belong INSIDE the guarded alternate, so no `?.`
 // survives for the ES5 lowering to memoize. the FIRST one pulls whatever its spelling, PLAIN
 // ones keep pulling, and the first LIVE `?.` stays outside where the ternary already guards
 const ut = () => _globalThis;
-export const unplannedOptionalTail = null == (_ref22 = null == ut().window ? void 0 : _self.chrome) ? void 0 : _at(_ref23 = _ref22.Array.of(13)).call(_ref23, 0);
+export const unplannedOptionalTail = null == (_ref13 = null == ut().window ? void 0 : _self.chrome) ? void 0 : _at(_ref14 = _ref13.Array.of(13)).call(_ref14, 0);
 export const unplannedPlainTail = null == ut().window ? void 0 : _self.chrome.Array;
 export const unplannedComputedTail = null == ut().window ? void 0 : _self['chrome'];
 export const unplannedTwoTails = (null == ut().window ? void 0 : _self.chrome)?.foo?.Array;
@@ -185,7 +185,7 @@ export const whileConsumer = () => {
 export const sequenceConsumer = (0, null == cs().window ? void 0 : _self.consumerHost.n);
 class ConsumerHost {
   static field = null == cs().window ? void 0 : _self.consumerHost.n;
-  inst = null == (_ref24 = cs()?.window) ? void 0 : _at(_ref25 = _ref24.consumerHost.list).call(_ref25, 0);
+  inst = null == (_ref15 = cs()?.window) ? void 0 : _at(_ref16 = _ref15.consumerHost.list).call(_ref16, 0);
 }
 export const consumerHost = ConsumerHost;
 

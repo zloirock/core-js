@@ -23,6 +23,7 @@ import {
   TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
   unwrapRuntimeExpr,
+  subtreeContainsNode,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import {
   chainExpression,
@@ -41,7 +42,6 @@ import {
   markSubtreeSkipped,
   navComputedKeyEffects,
   singleSequenceTail,
-  subtreeContainsNode,
 } from './nav-spine.js';
 
 // does the receiver below a member hop end on an optional CALL (`arr.flat?.()`)? that segment
@@ -124,7 +124,15 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
   for (let up = cursor.parentPath; up?.node; up = cursor.parentPath) {
     const upNode = up.node;
     if (TS_EXPR_WRAPPERS.has(upNode.type)
-      || (upNode.type === 'ParenthesizedExpression' && upNode.expression === cursor.node)) {
+      || (upNode.type === 'ParenthesizedExpression' && upNode.expression === cursor.node)
+      // a CHAIN wrapper SEALING the replaced nav is stepped over only when a LIVE `?.` reads it:
+      // that optional is the vestigial one an always-defined alternate erases, and the seal is what
+      // hid it from this climb. over a PLAIN tail the same wrapper seals a read that stays outside
+      // ... and only while the seal wraps the replaced hop ITSELF: a read absorbed on the way
+      // (`(nav.userBox)?.list`) ends the alternate on a value that can be absent, and the `?.`
+      // above it is the source's own short-circuit on THAT read
+      || (upNode.type === 'ChainExpression' && upNode.expression === cursor.node
+        && !absorbedHop && liveOptionalAboveSeal(up))) {
       if (TS_EXPR_WRAPPERS.has(upNode.type)) pendingWrappers.push(upNode);
       cursor = up;
       continue;
@@ -176,6 +184,20 @@ function climbAbsorbedTail(hopPath, { alwaysDefined, navAlternate, unbackedHopKe
     target = up;
   }
   return { target, absorbedWrappers };
+}
+
+// does a live `?.` read the value this chain wrapper seals? the wrappers the seal wears - source
+// parens, a TS cast - sit between them, so the walk peels those before asking: one step up answers
+// the wrapper and the climb then stops on a tail it was meant to absorb
+function liveOptionalAboveSeal(chainPath) {
+  let cur = chainPath;
+  for (let up = chainPath.parentPath; up?.node; cur = up, up = up.parentPath) {
+    const { node } = up;
+    if (TRANSPARENT_EXPR_WRAPPER_TYPES.has(node.type) && node.expression === cur.node) continue;
+    return (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
+      && node.object === cur.node && !!node.optional;
+  }
+  return false;
 }
 
 // the guard now yields `void 0` on the short-circuit branch, so the member left standing over it
@@ -398,6 +420,10 @@ export function guardProbeUndefinable(probe, {
   // the read OBSERVABLE, so a proxy spine below the probe hop counts as one surface
   const peeledProbe = unwrapRuntimeExpr(probe);
   let probeValue = peelChainAssignmentDeep(peeledProbe);
+  // ... and it is the WRITE that makes it observable, not the peel: a sequence hands its tail's
+  // value on and observes nothing, so a plain nav under one is judged by the value canon exactly
+  // like its bare twin (`(eff(), globalThis.window.self)?.Promise.k` folds where the bare form does)
+  let storeObserved = probeValue !== peeledProbe;
   // effectful sequence tails peel manually - the SE-bailing canon stops at them
   // (`(s = (e++, globalThis.self))` proves through the tail)
   for (;;) {
@@ -424,13 +450,14 @@ export function guardProbeUndefinable(probe, {
     }
     const dechained = peelChainAssignmentDeep(probeValue);
     if (dechained === probeValue) break;
+    storeObserved = true;
     probeValue = unwrapRuntimeExpr(dechained);
   }
   // a CHAIN-ASSIGN probe keeps its own locked rule, the one the detection's source count asks:
   // the captured value's undefinedness is HOP-based, because the write observes the raw read
   // (`(m = globalThis.window.self)?.x` guards - `.self` off an absent `window` never lands).
   // the value question below answers on the LEAF hop alone and would call it always-defined
-  if (probeValue !== peeledProbe
+  if (storeObserved
     && (navHasUnresolvableProxyHop(probeValue, m => resolvePure(m, metaPath))
       || aliasHoldsUnbackedHopNav(probeValue, metaPath, adapter))) return true;
   // a bare ALIAS of a proxy surface is spelled, not read: the binding holds what the source
@@ -443,7 +470,7 @@ export function guardProbeUndefinable(probe, {
   return proxyReceiverValueCanBeUndefined(
     probeValue, m => resolvePure(m, metaPath),
     { scope: metaPath.scope, adapter, path: metaPath },
-    { throughChainAssign: true, observableRead: observableRead || probeValue !== peeledProbe });
+    { throughChainAssign: true, observableRead: observableRead || storeObserved });
 }
 
 // an optional STATIC member whose object can genuinely be undefined keeps its guard routes

@@ -17,4 +17,4 @@ export const name = _nameMaybeFunction(_ref);
 export const at = _atMaybeArray((0, arr));
 export const from = _Array$from;
 export const of2 = _Array$of;
-export const { of: _unused, ...rest } = (0, Array);
+export const { of: _unused, ...rest } = Array;

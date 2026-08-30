@@ -4,7 +4,7 @@ import _globalThis from "@core-js/pure/actual/global-this";
 import _String$fromCodePoint from "@core-js/pure/actual/string/from-code-point";
 import _endsWithMaybeString from "@core-js/pure/actual/string/instance/ends-with";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
-var _ref4, _ref5;
+var _ref4;
 // a scoped `var _refN;` lands inside a block whose enclosing render re-emits that block. splicing it
 // into the owner's own content keeps every substitution that render made, where a raw source re-emit
 // would put the pre-substitution spelling back: the body's own polyfilled call must still read its
@@ -37,4 +37,4 @@ export const nestedBodies = (() => {
 });
 
 // NEGATIVE: no memo is needed in the body, so no scoped var is inserted and neither path runs
-export const noScopedVar = null == (_ref4 = (() => _globalThis)()?.window) ? void 0 : _endsWithMaybeString(_ref5 = _String$fromCodePoint(99)).call(_ref5, 'c');
+export const noScopedVar = null == (() => _globalThis)()?.window ? void 0 : _endsWithMaybeString(_ref4 = _String$fromCodePoint(99)).call(_ref4, 'c');

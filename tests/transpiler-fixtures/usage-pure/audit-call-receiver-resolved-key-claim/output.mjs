@@ -8,7 +8,7 @@ import _Math$trunc from "@core-js/pure/actual/math/trunc";
 import _Number$EPSILON from "@core-js/pure/actual/number/epsilon";
 import _self from "@core-js/pure/actual/self";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15;
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 // a CALL receiver under a computed key that RESOLVES to a method name while carrying an effect: the
 // dispatch spells the whole span itself - receiver memoized behind the guard, key effect migrated
 // out - so the global channel's claim over the nav inside it has nothing left to compose into. a
@@ -38,7 +38,7 @@ export { k };
 // STRONG negatives: a guard does sit over a root inside each claim's span, yet every claim below is
 // still owed - the nav feeding it was never consumed into a memo. dropping any of these would lose
 // a polyfill silently, which is the only way the ownership gate can go wrong
-export const staticClaimUnderGuard = null == (_ref8 = _globalThis.window) ? void 0 : _atMaybeArray(_ref9 = _Array$of(1)).call(_ref9, 0);
+export const staticClaimUnderGuard = null == _globalThis.window ? void 0 : _atMaybeArray(_ref8 = _Array$of(1)).call(_ref8, 0);
 export const bareStaticClaim = null == _globalThis.window ? void 0 : _self.Array;
 export const twoClaimsOneStatement = [null == _globalThis.window ? void 0 : _Array$of(1), null == _globalThis.window ? void 0 : _self.Object.keys({})];
 export const claimInsideArgument = null == _globalThis.window ? void 0 : _Array$of(null == _globalThis.window ? void 0 : _Math$trunc(1.5));
@@ -46,7 +46,7 @@ export const claimInsideArgument = null == _globalThis.window ? void 0 : _Array$
 // can be undefined - the erase re-emits exactly that read ahead of the claim. the alternate is the
 // global's own name where core-js ponyfills no constructor for it
 export const parenthesizedClaim = ((null == _globalThis.window ? void 0 : Array).of, _Array$of)(1);
-export const claimThenInstance = null == (_ref10 = _globalThis.window) ? void 0 : _atMaybeArray(_ref11 = _Array$from('ab')).call(_ref11, 0);
+export const claimThenInstance = null == _globalThis.window ? void 0 : _atMaybeArray(_ref9 = _Array$from('ab')).call(_ref9, 0);
 export const claimsAcrossOperator = (null == _globalThis.window ? void 0 : _Math$trunc(1.5)) + (null == _globalThis.window ? void 0 : _Number$EPSILON);
 
 // a nav nested in an ARGUMENT keeps its OWN test, and the rows below walk what sits between the two
@@ -73,9 +73,9 @@ export const readBetweenRootReads = null == _globalThis.window ? void 0 : _Array
 // through an iterator or an accessor - another shape whose inner test has to stay put
 const seed = [7, 8];
 export const spineCallBeforeKey = null == _globalThis.window ? void 0 : _Array$from(seed)[null == _globalThis.window ? void 0 : _Math$trunc(0.5)];
-export const spineCallBeforeArg = null == (_ref12 = _globalThis.window) ? void 0 : _atMaybeArray(_ref13 = _ref12.Object.keys({
+export const spineCallBeforeArg = null == (_ref10 = _globalThis.window) ? void 0 : _atMaybeArray(_ref11 = _ref10.Object.keys({
   a: 1
-})).call(_ref13, null == _globalThis.window ? void 0 : _self.Math.round(0.4));
+})).call(_ref11, null == _globalThis.window ? void 0 : _self.Math.round(0.4));
 // a SPREAD argument is evaluated where the spread sits and the expansion follows it
 export const spreadArgument = null == _globalThis.window ? void 0 : _Array$of(...[null == _globalThis.window ? void 0 : _Math$trunc(1.5)]);
 
@@ -86,6 +86,6 @@ export const spreadArgument = null == _globalThis.window ? void 0 : _Array$of(..
 export const nestedNavPlainTail = null == _globalThis.window ? void 0 : _self.Object.keys({
   b: 2
 }).pop(null == _globalThis.window ? void 0 : _self.Math.round(0.4));
-export const nestedNavOpaqueStatic = null == (_ref14 = _globalThis.window) ? void 0 : _atMaybeString(_ref15 = _JSON$stringify({
+export const nestedNavOpaqueStatic = null == _globalThis.window ? void 0 : _atMaybeString(_ref12 = _JSON$stringify({
   c: 3
-})).call(_ref15, null == _globalThis.window ? void 0 : _self.Math.round(0.4));
+})).call(_ref12, null == _globalThis.window ? void 0 : _self.Math.round(0.4));

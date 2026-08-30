@@ -7,6 +7,8 @@
 // the init's effects - an effect reading that binding sees TDZ in the source. two ways it slipped:
 // the memo was planted at the host, landing after the extraction, and a group whose props had been
 // spliced out read as a sole-prop one, which inlines the init into the surviving prop instead.
+// the sidecar is where the two legs spell that ONE evaluation differently: babel lifts the prefix and
+// reads the tail again, this leg keeps the ref it memoized. both run the effect once, in source order.
 const eff = () => {};
 function arrayCtor() {
   return Array;

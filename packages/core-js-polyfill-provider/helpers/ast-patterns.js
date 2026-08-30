@@ -537,11 +537,6 @@ export function isMemberAccessNode(node) {
   return node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression';
 }
 
-// canonical write-host enumeration: is the member-access at `memberPath` the WRITE TARGET of its
-// enclosing host? covers `=` / update / `delete`, every destructuring-pattern slot (ArrayPattern,
-// ObjectPattern value, default, rest), and for-of/in heads - shapes that rebind a member without
-// appearing as a bare assignment LHS. one source for isDynamicComputedKeyWrite (computed-key alias
-// bail) and memberPathWriteViolations (discriminant-narrow invalidation) so the two stay in lockstep
 // climb transparent wrappers (TS `as`/`!`/`satisfies`, parens, chain) UP from `path` while the
 // wrapper's `.expression` is the climbed node: returns the path of the node that actually fills
 // its host's slot (`(m as any) = v` -> the cast path, whose parent is the AssignmentExpression).
@@ -555,35 +550,43 @@ export function climbTransparentWrapperPath(path) {
   return target;
 }
 
-// is a `delete` the consumer anywhere above this chain? the operator may sit several tail steps up
-// (`delete nav.Ctor.prototype.method`), and every step between is a member or a call. THE question both
-// emitters ask before deciding what a proxy nav owes: under a delete the navigation collapses whole -
-// the deleted member is never read, so no `?.` over it is load-bearing and no probe guard is built.
-// path-shaped and dialect-neutral: the caller passes its own wrapper peel
 // nodes a chain's VALUE flows THROUGH on its way to a consumer: a sequence hands on its last
 // expression, a `=` its right side, and a chain LOWERED to its guard scaffold (`null == (_ref = nav)
 // ? void 0 : _ref.x`) reaches the consumer through the memo write, the null test and the
 // conditional's slots. asked of the slot the child fills, so a consumer sitting BESIDE the chain
 // (a sequence prefix, the other operand) cannot claim it
-function chainValueCarrier(node, child) {
+export function chainValueCarrier(node, child) {
   switch (node.type) {
     case 'SequenceExpression': return node.expressions.at(-1) === child;
     case 'AssignmentExpression': return node.operator === '=' && node.right === child;
+    // through the null-literal canon: spelled by node TYPE it saw babel's `NullLiteral` only, so
+    // the same scaffold answered false on the estree leg, where `null` parses as a `Literal`
     case 'BinaryExpression': return (node.operator === '==' || node.operator === '!=')
       && (node.left === child || node.right === child)
-      && (node.left.type === 'NullLiteral' || node.right.type === 'NullLiteral');
+      && (isNullLiteralNode(node.left) || isNullLiteralNode(node.right));
     case 'ConditionalExpression': return node.test === child
       || node.consequent === child || node.alternate === child;
     default: return false;
   }
 }
 
+// is a `delete` the consumer anywhere above this chain? the operator may sit several tail steps up
+// (`delete nav.Ctor.prototype.method`), and every step between is a member or a call. THE question both
+// emitters ask before deciding what a proxy nav owes: under a delete the navigation collapses whole -
+// the deleted member is never read, so no `?.` over it is load-bearing and no probe guard is built.
+// path-shaped and dialect-neutral: the caller passes its own wrapper peel
 export function deleteHostAboveChain(startPath, chainNode, unwrap) {
   let step = startPath;
   while (step?.node && unwrap(step.node) !== chainNode) step = step.parentPath;
   for (let up = step?.parentPath; up?.node; step = up, up = up.parentPath) {
     const { node } = up;
     if (node.type === 'UnaryExpression') return node.operator === 'delete';
+    // a WRITE on the way up STORES this value: the delete is not its only consumer any more, so
+    // the erase verdict's premise - that nothing over the navigation is read - stops there. the
+    // one write it does not stop at is the LOWERED guard scaffold's own memo (`null == (_ref =
+    // nav) ? void 0 : _ref.x`), whose null test consumes the write and holds no value of its own
+    if (node.type === 'AssignmentExpression'
+      && !(up.parentPath?.node?.type === 'BinaryExpression' && chainValueCarrier(up.parentPath.node, node))) return false;
     const stepsOn = node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression'
       || node.type === 'CallExpression' || node.type === 'OptionalCallExpression';
     if (!stepsOn && unwrap(node) === node && !chainValueCarrier(node, step.node)) return false;
@@ -591,6 +594,11 @@ export function deleteHostAboveChain(startPath, chainNode, unwrap) {
   return false;
 }
 
+// canonical write-host enumeration: is the member-access at `memberPath` the WRITE TARGET of its
+// enclosing host? covers `=` / update / `delete`, every destructuring-pattern slot (ArrayPattern,
+// ObjectPattern value, default, rest), and for-of/in heads - shapes that rebind a member without
+// appearing as a bare assignment LHS. one source for isDynamicComputedKeyWrite (computed-key alias
+// bail) and memberPathWriteViolations (discriminant-narrow invalidation) so the two stay in lockstep
 export function isMemberWriteHost(memberPath) {
   if (!memberPath?.node) return false;
   // wrapped write target - `(m as any) = v`, `(m) = v` - the host's `.left`/`.argument` points
@@ -626,6 +634,23 @@ export function isMemberWriteHost(memberPath) {
 export function unwrapRuntimeExpr(node) {
   while (node && SKIPPABLE_WRAPPER_TYPES.has(node.type)) node = node.expression;
   return node;
+}
+
+// does the subtree hold this exact node - the identity question an effect asks before it is
+// re-emitted (the spelling that carries it already runs it, so a prepend would run it twice).
+// both emitters ask it: the unplugin's rescue channels, and babel's guard render deciding which
+// effects its own test re-emits
+export function subtreeContainsNode(root, target) {
+  if (root === target) return true;
+  if (!root || typeof root !== 'object' || !root.type) return false;
+  // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+  for (const key in root) {
+    const value = root[key];
+    if (Array.isArray(value)) {
+      for (const item of value) if (subtreeContainsNode(item, target)) return true;
+    } else if (subtreeContainsNode(value, target)) return true;
+  }
+  return false;
 }
 
 // does this node destructure? the predicate over `DESTRUCTURE_PATTERN_TYPES`, re-exported here
@@ -2285,6 +2310,22 @@ export function patternSlotHasDefault(pattern, name) {
     }
   })(pattern, false);
 }
+
+// the caller-correct FALLBACK SLOT the probe rule stops at: a value that runs ONLY when nothing was
+// passed - a parameter default and an inner destructure default, both spelled as an AssignmentPattern
+// right. the slot's doctrine lives in the provider's AGENTS.md: a PLAIN undefinable receiver keeps the
+// always-defined literal there, because the slot fires only on the omitted argument and reproducing the
+// absent-host throw is not worth the output complexity. the climb ends at the function that OWNS the
+// slot - a nav inside a nested function body runs when that function is called, not on that path
+export function inCallerCorrectFallbackSlot(path) {
+  for (let up = path?.parentPath, child = path; up?.node; child = up, up = up.parentPath) {
+    const { type } = up.node;
+    if (type === 'AssignmentPattern' && up.node.right === child.node) return true;
+    if (FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'Program') break;
+  }
+  return false;
+}
+
 // does the pattern bind `name` in ANY slot (identifier leaf, renamed value, rest, nested, with or
 // without a default)? one spelling of that question, over the canonical binding-leaf walk - the
 // default-guarded ask above keeps its own walk because it TRACKS default context, which the leaf
@@ -2421,9 +2462,12 @@ function reassignmentValueEnumerationCore({ binding, usagePath, owner, name, ctx
   return { nodes: out, complete };
 }
 
-// assignment operators that flow the RHS into the LHS binding as a POSSIBLE value: plain `=`
-// plus the logical forms (`A ||= Map` makes Map reachable). compound arithmetic (`+=`) and
-// updates produce derived values, not replacements, and stay out
+// assignment operators that flow the RHS into the LHS binding as a POSSIBLE value: plain `=` plus
+// the logical forms (`A ||= Map` makes Map reachable - whether that write fires is the conditional
+// question above, not this one). compound arithmetic (`+=`) and updates produce derived values, not
+// replacements, and stay out. every reader that follows a write to the value it stores asks this
+// set: the reassignment walks here, the mutation census for what a slot ends up holding, and the
+// alias follow over the shape a `?.`-lowering transpiler emits (`(_n ??= globalThis) == null ? ...`)
 export const VALUE_FLOW_ASSIGN_OPS = new Set(['=', ...LOGICAL_ASSIGN_OPS]);
 
 // the pattern slot's POSSIBLE values for the binding named `name`: the positionally / key-
@@ -4143,11 +4187,21 @@ export function isMutatedStaticMeta(meta, mutatedSet) {
     && isMutatedStaticPair(meta.object, meta.key, mutatedSet);
 }
 
-// the (object, key) pair consultation both plugin adapters and the meta gate share: the exact
-// pair, OR a SLOT-mutated object - `globalThis.Set = Shim` makes every `Set.<key>` read the
-// shim's own property, so no member of a replaced object is a polyfillable static
+// the KEY a receiver whose mutated member cannot be named is recorded under. it says only that SOME
+// member was replaced, which is a weaker fact than `globalThis.<name>` (the SLOT key, where the
+// user's own object replaced the built-in): the binding is still the built-in, so its name keeps
+// resolving to a polyfill and only its members stop being trusted. read as the slot key it would
+// leave the whole name native - a missing polyfill on every engine without it
+export const MUTATED_MEMBERS_UNKNOWN = '*';
+
+// the (object, key) pair consultation both plugin adapters and the meta gate share. three ways the
+// pair stops being a polyfillable static: the exact pair is recorded, the OBJECT carries the
+// members-unknown key (some member was replaced and this may be it), or the object's own SLOT was
+// replaced - `globalThis.Set = Shim` makes every `Set.<key>` read the shim's own property, so no
+// member of a replaced object is one either
 export function isMutatedStaticPair(object, key, mutatedSet) {
   return !!mutatedSet?.has(mutatedStaticKey(object, key))
+    || !!mutatedSet?.has(mutatedStaticKey(object, MUTATED_MEMBERS_UNKNOWN))
     || !!mutatedSet?.has(mutatedStaticKey('globalThis', object));
 }
 
@@ -6415,14 +6469,22 @@ const SIDE_EFFECTS_CACHE = new WeakMap();
 // strict-mode cache for `reEvaluationObservable` (same walker, wider verdict)
 const RE_EVAL_CACHE = new WeakMap();
 const SIDE_EFFECTS_MAX_DEPTH = 256;
-// the dead-tail policy for a lifted sequence: once a destructure consumed every binding,
-// trailing EFFECT-FREE expressions of the lifted init are unread - pop them so the emitted
-// statement keeps only the effects (`(se(), (0, Array))` lifts as `se();`). shared by both
-// emitters so the trim canon lives once; callers pass an already-flattened expression list
-export function dropDeadSequenceTail(expressions) {
-  const out = [...expressions];
-  while (out.length > 1 && !mayHaveSideEffects(out.at(-1))) out.pop();
-  return out;
+// the dead-element policy for a lifted sequence: the statement it becomes discards every value,
+// so an expression with nothing to observe is a comma the source wrote rather than work it did -
+// only the effects survive (`(0, se(), (0, Array))` lifts as `se();`). shared by both emitters so
+// the trim canon lives once; callers pass an already-flattened expression list. an all-quiet list
+// keeps its last element, leaving the caller a well-formed expression to drop on its own
+export function dropDeadSequenceElements(expressions) {
+  const kept = observableSequenceElements(expressions);
+  return kept.length ? kept : expressions.slice(-1);
+}
+
+// the same policy for the channels that emit one statement PER element rather than one for the
+// whole prefix (the nested-flatten rescue chain is the standing example, and its grouping is a
+// channel rule of its own): nothing to observe means nothing to run, and an all-quiet prefix
+// leaves no statement at all
+export function observableSequenceElements(expressions) {
+  return expressions.filter(expression => mayHaveSideEffects(expression));
 }
 
 export function mayHaveSideEffects(node) {
@@ -6930,12 +6992,23 @@ export function memberChainEndPath({ path, unwrap = node => node }) {
     // (a sealed optional nav is a paren over a ChainExpression), so each step compares against the
     // wrapper just crossed - matching the original node throughout stopped at the first one and
     // reported such a nav as having no chain above it at all
+    // ... and so does a VALUE CARRIER standing at the chain's ROOT (`(v = globalThis).window`,
+    // `(e(), globalThis).self`): the first member reads exactly what the carrier hands on, which
+    // is why the downward peel (`peelChainRootValue`) walks straight through both. stopping here
+    // left a nav rooted in a chain-assign with no chain above it at all, and so with no channel
+    // to render it. only at the root: a carrier reached AFTER a hop holds the whole navigation's
+    // value (`(kept = nav).X`), and what reads it is a consumer of the store, not a hop of this chain
     let up = end.parentPath;
-    for (let inner = end.node; up?.node && SKIPPABLE_WRAPPER_TYPES.has(up.node.type)
-      && up.node.expression === inner; up = up.parentPath) inner = up.node;
+    let inner = end.node;
+    while (up?.node) {
+      if (!(SKIPPABLE_WRAPPER_TYPES.has(up.node.type) && up.node.expression === inner)
+        && !(end === path && chainValueCarrier(up.node, inner))) break;
+      inner = up.node;
+      up = up.parentPath;
+    }
     const above = up?.node;
     if (above?.type !== 'MemberExpression' && above?.type !== 'OptionalMemberExpression') break;
-    if (unwrap(above.object) !== unwrap(end.node)) break;
+    if (unwrap(above.object) !== unwrap(inner)) break;
     end = up;
   }
   return end;
