@@ -12,8 +12,9 @@ from([1]);
 eff2();
 const of = _Array$of;
 of(2);
+eff3();
 const keys = _Object$keys;
 const {
   isArray
-} = (eff3(), _globalThis.Object);
+} = _globalThis.Object;
 isArray(keys);

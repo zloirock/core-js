@@ -38,7 +38,7 @@ export function viaFunctionBodyRead() {
 // like the target-declined twin, and the plain-nav ride without an assignment guards the same
 let k10;
 export const viaAbsentClaimRide = (k10 = _self.window)?.BigInt;
-export const viaPlainAbsentRide = (null == _globalThis.window ? void 0 : _self.window)?.BigInt;
+export const viaPlainAbsentRide = _globalThis.BigInt;
 
 // the RIDELESS init spelling stores through the same root-hook channel as the statement form
 let k14;

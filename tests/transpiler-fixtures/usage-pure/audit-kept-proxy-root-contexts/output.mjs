@@ -12,7 +12,7 @@ import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref4, _ref5, _ref7, _ref8, _ref9;
+var _ref, _ref2, _ref4, _ref5, _ref7, _ref8;
 // the syntactic CONTEXTS a kept proxy root can be reached from. the rule does not depend on any of them -
 // the assignment stays as the root, the redundant proxy hop drops, the guard survives - but each context
 // reaches the collapse through its own visitor, so each pins separately: a kept root nested inside another
@@ -78,12 +78,12 @@ export const nullishCarrier = (null == _globalThis.window ? void 0 : (c++, _self
 
 // SE-keyed hop under a claimed static + instance dispatch: the dispatch's guard memoizes the
 // probe root only, so the hop-key SE rides the claim body on the non-null branch
-export const seKeyClaimDispatch = null == (_ref7 = _globalThis.window) ? void 0 : _flatMaybeArray(_ref8 = (c++, _Array$of)(8)).call(_ref8);
+export const seKeyClaimDispatch = null == _globalThis.window ? void 0 : _flatMaybeArray(_ref7 = (c++, _Array$of)(8)).call(_ref7);
 
 // bare-probe INSTANCE guard-memo spellings: the prototype-method call keeps the raw nav in
 // the guard body (the locked alias/kept canon), the call-argument SE stays put; the SE-key
 // claimless `new`-callee renders the pony guard inside the callee parens
-export const bareProtoCall = null == (_ref9 = _globalThis.window) ? void 0 : _findMaybeArray(_ref9[c++, 'self'].Array.prototype).call([5], v => v === (c++, 5));
+export const bareProtoCall = null == (_ref8 = _globalThis.window) ? void 0 : _findMaybeArray(_ref8[c++, 'self'].Array.prototype).call([5], v => v === (c++, 5));
 export const bareProtoUnpolyfilled = null == _globalThis.window ? void 0 : (c++, _self).Array.prototype.indexOf.call([5], 5);
 export const bareSeKeyNewCallee = new (null == _globalThis.window ? void 0 : (c++, _self).CustomThing)();
 export async function awaited() {
@@ -97,15 +97,15 @@ switch ((sw = _globalThis.window)?.[c++, "Array"]) {
 }
 export const holder = {
   get val() {
-    var _ref10;
+    var _ref9;
     let gt;
-    return null == (_ref10 = gt = _globalThis.window) ? void 0 : _mapMaybeArray(_ref10[c++, "Array"].prototype).call([9], v => v);
+    return null == (_ref9 = gt = _globalThis.window) ? void 0 : _mapMaybeArray(_ref9[c++, "Array"].prototype).call([9], v => v);
   }
 };
 export function* keptGen() {
-  var _ref11;
+  var _ref10;
   let yv;
-  yield null == (_ref11 = yv = _globalThis.window) ? void 0 : _flatMapMaybeArray(_ref11[c++, "Array"].prototype).call([2], v => [v]);
+  yield null == (_ref10 = yv = _globalThis.window) ? void 0 : _flatMapMaybeArray(_ref10[c++, "Array"].prototype).call([2], v => [v]);
 }
 
 // a param-default synth twin without a SE key: the wrapper default stays the synth target

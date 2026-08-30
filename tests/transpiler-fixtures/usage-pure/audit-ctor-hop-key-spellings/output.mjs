@@ -1,7 +1,6 @@
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Set from "@core-js/pure/actual/set/constructor";
-var _ref, _ref2;
 // the hop that NAMES a ponyfilled constructor decides ONE claim, and that claim must answer the same
 // however the key is spelled: dotted, static-string computed, a single-quasi template, a sequence whose
 // prefix carries an effect, and a pure zero-argument call folded to its return. the folded spellings
@@ -20,14 +19,14 @@ const sequence = (c += 1, _Set).prototype.add;
 const iife = _Set.prototype.add;
 const wrappedDotted = _nameMaybeFunction(_Set.prototype.add);
 const wrappedSequence = _nameMaybeFunction((c += 10, _Set).prototype.add);
-const guardedSequence = null == (_ref = (() => {
+const guardedSequence = null == (() => {
   c += 100;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction((c += 1000, _Set).prototype.add);
-const guardedIife = null == (_ref2 = (() => {
+})() ? void 0 : _nameMaybeFunction((c += 1000, _Set).prototype.add);
+const guardedIife = null == (() => {
   c += 10000;
   return _globalThis;
-})()) ? void 0 : _nameMaybeFunction(_Set.prototype.add);
+})() ? void 0 : _nameMaybeFunction(_Set.prototype.add);
 // a chain-assign ROOT below a folded key: the assignment is a RECEIVER effect, so the source runs it
 // BEFORE the key it precedes. it re-emits through the swap's own absorber, which used to APPEND it -
 // past the key effect harvested from the same sub-receiver, an order both emitters agreed on.

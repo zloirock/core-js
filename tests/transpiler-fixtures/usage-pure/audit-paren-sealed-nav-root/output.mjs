@@ -23,15 +23,15 @@ import _Object$values from "@core-js/pure/actual/object/values";
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$resolve from "@core-js/pure/actual/promise/resolve";
 import _self from "@core-js/pure/actual/self";
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref7, _ref8, _ref9;
+var _ref, _ref2, _ref3, _ref5, _ref6, _ref7;
 // a PAREN-SEALED undefinable nav as a chain root: the seal ends the inner chain, so the outer
 // `?.` guards the sealed VALUE - which CAN be undefined (the live inner `?.` tests an
 // unresolvable window read). the claim renders GUARDED with the canonical nested test; eating
 // the guard ran the branch where native short-circuits (a wrong value off-browser)
-export const viaSealedOptTail = null == (_ref = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _atMaybeArray(_ref2 = _Array$of(3)).call(_ref2, 0);
+export const viaSealedOptTail = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _atMaybeArray(_ref = _Array$of(3)).call(_ref, 0);
 
 // the same shape as a parameter default renders identically
-export function viaParamDefault(x = null == (_ref3 = null == _globalThis.window ? void 0 : _self.window) ? void 0 : _toFixedMaybeNumber(_ref4 = _Number$MAX_SAFE_INTEGER).call(_ref4, 2)) {
+export function viaParamDefault(x = null == (null == _globalThis.window ? void 0 : _self.window) ? void 0 : _toFixedMaybeNumber(_ref2 = _Number$MAX_SAFE_INTEGER).call(_ref2, 2)) {
   return x;
 }
 
@@ -57,7 +57,7 @@ export const viaSealedCtorRead = null == _globalThis.window ? void 0 : _Map;
 // the source performs on the sealed VALUE as a THROW probe ahead of the claim: an absent
 // `window` throws at the probe exactly as the source does, a present one reads through the
 // ponyfill and drops the value - call, destructure and the claimable ctor value-use alike
-export const viaSealedPlainCall = _atMaybeArray(_ref5 = ((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(6)).call(_ref5, 0);
+export const viaSealedPlainCall = _atMaybeArray(_ref3 = ((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(6)).call(_ref3, 0);
 export const viaSealedPlainDestructure = _atMaybeArray(((null == _globalThis.window ? void 0 : _self.window).Array, _Array$of)(7));
 export const viaSealedPlainCtorRead = ((null == _globalThis.window ? void 0 : _self.window).Promise, _Promise);
 
@@ -154,10 +154,10 @@ let c7 = 0;
 export function viaSealedSeKeyResidualBail({
   getOwnPropertyNames: nb1,
   customK: nb2
-} = function (_ref6) {
+} = function (_ref4) {
   return {
     getOwnPropertyNames: _Object$getOwnPropertyNames,
-    customK: _ref6.customK
+    customK: _ref4.customK
   };
 }((null == _globalThis.window ? void 0 : (c7++, _self)).Object)) {
   return [nb1, nb2];
@@ -187,8 +187,8 @@ export { c8 };
 // dead `?.` chains over VALUE-DEFINED navs erase whole: the sealed ALL-PLAIN nav (declared
 // env) and the hop-order spelling (dead optionals over pony-backed reads, deeper window
 // reads are realm self-references)
-export const viaSealedAllPlain = _atMaybeArray(_ref7 = _Array$of(8)).call(_ref7, 0);
-export const viaHopOrderDead = _atMaybeArray(_ref8 = _Array$of(10)).call(_ref8, 0);
+export const viaSealedAllPlain = _atMaybeArray(_ref5 = _Array$of(8)).call(_ref5, 0);
+export const viaHopOrderDead = _atMaybeArray(_ref6 = _Array$of(10)).call(_ref6, 0);
 
 // SE-key residual variants: a LIVE `?.` probe rides the guard with an optionalized tail
 // (short-circuit preserved), a claimable CTOR leaf keeps the plain read above the seal
@@ -243,5 +243,5 @@ const dheCombo = () => {
   cc1++;
   return _globalThis;
 };
-export const viaSeKeySeCallRoot = _atMaybeArray(_ref9 = ((null == dheCombo().window ? void 0 : (kc1++, _self)).Array, _Array$of)(5)).call(_ref9, 0);
+export const viaSeKeySeCallRoot = _atMaybeArray(_ref7 = ((null == dheCombo().window ? void 0 : (kc1++, _self)).Array, _Array$of)(5)).call(_ref7, 0);
 export { cc1, kc1 };
