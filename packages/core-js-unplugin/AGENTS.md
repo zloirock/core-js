@@ -69,4 +69,4 @@ Those runners only compare output, which settles cosmetic work; a change in BEHA
 - `npm run test-transpiler-integration` - when the change touches a hook, a module-id assumption or anything bundler-facing: the matrix exercises every bundler, method and phase, which is where those break instead of in a fixture
 - `npm run test-transpiler-perf` - guards the complexity class
 
-One full `npm run test-transpiling` is the finish line - a VERY heavy run that composes every suite named here including this package's own runners: run it once, right before the work is handed off, never mid-loop, and never with a member on the same invocation line.
+One full `npm run test-transpiling`, then `npm run test-transpiler-perf`, is the finish line - a VERY heavy run that composes every suite named here including this package's own runners, plus the perf gates it leaves out: run it once, right before the work is handed off, never mid-loop, and never with a member on the same invocation line.
