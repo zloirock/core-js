@@ -2,6 +2,7 @@ import { subsume } from './subsumption.js';
 import { isKnownGlobalName } from '../detect-usage/globals.js';
 import { matchSelfDefaultTernarySlot } from '../resolve-node-type/value-ops.js';
 import {
+  VALUE_FLOW_ASSIGN_OPS,
   aliasDeclScope,
   aliasReadGuardedAgainstNullish,
   arrayWrapSlotBindsName,
@@ -134,7 +135,10 @@ export function usableAliasInfo(info) {
 // const aliases (`const g = globalThis`) pass through via init-peel
 export function proxyGlobalRootName({ node, scope, adapter, path, seen, binding = null, usageNode = null, readNode = null }) {
   if (node?.type !== 'Identifier') return null;
-  if (!scope || !adapter) return asProxyGlobalName(node.name);
+  // a ctx with no binding lookup answers by NAME, like the one with no adapter at all: the alias
+  // arms below all read the binding, and a caller that cannot supply one (the unit harnesses, a
+  // node-only predicate call) asks the same question the name alone can answer
+  if (!scope || !adapter?.getBinding) return asProxyGlobalName(node.name);
   // the default parameter already normalizes an absent argument to `null`, so this is exactly
   // "the caller brought no binding" - the one case that has to consult the adapter
   if (binding === null) {
@@ -201,7 +205,10 @@ export function isProxyGlobalIdentifierNode(args) {
 // that write (injected helper code never assigns user bindings)
 function containsWriteTo(root, name) {
   if (!isASTNode(root)) return false;
-  if (root.type === 'AssignmentExpression' && root.operator === '='
+  // the LOGICAL compounds count as the write too: `(_n ??= globalThis) == null ? ... : _n.self.X` is
+  // the shape a `?.`-lowering transpiler emits, and on the defined branch the binding holds exactly
+  // what the write stored - reading only `=` left that spelling unproven where its plain twin proved
+  if (root.type === 'AssignmentExpression' && VALUE_FLOW_ASSIGN_OPS.has(root.operator)
     && root.left?.type === 'Identifier' && root.left.name === name) return true;
   // `isASTNode` on BOTH sides: the array arm used to admit any object, so a non-node array member
   // (`loc` / `range` shapes, a plugin's own stamp) was descended into while the object arm rejected
@@ -254,12 +261,19 @@ function readsAfterWriteStructurally(path, writeNode) {
 // the `?.`-lowering canon; a positional accept would drift the emitters on the AST side's
 // position-less rebuilt re-visits). shared by the detection-side follow
 // (`resolveVariableBindingToGlobal`) and the class-walk follow - ONE predicate, not mirrors
-export function trustedIdentifierAliasWrite({ scope, name, adapter, path }) {
+export function trustedIdentifierAliasWrite({ scope, name, adapter, path, readNode = null }) {
   if (!adapter?.findTrustedAliasWrite) return null;
   const write = adapter.findTrustedAliasWrite(scope, name, { requirePlacement: false });
   if (!write || write.left?.type !== 'Identifier' || write.left.name !== name) return null;
-  if (adapter.method === 'usage-pure'
-    && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)) return null;
+  // ... or the READ's own span proves it - the evidence the PATTERN arm of the same follow already
+  // accepts: a source read beginning past the write's end runs after it, which is what a sequence
+  // spells (`(g = globalThis, v = g.window.self)`). a rebuilt node carries no span and declines, so
+  // the AST leg's position-less re-visits stay out. the span says ORDER, never dominance, so it
+  // rides the adapter's own PLACEMENT gate - a branch-local write (`if (c) { var M = globalThis }`)
+  // runs on one path, and a textual accept there would mask the native throw
+  if (adapter.method === 'usage-pure' && !readsAfterWriteStructurally(path?.parentPath ? path : null, write)
+    && !(typeof readNode?.start === 'number' && readNode.start >= write.end
+      && adapter.findTrustedAliasWrite(scope, name) === write)) return null;
   return write;
 }
 
@@ -299,7 +313,8 @@ function followLocalBindingToProxyGlobal({ binding, name = null, scope, adapter,
   let writeInit = null;
   if (decl?.type === 'VariableDeclarator' && !decl.init && decl.id?.type === 'Identifier') {
     const writeName = name ?? decl.id.name;
-    const write = trustedIdentifierAliasWrite({ scope, name: writeName, adapter, path });
+    const write = trustedIdentifierAliasWrite({ scope, name: writeName, adapter, path,
+      readNode: readNode ?? usageNode });
     // a plain-Identifier write carries its RHS directly; a PATTERN-LHS write binds `name` to a slot
     // of a literal container it carries - both are the sole trusted value source for the binding
     writeInit = write ? trustedWriteValue(write) : trustedPatternWriteSlotValue({ scope, name: writeName, adapter, path });
@@ -608,10 +623,36 @@ export function soleAliasWrite({ binding, assignNode }) {
   const violations = binding.constantViolations ?? [];
   // identity first: a SYNTHETIC write (an AST emitter's own memo assign on a re-visit)
   // carries no positions, and the babel violation path IS the assignment node
-  return !!violations.length && violations.every(v => {
+  if (!violations.length) return false;
+  if (violations.every(v => {
     const node = v?.node ?? v;
     return node === assignNode || (node?.start >= assignNode.start && node?.end <= assignNode.end);
+  })) return true;
+  // writes that AGREE need no sole-write proof: every one of them stores the SAME proxy-global
+  // spelling, so the value a read sees is that global whichever write ran. without this arm the
+  // verdict flipped MID-FILE - the plugin rewrites one write into its pure spelling, and the next
+  // read of the same alias then saw a different write set than the read before it, so two identical
+  // source expressions in one file rendered differently
+  const aliasName = assignNode.left?.type === 'Identifier' ? assignNode.left.name : null;
+  const target = agreedProxyGlobalWrite(assignNode, aliasName);
+  return !!target && violations.every(v => {
+    const node = v?.node ?? v;
+    return agreedProxyGlobalWrite(node?.type === 'AssignmentExpression' ? node
+      : (node?.parentPath?.node?.type === 'AssignmentExpression' ? node.parentPath.node : null), aliasName) === target;
   });
+}
+
+// the possible-global NAME an alias write stores WHOLE, through a chain of `=` steps
+// (`a = b = globalThis`), or null when the write stores anything else. the agreement test above is a
+// NAME comparison on purpose: two writes of the same global are one value, and no order proof is owed
+// between them. a PATTERN left stores a property of that global, never the global (`({ Map: M } =
+// globalThis)`), so it never agrees - two such writes are two different constructors
+function agreedProxyGlobalWrite(assignNode, name) {
+  if (assignNode?.type !== 'AssignmentExpression' || assignNode.operator !== '='
+    || assignNode.left?.type !== 'Identifier' || assignNode.left.name !== name) return null;
+  let cur = assignNode.right;
+  while (cur?.type === 'AssignmentExpression' && cur.operator === '=') cur = cur.right;
+  return cur?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(cur.name) ? cur.name : null;
 }
 
 // the full trust predicate behind the checked registration AND the resolver's lazy write
@@ -793,7 +834,17 @@ const STATEMENT_HOST_TYPES = new Set(['ExpressionStatement', 'VariableDeclaratio
 // slot: the test (discriminant for switch) runs whenever the statement runs - a write there is
 // as unconditional as an expression statement's. branches / bodies stay refused (the ancestor
 // walk already rejects a host nested under them)
-const CONTROL_TEST_HOSTS = new Set(['IfStatement', 'WhileStatement', 'DoWhileStatement', 'SwitchStatement']);
+// the statements whose HEAD slot is an expression evaluated whenever the statement runs: the tests,
+// the switch discriminant, and the for-of / for-in subject. a climb over expressions can reach one of
+// these only from that head - every other slot is a statement, and the climb breaks at its own host
+const CONTROL_TEST_HOSTS = new Set([
+  'IfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'SwitchStatement',
+  'ForOfStatement',
+  'ForInStatement',
+]);
 function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   // callers pass paths at different depths (a declarator, the assignment, its statement) -
   // normalize by climbing to the hosting statement first, judging every EDGE on the way: a
@@ -811,12 +862,14 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
   while (stmt && !STATEMENT_HOST_TYPES.has(stmt.node?.type)) {
     const parent = stmt.parentPath;
     const parentType = parent?.node?.type;
-    // arriving at a control statement FROM its test/discriminant slot: that slot evaluates
-    // whenever the statement does, so the statement itself is the host - stop the climb here
-    // (a write in a branch/body never takes this step; its own host gets refused by the
-    // ancestor walk below)
-    if (CONTROL_TEST_HOSTS.has(parentType)
-      && (parent.node.test ?? parent.node.discriminant) === stmt.node) {
+    // arriving at a control statement: only its test / discriminant slot can be reached by this
+    // climb at all (the climb walks EXPRESSIONS and stops at every expression-hosting statement,
+    // so a write in a branch or body has already broken out at its own host), and that slot
+    // evaluates whenever the statement does - the statement itself is the host, stop here.
+    // the slot is not re-tested against the child: a render REPLACES what stands in it, and the
+    // climb from the detached node then ran past the statement, past the program, and answered
+    // "conditional" from a walk that had lost its terminator
+    if (CONTROL_TEST_HOSTS.has(parentType)) {
       stmt = parent;
       break;
     }
@@ -833,10 +886,23 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
     }
     stmt = parent;
   }
+  let throughStaticBlock = false;
   for (let cur = stmt?.parentPath; cur; cur = cur.parentPath) {
     const type = cur.node?.type;
-    // terminate on any VAR-SCOPE OWNER (function-likes, class static block, TS namespace body,
-    // program): a statement placed directly in one executes whenever that unit runs
+    // a class STATIC BLOCK owns a var scope but defers nothing: it runs exactly once, when the class
+    // definition evaluates - so it is transparent here, and the walk goes on to judge where that
+    // definition stands. terminating on it applied the containment test written for FUNCTIONS (which
+    // may never be called) and refused every write whose binding is declared outside the class.
+    // the class nodes above it open only for a walk that came THROUGH such a block: a field
+    // initializer is the deferred sibling - it runs per instantiation, which may never happen
+    if (type === 'StaticBlock') {
+      throughStaticBlock = true;
+      continue;
+    }
+    if (throughStaticBlock
+      && (type === 'ClassBody' || type === 'ClassDeclaration' || type === 'ClassExpression')) continue;
+    // terminate on any VAR-SCOPE OWNER (function-likes, TS namespace body, program): a statement
+    // placed directly in one executes whenever that unit runs
     if (isVarScopeBoundary(type)) {
       // `withinNode` (the alias declarator) must live in THIS terminator's span - else the
       // statement sits in a nested function relative to the binding and may never execute
@@ -844,8 +910,10 @@ function unconditionalStatementPlacement(stmtPath, withinNode = null) {
         || (withinNode.start >= cur.node.start && withinNode.end <= cur.node.end);
     }
     // an export wrapper around the hosting statement (`export const r = (_g = g) == null ? ...`)
-    // runs exactly when its module body does - transparent for placement
-    if (type !== 'BlockStatement' && type !== 'ExportNamedDeclaration' && type !== 'ExportDefaultDeclaration') return false;
+    // runs exactly when its module body does - transparent for placement, and so is a LABEL: it
+    // names the statement it wraps without guarding it
+    if (type !== 'BlockStatement' && type !== 'LabeledStatement'
+      && type !== 'ExportNamedDeclaration' && type !== 'ExportDefaultDeclaration') return false;
   }
   return false;
 }

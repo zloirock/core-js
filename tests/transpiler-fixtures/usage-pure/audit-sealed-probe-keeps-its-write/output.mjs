@@ -1,6 +1,6 @@
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _at from "@core-js/pure/actual/instance/at";
 import _self from "@core-js/pure/actual/self";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 var _ref;
@@ -14,7 +14,7 @@ let t;
 let m;
 let q;
 export const writeUnderSeal = ((null == (s = _globalThis.window) ? void 0 : _self).Array, _Array$of)(5);
-export const writeUnderSealTail = _at(_ref = ((null == (t = _globalThis.window) ? void 0 : _self).Array, _Array$of)(5)).call(_ref, 0);
+export const writeUnderSealTail = _atMaybeArray(_ref = ((null == (t = _globalThis.window) ? void 0 : _self).Array, _Array$of)(5)).call(_ref, 0);
 // NEGATIVE: the same seal without a write - the probe was always spelled here
 export const sealNoWrite = ((null == _globalThis.window ? void 0 : _self).Array, _Array$of)(5);
 // NEGATIVE: no `?.` over the write, so there is no short-circuit to reproduce and no probe
@@ -27,8 +27,8 @@ export const writeNoSeal = null == (q = _globalThis.window) ? void 0 : _Array$of
 let u;
 let z;
 let k = 0;
-export const writeBelowProbeHops = null == (u = _globalThis, _self).window ? void 0 : _Array$of(5);
-export const writeBelowProbeHopsRead = ((null == (z = _globalThis, _self).window ? void 0 : _self).Symbol, _Symbol$iterator);
+export const writeBelowProbeHops = (u = _globalThis, _Array$of)(5);
+export const writeBelowProbeHopsRead = (z = _globalThis, _Symbol$iterator);
 // the same rule with a sequence prefix instead of a write: one slot, one order
-export const seqBelowProbeHops = null == (k++, _self).window ? void 0 : _Array$of(5);
+export const seqBelowProbeHops = (k++, _Array$of)(5);
 export { u, z, k };

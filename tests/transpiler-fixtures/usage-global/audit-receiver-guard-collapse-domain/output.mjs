@@ -17,7 +17,6 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.math.hypot";
 import "core-js/modules/es.number.parse-float";
-import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.ends-with";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";

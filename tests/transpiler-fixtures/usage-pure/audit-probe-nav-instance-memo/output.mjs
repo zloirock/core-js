@@ -2,7 +2,6 @@ import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _nameMaybeFunction from "@core-js/pure/actual/function/instance/name";
 import _globalThis from "@core-js/pure/actual/global-this";
 import _at from "@core-js/pure/actual/instance/at";
-import _self from "@core-js/pure/actual/self";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
 // the receiver of an INSTANCE dispatch is memoized, and the memo is where the nav's collapse has to
 // land: every row below reads (or deletes) a member off a proxy nav whose value the guard tests. the
@@ -22,7 +21,7 @@ export const resolvingNav = null == (_ref3 = _globalThis.Array) ? void 0 : _name
 
 // a DEEP probe (`window` below a resolvable `self`): the nav collapses onto the hop's ponyfill and
 // keeps the probe read plus its live `?.` - the memo is that value, not the raw source
-export const deepProbeNav = null == (_ref4 = _self.window?.Array) ? void 0 : _flatMaybeArray(_ref4.prototype);
+export const deepProbeNav = null == (_ref4 = _globalThis.Array) ? void 0 : _flatMaybeArray(_ref4.prototype);
 
 // the delete consumer collapses the navigation whole, through a SEQUENCE root and through the
 // guard scaffold this emit builds for the memo itself

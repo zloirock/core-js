@@ -129,34 +129,60 @@ runBoth('liveness/import alone', 'import _at from "@core-js/pure/actual/array/at
   check(`${ label } :: the import statement alone does not keep itself`, isLive('usage-pure/array/at', '_at'), false);
 });
 
-// --- unwrapWriteOnlyGuardMemos: the nested memo pattern, both tree states ---
+// --- unwrapWriteOnlyGuardMemos: a memo per guard TEST, both tree states ---
 
+// every null-compare contributes its own memo, so a nested guard yields one candidate per test -
+// the outer and the inner - and each is decided on its own read count
 const NESTED_GUARD = 'y = null == (_ref9 = null == (_ref2 = root) ? void 0 : _ref2.p) ? void 0 : _ref9;';
+
+function byName(census, name) {
+  return census.nestedGuardMemoCandidates.find(candidate => candidate.name === name);
+}
 
 runBoth('unwrap/write-only memo', `${ NESTED_GUARD }`, (adapter, programPath, label) => {
   const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref2', '_ref9']) });
-  check(`${ label } :: candidate collected from the composed shape`, census.nestedGuardMemoCandidates.length, 1);
-  // `_ref2` also reads in the alternate (`_ref2.p`) - two occurrences, memo KEPT
+  check(`${ label } :: one candidate per guard test`, census.nestedGuardMemoCandidates.length, 2);
+  // both refs read below their write - `_ref2` in the alternate (`_ref2.p`), `_ref9` in its own -
+  // so two occurrences each and both memos are KEPT
   unwrapWriteOnlyGuardMemos(census);
-  const [kept] = census.nestedGuardMemoCandidates;
-  check(`${ label } :: a read ref keeps its memo write`, unwrapRuntimeExpr(kept.test[kept.side]).type, 'AssignmentExpression');
+  for (const name of ['_ref2', '_ref9']) {
+    const kept = byName(census, name);
+    check(`${ label } :: a read ref keeps its memo write (${ name })`,
+      unwrapRuntimeExpr(kept.test[kept.side]).type, 'AssignmentExpression');
+  }
 }, [], 'script');
 
 runBoth('unwrap/write-only memo collapses', 'y = null == (_ref9 = null == (_ref2 = root) ? void 0 : x) ? void 0 : _ref9;',
   (adapter, programPath, label) => {
     const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref2', '_ref9']) });
     unwrapWriteOnlyGuardMemos(census);
-    const [candidate] = census.nestedGuardMemoCandidates;
+    const candidate = byName(census, '_ref2');
     check(`${ label } :: write-only memo collapses to its RHS`, candidate.test[candidate.side].type, 'Identifier');
     check(`${ label } :: the count follows the collapse`, census.refCounts.get('_ref2'), 0);
+    // ... and the one its own alternate READS stays whole
+    const read = byName(census, '_ref9');
+    check(`${ label } :: the read ref keeps its write`, unwrapRuntimeExpr(read.test[read.side]).type, 'AssignmentExpression');
   }, [], 'script');
 
 runBoth('unwrap/declared state', 'var _ref2; y = null == (_ref9 = null == (_ref2 = root) ? void 0 : x) ? void 0 : _ref9;',
   (adapter, programPath, label) => {
     const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref2', '_ref9']) });
     unwrapWriteOnlyGuardMemos(census);
-    const [candidate] = census.nestedGuardMemoCandidates;
+    const candidate = byName(census, '_ref2');
     check(`${ label } :: declared-state memo collapses on the same criterion`, candidate.test[candidate.side].type, 'Identifier');
+  }, [], 'script');
+
+// a TEST-OWN memo nothing reads collapses too - the shape FC-140 named: the claim in the alternate
+// is receiver-independent, so the ref is a write no reader consumes
+runBoth('unwrap/test-own memo', 'y = null == (_ref3 = root.p) ? void 0 : polyfilled;',
+  (adapter, programPath, label) => {
+    const census = collectInjectorCensus(programPath.node, { mintedRefNames: new Set(['_ref3']) });
+    check(`${ label } :: the test's own memo is a candidate`, census.nestedGuardMemoCandidates.length, 1);
+    unwrapWriteOnlyGuardMemos(census);
+    const candidate = byName(census, '_ref3');
+    check(`${ label } :: it collapses to the value the test reads`,
+      unwrapRuntimeExpr(candidate.test[candidate.side]).type, 'MemberExpression');
+    check(`${ label } :: the count follows the collapse`, census.refCounts.get('_ref3'), 0);
   }, [], 'script');
 
 // --- buildCanonicalRenameMap ---

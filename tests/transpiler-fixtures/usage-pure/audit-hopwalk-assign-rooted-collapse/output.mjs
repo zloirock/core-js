@@ -1,8 +1,8 @@
 import _findLastMaybeArray from "@core-js/pure/actual/array/instance/find-last";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _globalThis from "@core-js/pure/actual/global-this";
-import _includes from "@core-js/pure/actual/instance/includes";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Reflect from "@core-js/pure/actual/reflect/namespace";
 import _self from "@core-js/pure/actual/self";
@@ -30,7 +30,7 @@ export const namespaceLeaf = (a = _globalThis, _Reflect);
 // harvested prefix (the later root-collapse drive must defer to that wider claim)
 export const flat = _flatMaybeArray((a = _globalThis, _globalThis).Array.prototype);
 export const viaStatic = (b = _globalThis, _Array$of)(1, 2);
-export const includes = _includes((c = g, g).Array.prototype);
+export const includes = _includesMaybeArray((c = g, g).Array.prototype);
 // a paren-scoped optional whose subject is ENTIRELY proxy navigation over a chain-assign root is
 // dead: the subject collapses to the always-defined pure root, so the `?.` deopts and the collapse
 // owns the emit (a kept guard would memoize the raw `.self` hop - undefined off-engine, silently
