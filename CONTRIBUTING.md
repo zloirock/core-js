@@ -168,7 +168,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare test-builder
   ```
-- Transpiler plugins (`@core-js/babel-plugin`, `@core-js/unplugin`, `@core-js/polyfill-provider`) — shared fixture tests, cross-parser resolver, differential oracle, real-bundler integration and performance gates:
+- Transpiler plugins (`@core-js/babel-plugin`, `@core-js/unplugin`, `@core-js/polyfill-provider`) — shared fixture tests, cross-parser resolver, differential oracle and real-bundler integration:
   ```sh
   npm run test-transpiling
   ```
@@ -184,7 +184,10 @@ You can run parts of the test case separately:
   npm run test-e2e-usage-pure           # end-to-end usage-pure bundles in NodeJS (builds them first; Karma leg is separate)
   npm run test-transpiler-differential  # generated corpus: 3-way native == babel == unplugin + import-set parity + stripped-realm oracle; scope it with `pure` and/or `babel` / `unplugin`
   npm run test-transpiler-integration   # every supported bundler across methods and phases, runtime-verified
-  npm run test-transpiler-perf          # complexity-class gates over real packages and synthetic worst-case shapes
+  ```
+- Transpiler performance gates — complexity-class bounds over real packages and synthetic worst-case shapes. Measured by the clock, so they are not a part of the composite above and get a CI job of their own:
+  ```sh
+  npm run test-transpiler-perf
   ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```sh
